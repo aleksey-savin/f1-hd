@@ -1,0 +1,59 @@
+FROM node:23-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+
+# Extract version from package.json and set as env variable
+RUN export NPM_PACKAGE_VERSION=$(node -p "require('./package.json').version") && \
+    echo "VITE_VERSION=$NPM_PACKAGE_VERSION" > .env
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY frontend/ .
+
+# Build the application
+RUN pnpm run build
+
+FROM nginx:alpine AS production
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Copy custom nginx configuration
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Create non-root user
+RUN addgroup -g 1001 -S nginx-user && \
+    adduser -S nginx-user -u 1001 -G nginx-user
+
+# Set proper permissions for nginx directories
+RUN chown -R nginx-user:nginx-user /usr/share/nginx/html && \
+    chown -R nginx-user:nginx-user /var/cache/nginx && \
+    chown -R nginx-user:nginx-user /var/log/nginx && \
+    chown -R nginx-user:nginx-user /etc/nginx && \
+    mkdir -p /var/run/nginx && \
+    chown -R nginx-user:nginx-user /var/run/nginx && \
+    touch /var/run/nginx/nginx.pid && \
+    chown nginx-user:nginx-user /var/run/nginx/nginx.pid
+
+# Switch to non-root user
+USER nginx-user
+
+# Expose port
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+
+# Start nginx
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["nginx", "-g", "daemon off;"]

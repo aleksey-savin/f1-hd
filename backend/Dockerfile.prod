@@ -1,0 +1,55 @@
+FROM node:23-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml ./
+
+# Install all dependencies
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+# Create clean production build
+RUN npm pkg delete scripts.prepare scripts.precommit && \
+    cp package.json package.prod.json && \
+    rm -rf node_modules && \
+    pnpm install --prod --frozen-lockfile
+
+FROM node:23-alpine AS production
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Setup application directory
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nodejs -u 1001
+
+# Copy clean package files
+COPY --from=builder /app/package.prod.json ./package.json
+COPY pnpm-lock.yaml ./
+
+# Copy dependencies from builder
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy application code
+COPY --chown=nodejs:nodejs . .
+
+# Setup directories and permissions
+RUN mkdir -p uploads logs && chown -R nodejs:nodejs uploads logs
+
+# Switch to non-root user
+USER nodejs
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:8080/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+
+# Start the application
+CMD ["pnpm", "start:prod"]

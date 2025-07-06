@@ -50,9 +50,9 @@ ehthumbs.db
 Thumbs.db
 
 # Docker (exclude Docker files from version control)
-.dockerignore
-*/Dockerfile
-*/Dockerfile.prod
+#.dockerignore
+#*/Dockerfile
+#*/Dockerfile.prod
 
 # Husky
 .husky/
