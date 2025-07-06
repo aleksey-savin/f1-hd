@@ -1,0 +1,84 @@
+name: Deploy to Test Environment
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: |
+          cd backend && npm ci
+          cd ../frontend && npm ci
+          cd ../telegram-bot && npm ci
+
+      - name: Run tests
+        run: |
+          cd backend && npm test --if-present
+          cd ../frontend && npm test --if-present
+          cd ../telegram-bot && npm test --if-present
+
+      - name: Build applications
+        run: |
+          cd frontend && npm run build
+
+      - name: Deploy to Test Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.TEST_SERVER_HOST }}
+          username: ${{ secrets.TEST_SERVER_USER }}
+          key: ${{ secrets.TEST_SERVER_SSH_KEY }}
+          port: ${{ secrets.TEST_SERVER_PORT }}
+          script: |
+            set -e
+            echo "Starting deployment..."
+
+            # Navigate to project directory
+            cd /home/${{ secrets.TEST_SERVER_USER }}/hd
+
+            # Pull latest changes
+            git pull origin main
+
+            # Copy production environment file for testing
+            cp .env.prod .env
+
+            # Stop existing services
+            docker-compose -f compose.prod.yml down || true
+
+            # Remove old images to ensure fresh build
+            docker system prune -f || true
+
+            # Build and start services
+            docker-compose -f compose.prod.yml build --no-cache
+            docker-compose -f compose.prod.yml up -d
+
+            # Wait for services to be ready
+            sleep 30
+
+            # Health check
+            curl -f http://localhost/health || exit 1
+
+            echo "Deployment completed successfully!"
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Deployment to test environment successful!"
+          else
+            echo "❌ Deployment to test environment failed!"
+          fi
