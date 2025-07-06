@@ -8,7 +8,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout code
@@ -41,49 +41,43 @@ jobs:
         run: |
           cd frontend && pnpm run build
 
-      - name: Deploy to Test Server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.TEST_SERVER_HOST }}
-          username: ${{ secrets.TEST_SERVER_USER }}
-          key: ${{ secrets.TEST_SERVER_SSH_KEY }}
-          port: ${{ secrets.TEST_SERVER_PORT }}
-          script: |
-            set -e
-            echo "Starting deployment..."
+      - name: Stop existing services
+        run: |
+          docker-compose -f compose.prod.yml down || true
 
-            # Navigate to project directory
-            cd /home/${{ secrets.TEST_SERVER_USER }}/hd
+      - name: Clean up Docker resources
+        run: |
+          docker system prune -f || true
 
-            # Pull latest changes
-            git pull origin main
+      - name: Copy production environment
+        run: |
+          cp .env.prod .env
 
-            # Copy production environment file for testing
-            cp .env.prod .env
+      - name: Build and start services
+        run: |
+          docker-compose -f compose.prod.yml build --no-cache
+          docker-compose -f compose.prod.yml up -d
 
-            # Stop existing services
-            docker-compose -f compose.prod.yml down || true
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for services to start..."
+          sleep 30
 
-            # Remove old images to ensure fresh build
-            docker system prune -f || true
+      - name: Health check
+        run: |
+          curl -f http://localhost/health || exit 1
 
-            # Build and start services
-            docker-compose -f compose.prod.yml build --no-cache
-            docker-compose -f compose.prod.yml up -d
-
-            # Wait for services to be ready
-            sleep 30
-
-            # Health check
-            curl -f http://localhost/health || exit 1
-
-            echo "Deployment completed successfully!"
+      - name: Show deployment status
+        run: |
+          docker-compose -f compose.prod.yml ps
 
       - name: Notify deployment status
         if: always()
         run: |
           if [ ${{ job.status }} == 'success' ]; then
             echo "✅ Deployment to test environment successful!"
+            echo "🚀 Application is running at http://localhost"
           else
             echo "❌ Deployment to test environment failed!"
+            echo "📋 Check the logs above for details"
           fi
