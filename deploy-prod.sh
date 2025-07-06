@@ -136,7 +136,6 @@ build_images() {
     # Set BuildKit environment variables to prevent issues
     export DOCKER_BUILDKIT=1
     export BUILDKIT_PROGRESS=plain
-    export BUILDKIT_COLORS=0
 
     # Build all services with proper error handling
     if ! docker compose -f compose.prod.yml build --no-cache --progress=plain; then
