@@ -10,8 +10,8 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
       MONGO_INITDB_DATABASE: ${MONGODB_DATABASE}
     volumes:
-      - data:/data/db
-      - mongodb_config:/data/configdb
+      - hd_data:/data/db
+      - hd_mongodb_config:/data/configdb
     networks:
       - hd-network
     healthcheck:
@@ -173,10 +173,10 @@ services:
         max-file: "3"
 
 volumes:
-  data:
-    driver: local
-  mongodb_config:
-    driver: local
+  hd_data:
+    external: true
+  hd_mongodb_config:
+    external: true
 
 networks:
   hd-network:

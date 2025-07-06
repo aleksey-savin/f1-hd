@@ -2,7 +2,7 @@ services:
   mongodb:
     image: "mongo"
     volumes:
-      - data:/data/db
+      - hd_data:/data/db
     env_file:
       - .env.dev
     ports:
@@ -49,4 +49,5 @@ services:
   #     - mongodb
   #     - backend
 volumes:
-  data:
+  hd_data:
+    external: true
