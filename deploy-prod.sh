@@ -44,6 +44,14 @@ check_dependencies() {
         exit 1
     fi
 
+    # Check BuildKit support
+    if ! docker buildx version &> /dev/null; then
+        print_warning "Docker BuildKit (buildx) not available, using legacy builder"
+        export DOCKER_BUILDKIT=0
+    else
+        export DOCKER_BUILDKIT=1
+    fi
+
     print_success "All dependencies are installed"
 }
 
@@ -122,8 +130,20 @@ create_directories() {
 build_images() {
     print_status "Building Docker images..."
 
-    # Build all services
-    docker compose -f compose.prod.yml build --no-cache
+    # Clean up builder cache to prevent BuildKit issues
+    docker builder prune -f || true
+
+    # Set BuildKit environment variables to prevent issues
+    export DOCKER_BUILDKIT=1
+    export BUILDKIT_PROGRESS=plain
+    export BUILDKIT_COLORS=0
+
+    # Build all services with proper error handling
+    if ! docker compose -f compose.prod.yml build --no-cache --progress=plain; then
+        print_error "Docker build failed. Trying with legacy builder..."
+        export DOCKER_BUILDKIT=0
+        docker compose -f compose.prod.yml build --no-cache
+    fi
 
     print_success "Docker images built successfully"
 }
@@ -263,6 +283,11 @@ cleanup() {
 
     # Remove unused images
     docker image prune -f
+
+    # Remove builder cache to prevent BuildKit issues
+    if command -v docker buildx &> /dev/null; then
+        docker builder prune -f
+    fi
 
     # Remove unused volumes (be careful with this)
     read -p "Do you want to remove unused volumes? This will delete data! (y/N): " -n 1 -r
