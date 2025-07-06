@@ -88,7 +88,7 @@ setup_environment() {
     fi
 
     print_warning "Please review and update the following in .env.prod:"
-    print_warning "- FRONTEND_URL (set your actual domain)"
+    print_warning "- API_URL (set your actual domain)"
     print_warning "- TG_TOKEN (set your Telegram bot token)"
     print_warning "- TG_TOKEN"
     print_warning "- Domain-specific settings"
