@@ -43,11 +43,12 @@ jobs:
 
       - name: Stop existing services
         run: |
-          docker-compose -f compose.prod.yml down || true
+          docker compose -f compose.prod.yml down || true
 
       - name: Clean up Docker resources
         run: |
           docker system prune -f || true
+          docker builder prune -f || true
 
       - name: Copy production environment
         run: |
@@ -55,8 +56,11 @@ jobs:
 
       - name: Build and start services
         run: |
-          docker-compose -f compose.prod.yml build --no-cache
-          docker-compose -f compose.prod.yml up -d
+          set -e
+          echo "Building services..."
+          DOCKER_BUILDKIT=1 docker compose -f compose.prod.yml build --no-cache --progress=plain
+          echo "Starting services..."
+          docker compose -f compose.prod.yml up -d
 
       - name: Wait for services to be ready
         run: |
@@ -65,11 +69,28 @@ jobs:
 
       - name: Health check
         run: |
-          curl -f http://localhost/health || exit 1
+          echo "Performing health check..."
+          for i in {1..10}; do
+            if curl -f http://localhost/health; then
+              echo "Health check passed!"
+              exit 0
+            fi
+            echo "Health check attempt $i failed, retrying in 10 seconds..."
+            sleep 10
+          done
+          echo "Health check failed after 10 attempts"
+          docker compose -f compose.prod.yml logs
+          exit 1
 
       - name: Show deployment status
         run: |
-          docker-compose -f compose.prod.yml ps
+          docker compose -f compose.prod.yml ps
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "Showing container logs..."
+          docker compose -f compose.prod.yml logs --tail=50
 
       - name: Notify deployment status
         if: always()
