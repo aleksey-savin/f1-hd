@@ -17,24 +17,29 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
-          cache: "npm"
+          node-version: "24"
+          cache: "pnpm"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.10.0
 
       - name: Install dependencies
         run: |
-          cd backend && npm ci
-          cd ../frontend && npm ci
-          cd ../telegram-bot && npm ci
+          cd backend && pnpm install --frozen-lockfile
+          cd ../frontend && pnpm install --frozen-lockfile
+          cd ../telegram-bot && pnpm install --frozen-lockfile
 
       - name: Run tests
         run: |
-          cd backend && npm test --if-present
-          cd ../frontend && npm test --if-present
-          cd ../telegram-bot && npm test --if-present
+          cd backend && pnpm test --if-present
+          cd ../frontend && pnpm test --if-present
+          cd ../telegram-bot && pnpm test --if-present
 
       - name: Build applications
         run: |
-          cd frontend && npm run build
+          cd frontend && pnpm run build
 
       - name: Deploy to Test Server
         uses: appleboy/ssh-action@v1.0.3
