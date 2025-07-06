@@ -1,154 +1,53 @@
-const TelegramBot = require("node-telegram-bot-api");
+const express = require("express");
 const mongoose = require("mongoose");
-const winston = require("winston");
-const axios = require("axios");
-require("dotenv").config();
+const cron = require("node-cron");
+const { checkTgNotifications } = require("./controllers/telegramController");
+const { checkEmailNotifications } = require("./controllers/emailController");
+const { launchTgBot } = require("./middleware/tgBotApi");
 
-// Configure logger
-const logger = winston.createLogger({
-  level: "info",
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json(),
-  ),
-  transports: [
-    new winston.transports.File({ filename: "logs/error.log", level: "error" }),
-    new winston.transports.File({ filename: "logs/combined.log" }),
-    new winston.transports.Console({
-      format: winston.format.simple(),
-    }),
-  ],
-});
+const logger = require("./utils/logger");
 
-// Environment variables
-const BOT_TOKEN = process.env.TG_API_TOKEN;
-const TG_TOKEN = process.env.TG_TOKEN;
-const MONGODB_URI = `mongodb://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@mongodb:27017/${process.env.MONGODB_DATABASE}`;
-const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8080";
+const app = express();
 
-// Validate environment variables
-if (!BOT_TOKEN) {
-  logger.error("TG_API_TOKEN is required");
-  process.exit(1);
-}
+app.use(express.json());
 
-if (!TG_TOKEN) {
-  logger.error("TG_TOKEN is required");
-  process.exit(1);
-}
+mongoose.set("strictQuery", false);
 
-// Create bot instance
-const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+app.use((error, req, res) => {
+  const status = error.statusCode || 500;
+  const message = error.message;
+  const data = error.data;
 
-// MongoDB connection
-mongoose
-  .connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
-    logger.info("Connected to MongoDB");
-  })
-  .catch((error) => {
-    logger.error("MongoDB connection error:", error);
-    process.exit(1);
+  logger.log("error", "Error occurred", {
+    statusCode: status,
+    message: message,
+    data: data,
+    stack: process.env.NODE_ENV !== "production" ? error.stack : undefined, // Only include stack in non-production
+    path: req.path,
+    method: req.method,
+    ip: req.ip,
   });
 
-// Bot event handlers
-bot.on("message", async (msg) => {
-  const chatId = msg.chat.id;
-  const messageText = msg.text;
-
-  try {
-    logger.info(`Received message from ${chatId}: ${messageText}`);
-
-    // Basic command handling
-    if (messageText === "/start") {
-      await bot.sendMessage(
-        chatId,
-        "Welcome to HD Bot! Use /help to see available commands.",
-      );
-    } else if (messageText === "/help") {
-      const helpText = `
-Available commands:
-/start - Start the bot
-/help - Show this help message
-/status - Check system status
-      `;
-      await bot.sendMessage(chatId, helpText);
-    } else if (messageText === "/status") {
-      // Check backend status
-      try {
-        const response = await axios.get(`${BACKEND_URL}/health`);
-        await bot.sendMessage(
-          chatId,
-          `System Status: ✅ Online\nBackend: ${response.status === 200 ? "OK" : "Error"}`,
-        );
-      } catch (error) {
-        await bot.sendMessage(chatId, "System Status: ❌ Backend unavailable");
-      }
-    } else {
-      // Forward message to backend for processing
-      try {
-        const response = await axios.post(
-          `${BACKEND_URL}/api/telegram/message`,
-          {
-            chatId: chatId,
-            message: messageText,
-            userId: msg.from.id,
-            username: msg.from.username,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${TG_TOKEN}`,
-              "Content-Type": "application/json",
-            },
-          },
-        );
-
-        if (response.data.reply) {
-          await bot.sendMessage(chatId, response.data.reply);
-        }
-      } catch (error) {
-        logger.error("Error forwarding message to backend:", error);
-        await bot.sendMessage(
-          chatId,
-          "Sorry, there was an error processing your message.",
-        );
-      }
-    }
-  } catch (error) {
-    logger.error("Error handling message:", error);
-    await bot.sendMessage(
-      chatId,
-      "An error occurred while processing your message.",
-    );
-  }
+  res.status(status).json({
+    message: message,
+    ...(data && { data: data }), // Only include data if it exists
+  });
 });
 
-// Error handling
-bot.on("polling_error", (error) => {
-  logger.error("Polling error:", error);
-});
+mongoose
+  .connect(
+    `mongodb://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@mongodb:27017/${process.env.MONGODB_DATABASE}?authSource=admin`,
+  )
+  .catch((error) => {
+    logger.log("error", `Failed to start bot`, {
+      error: error.message,
+      stack: error.stack,
+    });
+  });
 
-bot.on("error", (error) => {
-  logger.error("Bot error:", error);
-});
+launchTgBot();
 
-// Graceful shutdown
-process.on("SIGINT", async () => {
-  logger.info("Received SIGINT, shutting down gracefully...");
-  await bot.stopPolling();
-  await mongoose.disconnect();
-  process.exit(0);
+cron.schedule("*/20 * * * * *", () => {
+  checkTgNotifications();
+  checkEmailNotifications();
 });
-
-process.on("SIGTERM", async () => {
-  logger.info("Received SIGTERM, shutting down gracefully...");
-  await bot.stopPolling();
-  await mongoose.disconnect();
-  process.exit(0);
-});
-
-logger.info("Telegram bot started successfully");
