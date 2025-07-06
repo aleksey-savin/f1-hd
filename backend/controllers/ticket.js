@@ -1,0 +1,1625 @@
+const fs = require("fs");
+
+const { AppError } = require("../middleware/errorHandling");
+const logger = require("../utils/logger");
+
+const getAuthData = require("../middleware/getAuthData");
+const Preferences = require("../models//preferences");
+
+const { Ticket } = require("../models/ticket");
+const User = require("../models//user");
+const Company = require("../models/company");
+const Category = require("../models/ticketCategory");
+const TicketLog = require("../models/ticketLog");
+const Work = require("../models/work");
+const Comment = require("../models/comment");
+
+const Connection = require("../models//getScreen/connection");
+
+exports.getAllOpened = async (req, res, next) => {
+  try {
+    const { isAdmin, permissions, userId, company } = await getAuthData(req);
+
+    const allTickets = await Ticket.find({ isClosed: false })
+      .populate({
+        path: "applicantId",
+        select:
+          "firstName lastName email phone position role isActive subdivision",
+        populate: {
+          path: "subdivision",
+          select: "name",
+        },
+      })
+      .populate({
+        path: "comments",
+        select: "content attachments createdAt createdBy",
+        populate: {
+          path: "createdBy",
+          select: "firstName lastName ",
+        },
+      })
+      .populate({
+        path: "categoryId",
+        select: "title",
+      })
+      .sort({
+        _id: -1,
+      });
+
+    let filteredTickets = [];
+
+    if (
+      isAdmin ||
+      permissions.canAdministrateTickets ||
+      permissions.canSeeAllTickets
+    ) {
+      // Пользователи с ролью администратор
+      filteredTickets = allTickets;
+    } else if (permissions.canSeeAllCompanyTickets) {
+      // Пользователи с разрешением на просмотр всех заявок Компании
+      filteredTickets = allTickets.filter((ticket) => {
+        return ticket.company._id.toString() === company._id.toString();
+      });
+    } else {
+      // Остальные пользователи
+      filteredTickets = allTickets.filter((ticket) => {
+        return (
+          ticket.responsibles
+            .map((resp) => resp._id.toString())
+            .includes(userId.toString()) ||
+          ticket.createdBy.toString() === userId.toString() ||
+          ticket.applicantId?._id.toString() === userId.toString()
+        );
+      });
+    }
+
+    let shortenedTickets = [];
+
+    for (let ticket of filteredTickets) {
+      const scheduledWorks = await Work.find({
+        tickets: ticket._id,
+        scheduled: true,
+        finishedAt: null,
+      });
+
+      shortenedTickets.push({
+        _id: ticket._id,
+        num: ticket.num,
+        company: {
+          _id: ticket.company._id,
+          alias: ticket.company.alias,
+        },
+        category: ticket.categoryId || ticket.category,
+        title: ticket.title,
+        attachments: ticket.attachments,
+        applicant: ticket.applicantId || ticket.applicant,
+        responsibles: ticket.responsibles,
+        createdAt: ticket.createdAt,
+        deadline: ticket.deadline,
+        finishedAt: ticket.finishedAt,
+        isClosed: ticket.isClosed,
+        state: ticket.state,
+        latestComment: ticket.comments[ticket.comments.length - 1],
+        scheduledWorks: scheduledWorks,
+        routineTask: ticket.routineTask,
+      });
+    }
+
+    res.status(200).json({ tickets: shortenedTickets });
+  } catch (error) {
+    next(new AppError("Failed to fetch opened tickets", 500, true, error));
+  }
+};
+
+exports.getRecentlyClosed = async (req, res, next) => {
+  try {
+    const { isAdmin, permissions, userId, company } = await getAuthData(req);
+
+    Date.prototype.minusDays = function (days) {
+      let date = new Date(this.valueOf());
+      date.setDate(date.getDate() - days);
+      return date;
+    };
+
+    const allTickets = await Ticket.find({
+      finishedAt: { $gte: new Date().minusDays(14) },
+    })
+      .populate({
+        path: "applicantId",
+        select:
+          "firstName lastName email phone position role isActive subdivision",
+        populate: {
+          path: "subdivision",
+          select: "name",
+        },
+      })
+      .populate({
+        path: "comments",
+        select: "content attachments createdAt createdBy",
+        populate: {
+          path: "createdBy",
+          select: "firstName lastName ",
+        },
+      })
+      .populate({
+        path: "categoryId",
+        select: "title",
+      })
+      .sort({
+        _id: -1,
+      });
+
+    let filteredTickets = [];
+
+    if (
+      isAdmin ||
+      permissions.canAdministrateTickets ||
+      permissions.canSeeAllTickets
+    ) {
+      // Пользователи с ролью администратор
+
+      filteredTickets = allTickets;
+    } else if (permissions.canSeeAllCompanyTickets) {
+      // Пользователи с разрешением на просмотр всех заявок Компании
+
+      filteredTickets = allTickets.filter(
+        (ticket) => ticket.company._id === company._id,
+      );
+    } else {
+      // Остальные пользователи
+
+      filteredTickets = allTickets.filter(
+        (ticket) =>
+          ticket.responsibles
+            .map((resp) => resp._id.toString())
+            .includes(userId.toString()) ||
+          ticket.createdBy.toString() === userId.toString() ||
+          ticket.applicantId?._id.toString() === userId.toString(),
+      );
+    }
+
+    let shortenedTickets = [];
+
+    for (let ticket of filteredTickets) {
+      const scheduledWorks = await Work.find({
+        tickets: ticket._id,
+        scheduled: true,
+        finishedAt: null,
+      });
+
+      shortenedTickets.push({
+        _id: ticket._id,
+        num: ticket.num,
+        company: {
+          _id: ticket.company._id,
+          alias: ticket.company.alias,
+        },
+        category: ticket.categoryId || ticket.category,
+        title: ticket.title,
+        attachments: ticket.attachments,
+        applicant: ticket.applicantId || ticket.applicant,
+        responsibles: ticket.responsibles,
+        createdAt: ticket.createdAt,
+        deadline: ticket.deadline,
+        finishedAt: ticket.finishedAt,
+        isClosed: ticket.isClosed,
+        state: ticket.state,
+        latestComment: ticket.comments[ticket.comments.length - 1],
+        scheduledWorks: scheduledWorks,
+        routineTask: ticket.routineTask,
+      });
+    }
+
+    res.status(200).json({ tickets: shortenedTickets });
+  } catch (error) {
+    next(
+      new AppError("Failed to fetch recently closed tickets", 500, true, error),
+    );
+  }
+};
+
+exports.getUsersTickets = async (req, res, next) => {
+  const contextLogger = await logger.addContext(req);
+  try {
+    const authedUser = await getAuthData(req);
+
+    const { isAdmin, permissions, userId } = authedUser;
+
+    let tickets = [];
+
+    contextLogger.log("info", "Fetching user's tickets");
+
+    if (
+      isAdmin ||
+      permissions.canAdministrateTickets ||
+      permissions.canSeeAllTickets
+    ) {
+      // Пользователи с ролью администратор
+      tickets = await Ticket.find({
+        "applicant._id": req.params.id,
+      }).sort({ lastName: 1 });
+    } else {
+      // Остальные пользователи
+      tickets = await Ticket.find({
+        $and: [
+          { "responsibles._id": userId },
+          { "applicant._id": req.params.id },
+        ],
+      }).sort({
+        _id: -1,
+      });
+    }
+
+    const shortenedTickets = tickets.map((ticket) => {
+      return {
+        _id: ticket._id,
+        num: ticket.num,
+        title: ticket.title,
+        state: ticket.state,
+        createdAt: ticket.createdAt,
+      };
+    });
+
+    contextLogger.log(
+      "info",
+      `Returning ${shortenedTickets.length} user's tickets`,
+    );
+
+    res.status(200).json(shortenedTickets);
+  } catch (error) {
+    next(new AppError(`Failed to fetch user's tickets`, 500, true, error));
+  }
+};
+
+exports.getClosed = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const { isAdmin, permissions } = authedUser;
+
+    const { companies, responsibles, categories, applicants, from, to } =
+      req.body;
+
+    const fromDate = new Date(from);
+    let toDate = new Date(to);
+    toDate = toDate.setDate(toDate.getDate() + 1); // Include the end date
+
+    let query = {
+      isClosed: true,
+      finishedAt: { $gte: fromDate, $lte: toDate },
+    };
+
+    // Add company filter
+    if (companies && companies.length > 0) {
+      query["company._id"] = { $in: companies };
+    } else {
+      // Default to user's company if no companies selected
+      query["company._id"] = authedUser.company._id;
+    }
+
+    // Add optional filters if provided
+    if (responsibles && responsibles.length > 0) {
+      query["responsibles._id"] = { $in: responsibles };
+    }
+
+    if (categories && categories.length > 0) {
+      query["categoryId"] = { $in: categories };
+    }
+
+    if (applicants && applicants.length > 0) {
+      query["applicantId"] = { $in: applicants };
+    }
+
+    // Apply permission-based restrictions
+    if (!isAdmin) {
+      if (permissions.canSeeAllCompanyTickets) {
+      } else if (permissions.canSeeAllTickets) {
+        // No additional restrictions
+      } else if (permissions.canPerformTickets) {
+        // Can only see tickets they're responsible for
+        if (!query["responsibles._id"]) {
+          query["responsibles._id"] = authedUser._id;
+        }
+      } else {
+        // End users can only see tickets they created
+        query["applicant._id"] = authedUser._id;
+      }
+    }
+
+    // Fetch tickets with populate for better data
+    const tickets = await Ticket.find(query)
+      .populate({
+        path: "categoryId",
+        select: "title",
+      })
+      .populate({
+        path: "applicantId",
+        select: "firstName lastName email",
+      })
+      .sort({ finishedAt: -1 });
+
+    // Transform tickets to match the structure expected by the frontend
+    const transformedTickets = tickets.map((ticket) => {
+      return {
+        _id: ticket._id,
+        num: ticket.num,
+        title: ticket.title,
+        applicant: ticket.applicantId || ticket.applicant,
+        category: ticket.categoryId || ticket.category,
+        responsibles: ticket.responsibles,
+        createdAt: ticket.createdAt,
+        finishedAt: ticket.finishedAt,
+        state: ticket.state,
+        isClosed: ticket.isClosed,
+      };
+    });
+
+    res.status(200).json({
+      total: transformedTickets.length,
+      tickets: transformedTickets,
+    });
+  } catch (error) {
+    next(new AppError("Failed to fetch closed tickets", 500, true, error));
+  }
+};
+
+exports.getOne = async (req, res, next) => {
+  try {
+    const { isEndUser } = await getAuthData(req);
+    const ticketNum = req.params.ticketNum;
+
+    const ticket = await Ticket.findOne({ num: ticketNum })
+      .populate({
+        path: "applicantId",
+        select:
+          "firstName lastName email phone position role isActive subdivision",
+        populate: {
+          path: "subdivision",
+          select: "name email address phone linkToMap",
+        },
+      })
+      .populate({
+        path: "comments",
+        populate: {
+          path: "createdBy",
+          select: "profileImagePath lastName firstName",
+        },
+      })
+      .populate({
+        path: "categoryId",
+        select: "title alwaysWithinPlan users",
+      })
+      .transform((doc) => {
+        doc = doc.toObject();
+        doc.applicant = doc.applicantId;
+        doc.category = doc.categoryId;
+        delete doc.applicantId;
+        delete doc.categoryId;
+        return doc;
+      });
+
+    const company = await Company.findById(ticket.company._id);
+
+    const works = await Work.find({ tickets: ticket._id });
+    const logs = await TicketLog.find({
+      $or: [{ ticket: ticketNum }, { ticketId: ticket._id }],
+    });
+
+    res.status(200).json({
+      message: "Ticket fetched",
+      ticket: ticket,
+      company: company || {},
+      works: works,
+      logs: isEndUser ? [] : logs,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch ticket ${req.params.ticketNum}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.getFormData = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+
+    let companies = [];
+    let applicants = [];
+    let categories = [];
+    let responsibles = [];
+
+    if (authedUser.isEndUser) {
+      companies = await Company.find({
+        _id: authedUser.company._id,
+      }).sort({ alias: 1 });
+
+      responsibles = await User.find({
+        $and: [{ "permissions.canPerformTickets": true }, { isActive: true }],
+      }).sort({ lastName: 1 });
+
+      if (authedUser.permissions?.canSeeAllCompanyTickets) {
+        applicants = await User.find({
+          "company._id": authedUser.company._id,
+          isServiceAccount: false,
+        });
+      } else {
+        applicants = [authedUser];
+      }
+    } else if (
+      authedUser.permissions.canAdministrateTickets ||
+      authedUser.isAdmin
+    ) {
+      companies = await Company.find({
+        "responsibles._id": authedUser._id,
+      }).sort({ alias: 1 });
+
+      applicants = await User.find({
+        $and: [{ isActive: true }, { isServiceAccount: false }],
+      }).sort({ lastName: 1 });
+
+      categories = await Category.find({ isActive: true }).sort({
+        title: 1,
+      });
+
+      responsibles = await User.find({
+        $and: [{ "permissions.canPerformTickets": true }, { isActive: true }],
+      }).sort({ lastName: 1 });
+    } else {
+      companies = await Company.find({
+        "responsibles._id": authedUser._id,
+      }).sort({ alias: 1 });
+
+      applicants = await User.find({
+        "company._id": { $in: companies },
+      }).sort({ lastName: 1 });
+
+      categories = await Category.find({
+        isActive: true,
+        _id: { $in: authedUser.categories },
+      }).sort({
+        title: 1,
+      });
+
+      responsibles = await User.find({
+        _id: authedUser._id,
+      }).sort({ lastName: 1 });
+    }
+
+    res.status(200).json({
+      message: "Form data fetched successfully",
+      companies: companies.map((company) => ({
+        _id: company._id,
+        alias: company.alias,
+      })),
+      applicants: applicants.map((applicant) => ({
+        _id: applicant._id,
+        lastName: applicant.lastName,
+        firstName: applicant.firstName,
+        company: applicant.company,
+        permissions: applicant.permissions,
+      })),
+
+      categories: categories.map((category) => ({
+        _id: category._id,
+        title: category.title,
+      })),
+      responsibles: responsibles.map((resp) => ({
+        _id: resp._id,
+        lastName: resp.lastName,
+        firstName: resp.firstName,
+      })),
+    });
+  } catch (error) {
+    next(new AppError(`Failed to fetch ticket form data`, 500, true, error));
+  }
+};
+
+exports.add = async (req, res, next) => {
+  try {
+    const { userId, company } = await getAuthData(req);
+    const { categoryId, applicantId } = req.body;
+    const prefs = await Preferences.findOne({});
+    const userCompany = await Company.findById(company._id);
+    const now = new Date();
+
+    const applicant = applicantId ? applicantId : userId;
+
+    const attachments = req.files?.map((file) => {
+      return {
+        mimetype: file.mimetype,
+        name: file.filename,
+      };
+    });
+
+    const customFields = req.body.customFields
+      ? JSON.parse(req.body.customFields)
+      : [];
+
+    const validCustomFields = customFields.filter(
+      (field) => field && field.name,
+    );
+
+    const ticket = new Ticket({
+      title: req.body.title,
+      description: req.body.description,
+      template: req.body.template ? JSON.parse(req.body.template) : null,
+      customFields: validCustomFields,
+      attachments: attachments,
+      isClosed: false,
+      categoryId: categoryId,
+      // Заявитель либо авторизованный пользователь, либо указанный в полной форме создания заявки
+      applicantId: applicant,
+      company: req.body.company ? JSON.parse(req.body.company) : userCompany,
+      responsibles: JSON.parse(req.body.responsibles),
+      deadline: req.body.deadline
+        ? req.body.deadline
+        : now.setTime(now.getTime() + prefs.deadline * 60 * 60 * 1000),
+      state: req.body.state,
+      source: req.body.source,
+      createdBy: userId,
+      updatedBy: userId,
+      notifications: {
+        lastAction: "new ticket",
+        pending: true,
+      },
+    });
+
+    await ticket.save();
+
+    // добавляем запись в лог заявки
+    const logEntry = new TicketLog({
+      ticketId: ticket._id,
+      user: {
+        firstName: applicant.firstName,
+        lastName: applicant.lastName,
+      },
+      severity: "info",
+      event: "создана новая заявка",
+    });
+    await logEntry.save();
+
+    res.status(201).json({
+      message: "Ticket added successfully!",
+      ticket: ticket,
+    });
+  } catch (error) {
+    if (req.files) {
+      for (let file of req.files) {
+        fs.unlink(file.path, (error) =>
+          logger.log("error", "Failed to unlink file", {
+            error: error.message,
+            stack: error.stack,
+          }),
+        );
+      }
+    }
+    next(new AppError(`Failed to add ticket`, 500, true, error));
+  }
+};
+
+exports.process = async (req, res, next) => {
+  try {
+    const {
+      title,
+      company,
+      description,
+      categoryId,
+      applicantId,
+      responsibles,
+      deadline,
+    } = req.body;
+
+    const authData = await getAuthData(req);
+
+    const ticket = await Ticket.findOne({ _id: req.body._id });
+
+    ticket.title = title;
+    ticket.company = company;
+    ticket.description = description;
+    ticket.categoryId = categoryId;
+    ticket.applicantId = applicantId;
+    ticket.responsibles = responsibles;
+    ticket.deadline = deadline;
+    ticket.updatedBy = authData.userId;
+    ticket.processedAt = new Date();
+    ticket.processedBy = authData.userId;
+    ticket.state = "Не в работе";
+    ticket.notifications = {
+      lastAction: "process ticket",
+      pending: true,
+    };
+
+    await ticket.save();
+
+    // добавляем запись в лог заявки
+    const logEntry = new TicketLog({
+      ticketId: ticket._id,
+      user: {
+        firstName: authData.firstName,
+        lastName: authData.lastName,
+      },
+      severity: "info",
+      event: "обработана заявка",
+    });
+    await logEntry.save();
+
+    res.status(201).json({
+      message: "Заявка успешно обработана",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to process ticket ${req.body._id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.takeToWork = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+
+    const ticket = await Ticket.findById(req.body._id);
+
+    ticket.state = "В работе";
+    ticket.startedAt = new Date();
+    ticket.startedBy = authedUser._id;
+    ticket.updatedBy = authedUser._id;
+    ticket.notifications = {
+      lastAction: "take ticket to work",
+      pending: true,
+    };
+
+    // if take over is true, clear all other responsibles
+    if (req.body.takeOver) {
+      ticket.responsibles = ticket.responsibles.filter(
+        (resp) => resp._id.toString() === authedUser._id.toString(),
+      );
+    }
+
+    await ticket.save();
+    // добавляем запись в лог заявки
+    const logEntry = new TicketLog({
+      ticketId: ticket._id,
+      user: {
+        firstName: authedUser.firstName,
+        lastName: authedUser.lastName,
+      },
+      severity: "info",
+      event: "заявка принята в работу",
+    });
+    await logEntry.save();
+
+    // если пользователь взял завку на себя, добавляем доп. запись в лог
+    if (req.body.takeOver) {
+      const logEntry = new TicketLog({
+        ticketId: ticket._id,
+        user: {
+          firstName: authedUser.firstName,
+          lastName: authedUser.lastName,
+        },
+        severity: "info",
+        event: "взял(а) заявку на себя",
+      });
+      await logEntry.save();
+    }
+
+    res.status(201).json({
+      message: "Ticket state updated successfully!",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to take to work ticket ${req.body._id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.requestHelp = async (req, res, next) => {
+  try {
+    const authData = await getAuthData(req);
+
+    const ticket = await Ticket.findById(req.body._id);
+
+    const filteredResponsibles = req.body.responsibles.filter((user) => {
+      const respList = ticket.responsibles.map((resp) => resp._id.toString());
+      if (respList.includes(user._id.toString())) {
+        return false;
+      }
+      return true;
+    });
+
+    ticket.responsibles = ticket.responsibles.concat(filteredResponsibles);
+    ticket.notifications = {
+      lastAction: "request help",
+      pending: true,
+    };
+
+    await ticket.save();
+
+    // добавляем запись в лог заявки
+    const logEntry = new TicketLog({
+      ticketId: ticket._id,
+      user: {
+        firstName: authData.firstName,
+        lastName: authData.lastName,
+      },
+      severity: "info",
+      event: `запросил(а) помощь, изменён список ответственных`,
+    });
+    await logEntry.save();
+
+    res.status(201).json({
+      message: "Пользователи добавлены в список ответственных",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to request help for ticket ${req.body._id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.joinResponsibles = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+
+    const ticket = await Ticket.findById(req.body._id);
+
+    const isDuplicated = () => {
+      for (let resp of ticket.responsibles) {
+        if (resp._id.toString() === authedUser._id.toString()) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const userExists = isDuplicated();
+
+    if (userExists) {
+      return res.status(201).json({
+        message: "Пользователь уже находится в списке ответственных",
+      });
+    }
+    ticket.responsibles = ticket.responsibles.concat(authedUser);
+
+    ticket.notifications = {
+      lastAction: "join responsibles",
+      pending: true,
+    };
+
+    await ticket.save();
+
+    // добавляем запись в лог заявки
+    const logEntry = new TicketLog({
+      ticketId: ticket._id,
+      user: {
+        firstName: authedUser.firstName,
+        lastName: authedUser.lastName,
+      },
+      severity: "info",
+      event: `присоединился к ответственным`,
+    });
+    await logEntry.save();
+
+    res.status(201).json({
+      message: "Пользователь добавлен в список ответственных",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to join responsibles for ticket ${req.body._id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.updateDeadline = async (req, res, next) => {
+  try {
+    const authData = await getAuthData(req);
+
+    const ticket = await Ticket.findById(req.body._id);
+
+    ticket.deadline = req.body.deadline;
+
+    await ticket.save();
+
+    // добавляем запись в лог заявки
+    const logEntry = new TicketLog({
+      ticketId: ticket._id,
+      user: {
+        firstName: authData.firstName,
+        lastName: authData.lastName,
+      },
+      severity: "info",
+      event: "обновлён дедлайн заявки",
+    });
+    await logEntry.save();
+
+    res.status(201).json({
+      message: "Ticket deadline updated successfully!",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to update deadline for ticket ${req.body._id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.reject = async (req, res, next) => {
+  try {
+    const authData = await getAuthData(req);
+
+    const ticket = await Ticket.findById(req.body._id);
+
+    const updatedResponsibles = ticket.responsibles.filter(
+      (user) => user?._id.toString() !== authData.userId.toString(),
+    );
+
+    const updatedState =
+      updatedResponsibles.length > 0 ? ticket.state : "Новая";
+
+    //если заявка откатилась в статус Новая, то сбрасываем кем и когда она была принята
+    if (updatedState === "Новая") {
+      ticket.processedAt = null;
+      ticket.processedBy = null;
+    }
+
+    //если заявка откатилась из статуса В работе +, то сбрасываем кем и когда она была принята
+    if (updatedState === "Не в работе" || updatedState === "Новая") {
+      ticket.startedAt = null;
+      ticket.startedBy = null;
+    }
+
+    ticket.responsibles = updatedResponsibles;
+
+    if (ticket.rejected) {
+      ticket.rejected.push({
+        by: authData.userId,
+        reason: req.body.rejectDesc,
+      });
+    } else {
+      ticket.rejected = [{ by: authData.userId, reason: req.body.rejectDesc }];
+    }
+
+    ticket.state = updatedState;
+    ticket.notifications = {
+      lastAction: "reject ticket",
+      pending: true,
+    };
+
+    await ticket.save();
+
+    // добавляем запись в лог заявки
+    const logEntry = new TicketLog({
+      ticketId: ticket._id,
+      user: {
+        firstName: authData.firstName,
+        lastName: authData.lastName,
+      },
+      severity: "info",
+      event: `отказ от заявки по причине ${req.body.rejectDesc}`,
+    });
+    await logEntry.save();
+
+    res.status(201).json({
+      message: "Ticket responsibles updated successfully!",
+    });
+  } catch (error) {
+    next(
+      new AppError(`Failed to reject ticket ${req.body._id}`, 500, true, error),
+    );
+  }
+};
+
+exports.close = async (req, res, next) => {
+  try {
+    const prefs = await Preferences.findOne({});
+    const authedUser = await getAuthData(req);
+    const { permissions } = authedUser;
+
+    const ticket = await Ticket.findById(req.body._id);
+    const works = await Work.find({
+      tickets: ticket._id,
+    });
+
+    let responsibles = [];
+
+    for (let resp of ticket.responsibles) {
+      const user = await User.findById(resp._id);
+
+      const worksExecutorsIds = works
+        .filter((work) => work.finishedAt)
+        .map((work) => work.finishedBy._id.toString());
+
+      if (
+        worksExecutorsIds.includes(resp._id.toString()) ||
+        user.permissions.canAvoidWorks
+      ) {
+        const user = await User.findById(resp._id);
+        responsibles.push(user);
+      }
+    }
+
+    const prevState = ticket.state;
+
+    if (works.length > 0 || permissions.canAvoidWorks) {
+      ticket.finishedAt = new Date();
+      ticket.responsibles = responsibles;
+      ticket.finishedBy = authedUser._id;
+      ticket.isClosed = true;
+      ticket.closingComment = req.body.closingComment;
+      ticket.state = "Закрыта";
+      ticket.notifications = {
+        lastAction: "close ticket",
+        pending: true,
+      };
+    } else {
+      return next(
+        new AppError(`Невозможно закрыть заявку без указания работ`, 422),
+      );
+    }
+
+    // удаление активных сеансов pro32connect
+    if (prevState !== ticket.state && ticket.state === "Закрыта") {
+      const connection = await Connection.findOne({
+        ticket: ticket.num,
+      });
+
+      if (connection) {
+        if (prefs.getScreen?.isActive) {
+          await fetch(
+            `https://api.pro32connect.ru/v1/support/close?apikey=${authedUser.getScreen.api}&connection_id=${connection.getScreenId}`,
+            {
+              method: "POST",
+            },
+          );
+        }
+        await Connection.deleteOne({ _id: connection._id });
+      }
+    }
+
+    // добавляем комментарий
+    const comment = new Comment({
+      content: req.body.closingComment,
+      ticketId: ticket._id,
+      notifications: {
+        lastAction: "new comment",
+        pending: false,
+      },
+      createdBy: authedUser,
+      updatedBy: authedUser,
+    });
+
+    await comment.save();
+
+    ticket.comments.push(comment._id);
+
+    await ticket.save();
+
+    // добавляем запись в лог заявки
+    const logEntry = new TicketLog({
+      ticketId: ticket._id,
+      user: {
+        firstName: authedUser.firstName,
+        lastName: authedUser.lastName,
+      },
+      severity: "info",
+      event: `заявка закрыта`,
+    });
+    await logEntry.save();
+
+    res.status(201).json({
+      message: "Ticket closed successfully!",
+    });
+  } catch (error) {
+    next(
+      new AppError(`Failed to close ticket ${req.body._id}`, 500, true, error),
+    );
+  }
+};
+
+exports.backToWork = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+    const authedUser = await User.findById(userId);
+
+    const ticket = await Ticket.findById(req.body._id);
+
+    ticket.finishedAt = null;
+    ticket.finishedBy = null;
+    ticket.isClosed = false;
+    ticket.state = "В работе";
+    ticket.returningComment = req.body.returningComment;
+    ticket.notifications = {
+      lastAction: "back to work",
+      pending: true,
+    };
+
+    // добавляем комментарий
+    const comment = new Comment({
+      content: req.body.returningComment,
+      ticketId: ticket._id,
+      notifications: {
+        lastAction: "new comment",
+        pending: false,
+      },
+      createdBy: authedUser,
+      updatedBy: authedUser,
+    });
+
+    await comment.save();
+
+    ticket.comments.push(comment._id);
+
+    await ticket.save();
+
+    // добавляем запись в лог заявки
+    const logEntry = new TicketLog({
+      ticketId: ticket._id,
+      user: {
+        firstName: authedUser.firstName,
+        lastName: authedUser.lastName,
+      },
+      severity: "info",
+      event: `заявка возвращена в работу, комментарий: ${req.body.returningComment}`,
+    });
+    await logEntry.save();
+
+    res.status(201).json({
+      message: "Ticket updated successfully!",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to return back to work ticket ${req.body._id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.delete = async (req, res, next) => {
+  try {
+    const prefs = await Preferences.findOne({});
+    const authData = await getAuthData(req);
+    const authedUser = await User.findById(authData.userId);
+
+    const ticket = await Ticket.findById(req.params.id);
+
+    if (ticket) {
+      const connection = await Connection.findOne({
+        ticket: ticket.num,
+      });
+
+      if (connection) {
+        if (prefs.getScreen?.isActive) {
+          await fetch(
+            `https://api.pro32connect.ru/v1/support/close?apikey=${authedUser.getScreen.api}&connection_id=${connection.getScreenId}`,
+            {
+              method: "POST",
+            },
+          );
+        }
+        await Connection.deleteOne({ _id: connection._id });
+      }
+
+      if (ticket.attachments) {
+        for (let file of ticket.attachments) {
+          fs.unlink(`uploads/${file.name}`, (error) =>
+            logger.log("error", `Failed to unlink file`, error),
+          );
+        }
+      }
+
+      const works = await Work.find({ tickets: ticket._id });
+
+      for (let work of works) {
+        if (work.tickets.length > 1) {
+          work.tickets = work.tickets.filter(
+            (t) => t._id.toString() !== ticket._id.toString(),
+          );
+          await work.save();
+        } else {
+          await Work.deleteOne({ _id: work._id });
+        }
+      }
+
+      await Ticket.deleteOne({ _id: req.params.id });
+
+      res.status(201).json({
+        message: "Ticket deleted successfully!",
+      });
+    } else {
+      return next(new AppError(`Couldn't find ticket ${req.params.id}`, 404));
+    }
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to delete ticket ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.deleteMultiple = async (req, res, next) => {
+  try {
+    const prefs = await Preferences.findOne({});
+    const authData = await getAuthData(req);
+    const authedUser = await User.findById(authData.userId);
+    const { ids } = req.body;
+
+    for (const id of ids) {
+      const ticket = await Ticket.findById(id);
+
+      if (ticket) {
+        const connection = await Connection.findOne({
+          ticket: ticket.num,
+        });
+
+        if (connection) {
+          if (prefs.getScreen?.isActive) {
+            await fetch(
+              `https://api.pro32connect.ru/v1/support/close?apikey=${authedUser.getScreen.api}&connection_id=${connection.getScreenId}`,
+              {
+                method: "POST",
+              },
+            );
+          }
+          await Connection.deleteOne({ _id: connection._id });
+        }
+
+        if (ticket.attachments) {
+          for (let file of ticket.attachments) {
+            fs.unlink(`uploads/${file.name}`, (error) =>
+              logger.log("error", "Failed to unlink file", error),
+            );
+          }
+        }
+
+        const works = await Work.find({ tickets: ticket._id });
+
+        for (let work of works) {
+          if (work.tickets.length > 1) {
+            work.tickets = work.tickets.filter(
+              (t) => t._id.toString() !== ticket._id.toString(),
+            );
+            await work.save();
+          } else {
+            await Work.deleteOne({ _id: work._id });
+          }
+        }
+
+        await Ticket.deleteOne({ _id: id });
+      }
+    }
+
+    res.status(200).json({
+      message: "Tickets deleted successfully!",
+    });
+  } catch (error) {
+    next(new AppError(`Failed to delete multiple tickets`, 500, true, error));
+  }
+};
+
+exports.update = async (req, res, next) => {
+  try {
+    const authData = await getAuthData(req);
+    const authedUser = await User.findById(authData.userId);
+    const prefs = await Preferences.findOne({});
+
+    const {
+      _id,
+      title,
+      company,
+      categoryId,
+      applicantId,
+      description,
+      responsibles,
+      deadline,
+      startedAt,
+      finishedAt,
+      isClosed,
+      state,
+    } = req.body;
+
+    const ticket = await Ticket.findById(_id);
+
+    if (!ticket) {
+      return next(new AppError(`Couldn't find ticket ${_id}`, 404));
+    }
+
+    const attachments = req.files?.map((file) => {
+      return {
+        mimetype: file.mimetype,
+        name: file.filename,
+      };
+    });
+
+    const customFields = req.body.customFields
+      ? JSON.parse(req.body.customFields)
+      : [];
+
+    const validCustomFields = customFields.filter(
+      (field) => field && field.name,
+    );
+
+    const prevState = ticket.state;
+
+    // Изменяем список ответственных, добавляем новых
+    for (let resp of JSON.parse(responsibles)) {
+      if (
+        !ticket.responsibles
+          .map((resp) => resp._id.toString())
+          .includes(resp._id.toString())
+      ) {
+        ticket.responsibles.push(resp);
+      }
+    }
+    // Изменяем список ответственных, удаляем старых
+    const newRespArray = ticket.responsibles.filter((resp) =>
+      JSON.parse(responsibles)
+        .map((resp) => resp._id.toString())
+        .includes(resp._id.toString()),
+    );
+
+    // adding users to removedFromRepsonsibles
+    const removedReps = ticket.responsibles.filter(
+      (resp) =>
+        !JSON.parse(responsibles)
+          .map((resp) => resp._id.toString())
+          .includes(resp._id.toString()),
+    );
+    for (let resp of removedReps) {
+      ticket.removedFromResponsibles.push({
+        _id: resp._id,
+        lastName: resp.lastName,
+        firstName: resp.firstName,
+        isNotified: {
+          telegram: false,
+          email: false,
+        },
+      });
+    }
+
+    ticket.title = title ? title : ticket.title;
+    ticket.company = company ? JSON.parse(company) : ticket.company;
+    ticket.categoryId = categoryId ? categoryId : ticket.categoryId;
+    ticket.applicantId = applicantId ? applicantId : ticket.applicantId;
+    ticket.description = description ? description : ticket.description;
+    ticket.customFields = validCustomFields;
+    ticket.attachments =
+      attachments?.length > 0
+        ? [...ticket.attachments, ...attachments]
+        : ticket.attachments;
+    ticket.responsibles = newRespArray;
+    ticket.deadline = deadline ? deadline : ticket.deadline;
+    ticket.startedAt = startedAt ? startedAt : ticket.startedAt;
+    ticket.startedBy = startedAt ? authData.userId : ticket.startedBy;
+    ticket.finishedAt = finishedAt ? finishedAt : ticket.finishedAt;
+    ticket.finishedBy = finishedAt ? authData.userId : ticket.finishedBy;
+
+    // сбрасываем значение isClosed на false, если заявка не в статусе Закрыта
+    if (state !== "Закрыта") {
+      ticket.isClosed = false;
+    }
+
+    ticket.state = state ? state : ticket.state;
+    ticket.isClosed = isClosed ? isClosed : ticket.isClosed;
+
+    /* if ((isClosed && works.length > 0) || authData.permissions.canAvoidWorks) {
+
+    } else if (!isClosed && state !== "Закрыта") {
+      ticket.state = state ? state : ticket.state;
+    } else {
+      return res.status(404).json({
+        error: 422,
+        message: "Can not close ticket without works",
+      });
+      } */
+
+    ticket.notifications = {
+      lastAction: "process ticket",
+      pending: true,
+    };
+    ticket.updatedBy = authData.userId;
+    //если заявка принята в работу делаем отметки кто и когда её принял
+    if (state === "В работе") {
+      ticket.startedAt = new Date();
+      ticket.startedBy = authedUser;
+    }
+    //если заявка откатилась из статуса В работе +, то сбрасываем кем и когда она была принята
+    if (state === "Не в работе" || state === "Новая") {
+      ticket.startedAt = null;
+      ticket.startedBy = null;
+    }
+
+    // удаление активных сеансов pro32connect
+    if (prevState !== ticket.state && ticket.state === "Закрыта") {
+      const connection = await Connection.findOne({
+        ticket: ticket.num,
+      });
+
+      if (connection) {
+        if (prefs.getScreen?.isActive) {
+          await fetch(
+            `https://api.pro32connect.ru/v1/support/close?apikey=${authedUser.getScreen.api}&connection_id=${connection.getScreenId}`,
+            {
+              method: "POST",
+            },
+          );
+        }
+        await Connection.deleteOne({ _id: connection._id });
+      }
+    }
+
+    await ticket.save();
+
+    // добавляем запись в лог заявки
+    const logEntry = new TicketLog({
+      ticketId: ticket._id,
+      user: {
+        firstName: authData.firstName,
+        lastName: authData.lastName,
+      },
+      severity: "info",
+      event: `заявка обновлена`,
+    });
+    await logEntry.save();
+
+    res.status(201).json({
+      message: "Ticket updated successfully!",
+      ticket: ticket,
+    });
+  } catch (error) {
+    if (req.files) {
+      for (let file of req.files) {
+        fs.unlink(file.path, () =>
+          logger.log("error", "Failed to unlink file"),
+        );
+      }
+    }
+    next(
+      new AppError(`Failed to update ticket ${req.body._id}`, 500, true, error),
+    );
+  }
+};
+
+exports.getAllOpenedTg = async (req, res, next) => {
+  const contextLogger = logger.addNoAuthContext(req);
+  try {
+    contextLogger.log("info", "Fetching all opened tickets from Telegram");
+    const chatId = req.query.chat_id;
+    if (!chatId) {
+      return next(
+        new AppError(`Для обработки запроса требуется корректный chatId`, 401),
+      );
+    }
+    const user = await User.findOne({ "telegramBot.chatId": chatId });
+
+    const { _id: userId, isAdmin, permissions } = user;
+
+    Date.prototype.minusDays = function (days) {
+      let date = new Date(this.valueOf());
+      date.setDate(date.getDate() - days);
+      return date;
+    };
+
+    const allTickets = await Ticket.find({ isClosed: false })
+      .populate({
+        path: "applicantId",
+        select: "firstName lastName email phone position",
+      })
+      .populate({
+        path: "categoryId",
+        select: "title",
+      })
+      .populate({
+        path: "comments",
+        populate: {
+          path: "createdBy",
+          select: "lastName firstName",
+        },
+      })
+      .sort({
+        _id: -1,
+      });
+
+    let tickets = [];
+
+    if (
+      isAdmin ||
+      permissions.canAdministrateTickets ||
+      permissions.canSeeAllTickets
+    ) {
+      // Пользователи с ролью администратор
+      tickets = allTickets;
+    } else if (permissions.canSeeAllCompanyTickets) {
+      // Пользователи с разрешением на просмотр всех заявок Компании
+      tickets = allTickets.filter(
+        (ticket) => ticket.company._id === user.company._id,
+      );
+    } else {
+      // Остальные пользователи
+      tickets = await Ticket.find({
+        $and: [
+          { isClosed: false },
+          {
+            $or: [
+              { "responsibles._id": userId },
+              { createdBy: userId },
+              { applicantId: userId },
+            ],
+          },
+        ],
+      })
+        .populate({
+          path: "applicantId",
+          select: "firstName lastName email phone position isActive",
+        })
+        .populate({
+          path: "categoryId",
+          select: "title",
+        })
+        .populate({
+          path: "comments",
+          populate: {
+            path: "createdBy",
+            select: "lastName firstName",
+          },
+        })
+        .sort({
+          _id: -1,
+        });
+    }
+
+    let shortenedTickets = [];
+
+    for (let ticket of tickets) {
+      shortenedTickets.push({
+        _id: ticket._id,
+        num: ticket.num,
+        company: {
+          alias: ticket.company.alias,
+        },
+        title: ticket.title,
+        description: ticket.description,
+        applicant: ticket.applicantId,
+        category: ticket.categoryId,
+        responsibles: ticket.responsibles,
+        createdAt: ticket.createdAt,
+        deadline: ticket.deadline,
+        finishedAt: ticket.finishedAt,
+        isClosed: ticket.isClosed,
+        state: ticket.state,
+        latestComment: ticket.comments[ticket.comments.length - 1],
+      });
+    }
+
+    res.status(200).json({ tickets: shortenedTickets });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to return all opened tickets to Telegram for chat ${req.query.chat_id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.updateChecklistItem = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+
+    const authedUser = await User.findById(userId);
+    const ticketNum = req.params.ticketNum;
+    const checklistItem = {
+      _id: req.body._id,
+      description: req.body.description,
+      checked: req.body.checked,
+      checkedBy: {
+        _id: authedUser._id,
+        lastName: authedUser.lastName,
+        firstName: authedUser.firstName,
+      },
+    };
+
+    const ticket = await Ticket.findOne({ num: ticketNum });
+
+    if (!ticket) {
+      return next(new AppError(`Couldn't find ticket ${ticketNum}`, 404));
+    }
+
+    const updatedItem = ticket.checklist.filter(
+      (item) => item._id.toString() === checklistItem._id.toString(),
+    );
+
+    updatedItem[0].checked = checklistItem.checked;
+    updatedItem[0].checkedBy = checklistItem.checkedBy;
+
+    await ticket.save();
+
+    res.status(201).json({
+      message: "Чеклист обновлён",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to update checklist item for ticket ${req.params.ticketNum}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.updateChecklist = async (req, res, next) => {
+  try {
+    const ticketNum = req.params.ticketNum;
+
+    const ticket = await Ticket.findOne({ num: ticketNum });
+
+    if (!ticket) {
+      return next(new AppError(`Couldn't find ticket ${ticketNum}`, 404));
+    }
+
+    const checklist = req.body.map((item) => {
+      const jsonItem = JSON.parse(item);
+      return {
+        description: jsonItem.description,
+        checked: jsonItem.checked,
+        mandatory: jsonItem.mandatory,
+        checkedBy: jsonItem.checkedBy,
+      };
+    });
+
+    ticket.checklist = checklist;
+
+    await ticket.save();
+
+    res.status(201).json({
+      message: "Чеклист обновлён",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to update checklist for ticket ${req.params.ticketNum}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};

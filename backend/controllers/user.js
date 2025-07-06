@@ -1,0 +1,596 @@
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const fs = require("fs");
+
+const getAuthData = require("../middleware/getAuthData");
+const { AppError } = require("../middleware/errorHandling");
+const { concatIdsArray } = require("../helpers/concatIdsArray");
+
+const User = require("../models/user");
+const Company = require("../models/company");
+const Subdivision = require("../models/subdivision");
+const TicketCategory = require("../models/ticketCategory");
+const Prefs = require("../models/preferences");
+
+exports.getAll = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+    const authedUser = await User.findById(userId);
+
+    const allUsers = await User.find({}).sort({ lastName: 1 });
+
+    const filteredUsers = allUsers.filter((user) => {
+      if (
+        authedUser.responsibleForCompanies
+          .map((company) => company._id.toString())
+          .includes(user.company._id.toString()) ||
+        authedUser.permissions.canAdministrateTickets ||
+        authedUser.isAdmin
+      ) {
+        return user;
+      }
+    });
+
+    const reducedUsers = filteredUsers.map((user) => {
+      return {
+        _id: user._id,
+        lastName: user.lastName,
+        firstName: user.firstName,
+        profileImagePath: user.profileImagePath,
+        company: { _id: user.company._id, alias: user.company.alias },
+        role: user.role,
+        position: user.position,
+        email: user.email,
+        phone: user.phone,
+        isServiceAccount: user.isServiceAccount,
+        isAdmin: user.isAdmin,
+        isEndUser: user.isEndUser,
+        isCloudTelephony: user.isCloudTelephony,
+        permissions: user.permissions,
+        createdAt: user.createdAt,
+      };
+    });
+
+    res.status(200).json({
+      message: "Users fetched",
+      users: reducedUsers,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to fetch users`, 500, true, error));
+  }
+};
+
+exports.getOne = async (req, res, next) => {
+  try {
+    const { userId } = await await getAuthData(req);
+
+    const authedUser = await User.findById(userId);
+
+    const user = await User.findById(req.params.id)
+      .select("-password -resetToken -resetTokenExpiration ")
+      .populate({
+        path: "subdivision",
+        select: "_id name",
+        populate: {
+          path: "manager",
+          select: "_id firstName lastName",
+        },
+      });
+
+    if (!user) {
+      return next(new AppError(`Failed to fetch user ${req.params.id}`, 404));
+    }
+
+    if (!authedUser.isEndUser) {
+      res.status(200).json(user);
+    } else {
+      res.status(200).json(authedUser);
+    }
+  } catch (error) {
+    next(
+      new AppError(`Failed to fetch user ${req.params.id}`, 500, true, error),
+    );
+  }
+};
+
+exports.getAuthed = async (req, res, next) => {
+  try {
+    const authData = await getAuthData(req);
+    const authedUser = await User.findById(authData.userId);
+    if (!authedUser) {
+      return next(new AppError(`Authed user not found`, 404));
+    }
+    res.status(200).json({
+      message: "Auth data fetched",
+      authedUser: authedUser,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to fetch authedUser`, 500, true, error));
+  }
+};
+
+exports.getCanPerformTicketsUsers = async (req, res, next) => {
+  try {
+    const users = await User.find({
+      "permissions.canPerformTickets": true,
+    });
+    res.status(200).json(users);
+  } catch (error) {
+    next(
+      new AppError(`Failed to fetch CanPerformTicketsUsers`, 500, true, error),
+    );
+  }
+};
+
+exports.add = async (req, res, next) => {
+  try {
+    const {
+      company: companyId,
+      subdivision: subdivisionId,
+      categories,
+      email,
+      password,
+      sendPassword,
+      phone,
+      firstName,
+      lastName,
+      position,
+      notify,
+      role,
+      isActive,
+      isAdmin,
+      isEndUser,
+      isServiceAccount,
+      isCloudTelephony,
+      permissions,
+      dashboard,
+
+      getScreenApi,
+    } = req.body;
+
+    if (await User.findOne({ email: email })) {
+      return next(
+        new AppError(`Пользователь с адресом ${email} уже существует`, 409),
+      );
+    }
+
+    const company = await Company.findById(companyId);
+    const subdivision = subdivisionId
+      ? await Subdivision.findById(subdivisionId)
+      : null;
+
+    let categoriesList = [];
+    for (let id of categories) {
+      let category = null;
+      if (id) {
+        category = await TicketCategory.findById(id);
+      }
+
+      if (category) {
+        categoriesList.push(category);
+      }
+    }
+
+    const plainPassword = password ? password : crypto.randomUUID();
+    const hashedPassword = await bcrypt.hash(plainPassword, 12);
+
+    const user = new User({
+      email: email?.toLowerCase(),
+      phone: phone,
+      firstName: firstName,
+      lastName: lastName || "",
+      position: position,
+      company: company,
+      subdivision: subdivision,
+      categories: categoriesList,
+      role: role,
+      isAdmin: isAdmin,
+      isEndUser: isEndUser,
+      isServiceAccount: isServiceAccount,
+      isCloudTelephony: isCloudTelephony,
+      password: hashedPassword,
+      isActive: isActive,
+      getScreen: {
+        api: getScreenApi || "",
+      },
+      permissions: permissions,
+      dashboard: dashboard,
+      notify: notify,
+      notifications: {
+        lastAction: "new user",
+        password: jwt.sign(password, process.env.JWT_SECRET),
+        pending: sendPassword,
+      },
+    });
+    await user.save();
+
+    company.employees.push(user._id);
+
+    await company.save();
+
+    if (subdivision) {
+      subdivision.users.push(user._id);
+      await subdivision.save();
+    }
+
+    for (let category of user.categories) {
+      const updatedCategory = await TicketCategory.findById(category._id);
+      if (updatedCategory) {
+        updatedCategory.users.push(user);
+        await updatedCategory.save();
+      }
+    }
+
+    res.status(201).json({
+      message: "Новый пользователь добавлен",
+      userId: user._id,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to add new user`, 500, true, error));
+  }
+};
+
+exports.update = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    const prevCompany = await Company.findById(user.company._id);
+    const newCompany = await Company.findById(req.body.company);
+    const prevSubdivision = user.subdivision
+      ? await Subdivision.findById(user.subdivision)
+      : null;
+    const newSubdivision = req.body.subdivision
+      ? await Subdivision.findById(req.body.subdivision)
+      : null;
+    const prefs = await Prefs.findOne({});
+
+    const {
+      email,
+      phone,
+      firstName,
+      lastName,
+      position,
+      role,
+      isActive,
+      isAdmin,
+      isEndUser,
+      isServiceAccount,
+      isCloudTelephony,
+      categories,
+      permissions,
+      dashboard,
+      getScreen,
+    } = req.body;
+
+    if (prevSubdivision) {
+      prevSubdivision.users = prevSubdivision.users.filter(
+        (id) => id.toString() !== user._id.toString(),
+      );
+      await prevSubdivision.save();
+    }
+
+    if (newSubdivision) {
+      user.subdivision = newSubdivision._id;
+      newSubdivision.users.push(user._id);
+      await newSubdivision.save();
+    } else {
+      user.subdivision = null;
+    }
+
+    let categoriesList = [];
+    const categoriesArray = concatIdsArray(categories, user.categories);
+    for (let categoryId of categoriesArray) {
+      const updatedCategory = await TicketCategory.findById(categoryId);
+      if (updatedCategory) {
+        let filteredUsers = updatedCategory.users.filter(
+          (categoryUser) => categoryUser._id.toString() !== user._id.toString(),
+        );
+
+        if (categories.includes(updatedCategory._id.toString())) {
+          categoriesList.push(updatedCategory);
+          filteredUsers.push(user);
+        }
+        updatedCategory.users = filteredUsers;
+        await updatedCategory.save();
+      }
+    }
+
+    user.email = email?.toLowerCase();
+    user.phone = phone;
+    user.firstName = firstName;
+    user.lastName = lastName || "";
+    user.position = position;
+    user.categories = categoriesList.filter(Boolean);
+    user.company = newCompany;
+    user.role = role ?? role;
+    user.isActive = isActive;
+    user.isAdmin = isAdmin;
+    user.isEndUser = isEndUser;
+    user.isServiceAccount = isServiceAccount;
+    user.isCloudTelephony = isCloudTelephony;
+    user.permissions = permissions;
+    user.dashboard = dashboard;
+
+    if (prefs.getScreen.isActive) {
+      user.getScreen.api = getScreen ? getScreen.api : user.getScreen.api;
+    }
+
+    await user.save();
+
+    if (newCompany._id.toString() !== prevCompany._id.toString()) {
+      newCompany.employees.push(user);
+
+      prevCompany.employees = prevCompany.employees.filter(
+        (item) => item.toString() !== user._id.toString(),
+      );
+
+      await prevCompany.save();
+      await newCompany.save();
+    }
+
+    res.status(201).json({
+      message: "Данные пользователя обновлены",
+      userId: user._id,
+    });
+  } catch (error) {
+    next(
+      new AppError(`Failed to update user ${req.params.id}`, 500, true, error),
+    );
+  }
+};
+
+exports.delete = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (user) {
+      const company = await Company.findById(user.company._id);
+
+      if (company) {
+        company.employees = company.employees.filter(
+          (item) => item._id.toString() !== user._id.toString(),
+        );
+        await company.save();
+      }
+
+      if (user.subdivision) {
+        const subdivision = await Subdivision.findById(user.subdivision);
+        if (subdivision) {
+          subdivision.users = subdivision.users.filter(
+            (id) => id.toString() !== user._id.toString(),
+          );
+          await subdivision.save();
+        }
+      }
+
+      for (let category of user.categories) {
+        const updatedCategory = await TicketCategory.findById(category._id);
+        if (updatedCategory) {
+          const filteredUsers = updatedCategory.users.filter(
+            (categoryUser) =>
+              categoryUser._id.toString() !== user._id.toString(),
+          );
+
+          updatedCategory.users = filteredUsers;
+
+          await updatedCategory.save();
+        }
+      }
+
+      await User.deleteOne({ _id: req.params.id });
+
+      res.status(201).json({
+        message: "Пользователь удалён",
+      });
+    }
+  } catch (error) {
+    next(
+      new AppError(`Failed to delete user ${req.params.id}`, 500, true, error),
+    );
+  }
+};
+
+exports.changePassword = async (req, res, next) => {
+  try {
+    const { password, repeatedPassword, sendPassword } = req.body;
+
+    const user = await User.findById(req.params.id);
+
+    if (password !== repeatedPassword) {
+      return next(new AppError(`Пароли не совпадают`, 401));
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    user.password = hashedPassword;
+    user.notifications = {
+      lastAction: "change password",
+      password: jwt.sign(password, process.env.JWT_SECRET),
+      pending: sendPassword,
+    };
+
+    await user.save();
+
+    res.status(201).json({
+      message: "Пароль успешно сброшен",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to change password for user ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.deleteBackgroundImage = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return next(new AppError(`User not found`, 404));
+    }
+
+    fs.unlink(`uploads/${user.backgroundImagePath}`, (error) =>
+      next(new AppError(`Failed to unlink background image`, 500, true, error)),
+    );
+
+    user.backgroundImagePath = "";
+
+    await user.save();
+
+    res.status(201).json({
+      message: "Файл успешно удалён",
+      backgroundImagePath: "",
+    });
+  } catch (error) {
+    next(new AppError(`Failed to delete background image`, 500, true, error));
+  }
+};
+
+exports.addBackgroundImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return next(new AppError(`File not uploaded`, 400));
+    }
+
+    const { userId } = await getAuthData(req);
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return next(new AppError(`User not found`, 404));
+    }
+
+    if (user.backgroundImagePath) {
+      fs.unlink(`uploads/${user.backgroundImagePath}`, (error) =>
+        next(new AppError(`Failed to unlink file`, 500, true, error)),
+      );
+    }
+
+    user.backgroundImagePath = req.file.filename;
+
+    await user.save();
+
+    res.status(201).json({
+      message: "Файл успешно загружен",
+      backgroundImagePath: user.backgroundImagePath,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to add background image`, 500, true, error));
+  }
+};
+
+exports.addProfileImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return next(new AppError(`File not uploaded`, 400));
+    }
+
+    const userId = req.params.id;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(400).json({ error: "Пользователь не найден" });
+    }
+
+    if (user.profileImagePath) {
+      fs.unlink(`uploads/${user.profileImagePath}`, (error) =>
+        next(new AppError(`Failed to unlink file`, 500, true, error)),
+      );
+    }
+
+    user.profileImagePath = req.file.filename;
+
+    await user.save();
+
+    res.status(201).json({
+      message: "Файл успешно загружен",
+      profileImagePath: user.profileImagePath,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to add profile image`, 500, true, error));
+  }
+};
+
+exports.updateMyAccount = async (req, res, next) => {
+  try {
+    const {
+      id,
+      firstName,
+      lastName,
+      email,
+      phone,
+      position,
+      categories,
+      notify,
+      telegramBot,
+    } = req.body;
+
+    const user = await User.findById(id);
+
+    user.email = email ? email : user.email;
+    user.phone = phone ? phone : user.phone;
+    user.firstName = firstName ? firstName : user.firstName;
+    user.lastName = lastName ? lastName : user.lastName;
+    user.position = position ? position : user.position;
+    user.categories = categories ? categories : user.categories;
+    user.notify = notify ? notify : user.notify;
+    user.telegramBot = telegramBot ? telegramBot : user.telegramBot;
+
+    await user.save();
+
+    res.status(201).json({
+      message: "Данные пользователя успешно обновлены",
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.lastName,
+        phone: user.phone,
+        position: user.position,
+        categories: user.categories,
+        notify: user.notify,
+        telegramBot: user.telegramBot,
+      },
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to update user account with id ${req.body.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.disableChangelogNotification = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+    const user = await User.findById(userId);
+
+    user.notifications.changelogUpdate = false;
+
+    await user.save();
+
+    res.status(201).json({
+      message: "User notifications updated successfully!",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to disable changelog notification`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};

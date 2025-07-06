@@ -1,0 +1,8 @@
+.env
+.gitlab-ci.yml
+/uploads
+.dockerignore
+docker-compose.yml
+Dockerfile
+node_modules
+/logs

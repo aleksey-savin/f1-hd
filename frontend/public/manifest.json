@@ -1,0 +1,8 @@
+{
+  "short_name": "F1Lab Helpdesk",
+  "name": "F1Lab Helpdesk",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}

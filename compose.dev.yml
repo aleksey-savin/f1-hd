@@ -1,0 +1,52 @@
+services:
+  mongodb:
+    image: "mongo"
+    volumes:
+      - data:/data/db
+    env_file:
+      - .env.dev
+    ports:
+      - "27017:27017"
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    env_file:
+      - .env.dev
+    depends_on:
+      - mongodb
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    env_file:
+      - .env.dev
+    stdin_open: true
+    tty: true
+    depends_on:
+      - backend
+  # telegram-bot:
+  #   build:
+  #     context: ./telegram-bot
+  #     dockerfile: Dockerfile
+  #   volumes:
+  #     - ./telegram-bot:/app
+  #     - /app/node_modules
+  #   env_file:
+  #     - .env.dev
+  #   depends_on:
+  #     - mongodb
+  #     - backend
+volumes:
+  data:

@@ -1,0 +1,20 @@
+@import url("light/bootstrap.css");
+@import url("./table.css");
+
+#root {
+    background-color: #ecf0f1;
+}
+
+table {
+    background: #ffffff;
+}
+
+.table-warning {
+    color: #000000;
+}
+
+@media only screen and (max-width: 767px) {
+    #root {
+        background-color: #ffffff;
+    }
+}

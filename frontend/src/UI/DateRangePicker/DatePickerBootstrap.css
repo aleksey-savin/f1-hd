@@ -1,0 +1,54 @@
+/* DatePickerBootstrap.css */
+
+/* Container that holds the datepicker and clear button */
+.input-group-datepicker-wrapper {
+    position: relative;
+    flex: 1 1 auto;
+    width: 1%;
+    min-width: 0;
+}
+
+/* Style for the clear button */
+.datepicker-clear-button {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #6c757d;
+    padding: 0;
+    cursor: pointer;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.datepicker-clear-button:hover {
+    color: #495057;
+}
+
+/* Make the datepicker wrapper take appropriate space */
+.datepicker-wrapper {
+    display: block;
+    width: 100%;
+}
+
+/* Fix for the input field */
+.input-group-datepicker-wrapper .form-control {
+    padding-right: 30px; /* Make space for the clear button */
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+/* Make sure the datepicker inner container also takes full width */
+.react-datepicker__input-container {
+    display: block;
+    width: 100%;
+}
+
+/* Make the calendar popup appear above other elements */
+.bootstrap-datepicker-popper {
+    z-index: 1050 !important;
+}

@@ -1,0 +1,7 @@
+@import url('dark/bootstrap.css');
+@import url('dark/dark-mode.css');
+@import url('./table.css');
+
+table {
+    background: #303030;
+}

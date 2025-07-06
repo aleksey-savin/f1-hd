@@ -1,0 +1,92 @@
+#theme {
+    background-color: rgb(173, 181, 189);
+}
+
+.accordion-button[aria-expanded="true"] {
+    background-color: rgb(34, 34, 34);
+    color: rgb(255, 255, 255);
+}
+
+.alert-light {
+    background-color: #444;
+}
+
+.bg-light {
+    background-color: #444 !important;
+}
+
+.border-top,
+.border-end,
+.border-bottom,
+.border-start {
+    border-color: rgb(68, 68, 68) !important;
+}
+
+.form-select {
+    background-color: rgb(235, 235, 235) !important;
+}
+
+.form-control {
+    background-color: rgb(235, 235, 235) !important;
+}
+
+.rdw-editor-wrapper {
+    background-color: rgb(235, 235, 235) !important;
+    color: #303030;
+}
+
+.rdw-editor-toolbar {
+    background-color: #444 !important;
+    color: #303030;
+}
+
+ul.country-list {
+    background-color: rgb(235, 235, 235) !important;
+}
+
+li.country.highlight {
+    background-color: #303030 !important;
+}
+
+li.country:hover {
+    background-color: #303030 !important;
+}
+
+.flag-dropdown {
+    background-color: rgb(235, 235, 235) !important;
+}
+
+table.table tbody tr td {
+    color: white !important;
+}
+
+table.table tbody tr th {
+    color: white !important;
+}
+
+table.table thead tr th {
+    color: white !important;
+}
+
+div.navbar-nav:nth-child(2)
+    > a:nth-child(1)
+    > div:nth-child(1)
+    > input:nth-child(1) {
+    background-color: rgb(235, 235, 235);
+}
+
+.modal-body .WordSection1 {
+    background-color: rgb(235, 235, 235);
+}
+
+.rhap_container {
+    background-color: #303030 !important;
+}
+
+.fc-list-table tbody tr th div {
+    background-color: rgb(34, 34, 34) !important;
+}
+
+.fc-list-table tbody tr td {
+    background-color: rgb(48, 48, 48) !important;
+}
