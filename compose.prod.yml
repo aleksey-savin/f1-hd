@@ -87,8 +87,8 @@ services:
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
+      context: .
+      dockerfile: frontend/Dockerfile.prod
     container_name: hd-frontend-prod
     restart: unless-stopped
     env_file:
