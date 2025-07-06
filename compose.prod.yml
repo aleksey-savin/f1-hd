@@ -52,6 +52,8 @@ services:
       TG_TOKEN: ${TG_TOKEN}
       ADDRESS: ${FRONTEND_URL}
       TICKET_COUNTER_STARTING_NUMBER: ${TICKET_COUNTER_STARTING_NUMBER}
+    volumes:
+      - hd_uploads:/app/uploads
     networks:
       - hd-network
     depends_on:
@@ -94,6 +96,8 @@ services:
     environment:
       VITE_ADDRESS: ${VITE_ADDRESS}
       VITE_TG_BOT_NAME: ${VITE_TG_BOT_NAME}
+    volumes:
+      - hd_uploads:/usr/share/nginx/html/uploads
     ports:
       - "80:80"
     networks:
@@ -176,6 +180,8 @@ volumes:
   hd_data:
     external: true
   hd_mongodb_config:
+    external: true
+  hd_uploads:
     external: true
 
 networks:
