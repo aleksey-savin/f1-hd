@@ -138,10 +138,10 @@ build_images() {
     export BUILDKIT_PROGRESS=plain
 
     # Build all services with proper error handling
-    if ! docker compose -f compose.prod.yml build --no-cache --progress=plain; then
+    if ! docker compose -f compose.prod.yml --env-file .env.prod build --no-cache --progress=plain; then
         print_error "Docker build failed. Trying with legacy builder..."
         export DOCKER_BUILDKIT=0
-        docker compose -f compose.prod.yml build --no-cache
+        docker compose -f compose.prod.yml --env-file .env.prod build --no-cache
     fi
 
     print_success "Docker images built successfully"

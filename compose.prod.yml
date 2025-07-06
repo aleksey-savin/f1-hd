@@ -99,7 +99,7 @@ services:
     volumes:
       - hd_uploads:/usr/share/nginx/html/uploads
     ports:
-      - "80:80"
+      - "81:80"
     networks:
       - hd-network
     depends_on:
