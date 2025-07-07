@@ -97,11 +97,6 @@ services:
         VITE_ADDRESS: ${VITE_ADDRESS}
     container_name: hd-frontend-prod
     restart: unless-stopped
-    env_file:
-      - .env.prod
-    environment:
-      VITE_API_ADDRESS: ${API_URL}
-      VITE_TG_BOT_NAME: ${VITE_TG_BOT_NAME}
     volumes:
       - hd_uploads:/usr/share/nginx/html/uploads
     ports:

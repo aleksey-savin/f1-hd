@@ -7,7 +7,6 @@ WORKDIR /app
 # Accept build arguments for environment variables
 ARG VITE_API_ADDRESS
 ARG VITE_TG_BOT_NAME
-ARG VITE_ADDRESS
 
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 
@@ -15,8 +14,7 @@ COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN export NPM_PACKAGE_VERSION=$(node -p "require('./package.json').version") && \
     echo "VITE_VERSION=$NPM_PACKAGE_VERSION" > .env.production && \
     echo "VITE_API_ADDRESS=$VITE_API_ADDRESS" >> .env.production && \
-    echo "VITE_TG_BOT_NAME=$VITE_TG_BOT_NAME" >> .env.production && \
-    echo "VITE_ADDRESS=$VITE_ADDRESS" >> .env.production
+    echo "VITE_TG_BOT_NAME=$VITE_TG_BOT_NAME" >> .env.production
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
