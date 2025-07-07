@@ -132,6 +132,7 @@ exports.getAllOpened = async (req, res, next) => {
               $match: {
                 $expr: {
                   $and: [
+                    { $isArray: "$tickets" },
                     { $in: ["$$ticketId", "$tickets"] },
                     { $eq: ["$scheduled", true] },
                     { $eq: ["$finishedAt", null] },
