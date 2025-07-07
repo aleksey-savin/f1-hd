@@ -39,7 +39,7 @@ const GetScreen = (props) => {
   const support = useCallback(() => {
     fetchSupport(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/support/create`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/support/create`,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -83,7 +83,7 @@ const GetScreen = (props) => {
   const fetchConnection = useCallback(async () => {
     await fetchConnectionHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/support/connection/${params.ticketNum}`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/support/connection/${params.ticketNum}`,
         headers: {
           Authorization: "Bearer " + token,
         },

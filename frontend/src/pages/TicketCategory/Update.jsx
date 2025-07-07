@@ -23,12 +23,12 @@ export async function loader({ params }) {
   const { token } = getLocalStorageData();
 
   const categoryResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/ticket-categories/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!categoryResponse.ok) {
@@ -38,12 +38,12 @@ export async function loader({ params }) {
   const categoryData = await categoryResponse.json();
 
   const initialPrefsResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/preferences-initial`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!initialPrefsResponse.ok) {
@@ -56,12 +56,12 @@ export async function loader({ params }) {
 
   if (prefsData.modules.finances.isActive) {
     const servicePlansResponse = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/service-plans/`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/`,
       {
         headers: {
           Authorization: "Bearer " + token,
         },
-      }
+      },
     );
 
     if (!servicePlansResponse.ok) {
@@ -72,12 +72,12 @@ export async function loader({ params }) {
   }
 
   const usersResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/users/can-perform-tickets`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!usersResponse.ok) {
@@ -108,7 +108,7 @@ export async function action({ request, params }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/ticket-categories/update/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories/update/${params.id}`,
     {
       method: "POST",
       headers: {
@@ -116,7 +116,7 @@ export async function action({ request, params }) {
         Authorization: "Bearer " + token,
       },
       body: JSON.stringify(categoryData),
-    }
+    },
   );
 
   if ([409].includes(response.status)) {

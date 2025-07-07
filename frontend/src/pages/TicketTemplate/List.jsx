@@ -31,7 +31,7 @@ const TicketTemplates = () => {
     setLeftSidebarContent(
       <BrowserView>
         <TicketTemplateFilter />
-      </BrowserView>
+      </BrowserView>,
     );
   }, [setLeftSidebarContent]);
 
@@ -70,14 +70,14 @@ export async function action({ request }) {
   const id = data.get("id");
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/ticket-templates/delete/${id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates/delete/${id}`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if ([409].includes(response.status)) {

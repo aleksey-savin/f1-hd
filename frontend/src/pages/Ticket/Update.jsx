@@ -15,7 +15,7 @@ export async function loader({ params }) {
   const { token } = getLocalStorageData();
 
   const formDataResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/tickets/form-data`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/form-data`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -28,7 +28,7 @@ export async function loader({ params }) {
   }
 
   const ticketResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/tickets/${params.ticketNum}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${params.ticketNum}`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -58,7 +58,7 @@ export async function action(request, params) {
     const checklistItem = data.get("checklistItem");
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/${ticketId}/update-checklist`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticketId}/update-checklist`,
       {
         method: "POST",
         headers: {

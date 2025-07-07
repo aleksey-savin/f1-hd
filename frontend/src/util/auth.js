@@ -44,7 +44,7 @@ export async function authDataLoader() {
   }
 
   const appVersionResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/app-version`
+    `${import.meta.env.VITE_API_ADDRESS}/api/app-version`,
   );
 
   if (!appVersionResponse.ok) {
@@ -54,21 +54,21 @@ export async function authDataLoader() {
   const appV = await appVersionResponse.json();
 
   const userDataResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/users/${userId}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   const preferencesResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/preferences-initial`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   return {

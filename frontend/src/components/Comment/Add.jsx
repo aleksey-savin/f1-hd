@@ -81,7 +81,7 @@ const AddComment = ({ ticket = {} }) => {
 
     postCommentHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/comments/add/`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/comments/add/`,
         method: "POST",
         headers: {
           Authorization: "Bearer " + token,

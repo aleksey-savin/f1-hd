@@ -15,12 +15,12 @@ export async function loader({ params }) {
   const { token } = getLocalStorageData();
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/mikrotik-devices/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/mikrotik-devices/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!response.ok) {
@@ -41,7 +41,7 @@ export async function action({ request }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/mikrotik-devices/update-info`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/mikrotik-devices/update-info`,
     {
       method: "PATCH",
       headers: {
@@ -49,7 +49,7 @@ export async function action({ request }) {
         Authorization: "Bearer " + token,
       },
       body: JSON.stringify(deviceData),
-    }
+    },
   );
 
   if ([409].includes(response.status)) {

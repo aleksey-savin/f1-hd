@@ -13,12 +13,12 @@ export async function loader({ params }) {
   const { token } = getLocalStorageData();
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/inventory/client-devices/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!response.ok) {
@@ -36,7 +36,7 @@ export async function action({ request, params }) {
   const clientDeviceData = Object.fromEntries(data);
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/inventory/client-devices/update/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/update/${params.id}`,
     {
       method: "PUT",
       headers: {
@@ -44,7 +44,7 @@ export async function action({ request, params }) {
         Authorization: "Bearer " + token,
       },
       body: JSON.stringify(clientDeviceData),
-    }
+    },
   );
 
   if ([409].includes(response.status)) {

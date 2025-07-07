@@ -141,7 +141,7 @@ const ProfileImage = ({ companyId, initialImage }) => {
       formData.append("profileImage", croppedImageBlob, "profile.jpg");
 
       const response = await fetch(
-        `${import.meta.env.VITE_ADDRESS}/api/companies/${companyId}/add-profile-image`,
+        `${import.meta.env.VITE_API_ADDRESS}/api/companies/${companyId}/add-profile-image`,
         {
           method: "PATCH",
           headers: {
@@ -158,7 +158,7 @@ const ProfileImage = ({ companyId, initialImage }) => {
 
       const data = await response.json();
       setProfileImage(
-        `${import.meta.env.VITE_ADDRESS}/uploads/${data.profileImagePath}`,
+        `${import.meta.env.VITE_API_ADDRESS}/uploads/${data.profileImagePath}`,
       );
 
       handleClose();

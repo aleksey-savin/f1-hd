@@ -112,7 +112,7 @@ const RootLayout = () => {
   const fetchUser = useCallback(() => {
     fetchUserHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/users/${userId}`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`,
         headers: {
           Authorization: "Bearer " + token,
         },
@@ -141,7 +141,7 @@ const RootLayout = () => {
             <div
               className="background-container"
               style={{
-                backgroundImage: `url("${import.meta.env.VITE_ADDRESS}/uploads/${userData.backgroundImagePath}")`,
+                backgroundImage: `url("${import.meta.env.VITE_API_ADDRESS}/uploads/${userData.backgroundImagePath}")`,
               }}
             />
           )}

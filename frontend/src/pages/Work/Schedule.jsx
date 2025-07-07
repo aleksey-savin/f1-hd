@@ -11,7 +11,7 @@ export async function loader({ params }) {
   const { token } = getLocalStorageData();
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/works/additional-data/${params.ticketNum}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/works/additional-data/${params.ticketNum}`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -47,7 +47,7 @@ export async function action({ request }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/works/schedule`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/works/schedule`,
     {
       method: "POST",
       headers: {

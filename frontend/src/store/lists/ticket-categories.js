@@ -20,7 +20,7 @@ const ticketCategoryFilter = (state) => {
         return category.servicePlans
           .map((plan) => plan._id.toString())
           .some((item2) =>
-            state.servicePlans.some((item1) => isEqual(item1, item2))
+            state.servicePlans.some((item1) => isEqual(item1, item2)),
           );
       } else {
         return true;
@@ -60,8 +60,8 @@ const searchItems = (query, items) => {
 
     return queryTerms.every((term) =>
       fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term)
-      )
+        (field) => field && field.toLowerCase().includes(term),
+      ),
     );
   });
 };
@@ -139,12 +139,12 @@ const useTicketCategoryFilterStore = create((set) => ({
     set({ isLoading: true });
     const { token } = getLocalStorageData();
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/ticket-categories`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
       {
         headers: {
           Authorization: "Bearer " + token,
         },
-      }
+      },
     );
     const data = await response.json();
     set({

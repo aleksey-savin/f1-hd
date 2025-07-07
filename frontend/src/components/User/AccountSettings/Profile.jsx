@@ -44,7 +44,7 @@ const Profile = ({ user }) => {
 
   const [profileImage, setProfileImage] = useState(
     user.profileImagePath
-      ? `${import.meta.env.VITE_ADDRESS}/uploads/${user.profileImagePath}`
+      ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${user.profileImagePath}`
       : "/profilepic-placeholder.jpg",
   );
 

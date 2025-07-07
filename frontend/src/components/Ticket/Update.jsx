@@ -232,7 +232,7 @@ const UpdateTicket = () => {
 
     postTicketHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/tickets/update`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/tickets/update`,
         method: "POST",
         headers: {
           Authorization: "Bearer " + token,

@@ -11,7 +11,7 @@ const CompanyHeader = ({ company, permissions }) => {
             companyId={company._id.toString()}
             initialImage={
               company.profileImagePath
-                ? `${import.meta.env.VITE_ADDRESS}/uploads/${company.profileImagePath}`
+                ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${company.profileImagePath}`
                 : "/companypic-placeholder.png"
             }
           />

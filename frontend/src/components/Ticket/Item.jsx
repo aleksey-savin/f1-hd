@@ -118,7 +118,7 @@ const TicketItem = ({ item, isSelected, onSelect }) => {
               <Row key={a.name}>
                 <Col sm="12">
                   <a
-                    href={`${import.meta.env.VITE_ADDRESS}/uploads/${a.name}`}
+                    href={`${import.meta.env.VITE_API_ADDRESS}/uploads/${a.name}`}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -158,7 +158,7 @@ const TicketItem = ({ item, isSelected, onSelect }) => {
                 <strong>
                   {msToHMS(
                     new Date(work.planningToFinish) -
-                      new Date(work.planningToStart)
+                      new Date(work.planningToStart),
                   )}
                 </strong>
               </Col>
@@ -177,7 +177,7 @@ const TicketItem = ({ item, isSelected, onSelect }) => {
           <Row key={a.name} className="mb-2">
             <Col sm="12">
               <a
-                href={`${import.meta.env.VITE_ADDRESS}/uploads/${a.name}`}
+                href={`${import.meta.env.VITE_API_ADDRESS}/uploads/${a.name}`}
                 target="_blank"
                 rel="noreferrer"
               >

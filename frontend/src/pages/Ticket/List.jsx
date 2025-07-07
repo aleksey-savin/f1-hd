@@ -64,7 +64,7 @@ const Tickets = () => {
   const handleDeleteSelected = async (selectedIds) => {
     try {
       await fetch(
-        `${import.meta.env.VITE_ADDRESS}/api/tickets/delete-multiple`,
+        `${import.meta.env.VITE_API_ADDRESS}/api/tickets/delete-multiple`,
         {
           method: "POST",
           headers: {

@@ -19,8 +19,8 @@ const Checklists = () => {
   useEffect(() => {
     setFilteredChecklists(
       checklists.filter((checklist) =>
-        checklist.title.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+        checklist.title.toLowerCase().includes(searchTerm.toLowerCase()),
+      ),
     );
   }, [searchTerm, checklists]);
 
@@ -55,12 +55,12 @@ export async function loader() {
   const { token } = getLocalStorageData();
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/checklists`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/checklists`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!response.ok) {
@@ -77,14 +77,14 @@ export async function action({ request }) {
   const id = data.get("id");
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/checklists/delete/${id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/checklists/delete/${id}`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if ([409].includes(response.status)) {

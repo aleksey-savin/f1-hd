@@ -76,7 +76,7 @@ const WorkReport = () => {
 
     filterWorksHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/report/works`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/report/works`,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -262,7 +262,7 @@ export async function loader() {
   const { token } = getLocalStorageData();
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/report/form-data`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/report/form-data`,
     {
       headers: {
         Authorization: "Bearer " + token,

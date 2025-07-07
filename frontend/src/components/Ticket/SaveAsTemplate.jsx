@@ -44,7 +44,7 @@ const SaveAsTemplate = ({
       };
 
       const response = await fetch(
-        `${import.meta.env.VITE_ADDRESS}/api/ticket-templates/add`,
+        `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates/add`,
         {
           method: "POST",
           headers: {

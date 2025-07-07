@@ -12,7 +12,7 @@ function BackgroundImageUpload({ user }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(
     user.backgroundImagePath
-      ? `${import.meta.env.VITE_ADDRESS}/uploads/${user.backgroundImagePath}`
+      ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${user.backgroundImagePath}`
       : null,
   );
   const [hasBackground, setHasBackground] = useState(
@@ -65,7 +65,7 @@ function BackgroundImageUpload({ user }) {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_ADDRESS}/api/users/add-background-image`,
+        `${import.meta.env.VITE_API_ADDRESS}/api/users/add-background-image`,
         {
           method: "POST",
           headers: {
@@ -91,7 +91,7 @@ function BackgroundImageUpload({ user }) {
   const handleDelete = async () => {
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_ADDRESS}/api/users/delete-background-image`,
+        `${import.meta.env.VITE_API_ADDRESS}/api/users/delete-background-image`,
         {
           method: "POST",
           headers: {

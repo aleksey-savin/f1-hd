@@ -17,23 +17,23 @@ export async function loader() {
   }
 
   const companiesResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/companies`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/companies`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   const companies = await companiesResponse.json();
 
   const categoriesResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/ticket-categories`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   const categories = await categoriesResponse.json();
@@ -46,7 +46,7 @@ export async function loader() {
       { message: companiesResponse.message },
       {
         status: companiesResponse.status,
-      }
+      },
     );
   } else if (!categoriesResponse.ok) {
     if (
@@ -59,7 +59,7 @@ export async function loader() {
       { message: categoriesResponse.message },
       {
         status: categoriesResponse.status,
-      }
+      },
     );
   } else {
     return {
@@ -134,7 +134,7 @@ export async function action({ request }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/users/add`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/users/add`,
     {
       method: "POST",
       headers: {
@@ -142,7 +142,7 @@ export async function action({ request }) {
         Authorization: "Bearer " + token,
       },
       body: JSON.stringify(userData),
-    }
+    },
   );
 
   if (response.status === 409) {
@@ -152,7 +152,7 @@ export async function action({ request }) {
   if (!response.ok) {
     throw Response.json(
       { message: "Не удалось создать пользователя" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 

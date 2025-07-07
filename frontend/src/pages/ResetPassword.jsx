@@ -28,13 +28,13 @@ export async function loader({ params }) {
   const token = localStorage.getItem("token");
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/validate-reset-token/${params.token}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/validate-reset-token/${params.token}`,
     {
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!response.ok) {
@@ -55,19 +55,19 @@ export async function action({ request, params }) {
   if (password !== confirmPassword) {
     return Response.json(
       { error: true, message: "Пароли не совпадают" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (password.length < 6) {
     return Response.json(
       { error: true, message: "Минимальная длина пароля - 6 символов" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/reset-password`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/reset-password`,
     {
       method: "POST",
       headers: {
@@ -78,14 +78,14 @@ export async function action({ request, params }) {
         token: params.token,
         password: password,
       }),
-    }
+    },
   );
 
   if (!response.ok) {
     const data = await response.json();
     return Response.json(
       { error: true, message: data.message || "Что-то пошло не так" },
-      { status: response.status }
+      { status: response.status },
     );
   }
 

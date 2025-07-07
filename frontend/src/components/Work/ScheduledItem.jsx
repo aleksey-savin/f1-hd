@@ -81,7 +81,7 @@ function ScheduledWorkItem({ work }) {
               <Image
                 src={
                   work.executor.profileImagePath
-                    ? `${import.meta.env.VITE_ADDRESS}/uploads/${work.executor.profileImagePath}`
+                    ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${work.executor.profileImagePath}`
                     : "/profilepic-placeholder.jpg"
                 }
                 style={{ maxHeight: "30px" }}

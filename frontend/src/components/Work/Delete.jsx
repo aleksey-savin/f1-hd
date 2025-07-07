@@ -52,7 +52,7 @@ const DeleteWork = ({ work }) => {
 
     deleteWorkHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/works/delete`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/works/delete`,
         method: "POST",
         headers: {
           "Content-Type": "application/json",

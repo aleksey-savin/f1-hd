@@ -15,14 +15,14 @@ const Attachments = ({ ticket }) => {
                 <Col>
                   <AudioPlayer
                     key={attachment?.name}
-                    src={`${import.meta.env.VITE_ADDRESS}/uploads/${attachment?.name}`}
+                    src={`${import.meta.env.VITE_API_ADDRESS}/uploads/${attachment?.name}`}
                   />
                 </Col>
               </Row>
             ) : (
               <Row key={attachment.name} className="mb-3">
                 <a
-                  href={`${import.meta.env.VITE_ADDRESS}/uploads/${attachment?.name}`}
+                  href={`${import.meta.env.VITE_API_ADDRESS}/uploads/${attachment?.name}`}
                   key={attachment?.name}
                   target="_blank"
                   rel="noreferrer"

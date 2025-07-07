@@ -73,14 +73,14 @@ const ProcessTicket = ({ ticket }) => {
   const fetchFormData = useCallback(() => {
     fetchFormDataHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/tickets/form-data`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/tickets/form-data`,
         headers: {
           Authorization: "Bearer " + token,
         },
       },
       (data) => {
         setFormData(data);
-      }
+      },
     );
   }, [fetchFormDataHandler, token]);
 
@@ -93,7 +93,7 @@ const ProcessTicket = ({ ticket }) => {
       (user) =>
         user.permissions.canAdministrateTickets ||
         user.permissions.canPerformTickets ||
-        user.company?._id.toString() === company?._id.toString()
+        user.company?._id.toString() === company?._id.toString(),
     );
     setApplicantsList(users);
   }, [formData, company]);
@@ -127,7 +127,7 @@ const ProcessTicket = ({ ticket }) => {
   };
 
   const [ariaFocusMessage, setAriaFocusMessage] = useState(
-    "Выберите категорию, чтобы увидеть её описание"
+    "Выберите категорию, чтобы увидеть её описание",
   );
 
   const onFocus = ({ focused }) => {
@@ -272,7 +272,7 @@ const ProcessTicket = ({ ticket }) => {
                         <div
                           className={`${
                             category?.users?.some(
-                              (user) => user._id === option._id
+                              (user) => user._id === option._id,
                             )
                               ? "text-success"
                               : "text-warning"

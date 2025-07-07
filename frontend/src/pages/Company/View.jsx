@@ -21,23 +21,23 @@ export async function loader({ params }) {
   const { token, userId } = getLocalStorageData();
 
   const userResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/users/${userId}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   const user = await userResponse.json();
 
   const companyResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/companies/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/companies/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!companyResponse.ok) {
@@ -84,16 +84,16 @@ export async function loader({ params }) {
 
   // Add this information to companyData
   companyData.company.usersInSubdivisions = getUsersFromOtherSubdivisions(
-    companyData.company.subdivisions
+    companyData.company.subdivisions,
   );
 
   const initialPrefsResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/preferences-initial`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!initialPrefsResponse.ok) {
@@ -109,12 +109,12 @@ export async function loader({ params }) {
     user.permissions.canUseFinancesModule
   ) {
     const servicePlansResponse = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/service-plans/`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/`,
       {
         headers: {
           Authorization: "Bearer " + token,
         },
-      }
+      },
     );
 
     if (!servicePlansResponse.ok) {
@@ -150,7 +150,7 @@ export async function action({ request }) {
     };
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/companies/add-service-plan/${id}`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/add-service-plan/${id}`,
       {
         method: "POST",
         headers: {
@@ -158,7 +158,7 @@ export async function action({ request }) {
           Authorization: "Bearer " + token,
         },
         body: JSON.stringify(newServicePlan),
-      }
+      },
     );
 
     if ([409].includes(response.status)) {
@@ -177,7 +177,7 @@ export async function action({ request }) {
     const companyId = data.get("companyId");
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/companies/delete-service-plan/${companyId}`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/delete-service-plan/${companyId}`,
       {
         method: "DELETE",
         headers: {
@@ -185,7 +185,7 @@ export async function action({ request }) {
           Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ servicePlanId: servicePlanId }),
-      }
+      },
     );
 
     if ([409].includes(response.status)) {
@@ -201,14 +201,14 @@ export async function action({ request }) {
 
   if (intent === "delete") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/companies/delete/${id}`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/delete/${id}`,
       {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
         },
-      }
+      },
     );
 
     if ([409].includes(response.status)) {
@@ -226,7 +226,7 @@ export async function action({ request }) {
     const parentId = data.get("parentId") || undefined;
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/companies/add-subdivision`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/add-subdivision`,
       {
         method: "POST",
         headers: {
@@ -242,7 +242,7 @@ export async function action({ request }) {
           companyId: data.get("companyId"),
           parentId: parentId,
         }),
-      }
+      },
     );
 
     if ([409].includes(response.status)) {
@@ -258,7 +258,7 @@ export async function action({ request }) {
 
   if (intent === "updateSubdivision") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/companies/update-subdivision`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/update-subdivision`,
       {
         method: "PUT",
         headers: {
@@ -274,7 +274,7 @@ export async function action({ request }) {
           linkToMap: data.get("linkToMap"),
           parentId: data.get("parentId"),
         }),
-      }
+      },
     );
 
     if ([409].includes(response.status)) {
@@ -290,7 +290,7 @@ export async function action({ request }) {
 
   if (intent === "deleteSubdivision") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/companies/delete-subdivision`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/delete-subdivision`,
       {
         method: "DELETE",
         headers: {
@@ -301,7 +301,7 @@ export async function action({ request }) {
           subdivisionId: data.get("subdivisionId"),
           companyId: data.get("companyId"),
         }),
-      }
+      },
     );
 
     if ([409].includes(response.status)) {
@@ -329,7 +329,7 @@ export async function action({ request }) {
       : [];
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/companies/update-subdivision-users`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/update-subdivision-users`,
       {
         method: "PATCH",
         headers: {
@@ -341,7 +341,7 @@ export async function action({ request }) {
           manager,
           users: users,
         }),
-      }
+      },
     );
 
     if (!response.ok) {

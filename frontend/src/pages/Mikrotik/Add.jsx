@@ -23,7 +23,7 @@ export async function action({ request }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/mikrotik-devices/add`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/mikrotik-devices/add`,
     {
       method: "POST",
       headers: {

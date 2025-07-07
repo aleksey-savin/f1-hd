@@ -35,13 +35,13 @@ export async function loader() {
   }
 
   const prefsResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/preferences-auth`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-auth`,
     {
       method: "GET",
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!prefsResponse.ok) {
@@ -61,7 +61,7 @@ export async function action({ request }) {
         message:
           "Неподдерживаемый тип запроса, допустимы только login,signup или forgot-password",
       },
-      { status: 422 }
+      { status: 422 },
     );
   }
 
@@ -73,11 +73,14 @@ export async function action({ request }) {
   if (intent === "first-launch") {
     const initialData = Object.fromEntries(data);
 
-    response = await fetch(`${import.meta.env.VITE_ADDRESS}/api/first-launch`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(initialData),
-    });
+    response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/first-launch`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(initialData),
+      },
+    );
 
     if ([400, 401, 404, 409, 422, 429].includes(response.status)) {
       return response;
@@ -97,7 +100,7 @@ export async function action({ request }) {
     password: data.get("password"),
   };
 
-  response = await fetch(`${import.meta.env.VITE_ADDRESS}/api/${mode}`, {
+  response = await fetch(`${import.meta.env.VITE_API_ADDRESS}/api/${mode}`, {
     method: mode === "login" ? "POST" : "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(authData),
@@ -115,14 +118,14 @@ export async function action({ request }) {
 
   if (mode === "forgot-password") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/forgot-password`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/forgot-password`,
       {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email: authData.email }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -141,13 +144,13 @@ export async function action({ request }) {
   localStorage.setItem("userId", userId);
 
   const prefsResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/preferences-initial`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
     {
       method: "GET",
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   const prefsResData = await prefsResponse.json();

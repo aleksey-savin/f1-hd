@@ -142,7 +142,7 @@ const useTicketTemplateFilterStore = create((set) => ({
     set({ isLoading: true });
     const { token } = getLocalStorageData();
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/ticket-templates`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates`,
       {
         headers: {
           Authorization: "Bearer " + token,

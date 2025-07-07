@@ -75,7 +75,7 @@ function WorkItem({ work, isArchived }) {
               <Image
                 src={
                   work.finishedBy.profileImagePath
-                    ? `${import.meta.env.VITE_ADDRESS}/uploads/${work.finishedBy.profileImagePath}`
+                    ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${work.finishedBy.profileImagePath}`
                     : "/profilepic-placeholder.jpg"
                 }
                 style={{ maxHeight: "30px" }}

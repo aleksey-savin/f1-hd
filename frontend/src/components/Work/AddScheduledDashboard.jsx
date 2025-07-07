@@ -62,14 +62,14 @@ const ScheduleWorkDashboard = ({
     setTicketsList(
       tickets.filter(
         (ticket) =>
-          ticket.company._id.toString() === selectedItem._id.toString()
-      )
+          ticket.company._id.toString() === selectedItem._id.toString(),
+      ),
     );
   };
 
   const setMe = () => {
     setExecutor(
-      usersList.filter((user) => user._id.toString() === userId.toString())[0]
+      usersList.filter((user) => user._id.toString() === userId.toString())[0],
     );
   };
 
@@ -104,7 +104,7 @@ const ScheduleWorkDashboard = ({
           variant: "success text-white",
           message: "Работа добавлена",
           show: true,
-        })
+        }),
       );
 
       setShowAddModal(false);
@@ -128,7 +128,7 @@ const ScheduleWorkDashboard = ({
 
     postScheduledWorkHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/works/schedule/`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/works/schedule/`,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -145,10 +145,10 @@ const ScheduleWorkDashboard = ({
               variant: "danger text-white",
               message: data.message,
               show: true,
-            })
+            }),
           );
         }
-      }
+      },
     );
   };
 
@@ -165,7 +165,7 @@ const ScheduleWorkDashboard = ({
         : null;
     if (date) {
       planningToFinishInputRef.current.value = changeTimezone(
-        new Date(date.getTime() + minutes * 60000)
+        new Date(date.getTime() + minutes * 60000),
       );
     } else {
       document.getElementById("planning-to-start").focus();
@@ -185,8 +185,8 @@ const ScheduleWorkDashboard = ({
       setWorkDuration(
         msToHMS(
           new Date(planningToFinishInputRef.current?.value || "") -
-            new Date(planningToStartInputRef.current?.value || "")
-        )
+            new Date(planningToStartInputRef.current?.value || ""),
+        ),
       );
     } else {
       setWorkDuration("00:00 ч.");
@@ -206,7 +206,7 @@ const ScheduleWorkDashboard = ({
 
     const humanized =
       [pad(2, hours.toString(), "0"), pad(2, minutes.toString(), "0")].join(
-        ":"
+        ":",
       ) + " ч.";
 
     return humanized;

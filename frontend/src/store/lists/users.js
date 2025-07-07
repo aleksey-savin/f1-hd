@@ -13,7 +13,7 @@ const userFilter = (state) => {
       ) {
         return (
           state.timeTrackingModule.filter(
-            (permission) => item.permissions?.[permission] === true
+            (permission) => item.permissions?.[permission] === true,
           ).length > 0
         );
       } else {
@@ -70,8 +70,8 @@ const searchItems = (query, items) => {
 
     return queryTerms.every((term) =>
       fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term)
-      )
+        (field) => field && field.toLowerCase().includes(term),
+      ),
     );
   });
 };
@@ -159,11 +159,14 @@ const useUserFilterStore = create((set) => ({
   fetch: async () => {
     set({ isLoading: true });
     const { token } = getLocalStorageData();
-    const response = await fetch(`${import.meta.env.VITE_ADDRESS}/api/users`, {
-      headers: {
-        Authorization: "Bearer " + token,
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/users`,
+      {
+        headers: {
+          Authorization: "Bearer " + token,
+        },
       },
-    });
+    );
     const data = await response.json();
     set({
       originalList: data.users,

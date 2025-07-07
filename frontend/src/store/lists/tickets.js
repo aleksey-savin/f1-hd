@@ -40,7 +40,7 @@ const ticketFilter = (state) => {
           return state.originalList
             .filter(
               (ticket) =>
-                ticket.applicant._id.toString() === userId && !ticket.isClosed
+                ticket.applicant._id.toString() === userId && !ticket.isClosed,
             )
             .includes(ticket);
         case "recently_closed":
@@ -64,7 +64,7 @@ const ticketFilter = (state) => {
         return ticket.responsibles
           .map((resp) => resp._id.toString())
           .some((item2) =>
-            state.responsibles.some((item1) => isEqual(item1, item2))
+            state.responsibles.some((item1) => isEqual(item1, item2)),
           );
       } else {
         return true;
@@ -160,8 +160,8 @@ const searchItems = (query, items) => {
 
     return queryTerms.every((term) =>
       fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term)
-      )
+        (field) => field && field.toLowerCase().includes(term),
+      ),
     );
   });
 };
@@ -243,12 +243,12 @@ const useTicketFilterStore = create((set) => ({
     set({ isLoading: true });
     const { token } = getLocalStorageData();
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/all-opened`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
       {
         headers: {
           Authorization: "Bearer " + token,
         },
-      }
+      },
     );
     const data = await response.json();
 
@@ -261,12 +261,12 @@ const useTicketFilterStore = create((set) => ({
     set({ isLoading: true });
     const { token } = getLocalStorageData();
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/recently-closed`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/recently-closed`,
       {
         headers: {
           Authorization: "Bearer " + token,
         },
-      }
+      },
     );
     const data = await response.json();
 

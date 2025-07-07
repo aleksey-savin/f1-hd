@@ -412,7 +412,7 @@ export async function loader({ params }) {
     const { token, userId } = getLocalStorageData();
 
     const ticketResponse = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/${params.ticketNum}`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${params.ticketNum}`,
       {
         headers: {
           Authorization: "Bearer " + token,
@@ -427,7 +427,7 @@ export async function loader({ params }) {
     const ticketData = await ticketResponse.json();
 
     const responsiblesResponse = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/users/can-perform-tickets`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
       {
         headers: {
           Authorization: "Bearer " + token,
@@ -440,7 +440,7 @@ export async function loader({ params }) {
     }
 
     const openedTicketsResponse = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/all-opened`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
       {
         headers: {
           Authorization: "Bearer " + token,
@@ -455,7 +455,7 @@ export async function loader({ params }) {
     const openedTickets = await openedTicketsResponse.json();
 
     const additionalDataResponse = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/works/additional-data/${params.ticketNum}`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/works/additional-data/${params.ticketNum}`,
       {
         headers: {
           Authorization: "Bearer " + token,
@@ -513,7 +513,7 @@ export async function action({ request }) {
     };
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/process`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/process`,
       {
         method: "POST",
         headers: {
@@ -533,7 +533,7 @@ export async function action({ request }) {
 
   if (intent === "takeToWork") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/take-to-work`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/take-to-work`,
       {
         method: "POST",
         headers: {
@@ -556,7 +556,7 @@ export async function action({ request }) {
 
   if (intent === "reject") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/reject`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/reject`,
       {
         method: "POST",
         headers: {
@@ -578,7 +578,7 @@ export async function action({ request }) {
 
   if (intent === "join") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/join-responsibles`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/join-responsibles`,
       {
         method: "POST",
         headers: {
@@ -604,7 +604,7 @@ export async function action({ request }) {
     };
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/request-help`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/request-help`,
       {
         method: "POST",
         headers: {
@@ -623,7 +623,7 @@ export async function action({ request }) {
 
   if (intent === "updateDeadline") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/update-deadline`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/update-deadline`,
       {
         method: "POST",
         headers: {
@@ -645,7 +645,7 @@ export async function action({ request }) {
 
   if (intent === "close") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/close`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/close`,
       {
         method: "POST",
         headers: {
@@ -672,7 +672,7 @@ export async function action({ request }) {
 
   if (intent === "backToWork") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/back-to-work`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/back-to-work`,
       {
         method: "POST",
         headers: {
@@ -697,7 +697,7 @@ export async function action({ request }) {
 
   if (intent === "addComment") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/comments/add`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/comments/add`,
       {
         method: "POST",
         headers: {
@@ -724,7 +724,7 @@ export async function action({ request }) {
     };
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/${ticketNum}/update-checklist-item`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticketNum}/update-checklist-item`,
       {
         method: "POST",
         headers: {
@@ -752,7 +752,7 @@ export async function action({ request }) {
     const checklist = data.getAll("checklist");
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/${ticketNum}/update-checklist`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticketNum}/update-checklist`,
       {
         method: "POST",
         headers: {
@@ -778,7 +778,7 @@ export async function action({ request }) {
     const ticketId = data.get("id");
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/delete/${ticketId}`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/delete/${ticketId}`,
       {
         method: "POST",
         headers: {

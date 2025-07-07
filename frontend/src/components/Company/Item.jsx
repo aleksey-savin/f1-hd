@@ -16,7 +16,7 @@ function CompanyItem({ item }) {
         <Image
           src={
             profileImagePath
-              ? `${import.meta.env.VITE_ADDRESS}/uploads/${profileImagePath}`
+              ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${profileImagePath}`
               : "/companypic-placeholder.png"
           }
           style={{ maxHeight: "50px" }}

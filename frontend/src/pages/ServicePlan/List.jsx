@@ -32,7 +32,7 @@ const ServicePlans = () => {
     setLeftSidebarContent(
       <BrowserView>
         <ServicePlanFilter />
-      </BrowserView>
+      </BrowserView>,
     );
   }, [setLeftSidebarContent, filterStore.originalList]);
 
@@ -73,14 +73,14 @@ export async function action({ request }) {
 
   if (intent === "delete") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/service-plans/delete/${id}`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/delete/${id}`,
       {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
         },
-      }
+      },
     );
 
     if ([409].includes(response.status)) {

@@ -13,12 +13,12 @@ export async function loader() {
   const { token } = getLocalStorageData();
 
   const companiesResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/companies`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/companies`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!companiesResponse.ok) {
@@ -26,12 +26,12 @@ export async function loader() {
   }
 
   const serviceAccountsResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/form-data/service-accounts`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!serviceAccountsResponse.ok) {
@@ -39,12 +39,12 @@ export async function loader() {
   }
 
   const categoriesResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/ticket-categories`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!categoriesResponse.ok) {
@@ -76,7 +76,7 @@ export async function action({ request }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/routine-tasks/add`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/routine-tasks/add`,
     {
       method: "POST",
       headers: {
@@ -84,7 +84,7 @@ export async function action({ request }) {
         Authorization: "Bearer " + token,
       },
       body: JSON.stringify(routineData),
-    }
+    },
   );
 
   if ([400, 409].includes(response.status)) {

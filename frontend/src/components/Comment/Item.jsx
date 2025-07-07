@@ -41,7 +41,7 @@ const CommentItem = ({ comment, danger }) => {
           <Image
             src={
               createdBy.profileImagePath
-                ? `${import.meta.env.VITE_ADDRESS}/uploads/${createdBy.profileImagePath}`
+                ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${createdBy.profileImagePath}`
                 : "/profilepic-placeholder.jpg"
             }
             style={{ maxHeight: "30px" }}
@@ -66,7 +66,7 @@ const CommentItem = ({ comment, danger }) => {
                   <Col>
                     <AudioPlayer
                       key={a.name}
-                      src={`${import.meta.env.VITE_ADDRESS}/uploads/${a.name}`}
+                      src={`${import.meta.env.VITE_API_ADDRESS}/uploads/${a.name}`}
                     />
                   </Col>
                 </Row>
@@ -74,7 +74,7 @@ const CommentItem = ({ comment, danger }) => {
                 <Row key={a.name}>
                   <Col sm="12">
                     <a
-                      href={`${import.meta.env.VITE_ADDRESS}/uploads/${a.name}`}
+                      href={`${import.meta.env.VITE_API_ADDRESS}/uploads/${a.name}`}
                       rel="noreferrer"
                       target="_blank"
                     >

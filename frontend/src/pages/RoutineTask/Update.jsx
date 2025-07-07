@@ -13,12 +13,12 @@ export async function loader({ params }) {
   const { token } = getLocalStorageData();
 
   const tasksResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/routine-tasks/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/routine-tasks/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!tasksResponse.ok) {
@@ -26,12 +26,12 @@ export async function loader({ params }) {
   }
 
   const companiesResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/companies`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/companies`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!companiesResponse.ok) {
@@ -39,12 +39,12 @@ export async function loader({ params }) {
   }
 
   const serviceAccountsResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/form-data/service-accounts`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!serviceAccountsResponse.ok) {
@@ -52,12 +52,12 @@ export async function loader({ params }) {
   }
 
   const categoriesResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/ticket-categories`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!categoriesResponse.ok) {
@@ -89,7 +89,7 @@ export async function action({ request, params }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/routine-tasks/update/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/routine-tasks/update/${params.id}`,
     {
       method: "POST",
       headers: {
@@ -97,7 +97,7 @@ export async function action({ request, params }) {
         Authorization: "Bearer " + token,
       },
       body: JSON.stringify(taskData),
-    }
+    },
   );
 
   if ([400, 409].includes(response.status)) {

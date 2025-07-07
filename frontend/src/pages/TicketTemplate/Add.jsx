@@ -22,7 +22,7 @@ export async function loader() {
   document.title = "ДОБАВИТЬ ШАБЛОН ЗАЯВКИ";
 
   const initialPrefsResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/preferences-initial`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -40,7 +40,7 @@ export async function loader() {
 
   if (prefsData.modules.finances.isActive) {
     const servicePlansResponse = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/service-plans/`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/`,
       {
         headers: {
           Authorization: "Bearer " + token,
@@ -56,7 +56,7 @@ export async function loader() {
   }
 
   const usersResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/users/can-perform-tickets`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -95,7 +95,7 @@ export async function action({ request }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/ticket-categories/add`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories/add`,
     {
       method: "POST",
       headers: {

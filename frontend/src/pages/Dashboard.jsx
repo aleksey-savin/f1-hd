@@ -256,7 +256,7 @@ export async function loader() {
     document.title = "DASHBOARD";
 
     const summaryResponse = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/dashboard/total`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/dashboard/total`,
       {
         headers: {
           Authorization: "Bearer " + token,
@@ -273,7 +273,7 @@ export async function loader() {
     }
 
     const scheduledWorksResponse = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/all-scheduled-works`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/all-scheduled-works`,
       {
         headers: {
           Authorization: "Bearer " + token,
@@ -286,7 +286,7 @@ export async function loader() {
     }
 
     const ticketsResponse = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/tickets/all-opened`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
       {
         headers: {
           Authorization: "Bearer " + token,
@@ -301,7 +301,7 @@ export async function loader() {
     const ticketsList = await ticketsResponse.json();
 
     const responsiblesResponse = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/users/can-perform-tickets`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
       {
         headers: {
           Authorization: "Bearer " + token,

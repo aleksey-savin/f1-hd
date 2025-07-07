@@ -72,7 +72,7 @@ export async function action({ request }) {
   const id = data.get("id");
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/routine-tasks/delete/${id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/routine-tasks/delete/${id}`,
     {
       method: "POST",
       headers: {

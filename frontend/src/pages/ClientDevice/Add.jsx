@@ -21,7 +21,7 @@ export async function action({ request }) {
   const clientDevice = Object.fromEntries(data.entries());
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/inventory/client-devices/add`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/add`,
     {
       method: "POST",
       headers: {
@@ -29,7 +29,7 @@ export async function action({ request }) {
         Authorization: "Bearer " + token,
       },
       body: JSON.stringify(clientDevice),
-    }
+    },
   );
 
   if ([409].includes(response.status)) {

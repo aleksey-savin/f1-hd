@@ -4,11 +4,19 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
+# Accept build arguments for environment variables
+ARG VITE_API_ADDRESS
+ARG VITE_TG_BOT_NAME
+ARG VITE_ADDRESS
+
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 
-# Extract version from package.json and set as env variable
+# Extract version from package.json and create .env.production with all variables
 RUN export NPM_PACKAGE_VERSION=$(node -p "require('./package.json').version") && \
-    echo "VITE_VERSION=$NPM_PACKAGE_VERSION" > .env
+    echo "VITE_VERSION=$NPM_PACKAGE_VERSION" > .env.production && \
+    echo "VITE_API_ADDRESS=$VITE_API_ADDRESS" >> .env.production && \
+    echo "VITE_TG_BOT_NAME=$VITE_TG_BOT_NAME" >> .env.production && \
+    echo "VITE_ADDRESS=$VITE_ADDRESS" >> .env.production
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile

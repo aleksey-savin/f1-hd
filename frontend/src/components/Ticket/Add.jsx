@@ -83,7 +83,7 @@ const AddTicket = () => {
   const fetchTemplates = async () => {
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_ADDRESS}/api/ticket-templates`,
+        `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -108,7 +108,7 @@ const AddTicket = () => {
     if (templateId) {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_ADDRESS}/api/ticket-templates/${templateId}`,
+          `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates/${templateId}`,
           {
             headers: {
               "Content-Type": "application/json",
@@ -343,7 +343,7 @@ const AddTicket = () => {
 
     await postTicketHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/tickets/add`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/tickets/add`,
         method: "POST",
         headers: {
           Authorization: "Bearer " + token,

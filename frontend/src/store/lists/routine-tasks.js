@@ -75,8 +75,8 @@ const searchItems = (query, items) => {
 
     return queryTerms.every((term) =>
       fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term)
-      )
+        (field) => field && field.toLowerCase().includes(term),
+      ),
     );
   });
 };
@@ -105,7 +105,7 @@ const handleSorting = (selected, list) => {
       sortedList.sort(
         (a, b) =>
           new Date(getNextCronDate(a.cronSchedule)) -
-          new Date(getNextCronDate(b.cronSchedule))
+          new Date(getNextCronDate(b.cronSchedule)),
       );
       break;
 
@@ -161,12 +161,12 @@ const useRoutineTaskFilterStore = create((set) => ({
     set({ isLoading: true });
     const { token } = getLocalStorageData();
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/routine-tasks`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/routine-tasks`,
       {
         headers: {
           Authorization: "Bearer " + token,
         },
-      }
+      },
     );
     const data = await response.json();
     set({

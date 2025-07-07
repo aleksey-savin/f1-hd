@@ -114,21 +114,21 @@ export async function loader() {
   document.title = "F1 HD | МОЙ АККАУНТ";
 
   const userResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/users/${userId}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   const initialPrefsResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/preferences-initial`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!userResponse.ok) {
@@ -139,7 +139,7 @@ export async function loader() {
       { message: userResponse.message },
       {
         status: userResponse.status,
-      }
+      },
     );
   } else {
     return {
@@ -165,7 +165,7 @@ export async function action({ request }) {
     };
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/users/update-account`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/users/update-account`,
       {
         method: "POST",
         headers: {
@@ -173,7 +173,7 @@ export async function action({ request }) {
           Authorization: "Bearer " + token,
         },
         body: JSON.stringify(profile),
-      }
+      },
     );
 
     if (response.status === 409) {
@@ -183,7 +183,7 @@ export async function action({ request }) {
     if (!response.ok) {
       throw Response.json(
         { message: "Не удалось обновить аккаунт" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -215,7 +215,7 @@ export async function action({ request }) {
     };
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/users/update-account`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/users/update-account`,
       {
         method: "POST",
         headers: {
@@ -223,7 +223,7 @@ export async function action({ request }) {
           Authorization: "Bearer " + token,
         },
         body: JSON.stringify(profile),
-      }
+      },
     );
 
     if (response.status === 409) {
@@ -233,7 +233,7 @@ export async function action({ request }) {
     if (!response.ok) {
       throw Response.json(
         { message: "Не удалось обновить аккаунт" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -250,7 +250,7 @@ export async function action({ request }) {
     };
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/users/update-account`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/users/update-account`,
       {
         method: "POST",
         headers: {
@@ -258,7 +258,7 @@ export async function action({ request }) {
           Authorization: "Bearer " + token,
         },
         body: JSON.stringify(profile),
-      }
+      },
     );
 
     if (response.status === 409) {
@@ -268,7 +268,7 @@ export async function action({ request }) {
     if (!response.ok) {
       throw Response.json(
         { message: "Не удалось обновить аккаунт" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 

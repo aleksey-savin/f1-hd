@@ -25,7 +25,7 @@ const SummaryReport = () => {
     setLeftSidebarContent(
       <BrowserView>
         <SummaryReportFilter />
-      </BrowserView>
+      </BrowserView>,
     );
   }, [setLeftSidebarContent, filterStore.originalList]);
 
@@ -51,12 +51,12 @@ export async function loader() {
   const { token } = getLocalStorageData();
 
   const summaryReportPreviewResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/finances/summary-report-preview`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/finances/summary-report-preview`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!summaryReportPreviewResponse.ok) {
@@ -64,12 +64,12 @@ export async function loader() {
   }
 
   const activeReportsResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/finances/active-reports`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/finances/active-reports`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!activeReportsResponse.ok) {
@@ -81,11 +81,11 @@ export async function loader() {
   return {
     preview: await summaryReportPreviewResponse.json(),
     pendingApproval: activeReports.filter(
-      (report) => report.status === "pendingApproval"
+      (report) => report.status === "pendingApproval",
     ),
     approved: activeReports.filter((report) => report.status === "approved"),
     awaitingPayment: activeReports.filter(
-      (report) => report.status === "awaitingPayment"
+      (report) => report.status === "awaitingPayment",
     ),
     paid: activeReports.filter((report) => report.status === "paid"),
     declined: activeReports.filter((report) => report.status === "declined"),
@@ -109,7 +109,7 @@ export async function action({ request }) {
     };
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/finances/summary-report/confirm-works-by-contractor`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/finances/summary-report/confirm-works-by-contractor`,
       {
         method: "POST",
         headers: {
@@ -117,7 +117,7 @@ export async function action({ request }) {
           Authorization: "Bearer " + token,
         },
         body: JSON.stringify(reportData),
-      }
+      },
     );
 
     if ([400, 409].includes(response.status)) {
@@ -133,7 +133,7 @@ export async function action({ request }) {
 
   if (intent === "deleteReport") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/finances/summary-report/delete`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/finances/summary-report/delete`,
       {
         method: "DELETE",
         headers: {
@@ -141,7 +141,7 @@ export async function action({ request }) {
           Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ reportId: data.get("reportId") }),
-      }
+      },
     );
 
     if ([400, 409].includes(response.status)) {
@@ -157,7 +157,7 @@ export async function action({ request }) {
 
   if (intent === "createInvoice") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/finances/summary-report/create-invoice`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/finances/summary-report/create-invoice`,
       {
         method: "PATCH",
         headers: {
@@ -169,7 +169,7 @@ export async function action({ request }) {
           invoiceNumber: data.get("invoiceNumber"),
           invoiceDate: data.get("invoiceDate"),
         }),
-      }
+      },
     );
 
     if ([400, 409].includes(response.status)) {
@@ -185,7 +185,7 @@ export async function action({ request }) {
 
   if (intent === "confirmPayment") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/finances/summary-report/confirm-payment`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/finances/summary-report/confirm-payment`,
       {
         method: "PATCH",
         headers: {
@@ -196,7 +196,7 @@ export async function action({ request }) {
           reportId: data.get("reportId"),
           fullPaymentDate: data.get("fullPaymentDate"),
         }),
-      }
+      },
     );
 
     if ([400, 409].includes(response.status)) {

@@ -13,12 +13,12 @@ export async function loader({ params }) {
   const { token } = getLocalStorageData();
 
   const servicePlanResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/service-plans/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!servicePlanResponse.ok) {
@@ -26,12 +26,12 @@ export async function loader({ params }) {
   }
 
   const ticketCategoriesResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/ticket-categories`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!ticketCategoriesResponse.ok) {
@@ -83,7 +83,7 @@ export async function action({ request, params }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/service-plans/update/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/update/${params.id}`,
     {
       method: "PUT",
       headers: {
@@ -91,7 +91,7 @@ export async function action({ request, params }) {
         Authorization: "Bearer " + token,
       },
       body: JSON.stringify(servicePlanData),
-    }
+    },
   );
 
   if (!response.ok) {

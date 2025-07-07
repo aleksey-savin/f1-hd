@@ -10,7 +10,7 @@ export async function action({ request }) {
   const ticketId = data.get("id");
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/tickets/delete/${ticketId}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/delete/${ticketId}`,
     {
       method: "POST",
       headers: {

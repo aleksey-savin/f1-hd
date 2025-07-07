@@ -25,7 +25,7 @@ function UserItem({ item }) {
         <Image
           src={
             profileImagePath
-              ? `${import.meta.env.VITE_ADDRESS}/uploads/${profileImagePath}`
+              ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${profileImagePath}`
               : "/profilepic-placeholder.jpg"
           }
           style={{ maxHeight: "50px" }}

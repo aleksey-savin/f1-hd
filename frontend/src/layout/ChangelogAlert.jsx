@@ -17,7 +17,7 @@ const ChangelogAlert = () => {
   const checkChangelogUpdates = useCallback(() => {
     changelogUpdatesHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/changelog/check-updates`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/changelog/check-updates`,
         headers: {
           Authorization: "Bearer " + token,
         },
@@ -40,7 +40,7 @@ const ChangelogAlert = () => {
   const disableChangelogNotification = useCallback(() => {
     disableChangelogNotificationHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/users/disable-changelog`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/users/disable-changelog`,
         method: "POST",
         headers: {
           Authorization: "Bearer " + token,

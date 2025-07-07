@@ -16,7 +16,7 @@ export async function loader() {
   const { token } = getLocalStorageData();
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/tickets/form-data`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/form-data`,
     {
       headers: {
         Authorization: "Bearer " + token,

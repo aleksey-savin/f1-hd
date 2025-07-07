@@ -75,7 +75,7 @@ const PrefsTicketsCollect = (props) => {
   const fetchServiceAccounts = useCallback(() => {
     fetchUsersHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/form-data/service-accounts`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`,
         headers: {
           Authorization: "Bearer " + token,
         },

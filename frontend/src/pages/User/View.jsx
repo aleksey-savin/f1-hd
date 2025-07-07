@@ -18,27 +18,27 @@ export async function loader({ params }) {
   }
 
   const userResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/users/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/users/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   const ticketsResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/tickets/user/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/user/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   if (!userResponse.ok) {
     throw Response.json(
       { message: userResponse.message },
-      { status: userResponse.status }
+      { status: userResponse.status },
     );
   }
 
@@ -57,14 +57,14 @@ export async function action({ request }) {
 
   if (intent === "delete") {
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/users/delete/${id}`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/users/delete/${id}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
         },
-      }
+      },
     );
 
     if (response.status === 409) {
@@ -74,7 +74,7 @@ export async function action({ request }) {
     if (!response.ok) {
       throw Response.json(
         { message: "Не удалось удалить пользователя" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -89,7 +89,7 @@ export async function action({ request }) {
     };
 
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/users/reset-password/${id}`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/users/reset-password/${id}`,
       {
         method: "POST",
         headers: {
@@ -97,12 +97,12 @@ export async function action({ request }) {
           Authorization: "Bearer " + token,
         },
         body: JSON.stringify(userData),
-      }
+      },
     );
     if (!response.ok) {
       throw Response.json(
         { message: "Не удалось изменить пароль" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 

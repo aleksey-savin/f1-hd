@@ -14,7 +14,7 @@ export async function loader({ params }) {
   const { token } = getLocalStorageData();
 
   const companyResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/companies/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/companies/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -27,7 +27,7 @@ export async function loader({ params }) {
   }
 
   const respResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/users/can-perform-tickets`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -89,7 +89,7 @@ export async function action({ request, params }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/companies/update/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/companies/update/${params.id}`,
     {
       method: "PUT",
       headers: {

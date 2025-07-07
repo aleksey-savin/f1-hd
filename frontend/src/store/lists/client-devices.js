@@ -57,8 +57,8 @@ const searchItems = (query, items) => {
 
     return queryTerms.every((term) =>
       fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term)
-      )
+        (field) => field && field.toLowerCase().includes(term),
+      ),
     );
   });
 };
@@ -72,12 +72,12 @@ const useClientDeviceFilterStore = create((set) => ({
     set({ isLoading: true });
     const { token } = getLocalStorageData();
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/inventory/client-devices`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices`,
       {
         headers: {
           Authorization: "Bearer " + token,
         },
-      }
+      },
     );
     const data = await response.json();
 

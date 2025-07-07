@@ -47,7 +47,7 @@ const Preferences = () => {
 
     updatePreferencesHandler(
       {
-        url: `${import.meta.env.VITE_ADDRESS}/api/preferences`,
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/preferences`,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -157,7 +157,7 @@ export async function initialPrefsLoader() {
   const { token } = getLocalStorageData();
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/preferences-initial`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -178,7 +178,7 @@ export async function loader() {
   const { token } = getLocalStorageData();
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/preferences`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/preferences`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -197,7 +197,7 @@ export async function action() {
   const { token } = getLocalStorageData();
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/preferences/update-db-conf`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/preferences/update-db-conf`,
     {
       method: "POST",
       headers: {

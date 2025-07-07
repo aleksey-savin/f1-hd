@@ -22,7 +22,7 @@ export async function loader({ params }) {
   const { token } = getLocalStorageData();
 
   const templateResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/ticket-templates/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -37,7 +37,7 @@ export async function loader({ params }) {
   const templateData = await templateResponse.json();
 
   const formDataResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/tickets/form-data`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/form-data`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -79,7 +79,7 @@ export async function action({ request, params }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/ticket-templates/update/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates/update/${params.id}`,
     {
       method: "POST",
       headers: {

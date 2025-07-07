@@ -30,7 +30,7 @@ const PersonalReport = () => {
           const overtime = calcSingleWorkOvertime(
             schedule,
             work.startedAt,
-            work.finishedAt
+            work.finishedAt,
           );
 
           if (overtime) {
@@ -96,12 +96,12 @@ export async function action({ request }) {
   const date = data.get("date");
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/finances/personal-report/${date}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/finances/personal-report/${date}`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
 
   const responseData = await response.json();

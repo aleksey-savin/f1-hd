@@ -13,7 +13,7 @@ export async function loader() {
   const { token } = getLocalStorageData();
 
   const ticketCategoriesResponse = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/ticket-categories`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -69,7 +69,7 @@ export async function action({ request }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_ADDRESS}/api/service-plans/add`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/add`,
     {
       method: "POST",
       headers: {

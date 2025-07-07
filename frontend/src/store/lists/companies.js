@@ -11,7 +11,7 @@ const companyFilter = (state) => {
         return company.responsibles
           .map((resp) => resp._id.toString())
           .some((item2) =>
-            state.responsibles.some((item1) => isEqual(item1, item2))
+            state.responsibles.some((item1) => isEqual(item1, item2)),
           );
       } else {
         return true;
@@ -60,8 +60,8 @@ const searchItems = (query, items) => {
 
     return queryTerms.every((term) =>
       fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term)
-      )
+        (field) => field && field.toLowerCase().includes(term),
+      ),
     );
   });
 };
@@ -136,12 +136,12 @@ const useCompanyFilterStore = create((set) => ({
     set({ isLoading: true });
     const { token } = getLocalStorageData();
     const response = await fetch(
-      `${import.meta.env.VITE_ADDRESS}/api/companies`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies`,
       {
         headers: {
           Authorization: "Bearer " + token,
         },
-      }
+      },
     );
     const data = await response.json();
     set({
