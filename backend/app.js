@@ -5,6 +5,14 @@ const path = require("path");
 
 const logger = require("./utils/logger");
 const { AppError, errorResponse } = require("./middleware/errorHandling");
+const {
+  performanceMonitor,
+  cacheMiddleware,
+  requestIdMiddleware,
+  compressionMiddleware,
+  healthCheckWithMetrics,
+  initializeMonitoring,
+} = require("./middleware/performance");
 
 const { checkRoutineTasks } = require("./middleware/routineTasks");
 
@@ -44,7 +52,14 @@ const {
 const PORT = process.env.PORT || 8080;
 const app = express();
 
-app.use(express.json());
+// Performance and monitoring middleware
+app.use(requestIdMiddleware);
+app.use(performanceMonitor);
+app.use(compressionMiddleware);
+
+// Body parsing with size limits
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 mongoose.set("strictQuery", false);
 
@@ -66,38 +81,31 @@ app.use((req, res, next) => {
   next();
 });
 
+// API routes with caching for read-only endpoints
 app.use("/api", authRouter);
-app.use("/api", preferencesRouter);
-app.use("/api", dashboardRouter);
+app.use("/api", cacheMiddleware(30000), preferencesRouter); // 30s cache
+app.use("/api", cacheMiddleware(60000), dashboardRouter); // 1min cache
 app.use("/api", ticketRouter);
 app.use("/api", routineTaskRouter);
 app.use("/api", userRouter);
-app.use("/api", companyRouter);
-app.use("/api", ticketCategoryRouter);
+app.use("/api", cacheMiddleware(120000), companyRouter); // 2min cache
+app.use("/api", cacheMiddleware(300000), ticketCategoryRouter); // 5min cache
 app.use("/api", commentRouter);
 app.use("/api", ticketLogRouter);
 app.use("/api", workRouter);
-app.use("/api", reportRouter);
+app.use("/api", cacheMiddleware(60000), reportRouter); // 1min cache
 app.use("/api", mikrotikRouter);
 app.use("/api", getScreenRouter);
-app.use("/api", changelogRouter);
-app.use("/api", appVersionRouter);
-app.use("/api", formDataRouter);
+app.use("/api", cacheMiddleware(86400000), changelogRouter); // 24h cache
+app.use("/api", cacheMiddleware(86400000), appVersionRouter); // 24h cache
+app.use("/api", cacheMiddleware(60000), formDataRouter); // 1min cache
 app.use("/api", servicePlanRouter);
 app.use("/api/inventory", clientDeviceRouter);
 app.use("/api/finances", financeReportsRouter);
 app.use("/api", ticketTemplateRouter);
 
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || "development",
-    version: "1.9.2",
-  });
-});
+// Enhanced health check endpoint with performance metrics
+app.get("/health", healthCheckWithMetrics);
 
 app.use((req, res) => {
   res.status(404).json({
@@ -113,11 +121,18 @@ app.use(errorResponse);
 mongoose
   .connect(
     `mongodb://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@mongodb:27017/${process.env.MONGODB_DATABASE}?authSource=admin`,
+    {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4,
+    },
   )
   .then(() => {
-    app.listen(PORT, () =>
-      logger.log("info", `Server started on port ${PORT}`),
-    );
+    app.listen(PORT, () => {
+      logger.log("info", `Server started on port ${PORT}`);
+      initializeMonitoring();
+    });
   })
   .catch((error) => {
     throw new AppError("Failed to start server", 500, true, error);
@@ -136,4 +151,7 @@ cron.schedule("*/1 * * * * *", () => {
   createScheduledWorkNotifications();
 });
 
-checkRoutineTasks();
+// Initialize monitoring first
+setTimeout(() => {
+  checkRoutineTasks();
+}, 1000);

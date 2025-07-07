@@ -310,6 +310,33 @@ ticketSchema.pre("save", async function (next) {
   }
 });
 
+// Add database indexes for better query performance
+ticketSchema.index({ isClosed: 1, _id: -1 }); // For getAllOpened query
+ticketSchema.index({ isClosed: 1, "company._id": 1 }); // For company-specific queries
+ticketSchema.index({ "responsibles._id": 1 }); // For responsible user queries
+ticketSchema.index({ createdBy: 1 }); // For created by queries
+ticketSchema.index({ applicantId: 1 }); // For applicant queries
+ticketSchema.index({ num: 1 }); // For ticket number lookups
+ticketSchema.index({ state: 1 }); // For state-based queries
+ticketSchema.index({ createdAt: -1 }); // For date-based sorting
+ticketSchema.index({ updatedAt: -1 }); // For recent updates
+ticketSchema.index({ deadline: 1 }); // For deadline queries
+ticketSchema.index({ categoryId: 1 }); // For category-based queries
+ticketSchema.index({ isArchived: 1 }); // For archived status
+ticketSchema.index({ source: 1 }); // For source-based queries
+ticketSchema.index({ finishedAt: 1 }); // For completion date queries
+ticketSchema.index({
+  "notifications.pending": 1,
+  "notifications.destination": 1,
+}); // For notifications
+
+// Compound indexes for common query patterns
+ticketSchema.index({ isClosed: 1, createdAt: -1 }); // For recent open tickets
+ticketSchema.index({ isClosed: 1, deadline: 1 }); // For open tickets with deadlines
+ticketSchema.index({ state: 1, createdAt: -1 }); // For state-based date sorting
+ticketSchema.index({ "company._id": 1, isClosed: 1, createdAt: -1 }); // For company tickets
+ticketSchema.index({ "responsibles._id": 1, isClosed: 1, createdAt: -1 }); // For user's tickets
+
 const Ticket = mongoose.model("Ticket", ticketSchema);
 
 module.exports = {

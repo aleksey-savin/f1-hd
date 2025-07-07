@@ -20,92 +20,152 @@ exports.getAllOpened = async (req, res, next) => {
   try {
     const { isAdmin, permissions, userId, company } = await getAuthData(req);
 
-    const allTickets = await Ticket.find({ isClosed: false })
-      .populate({
-        path: "applicantId",
-        select:
-          "firstName lastName email phone position role isActive subdivision",
-        populate: {
-          path: "subdivision",
-          select: "name",
-        },
-      })
-      .populate({
-        path: "comments",
-        select: "content attachments createdAt createdBy",
-        populate: {
-          path: "createdBy",
-          select: "firstName lastName ",
-        },
-      })
-      .populate({
-        path: "categoryId",
-        select: "title",
-      })
-      .sort({
-        _id: -1,
-      });
-
-    let filteredTickets = [];
+    // Build query conditions based on permissions
+    let matchConditions = { isClosed: false };
 
     if (
       isAdmin ||
       permissions.canAdministrateTickets ||
       permissions.canSeeAllTickets
     ) {
-      // Пользователи с ролью администратор
-      filteredTickets = allTickets;
+      // No additional filters for admins
     } else if (permissions.canSeeAllCompanyTickets) {
-      // Пользователи с разрешением на просмотр всех заявок Компании
-      filteredTickets = allTickets.filter((ticket) => {
-        return ticket.company._id.toString() === company._id.toString();
-      });
+      matchConditions["company._id"] = company._id;
     } else {
-      // Остальные пользователи
-      filteredTickets = allTickets.filter((ticket) => {
-        return (
-          ticket.responsibles
-            .map((resp) => resp._id.toString())
-            .includes(userId.toString()) ||
-          ticket.createdBy.toString() === userId.toString() ||
-          ticket.applicantId?._id.toString() === userId.toString()
-        );
-      });
+      // Filter for specific user involvement
+      matchConditions.$or = [
+        { "responsibles._id": userId },
+        { createdBy: userId },
+        { applicantId: userId },
+      ];
     }
 
-    let shortenedTickets = [];
-
-    for (let ticket of filteredTickets) {
-      const scheduledWorks = await Work.find({
-        tickets: ticket._id,
-        scheduled: true,
-        finishedAt: null,
-      });
-
-      shortenedTickets.push({
-        _id: ticket._id,
-        num: ticket.num,
-        company: {
-          _id: ticket.company._id,
-          alias: ticket.company.alias,
+    // Use aggregation pipeline for better performance
+    const ticketData = await Ticket.aggregate([
+      { $match: matchConditions },
+      { $sort: { _id: -1 } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "applicantId",
+          foreignField: "_id",
+          as: "applicant",
+          pipeline: [
+            {
+              $project: {
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                phone: 1,
+                position: 1,
+                role: 1,
+                isActive: 1,
+                subdivision: 1,
+              },
+            },
+            {
+              $lookup: {
+                from: "subdivisions",
+                localField: "subdivision",
+                foreignField: "_id",
+                as: "subdivision",
+                pipeline: [{ $project: { name: 1 } }],
+              },
+            },
+            {
+              $addFields: {
+                subdivision: { $arrayElemAt: ["$subdivision", 0] },
+              },
+            },
+          ],
         },
-        category: ticket.categoryId || ticket.category,
-        title: ticket.title,
-        attachments: ticket.attachments,
-        applicant: ticket.applicantId || ticket.applicant,
-        responsibles: ticket.responsibles,
-        createdAt: ticket.createdAt,
-        deadline: ticket.deadline,
-        finishedAt: ticket.finishedAt,
-        isClosed: ticket.isClosed,
-        state: ticket.state,
-        latestComment: ticket.comments[ticket.comments.length - 1],
-        scheduledWorks: scheduledWorks,
-        routineTask: ticket.routineTask,
-      });
-    }
+      },
+      {
+        $lookup: {
+          from: "ticketcategories",
+          localField: "categoryId",
+          foreignField: "_id",
+          as: "category",
+          pipeline: [{ $project: { title: 1 } }],
+        },
+      },
+      {
+        $lookup: {
+          from: "comments",
+          localField: "comments",
+          foreignField: "_id",
+          as: "comments",
+          pipeline: [
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+            {
+              $lookup: {
+                from: "users",
+                localField: "createdBy",
+                foreignField: "_id",
+                as: "createdBy",
+                pipeline: [{ $project: { firstName: 1, lastName: 1 } }],
+              },
+            },
+            {
+              $addFields: {
+                createdBy: { $arrayElemAt: ["$createdBy", 0] },
+              },
+            },
+            {
+              $project: {
+                content: 1,
+                attachments: 1,
+                createdAt: 1,
+                createdBy: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $lookup: {
+          from: "works",
+          let: { ticketId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $in: ["$$ticketId", "$tickets"] },
+                    { $eq: ["$scheduled", true] },
+                    { $eq: ["$finishedAt", null] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "scheduledWorks",
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          num: 1,
+          company: 1,
+          title: 1,
+          attachments: 1,
+          deadline: 1,
+          finishedAt: 1,
+          isClosed: 1,
+          state: 1,
+          createdAt: 1,
+          routineTask: 1,
+          responsibles: 1,
+          applicant: { $arrayElemAt: ["$applicant", 0] },
+          category: { $arrayElemAt: ["$category", 0] },
+          latestComment: { $arrayElemAt: ["$comments", 0] },
+          scheduledWorks: 1,
+        },
+      },
+    ]);
 
-    res.status(200).json({ tickets: shortenedTickets });
+    res.status(200).json({ tickets: ticketData });
   } catch (error) {
     next(new AppError("Failed to fetch opened tickets", 500, true, error));
   }
@@ -115,102 +175,158 @@ exports.getRecentlyClosed = async (req, res, next) => {
   try {
     const { isAdmin, permissions, userId, company } = await getAuthData(req);
 
-    Date.prototype.minusDays = function (days) {
-      let date = new Date(this.valueOf());
-      date.setDate(date.getDate() - days);
-      return date;
+    // Calculate date threshold (14 days ago)
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+    // Build query conditions based on permissions
+    let matchConditions = {
+      finishedAt: { $gte: fourteenDaysAgo },
     };
-
-    const allTickets = await Ticket.find({
-      finishedAt: { $gte: new Date().minusDays(14) },
-    })
-      .populate({
-        path: "applicantId",
-        select:
-          "firstName lastName email phone position role isActive subdivision",
-        populate: {
-          path: "subdivision",
-          select: "name",
-        },
-      })
-      .populate({
-        path: "comments",
-        select: "content attachments createdAt createdBy",
-        populate: {
-          path: "createdBy",
-          select: "firstName lastName ",
-        },
-      })
-      .populate({
-        path: "categoryId",
-        select: "title",
-      })
-      .sort({
-        _id: -1,
-      });
-
-    let filteredTickets = [];
 
     if (
       isAdmin ||
       permissions.canAdministrateTickets ||
       permissions.canSeeAllTickets
     ) {
-      // Пользователи с ролью администратор
-
-      filteredTickets = allTickets;
+      // No additional filters for admins
     } else if (permissions.canSeeAllCompanyTickets) {
-      // Пользователи с разрешением на просмотр всех заявок Компании
-
-      filteredTickets = allTickets.filter(
-        (ticket) => ticket.company._id === company._id,
-      );
+      matchConditions["company._id"] = company._id;
     } else {
-      // Остальные пользователи
-
-      filteredTickets = allTickets.filter(
-        (ticket) =>
-          ticket.responsibles
-            .map((resp) => resp._id.toString())
-            .includes(userId.toString()) ||
-          ticket.createdBy.toString() === userId.toString() ||
-          ticket.applicantId?._id.toString() === userId.toString(),
-      );
+      // Filter for specific user involvement
+      matchConditions.$or = [
+        { "responsibles._id": userId },
+        { createdBy: userId },
+        { applicantId: userId },
+      ];
     }
 
-    let shortenedTickets = [];
-
-    for (let ticket of filteredTickets) {
-      const scheduledWorks = await Work.find({
-        tickets: ticket._id,
-        scheduled: true,
-        finishedAt: null,
-      });
-
-      shortenedTickets.push({
-        _id: ticket._id,
-        num: ticket.num,
-        company: {
-          _id: ticket.company._id,
-          alias: ticket.company.alias,
+    // Use aggregation pipeline for better performance
+    const ticketData = await Ticket.aggregate([
+      { $match: matchConditions },
+      { $sort: { _id: -1 } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "applicantId",
+          foreignField: "_id",
+          as: "applicant",
+          pipeline: [
+            {
+              $project: {
+                firstName: 1,
+                lastName: 1,
+                email: 1,
+                phone: 1,
+                position: 1,
+                role: 1,
+                isActive: 1,
+                subdivision: 1,
+              },
+            },
+            {
+              $lookup: {
+                from: "subdivisions",
+                localField: "subdivision",
+                foreignField: "_id",
+                as: "subdivision",
+                pipeline: [{ $project: { name: 1 } }],
+              },
+            },
+            {
+              $addFields: {
+                subdivision: { $arrayElemAt: ["$subdivision", 0] },
+              },
+            },
+          ],
         },
-        category: ticket.categoryId || ticket.category,
-        title: ticket.title,
-        attachments: ticket.attachments,
-        applicant: ticket.applicantId || ticket.applicant,
-        responsibles: ticket.responsibles,
-        createdAt: ticket.createdAt,
-        deadline: ticket.deadline,
-        finishedAt: ticket.finishedAt,
-        isClosed: ticket.isClosed,
-        state: ticket.state,
-        latestComment: ticket.comments[ticket.comments.length - 1],
-        scheduledWorks: scheduledWorks,
-        routineTask: ticket.routineTask,
-      });
-    }
+      },
+      {
+        $lookup: {
+          from: "ticketcategories",
+          localField: "categoryId",
+          foreignField: "_id",
+          as: "category",
+          pipeline: [{ $project: { title: 1 } }],
+        },
+      },
+      {
+        $lookup: {
+          from: "comments",
+          localField: "comments",
+          foreignField: "_id",
+          as: "comments",
+          pipeline: [
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+            {
+              $lookup: {
+                from: "users",
+                localField: "createdBy",
+                foreignField: "_id",
+                as: "createdBy",
+                pipeline: [{ $project: { firstName: 1, lastName: 1 } }],
+              },
+            },
+            {
+              $addFields: {
+                createdBy: { $arrayElemAt: ["$createdBy", 0] },
+              },
+            },
+            {
+              $project: {
+                content: 1,
+                attachments: 1,
+                createdAt: 1,
+                createdBy: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $lookup: {
+          from: "works",
+          let: { ticketId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $in: ["$$ticketId", "$tickets"] },
+                    { $eq: ["$scheduled", true] },
+                    { $eq: ["$finishedAt", null] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "scheduledWorks",
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          num: 1,
+          company: 1,
+          title: 1,
+          attachments: 1,
+          deadline: 1,
+          finishedAt: 1,
+          isClosed: 1,
+          state: 1,
+          createdAt: 1,
+          routineTask: 1,
+          responsibles: 1,
+          applicant: { $arrayElemAt: ["$applicant", 0] },
+          category: { $arrayElemAt: ["$category", 0] },
+          latestComment: { $arrayElemAt: ["$comments", 0] },
+          scheduledWorks: 1,
+        },
+      },
+    ]);
 
-    res.status(200).json({ tickets: shortenedTickets });
+    res.status(200).json({ tickets: ticketData });
   } catch (error) {
     next(
       new AppError("Failed to fetch recently closed tickets", 500, true, error),

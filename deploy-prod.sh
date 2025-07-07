@@ -1,11 +1,17 @@
 #!/bin/bash
 
-# Production Deployment Script for HD System
-# This script helps deploy the HD system in production mode
+# HD System Production Deployment Script with Performance Optimizations
+# This script deploys the application with all performance enhancements
 
 set -e
 
-# Colors for output
+# Performance optimization environment variables
+export NODE_ENV=production
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+export COMPOSE_HTTP_TIMEOUT=300
+
+# Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -13,378 +19,337 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Function to print colored output
-print_status() {
+log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-print_success() {
+log_success() {
     echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
-print_warning() {
+log_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-print_error() {
+log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Function to check if required commands exist
+# Function to check dependencies
 check_dependencies() {
-    print_status "Checking dependencies..."
+    log_info "Checking dependencies..."
 
     if ! command -v docker &> /dev/null; then
-        print_error "Docker is not installed or not in PATH"
+        log_error "Docker is not installed"
         exit 1
     fi
 
     if ! docker compose version &> /dev/null; then
-        print_error "Docker Compose is not installed or not working"
-        print_error "Please install Docker with Compose plugin"
+        log_error "Docker Compose is not available"
         exit 1
     fi
 
-    # Check BuildKit support
-    if ! docker buildx version &> /dev/null; then
-        print_warning "Docker BuildKit (buildx) not available, using legacy builder"
-        export DOCKER_BUILDKIT=0
-    else
-        export DOCKER_BUILDKIT=1
-    fi
-
-    print_success "All dependencies are installed"
+    log_success "Dependencies check passed"
 }
 
-# Function to generate secure passwords
-generate_password() {
-    # Generate password with alphanumeric characters only to avoid sed issues
-    tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 25
-}
+# Function to validate environment
+validate_environment() {
+    log_info "Validating environment..."
 
-# Function to generate JWT secret
-generate_jwt_secret() {
-    # Generate JWT secret with alphanumeric characters only to avoid sed issues
-    tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 64
-}
-
-# Function to setup environment file
-setup_environment() {
-    print_status "Setting up production environment..."
-
-    if [ ! -f ".env.prod" ]; then
-        print_error "Production environment file not found at .env.prod"
+    if [ ! -f .env.prod ]; then
+        log_error "Environment file .env.prod not found!"
         exit 1
     fi
 
-    # Generate secure passwords if placeholders exist
-    if grep -q "your_secure_mongodb_password_here" .env.prod; then
-        MONGODB_PASSWORD=$(generate_password)
-        sed -i "s|your_secure_mongodb_password_here|${MONGODB_PASSWORD}|g" .env.prod
-        print_success "Generated secure MongoDB password"
-    fi
+    # Check for required environment variables
+    required_vars=("MONGODB_USERNAME" "MONGODB_PASSWORD" "JWT_SECRET" "API_URL")
+    for var in "${required_vars[@]}"; do
+        if ! grep -q "^${var}=" .env.prod; then
+            log_error "Required environment variable ${var} not found in .env.prod"
+            exit 1
+        fi
+    done
 
-    if grep -q "your_very_secure_jwt_secret_key_here_minimum_256_bits" .env.prod; then
-        JWT_SECRET=$(generate_jwt_secret)
-        sed -i "s|your_very_secure_jwt_secret_key_here_minimum_256_bits|${JWT_SECRET}|g" .env.prod
-        print_success "Generated secure JWT secret"
-    fi
-
-    if grep -q "your_session_secret_here" .env.prod; then
-        SESSION_SECRET=$(generate_password)
-        sed -i "s|your_session_secret_here|${SESSION_SECRET}|g" .env.prod
-        print_success "Generated secure session secret"
-    fi
-
-    print_warning "Please review and update the following in .env.prod:"
-    print_warning "- API_URL (set your actual domain)"
-    print_warning "- TG_TOKEN (set your Telegram bot token)"
-    print_warning "- TG_TOKEN"
-    print_warning "- Domain-specific settings"
-
-    read -p "Have you reviewed and updated .env.prod? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_error "Please update .env.prod before continuing"
-        exit 1
-    fi
+    log_success "Environment validation passed"
 }
 
-# Function to create necessary directories
-create_directories() {
-    print_status "Creating necessary directories..."
+# Function to setup Docker volumes
+setup_volumes() {
+    log_info "Setting up Docker volumes..."
 
-    # Create directories for logs and uploads
-    mkdir -p logs
-    mkdir -p uploads
-    mkdir -p backend/logs
-    mkdir -p backend/uploads
-    mkdir -p telegram-bot/logs
+    # Create external volumes if they don't exist
+    docker volume create hd_data 2>/dev/null || true
+    docker volume create hd_mongodb_config 2>/dev/null || true
+    docker volume create hd_uploads 2>/dev/null || true
 
-    # Set proper permissions
-    chmod 755 logs uploads backend/logs backend/uploads telegram-bot/logs
-
-    print_success "Directories created successfully"
+    log_success "Docker volumes ready"
 }
 
-# Function to build Docker images
-build_images() {
-    print_status "Building Docker images..."
+# Function to cleanup Docker resources
+cleanup_docker() {
+    log_info "Cleaning up Docker resources for optimal performance..."
 
-    # Clean up builder cache to prevent BuildKit issues
-    docker builder prune -f || true
+    # Remove unused containers and networks
+    docker system prune -f 2>/dev/null || true
 
-    # Set BuildKit environment variables to prevent issues
+    # Clear builder cache to prevent build issues
+    docker builder prune -f 2>/dev/null || true
+
+    log_success "Docker cleanup completed"
+}
+
+# Function to build with performance optimizations
+build_optimized() {
+    log_info "Building application with performance optimizations..."
+
+    # Set build-time performance flags
     export DOCKER_BUILDKIT=1
     export BUILDKIT_PROGRESS=plain
 
-    # Build all services with proper error handling
-    if ! docker compose -f compose.prod.yml --env-file .env.prod build --no-cache --progress=plain; then
-        print_error "Docker build failed. Trying with legacy builder..."
-        export DOCKER_BUILDKIT=0
-        docker compose -f compose.prod.yml --env-file .env.prod build --no-cache
+    # Build with no cache and parallel processing
+    if ! docker compose -f compose.prod.yml build --no-cache --parallel; then
+        log_error "Build failed"
+        exit 1
     fi
 
-    print_success "Docker images built successfully"
+    log_success "Build completed successfully"
 }
 
-# Function to start services
+# Function to start services with health checks
 start_services() {
-    print_status "Starting services..."
+    log_info "Starting optimized production services..."
 
-    # Start services with environment file
-    docker compose -f compose.prod.yml --env-file .env.prod up -d
+    # Stop existing containers gracefully
+    docker compose -f compose.prod.yml down --remove-orphans 2>/dev/null || true
 
-    print_success "Services started successfully"
+    # Start all services
+    docker compose -f compose.prod.yml up -d
+
+    log_success "Services started"
 }
 
-# Function to check service health
-check_health() {
-    print_status "Checking service health..."
-
-    # Wait for services to be healthy
+# Function to wait for service health
+wait_for_health() {
+    local service=$1
     local max_attempts=30
     local attempt=0
 
+    log_info "Waiting for $service to be healthy..."
+
     while [ $attempt -lt $max_attempts ]; do
-        if docker compose -f compose.prod.yml --env-file .env.prod ps | grep -q "healthy"; then
-            print_success "Services are healthy"
+        if docker compose -f compose.prod.yml ps $service | grep -q "healthy"; then
+            log_success "$service is healthy"
             return 0
         fi
 
         attempt=$((attempt + 1))
-        print_status "Waiting for services to be healthy... (attempt $attempt/$max_attempts)"
-        sleep 10
+        sleep 2
     done
 
-    print_error "Services did not become healthy within expected time"
-    print_status "Checking service logs..."
-    docker compose -f compose.prod.yml --env-file .env.prod logs -f
+    log_error "$service failed to become healthy"
     return 1
+}
+
+# Function to check API response times
+check_performance() {
+    log_info "Checking API performance..."
+
+    # Wait a bit for services to fully start
+    sleep 5
+
+    # Test API response time
+    if command -v curl &> /dev/null; then
+        local response_time=$(curl -o /dev/null -s -w "%{time_total}" http://localhost:8080/health 2>/dev/null || echo "0")
+
+        if [ "$response_time" != "0" ]; then
+            # Convert to milliseconds for easier reading
+            local ms_time=$(echo "$response_time * 1000" | bc -l 2>/dev/null || echo "0")
+
+            if (( $(echo "$response_time < 1.0" | bc -l 2>/dev/null) )); then
+                log_success "API response time: ${ms_time}ms (Good)"
+            else
+                log_warning "API response time: ${ms_time}ms (Consider further optimization)"
+            fi
+        else
+            log_warning "Could not measure API response time"
+        fi
+    fi
+}
+
+# Function to show resource usage
+show_resources() {
+    log_info "Container resource usage:"
+
+    # Get container IDs
+    local container_ids=$(docker compose -f compose.prod.yml ps -q 2>/dev/null)
+
+    if [ -n "$container_ids" ]; then
+        docker stats $container_ids --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
+    else
+        log_warning "No containers found"
+    fi
 }
 
 # Function to show service status
 show_status() {
-    print_status "Current service status:"
-    docker compose -f compose.prod.yml --env-file .env.prod ps
+    log_info "Service status:"
+    docker compose -f compose.prod.yml ps
 
-    print_status "Service logs (last 20 lines):"
-    docker compose -f compose.prod.yml --env-file .env.prod logs --tail=20
-}
-
-# Function to check detailed service health
-check_detailed_health() {
-    print_status "Checking detailed service health..."
-
-    # Check if services are running
-    if ! docker compose -f compose.prod.yml --env-file .env.prod ps -q > /dev/null 2>&1; then
-        print_error "No services are running"
-        return 1
-    fi
-
-    # Check individual service health
-    services=("mongodb" "backend" "frontend" "telegram-bot")
-
-    for service in "${services[@]}"; do
-        if docker compose -f compose.prod.yml --env-file .env.prod ps "$service" | grep -q "healthy"; then
-            print_success "$service: healthy"
-        elif docker compose -f compose.prod.yml --env-file .env.prod ps "$service" | grep -q "unhealthy"; then
-            print_error "$service: unhealthy"
-        elif docker compose -f compose.prod.yml --env-file .env.prod ps "$service" | grep -q "Up"; then
-            print_warning "$service: running (no health check)"
+    echo ""
+    log_info "Service health:"
+    for service in mongodb backend frontend telegram-bot; do
+        if docker compose -f compose.prod.yml ps $service | grep -q "healthy"; then
+            log_success "$service: healthy"
+        elif docker compose -f compose.prod.yml ps $service | grep -q "Up"; then
+            log_warning "$service: running (no health check)"
         else
-            print_error "$service: not running"
+            log_error "$service: not running"
         fi
     done
 }
 
-# Function to execute commands in containers
-exec_command() {
-    if [ $# -lt 2 ]; then
-        print_error "Usage: $0 exec SERVICE COMMAND"
-        print_error "Example: $0 exec backend bash"
-        return 1
-    fi
-
-    local service=$1
-    shift
-    print_status "Executing command in $service: $*"
-    docker compose -f compose.prod.yml --env-file .env.prod exec "$service" "$@"
+# Function to show logs
+show_logs() {
+    log_info "Recent service logs:"
+    docker compose -f compose.prod.yml logs --tail=50
 }
 
-# Function to show resource statistics
-show_stats() {
-    print_status "Container resource usage:"
-    local container_ids=$(docker compose -f compose.prod.yml --env-file .env.prod ps -q)
-    if [ -n "$container_ids" ]; then
-        docker stats $container_ids --no-stream
-    else
-        print_error "No containers are running"
-    fi
-}
+# Function to create performance report
+create_performance_report() {
+    log_info "Generating performance report..."
 
+    local report_file="performance_report_$(date +%Y%m%d_%H%M%S).txt"
 
+    {
+        echo "HD System Performance Report"
+        echo "Generated: $(date)"
+        echo "================================"
+        echo ""
 
-# Function to create backup
-create_backup() {
-    print_status "Creating backup..."
+        echo "Service Status:"
+        docker compose -f compose.prod.yml ps
+        echo ""
 
-    local backup_dir="backups/$(date +%Y-%m-%d_%H-%M-%S)"
-    mkdir -p "$backup_dir"
+        echo "Resource Usage:"
+        local container_ids=$(docker compose -f compose.prod.yml ps -q 2>/dev/null)
+        if [ -n "$container_ids" ]; then
+            docker stats $container_ids --no-stream
+        fi
+        echo ""
 
-    # Backup MongoDB
-    docker compose -f compose.prod.yml --env-file .env.prod exec -T mongodb mongodump --out /tmp/backup
-    docker cp $(docker compose -f compose.prod.yml --env-file .env.prod ps -q mongodb):/tmp/backup "$backup_dir/mongodb"
+        echo "Backend Health Check:"
+        curl -s http://localhost:8080/health 2>/dev/null || echo "Health check failed"
+        echo ""
 
-    # Backup uploads
-    if [ -d "backend/uploads" ]; then
-        cp -r backend/uploads "$backup_dir/"
-    fi
+        echo "Disk Usage:"
+        df -h
+        echo ""
 
-    # Backup environment file
-    cp .env.prod "$backup_dir/"
+        echo "Docker System Info:"
+        docker system df
 
-    print_success "Backup created at $backup_dir"
-}
+    } > "$report_file"
 
-# Function to stop services
-stop_services() {
-    print_status "Stopping services..."
-    docker compose -f compose.prod.yml --env-file .env.prod down
-    print_success "Services stopped"
-}
-
-# Function to clean up
-cleanup() {
-    print_status "Cleaning up..."
-
-    # Remove stopped containers
-    docker container prune -f
-
-    # Remove unused images
-    docker image prune -f
-
-    # Remove builder cache to prevent BuildKit issues
-    if command -v docker buildx &> /dev/null; then
-        docker builder prune -f
-    fi
-
-    # Remove unused volumes (be careful with this)
-    read -p "Do you want to remove unused volumes? This will delete data! (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        docker volume prune -f
-        print_success "Unused volumes removed"
-    fi
-
-    print_success "Cleanup completed"
+    log_success "Performance report saved to $report_file"
 }
 
 # Function to show help
 show_help() {
     echo "HD System Production Deployment Script"
-    echo
+    echo ""
     echo "Usage: $0 [COMMAND]"
-    echo
+    echo ""
     echo "Commands:"
-    echo "  deploy    - Full deployment (setup, build, start)"
+    echo "  deploy    - Full deployment with performance optimizations"
     echo "  start     - Start services"
     echo "  stop      - Stop services"
     echo "  restart   - Restart services"
-    echo "  status    - Show service status"
+    echo "  status    - Show service status and health"
     echo "  logs      - Show service logs"
-    echo "  health    - Check detailed service health"
-    echo "  exec      - Execute command in service"
     echo "  stats     - Show resource usage"
-    echo "  backup    - Create backup"
+    echo "  health    - Check service health"
+    echo "  report    - Generate performance report"
     echo "  cleanup   - Clean up Docker resources"
-    echo "  help      - Show this help message"
-    echo
+    echo "  help      - Show this help"
+    echo ""
     echo "Examples:"
-    echo "  $0 deploy   # Full deployment"
-    echo "  $0 start    # Start services"
-    echo "  $0 status   # Check status"
-    echo "  $0 health   # Check service health"
-    echo "  $0 exec backend bash  # Shell into backend"
+    echo "  $0 deploy   # Full optimized deployment"
+    echo "  $0 status   # Check service status"
     echo "  $0 stats    # Show resource usage"
 }
 
-# Main script logic
-main() {
-    case "${1:-}" in
-        "deploy")
-            check_dependencies
-            setup_environment
-            create_directories
-            build_images
-            start_services
-            check_health
-            show_status
-            print_success "Deployment completed successfully!"
+# Main deployment function
+deploy() {
+    log_info "🚀 Starting HD System Production Deployment with Performance Optimizations..."
 
-            ;;
-        "start")
-            docker compose -f compose.prod.yml --env-file .env.prod up -d
-            ;;
-        "stop")
-            stop_services
-            ;;
-        "restart")
-            stop_services
-            docker compose -f compose.prod.yml --env-file .env.prod up -d
-            ;;
-        "status")
-            show_status
-            ;;
-        "logs")
-            docker compose -f compose.prod.yml --env-file .env.prod logs -f
-            ;;
-        "backup")
-            create_backup
-            ;;
-        "cleanup")
-            cleanup
-            ;;
-        "health")
-            check_detailed_health
-            ;;
-        "exec")
-            shift
-            exec_command "$@"
-            ;;
-        "stats")
-            show_stats
-            ;;
-        "help"|"--help"|"-h")
-            show_help
-            ;;
-        *)
-            print_error "Unknown command: ${1:-}"
-            echo
-            show_help
-            exit 1
-            ;;
-    esac
+    check_dependencies
+    validate_environment
+    setup_volumes
+    cleanup_docker
+    build_optimized
+    start_services
+
+    # Wait for critical services
+    wait_for_health "mongodb" || exit 1
+    wait_for_health "backend" || exit 1
+    wait_for_health "frontend" || exit 1
+
+    # Performance checks
+    check_performance
+    show_resources
+    show_status
+
+    log_success "🎉 Deployment completed successfully!"
+    log_info "Frontend: http://localhost:81"
+    log_info "Backend API: http://localhost:8080"
+    log_info "Health Check: http://localhost:8080/health"
 }
 
-# Run main function with all arguments
-main "$@"
+# Main script logic
+case "${1:-deploy}" in
+    "deploy")
+        deploy
+        ;;
+    "start")
+        start_services
+        ;;
+    "stop")
+        log_info "Stopping services..."
+        docker compose -f compose.prod.yml down
+        log_success "Services stopped"
+        ;;
+    "restart")
+        log_info "Restarting services..."
+        docker compose -f compose.prod.yml down
+        docker compose -f compose.prod.yml up -d
+        log_success "Services restarted"
+        ;;
+    "status")
+        show_status
+        ;;
+    "logs")
+        show_logs
+        ;;
+    "stats")
+        show_resources
+        ;;
+    "health")
+        for service in mongodb backend frontend telegram-bot; do
+            wait_for_health "$service" || true
+        done
+        ;;
+    "report")
+        create_performance_report
+        ;;
+    "cleanup")
+        cleanup_docker
+        ;;
+    "help"|"--help"|"-h")
+        show_help
+        ;;
+    *)
+        log_error "Unknown command: $1"
+        show_help
+        exit 1
+        ;;
+esac
