@@ -5,6 +5,8 @@ import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 
+import { RiCheckLine } from "react-icons/ri";
+
 const ConfirmPayment = ({ reportId }) => {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
@@ -19,7 +21,7 @@ const ConfirmPayment = ({ reportId }) => {
         variant="success"
         onClick={handleShowInvoiceModal}
       >
-        Подтвердить оплату
+        <RiCheckLine />
       </Button>
       <Modal show={showInvoiceModal} onHide={handleCloseInvoiceModal} centered>
         <Modal.Header closeButton>

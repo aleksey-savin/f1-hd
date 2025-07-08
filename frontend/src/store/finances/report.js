@@ -29,7 +29,7 @@ const searchItems = (query, items) => {
 };
 
 const useSummaryReportFilterStore = create((set) => ({
-  statuses: [],
+  statuses: ["preview"],
   searchTerm: "",
   originalList: [],
   filteredList: [],
@@ -56,7 +56,7 @@ const useSummaryReportFilterStore = create((set) => ({
     set((state) => ({ filteredList: summaryReportFilter(state) })),
   resetFilter: () => {
     set(() => ({
-      statuses: [],
+      statuses: ["preview"],
       searchTerm: "",
     }));
     set((state) => ({

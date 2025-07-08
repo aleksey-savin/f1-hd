@@ -11,9 +11,10 @@ export const msToHMS = (ms) => {
   // 4- Keep only seconds not extracted to minutes:
   seconds = seconds % 60;
 
-  const humanized =
-    [pad(2, hours.toString(), "0"), pad(2, minutes.toString(), "0")].join(":") +
-    " ч.";
+  const humanized = [
+    pad(2, hours.toString(), "0"),
+    pad(2, minutes.toString(), "0"),
+  ].join(":");
 
   return humanized;
 };
@@ -63,7 +64,7 @@ function checkCronPart(cronPart, dateValue) {
           start === "*" ? (cronPart === "0" ? 59 : 23) : parseInt(start);
         return Array.from(
           { length: Math.floor(max / parseInt(step)) + 1 },
-          (_, i) => i * parseInt(step)
+          (_, i) => i * parseInt(step),
         );
       }
       return parseInt(part);

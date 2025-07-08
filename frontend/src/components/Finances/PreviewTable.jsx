@@ -1,9 +1,10 @@
-import { useNavigate, useLoaderData } from "react-router";
+import { useLoaderData, useRevalidator } from "react-router";
 
 import {
   calculateWorkTime,
   calculateOvertime,
   filterUnrelatedWorks,
+  overallRoundedWorktime,
 } from "../../util/finances";
 
 import { formatPrice } from "../../util/format-string";
@@ -23,14 +24,20 @@ import Spinner from "react-bootstrap/Spinner";
 
 const PreviewTable = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const navigate = useNavigate();
+  const [confirmedReports, setConfirmedReports] = useState(new Set());
+  const revalidator = useRevalidator();
 
   const filterStore = useSummaryReportFilterStore();
   const { preview } = useLoaderData();
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    navigate(".", { replace: true });
+    revalidator.revalidate();
+  };
+
+  const handleOptimisticConfirm = (companyId, servicePlanId) => {
+    const reportKey = `${companyId}-${servicePlanId}`;
+    setConfirmedReports((prev) => new Set([...prev, reportKey]));
   };
 
   const splitDataByMonth = (data) => {
@@ -82,7 +89,9 @@ const PreviewTable = () => {
       );
     });
 
-    return Object.values(monthArrays);
+    return Object.entries(monthArrays)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, monthData]) => monthData);
   };
 
   const splitData = splitDataByMonth(preview);
@@ -98,6 +107,12 @@ const PreviewTable = () => {
       setIsRefreshing(false);
     }
   }, [preview]);
+
+  useEffect(() => {
+    if (isRefreshing && revalidator.state === "idle") {
+      setIsRefreshing(false);
+    }
+  }, [revalidator.state, isRefreshing]);
 
   return (
     <>
@@ -165,6 +180,42 @@ const PreviewTable = () => {
                           data.servicePlans,
                         );
 
+                        const availableServicePlans = data.servicePlans.filter(
+                          (plan) =>
+                            !confirmedReports.has(
+                              `${data.company._id}-${plan._id}`,
+                            ),
+                        );
+
+                        // Check if any available service plans have related works
+                        const hasVisibleReports = availableServicePlans.some(
+                          (plan) => {
+                            const relatedWorks = data.works.filter((work) =>
+                              work.tickets
+                                .map((ticket) => ticket._id)
+                                .some((ticketId) =>
+                                  data.tickets.find(
+                                    (ticket) =>
+                                      ticket._id === ticketId &&
+                                      plan.ticketCategories
+                                        .map((category) =>
+                                          category._id.toString(),
+                                        )
+                                        .includes(
+                                          ticket.categoryId?.toString(),
+                                        ),
+                                  ),
+                                ),
+                            );
+                            return relatedWorks.length > 0;
+                          },
+                        );
+
+                        // Don't render company section if no visible reports
+                        if (!hasVisibleReports) {
+                          return null;
+                        }
+
                         return (
                           <tbody
                             key={`${data.company._id.toString()}-${
@@ -181,7 +232,7 @@ const PreviewTable = () => {
                                 </div>
                               </td>
                             </tr>
-                            {data.servicePlans.map((plan) => {
+                            {availableServicePlans.map((plan) => {
                               const relatedWorks = data.works.filter((work) =>
                                 work.tickets
                                   .map((ticket) => ticket._id)
@@ -204,11 +255,20 @@ const PreviewTable = () => {
                                 ? data.company.workSchedule
                                 : plan.customProvisionSchedule;
 
-                              const workingTime = calculateWorkTime(
-                                schedule,
-                                relatedWorks,
-                                plan.tariffingPeriod,
-                              ).worktime;
+                              const tariff = plan.type;
+
+                              const workingTime =
+                                tariff === "hourly"
+                                  ? overallRoundedWorktime(
+                                      relatedWorks,
+                                      plan.tariffingPeriod,
+                                    ) /
+                                    (1000 * 60)
+                                  : calculateWorkTime(
+                                      schedule,
+                                      relatedWorks,
+                                      plan.tariffingPeriod,
+                                    ).roundedWorktime;
 
                               const hourPackagePrice = (
                                 schedule,
@@ -247,14 +307,12 @@ const PreviewTable = () => {
                                 return hourPackagePrice;
                               };
 
-                              const tariff = plan.type;
-
                               const hourlyPrice =
-                                (calculateWorkTime(
-                                  schedule,
+                                ((overallRoundedWorktime(
                                   relatedWorks,
                                   plan.tariffingPeriod,
-                                ).worktime *
+                                ) /
+                                  (1000 * 60)) *
                                   plan.pricePerHour) /
                                 60;
 
@@ -272,17 +330,19 @@ const PreviewTable = () => {
                                     : fixedPrice;
 
                               const additionalPrice =
-                                (calculateOvertime(
-                                  schedule,
-                                  relatedWorks.filter(
-                                    (work) =>
-                                      !work.ticketsCategories[0]
-                                        .alwaysWithinPlan,
-                                  ),
-                                  plan.tariffingPeriod,
-                                ).overtime *
-                                  plan.pricePerHourNonWorking) /
-                                60;
+                                tariff === "hourly"
+                                  ? 0
+                                  : (calculateOvertime(
+                                      schedule,
+                                      relatedWorks.filter(
+                                        (work) =>
+                                          !work.ticketsCategories[0]
+                                            .alwaysWithinPlan,
+                                      ),
+                                      plan.tariffingPeriod,
+                                    ).overtime *
+                                      plan.pricePerHourNonWorking) /
+                                    60;
 
                               const sum = price + additionalPrice;
 
@@ -303,7 +363,7 @@ const PreviewTable = () => {
                                       {plan.type === "fixedPrice" &&
                                         "Фиксированная оплата"}
                                     </td>
-                                    <td>{msToHMS(workingTime * 60000)}</td>
+                                    <td>{msToHMS(workingTime * 1000 * 60)}</td>
                                     <td className="text-end">
                                       {formatPrice(price)}
                                     </td>
@@ -323,6 +383,9 @@ const PreviewTable = () => {
                                         }}
                                         relatedWorks={relatedWorks}
                                         unrelatedWorks={unrelatedWorks}
+                                        onOptimisticConfirm={
+                                          handleOptimisticConfirm
+                                        }
                                       />
                                     </td>
                                   </tr>

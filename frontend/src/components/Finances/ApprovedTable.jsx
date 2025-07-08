@@ -1,5 +1,11 @@
-import { useLoaderData, Form as RouterForm } from "react-router";
-import { useState } from "react";
+import {
+  useLoaderData,
+  Form as RouterForm,
+  useNavigation,
+  useNavigate,
+  useRevalidator,
+} from "react-router";
+import { useState, useEffect } from "react";
 
 import { formatPrice } from "../../util/format-string";
 
@@ -11,6 +17,8 @@ import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import Spinner from "react-bootstrap/esm/Spinner";
 
+import { RiRefreshLine } from "react-icons/ri";
+
 import { RiDeleteBinLine } from "react-icons/ri";
 
 import { formatShortDate } from "../../util/format-date";
@@ -21,21 +29,92 @@ import DetailedViewOffcanvasReport from "./DetailedViewOffcanvasReport";
 
 const ApprovedTable = () => {
   const filterStore = useSummaryReportFilterStore();
+  const navigation = useNavigation();
+  const navigate = useNavigate();
+  const revalidator = useRevalidator();
 
   const { approved } = useLoaderData();
 
   // Add state for modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-
-  const handleClose = () => setShowDeleteModal(false);
-
+  const [reportToDelete, setReportToDelete] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletedReports, setDeletedReports] = useState(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleClose = () => {
+    setShowDeleteModal(false);
+    setReportToDelete(null);
+    setIsSubmitting(false);
+  };
+
+  const handleShowDeleteModal = (reportId) => {
+    setReportToDelete(reportId);
+    setShowDeleteModal(true);
+  };
+
+  const handleOptimisticDelete = () => {
+    if (reportToDelete) {
+      setDeletedReports((prev) => new Set([...prev, reportToDelete]));
+      handleClose();
+    }
+  };
+
+  // Close modal when navigation is complete
+  useEffect(() => {
+    if (navigation.state === "idle" && isSubmitting) {
+      handleClose();
+    }
+  }, [navigation.state, isSubmitting]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    revalidator.revalidate();
+  };
+
+  useEffect(() => {
+    if (isRefreshing && approved) {
+      setIsRefreshing(false);
+    }
+  }, [approved]);
+
+  useEffect(() => {
+    if (isRefreshing && revalidator.state === "idle") {
+      setIsRefreshing(false);
+    }
+  }, [revalidator.state, isRefreshing]);
 
   return (
     <>
       {filterStore.statuses.includes("approved") && (
         <>
-          <h1 className="display-5">Ожидает выставления счёта</h1>
+          <div className="d-flex justify-content-between align-items-center mb-4">
+            <h1 className="display-5 mb-0">Ожидает выставления счёта</h1>
+            <Button
+              size="lg"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              style={{ width: "200px" }}
+            >
+              {isRefreshing ? (
+                <>
+                  <Spinner
+                    as="span"
+                    animation="border"
+                    size="sm"
+                    role="status"
+                    aria-hidden="true"
+                    className="me-2"
+                  />
+                  Обновление...
+                </>
+              ) : (
+                <>
+                  <RiRefreshLine /> Обновить
+                </>
+              )}
+            </Button>
+          </div>
           <Table className="ms-1" bordered>
             <thead>
               <tr>
@@ -49,10 +128,11 @@ const ApprovedTable = () => {
             </thead>
             <tbody>
               {approved
+                .filter((report) => !deletedReports.has(report._id))
                 .sort(
                   (aReport, bReport) =>
                     new Date(aReport.periodFrom).getTime() -
-                    new Date(bReport.periodFrom).getTime()
+                    new Date(bReport.periodFrom).getTime(),
                 )
                 .map((report) => (
                   <tr key={report._id}>
@@ -68,99 +148,85 @@ const ApprovedTable = () => {
                         : formatPrice(report.price)}
                     </td>
                     <td>
-                      <CreateInvoice reportId={report._id} />
-                      <DetailedViewOffcanvasReport
-                        worktimeWorks={
-                          calculateWorkTime(
-                            report.servicePlan?.companyWorkSchedule
-                              ? report.company.workSchedule
-                              : report.servicePlan?.customProvisionSchedule,
-                            report.works,
-                            report.servicePlan?.tariffingPeriod
-                          ).worktimeWorks
-                        }
-                        overtimeWorks={
-                          calculateOvertime(
-                            report.servicePlan?.companyWorkSchedule
-                              ? report.company.workSchedule
-                              : report.servicePlan?.customProvisionSchedule,
-                            report.works,
-                            report.servicePlan.tariffingPeriod
-                          ).overtimeWorks
-                        }
-                        plan={report.servicePlan}
-                        company={report.company}
-                      />
-                      <RouterForm method="post" className="d-inline-block">
-                        <input
-                          name="reportId"
-                          defaultValue={report._id}
-                          hidden
+                      <div className="d-flex align-items-center justify-content-center gap-2">
+                        <CreateInvoice reportId={report._id} />
+                        <DetailedViewOffcanvasReport
+                          worktimeWorks={
+                            calculateWorkTime(
+                              report.servicePlan?.companyWorkSchedule
+                                ? report.company.workSchedule
+                                : report.servicePlan?.customProvisionSchedule,
+                              report.works,
+                              report.servicePlan?.tariffingPeriod,
+                            ).worktimeWorks
+                          }
+                          overtimeWorks={
+                            calculateOvertime(
+                              report.servicePlan?.companyWorkSchedule
+                                ? report.company.workSchedule
+                                : report.servicePlan?.customProvisionSchedule,
+                              report.works,
+                              report.servicePlan.tariffingPeriod,
+                            ).overtimeWorks
+                          }
+                          plan={report.servicePlan}
+                          company={report.company}
                         />
                         <Button
                           className="m-1"
                           size="sm"
-                          type="submit"
                           variant="danger"
-                          name="intent"
-                          value="deleteReport"
+                          onClick={() => handleShowDeleteModal(report._id)}
                         >
                           <RiDeleteBinLine />
                         </Button>
-                      </RouterForm>
-                      <Modal
-                        show={showDeleteModal}
-                        onHide={handleClose}
-                        centered
-                      >
-                        <Modal.Header closeButton>
-                          <Modal.Title>Подтверждение</Modal.Title>
-                        </Modal.Header>
-                        <Modal.Body>
-                          Вы уверены, что хотите удалить отчет?
-                        </Modal.Body>
-                        <Modal.Footer>
-                          <Button variant="secondary" onClick={handleClose}>
-                            Отмена
-                          </Button>
-                          <RouterForm
-                            method="post"
-                            className="d-inline-block"
-                            onSubmit={() => {
-                              setIsSubmitting(true);
-                            }}
-                          >
-                            <Button
-                              type="submit"
-                              variant="success"
-                              name="intent"
-                              value="confirmReportByContractor"
-                              disabled={isSubmitting}
-                            >
-                              {isSubmitting ? (
-                                <>
-                                  <Spinner
-                                    as="span"
-                                    animation="border"
-                                    size="sm"
-                                    role="status"
-                                    aria-hidden="true"
-                                    className="me-2"
-                                  />
-                                  Утверждение...
-                                </>
-                              ) : (
-                                "Утвердить"
-                              )}
-                            </Button>
-                          </RouterForm>
-                        </Modal.Footer>
-                      </Modal>
+                      </div>
                     </td>
                   </tr>
                 ))}
             </tbody>
           </Table>
+          <Modal show={showDeleteModal} onHide={handleClose} centered>
+            <Modal.Header closeButton>
+              <Modal.Title>Подтверждение удаления</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>Вы уверены, что хотите удалить отчет?</Modal.Body>
+            <Modal.Footer>
+              <Button variant="secondary" onClick={handleClose}>
+                Отмена
+              </Button>
+              <RouterForm
+                method="post"
+                className="d-inline-block"
+                onSubmit={handleOptimisticDelete}
+              >
+                <input name="reportId" defaultValue={reportToDelete} hidden />
+                <Button
+                  type="submit"
+                  variant="danger"
+                  name="intent"
+                  value="deleteReport"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Spinner
+                        as="span"
+                        animation="border"
+                        size="sm"
+                        role="status"
+                        aria-hidden="true"
+                        className="me-2"
+                      />
+                      Удаление...
+                    </>
+                  ) : (
+                    "Удалить"
+                  )}
+                </Button>
+              </RouterForm>
+            </Modal.Footer>
+          </Modal>
         </>
       )}
     </>

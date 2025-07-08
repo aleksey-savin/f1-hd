@@ -4,10 +4,11 @@ import Button from "react-bootstrap/Button";
 import Tooltip from "react-bootstrap/Tooltip";
 import OverlayTrigger from "react-bootstrap/OverlayTrigger";
 import Spinner from "react-bootstrap/Spinner";
-import Modal from "react-bootstrap/Modal"; // Add this import
+import Modal from "react-bootstrap/Modal";
 import DetailedViewOffcanvas from "./DetailedViewOffcanvas";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { useContext, useState } from "react"; // Add useState
+import { useContext, useState } from "react";
+import { RiCheckLine } from "react-icons/ri";
 
 const TableActionBar = ({
   plan,
@@ -15,6 +16,7 @@ const TableActionBar = ({
   amount,
   relatedWorks,
   unrelatedWorks,
+  onOptimisticConfirm,
 }) => {
   const { permissions } = useContext(AuthedUserContext);
 
@@ -23,15 +25,25 @@ const TableActionBar = ({
   // Add state for modal
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const handleClose = () => setShowConfirmModal(false);
+  const handleClose = () => {
+    setShowConfirmModal(false);
+    setIsSubmitting(false);
+  };
   const handleShow = () => setShowConfirmModal(true);
+
+  const handleOptimisticConfirm = () => {
+    if (onOptimisticConfirm) {
+      onOptimisticConfirm(data.company._id, plan._id);
+    }
+    handleClose();
+  };
 
   const schedule = plan.companyWorkSchedule
     ? data.company.workSchedule
     : plan.customProvisionSchedule;
 
   return (
-    <>
+    <div className="d-flex align-items-center justify-content-center gap-2">
       {permissions.canConfirmReportActions && (
         <>
           {unrelatedWorks.length > 0 && (
@@ -49,7 +61,7 @@ const TableActionBar = ({
                 disabled
                 style={{ pointerEvents: "none" }}
               >
-                Утвердить
+                <RiCheckLine />
               </Button>
             </OverlayTrigger>
           )}
@@ -61,7 +73,7 @@ const TableActionBar = ({
                 onClick={handleShow}
                 disabled={isSubmitting}
               >
-                Утвердить
+                <RiCheckLine />
               </Button>
 
               {/* Confirmation Modal */}
@@ -77,9 +89,7 @@ const TableActionBar = ({
                   <RouterForm
                     method="post"
                     className="d-inline-block"
-                    onSubmit={() => {
-                      setIsSubmitting(true);
-                    }}
+                    onSubmit={handleOptimisticConfirm}
                   >
                     <input
                       name="relatedWorks"
@@ -122,7 +132,9 @@ const TableActionBar = ({
                           Утверждение...
                         </>
                       ) : (
-                        "Утвердить"
+                        <>
+                          <RiCheckLine /> Утвердить
+                        </>
                       )}
                     </Button>
                   </RouterForm>
@@ -131,6 +143,7 @@ const TableActionBar = ({
             </>
           )}
           <DetailedViewOffcanvas
+            works={relatedWorks}
             worktimeWorks={
               calculateWorkTime(schedule, relatedWorks, plan.tariffingPeriod)
                 .worktimeWorks
@@ -139,9 +152,9 @@ const TableActionBar = ({
               calculateOvertime(
                 schedule,
                 relatedWorks.filter(
-                  (work) => !work.ticketsCategories[0].alwaysWithinPlan
+                  (work) => !work.ticketsCategories[0].alwaysWithinPlan,
                 ),
-                plan.tariffingPeriod
+                plan.tariffingPeriod,
               ).overtimeWorks
             }
             plan={plan}
@@ -149,7 +162,7 @@ const TableActionBar = ({
           />
         </>
       )}
-    </>
+    </div>
   );
 };
 

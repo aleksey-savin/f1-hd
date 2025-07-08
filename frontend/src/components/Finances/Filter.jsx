@@ -16,9 +16,7 @@ const SummaryReportFilter = ({
     const value = event.target.value;
     filterStore.updateFilter({
       ...filterStore,
-      statuses: !filterStore.statuses.includes(value)
-        ? [...filterStore.statuses, value]
-        : filterStore.statuses.filter((item) => item !== value),
+      statuses: [value],
     });
     filterStore.applyFilter();
   };
@@ -79,7 +77,7 @@ const SummaryReportFilter = ({
                   value={item.value}
                   id={`status-${item.value}`}
                   checked={filterStore.statuses.includes(item.value)}
-                  type="checkbox"
+                  type="radio"
                   name="filter-group-statuses"
                   onChange={statusesToggleHandler}
                 />

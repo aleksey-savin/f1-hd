@@ -5,6 +5,8 @@ import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 
+import { TbFileInvoice } from "react-icons/tb";
+
 const CreateInvoice = ({ reportId }) => {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
@@ -19,7 +21,7 @@ const CreateInvoice = ({ reportId }) => {
         variant="success"
         onClick={handleShowInvoiceModal}
       >
-        Выставить счёт
+        <TbFileInvoice />
       </Button>
       <Modal show={showInvoiceModal} onHide={handleCloseInvoiceModal} centered>
         <Modal.Header closeButton>

@@ -1369,6 +1369,8 @@ exports.update = async (req, res, next) => {
       state,
     } = req.body;
 
+    console.log(req.body);
+
     const ticket = await Ticket.findById(_id);
 
     if (!ticket) {
@@ -1393,39 +1395,42 @@ exports.update = async (req, res, next) => {
     const prevState = ticket.state;
 
     // Изменяем список ответственных, добавляем новых
-    for (let resp of JSON.parse(responsibles)) {
-      if (
-        !ticket.responsibles
-          .map((resp) => resp._id.toString())
-          .includes(resp._id.toString())
-      ) {
-        ticket.responsibles.push(resp);
+    if (responsibles) {
+      for (let resp of JSON.parse(responsibles)) {
+        if (
+          !ticket.responsibles
+            .map((resp) => resp._id.toString())
+            .includes(resp._id.toString())
+        ) {
+          ticket.responsibles.push(resp);
+        }
       }
-    }
-    // Изменяем список ответственных, удаляем старых
-    const newRespArray = ticket.responsibles.filter((resp) =>
-      JSON.parse(responsibles)
-        .map((resp) => resp._id.toString())
-        .includes(resp._id.toString()),
-    );
 
-    // adding users to removedFromRepsonsibles
-    const removedReps = ticket.responsibles.filter(
-      (resp) =>
-        !JSON.parse(responsibles)
+      // Изменяем список ответственных, удаляем старых
+      const newRespArray = ticket.responsibles.filter((resp) =>
+        JSON.parse(responsibles)
           .map((resp) => resp._id.toString())
           .includes(resp._id.toString()),
-    );
-    for (let resp of removedReps) {
-      ticket.removedFromResponsibles.push({
-        _id: resp._id,
-        lastName: resp.lastName,
-        firstName: resp.firstName,
-        isNotified: {
-          telegram: false,
-          email: false,
-        },
-      });
+      );
+
+      // adding users to removedFromRepsonsibles
+      const removedReps = ticket.responsibles.filter(
+        (resp) =>
+          !JSON.parse(responsibles)
+            .map((resp) => resp._id.toString())
+            .includes(resp._id.toString()),
+      );
+      for (let resp of removedReps) {
+        ticket.removedFromResponsibles.push({
+          _id: resp._id,
+          lastName: resp.lastName,
+          firstName: resp.firstName,
+          isNotified: {
+            telegram: false,
+            email: false,
+          },
+        });
+      }
     }
 
     ticket.title = title ? title : ticket.title;
@@ -1438,7 +1443,7 @@ exports.update = async (req, res, next) => {
       attachments?.length > 0
         ? [...ticket.attachments, ...attachments]
         : ticket.attachments;
-    ticket.responsibles = newRespArray;
+    ticket.responsibles = responsibles ? newRespArray : ticket.responsibles;
     ticket.deadline = deadline ? deadline : ticket.deadline;
     ticket.startedAt = startedAt ? startedAt : ticket.startedAt;
     ticket.startedBy = startedAt ? authData.userId : ticket.startedBy;

@@ -18,8 +18,25 @@ export const filterUnrelatedWorks = (works, tickets, servicePlans) => {
   return unrelatedWorks;
 };
 
+export const calculateTotalWorkTime = (works, tariffingPeriod) => {
+  let totalWorktime = 0;
+
+  for (let work of works) {
+    const startedAt = new Date(work.startedAt);
+    const finishedAt = new Date(work.finishedAt);
+    totalWorktime += finishedAt.getTime() - startedAt.getTime();
+  }
+
+  totalWorktime =
+    Math.ceil(totalWorktime / (tariffingPeriod * 60 * 1000)) *
+    (tariffingPeriod * 60 * 1000);
+
+  return totalWorktime;
+};
+
 export const calculateWorkTime = (schedule, works, tariffingPeriod) => {
   let worktime = 0;
+  let roundedWorktime = 0;
   let worktimeWorks = [];
   for (let work of works) {
     const daysOfWeek = [
@@ -35,9 +52,9 @@ export const calculateWorkTime = (schedule, works, tariffingPeriod) => {
     const finishedAt = new Date(work.finishedAt);
 
     // If start and end times are the same, skip this work
-    //if (startedAt.getTime() === finishedAt.getTime()) {
-    //  continue;
-    //}
+    if (work.startedAt === work.finishedAt) {
+      continue;
+    }
 
     let currentDate = new Date(
       startedAt.getFullYear(),
@@ -108,17 +125,107 @@ export const calculateWorkTime = (schedule, works, tariffingPeriod) => {
       }
     }
 
-    totalWorkTime =
-      Math.ceil(totalWorkTime / (tariffingPeriod * 60 * 1000)) *
-      (tariffingPeriod * 60 * 1000);
-
     worktime += Math.round(totalWorkTime / (1000 * 60));
 
-    if (totalWorkTime >= 0) {
-      worktimeWorks.push(work);
+    // Round up each work item's time according to tariffing period
+    const roundedTotalWorkTime =
+      Math.ceil(totalWorkTime / (tariffingPeriod * 60 * 1000)) *
+      (tariffingPeriod * 60 * 1000);
+    roundedWorktime += Math.round(roundedTotalWorkTime / (1000 * 60));
+
+    if (totalWorkTime > 0) {
+      // Calculate actual work time boundaries
+      let actualWorkStartTime = null;
+      let actualWorkEndTime = null;
+
+      if (work.withinPlan) {
+        // If work is within plan, use original times
+        actualWorkStartTime = startedAt;
+        actualWorkEndTime = finishedAt;
+      } else {
+        // Calculate actual work time boundaries within working hours
+        let currentDate = new Date(
+          startedAt.getFullYear(),
+          startedAt.getMonth(),
+          startedAt.getDate(),
+        );
+        const endDate = new Date(
+          finishedAt.getFullYear(),
+          finishedAt.getMonth(),
+          finishedAt.getDate(),
+        );
+
+        while (currentDate <= endDate) {
+          const dayName = daysOfWeek[(currentDate.getDay() + 6) % 7];
+          const daySchedule = schedule[dayName];
+
+          if (daySchedule && daySchedule.isWorking) {
+            const [startHour, startMinute] = daySchedule.start
+              .split(":")
+              .map(Number);
+            const [endHour, endMinute] = daySchedule.end.split(":").map(Number);
+            const workStart = new Date(currentDate).setHours(
+              startHour,
+              startMinute,
+              0,
+              0,
+            );
+            const workEnd = new Date(currentDate).setHours(
+              endHour,
+              endMinute,
+              0,
+              0,
+            );
+
+            const dayStart = new Date(
+              Math.max(currentDate.getTime(), startedAt.getTime()),
+            );
+            const dayEnd = new Date(
+              Math.min(
+                new Date(
+                  currentDate.getFullYear(),
+                  currentDate.getMonth(),
+                  currentDate.getDate(),
+                  23,
+                  59,
+                  59,
+                  999,
+                ),
+                finishedAt.getTime(),
+              ),
+            );
+
+            // Calculate work time within working hours
+            const effectiveStart = Math.max(dayStart.getTime(), workStart);
+            const effectiveEnd = Math.min(dayEnd.getTime(), workEnd);
+
+            if (effectiveEnd > effectiveStart) {
+              if (actualWorkStartTime === null) {
+                actualWorkStartTime = new Date(effectiveStart);
+              }
+              actualWorkEndTime = new Date(effectiveEnd);
+            }
+          }
+
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+      }
+
+      // Create modified work object with actual work time boundaries
+      const modifiedWork = {
+        ...work,
+        startedAt: actualWorkStartTime
+          ? actualWorkStartTime.toISOString()
+          : work.startedAt,
+        finishedAt: actualWorkEndTime
+          ? actualWorkEndTime.toISOString()
+          : work.finishedAt,
+      };
+
+      worktimeWorks.push(modifiedWork);
     }
   }
-  return { worktime: worktime, worktimeWorks: worktimeWorks };
+  return { worktime, roundedWorktime, worktimeWorks };
 };
 
 export const calcSingleWorkOvertime = (schedule, work, tariffingPeriod) => {
@@ -251,6 +358,9 @@ export const calculateOvertime = (schedule, works, tariffingPeriod) => {
   let overtimeWorks = [];
 
   for (let work of works) {
+    if (work.startedAt === work.finishedAt) {
+      continue;
+    }
     const totalOvertime = calcSingleWorkOvertime(
       schedule,
       work,
@@ -281,5 +391,34 @@ export const calculateCost = (durationMinutes, hourlyRate, billingPeriod) => {
   // (длительность в минутах / 60 минут) * часовая ставка
   const cost = (roundedDuration / 60) * hourlyRate;
 
-  return formatPrice(cost);
+  return cost;
+};
+
+export const calcSingleWorkTime = (work, tariffingPeriodMinutes) => {
+  // Calculate actual work duration in milliseconds
+  const actualDuration = new Date(work.finishedAt) - new Date(work.startedAt);
+
+  // Convert tariffing period from minutes to milliseconds
+  const tariffingPeriodMs = tariffingPeriodMinutes * 60 * 1000;
+
+  // Round up to the nearest tariffing period
+  const roundedUpDuration =
+    Math.ceil(actualDuration / tariffingPeriodMs) * tariffingPeriodMs;
+
+  return {
+    actualDuration,
+    roundedUpDuration,
+  };
+};
+
+export const calcRoundedWorkTime = (work, tariffingPeriodMinutes) => {
+  return calcSingleWorkTime(work, tariffingPeriodMinutes).roundedUpDuration;
+};
+
+export const overallRoundedWorktime = (works, tariffingPeriodMinutes) => {
+  let totalRoundedWorktime = 0;
+  for (let work of works) {
+    totalRoundedWorktime += calcRoundedWorkTime(work, tariffingPeriodMinutes);
+  }
+  return totalRoundedWorktime;
 };

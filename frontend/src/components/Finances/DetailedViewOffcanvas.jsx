@@ -1,5 +1,4 @@
 import { useState } from "react";
-import pad from "pad";
 
 import Offcanvas from "react-bootstrap/Offcanvas";
 import Table from "react-bootstrap/Table";
@@ -8,45 +7,34 @@ import Button from "react-bootstrap/Button";
 import Alert from "react-bootstrap/Alert";
 
 import { HiOutlineMagnifyingGlass } from "react-icons/hi2";
-import { calcSingleWorkOvertime, calculateCost } from "../../util/finances";
+import {
+  calcSingleWorkOvertime,
+  calculateWorkTime,
+  calculateCost,
+  calculateOvertime,
+  calcRoundedWorkTime,
+  overallRoundedWorktime,
+} from "../../util/finances";
 import { formatPrice } from "../../util/format-string";
+import { msToHMS } from "../../util/time-helpers";
 
-const DetailedViewOffcanvas = ({
-  worktimeWorks = [],
-  overtimeWorks = [],
-  plan = {},
-  company = {},
-}) => {
+const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
+  // show / hide offcanvas
   const [showUnrelatedWorks, setShowUnrelatedWorks] = useState(false);
-
   const handleCloseUnrelatedWorks = () => setShowUnrelatedWorks(false);
   const handleShowUnrelatedWorks = () => setShowUnrelatedWorks(true);
 
-  const msToHMS = (ms) => {
-    // 1- Convert to seconds:
-    let seconds = ms / 1000;
-    // 2- Extract hours:
-    const hours = parseInt(seconds / 3600); // 3,600 seconds in 1 hour
-    seconds = seconds % 3600; // seconds remaining after extracting hours
-    // 3- Extract minutes:
-    const minutes = parseInt(seconds / 60); // 60 seconds in 1 minute
-    // 4- Keep only seconds not extracted to minutes:
-    seconds = seconds % 60;
-
-    const humanized = [
-      pad(2, hours.toString(), "0"),
-      pad(2, minutes.toString(), "0"),
-    ].join(":");
-
-    return humanized;
-  };
-
+  // company schedule
   const schedule = plan.companyWorkSchedule
     ? company?.workSchedule
     : plan.customProvisionSchedule;
 
-  // Calculate totals for overtime works
-  const overtimeTotals = overtimeWorks.reduce(
+  // works
+  const overtime = calculateOvertime(schedule, works, plan.tariffingPeriod);
+  const worktime = calculateWorkTime(schedule, works, plan.tariffingPeriod);
+
+  // overtime totals
+  const overtimeTotals = overtime.overtimeWorks.reduce(
     (acc, work) => {
       const overtime = calcSingleWorkOvertime(
         schedule,
@@ -59,21 +47,28 @@ const DetailedViewOffcanvas = ({
           overtime.roundUpOvertime / (1000 * 60),
           plan.pricePerHourNonWorking,
           plan.tariffingPeriod,
-        ).replace(/[^\d.-]/g, ""),
+        ),
       ); // Remove currency symbols and spaces
 
       return {
-        duration: acc.duration + overtime.actualOvertime,
+        duration: acc.duration + overtime.roundUpOvertime,
         cost: acc.cost + cost,
       };
     },
     { duration: 0, cost: 0 },
   );
 
-  // Calculate total duration for worktime works
-  const worktimeTotalDuration = worktimeWorks.reduce((acc, work) => {
-    return acc + (new Date(work.finishedAt) - new Date(work.startedAt));
-  }, 0);
+  const hourlyTotalCost = () => {
+    let totalCost = 0;
+    for (let work of works) {
+      totalCost += calculateCost(
+        calcRoundedWorkTime(work, plan.tariffingPeriod) / (1000 * 60),
+        plan.pricePerHour,
+        plan.tariffingPeriod,
+      );
+    }
+    return totalCost;
+  };
 
   return (
     <>
@@ -97,15 +92,118 @@ const DetailedViewOffcanvas = ({
         </Offcanvas.Header>
         <Offcanvas.Body>
           <Container>
-            {overtimeWorks.length > 0 && (
+            {plan?.tariffing?.type !== "hourly" && (
               <>
-                <h3>Выполнены в нерабочее время</h3>
-                <Alert variant="light" className="my-3 py-2">
-                  <ul className="m-0">
-                    <li>{`Период тарификации: ${plan.tariffingPeriod} минут`}</li>
-                    <li>{`Стоимость 1 часа: ${formatPrice(plan.pricePerHourNonWorking)}`}</li>
-                  </ul>
-                </Alert>
+                {overtime.overtimeWorks.length > 0 && (
+                  <>
+                    <h3>Выполнены в нерабочее время</h3>
+                    <Alert variant="light" className="my-3 py-2">
+                      <ul className="m-0">
+                        <li>{`Период тарификации: ${plan.tariffingPeriod} минут`}</li>
+                        <li>{`Стоимость 1 часа: ${formatPrice(plan.pricePerHourNonWorking)}`}</li>
+                      </ul>
+                    </Alert>
+                    <Table bordered>
+                      <thead>
+                        <tr>
+                          <th>Заявки</th>
+                          <th>Инициаторы</th>
+                          <th>Категории</th>
+                          <th>Описание работ</th>
+                          <th>Исполнитель</th>
+                          <th>Длительность</th>
+                          <th className="text-end">Стоимость</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overtime.overtimeWorks.map((work) => (
+                          <tr
+                            key={work._id}
+                            className={
+                              parseInt(msToHMS(work.duration), 10) >= 12
+                                ? "table-warning"
+                                : ""
+                            }
+                          >
+                            <td data-cell="Заявки">
+                              {work.tickets.map((ticket) => (
+                                <div key={Math.random()}>
+                                  <a
+                                    href={`/tickets/${ticket.num}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {ticket.num}
+                                  </a>
+                                  <br></br>
+                                </div>
+                              ))}
+                            </td>
+                            <td data-cell="инициаторы">
+                              {work.tickets.map((ticket) => (
+                                <div key={Math.random()}>
+                                  {ticket.applicantId
+                                    ? `${ticket.applicantId?.lastName} ${ticket.applicantId?.firstName}`
+                                    : "Пользователь не найден"}
+                                  <br></br>
+                                </div>
+                              ))}
+                            </td>
+                            <td data-cell="категории">
+                              {work.ticketsCategories.map((category) => (
+                                <div key={Math.random()}>
+                                  {category.title}
+                                  <br></br>
+                                </div>
+                              ))}
+                            </td>
+                            <td data-cell="описание работ">
+                              {work.description}
+                            </td>
+                            <td data-cell="исполнитель">{work.finishedBy}</td>
+                            <td data-cell="длительность" className="text-end">
+                              {msToHMS(
+                                calcSingleWorkOvertime(
+                                  schedule,
+                                  work,
+                                  plan.tariffingPeriod,
+                                ).roundUpOvertime,
+                              )}
+                            </td>
+                            <td data-cell="стоимость" className="text-end">
+                              {formatPrice(
+                                calculateCost(
+                                  calcSingleWorkOvertime(
+                                    schedule,
+                                    work,
+                                    plan.tariffingPeriod,
+                                  ).roundUpOvertime /
+                                    (1000 * 60),
+                                  plan.pricePerHourNonWorking,
+                                  plan.tariffingPeriod,
+                                ),
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="table-secondary fw-bold">
+                          <td className="text-end" colSpan={5}>
+                            Итого:
+                          </td>
+                          <td className="text-end">
+                            {msToHMS(overtimeTotals.duration)}
+                          </td>
+                          <td className="text-end">
+                            {formatPrice(overtimeTotals.cost)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </Table>
+                  </>
+                )}
+                <h3>Выполнены в рабочее время</h3>
                 <Table bordered>
                   <thead>
                     <tr>
@@ -114,12 +212,11 @@ const DetailedViewOffcanvas = ({
                       <th>Категории</th>
                       <th>Описание работ</th>
                       <th>Исполнитель</th>
-                      <th>Длительность</th>
-                      <th>Стоимость</th>
+                      <th className="text-end">Длительность</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {overtimeWorks.map((work) => (
+                    {worktime.worktimeWorks.map((work) => (
                       <tr
                         key={work._id}
                         className={
@@ -146,7 +243,7 @@ const DetailedViewOffcanvas = ({
                           {work.tickets.map((ticket) => (
                             <div key={Math.random()}>
                               {ticket.applicantId
-                                ? `${ticket.applicantId?.lastName} ${ticket.applicantId?.firstName}` 
+                                ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
                                 : "Пользователь не найден"}
                               <br></br>
                             </div>
@@ -162,28 +259,9 @@ const DetailedViewOffcanvas = ({
                         </td>
                         <td data-cell="описание работ">{work.description}</td>
                         <td data-cell="исполнитель">{work.finishedBy}</td>
-                        <td
-                          data-cell="длительность"
-                          className="table-align-right"
-                        >
+                        <td data-cell="длительность" className="text-end">
                           {msToHMS(
-                            calcSingleWorkOvertime(
-                              schedule,
-                              work,
-                              plan.tariffingPeriod,
-                            ).actualOvertime,
-                          )}
-                        </td>
-                        <td data-cell="стоимость" className="table-align-right">
-                          {calculateCost(
-                            calcSingleWorkOvertime(
-                              schedule,
-                              work,
-                              plan.tariffingPeriod,
-                            ).roundUpOvertime /
-                              (1000 * 60),
-                            plan.pricePerHourNonWorking,
-                            plan.tariffingPeriod,
+                            calcRoundedWorkTime(work, plan.tariffingPeriod),
                           )}
                         </td>
                       </tr>
@@ -191,93 +269,128 @@ const DetailedViewOffcanvas = ({
                   </tbody>
                   <tfoot>
                     <tr className="table-secondary fw-bold">
-                      <td colSpan={5}>Итого:</td>
-                      <td className="table-align-right">
-                        {msToHMS(overtimeTotals.duration)}
+                      <td className="text-end" colSpan={5}>
+                        Итого:
                       </td>
-                      <td className="table-align-right">
-                        {formatPrice(overtimeTotals.cost)}
+                      <td className="text-end">
+                        {msToHMS(
+                          overallRoundedWorktime(
+                            worktime.worktimeWorks,
+                            plan.tariffingPeriod,
+                          ),
+                        )}
                       </td>
                     </tr>
                   </tfoot>
                 </Table>
               </>
             )}
-          </Container>
-          <Container>
-            <h3>Выполнены в рабочее время</h3>
-            <Table bordered>
-              <thead>
-                <tr>
-                  <th>Заявки</th>
-                  <th>Инициаторы</th>
-                  <th>Категории</th>
-                  <th>Описание работ</th>
-                  <th>Исполнитель</th>
-                  <th>Длительность</th>
-                </tr>
-              </thead>
-              <tbody>
-                {worktimeWorks.map((work) => (
-                  <tr
-                    key={work._id}
-                    className={
-                      parseInt(msToHMS(work.duration), 10) >= 12
-                        ? "table-warning"
-                        : ""
-                    }
-                  >
-                    <td data-cell="Заявки">
-                      {work.tickets.map((ticket) => (
-                        <div key={Math.random()}>
-                          <a
-                            href={`/tickets/${ticket.num}`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {ticket.num}
-                          </a>
-                          <br></br>
-                        </div>
+            {plan?.tariffing?.type === "hourly" && (
+              <>
+                <h3>Почасовая оплата</h3>
+                <Alert variant="light" className="my-3 py-2">
+                  <ul className="m-0">
+                    <li>{`Период тарификации: ${plan.tariffingPeriod} минут`}</li>
+                    <li>{`Стоимость 1 часа: ${formatPrice(plan.pricePerHour)}`}</li>
+                  </ul>
+                </Alert>
+                <Table bordered>
+                  <thead>
+                    <tr>
+                      <th>Заявки</th>
+                      <th>Инициаторы</th>
+                      <th>Категории</th>
+                      <th>Описание работ</th>
+                      <th>Исполнитель</th>
+                      <th>Длительность</th>
+                      <th className="text-end">Стоимость</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {works
+                      .filter((work) => work.finishedAt !== work.startedAt)
+                      .map((work) => (
+                        <tr
+                          key={work._id}
+                          className={
+                            parseInt(msToHMS(work.duration), 10) >= 12
+                              ? "table-warning"
+                              : ""
+                          }
+                        >
+                          <td data-cell="Заявки">
+                            {work.tickets.map((ticket) => (
+                              <div key={Math.random()}>
+                                <a
+                                  href={`/tickets/${ticket.num}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {ticket.num}
+                                </a>
+                                <br></br>
+                              </div>
+                            ))}
+                          </td>
+                          <td data-cell="инициаторы">
+                            {work.tickets.map((ticket) => (
+                              <div key={Math.random()}>
+                                {ticket.applicantId
+                                  ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
+                                  : "Пользователь не найден"}
+                                <br></br>
+                              </div>
+                            ))}
+                          </td>
+                          <td data-cell="категории">
+                            {work.ticketsCategories.map((category) => (
+                              <div key={Math.random()}>
+                                {category.title}
+                                <br></br>
+                              </div>
+                            ))}
+                          </td>
+                          <td data-cell="описание работ">{work.description}</td>
+                          <td data-cell="исполнитель">{work.finishedBy}</td>
+                          <td data-cell="длительность" className="text-end">
+                            {msToHMS(
+                              calcRoundedWorkTime(work, plan.tariffingPeriod),
+                            )}
+                          </td>
+                          <td data-cell="стоимость" className="text-end">
+                            {formatPrice(
+                              calculateCost(
+                                calcRoundedWorkTime(
+                                  work,
+                                  plan.tariffingPeriod,
+                                ) /
+                                  (1000 * 60),
+                                plan.pricePerHour,
+                                plan.tariffingPeriod,
+                              ),
+                            )}
+                          </td>
+                        </tr>
                       ))}
-                    </td>
-                    <td data-cell="инициаторы">
-                      {work.tickets.map((ticket) => (
-                        <div key={Math.random()}>
-                          {ticket.applicantId
-                            ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
-                            : "Пользователь не найден"}
-                          <br></br>
-                        </div>
-                      ))}
-                    </td>
-                    <td data-cell="категории">
-                      {work.ticketsCategories.map((category) => (
-                        <div key={Math.random()}>
-                          {category.title}
-                          <br></br>
-                        </div>
-                      ))}
-                    </td>
-                    <td data-cell="описание работ">{work.description}</td>
-                    <td data-cell="исполнитель">{work.finishedBy}</td>
-                    <td data-cell="длительность" className="table-align-right">
-                      {msToHMS(
-                        new Date(work.finishedAt) - new Date(work.startedAt),
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="table-secondary fw-bold">
-                  <td colSpan={5}>Итого:</td>
-                  <td className="table-align-right">
-                    {msToHMS(worktimeTotalDuration)}
-                  </td>
-                </tr>
-              </tfoot>
-            </Table>
+                  </tbody>
+                  <tfoot>
+                    <tr className="table-secondary fw-bold">
+                      <td className="text-end" colSpan={5}>
+                        Итого:
+                      </td>
+                      <td className="text-end">
+                        {msToHMS(
+                          overallRoundedWorktime(works, plan.tariffingPeriod),
+                        )}
+                      </td>
+                      <td className="text-end">
+                        {formatPrice(hourlyTotalCost())}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </Table>
+              </>
+            )}
           </Container>
         </Offcanvas.Body>
       </Offcanvas>
