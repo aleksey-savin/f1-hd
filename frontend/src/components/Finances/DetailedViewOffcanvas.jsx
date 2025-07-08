@@ -1,4 +1,6 @@
 import { useState } from "react";
+import * as XLSX from "xlsx";
+import "jspdf-autotable";
 
 import Offcanvas from "react-bootstrap/Offcanvas";
 import Table from "react-bootstrap/Table";
@@ -7,6 +9,7 @@ import Button from "react-bootstrap/Button";
 import Alert from "react-bootstrap/Alert";
 
 import { HiOutlineMagnifyingGlass } from "react-icons/hi2";
+import { FaRegFilePdf, FaRegFileExcel } from "react-icons/fa6";
 import {
   calcSingleWorkOvertime,
   calculateWorkTime,
@@ -68,6 +71,416 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
       );
     }
     return totalCost;
+  };
+
+  const exportToExcel = () => {
+    try {
+      console.log("Starting Excel export...");
+      let exportData = [];
+
+      if (plan?.tariffing?.type !== "hourly") {
+        // Export overtime works
+        if (overtime.overtimeWorks.length > 0) {
+          exportData.push({
+            "Тип работ": "ВЫПОЛНЕНЫ В НЕРАБОЧЕЕ ВРЕМЯ",
+            Заявки: "",
+            Инициаторы: "",
+            Категории: "",
+            "Описание работ": "",
+            Исполнитель: "",
+            Длительность: "",
+            Стоимость: "",
+          });
+
+          overtime.overtimeWorks.forEach((work) => {
+            exportData.push({
+              "Тип работ": "",
+              Заявки: work.tickets.map((ticket) => ticket.num).join(", "),
+              Инициаторы: work.tickets
+                .map((ticket) =>
+                  ticket.applicantId
+                    ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
+                    : "Пользователь не найден",
+                )
+                .join(", "),
+              Категории: work.ticketsCategories
+                .map((category) => category.title)
+                .join(", "),
+              "Описание работ": work.description,
+              Исполнитель: work.finishedBy,
+              Длительность: msToHMS(
+                calcSingleWorkOvertime(schedule, work, plan.tariffingPeriod)
+                  .roundUpOvertime,
+              ),
+              Стоимость: formatPrice(
+                calculateCost(
+                  calcSingleWorkOvertime(schedule, work, plan.tariffingPeriod)
+                    .roundUpOvertime /
+                    (1000 * 60),
+                  plan.pricePerHourNonWorking,
+                  plan.tariffingPeriod,
+                ),
+              ),
+            });
+          });
+
+          exportData.push({
+            "Тип работ": "",
+            Заявки: "",
+            Инициаторы: "",
+            Категории: "",
+            "Описание работ": "",
+            Исполнитель: "Итого:",
+            Длительность: msToHMS(overtimeTotals.duration),
+            Стоимость: formatPrice(overtimeTotals.cost),
+          });
+        }
+
+        // Export regular worktime works
+        exportData.push({
+          "Тип работ": "ВЫПОЛНЕНЫ В РАБОЧЕЕ ВРЕМЯ",
+          Заявки: "",
+          Инициаторы: "",
+          Категории: "",
+          "Описание работ": "",
+          Исполнитель: "",
+          Длительность: "",
+          Стоимость: "",
+        });
+
+        worktime.worktimeWorks.forEach((work) => {
+          exportData.push({
+            "Тип работ": "",
+            Заявки: work.tickets.map((ticket) => ticket.num).join(", "),
+            Инициаторы: work.tickets
+              .map((ticket) =>
+                ticket.applicantId
+                  ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
+                  : "Пользователь не найден",
+              )
+              .join(", "),
+            Категории: work.ticketsCategories
+              .map((category) => category.title)
+              .join(", "),
+            "Описание работ": work.description,
+            Исполнитель: work.finishedBy,
+            Длительность: msToHMS(
+              calcRoundedWorkTime(work, plan.tariffingPeriod),
+            ),
+            Стоимость: "",
+          });
+        });
+
+        exportData.push({
+          "Тип работ": "",
+          Заявки: "",
+          Инициаторы: "",
+          Категории: "",
+          "Описание работ": "",
+          Исполнитель: "Итого:",
+          Длительность: msToHMS(
+            overallRoundedWorktime(
+              worktime.worktimeWorks,
+              plan.tariffingPeriod,
+            ),
+          ),
+          Стоимость: "",
+        });
+      } else {
+        // Export hourly works
+        exportData.push({
+          "Тип работ": "ПОЧАСОВАЯ ОПЛАТА",
+          Заявки: "",
+          Инициаторы: "",
+          Категории: "",
+          "Описание работ": "",
+          Исполнитель: "",
+          Длительность: "",
+          Стоимость: "",
+        });
+
+        works
+          .filter((work) => work.finishedAt !== work.startedAt)
+          .forEach((work) => {
+            exportData.push({
+              "Тип работ": "",
+              Заявки: work.tickets.map((ticket) => ticket.num).join(", "),
+              Инициаторы: work.tickets
+                .map((ticket) =>
+                  ticket.applicantId
+                    ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
+                    : "Пользователь не найден",
+                )
+                .join(", "),
+              Категории: work.ticketsCategories
+                .map((category) => category.title)
+                .join(", "),
+              "Описание работ": work.description,
+              Исполнитель: work.finishedBy,
+              Длительность: msToHMS(
+                calcRoundedWorkTime(work, plan.tariffingPeriod),
+              ),
+              Стоимость: formatPrice(
+                calculateCost(
+                  calcRoundedWorkTime(work, plan.tariffingPeriod) / (1000 * 60),
+                  plan.pricePerHour,
+                  plan.tariffingPeriod,
+                ),
+              ),
+            });
+          });
+
+        exportData.push({
+          "Тип работ": "",
+          Заявки: "",
+          Инициаторы: "",
+          Категории: "",
+          "Описание работ": "",
+          Исполнитель: "Итого:",
+          Длительность: msToHMS(
+            overallRoundedWorktime(works, plan.tariffingPeriod),
+          ),
+          Стоимость: formatPrice(hourlyTotalCost()),
+        });
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Детальный просмотр");
+
+      const today = new Date().toISOString().split("T")[0];
+      const fileName = `Detalniy_prosmotr_${today}.xlsx`;
+      console.log("Saving file as:", fileName);
+
+      XLSX.writeFileXLSX(workbook, fileName);
+      console.log("Excel export completed");
+    } catch (error) {
+      console.error("Excel export error:", error);
+      alert("Ошибка при экспорте в Excel: " + error.message);
+    }
+  };
+
+  const exportToPDF = () => {
+    try {
+      console.log("Starting PDF export...");
+
+      const printWindow = window.open("", "_blank");
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Детальный просмотр работ</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; font-weight: bold; }
+            .title { font-size: 16px; font-weight: bold; margin-bottom: 20px; }
+            .section-title { font-size: 14px; font-weight: bold; margin-top: 30px; margin-bottom: 10px; }
+            .total { font-weight: bold; background-color: #f8f9fa; }
+            .alert { background-color: #f8f9fa; padding: 10px; margin: 10px 0; border-left: 4px solid #0d6efd; }
+          </style>
+        </head>
+        <body>
+          <div class="title">Детальный просмотр работ</div>
+      `;
+
+      if (plan?.tariffing?.type !== "hourly") {
+        if (overtime.overtimeWorks.length > 0) {
+          htmlContent += `
+            <div class="section-title">Выполнены в нерабочее время</div>
+            <div class="alert">
+              <ul style="margin: 0;">
+                <li>Период тарификации: ${plan.tariffingPeriod} минут</li>
+                <li>Стоимость 1 часа: ${formatPrice(plan.pricePerHourNonWorking)}</li>
+              </ul>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Заявки</th>
+                  <th>Инициаторы</th>
+                  <th>Категории</th>
+                  <th>Описание работ</th>
+                  <th>Исполнитель</th>
+                  <th>Длительность</th>
+                  <th>Стоимость</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${overtime.overtimeWorks
+                  .map(
+                    (work) => `
+                  <tr>
+                    <td>${work.tickets.map((ticket) => ticket.num).join(", ")}</td>
+                    <td>${work.tickets
+                      .map((ticket) =>
+                        ticket.applicantId
+                          ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
+                          : "Пользователь не найден",
+                      )
+                      .join(", ")}</td>
+                    <td>${work.ticketsCategories.map((category) => category.title).join(", ")}</td>
+                    <td>${work.description}</td>
+                    <td>${work.finishedBy}</td>
+                    <td>${msToHMS(
+                      calcSingleWorkOvertime(
+                        schedule,
+                        work,
+                        plan.tariffingPeriod,
+                      ).roundUpOvertime,
+                    )}</td>
+                    <td>${formatPrice(
+                      calculateCost(
+                        calcSingleWorkOvertime(
+                          schedule,
+                          work,
+                          plan.tariffingPeriod,
+                        ).roundUpOvertime /
+                          (1000 * 60),
+                        plan.pricePerHourNonWorking,
+                        plan.tariffingPeriod,
+                      ),
+                    )}</td>
+                  </tr>
+                `,
+                  )
+                  .join("")}
+                <tr class="total">
+                  <td colspan="5">Итого:</td>
+                  <td>${msToHMS(overtimeTotals.duration)}</td>
+                  <td>${formatPrice(overtimeTotals.cost)}</td>
+                </tr>
+              </tbody>
+            </table>
+          `;
+        }
+
+        htmlContent += `
+          <div class="section-title">Выполнены в рабочее время</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Заявки</th>
+                <th>Инициаторы</th>
+                <th>Категории</th>
+                <th>Описание работ</th>
+                <th>Исполнитель</th>
+                <th>Длительность</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${worktime.worktimeWorks
+                .map(
+                  (work) => `
+                <tr>
+                  <td>${work.tickets.map((ticket) => ticket.num).join(", ")}</td>
+                  <td>${work.tickets
+                    .map((ticket) =>
+                      ticket.applicantId
+                        ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
+                        : "Пользователь не найден",
+                    )
+                    .join(", ")}</td>
+                  <td>${work.ticketsCategories.map((category) => category.title).join(", ")}</td>
+                  <td>${work.description}</td>
+                  <td>${work.finishedBy}</td>
+                  <td>${msToHMS(calcRoundedWorkTime(work, plan.tariffingPeriod))}</td>
+                </tr>
+              `,
+                )
+                .join("")}
+              <tr class="total">
+                <td colspan="5">Итого:</td>
+                <td>${msToHMS(
+                  overallRoundedWorktime(
+                    worktime.worktimeWorks,
+                    plan.tariffingPeriod,
+                  ),
+                )}</td>
+              </tr>
+            </tbody>
+          </table>
+        `;
+      } else {
+        htmlContent += `
+          <div class="section-title">Почасовая оплата</div>
+          <div class="alert">
+            <ul style="margin: 0;">
+              <li>Период тарификации: ${plan.tariffingPeriod} минут</li>
+              <li>Стоимость 1 часа: ${formatPrice(plan.pricePerHour)}</li>
+            </ul>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Заявки</th>
+                <th>Инициаторы</th>
+                <th>Категории</th>
+                <th>Описание работ</th>
+                <th>Исполнитель</th>
+                <th>Длительность</th>
+                <th>Стоимость</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${works
+                .filter((work) => work.finishedAt !== work.startedAt)
+                .map(
+                  (work) => `
+                <tr>
+                  <td>${work.tickets.map((ticket) => ticket.num).join(", ")}</td>
+                  <td>${work.tickets
+                    .map((ticket) =>
+                      ticket.applicantId
+                        ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
+                        : "Пользователь не найден",
+                    )
+                    .join(", ")}</td>
+                  <td>${work.ticketsCategories.map((category) => category.title).join(", ")}</td>
+                  <td>${work.description}</td>
+                  <td>${work.finishedBy}</td>
+                  <td>${msToHMS(calcRoundedWorkTime(work, plan.tariffingPeriod))}</td>
+                  <td>${formatPrice(
+                    calculateCost(
+                      calcRoundedWorkTime(work, plan.tariffingPeriod) /
+                        (1000 * 60),
+                      plan.pricePerHour,
+                      plan.tariffingPeriod,
+                    ),
+                  )}</td>
+                </tr>
+              `,
+                )
+                .join("")}
+              <tr class="total">
+                <td colspan="5">Итого:</td>
+                <td>${msToHMS(overallRoundedWorktime(works, plan.tariffingPeriod))}</td>
+                <td>${formatPrice(hourlyTotalCost())}</td>
+              </tr>
+            </tbody>
+          </table>
+        `;
+      }
+
+      htmlContent += `
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
+
+      console.log("PDF export completed");
+    } catch (error) {
+      console.error("PDF export error:", error);
+      alert("Ошибка при экспорте в PDF: " + error.message);
+    }
   };
 
   return (
@@ -390,6 +803,24 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
                   </tfoot>
                 </Table>
               </>
+            )}
+            {works.length > 0 && (
+              <div className="mb-3 d-flex justify-content-end gap-2">
+                <Button
+                  variant="outline-success"
+                  size="sm"
+                  onClick={exportToExcel}
+                >
+                  <FaRegFileExcel /> Экспорт в Excel
+                </Button>
+                <Button
+                  variant="outline-danger"
+                  size="sm"
+                  onClick={exportToPDF}
+                >
+                  <FaRegFilePdf /> Экспорт в PDF
+                </Button>
+              </div>
             )}
           </Container>
         </Offcanvas.Body>

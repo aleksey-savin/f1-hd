@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useRevalidator } from "react-router";
 import pad from "pad";
+import * as XLSX from "xlsx";
+import "jspdf-autotable";
 
 import Offcanvas from "react-bootstrap/Offcanvas";
 import Table from "react-bootstrap/Table";
@@ -13,6 +15,8 @@ import Spinner from "react-bootstrap/Spinner";
 import Alert from "react-bootstrap/Alert";
 import { getLocalStorageData } from "../../util/auth";
 import Select from "../../UI/Select";
+
+import { FaRegFilePdf, FaRegFileExcel } from "react-icons/fa6";
 
 const UnrelatedWorksOffcanvas = ({ unrelatedWorks }) => {
   const [showUnrelatedWorks, setShowUnrelatedWorks] = useState(false);
@@ -132,6 +136,125 @@ const UnrelatedWorksOffcanvas = ({ unrelatedWorks }) => {
       });
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const exportToExcel = () => {
+    try {
+      console.log("Starting Excel export...");
+      const exportData = unrelatedWorks.map((work) => ({
+        Заявки: work.tickets.map((ticket) => ticket.num).join(", "),
+        Инициаторы: work.tickets
+          .map((ticket) =>
+            ticket.applicantId
+              ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
+              : "Пользователь не найден",
+          )
+          .join(", "),
+        Категории: work.ticketsCategories
+          .map((category) => category.title)
+          .join(", "),
+        "Описание работ": work.description,
+        Исполнитель: work.finishedBy,
+        Длительность: msToHMS(
+          new Date(work.finishedAt) - new Date(work.startedAt),
+        ),
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Несвязанные работы");
+
+      const today = new Date().toISOString().split("T")[0];
+      const fileName = `Nesvyazannye_raboty_${today}.xlsx`;
+      console.log("Saving file as:", fileName);
+
+      // Alternative approach using writeFileXLSX
+      XLSX.writeFileXLSX(workbook, fileName);
+      console.log("Excel export completed");
+    } catch (error) {
+      console.error("Excel export error:", error);
+      alert("Ошибка при экспорте в Excel: " + error.message);
+    }
+  };
+
+  const exportToPDF = () => {
+    try {
+      console.log("Starting PDF export...");
+
+      // Create a temporary HTML element for PDF conversion
+      const printWindow = window.open("", "_blank");
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Выполненные работы, не попавшие ни в одну из услуг</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; font-weight: bold; }
+            .title { font-size: 16px; font-weight: bold; margin-bottom: 20px; }
+            .total { font-weight: bold; background-color: #f8f9fa; }
+          </style>
+        </head>
+        <body>
+          <div class="title">Выполненные работы, не попавшие ни в одну из услуг</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Заявки</th>
+                <th>Инициаторы</th>
+                <th>Категории</th>
+                <th>Описание работ</th>
+                <th>Исполнитель</th>
+                <th>Длительность</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${unrelatedWorks
+                .map(
+                  (work) => `
+                <tr>
+                  <td>${work.tickets.map((ticket) => ticket.num).join(", ")}</td>
+                  <td>${work.tickets
+                    .map((ticket) =>
+                      ticket.applicantId
+                        ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
+                        : "Пользователь не найден",
+                    )
+                    .join(", ")}</td>
+                  <td>${work.ticketsCategories.map((category) => category.title).join(", ")}</td>
+                  <td>${work.description}</td>
+                  <td>${work.finishedBy}</td>
+                  <td>${msToHMS(new Date(work.finishedAt) - new Date(work.startedAt))}</td>
+                </tr>
+              `,
+                )
+                .join("")}
+              <tr class="total">
+                <td colspan="5">Итого:</td>
+                <td>${msToHMS(worktimeTotalDuration)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+
+      // Wait for content to load, then trigger print
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
+
+      console.log("PDF export completed");
+    } catch (error) {
+      console.error("PDF export error:", error);
+      alert("Ошибка при экспорте в PDF: " + error.message);
     }
   };
 
@@ -281,6 +404,24 @@ const UnrelatedWorksOffcanvas = ({ unrelatedWorks }) => {
                   </tr>
                 </tfoot>
               </Table>
+            )}
+            {unrelatedWorks.length > 0 && (
+              <div className="mb-3 d-flex justify-content-end gap-2">
+                <Button
+                  variant="outline-success"
+                  size="sm"
+                  onClick={exportToExcel}
+                >
+                  <FaRegFileExcel /> Экспорт в Excel
+                </Button>
+                <Button
+                  variant="outline-danger"
+                  size="sm"
+                  onClick={exportToPDF}
+                >
+                  <FaRegFilePdf /> Экспорт в PDF
+                </Button>
+              </div>
             )}
           </Container>
         </Offcanvas.Body>
