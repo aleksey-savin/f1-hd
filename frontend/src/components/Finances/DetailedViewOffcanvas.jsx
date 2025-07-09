@@ -6,7 +6,8 @@ import Offcanvas from "react-bootstrap/Offcanvas";
 import Table from "react-bootstrap/Table";
 import Container from "react-bootstrap/Container";
 import Button from "react-bootstrap/Button";
-import Alert from "react-bootstrap/Alert";
+import Row from "react-bootstrap/Row";
+import Col from "react-bootstrap/Col";
 
 import { HiOutlineMagnifyingGlass } from "react-icons/hi2";
 import { FaRegFilePdf, FaRegFileExcel } from "react-icons/fa6";
@@ -78,6 +79,80 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
       console.log("Starting Excel export...");
       let exportData = [];
 
+      exportData.push({
+        "Тип работ": "Тип тарификации:",
+        Заявки:
+          plan.tariffing?.type === "hourly"
+            ? "Почасовая"
+            : plan.tariffing?.type === "fixed"
+              ? "Фиксированная"
+              : "Пакеты часов",
+        Инициаторы: "",
+        Категории: "",
+        "Описание работ": "",
+        Исполнитель: "",
+        Длительность: "",
+        Стоимость: "",
+      });
+
+      exportData.push({
+        "Тип работ": "Период тарификации:",
+        Заявки: `${plan.tariffingPeriod || 0} минут`,
+        Инициаторы: "",
+        Категории: "",
+        "Описание работ": "",
+        Исполнитель: "",
+        Длительность: "",
+        Стоимость: "",
+      });
+
+      exportData.push({
+        "Тип работ": "",
+        Заявки: company.fullTitle || "",
+        Инициаторы: "",
+        Категории: "",
+        "Описание работ": "",
+        Исполнитель: "",
+        Длительность: "",
+        Стоимость: "",
+      });
+
+      exportData.push({
+        "Тип работ": "Стоимость в нерабочее время:",
+        Заявки: `${formatPrice(plan.pricePerHourNonWorking || 0)} / час`,
+        Инициаторы: "",
+        Категории: "",
+        "Описание работ": "",
+        Исполнитель: "",
+        Длительность: "",
+        Стоимость: "",
+      });
+
+      if (plan.tariffing?.type === "hourly") {
+        exportData.push({
+          "Тип работ": "Стоимость в рабочее время:",
+          Заявки: `${formatPrice(plan.pricePerHour || 0)} / час`,
+          Инициаторы: "",
+          Категории: "",
+          "Описание работ": "",
+          Исполнитель: "",
+          Длительность: "",
+          Стоимость: "",
+        });
+      }
+
+      // Add empty row for spacing
+      exportData.push({
+        "Тип работ": "",
+        Заявки: "",
+        Инициаторы: "",
+        Категории: "",
+        "Описание работ": "",
+        Исполнитель: "",
+        Длительность: "",
+        Стоимость: "",
+      });
+
       if (plan?.tariffing?.type !== "hourly") {
         // Export overtime works
         if (overtime.overtimeWorks.length > 0) {
@@ -133,6 +208,18 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
             Исполнитель: "Итого:",
             Длительность: msToHMS(overtimeTotals.duration),
             Стоимость: formatPrice(overtimeTotals.cost),
+          });
+
+          // Add empty row for spacing
+          exportData.push({
+            "Тип работ": "",
+            Заявки: "",
+            Инициаторы: "",
+            Категории: "",
+            "Описание работ": "",
+            Исполнитель: "",
+            Длительность: "",
+            Стоимость: "",
           });
         }
 
@@ -244,7 +331,99 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
         });
       }
 
+      // Add grand total summary
+      exportData.push({
+        "Тип работ": "",
+        Заявки: "",
+        Инициаторы: "",
+        Категории: "",
+        "Описание работ": "",
+        Исполнитель: "",
+        Длительность: "",
+        Стоимость: "",
+      });
+
+      exportData.push({
+        "Тип работ": "ОБЩИЙ ИТОГ",
+        Заявки: "",
+        Инициаторы: "",
+        Категории: "",
+        "Описание работ": "",
+        Исполнитель: "",
+        Длительность: "",
+        Стоимость: "",
+      });
+
+      const grandTotalDuration =
+        plan?.tariffing?.type === "hourly"
+          ? overallRoundedWorktime(works, plan.tariffingPeriod)
+          : overtimeTotals.duration +
+            overallRoundedWorktime(
+              worktime.worktimeWorks,
+              plan.tariffingPeriod,
+            );
+
+      const grandTotalCost =
+        plan?.tariffing?.type === "hourly"
+          ? hourlyTotalCost()
+          : overtimeTotals.cost;
+
+      exportData.push({
+        "Тип работ": "Общее время:",
+        Заявки: msToHMS(grandTotalDuration),
+        Инициаторы: "",
+        Категории: "",
+        "Описание работ": "",
+        Исполнитель: "",
+        Длительность: "",
+        Стоимость: "",
+      });
+
+      if (plan?.tariffing?.type === "hourly" || overtimeTotals.cost > 0) {
+        exportData.push({
+          "Тип работ": "Общая стоимость:",
+          Заявки: formatPrice(grandTotalCost),
+          Инициаторы: "",
+          Категории: "",
+          "Описание работ": "",
+          Исполнитель: "",
+          Длительность: "",
+          Стоимость: "",
+        });
+      }
+
       const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+      // Apply formatting to make summary table more visible
+      const range = XLSX.utils.decode_range(worksheet["!ref"]);
+      for (let R = 0; R <= 7; R++) {
+        for (let C = 0; C <= 7; C++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!worksheet[cellAddress]) continue;
+
+          if (R === 0 || (R > 0 && R <= 7 && C === 0)) {
+            worksheet[cellAddress].s = {
+              font: { bold: true },
+              fill: { fgColor: { rgb: "E6E6FA" } },
+            };
+          }
+        }
+      }
+
+      // Format grand total section
+      const totalRowStart = exportData.length - 4; // Adjust based on number of total rows added
+      for (let R = totalRowStart; R < exportData.length; R++) {
+        for (let C = 0; C <= 7; C++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!worksheet[cellAddress]) continue;
+
+          worksheet[cellAddress].s = {
+            font: { bold: true },
+            fill: { fgColor: { rgb: "FFE4B5" } },
+          };
+        }
+      }
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Детальный просмотр");
 
@@ -269,7 +448,7 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Детальный просмотр работ</title>
+          <title>Предварительный отчёт по работам</title>
           <style>
             body { font-family: Arial, sans-serif; font-size: 12px; }
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -279,22 +458,59 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
             .section-title { font-size: 14px; font-weight: bold; margin-top: 30px; margin-bottom: 10px; }
             .total { font-weight: bold; background-color: #f8f9fa; }
             .alert { background-color: #f8f9fa; padding: 10px; margin: 10px 0; border-left: 4px solid #0d6efd; }
+            .summary-table { background-color: #f8f9fa; margin-bottom: 30px; }
+            .summary-table th { background-color: #e9ecef; font-weight: bold; }
+            .summary-table td { padding: 10px; }
           </style>
         </head>
         <body>
-          <div class="title">Детальный просмотр работ</div>
+          <div class="title">Предварительный отчёт по работам</div>
+          <table class="summary-table">
+            <tbody>
+              <tr>
+                <th>Компания:</th>
+                <td>${company.fullTitle || ""}</td>
+              </tr>
+              <tr>
+                <th>Услуга:</th>
+                <td>${plan.title || ""}</td>
+              </tr>
+              <tr>
+                <th>Тип тарификации:</th>
+                <td>${
+                  plan.tariffing?.type === "hourly"
+                    ? "Почасовая"
+                    : plan.tariffing?.type === "fixed"
+                      ? "Фиксированная"
+                      : "Пакеты часов"
+                }</td>
+              </tr>
+              <tr>
+                <th>Период тарификации:</th>
+                <td>${plan.tariffingPeriod || 0} минут</td>
+              </tr>
+              <tr>
+                <th>Стоимость в нерабочее время:</th>
+                <td>${formatPrice(plan.pricePerHourNonWorking || 0)} / час</td>
+              </tr>
+              ${
+                plan.tariffing?.type === "hourly"
+                  ? `
+              <tr>
+                <th>Стоимость в рабочее время:</th>
+                <td>${formatPrice(plan.pricePerHour || 0)} / час</td>
+              </tr>
+              `
+                  : ""
+              }
+            </tbody>
+          </table>
       `;
 
       if (plan?.tariffing?.type !== "hourly") {
         if (overtime.overtimeWorks.length > 0) {
           htmlContent += `
             <div class="section-title">Выполнены в нерабочее время</div>
-            <div class="alert">
-              <ul style="margin: 0;">
-                <li>Период тарификации: ${plan.tariffingPeriod} минут</li>
-                <li>Стоимость 1 часа: ${formatPrice(plan.pricePerHourNonWorking)}</li>
-              </ul>
-            </div>
             <table>
               <thead>
                 <tr>
@@ -405,12 +621,6 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
       } else {
         htmlContent += `
           <div class="section-title">Почасовая оплата</div>
-          <div class="alert">
-            <ul style="margin: 0;">
-              <li>Период тарификации: ${plan.tariffingPeriod} минут</li>
-              <li>Стоимость 1 часа: ${formatPrice(plan.pricePerHour)}</li>
-            </ul>
-          </div>
           <table>
             <thead>
               <tr>
@@ -460,13 +670,10 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
               </tr>
             </tbody>
           </table>
+          </body>
+          </html>
         `;
       }
-
-      htmlContent += `
-        </body>
-        </html>
-      `;
 
       printWindow.document.write(htmlContent);
       printWindow.document.close();
@@ -505,17 +712,63 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
         </Offcanvas.Header>
         <Offcanvas.Body>
           <Container>
+            <h3>Предварительный отчёт по работам</h3>
+
+            <Row>
+              <Col sm="6">
+                <Table className="table-sm">
+                  <tbody>
+                    <tr>
+                      <th style={{ width: "40%" }}>Компания</th>
+                      <td>{company.fullTitle}</td>
+                    </tr>
+                    <tr>
+                      <th>Услуга</th>
+                      <td>{plan.title}</td>
+                    </tr>
+                    <tr>
+                      <th>Период</th>
+                      <td>
+                        {new Date(works[0].finishedAt).toLocaleDateString(
+                          "ru-RU",
+                          { month: "long", year: "numeric" },
+                        )}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Тип тарификации</th>
+                      <td>
+                        {plan.tariffing?.type === "hourly"
+                          ? "Почасовая"
+                          : plan.tariffing?.type === "fixed"
+                            ? "Фиксированная"
+                            : "Пакеты часов"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Период тарификации</th>
+                      <td>{plan.tariffingPeriod} минут</td>
+                    </tr>
+                    <tr>
+                      <th>Стоимость в нерабочее время</th>
+                      <td>{formatPrice(plan.pricePerHourNonWorking)} / час</td>
+                    </tr>
+                    {plan.tariffing?.type === "hourly" && (
+                      <tr>
+                        <th>Стоимость в рабочее время</th>
+                        <td>{formatPrice(plan.pricePerHour)} / час</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </Table>
+              </Col>
+            </Row>
+
             {plan?.tariffing?.type !== "hourly" && (
               <>
                 {overtime.overtimeWorks.length > 0 && (
                   <>
-                    <h3>Выполнены в нерабочее время</h3>
-                    <Alert variant="light" className="my-3 py-2">
-                      <ul className="m-0">
-                        <li>{`Период тарификации: ${plan.tariffingPeriod} минут`}</li>
-                        <li>{`Стоимость 1 часа: ${formatPrice(plan.pricePerHourNonWorking)}`}</li>
-                      </ul>
-                    </Alert>
+                    <h5>Выполнены в нерабочее время</h5>
                     <Table bordered>
                       <thead>
                         <tr>
@@ -616,7 +869,7 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
                     </Table>
                   </>
                 )}
-                <h3>Выполнены в рабочее время</h3>
+                <h5>Выполнены в рабочее время</h5>
                 <Table bordered>
                   <thead>
                     <tr>
@@ -700,13 +953,6 @@ const DetailedViewOffcanvas = ({ works = [], plan = {}, company = {} }) => {
             )}
             {plan?.tariffing?.type === "hourly" && (
               <>
-                <h3>Почасовая оплата</h3>
-                <Alert variant="light" className="my-3 py-2">
-                  <ul className="m-0">
-                    <li>{`Период тарификации: ${plan.tariffingPeriod} минут`}</li>
-                    <li>{`Стоимость 1 часа: ${formatPrice(plan.pricePerHour)}`}</li>
-                  </ul>
-                </Alert>
                 <Table bordered>
                   <thead>
                     <tr>
