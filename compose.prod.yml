@@ -94,7 +94,6 @@ services:
       args:
         VITE_API_ADDRESS: ${API_URL}
         VITE_TG_BOT_NAME: ${VITE_TG_BOT_NAME}
-        VITE_ADDRESS: ${VITE_ADDRESS}
     container_name: hd-frontend-prod
     restart: unless-stopped
     volumes:
