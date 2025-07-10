@@ -377,7 +377,7 @@ exports.getClosed = async (req, res, next) => {
         }
       } else {
         // End users can only see tickets they created
-        query["applicant._id"] = authedUser._id;
+        query["applicantId"] = authedUser._id;
       }
     }
 
