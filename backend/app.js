@@ -7,7 +7,6 @@ const logger = require("./utils/logger");
 const { AppError, errorResponse } = require("./middleware/errorHandling");
 const {
   performanceMonitor,
-  cacheMiddleware,
   requestIdMiddleware,
   compressionMiddleware,
   healthCheckWithMetrics,
@@ -83,22 +82,22 @@ app.use((req, res, next) => {
 
 // API routes with caching for read-only endpoints
 app.use("/api", authRouter);
-app.use("/api", cacheMiddleware(30000), preferencesRouter); // 30s cache
-app.use("/api", cacheMiddleware(60000), dashboardRouter); // 1min cache
+app.use("/api", preferencesRouter);
+app.use("/api", dashboardRouter);
 app.use("/api", ticketRouter);
 app.use("/api", routineTaskRouter);
 app.use("/api", userRouter);
-app.use("/api", cacheMiddleware(120000), companyRouter); // 2min cache
-app.use("/api", cacheMiddleware(300000), ticketCategoryRouter); // 5min cache
+app.use("/api", companyRouter);
+app.use("/api", ticketCategoryRouter);
 app.use("/api", commentRouter);
 app.use("/api", ticketLogRouter);
 app.use("/api", workRouter);
-app.use("/api", cacheMiddleware(60000), reportRouter); // 1min cache
+app.use("/api", reportRouter);
 app.use("/api", mikrotikRouter);
 app.use("/api", getScreenRouter);
-app.use("/api", cacheMiddleware(86400000), changelogRouter); // 24h cache
-app.use("/api", cacheMiddleware(86400000), appVersionRouter); // 24h cache
-app.use("/api", cacheMiddleware(60000), formDataRouter); // 1min cache
+app.use("/api", changelogRouter);
+app.use("/api", appVersionRouter);
+app.use("/api", formDataRouter);
 app.use("/api", servicePlanRouter);
 app.use("/api/inventory", clientDeviceRouter);
 app.use("/api/finances", financeReportsRouter);
