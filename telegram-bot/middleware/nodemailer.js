@@ -24,11 +24,14 @@ exports.sendMail = async (creds, to, subject, text, html) => {
 
     const message = await transport.sendMail(mailOptions);
 
-    return message;
+    console.log({ ...message, success: true });
+
+    return { ...message, success: true };
   } catch (error) {
     logger.log("error", `Nodemailer failed to send email`, {
       error: error.message,
       stack: error.stack,
     });
+    return { success: false };
   }
 };

@@ -1118,6 +1118,32 @@ exports.createCommentNotifications = async () => {
         //-------------------- TELEGRAM --------------------
         //--------------------------------------------------
 
+        // notifying applicant
+        try {
+          if (notifyEmail(applicant, "ticketNewComment")) {
+            const newCommentNotification = new Notification({
+              instrument: "telegram",
+              commentId: comment._id,
+              ticketId: ticket._id,
+              to: {
+                chatId: applicant.telegramBot?.chatId,
+                applicant: `${applicant.lastName} ${applicant.firstName}`,
+              },
+              text: `💬 <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Комментарий к заявке ${ticket.num}</b></a>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
+            });
+            await newCommentNotification.save();
+          }
+        } catch (error) {
+          logger.log(
+            "notification",
+            "Failed to create new ticket comment notification to applicant's email",
+            {
+              error: error.message,
+              stack: error.stack,
+            },
+          );
+        }
+
         // notifying global
         try {
           if (notifyTgGroup) {
@@ -1178,17 +1204,17 @@ exports.createCommentNotifications = async () => {
 
         // notifying applicant
         try {
-          if (notifyEmail(applicant, "ticketNewComment")) {
+          if (notifyTg(applicant, "ticketNewComment")) {
             const newCommentNotification = new Notification({
               instrument: "email",
               source: "comment",
               commentId: comment._id,
               ticketId: ticket._id,
               to: {
-                email: ticket.applicantId.email,
-                applicant: `${ticket.applicantId?.lastName} ${ticket.applicantId?.firstName}`,
+                email: applicant.email,
+                applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              title: `[F1-HD-${ticket.num}] Новый комментарий к Заявке ${comment.ticket}`,
+              title: `[F1-HD-${ticket.num}] Новый комментарий к Заявке ${ticket.num}`,
               text: `<div>
                 <h3>Новый комментарий.</h3>
                 <p>

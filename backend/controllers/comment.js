@@ -51,9 +51,7 @@ exports.add = async (req, res, next) => {
       notifications: {
         lastAction: "new comment",
         pending:
-          prefs.notify?.byEmail.isActive || prefs.notify?.byTelegram.isActive
-            ? true
-            : false,
+          prefs.notify?.byEmail.isActive || prefs.notify?.byTelegram.isActive,
       },
       createdBy: authData.userId,
       updatedBy: authData.userId,

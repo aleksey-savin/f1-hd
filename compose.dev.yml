@@ -37,18 +37,18 @@ services:
     tty: true
     depends_on:
       - backend
-  # telegram-bot:
-  #   build:
-  #     context: ./telegram-bot
-  #     dockerfile: Dockerfile
-  #   volumes:
-  #     - ./telegram-bot:/app
-  #     - /app/node_modules
-  #   env_file:
-  #     - .env.dev
-  #   depends_on:
-  #     - mongodb
-  #     - backend
+  telegram-bot:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    volumes:
+      - ./telegram-bot:/app
+      - /app/node_modules
+    env_file:
+      - .env.dev
+    depends_on:
+      - mongodb
+      - backend
 volumes:
   hd_data:
     external: true
