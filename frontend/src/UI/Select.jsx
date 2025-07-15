@@ -1,6 +1,7 @@
 import BaseSelect from "react-select";
 import FixRequiredSelect from "../util/fix-required-select";
 import { getLocalStorageData } from "../util/auth";
+import useSystemTheme from "../hooks/useSystemTheme";
 
 const darkThemeStyles = {
   option: (provided, state) => ({
@@ -23,12 +24,10 @@ const darkThemeStyles = {
 
 const Select = (props) => {
   const { theme } = getLocalStorageData();
+  const isSystemDark = useSystemTheme();
+
   let darkMode =
-    theme === "dark"
-      ? true
-      : theme === "system"
-        ? window.matchMedia("(prefers-color-scheme: dark)").matches
-        : false;
+    theme === "dark" ? true : theme === "system" ? isSystemDark : false;
 
   return (
     <FixRequiredSelect
