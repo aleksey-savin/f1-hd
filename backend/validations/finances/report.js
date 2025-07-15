@@ -68,3 +68,16 @@ exports.archive = [
     .isMongoId()
     .withMessage("Report ID must be a valid MongoDB ID"),
 ];
+
+exports.employeeReport = [
+  body("periodFrom")
+    .notEmpty()
+    .withMessage("Period start date is required")
+    .isDate()
+    .withMessage("Invalid start date format"),
+  body("periodTo")
+    .notEmpty()
+    .withMessage("Period end date is required")
+    .isDate()
+    .withMessage("Invalid end date format"),
+];

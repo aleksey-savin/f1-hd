@@ -184,6 +184,7 @@ exports.add = async (req, res, next) => {
     const authedUser = await User.findById(authData.userId);
 
     const ticket = await Ticket.findById(tickets[0]);
+    const category = await TicketCategory.findById(ticket.categoryId);
     const finishedBy = await User.findById(req.body.finishedBy);
 
     const work = new Work({
@@ -192,7 +193,7 @@ exports.add = async (req, res, next) => {
       finishedBy: finishedBy ? finishedBy : authedUser,
       description: description,
       visitRequired: visitRequired,
-      withinPlan: withinPlan,
+      withinPlan: category?.alwaysWithinPlan ? true : withinPlan,
       tickets: tickets.filter(Boolean),
       company: ticket.company._id,
       finances: {
@@ -249,6 +250,7 @@ exports.schedule = async (req, res, next) => {
     const authedUser = await User.findById(authData.userId);
 
     const ticket = await Ticket.findById(tickets[0]);
+    const category = await TicketCategory.findById(ticket.categoryId);
     const executor = await User.findById(req.body.executor);
 
     const work = new Work({
@@ -258,7 +260,7 @@ exports.schedule = async (req, res, next) => {
       executor: executor ? executor : authedUser,
       description: description,
       visitRequired: visitRequired,
-      withinPlan: withinPlan,
+      withinPlan: category?.alwaysWithinPlan ? true : withinPlan,
       tickets: tickets.filter(Boolean),
       company: ticket.company._id,
       notifications: {
@@ -323,6 +325,7 @@ exports.update = async (req, res, next) => {
     } = req.body;
 
     const ticket = await Ticket.findById(tickets[0]);
+    const category = await TicketCategory.findById(ticket.categoryId);
 
     if (
       req.body.planningToStart ||
@@ -337,7 +340,7 @@ exports.update = async (req, res, next) => {
 
     work.description = description;
     work.visitRequired = visitRequired;
-    work.withinPlan = withinPlan;
+    work.withinPlan = category?.alwaysWithinPlan ? true : withinPlan;
     work.company = ticket.company._id;
     work.tickets = tickets.filter(Boolean);
     work.startedAt = startedAt;

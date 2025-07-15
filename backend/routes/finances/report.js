@@ -83,6 +83,17 @@ router.patch(
   reportController.archive,
 );
 
+router.post(
+  "/employee-report",
+  isAuth,
+  financesModuleIsActive,
+  canUseFinancesModule,
+  canSeeGlobalFinancialReport,
+  reportValidation.employeeReport,
+  runValidation,
+  reportController.getEmployeeReport,
+);
+
 router.delete(
   "/summary-report/delete",
   isAuth,

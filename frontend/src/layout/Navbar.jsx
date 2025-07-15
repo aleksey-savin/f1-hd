@@ -28,6 +28,7 @@ import {
   RiCoinLine,
   RiServiceLine,
   RiDeviceLine,
+  RiTeamLine,
 } from "react-icons/ri";
 import { GoProjectTemplate } from "react-icons/go";
 import { MdOutlineDarkMode, MdLightMode, MdComputer } from "react-icons/md";
@@ -371,6 +372,14 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                         onClick={handleClose}
                       >
                         <RiDraftLine /> Персональный отчёт
+                      </NavDropdown.Item>
+                      <NavDropdown.Item
+                        as={NavLink}
+                        hidden={!canSeeGlobalFinancialReport}
+                        to="/finances/employee-report"
+                        onClick={handleClose}
+                      >
+                        <RiTeamLine /> Отчёт по сотрудникам
                       </NavDropdown.Item>
                     </NavDropdown>
                   )}

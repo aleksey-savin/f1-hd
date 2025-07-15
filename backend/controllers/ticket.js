@@ -21,6 +21,7 @@ exports.getAllOpened = async (req, res, next) => {
     const { isAdmin, permissions, userId, company } = await getAuthData(req);
 
     const allTickets = await Ticket.find({ isClosed: false })
+      .select("-description")
       .populate({
         path: "applicantId",
         select:
@@ -85,10 +86,7 @@ exports.getAllOpened = async (req, res, next) => {
       shortenedTickets.push({
         _id: ticket._id,
         num: ticket.num,
-        company: {
-          _id: ticket.company._id,
-          alias: ticket.company.alias,
-        },
+        company: ticket.company,
         category: ticket.categoryId || ticket.category,
         title: ticket.title,
         attachments: ticket.attachments,

@@ -408,6 +408,142 @@ exports.archive = async (req, res, next) => {
   }
 };
 
+exports.getEmployeeReport = async (req, res, next) => {
+  try {
+    const { periodFrom, periodTo } = req.body;
+
+    const fromDate = new Date(periodFrom);
+    let toDate = new Date(periodTo);
+    toDate.setHours(23, 59, 59, 999);
+
+    // Find all approved reports that overlap with the period
+    const approvedReports = await ServicePlanReport.find({
+      status: { $in: ["approved", "awaitingPayment", "paid", "archived"] },
+      $or: [
+        {
+          // Report starts within our period
+          periodFrom: { $gte: fromDate, $lte: toDate },
+        },
+        {
+          // Report ends within our period
+          periodTo: { $gte: fromDate, $lte: toDate },
+        },
+        {
+          // Report spans our entire period
+          periodFrom: { $lte: fromDate },
+          periodTo: { $gte: toDate },
+        },
+      ],
+    })
+      .populate({
+        path: "works",
+        populate: {
+          path: "tickets",
+          select: "num categoryId applicantId",
+          populate: [
+            { path: "categoryId", select: "title" },
+            { path: "applicantId", select: "firstName lastName" },
+          ],
+        },
+      })
+      .populate("company", "fullTitle alias")
+      .populate("servicePlan", "title");
+
+    // Group works by employee
+    const employeeWorksMap = new Map();
+
+    for (const report of approvedReports) {
+      for (const work of report.works) {
+        if (!work.finishedBy || !work.finishedBy._id) continue;
+
+        const employeeId = work.finishedBy._id.toString();
+        const employeeName = `${work.finishedBy.lastName} ${work.finishedBy.firstName}`;
+
+        if (!employeeWorksMap.has(employeeId)) {
+          employeeWorksMap.set(employeeId, {
+            employee: {
+              _id: employeeId,
+              name: employeeName,
+              firstName: work.finishedBy.firstName,
+              lastName: work.finishedBy.lastName,
+            },
+            works: [],
+            totalWorksCount: 0,
+            totalDuration: 0,
+          });
+        }
+
+        const employeeData = employeeWorksMap.get(employeeId);
+
+        // Calculate work duration
+        const duration =
+          work.startedAt && work.finishedAt
+            ? new Date(work.finishedAt) - new Date(work.startedAt)
+            : 0;
+
+        // Prepare work data
+        const workData = {
+          _id: work._id,
+          description: work.description,
+          startedAt: work.startedAt,
+          finishedAt: work.finishedAt,
+          duration: duration,
+          company: report.company,
+          servicePlan: report.servicePlan,
+          report: {
+            _id: report._id,
+            periodFrom: report.periodFrom,
+            periodTo: report.periodTo,
+            status: report.status,
+          },
+          tickets: work.tickets.map((ticket) => ({
+            _id: ticket._id,
+            num: ticket.num,
+            category: ticket.categoryId?.title || "Без категории",
+            applicant: ticket.applicantId
+              ? `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`
+              : "Не указан",
+          })),
+          withinPlan: work.withinPlan,
+        };
+
+        employeeData.works.push(workData);
+        employeeData.totalWorksCount++;
+        employeeData.totalDuration += duration;
+      }
+    }
+
+    // Convert map to array and sort by employee name
+    const employeeReports = Array.from(employeeWorksMap.values()).sort((a, b) =>
+      a.employee.name.localeCompare(b.employee.name),
+    );
+
+    // Calculate totals
+    const totals = {
+      totalEmployees: employeeReports.length,
+      totalWorks: employeeReports.reduce(
+        (sum, emp) => sum + emp.totalWorksCount,
+        0,
+      ),
+      totalDuration: employeeReports.reduce(
+        (sum, emp) => sum + emp.totalDuration,
+        0,
+      ),
+    };
+
+    res.status(200).json({
+      employees: employeeReports,
+      totals: totals,
+      period: {
+        from: fromDate,
+        to: toDate,
+      },
+    });
+  } catch (error) {
+    next(new AppError("Failed to generate employee report", 500, true, error));
+  }
+};
+
 exports.delete = async (req, res, next) => {
   try {
     const report = await ServicePlanReport.findById(req.body.reportId);

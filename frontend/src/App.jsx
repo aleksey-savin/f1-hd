@@ -223,6 +223,10 @@ import PersonalFinanceReport, {
   action as personalFinanceReportAction,
 } from "./pages/Finances/PersonalReport.jsx";
 
+import EmployeeReport, {
+  loader as employeeReportLoader,
+} from "./pages/Finances/EmployeeReport.jsx";
+
 // Auth
 import Authentication, {
   loader as authLoader,
@@ -620,6 +624,11 @@ function App() {
           element: <PersonalFinanceReport />,
           loader: personalFinanceReportLoader,
           action: personalFinanceReportAction,
+        },
+        {
+          path: "finances/employee-report",
+          element: <EmployeeReport />,
+          loader: employeeReportLoader,
         },
         // Preferences
         {

@@ -1,5 +1,3 @@
-import { formatPrice } from "./format-string";
-
 export const filterUnrelatedWorks = (works, tickets, servicePlans) => {
   const unrelatedWorks = works.filter((work) =>
     work.tickets.some((workTicket) =>

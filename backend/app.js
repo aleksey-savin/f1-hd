@@ -57,8 +57,8 @@ app.use(performanceMonitor);
 app.use(compressionMiddleware);
 
 // Body parsing with size limits
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 mongoose.set("strictQuery", false);
 
@@ -120,12 +120,6 @@ app.use(errorResponse);
 mongoose
   .connect(
     `mongodb://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@mongodb:27017/${process.env.MONGODB_DATABASE}?authSource=admin`,
-    {
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      family: 4,
-    },
   )
   .then(() => {
     app.listen(PORT, () => {
