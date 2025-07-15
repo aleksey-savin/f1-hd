@@ -2,7 +2,6 @@ import {
   useLoaderData,
   Form as RouterForm,
   useNavigation,
-  useNavigate,
   useRevalidator,
 } from "react-router";
 import { useState, useEffect } from "react";
@@ -23,11 +22,11 @@ import { calculateOvertime, calculateWorkTime } from "../../util/finances";
 
 import ConfirmPayment from "./ConfirmPayment";
 import DetailedViewOffcanvasReport from "./DetailedViewOffcanvasReport";
+import DetailedViewOffcanvas from "./DetailedViewOffcanvas";
 
 const AwaitingPaymentTable = () => {
   const filterStore = useSummaryReportFilterStore();
   const navigation = useNavigation();
-  const navigate = useNavigate();
   const revalidator = useRevalidator();
 
   const { awaitingPayment } = useLoaderData();
@@ -176,6 +175,7 @@ const AwaitingPaymentTable = () => {
                           plan={report.servicePlan}
                           company={report.company}
                         />
+
                         <Button
                           className="m-1"
                           size="sm"

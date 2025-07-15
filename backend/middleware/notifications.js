@@ -1120,7 +1120,7 @@ exports.createCommentNotifications = async () => {
 
         // notifying applicant
         try {
-          if (notifyEmail(applicant, "ticketNewComment")) {
+          if (notifyTg(applicant, "ticketNewComment")) {
             const newCommentNotification = new Notification({
               instrument: "telegram",
               commentId: comment._id,
@@ -1153,6 +1153,7 @@ exports.createCommentNotifications = async () => {
               ticketId: ticket._id,
               to: {
                 chatId: prefs.notify.byTelegram.chatId,
+                globalChat: true,
               },
               text: `💬 <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Комментарий к заявке ${ticket.num}</b></a>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
             });

@@ -51,23 +51,21 @@ const DetailedViewOffcanvasReport = ({
       const overtime = calcSingleWorkOvertime(
         schedule,
         work,
-        plan.tariffingPeriod
+        plan.tariffingPeriod,
       );
 
-      const cost = Number(
-        calculateCost(
-          overtime.roundUpOvertime / (1000 * 60),
-          plan.pricePerHourNonWorking,
-          plan.tariffingPeriod
-        ).replace(/[^\d.-]/g, "")
-      ); // Remove currency symbols and spaces
+      const cost = calculateCost(
+        overtime.roundUpOvertime / (1000 * 60),
+        plan.pricePerHourNonWorking,
+        plan.tariffingPeriod,
+      );
 
       return {
         duration: acc.duration + overtime.actualOvertime,
         cost: acc.cost + cost,
       };
     },
-    { duration: 0, cost: 0 }
+    { duration: 0, cost: 0 },
   );
 
   // Calculate total duration for worktime works
@@ -104,7 +102,7 @@ const DetailedViewOffcanvasReport = ({
                   <ul className="m-0">
                     <li>{`Период тарификации: ${plan.tariffingPeriod} минут`}</li>
                     <li>{`Стоимость 1 часа: ${formatPrice(
-                      plan.pricePerHourNonWorking
+                      plan.pricePerHourNonWorking,
                     )}`}</li>
                   </ul>
                 </Alert>
@@ -174,8 +172,8 @@ const DetailedViewOffcanvasReport = ({
                             calcSingleWorkOvertime(
                               schedule,
                               work,
-                              plan.tariffingPeriod
-                            ).actualOvertime
+                              plan.tariffingPeriod,
+                            ).actualOvertime,
                           )}
                         </td>
                         <td data-cell="стоимость" className="table-align-right">
@@ -183,11 +181,11 @@ const DetailedViewOffcanvasReport = ({
                             calcSingleWorkOvertime(
                               schedule,
                               work,
-                              plan.tariffingPeriod
+                              plan.tariffingPeriod,
                             ).roundUpOvertime /
                               (1000 * 60),
                             plan.pricePerHourNonWorking,
-                            plan.tariffingPeriod
+                            plan.tariffingPeriod,
                           )}
                         </td>
                       </tr>
@@ -269,7 +267,7 @@ const DetailedViewOffcanvasReport = ({
                     <td data-cell="исполнитель">{`${work.finishedBy.lastName} ${work.finishedBy.firstName}`}</td>
                     <td data-cell="длительность" className="table-align-right">
                       {msToHMS(
-                        new Date(work.finishedAt) - new Date(work.startedAt)
+                        new Date(work.finishedAt) - new Date(work.startedAt),
                       )}
                     </td>
                   </tr>

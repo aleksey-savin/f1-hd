@@ -68,7 +68,7 @@ exports.checkEmailNotifications = async () => {
               "",
               notification.text,
             );
-            if (message.success) {
+            if (message?.success) {
               notification.sent = true;
               await notification.save();
               if (process.env.ADD_TICKET_LOG) {
