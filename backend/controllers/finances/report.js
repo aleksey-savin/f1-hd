@@ -13,66 +13,27 @@ exports.getAllActive = async (req, res, next) => {
   try {
     const reports = await ServicePlanReport.find({
       status: { $ne: "archived" },
-    });
+    })
+      .populate({
+        path: "works",
+        populate: {
+          path: "tickets",
+          select: "-htmlDescription -attachments",
+          populate: {
+            path: "applicantId",
+            select:
+              "-password -email -phone -address -createdAt -updatedAt -__v",
+          },
+        },
+      })
+      .populate({
+        path: "company",
+      })
+      .populate({
+        path: "servicePlan",
+      });
 
-    let extendedReports = [];
-
-    for (let report of reports) {
-      let extendedReportWorks = [];
-      for (let workId of report.works) {
-        const work = await Work.findById(workId);
-        if (!work) {
-          console.warn(`Work with ID ${workId} not found, skipping...`);
-          continue;
-        }
-        let extendedWork = { ...work.toObject(), tickets: [] };
-        for (let ticketId of work.tickets) {
-          const ticket = await Ticket.findById(ticketId)
-            .select("-htmlDescription -attachments")
-            .populate("applicantId");
-          if (ticket) {
-            extendedWork.tickets.push(ticket);
-          }
-        }
-
-        extendedReportWorks.push(extendedWork);
-      }
-      const company = await Company.findById(report.company);
-      const servicePlan = await ServicePlan.findById(report.servicePlan);
-      const createdBy = await User.findById(report.createdBy).select(
-        "_id firstName lastName",
-      );
-      const updatedBy = await User.findById(report.updatedBy).select(
-        "_id firstName lastName",
-      );
-
-      // Skip this report if required data is missing
-      if (!company || !servicePlan) {
-        console.warn(
-          `Missing required data for report ${report._id}: company=${!!company}, servicePlan=${!!servicePlan}`,
-        );
-        continue;
-      }
-      const extendedReport = {
-        company: company,
-        price: report.price,
-        additionalPrice: report.additionalPrice,
-        periodFrom: report.periodFrom,
-        periodTo: report.periodTo,
-        servicePlan: servicePlan,
-        invoice: report.invoice,
-        status: report.status,
-        createdAt: report.createdAt,
-        createdBy: createdBy || null,
-        updatedAt: report.updatedAt,
-        updatedBy: updatedBy || null,
-        works: extendedReportWorks,
-        _id: report._id,
-      };
-      extendedReports.push(extendedReport);
-    }
-
-    res.status(200).json(extendedReports);
+    res.status(200).json(reports);
   } catch (error) {
     next(new AppError("Failed to fetch all active reports", 500, true, error));
   }
@@ -410,6 +371,35 @@ exports.confirmPayment = async (req, res, next) => {
     next(
       new AppError(
         `Failed to confirm payment for report with id ${req.body.reportId}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.archive = async (req, res, next) => {
+  try {
+    const { reportId } = req.body;
+    const report = await ServicePlanReport.findById(reportId);
+
+    if (!report) {
+      return next(new AppError(`Report with id ${reportId} not found`, 404));
+    }
+
+    if (report.status !== "paid") {
+      return next(new AppError("Only paid reports can be archived", 400));
+    }
+
+    report.status = "archived";
+    await report.save();
+
+    res.status(200).json({ report: report });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to archive report with id ${req.body.reportId}`,
         500,
         true,
         error,

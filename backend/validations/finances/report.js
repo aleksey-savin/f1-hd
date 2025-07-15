@@ -60,3 +60,11 @@ exports.delete = [
     .isMongoId()
     .withMessage("Report ID must be a valid MongoDB ID"),
 ];
+
+exports.archive = [
+  body("reportId")
+    .notEmpty()
+    .withMessage("Report ID is required")
+    .isMongoId()
+    .withMessage("Report ID must be a valid MongoDB ID"),
+];

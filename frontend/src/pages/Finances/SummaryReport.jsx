@@ -210,5 +210,31 @@ export async function action({ request }) {
     return redirect(".");
   }
 
+  if (intent === "archiveReport") {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/finances/summary-report/archive`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({
+          reportId: data.get("reportId"),
+        }),
+      },
+    );
+
+    if ([400, 409].includes(response.status)) {
+      return response;
+    }
+
+    if (!response.ok) {
+      throw response;
+    }
+
+    return redirect(".");
+  }
+
   return redirect(".");
 }

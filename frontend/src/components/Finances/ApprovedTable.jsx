@@ -2,7 +2,6 @@ import {
   useLoaderData,
   Form as RouterForm,
   useNavigation,
-  useNavigate,
   useRevalidator,
 } from "react-router";
 import { useState, useEffect } from "react";
@@ -30,7 +29,6 @@ import DetailedViewOffcanvasReport from "./DetailedViewOffcanvasReport";
 const ApprovedTable = () => {
   const filterStore = useSummaryReportFilterStore();
   const navigation = useNavigation();
-  const navigate = useNavigate();
   const revalidator = useRevalidator();
 
   const { approved } = useLoaderData();
@@ -151,24 +149,7 @@ const ApprovedTable = () => {
                       <div className="d-flex align-items-center justify-content-center gap-2">
                         <CreateInvoice reportId={report._id} />
                         <DetailedViewOffcanvasReport
-                          worktimeWorks={
-                            calculateWorkTime(
-                              report.servicePlan?.companyWorkSchedule
-                                ? report.company.workSchedule
-                                : report.servicePlan?.customProvisionSchedule,
-                              report.works,
-                              report.servicePlan?.tariffingPeriod,
-                            ).worktimeWorks
-                          }
-                          overtimeWorks={
-                            calculateOvertime(
-                              report.servicePlan?.companyWorkSchedule
-                                ? report.company.workSchedule
-                                : report.servicePlan?.customProvisionSchedule,
-                              report.works,
-                              report.servicePlan.tariffingPeriod,
-                            ).overtimeWorks
-                          }
+                          works={report.works}
                           plan={report.servicePlan}
                           company={report.company}
                         />

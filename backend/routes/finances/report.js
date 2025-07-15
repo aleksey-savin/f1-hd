@@ -72,6 +72,17 @@ router.patch(
   reportController.confirmPayment,
 );
 
+router.patch(
+  "/summary-report/archive",
+  isAuth,
+  financesModuleIsActive,
+  canUseFinancesModule,
+  canConfirmReportActions,
+  reportValidation.archive,
+  runValidation,
+  reportController.archive,
+);
+
 router.delete(
   "/summary-report/delete",
   isAuth,

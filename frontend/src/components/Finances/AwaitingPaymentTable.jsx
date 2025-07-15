@@ -154,28 +154,10 @@ const AwaitingPaymentTable = () => {
                       <div className="d-flex align-items-center justify-content-center gap-2">
                         <ConfirmPayment reportId={report._id} />
                         <DetailedViewOffcanvasReport
-                          worktimeWorks={
-                            calculateWorkTime(
-                              report.servicePlan.companyWorkSchedule
-                                ? report.company.workSchedule
-                                : report.servicePlan.customProvisionSchedule,
-                              report.works,
-                              report.servicePlan.tariffingPeriod,
-                            ).worktimeWorks
-                          }
-                          overtimeWorks={
-                            calculateOvertime(
-                              report.servicePlan.companyWorkSchedule
-                                ? report.company.workSchedule
-                                : report.servicePlan.customProvisionSchedule,
-                              report.works,
-                              report.servicePlan.tariffingPeriod,
-                            ).overtimeWorks
-                          }
+                          works={report.works}
                           plan={report.servicePlan}
                           company={report.company}
                         />
-
                         <Button
                           className="m-1"
                           size="sm"
