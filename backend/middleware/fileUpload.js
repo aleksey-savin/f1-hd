@@ -1,5 +1,6 @@
 const multer = require("multer");
 const crypto = require("crypto");
+const path = require("path");
 
 const MIME_TYPE_MAP = {
   "image/png": "png",
@@ -22,21 +23,166 @@ const MIME_TYPE_MAP = {
   "video/mpeg": "mp4",
 };
 
+// Функция для транслитерации кириллицы
+const transliterate = (text) => {
+  const cyrillicToLatin = {
+    а: "a",
+    б: "b",
+    в: "v",
+    г: "g",
+    д: "d",
+    е: "e",
+    ё: "yo",
+    ж: "zh",
+    з: "z",
+    и: "i",
+    й: "y",
+    к: "k",
+    л: "l",
+    м: "m",
+    н: "n",
+    о: "o",
+    п: "p",
+    р: "r",
+    с: "s",
+    т: "t",
+    у: "u",
+    ф: "f",
+    х: "h",
+    ц: "ts",
+    ч: "ch",
+    ш: "sh",
+    щ: "sch",
+    ъ: "",
+    ы: "y",
+    ь: "",
+    э: "e",
+    ю: "yu",
+    я: "ya",
+    А: "A",
+    Б: "B",
+    В: "V",
+    Г: "G",
+    Д: "D",
+    Е: "E",
+    Ё: "Yo",
+    Ж: "Zh",
+    З: "Z",
+    И: "I",
+    Й: "Y",
+    К: "K",
+    Л: "L",
+    М: "M",
+    Н: "N",
+    О: "O",
+    П: "P",
+    Р: "R",
+    С: "S",
+    Т: "T",
+    У: "U",
+    Ф: "F",
+    Х: "H",
+    Ц: "Ts",
+    Ч: "Ch",
+    Ш: "Sh",
+    Щ: "Sch",
+    Ъ: "",
+    Ы: "Y",
+    Ь: "",
+    Э: "E",
+    Ю: "Yu",
+    Я: "Ya",
+  };
+
+  return text.replace(/[а-яёА-ЯЁ]/g, (char) => cyrillicToLatin[char] || char);
+};
+
+// Функция для санитизации имени файла
+const sanitizeFilename = (filename) => {
+  const logger = require("../utils/logger");
+
+  logger.info(`Sanitizing filename: "${filename}"`);
+
+  // Сначала транслитерируем кириллицу
+  let sanitized = transliterate(filename);
+  logger.info(`After transliteration: "${sanitized}"`);
+
+  // Затем очищаем от проблемных символов
+  sanitized = sanitized
+    .replace(/[^\w\s.-]/g, "") // Удаляем спецсимволы кроме точки, дефиса и пробела
+    .replace(/\s+/g, "_") // Заменяем пробелы на подчеркивания
+    .replace(/_{2,}/g, "_") // Заменяем множественные подчеркивания на одно
+    .trim();
+
+  logger.info(`After cleaning: "${sanitized}"`);
+
+  // Если имя стало пустым или очень коротким, используем fallback
+  if (sanitized.length < 2) {
+    sanitized = "file";
+    logger.warn(`Filename became too short, using fallback: "${sanitized}"`);
+  }
+
+  const final = sanitized.substring(0, 100);
+  logger.info(`Final sanitized filename: "${final}"`);
+
+  return final; // Ограничиваем длину
+};
+
 const fileUpload = multer({
-  limits: 100000000,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB
+    files: 10, // максимум 10 файлов
+    fieldSize: 2 * 1024 * 1024, // 2MB для текстовых полей
+  },
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, "uploads");
     },
     filename: (req, file, cb) => {
       const ext = MIME_TYPE_MAP[file.mimetype];
-      cb(null, `${crypto.randomUUID()}.${ext}`);
+      if (!ext) {
+        return cb(new Error("Неподдерживаемый тип файла"), false);
+      }
+
+      // Санитизируем оригинальное имя файла
+      const sanitizedName = sanitizeFilename(
+        path.parse(file.originalname).name,
+      );
+      const finalName = sanitizedName || "file"; // Fallback если имя стало пустым
+
+      cb(null, `${crypto.randomUUID()}_${finalName}.${ext}`);
     },
   }),
   fileFilter: (req, file, cb) => {
+    // Проверяем MIME тип
     const isValid = !!MIME_TYPE_MAP[file.mimetype];
-    let error = isValid ? null : new Error("Недопустимое расширение файла");
-    cb(error, isValid);
+    if (!isValid) {
+      return cb(
+        new Error(`Недопустимое расширение файла: ${file.mimetype}`),
+        false,
+      );
+    }
+
+    // Дополнительные проверки безопасности
+    if (!file.originalname || file.originalname.length > 255) {
+      return cb(new Error("Некорректное имя файла"), false);
+    }
+
+    // Проверяем на опасные расширения
+    const dangerousExtensions = [
+      ".exe",
+      ".bat",
+      ".cmd",
+      ".scr",
+      ".pif",
+      ".com",
+    ];
+    const fileExt = path.extname(file.originalname).toLowerCase();
+    if (dangerousExtensions.includes(fileExt)) {
+      return cb(new Error("Опасный тип файла"), false);
+    }
+
+    cb(null, true);
   },
 });
 

@@ -41,6 +41,24 @@ router.get(
   reportController.getPersonalReport,
 );
 
+router.get(
+  "/personal-report",
+  isAuth,
+  financesModuleIsActive,
+  canUseFinancesModule,
+  canSeePersonalFinancialReport,
+  reportController.getPersonalReportByRange,
+);
+
+router.get(
+  "/personal-preview",
+  isAuth,
+  financesModuleIsActive,
+  canUseFinancesModule,
+  canSeePersonalFinancialReport,
+  reportController.getPersonalPreviewWorks,
+);
+
 router.post(
   "/summary-report/confirm-works-by-contractor",
   isAuth,

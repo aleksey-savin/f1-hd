@@ -218,7 +218,7 @@ import SummaryReport, {
   action as summaryReportAction,
 } from "./pages/Finances/SummaryReport.jsx";
 
-import PersonalFinanceReport, {
+import PersonalReport, {
   loader as personalFinanceReportLoader,
   action as personalFinanceReportAction,
 } from "./pages/Finances/PersonalReport.jsx";
@@ -621,7 +621,7 @@ function App() {
         },
         {
           path: "finances/personal-report",
-          element: <PersonalFinanceReport />,
+          element: <PersonalReport />,
           loader: personalFinanceReportLoader,
           action: personalFinanceReportAction,
         },

@@ -222,15 +222,13 @@ const EmployeeReport = () => {
             <RiTeamLine /> Отчёт по сотрудникам
           </h1>
           <p className="text-muted">
-            Отчёт показывает работы сотрудников только из утверждённых отчётов
-            по услугам
+            Работы согласно утверждённым отчётам по услугам
           </p>
         </Card.Title>
 
         <Form onSubmit={submitHandler}>
           <Row className="mb-3">
             <Col>
-              <Form.Label className="fw-bold">Быстрый выбор периода</Form.Label>
               <div className="d-flex gap-2 flex-wrap mt-2">
                 <ButtonGroup size="sm">
                   <Button
@@ -281,9 +279,7 @@ const EmployeeReport = () => {
                 <ButtonGroup size="sm" className="ms-2">
                   <Button
                     variant={
-                      selectedPeriod === "currentYear"
-                        ? "warning"
-                        : "outline-warning"
+                      selectedPeriod === "currentYear" ? "info" : "outline-info"
                     }
                     onClick={() => setPeriod("currentYear")}
                   >
@@ -301,9 +297,7 @@ const EmployeeReport = () => {
 
                 <Button
                   variant={
-                    selectedPeriod === "custom"
-                      ? "secondary"
-                      : "outline-secondary"
+                    selectedPeriod === "custom" ? "warning" : "outline-warning"
                   }
                   onClick={() => setSelectedPeriod("custom")}
                   size="sm"

@@ -576,3 +576,153 @@ exports.delete = async (req, res, next) => {
     );
   }
 };
+
+exports.getPersonalReportByRange = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+    const { from, to } = req.query;
+
+    if (!from || !to) {
+      return next(new AppError("From and to dates are required", 400));
+    }
+
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    toDate.setHours(23, 59, 59, 999); // End of day
+
+    const works = await Work.find({
+      "finishedBy._id": userId,
+      finishedAt: {
+        $gte: fromDate,
+        $lte: toDate,
+      },
+    })
+      .populate({
+        path: "tickets",
+        select: "num company applicantId categoryId description",
+        populate: [
+          { path: "categoryId", select: "title alwaysWithinPlan" },
+          { path: "applicantId", select: "lastName firstName" },
+        ],
+      })
+      .lean();
+
+    let worksData = [];
+
+    for (let work of works) {
+      if (!work.tickets || work.tickets.length === 0) {
+        continue;
+      }
+
+      const companyId = work.tickets[0].company._id;
+      const company = await Company.findById(companyId).lean();
+
+      if (!company) {
+        continue;
+      }
+
+      let servicePlan = null;
+      if (company.servicePlans && company.servicePlans.length > 0) {
+        servicePlan = await ServicePlan.findById(
+          company.servicePlans[0],
+        ).lean();
+      }
+
+      worksData.push({
+        _id: work._id,
+        company: company,
+        servicePlan: servicePlan,
+        finances: work.finances,
+        tickets: work.tickets,
+        description: work.description,
+        withinPlan: work.withinPlan,
+        startedAt: work.startedAt,
+        finishedAt: work.finishedAt,
+        createdAt: work.createdAt,
+        status: work.finances?.status || "completed",
+      });
+    }
+
+    res.status(200).json({ works: worksData });
+  } catch (error) {
+    next(new AppError("Failed to fetch personal report", 500, true, error));
+  }
+};
+
+exports.getPersonalPreviewWorks = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+    const { from, to } = req.query;
+
+    if (!from || !to) {
+      return next(new AppError("From and to dates are required", 400));
+    }
+
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    toDate.setHours(23, 59, 59, 999); // End of day
+
+    const works = await Work.find({
+      "finishedBy._id": userId,
+      createdAt: {
+        $gte: fromDate,
+        $lte: toDate,
+      },
+      $or: [
+        { "finances.status": { $exists: false } },
+        { "finances.status": "preview" },
+      ],
+    })
+      .populate({
+        path: "tickets",
+        select: "num company applicantId categoryId description",
+        populate: [
+          { path: "categoryId", select: "title alwaysWithinPlan" },
+          { path: "applicantId", select: "lastName firstName" },
+        ],
+      })
+      .lean();
+
+    let worksData = [];
+
+    for (let work of works) {
+      if (!work.tickets || work.tickets.length === 0) {
+        continue;
+      }
+
+      const companyId = work.tickets[0].company._id;
+      const company = await Company.findById(companyId).lean();
+
+      if (!company) {
+        continue;
+      }
+
+      let servicePlan = null;
+      if (company.servicePlans && company.servicePlans.length > 0) {
+        servicePlan = await ServicePlan.findById(
+          company.servicePlans[0],
+        ).lean();
+      }
+
+      worksData.push({
+        _id: work._id,
+        company: company,
+        servicePlan: servicePlan,
+        finances: work.finances,
+        tickets: work.tickets,
+        description: work.description,
+        withinPlan: work.withinPlan,
+        startedAt: work.startedAt,
+        finishedAt: work.finishedAt,
+        createdAt: work.createdAt,
+        status: work.finances?.status || "preview",
+      });
+    }
+
+    res.status(200).json({ works: worksData });
+  } catch (error) {
+    next(
+      new AppError("Failed to fetch personal preview works", 500, true, error),
+    );
+  }
+};

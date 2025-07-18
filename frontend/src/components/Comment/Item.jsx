@@ -1,15 +1,13 @@
 import { useState, useContext } from "react";
 
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
 import Image from "react-bootstrap/Image";
-import AudioPlayer from "react-h5-audio-player";
 
 import Card from "react-bootstrap/Card";
 
 import { formatDate } from "../../util/format-date";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
+import AttachmentPreview from "../UI/AttachmentPreview";
 
 const CommentItem = ({ comment, danger }) => {
   const { createdAt, createdBy, content, attachments } = comment;
@@ -51,40 +49,22 @@ const CommentItem = ({ comment, danger }) => {
           <strong className="me-2">{`${createdBy.lastName} ${createdBy.firstName}`}</strong>
           <span
             className={
-              attachments.length > 0
+              attachments && attachments.length > 0
                 ? "text-body-secondary"
                 : "text-body-secondary mb-0"
             }
           >{`${formatDate(createdAt)}`}</span>
         </p>
-        <p className={attachments ? "mb-2" : "mb-0"}>{content}</p>
-        {attachments && (
-          <>
-            {attachments.map((a) =>
-              a.name?.indexOf(".mp3") === a.name?.length - 4 ? (
-                <Row key={a.name}>
-                  <Col>
-                    <AudioPlayer
-                      key={a.name}
-                      src={`${import.meta.env.VITE_API_ADDRESS}/uploads/${a.name}`}
-                    />
-                  </Col>
-                </Row>
-              ) : (
-                <Row key={a.name}>
-                  <Col sm="12">
-                    <a
-                      href={`${import.meta.env.VITE_API_ADDRESS}/uploads/${a.name}`}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      {a.name}
-                    </a>
-                  </Col>
-                </Row>
-              ),
-            )}
-          </>
+        <p className={attachments && attachments.length > 0 ? "mb-2" : "mb-0"}>
+          {content}
+        </p>
+
+        {attachments && attachments.length > 0 && (
+          <AttachmentPreview
+            attachments={attachments}
+            compact={true}
+            showAudioPlayer={true}
+          />
         )}
       </Card.Body>
     </Card>

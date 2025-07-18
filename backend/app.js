@@ -62,7 +62,12 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 mongoose.set("strictQuery", false);
 
-app.use("/uploads", express.static(path.join("uploads")));
+app.use("/uploads", express.static(path.join("uploads")), (req, res, next) => {
+  // Handle 404 for static files gracefully
+  if (!res.headersSent) {
+    res.status(404).json({ error: "File not found" });
+  }
+});
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");

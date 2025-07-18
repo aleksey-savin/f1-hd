@@ -316,7 +316,7 @@ ticketSchema.index({ isClosed: 1, "company._id": 1 }); // For company-specific q
 ticketSchema.index({ "responsibles._id": 1 }); // For responsible user queries
 ticketSchema.index({ createdBy: 1 }); // For created by queries
 ticketSchema.index({ applicantId: 1 }); // For applicant queries
-ticketSchema.index({ num: 1 }); // For ticket number lookups
+// num field already has unique: true, no additional index needed
 ticketSchema.index({ state: 1 }); // For state-based queries
 ticketSchema.index({ createdAt: -1 }); // For date-based sorting
 ticketSchema.index({ updatedAt: -1 }); // For recent updates

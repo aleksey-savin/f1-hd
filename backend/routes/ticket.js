@@ -30,6 +30,19 @@ router.post(
   ticketController.add,
 );
 router.post(
+  "/tickets/:ticketNum/add-attachments",
+  isAuth,
+  canAdministrateTickets,
+  fileUpload.array("attachments"),
+  ticketController.addAttachments,
+);
+router.post(
+  "/tickets/:ticketNum/remove-attachment",
+  isAuth,
+  canAdministrateTickets,
+  ticketController.removeAttachment,
+);
+router.post(
   "/tickets/update",
   isAuth,
   canEditTickets,

@@ -1684,3 +1684,131 @@ exports.updateChecklist = async (req, res, next) => {
     );
   }
 };
+
+exports.addAttachments = async (req, res, next) => {
+  try {
+    const { ticketNum } = req.params;
+    const files = req.files;
+
+    logger.info(`Attempting to add attachments to ticket ${ticketNum}`, {
+      filesCount: files ? files.length : 0,
+      filenames: files ? files.map((f) => f.originalname) : [],
+      mimTypes: files ? files.map((f) => f.mimetype) : [],
+    });
+
+    if (!files || files.length === 0) {
+      logger.warn(`No files provided for ticket ${ticketNum}`);
+      return res.status(400).json({ error: "No files provided" });
+    }
+
+    const ticket = await Ticket.findOne({ num: ticketNum });
+    if (!ticket) {
+      logger.error(`Ticket ${ticketNum} not found`);
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    // Add new attachments to existing ones
+    const newAttachments = files.map((file) => {
+      logger.info(`Processing file: ${file.originalname} -> ${file.filename}`, {
+        size: file.size,
+        mimetype: file.mimetype,
+      });
+
+      return {
+        name: file.filename,
+        originalName: file.originalname,
+        size: file.size,
+        mimeType: file.mimetype,
+      };
+    });
+
+    ticket.attachments = [...(ticket.attachments || []), ...newAttachments];
+    await ticket.save();
+
+    // Log the action
+    const { userId } = await getAuthData(req);
+    const user = await User.findById(userId);
+
+    const log = new TicketLog({
+      ticketId: ticket._id,
+      action: "Добавлены файлы",
+      description: `Добавлено файлов: ${files.length}`,
+      createdBy: userId,
+    });
+    await log.save();
+
+    logger.info(
+      `Successfully added ${files.length} attachments to ticket ${ticketNum}`,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Files uploaded successfully",
+      attachments: newAttachments,
+    });
+  } catch (error) {
+    logger.error(
+      `Error adding attachments to ticket ${req.params.ticketNum}:`,
+      error,
+    );
+    next(new AppError(`Failed to add attachments to ticket`, 500, true, error));
+  }
+};
+
+exports.removeAttachment = async (req, res, next) => {
+  try {
+    const { ticketNum } = req.params;
+    const { attachmentName } = req.body;
+
+    if (!attachmentName) {
+      return res.status(400).json({ error: "Attachment name is required" });
+    }
+
+    const ticket = await Ticket.findOne({ num: ticketNum });
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    // Find and remove the attachment
+    const attachmentIndex = ticket.attachments.findIndex(
+      (attachment) => attachment.name === attachmentName,
+    );
+
+    if (attachmentIndex === -1) {
+      return res.status(404).json({ error: "Attachment not found" });
+    }
+
+    // Remove from database
+    ticket.attachments.splice(attachmentIndex, 1);
+    await ticket.save();
+
+    // Try to delete physical file (don't fail if file doesn't exist)
+    try {
+      const filePath = `uploads/${attachmentName}`;
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (fileError) {
+      logger.warn(`Could not delete file ${attachmentName}:`, fileError);
+    }
+
+    // Log the action
+    const { userId } = await getAuthData(req);
+    const log = new TicketLog({
+      ticketId: ticket._id,
+      action: "Удален файл",
+      description: `Удален файл: ${attachmentName}`,
+      createdBy: userId,
+    });
+    await log.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Attachment removed successfully",
+    });
+  } catch (error) {
+    next(
+      new AppError(`Failed to remove attachment from ticket`, 500, true, error),
+    );
+  }
+};

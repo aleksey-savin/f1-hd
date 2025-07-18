@@ -20,7 +20,6 @@ import Stack from "react-bootstrap/Stack";
 import Alert from "react-bootstrap/Alert";
 
 import Editor from "../../UI/Editor";
-import FileUpload from "../../UI/FileUpload";
 
 import { toastActions } from "../../store/toast";
 
@@ -55,7 +54,7 @@ const UpdateTicket = () => {
   const [category, setCategory] = useState(ticket.category);
   const [responsibles, setResponsibles] = useState(ticket?.responsibles || []);
   const [state, setState] = useState(ticket?.state);
-  const [files, setFiles] = useState([]);
+
   const [customFields, setCustomFields] = useState(
     ticket.customFields.map((field) => ({
       ...field,
@@ -207,11 +206,6 @@ const UpdateTicket = () => {
     formData.append("_id", ticket._id);
     formData.append("title", title);
     formData.append("description", convertedContent);
-    if (files.length > 0) {
-      for (const singleFile of files) {
-        formData.append("attachments", singleFile);
-      }
-    }
 
     formData.append("categoryId", category._id);
     formData.append("company", JSON.stringify(company));
@@ -294,12 +288,7 @@ const UpdateTicket = () => {
                 description={ticket?.description}
               />
             </Form.Group>
-            <FileUpload
-              setFiles={setFiles}
-              files={files}
-              showLabel={true}
-              showText={true}
-            />
+
             {ticket.template && customFields.length > 0 && (
               <>
                 <Card className="mb-3 bg-light">
