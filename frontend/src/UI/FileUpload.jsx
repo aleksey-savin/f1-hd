@@ -11,172 +11,11 @@ const FileUpload = forwardRef((props, ref) => {
   const [filePreviews, setFilePreviews] = useState([]);
   const [validationErrors, setValidationErrors] = useState([]);
 
-  // Определяем браузер
-  const isChrome = () => {
-    try {
-      return (
-        /Chrome/.test(navigator.userAgent) &&
-        /Google Inc/.test(navigator.vendor)
-      );
-    } catch {
-      return false;
-    }
-  };
-
-  // Проверяем наличие кириллицы в строке
-  const hasCyrillic = (text) => {
-    try {
-      if (!text || typeof text !== "string") return false;
-      return /[а-яёА-ЯЁ]/.test(text);
-    } catch {
-      return false;
-    }
-  };
-
-  // Безопасное получение свойств файла для Chrome
-  const safeGetFileProperty = (file, property, defaultValue = "") => {
-    try {
-      if (!file) return defaultValue;
-      const value = file[property];
-      return value !== undefined ? value : defaultValue;
-    } catch (error) {
-      console.warn(`Error accessing file.${property}:`, error);
-      return defaultValue;
-    }
-  };
-
-  // Транслитерация кириллицы
-  const transliterate = (text) => {
-    if (!text || typeof text !== "string") return "file";
-
-    const cyrillicToLatin = {
-      а: "a",
-      б: "b",
-      в: "v",
-      г: "g",
-      д: "d",
-      е: "e",
-      ё: "yo",
-      ж: "zh",
-      з: "z",
-      и: "i",
-      й: "y",
-      к: "k",
-      л: "l",
-      м: "m",
-      н: "n",
-      о: "o",
-      п: "p",
-      р: "r",
-      с: "s",
-      т: "t",
-      у: "u",
-      ф: "f",
-      х: "h",
-      ц: "ts",
-      ч: "ch",
-      ш: "sh",
-      щ: "sch",
-      ъ: "",
-      ы: "y",
-      ь: "",
-      э: "e",
-      ю: "yu",
-      я: "ya",
-      А: "A",
-      Б: "B",
-      В: "V",
-      Г: "G",
-      Д: "D",
-      Е: "E",
-      Ё: "Yo",
-      Ж: "Zh",
-      З: "Z",
-      И: "I",
-      Й: "Y",
-      К: "K",
-      Л: "L",
-      М: "M",
-      Н: "N",
-      О: "O",
-      П: "P",
-      Р: "R",
-      С: "S",
-      Т: "T",
-      У: "U",
-      Ф: "F",
-      Х: "H",
-      Ц: "Ts",
-      Ч: "Ch",
-      Ш: "Sh",
-      Щ: "Sch",
-      Ъ: "",
-      Ы: "Y",
-      Ь: "",
-      Э: "E",
-      Ю: "Yu",
-      Я: "Ya",
-    };
-
-    try {
-      return text.replace(
-        /[а-яёА-ЯЁ]/g,
-        (char) => cyrillicToLatin[char] || char,
-      );
-    } catch (error) {
-      console.warn("Transliteration error:", error);
-      return text;
-    }
-  };
-
-  // Безопасное получение расширения файла
   const getFileExtension = (filename) => {
     try {
-      if (!filename || typeof filename !== "string") return "unknown";
-
-      const lastDotIndex = filename.lastIndexOf(".");
-      if (lastDotIndex === -1 || lastDotIndex === filename.length - 1) {
-        return "unknown";
-      }
-
-      return filename.substring(lastDotIndex + 1).toLowerCase();
-    } catch (error) {
-      console.warn("Error getting file extension:", error);
+      return filename.split(".").pop().toLowerCase();
+    } catch {
       return "unknown";
-    }
-  };
-
-  // Создание безопасного имени файла (только для отображения)
-  const createSafeDisplayName = (originalName) => {
-    try {
-      if (!originalName || typeof originalName !== "string") {
-        return `file_${Date.now()}.txt`;
-      }
-
-      const lastDotIndex = originalName.lastIndexOf(".");
-      let nameWithoutExt, extension;
-
-      if (lastDotIndex === -1) {
-        nameWithoutExt = originalName;
-        extension = "txt";
-      } else {
-        nameWithoutExt = originalName.substring(0, lastDotIndex);
-        extension = originalName.substring(lastDotIndex + 1);
-      }
-
-      // Транслитерируем и очищаем имя
-      const safeName = transliterate(nameWithoutExt)
-        .replace(/[^\w\s.-]/g, "")
-        .replace(/\s+/g, "_")
-        .replace(/_{2,}/g, "_")
-        .trim()
-        .substring(0, 100);
-
-      const finalName = safeName || "file";
-      return `${finalName}.${extension}`;
-    } catch (error) {
-      console.warn("Error creating safe filename:", error);
-      return `file_${Date.now()}.txt`;
     }
   };
 
@@ -240,60 +79,16 @@ const FileUpload = forwardRef((props, ref) => {
     }
   };
 
-  // Безопасное создание превью (только для не-кириллических файлов в Chrome)
   const createImagePreview = (file) => {
     return new Promise((resolve) => {
       try {
-        const fileName = safeGetFileProperty(file, "name", "");
-        const fileType = safeGetFileProperty(file, "type", "");
-
-        if (!fileType.startsWith("image/")) {
-          resolve(null);
-          return;
-        }
-
-        // В Chrome полностью избегаем FileReader для кириллических имен
-        if (isChrome() && hasCyrillic(fileName)) {
-          console.log(
-            "Skipping preview for cyrillic filename in Chrome:",
-            fileName,
-          );
-          resolve(null);
-          return;
-        }
+        const safeFile = new File([file], file.name, { type: file.type });
 
         const reader = new FileReader();
-
-        const timeout = setTimeout(() => {
-          console.warn("FileReader timeout for file:", fileName);
-          resolve(null);
-        }, 3000);
-
-        reader.onload = (e) => {
-          clearTimeout(timeout);
-          try {
-            resolve(e.target.result);
-          } catch (error) {
-            console.warn("Error processing image preview:", error);
-            resolve(null);
-          }
-        };
-
-        reader.onerror = (error) => {
-          clearTimeout(timeout);
-          console.warn("FileReader error for file:", fileName, error);
-          resolve(null);
-        };
-
-        reader.onabort = () => {
-          clearTimeout(timeout);
-          console.warn("FileReader aborted for file:", fileName);
-          resolve(null);
-        };
-
-        reader.readAsDataURL(file);
-      } catch (error) {
-        console.warn("Error creating image preview:", error);
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(safeFile);
+      } catch {
         resolve(null);
       }
     });
@@ -301,10 +96,6 @@ const FileUpload = forwardRef((props, ref) => {
 
   const validateFile = (file) => {
     try {
-      const fileName = safeGetFileProperty(file, "name", "");
-      const fileSize = safeGetFileProperty(file, "size", 0);
-      const fileType = safeGetFileProperty(file, "type", "");
-
       const maxSize = 100 * 1024 * 1024; // 100MB
       const allowedTypes = [
         "image/png",
@@ -324,113 +115,28 @@ const FileUpload = forwardRef((props, ref) => {
         "video/mpeg",
       ];
 
-      if (!file || !fileName || fileSize === undefined) {
+      if (!file || !file.name || !file.size) {
         return { isValid: false, error: "Поврежденный файл" };
       }
 
-      if (fileSize > maxSize) {
+      if (file.size > maxSize) {
         return {
           isValid: false,
-          error: `Файл "${fileName}" слишком большой (${Math.round(fileSize / 1024 / 1024)}MB). Максимальный размер: 100MB`,
+          error: `Файл "${file.name}" слишком большой (${Math.round(file.size / 1024 / 1024)}MB). Максимальный размер: 100MB`,
         };
       }
 
-      if (!allowedTypes.includes(fileType)) {
+      if (!allowedTypes.includes(file.type)) {
         return {
           isValid: false,
-          error: `Файл "${fileName}" имеет неподдерживаемый тип`,
+          error: `Файл "${file.name}" имеет неподдерживаемый тип`,
         };
       }
 
       return { isValid: true };
-    } catch (error) {
-      console.warn("File validation error:", error);
+    } catch {
       return { isValid: false, error: "Ошибка при проверке файла" };
     }
-  };
-
-  // Безопасная обработка одного файла
-  const processSingleFile = async (file, index) => {
-    return new Promise((resolve) => {
-      try {
-        const fileName = safeGetFileProperty(file, "name", `file_${index}`);
-        const fileSize = safeGetFileProperty(file, "size", 0);
-        const fileType = safeGetFileProperty(
-          file,
-          "type",
-          "application/octet-stream",
-        );
-
-        // В Chrome с кириллическими именами делаем минимальную обработку
-        if (isChrome() && hasCyrillic(fileName)) {
-          const safeDisplayName = createSafeDisplayName(fileName);
-
-          const preview = {
-            name: safeDisplayName,
-            originalName: fileName,
-            size: fileSize,
-            type: fileType,
-            extension: getFileExtension(safeDisplayName),
-            dataUrl: null,
-          };
-
-          resolve({
-            file: file,
-            preview: preview,
-            nameChanged: fileName !== safeDisplayName,
-          });
-          return;
-        }
-
-        // Обычная обработка для других случаев
-        setTimeout(async () => {
-          try {
-            const validation = validateFile(file);
-            if (!validation.isValid) {
-              resolve({ error: validation.error });
-              return;
-            }
-
-            const safeDisplayName = createSafeDisplayName(fileName);
-
-            const preview = {
-              name: safeDisplayName,
-              originalName: fileName,
-              size: fileSize,
-              type: fileType,
-              extension: getFileExtension(safeDisplayName),
-              dataUrl: null,
-            };
-
-            // Создаем превью только если это безопасно
-            if (isImage(fileName)) {
-              try {
-                preview.dataUrl = await createImagePreview(file);
-              } catch (previewError) {
-                console.warn(
-                  "Preview creation failed:",
-                  fileName,
-                  previewError,
-                );
-                preview.dataUrl = null;
-              }
-            }
-
-            resolve({
-              file: file,
-              preview: preview,
-              nameChanged: fileName !== safeDisplayName,
-            });
-          } catch (error) {
-            console.warn("Error processing file:", fileName, error);
-            resolve({ error: `Ошибка при обработке файла "${fileName}"` });
-          }
-        }, index * 50); // Небольшая задержка между файлами
-      } catch (error) {
-        console.error("Critical error in processSingleFile:", error);
-        resolve({ error: "Критическая ошибка при обработке файла" });
-      }
-    });
   };
 
   const pickedHandler = async (event) => {
@@ -444,32 +150,46 @@ const FileUpload = forwardRef((props, ref) => {
         return;
       }
 
-      // Безопасное преобразование FileList в массив для Chrome
-      let pickedFiles;
-      try {
-        pickedFiles = Array.from(event.target.files);
-      } catch (error) {
-        console.error("Error converting FileList to Array:", error);
-        setValidationErrors(["Ошибка при чтении выбранных файлов"]);
-        setIsValid(false);
-        setFilePreviews([]);
-        props.setFiles([]);
-        return;
-      }
-
+      const pickedFiles = Array.from(event.target.files);
       const processedFiles = [];
       const previews = [];
       const errors = [];
 
-      // Обрабатываем файлы последовательно
-      for (let i = 0; i < pickedFiles.length; i++) {
-        const result = await processSingleFile(pickedFiles[i], i);
+      for (const originalFile of pickedFiles) {
+        try {
+          // Проверяем исходный файл
+          const validation = validateFile(originalFile);
+          if (!validation.isValid) {
+            errors.push(validation.error);
+            continue;
+          }
 
-        if (result.error) {
-          errors.push(result.error);
-        } else {
-          processedFiles.push(result.file);
-          previews.push(result.preview);
+          // Создаем новый объект File с безопасным именем
+          const safeFile = new File([originalFile], originalFile.name, {
+            type: originalFile.type,
+            lastModified: originalFile.lastModified,
+          });
+
+          processedFiles.push(safeFile);
+
+          // Создаем превью
+          const preview = {
+            name: originalFile.name,
+            originalName: originalFile.name,
+            size: originalFile.size,
+            type: originalFile.type,
+            extension: getFileExtension(originalFile.name),
+            dataUrl: null,
+          };
+
+          if (isImage(originalFile.name)) {
+            preview.dataUrl = await createImagePreview(originalFile);
+          }
+
+          previews.push(preview);
+        } catch (fileError) {
+          console.warn("Error processing file:", originalFile.name, fileError);
+          errors.push(`Ошибка при обработке файла "${originalFile.name}"`);
         }
       }
 
@@ -540,7 +260,7 @@ const FileUpload = forwardRef((props, ref) => {
 
   return (
     <>
-      <Form.Group>
+      <Form.Group className="mb-2">
         {props.showLabel && <Form.Label>Прикрепить файлы</Form.Label>}
         <Form.Control
           id="attachments"
@@ -564,12 +284,12 @@ const FileUpload = forwardRef((props, ref) => {
           {validationErrors.map((error, index) => (
             <Alert
               key={index}
-              variant={error.includes("будет сохранен") ? "info" : "warning"}
+              variant={error.includes("переименован") ? "info" : "warning"}
               className="py-2 mb-1"
             >
               <i
                 className={
-                  error.includes("будет сохранен")
+                  error.includes("переименован")
                     ? "bi bi-info-circle me-1"
                     : "bi bi-exclamation-triangle me-1"
                 }
@@ -581,7 +301,7 @@ const FileUpload = forwardRef((props, ref) => {
       )}
 
       {filePreviews.length > 0 && (
-        <div className="mt-2">
+        <div className="mt-2 mb-3">
           <div className="d-flex justify-content-between align-items-center mb-1">
             <small
               className="text-muted fw-bold"
@@ -619,27 +339,21 @@ const FileUpload = forwardRef((props, ref) => {
                       }}
                       onError={(e) => {
                         e.target.style.display = "none";
-                        if (e.target.nextSibling) {
-                          e.target.nextSibling.style.display = "block";
-                        }
                       }}
                     />
-                  ) : null}
-
-                  <i
-                    className={`${getFileIcon(preview.name)} text-primary`}
-                    style={{
-                      fontSize: "1.8rem",
-                      display: preview.dataUrl ? "none" : "block",
-                    }}
-                  ></i>
+                  ) : (
+                    <i
+                      className={`${getFileIcon(preview.name)} text-primary`}
+                      style={{ fontSize: "1.8rem" }}
+                    ></i>
+                  )}
                 </div>
 
                 <div className="text-center mt-1">
                   <div
                     className="text-truncate"
                     style={{ fontSize: "0.65rem", maxWidth: "70px" }}
-                    title={`${preview.originalName}${preview.originalName !== preview.name ? ` → ${preview.name}` : ""}`}
+                    title={`${preview.originalName || preview.name}${preview.originalName !== preview.name ? ` → ${preview.name}` : ""}`}
                   >
                     {preview.name}
                   </div>

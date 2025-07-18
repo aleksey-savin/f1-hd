@@ -2,7 +2,7 @@ import { useContext, useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
-import AttachmentPreview from "../../UI/AttachmentPreview";
+import AttachmentPreview from "../../../UI/AttachmentPreview";
 import AddAttachment from "./AddAttachment";
 import { AuthedUserContext } from "../../../store/authed-user-context";
 import useHttp from "../../../hooks/use-http";

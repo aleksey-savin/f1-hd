@@ -6,6 +6,7 @@ import Modal from "react-bootstrap/Modal";
 import Spinner from "react-bootstrap/Spinner";
 import Alert from "react-bootstrap/Alert";
 import AudioPlayer from "react-h5-audio-player";
+import "react-h5-audio-player/lib/styles.css";
 
 const AttachmentPreview = ({
   attachments,
@@ -193,17 +194,46 @@ const AttachmentPreview = ({
     if (isAudio(selectedFile.name)) {
       return (
         <div className="text-center">
-          <audio
-            controls
-            style={{ width: "100%" }}
-            className="rounded"
+          {loading && (
+            <div className="mb-3">
+              <Spinner animation="border" variant="primary" />
+              <div className="mt-2 text-muted">Загрузка аудио...</div>
+            </div>
+          )}
+          <AudioPlayer
+            src={fileUrl}
             onLoadStart={() => setLoading(false)}
-            onError={() => setError(true)}
-          >
-            <source src={fileUrl} />
-            Ваш браузер не поддерживает воспроизведение аудио.
-          </audio>
-          {error && <Alert variant="danger">Ошибка загрузки аудио</Alert>}
+            onCanPlay={() => setLoading(false)}
+            onError={() => {
+              setLoading(false);
+              setError(true);
+            }}
+            showJumpControls={true}
+            showDownloadProgress={true}
+            hasDefaultKeyBindings={true}
+            customProgressBarSection={[
+              "CURRENT_TIME",
+              "PROGRESS_BAR",
+              "DURATION",
+            ]}
+            customControlsSection={[
+              "ADDITIONAL_CONTROLS",
+              "MAIN_CONTROLS",
+              "VOLUME_CONTROLS",
+            ]}
+            style={{
+              marginBottom: "1rem",
+              display: loading ? "none" : "block",
+            }}
+          />
+          {error && (
+            <Alert variant="danger">
+              Ошибка загрузки аудио.{" "}
+              <a href={fileUrl} target="_blank" rel="noreferrer">
+                Скачать файл
+              </a>
+            </Alert>
+          )}
         </div>
       );
     }
@@ -336,15 +366,28 @@ const AttachmentPreview = ({
                     </div>
                     <AudioPlayer
                       src={fileUrl}
-                      showJumpControls={false}
+                      showJumpControls={true}
+                      showDownloadProgress={true}
+                      hasDefaultKeyBindings={true}
                       layout="horizontal"
                       customProgressBarSection={[
                         "CURRENT_TIME",
                         "PROGRESS_BAR",
                         "DURATION",
                       ]}
-                      customControlsSection={["MAIN_CONTROLS"]}
-                      style={{ fontSize: "0.8rem" }}
+                      customControlsSection={[
+                        "ADDITIONAL_CONTROLS",
+                        "MAIN_CONTROLS",
+                        "VOLUME_CONTROLS",
+                      ]}
+                      style={{
+                        fontSize: "0.8rem",
+                        "--rhap_theme-color": "#0d6efd",
+                        "--rhap_background-color": "#f8f9fa",
+                      }}
+                      onError={(e) => {
+                        console.warn("Audio player error:", e);
+                      }}
                     />
                   </div>
                 </div>
@@ -431,14 +474,6 @@ const AttachmentPreview = ({
             rel="noreferrer"
           >
             Открыть в новой вкладке
-          </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            href={`${import.meta.env.VITE_API_ADDRESS}/uploads/${selectedFile?.name}`}
-            download={selectedFile?.name}
-          >
-            Скачать
           </Button>
           <Button size="sm" variant="secondary" onClick={handleClosePreview}>
             Закрыть

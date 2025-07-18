@@ -29,6 +29,7 @@ const AddComment = ({ ticket = {} }) => {
   const authedUser = useContext(AuthedUserContext);
 
   const content = useRef();
+  const fileUploadRef = useRef();
 
   const [files, setFiles] = useState([]);
 
@@ -74,6 +75,9 @@ const AddComment = ({ ticket = {} }) => {
 
         content.current.value = "";
         setFiles([]);
+        if (fileUploadRef.current) {
+          fileUploadRef.current.clearFiles();
+        }
 
         updateComments([createdComment, ...comments]);
       }
@@ -115,6 +119,7 @@ const AddComment = ({ ticket = {} }) => {
         <Row className="mb-3 justify-content-between">
           <Col sm="7">
             <FileUpload
+              ref={fileUploadRef}
               id="attachments"
               name="attachments"
               setFiles={setFiles}

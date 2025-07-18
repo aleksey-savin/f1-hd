@@ -1,4 +1,4 @@
-import { useState, useContext, useRef } from "react";
+import { useState, useContext, useRef, useEffect } from "react";
 import Button from "react-bootstrap/Button";
 import Collapse from "react-bootstrap/Collapse";
 import Alert from "react-bootstrap/Alert";
@@ -56,11 +56,7 @@ const AddAttachment = ({ ticket, onAttachmentAdded }) => {
             if (onAttachmentAdded) {
               onAttachmentAdded(data.attachments);
             }
-            // Показываем успешное сообщение, затем закрываем форму
-            setTimeout(() => {
-              setShow(false);
-              setSuccess(false);
-            }, 2000);
+            // Состояние success будет обработано в useEffect
           } else {
             setError(data.message || "Ошибка при загрузке файлов");
           }
@@ -106,13 +102,28 @@ const AddAttachment = ({ ticket, onAttachmentAdded }) => {
     setError(null);
   };
 
+  // Автоматически скрываем алерт успеха через 5 секунд
+  useEffect(() => {
+    let timer;
+    if (success) {
+      timer = setTimeout(() => {
+        setSuccess(false);
+      }, 5000);
+    }
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [success]);
+
   // Don't show for archived tickets or users without permissions
   if (ticket.isArchived || !permissions?.canAdministrateTickets) {
     return null;
   }
 
   return (
-    <div className="mt-2">
+    <div className="m-2">
       <Button
         variant="outline-primary"
         size="sm"
@@ -129,21 +140,29 @@ const AddAttachment = ({ ticket, onAttachmentAdded }) => {
             <form onSubmit={handleSubmit}>
               <FileUpload
                 ref={fileUploadRef}
-                setFiles={setFiles}
+                setFiles={(newFiles) => {
+                  setFiles(newFiles);
+                  setError(null); // Clear errors when new files are selected
+                }}
                 files={files}
                 showLabel={false}
                 showText={true}
               />
 
               {success && (
-                <Alert variant="success" className="mt-2">
+                <Alert variant="success" className="mt-2 mb-2">
                   <i className="bi bi-check-circle me-1"></i>
                   Файлы успешно загружены!
                 </Alert>
               )}
 
               {error && (
-                <Alert variant="danger" className="mt-2">
+                <Alert
+                  variant="danger"
+                  className="mt-2 mb-2"
+                  dismissible
+                  onClose={() => setError(null)}
+                >
                   <i className="bi bi-exclamation-triangle me-1"></i>
                   {error}
                 </Alert>

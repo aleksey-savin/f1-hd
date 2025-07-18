@@ -7,7 +7,7 @@ import Card from "react-bootstrap/Card";
 import { formatDate } from "../../util/format-date";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
-import AttachmentPreview from "../UI/AttachmentPreview";
+import AttachmentPreview from "../../UI/AttachmentPreview";
 
 const CommentItem = ({ comment, danger }) => {
   const { createdAt, createdBy, content, attachments } = comment;
