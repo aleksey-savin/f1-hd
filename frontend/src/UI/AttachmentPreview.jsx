@@ -433,7 +433,7 @@ const AttachmentPreview = ({
                   )}
                   <Button
                     size="sm"
-                    variant="outline-secondary"
+                    variant="outline-primary"
                     className="py-0 px-1"
                     href={fileUrl}
                     target="_blank"
