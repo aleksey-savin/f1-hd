@@ -398,7 +398,7 @@ const AttachmentPreview = ({
             return (
               <div
                 key={attachment.name}
-                className="d-inline-flex align-items-center p-1 me-2 mb-1 bg-light rounded border"
+                className="d-inline-flex align-items-center p-2 me-2 mb-1 bg-light rounded border"
                 style={{ fontSize: "0.85rem" }}
               >
                 <i
