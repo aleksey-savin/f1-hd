@@ -20,6 +20,9 @@ export async function action({ request }) {
 
   const clientDevice = Object.fromEntries(data.entries());
 
+  // Log the form data for debugging
+  console.log("Form data received:", clientDevice);
+
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/add`,
     {
@@ -32,8 +35,12 @@ export async function action({ request }) {
     },
   );
 
-  if ([409].includes(response.status)) {
-    return response;
+  if ([409, 400].includes(response.status)) {
+    const errorData = await response.json();
+    return {
+      error: true,
+      message: errorData.message,
+    };
   }
 
   if (!response.ok) {

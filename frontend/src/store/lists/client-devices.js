@@ -7,11 +7,14 @@ const clientDeviceFilter = (state) => {
   return originalList.filter((item) => {
     if (state.searchTerm.length > 0) {
       return [
-        item.company,
-        item.user,
+        item.company?.alias,
+        item.company?.fullTitle,
+        item.user?.firstName,
+        item.user?.lastName,
+        item.user?.email,
         item.location,
-        item.deviceType,
-        item.manufacturer,
+        item.deviceType?.name,
+        item.vendor?.name,
         item.model,
         item.serialNumber,
         item.purchaseDocument,
@@ -39,11 +42,14 @@ const searchItems = (query, items) => {
 
   return items.filter((item) => {
     const fieldsToSearch = [
-      item.company,
-      item.user,
+      item.company?.alias,
+      item.company?.fullTitle,
+      item.user?.firstName,
+      item.user?.lastName,
+      item.user?.email,
       item.location,
-      item.deviceType,
-      item.manufacturer,
+      item.deviceType?.name,
+      item.vendor?.name,
       item.model,
       item.serialNumber,
       item.purchaseDocument,

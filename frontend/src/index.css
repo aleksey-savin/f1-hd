@@ -1,101 +1,100 @@
 body {
-    margin: 0;
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-        "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-        sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
+    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 code {
-    font-family:
-        source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-family:
+    source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 
 :root {
-    --transition-duration: 0.3s;
+  --transition-duration: 0.3s;
 }
 
 body {
-    transition:
-        background-color var(--transition-duration) ease,
-        color var(--transition-duration) ease;
+  transition:
+    background-color var(--transition-duration) ease,
+    color var(--transition-duration) ease;
 }
 
 .navbar {
-    transition: background-color var(--transition-duration) ease;
+  transition: background-color var(--transition-duration) ease;
 }
 
 .background-container {
-    position: fixed;
-    top: 70px;
-    left: 0;
-    width: 100%;
-    height: 100vh;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+  position: fixed;
+  top: 70px;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .rdw-editor-wrapper {
-    border-radius: 4px;
-    border-style: solid;
-    border-width: 1px;
-    border-color: #ced4da;
-    height: auto !important;
-    z-index: 1;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
+  border-color: #ced4da;
+  height: auto !important;
+  z-index: 1;
 }
 
 .editor-toolbar {
-    border: none !important;
-    z-index: 1;
+  border: none !important;
+  z-index: 1;
 }
 
 .rdw-option-wrapper {
-    min-width: 25px !important;
-    min-height: 25px !important;
+  min-width: 25px !important;
+  min-height: 25px !important;
 }
 
 .rdw-editor-main {
-    border-color: black;
-    height: 15rem !important;
-    padding: 0.5rem !important;
+  border-color: black;
+  height: 15rem !important;
+  padding: 0.5rem !important;
 }
 
 .templateSelect {
-    position: relative;
-    z-index: 100;
+  position: relative;
+  z-index: 100;
 }
 
 .templateSelect > div {
-    z-index: 100;
+  z-index: 100;
 }
 
 /* ticket hmtl-description modal image autoscale */
 img {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto !important;
-    height: auto !important;
-    object-fit: scale-down;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto !important;
+  height: auto !important;
+  object-fit: scale-down;
 }
 
 /* костыль просмотр заявки выбор ответственного по работам */
 .col-md-2 > div:nth-child(2) > input:nth-child(2) {
-    position: fixed !important;
+  position: fixed !important;
 }
 
 /* Выравниваем badge в одну линию с текстом */
 .nav-link svg {
-    margin-top: -0.2rem;
+  margin-top: -0.2rem;
 }
 
 .btn svg,
 .badge svg {
-    margin-top: -0.25rem;
+  margin-top: -0.25rem;
 }
 
 h1 svg {
-    margin-top: -0.45rem;
+  margin-top: -0.45rem;
 }

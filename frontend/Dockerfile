@@ -1,4 +1,4 @@
-FROM node:current-alpine
+FROM node:23-alpine
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 

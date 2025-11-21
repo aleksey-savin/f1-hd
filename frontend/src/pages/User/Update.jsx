@@ -120,6 +120,7 @@ export async function action({ request, params }) {
       canUseTimeTrackingModule: data.get("canUseTimeTrackingModule"),
       canAvoidWorks: data.get("canAvoidWorks") === "true",
       canSeeWorksReport: data.get("canSeeWorksReport") === "true",
+      canSeeAnalytics: data.get("canSeeAnalytics") === "true",
       // inventory module
       canUseInventoryModule: data.get("canUseInventoryModule"),
       canManageClientDevices: data.get("canManageClientDevices"),

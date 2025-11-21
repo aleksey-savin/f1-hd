@@ -1,0 +1,84 @@
+import { useEffect } from "react";
+import { useLocation, redirect } from "react-router";
+
+import useDeviceTypeFilterStore from "../../store/lists/device-types";
+
+import List from "../../components/DeviceType/List";
+
+import ListWrapper from "../../UI/ListWrapper";
+import { BrowserView } from "react-device-detect";
+import DeviceTypeFilter from "../../components/DeviceType/Filter";
+import useSidebarStore from "../../store/sidebar";
+
+import { BiCategory } from "react-icons/bi";
+
+import { getLocalStorageData } from "../../util/auth";
+
+const DeviceTypeListPage = () => {
+  const location = useLocation();
+  const { setLeftSidebarContent } = useSidebarStore();
+  const filterStore = useDeviceTypeFilterStore();
+
+  useEffect(() => {
+    filterStore.applyFilter();
+  }, [filterStore.originalList]);
+
+  useEffect(() => {
+    filterStore.fetch();
+  }, [location]);
+
+  useEffect(() => {
+    setLeftSidebarContent(
+      <BrowserView>
+        <DeviceTypeFilter />
+      </BrowserView>,
+    );
+  }, [setLeftSidebarContent, filterStore.originalList]);
+
+  const title = () => {
+    return (
+      <>
+        <BiCategory /> Типы устройств
+      </>
+    );
+  };
+  return (
+    <ListWrapper
+      title={title}
+      filterStore={filterStore}
+      addRoute="/inventory/device-types/add"
+    >
+      <List items={filterStore.filteredList}></List>
+    </ListWrapper>
+  );
+};
+
+export default DeviceTypeListPage;
+
+export async function action({ request }) {
+  const { token } = getLocalStorageData();
+
+  const data = await request.formData();
+  const id = data.get("id");
+
+  const response = await fetch(
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types/delete/${id}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+    },
+  );
+
+  if ([409].includes(response.status)) {
+    return response;
+  }
+
+  if (!response.ok) {
+    throw response;
+  }
+
+  return redirect("/inventory/device-types");
+}

@@ -7,6 +7,10 @@ const {
   inventoryModuleIsActive,
   canManageClientDevices,
 } = require("../../middleware/permissions");
+const {
+  clientDeviceValidation,
+} = require("../../validations/inventory/clientDevice");
+const { checkValidationResult } = require("../../middleware/validation");
 
 router.get(
   "/client-devices",
@@ -29,6 +33,8 @@ router.post(
   inventoryModuleIsActive,
   canUseInventoryModule,
   canManageClientDevices,
+  clientDeviceValidation,
+  checkValidationResult,
   deviceController.add,
 );
 router.put(
@@ -37,6 +43,8 @@ router.put(
   inventoryModuleIsActive,
   canUseInventoryModule,
   canManageClientDevices,
+  clientDeviceValidation,
+  checkValidationResult,
   deviceController.update,
 );
 router.delete(

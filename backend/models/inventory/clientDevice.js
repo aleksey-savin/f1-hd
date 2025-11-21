@@ -1,32 +1,33 @@
 const mongoose = require("mongoose");
 
-const clientDeviceSchema = new mongoose.Schema(
+const Schema = mongoose.Schema;
+
+const clientDeviceSchema = new Schema(
   {
     company: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "Company",
       required: true,
     },
     user: {
-      type: String,
-      trim: true,
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
     },
     location: {
-      type: String,
-      trim: true,
-    },
-    deviceType: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "Location",
       required: true,
     },
-    manufacturer: {
-      type: String,
+    deviceModel: {
+      type: Schema.Types.ObjectId,
+      ref: "DeviceModel",
       required: true,
-      trim: true,
     },
-    model: {
-      type: String,
+    deviceModelConfig: {
+      type: Schema.Types.ObjectId,
+      ref: "DeviceModelConfig",
       required: true,
-      trim: true,
     },
     serialNumber: {
       type: String,
@@ -34,34 +35,49 @@ const clientDeviceSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    // Purchase and warranty information
     purchaseDate: {
       type: Date,
     },
     price: {
       type: Number,
+      min: 0,
     },
     purchaseDocument: {
       type: String,
+      trim: true,
     },
     warrantyExpirationDate: {
       type: Date,
     },
+
+    // Device status and lifecycle
     status: {
       type: String,
-      enum: ["Готово к выдаче", "Выдано", "В ремонте", "Списано"],
-      default: "Готово к выдаче",
+      enum: [
+        "readyForDeployment",
+        "deployed",
+        "inRepair",
+        "decommissioned",
+        "inReserve",
+        "disposed",
+      ],
+      default: "readyForDeployment",
     },
+
+    // Maintenance information
     lastMaintenanceDate: {
       type: Date,
     },
-    notes: {
-      type: String,
-      trim: true,
+    nextMaintenanceDate: {
+      type: Date,
     },
-    assignedTo: {
-      type: String,
-      trim: true,
+    maintenanceInterval: {
+      type: Number, // days
+      default: 365,
     },
+
+    // Technical specifications
     ipAddress: {
       type: String,
       trim: true,
@@ -72,9 +88,80 @@ const clientDeviceSchema = new mongoose.Schema(
     },
     operatingSystem: {
       type: String,
+      trim: true,
+    },
+    inventoryNumber: {
+      type: String,
+      trim: true,
+    },
+    notes: {
+      type: String,
+      trim: true,
+    },
+    installedSoftware: [
+      {
+        name: String,
+        version: String,
+        licenseKey: String,
+        installedDate: Date,
+      },
+    ],
+    // Lifecycle tracking
+    deploymentDate: {
+      type: Date,
+    },
+    retirementDate: {
+      type: Date,
+    },
+    expectedLifespan: {
+      type: Number, // months
+      default: 36,
+    },
+
+    // Financial information
+    depreciationRate: {
+      type: Number, // percentage per year
+      default: 33.33,
+    },
+    currentValue: {
+      type: Number,
+      default: function () {
+        return this.price;
+      },
+    },
+
+    // Import/migration tracking
+    importSource: {
+      type: String,
+      enum: ["manual", "csv_import", "api_import", "migration"],
+      default: "manual",
+    },
+    importDate: Date,
+
+    // Audit fields
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+    },
+    updatedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+    },
+
+    // Soft delete
+    deletedAt: Date,
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+    // Add version key for optimistic concurrency control
+    versionKey: "__v",
+  },
 );
 
 const ClientDevice = mongoose.model("ClientDevice", clientDeviceSchema);

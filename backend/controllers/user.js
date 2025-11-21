@@ -12,6 +12,7 @@ const Company = require("../models/company");
 const Subdivision = require("../models/subdivision");
 const TicketCategory = require("../models/ticketCategory");
 const Prefs = require("../models/preferences");
+const Location = require("../models/inventory/location");
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -123,8 +124,89 @@ exports.getCanPerformTicketsUsers = async (req, res, next) => {
   }
 };
 
+exports.getUsersWithWorkplaces = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+    const authedUser = await User.findById(userId);
+
+    // Получаем всех пользователей
+    const allUsers = await User.find({}).sort({ lastName: 1 });
+
+    // Фильтруем пользователей по правам доступа
+    const filteredUsers = allUsers.filter((user) => {
+      if (
+        authedUser.responsibleForCompanies
+          .map((company) => company._id.toString())
+          .includes(user.company._id.toString()) ||
+        authedUser.permissions.canAdministrateTickets ||
+        authedUser.isAdmin
+      ) {
+        return user;
+      }
+    });
+
+    // Получаем рабочие места для всех пользователей
+    const userIds = filteredUsers.map((user) => user._id);
+    const workplaces = await Location.find({
+      type: "workplace",
+      assignedUser: { $in: userIds },
+      isActive: true,
+    });
+
+    // Создаем map для быстрого поиска рабочих мест
+    const workplaceMap = {};
+    workplaces.forEach((workplace) => {
+      workplaceMap[workplace.assignedUser.toString()] = workplace;
+    });
+
+    // Формируем результат с информацией о рабочих местах
+    const usersWithWorkplaces = filteredUsers.map((user) => {
+      const workplace = workplaceMap[user._id.toString()];
+
+      return {
+        _id: user._id,
+        lastName: user.lastName,
+        firstName: user.firstName,
+        fullName: `${user.firstName} ${user.lastName || ""}`.trim(),
+        profileImagePath: user.profileImagePath,
+        company: { _id: user.company._id, alias: user.company.alias },
+        role: user.role,
+        position: user.position,
+        email: user.email,
+        phone: user.phone,
+        workplace: workplace
+          ? {
+              _id: workplace._id,
+              name: workplace.name,
+              description: workplace.description,
+            }
+          : null,
+        isServiceAccount: user.isServiceAccount,
+        isAdmin: user.isAdmin,
+        isEndUser: user.isEndUser,
+        createdAt: user.createdAt,
+      };
+    });
+
+    res.status(200).json({
+      message: "Users with workplaces fetched",
+      users: usersWithWorkplaces,
+    });
+  } catch (error) {
+    next(
+      new AppError(`Failed to fetch users with workplaces`, 500, true, error),
+    );
+  }
+};
+
 exports.add = async (req, res, next) => {
   try {
+    console.log("🚀 Создание нового пользователя. Данные запроса:", {
+      body: req.body,
+      userId: req.userId,
+      headers: req.headers?.authorization ? "Present" : "Missing",
+    });
+
     const {
       company: companyId,
       subdivision: subdivisionId,
@@ -222,6 +304,29 @@ exports.add = async (req, res, next) => {
       }
     }
 
+    try {
+      const workplaceName =
+        `Рабочее место - ${firstName} ${lastName || ""}`.trim();
+
+      const workplace = new Location({
+        name: workplaceName,
+        type: "workplace",
+        description: `Рабочее место сотрудника ${firstName} ${lastName || ""}`,
+        company: company._id,
+        subdivision: subdivision ? subdivision._id : null,
+        assignedUser: user._id,
+        defaultResponsible: user._id,
+        isActive: true,
+        isAccessible: true,
+        securityLevel: "internal",
+        createdBy: req.userId || user._id,
+      });
+
+      await workplace.save();
+    } catch (workplaceError) {
+      next(new AppError(`Failed to add workplace for user`, 500, true, error));
+    }
+
     res.status(201).json({
       message: "Новый пользователь добавлен",
       userId: user._id,
@@ -317,6 +422,35 @@ exports.update = async (req, res, next) => {
 
     await user.save();
 
+    // Обновляем название рабочего места при изменении имени пользователя
+    try {
+      const workplace = await Location.findOne({
+        type: "workplace",
+        assignedUser: user._id,
+        isActive: true,
+      });
+
+      if (workplace) {
+        const newWorkplaceName =
+          `Рабочее место - ${firstName} ${lastName || ""}`.trim();
+        const newDescription = `Рабочее место сотрудника ${firstName} ${lastName || ""}`;
+
+        workplace.name = newWorkplaceName;
+        workplace.description = newDescription;
+        workplace.subdivision = newSubdivision ? newSubdivision._id : null;
+        await workplace.save();
+      }
+    } catch (workplaceError) {
+      next(
+        new AppError(
+          `Failed to update user ${req.params.id} workplace `,
+          500,
+          true,
+          error,
+        ),
+      );
+    }
+
     if (newCompany._id.toString() !== prevCompany._id.toString()) {
       newCompany.employees.push(user);
 
@@ -377,6 +511,32 @@ exports.delete = async (req, res, next) => {
         }
       }
 
+      // Деактивируем рабочее место пользователя
+      try {
+        const workplace = await Location.findOne({
+          type: "workplace",
+          assignedUser: user._id,
+          isActive: true,
+        });
+
+        if (workplace) {
+          workplace.isActive = false;
+          workplace.assignedUser = null;
+          workplace.notes = `Деактивировано при удалении пользователя ${user.email} ${new Date().toISOString()}`;
+          await workplace.save();
+
+          console.log(
+            `Рабочее место деактивировано для удаленного пользователя ${user.email}: ${workplace.name}`,
+          );
+        }
+      } catch (workplaceError) {
+        console.error(
+          `Ошибка при деактивации рабочего места для пользователя ${user.email}:`,
+          workplaceError,
+        );
+        // Не прерываем удаление пользователя, только логируем ошибку
+      }
+
       await User.deleteOne({ _id: req.params.id });
 
       res.status(201).json({
@@ -386,6 +546,88 @@ exports.delete = async (req, res, next) => {
   } catch (error) {
     next(
       new AppError(`Failed to delete user ${req.params.id}`, 500, true, error),
+    );
+  }
+};
+
+exports.createWorkplacesForExistingUsers = async (req, res, next) => {
+  try {
+    // Получаем всех активных пользователей
+    const users = await User.find({ isActive: true });
+
+    let created = 0;
+    let skipped = 0;
+    let errors = [];
+
+    for (const user of users) {
+      try {
+        // Проверяем, есть ли уже рабочее место у пользователя
+        const existingWorkplace = await Location.findOne({
+          type: "workplace",
+          assignedUser: user._id,
+          isActive: true,
+        });
+
+        if (existingWorkplace) {
+          skipped++;
+          continue;
+        }
+
+        // Создаем рабочее место
+        const workplaceName =
+          `Рабочее место - ${user.firstName} ${user.lastName || ""}`.trim();
+
+        const workplace = new Location({
+          name: workplaceName,
+          type: "workplace",
+          description: `Рабочее место сотрудника ${user.firstName} ${user.lastName || ""}`,
+          company: user.company._id,
+          subdivision: user.subdivision || null,
+          assignedUser: user._id,
+          defaultResponsible: user._id,
+          isActive: true,
+          isAccessible: true,
+          securityLevel: "internal",
+          createdBy: req.userId || user._id,
+        });
+
+        await workplace.save();
+        created++;
+
+        console.log(
+          `Рабочее место создано для ${user.email}: ${workplace.name}`,
+        );
+      } catch (userError) {
+        errors.push({
+          userId: user._id,
+          email: user.email,
+          error: userError.message,
+        });
+        console.error(
+          `Ошибка создания рабочего места для ${user.email}:`,
+          userError,
+        );
+      }
+    }
+
+    res.status(200).json({
+      message: "Процесс создания рабочих мест завершен",
+      statistics: {
+        totalUsers: users.length,
+        created,
+        skipped,
+        errors: errors.length,
+      },
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        "Failed to create workplaces for existing users",
+        500,
+        true,
+        error,
+      ),
     );
   }
 };

@@ -30,12 +30,15 @@ import {
   RiDeviceLine,
   RiTeamLine,
   RiContactsLine,
+  RiMapPinLine,
 } from "react-icons/ri";
 import { GoProjectTemplate } from "react-icons/go";
 import { MdOutlineDarkMode, MdLightMode, MdComputer } from "react-icons/md";
 import { FaNetworkWired } from "react-icons/fa";
 import { IoHardwareChipOutline } from "react-icons/io5";
 import { TbCheckbox } from "react-icons/tb";
+import { BiCategory } from "react-icons/bi";
+import { HiOutlineBuildingOffice2 } from "react-icons/hi2";
 
 // Dropdown Title Components
 const DropdownTitles = {
@@ -125,6 +128,7 @@ const NavigationBar = ({ handleShowAuthModal }) => {
     canManageUsers,
     canManageRoutineTasks,
     canSeeWorksReport,
+    canSeeAnalytics,
     canUseTimeTrackingModule,
     canUseInventoryModule,
     canManageMikrotikDevices,
@@ -320,7 +324,11 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                   {(modules.timeTracking.isActive ||
                     modules.inventory.isActive) && (
                     <NavDropdown
-                      hidden={!canSeeWorksReport && !canManageMikrotikDevices}
+                      hidden={
+                        !canSeeWorksReport &&
+                        !canSeeAnalytics &&
+                        !canManageMikrotikDevices
+                      }
                       title={<DropdownTitles.Reports />}
                     >
                       {canUseTimeTrackingModule &&
@@ -332,6 +340,17 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                             onClick={handleClose}
                           >
                             <RiDraftLine /> Отчёт по работам
+                          </NavDropdown.Item>
+                        )}
+                      {canUseTimeTrackingModule &&
+                        modules.timeTracking.isActive && (
+                          <NavDropdown.Item
+                            as={NavLink}
+                            hidden={!canSeeAnalytics}
+                            to="/report/company-summary"
+                            onClick={handleClose}
+                          >
+                            <RiBuilding2Line /> Аналитика
                           </NavDropdown.Item>
                         )}
                       {canUseInventoryModule && modules.inventory.isActive && (
@@ -403,20 +422,59 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                         to="/devices/mikrotik"
                         onClick={handleClose}
                       >
-                        <FaNetworkWired /> Устройства Mikrotik
+                        <FaNetworkWired /> Mikrotik
+                      </NavDropdown.Item>
+
+                      <NavDropdown.Divider />
+
+                      <NavDropdown.Item
+                        as={NavLink}
+                        hidden={!canManageClientDevices}
+                        to="/inventory/locations"
+                        onClick={handleClose}
+                      >
+                        <RiMapPinLine /> Расположения
+                      </NavDropdown.Item>
+
+                      <NavDropdown.Divider />
+
+                      <NavDropdown.Item
+                        as={NavLink}
+                        hidden={!canManageClientDevices}
+                        to="/inventory/device-types"
+                        onClick={handleClose}
+                      >
+                        <BiCategory /> Типы устройств
+                      </NavDropdown.Item>
+
+                      <NavDropdown.Item
+                        as={NavLink}
+                        hidden={!canManageClientDevices}
+                        to="/inventory/vendors"
+                        onClick={handleClose}
+                      >
+                        <HiOutlineBuildingOffice2 /> Вендоры
                       </NavDropdown.Item>
                     </NavDropdown>
                   )}
 
                   {/* Admin Settings */}
                   {isAdmin && (
-                    <Nav.Link
-                      as={NavLink}
-                      to="/preferences"
-                      onClick={handleClose}
+                    <NavDropdown
+                      title={
+                        <span>
+                          <RiSettings3Line /> Администрирование
+                        </span>
+                      }
                     >
-                      <RiSettings3Line /> Настройки
-                    </Nav.Link>
+                      <NavDropdown.Item
+                        as={NavLink}
+                        to="/preferences"
+                        onClick={handleClose}
+                      >
+                        <RiSettings3Line /> Настройки системы
+                      </NavDropdown.Item>
+                    </NavDropdown>
                   )}
 
                   <Nav.Link

@@ -10,6 +10,7 @@
     "dev": "nodemon app.js",
     "prepare": "husky",
     "test": "echo \"No tests yet\" && exit 0",
+    "test:workplace": "node test-workplace-system.js",
     "security": "npm audit",
     "precommit": "npx eslint . && npm test && npm run security"
   },

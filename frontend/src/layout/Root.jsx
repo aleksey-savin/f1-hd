@@ -63,6 +63,8 @@ const RootLayout = () => {
         "/ticket-templates",
         "/ticket-categories",
         "/finances/summary-report",
+        "/inventory/device-types",
+        "/inventory/locations",
       ].includes(location.pathname)
     ) {
       return showLeftSidebar();

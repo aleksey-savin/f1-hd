@@ -37,6 +37,10 @@ const ticketTemplateRouter = require("./routes/ticketTemplate");
 const servicePlanRouter = require("./routes/finances/servicePlan");
 
 const clientDeviceRouter = require("./routes/inventory/clientDevice");
+const deviceTypeRouter = require("./routes/inventory/deviceType");
+const vendorRouter = require("./routes/inventory/vendor");
+const locationRouter = require("./routes/inventory/location");
+const inventoryReferenceRouter = require("./routes/inventory/reference");
 const mikrotikRouter = require("./routes/inventory/mikrotik");
 
 const { handleNewEmails } = require("./middleware/emailHandling");
@@ -105,6 +109,10 @@ app.use("/api", appVersionRouter);
 app.use("/api", formDataRouter);
 app.use("/api", servicePlanRouter);
 app.use("/api/inventory", clientDeviceRouter);
+app.use("/api/inventory", deviceTypeRouter);
+app.use("/api/inventory", vendorRouter);
+app.use("/api/inventory", inventoryReferenceRouter);
+app.use("/api/inventory", locationRouter);
 app.use("/api/finances", financeReportsRouter);
 app.use("/api", ticketTemplateRouter);
 

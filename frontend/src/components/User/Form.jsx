@@ -167,6 +167,12 @@ const UserForm = ({ title }) => {
         isActive: permissions.canSeeWorksReport || false,
         isDisabled: false,
       },
+      {
+        label: "Просмотр аналитики и трендов",
+        title: "canSeeAnalytics",
+        isActive: permissions.canSeeAnalytics || false,
+        isDisabled: false,
+      },
     ]);
 
   const [inventoryModulePermissions, setInventoryModulePermissions] = useState([

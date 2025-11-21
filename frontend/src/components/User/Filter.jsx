@@ -43,6 +43,11 @@ const UserFilter = ({
       label: "Формирование и просмотр отчёта по работам",
       className: `py-2 ${filterStore.timeTrackingModule?.includes("canSeeWorksReport") ? "text-info" : ""}`,
     },
+    {
+      value: "canSeeAnalytics",
+      label: "Просмотр аналитики и трендов",
+      className: `py-2 ${filterStore.timeTrackingModule?.includes("canSeeAnalytics") ? "text-info" : ""}`,
+    },
   ];
 
   return (

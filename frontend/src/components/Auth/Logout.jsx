@@ -27,6 +27,7 @@ export function action() {
   localStorage.removeItem("canDeleteTickets");
   localStorage.removeItem("canSeeAllTickets");
   localStorage.removeItem("canSeeWorksReport");
+  localStorage.removeItem("canSeeAnalytics");
   localStorage.removeItem("canUpdateChangelog");
   localStorage.removeItem("userName");
   localStorage.removeItem("contactsTel");

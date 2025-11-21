@@ -56,6 +56,7 @@ const ViewUser = ({ user, tickets }) => {
     canSeeAllTickets,
     canUseTimeTrackingModule,
     canSeeWorksReport,
+    canSeeAnalytics,
     canAvoidWorks,
     canUseInventoryModule,
     canManageClientDevices,
@@ -123,6 +124,10 @@ const ViewUser = ({ user, tickets }) => {
     {
       permission: canSeeWorksReport,
       label: "Формирование и просмотр отчёта по работам",
+    },
+    {
+      permission: canSeeAnalytics,
+      label: "Просмотр аналитики и трендов",
     },
   ];
 

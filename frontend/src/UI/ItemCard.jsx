@@ -32,24 +32,28 @@ const ItemCard = ({
   const { _id: userId, permissions } = useContext(AuthedUserContext);
 
   const actionsAreActive =
-    itemTitle === "clientDevice"
+    itemTitle === "clientDevice" ||
+    itemTitle === "deviceType" ||
+    itemTitle === "vendor"
       ? permissions.canManageClientDevices
       : itemTitle === "company"
         ? permissions.canManageCompanies
-        : itemTitle === "routineTask"
-          ? permissions.canManageRoutineTasks
-          : itemTitle === "servicePlan"
-            ? permissions.canManageServicePlans
-            : itemTitle === "ticket"
-              ? permissions.canEditTickets || permissions.canDeleteTickets
-              : itemTitle === "ticketCategory"
-                ? permissions.canManageTicketCategories
-                : itemTitle === "user"
-                  ? permissions.canManageUsers
-                  : itemTitle === "ticketTemplate"
-                    ? permissions.canManageTicketTemplates ||
-                      item.createdBy.toString() === userId
-                    : false;
+        : itemTitle === "location"
+          ? permissions.canManageClientDevices
+          : itemTitle === "routineTask"
+            ? permissions.canManageRoutineTasks
+            : itemTitle === "servicePlan"
+              ? permissions.canManageServicePlans
+              : itemTitle === "ticket"
+                ? permissions.canEditTickets || permissions.canDeleteTickets
+                : itemTitle === "ticketCategory"
+                  ? permissions.canManageTicketCategories
+                  : itemTitle === "user"
+                    ? permissions.canManageUsers
+                    : itemTitle === "ticketTemplate"
+                      ? permissions.canManageTicketTemplates ||
+                        item.createdBy.toString() === userId
+                      : false;
 
   const [isNew, setIsNew] = useState(
     new Date() - new Date(item.createdAt) < 10000 ? true : false,

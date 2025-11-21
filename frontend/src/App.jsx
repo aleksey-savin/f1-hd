@@ -160,6 +160,47 @@ import UpdateClientDevicePage, {
   action as updateClientDeviceAction,
 } from "./pages/ClientDevice/Update.jsx";
 
+// Location Management
+import LocationList, {
+  loader as locationLoader,
+  action as locationAction,
+} from "./pages/Location/List.jsx";
+
+import AddLocationPage, {
+  loader as addLocationLoader,
+  action as addLocationAction,
+} from "./pages/Location/Add.jsx";
+import UpdateLocationPage, {
+  loader as updateLocationLoader,
+  action as updateLocationAction,
+} from "./pages/Location/Update.jsx";
+
+// Device Types
+import DeviceTypeListPage, {
+  action as deviceTypeAction,
+} from "./pages/DeviceType/List.jsx";
+import AddDeviceTypePage, {
+  loader as addDeviceTypeLoader,
+  action as addDeviceTypeAction,
+} from "./pages/DeviceType/Add.jsx";
+import UpdateDeviceTypePage, {
+  loader as updateDeviceTypeLoader,
+  action as updateDeviceTypeAction,
+} from "./pages/DeviceType/Update.jsx";
+
+// Vendors
+import VendorListPage, {
+  action as vendorAction,
+} from "./pages/Vendor/List.jsx";
+import AddVendorPage, {
+  loader as addVendorLoader,
+  action as addVendorAction,
+} from "./pages/Vendor/Add.jsx";
+import UpdateVendorPage, {
+  loader as updateVendorLoader,
+  action as updateVendorAction,
+} from "./pages/Vendor/Update.jsx";
+
 // Mikrotik devices
 import MikrotikDevices, {
   loader as mikrotikDevicesLoader,
@@ -211,6 +252,10 @@ import WorkReport, {
 import CompaniesNetworksReport, {
   loader as companiesNetworksLoader,
 } from "./pages/Report/CompaniesNetworksReport.jsx";
+
+import CompanySummaryReport, {
+  loader as companySummaryReportLoader,
+} from "./pages/Report/CompanySummaryReport.jsx";
 
 // Finances
 import SummaryReport, {
@@ -565,6 +610,70 @@ function App() {
             },
           ],
         },
+
+        // Location Management
+        {
+          path: "inventory/locations",
+          element: <LocationList />,
+          loader: locationLoader,
+          action: locationAction,
+          children: [
+            {
+              path: "add",
+              loader: addLocationLoader,
+              action: addLocationAction,
+              element: <AddLocationPage />,
+            },
+            {
+              path: "update/:id",
+              loader: updateLocationLoader,
+              action: updateLocationAction,
+              element: <UpdateLocationPage />,
+            },
+          ],
+        },
+
+        // Device Types
+        {
+          path: "inventory/device-types",
+          element: <DeviceTypeListPage />,
+          action: deviceTypeAction,
+          children: [
+            {
+              path: "add",
+              element: <AddDeviceTypePage />,
+              loader: addDeviceTypeLoader,
+              action: addDeviceTypeAction,
+            },
+            {
+              path: "update/:id",
+              element: <UpdateDeviceTypePage />,
+              loader: updateDeviceTypeLoader,
+              action: updateDeviceTypeAction,
+            },
+          ],
+        },
+
+        // Vendors
+        {
+          path: "inventory/vendors",
+          element: <VendorListPage />,
+          action: vendorAction,
+          children: [
+            {
+              path: "add",
+              element: <AddVendorPage />,
+              loader: addVendorLoader,
+              action: addVendorAction,
+            },
+            {
+              path: "update/:id",
+              element: <UpdateVendorPage />,
+              loader: updateVendorLoader,
+              action: updateVendorAction,
+            },
+          ],
+        },
         {
           path: "finances/service-plans/:id",
           loader: viewServicePlanLoader,
@@ -611,6 +720,11 @@ function App() {
           path: "report/networks",
           element: <CompaniesNetworksReport />,
           loader: companiesNetworksLoader,
+        },
+        {
+          path: "report/company-summary",
+          element: <CompanySummaryReport />,
+          loader: companySummaryReportLoader,
         },
         // Finances
         {

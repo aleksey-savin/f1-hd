@@ -41,7 +41,7 @@ const FormWrapper = ({ title, action, children }) => {
           <h1>{title}</h1>
           <hr></hr>
           {fetcher.data && fetcher.data.error && (
-            <AlertMessage variant="danger" message={fetcher.data.error} />
+            <AlertMessage variant="danger" message={fetcher.data.message} />
           )}
           {data && data.message && data.error && (
             <AlertMessage variant="danger" message={data.message} />

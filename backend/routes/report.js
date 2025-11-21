@@ -5,6 +5,7 @@ const isAuth = require("../middleware/isAuth");
 
 const {
   canSeeWorksReport,
+  canSeeAnalytics,
   timeTrackingModuleIsActive,
   canUseTimeTrackingModule,
 } = require("../middleware/permissions");
@@ -25,6 +26,24 @@ router.post(
   canUseTimeTrackingModule,
   canSeeWorksReport,
   reportController.filterWorks,
+);
+
+router.post(
+  "/report/company-summary",
+  isAuth,
+  timeTrackingModuleIsActive,
+  canUseTimeTrackingModule,
+  canSeeAnalytics,
+  reportController.getCompanySummary,
+);
+
+router.post(
+  "/report/trends-analysis",
+  isAuth,
+  timeTrackingModuleIsActive,
+  canUseTimeTrackingModule,
+  canSeeAnalytics,
+  reportController.getTrendsAnalysis,
 );
 
 module.exports = router;

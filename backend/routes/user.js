@@ -13,6 +13,17 @@ router.get(
   isAuth,
   userController.getCanPerformTicketsUsers,
 );
+router.get(
+  "/users/with-workplaces",
+  isAuth,
+  userController.getUsersWithWorkplaces,
+);
+router.post(
+  "/users/create-workplaces",
+  isAuth,
+  canManageUsers,
+  userController.createWorkplacesForExistingUsers,
+);
 
 router.post("/users/add", isAuth, canManageUsers, userController.add);
 router.post("/users/update/:id", isAuth, canManageUsers, userController.update);

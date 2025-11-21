@@ -96,6 +96,7 @@ const userSchema = new Schema(
       canUseTimeTrackingModule: { type: Boolean, default: false },
       canAvoidWorks: { type: Boolean, default: false }, // может закрыть заявку без указания работ
       canSeeWorksReport: { type: Boolean, default: false }, // может видеть отчёт по работам
+      canSeeAnalytics: { type: Boolean, default: false }, // может видеть аналитику и анализ трендов
       // inventory module
       canUseInventoryModule: { type: Boolean, default: false },
       canManageClientDevices: { type: Boolean, default: false },

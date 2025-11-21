@@ -300,6 +300,22 @@ module.exports.canSeeWorksReport = async (req, res, next) => {
   next();
 };
 
+module.exports.canSeeAnalytics = async (req, res, next) => {
+  const { userId } = await getAuthData(req);
+  const authedUser = await User.findById(userId);
+  const { permissions, isAdmin } = authedUser;
+  if (!permissions.canSeeAnalytics && !isAdmin) {
+    const error = new Error("Недостаточно прав для просмотра аналитики");
+    error.statusCode = 403;
+    return res.status(error.statusCode).json({
+      error: true,
+      status: error.statusCode,
+      message: error.message,
+    });
+  }
+  next();
+};
+
 // inventory module
 module.exports.canUseInventoryModule = async (req, res, next) => {
   const { userId } = await getAuthData(req);

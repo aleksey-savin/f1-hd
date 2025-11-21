@@ -31,13 +31,15 @@ const ClientDevices = () => {
   };
 
   return (
-    <ListWrapper
-      title={title}
-      filterStore={filterStore}
-      addRoute="/inventory/client-devices/add"
-    >
-      <List items={filterStore.filteredList}></List>
-    </ListWrapper>
+    <>
+      <ListWrapper
+        title={title}
+        filterStore={filterStore}
+        addRoute="/inventory/client-devices/add"
+      >
+        <List items={filterStore.filteredList}></List>
+      </ListWrapper>
+    </>
   );
 };
 

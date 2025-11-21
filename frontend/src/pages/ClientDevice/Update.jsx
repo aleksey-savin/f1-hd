@@ -47,8 +47,12 @@ export async function action({ request, params }) {
     },
   );
 
-  if ([409].includes(response.status)) {
-    return response;
+  if ([409, 400].includes(response.status)) {
+    const errorData = await response.json();
+    return {
+      error: true,
+      message: errorData.message,
+    };
   }
 
   if (!response.ok) {

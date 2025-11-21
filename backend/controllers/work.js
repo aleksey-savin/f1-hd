@@ -119,7 +119,7 @@ exports.getAdditionalData = async (req, res, next) => {
 
     let latestPeriodTo;
 
-    if (reports && reports.length) {
+    if (reports && reports.length && ticket.isArchived) {
       latestPeriodTo = reports.reduce((latest, report) => {
         return !latest || report.periodTo > latest
           ? new Date(report.periodTo.getTime() + 24 * 60 * 60 * 1000)
