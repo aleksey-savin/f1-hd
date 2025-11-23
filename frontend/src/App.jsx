@@ -253,9 +253,9 @@ import CompaniesNetworksReport, {
   loader as companiesNetworksLoader,
 } from "./pages/Report/CompaniesNetworksReport.jsx";
 
-import CompanySummaryReport, {
-  loader as companySummaryReportLoader,
-} from "./pages/Report/CompanySummaryReport.jsx";
+import Analytics, {
+  loader as analyticsLoader,
+} from "./pages/Report/Analytics.jsx";
 
 // Finances
 import SummaryReport, {
@@ -722,9 +722,9 @@ function App() {
           loader: companiesNetworksLoader,
         },
         {
-          path: "report/company-summary",
-          element: <CompanySummaryReport />,
-          loader: companySummaryReportLoader,
+          path: "report/analytics",
+          element: <Analytics />,
+          loader: analyticsLoader,
         },
         // Finances
         {

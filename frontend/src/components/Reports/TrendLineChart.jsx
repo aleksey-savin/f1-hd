@@ -96,6 +96,8 @@ const TrendLineChart = ({ data, isLoading, metric = "totalWorks", title }) => {
         return (period.onSite?.time || 0) / (1000 * 60 * 60);
       case "remoteTime":
         return (period.remote?.time || 0) / (1000 * 60 * 60);
+      case "routineTaskTime":
+        return (period.routineTask?.time || 0) / (1000 * 60 * 60);
       default:
         return 0;
     }
@@ -161,6 +163,7 @@ const TrendLineChart = ({ data, isLoading, metric = "totalWorks", title }) => {
       case "totalTime":
       case "onSiteTime":
       case "remoteTime":
+      case "routineTaskTime":
         return "Часы";
       case "totalWorks":
       case "onSiteCount":

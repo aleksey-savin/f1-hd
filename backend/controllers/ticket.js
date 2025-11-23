@@ -1390,7 +1390,7 @@ exports.update = async (req, res, next) => {
     ticket.finishedBy = finishedAt ? authData.userId : ticket.finishedBy;
 
     // сбрасываем значение isClosed на false, если заявка не в статусе Закрыта
-    if (state !== "Закрыта") {
+    if (state && state !== "Закрыта") {
       ticket.isClosed = false;
     }
 

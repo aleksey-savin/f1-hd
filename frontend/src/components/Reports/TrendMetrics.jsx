@@ -37,6 +37,8 @@ const TrendMetrics = ({ data, msToHMS }) => {
           remoteCount: 0,
           onSiteTime: 0,
           remoteTime: 0,
+          routineTaskCount: 0,
+          routineTaskTime: 0,
         };
       }
 
@@ -47,6 +49,9 @@ const TrendMetrics = ({ data, msToHMS }) => {
       periodGroups[period.key].remoteCount += period.remote?.count || 0;
       periodGroups[period.key].onSiteTime += period.onSite?.time || 0;
       periodGroups[period.key].remoteTime += period.remote?.time || 0;
+      periodGroups[period.key].routineTaskCount +=
+        period.routineTask?.count || 0;
+      periodGroups[period.key].routineTaskTime += period.routineTask?.time || 0;
     });
 
     return Object.values(periodGroups).sort((a, b) =>
@@ -148,6 +153,8 @@ const TrendMetrics = ({ data, msToHMS }) => {
     { key: "totalTime", name: "Общее время", icon: "⏱️" },
     { key: "onSiteCount", name: "Выезды", icon: "🚗" },
     { key: "remoteCount", name: "Удаленные", icon: "💻" },
+    { key: "routineTaskCount", name: "Регламентные", icon: "🔄" },
+    { key: "routineTaskTime", name: "Время регламентных", icon: "⏱️" },
   ];
 
   const overallMetrics = calculateOverallMetrics();

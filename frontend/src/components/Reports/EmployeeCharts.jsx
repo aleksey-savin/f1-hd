@@ -20,10 +20,14 @@ const EmployeeCharts = ({ data, isLoading }) => {
         existing.remoteWorks += executor.remoteWorks;
         existing.onSiteTime += executor.onSiteTime;
         existing.remoteTime += executor.remoteTime;
+        existing.routineTaskWorks += executor.routineTaskWorks || 0;
+        existing.routineTaskTime += executor.routineTaskTime || 0;
         existing.companies.push(company.company.alias);
       } else {
         acc.push({
           ...executor,
+          routineTaskWorks: executor.routineTaskWorks || 0,
+          routineTaskTime: executor.routineTaskTime || 0,
           companies: [company.company.alias],
         });
       }
@@ -51,6 +55,13 @@ const EmployeeCharts = ({ data, isLoading }) => {
         data: topExecutors.map((e) => e.remoteTime / (1000 * 60 * 60)),
         backgroundColor: "rgba(40, 167, 69, 0.6)",
         borderColor: "rgba(40, 167, 69, 1)",
+        borderWidth: 1,
+      },
+      {
+        label: "Регламентные (часы)",
+        data: topExecutors.map((e) => e.routineTaskTime / (1000 * 60 * 60)),
+        backgroundColor: "rgba(108, 117, 125, 0.6)",
+        borderColor: "rgba(108, 117, 125, 1)",
         borderWidth: 1,
       },
     ],

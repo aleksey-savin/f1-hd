@@ -253,7 +253,6 @@ const ticketSchema = new Schema(
         },
       },
     ],
-
     isArchived: { type: Boolean, default: false },
 
     // Timestamps
@@ -325,6 +324,7 @@ ticketSchema.index({ categoryId: 1 }); // For category-based queries
 ticketSchema.index({ isArchived: 1 }); // For archived status
 ticketSchema.index({ source: 1 }); // For source-based queries
 ticketSchema.index({ finishedAt: 1 }); // For completion date queries
+ticketSchema.index({ routineTask: 1 }); // For routine task queries
 ticketSchema.index({
   "notifications.pending": 1,
   "notifications.destination": 1,

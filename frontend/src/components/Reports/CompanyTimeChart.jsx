@@ -25,6 +25,15 @@ const CompanyTimeChart = ({ data, isLoading }) => {
         borderColor: "rgba(40, 167, 69, 1)",
         borderWidth: 1,
       },
+      {
+        label: "Регламентные (часы)",
+        data: companies.map(
+          (c) => (c.routineTask?.time || 0) / (1000 * 60 * 60),
+        ),
+        backgroundColor: "rgba(108, 117, 125, 0.6)",
+        borderColor: "rgba(108, 117, 125, 1)",
+        borderWidth: 1,
+      },
     ],
   };
 

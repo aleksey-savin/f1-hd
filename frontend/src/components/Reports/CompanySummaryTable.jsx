@@ -3,7 +3,7 @@ import Table from "react-bootstrap/Table";
 import Badge from "react-bootstrap/Badge";
 import OverlayTrigger from "react-bootstrap/OverlayTrigger";
 import Tooltip from "react-bootstrap/Tooltip";
-import { RiSortAsc, RiSortDesc, RiInformationLine } from "react-icons/ri";
+import { RiSortAsc, RiSortDesc } from "react-icons/ri";
 
 const CompanySummaryTable = ({ data, sortConfig, onSort, msToHMS }) => {
   if (!data || !data.companies) return null;
@@ -49,11 +49,27 @@ const CompanySummaryTable = ({ data, sortConfig, onSort, msToHMS }) => {
           aValue = a.remote.time;
           bValue = b.remote.time;
           break;
+        case "routineTaskCount":
+          aValue = a.routineTask?.count || 0;
+          bValue = b.routineTask?.count || 0;
+          break;
+        case "routineTaskTime":
+          aValue = a.routineTask?.time || 0;
+          bValue = b.routineTask?.time || 0;
+          break;
         case "ratio": {
           const aTotalTime = a.onSite.time + a.remote.time;
           const bTotalTime = b.onSite.time + b.remote.time;
           aValue = aTotalTime > 0 ? (a.onSite.time / aTotalTime) * 100 : 0;
           bValue = bTotalTime > 0 ? (b.onSite.time / bTotalTime) * 100 : 0;
+          break;
+        }
+        case "routineRatio": {
+          const aRoutineTime = a.routineTask?.time || 0;
+          const bRoutineTime = b.routineTask?.time || 0;
+
+          aValue = a.totalTime > 0 ? (aRoutineTime / a.totalTime) * 100 : 0;
+          bValue = b.totalTime > 0 ? (bRoutineTime / b.totalTime) * 100 : 0;
           break;
         }
 
@@ -147,8 +163,24 @@ const CompanySummaryTable = ({ data, sortConfig, onSort, msToHMS }) => {
             style={getSortableHeaderStyle("ratio")}
             className="sortable-header"
           >
-            Соотношение (выезды / удалённые){" "}
+            Выезды / удалённые{" "}
             <span className="sort-icon">{getSortIcon("ratio")}</span>
+          </th>
+          <th
+            onClick={() => onSort("routineTaskCount")}
+            style={getSortableHeaderStyle("routineTaskCount")}
+            className="sortable-header"
+          >
+            Регламентные{" "}
+            <span className="sort-icon">{getSortIcon("routineTaskCount")}</span>
+          </th>
+          <th
+            onClick={() => onSort("routineRatio")}
+            style={getSortableHeaderStyle("routineRatio")}
+            className="sortable-header"
+          >
+            Регламенты / инциденты{" "}
+            <span className="sort-icon">{getSortIcon("routineRatio")}</span>
           </th>
         </tr>
       </thead>
@@ -218,6 +250,36 @@ const CompanySummaryTable = ({ data, sortConfig, onSort, msToHMS }) => {
                   ) : (
                     <span className="text-muted">0% / 0%</span>
                   )}
+                </div>
+              </td>
+              <td>
+                <div>
+                  {msToHMS(company.routineTask?.time || 0)} /{" "}
+                  {company.routineTask?.count || 0}
+                </div>
+              </td>
+              <td>
+                <div>
+                  {(() => {
+                    const routineTime = company.routineTask?.time || 0;
+                    const totalTime = company.totalTime;
+
+                    if (totalTime > 0) {
+                      const routinePercent = Math.round(
+                        (routineTime / totalTime) * 100,
+                      );
+                      const incidentPercent = 100 - routinePercent;
+                      return (
+                        <>
+                          <strong>{routinePercent}%</strong>
+                          {" / "}
+                          <strong>{incidentPercent}%</strong>
+                        </>
+                      );
+                    } else {
+                      return <span className="text-muted">0% / 0%</span>;
+                    }
+                  })()}
                 </div>
               </td>
             </tr>

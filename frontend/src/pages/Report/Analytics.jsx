@@ -52,7 +52,7 @@ import {
   TrendMetrics,
 } from "../../components/Reports";
 
-const CompanySummaryReport = () => {
+const Analytics = () => {
   const { token } = getLocalStorageData();
 
   const fromInputRef = useRef();
@@ -107,7 +107,7 @@ const CompanySummaryReport = () => {
 
       generateReportHandler(
         {
-          url: `${import.meta.env.VITE_API_ADDRESS}/api/report/company-summary`,
+          url: `${import.meta.env.VITE_API_ADDRESS}/api/report/analytics`,
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -439,6 +439,8 @@ const CompanySummaryReport = () => {
               </Col>
             </Row>
 
+            <TrendMetrics data={trendsData} msToHMS={msToHMS} />
+
             {showCharts && (
               <>
                 <TrendLineChart
@@ -468,6 +470,13 @@ const CompanySummaryReport = () => {
                   metric="remoteCount"
                   title="Динамика удаленных работ"
                 />
+
+                <TrendLineChart
+                  data={trendsData}
+                  isLoading={chartsLoading}
+                  metric="routineTaskTime"
+                  title="Динамика времени регламентных работ"
+                />
               </>
             )}
 
@@ -496,7 +505,7 @@ const CompanySummaryReport = () => {
   );
 };
 
-export default CompanySummaryReport;
+export default Analytics;
 
 export async function loader() {
   document.title = "АНАЛИТИКА";

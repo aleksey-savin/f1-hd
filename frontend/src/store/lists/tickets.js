@@ -125,6 +125,16 @@ const ticketFilter = (state) => {
         default:
           return true;
       }
+    })
+    .filter((ticket) => {
+      switch (state.routineTask) {
+        case "present":
+          return ticket.routineTask;
+        case "absent":
+          return !ticket.routineTask;
+        default:
+          return true;
+      }
     });
 };
 
@@ -204,6 +214,7 @@ const useTicketFilterStore = create((set) => ({
   responsibles: [],
   comments: "any",
   scheduledWorks: "any",
+  routineTask: "any",
   searchTerm: "",
   sortingOptions: [
     {
@@ -295,6 +306,7 @@ const useTicketFilterStore = create((set) => ({
       responsibles: data.responsibles,
       comments: data.comments,
       scheduledWorks: data.scheduledWorks,
+      routineTask: data.routineTask,
       searchTerm: data.searchTerm,
       originalList: data.originalList,
       recentlyClosedList: data.recentlyClosedList,
@@ -314,6 +326,7 @@ const useTicketFilterStore = create((set) => ({
       responsibles: [],
       comments: "any",
       scheduledWorks: "any",
+      routineTask: "any",
       searchTerm: "",
     }));
     set((state) => ({

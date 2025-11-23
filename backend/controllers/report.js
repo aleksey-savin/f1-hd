@@ -153,6 +153,11 @@ exports.getCompanySummary = async (req, res, next) => {
       const works = await Work.find({
         company: company._id,
         finishedAt: { $gte: fromDate, $lte: toDate },
+      }).populate({
+        path: "tickets",
+        populate: {
+          path: "routineTask",
+        },
       });
 
       if (works.length === 0) continue;
@@ -167,9 +172,14 @@ exports.getCompanySummary = async (req, res, next) => {
       ];
       const totalTickets = uniqueTicketIds.length;
 
-      // Разделяем работы по типу (выезды/удаленные)
+      // Разделяем работы по типу (выезды/удаленные/регламентные)
       const onSiteWorks = works.filter((work) => work.visitRequired === true);
       const remoteWorks = works.filter((work) => work.visitRequired !== true);
+
+      // Находим регламентные работы (работы с билетами, у которых есть routineTask)
+      const routineTaskWorks = works.filter((work) =>
+        work.tickets.some((ticket) => ticket.routineTask),
+      );
 
       // Вычисляем общее время
       const calculateTotalTime = (worksList) => {
@@ -185,7 +195,9 @@ exports.getCompanySummary = async (req, res, next) => {
 
       const totalOnSiteTime = calculateTotalTime(onSiteWorks);
       const totalRemoteTime = calculateTotalTime(remoteWorks);
-      const totalTime = totalOnSiteTime + totalRemoteTime;
+      const totalRoutineTaskTime = calculateTotalTime(routineTaskWorks);
+      const totalTime =
+        totalOnSiteTime + totalRemoteTime + totalRoutineTaskTime;
 
       // Статистика по исполнителям
       const executorStats = {};
@@ -203,6 +215,8 @@ exports.getCompanySummary = async (req, res, next) => {
               remoteWorks: 0,
               onSiteTime: 0,
               remoteTime: 0,
+              routineTaskWorks: 0,
+              routineTaskTime: 0,
             };
           }
 
@@ -213,7 +227,15 @@ exports.getCompanySummary = async (req, res, next) => {
               new Date(work.finishedAt) - new Date(work.startedAt);
             executorStats[executorId].totalTime += workDuration;
 
-            if (work.visitRequired === true) {
+            // Проверяем является ли работа регламентной
+            const isRoutineTask = work.tickets.some(
+              (ticket) => ticket.routineTask,
+            );
+
+            if (isRoutineTask) {
+              executorStats[executorId].routineTaskWorks++;
+              executorStats[executorId].routineTaskTime += workDuration;
+            } else if (work.visitRequired === true) {
               executorStats[executorId].onSiteWorks++;
               executorStats[executorId].onSiteTime += workDuration;
             } else {
@@ -240,6 +262,10 @@ exports.getCompanySummary = async (req, res, next) => {
         remote: {
           count: remoteWorks.length,
           time: totalRemoteTime,
+        },
+        routineTask: {
+          count: routineTaskWorks.length,
+          time: totalRoutineTaskTime,
         },
         executors: Object.values(executorStats),
       });
@@ -327,7 +353,14 @@ exports.getTrendsAnalysis = async (req, res, next) => {
         const works = await Work.find({
           company: company._id,
           finishedAt: { $gte: period.start, $lte: period.end },
-        }).populate("finishedBy");
+        })
+          .populate("finishedBy")
+          .populate({
+            path: "tickets",
+            populate: {
+              path: "routineTask",
+            },
+          });
 
         // Получаем все заявки, связанные с работами
         const allTicketIds = works.reduce((acc, work) => {
@@ -338,9 +371,14 @@ exports.getTrendsAnalysis = async (req, res, next) => {
           ...new Set(allTicketIds.map((id) => id.toString())),
         ];
 
-        // Разделяем работы по типу (выезды/удаленные)
+        // Разделяем работы по типу (выезды/удаленные/регламентные)
         const onSiteWorks = works.filter((work) => work.visitRequired === true);
         const remoteWorks = works.filter((work) => work.visitRequired !== true);
+
+        // Находим регламентные работы (работы с билетами, у которых есть routineTask)
+        const routineTaskWorks = works.filter((work) =>
+          work.tickets.some((ticket) => ticket.routineTask),
+        );
 
         // Вычисляем общее время
         const calculateTotalTime = (worksList) => {
@@ -356,7 +394,9 @@ exports.getTrendsAnalysis = async (req, res, next) => {
 
         const totalOnSiteTime = calculateTotalTime(onSiteWorks);
         const totalRemoteTime = calculateTotalTime(remoteWorks);
-        const totalTime = totalOnSiteTime + totalRemoteTime;
+        const totalRoutineTaskTime = calculateTotalTime(routineTaskWorks);
+        const totalTime =
+          totalOnSiteTime + totalRemoteTime + totalRoutineTaskTime;
 
         // Статистика по исполнителям для периода
         const executorStats = {};
@@ -395,6 +435,10 @@ exports.getTrendsAnalysis = async (req, res, next) => {
           remote: {
             count: remoteWorks.length,
             time: totalRemoteTime,
+          },
+          routineTask: {
+            count: routineTaskWorks.length,
+            time: totalRoutineTaskTime,
           },
           executors: Object.values(executorStats),
         };

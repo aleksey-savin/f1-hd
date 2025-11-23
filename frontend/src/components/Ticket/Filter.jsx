@@ -62,7 +62,8 @@ const TicketFilter = () => {
     );
 
   const iAmApplicantTickets = items.filter(
-    (ticket) => ticket.applicant?._id?.toString() === userId && !ticket.isClosed,
+    (ticket) =>
+      ticket.applicant?._id?.toString() === userId && !ticket.isClosed,
   );
 
   const closedTickets = items.filter((ticket) => ticket.isClosed);
@@ -109,6 +110,11 @@ const TicketFilter = () => {
 
   const scheduledWorksToggleHandler = (value) => {
     filterStore.updateFilter({ ...filterStore, scheduledWorks: value });
+    filterStore.applyFilter();
+  };
+
+  const routineTaskToggleHandler = (value) => {
+    filterStore.updateFilter({ ...filterStore, routineTask: value });
     filterStore.applyFilter();
   };
 
@@ -251,6 +257,24 @@ const TicketFilter = () => {
       value: "abcent",
       label: "Незапланированы",
       className: `py-2 ${filterStore.scheduledWorks === "abcent" ? "text-info" : ""}`,
+    },
+  ];
+
+  const routineTaskFilter = [
+    {
+      value: "any",
+      label: "Любое значение",
+      className: `py-2 ${filterStore.routineTask === "any" ? "text-info" : ""}`,
+    },
+    {
+      value: "present",
+      label: "Только регламентные задачи",
+      className: `py-2 ${filterStore.routineTask === "present" ? "text-info" : ""}`,
+    },
+    {
+      value: "absent",
+      label: "Скрыть регламентные задачи",
+      className: `py-2 ${filterStore.routineTask === "absent" ? "text-info" : ""}`,
     },
   ];
 
@@ -444,6 +468,36 @@ const TicketFilter = () => {
               </Accordion.Item>
             </Accordion>
           )}
+          <Accordion className="py-2">
+            <Accordion.Item eventKey="0">
+              <AccordionHeader>
+                <span
+                  className={`${filterStore.routineTask !== "any" ? "text-info" : ""}`}
+                >
+                  Регламентные работы
+                </span>
+              </AccordionHeader>
+              <Accordion.Body
+                style={{ maxHeight: "100svh", overflowY: "auto" }}
+              >
+                {routineTaskFilter.map((item) => (
+                  <Form.Check
+                    className={item.className}
+                    key={item.value}
+                    checked={item.value === filterStore.routineTask}
+                    label={`${item.label}`}
+                    value={item.value}
+                    id={`routine-task-${item.value}`}
+                    type="radio"
+                    name="filter-group-routine-task"
+                    onChange={() => {
+                      routineTaskToggleHandler(item.value);
+                    }}
+                  />
+                ))}
+              </Accordion.Body>
+            </Accordion.Item>
+          </Accordion>
           <Accordion className="py-2">
             <Accordion.Item eventKey="0">
               <AccordionHeader>

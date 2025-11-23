@@ -29,7 +29,7 @@ router.post(
 );
 
 router.post(
-  "/report/company-summary",
+  "/report/analytics",
   isAuth,
   timeTrackingModuleIsActive,
   canUseTimeTrackingModule,

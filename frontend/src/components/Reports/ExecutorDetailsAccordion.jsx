@@ -68,6 +68,18 @@ const ExecutorDetailsAccordion = ({ companies, msToHMS }) => {
           bValue = bTotalTime > 0 ? (b.onSiteTime / bTotalTime) * 100 : 0;
           break;
         }
+        case "routineTaskTime":
+          aValue = a.routineTaskTime || 0;
+          bValue = b.routineTaskTime || 0;
+          break;
+        case "routineRatio": {
+          const aRoutineTime = a.routineTaskTime || 0;
+          const bRoutineTime = b.routineTaskTime || 0;
+
+          aValue = a.totalTime > 0 ? (aRoutineTime / a.totalTime) * 100 : 0;
+          bValue = b.totalTime > 0 ? (bRoutineTime / b.totalTime) * 100 : 0;
+          break;
+        }
         default:
           return 0;
       }
@@ -261,9 +273,51 @@ const ExecutorDetailsAccordion = ({ companies, msToHMS }) => {
                           )}
                           className="sortable-header"
                         >
-                          Соотношение (выезды / удалённые){" "}
+                          Выезды / удалённые{" "}
                           <span className="sort-icon">
                             {getExecutorSortIcon(company.company._id, "ratio")}
+                          </span>
+                        </th>
+                        <th
+                          onClick={() =>
+                            handleExecutorSort(
+                              company.company._id,
+                              "routineTaskTime",
+                            )
+                          }
+                          style={getSortableHeaderStyle(
+                            company.company._id,
+                            "routineTaskTime",
+                          )}
+                          className="sortable-header"
+                        >
+                          Регламентные{" "}
+                          <span className="sort-icon">
+                            {getExecutorSortIcon(
+                              company.company._id,
+                              "routineTaskTime",
+                            )}
+                          </span>
+                        </th>
+                        <th
+                          onClick={() =>
+                            handleExecutorSort(
+                              company.company._id,
+                              "routineRatio",
+                            )
+                          }
+                          style={getSortableHeaderStyle(
+                            company.company._id,
+                            "routineRatio",
+                          )}
+                          className="sortable-header"
+                        >
+                          Регламенты / инциденты{" "}
+                          <span className="sort-icon">
+                            {getExecutorSortIcon(
+                              company.company._id,
+                              "routineRatio",
+                            )}
                           </span>
                         </th>
                       </tr>
@@ -317,6 +371,39 @@ const ExecutorDetailsAccordion = ({ companies, msToHMS }) => {
                               ) : (
                                 <span className="text-muted">0% / 0%</span>
                               )}
+                            </div>
+                          </td>
+                          <td>
+                            <div>
+                              {msToHMS(executor.routineTaskTime || 0)} /{" "}
+                              {executor.routineTaskWorks || 0}
+                            </div>
+                          </td>
+                          <td>
+                            <div>
+                              {(() => {
+                                const routineTime =
+                                  executor.routineTaskTime || 0;
+                                const totalTime = executor.totalTime;
+
+                                if (totalTime > 0) {
+                                  const routinePercent = Math.round(
+                                    (routineTime / totalTime) * 100,
+                                  );
+                                  const incidentPercent = 100 - routinePercent;
+                                  return (
+                                    <>
+                                      <strong>{routinePercent}%</strong>
+                                      {" / "}
+                                      <strong>{incidentPercent}%</strong>
+                                    </>
+                                  );
+                                } else {
+                                  return (
+                                    <span className="text-muted">0% / 0%</span>
+                                  );
+                                }
+                              })()}
                             </div>
                           </td>
                         </tr>

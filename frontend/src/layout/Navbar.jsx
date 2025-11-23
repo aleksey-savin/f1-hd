@@ -347,7 +347,7 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                           <NavDropdown.Item
                             as={NavLink}
                             hidden={!canSeeAnalytics}
-                            to="/report/company-summary"
+                            to="/report/analytics"
                             onClick={handleClose}
                           >
                             <RiBuilding2Line /> Аналитика

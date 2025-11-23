@@ -30,12 +30,18 @@ const EmployeeCompanyDistribution = ({
             name: executor.name,
             totalTime: 0,
             totalWorks: 0,
+            totalRoutineTaskTime: 0,
+            totalRoutineTaskWorks: 0,
             companies: [],
           };
         }
 
         employeeMap[executor.name].totalTime += executor.totalTime;
         employeeMap[executor.name].totalWorks += executor.totalWorks;
+        employeeMap[executor.name].totalRoutineTaskTime +=
+          executor.routineTaskTime || 0;
+        employeeMap[executor.name].totalRoutineTaskWorks +=
+          executor.routineTaskWorks || 0;
         employeeMap[executor.name].companies.push({
           companyAlias: company.company.alias,
           companyName: company.company.name,
@@ -45,6 +51,8 @@ const EmployeeCompanyDistribution = ({
           remoteTime: executor.remoteTime,
           onSiteWorks: executor.onSiteWorks,
           remoteWorks: executor.remoteWorks,
+          routineTaskTime: executor.routineTaskTime || 0,
+          routineTaskWorks: executor.routineTaskWorks || 0,
         });
       });
     });
@@ -168,6 +176,12 @@ const EmployeeCompanyDistribution = ({
           aValue = a.companies.length;
           bValue = b.companies.length;
           break;
+        case "routinePercentage":
+          aValue =
+            a.totalTime > 0 ? (a.totalRoutineTaskTime / a.totalTime) * 100 : 0;
+          bValue =
+            b.totalTime > 0 ? (b.totalRoutineTaskTime / b.totalTime) * 100 : 0;
+          break;
         default:
           return 0;
       }
@@ -273,6 +287,16 @@ const EmployeeCompanyDistribution = ({
                         {getSortIcon("companies")}
                       </span>
                     </th>
+                    <th
+                      onClick={() => handleSort("routinePercentage")}
+                      style={getSortableHeaderStyle("routinePercentage")}
+                      className="sortable-header"
+                    >
+                      % регламентных{" "}
+                      <span className="sort-icon">
+                        {getSortIcon("routinePercentage")}
+                      </span>
+                    </th>
                     <th>Распределение по компаниям</th>
                   </tr>
                 </thead>
@@ -294,6 +318,23 @@ const EmployeeCompanyDistribution = ({
                         <Badge bg="info" pill>
                           {employee.companies.length}
                         </Badge>
+                      </td>
+                      <td>
+                        <div>
+                          <strong>
+                            {employee.totalTime > 0
+                              ? Math.round(
+                                  (employee.totalRoutineTaskTime /
+                                    employee.totalTime) *
+                                    100,
+                                ) + "%"
+                              : "0%"}
+                          </strong>
+                        </div>
+                        <div className="small text-muted mt-1">
+                          {msToHMS(employee.totalRoutineTaskTime)} /{" "}
+                          {employee.totalRoutineTaskWorks}
+                        </div>
                       </td>
                       <td>
                         <Row className="g-1">

@@ -51,6 +51,15 @@ const TrendTable = ({ data, msToHMS }) => {
         return period.onSite?.time || 0;
       case "remoteTime":
         return period.remote?.time || 0;
+      case "routineTaskCount":
+        return period.routineTask?.count || 0;
+      case "routineTaskTime":
+        return period.routineTask?.time || 0;
+      case "routineRatio": {
+        const routineTime = period.routineTask?.time || 0;
+        const totalTime = period.totalTime;
+        return totalTime > 0 ? (routineTime / totalTime) * 100 : 0;
+      }
       default:
         return 0;
     }
@@ -60,6 +69,9 @@ const TrendTable = ({ data, msToHMS }) => {
   const formatValue = (value, metric) => {
     if (metric.includes("Time")) {
       return msToHMS(value);
+    }
+    if (metric === "routineRatio") {
+      return Math.round(value) + "%";
     }
     return value.toString();
   };
@@ -81,19 +93,32 @@ const TrendTable = ({ data, msToHMS }) => {
         return "Время выездов";
       case "remoteTime":
         return "Время удаленных";
+      case "routineTaskCount":
+        return "Регламентные работы";
+      case "routineTaskTime":
+        return "Время регламентных работ";
+      case "routineRatio":
+        return "Регламенты / инциденты";
       default:
         return metric;
     }
   };
 
-  // Функция для расчета изменения относительно предыдущего периода
-  const calculateChange = (current, previous) => {
-    if (!previous || previous === 0) {
+  // Функция для расчета изменения относительно суммы всех предыдущих периодов
+  const calculateChange = (current, allPrevious) => {
+    if (!allPrevious || allPrevious.length === 0) {
       return { value: 0, percentage: 0, direction: "same" };
     }
 
-    const change = current - previous;
-    const percentage = Math.round((change / previous) * 100);
+    const sumPrevious = allPrevious.reduce((sum, val) => sum + val, 0);
+    const averagePrevious = sumPrevious / allPrevious.length;
+
+    if (averagePrevious === 0) {
+      return { value: 0, percentage: 0, direction: "same" };
+    }
+
+    const change = current - averagePrevious;
+    const percentage = Math.round((change / averagePrevious) * 100);
     const direction = change > 0 ? "up" : change < 0 ? "down" : "same";
 
     return { value: change, percentage, direction };
@@ -146,6 +171,11 @@ const TrendTable = ({ data, msToHMS }) => {
                 <option value="remoteCount">Количество удаленных</option>
                 <option value="onSiteTime">Время выездов</option>
                 <option value="remoteTime">Время удаленных</option>
+                <option value="routineTaskCount">Регламентные работы</option>
+                <option value="routineTaskTime">
+                  Время регламентных работ
+                </option>
+                <option value="routineRatio">Регламенты / инциденты</option>
               </Form.Select>
             </Form.Group>
           </Col>
@@ -160,22 +190,24 @@ const TrendTable = ({ data, msToHMS }) => {
                 <th>Период</th>
                 <th className="text-end">{getMetricName(selectedMetric)}</th>
                 <th className="text-center">Изменение</th>
-                <th className="text-center">%</th>
+                <th className="text-center">% от среднего</th>
               </tr>
             </thead>
             <tbody>
               {filteredData.map((company) =>
                 company.periods.map((period, periodIndex) => {
                   const currentValue = getMetricValue(period, selectedMetric);
-                  const previousValue =
+                  const allPreviousValues =
                     periodIndex > 0
-                      ? getMetricValue(
-                          company.periods[periodIndex - 1],
-                          selectedMetric,
-                        )
-                      : null;
+                      ? company.periods
+                          .slice(0, periodIndex)
+                          .map((p) => getMetricValue(p, selectedMetric))
+                      : [];
 
-                  const change = calculateChange(currentValue, previousValue);
+                  const change = calculateChange(
+                    currentValue,
+                    allPreviousValues,
+                  );
 
                   return (
                     <tr key={`${company.company._id}-${period.key}`}>
@@ -197,7 +229,7 @@ const TrendTable = ({ data, msToHMS }) => {
                         </strong>
                       </td>
                       <td className="text-center">
-                        {periodIndex > 0 ? (
+                        {allPreviousValues.length > 0 ? (
                           <div className="d-flex align-items-center justify-content-center">
                             {renderChangeIcon(change.direction)}
                             <span
@@ -221,7 +253,7 @@ const TrendTable = ({ data, msToHMS }) => {
                         )}
                       </td>
                       <td className="text-center">
-                        {periodIndex > 0 ? (
+                        {allPreviousValues.length > 0 ? (
                           <Badge
                             bg={
                               change.direction === "up"
