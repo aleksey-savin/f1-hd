@@ -136,6 +136,45 @@ const TrendTable = ({ data, msToHMS }) => {
     }
   };
 
+  // Calculate totals for each period across all companies
+  const periodTotals =
+    data.data.length > 0
+      ? data.data[0].periods.map((_, periodIndex) => {
+          return filteredData.reduce(
+            (totals, company) => {
+              const period = company.periods[periodIndex];
+              if (period) {
+                totals.totalWorks += period.totalWorks || 0;
+                totals.totalTickets += period.totalTickets || 0;
+                totals.totalTime += period.totalTime || 0;
+                totals.onSiteCount += period.onSite?.count || 0;
+                totals.remoteCount += period.remote?.count || 0;
+                totals.onSiteTime += period.onSite?.time || 0;
+                totals.remoteTime += period.remote?.time || 0;
+                totals.routineTaskCount += period.routineTask?.count || 0;
+                totals.routineTaskTime += period.routineTask?.time || 0;
+                totals.label = period.label;
+                totals.key = period.key;
+              }
+              return totals;
+            },
+            {
+              totalWorks: 0,
+              totalTickets: 0,
+              totalTime: 0,
+              onSiteCount: 0,
+              remoteCount: 0,
+              onSiteTime: 0,
+              remoteTime: 0,
+              routineTaskCount: 0,
+              routineTaskTime: 0,
+              label: "",
+              key: "",
+            },
+          );
+        })
+      : [];
+
   return (
     <Card className="mb-4">
       <Card.Header>
@@ -273,6 +312,106 @@ const TrendTable = ({ data, msToHMS }) => {
                     </tr>
                   );
                 }),
+              )}
+              {selectedCompany === "all" && periodTotals.length > 0 && (
+                <>
+                  <tr
+                    style={{ backgroundColor: "#e9ecef", fontWeight: "bold" }}
+                  >
+                    <td
+                      colSpan={selectedCompany === "all" ? 5 : 4}
+                      className="text-center"
+                    >
+                      <strong>ИТОГО ПО ВСЕМ КОМПАНИЯМ</strong>
+                    </td>
+                  </tr>
+                  {periodTotals.map((periodTotal, index) => {
+                    const currentValue = getMetricValue(
+                      periodTotal,
+                      selectedMetric,
+                    );
+                    const allPreviousValues =
+                      index > 0
+                        ? periodTotals
+                            .slice(0, index)
+                            .map((p) => getMetricValue(p, selectedMetric))
+                        : [];
+
+                    const change = calculateChange(
+                      currentValue,
+                      allPreviousValues,
+                    );
+
+                    return (
+                      <tr
+                        key={`total-${periodTotal.key}`}
+                        style={{
+                          backgroundColor: "#f8f9fa",
+                          fontWeight: "bold",
+                          borderTop: index === 0 ? "2px solid #dee2e6" : "none",
+                        }}
+                      >
+                        <td>
+                          <strong>ИТОГО</strong>
+                          <br />
+                          <small className="text-muted">
+                            {filteredData.length} компаний
+                          </small>
+                        </td>
+                        <td>
+                          <strong>{periodTotal.label}</strong>
+                        </td>
+                        <td className="text-end">
+                          <strong>
+                            {formatValue(currentValue, selectedMetric)}
+                          </strong>
+                        </td>
+                        <td className="text-center">
+                          {allPreviousValues.length > 0 ? (
+                            <div className="d-flex align-items-center justify-content-center">
+                              {renderChangeIcon(change.direction)}
+                              <span
+                                className={`ms-1 ${
+                                  change.direction === "up"
+                                    ? "text-success"
+                                    : change.direction === "down"
+                                      ? "text-danger"
+                                      : "text-muted"
+                                }`}
+                              >
+                                {change.direction !== "same" &&
+                                  formatValue(
+                                    Math.abs(change.value),
+                                    selectedMetric,
+                                  )}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="text-center">
+                          {allPreviousValues.length > 0 ? (
+                            <Badge
+                              bg={
+                                change.direction === "up"
+                                  ? "success"
+                                  : change.direction === "down"
+                                    ? "danger"
+                                    : "secondary"
+                              }
+                            >
+                              {change.direction === "up" ? "+" : ""}
+                              {change.percentage}%
+                            </Badge>
+                          ) : (
+                            <Badge bg="secondary">—</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </>
               )}
             </tbody>
           </Table>

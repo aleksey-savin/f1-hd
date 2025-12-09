@@ -8,3 +8,6 @@ export { default as ExportButtons } from "./ExportButtons";
 export { default as TrendLineChart } from "./TrendLineChart";
 export { default as TrendTable } from "./TrendTable";
 export { default as TrendMetrics } from "./TrendMetrics";
+export { default as SubdivisionTimeChart } from "./SubdivisionTimeChart";
+export { default as SubdivisionTypeChart } from "./SubdivisionTypeChart";
+export { default as ClientSummaryTable } from "./ClientSummaryTable";

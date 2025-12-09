@@ -41,6 +41,128 @@ const DetailedViewOffcanvasReport = ({
 
   const worktime = calculateWorkTime(schedule, works, plan.tariffingPeriod);
 
+  const getCurrentHourPackage = () => {
+    if (plan.type !== "hourPackage" || !plan.hourPackages) {
+      return null;
+    }
+
+    const workingTimeHours = worktime.roundedWorktime / 60;
+    let hourPackageHours = 0;
+    let hourPackagePrice = 0;
+    let selectedPackage = null;
+
+    // Вариант 1: стандартный расчёт
+    for (let hourPackage of plan.hourPackages) {
+      if (workingTimeHours <= hourPackage.hours) {
+        hourPackageHours = hourPackage.hours;
+        hourPackagePrice = hourPackageHours * hourPackage.pricePerHour;
+        selectedPackage = hourPackage;
+        break;
+      }
+    }
+
+    if (hourPackageHours === 0 && plan.hourPackages.length > 0) {
+      const lastPackage = plan.hourPackages[plan.hourPackages.length - 1];
+      hourPackageHours =
+        lastPackage.hours + (workingTimeHours - lastPackage.hours);
+      hourPackagePrice = hourPackageHours * lastPackage.pricePerHour;
+      selectedPackage = lastPackage;
+    }
+
+    // Если клиент превысил какой-то пакет, считаем альтернативную стоимость
+    if (workingTimeHours > 0) {
+      let exceededPackage = null;
+      for (let hourPackage of plan.hourPackages) {
+        if (workingTimeHours > hourPackage.hours) {
+          exceededPackage = hourPackage;
+        } else {
+          break;
+        }
+      }
+
+      if (exceededPackage) {
+        const exceededPackagePrice =
+          exceededPackage.hours * exceededPackage.pricePerHour;
+        const overtimeHours = workingTimeHours - exceededPackage.hours;
+        const overtimePrice = overtimeHours * exceededPackage.pricePerHour;
+        const alternativePrice = exceededPackagePrice + overtimePrice;
+
+        // Если альтернативная цена выгоднее, используем превышенный пакет
+        if (alternativePrice < hourPackagePrice) {
+          selectedPackage = exceededPackage;
+          return `${exceededPackage.hours}ч + ${overtimeHours.toFixed(1)}ч доп. (${formatPrice(exceededPackage.pricePerHour)}/ч) = ${formatPrice(exceededPackagePrice)} + ${formatPrice(overtimePrice)}`;
+        }
+      }
+    }
+
+    if (selectedPackage) {
+      if (workingTimeHours > selectedPackage.hours) {
+        const packageCost =
+          selectedPackage.hours * selectedPackage.pricePerHour;
+        const extraHours = workingTimeHours - selectedPackage.hours;
+        const extraCost = extraHours * selectedPackage.pricePerHour;
+        return `${selectedPackage.hours}ч+ (${formatPrice(selectedPackage.pricePerHour)}/ч) = ${formatPrice(packageCost)} + ${formatPrice(extraCost)}`;
+      } else {
+        const packageCost =
+          selectedPackage.hours * selectedPackage.pricePerHour;
+        return `${selectedPackage.hours}ч (${formatPrice(selectedPackage.pricePerHour)}/ч) = ${formatPrice(packageCost)}`;
+      }
+    }
+
+    return null;
+  };
+
+  const getHourPackageCost = () => {
+    if (plan.type !== "hourPackage" || !plan.hourPackages) {
+      return 0;
+    }
+
+    const workingTimeHours = worktime.roundedWorktime / 60;
+    let hourPackageHours = 0;
+    let hourPackagePrice = 0;
+
+    // Вариант 1: стандартный расчёт
+    for (let hourPackage of plan.hourPackages) {
+      if (workingTimeHours <= hourPackage.hours) {
+        hourPackageHours = hourPackage.hours;
+        hourPackagePrice = hourPackageHours * hourPackage.pricePerHour;
+        break;
+      }
+    }
+
+    if (hourPackageHours === 0 && plan.hourPackages.length > 0) {
+      const lastPackage = plan.hourPackages[plan.hourPackages.length - 1];
+      hourPackageHours =
+        lastPackage.hours + (workingTimeHours - lastPackage.hours);
+      hourPackagePrice = hourPackageHours * lastPackage.pricePerHour;
+    }
+
+    // Если клиент превысил какой-то пакет, считаем альтернативную стоимость
+    if (workingTimeHours > 0) {
+      let exceededPackage = null;
+      for (let hourPackage of plan.hourPackages) {
+        if (workingTimeHours > hourPackage.hours) {
+          exceededPackage = hourPackage;
+        } else {
+          break;
+        }
+      }
+
+      if (exceededPackage) {
+        const exceededPackagePrice =
+          exceededPackage.hours * exceededPackage.pricePerHour;
+        const overtimeHours = workingTimeHours - exceededPackage.hours;
+        const overtimePrice = overtimeHours * exceededPackage.pricePerHour;
+        const alternativePrice = exceededPackagePrice + overtimePrice;
+
+        // Возвращаем минимальную сумму в пользу клиента
+        return Math.min(hourPackagePrice, alternativePrice);
+      }
+    }
+
+    return hourPackagePrice;
+  };
+
   // overtime totals
   const overtimeTotals = overtime.overtimeWorks.reduce(
     (acc, work) => {
@@ -710,9 +832,9 @@ const DetailedViewOffcanvasReport = ({
                     <tr>
                       <th>Тип тарификации</th>
                       <td>
-                        {plan.tariffing?.type === "hourly"
+                        {plan.type === "hourly"
                           ? "Почасовая"
-                          : plan.tariffing?.type === "fixed"
+                          : plan.type === "fixedPrice"
                             ? "Фиксированная"
                             : "Пакеты часов"}
                       </td>
@@ -1001,6 +1123,221 @@ const DetailedViewOffcanvasReport = ({
                 </Table>
               </>
             )}
+
+            {/* Итоговая информация */}
+            {works.length > 0 && (
+              <div className="mt-4 mb-3">
+                <h5>Итоговая информация</h5>
+                <Table bordered className="table-sm">
+                  <thead>
+                    <tr>
+                      <th style={{ width: "40%" }}>Работы</th>
+                      <th className="text-center" style={{ width: "30%" }}>
+                        Время
+                      </th>
+                      <th className="text-center" style={{ width: "30%" }}>
+                        Стоимость
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {plan.type === "hourPackage" && (
+                      <>
+                        {(() => {
+                          const workingTimeHours =
+                            worktime.roundedWorktime / 60;
+                          let hourPackageHours = 0;
+                          let hourPackagePrice = 0;
+                          let selectedPackage = null;
+                          let packageCost = 0;
+                          let extraCost = 0;
+
+                          // Вариант 1: стандартный расчёт
+                          for (let hourPackage of plan.hourPackages) {
+                            if (workingTimeHours <= hourPackage.hours) {
+                              hourPackageHours = hourPackage.hours;
+                              hourPackagePrice =
+                                hourPackageHours * hourPackage.pricePerHour;
+                              selectedPackage = hourPackage;
+                              packageCost =
+                                selectedPackage.hours *
+                                selectedPackage.pricePerHour;
+                              break;
+                            }
+                          }
+
+                          if (
+                            hourPackageHours === 0 &&
+                            plan.hourPackages.length > 0
+                          ) {
+                            const lastPackage =
+                              plan.hourPackages[plan.hourPackages.length - 1];
+                            hourPackageHours =
+                              lastPackage.hours +
+                              (workingTimeHours - lastPackage.hours);
+                            hourPackagePrice =
+                              hourPackageHours * lastPackage.pricePerHour;
+                            selectedPackage = lastPackage;
+                            packageCost =
+                              selectedPackage.hours *
+                              selectedPackage.pricePerHour;
+                            extraCost =
+                              (workingTimeHours - selectedPackage.hours) *
+                              selectedPackage.pricePerHour;
+                          }
+
+                          // Если клиент превысил какой-то пакет, считаем альтернативную стоимость
+                          if (workingTimeHours > 0) {
+                            let exceededPackage = null;
+                            for (let hourPackage of plan.hourPackages) {
+                              if (workingTimeHours > hourPackage.hours) {
+                                exceededPackage = hourPackage;
+                              } else {
+                                break;
+                              }
+                            }
+
+                            if (exceededPackage) {
+                              const exceededPackagePrice =
+                                exceededPackage.hours *
+                                exceededPackage.pricePerHour;
+                              const overtimeHours =
+                                workingTimeHours - exceededPackage.hours;
+                              const overtimePrice =
+                                overtimeHours * exceededPackage.pricePerHour;
+                              const alternativePrice =
+                                exceededPackagePrice + overtimePrice;
+
+                              // Если альтернативная цена выгоднее, используем превышенный пакет
+                              if (alternativePrice < hourPackagePrice) {
+                                selectedPackage = exceededPackage;
+                                packageCost = exceededPackagePrice;
+                                extraCost = overtimePrice;
+                              }
+                            }
+                          }
+
+                          if (selectedPackage) {
+                            const actualPackageHours = Math.min(
+                              workingTimeHours,
+                              selectedPackage.hours,
+                            );
+                            const extraHours = Math.max(
+                              0,
+                              workingTimeHours - selectedPackage.hours,
+                            );
+
+                            return (
+                              <>
+                                <tr>
+                                  <th>В пределах пакета:</th>
+                                  <td className="text-center">
+                                    {msToHMS(
+                                      actualPackageHours * 60 * 1000 * 60,
+                                    )}
+                                  </td>
+                                  <td className="text-center">
+                                    {formatPrice(packageCost)}
+                                  </td>
+                                </tr>
+                                {extraHours > 0 && (
+                                  <tr>
+                                    <th>За пределами пакета:</th>
+                                    <td className="text-center">
+                                      {msToHMS(extraHours * 60 * 1000 * 60)}
+                                    </td>
+                                    <td className="text-center">
+                                      {formatPrice(extraCost)}
+                                    </td>
+                                  </tr>
+                                )}
+                              </>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </>
+                    )}
+                    {plan.type === "hourly" && (
+                      <tr>
+                        <th>Почасовая стоимость:</th>
+                        <td className="text-center">
+                          {msToHMS(
+                            overallRoundedWorktime(works, plan.tariffingPeriod),
+                          )}
+                        </td>
+                        <td className="text-center">
+                          {formatPrice(hourlyTotalCost())}
+                        </td>
+                      </tr>
+                    )}
+                    {plan.type === "fixedPrice" && (
+                      <tr>
+                        <th>Фиксированная стоимость:</th>
+                        <td className="text-center">
+                          {msToHMS(
+                            overallRoundedWorktime(
+                              worktime.worktimeWorks,
+                              plan.tariffingPeriod,
+                            ),
+                          )}
+                        </td>
+                        <td className="text-center">
+                          {formatPrice(plan.fixedPrice || 0)}
+                        </td>
+                      </tr>
+                    )}
+                    {overtime.overtimeWorks.length > 0 &&
+                      plan.type !== "hourly" && (
+                        <tr>
+                          <th>Нерабочее время:</th>
+                          <td className="text-center">
+                            {msToHMS(overtimeTotals.duration)}
+                          </td>
+                          <td className="text-center">
+                            {formatPrice(overtimeTotals.cost)}
+                          </td>
+                        </tr>
+                      )}
+                    <tr className="table-success">
+                      <th>ИТОГО:</th>
+                      <td className="text-center">
+                        <strong>
+                          {plan.type === "hourly"
+                            ? msToHMS(
+                                overallRoundedWorktime(
+                                  works,
+                                  plan.tariffingPeriod,
+                                ),
+                              )
+                            : msToHMS(
+                                overtimeTotals.duration +
+                                  overallRoundedWorktime(
+                                    worktime.worktimeWorks,
+                                    plan.tariffingPeriod,
+                                  ),
+                              )}
+                        </strong>
+                      </td>
+                      <td className="text-center">
+                        <strong>
+                          {formatPrice(
+                            plan.type === "hourly"
+                              ? hourlyTotalCost()
+                              : plan.type === "hourPackage"
+                                ? getHourPackageCost() + overtimeTotals.cost
+                                : plan.type === "fixedPrice"
+                                  ? (plan.fixedPrice || 0) + overtimeTotals.cost
+                                  : overtimeTotals.cost,
+                          )}
+                        </strong>
+                      </td>
+                    </tr>
+                  </tbody>
+                </Table>
+              </div>
+            )}
+
             {works.length > 0 && (
               <div className="mb-3 d-flex justify-content-end gap-2">
                 <Button

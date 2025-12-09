@@ -1,8 +1,9 @@
-const Company = require("../models//company");
-const User = require("../models//user");
-const Category = require("../models//ticketCategory");
-const Work = require("../models//work");
-const { Ticket } = require("../models//ticket");
+const Company = require("../models/company");
+const User = require("../models/user");
+const Category = require("../models/ticketCategory");
+const Work = require("../models/work");
+const { Ticket } = require("../models/ticket");
+const Subdivision = require("../models/subdivision");
 const getAuthData = require("../middleware/getAuthData");
 
 const { AppError } = require("../middleware/errorHandling");
@@ -146,6 +147,14 @@ exports.getCompanySummary = async (req, res, next) => {
       companies = await Company.find({ _id: authedUser.company._id });
     }
 
+    // Получаем подразделения для клиентов
+    let subdivisions = [];
+    if (authedUser.isEndUser) {
+      subdivisions = await Subdivision.find({
+        company: authedUser.company._id,
+      }).sort({ name: 1 });
+    }
+
     const companySummaries = [];
 
     for (let company of companies) {
@@ -153,12 +162,19 @@ exports.getCompanySummary = async (req, res, next) => {
       const works = await Work.find({
         company: company._id,
         finishedAt: { $gte: fromDate, $lte: toDate },
-      }).populate({
-        path: "tickets",
-        populate: {
-          path: "routineTask",
-        },
-      });
+      })
+        .populate({
+          path: "tickets",
+          populate: {
+            path: "routineTask",
+          },
+        })
+        .populate({
+          path: "finishedBy._id",
+          populate: {
+            path: "subdivision",
+          },
+        });
 
       if (works.length === 0) continue;
 
@@ -172,13 +188,84 @@ exports.getCompanySummary = async (req, res, next) => {
       ];
       const totalTickets = uniqueTicketIds.length;
 
-      // Разделяем работы по типу (выезды/удаленные/регламентные)
-      const onSiteWorks = works.filter((work) => work.visitRequired === true);
-      const remoteWorks = works.filter((work) => work.visitRequired !== true);
+      // Группируем работы по подразделениям для клиентов
+      const subdivisionStats = {};
+      if (authedUser.isEndUser && subdivisions.length > 0) {
+        // Создаем статистику для всех подразделений
+        subdivisions.forEach((subdivision) => {
+          subdivisionStats[subdivision._id.toString()] = {
+            _id: subdivision._id.toString(),
+            name: subdivision.name,
+            totalWorks: 0,
+            totalTime: 0,
+            onSiteTime: 0,
+            remoteTime: 0,
+            routineTaskTime: 0,
+          };
+        });
+
+        // Добавляем категорию "Без подразделения"
+        subdivisionStats["no_subdivision"] = {
+          _id: "no_subdivision",
+          name: "Без подразделения",
+          totalWorks: 0,
+          totalTime: 0,
+          onSiteTime: 0,
+          remoteTime: 0,
+          routineTaskTime: 0,
+        };
+
+        works.forEach((work) => {
+          if (work.finishedBy && work.finishedBy._id) {
+            let subdivisionId = null;
+            if (work.finishedBy._id.subdivision) {
+              subdivisionId = work.finishedBy._id.subdivision._id.toString();
+            } else {
+              // Если у исполнителя нет подразделения
+              subdivisionId = "no_subdivision";
+            }
+
+            if (subdivisionId && subdivisionStats[subdivisionId]) {
+              subdivisionStats[subdivisionId].totalWorks++;
+
+              if (work.startedAt && work.finishedAt) {
+                const workDuration =
+                  new Date(work.finishedAt) - new Date(work.startedAt);
+                subdivisionStats[subdivisionId].totalTime += workDuration;
+
+                const isRoutineTask = work.tickets.some(
+                  (ticket) => ticket.routineTask,
+                );
+
+                if (isRoutineTask) {
+                  subdivisionStats[subdivisionId].routineTaskTime +=
+                    workDuration;
+                } else if (work.visitRequired === true) {
+                  subdivisionStats[subdivisionId].onSiteTime += workDuration;
+                } else {
+                  subdivisionStats[subdivisionId].remoteTime += workDuration;
+                }
+              }
+            }
+          }
+        });
+      }
 
       // Находим регламентные работы (работы с билетами, у которых есть routineTask)
       const routineTaskWorks = works.filter((work) =>
         work.tickets.some((ticket) => ticket.routineTask),
+      );
+
+      // Разделяем работы по типу (выезды/удаленные), исключая регламентные
+      const onSiteWorks = works.filter(
+        (work) =>
+          work.visitRequired === true &&
+          !work.tickets.some((ticket) => ticket.routineTask),
+      );
+      const remoteWorks = works.filter(
+        (work) =>
+          work.visitRequired !== true &&
+          !work.tickets.some((ticket) => ticket.routineTask),
       );
 
       // Вычисляем общее время
@@ -235,12 +322,15 @@ exports.getCompanySummary = async (req, res, next) => {
             if (isRoutineTask) {
               executorStats[executorId].routineTaskWorks++;
               executorStats[executorId].routineTaskTime += workDuration;
-            } else if (work.visitRequired === true) {
-              executorStats[executorId].onSiteWorks++;
-              executorStats[executorId].onSiteTime += workDuration;
             } else {
-              executorStats[executorId].remoteWorks++;
-              executorStats[executorId].remoteTime += workDuration;
+              // Определяем тип работы (выездная или удаленная) только для НЕ регламентных
+              if (work.visitRequired === true) {
+                executorStats[executorId].onSiteWorks++;
+                executorStats[executorId].onSiteTime += workDuration;
+              } else {
+                executorStats[executorId].remoteWorks++;
+                executorStats[executorId].remoteTime += workDuration;
+              }
             }
           }
         }
@@ -267,14 +357,19 @@ exports.getCompanySummary = async (req, res, next) => {
           count: routineTaskWorks.length,
           time: totalRoutineTaskTime,
         },
-        executors: Object.values(executorStats),
+        executors: authedUser.isEndUser ? [] : Object.values(executorStats),
+        subdivisions: authedUser.isEndUser
+          ? Object.values(subdivisionStats)
+          : [],
       });
     }
 
     res.status(200).json({
-      message: "Company summary report generated successfully",
+      message: "Company summary",
       period: { from, to },
       companies: companySummaries,
+      subdivisions: authedUser.isEndUser ? subdivisions : [],
+      isClientView: authedUser.isEndUser,
     });
   } catch (error) {
     next(
@@ -371,13 +466,21 @@ exports.getTrendsAnalysis = async (req, res, next) => {
           ...new Set(allTicketIds.map((id) => id.toString())),
         ];
 
-        // Разделяем работы по типу (выезды/удаленные/регламентные)
-        const onSiteWorks = works.filter((work) => work.visitRequired === true);
-        const remoteWorks = works.filter((work) => work.visitRequired !== true);
-
         // Находим регламентные работы (работы с билетами, у которых есть routineTask)
         const routineTaskWorks = works.filter((work) =>
           work.tickets.some((ticket) => ticket.routineTask),
+        );
+
+        // Разделяем работы по типу (выезды/удаленные), исключая регламентные
+        const onSiteWorks = works.filter(
+          (work) =>
+            work.visitRequired === true &&
+            !work.tickets.some((ticket) => ticket.routineTask),
+        );
+        const remoteWorks = works.filter(
+          (work) =>
+            work.visitRequired !== true &&
+            !work.tickets.some((ticket) => ticket.routineTask),
         );
 
         // Вычисляем общее время

@@ -167,7 +167,7 @@ const PreviewTable = () => {
                           <th>Услуга</th>
                           <th>Тариф</th>
                           <th>Часы</th>
-                          <th className="text-end">Оплата рамках тарифа</th>
+                          <th className="text-end">Оплата в рамках тарифа</th>
                           <th className="text-end">Доп. оплата</th>
                           <th className="text-end">Итого</th>
                           <th>Действия</th>
@@ -270,15 +270,12 @@ const PreviewTable = () => {
                                       plan.tariffingPeriod,
                                     ).roundedWorktime;
 
-                              const hourPackagePrice = (
-                                schedule,
-                                relatedWorks,
-                                plan,
-                              ) => {
+                              const hourPackagePrice = (plan) => {
                                 const workingTimeHours = workingTime / 60;
                                 let hourPackageHours = 0;
                                 let hourPackagePrice = 0;
 
+                                // Вариант 1: стандартный расчёт (как было раньше)
                                 for (let hourPackage of plan.hourPackages) {
                                   if (workingTimeHours <= hourPackage.hours) {
                                     hourPackageHours = hourPackage.hours;
@@ -304,6 +301,44 @@ const PreviewTable = () => {
                                     hourPackageHours * lastPackage.pricePerHour;
                                 }
 
+                                // Если клиент превысил какой-то пакет, считаем альтернативную стоимость
+                                if (workingTimeHours > 0) {
+                                  // Находим пакет, который клиент превысил
+                                  let exceededPackage = null;
+                                  for (let hourPackage of plan.hourPackages) {
+                                    if (workingTimeHours > hourPackage.hours) {
+                                      exceededPackage = hourPackage;
+                                    } else {
+                                      break;
+                                    }
+                                  }
+
+                                  if (exceededPackage) {
+                                    // Стоимость превышенного пакета
+                                    const exceededPackagePrice =
+                                      exceededPackage.hours *
+                                      exceededPackage.pricePerHour;
+
+                                    // Количество часов переработки
+                                    const overtimeHours =
+                                      workingTimeHours - exceededPackage.hours;
+
+                                    // Стоимость переработки по цене пакета за час
+                                    const overtimePrice =
+                                      overtimeHours *
+                                      exceededPackage.pricePerHour;
+
+                                    const alternativePrice =
+                                      exceededPackagePrice + overtimePrice;
+
+                                    // Возвращаем минимальную сумму в пользу клиента
+                                    return Math.min(
+                                      hourPackagePrice,
+                                      alternativePrice,
+                                    );
+                                  }
+                                }
+
                                 return hourPackagePrice;
                               };
 
@@ -320,11 +355,7 @@ const PreviewTable = () => {
 
                               const price =
                                 tariff === "hourPackage"
-                                  ? hourPackagePrice(
-                                      schedule,
-                                      relatedWorks,
-                                      plan,
-                                    )
+                                  ? hourPackagePrice(plan)
                                   : tariff === "hourly"
                                     ? hourlyPrice
                                     : fixedPrice;

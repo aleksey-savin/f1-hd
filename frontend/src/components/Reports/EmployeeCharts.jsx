@@ -87,7 +87,7 @@ const EmployeeCharts = ({ data, isLoading }) => {
         position: "top",
       },
       title: {
-        display: true,
+        display: false,
         text: "Топ 15 сотрудников по времени работ",
       },
       tooltip: {
@@ -125,23 +125,66 @@ const EmployeeCharts = ({ data, isLoading }) => {
     responsive: true,
     plugins: {
       legend: {
-        display: false,
+        display: true,
+        position: "bottom",
+        labels: {
+          generateLabels: function (chart) {
+            const data = chart.data;
+            if (data.labels.length && data.datasets.length) {
+              const totalTime = data.datasets[0].data.reduce(
+                (sum, value) => sum + value,
+                0,
+              );
+              return data.labels.map((label, i) => {
+                const value = data.datasets[0].data[i];
+                const percentage =
+                  totalTime > 0 ? Math.round((value / totalTime) * 100) : 0;
+                const hours = Math.floor(value);
+                const minutes = Math.round((value - hours) * 60);
+                const timeStr =
+                  hours.toString().padStart(2, "0") +
+                  ":" +
+                  minutes.toString().padStart(2, "0");
+
+                return {
+                  text: `${label}: ${timeStr} (${percentage}%)`,
+                  fillStyle: data.datasets[0].backgroundColor[i],
+                  strokeStyle: data.datasets[0].backgroundColor[i],
+                  lineWidth: 0,
+                  hidden: false,
+                  index: i,
+                };
+              });
+            }
+            return [];
+          },
+          boxWidth: 12,
+          padding: 8,
+          usePointStyle: true,
+          color: "#ffffff",
+        },
       },
       title: {
-        display: true,
+        display: false,
         text: "Топ 15 сотрудников по времени работ",
       },
       tooltip: {
         callbacks: {
           label: function (context) {
             const value = context.parsed;
+            const totalTime = context.chart.data.datasets[0].data.reduce(
+              (sum, val) => sum + val,
+              0,
+            );
+            const percentage =
+              totalTime > 0 ? Math.round((value / totalTime) * 100) : 0;
             const hours = Math.floor(value);
             const minutes = Math.round((value - hours) * 60);
-            return (
+            const timeStr =
               hours.toString().padStart(2, "0") +
               ":" +
-              minutes.toString().padStart(2, "0")
-            );
+              minutes.toString().padStart(2, "0");
+            return `${context.label}: ${timeStr} (${percentage}%)`;
           },
         },
       },

@@ -408,6 +408,152 @@ const ExecutorDetailsAccordion = ({ companies, msToHMS }) => {
                           </td>
                         </tr>
                       ))}
+                      <tr
+                        style={{
+                          backgroundColor: "#f8f9fa",
+                          fontWeight: "bold",
+                          borderTop: "2px solid #dee2e6",
+                        }}
+                      >
+                        <td>
+                          <strong>ИТОГО</strong>
+                          <br />
+                          <small className="text-muted">
+                            {company.executors.length} исполнителей
+                          </small>
+                        </td>
+                        <td>
+                          <Badge bg="primary" pill>
+                            {company.executors.reduce(
+                              (sum, executor) => sum + executor.totalWorks,
+                              0,
+                            )}
+                          </Badge>
+                        </td>
+                        <td>
+                          <strong>
+                            {msToHMS(
+                              company.executors.reduce(
+                                (sum, executor) => sum + executor.totalTime,
+                                0,
+                              ),
+                            )}
+                          </strong>
+                        </td>
+                        <td>
+                          <div>
+                            {msToHMS(
+                              company.executors.reduce(
+                                (sum, executor) => sum + executor.onSiteTime,
+                                0,
+                              ),
+                            )}{" "}
+                            /{" "}
+                            {company.executors.reduce(
+                              (sum, executor) => sum + executor.onSiteWorks,
+                              0,
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div>
+                            {msToHMS(
+                              company.executors.reduce(
+                                (sum, executor) => sum + executor.remoteTime,
+                                0,
+                              ),
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div>
+                            {(() => {
+                              const totalOnSiteTime = company.executors.reduce(
+                                (sum, executor) => sum + executor.onSiteTime,
+                                0,
+                              );
+                              const totalRemoteTime = company.executors.reduce(
+                                (sum, executor) => sum + executor.remoteTime,
+                                0,
+                              );
+                              const totalTime =
+                                totalOnSiteTime + totalRemoteTime;
+
+                              if (totalTime > 0) {
+                                return (
+                                  <>
+                                    <strong>
+                                      {Math.round(
+                                        (totalOnSiteTime / totalTime) * 100,
+                                      )}
+                                      %
+                                    </strong>{" "}
+                                    /{" "}
+                                    {Math.round(
+                                      (totalRemoteTime / totalTime) * 100,
+                                    )}
+                                    %
+                                  </>
+                                );
+                              } else {
+                                return (
+                                  <span className="text-muted">0% / 0%</span>
+                                );
+                              }
+                            })()}
+                          </div>
+                        </td>
+                        <td>
+                          <div>
+                            {msToHMS(
+                              company.executors.reduce(
+                                (sum, executor) =>
+                                  sum + (executor.routineTaskTime || 0),
+                                0,
+                              ),
+                            )}{" "}
+                            /{" "}
+                            {company.executors.reduce(
+                              (sum, executor) =>
+                                sum + (executor.routineTaskWorks || 0),
+                              0,
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div>
+                            {(() => {
+                              const totalRoutineTime = company.executors.reduce(
+                                (sum, executor) =>
+                                  sum + (executor.routineTaskTime || 0),
+                                0,
+                              );
+                              const totalTime = company.executors.reduce(
+                                (sum, executor) => sum + executor.totalTime,
+                                0,
+                              );
+
+                              if (totalTime > 0) {
+                                const routinePercent = Math.round(
+                                  (totalRoutineTime / totalTime) * 100,
+                                );
+                                const incidentPercent = 100 - routinePercent;
+                                return (
+                                  <>
+                                    <strong>{routinePercent}%</strong>
+                                    {" / "}
+                                    <strong>{incidentPercent}%</strong>
+                                  </>
+                                );
+                              } else {
+                                return (
+                                  <span className="text-muted">0% / 0%</span>
+                                );
+                              }
+                            })()}
+                          </div>
+                        </td>
+                      </tr>
                     </tbody>
                   </Table>
                 </Col>

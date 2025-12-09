@@ -8,6 +8,35 @@ import { RiSortAsc, RiSortDesc } from "react-icons/ri";
 const CompanySummaryTable = ({ data, sortConfig, onSort, msToHMS }) => {
   if (!data || !data.companies) return null;
 
+  // Calculate totals
+  const totals = useMemo(() => {
+    return data.companies.reduce(
+      (acc, company) => {
+        acc.totalTickets += company.totalTickets;
+        acc.totalWorks += company.totalWorks;
+        acc.totalTime += company.totalTime;
+        acc.onSiteCount += company.onSite.count;
+        acc.onSiteTime += company.onSite.time;
+        acc.remoteCount += company.remote.count;
+        acc.remoteTime += company.remote.time;
+        acc.routineTaskCount += company.routineTask?.count || 0;
+        acc.routineTaskTime += company.routineTask?.time || 0;
+        return acc;
+      },
+      {
+        totalTickets: 0,
+        totalWorks: 0,
+        totalTime: 0,
+        onSiteCount: 0,
+        onSiteTime: 0,
+        remoteCount: 0,
+        remoteTime: 0,
+        routineTaskCount: 0,
+        routineTaskTime: 0,
+      },
+    );
+  }, [data.companies]);
+
   const sortedCompanies = useMemo(() => {
     if (!sortConfig.key) {
       return data.companies || [];
@@ -143,12 +172,12 @@ const CompanySummaryTable = ({ data, sortConfig, onSort, msToHMS }) => {
             <span className="sort-icon">{getSortIcon("totalTime")}</span>
           </th>
           <th
-            onClick={() => onSort("onSiteCount")}
-            style={getSortableHeaderStyle("onSiteCount")}
+            onClick={() => onSort("onSiteTime")}
+            style={getSortableHeaderStyle("onSiteTime")}
             className="sortable-header"
           >
             Выезды{" "}
-            <span className="sort-icon">{getSortIcon("onSiteCount")}</span>
+            <span className="sort-icon">{getSortIcon("onSiteTime")}</span>
           </th>
           <th
             onClick={() => onSort("remoteTime")}
@@ -285,6 +314,93 @@ const CompanySummaryTable = ({ data, sortConfig, onSort, msToHMS }) => {
             </tr>
           </OverlayTrigger>
         ))}
+        <tr
+          style={{
+            backgroundColor: "#f8f9fa",
+            fontWeight: "bold",
+            borderTop: "2px solid #dee2e6",
+          }}
+        >
+          <td>
+            <strong>ИТОГО</strong>
+            <br />
+            <small className="text-muted">
+              {data.companies.length} компаний
+            </small>
+          </td>
+          <td>
+            <Badge bg="info" pill>
+              {totals.totalTickets}
+            </Badge>
+          </td>
+          <td>
+            <Badge bg="primary" pill>
+              {totals.totalWorks}
+            </Badge>
+          </td>
+          <td>
+            <strong>{msToHMS(totals.totalTime)}</strong>
+          </td>
+          <td>
+            <div>
+              {msToHMS(totals.onSiteTime)} / {totals.onSiteCount}
+            </div>
+          </td>
+          <td>
+            <div>{msToHMS(totals.remoteTime)}</div>
+          </td>
+          <td>
+            <div>
+              {totals.onSiteTime + totals.remoteTime > 0 ? (
+                <>
+                  <strong>
+                    {Math.round(
+                      (totals.onSiteTime /
+                        (totals.onSiteTime + totals.remoteTime)) *
+                        100,
+                    )}
+                    %
+                  </strong>{" "}
+                  /{" "}
+                  {Math.round(
+                    (totals.remoteTime /
+                      (totals.onSiteTime + totals.remoteTime)) *
+                      100,
+                  )}
+                  %
+                </>
+              ) : (
+                <span className="text-muted">0% / 0%</span>
+              )}
+            </div>
+          </td>
+          <td>
+            <div>
+              {msToHMS(totals.routineTaskTime)} / {totals.routineTaskCount}
+            </div>
+          </td>
+          <td>
+            <div>
+              {(() => {
+                if (totals.totalTime > 0) {
+                  const routinePercent = Math.round(
+                    (totals.routineTaskTime / totals.totalTime) * 100,
+                  );
+                  const incidentPercent = 100 - routinePercent;
+                  return (
+                    <>
+                      <strong>{routinePercent}%</strong>
+                      {" / "}
+                      <strong>{incidentPercent}%</strong>
+                    </>
+                  );
+                } else {
+                  return <span className="text-muted">0% / 0%</span>;
+                }
+              })()}
+            </div>
+          </td>
+        </tr>
       </tbody>
     </Table>
   );

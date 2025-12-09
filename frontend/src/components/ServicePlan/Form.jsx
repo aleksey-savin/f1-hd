@@ -23,12 +23,18 @@ const ServicePlanForm = ({ title }) => {
     ticketCategories: servicePlan.ticketCategories || [],
     tariffingPeriod: servicePlan.tariffingPeriod || 0,
     tariffingType: servicePlan.type || "fixedPrice",
-    fixedPrice: servicePlan.fixedPrice || 0,
+    fixedPrice: servicePlan.fixedPrice ? Math.round(servicePlan.fixedPrice) : 0,
     pricePerHourNonWorking: servicePlan.pricePerHourNonWorking || 0,
-    hourlyPrice: servicePlan.pricePerHour || 0,
-    hourPackages: servicePlan.hourPackages || [
-      { hours: 12, pricePerHour: 1, totalPrice: 0 },
-    ],
+    hourlyPrice: servicePlan.pricePerHour
+      ? Math.round(servicePlan.pricePerHour)
+      : 0,
+    hourPackages: servicePlan.hourPackages
+      ? servicePlan.hourPackages.map((hourPackage) => ({
+          hours: hourPackage.hours,
+          pricePerHour: Math.round(hourPackage.pricePerHour || 0),
+          totalPrice: Math.round(hourPackage.totalPrice || 0),
+        }))
+      : [{ hours: 12, pricePerHour: 1, totalPrice: 0 }],
     packagesNonWorkingCalcMethod:
       servicePlan.packagesNonWorkingCalcMethod || "separatePayment",
     packagesNonWorkingCoefficient:
@@ -36,42 +42,52 @@ const ServicePlanForm = ({ title }) => {
   });
 
   const [hourPackages, setHourPackages] = useState(
-    servicePlan.hourPackages || [{ hours: 12, pricePerHour: 1, totalPrice: 0 }],
+    servicePlan.hourPackages
+      ? servicePlan.hourPackages.map((hourPackage) => ({
+          hours: hourPackage.hours,
+          pricePerHour: Math.round(hourPackage.pricePerHour || 0),
+          totalPrice: Math.round(hourPackage.totalPrice || 0),
+        }))
+      : [{ hours: 12, pricePerHour: 1, totalPrice: 0 }],
   );
 
   useEffect(() => {
-    for (let hourPackage of hourPackages) {
-      hourPackage.totalPrice = hourPackage.hours * hourPackage.pricePerHour;
-      setHourPackages([...hourPackages]);
-    }
+    const updatedPackages = hourPackages.map((hourPackage) => ({
+      ...hourPackage,
+      totalPrice: Math.round(hourPackage.hours * hourPackage.pricePerHour),
+    }));
+    setHourPackages(updatedPackages);
   }, []);
 
   const handleHourPackageHours = (event) => {
     const updatedHourPackages = [...hourPackages];
-    updatedHourPackages[+event.target.name].hours = event.target.value;
+    const hours = parseFloat(event.target.value) || 0;
+    updatedHourPackages[+event.target.name].hours = hours;
 
-    updatedHourPackages[+event.target.name].totalPrice = (
-      event.target.value * updatedHourPackages[+event.target.name].pricePerHour
-    ).toFixed(2);
+    updatedHourPackages[+event.target.name].totalPrice = Math.round(
+      hours * updatedHourPackages[+event.target.name].pricePerHour,
+    );
     setHourPackages(updatedHourPackages);
   };
 
   const handleHourPackagePrice = (event) => {
     const updatedHourPackages = [...hourPackages];
-    const pricePerHour = event.target.value;
-    updatedHourPackages[+event.target.name].pricePerHour = pricePerHour;
-    updatedHourPackages[+event.target.name].totalPrice =
-      pricePerHour * updatedHourPackages[+event.target.name].hours;
+    const pricePerHour = parseFloat(event.target.value) || 0;
+    updatedHourPackages[+event.target.name].pricePerHour =
+      Math.round(pricePerHour);
+    updatedHourPackages[+event.target.name].totalPrice = Math.round(
+      pricePerHour * updatedHourPackages[+event.target.name].hours,
+    );
     setHourPackages(updatedHourPackages);
   };
 
   const handleHourPackageTotalPrice = (event) => {
     const updatedHourPackages = [...hourPackages];
-    const totalPrice = event.target.value;
-    updatedHourPackages[+event.target.name].totalPrice = totalPrice;
-    updatedHourPackages[+event.target.name].pricePerHour = (
-      totalPrice / updatedHourPackages[+event.target.name].hours
-    ).toFixed(2);
+    const totalPrice = parseFloat(event.target.value) || 0;
+    updatedHourPackages[+event.target.name].totalPrice = Math.round(totalPrice);
+    updatedHourPackages[+event.target.name].pricePerHour = Math.round(
+      totalPrice / updatedHourPackages[+event.target.name].hours || 0,
+    );
     setHourPackages(updatedHourPackages);
   };
 

@@ -60,6 +60,27 @@ const EmployeeCompanyDistribution = ({
     return Object.values(employeeMap).sort((a, b) => b.totalTime - a.totalTime);
   }, [data]);
 
+  // Calculate totals
+  const totals = useMemo(() => {
+    return employeeCompanyData.reduce(
+      (acc, employee) => {
+        acc.totalTime += employee.totalTime;
+        acc.totalWorks += employee.totalWorks;
+        acc.totalRoutineTaskTime += employee.totalRoutineTaskTime;
+        acc.totalRoutineTaskWorks += employee.totalRoutineTaskWorks;
+        acc.totalCompanies += employee.companies.length;
+        return acc;
+      },
+      {
+        totalTime: 0,
+        totalWorks: 0,
+        totalRoutineTaskTime: 0,
+        totalRoutineTaskWorks: 0,
+        totalCompanies: 0,
+      },
+    );
+  }, [employeeCompanyData]);
+
   // Топ-10 сотрудников для графика
   const topEmployees = employeeCompanyData.slice(0, 10);
 
@@ -355,6 +376,60 @@ const EmployeeCompanyDistribution = ({
                       </td>
                     </tr>
                   ))}
+                  <tr
+                    style={{
+                      backgroundColor: "#f8f9fa",
+                      fontWeight: "bold",
+                      borderTop: "2px solid #dee2e6",
+                    }}
+                  >
+                    <td>
+                      <strong>ИТОГО</strong>
+                      <br />
+                      <small className="text-muted">
+                        {employeeCompanyData.length} сотрудников
+                      </small>
+                    </td>
+                    <td>
+                      <strong>{msToHMS(totals.totalTime)}</strong>
+                    </td>
+                    <td>
+                      <Badge bg="primary" pill>
+                        {totals.totalWorks}
+                      </Badge>
+                    </td>
+                    <td>
+                      <Badge bg="info" pill>
+                        {Math.round(
+                          totals.totalCompanies / employeeCompanyData.length,
+                        ) || 0}
+                      </Badge>
+                      <br />
+                      <small className="text-muted">в среднем</small>
+                    </td>
+                    <td>
+                      <div>
+                        <strong>
+                          {totals.totalTime > 0
+                            ? Math.round(
+                                (totals.totalRoutineTaskTime /
+                                  totals.totalTime) *
+                                  100,
+                              ) + "%"
+                            : "0%"}
+                        </strong>
+                      </div>
+                      <div className="small text-muted mt-1">
+                        {msToHMS(totals.totalRoutineTaskTime)} /{" "}
+                        {totals.totalRoutineTaskWorks}
+                      </div>
+                    </td>
+                    <td>
+                      <small className="text-muted">
+                        Всего уникальных связей сотрудник-компания
+                      </small>
+                    </td>
+                  </tr>
                 </tbody>
               </Table>
 

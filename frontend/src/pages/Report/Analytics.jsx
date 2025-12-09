@@ -50,6 +50,9 @@ import {
   TrendLineChart,
   TrendTable,
   TrendMetrics,
+  SubdivisionTimeChart,
+  SubdivisionTypeChart,
+  ClientSummaryTable,
 } from "../../components/Reports";
 
 const Analytics = () => {
@@ -303,18 +306,20 @@ const Analytics = () => {
             {reportData && reportMode === "summary" && (
               <>
                 <ExportButtons reportData={reportData} msToHMS={msToHMS} />
-                <Col sm="auto">
-                  <Form.Group>
-                    <Form.Select
-                      value={viewType}
-                      onChange={(e) => setViewType(e.target.value)}
-                      className="mb-2"
-                    >
-                      <option value="companies">По компаниям</option>
-                      <option value="employees">По сотрудникам</option>
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
+                {!reportData.isClientView && (
+                  <Col sm="auto">
+                    <Form.Group>
+                      <Form.Select
+                        value={viewType}
+                        onChange={(e) => setViewType(e.target.value)}
+                        className="mb-2"
+                      >
+                        <option value="companies">По компаниям</option>
+                        <option value="employees">По сотрудникам</option>
+                      </Form.Select>
+                    </Form.Group>
+                  </Col>
+                )}
                 <Col sm="auto">
                   <Form.Group>
                     <Button
@@ -358,32 +363,60 @@ const Analytics = () => {
               </Col>
             </Row>
 
-            {showCharts && viewType === "companies" && (
+            {showCharts &&
+              viewType === "companies" &&
+              !reportData.isClientView && (
+                <>
+                  <Row className="mb-4">
+                    <Col lg={12}>
+                      <CompanyTimeChart
+                        data={reportData}
+                        isLoading={chartsLoading}
+                      />
+                    </Col>
+                  </Row>
+                  <Row className="mb-4">
+                    <Col lg={12}>
+                      <CompanyDistributionChart
+                        data={reportData}
+                        isLoading={chartsLoading}
+                      />
+                    </Col>
+                  </Row>
+                </>
+              )}
+
+            {showCharts && reportData.isClientView && (
               <>
                 <Row className="mb-4">
                   <Col lg={12}>
-                    <CompanyTimeChart
+                    <SubdivisionTypeChart
                       data={reportData}
                       isLoading={chartsLoading}
                     />
                   </Col>
                 </Row>
-                <Row className="mb-4">
-                  <Col lg={12}>
-                    <CompanyDistributionChart
-                      data={reportData}
-                      isLoading={chartsLoading}
-                    />
-                  </Col>
-                </Row>
+                {reportData.subdivisions &&
+                  reportData.subdivisions.length > 0 && (
+                    <Row className="mb-4">
+                      <Col lg={12}>
+                        <SubdivisionTimeChart
+                          data={reportData}
+                          isLoading={chartsLoading}
+                        />
+                      </Col>
+                    </Row>
+                  )}
               </>
             )}
 
-            {showCharts && viewType === "employees" && (
-              <EmployeeCharts data={reportData} isLoading={chartsLoading} />
-            )}
+            {showCharts &&
+              viewType === "employees" &&
+              !reportData.isClientView && (
+                <EmployeeCharts data={reportData} isLoading={chartsLoading} />
+              )}
 
-            {viewType === "companies" && (
+            {viewType === "companies" && !reportData.isClientView && (
               <>
                 <Row>
                   <Col>
@@ -408,7 +441,20 @@ const Analytics = () => {
               </>
             )}
 
-            {viewType === "employees" && (
+            {reportData.isClientView && (
+              <Row>
+                <Col>
+                  <ClientSummaryTable
+                    data={reportData}
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                    msToHMS={msToHMS}
+                  />
+                </Col>
+              </Row>
+            )}
+
+            {viewType === "employees" && !reportData.isClientView && (
               <Row>
                 <Col>
                   <h4 className="mb-3">Детализация по сотрудникам</h4>
