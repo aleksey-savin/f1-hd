@@ -20,14 +20,6 @@ const companyLogSchema = new Schema(
       required: true,
       default: Date.now,
     },
-    firstName: {
-      type: String,
-      required: true,
-    },
-    lastName: {
-      type: String,
-      required: true,
-    },
     activeDirectoryObjectGUID: {
       type: String,
       required: true,
@@ -47,7 +39,7 @@ const companyLogSchema = new Schema(
       default: "userLogin",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Индекс для быстрого поиска по компании и времени

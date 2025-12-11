@@ -72,15 +72,10 @@ router.post("/log/user-activity", isAuthApiKey, async (req, res, next) => {
     } = req.body;
 
     // Валидация обязательных полей
-    if (
-      !firstName ||
-      !lastName ||
-      !activeDirectoryObjectGUID ||
-      !activeDirectoryLogin
-    ) {
+    if (!activeDirectoryObjectGUID || !activeDirectoryLogin) {
       return next(
         new AppError(
-          "Отсутствуют обязательные поля: firstName, lastName, activeDirectoryObjectGUID, activeDirectoryLogin",
+          "Отсутствуют обязательные поля: activeDirectoryObjectGUID, activeDirectoryLogin",
           400,
         ),
       );
