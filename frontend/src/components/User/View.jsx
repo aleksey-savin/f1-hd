@@ -13,7 +13,11 @@ import Offcanvas from "react-bootstrap/Offcanvas";
 
 import ResetPassword from "./ResetPassword";
 
-import { RiEdit2Line, RiArrowGoBackFill } from "react-icons/ri";
+import {
+  RiEdit2Line,
+  RiArrowGoBackFill,
+  RiShieldCheckLine,
+} from "react-icons/ri";
 
 import { formatDate, formatShortDate } from "../../util/format-date";
 
@@ -317,6 +321,22 @@ const ViewUser = ({ user, tickets }) => {
                   <th>Телефон</th>
                   <td>
                     <a href={"tel:" + user.phone}>{user.phone}</a>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Active Directory</th>
+                  <td>
+                    {user.activeDirectoryObjectGUID ? (
+                      <Badge
+                        bg="success"
+                        className="d-flex align-items-center gap-1"
+                      >
+                        <RiShieldCheckLine />
+                        Связан
+                      </Badge>
+                    ) : (
+                      <Badge bg="secondary">Не связан</Badge>
+                    )}
                   </td>
                 </tr>
               </tbody>

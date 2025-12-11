@@ -32,6 +32,7 @@ const ListWrapper = ({
   showAddButton = true,
   showBackButton = false,
   backRoute,
+  defaultSearchValue = "",
   children,
 }) => {
   const { state } = useNavigation();
@@ -85,7 +86,10 @@ const ListWrapper = ({
             </Col>
           )}
           <Col>
-            <SearchBar onChange={searchHandler} />
+            <SearchBar
+              onChange={searchHandler}
+              defaultValue={defaultSearchValue}
+            />
           </Col>
         </Row>
       </BrowserView>
@@ -117,7 +121,10 @@ const ListWrapper = ({
         </Row>
         <Row className="mb-3">
           <Col>
-            <SearchBar onChange={searchHandler} />
+            <SearchBar
+              onChange={searchHandler}
+              defaultValue={defaultSearchValue}
+            />
           </Col>
         </Row>
       </MobileView>

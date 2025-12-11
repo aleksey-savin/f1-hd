@@ -54,6 +54,8 @@ const {
   createScheduledWorkNotifications,
 } = require("./middleware/notifications");
 
+const { scheduleLogsCleanup } = require("./middleware/cleanupLogs");
+
 const PORT = process.env.PORT || 8080;
 const app = express();
 
@@ -165,6 +167,11 @@ cron.schedule("*/1 * * * * *", () => {
   createCommentNotifications();
   createUserNotifications();
   createScheduledWorkNotifications();
+});
+
+// Cleanup old company logs every day at 2:00 AM
+cron.schedule("0 2 * * *", () => {
+  scheduleLogsCleanup();
 });
 
 // Initialize monitoring first

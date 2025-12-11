@@ -170,6 +170,9 @@ exports.getCompanyLogs = [
 ];
 
 exports.linkUserToAD = [
-  body("logId").isMongoId().withMessage("Invalid log ID"),
+  body("activeDirectoryObjectGUID")
+    .trim()
+    .notEmpty()
+    .withMessage("Active Directory Object GUID is required"),
   body("userId").isMongoId().withMessage("Invalid user ID"),
 ];

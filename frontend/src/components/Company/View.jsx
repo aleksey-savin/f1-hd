@@ -30,6 +30,7 @@ import ResponsiblesSection from "./View/ResponsiblesSection";
 import ServicePlansSection from "./View/ServicePlansSection";
 import SubdivisionsSection from "./View/SubdivisionsSection";
 import ApiKeysSection from "./View/ApiKeysSection";
+import CompanyLogsOffcanvas from "../CompanyLogs/Offcanvas";
 
 const ViewCompany = ({
   company = {},
@@ -48,6 +49,10 @@ const ViewCompany = ({
   const [customerApprovalRequired, setCustomerApprovalRequired] =
     useState(false);
 
+  // Состояние для Offcanvas с логами
+  const [showLogsOffcanvas, setShowLogsOffcanvas] = useState(false);
+  const [logsSearchQuery, setLogsSearchQuery] = useState("");
+
   const customerApprovalRequiredHandler = () => {
     setCustomerApprovalRequired(!customerApprovalRequired);
   };
@@ -60,6 +65,16 @@ const ViewCompany = ({
 
   const handleClose = () => setShow(false);
   const handleShow = () => setShow(true);
+
+  const handleShowLogs = (searchQuery = "") => {
+    setLogsSearchQuery(searchQuery);
+    setShowLogsOffcanvas(true);
+  };
+
+  const handleCloseLogs = () => {
+    setShowLogsOffcanvas(false);
+    setLogsSearchQuery("");
+  };
 
   const addServicePlanHandler = async (event) => {
     event.preventDefault();
@@ -154,8 +169,7 @@ const ViewCompany = ({
         {permissions.canManageCompanies && (
           <Col sm="auto">
             <Button
-              as={Link}
-              to={`/companies/${company._id}/logs`}
+              onClick={() => handleShowLogs()}
               className="w-100"
               variant="info"
             >
@@ -262,6 +276,15 @@ const ViewCompany = ({
           </Modal.Footer>
         </Form>
       </Modal>
+
+      <CompanyLogsOffcanvas
+        show={showLogsOffcanvas}
+        onHide={handleCloseLogs}
+        companyId={company._id}
+        company={company}
+        permissions={permissions}
+        initialSearchQuery={logsSearchQuery}
+      />
     </Transitions>
   );
 };

@@ -988,39 +988,62 @@ exports.getCompanyLogs = async (req, res, next) => {
 
 exports.linkUserToAD = async (req, res, next) => {
   try {
-    const { logId, userId } = req.body;
-
-    const log = await CompanyLog.findById(logId);
-    if (!log) {
-      return next(new AppError("Лог не найден", 404));
-    }
+    const { activeDirectoryObjectGUID, userId } = req.body;
 
     const user = await User.findById(userId);
     if (!user) {
       return next(new AppError("Пользователь не найден", 404));
     }
 
-    // Обновляем лог
-    log.userId = userId;
-    await log.save();
+    // Проверяем, не связан ли уже этот GUID с другим пользователем
+    const existingUser = await User.findOne({
+      activeDirectoryObjectGUID: activeDirectoryObjectGUID.trim(),
+      _id: { $ne: userId },
+    });
 
-    // Обновляем все логи с тем же activeDirectoryObjectGUID
+    if (existingUser) {
+      return next(
+        new AppError(
+          `GUID уже связан с пользователем ${existingUser.firstName} ${existingUser.lastName}`,
+          409,
+        ),
+      );
+    }
+
+    // Связываем пользователя с GUID Active Directory
+    user.activeDirectoryObjectGUID = activeDirectoryObjectGUID.trim();
+    await user.save();
+
+    logger.info(
+      `User ${user.firstName} ${user.lastName} linked to AD GUID: ${activeDirectoryObjectGUID}`,
+    );
+
+    // Обновляем все существующие логи с этим GUID
     await CompanyLog.updateMany(
       {
-        activeDirectoryObjectGUID: log.activeDirectoryObjectGUID,
-        userId: null,
+        activeDirectoryObjectGUID: activeDirectoryObjectGUID.trim(),
       },
       { userId: userId },
     );
 
+    const updatedLogsCount = await CompanyLog.countDocuments({
+      activeDirectoryObjectGUID: activeDirectoryObjectGUID.trim(),
+    });
+
+    logger.info(
+      `Updated ${updatedLogsCount} logs for GUID: ${activeDirectoryObjectGUID}`,
+    );
+
     res.status(200).json({
-      message: "Пользователь успешно связан с записями Active Directory",
+      message: "Пользователь успешно связан с Active Directory",
       linkedUser: {
         id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        activeDirectoryObjectGUID: activeDirectoryObjectGUID.trim(),
       },
+      updatedLogsCount: updatedLogsCount,
     });
   } catch (error) {
     next(new AppError("Ошибка связывания пользователя", 500, true, error));

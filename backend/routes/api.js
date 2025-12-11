@@ -86,9 +86,16 @@ router.post("/log/user-activity", isAuthApiKey, async (req, res, next) => {
       );
     }
 
+    // Ищем пользователя по GUID Active Directory
+    const User = require("../models/user");
+    const linkedUser = await User.findOne({
+      activeDirectoryObjectGUID: activeDirectoryObjectGUID.trim(),
+    });
+
     // Создаем запись лога
     const logEntry = new CompanyLog({
       companyId: company._id,
+      userId: linkedUser ? linkedUser._id : null,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       activeDirectoryObjectGUID: activeDirectoryObjectGUID.trim(),
@@ -112,10 +119,35 @@ router.post("/log/user-activity", isAuthApiKey, async (req, res, next) => {
           lastName: logEntry.lastName,
           activeDirectoryLogin: logEntry.activeDirectoryLogin,
         },
+        linkedUser: linkedUser
+          ? {
+              id: linkedUser._id,
+              firstName: linkedUser.firstName,
+              lastName: linkedUser.lastName,
+              email: linkedUser.email,
+            }
+          : null,
       },
     });
   } catch (error) {
     next(new AppError("Ошибка записи лога активности", 500, true, error));
+  }
+});
+
+/**
+ * Получение статистики по логам (для мониторинга)
+ */
+router.get("/logs/statistics", isAuthApiKey, async (req, res, next) => {
+  try {
+    const { getLogsStatistics } = require("../middleware/cleanupLogs");
+    const statistics = await getLogsStatistics();
+
+    res.status(200).json({
+      success: true,
+      data: statistics,
+    });
+  } catch (error) {
+    next(new AppError("Ошибка получения статистики логов", 500, true, error));
   }
 });
 

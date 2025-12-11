@@ -23,9 +23,12 @@ import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Badge from "react-bootstrap/Badge";
 import Table from "react-bootstrap/Table";
+import Button from "react-bootstrap/Button";
 
 import { formatDate } from "../../util/format-date";
 import { getLocalStorageData } from "../../util/auth";
+
+import { RiHistoryLine } from "react-icons/ri";
 
 import Comments from "../../components/Comment/List";
 import Works from "../../components/Work/List";
@@ -35,6 +38,7 @@ import Attachments from "../../components/Ticket/View/Attachments";
 import ApplicantModal from "../../components/Ticket/View/ApplicantModal";
 import CompanyModal from "../../components/Ticket/View/CompanyModal";
 import DescriptionCard from "../../components/Ticket/View/DescriptionCard";
+import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
 
 import TakeToWork from "../../components/Ticket/Actions/TakeToWork";
 import ProcessTicket from "../../components/Ticket/Actions/Process";
@@ -92,9 +96,21 @@ const ViewTicket = () => {
 
   const [badgeBg, setBadgeBg] = useState("light");
 
-  const [closeTicketIsActive, setCloseTicketIsActive] = useState(
-    canAvoidWorks && !modules.timeTracking.isActive ? true : false,
-  );
+  const [closeTicketIsActive, setCloseTicketIsActive] = useState(false);
+
+  // Состояние для Offcanvas с логами
+  const [showLogsOffcanvas, setShowLogsOffcanvas] = useState(false);
+  const [logsSearchQuery, setLogsSearchQuery] = useState("");
+
+  const handleShowLogs = (searchQuery = "") => {
+    setLogsSearchQuery(searchQuery);
+    setShowLogsOffcanvas(true);
+  };
+
+  const handleCloseLogs = () => {
+    setShowLogsOffcanvas(false);
+    setLogsSearchQuery("");
+  };
 
   useEffect(() => {
     const finishedWorks = works.filter(
@@ -245,7 +261,7 @@ const ViewTicket = () => {
                             <tr>
                               <th>Компания</th>
                               <td>
-                                <h5 className="mb-0">
+                                <h5 className="mb-0 d-flex align-items-center gap-2">
                                   <CompanyModal
                                     ticket={ticket}
                                     company={company}
@@ -255,14 +271,40 @@ const ViewTicket = () => {
                                       workSchedule={company.workSchedule}
                                     />
                                   </small>
+                                  {permissions.canManageCompanies && (
+                                    <Button
+                                      onClick={() => handleShowLogs()}
+                                      size="sm"
+                                      variant="outline-info"
+                                      title="Логи активности компании"
+                                    >
+                                      <RiHistoryLine />
+                                    </Button>
+                                  )}
                                 </h5>
                               </td>
                             </tr>
                             <tr>
                               <th>Инициатор</th>
                               <td>
-                                <h5 className="mb-0">
+                                <h5 className="mb-0 d-flex align-items-center gap-2">
                                   <ApplicantModal ticket={ticket} />
+                                  {permissions.canManageCompanies &&
+                                    ticket.applicant
+                                      ?.activeDirectoryObjectGUID && (
+                                      <Button
+                                        onClick={() =>
+                                          handleShowLogs(
+                                            `${ticket.applicant.firstName} ${ticket.applicant.lastName}`,
+                                          )
+                                        }
+                                        size="sm"
+                                        variant="outline-success"
+                                        title="Логи активности пользователя"
+                                      >
+                                        <RiHistoryLine />
+                                      </Button>
+                                    )}
                                 </h5>
                               </td>
                             </tr>
@@ -399,6 +441,15 @@ const ViewTicket = () => {
           <Outlet />
         </Offcanvas.Body>
       </Offcanvas>
+
+      <CompanyLogsOffcanvas
+        show={showLogsOffcanvas}
+        onHide={handleCloseLogs}
+        companyId={company._id}
+        company={company}
+        permissions={permissions}
+        initialSearchQuery={logsSearchQuery}
+      />
     </>
   );
 };

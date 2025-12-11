@@ -31,6 +31,12 @@ const userSchema = new Schema(
       type: String,
       default: "",
     },
+    activeDirectoryObjectGUID: {
+      type: String,
+      required: false,
+      unique: true,
+      sparse: true,
+    },
     company: {
       _id: {
         type: Schema.Types.ObjectId,
