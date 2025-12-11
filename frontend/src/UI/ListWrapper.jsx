@@ -2,7 +2,7 @@ import { Outlet, useNavigation, Link, useNavigate } from "react-router";
 
 import { BrowserView, MobileView } from "react-device-detect";
 
-import { RiRefreshLine } from "react-icons/ri";
+import { RiRefreshLine, RiArrowGoBackLine } from "react-icons/ri";
 
 import AddButton from "./AddButton";
 
@@ -29,6 +29,9 @@ const ListWrapper = ({
   filterStore,
   addRoute,
   hiddenAddButton,
+  showAddButton = true,
+  showBackButton = false,
+  backRoute,
   children,
 }) => {
   const { state } = useNavigation();
@@ -59,7 +62,20 @@ const ListWrapper = ({
               <RiRefreshLine />
             </Button>
           </Col>
-          {!hiddenAddButton && (
+          {showBackButton && (
+            <Col sm="auto">
+              <Button
+                as={Link}
+                to={backRoute || -1}
+                size="lg"
+                className="w-100 mb-3"
+                variant="secondary"
+              >
+                <RiArrowGoBackLine /> Назад
+              </Button>
+            </Col>
+          )}
+          {showAddButton && !hiddenAddButton && (
             <Col sm="auto">
               <AddButton
                 onClick={offcanvas.setShow}
@@ -75,14 +91,29 @@ const ListWrapper = ({
       </BrowserView>
       <MobileView>
         <Row className="mb-3">
-          <Col xs={6}>
+          <Col xs={showBackButton ? 4 : 6}>
             <Button as={Link} replace to="." size="lg" className="w-100">
               <RiRefreshLine /> Обновить
             </Button>
           </Col>
-          <Col xs={6}>
-            <AddButton content="Добавить" to={addRoute ? addRoute : "add"} />
-          </Col>
+          {showBackButton && (
+            <Col xs={4}>
+              <Button
+                as={Link}
+                to={backRoute || -1}
+                size="lg"
+                className="w-100"
+                variant="secondary"
+              >
+                <RiArrowGoBackLine /> Назад
+              </Button>
+            </Col>
+          )}
+          {showAddButton && !hiddenAddButton && (
+            <Col xs={showBackButton ? 4 : 6}>
+              <AddButton content="Добавить" to={addRoute ? addRoute : "add"} />
+            </Col>
+          )}
         </Row>
         <Row className="mb-3">
           <Col>

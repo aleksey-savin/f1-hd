@@ -108,4 +108,40 @@ router.patch(
   companyController.addProfileImage,
 );
 
+router.post(
+  "/companies/create-api-key",
+  isAuth,
+  canManageCompanies,
+  companyValidation.createApiKey,
+  runValidation,
+  companyController.createApiKey,
+);
+
+router.delete(
+  "/companies/delete-api-key",
+  isAuth,
+  canManageCompanies,
+  companyValidation.deleteApiKey,
+  runValidation,
+  companyController.deleteApiKey,
+);
+
+router.get(
+  "/companies/:id/logs",
+  isAuth,
+  canManageCompanies,
+  companyValidation.getCompanyLogs,
+  runValidation,
+  companyController.getCompanyLogs,
+);
+
+router.patch(
+  "/companies/link-user-to-ad",
+  isAuth,
+  canManageCompanies,
+  companyValidation.linkUserToAD,
+  runValidation,
+  companyController.linkUserToAD,
+);
+
 module.exports = router;

@@ -350,4 +350,94 @@ export async function action({ request }) {
 
     return response;
   }
+
+  if (intent === "createApiKey") {
+    const companyId = data.get("companyId");
+    const keyName = data.get("keyName");
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/create-api-key`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({
+          companyId,
+          keyName,
+        }),
+      },
+    );
+
+    if ([409].includes(response.status)) {
+      return response;
+    }
+
+    if (!response.ok) {
+      throw response;
+    }
+
+    return response;
+  }
+
+  if (intent === "deleteApiKey") {
+    const companyId = data.get("companyId");
+    const keyId = data.get("keyId");
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/delete-api-key`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({
+          companyId,
+          keyId,
+        }),
+      },
+    );
+
+    if ([409].includes(response.status)) {
+      return response;
+    }
+
+    if (!response.ok) {
+      throw response;
+    }
+
+    return response;
+  }
+
+  if (intent === "linkUserToAD") {
+    const logId = data.get("logId");
+    const userId = data.get("userId");
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/link-user-to-ad`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({
+          logId,
+          userId,
+        }),
+      },
+    );
+
+    if ([409].includes(response.status)) {
+      return response;
+    }
+
+    if (!response.ok) {
+      throw response;
+    }
+
+    return response;
+  }
 }

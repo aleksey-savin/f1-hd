@@ -178,6 +178,9 @@ const ProfileImage = ({ companyId, initialImage }) => {
           roundedCircle
           style={{ maxWidth: "15rem" }}
           className="profile-image"
+          onError={(e) => {
+            e.target.src = "/companypic-placeholder.png";
+          }}
         />
         <label className="profile-image-overlay" htmlFor="profile-image-input">
           <BiUpload size={24} />

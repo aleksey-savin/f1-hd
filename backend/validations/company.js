@@ -149,3 +149,27 @@ exports.addServicePlan = [
 exports.deleteServicePlan = [
   body("servicePlanId").isMongoId().withMessage("Invalid service plan ID"),
 ];
+
+exports.createApiKey = [
+  body("companyId").isMongoId().withMessage("Invalid company ID"),
+  body("keyName")
+    .trim()
+    .notEmpty()
+    .withMessage("API key name is required")
+    .isLength({ min: 1, max: 100 })
+    .withMessage("API key name must be between 1 and 100 characters"),
+];
+
+exports.deleteApiKey = [
+  body("companyId").isMongoId().withMessage("Invalid company ID"),
+  body("keyId").isMongoId().withMessage("Invalid API key ID"),
+];
+
+exports.getCompanyLogs = [
+  param("id").isMongoId().withMessage("Invalid company ID"),
+];
+
+exports.linkUserToAD = [
+  body("logId").isMongoId().withMessage("Invalid log ID"),
+  body("userId").isMongoId().withMessage("Invalid user ID"),
+];

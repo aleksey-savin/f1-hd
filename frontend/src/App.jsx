@@ -75,6 +75,11 @@ import ViewCompanyPage, {
   action as viewCompanyAction,
 } from "./pages/Company/View.jsx";
 
+import CompanyLogsPage, {
+  loader as companyLogsLoader,
+  action as companyLogsAction,
+} from "./pages/CompanyLogs/List.jsx";
+
 // Ticket categories
 import TicketCatogries, {
   loader as ticketCategoriesLoader,
@@ -451,6 +456,12 @@ function App() {
               element: <UpdateCompanyPage />,
             },
           ],
+        },
+        {
+          path: "companies/:companyId/logs",
+          loader: companyLogsLoader,
+          action: companyLogsAction,
+          element: <CompanyLogsPage />,
         },
         // Users
         {

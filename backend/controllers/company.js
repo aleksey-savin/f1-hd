@@ -7,8 +7,12 @@ const Company = require("../models/company");
 const User = require("../models/user");
 const ServicePlan = require("../models/finances/servicePlan");
 const Subdivision = require("../models/subdivision");
+const { Ticket } = require("../models/ticket");
 
 const { AppError } = require("../middleware/errorHandling");
+const { generateApiKey } = require("../utils/apiKeyGenerator");
+const CompanyLog = require("../models/companyLog");
+const logger = require("../utils/logger");
 
 // Convert fs.unlink to promise-based
 const unlinkFile = util.promisify(fs.unlink);
@@ -110,6 +114,48 @@ exports.getOne = async (req, res, next) => {
 
     if (!company) {
       return next(new AppError(`Company ${req.params.id} not found`, 404));
+    }
+
+    // Add lastActivity for each employee
+    if (company.employees && company.employees.length > 0) {
+      for (let employee of company.employees) {
+        try {
+          // Find the latest ticket where this employee was the applicant
+          const lastTicket = await Ticket.findOne({
+            $or: [
+              { applicantId: employee._id },
+              { "applicant._id": employee._id },
+            ],
+          })
+            .sort({ createdAt: -1 })
+            .select("createdAt num title")
+            .lean();
+
+          // Convert to plain object to be able to add new properties
+          const employeeObj = employee.toObject();
+          employeeObj.lastActivity = lastTicket
+            ? {
+                date: lastTicket.createdAt,
+                ticketNum: lastTicket.num,
+                ticketTitle: lastTicket.title,
+              }
+            : null;
+
+          // Replace the original employee with the modified object
+          const index = company.employees.indexOf(employee);
+          company.employees[index] = employeeObj;
+        } catch (error) {
+          console.error(
+            `Error fetching lastActivity for employee ${employee._id}:`,
+            error,
+          );
+          // Convert to plain object and add null lastActivity
+          const employeeObj = employee.toObject();
+          employeeObj.lastActivity = null;
+          const index = company.employees.indexOf(employee);
+          company.employees[index] = employeeObj;
+        }
+      }
     }
 
     let servicePlans = [];
@@ -388,12 +434,16 @@ exports.addProfileImage = async (req, res, next) => {
         // Check if file exists before trying to delete
         await fs.promises.access(filePath, fs.constants.F_OK);
         await unlinkFile(filePath);
+        logger.info(`Deleted old profile image: ${filePath}`);
       } catch (error) {
         // Only log the error if it's not "file not found"
         if (error.code !== "ENOENT") {
+          logger.error(`Error deleting old profile image: ${filePath}`, error);
           next(
             new AppError(`Error deleting old profile image`, 404, true, error),
           );
+        } else {
+          logger.warn(`Old profile image file not found: ${filePath}`);
         }
       }
     }
@@ -401,6 +451,10 @@ exports.addProfileImage = async (req, res, next) => {
     company.profileImagePath = req.file.filename;
 
     await company.save();
+
+    logger.info(
+      `Profile image uploaded for company ${companyId}: ${req.file.filename}`,
+    );
 
     res.status(200).json({
       message: "Файл успешно загружен",
@@ -818,5 +872,157 @@ exports.updateSubdivisionUsers = async (req, res, next) => {
         error,
       ),
     );
+  }
+};
+
+exports.createApiKey = async (req, res, next) => {
+  try {
+    const { companyId, keyName } = req.body;
+    const { userId } = await getAuthData(req);
+
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return next(new AppError("Компания не найдена", 404));
+    }
+
+    // Проверяем, нет ли уже ключа с таким названием
+    const existingKey = company.apiKeys.find((key) => key.name === keyName);
+    if (existingKey) {
+      return res.status(409).json({
+        error: "API-ключ с таким названием уже существует",
+      });
+    }
+
+    // Генерируем новый API-ключ
+    const newApiKey = generateApiKey();
+
+    // Добавляем ключ в массив
+    company.apiKeys.push({
+      key: newApiKey,
+      name: keyName,
+      isActive: true,
+      createdBy: userId,
+    });
+
+    await company.save();
+
+    res.status(201).json({
+      message: "API-ключ успешно создан",
+      apiKey: {
+        _id: company.apiKeys[company.apiKeys.length - 1]._id,
+        key: newApiKey,
+        name: keyName,
+        isActive: true,
+        createdAt: company.apiKeys[company.apiKeys.length - 1].createdAt,
+      },
+    });
+  } catch (error) {
+    next(new AppError("Ошибка при создании API-ключа", 500, true, error));
+  }
+};
+
+exports.deleteApiKey = async (req, res, next) => {
+  try {
+    const { companyId, keyId } = req.body;
+
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return next(new AppError("Компания не найдена", 404));
+    }
+
+    // Проверяем, существует ли ключ
+    const keyIndex = company.apiKeys.findIndex(
+      (key) => key._id.toString() === keyId,
+    );
+    if (keyIndex === -1) {
+      return res.status(404).json({
+        error: "API-ключ не найден",
+      });
+    }
+
+    // Удаляем ключ из массива
+    company.apiKeys.splice(keyIndex, 1);
+
+    await company.save();
+
+    res.status(200).json({
+      message: "API-ключ успешно удален",
+    });
+  } catch (error) {
+    next(new AppError("Ошибка при удалении API-ключа", 500, true, error));
+  }
+};
+
+exports.getCompanyLogs = async (req, res, next) => {
+  try {
+    const companyId = req.params.id;
+    const { page = 1, limit = 50 } = req.query;
+
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return next(new AppError("Компания не найдена", 404));
+    }
+
+    const skip = (page - 1) * limit;
+
+    const logs = await CompanyLog.find({ companyId })
+      .populate("userId", "firstName lastName email")
+      .sort({ timeStamp: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalLogs = await CompanyLog.countDocuments({ companyId });
+
+    res.status(200).json({
+      logs,
+      pagination: {
+        current: parseInt(page),
+        total: Math.ceil(totalLogs / limit),
+        count: totalLogs,
+      },
+    });
+  } catch (error) {
+    next(new AppError("Ошибка получения логов компании", 500, true, error));
+  }
+};
+
+exports.linkUserToAD = async (req, res, next) => {
+  try {
+    const { logId, userId } = req.body;
+
+    const log = await CompanyLog.findById(logId);
+    if (!log) {
+      return next(new AppError("Лог не найден", 404));
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new AppError("Пользователь не найден", 404));
+    }
+
+    // Обновляем лог
+    log.userId = userId;
+    await log.save();
+
+    // Обновляем все логи с тем же activeDirectoryObjectGUID
+    await CompanyLog.updateMany(
+      {
+        activeDirectoryObjectGUID: log.activeDirectoryObjectGUID,
+        userId: null,
+      },
+      { userId: userId },
+    );
+
+    res.status(200).json({
+      message: "Пользователь успешно связан с записями Active Directory",
+      linkedUser: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    next(new AppError("Ошибка связывания пользователя", 500, true, error));
   }
 };

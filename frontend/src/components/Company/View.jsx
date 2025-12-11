@@ -16,7 +16,7 @@ import Form from "react-bootstrap/Form";
 
 import Transitions from "../../animations/Transition";
 
-import { RiEdit2Line, RiArrowGoBackFill } from "react-icons/ri";
+import { RiEdit2Line, RiArrowGoBackFill, RiHistoryLine } from "react-icons/ri";
 import useOffcanvasStore from "../../store/offcanvas";
 
 import Select from "../../UI/Select";
@@ -29,6 +29,7 @@ import UserSection from "./View/UsersSection";
 import ResponsiblesSection from "./View/ResponsiblesSection";
 import ServicePlansSection from "./View/ServicePlansSection";
 import SubdivisionsSection from "./View/SubdivisionsSection";
+import ApiKeysSection from "./View/ApiKeysSection";
 
 const ViewCompany = ({
   company = {},
@@ -134,6 +135,11 @@ const ViewCompany = ({
           )}
         </>
       )}
+      <Card className="mb-4">
+        <Card.Body>
+          <ApiKeysSection company={company} permissions={permissions} />
+        </Card.Body>
+      </Card>
       {permissions.canManageCompanies && <UserSection />}
       <Row className="py-3 border-top justify-content-end gap-2">
         <Col sm="auto">
@@ -145,6 +151,18 @@ const ViewCompany = ({
             <RiArrowGoBackFill /> К списку
           </Button>
         </Col>
+        {permissions.canManageCompanies && (
+          <Col sm="auto">
+            <Button
+              as={Link}
+              to={`/companies/${company._id}/logs`}
+              className="w-100"
+              variant="info"
+            >
+              <RiHistoryLine /> Логи активности
+            </Button>
+          </Col>
+        )}
         {permissions.canManageCompanies && (
           <>
             <Col sm="auto">

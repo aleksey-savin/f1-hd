@@ -19,9 +19,11 @@ function CompanyItem({ item }) {
               ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${profileImagePath}`
               : "/companypic-placeholder.png"
           }
-          style={{ maxHeight: "50px" }}
-          className="me-3"
           roundedCircle
+          style={{ maxWidth: "6rem" }}
+          onError={(e) => {
+            e.target.src = "/companypic-placeholder.png";
+          }}
         />
         {alias} {item.servicePlans.length > 0 && <RiContractLine />}
       </>

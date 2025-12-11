@@ -36,6 +36,8 @@ const ticketTemplateRouter = require("./routes/ticketTemplate");
 
 const servicePlanRouter = require("./routes/finances/servicePlan");
 
+const apiRouter = require("./routes/api");
+
 const clientDeviceRouter = require("./routes/inventory/clientDevice");
 const deviceTypeRouter = require("./routes/inventory/deviceType");
 const vendorRouter = require("./routes/inventory/vendor");
@@ -66,10 +68,17 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 mongoose.set("strictQuery", false);
 
-app.use("/uploads", express.static(path.join("uploads")), (req, res, next) => {
-  // Handle 404 for static files gracefully
+// Static file serving for uploads with better error handling
+app.use("/uploads", express.static(path.join("uploads")));
+
+// Handle 404 for uploads specifically
+app.use("/uploads", (req, res, next) => {
   if (!res.headersSent) {
-    res.status(404).json({ error: "File not found" });
+    logger.warn(`File not found: ${req.originalUrl}`);
+    res.status(404).json({
+      error: "File not found",
+      message: "The requested file does not exist",
+    });
   }
 });
 
@@ -115,6 +124,7 @@ app.use("/api/inventory", inventoryReferenceRouter);
 app.use("/api/inventory", locationRouter);
 app.use("/api/finances", financeReportsRouter);
 app.use("/api", ticketTemplateRouter);
+app.use("/api/external", apiRouter);
 
 // Enhanced health check endpoint with performance metrics
 app.get("/health", healthCheckWithMetrics);

@@ -103,6 +103,30 @@ const companySchema = new Schema(
         customerApprovalRequired: Boolean,
       },
     ],
+    apiKeys: [
+      {
+        key: {
+          type: String,
+          required: true,
+        },
+        name: {
+          type: String,
+          required: true,
+        },
+        isActive: {
+          type: Boolean,
+          default: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+        createdBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+      },
+    ],
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",

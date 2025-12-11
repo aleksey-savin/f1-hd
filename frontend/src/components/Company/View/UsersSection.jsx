@@ -49,6 +49,7 @@ const UserSection = () => {
                     <th>Подразделение</th>
                     <th>Email</th>
                     <th>Телефон</th>
+                    <th>Последняя активность</th>
                     <th>Действия</th>
                   </tr>
                 </thead>
@@ -64,6 +65,9 @@ const UserSection = () => {
                       </td>
                       <td data-cell="Телефон">
                         <a href={`tel:${user.phone}`}>{user.phone}</a>
+                      </td>
+                      <td data-cell="Последняя активность">
+                        {user.lastActivity?.date}
                       </td>
                       <td data-cell="Действия">
                         <Button
