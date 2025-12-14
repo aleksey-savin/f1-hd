@@ -176,3 +176,7 @@ exports.linkUserToAD = [
     .withMessage("Active Directory Object GUID is required"),
   body("userId").isMongoId().withMessage("Invalid user ID"),
 ];
+
+exports.unlinkUserFromAD = [
+  body("userId").isMongoId().withMessage("Invalid user ID"),
+];

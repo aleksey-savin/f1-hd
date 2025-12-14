@@ -126,7 +126,7 @@ const AddAttachment = ({ ticket, onAttachmentAdded }) => {
     <div className="m-2">
       <Button
         variant="outline-primary"
-        size="sm"
+        size="md"
         onClick={() => setShow(!show)}
         disabled={uploading}
       >

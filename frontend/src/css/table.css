@@ -1,77 +1,77 @@
 .table-responsive {
-    width: 100%;
-    border-collapse: collapse;
+  width: 100%;
+  border-collapse: collapse;
 }
 
 .table-responsive caption,
 th,
 td {
-    padding: 1rem;
+  padding: 1rem;
 }
 
 .table-responsive caption,
 th {
-    text-align: left;
+  text-align: left;
 }
 
 .table-responsive tr:nth-of-type(2n):not(.table-warning) {
-    background: hsl(0 0% 0% / 0.1);
+  background: hsl(0 0% 0% / 0.1);
 }
 
 .table-responsive tfoot td {
-    text-align: right;
-    font-weight: 700;
-    font-size: 1.5rem;
-    text-transform: capitalize;
+  text-align: right;
+  font-weight: 700;
+  font-size: 1.5rem;
+  text-transform: capitalize;
 }
 
 .table-responsive tbody tr:hover {
-    background: hsl(170 75% 37% / 0.2) !important;
+  background: hsl(170 75% 37% / 0.2) !important;
 }
 
 .table-responsive .table-align-right {
-    text-align: right;
+  text-align: right;
 }
 
 /* TABLE SORTING */
 
 .sortable thead th:not(.no-sort) {
-    cursor: pointer;
+  cursor: pointer;
 }
 
 .sortable thead th:not(.no-sort):hover::after {
-    color: inherit;
+  color: inherit;
 }
 .sortable thead th:not(.no-sort)[aria-sort="descending"]::after {
-    color: inherit;
-    content: " ▾";
+  color: inherit;
+  content: " ▾";
 }
 .sortable thead th:not(.no-sort)[aria-sort="ascending"]::after {
-    color: inherit;
-    content: " ▴";
+  color: inherit;
+  content: " ▴";
 }
 .sortable thead th:not(.no-sort).indicator-left::after {
-    content: "";
+  content: "";
 }
 .sortable thead th:not(.no-sort).indicator-left::before {
-    margin-right: 3px;
-    content: " ▸";
+  margin-right: 3px;
+  content: " ▸";
 }
 .sortable thead th:not(.no-sort).indicator-left:hover::before {
-    color: inherit;
+  color: inherit;
 }
 .sortable
-    thead
-    th:not(.no-sort).indicator-left[aria-sort="descending"]::before {
-    color: inherit;
-    content: " ▾";
+  thead
+  th:not(.no-sort).indicator-left[aria-sort="descending"]::before {
+  color: inherit;
+  content: " ▾";
 }
 .sortable thead th:not(.no-sort).indicator-left[aria-sort="ascending"]::before {
-    color: inherit;
-    content: " ▴";
+  color: inherit;
+  content: " ▴";
 }
 
-@media (max-width: 650px) {
+/*@media (max-width: 650px) {
     .table-responsive th {
         display: none;
     }
@@ -104,4 +104,4 @@ th {
         content: attr(data-cell) ": ";
         text-transform: uppercase;
     }
-}
+    } */

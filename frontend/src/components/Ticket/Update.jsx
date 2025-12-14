@@ -48,7 +48,7 @@ const UpdateTicket = () => {
 
   const [applicantsList, setApplicantsList] = useState([]);
   const [title, setTitle] = useState(ticket?.title);
-  const [convertedContent, setConvertedContent] = useState(ticket.description);
+  const [description, setDescription] = useState(ticket.description);
   const [company, setCompany] = useState(ticket.company);
   const [applicant, setApplicant] = useState(ticket.applicant);
   const [category, setCategory] = useState(ticket.category);
@@ -69,7 +69,7 @@ const UpdateTicket = () => {
   };
 
   const descriptionChangeHandler = (content) => {
-    setConvertedContent(content);
+    setDescription(content);
   };
 
   const companyChangeHandler = (selectedItem) => {
@@ -116,7 +116,7 @@ const UpdateTicket = () => {
   const submitHandler = (event) => {
     event.preventDefault();
 
-    if (!convertedContent.trim()) {
+    if (!description.trim()) {
       dispatch(
         toastActions.setState({
           variant: "danger text-white",
@@ -205,7 +205,7 @@ const UpdateTicket = () => {
     const formData = new FormData();
     formData.append("_id", ticket._id);
     formData.append("title", title);
-    formData.append("description", convertedContent);
+    formData.append("description", description);
 
     formData.append("categoryId", category._id);
     formData.append("company", JSON.stringify(company));
@@ -285,7 +285,7 @@ const UpdateTicket = () => {
               <Editor
                 id="description"
                 changeHandler={descriptionChangeHandler}
-                description={ticket?.description}
+                description={description}
               />
             </Form.Group>
 

@@ -18,8 +18,8 @@ import {
   RiUserLine,
   RiComputerLine,
   RiSearchLine,
-  RiCloseLine,
   RiRefreshLine,
+  RiUserUnfollowLine,
 } from "react-icons/ri";
 
 import Select from "../../UI/Select";
@@ -33,7 +33,8 @@ const CompanyLogsOffcanvas = ({
   permissions = {},
   initialSearchQuery = "",
 }) => {
-  const fetcher = useFetcher();
+  const linkFetcher = useFetcher({ key: "linkUser" });
+  const unlinkFetcher = useFetcher({ key: "unlinkUser" });
 
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -50,6 +51,10 @@ const CompanyLogsOffcanvas = ({
   const [selectedLog, setSelectedLog] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [users, setUsers] = useState([]);
+
+  // Модальное окно для отвязывания пользователей
+  const [showUnlinkModal, setShowUnlinkModal] = useState(false);
+  const [selectedUnlinkLog, setSelectedUnlinkLog] = useState(null);
 
   // Загрузка логов
   const loadLogs = async (page = 1, search = "") => {
@@ -134,17 +139,23 @@ const CompanyLogsOffcanvas = ({
   const handleShowLinkModal = (log) => {
     setSelectedLog(log);
 
-    console.log(log);
+    // Collect all users from different sources
+    const allUsers = [];
 
-    const companyUsers = [
-      ...(company.users?.map((user) => ({
-        _id: user._id,
-        firstName: user.fullName?.split(" ")[0] || "",
-        lastName: user.fullName?.split(" ")[1] || "",
-        email: user.email,
-      })) || []),
-      ...(company.employees || []),
-    ].filter(
+    // Company employees
+    if (company.employees) {
+      company.employees.forEach((user) => {
+        allUsers.push({
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+        });
+      });
+    }
+
+    // Deduplicate users by ID
+    const companyUsers = allUsers.filter(
       (user, index, self) =>
         user._id &&
         index ===
@@ -161,13 +172,14 @@ const CompanyLogsOffcanvas = ({
     setShowLinkModal(false);
     setSelectedLog(null);
     setSelectedUser(null);
+    setUsers([]); // Reset users list
   };
 
   const handleLinkUser = (event) => {
     event.preventDefault();
     if (!selectedUser || !selectedLog) return;
 
-    fetcher.submit(
+    linkFetcher.submit(
       {
         intent: "linkUserToAD",
         activeDirectoryObjectGUID: selectedLog.activeDirectoryObjectGUID,
@@ -180,18 +192,77 @@ const CompanyLogsOffcanvas = ({
     );
   };
 
+  const handleShowUnlinkModal = (log) => {
+    setSelectedUnlinkLog(log);
+    setShowUnlinkModal(true);
+  };
+
+  const handleCloseUnlinkModal = () => {
+    setShowUnlinkModal(false);
+    setSelectedUnlinkLog(null);
+  };
+
+  const handleUnlinkUser = (event) => {
+    event.preventDefault();
+    if (!selectedUnlinkLog?.userId?._id) return;
+
+    unlinkFetcher.submit(
+      {
+        intent: "unlinkUserFromAD",
+        userId: selectedUnlinkLog.userId._id,
+      },
+      {
+        method: "POST",
+        action: `/companies/${companyId}`,
+      },
+    );
+  };
+
   // Закрыть модальное окно после успешного связывания и обновить логи
   useEffect(() => {
     if (
-      fetcher.state === "idle" &&
-      fetcher.data &&
-      !fetcher.data.error &&
+      linkFetcher.state === "idle" &&
+      linkFetcher.data &&
+      !linkFetcher.data.error &&
       showLinkModal
     ) {
-      handleCloseLinkModal();
-      loadLogs(currentPage, searchQuery);
+      const timer = setTimeout(() => {
+        handleCloseLinkModal();
+        loadLogs(currentPage, searchQuery);
+      }, 100);
+
+      return () => clearTimeout(timer);
     }
-  }, [fetcher.state, fetcher.data, showLinkModal, currentPage, searchQuery]);
+  }, [
+    linkFetcher.state,
+    linkFetcher.data,
+    showLinkModal,
+    currentPage,
+    searchQuery,
+  ]);
+
+  // Закрыть модальное окно после успешного отвязывания и обновить логи
+  useEffect(() => {
+    if (
+      unlinkFetcher.state === "idle" &&
+      unlinkFetcher.data &&
+      !unlinkFetcher.data.error &&
+      showUnlinkModal
+    ) {
+      const timer = setTimeout(() => {
+        handleCloseUnlinkModal();
+        loadLogs(currentPage, searchQuery);
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [
+    unlinkFetcher.state,
+    unlinkFetcher.data,
+    showUnlinkModal,
+    currentPage,
+    searchQuery,
+  ]);
 
   const renderPagination = () => {
     if (pagination.total <= 1) return null;
@@ -343,13 +414,31 @@ const CompanyLogsOffcanvas = ({
                       <td>{getActionBadge(log.action)}</td>
                       {permissions.canManageCompanies && (
                         <td>
-                          {!log.userId && (
+                          {!log.userId?._id ? (
                             <Button
-                              variant="outline-primary"
+                              variant="primary"
                               size="sm"
                               onClick={() => handleShowLinkModal(log)}
+                              disabled={
+                                linkFetcher.state !== "idle" ||
+                                showLinkModal ||
+                                showUnlinkModal
+                              }
                             >
-                              <RiUserAddLine />
+                              Связать <RiUserAddLine />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline-danger"
+                              size="sm"
+                              onClick={() => handleShowUnlinkModal(log)}
+                              disabled={
+                                unlinkFetcher.state !== "idle" ||
+                                showLinkModal ||
+                                showUnlinkModal
+                              }
+                            >
+                              Отвязать <RiUserUnfollowLine />
                             </Button>
                           )}
                         </td>
@@ -382,8 +471,8 @@ const CompanyLogsOffcanvas = ({
             <Modal.Title>Связать с пользователем</Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            {fetcher.data?.error && (
-              <Alert variant="danger">{fetcher.data.error}</Alert>
+            {linkFetcher.data?.error && (
+              <Alert variant="danger">{linkFetcher.data.error}</Alert>
             )}
 
             {selectedLog && (
@@ -436,9 +525,73 @@ const CompanyLogsOffcanvas = ({
             <Button
               variant="primary"
               type="submit"
-              disabled={fetcher.state !== "idle" || !selectedUser}
+              disabled={linkFetcher.state !== "idle" || !selectedUser}
             >
-              {fetcher.state !== "idle" ? "Связывание..." : "Связать"}
+              {linkFetcher.state !== "idle" ? "Связывание..." : "Связать"}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      {/* Модальное окно для отвязки пользователя */}
+      <Modal show={showUnlinkModal} onHide={handleCloseUnlinkModal} centered>
+        <Form onSubmit={handleUnlinkUser}>
+          <Modal.Header closeButton>
+            <Modal.Title>Отвязать пользователя</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {unlinkFetcher.data?.error && (
+              <Alert variant="danger">{unlinkFetcher.data.error}</Alert>
+            )}
+
+            {selectedUnlinkLog && (
+              <div className="mb-3">
+                <p>
+                  Вы уверены, что хотите отвязать пользователя от Active
+                  Directory?
+                </p>
+
+                <div className="p-3 bg-light rounded mb-3">
+                  <strong>Связанный пользователь:</strong>
+                  <br />
+                  {selectedUnlinkLog.userId.firstName}{" "}
+                  {selectedUnlinkLog.userId.lastName}
+                  <br />
+                  <small className="text-muted">
+                    {selectedUnlinkLog.userId.email}
+                  </small>
+                </div>
+
+                <div className="p-3 bg-warning bg-opacity-10 rounded">
+                  <strong>Active Directory пользователь:</strong>
+                  <br />
+                  {selectedUnlinkLog.firstName} {selectedUnlinkLog.lastName} (
+                  {selectedUnlinkLog.activeDirectoryLogin})
+                  <br />
+                  <small className="text-muted">
+                    GUID: {selectedUnlinkLog.activeDirectoryObjectGUID}
+                  </small>
+                </div>
+
+                <Alert variant="warning" className="mt-3">
+                  <small>
+                    После отвязки все записи логов с данным GUID станут не
+                    привязанными к пользователю системы.
+                  </small>
+                </Alert>
+              </div>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseUnlinkModal}>
+              Отмена
+            </Button>
+            <Button
+              variant="danger"
+              type="submit"
+              disabled={unlinkFetcher.state !== "idle"}
+            >
+              {unlinkFetcher.state !== "idle" ? "Отвязка..." : "Отвязать"}
             </Button>
           </Modal.Footer>
         </Form>

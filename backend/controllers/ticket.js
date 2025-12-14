@@ -451,7 +451,10 @@ exports.getOne = async (req, res, next) => {
         return doc;
       });
 
-    const company = await Company.findById(ticket.company._id);
+    const company = await Company.findById(ticket.company._id).populate({
+      path: "employees",
+      select: "firstName lastName email phone position isActive",
+    });
 
     const works = await Work.find({ tickets: ticket._id });
     const logs = await TicketLog.find({
@@ -1305,8 +1308,6 @@ exports.update = async (req, res, next) => {
       isClosed,
       state,
     } = req.body;
-
-    console.log(req.body);
 
     const ticket = await Ticket.findById(_id);
 

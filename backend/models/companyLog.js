@@ -38,7 +38,7 @@ const companyLogSchema = new Schema(
 );
 
 // Индекс для быстрого поиска по компании и времени
-companyLogSchema.index({ companyId: 1, timeStamp: -1 });
+companyLogSchema.index({ companyId: 1, createdAt: -1 });
 
 // Индекс для поиска по GUID Active Directory
 companyLogSchema.index({ activeDirectoryObjectGUID: 1 });

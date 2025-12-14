@@ -440,4 +440,32 @@ export async function action({ request }) {
 
     return response;
   }
+
+  if (intent === "unlinkUserFromAD") {
+    const userId = data.get("userId");
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/unlink-user-from-ad`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({
+          userId,
+        }),
+      },
+    );
+
+    if ([409].includes(response.status)) {
+      return response;
+    }
+
+    if (!response.ok) {
+      throw response;
+    }
+
+    return response;
+  }
 }

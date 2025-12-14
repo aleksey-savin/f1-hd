@@ -37,33 +37,70 @@ const theme = {
   quote: "blockquote border-start border-4 border-secondary ps-3 ms-3 my-3",
 };
 
-function UpdatePlugin({ description, initialContent }) {
+function UpdatePlugin({ description, initialContent, setIsLoading }) {
   const [editor] = useLexicalComposerContext();
   const [isFirstRender, setIsFirstRender] = useState(true);
 
   useEffect(() => {
-    if (isFirstRender && initialContent) {
-      editor.update(() => {
-        const parser = new DOMParser();
-        const dom = parser.parseFromString(initialContent, "text/html");
-        const nodes = $generateNodesFromDOM(editor, dom);
-        const root = $getRoot();
-        root.clear();
-        nodes.forEach((node) => root.append(node));
-      });
+    if (isFirstRender) {
+      // Always set isFirstRender to false to prevent infinite loops
       setIsFirstRender(false);
+
+      const content = initialContent || description;
+      if (content && content !== '<p class="mb-2"><br></p>') {
+        editor.update(() => {
+          // Check if content is HTML or plain text
+          const isHTML = content.includes("<") && content.includes(">");
+
+          if (isHTML) {
+            const parser = new DOMParser();
+            const dom = parser.parseFromString(content, "text/html");
+            const nodes = $generateNodesFromDOM(editor, dom);
+            const root = $getRoot();
+            root.clear();
+            nodes.forEach((node) => root.append(node));
+          } else {
+            // Handle plain text by wrapping in HTML
+            const htmlContent = `<p>${content.replace(/\n/g, "<br>")}</p>`;
+            const parser = new DOMParser();
+            const dom = parser.parseFromString(htmlContent, "text/html");
+            const nodes = $generateNodesFromDOM(editor, dom);
+            const root = $getRoot();
+            root.clear();
+            nodes.forEach((node) => root.append(node));
+          }
+        });
+      }
     }
-  }, [editor, initialContent, isFirstRender]);
+  }, [editor, initialContent, description, isFirstRender]);
 
   useEffect(() => {
-    if (!isFirstRender && description) {
+    if (
+      !isFirstRender &&
+      description &&
+      description !== '<p class="mb-2"><br></p>'
+    ) {
       editor.update(() => {
-        const parser = new DOMParser();
-        const dom = parser.parseFromString(description, "text/html");
-        const nodes = $generateNodesFromDOM(editor, dom);
-        const root = $getRoot();
-        root.clear();
-        nodes.forEach((node) => root.append(node));
+        // Check if content is HTML or plain text
+        const isHTML = description.includes("<") && description.includes(">");
+
+        if (isHTML) {
+          const parser = new DOMParser();
+          const dom = parser.parseFromString(description, "text/html");
+          const nodes = $generateNodesFromDOM(editor, dom);
+          const root = $getRoot();
+          root.clear();
+          nodes.forEach((node) => root.append(node));
+        } else {
+          // Handle plain text by wrapping in HTML
+          const htmlContent = `<p>${description.replace(/\n/g, "<br>")}</p>`;
+          const parser = new DOMParser();
+          const dom = parser.parseFromString(htmlContent, "text/html");
+          const nodes = $generateNodesFromDOM(editor, dom);
+          const root = $getRoot();
+          root.clear();
+          nodes.forEach((node) => root.append(node));
+        }
       });
     }
   }, [editor, description, isFirstRender]);
@@ -77,6 +114,7 @@ const Editor = ({
   description = "",
   selectedTemplate = null,
 }) => {
+  const [isInitialized, setIsInitialized] = useState(false);
   const initialConfig = {
     namespace: "TicketEditor",
     theme,
@@ -88,10 +126,15 @@ const Editor = ({
   };
 
   const onChange = (editorState, editor) => {
-    editorState.read(() => {
-      const html = $generateHtmlFromNodes(editor, null);
-      changeHandler(html);
-    });
+    if (isInitialized) {
+      editorState.read(() => {
+        const html = $generateHtmlFromNodes(editor, null);
+        changeHandler(html);
+      });
+    } else {
+      // Mark as initialized after the first onChange call
+      setIsInitialized(true);
+    }
   };
 
   const initialContent = selectedTemplate?.description || description;

@@ -89,7 +89,7 @@ const ViewTicket = () => {
     ticketStore.updateOtherCompanyTickets(otherCompanyTickets);
   }, [ticket, company, works, otherCompanyTickets, responsiblesData]);
 
-  const { _id: userId, permissions } = useContext(AuthedUserContext);
+  const { _id: userId, permissions, isClient } = useContext(AuthedUserContext);
   const { canAvoidWorks, canUseTimeTrackingModule } = permissions;
 
   const [isOverdue, setIsOverdue] = useState(false);
@@ -271,7 +271,7 @@ const ViewTicket = () => {
                                       workSchedule={company.workSchedule}
                                     />
                                   </small>
-                                  {permissions.canManageCompanies && (
+                                  {!isClient && (
                                     <Button
                                       onClick={() => handleShowLogs()}
                                       size="sm"

@@ -419,36 +419,30 @@ const AttachmentPreview = ({
                   </Badge>
                 </div>
 
-                <div className="d-flex gap-1">
+                <div className="d-flex gap-3">
                   {isPreviewable(attachment.name) && (
                     <Button
-                      size="sm"
-                      variant="outline-primary"
+                      variant="outline-info"
                       className="py-0 px-1"
                       onClick={() => handlePreview(attachment)}
-                      style={{ fontSize: "0.7rem" }}
                     >
                       <i className="bi bi-eye"></i>
                     </Button>
                   )}
                   <Button
-                    size="sm"
-                    variant="outline-primary"
+                    variant="outline-info"
                     className="py-0 px-1"
                     href={fileUrl}
                     target="_blank"
                     rel="noreferrer"
-                    style={{ fontSize: "0.7rem" }}
                   >
                     <i className="bi bi-download"></i>
                   </Button>
                   {canDelete && (
                     <Button
-                      size="sm"
                       variant="outline-danger"
                       className="py-0 px-1"
                       onClick={() => handleDelete(attachment)}
-                      style={{ fontSize: "0.7rem" }}
                     >
                       <i className="bi bi-trash"></i>
                     </Button>

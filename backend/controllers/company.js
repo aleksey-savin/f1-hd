@@ -1,6 +1,7 @@
 const fs = require("fs");
 const util = require("util");
 const path = require("path");
+const mongoose = require("mongoose");
 
 const getAuthData = require("../middleware/getAuthData");
 const Company = require("../models/company");
@@ -956,7 +957,7 @@ exports.deleteApiKey = async (req, res, next) => {
 exports.getCompanyLogs = async (req, res, next) => {
   try {
     const companyId = req.params.id;
-    const { page = 1, limit = 50 } = req.query;
+    const { page = 1, limit = 50, search } = req.query;
 
     const company = await Company.findById(companyId);
     if (!company) {
@@ -965,13 +966,83 @@ exports.getCompanyLogs = async (req, res, next) => {
 
     const skip = (page - 1) * limit;
 
-    const logs = await CompanyLog.find({ companyId })
-      .populate("userId", "firstName lastName email")
-      .sort({ timeStamp: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+    // Используем aggregation pipeline для поиска
+    const pipeline = [
+      {
+        $match: { companyId: new mongoose.Types.ObjectId(companyId) },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "userId",
+        },
+      },
+      {
+        $unwind: {
+          path: "$userId",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+    ];
 
-    const totalLogs = await CompanyLog.countDocuments({ companyId });
+    // Добавляем поиск если указан параметр search
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), "i");
+      pipeline.push({
+        $match: {
+          $or: [
+            { activeDirectoryLogin: searchRegex },
+            { computerName: searchRegex },
+            { "userId.firstName": searchRegex },
+            { "userId.lastName": searchRegex },
+            { "userId.email": searchRegex },
+          ],
+        },
+      });
+    }
+
+    // Добавляем проекцию для выбора нужных полей
+    pipeline.push({
+      $project: {
+        companyId: 1,
+        activeDirectoryObjectGUID: 1,
+        activeDirectoryLogin: 1,
+        computerName: 1,
+        action: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        userId: {
+          $cond: {
+            if: { $eq: ["$userId", null] },
+            then: null,
+            else: {
+              _id: "$userId._id",
+              firstName: "$userId.firstName",
+              lastName: "$userId.lastName",
+              email: "$userId.email",
+            },
+          },
+        },
+      },
+    });
+
+    // Сортировка
+    pipeline.push({ $sort: { createdAt: -1 } });
+
+    // Для подсчета общего количества записей
+    const countPipeline = [...pipeline, { $count: "total" }];
+
+    // Добавляем пагинацию
+    pipeline.push({ $skip: skip }, { $limit: parseInt(limit) });
+
+    const [logs, countResult] = await Promise.all([
+      CompanyLog.aggregate(pipeline),
+      CompanyLog.aggregate(countPipeline),
+    ]);
+
+    const totalLogs = countResult.length > 0 ? countResult[0].total : 0;
 
     res.status(200).json({
       logs,
@@ -1047,5 +1118,61 @@ exports.linkUserToAD = async (req, res, next) => {
     });
   } catch (error) {
     next(new AppError("Ошибка связывания пользователя", 500, true, error));
+  }
+};
+
+exports.unlinkUserFromAD = async (req, res, next) => {
+  try {
+    const { userId } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new AppError(`Пользователь с ID ${userId} не найден`, 404));
+    }
+
+    if (!user.activeDirectoryObjectGUID) {
+      return next(
+        new AppError("Пользователь не связан с Active Directory", 400),
+      );
+    }
+
+    const activeDirectoryObjectGUID = user.activeDirectoryObjectGUID;
+
+    // Отвязываем пользователя от GUID Active Directory
+    user.activeDirectoryObjectGUID = undefined;
+    await user.save();
+
+    logger.info(
+      `User ${user.firstName} ${user.lastName} unlinked from AD GUID: ${activeDirectoryObjectGUID}`,
+    );
+
+    // Обновляем все существующие логи с этим GUID, убирая связь с пользователем
+    await CompanyLog.updateMany(
+      {
+        activeDirectoryObjectGUID: activeDirectoryObjectGUID,
+      },
+      { $unset: { userId: "" } },
+    );
+
+    const updatedLogsCount = await CompanyLog.countDocuments({
+      activeDirectoryObjectGUID: activeDirectoryObjectGUID,
+    });
+
+    logger.info(
+      `Unlinked ${updatedLogsCount} logs from GUID: ${activeDirectoryObjectGUID}`,
+    );
+
+    res.status(200).json({
+      message: "Пользователь успешно отвязан от Active Directory",
+      unlinkedUser: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+      },
+      updatedLogsCount: updatedLogsCount,
+    });
+  } catch (error) {
+    next(new AppError("Ошибка отвязки пользователя", 500, true, error));
   }
 };

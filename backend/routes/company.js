@@ -144,4 +144,13 @@ router.patch(
   companyController.linkUserToAD,
 );
 
+router.patch(
+  "/companies/unlink-user-from-ad",
+  isAuth,
+  canManageCompanies,
+  companyValidation.unlinkUserFromAD,
+  runValidation,
+  companyController.unlinkUserFromAD,
+);
+
 module.exports = router;
