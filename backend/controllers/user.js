@@ -13,6 +13,7 @@ const Subdivision = require("../models/subdivision");
 const TicketCategory = require("../models/ticketCategory");
 const Prefs = require("../models/preferences");
 const Location = require("../models/inventory/location");
+const CompanyLog = require("../models/companyLog");
 
 exports.getAll = async (req, res, next) => {
   try {

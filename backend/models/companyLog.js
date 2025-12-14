@@ -15,11 +15,6 @@ const companyLogSchema = new Schema(
       required: false,
       default: null,
     },
-    timeStamp: {
-      type: Date,
-      required: true,
-      default: Date.now,
-    },
     activeDirectoryObjectGUID: {
       type: String,
       required: true,

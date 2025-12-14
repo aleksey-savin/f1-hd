@@ -1,8 +1,11 @@
 const Router = require("express");
 const router = new Router();
 const userController = require("../controllers/user");
+const { addUserActivity } = require("../controllers/log/companyLog");
 const isAuth = require("../middleware/isAuth");
 const { canManageUsers, isNotClient } = require("../middleware/permissions");
+
+const isAuthApiKey = require("../middleware/isAuthApiKey");
 
 const fileUpload = require("../middleware/fileUpload");
 
@@ -55,5 +58,7 @@ router.post(
   userController.disableChangelogNotification,
 );
 router.get("/users/:id", isAuth, userController.getOne);
+
+router.post("/log/user-activity", isAuthApiKey, addUserActivity);
 
 module.exports = router;

@@ -13,7 +13,14 @@ import Spinner from "react-bootstrap/Spinner";
 import InputGroup from "react-bootstrap/InputGroup";
 import FormControl from "react-bootstrap/FormControl";
 
-import { RiUserAddLine, RiUserLine, RiComputerLine, RiSearchLine, RiCloseLine } from "react-icons/ri";
+import {
+  RiUserAddLine,
+  RiUserLine,
+  RiComputerLine,
+  RiSearchLine,
+  RiCloseLine,
+  RiRefreshLine,
+} from "react-icons/ri";
 
 import Select from "../../UI/Select";
 import { getLocalStorageData } from "../../util/auth";
@@ -24,13 +31,17 @@ const CompanyLogsOffcanvas = ({
   companyId,
   company = {},
   permissions = {},
-  initialSearchQuery = ""
+  initialSearchQuery = "",
 }) => {
   const fetcher = useFetcher();
 
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [pagination, setPagination] = useState({ current: 1, total: 1, count: 0 });
+  const [pagination, setPagination] = useState({
+    current: 1,
+    total: 1,
+    count: 0,
+  });
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -122,21 +133,27 @@ const CompanyLogsOffcanvas = ({
   // Модальное окно для связывания пользователей
   const handleShowLinkModal = (log) => {
     setSelectedLog(log);
-    if (users.length === 0) {
-      const companyUsers = [
-        ...company.users?.map((user) => ({
-          _id: user.id,
-          firstName: user.fullName?.split(" ")[0] || "",
-          lastName: user.fullName?.split(" ")[1] || "",
-          email: user.email,
-        })) || [],
-        ...company.employees || [],
-      ].filter(
-        (user, index, self) =>
-          index === self.findIndex((u) => u._id.toString() === user._id.toString()),
-      );
-      setUsers(companyUsers);
-    }
+
+    console.log(log);
+
+    const companyUsers = [
+      ...(company.users?.map((user) => ({
+        _id: user._id,
+        firstName: user.fullName?.split(" ")[0] || "",
+        lastName: user.fullName?.split(" ")[1] || "",
+        email: user.email,
+      })) || []),
+      ...(company.employees || []),
+    ].filter(
+      (user, index, self) =>
+        user._id &&
+        index ===
+          self.findIndex(
+            (u) => u._id && u._id.toString() === user._id.toString(),
+          ),
+    );
+
+    setUsers(companyUsers);
     setShowLinkModal(true);
   };
 
@@ -165,7 +182,12 @@ const CompanyLogsOffcanvas = ({
 
   // Закрыть модальное окно после успешного связывания и обновить логи
   useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error && showLinkModal) {
+    if (
+      fetcher.state === "idle" &&
+      fetcher.data &&
+      !fetcher.data.error &&
+      showLinkModal
+    ) {
       handleCloseLinkModal();
       loadLogs(currentPage, searchQuery);
     }
@@ -176,7 +198,10 @@ const CompanyLogsOffcanvas = ({
 
     const items = [];
     const maxPagesToShow = 5;
-    let startPage = Math.max(1, pagination.current - Math.floor(maxPagesToShow / 2));
+    let startPage = Math.max(
+      1,
+      pagination.current - Math.floor(maxPagesToShow / 2),
+    );
     let endPage = Math.min(pagination.total, startPage + maxPagesToShow - 1);
 
     if (endPage - startPage + 1 < maxPagesToShow) {
@@ -222,7 +247,12 @@ const CompanyLogsOffcanvas = ({
 
   return (
     <>
-      <Offcanvas show={show} onHide={onHide} placement="bottom" className="h-75">
+      <Offcanvas
+        show={show}
+        onHide={onHide}
+        placement="bottom"
+        className="h-75"
+      >
         <Offcanvas.Header closeButton>
           <Offcanvas.Title>
             Логи активности - {company.alias}
@@ -232,27 +262,32 @@ const CompanyLogsOffcanvas = ({
           </Offcanvas.Title>
         </Offcanvas.Header>
         <Offcanvas.Body>
-          {/* Поиск */}
+          {/* Поиск и обновление */}
           <div className="mb-3">
-            <InputGroup>
-              <InputGroup.Text>
-                <RiSearchLine />
-              </InputGroup.Text>
-              <FormControl
-                type="search"
-                placeholder="Поиск по имени, логину, компьютеру..."
-                value={searchQuery}
-                onChange={handleSearchChange}
-              />
-              {searchQuery && (
-                <Button
-                  variant="outline-secondary"
-                  onClick={() => setSearchQuery("")}
-                >
-                  <RiCloseLine />
-                </Button>
-              )}
-            </InputGroup>
+            <div className="d-flex gap-2">
+              <Button
+                variant="outline-secondary"
+                onClick={() => loadLogs(currentPage, searchQuery)}
+                disabled={loading}
+              >
+                <RiRefreshLine />
+              </Button>
+              <div className="flex-grow-1">
+                <Form onSubmit={(e) => e.preventDefault()}>
+                  <InputGroup>
+                    <InputGroup.Text>
+                      <RiSearchLine />
+                    </InputGroup.Text>
+                    <FormControl
+                      type="search"
+                      placeholder="Поиск по имени, логину, компьютеру..."
+                      value={searchQuery}
+                      onChange={handleSearchChange}
+                    />
+                  </InputGroup>
+                </Form>
+              </div>
+            </div>
           </div>
 
           {loading && (
@@ -271,7 +306,6 @@ const CompanyLogsOffcanvas = ({
                     <th>AD Логин</th>
                     <th>Компьютер</th>
                     <th>Действие</th>
-                    <th>Связан с</th>
                     {permissions.canManageCompanies && <th>Действия</th>}
                   </tr>
                 </thead>
@@ -279,18 +313,26 @@ const CompanyLogsOffcanvas = ({
                   {logs.map((log) => (
                     <tr key={log._id}>
                       <td style={{ minWidth: "140px" }}>
-                        <small>{formatDateTime(log.timeStamp)}</small>
+                        <small>{formatDateTime(log.createdAt)}</small>
                       </td>
                       <td>
-                        <div>
-                          <strong>{log.firstName} {log.lastName}</strong>
-                          <br />
-                          <small className="text-muted font-monospace">
-                            {log.activeDirectoryObjectGUID.substring(0, 8)}...
-                          </small>
-                        </div>
+                        {log.userId && (
+                          <div className="text-success">
+                            <RiUserLine /> {log.userId.firstName}{" "}
+                            {log.userId.lastName}
+                            <br />
+                            <small className="text-muted">
+                              {log.userId.email}
+                            </small>
+                          </div>
+                        )}
+                        <strong>
+                          {log.firstName} {log.lastName}
+                        </strong>
                       </td>
-                      <td className="font-monospace">{log.activeDirectoryLogin}</td>
+                      <td className="font-monospace">
+                        {log.activeDirectoryLogin}
+                      </td>
                       <td>
                         {log.computerName && (
                           <span>
@@ -299,17 +341,6 @@ const CompanyLogsOffcanvas = ({
                         )}
                       </td>
                       <td>{getActionBadge(log.action)}</td>
-                      <td>
-                        {log.userId ? (
-                          <div className="text-success">
-                            <RiUserLine /> {log.userId.firstName} {log.userId.lastName}
-                            <br />
-                            <small className="text-muted">{log.userId.email}</small>
-                          </div>
-                        ) : (
-                          <Badge bg="warning">Не связан</Badge>
-                        )}
-                      </td>
                       {permissions.canManageCompanies && (
                         <td>
                           {!log.userId && (
@@ -335,7 +366,9 @@ const CompanyLogsOffcanvas = ({
           {!loading && logs.length === 0 && (
             <div className="text-center py-4">
               <p className="text-muted">
-                {searchQuery ? "По вашему запросу ничего не найдено" : "Логи активности отсутствуют"}
+                {searchQuery
+                  ? "По вашему запросу ничего не найдено"
+                  : "Логи активности отсутствуют"}
               </p>
             </div>
           )}
@@ -357,7 +390,8 @@ const CompanyLogsOffcanvas = ({
               <div className="mb-3 p-3 bg-light rounded">
                 <strong>Active Directory пользователь:</strong>
                 <br />
-                {selectedLog.firstName} {selectedLog.lastName} ({selectedLog.activeDirectoryLogin})
+                {selectedLog.firstName} {selectedLog.lastName} (
+                {selectedLog.activeDirectoryLogin})
                 <br />
                 <small className="text-muted">
                   GUID: {selectedLog.activeDirectoryObjectGUID}
@@ -371,21 +405,27 @@ const CompanyLogsOffcanvas = ({
               </Form.Label>
               <Select
                 id="userId"
-                placeholder="Выберите пользователя для связывания"
+                placeholder={
+                  users.length === 0
+                    ? "Нет доступных пользователей"
+                    : "Выберите пользователя для связывания"
+                }
                 required
                 isClearable
                 isSearchable
                 options={users}
                 getOptionLabel={(option) =>
-                  `${option.firstName || ""} ${option.lastName || ""} (${option.email})`
+                  `${option.firstName || ""} ${option.lastName || ""} (${option.email || "Без email"})`
                 }
                 getOptionValue={(option) => option._id}
                 onChange={setSelectedUser}
                 value={selectedUser}
+                isDisabled={users.length === 0}
               />
               <Form.Text className="text-muted">
-                После связывания все записи с данным GUID будут автоматически
-                привязаны к выбранному пользователю.
+                {users.length === 0
+                  ? "В компании нет пользователей для связывания."
+                  : "После связывания все записи с данным GUID будут автоматически привязаны к выбранному пользователю."}
               </Form.Text>
             </Form.Group>
           </Modal.Body>

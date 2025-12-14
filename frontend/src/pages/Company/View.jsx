@@ -412,8 +412,8 @@ export async function action({ request }) {
   }
 
   if (intent === "linkUserToAD") {
-    const logId = data.get("logId");
     const userId = data.get("userId");
+    const activeDirectoryObjectGUID = data.get("activeDirectoryObjectGUID");
 
     const response = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/companies/link-user-to-ad`,
@@ -424,8 +424,8 @@ export async function action({ request }) {
           Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
-          logId,
           userId,
+          activeDirectoryObjectGUID,
         }),
       },
     );

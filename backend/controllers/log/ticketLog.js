@@ -1,5 +1,5 @@
-const TicketLog = require("../models/ticketLog");
-const { AppError } = require("../middleware/errorHandling");
+const TicketLog = require("../../models/ticketLog");
+const { AppError } = require("../../middleware/errorHandling");
 
 exports.get = async (req, res, next) => {
   try {

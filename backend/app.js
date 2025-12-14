@@ -36,8 +36,6 @@ const ticketTemplateRouter = require("./routes/ticketTemplate");
 
 const servicePlanRouter = require("./routes/finances/servicePlan");
 
-const apiRouter = require("./routes/api");
-
 const clientDeviceRouter = require("./routes/inventory/clientDevice");
 const deviceTypeRouter = require("./routes/inventory/deviceType");
 const vendorRouter = require("./routes/inventory/vendor");
@@ -126,7 +124,6 @@ app.use("/api/inventory", inventoryReferenceRouter);
 app.use("/api/inventory", locationRouter);
 app.use("/api/finances", financeReportsRouter);
 app.use("/api", ticketTemplateRouter);
-app.use("/api/external", apiRouter);
 
 // Enhanced health check endpoint with performance metrics
 app.get("/health", healthCheckWithMetrics);

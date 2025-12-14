@@ -992,7 +992,7 @@ exports.linkUserToAD = async (req, res, next) => {
 
     const user = await User.findById(userId);
     if (!user) {
-      return next(new AppError("Пользователь не найден", 404));
+      return next(new AppError(`Пользователь с ID ${userId} не найден`, 404));
     }
 
     // Проверяем, не связан ли уже этот GUID с другим пользователем

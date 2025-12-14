@@ -1,8 +1,8 @@
-const Router = require('express');
+const Router = require("express");
 const router = new Router();
-const ticketLogController = require('../controllers/ticketLog');
-const isAuth = require('../middleware/isAuth');
+const ticketLogController = require("../controllers/log/ticketLog");
+const isAuth = require("../middleware/isAuth");
 
-router.get('/ticket-log/:ticketNum', isAuth, ticketLogController.get);
+router.get("/ticket-log/:ticketNum", isAuth, ticketLogController.get);
 
 module.exports = router;
