@@ -39,8 +39,8 @@ const vendorRouter = require("./routes/inventory/vendor");
 const locationRouter = require("./routes/inventory/location");
 const inventoryReferenceRouter = require("./routes/inventory/reference");
 const mikrotikRouter = require("./routes/inventory/mikrotik");
-const companyLogRouter = require("./routes/log/companyLog");
-const ticketLogRouter = require("./routes/log/ticketLog");
+const companyLogRouter = require("./routes/companyLog");
+const ticketLogRouter = require("./routes/ticketLog");
 
 const { handleNewEmails } = require("./middleware/emailHandling");
 
