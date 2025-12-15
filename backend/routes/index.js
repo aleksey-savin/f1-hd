@@ -74,7 +74,7 @@ internalRoutes.use("/inventory", referenceRoutes);
 internalRoutes.use("/inventory", vendorRoutes);
 
 // Mount external routes
-externalRoutes.use("/", externalUserRoutes);
+externalRoutes.use("/external", externalUserRoutes);
 
 // Mount public routes
 publicRoutes.use("/", healthRoutes);
