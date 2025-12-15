@@ -1,5 +1,5 @@
 const User = require("@/models/user");
-const { CompanyLog } = require("@/models/companyLog");
+const CompanyLog = require("@/models/companyLog");
 const { AppError } = require("@/middleware/errorHandling");
 
 exports.addUserActivity = async (req, res, next) => {
