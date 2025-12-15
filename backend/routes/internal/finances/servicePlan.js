@@ -1,12 +1,12 @@
 const Router = require("express");
 const router = new Router();
-const servicePlanController = require("../../controllers/finances/servicePlan");
-const isAuth = require("../../middleware/isAuth");
+const servicePlanController = require("@/controllers/finances/servicePlan");
+const isAuth = require("@/middleware/isAuth");
 const {
   financesModuleIsActive,
   canUseFinancesModule,
   canManageServicePlans,
-} = require("../../middleware/permissions");
+} = require("@/middleware/permissions");
 
 router.get(
   "/service-plans",

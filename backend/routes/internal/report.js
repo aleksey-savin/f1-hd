@@ -1,14 +1,14 @@
 const Router = require("express");
 const router = new Router();
-const reportController = require("../controllers/report");
-const isAuth = require("../middleware/isAuth");
+const reportController = require("@/controllers/report");
+const isAuth = require("@/middleware/isAuth");
 
 const {
   canSeeWorksReport,
   canSeeAnalytics,
   timeTrackingModuleIsActive,
   canUseTimeTrackingModule,
-} = require("../middleware/permissions");
+} = require("@/middleware/permissions");
 
 router.get(
   "/report/form-data",

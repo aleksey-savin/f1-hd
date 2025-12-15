@@ -1,62 +1,62 @@
 const Router = require("express");
 const router = new Router();
-const vendorController = require("../../controllers/inventory/vendor");
-const isAuth = require("../../middleware/isAuth");
+const deviceTypeController = require("@/controllers/inventory/deviceType");
+const isAuth = require("@/middleware/isAuth");
 const {
   canUseInventoryModule,
   inventoryModuleIsActive,
   canManageClientDevices,
-} = require("../../middleware/permissions");
-const { vendorValidation } = require("../../validations/inventory/vendor");
-const { checkValidationResult } = require("../../middleware/validation");
+} = require("@/middleware/permissions");
+const { deviceTypeValidation } = require("@/validations/inventory/deviceType");
+const { checkValidationResult } = require("@/middleware/validation");
 
 router.get(
-  "/vendors",
+  "/device-types",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
   canManageClientDevices,
-  vendorController.getAll,
+  deviceTypeController.getAll,
 );
 
 router.get(
-  "/vendors/:id",
+  "/device-types/:id",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
   canManageClientDevices,
-  vendorController.getOne,
+  deviceTypeController.getOne,
 );
 
 router.post(
-  "/vendors/add",
+  "/device-types/add",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
   canManageClientDevices,
-  vendorValidation,
+  deviceTypeValidation,
   checkValidationResult,
-  vendorController.add,
+  deviceTypeController.add,
 );
 
 router.put(
-  "/vendors/update/:id",
+  "/device-types/update/:id",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
   canManageClientDevices,
-  vendorValidation,
+  deviceTypeValidation,
   checkValidationResult,
-  vendorController.update,
+  deviceTypeController.update,
 );
 
 router.post(
-  "/vendors/delete/:id",
+  "/device-types/delete/:id",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
   canManageClientDevices,
-  vendorController.delete,
+  deviceTypeController.delete,
 );
 
 module.exports = router;

@@ -21,7 +21,9 @@ const ServicePlans = () => {
   const filterStore = useServicePlanFilterStore();
 
   useEffect(() => {
-    filterStore.applyFilter();
+    if (Array.isArray(filterStore.originalList)) {
+      filterStore.applyFilter();
+    }
   }, [filterStore.originalList]);
 
   useEffect(() => {

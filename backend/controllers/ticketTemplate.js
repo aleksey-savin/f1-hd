@@ -15,9 +15,11 @@ exports.getAll = async (req, res, next) => {
     let templates = [];
 
     if (permissions.canManageTicketTemplates) {
-      templates = await TicketTemplate.find({}).sort({
-        title: 1,
-      });
+      templates = await TicketTemplate.find({})
+        .populate("categoryId", "_id title")
+        .sort({
+          title: 1,
+        });
 
       return res.status(200).json(templates);
     }
@@ -28,9 +30,11 @@ exports.getAll = async (req, res, next) => {
         { sharedCompanies: company },
         { sharedUsers: authedUser },
       ],
-    }).sort({
-      title: 1,
-    });
+    })
+      .populate("categoryId", "_id title")
+      .sort({
+        title: 1,
+      });
 
     res.status(200).json(templates);
   } catch (error) {
@@ -40,7 +44,10 @@ exports.getAll = async (req, res, next) => {
 
 exports.getOne = async (req, res, next) => {
   try {
-    const template = await TicketTemplate.findById(req.params.id);
+    const template = await TicketTemplate.findById(req.params.id).populate(
+      "categoryId",
+      "_id title",
+    );
     if (!template) {
       return res.status(404).json({ message: "Template not found" });
     }
@@ -69,8 +76,16 @@ exports.add = async (req, res, next) => {
       company: isEndUser ? company : req.body.company,
       sharedCompanies: req.body.sharedCompanies || [],
       sharedUsers: req.body.sharedUsers || [],
-      createdBy: authedUser,
-      updatedBy: authedUser,
+      createdBy: {
+        _id: authedUser._id,
+        firstName: authedUser.firstName || "",
+        lastName: authedUser.lastName || "",
+      },
+      updatedBy: {
+        _id: authedUser._id,
+        firstName: authedUser.firstName || "",
+        lastName: authedUser.lastName || "",
+      },
     });
 
     template.save();
@@ -118,25 +133,36 @@ exports.update = async (req, res, next) => {
     for (let id of sharedCompaniesIds) {
       const company = await Company.findById(id);
       if (company) {
-        sharedCompanies.push(company);
+        sharedCompanies.push({
+          _id: company._id,
+          alias: company.alias,
+        });
       }
     }
 
     for (let id of sharedUsersIds) {
       const user = await User.findById(id);
       if (user) {
-        sharedUsers.push(user);
+        sharedUsers.push({
+          _id: user._id,
+          firstName: user.firstName || "",
+          lastName: user.lastName || "",
+        });
       }
     }
 
     template.title = title;
     template.description = description;
-    template.category = category;
+    template.categoryId = categoryId;
     template.company = (isEndUser ? authedUserCompany : company) || {};
     template.customFields = customFields;
     template.sharedCompanies = isEndUser ? authedUserCompany : sharedCompanies;
     template.sharedUsers = sharedUsers;
-    template.updatedBy = authedUser;
+    template.updatedBy = {
+      _id: authedUser._id,
+      firstName: authedUser.firstName || "",
+      lastName: authedUser.lastName || "",
+    };
 
     template.save();
     res.status(201).json(template);

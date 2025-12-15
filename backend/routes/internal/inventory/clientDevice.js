@@ -1,16 +1,16 @@
 const Router = require("express");
 const router = new Router();
-const deviceController = require("../../controllers/inventory/clientDevice");
-const isAuth = require("../../middleware/isAuth");
+const deviceController = require("@/controllers/inventory/clientDevice");
+const isAuth = require("@/middleware/isAuth");
 const {
   canUseInventoryModule,
   inventoryModuleIsActive,
   canManageClientDevices,
-} = require("../../middleware/permissions");
+} = require("@/middleware/permissions");
 const {
   clientDeviceValidation,
-} = require("../../validations/inventory/clientDevice");
-const { checkValidationResult } = require("../../middleware/validation");
+} = require("@/validations/inventory/clientDevice");
+const { checkValidationResult } = require("@/middleware/validation");
 
 router.get(
   "/client-devices",

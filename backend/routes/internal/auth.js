@@ -2,14 +2,14 @@ const express = require("express");
 const rateLimit = require("express-rate-limit");
 const { formatInTimeZone } = require("date-fns-tz");
 
-const authController = require("../controllers/auth");
-const isTelegramBot = require("../middleware/isTelegramBot");
-const logger = require("../utils/logger");
+const authController = require("@/controllers/auth");
+const isTelegramBot = require("@/middleware/isTelegramBot");
+const logger = require("@/utils/logger");
 
-const { runValidation } = require("../middleware/runValidation");
-const authValidation = require("../validations/auth");
+const { runValidation } = require("@/middleware/runValidation");
+const authValidation = require("@/validations/auth");
 
-const Preferences = require("../models/preferences");
+const Preferences = require("@/models/preferences");
 
 const router = express.Router();
 

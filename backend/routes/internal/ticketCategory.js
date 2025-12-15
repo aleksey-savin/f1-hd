@@ -1,8 +1,8 @@
 const Router = require("express");
 const router = new Router();
-const categoryController = require("../controllers/ticketCategory");
-const isAuth = require("../middleware/isAuth");
-const { canManageTicketCategories } = require("../middleware/permissions");
+const categoryController = require("@/controllers/ticketCategory");
+const isAuth = require("@/middleware/isAuth");
+const { canManageTicketCategories } = require("@/middleware/permissions");
 
 router.get(
   "/ticket-categories",

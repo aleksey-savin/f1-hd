@@ -1,18 +1,18 @@
 const Router = require("express");
 const router = new Router();
-const companyController = require("../controllers/company");
-const isAuth = require("../middleware/isAuth");
+const companyController = require("@/controllers/company");
+const isAuth = require("@/middleware/isAuth");
 
-const fileUpload = require("../middleware/fileUpload");
+const fileUpload = require("@/middleware/fileUpload");
 
-const { runValidation } = require("../middleware/runValidation");
-const companyValidation = require("../validations/company");
+const { runValidation } = require("@/middleware/runValidation");
+const companyValidation = require("@/validations/company");
 
 const {
   canManageCompanies,
   canManageServicePlans,
   isNotClient,
-} = require("../middleware/permissions");
+} = require("@/middleware/permissions");
 
 router.get("/companies", isAuth, isNotClient, companyController.getAll);
 router.get(

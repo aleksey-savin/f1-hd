@@ -1,17 +1,17 @@
 const Router = require("express");
 const router = new Router();
-const ticketController = require("../controllers/ticket");
-const isAuth = require("../middleware/isAuth");
-const isTelegramBot = require("../middleware/isTelegramBot");
+const ticketController = require("@/controllers/ticket");
+const isAuth = require("@/middleware/isAuth");
+const isTelegramBot = require("@/middleware/isTelegramBot");
 const {
   allowedToViewTicket,
   canDeleteTickets,
   canEditTickets,
   canPerformTickets,
   canAdministrateTickets,
-} = require("../middleware/permissions");
+} = require("@/middleware/permissions");
 
-const fileUpload = require("../middleware/fileUpload");
+const fileUpload = require("@/middleware/fileUpload");
 
 router.get("/tickets/all-opened", isAuth, ticketController.getAllOpened);
 router.get(

@@ -30,7 +30,14 @@ const TicketTemplateItem = ({ item }) => {
           <Row className="py-1">
             <Col>
               Создан:
-              <Badge className="bg-secondary m-1">{`${item.createdBy.lastName} ${item.createdBy.firstName}`}</Badge>
+              <Badge className="bg-secondary m-1">
+                {item.createdBy?.lastName &&
+                item.createdBy?.firstName &&
+                item.createdBy.lastName.trim() &&
+                item.createdBy.firstName.trim()
+                  ? `${item.createdBy.lastName} ${item.createdBy.firstName}`
+                  : "Неизвестно"}
+              </Badge>
             </Col>
           </Row>
           {sharedCompanies?.length > 0 && (
@@ -51,10 +58,14 @@ const TicketTemplateItem = ({ item }) => {
               <Col>
                 Могут использовать пользователи:
                 {sharedUsers.map((user) => (
-                  <Badge
-                    key={user._id}
-                    className="bg-secondary m-1"
-                  >{`${user.lastName} ${user.firstName}`}</Badge>
+                  <Badge key={user._id} className="bg-secondary m-1">
+                    {user.lastName &&
+                    user.firstName &&
+                    user.lastName.trim() &&
+                    user.firstName.trim()
+                      ? `${user.lastName} ${user.firstName}`
+                      : "Неизвестно"}
+                  </Badge>
                 ))}
               </Col>
             </Row>

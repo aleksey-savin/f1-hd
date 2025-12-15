@@ -1,11 +1,11 @@
 const Router = require("express");
 const router = new Router();
-const commentController = require("../controllers/comment");
-const isAuth = require("../middleware/isAuth");
-const fileUpload = require("../middleware/fileUpload");
+const commentController = require("@/controllers/comment");
+const isAuth = require("@/middleware/isAuth");
+const fileUpload = require("@/middleware/fileUpload");
 
-const { runValidation } = require("../middleware/runValidation");
-const commentValidation = require("../validations/comment");
+const { runValidation } = require("@/middleware/runValidation");
+const commentValidation = require("@/validations/comment");
 
 router.get("/comments/:ticketNum", isAuth, commentController.getAll);
 

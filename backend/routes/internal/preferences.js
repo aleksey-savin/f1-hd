@@ -1,8 +1,8 @@
 const Router = require("express");
 const router = new Router();
-const preferencesController = require("../controllers/preferences");
-const isAuth = require("../middleware/isAuth");
-const { isAdmin } = require("../middleware/permissions");
+const preferencesController = require("@/controllers/preferences");
+const isAuth = require("@/middleware/isAuth");
+const { isAdmin } = require("@/middleware/permissions");
 
 router.get("/preferences", isAuth, isAdmin, preferencesController.get);
 router.get("/preferences-initial", isAuth, preferencesController.getInitial);

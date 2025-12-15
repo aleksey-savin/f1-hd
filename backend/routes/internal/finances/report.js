@@ -1,10 +1,10 @@
 const Router = require("express");
 const router = new Router();
-const reportController = require("../../controllers/finances/report");
-const isAuth = require("../../middleware/isAuth");
+const reportController = require("@/controllers/finances/report");
+const isAuth = require("@/middleware/isAuth");
 
-const { runValidation } = require("../../middleware/runValidation");
-const reportValidation = require("../../validations/finances/report");
+const { runValidation } = require("@/middleware/runValidation");
+const reportValidation = require("@/validations/finances/report");
 
 const {
   financesModuleIsActive,
@@ -12,7 +12,7 @@ const {
   canSeeGlobalFinancialReport,
   canSeePersonalFinancialReport,
   canConfirmReportActions,
-} = require("../../middleware/permissions");
+} = require("@/middleware/permissions");
 
 router.get(
   "/summary-report-preview",

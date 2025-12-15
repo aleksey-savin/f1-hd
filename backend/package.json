@@ -36,6 +36,7 @@
     "lodash": "^4.17.21",
     "mailparser": "^3.7.2",
     "mime-types": "^3.0.1",
+    "module-alias": "^2.2.3",
     "mongoose": "^8.14.1",
     "multer": "^1.4.5-lts.2",
     "node-cron": "^3.0.3",
@@ -60,5 +61,15 @@
     "husky": "^9.1.7",
     "nodemon": "^3.1.10"
   },
-  "packageManager": "pnpm@10.10.0+sha512.d615db246fe70f25dcfea6d8d73dee782ce23e2245e3c4f6f888249fb568149318637dca73c2c5c8ef2a4ca0d5657fb9567188bfab47f566d1ee6ce987815c39"
+  "packageManager": "pnpm@10.10.0+sha512.d615db246fe70f25dcfea6d8d73dee782ce23e2245e3c4f6f888249fb568149318637dca73c2c5c8ef2a4ca0d5657fb9567188bfab47f566d1ee6ce987815c39",
+  "_moduleAliases": {
+    "@": ".",
+    "@/controllers": "./controllers",
+    "@/middleware": "./middleware",
+    "@/models": "./models",
+    "@/routes": "./routes",
+    "@/utils": "./utils",
+    "@/validations": "./validations",
+    "@/helpers": "./helpers"
+  }
 }

@@ -5,6 +5,15 @@ import { getLocalStorageData } from "../../util/auth";
 const servicePlanFilter = (state) => {
   const originalList = state.originalList || [];
 
+  // Add type checking to ensure originalList is an array
+  if (!Array.isArray(originalList)) {
+    console.warn(
+      "servicePlanFilter: originalList is not an array:",
+      originalList,
+    );
+    return [];
+  }
+
   return originalList.filter((item) => {
     if (state.searchTerm.length > 0) {
       const searchText = [
@@ -72,8 +81,15 @@ const useServicePlanFilterStore = create((set) => ({
       },
     );
     const data = await response.json();
+
+    // Ensure data is an array
+    const originalList = Array.isArray(data) ? data : [];
+    if (!Array.isArray(data)) {
+      console.warn("API response is not an array:", data);
+    }
+
     set({
-      originalList: data,
+      originalList: originalList,
       isLoading: false,
     });
   },

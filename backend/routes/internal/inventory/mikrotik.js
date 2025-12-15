@@ -1,12 +1,12 @@
 const Router = require("express");
 const router = new Router();
-const mikrotikController = require("../../controllers/inventory/mikrotik");
-const isAuth = require("../../middleware/isAuth");
+const mikrotikController = require("@/controllers/inventory/mikrotik");
+const isAuth = require("@/middleware/isAuth");
 const {
   canUseInventoryModule,
   inventoryModuleIsActive,
   canManageMikrotikDevices,
-} = require("../../middleware/permissions");
+} = require("@/middleware/permissions");
 
 router.get(
   "/mikrotik-devices",

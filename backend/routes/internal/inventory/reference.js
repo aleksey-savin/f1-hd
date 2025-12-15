@@ -1,16 +1,16 @@
 const Router = require("express");
 const router = new Router();
-const Company = require("../../models/company");
-const User = require("../../models/user");
-const DeviceType = require("../../models/inventory/deviceType");
-const Vendor = require("../../models/inventory/vendor");
-const Location = require("../../models/inventory/location");
-const isAuth = require("../../middleware/isAuth");
+const Company = require("@/models/company");
+const User = require("@/models/user");
+const DeviceType = require("@/models/inventory/deviceType");
+const Vendor = require("@/models/inventory/vendor");
+const Location = require("@/models/inventory/location");
+const isAuth = require("@/middleware/isAuth");
 const {
   canUseInventoryModule,
   inventoryModuleIsActive,
-} = require("../../middleware/permissions");
-const { AppError } = require("../../middleware/errorHandling");
+} = require("@/middleware/permissions");
+const { AppError } = require("@/middleware/errorHandling");
 
 // Get all companies for dropdown
 router.get(

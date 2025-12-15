@@ -1,14 +1,14 @@
 const Router = require("express");
 const router = new Router();
-const locationController = require("../../controllers/inventory/location");
-const isAuth = require("../../middleware/isAuth");
+const locationController = require("@/controllers/inventory/location");
+const isAuth = require("@/middleware/isAuth");
 const {
   canUseInventoryModule,
   inventoryModuleIsActive,
   canManageClientDevices,
-} = require("../../middleware/permissions");
-const { locationValidation } = require("../../validations/inventory/location");
-const { checkValidationResult } = require("../../middleware/validation");
+} = require("@/middleware/permissions");
+const { locationValidation } = require("@/validations/inventory/location");
+const { checkValidationResult } = require("@/middleware/validation");
 
 // Get all locations
 router.get(

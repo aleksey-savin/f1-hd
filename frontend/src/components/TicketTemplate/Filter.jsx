@@ -65,7 +65,7 @@ const TicketTemplateFilter = ({
         template.sharedUsers.map((user) => user._id).includes(item._id),
       ).length;
     } else if (itemName === "category") {
-      result = list?.filter((task) => task.category?._id === item._id).length;
+      result = list?.filter((task) => task.categoryId?._id === item._id).length;
     }
 
     return result;
@@ -118,17 +118,18 @@ const TicketTemplateFilter = ({
     let array = [];
     filterStore.originalList?.forEach((item) => {
       if (
+        item.categoryId?._id &&
         !array
-          .map((category) => category._id.toString())
-          .includes(item.category?._id?.toString())
+          .map((category) => category._id?.toString())
+          .includes(item.categoryId._id.toString())
       ) {
         array.push({
-          _id: item.category?._id?.toString(),
-          title: item.category?.title,
+          _id: item.categoryId._id.toString(),
+          title: item.categoryId.title,
         });
       }
     });
-    setCategories(array.sort((a, b) => a.title?.localeCompare(b.alias)));
+    setCategories(array.sort((a, b) => a.title?.localeCompare(b.title)));
   }, [filterStore.originalList]);
 
   const sortedCompanies = useMemo(() => {

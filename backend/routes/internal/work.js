@@ -1,7 +1,7 @@
 const Router = require("express");
 const router = new Router();
-const workController = require("../controllers/work");
-const isAuth = require("../middleware/isAuth");
+const workController = require("@/controllers/work");
+const isAuth = require("@/middleware/isAuth");
 
 router.get(
   "/works/additional-data/:ticketNum",

@@ -1,3 +1,4 @@
+require("module-alias/register");
 const express = require("express");
 const cron = require("node-cron");
 const mongoose = require("mongoose");
@@ -15,32 +16,7 @@ const {
 
 const { checkRoutineTasks } = require("./middleware/routineTasks");
 
-const authRouter = require("./routes/auth");
-const preferencesRouter = require("./routes/preferences");
-const ticketRouter = require("./routes/ticket");
-const routineTaskRouter = require("./routes/routineTask");
-const companyRouter = require("./routes/company");
-const userRouter = require("./routes/user");
-const ticketCategoryRouter = require("./routes/ticketCategory");
-const commentRouter = require("./routes/comment");
-const workRouter = require("./routes/work");
-const reportRouter = require("./routes/report");
-const getScreenRouter = require("./routes/getScreen");
-const dashboardRouter = require("./routes/dashboard");
-const changelogRouter = require("./routes/changelog");
-const appVersionRouter = require("./routes/appVersion");
-const formDataRouter = require("./routes/formData");
-const financeReportsRouter = require("./routes/finances/report");
-const ticketTemplateRouter = require("./routes/ticketTemplate");
-const servicePlanRouter = require("./routes/finances/servicePlan");
-const clientDeviceRouter = require("./routes/inventory/clientDevice");
-const deviceTypeRouter = require("./routes/inventory/deviceType");
-const vendorRouter = require("./routes/inventory/vendor");
-const locationRouter = require("./routes/inventory/location");
-const inventoryReferenceRouter = require("./routes/inventory/reference");
-const mikrotikRouter = require("./routes/inventory/mikrotik");
-
-const ticketLogRouter = require("./routes/ticketLog");
+const { internal, external, public } = require("./routes/index");
 
 const { handleNewEmails } = require("./middleware/emailHandling");
 
@@ -98,36 +74,9 @@ app.use((req, res, next) => {
 });
 
 // API routes with caching for read-only endpoints
-app.use("/api", authRouter);
-app.use("/api", preferencesRouter);
-app.use("/api", dashboardRouter);
-app.use("/api", ticketRouter);
-app.use("/api", routineTaskRouter);
-app.use("/api", userRouter);
-app.use("/api", companyRouter);
-app.use("/api", ticketCategoryRouter);
-app.use("/api", commentRouter);
-app.use("/api", workRouter);
-app.use("/api", reportRouter);
-app.use("/api", mikrotikRouter);
-app.use("/api", getScreenRouter);
-app.use("/api", changelogRouter);
-app.use("/api", appVersionRouter);
-app.use("/api", formDataRouter);
-app.use("/api", servicePlanRouter);
-app.use("/api/inventory", clientDeviceRouter);
-app.use("/api/inventory", deviceTypeRouter);
-app.use("/api/inventory", vendorRouter);
-app.use("/api/inventory", inventoryReferenceRouter);
-app.use("/api/inventory", locationRouter);
-app.use("/api/finances", financeReportsRouter);
-app.use("/api", ticketTemplateRouter);
-
-app.use("/api", ticketLogRouter);
-//app.use("/api", companyLogRouter);
-
-// Enhanced health check endpoint with performance metrics
-app.get("/health", healthCheckWithMetrics);
+app.use("/api", internal);
+app.use("/external", external);
+app.use("/health", public);
 
 app.use((req, res) => {
   res.status(404).json({
