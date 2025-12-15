@@ -23,7 +23,6 @@ const companyRouter = require("./routes/company");
 const userRouter = require("./routes/user");
 const ticketCategoryRouter = require("./routes/ticketCategory");
 const commentRouter = require("./routes/comment");
-const ticketLogRouter = require("./routes/ticketLog");
 const workRouter = require("./routes/work");
 const reportRouter = require("./routes/report");
 const getScreenRouter = require("./routes/getScreen");
@@ -33,15 +32,15 @@ const appVersionRouter = require("./routes/appVersion");
 const formDataRouter = require("./routes/formData");
 const financeReportsRouter = require("./routes/finances/report");
 const ticketTemplateRouter = require("./routes/ticketTemplate");
-
 const servicePlanRouter = require("./routes/finances/servicePlan");
-
 const clientDeviceRouter = require("./routes/inventory/clientDevice");
 const deviceTypeRouter = require("./routes/inventory/deviceType");
 const vendorRouter = require("./routes/inventory/vendor");
 const locationRouter = require("./routes/inventory/location");
 const inventoryReferenceRouter = require("./routes/inventory/reference");
 const mikrotikRouter = require("./routes/inventory/mikrotik");
+const companyLogRouter = require("./routes/log/companyLog");
+const ticketLogRouter = require("./routes/log/ticketLog");
 
 const { handleNewEmails } = require("./middleware/emailHandling");
 
@@ -108,7 +107,6 @@ app.use("/api", userRouter);
 app.use("/api", companyRouter);
 app.use("/api", ticketCategoryRouter);
 app.use("/api", commentRouter);
-app.use("/api", ticketLogRouter);
 app.use("/api", workRouter);
 app.use("/api", reportRouter);
 app.use("/api", mikrotikRouter);
@@ -124,6 +122,9 @@ app.use("/api/inventory", inventoryReferenceRouter);
 app.use("/api/inventory", locationRouter);
 app.use("/api/finances", financeReportsRouter);
 app.use("/api", ticketTemplateRouter);
+
+app.use("/api", ticketLogRouter);
+app.use("/api", companyLogRouter);
 
 // Enhanced health check endpoint with performance metrics
 app.get("/health", healthCheckWithMetrics);
