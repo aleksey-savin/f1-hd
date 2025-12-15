@@ -75,7 +75,7 @@ app.use((req, res, next) => {
 
 // API routes with caching for read-only endpoints
 app.use("/api", internal);
-app.use("api/external", external);
+app.use("/external", external);
 app.use("/health", public);
 
 app.use((req, res) => {
