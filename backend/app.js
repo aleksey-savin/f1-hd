@@ -124,7 +124,7 @@ app.use("/api/finances", financeReportsRouter);
 app.use("/api", ticketTemplateRouter);
 
 app.use("/api", ticketLogRouter);
-app.use("/api", companyLogRouter);
+//app.use("/api", companyLogRouter);
 
 // Enhanced health check endpoint with performance metrics
 app.get("/health", healthCheckWithMetrics);
