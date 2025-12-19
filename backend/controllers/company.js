@@ -261,6 +261,12 @@ exports.update = async (req, res, next) => {
     let responsibles = [];
     for (let id of respIds) {
       const resp = await User.findById(id);
+
+      if (!resp) {
+        console.warn(`User with id ${id} not found during company update`);
+        continue;
+      }
+
       responsibles.push(resp);
 
       if (
@@ -280,6 +286,14 @@ exports.update = async (req, res, next) => {
     for (let id of clientsSideRespIds) {
       if (id) {
         const resp = await User.findById(id);
+
+        if (!resp) {
+          console.warn(
+            `User with id ${id} not found during company update (clientsSideResponsibles)`,
+          );
+          continue;
+        }
+
         clientsSideResponsibles.push({
           _id: resp._id,
           lastName: resp.lastName,

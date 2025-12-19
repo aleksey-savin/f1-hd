@@ -24,6 +24,7 @@ function CompanyItem({ item }) {
           onError={(e) => {
             e.target.src = "/companypic-placeholder.png";
           }}
+          className="me-3"
         />
         {alias} {item.servicePlans.length > 0 && <RiContractLine />}
       </>
