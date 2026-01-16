@@ -1,5 +1,5 @@
 import { useContext, useState, useEffect } from "react";
-import { useDispatch } from "react-redux";
+
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import AttachmentPreview from "../../../UI/AttachmentPreview";
@@ -7,7 +7,7 @@ import AddAttachment from "./AddAttachment";
 import { AuthedUserContext } from "../../../store/authed-user-context";
 import useHttp from "../../../hooks/use-http";
 import { getLocalStorageData } from "../../../util/auth";
-import { toastActions } from "../../../store/toast";
+import useToastStore from "../../../store/toast-store";
 
 const Attachments = ({ ticket }) => {
   const [attachments, setAttachments] = useState(ticket.attachments || []);
@@ -15,7 +15,7 @@ const Attachments = ({ ticket }) => {
   const { permissions } = useContext(AuthedUserContext);
   const { token } = getLocalStorageData();
   const { sendRequest } = useHttp();
-  const dispatch = useDispatch();
+  const { showToast } = useToastStore();
 
   // Синхронизируем локальное состояние с props при изменении ticket
   useEffect(() => {
@@ -43,23 +43,13 @@ const Attachments = ({ ticket }) => {
               prev.filter((att) => att.name !== attachment.name),
             );
             // Показываем уведомление об успешном удалении
-            dispatch(
-              toastActions.showToast({
-                type: "success",
-                message: `Файл "${attachment.name}" удален`,
-              }),
-            );
+            showToast("success text-white", `Файл "${attachment.name}" удален`);
           }
         },
       );
     } catch (error) {
       console.error("Error deleting attachment:", error);
-      dispatch(
-        toastActions.showToast({
-          type: "error",
-          message: "Ошибка при удалении файла",
-        }),
-      );
+      showToast("danger text-white", "Ошибка при удалении файла");
     }
   };
 
@@ -67,11 +57,9 @@ const Attachments = ({ ticket }) => {
     // Добавляем новые файлы к существующим
     setAttachments((prev) => [...prev, ...newAttachments]);
     // Показываем уведомление об успешном добавлении
-    dispatch(
-      toastActions.showToast({
-        type: "success",
-        message: `Добавлено файлов: ${newAttachments.length}`,
-      }),
+    showToast(
+      "success text-white",
+      `Добавлено файлов: ${newAttachments.length}`,
     );
   };
 

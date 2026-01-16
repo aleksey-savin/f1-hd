@@ -26,13 +26,7 @@ export default defineConfig({
         // Manual chunk splitting for better caching
         manualChunks: {
           // Vendor chunk for third-party libraries
-          vendor: [
-            "react",
-            "react-dom",
-            "react-router",
-            "react-redux",
-            "@reduxjs/toolkit",
-          ],
+          vendor: ["react", "react-dom", "react-router"],
           // UI libraries chunk
           ui: ["react-bootstrap", "bootstrap", "react-icons", "framer-motion"],
           // Calendar and date utilities
@@ -77,8 +71,6 @@ export default defineConfig({
       "react",
       "react-dom",
       "react-router",
-      "react-redux",
-      "@reduxjs/toolkit",
       "react-bootstrap",
       "bootstrap",
       "date-fns",

@@ -13,7 +13,7 @@ import Image from "react-bootstrap/Image";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
 
-import useViewTicketStore from "../../store/viewTicket";
+import useViewTicketStore from "../../store/view-ticket";
 import Button from "react-bootstrap/esm/Button";
 import { GiConfirmed } from "react-icons/gi";
 import { RiEdit2Line } from "react-icons/ri";

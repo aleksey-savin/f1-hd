@@ -155,7 +155,7 @@ const ViewCompany = ({
           <ApiKeysSection company={company} permissions={permissions} />
         </Card.Body>
       </Card>
-      {permissions.canManageCompanies && <UserSection />}
+      <UserSection />
       <Row className="py-3 border-top justify-content-end gap-2">
         <Col sm="auto">
           <Button

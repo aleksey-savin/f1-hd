@@ -1,16 +1,13 @@
-import React, { lazy, Suspense, useContext } from "react";
+import { lazy, Suspense, useContext } from "react";
 import ReactDOM from "react-dom/client";
-import { Provider } from "react-redux";
 import { ThemeContext, ThemeProvider } from "./store/theme-context";
 import * as Sentry from "@sentry/react";
 
 import App from "./App";
-import store from "./store/index";
 import BackToTop from "./UI/BackToTop";
 
-
-import 'sortable-tablesort/dist/sortable.min.css'
-import 'sortable-tablesort/dist/sortable.min.js'
+import "sortable-tablesort/dist/sortable.min.css";
+import "sortable-tablesort/dist/sortable.min.js";
 
 import("./index.css");
 
@@ -41,12 +38,10 @@ const container = document.getElementById("root");
 const root = ReactDOM.createRoot(container);
 
 root.render(
-  <Provider store={store}>
-    <ThemeProvider>
-      <ThemeSelector>
-        <App />
-        <BackToTop />
-      </ThemeSelector>
-    </ThemeProvider>
-  </Provider>
+  <ThemeProvider>
+    <ThemeSelector>
+      <App />
+      <BackToTop />
+    </ThemeSelector>
+  </ThemeProvider>,
 );

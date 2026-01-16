@@ -4,7 +4,7 @@ import AddComment from "./Add";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Alert from "react-bootstrap/Alert";
-import useViewTicketStore from "../../store/viewTicket";
+import useViewTicketStore from "../../store/view-ticket";
 
 const CommentsList = () => {
   const { ticket, comments } = useViewTicketStore();

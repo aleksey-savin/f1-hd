@@ -9,6 +9,7 @@ import useSidebarStore from "../store/sidebar";
 import NavigationBar from "./Navbar";
 import Footer from "./Footer";
 import AlertToast from "../UI/AlertToast";
+// import Pro32Connect from "../components/Integrations/Pro32Connect/Pro32Connect";
 
 import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
@@ -139,6 +140,7 @@ const RootLayout = () => {
       {isLoggedIn && <NavigationBar userPermissions={userPermissions} />}
       <Transitions>
         <BrowserView>
+          {/* <Pro32Connect /> */}
           {userData.backgroundImagePath && (
             <div
               className="background-container"

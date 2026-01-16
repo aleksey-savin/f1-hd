@@ -19,7 +19,7 @@ import AlertMessage from "./AlertMessage";
 import SearchBar from "./SearchBar";
 
 import useOffcanvasStore from "../store/offcanvas";
-import useMobileFilterOffcanvasStore from "../store/mobileFilterOffcanvas";
+import useMobileFilterOffcanvasStore from "../store/mobile-filter-offcanvas";
 import Select from "./Select";
 
 const ListWrapper = ({

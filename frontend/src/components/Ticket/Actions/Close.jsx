@@ -11,7 +11,7 @@ import Col from "react-bootstrap/Col";
 import { RiCheckboxCircleLine } from "react-icons/ri";
 
 import { AuthedUserContext } from "../../../store/authed-user-context";
-import useViewTicketStore from "../../../store/viewTicket";
+import useViewTicketStore from "../../../store/view-ticket";
 
 import { SlActionRedo } from "react-icons/sl";
 

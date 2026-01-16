@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import useHttp from "../../hooks/use-http";
-import { toastActions } from "../../store/toast";
+import useToastStore from "../../store/toast-store";
 
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
@@ -9,16 +9,15 @@ import Modal from "react-bootstrap/Modal";
 import { RiDeleteBinLine } from "react-icons/ri";
 
 import Form from "react-bootstrap/Form";
-import { useDispatch } from "react-redux";
 import { getLocalStorageData } from "../../util/auth";
 
-import useViewTicketStore from "../../store/viewTicket";
+import useViewTicketStore from "../../store/view-ticket";
 
 const DeleteWork = ({ work }) => {
   const { works, updateWorks } = useViewTicketStore();
 
   const { token } = getLocalStorageData();
-  const dispatch = useDispatch();
+  const { showToast } = useToastStore();
   const [show, setShow] = useState(false);
   const handleClose = () => setShow(false);
   const handleShow = () => setShow(true);
@@ -34,13 +33,7 @@ const DeleteWork = ({ work }) => {
     };
 
     const deleteWork = () => {
-      dispatch(
-        toastActions.setState({
-          variant: "warning text-white",
-          message: "Работа удалена",
-          show: true,
-        }),
-      );
+      showToast("warning text-white", "Работа удалена");
       updateWorks(
         works.filter(
           (work) => work._id.toString() !== deletedWork._id.toString(),
@@ -64,13 +57,7 @@ const DeleteWork = ({ work }) => {
         if (data.success) {
           deleteWork(data);
         } else {
-          dispatch(
-            toastActions.setState({
-              variant: "danger text-white",
-              message: data.message,
-              show: true,
-            }),
-          );
+          showToast("danger text-white", data.message);
         }
       },
     );

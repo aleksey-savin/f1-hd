@@ -1,13 +1,12 @@
-import { useSelector, useDispatch } from "react-redux";
 import { redirect } from "react-router";
 
-import { authActions } from "../store/auth";
+import useAuthStore from "../store/auth-store";
 
 const useCheckToken = () => {
-  const expiryDate = useSelector((state) => state.auth.expiryDate);
-  const dispatch = useDispatch();
+  const { expiryDate, logout } = useAuthStore();
+
   if (new Date() > new Date(expiryDate)) {
-    dispatch(authActions.logout());
+    logout();
     localStorage.removeItem("token");
     localStorage.removeItem("expiryDate");
   }

@@ -1,5 +1,5 @@
 import { useState, useRef, useContext } from "react";
-import { useDispatch } from "react-redux";
+
 import pad from "pad";
 
 import useHttp from "../../hooks/use-http";
@@ -15,7 +15,7 @@ import Col from "react-bootstrap/Col";
 import Modal from "react-bootstrap/Modal";
 import Dropdown from "react-bootstrap/Dropdown";
 
-import { toastActions } from "../../store/toast";
+import useToastStore from "../../store/toast-store";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
 
@@ -28,7 +28,7 @@ const ScheduleWorkDashboard = ({
   tickets,
   buttonType,
 }) => {
-  const dispatch = useDispatch();
+  const { showToast } = useToastStore();
   const { token } = getLocalStorageData();
   const { isAdmin, _id: userId } = useContext(AuthedUserContext);
 
@@ -99,13 +99,7 @@ const ScheduleWorkDashboard = ({
     };
 
     const createWork = (data) => {
-      dispatch(
-        toastActions.setState({
-          variant: "success text-white",
-          message: "Работа добавлена",
-          show: true,
-        }),
-      );
+      showToast("success text-white", "Работа добавлена");
 
       setShowAddModal(false);
 
@@ -140,13 +134,7 @@ const ScheduleWorkDashboard = ({
         if (data.work) {
           createWork(data);
         } else {
-          dispatch(
-            toastActions.setState({
-              variant: "danger text-white",
-              message: data.message,
-              show: true,
-            }),
-          );
+          showToast("danger text-white", data.message);
         }
       },
     );

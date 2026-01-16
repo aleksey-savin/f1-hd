@@ -16,7 +16,7 @@ import { AuthedUserContext } from "../../store/authed-user-context";
 import FormWrapper from "../../UI/FormWrapper";
 
 import { useLoaderData, useParams } from "react-router";
-import useViewTicketStore from "../../store/viewTicket";
+import useViewTicketStore from "../../store/view-ticket";
 
 const WorkForm = ({ title }) => {
   const { ticket, company, otherCompanyTickets, responsibles, works } =

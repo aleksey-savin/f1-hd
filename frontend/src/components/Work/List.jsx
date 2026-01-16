@@ -11,7 +11,7 @@ import AlertMessage from "../../UI/AlertMessage";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
 import Button from "react-bootstrap/esm/Button";
-import useViewTicketStore from "../../store/viewTicket";
+import useViewTicketStore from "../../store/view-ticket";
 
 const WorksList = ({ ticket }) => {
   const { works } = useViewTicketStore();
@@ -20,7 +20,7 @@ const WorksList = ({ ticket }) => {
 
   const finishedWorks = works.filter((item) => item.finishedAt);
   const scheduledWorks = works.filter(
-    (item) => !item.finishedAt && item.planningToStart
+    (item) => !item.finishedAt && item.planningToStart,
   );
 
   return (

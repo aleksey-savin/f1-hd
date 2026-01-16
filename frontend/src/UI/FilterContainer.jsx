@@ -1,6 +1,6 @@
 import { MobileView } from "react-device-detect";
 import Button from "react-bootstrap/Button";
-import useMobileFilterOffcanvasStore from "../store/mobileFilterOffcanvas";
+import useMobileFilterOffcanvasStore from "../store/mobile-filter-offcanvas";
 
 const FilterContainer = ({ resetFilterHandler, children }) => {
   const filterOffcanvas = useMobileFilterOffcanvasStore();

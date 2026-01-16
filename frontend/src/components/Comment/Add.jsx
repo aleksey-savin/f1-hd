@@ -16,7 +16,7 @@ import { RiAddBoxLine } from "react-icons/ri";
 
 import { getLocalStorageData } from "../../util/auth";
 
-import useViewTicketStore from "../../store/viewTicket";
+import useViewTicketStore from "../../store/view-ticket";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
 

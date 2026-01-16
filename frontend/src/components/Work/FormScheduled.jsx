@@ -15,7 +15,7 @@ import FormWrapper from "../../UI/FormWrapper";
 
 import CheckIfWithinPlan from "./CheckIfWithinPlan";
 
-import useViewTicketStore from "../../store/viewTicket";
+import useViewTicketStore from "../../store/view-ticket";
 import { useParams } from "react-router";
 
 const FormScheduled = ({ title }) => {
@@ -29,19 +29,19 @@ const FormScheduled = ({ title }) => {
   const [description, setDescription] = useState(work?.description || "");
   const [executor, setExecutor] = useState(work?.executor || "");
   const [visitRequired, setVisitRequired] = useState(
-    work?.visitRequired || false
+    work?.visitRequired || false,
   );
 
   const [planningToStart, setPlanningToStart] = useState(
-    work?.planningToStart ? timeDateInputFormat(work.planningToStart) : ""
+    work?.planningToStart ? timeDateInputFormat(work.planningToStart) : "",
   );
   const [planningToFinish, setPlanningToFinish] = useState(
-    work?.planningToFinish ? timeDateInputFormat(work.planningToFinish) : ""
+    work?.planningToFinish ? timeDateInputFormat(work.planningToFinish) : "",
   );
   const [linkToTickets, setLinkToTickets] = useState(
     otherCompanyTickets.filter((ticket) =>
-      work?.tickets.includes(ticket._id.toString())
-    ) || []
+      work?.tickets.includes(ticket._id.toString()),
+    ) || [],
   );
   const [workDuration, setWorkDuration] = useState("00:00 ч.");
 
@@ -65,8 +65,8 @@ const FormScheduled = ({ title }) => {
   const setMe = () => {
     setExecutor(
       responsibles.filter(
-        (user) => user._id.toString() === userId.toString()
-      )[0]
+        (user) => user._id.toString() === userId.toString(),
+      )[0],
     );
   };
 
@@ -92,7 +92,7 @@ const FormScheduled = ({ title }) => {
         ? new Date(planningToStart)
         : new Date();
     setPlanningToFinish(
-      timeDateInputFormat(new Date(date.getTime() + minutes * 60000))
+      timeDateInputFormat(new Date(date.getTime() + minutes * 60000)),
     );
   };
 
@@ -103,7 +103,7 @@ const FormScheduled = ({ title }) => {
         ? new Date(planningToFinish)
         : new Date();
     setPlanningToStart(
-      timeDateInputFormat(new Date(date.getTime() - minutes * 60000))
+      timeDateInputFormat(new Date(date.getTime() - minutes * 60000)),
     );
   };
 

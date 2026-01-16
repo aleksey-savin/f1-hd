@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useContext } from "react";
-import { useDispatch } from "react-redux";
+
 import {
   useNavigate,
   useLoaderData,
@@ -23,7 +23,7 @@ import Alert from "react-bootstrap/Alert";
 
 import DynamicCustomFields from "./DynamicCustomFields";
 
-import { toastActions } from "../../store/toast";
+import useToastStore from "../../store/toast-store";
 
 import { RiSaveLine, RiArrowGoBackFill } from "react-icons/ri";
 
@@ -49,7 +49,7 @@ const AddTicket = () => {
   };
 
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const { showToast } = useToastStore();
 
   const { token } = getLocalStorageData();
 
@@ -203,89 +203,41 @@ const AddTicket = () => {
     event.preventDefault();
 
     if (!convertedContent.trim()) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Описание обязательно для заполнения",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Описание обязательно для заполнения");
       return;
     }
 
     if (!isEndUser && !title.trim()) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Тема обязательна для заполнения",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Тема обязательна для заполнения");
       return;
     }
 
     if (!isEndUser && !company) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Необходимо выбрать компанию",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Необходимо выбрать компанию");
       return;
     }
 
     if (!isEndUser && !applicant._id) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Необходимо выбрать инициатора",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Необходимо выбрать инициатора");
       return;
     }
 
     if (!isEndUser && !category) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Необходимо выбрать категорию",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Необходимо выбрать категорию");
       return;
     }
 
     if (!isEndUser && !canPerformTickets && responsibles.length === 0) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Необходимо выбрать ответственных",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Необходимо выбрать ответственных");
       return;
     }
 
     const createTicket = (data) => {
       if (data.ticket) {
-        dispatch(
-          toastActions.setState({
-            variant: "success text-white",
-            message: "Заявка добавлена",
-            show: true,
-          }),
-        );
+        showToast("success text-white", "Заявка добавлена");
         navigate(`/tickets/${data.ticket.num}`);
       } else {
-        dispatch(
-          toastActions.setState({
-            variant: "danger text-white",
-            message: data.message,
-            show: true,
-          }),
-        );
+        showToast("danger text-white", data.message);
       }
     };
 

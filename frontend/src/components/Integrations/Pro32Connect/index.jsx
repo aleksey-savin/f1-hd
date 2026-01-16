@@ -1,33 +1,32 @@
 import { useState, useEffect, useCallback, useContext } from "react";
-import { useDispatch, useSelector } from "react-redux";
 import { useParams } from "react-router";
 
-import useHttp from "../../hooks/use-http";
+import useHttp from "../../../hooks/use-http";
 
-import { getScreenActions } from "../../store/getScreen";
-import { toastActions } from "../../store/toast";
+import usePro32ConnectStore from "../../../store/pro32-connect";
+import useToastStore from "../../../store/toast-store";
 
 import Col from "react-bootstrap/Col";
 import Button from "react-bootstrap/Button";
 
-import { getInitialPrefsData } from "../../util/prefs";
-import { RiMacbookLine } from "react-icons/ri";
+import { getInitialPrefsData } from "../../../util/prefs";
+import Pro32ConnectIcon from "../../../../public/pro32_connect_icon.svg";
 
-import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
+import { AuthedUserContext } from "../../../store/authed-user-context";
+import { getLocalStorageData } from "../../../util/auth";
 
 const GetScreen = (props) => {
   const params = useParams();
+
+  const { connectUrl, inviteUrl, setConnectionState } = usePro32ConnectStore();
   const { token } = getLocalStorageData();
   const { role: userRole, isEndUser } = useContext(AuthedUserContext);
   const { getScreen } = getInitialPrefsData();
 
   const getScreenIsActive = getScreen.isActive;
 
-  const dispatch = useDispatch();
+  const { showToast } = useToastStore();
 
-  const connectUrl = useSelector((state) => state.getScreen.connectUrl);
-  const inviteUrl = useSelector((state) => state.getScreen.inviteUrl);
   const [canConnect, setCanConnect] = useState(connectUrl ? true : false);
 
   useEffect(() => {
@@ -52,26 +51,27 @@ const GetScreen = (props) => {
       },
       (data) => {
         if (data._id) {
-          dispatch(
-            getScreenActions.setConnectionState({
-              connectUrl: data.connectUrl,
-              inviteUrl: data.inviteUrl,
-            }),
-          );
+          setConnectionState({
+            connectUrl: data.connectUrl,
+            inviteUrl: data.inviteUrl,
+          });
           setCanConnect(true);
           props.refreshData();
         } else {
-          dispatch(
-            toastActions.setState({
-              variant: "danger text-white",
-              message: data.message,
-              show: true,
-            }),
-          );
+          showToast("danger text-white", data.message);
         }
       },
     );
-  }, [fetchSupport, setCanConnect, token, dispatch, props.refreshData]);
+  }, [
+    fetchSupport,
+    setCanConnect,
+    token,
+    setConnectionState,
+    showToast,
+    props.refreshData,
+    props.ticket.applicant._id,
+    props.ticket.num,
+  ]);
 
   const submitGetSupport = (event) => {
     event.preventDefault();
@@ -90,23 +90,19 @@ const GetScreen = (props) => {
       },
       (data) => {
         if (data._id) {
-          dispatch(
-            getScreenActions.setConnectionState({
-              connectUrl: data.connectUrl,
-              inviteUrl: data.inviteUrl,
-            }),
-          );
+          setConnectionState({
+            connectUrl: data.connectUrl,
+            inviteUrl: data.inviteUrl,
+          });
         } else {
-          dispatch(
-            getScreenActions.setConnectionState({
-              connectUrl: "",
-              inviteUrl: "",
-            }),
-          );
+          setConnectionState({
+            connectUrl: "",
+            inviteUrl: "",
+          });
         }
       },
     );
-  }, [fetchConnectionHandler, token, params.ticketNum, dispatch]);
+  }, [fetchConnectionHandler, token, params.ticketNum, setConnectionState]);
 
   useEffect(() => {
     if (getScreenIsActive) {
@@ -122,26 +118,36 @@ const GetScreen = (props) => {
             <Col sm="auto">
               {!canConnect && (
                 <Button
-                  variant="primary"
                   size="lg"
-                  className="w-100 mb-2"
+                  className="w-100 mb-2 text-center"
+                  style={{ backgroundColor: "#00be28", borderColor: "#00be28" }}
                   onClick={submitGetSupport}
                 >
-                  <RiMacbookLine /> <strong>Пригласить Клиента</strong>
+                  <div>
+                    <img
+                      src={Pro32ConnectIcon}
+                      alt="Pro32 Connect"
+                      className="me-1"
+                    />
+                    <strong>Пригласить</strong>
+                  </div>
                 </Button>
               )}
               {connectUrl && (
                 <Button
-                  variant="primary"
+                  style={{ backgroundColor: "#00be28", borderColor: "#00be28" }}
                   size="lg"
                   className="w-100 mb-2"
                   href={connectUrl}
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <strong>
-                    <RiMacbookLine /> Присоединиться
-                  </strong>
+                  <img
+                    src={Pro32ConnectIcon}
+                    alt="Pro32 Connect"
+                    className="me-1"
+                  />
+                  <strong>Присоединиться</strong>
                 </Button>
               )}
             </Col>
@@ -153,10 +159,15 @@ const GetScreen = (props) => {
                 href={inviteUrl}
                 target="_blank"
                 rel="noreferrer"
+                style={{ backgroundColor: "#00be28", borderColor: "#00be28" }}
               >
-                <strong>
-                  <RiMacbookLine /> Разрешить удалённое подключение
-                </strong>
+                <img
+                  src={Pro32ConnectIcon}
+                  alt="Pro32 Connect"
+                  className="me-1"
+                />
+                <strong>Разрешить</strong>
+                удалённое подключение
               </a>
             </Col>
           )}

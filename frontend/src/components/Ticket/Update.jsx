@@ -5,7 +5,6 @@ import {
   Link,
   useNavigate,
 } from "react-router";
-import { useDispatch } from "react-redux";
 
 import { utcToLocalForm } from "../../util/format-date";
 
@@ -21,7 +20,7 @@ import Alert from "react-bootstrap/Alert";
 
 import Editor from "../../UI/Editor";
 
-import { toastActions } from "../../store/toast";
+import useToastStore from "../../store/toast-store";
 
 import { RiSaveLine } from "react-icons/ri";
 import { RiArrowGoBackFill } from "react-icons/ri";
@@ -38,7 +37,7 @@ const UpdateTicket = () => {
 
   const { formData } = useLoaderData();
 
-  const dispatch = useDispatch();
+  const { showToast } = useToastStore();
   const offcanvas = useOffcanvasStore();
   const navigate = useNavigate();
 
@@ -117,88 +116,40 @@ const UpdateTicket = () => {
     event.preventDefault();
 
     if (!description.trim()) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Описание обязательно для заполнения",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Описание обязательно для заполнения");
       return;
     }
 
     if (!isEndUser && !title.trim()) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Тема обязательна для заполнения",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Тема обязательна для заполнения");
       return;
     }
 
     if (!isEndUser && !company) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Необходимо выбрать компанию",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Необходимо выбрать компанию");
       return;
     }
 
     if (!isEndUser && !applicant._id) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Необходимо выбрать инициатора",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Необходимо выбрать инициатора");
       return;
     }
 
     if (!isEndUser && !category) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Необходимо выбрать категорию",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Необходимо выбрать категорию");
       return;
     }
 
     if (!isEndUser && !canPerformTickets && responsibles.length === 0) {
-      dispatch(
-        toastActions.setState({
-          variant: "danger text-white",
-          message: "Необходимо выбрать ответственных",
-          show: true,
-        }),
-      );
+      showToast("danger text-white", "Необходимо выбрать ответственных");
       return;
     }
 
     const update = (data) => {
       if (data.ticket) {
-        dispatch(
-          toastActions.setState({
-            variant: "success text-white",
-            message: "Данные заявки изменены",
-            show: true,
-          }),
-        );
+        showToast("success text-white", "Данные заявки изменены");
       } else {
-        dispatch(
-          toastActions.setState({
-            variant: "danger text-white",
-            message: data.message,
-            show: true,
-          }),
-        );
+        showToast("danger text-white", data.message);
       }
     };
 

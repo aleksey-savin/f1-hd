@@ -129,7 +129,6 @@ router.delete(
 router.get(
   "/companies/:id/logs",
   isAuth,
-  canManageCompanies,
   companyValidation.getCompanyLogs,
   runValidation,
   companyController.getCompanyLogs,

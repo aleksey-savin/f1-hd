@@ -14,7 +14,7 @@ import { AuthedUserContext } from "../../store/authed-user-context";
 import FormWrapper from "../../UI/FormWrapper";
 
 import CheckIfWithinPlan from "./CheckIfWithinPlan";
-import useViewTicketStore from "../../store/viewTicket";
+import useViewTicketStore from "../../store/view-ticket";
 import { useParams } from "react-router";
 
 const ConfirmScheduledWork = ({ title }) => {
@@ -29,18 +29,18 @@ const ConfirmScheduledWork = ({ title }) => {
   const [description, setDescription] = useState(work.description);
   const [finishedBy, setFinishedBy] = useState(work.executor);
   const [visitRequired, setVisitRequired] = useState(
-    work.visitRequired || false
+    work.visitRequired || false,
   );
   const [startedAt, setStartedAt] = useState(
-    work.planningToStart ? utcToLocalForm(work.planningToStart) : ""
+    work.planningToStart ? utcToLocalForm(work.planningToStart) : "",
   );
   const [finishedAt, setFinishedAt] = useState(
-    work.planningToFinish ? utcToLocalForm(work.planningToFinish) : ""
+    work.planningToFinish ? utcToLocalForm(work.planningToFinish) : "",
   );
   const [linkToTickets, setLinkToTickets] = useState(
     otherCompanyTickets.filter((ticket) =>
-      work.tickets.includes(ticket._id.toString())
-    ) || []
+      work.tickets.includes(ticket._id.toString()),
+    ) || [],
   );
   const [workDuration, setWorkDuration] = useState("00:00 ч.");
 
@@ -64,8 +64,8 @@ const ConfirmScheduledWork = ({ title }) => {
   const setMe = () => {
     setFinishedBy(
       responsibles.filter(
-        (user) => user._id.toString() === userId.toString()
-      )[0]
+        (user) => user._id.toString() === userId.toString(),
+      )[0],
     );
   };
 
@@ -91,7 +91,7 @@ const ConfirmScheduledWork = ({ title }) => {
         ? new Date(startedAt)
         : new Date();
     setFinishedAt(
-      timeDateInputFormat(new Date(date.getTime() + minutes * 60000))
+      timeDateInputFormat(new Date(date.getTime() + minutes * 60000)),
     );
   };
 
@@ -102,7 +102,7 @@ const ConfirmScheduledWork = ({ title }) => {
         ? new Date(finishedAt)
         : new Date();
     setStartedAt(
-      timeDateInputFormat(new Date(date.getTime() - minutes * 60000))
+      timeDateInputFormat(new Date(date.getTime() - minutes * 60000)),
     );
   };
 

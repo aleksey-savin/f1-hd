@@ -11,7 +11,7 @@ import {
 
 import "react-h5-audio-player/lib/styles.css";
 
-import useViewTicketStore from "../../store/viewTicket";
+import useViewTicketStore from "../../store/view-ticket";
 
 import { BrowserView, MobileView } from "react-device-detect";
 
@@ -45,7 +45,7 @@ import ProcessTicket from "../../components/Ticket/Actions/Process";
 import CloseTicket from "../../components/Ticket/Actions/Close";
 import BackToWork from "../../components/Ticket/Actions/BackToWork";
 import JoinResponsibles from "../../components/Ticket/Actions/JoinResponsibles";
-import GetScreen from "../../components/Integrations/GetScreen";
+import Pro32Connect from "../../components/Integrations/Pro32Connect";
 
 import Error from "../Error";
 
@@ -368,7 +368,7 @@ const ViewTicket = () => {
                             ).length > 0
                           }
                         />
-                        <GetScreen ticket={ticket} />
+                        <Pro32Connect ticket={ticket} />
                         {ticket.state === "Закрыта" && (
                           <>
                             <Col sm="auto">

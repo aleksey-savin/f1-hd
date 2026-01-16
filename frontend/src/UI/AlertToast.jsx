@@ -1,23 +1,12 @@
-import { useDispatch, useSelector } from "react-redux";
-
-import { toastActions } from "../store/toast";
+import useToastStore from "../store/toast-store";
 
 import Toast from "react-bootstrap/Toast";
 
 const AlertToast = (props) => {
-  const dispatch = useDispatch();
-  let show = useSelector((state) => state.toast.show);
-  const message = useSelector((state) => state.toast.message);
-  const variant = useSelector((state) => state.toast.variant);
+  const { show, message, variant, hideToast } = useToastStore();
 
   const close = () => {
-    dispatch(
-      toastActions.setState({
-        variant: variant,
-        message: message,
-        show: false,
-      }),
-    );
+    hideToast();
     if (props.setShow) {
       props.setShow(false);
     }

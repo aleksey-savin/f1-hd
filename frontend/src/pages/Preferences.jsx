@@ -1,5 +1,4 @@
 import { useContext } from "react";
-import { useDispatch } from "react-redux";
 import { useLoaderData } from "react-router";
 
 import { RiSettings3Line } from "react-icons/ri";
@@ -8,7 +7,7 @@ import Transitions from "../animations/Transition";
 
 import useHttp from "../hooks/use-http";
 
-import { toastActions } from "../store/toast";
+import useToastStore from "../store/toast-store";
 
 import { RiSaveLine } from "react-icons/ri";
 
@@ -35,7 +34,7 @@ const Preferences = () => {
   const { token } = getLocalStorageData();
   const { isAdmin } = useContext(AuthedUserContext);
 
-  const dispatch = useDispatch();
+  const { showToast } = useToastStore();
 
   const data = useLoaderData();
   const prefs = data ? data : [];
@@ -58,21 +57,9 @@ const Preferences = () => {
       (data) => {
         if (data.preferences) {
           localStorage.setItem("timezone", data.preferences.timezone);
-          dispatch(
-            toastActions.setState({
-              variant: "success text-white",
-              message: "Изменения сохранены",
-              show: true,
-            }),
-          );
+          showToast("success text-white", "Изменения сохранены");
         } else {
-          dispatch(
-            toastActions.setState({
-              variant: "danger text-white",
-              message: data.message,
-              show: true,
-            }),
-          );
+          showToast("danger text-white", data.message);
         }
       },
     );
