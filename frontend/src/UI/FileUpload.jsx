@@ -108,6 +108,7 @@ const FileUpload = forwardRef((props, ref) => {
         "text/conf",
         "application/conf",
         "application/x-conf",
+        "application/octet-stream",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -117,6 +118,26 @@ const FileUpload = forwardRef((props, ref) => {
         "application/x-7z-compressed",
         "audio/mpeg",
         "video/mpeg",
+        "",
+      ];
+
+      const allowedExtensions = [
+        "png",
+        "jpg",
+        "jpeg",
+        "pdf",
+        "rtf",
+        "txt",
+        "conf",
+        "docx",
+        "xlsx",
+        "pptx",
+        "rar",
+        "tar",
+        "zip",
+        "7z",
+        "mp3",
+        "mp4",
       ];
 
       if (!file || !file.name || !file.size) {
@@ -130,7 +151,11 @@ const FileUpload = forwardRef((props, ref) => {
         };
       }
 
-      if (!allowedTypes.includes(file.type)) {
+      const fileExtension = getFileExtension(file.name);
+      const hasValidType = allowedTypes.includes(file.type);
+      const hasValidExtension = allowedExtensions.includes(fileExtension);
+
+      if (!hasValidType && !hasValidExtension) {
         return {
           isValid: false,
           error: `Файл "${file.name}" имеет неподдерживаемый тип`,

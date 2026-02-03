@@ -24,6 +24,7 @@ const MIME_TYPE_MAP = {
   "text/conf": "conf",
   "application/conf": "conf",
   "application/x-conf": "conf",
+  "application/octet-stream": null, // Will be determined by file extension
 };
 
 // Функция для транслитерации кириллицы
@@ -142,7 +143,20 @@ const fileUpload = multer({
       cb(null, "uploads");
     },
     filename: (req, file, cb) => {
-      const ext = MIME_TYPE_MAP[file.mimetype];
+      let ext = MIME_TYPE_MAP[file.mimetype];
+
+      // For octet-stream, determine extension from original filename
+      if (file.mimetype === "application/octet-stream" && !ext) {
+        const originalExt = path
+          .extname(file.originalname)
+          .toLowerCase()
+          .slice(1);
+        const allowedExtensionsForOctetStream = ["conf"];
+        if (allowedExtensionsForOctetStream.includes(originalExt)) {
+          ext = originalExt;
+        }
+      }
+
       if (!ext) {
         return cb(new Error("Неподдерживаемый тип файла"), false);
       }
@@ -157,15 +171,6 @@ const fileUpload = multer({
     },
   }),
   fileFilter: (req, file, cb) => {
-    // Проверяем MIME тип
-    const isValid = !!MIME_TYPE_MAP[file.mimetype];
-    if (!isValid) {
-      return cb(
-        new Error(`Недопустимое расширение файла: ${file.mimetype}`),
-        false,
-      );
-    }
-
     // Дополнительные проверки безопасности
     if (!file.originalname || file.originalname.length > 255) {
       return cb(new Error("Некорректное имя файла"), false);
@@ -183,6 +188,28 @@ const fileUpload = multer({
     const fileExt = path.extname(file.originalname).toLowerCase();
     if (dangerousExtensions.includes(fileExt)) {
       return cb(new Error("Опасный тип файла"), false);
+    }
+
+    // Проверяем MIME тип или расширение для особых случаев
+    const isValidMimeType = !!MIME_TYPE_MAP[file.mimetype];
+
+    // Для application/octet-stream проверяем расширение
+    if (file.mimetype === "application/octet-stream") {
+      const originalExt = path
+        .extname(file.originalname)
+        .toLowerCase()
+        .slice(1);
+      const allowedExtensionsForOctetStream = ["conf"];
+      if (allowedExtensionsForOctetStream.includes(originalExt)) {
+        return cb(null, true);
+      }
+    }
+
+    if (!isValidMimeType) {
+      return cb(
+        new Error(`Недопустимое расширение файла: ${file.mimetype}`),
+        false,
+      );
     }
 
     cb(null, true);
