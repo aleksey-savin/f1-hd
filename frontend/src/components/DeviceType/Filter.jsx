@@ -3,7 +3,7 @@ import Col from "react-bootstrap/Col";
 import Form from "react-bootstrap/Form";
 
 import FilterContainer from "../../UI/FilterContainer";
-import useDeviceTypeFilterStore from "../../store/lists/device-types";
+import useDeviceTypeFilterStore from "../../store/lists/deviceTypes";
 
 const DeviceTypeFilter = ({
   setShowOffcanvas = () => {

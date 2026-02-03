@@ -15,6 +15,20 @@ const deviceModelValidation = [
     .isLength({ max: 200 })
     .withMessage("Name must not exceed 200 characters")
     .trim(),
+  body("attributes")
+    .optional()
+    .isArray()
+    .withMessage("Attributes must be an array"),
+  body("attributes.*.attributeId")
+    .optional()
+    .isMongoId()
+    .withMessage("Incorrect attribute ID"),
+  body("attributes.*.value")
+    .optional()
+    .custom((value) => {
+      return true;
+    })
+    .withMessage("Attribute value is invalid"),
   body("notes")
     .optional()
     .isLength({ max: 1000 })

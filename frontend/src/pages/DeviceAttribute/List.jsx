@@ -1,23 +1,23 @@
 import { useEffect } from "react";
 import { useLocation, redirect } from "react-router";
 
-import useDeviceTypeFilterStore from "../../store/lists/deviceTypes";
+import useDeviceAttributeFilterStore from "../../store/lists/deviceAttributes";
 
-import List from "../../components/DeviceType/List";
+import List from "../../components/DeviceAttribute/List";
 
 import ListWrapper from "../../UI/ListWrapper";
 import { BrowserView } from "react-device-detect";
-import DeviceTypeFilter from "../../components/DeviceType/Filter";
+import DeviceAttributeFilter from "../../components/DeviceAttribute/Filter";
 import useSidebarStore from "../../store/sidebar";
 
-import { BiCategory } from "react-icons/bi";
+import { MdOutlineFormatListBulleted } from "react-icons/md";
 
 import { getLocalStorageData } from "../../util/auth";
 
-const DeviceTypeListPage = () => {
+const DeviceAttributeListPage = () => {
   const location = useLocation();
   const { setLeftSidebarContent } = useSidebarStore();
-  const filterStore = useDeviceTypeFilterStore();
+  const filterStore = useDeviceAttributeFilterStore();
 
   useEffect(() => {
     filterStore.applyFilter();
@@ -30,7 +30,7 @@ const DeviceTypeListPage = () => {
   useEffect(() => {
     setLeftSidebarContent(
       <BrowserView>
-        <DeviceTypeFilter />
+        <DeviceAttributeFilter />
       </BrowserView>,
     );
   }, [setLeftSidebarContent, filterStore.originalList]);
@@ -38,7 +38,7 @@ const DeviceTypeListPage = () => {
   const title = () => {
     return (
       <>
-        <BiCategory /> Типы устройств
+        <MdOutlineFormatListBulleted /> Атрибуты устройств
       </>
     );
   };
@@ -46,14 +46,14 @@ const DeviceTypeListPage = () => {
     <ListWrapper
       title={title}
       filterStore={filterStore}
-      addRoute="/inventory/device-types/add"
+      addRoute="/inventory/device-attributes/add"
     >
       <List items={filterStore.filteredList}></List>
     </ListWrapper>
   );
 };
 
-export default DeviceTypeListPage;
+export default DeviceAttributeListPage;
 
 export async function action({ request }) {
   const { token } = getLocalStorageData();
@@ -62,7 +62,7 @@ export async function action({ request }) {
   const id = data.get("id");
 
   const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types/delete/${id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-attributes/delete/${id}`,
     {
       method: "POST",
       headers: {
@@ -80,5 +80,5 @@ export async function action({ request }) {
     throw response;
   }
 
-  return redirect("/inventory/device-types");
+  return redirect("/inventory/device-attributes");
 }

@@ -106,6 +106,9 @@ const userSchema = new Schema(
       // inventory module
       canUseInventoryModule: { type: Boolean, default: false },
       canManageClientDevices: { type: Boolean, default: false },
+      canManageDeviceModels: { type: Boolean, default: false },
+      canManageDeviceTypes: { type: Boolean, default: false },
+      canManageDeviceAttributes: { type: Boolean, default: false },
       canManageMikrotikDevices: { type: Boolean, default: false },
       // finances module
       canUseFinancesModule: { type: Boolean, default: false },

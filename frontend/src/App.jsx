@@ -201,6 +201,32 @@ import UpdateVendorPage, {
   action as updateVendorAction,
 } from "./pages/Vendor/Update.jsx";
 
+// Device Attributes
+import DeviceAttributeListPage, {
+  action as deviceAttributeAction,
+} from "./pages/DeviceAttribute/List.jsx";
+import AddDeviceAttributePage, {
+  loader as addDeviceAttributeLoader,
+  action as addDeviceAttributeAction,
+} from "./pages/DeviceAttribute/Add.jsx";
+import UpdateDeviceAttributePage, {
+  loader as updateDeviceAttributeLoader,
+  action as updateDeviceAttributeAction,
+} from "./pages/DeviceAttribute/Update.jsx";
+
+// Device Models
+import DeviceModelListPage, {
+  action as deviceModelAction,
+} from "./pages/DeviceModel/List.jsx";
+import AddDeviceModelPage, {
+  loader as addDeviceModelLoader,
+  action as addDeviceModelAction,
+} from "./pages/DeviceModel/Add.jsx";
+import UpdateDeviceModelPage, {
+  loader as updateDeviceModelLoader,
+  action as updateDeviceModelAction,
+} from "./pages/DeviceModel/Update.jsx";
+
 // Mikrotik devices
 import MikrotikDevices, {
   loader as mikrotikDevicesLoader,
@@ -674,6 +700,49 @@ function App() {
             },
           ],
         },
+
+        // Device Attributes
+        {
+          path: "inventory/device-attributes",
+          element: <DeviceAttributeListPage />,
+          action: deviceAttributeAction,
+          children: [
+            {
+              path: "add",
+              element: <AddDeviceAttributePage />,
+              loader: addDeviceAttributeLoader,
+              action: addDeviceAttributeAction,
+            },
+            {
+              path: "update/:id",
+              element: <UpdateDeviceAttributePage />,
+              loader: updateDeviceAttributeLoader,
+              action: updateDeviceAttributeAction,
+            },
+          ],
+        },
+
+        // Device Models
+        {
+          path: "inventory/device-models",
+          element: <DeviceModelListPage />,
+          action: deviceModelAction,
+          children: [
+            {
+              path: "add",
+              element: <AddDeviceModelPage />,
+              loader: addDeviceModelLoader,
+              action: addDeviceModelAction,
+            },
+            {
+              path: "update/:id",
+              element: <UpdateDeviceModelPage />,
+              loader: updateDeviceModelLoader,
+              action: updateDeviceModelAction,
+            },
+          ],
+        },
+
         {
           path: "finances/service-plans/:id",
           loader: viewServicePlanLoader,

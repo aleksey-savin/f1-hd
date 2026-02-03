@@ -21,6 +21,9 @@ const MIME_TYPE_MAP = {
   "application/x-7z-compressed": "7z",
   "audio/mpeg": "mp3",
   "video/mpeg": "mp4",
+  "text/conf": "conf",
+  "application/conf": "conf",
+  "application/x-conf": "conf",
 };
 
 // Функция для транслитерации кириллицы

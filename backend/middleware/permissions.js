@@ -322,7 +322,7 @@ module.exports.canUseInventoryModule = async (req, res, next) => {
   const authedUser = await User.findById(userId);
   const { permissions, isAdmin } = authedUser;
   if (!permissions.canUseInventoryModule && !isAdmin) {
-    const error = new Error("Недостаточно прав для просмотра данной страницы");
+    const error = new Error("Недостаточно прав");
     error.statusCode = 403;
     return res.status(error.statusCode).json({
       error: false,
@@ -338,6 +338,54 @@ module.exports.canManageClientDevices = async (req, res, next) => {
   const authedUser = await User.findById(userId);
   const { permissions, isAdmin } = authedUser;
   if (!permissions.canManageClientDevices && !isAdmin) {
+    const error = new Error("Недостаточно прав");
+    error.statusCode = 403;
+    return res.status(error.statusCode).json({
+      error: false,
+      status: error.statusCode,
+      message: error.message,
+    });
+  }
+  next();
+};
+
+module.exports.canManageDeviceModels = async (req, res, next) => {
+  const { userId } = await getAuthData(req);
+  const authedUser = await User.findById(userId);
+  const { permissions, isAdmin } = authedUser;
+  if (!permissions.canManageDeviceModels && !isAdmin) {
+    const error = new Error("Недостаточно прав");
+    error.statusCode = 403;
+    return res.status(error.statusCode).json({
+      error: false,
+      status: error.statusCode,
+      message: error.message,
+    });
+  }
+  next();
+};
+
+module.exports.canManageDeviceTypes = async (req, res, next) => {
+  const { userId } = await getAuthData(req);
+  const authedUser = await User.findById(userId);
+  const { permissions, isAdmin } = authedUser;
+  if (!permissions.canManageDeviceTypes && !isAdmin) {
+    const error = new Error("Недостаточно прав");
+    error.statusCode = 403;
+    return res.status(error.statusCode).json({
+      error: false,
+      status: error.statusCode,
+      message: error.message,
+    });
+  }
+  next();
+};
+
+module.exports.canManageDeviceAttributes = async (req, res, next) => {
+  const { userId } = await getAuthData(req);
+  const authedUser = await User.findById(userId);
+  const { permissions, isAdmin } = authedUser;
+  if (!permissions.canManageDeviceAttributes && !isAdmin) {
     const error = new Error("Недостаточно прав для просмотра данной страницы");
     error.statusCode = 403;
     return res.status(error.statusCode).json({

@@ -42,7 +42,7 @@ function LocationItem({ item }) {
       isActive: true,
     },
     {
-      title: `${company?.alias || company?.fullTitle} | ${subdivision?.name}`,
+      title: `${company?.alias || company?.fullTitle} ${subdivision?.name ? `| ${subdivision?.name}` : ""}`,
       bg: "secondary",
       isActive: true,
     },

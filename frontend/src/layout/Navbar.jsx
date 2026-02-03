@@ -31,6 +31,7 @@ import {
   RiTeamLine,
   RiContactsLine,
   RiMapPinLine,
+  RiListSettingsLine,
 } from "react-icons/ri";
 import { GoProjectTemplate } from "react-icons/go";
 import { MdOutlineDarkMode, MdLightMode, MdComputer } from "react-icons/md";
@@ -454,6 +455,24 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                         onClick={handleClose}
                       >
                         <HiOutlineBuildingOffice2 /> Вендоры
+                      </NavDropdown.Item>
+
+                      <NavDropdown.Item
+                        as={NavLink}
+                        hidden={!canManageClientDevices}
+                        to="/inventory/device-attributes"
+                        onClick={handleClose}
+                      >
+                        <RiListSettingsLine /> Атрибуты устройств
+                      </NavDropdown.Item>
+
+                      <NavDropdown.Item
+                        as={NavLink}
+                        hidden={!canManageClientDevices}
+                        to="/inventory/device-models"
+                        onClick={handleClose}
+                      >
+                        <RiDeviceLine /> Модели устройств
                       </NavDropdown.Item>
                     </NavDropdown>
                   )}

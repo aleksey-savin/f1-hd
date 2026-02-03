@@ -1,60 +1,60 @@
 const Router = require("express");
 const router = new Router();
-const deviceTypeController = require("@/controllers/inventory/deviceType");
+const deviceModelController = require("@/controllers/inventory/deviceModel");
 const isAuth = require("@/middleware/isAuth");
 const {
   canUseInventoryModule,
   inventoryModuleIsActive,
-  canManageDeviceTypes,
+  canManageDeviceModels,
 } = require("@/middleware/permissions");
-const { deviceTypeValidation } = require("@/validations/inventory/deviceType");
+const { deviceModelValidation } = require("@/validations/inventory/deviceModel");
 const { checkValidationResult } = require("@/middleware/validation");
 
 router.get(
-  "/device-types",
+  "/device-models",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
-  deviceTypeController.getAll,
+  deviceModelController.getAll,
 );
 
 router.get(
-  "/device-types/:id",
+  "/device-models/:id",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
-  deviceTypeController.getOne,
+  deviceModelController.getOne,
 );
 
 router.post(
-  "/device-types/add",
+  "/device-models/add",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
-  canManageDeviceTypes,
-  deviceTypeValidation,
+  canManageDeviceModels,
+  deviceModelValidation,
   checkValidationResult,
-  deviceTypeController.add,
+  deviceModelController.add,
 );
 
 router.put(
-  "/device-types/update/:id",
+  "/device-models/update/:id",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
-  canManageDeviceTypes,
-  deviceTypeValidation,
+  canManageDeviceModels,
+  deviceModelValidation,
   checkValidationResult,
-  deviceTypeController.update,
+  deviceModelController.update,
 );
 
 router.post(
-  "/device-types/delete/:id",
+  "/device-models/delete/:id",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
-  canManageDeviceTypes,
-  deviceTypeController.delete,
+  canManageDeviceModels,
+  deviceModelController.delete,
 );
 
 module.exports = router;

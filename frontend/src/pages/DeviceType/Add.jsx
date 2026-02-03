@@ -9,7 +9,23 @@ export default AddDeviceTypePage;
 
 export async function loader() {
   document.title = "Добавить тип устройства";
-  return null;
+
+  const { token } = getLocalStorageData();
+
+  // Fetch available attributes
+  const attributesResponse = await fetch(
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-attributes`,
+    {
+      headers: {
+        Authorization: "Bearer " + token,
+      },
+    },
+  );
+  const availableAttributes = await attributesResponse.json();
+
+  return {
+    availableAttributes,
+  };
 }
 
 export async function action({ request }) {
@@ -17,10 +33,14 @@ export async function action({ request }) {
 
   const data = await request.formData();
 
+  const attributesJson = data.get("attributes");
+  const attributes = attributesJson ? JSON.parse(attributesJson) : [];
+
   const deviceTypeData = {
     name: data.get("name"),
     description: data.get("description"),
     isActive: data.get("isActive") === "true",
+    attributes: attributes,
   };
 
   const response = await fetch(

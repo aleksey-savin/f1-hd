@@ -25,10 +25,11 @@ const servicePlanRoutes = require("./internal/finances/servicePlan");
 
 // Internal inventory routes
 const clientDeviceRoutes = require("./internal/inventory/clientDevice");
+const deviceAttributeRoutes = require("./internal/inventory/deviceAttribute");
+const deviceModelRoutes = require("./internal/inventory/deviceModel");
 const deviceTypeRoutes = require("./internal/inventory/deviceType");
 const locationRoutes = require("./internal/inventory/location");
 const mikrotikRoutes = require("./internal/inventory/mikrotik");
-const referenceRoutes = require("./internal/inventory/reference");
 const vendorRoutes = require("./internal/inventory/vendor");
 
 // External routes
@@ -67,10 +68,11 @@ internalRoutes.use("/", servicePlanRoutes);
 
 // Mount internal inventory routes
 internalRoutes.use("/inventory", clientDeviceRoutes);
+internalRoutes.use("/inventory", deviceAttributeRoutes);
+internalRoutes.use("/inventory", deviceModelRoutes);
 internalRoutes.use("/inventory", deviceTypeRoutes);
 internalRoutes.use("/inventory", locationRoutes);
 internalRoutes.use("/inventory", mikrotikRoutes);
-internalRoutes.use("/inventory", referenceRoutes);
 internalRoutes.use("/inventory", vendorRoutes);
 
 // Mount external routes

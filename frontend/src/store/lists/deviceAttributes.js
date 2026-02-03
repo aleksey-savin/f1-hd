@@ -1,0 +1,152 @@
+import { create } from "zustand";
+import { getLocalStorageData } from "../../util/auth";
+
+const deviceAttributeFilter = (state) => {
+  const originalList = Array.isArray(state.originalList)
+    ? state.originalList
+    : [];
+  return originalList
+    .filter((item) => {
+      if (state.isActive) {
+        return item.isActive;
+      } else {
+        return true;
+      }
+    })
+    .filter((item) => {
+      if (state.dataType && state.dataType !== "all") {
+        return item.dataType === state.dataType;
+      } else {
+        return true;
+      }
+    })
+    .filter((item) => {
+      if (state.searchTerm.length > 0) {
+        return [item.name, item.label]
+          .join(" ")
+          .toLowerCase()
+          .includes(state.searchTerm);
+      } else {
+        return true;
+      }
+    });
+};
+
+const searchItems = (query, items) => {
+  if (!query) return items;
+
+  const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
+
+  return items.filter((item) => {
+    const fieldsToSearch = [item.name, item.label, item.description];
+
+    return queryTerms.every((term) =>
+      fieldsToSearch.some(
+        (field) => field && field.toLowerCase().includes(term),
+      ),
+    );
+  });
+};
+
+const handleSorting = (selected, list) => {
+  if (!selected || !list.length) {
+    return;
+  }
+
+  const sortedList = [...list];
+
+  switch (selected.label) {
+    case "По алфавиту":
+      sortedList.sort((a, b) => a.label.localeCompare(b.label));
+      break;
+
+    case "Сначала новые":
+      sortedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      break;
+
+    case "Сначала старые":
+      sortedList.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      break;
+
+    default:
+      break;
+  }
+
+  return sortedList;
+};
+
+const useDeviceAttributeFilterStore = create((set) => ({
+  isActive: false,
+  dataType: "all",
+  searchTerm: "",
+  sortingOptions: [
+    { label: "По алфавиту" },
+    { label: "Сначала новые" },
+    { label: "Сначала старые" },
+  ],
+  sortBy: {
+    label: "По алфавиту",
+  },
+  isSorting: false,
+  handleSorting: async (data) => {
+    set({ isSorting: true });
+
+    set({ sortBy: data });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    set((state) => {
+      const sortedList = handleSorting(data, state.filteredList);
+      return {
+        sortBy: data,
+        filteredList: sortedList,
+        isSorting: false,
+      };
+    });
+  },
+  originalList: [],
+  filteredList: [],
+  fullTextSearch: (query) =>
+    set((state) => ({
+      filteredList: searchItems(query, deviceAttributeFilter(state)),
+    })),
+  isLoading: false,
+  fetch: async () => {
+    set({ isLoading: true });
+    const { token } = getLocalStorageData();
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-attributes`,
+      {
+        headers: {
+          Authorization: "Bearer " + token,
+        },
+      },
+    );
+    const data = await response.json();
+    set({
+      originalList: Array.isArray(data) ? data : [],
+      isLoading: false,
+    });
+  },
+  updateFilter: (data) =>
+    set(() => ({
+      isActive: data.isActive,
+      dataType: data.dataType !== undefined ? data.dataType : "all",
+      originalList: Array.isArray(data.originalList) ? data.originalList : [],
+      isLoading: false,
+    })),
+  applyFilter: () =>
+    set((state) => ({ filteredList: deviceAttributeFilter(state) })),
+  resetFilter: () => {
+    set(() => ({
+      isActive: "any",
+      dataType: "all",
+      searchTerm: "",
+    }));
+    set((state) => ({
+      filteredList: deviceAttributeFilter(state),
+    }));
+  },
+}));
+
+export default useDeviceAttributeFilterStore;

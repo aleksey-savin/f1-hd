@@ -5,6 +5,9 @@ const { AppError } = require("../../middleware/errorHandling");
 exports.getAll = async (req, res, next) => {
   try {
     const deviceModels = await DeviceModel.find({})
+      .populate("deviceTypeId", "name")
+      .populate("vendorId", "name")
+      .populate("attributes.attributeId", "name label dataType unit")
       .populate("createdBy", "firstName lastName")
       .populate("updatedBy", "firstName lastName")
       .sort({ name: 1 });
@@ -18,6 +21,9 @@ exports.getAll = async (req, res, next) => {
 exports.getOne = async (req, res, next) => {
   try {
     const deviceModel = await DeviceModel.findById(req.params.id)
+      .populate("deviceTypeId", "name")
+      .populate("vendorId", "name")
+      .populate("attributes.attributeId", "name label dataType unit options")
       .populate("createdBy", "firstName lastName")
       .populate("updatedBy", "firstName lastName");
 
@@ -41,7 +47,7 @@ exports.getOne = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { deviceTypeId, vendorId, name, configuration, notes } = req.body;
+    const { deviceTypeId, vendorId, name, attributes, notes } = req.body;
 
     const deviceModelExists = await DeviceModel.findOne({ name });
     if (deviceModelExists) {
@@ -54,25 +60,30 @@ exports.add = async (req, res, next) => {
       deviceTypeId,
       vendorId,
       name,
-      configuration,
+      attributes,
       notes,
       createdBy: req.userId,
     });
 
     await deviceModel.save();
 
+    const populatedDeviceModel = await DeviceModel.findById(deviceModel._id)
+      .populate("deviceTypeId", "name")
+      .populate("vendorId", "name")
+      .populate("attributes.attributeId", "name label dataType unit");
+
     res.status(201).json({
       message: "Device model added successfully",
-      deviceModel: deviceModel,
+      deviceModel: populatedDeviceModel,
     });
   } catch (error) {
-    next(new AppError("Failed to add device type", 500, true, error));
+    next(new AppError("Failed to add device model", 500, true, error));
   }
 };
 
 exports.update = async (req, res, next) => {
   try {
-    const { deviceTypeId, vendorId, name, configuration, notes } = req.body;
+    const { deviceTypeId, vendorId, name, attributes, notes } = req.body;
 
     const deviceModel = await DeviceModel.findById(req.params.id);
     if (!deviceModel) {
@@ -82,7 +93,7 @@ exports.update = async (req, res, next) => {
     }
 
     // Check if name is being changed and if new name already exists
-    if (name !== deviceModel.model) {
+    if (name !== deviceModel.name) {
       const nameExists = await DeviceModel.findOne({
         name,
         _id: { $ne: req.params.id },
@@ -97,15 +108,20 @@ exports.update = async (req, res, next) => {
     deviceModel.name = name;
     deviceModel.deviceTypeId = deviceTypeId;
     deviceModel.vendorId = vendorId;
-    deviceModel.configuration = configuration;
+    deviceModel.attributes = attributes;
     deviceModel.notes = notes;
-    deviceModel.isActive = isActive;
+    deviceModel.updatedBy = req.userId;
 
     await deviceModel.save();
 
+    const populatedDeviceModel = await DeviceModel.findById(deviceModel._id)
+      .populate("deviceTypeId", "name")
+      .populate("vendorId", "name")
+      .populate("attributes.attributeId", "name label dataType unit");
+
     res.status(200).json({
-      message: "Тип устройства успешно обновлен",
-      deviceModel: deviceModel,
+      message: "Device model updated successfully",
+      deviceModel: populatedDeviceModel,
     });
   } catch (error) {
     next(

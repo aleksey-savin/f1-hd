@@ -1,60 +1,62 @@
 const Router = require("express");
 const router = new Router();
-const deviceTypeController = require("@/controllers/inventory/deviceType");
+const deviceAttributeController = require("@/controllers/inventory/deviceAttribute");
 const isAuth = require("@/middleware/isAuth");
 const {
   canUseInventoryModule,
   inventoryModuleIsActive,
-  canManageDeviceTypes,
+  canManageDeviceAttributes,
 } = require("@/middleware/permissions");
-const { deviceTypeValidation } = require("@/validations/inventory/deviceType");
+const {
+  deviceAttributeValidation,
+} = require("@/validations/inventory/deviceAttribute");
 const { checkValidationResult } = require("@/middleware/validation");
 
 router.get(
-  "/device-types",
+  "/device-attributes",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
-  deviceTypeController.getAll,
+  deviceAttributeController.getAll,
 );
 
 router.get(
-  "/device-types/:id",
+  "/device-attributes/:id",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
-  deviceTypeController.getOne,
+  deviceAttributeController.getOne,
 );
 
 router.post(
-  "/device-types/add",
+  "/device-attributes/add",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
-  canManageDeviceTypes,
-  deviceTypeValidation,
+  canManageDeviceAttributes,
+  deviceAttributeValidation,
   checkValidationResult,
-  deviceTypeController.add,
+  deviceAttributeController.add,
 );
 
 router.put(
-  "/device-types/update/:id",
+  "/device-attributes/update/:id",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
-  canManageDeviceTypes,
-  deviceTypeValidation,
+  canManageDeviceAttributes,
+  deviceAttributeValidation,
   checkValidationResult,
-  deviceTypeController.update,
+  deviceAttributeController.update,
 );
 
 router.post(
-  "/device-types/delete/:id",
+  "/device-attributes/delete/:id",
   isAuth,
   inventoryModuleIsActive,
   canUseInventoryModule,
-  canManageDeviceTypes,
-  deviceTypeController.delete,
+  canManageDeviceAttributes,
+  deviceAttributeController.delete,
 );
 
 module.exports = router;

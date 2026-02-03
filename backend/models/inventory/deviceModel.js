@@ -19,16 +19,20 @@ const deviceModelSchema = new Schema(
       required: false,
       trim: true,
     },
-    configuration: {
-      ram: String,
-      storage: String,
-      processor: String,
-      graphics: String,
-      ports: String,
-      powerSupply: String,
-      screenSize: String,
-      additionalSpecs: String,
-    },
+
+    // Значения атрибутов
+    attributes: [
+      {
+        attributeId: {
+          type: Schema.Types.ObjectId,
+          ref: "DeviceAttribute",
+          required: true,
+        },
+        value: Schema.Types.Mixed,
+        _id: false,
+      },
+    ],
+
     notes: {
       type: String,
       trim: true,
@@ -53,9 +57,7 @@ const deviceModelSchema = new Schema(
       ref: "User",
     },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
 const DeviceModel = mongoose.model("DeviceModel", deviceModelSchema);

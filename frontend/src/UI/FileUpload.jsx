@@ -39,6 +39,7 @@ const FileUpload = forwardRef((props, ref) => {
       txt: "bi-file-earmark-text",
       log: "bi-file-earmark-text",
       csv: "bi-file-earmark-text",
+      conf: "bi-file-earmark-text",
       json: "bi-file-earmark-code",
       xml: "bi-file-earmark-code",
       md: "bi-file-earmark-text",
@@ -104,6 +105,9 @@ const FileUpload = forwardRef((props, ref) => {
         "application/pdf",
         "application/rtf",
         "text/plain",
+        "text/conf",
+        "application/conf",
+        "application/x-conf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -266,15 +270,15 @@ const FileUpload = forwardRef((props, ref) => {
           id="attachments"
           name="attachments"
           type="file"
-          accept=".png,.jpeg,.jpg,.pdf,.rtf,.txt,.docx,.xlsx,.pptx,.rar,.tar,.zip,.7z,.mp3,.mp4"
+          accept=".png,.jpeg,.jpg,.pdf,.rtf,.txt,.conf,.docx,.xlsx,.pptx,.rar,.tar,.zip,.7z,.mp3,.mp4"
           multiple
           ref={filePickerRef}
           onChange={pickedHandler}
         />
         {props.showText && (
           <Form.Text muted>
-            Изображения png, jpeg, jpg, документы pdf, rtf, docx, xlsx, pptx,
-            архивы rar, tar, zip, 7z, медиа mp3, mp4
+            Изображения png, jpeg, jpg, документы pdf, rtf, txt, conf, docx,
+            xlsx, pptx, архивы rar, tar, zip, 7z, медиа mp3, mp4
           </Form.Text>
         )}
       </Form.Group>

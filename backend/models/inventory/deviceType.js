@@ -18,6 +18,25 @@ const deviceTypeSchema = new Schema(
       type: Boolean,
       default: true,
     },
+    attributes: [
+      {
+        attributeId: {
+          type: Schema.Types.ObjectId,
+          ref: "DeviceAttribute",
+          required: true,
+        },
+        isRequired: {
+          type: Boolean,
+          default: false,
+        },
+        defaultValue: Schema.Types.Mixed,
+        displayOrder: {
+          type: Number,
+          default: 0,
+        },
+        _id: false,
+      },
+    ],
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
