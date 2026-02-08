@@ -19,7 +19,6 @@ export async function action({ request }) {
 
   const vendorData = {
     name: data.get("name"),
-    description: data.get("description"),
     isActive: data.get("isActive") === "true",
   };
 

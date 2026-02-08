@@ -1,5 +1,5 @@
 const User = require("../models/user");
-const Connection = require("../models/getScreen/connection");
+const Connection = require("../models/pro32Connect/connection");
 
 const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");

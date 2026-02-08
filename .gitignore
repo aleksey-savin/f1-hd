@@ -1,3 +1,6 @@
+# Symlink to dev compose file
+compose.yml
+
 # Environment files
 .env
 .env.dev

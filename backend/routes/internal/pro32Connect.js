@@ -1,14 +1,14 @@
 const Router = require("express");
 const router = new Router();
-const getScreenController = require("@/controllers/getScreen");
+const pro32ConnectController = require("@/controllers/pro32Connect");
 const isAuth = require("@/middleware/isAuth");
 
-router.post("/support/create", isAuth, getScreenController.createSupport);
+router.post("/support/create", isAuth, pro32ConnectController.createSupport);
 
 router.get(
   "/support/connection/:ticketNum",
   isAuth,
-  getScreenController.getConnection,
+  pro32ConnectController.getConnection,
 );
 
 module.exports = router;

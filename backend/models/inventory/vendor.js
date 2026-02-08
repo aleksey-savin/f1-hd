@@ -10,10 +10,6 @@ const vendorSchema = new Schema(
       unique: true,
       trim: true,
     },
-    description: {
-      type: String,
-      trim: true,
-    },
     isActive: {
       type: Boolean,
       default: true,

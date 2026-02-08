@@ -46,7 +46,6 @@ exports.add = async (req, res, next) => {
 
     const vendor = new Vendor({
       name,
-      description,
       createdBy: req.userId,
     });
 
@@ -63,7 +62,7 @@ exports.add = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { name, description, isActive } = req.body;
+    const { name, isActive } = req.body;
 
     const vendor = await Vendor.findById(req.params.id);
     if (!vendor) {
@@ -86,7 +85,6 @@ exports.update = async (req, res, next) => {
     }
 
     vendor.name = name;
-    vendor.description = description;
     vendor.isActive = isActive;
 
     await vendor.save();

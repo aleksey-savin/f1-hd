@@ -27,7 +27,7 @@ const searchItems = (query, items) => {
   const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
 
   return items.filter((item) => {
-    const fieldsToSearch = [item.name, item.description];
+    const fieldsToSearch = [item.name];
 
     return queryTerms.every((term) =>
       fieldsToSearch.some(
@@ -126,8 +126,7 @@ const useVendorFilterStore = create((set) => ({
       originalList: data.originalList,
       isLoading: false,
     })),
-  applyFilter: () =>
-    set((state) => ({ filteredList: vendorFilter(state) })),
+  applyFilter: () => set((state) => ({ filteredList: vendorFilter(state) })),
   resetFilter: () => {
     set(() => ({
       isActive: "any",

@@ -48,10 +48,6 @@ export async function action({ request, params }) {
 
   const vendorData = {
     name: data.get("name"),
-    description: data.get("description"),
-    website: data.get("website"),
-    contactEmail: data.get("contactEmail"),
-    contactPhone: data.get("contactPhone"),
     isActive: data.get("isActive") === "on",
   };
 

@@ -14,7 +14,7 @@ const TicketLog = require("../models/ticketLog");
 const Work = require("../models/work");
 const Comment = require("../models/comment");
 
-const Connection = require("../models//getScreen/connection");
+const Connection = require("../models/pro32Connect/connection");
 
 exports.getAllOpened = async (req, res, next) => {
   try {
