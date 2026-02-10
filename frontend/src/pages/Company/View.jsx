@@ -109,7 +109,7 @@ export async function loader({ params }) {
     user.permissions.canUseFinancesModule
   ) {
     const servicePlansResponse = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/`,
       {
         headers: {
           Authorization: "Bearer " + token,

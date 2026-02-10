@@ -2,56 +2,26 @@ const Router = require("express");
 const router = new Router();
 const locationController = require("@/controllers/inventory/location");
 const isAuth = require("@/middleware/isAuth");
-const {
-  canUseInventoryModule,
-  inventoryModuleIsActive,
-  canManageClientDevices,
-} = require("@/middleware/permissions");
+const { canManageClientDevices } = require("@/middleware/permissions");
 const { locationValidation } = require("@/validations/inventory/location");
 const { checkValidationResult } = require("@/middleware/validation");
 
 // Get all locations
-router.get(
-  "/locations",
-  isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  locationController.getAll,
-);
+router.get("/locations", isAuth, locationController.getAll);
 
 // Get all locations for company
-router.get(
-  "/companies-locations",
-  isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  locationController.getAllCompanies,
-);
+router.get("/companies-locations", isAuth, locationController.getAllCompanies);
 
 // Get location hierarchy
-router.get(
-  "/locations/hierarchy",
-  isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  locationController.getHierarchy,
-);
+router.get("/locations/hierarchy", isAuth, locationController.getHierarchy);
 
 // Get location statistics
-router.get(
-  "/locations/stats",
-  isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  locationController.getLocationStats,
-);
+router.get("/locations/stats", isAuth, locationController.getLocationStats);
 
 // Get workplaces for specific user
 router.get(
   "/locations/user/:userId/workplaces",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
   locationController.getUserWorkplaces,
 );
 
@@ -59,26 +29,16 @@ router.get(
 router.get(
   "/locations/:id/devices",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
   locationController.getLocationDevices,
 );
 
 // Get single location
-router.get(
-  "/locations/:id",
-  isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  locationController.getOne,
-);
+router.get("/locations/:id", isAuth, locationController.getOne);
 
 // Create new location
 router.post(
   "/locations/add",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
   canManageClientDevices,
   locationValidation,
   checkValidationResult,
@@ -89,8 +49,6 @@ router.post(
 router.put(
   "/locations/update/:id",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
   canManageClientDevices,
   locationValidation,
   checkValidationResult,
@@ -101,8 +59,6 @@ router.put(
 router.post(
   "/locations/move-devices",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
   canManageClientDevices,
   locationController.moveDevices,
 );
@@ -111,8 +67,6 @@ router.post(
 router.post(
   "/locations/delete/:id",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
   canManageClientDevices,
   locationController.delete,
 );

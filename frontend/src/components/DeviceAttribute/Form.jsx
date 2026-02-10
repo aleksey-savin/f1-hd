@@ -8,32 +8,25 @@ import Col from "react-bootstrap/Col";
 const DeviceAttributeForm = ({ title }) => {
   const attribute = useLoaderData();
 
+  const [code, setCode] = useState(attribute?.code || "");
   const [name, setName] = useState(attribute?.name || "");
-  const [label, setLabel] = useState(attribute?.label || "");
-  const [description, setDescription] = useState(attribute?.description || "");
-  const [dataType, setDataType] = useState(attribute?.dataType || "string");
+  const [valueType, setValueType] = useState(attribute?.valueType || "string");
   const [unit, setUnit] = useState(attribute?.unit || "");
-  const [options, setOptions] = useState(
-    attribute?.options?.join("\n") || ""
-  );
+  const [options, setOptions] = useState(attribute?.options?.join("\n") || "");
   const [isActive, setIsActive] = useState(
-    attribute ? attribute.isActive : true
+    attribute ? attribute.isActive : true,
   );
+
+  const codeChangeHandler = (event) => {
+    setCode(event.target.value);
+  };
 
   const nameChangeHandler = (event) => {
     setName(event.target.value);
   };
 
-  const labelChangeHandler = (event) => {
-    setLabel(event.target.value);
-  };
-
-  const descriptionChangeHandler = (event) => {
-    setDescription(event.target.value);
-  };
-
-  const dataTypeChangeHandler = (event) => {
-    setDataType(event.target.value);
+  const valueTypeChangeHandler = (event) => {
+    setValueType(event.target.value);
   };
 
   const unitChangeHandler = (event) => {
@@ -48,25 +41,26 @@ const DeviceAttributeForm = ({ title }) => {
     setIsActive(!isActive);
   };
 
-  const showOptionsField = dataType === "select" || dataType === "multiselect";
+  const showOptionsField =
+    valueType === "select" || valueType === "multiselect";
 
   return (
     <FormWrapper title={title}>
       <Row>
         <Col md={6}>
           <Form.Group className="py-3">
-            <Form.Label htmlFor="name">
-              Имя (name)
+            <Form.Label htmlFor="code">
+              Код
               <span style={{ color: "red" }}>*</span>
             </Form.Label>
             <Form.Control
               required
               autoFocus
-              id="name"
-              name="name"
+              id="code"
+              name="code"
               type="text"
-              value={name}
-              onChange={nameChangeHandler}
+              value={code}
+              onChange={codeChangeHandler}
               placeholder="ram, processor, screenSize"
             />
             <Form.Text className="text-muted">
@@ -78,16 +72,16 @@ const DeviceAttributeForm = ({ title }) => {
         <Col md={6}>
           <Form.Group className="py-3">
             <Form.Label htmlFor="label">
-              Название (label)
+              Наименование
               <span style={{ color: "red" }}>*</span>
             </Form.Label>
             <Form.Control
               required
-              id="label"
-              name="label"
+              id="name"
+              name="name"
               type="text"
-              value={label}
-              onChange={labelChangeHandler}
+              value={name}
+              onChange={nameChangeHandler}
               placeholder="Оперативная память"
             />
             <Form.Text className="text-muted">
@@ -96,39 +90,27 @@ const DeviceAttributeForm = ({ title }) => {
           </Form.Group>
         </Col>
       </Row>
-
-      <Form.Group className="py-3">
-        <Form.Label htmlFor="description">Описание</Form.Label>
-        <Form.Control
-          id="description"
-          name="description"
-          as="textarea"
-          rows={2}
-          value={description}
-          onChange={descriptionChangeHandler}
-          placeholder="Краткое описание атрибута"
-        />
-      </Form.Group>
-
       <Row>
         <Col md={6}>
           <Form.Group className="py-3">
-            <Form.Label htmlFor="dataType">
+            <Form.Label htmlFor="valueType">
               Тип данных
               <span style={{ color: "red" }}>*</span>
             </Form.Label>
             <Form.Select
               required
-              id="dataType"
-              name="dataType"
-              value={dataType}
-              onChange={dataTypeChangeHandler}
+              id="valueType"
+              name="valueType"
+              value={valueType}
+              onChange={valueTypeChangeHandler}
             >
               <option value="string">Строка (string)</option>
               <option value="number">Число (number)</option>
               <option value="boolean">Да/Нет (boolean)</option>
               <option value="select">Выбор (select)</option>
-              <option value="multiselect">Множественный выбор (multiselect)</option>
+              <option value="multiselect">
+                Множественный выбор (multiselect)
+              </option>
               <option value="text">Текст (text)</option>
             </Form.Select>
           </Form.Group>

@@ -34,7 +34,8 @@ const ItemCard = ({
   const actionsAreActive =
     itemTitle === "clientDevice" ||
     itemTitle === "deviceType" ||
-    itemTitle === "vendor"
+    itemTitle === "vendor" ||
+    itemTitle === "deviceAttribute"
       ? permissions.canManageClientDevices
       : itemTitle === "company"
         ? permissions.canManageCompanies

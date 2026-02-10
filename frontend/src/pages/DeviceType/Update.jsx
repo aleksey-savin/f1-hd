@@ -28,20 +28,25 @@ export async function loader({ params }) {
 
   const deviceType = await deviceTypeResponse.json();
 
-  // Fetch available attributes
-  const attributesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-attributes`,
+  // Fetch all device types for attachableToTypeIds selection
+  const deviceTypesResponse = await fetch(
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
     },
   );
-  const availableAttributes = await attributesResponse.json();
+  const allDeviceTypes = await deviceTypesResponse.json();
+
+  // Filter out current device type from available options
+  const availableDeviceTypes = allDeviceTypes.filter(
+    (dt) => dt._id !== params.id,
+  );
 
   return {
     deviceType,
-    availableAttributes,
+    availableDeviceTypes,
   };
 }
 
@@ -50,14 +55,12 @@ export async function action({ request, params }) {
 
   const data = await request.formData();
 
-  const attributesJson = data.get("attributes");
-  const attributes = attributesJson ? JSON.parse(attributesJson) : [];
-
   const deviceTypeData = {
     name: data.get("name"),
-    description: data.get("description"),
     isActive: data.get("isActive") === "true",
-    attributes: attributes,
+    isComponent: data.get("isComponent") === "true",
+    isConsumable: data.get("isConsumable") === "true",
+    attachableToTypeIds: data.getAll("attachableToTypeIds"),
   };
 
   const response = await fetch(

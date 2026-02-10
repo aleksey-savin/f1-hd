@@ -55,10 +55,9 @@ export async function action({ request, params }) {
     : [];
 
   const attributeData = {
+    code: data.get("code"),
     name: data.get("name"),
-    label: data.get("label"),
-    description: data.get("description"),
-    dataType: data.get("dataType"),
+    valueType: data.get("valueType"),
     unit: data.get("unit"),
     options: optionsArray,
     isActive: data.get("isActive") === "on",

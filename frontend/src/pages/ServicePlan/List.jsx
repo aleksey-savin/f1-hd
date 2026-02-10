@@ -75,7 +75,7 @@ export async function action({ request }) {
 
   if (intent === "delete") {
     const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/delete/${id}`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/delete/${id}`,
       {
         method: "DELETE",
         headers: {

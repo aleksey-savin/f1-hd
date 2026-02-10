@@ -10,33 +10,19 @@ const deviceTypeSchema = new Schema(
       unique: true,
       trim: true,
     },
-    description: {
-      type: String,
-      trim: true,
-    },
     isActive: {
       type: Boolean,
       default: true,
     },
-    attributes: [
-      {
-        attributeId: {
-          type: Schema.Types.ObjectId,
-          ref: "DeviceAttribute",
-          required: true,
-        },
-        isRequired: {
-          type: Boolean,
-          default: false,
-        },
-        defaultValue: Schema.Types.Mixed,
-        displayOrder: {
-          type: Number,
-          default: 0,
-        },
-        _id: false,
-      },
-    ],
+    isComponent: {
+      type: Boolean,
+      default: false,
+    },
+    isConsumable: {
+      type: Boolean,
+      default: false,
+    },
+    attachableToTypeIds: [{ type: Schema.Types.ObjectId, ref: "DeviceType" }],
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",

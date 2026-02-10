@@ -4,23 +4,19 @@ const Schema = mongoose.Schema;
 
 const deviceAttributeSchema = new Schema(
   {
-    name: {
+    code: {
       type: String,
       required: true,
       unique: true,
       trim: true,
       lowercase: true,
     },
-    label: {
+    name: {
       type: String,
       required: true,
       trim: true,
     },
-    description: {
-      type: String,
-      trim: true,
-    },
-    dataType: {
+    valueType: {
       type: String,
       enum: ["string", "number", "boolean", "select", "multiselect", "text"],
       required: true,
@@ -28,7 +24,7 @@ const deviceAttributeSchema = new Schema(
     },
     unit: {
       type: String,
-      trim: true, // GB, MHz, inches, W и т.д.
+      trim: true,
     },
     options: [
       {
@@ -40,12 +36,6 @@ const deviceAttributeSchema = new Schema(
       type: Boolean,
       default: true,
     },
-    displayOrder: {
-      type: Number,
-      default: 0,
-    },
-
-    // Audit fields
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",

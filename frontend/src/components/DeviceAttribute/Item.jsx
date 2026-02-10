@@ -1,20 +1,20 @@
 import ItemCard from "../../UI/ItemCard";
 
 const DeviceAttributeItem = ({ item }) => {
-  const { label, name, dataType, unit, isActive } = item;
+  const { code, name, valueType, unit, isActive } = item;
 
   const Title = () => {
-    return <>{label}</>;
+    return <>{name}</>;
   };
 
   const Description = () => {
     return (
       <div className="text-muted small">
         <div>
-          <strong>Имя:</strong> {name}
+          <strong>Код:</strong> {code}
         </div>
         <div>
-          <strong>Тип данных:</strong> {dataType}
+          <strong>Тип данных:</strong> {valueType}
           {unit && <> ({unit})</>}
         </div>
       </div>
@@ -29,10 +29,9 @@ const DeviceAttributeItem = ({ item }) => {
   return (
     <ItemCard
       item={item}
-      itemTitle="device-attribute"
-      badges={badges}
+      itemTitle="deviceAttribute"
       title={<Title />}
-      description={<Description />}
+      badges={badges}
     ></ItemCard>
   );
 };

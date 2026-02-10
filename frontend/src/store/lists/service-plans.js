@@ -73,7 +73,7 @@ const useServicePlanFilterStore = create((set) => ({
     set({ isLoading: true });
     const { token } = getLocalStorageData();
     const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/service-plans`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans`,
       {
         headers: {
           Authorization: "Bearer " + token,

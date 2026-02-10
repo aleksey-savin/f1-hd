@@ -7,15 +7,19 @@ const deviceTypeValidation = [
     .isLength({ min: 2, max: 100 })
     .withMessage("Название должно содержать от 2 до 100 символов")
     .trim(),
-  body("description")
+  body("attachableToTypeIds")
     .optional()
-    .isLength({ max: 500 })
-    .withMessage("Описание не должно превышать 500 символов")
-    .trim(),
+    .isArray()
+    .withMessage("Поле attachableToTypeIds должно быть массивом"),
   body("isActive")
-    .optional()
     .isBoolean()
     .withMessage("Поле isActive должно быть булевым значением"),
+  body("isComponent")
+    .isBoolean()
+    .withMessage("Поле isComponent должно быть булевым значением"),
+  body("isConsumable")
+    .isBoolean()
+    .withMessage("Поле isConsumable должно быть булевым значением"),
 ];
 
 module.exports = {

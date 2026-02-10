@@ -23,17 +23,22 @@ export async function action({ request }) {
         .split("\n")
         .map((opt) => opt.trim())
         .filter(Boolean)
+        .map((opt) => ({
+          label: opt,
+          value: opt.trim().toLowerCase().replace(/\s+/g, "_"),
+        }))
     : [];
 
   const attributeData = {
+    code: data.get("code"),
     name: data.get("name"),
-    label: data.get("label"),
-    description: data.get("description"),
-    dataType: data.get("dataType"),
+    valueType: data.get("valueType"),
     unit: data.get("unit"),
     options: optionsArray,
     isActive: data.get("isActive") === "true",
   };
+
+  console.log(attributeData);
 
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-attributes/add`,

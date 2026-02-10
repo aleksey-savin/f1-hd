@@ -10,20 +10,11 @@ const {
 const { vendorValidation } = require("@/validations/inventory/vendor");
 const { checkValidationResult } = require("@/middleware/validation");
 
-router.get(
-  "/vendors",
-  isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  canManageClientDevices,
-  vendorController.getAll,
-);
+router.get("/vendors", isAuth, canManageClientDevices, vendorController.getAll);
 
 router.get(
   "/vendors/:id",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
   canManageClientDevices,
   vendorController.getOne,
 );
@@ -31,8 +22,6 @@ router.get(
 router.post(
   "/vendors/add",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
   canManageClientDevices,
   vendorValidation,
   checkValidationResult,
@@ -42,8 +31,6 @@ router.post(
 router.put(
   "/vendors/update/:id",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
   canManageClientDevices,
   vendorValidation,
   checkValidationResult,
@@ -53,8 +40,6 @@ router.put(
 router.post(
   "/vendors/delete/:id",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
   canManageClientDevices,
   vendorController.delete,
 );

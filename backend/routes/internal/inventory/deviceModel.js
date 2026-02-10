@@ -3,11 +3,12 @@ const router = new Router();
 const deviceModelController = require("@/controllers/inventory/deviceModel");
 const isAuth = require("@/middleware/isAuth");
 const {
-  canUseInventoryModule,
-  inventoryModuleIsActive,
   canManageDeviceModels,
+  canManageClientDevices,
 } = require("@/middleware/permissions");
-const { deviceModelValidation } = require("@/validations/inventory/deviceModel");
+const {
+  deviceModelValidation,
+} = require("@/validations/inventory/deviceModel");
 const { checkValidationResult } = require("@/middleware/validation");
 
 router.get(
@@ -18,20 +19,13 @@ router.get(
   deviceModelController.getAll,
 );
 
-router.get(
-  "/device-models/:id",
-  isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  deviceModelController.getOne,
-);
+router.get("/device-models/:id", isAuth, deviceModelController.getOne);
 
 router.post(
   "/device-models/add",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  canManageDeviceModels,
+  canManageClientDevices,
+  // canManageDeviceModels,
   deviceModelValidation,
   checkValidationResult,
   deviceModelController.add,
@@ -40,9 +34,8 @@ router.post(
 router.put(
   "/device-models/update/:id",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  canManageDeviceModels,
+  canManageClientDevices,
+  // canManageDeviceModels,
   deviceModelValidation,
   checkValidationResult,
   deviceModelController.update,
@@ -51,9 +44,8 @@ router.put(
 router.post(
   "/device-models/delete/:id",
   isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  canManageDeviceModels,
+  canManageClientDevices,
+  // canManageDeviceModels,
   deviceModelController.delete,
 );
 

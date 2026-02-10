@@ -69,7 +69,7 @@ export async function action({ request }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/add`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/add`,
     {
       method: "POST",
       headers: {

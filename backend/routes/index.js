@@ -1,5 +1,12 @@
 const express = require("express");
 
+const {
+  canUseInventoryModule,
+  inventoryModuleIsActive,
+  financesModuleIsActive,
+  canUseFinancesModule,
+} = require("@/middleware/permissions");
+
 // Internal routes
 const appVersionRoutes = require("./internal/appVersion");
 const authRoutes = require("./internal/auth");
@@ -63,17 +70,62 @@ internalRoutes.use("/", userRoutes);
 internalRoutes.use("/", workRoutes);
 
 // Mount internal finances routes
-internalRoutes.use("/finances", financesReportRoutes);
-internalRoutes.use("/", servicePlanRoutes);
+internalRoutes.use(
+  "/finances",
+  financesModuleIsActive,
+  canUseFinancesModule,
+  financesReportRoutes,
+);
+internalRoutes.use(
+  "/finances",
+  financesModuleIsActive,
+  canUseFinancesModule,
+  servicePlanRoutes,
+);
 
 // Mount internal inventory routes
-internalRoutes.use("/inventory", clientDeviceRoutes);
-internalRoutes.use("/inventory", deviceAttributeRoutes);
-internalRoutes.use("/inventory", deviceModelRoutes);
-internalRoutes.use("/inventory", deviceTypeRoutes);
-internalRoutes.use("/inventory", locationRoutes);
-internalRoutes.use("/inventory", mikrotikRoutes);
-internalRoutes.use("/inventory", vendorRoutes);
+internalRoutes.use(
+  "/inventory",
+  inventoryModuleIsActive,
+  canUseInventoryModule,
+  clientDeviceRoutes,
+);
+internalRoutes.use(
+  "/inventory",
+  inventoryModuleIsActive,
+  canUseInventoryModule,
+  deviceAttributeRoutes,
+);
+internalRoutes.use(
+  "/inventory",
+  inventoryModuleIsActive,
+  canUseInventoryModule,
+  deviceModelRoutes,
+);
+internalRoutes.use(
+  "/inventory",
+  inventoryModuleIsActive,
+  canUseInventoryModule,
+  deviceTypeRoutes,
+);
+internalRoutes.use(
+  "/inventory",
+  inventoryModuleIsActive,
+  canUseInventoryModule,
+  locationRoutes,
+);
+internalRoutes.use(
+  "/inventory",
+  inventoryModuleIsActive,
+  canUseInventoryModule,
+  mikrotikRoutes,
+);
+internalRoutes.use(
+  "/inventory",
+  inventoryModuleIsActive,
+  canUseInventoryModule,
+  vendorRoutes,
+);
 
 // Mount external routes
 externalRoutes.use("/external", externalUserRoutes);

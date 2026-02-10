@@ -13,7 +13,7 @@ export async function loader({ params }) {
   const { token } = getLocalStorageData();
 
   const servicePlanResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -83,7 +83,7 @@ export async function action({ request, params }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/service-plans/update/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/update/${params.id}`,
     {
       method: "PUT",
       headers: {

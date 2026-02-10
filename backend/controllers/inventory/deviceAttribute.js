@@ -1,5 +1,5 @@
-const DeviceAttribute = require("../../models/inventory/deviceAttribute");
-const { AppError } = require("../../middleware/errorHandling");
+const DeviceAttribute = require("@/models/inventory/deviceAttribute");
+const { AppError } = require("@/middleware/errorHandling");
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -43,24 +43,24 @@ exports.getOne = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { name, label, description, dataType, unit, options, isActive } =
-      req.body;
+    const { code, name, valueType, unit, options, isActive } = req.body;
 
-    const deviceAttributeExists = await DeviceAttribute.findOne({ name });
+    const deviceAttributeExists = await DeviceAttribute.findOne({
+      $or: [{ name }, { code }],
+    });
     if (deviceAttributeExists) {
       return next(
         new AppError(
-          `Device attribute with name "${name}" already exists`,
+          `Device attribute with name "${name}" or code "${code}" already exists`,
           409,
         ),
       );
     }
 
     const deviceAttribute = new DeviceAttribute({
+      code,
       name,
-      label,
-      description,
-      dataType,
+      valueType,
       unit,
       options,
       isActive,
@@ -86,8 +86,7 @@ exports.add = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { name, label, description, dataType, unit, options, isActive } =
-      req.body;
+    const { code, name, valueType, unit, options, isActive } = req.body;
 
     const deviceAttribute = await DeviceAttribute.findById(req.params.id);
     if (!deviceAttribute) {
@@ -100,25 +99,25 @@ exports.update = async (req, res, next) => {
     }
 
     // Check if name is being changed and if new name already exists
-    if (name !== deviceAttribute.name) {
-      const nameExists = await DeviceAttribute.findOne({
-        name,
+    // Check if name or code is being changed and if new name/code already exists
+    if (name !== deviceAttribute.name || code !== deviceAttribute.code) {
+      const duplicateExists = await DeviceAttribute.findOne({
+        $or: [{ name }, { code }],
         _id: { $ne: req.params.id },
       });
-      if (nameExists) {
+      if (duplicateExists) {
         return next(
           new AppError(
-            `Device attribute with name "${name}" already exists`,
+            `Device attribute with name "${name}" or code "${code}" already exists`,
             409,
           ),
         );
       }
     }
 
+    deviceAttribute.code = code;
     deviceAttribute.name = name;
-    deviceAttribute.label = label;
-    deviceAttribute.description = description;
-    deviceAttribute.dataType = dataType;
+    deviceAttribute.valueType = valueType;
     deviceAttribute.unit = unit;
     deviceAttribute.options = options;
     deviceAttribute.isActive = isActive;

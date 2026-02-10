@@ -20,10 +20,10 @@ const DeviceAttributeFilter = ({
     filterStore.applyFilter();
   };
 
-  const dataTypeChangeHandler = (event) => {
+  const valueTypeChangeHandler = (event) => {
     filterStore.updateFilter({
       ...filterStore,
-      dataType: event.target.value,
+      valueType: event.target.value,
     });
     filterStore.applyFilter();
   };
@@ -51,11 +51,11 @@ const DeviceAttributeFilter = ({
       </Row>
       <Row className="py-2">
         <Col>
-          <Form.Label htmlFor="dataType">Тип данных</Form.Label>
+          <Form.Label htmlFor="valueType">Тип данных</Form.Label>
           <Form.Select
-            id="dataType"
-            value={filterStore.dataType}
-            onChange={dataTypeChangeHandler}
+            id="valueType"
+            value={filterStore.valueType}
+            onChange={valueTypeChangeHandler}
           >
             <option value="all">Все типы</option>
             <option value="string">Строка (string)</option>

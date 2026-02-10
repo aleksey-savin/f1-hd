@@ -12,19 +12,19 @@ export async function loader() {
 
   const { token } = getLocalStorageData();
 
-  // Fetch available attributes
-  const attributesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-attributes`,
+  // Fetch all device types for attachableToTypeIds selection
+  const deviceTypesResponse = await fetch(
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
     },
   );
-  const availableAttributes = await attributesResponse.json();
+  const availableDeviceTypes = await deviceTypesResponse.json();
 
   return {
-    availableAttributes,
+    availableDeviceTypes,
   };
 }
 
@@ -33,14 +33,12 @@ export async function action({ request }) {
 
   const data = await request.formData();
 
-  const attributesJson = data.get("attributes");
-  const attributes = attributesJson ? JSON.parse(attributesJson) : [];
-
   const deviceTypeData = {
     name: data.get("name"),
-    description: data.get("description"),
     isActive: data.get("isActive") === "true",
-    attributes: attributes,
+    isComponent: data.get("isComponent") === "true",
+    isConsumable: data.get("isConsumable") === "true",
+    attachableToTypeIds: data.getAll("attachableToTypeIds"),
   };
 
   const response = await fetch(

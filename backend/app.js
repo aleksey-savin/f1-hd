@@ -10,7 +10,6 @@ const {
   performanceMonitor,
   requestIdMiddleware,
   compressionMiddleware,
-  healthCheckWithMetrics,
   initializeMonitoring,
 } = require("./middleware/performance");
 

@@ -1,5 +1,5 @@
-const DeviceType = require("../../models/inventory/deviceType");
-const { AppError } = require("../../middleware/errorHandling");
+const DeviceType = require("@/models/inventory/deviceType");
+const { AppError } = require("@/middleware/errorHandling");
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -18,7 +18,8 @@ exports.getOne = async (req, res, next) => {
   try {
     const deviceType = await DeviceType.findById(req.params.id)
       .populate("createdBy", "firstName lastName")
-      .populate("updatedBy", "firstName lastName");
+      .populate("updatedBy", "firstName lastName")
+      .populate("attachableToTypeIds", "name");
 
     if (!deviceType) {
       return next(
@@ -40,7 +41,8 @@ exports.getOne = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { name, description } = req.body;
+    const { name, isActive, isComponent, isConsumable, attachableToTypeIds } =
+      req.body;
 
     const deviceTypeExists = await DeviceType.findOne({ name });
     if (deviceTypeExists) {
@@ -51,7 +53,10 @@ exports.add = async (req, res, next) => {
 
     const deviceType = new DeviceType({
       name,
-      description,
+      isActive,
+      isComponent,
+      isConsumable,
+      attachableToTypeIds,
       createdBy: req.userId,
     });
 
@@ -68,7 +73,8 @@ exports.add = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { name, description, isActive } = req.body;
+    const { name, isActive, isComponent, isConsumable, attachableToTypeIds } =
+      req.body;
 
     const deviceType = await DeviceType.findById(req.params.id);
     if (!deviceType) {
@@ -91,8 +97,10 @@ exports.update = async (req, res, next) => {
     }
 
     deviceType.name = name;
-    deviceType.description = description;
     deviceType.isActive = isActive;
+    deviceType.isComponent = isComponent;
+    deviceType.isConsumable = isConsumable;
+    deviceType.attachableToTypeIds = attachableToTypeIds;
 
     await deviceType.save();
 
