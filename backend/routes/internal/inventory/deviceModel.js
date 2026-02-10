@@ -11,13 +11,7 @@ const {
 } = require("@/validations/inventory/deviceModel");
 const { checkValidationResult } = require("@/middleware/validation");
 
-router.get(
-  "/device-models",
-  isAuth,
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  deviceModelController.getAll,
-);
+router.get("/device-models", isAuth, deviceModelController.getAll);
 
 router.get("/device-models/:id", isAuth, deviceModelController.getOne);
 
