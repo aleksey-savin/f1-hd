@@ -19,25 +19,10 @@ const deviceModelSchema = new Schema(
       required: false,
       trim: true,
     },
-
-    // Значения атрибутов
-    attributes: [
-      {
-        attributeId: {
-          type: Schema.Types.ObjectId,
-          ref: "DeviceAttribute",
-          required: true,
-        },
-        value: Schema.Types.Mixed,
-        _id: false,
-      },
-    ],
-
     notes: {
       type: String,
       trim: true,
     },
-
     // Audit fields
     createdBy: {
       type: Schema.Types.ObjectId,
@@ -49,7 +34,6 @@ const deviceModelSchema = new Schema(
       ref: "User",
       required: false,
     },
-
     // Soft delete
     deletedAt: Date,
     deletedBy: {

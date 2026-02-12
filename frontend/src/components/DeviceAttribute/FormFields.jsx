@@ -1,13 +1,9 @@
 import { useState } from "react";
 import Form from "react-bootstrap/Form";
-import { useLoaderData } from "react-router";
-import FormWrapper from "../../UI/FormWrapper";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 
-const DeviceAttributeForm = ({ title }) => {
-  const attribute = useLoaderData();
-
+const DeviceAttributeFormFields = ({ attribute, onChange }) => {
   const [code, setCode] = useState(attribute?.code || "");
   const [name, setName] = useState(attribute?.name || "");
   const [valueType, setValueType] = useState(attribute?.valueType || "string");
@@ -20,37 +16,62 @@ const DeviceAttributeForm = ({ title }) => {
   );
 
   const codeChangeHandler = (event) => {
-    setCode(event.target.value);
+    const newCode = event.target.value;
+    setCode(newCode);
+    notifyChange({ code: newCode, name, valueType, unit, options, isActive });
   };
 
   const nameChangeHandler = (event) => {
-    setName(event.target.value);
+    const newName = event.target.value;
+    setName(newName);
+    notifyChange({ code, name: newName, valueType, unit, options, isActive });
   };
 
   const valueTypeChangeHandler = (event) => {
-    setValueType(event.target.value);
+    const newValueType = event.target.value;
+    setValueType(newValueType);
+    notifyChange({
+      code,
+      name,
+      valueType: newValueType,
+      unit,
+      options,
+      isActive,
+    });
   };
 
   const unitChangeHandler = (event) => {
-    setUnit(event.target.value);
+    const newUnit = event.target.value;
+    setUnit(newUnit);
+    notifyChange({ code, name, valueType, unit: newUnit, options, isActive });
   };
 
   const optionsChangeHandler = (event) => {
-    setOptions(event.target.value);
+    const newOptions = event.target.value;
+    setOptions(newOptions);
+    notifyChange({ code, name, valueType, unit, options: newOptions, isActive });
   };
 
   const isActiveChangeHandler = () => {
-    setIsActive(!isActive);
+    const newIsActive = !isActive;
+    setIsActive(newIsActive);
+    notifyChange({ code, name, valueType, unit, options, isActive: newIsActive });
+  };
+
+  const notifyChange = (data) => {
+    if (onChange) {
+      onChange(data);
+    }
   };
 
   const showOptionsField =
     valueType === "select" || valueType === "multiselect";
 
   return (
-    <FormWrapper title={title}>
+    <>
       <Row>
         <Col md={6}>
-          <Form.Group className="py-3">
+          <Form.Group className="mb-3">
             <Form.Label htmlFor="code">
               Код
               <span style={{ color: "red" }}>*</span>
@@ -72,8 +93,8 @@ const DeviceAttributeForm = ({ title }) => {
         </Col>
 
         <Col md={6}>
-          <Form.Group className="py-3">
-            <Form.Label htmlFor="label">
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="name">
               Наименование
               <span style={{ color: "red" }}>*</span>
             </Form.Label>
@@ -92,9 +113,10 @@ const DeviceAttributeForm = ({ title }) => {
           </Form.Group>
         </Col>
       </Row>
+
       <Row>
         <Col md={6}>
-          <Form.Group className="py-3">
+          <Form.Group className="mb-3">
             <Form.Label htmlFor="valueType">
               Тип данных
               <span style={{ color: "red" }}>*</span>
@@ -119,7 +141,7 @@ const DeviceAttributeForm = ({ title }) => {
         </Col>
 
         <Col md={6}>
-          <Form.Group className="py-3">
+          <Form.Group className="mb-3">
             <Form.Label htmlFor="unit">Единица измерения</Form.Label>
             <Form.Control
               id="unit"
@@ -137,7 +159,7 @@ const DeviceAttributeForm = ({ title }) => {
       </Row>
 
       {showOptionsField && (
-        <Form.Group className="py-3">
+        <Form.Group className="mb-3">
           <Form.Label htmlFor="options">
             Варианты выбора
             <span style={{ color: "red" }}>*</span>
@@ -165,13 +187,12 @@ const DeviceAttributeForm = ({ title }) => {
           id="isActive"
           name="isActive"
           label="Активен"
-          className="py-2"
           value={isActive}
           onChange={isActiveChangeHandler}
         />
       </Form.Group>
-    </FormWrapper>
+    </>
   );
 };
 
-export default DeviceAttributeForm;
+export default DeviceAttributeFormFields;

@@ -6,14 +6,14 @@ import { getLocalStorageData } from "../../util/auth";
 
 const UpdateDeviceAttributePage = () => {
   const { permissions } = useContext(AuthedUserContext);
-  const { canUseInventoryModule, canManageDeviceAttributes } = permissions;
+  const { canUseInventoryModule, canManageClientDevices } = permissions;
 
   return (
     <>
-      {canUseInventoryModule && canManageDeviceAttributes && (
+      {canUseInventoryModule && canManageClientDevices && (
         <DeviceAttributeForm title="Редактировать атрибут устройства" />
       )}
-      {(!canUseInventoryModule || !canManageDeviceAttributes) && <Forbidden />}
+      {(!canUseInventoryModule || !canManageClientDevices) && <Forbidden />}
     </>
   );
 };
@@ -52,6 +52,10 @@ export async function action({ request, params }) {
         .split("\n")
         .map((opt) => opt.trim())
         .filter(Boolean)
+        .map((opt) => ({
+          label: opt,
+          value: opt.trim().toLowerCase().replace(/\s+/g, "_"),
+        }))
     : [];
 
   const attributeData = {
@@ -60,7 +64,7 @@ export async function action({ request, params }) {
     valueType: data.get("valueType"),
     unit: data.get("unit"),
     options: optionsArray,
-    isActive: data.get("isActive") === "on",
+    isActive: data.get("isActive") === "true",
   };
 
   const response = await fetch(

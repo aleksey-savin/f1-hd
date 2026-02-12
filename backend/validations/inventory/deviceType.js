@@ -11,6 +11,22 @@ const deviceTypeValidation = [
     .optional()
     .isArray()
     .withMessage("Поле attachableToTypeIds должно быть массивом"),
+  body("attributes")
+    .optional()
+    .isArray()
+    .withMessage("Поле attributes должно быть массивом"),
+  body("attributes.*.attributeId")
+    .optional()
+    .isMongoId()
+    .withMessage("attributeId должен быть валидным MongoDB ID"),
+  body("attributes.*.required")
+    .optional()
+    .isBoolean()
+    .withMessage("Поле required должно быть булевым значением"),
+  body("attributes.*.extendable")
+    .optional()
+    .isBoolean()
+    .withMessage("Поле extendable должно быть булевым значением"),
   body("isActive")
     .isBoolean()
     .withMessage("Поле isActive должно быть булевым значением"),

@@ -1,4 +1,5 @@
 const DeviceType = require("@/models/inventory/deviceType");
+const DeviceTypeAttribute = require("@/models/inventory/deviceTypeAttribute");
 const { AppError } = require("@/middleware/errorHandling");
 
 exports.getAll = async (req, res, next) => {
@@ -26,7 +27,20 @@ exports.getOne = async (req, res, next) => {
         new AppError(`Device type with id ${req.params.id} not found`, 404),
       );
     }
-    res.status(200).json(deviceType);
+
+    // Fetch device type attributes
+    const deviceTypeAttributes = await DeviceTypeAttribute.find({
+      deviceTypeId: req.params.id,
+    })
+      .populate("attributeId", "code name valueType unit options isActive")
+      .sort({ createdAt: 1 });
+
+    const deviceTypeWithAttributes = {
+      ...deviceType.toObject(),
+      attributes: deviceTypeAttributes,
+    };
+
+    res.status(200).json(deviceTypeWithAttributes);
   } catch (error) {
     next(
       new AppError(
@@ -41,8 +55,14 @@ exports.getOne = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { name, isActive, isComponent, isConsumable, attachableToTypeIds } =
-      req.body;
+    const {
+      name,
+      isActive,
+      isComponent,
+      isConsumable,
+      attachableToTypeIds,
+      attributes,
+    } = req.body;
 
     const deviceTypeExists = await DeviceType.findOne({ name });
     if (deviceTypeExists) {
@@ -62,6 +82,19 @@ exports.add = async (req, res, next) => {
 
     await deviceType.save();
 
+    // Save device type attributes if provided
+    if (attributes && attributes.length > 0) {
+      const attributeDocs = attributes.map((attr) => ({
+        deviceTypeId: deviceType._id,
+        attributeId: attr.attributeId,
+        required: attr.required || false,
+        extendable: attr.extendable || false,
+        createdBy: req.userId,
+      }));
+
+      await DeviceTypeAttribute.insertMany(attributeDocs);
+    }
+
     res.status(201).json({
       message: "Тип устройства успешно добавлен",
       deviceType: deviceType,
@@ -73,8 +106,14 @@ exports.add = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { name, isActive, isComponent, isConsumable, attachableToTypeIds } =
-      req.body;
+    const {
+      name,
+      isActive,
+      isComponent,
+      isConsumable,
+      attachableToTypeIds,
+      attributes,
+    } = req.body;
 
     const deviceType = await DeviceType.findById(req.params.id);
     if (!deviceType) {
@@ -101,8 +140,28 @@ exports.update = async (req, res, next) => {
     deviceType.isComponent = isComponent;
     deviceType.isConsumable = isConsumable;
     deviceType.attachableToTypeIds = attachableToTypeIds;
+    deviceType.updatedBy = req.userId;
 
     await deviceType.save();
+
+    // Update device type attributes
+    if (attributes) {
+      // Delete existing attributes
+      await DeviceTypeAttribute.deleteMany({ deviceTypeId: req.params.id });
+
+      // Add new attributes
+      if (attributes.length > 0) {
+        const attributeDocs = attributes.map((attr) => ({
+          deviceTypeId: req.params.id,
+          attributeId: attr.attributeId,
+          required: attr.required || false,
+          extendable: attr.extendable || false,
+          createdBy: req.userId,
+        }));
+
+        await DeviceTypeAttribute.insertMany(attributeDocs);
+      }
+    }
 
     res.status(200).json({
       message: "Тип устройства успешно обновлен",
@@ -124,6 +183,9 @@ exports.delete = async (req, res, next) => {
   try {
     const deviceType = await DeviceType.findById(req.params.id);
     if (deviceType) {
+      // Delete associated device type attributes
+      await DeviceTypeAttribute.deleteMany({ deviceTypeId: req.params.id });
+
       await DeviceType.deleteOne({ _id: req.params.id });
       res.status(204).end();
     } else {

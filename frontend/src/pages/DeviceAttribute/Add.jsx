@@ -38,8 +38,6 @@ export async function action({ request }) {
     isActive: data.get("isActive") === "true",
   };
 
-  console.log(attributeData);
-
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-attributes/add`,
     {
