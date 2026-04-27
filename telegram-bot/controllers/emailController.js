@@ -11,10 +11,8 @@ exports.checkEmailNotifications = async () => {
   try {
     const notifications = await Notification.find({
       instrument: "email",
-      $and: [
-        { $or: [{ sent: false }, { sent: { $exists: false } }] },
-        { failed: false },
-      ],
+      sent: false,
+      failed: false,
     });
 
     if (notifications.length === 0) {

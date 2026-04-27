@@ -4,30 +4,29 @@ const Schema = mongoose.Schema;
 
 const clientDeviceSchema = new Schema(
   {
-    company: {
+    configurationId: {
       type: Schema.Types.ObjectId,
-      ref: "Company",
-      required: true,
+      ref: "DeviceConfiguration",
     },
-    user: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: false,
-    },
-    location: {
-      type: Schema.Types.ObjectId,
-      ref: "Location",
-      required: true,
-    },
-    deviceModel: {
+    deviceModelId: {
       type: Schema.Types.ObjectId,
       ref: "DeviceModel",
-      required: true,
     },
-    deviceModelConfig: {
+    companyId: {
       type: Schema.Types.ObjectId,
-      ref: "DeviceModelConfig",
-      required: true,
+      ref: "Company",
+    },
+    comment: {
+      type: String,
+      required: false,
+    },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    locationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Location",
     },
     serialNumber: {
       type: String,
@@ -36,7 +35,7 @@ const clientDeviceSchema = new Schema(
       trim: true,
     },
     // Purchase and warranty information
-    purchaseDate: {
+    purchasedAt: {
       type: Date,
     },
     price: {

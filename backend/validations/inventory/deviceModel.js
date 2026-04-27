@@ -2,33 +2,34 @@ const { body } = require("express-validator");
 
 const deviceModelValidation = [
   body("deviceTypeId")
-    .notEmpty()
-    .withMessage("Device type ID is required")
+    .optional()
     .isMongoId()
-    .withMessage("Incorrect device type ID"),
+    .withMessage("Device type ID must be a valid MongoDB ID"),
   body("vendorId")
-    .notEmpty()
-    .withMessage("Vendor ID is required")
+    .optional()
     .isMongoId()
-    .withMessage("Incorrect vendor ID"),
+    .withMessage("Vendor ID must be a valid MongoDB ID"),
   body("name")
+    .optional()
     .isLength({ max: 200 })
     .withMessage("Name must not exceed 200 characters")
     .trim(),
-  body("attributes")
+  body("configurationIds")
     .optional()
     .isArray()
-    .withMessage("Attributes must be an array"),
-  body("attributes.*.attributeId")
+    .withMessage("Configuration IDs must be an array"),
+  body("configurationIds.*")
     .optional()
     .isMongoId()
-    .withMessage("Incorrect attribute ID"),
-  body("attributes.*.value")
+    .withMessage("Configuration ID must be a valid MongoDB ID"),
+  body("compatibleWithModelIds")
     .optional()
-    .custom((value) => {
-      return true;
-    })
-    .withMessage("Attribute value is invalid"),
+    .isArray()
+    .withMessage("Compatible model IDs must be an array"),
+  body("compatibleWithModelIds.*")
+    .optional()
+    .isMongoId()
+    .withMessage("Compatible model ID must be a valid MongoDB ID"),
   body("notes")
     .optional()
     .isLength({ max: 1000 })

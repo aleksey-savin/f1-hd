@@ -2,12 +2,12 @@ import ItemCard from "../../UI/ItemCard";
 import Badge from "react-bootstrap/Badge";
 
 const DeviceModelItem = ({ item }) => {
-  const { name, deviceTypeId, vendorId, attributes } = item;
+  const { name, deviceTypeId, vendorId, compatibleWithModelIds } = item;
 
   const Title = () => {
     return (
       <>
-        {vendorId?.name} {name}
+        {vendorId?.name} {name || "(Без названия)"}
       </>
     );
   };
@@ -20,19 +20,18 @@ const DeviceModelItem = ({ item }) => {
             <strong>Тип:</strong> {deviceTypeId.name}
           </div>
         )}
-        {attributes && attributes.length > 0 && (
+        {compatibleWithModelIds && compatibleWithModelIds.length > 0 && (
           <div className="mt-2">
-            {attributes.slice(0, 3).map((attr, index) => (
-              <div key={index}>
-                <strong>{attr.attributeId?.label}:</strong>{" "}
-                {attr.value}
-                {attr.attributeId?.unit && <> {attr.attributeId.unit}</>}
-              </div>
+            <strong>Совместимо с:</strong>{" "}
+            {compatibleWithModelIds.slice(0, 3).map((model) => (
+              <Badge key={model._id} bg="secondary" className="me-1">
+                {model.name || "Без названия"}
+              </Badge>
             ))}
-            {attributes.length > 3 && (
-              <div className="text-muted fst-italic mt-1">
-                +{attributes.length - 3} атрибутов
-              </div>
+            {compatibleWithModelIds.length > 3 && (
+              <span className="text-muted fst-italic">
+                +{compatibleWithModelIds.length - 3} моделей
+              </span>
             )}
           </div>
         )}
@@ -51,10 +50,12 @@ const DeviceModelItem = ({ item }) => {
   return (
     <ItemCard
       item={item}
-      itemTitle="device-model"
+      itemTitle="deviceModel"
+      detailsButton
       badges={badges}
       title={<Title />}
       description={<Description />}
+      viewRoute={`/inventory/device-models/${item._id}`}
     ></ItemCard>
   );
 };

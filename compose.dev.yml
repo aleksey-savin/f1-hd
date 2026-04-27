@@ -1,8 +1,10 @@
 services:
   mongodb:
     image: "mongo"
+    restart: unless-stopped
     volumes:
       - hd_data:/data/db
+      - ./mongodb/docker-entrypoint-wrapper.sh:/docker-entrypoint-wrapper.sh:ro
     env_file:
       - .env.dev
     ports:

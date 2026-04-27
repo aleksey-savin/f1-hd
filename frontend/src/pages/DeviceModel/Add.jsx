@@ -12,16 +12,30 @@ export async function loader() {
 
   const { token } = getLocalStorageData();
 
-  // Fetch device types
+  // Fetch device types with attributes
   const deviceTypesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
-  const deviceTypes = await deviceTypesResponse.json();
+  let deviceTypes = await deviceTypesResponse.json();
+
+  // Fetch attributes for each device type
+  for (let dt of deviceTypes) {
+    const dtResponse = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types/${dt._id}`,
+      {
+        headers: {
+          Authorization: "Bearer " + token,
+        },
+      },
+    );
+    const fullDeviceType = await dtResponse.json();
+    dt.attributes = fullDeviceType.attributes || [];
+  }
 
   // Fetch vendors
   const vendorsResponse = await fetch(
@@ -30,13 +44,25 @@ export async function loader() {
       headers: {
         Authorization: "Bearer " + token,
       },
-    }
+    },
   );
   const vendors = await vendorsResponse.json();
+
+  // Fetch all device models for compatibility selection
+  const deviceModelsResponse = await fetch(
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models`,
+    {
+      headers: {
+        Authorization: "Bearer " + token,
+      },
+    },
+  );
+  const deviceModels = await deviceModelsResponse.json();
 
   return {
     deviceTypes,
     vendors,
+    deviceModels,
   };
 }
 
@@ -45,14 +71,16 @@ export async function action({ request }) {
 
   const data = await request.formData();
 
-  const attributesJson = data.get("attributes");
-  const attributes = attributesJson ? JSON.parse(attributesJson) : [];
+  const configurationsJson = data.get("configurations");
+  const configurations = configurationsJson
+    ? JSON.parse(configurationsJson)
+    : [];
 
   const deviceModelData = {
     deviceTypeId: data.get("deviceTypeId"),
     vendorId: data.get("vendorId"),
     name: data.get("name"),
-    attributes: attributes,
+    compatibleWithModelIds: data.getAll("compatibleWithModelIds"),
     notes: data.get("notes"),
   };
 
@@ -65,7 +93,7 @@ export async function action({ request }) {
         Authorization: "Bearer " + token,
       },
       body: JSON.stringify(deviceModelData),
-    }
+    },
   );
 
   if ([409].includes(response.status)) {
@@ -76,5 +104,28 @@ export async function action({ request }) {
     throw response;
   }
 
-  return await response.json();
+  const result = await response.json();
+  const deviceModelId = result.deviceModel._id;
+
+  // Create configurations if provided
+  if (configurations.length > 0) {
+    for (const config of configurations) {
+      await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-configurations/add`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+          body: JSON.stringify({
+            deviceModelId: deviceModelId,
+            values: config.values,
+          }),
+        },
+      );
+    }
+  }
+
+  return result;
 }

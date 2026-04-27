@@ -22,6 +22,12 @@ const deviceTypeSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    configurationIds: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "DeviceConfiguration",
+      },
+    ],
     attachableToTypeIds: [{ type: Schema.Types.ObjectId, ref: "DeviceType" }],
     createdBy: {
       type: Schema.Types.ObjectId,

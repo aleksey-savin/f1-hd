@@ -1,13 +1,14 @@
-const DeviceModel = require("../../models/inventory/deviceModel");
-const ClientDevice = require("../../models/inventory/clientDevice");
-const { AppError } = require("../../middleware/errorHandling");
+const DeviceModel = require("@/models/inventory/deviceModel");
+const ClientDevice = require("@/models/inventory/clientDevice");
+const { AppError } = require("@/middleware/errorHandling");
 
 exports.getAll = async (req, res, next) => {
   try {
-    const deviceModels = await DeviceModel.find({})
+    const deviceModels = await DeviceModel.find({ deletedAt: null })
       .populate("deviceTypeId", "name")
       .populate("vendorId", "name")
-      .populate("attributes.attributeId", "name label dataType unit")
+      .populate("configurationIds")
+      .populate("compatibleWithModelIds", "name")
       .populate("createdBy", "firstName lastName")
       .populate("updatedBy", "firstName lastName")
       .sort({ name: 1 });
@@ -20,10 +21,14 @@ exports.getAll = async (req, res, next) => {
 
 exports.getOne = async (req, res, next) => {
   try {
-    const deviceModel = await DeviceModel.findById(req.params.id)
+    const deviceModel = await DeviceModel.findOne({
+      _id: req.params.id,
+      deletedAt: null,
+    })
       .populate("deviceTypeId", "name")
       .populate("vendorId", "name")
-      .populate("attributes.attributeId", "name label dataType unit options")
+      .populate("configurationIds")
+      .populate("compatibleWithModelIds", "name")
       .populate("createdBy", "firstName lastName")
       .populate("updatedBy", "firstName lastName");
 
@@ -47,20 +52,34 @@ exports.getOne = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { deviceTypeId, vendorId, name, attributes, notes } = req.body;
+    const {
+      deviceTypeId,
+      vendorId,
+      name,
+      configurationIds,
+      compatibleWithModelIds,
+      notes,
+    } = req.body;
 
-    const deviceModelExists = await DeviceModel.findOne({ name });
-    if (deviceModelExists) {
-      return next(
-        new AppError(`Device model with name "${name}" already exists`, 409),
-      );
+    // Check if name already exists (if name is provided)
+    if (name) {
+      const deviceModelExists = await DeviceModel.findOne({
+        name,
+        deletedAt: null,
+      });
+      if (deviceModelExists) {
+        return next(
+          new AppError(`Device model with name "${name}" already exists`, 409),
+        );
+      }
     }
 
     const deviceModel = new DeviceModel({
       deviceTypeId,
       vendorId,
       name,
-      attributes,
+      configurationIds: configurationIds || [],
+      compatibleWithModelIds: compatibleWithModelIds || [],
       notes,
       createdBy: req.userId,
     });
@@ -70,7 +89,8 @@ exports.add = async (req, res, next) => {
     const populatedDeviceModel = await DeviceModel.findById(deviceModel._id)
       .populate("deviceTypeId", "name")
       .populate("vendorId", "name")
-      .populate("attributes.attributeId", "name label dataType unit");
+      .populate("configurationIds")
+      .populate("compatibleWithModelIds", "name");
 
     res.status(201).json({
       message: "Device model added successfully",
@@ -83,9 +103,19 @@ exports.add = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { deviceTypeId, vendorId, name, attributes, notes } = req.body;
+    const {
+      deviceTypeId,
+      vendorId,
+      name,
+      configurationIds,
+      compatibleWithModelIds,
+      notes,
+    } = req.body;
 
-    const deviceModel = await DeviceModel.findById(req.params.id);
+    const deviceModel = await DeviceModel.findOne({
+      _id: req.params.id,
+      deletedAt: null,
+    });
     if (!deviceModel) {
       return next(
         new AppError(`Device model with id ${req.params.id} not found`, 404),
@@ -93,10 +123,11 @@ exports.update = async (req, res, next) => {
     }
 
     // Check if name is being changed and if new name already exists
-    if (name !== deviceModel.name) {
+    if (name && name !== deviceModel.name) {
       const nameExists = await DeviceModel.findOne({
         name,
         _id: { $ne: req.params.id },
+        deletedAt: null,
       });
       if (nameExists) {
         return next(
@@ -105,11 +136,15 @@ exports.update = async (req, res, next) => {
       }
     }
 
-    deviceModel.name = name;
-    deviceModel.deviceTypeId = deviceTypeId;
-    deviceModel.vendorId = vendorId;
-    deviceModel.attributes = attributes;
-    deviceModel.notes = notes;
+    // Update fields
+    if (name !== undefined) deviceModel.name = name;
+    if (deviceTypeId) deviceModel.deviceTypeId = deviceTypeId;
+    if (vendorId) deviceModel.vendorId = vendorId;
+    if (configurationIds !== undefined)
+      deviceModel.configurationIds = configurationIds;
+    if (compatibleWithModelIds !== undefined)
+      deviceModel.compatibleWithModelIds = compatibleWithModelIds;
+    if (notes !== undefined) deviceModel.notes = notes;
     deviceModel.updatedBy = req.userId;
 
     await deviceModel.save();
@@ -117,7 +152,8 @@ exports.update = async (req, res, next) => {
     const populatedDeviceModel = await DeviceModel.findById(deviceModel._id)
       .populate("deviceTypeId", "name")
       .populate("vendorId", "name")
-      .populate("attributes.attributeId", "name label dataType unit");
+      .populate("configurationIds")
+      .populate("compatibleWithModelIds", "name");
 
     res.status(200).json({
       message: "Device model updated successfully",
@@ -137,7 +173,10 @@ exports.update = async (req, res, next) => {
 
 exports.delete = async (req, res, next) => {
   try {
-    const deviceModel = await DeviceModel.findById(req.params.id);
+    const deviceModel = await DeviceModel.findOne({
+      _id: req.params.id,
+      deletedAt: null,
+    });
 
     if (!deviceModel) {
       return next(
@@ -145,15 +184,27 @@ exports.delete = async (req, res, next) => {
       );
     }
 
+    // Check if device model is being used
     const clientDevices = await ClientDevice.find({
-      deviceModelId: req.params.id,
+      deviceModel: req.params.id,
+      deletedAt: null,
     });
 
     if (clientDevices.length > 0) {
-      return next(new AppError(`Device model ${req.params.id} is in use`, 409));
+      return next(
+        new AppError(
+          `Device model is in use by ${clientDevices.length} device(s)`,
+          409,
+        ),
+      );
     }
 
-    await DeviceModel.deleteOne({ _id: req.params.id });
+    // Soft delete
+    deviceModel.deletedAt = new Date();
+    deviceModel.deletedBy = req.userId;
+
+    await deviceModel.save();
+
     res.status(204).end();
   } catch (error) {
     next(

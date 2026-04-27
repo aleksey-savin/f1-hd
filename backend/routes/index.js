@@ -33,6 +33,7 @@ const servicePlanRoutes = require("./internal/finances/servicePlan");
 // Internal inventory routes
 const clientDeviceRoutes = require("./internal/inventory/clientDevice");
 const deviceAttributeRoutes = require("./internal/inventory/deviceAttribute");
+const deviceConfigurationRoutes = require("./internal/inventory/deviceConfiguration");
 const deviceModelRoutes = require("./internal/inventory/deviceModel");
 const deviceTypeRoutes = require("./internal/inventory/deviceType");
 const locationRoutes = require("./internal/inventory/location");
@@ -95,6 +96,12 @@ internalRoutes.use(
   inventoryModuleIsActive,
   canUseInventoryModule,
   deviceAttributeRoutes,
+);
+internalRoutes.use(
+  "/inventory",
+  inventoryModuleIsActive,
+  canUseInventoryModule,
+  deviceConfigurationRoutes,
 );
 internalRoutes.use(
   "/inventory",

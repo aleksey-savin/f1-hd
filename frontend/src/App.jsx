@@ -226,6 +226,19 @@ import UpdateDeviceModelPage, {
   loader as updateDeviceModelLoader,
   action as updateDeviceModelAction,
 } from "./pages/DeviceModel/Update.jsx";
+import ViewDeviceModelPage, {
+  loader as viewDeviceModelLoader,
+} from "./pages/DeviceModel/View.jsx";
+
+// Device Configurations
+import AddDeviceConfigurationPage, {
+  loader as addDeviceConfigurationLoader,
+  action as addDeviceConfigurationAction,
+} from "./pages/DeviceConfiguration/Add.jsx";
+import UpdateDeviceConfigurationPage, {
+  loader as updateDeviceConfigurationLoader,
+  action as updateDeviceConfigurationAction,
+} from "./pages/DeviceConfiguration/Update.jsx";
 
 // Mikrotik devices
 import MikrotikDevices, {
@@ -739,6 +752,30 @@ function App() {
               element: <UpdateDeviceModelPage />,
               loader: updateDeviceModelLoader,
               action: updateDeviceModelAction,
+            },
+          ],
+        },
+        {
+          path: "inventory/device-models/:id",
+          element: <ViewDeviceModelPage />,
+          loader: viewDeviceModelLoader,
+        },
+
+        // Device Configurations
+        {
+          path: "inventory/device-configurations",
+          children: [
+            {
+              path: ":modelId/add",
+              element: <AddDeviceConfigurationPage />,
+              loader: addDeviceConfigurationLoader,
+              action: addDeviceConfigurationAction,
+            },
+            {
+              path: ":id/update",
+              element: <UpdateDeviceConfigurationPage />,
+              loader: updateDeviceConfigurationLoader,
+              action: updateDeviceConfigurationAction,
             },
           ],
         },

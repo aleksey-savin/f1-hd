@@ -1,178 +1,183 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Form from "react-bootstrap/Form";
 import { useLoaderData } from "react-router";
 import FormWrapper from "../../UI/FormWrapper";
+import Select from "../../UI/Select";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
-import { getLocalStorageData } from "../../util/auth";
+import Button from "react-bootstrap/Button";
+import Card from "react-bootstrap/Card";
+import Table from "react-bootstrap/Table";
+import Badge from "react-bootstrap/Badge";
+import { RiAddLine, RiDeleteBinLine, RiEditLine } from "react-icons/ri";
 
-const DeviceModelForm = ({ title }) => {
+const DeviceModelForm = ({ title, _editConfigId }) => {
   const loaderData = useLoaderData();
   const deviceModel = loaderData?.deviceModel;
+  const deviceTypes = loaderData?.deviceTypes || [];
+  const vendors = loaderData?.vendors || [];
+  const deviceModels = loaderData?.deviceModels || [];
+  const existingConfigurations = loaderData?.configurations || [];
 
   const [name, setName] = useState(deviceModel?.name || "");
   const [deviceTypeId, setDeviceTypeId] = useState(
-    deviceModel?.deviceTypeId?._id || ""
+    deviceModel?.deviceTypeId?._id || "",
   );
   const [vendorId, setVendorId] = useState(deviceModel?.vendorId?._id || "");
-  const [notes, setNotes] = useState(deviceModel?.notes || "");
-  const [attributes, setAttributes] = useState(
-    deviceModel?.attributes || []
+  const [compatibleWithModelIds, setCompatibleWithModelIds] = useState(
+    deviceModel?.compatibleWithModelIds?.map((m) => m._id) || [],
   );
+  const [notes, setNotes] = useState(deviceModel?.notes || "");
+  const [configurations, setConfigurations] = useState([]);
+  const [showConfigForm, setShowConfigForm] = useState(false);
+  const [editingConfigIndex, setEditingConfigIndex] = useState(null);
+  const [currentConfigValues, setCurrentConfigValues] = useState([]);
 
-  const [deviceTypes, setDeviceTypes] = useState(loaderData?.deviceTypes || []);
-  const [vendors, setVendors] = useState(loaderData?.vendors || []);
-  const [availableAttributes, setAvailableAttributes] = useState([]);
-  const [isLoadingAttributes, setIsLoadingAttributes] = useState(false);
-
-  // Load available attributes when device type changes
-  useEffect(() => {
-    const fetchDeviceTypeAttributes = async () => {
-      if (!deviceTypeId) {
-        setAvailableAttributes([]);
-        return;
-      }
-
-      setIsLoadingAttributes(true);
-      try {
-        const { token } = getLocalStorageData();
-        const response = await fetch(
-          `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types/${deviceTypeId}`,
-          {
-            headers: {
-              Authorization: "Bearer " + token,
-            },
-          }
-        );
-        const deviceType = await response.json();
-
-        // Fetch full attribute definitions
-        if (deviceType.attributes && deviceType.attributes.length > 0) {
-          const attrIds = deviceType.attributes.map((a) => a.attributeId);
-          const attributesResponse = await fetch(
-            `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-attributes`,
-            {
-              headers: {
-                Authorization: "Bearer " + token,
-              },
-            }
-          );
-          const allAttributes = await attributesResponse.json();
-
-          // Filter and sort attributes
-          const filtered = allAttributes
-            .filter((attr) => attrIds.includes(attr._id))
-            .map((attr) => {
-              const config = deviceType.attributes.find(
-                (a) => a.attributeId === attr._id
-              );
-              return {
-                ...attr,
-                isRequired: config?.isRequired || false,
-                displayOrder: config?.displayOrder || 0,
-              };
-            })
-            .sort((a, b) => a.displayOrder - b.displayOrder);
-
-          setAvailableAttributes(filtered);
-
-          // Initialize attributes values if empty
-          if (attributes.length === 0) {
-            const initialAttrs = filtered.map((attr) => ({
-              attributeId: attr._id,
-              value: "",
-            }));
-            setAttributes(initialAttrs);
-          }
-        } else {
-          setAvailableAttributes([]);
-        }
-      } catch (error) {
-        console.error("Error fetching device type attributes:", error);
-      } finally {
-        setIsLoadingAttributes(false);
-      }
-    };
-
-    fetchDeviceTypeAttributes();
-  }, [deviceTypeId]);
+  // Get device type attributes
+  const selectedDeviceType = deviceTypes.find((dt) => dt._id === deviceTypeId);
+  const availableAttributes = selectedDeviceType?.attributes || [];
 
   const nameChangeHandler = (event) => {
     setName(event.target.value);
   };
 
-  const deviceTypeChangeHandler = (event) => {
-    setDeviceTypeId(event.target.value);
-    setAttributes([]);
+  const deviceTypeChangeHandler = (selectedOption) => {
+    setDeviceTypeId(selectedOption?._id || "");
+    // Clear current config values when device type changes
+    setCurrentConfigValues([]);
   };
 
-  const vendorChangeHandler = (event) => {
-    setVendorId(event.target.value);
+  const vendorChangeHandler = (selectedOption) => {
+    setVendorId(selectedOption?._id || "");
+  };
+
+  const compatibleModelsChangeHandler = (selectedOptions) => {
+    setCompatibleWithModelIds(selectedOptions || []);
   };
 
   const notesChangeHandler = (event) => {
     setNotes(event.target.value);
   };
 
-  const attributeChangeHandler = (attributeId, value) => {
-    setAttributes((prev) => {
-      const existing = prev.find((a) => a.attributeId === attributeId);
+  const handleAddConfiguration = () => {
+    if (!deviceTypeId) {
+      alert("Сначала выберите тип устройства");
+      return;
+    }
+    setShowConfigForm(true);
+    setEditingConfigIndex(null);
+    setCurrentConfigValues([]);
+  };
+
+  const handleEditConfiguration = (index) => {
+    setEditingConfigIndex(index);
+    setCurrentConfigValues(configurations[index].values || []);
+    setShowConfigForm(true);
+  };
+
+  const handleDeleteConfiguration = (index) => {
+    const newConfigs = configurations.filter((_, i) => i !== index);
+    setConfigurations(newConfigs);
+  };
+
+  const handleSaveConfiguration = () => {
+    const config = {
+      values: currentConfigValues.filter((v) => v.value && v.value.trim()),
+    };
+
+    if (editingConfigIndex !== null) {
+      // Update existing
+      const newConfigs = [...configurations];
+      newConfigs[editingConfigIndex] = config;
+      setConfigurations(newConfigs);
+    } else {
+      // Add new
+      setConfigurations([...configurations, config]);
+    }
+
+    setShowConfigForm(false);
+    setCurrentConfigValues([]);
+    setEditingConfigIndex(null);
+  };
+
+  const handleCancelConfiguration = () => {
+    setShowConfigForm(false);
+    setCurrentConfigValues([]);
+    setEditingConfigIndex(null);
+  };
+
+  const handleConfigValueChange = (attributeId, value) => {
+    setCurrentConfigValues((prev) => {
+      const existing = prev.find((v) => v.attributeId === attributeId);
       if (existing) {
-        return prev.map((a) =>
-          a.attributeId === attributeId ? { ...a, value } : a
+        return prev.map((v) =>
+          v.attributeId === attributeId ? { ...v, value } : v,
         );
-      } else {
-        return [...prev, { attributeId, value }];
       }
+      return [...prev, { attributeId, value }];
     });
   };
 
-  const getAttributeValue = (attributeId) => {
-    const attr = attributes.find((a) => a.attributeId === attributeId);
-    return attr?.value || "";
+  const getConfigValue = (attributeId) => {
+    const val = currentConfigValues.find((v) => v.attributeId === attributeId);
+    return val?.value || "";
   };
 
-  const renderAttributeField = (attr) => {
-    const value = getAttributeValue(attr._id);
+  const getAttributeName = (attributeId) => {
+    const attr = availableAttributes.find(
+      (a) => a.attributeId._id === attributeId || a.attributeId === attributeId,
+    );
+    return attr?.attributeId?.name || "—";
+  };
 
-    switch (attr.dataType) {
+  const renderAttributeInput = (attr) => {
+    const attrId =
+      typeof attr.attributeId === "object"
+        ? attr.attributeId._id
+        : attr.attributeId;
+    const attrData =
+      typeof attr.attributeId === "object"
+        ? attr.attributeId
+        : availableAttributes.find((a) => a.attributeId === attrId)
+            ?.attributeId;
+
+    if (!attrData) return null;
+
+    const value = getConfigValue(attrId);
+
+    switch (attrData.valueType) {
       case "boolean":
         return (
           <Form.Check
             type="checkbox"
-            id={`attr-${attr._id}`}
-            label={attr.label}
+            id={`config-attr-${attrId}`}
             checked={value === true || value === "true"}
-            onChange={(e) =>
-              attributeChangeHandler(attr._id, e.target.checked)
-            }
+            onChange={(e) => handleConfigValueChange(attrId, e.target.checked)}
           />
         );
 
       case "number":
         return (
           <Form.Control
-            required={attr.isRequired}
-            id={`attr-${attr._id}`}
+            id={`config-attr-${attrId}`}
             type="number"
             value={value}
-            onChange={(e) => attributeChangeHandler(attr._id, e.target.value)}
-            placeholder={`Введите ${attr.label.toLowerCase()}`}
+            onChange={(e) => handleConfigValueChange(attrId, e.target.value)}
+            placeholder={`Введите значение`}
           />
         );
 
       case "select":
         return (
           <Form.Select
-            required={attr.isRequired}
-            id={`attr-${attr._id}`}
+            id={`config-attr-${attrId}`}
             value={value}
-            onChange={(e) => attributeChangeHandler(attr._id, e.target.value)}
+            onChange={(e) => handleConfigValueChange(attrId, e.target.value)}
           >
             <option value="">Выберите...</option>
-            {attr.options?.map((option, index) => (
-              <option key={index} value={option}>
-                {option}
+            {attrData.options?.map((option, index) => (
+              <option key={index} value={option.value}>
+                {option.label}
               </option>
             ))}
           </Form.Select>
@@ -181,25 +186,23 @@ const DeviceModelForm = ({ title }) => {
       case "text":
         return (
           <Form.Control
-            required={attr.isRequired}
-            id={`attr-${attr._id}`}
+            id={`config-attr-${attrId}`}
             as="textarea"
-            rows={3}
+            rows={2}
             value={value}
-            onChange={(e) => attributeChangeHandler(attr._id, e.target.value)}
-            placeholder={`Введите ${attr.label.toLowerCase()}`}
+            onChange={(e) => handleConfigValueChange(attrId, e.target.value)}
+            placeholder={`Введите значение`}
           />
         );
 
       default:
         return (
           <Form.Control
-            required={attr.isRequired}
-            id={`attr-${attr._id}`}
+            id={`config-attr-${attrId}`}
             type="text"
             value={value}
-            onChange={(e) => attributeChangeHandler(attr._id, e.target.value)}
-            placeholder={`Введите ${attr.label.toLowerCase()}`}
+            onChange={(e) => handleConfigValueChange(attrId, e.target.value)}
+            placeholder={`Введите значение`}
           />
         );
     }
@@ -207,12 +210,14 @@ const DeviceModelForm = ({ title }) => {
 
   return (
     <FormWrapper title={title}>
-      {/* Hidden field for attributes JSON */}
+      {/* Hidden fields for form submission */}
       <input
         type="hidden"
-        name="attributes"
-        value={JSON.stringify(attributes.filter((a) => a.value !== ""))}
+        name="configurations"
+        value={JSON.stringify(configurations)}
       />
+      <input type="hidden" name="deviceTypeId" value={deviceTypeId} />
+      <input type="hidden" name="vendorId" value={vendorId} />
 
       <Row>
         <Col md={6}>
@@ -221,43 +226,41 @@ const DeviceModelForm = ({ title }) => {
               Тип устройства
               <span style={{ color: "red" }}>*</span>
             </Form.Label>
-            <Form.Select
-              required
+            <Select
               id="deviceTypeId"
               name="deviceTypeId"
-              value={deviceTypeId}
+              value={deviceTypes.find((dt) => dt._id === deviceTypeId)}
               onChange={deviceTypeChangeHandler}
-            >
-              <option value="">Выберите тип устройства</option>
-              {deviceTypes.map((type) => (
-                <option key={type._id} value={type._id}>
-                  {type.name}
-                </option>
-              ))}
-            </Form.Select>
+              options={deviceTypes}
+              placeholder="Выберите тип устройства..."
+              required
+              isClearable
+              isSearchable
+              getOptionLabel={(option) => option.name}
+              getOptionValue={(option) => option._id}
+            />
           </Form.Group>
         </Col>
 
         <Col md={6}>
           <Form.Group className="py-3">
             <Form.Label htmlFor="vendorId">
-              Вендор
+              Производитель
               <span style={{ color: "red" }}>*</span>
             </Form.Label>
-            <Form.Select
-              required
+            <Select
               id="vendorId"
               name="vendorId"
-              value={vendorId}
+              value={vendors.find((v) => v._id === vendorId)}
               onChange={vendorChangeHandler}
-            >
-              <option value="">Выберите вендора</option>
-              {vendors.map((vendor) => (
-                <option key={vendor._id} value={vendor._id}>
-                  {vendor.name}
-                </option>
-              ))}
-            </Form.Select>
+              options={vendors}
+              placeholder="Выберите производителя..."
+              required
+              isClearable
+              isSearchable
+              getOptionLabel={(option) => option.name}
+              getOptionValue={(option) => option._id}
+            />
           </Form.Group>
         </Col>
       </Row>
@@ -265,50 +268,46 @@ const DeviceModelForm = ({ title }) => {
       <Form.Group className="py-3">
         <Form.Label htmlFor="name">Название модели</Form.Label>
         <Form.Control
-          autoFocus
           id="name"
           name="name"
           type="text"
           value={name}
           onChange={nameChangeHandler}
-          placeholder="XPS 15, ThinkPad X1"
+          placeholder="XPS 15, ThinkPad X1 Carbon"
         />
         <Form.Text className="text-muted">
-          Опционально, если модель имеет название
+          Опционально. Можно оставить пустым, если модель не имеет конкретного
+          названия
         </Form.Text>
       </Form.Group>
 
-      {isLoadingAttributes && (
-        <div className="py-3 text-center">
-          <div className="spinner-border spinner-border-sm" role="status">
-            <span className="visually-hidden">Загрузка...</span>
-          </div>
-          <span className="ms-2">Загрузка атрибутов...</span>
-        </div>
-      )}
-
-      {!isLoadingAttributes && availableAttributes.length > 0 && (
-        <div className="py-3">
-          <h5 className="mb-3">Характеристики</h5>
-          <Row>
-            {availableAttributes.map((attr) => (
-              <Col md={6} key={attr._id}>
-                <Form.Group className="py-2">
-                  <Form.Label htmlFor={`attr-${attr._id}`}>
-                    {attr.label}
-                    {attr.isRequired && (
-                      <span style={{ color: "red" }}>*</span>
-                    )}
-                    {attr.unit && (
-                      <span className="text-muted"> ({attr.unit})</span>
-                    )}
-                  </Form.Label>
-                  {renderAttributeField(attr)}
-                </Form.Group>
-              </Col>
-            ))}
-          </Row>
-        </div>
+      {selectedDeviceType?.isConsumable && (
+        <Form.Group className="py-3">
+          <Form.Label htmlFor="compatibleWithModelIds">
+            Совместимые модели
+          </Form.Label>
+          <Select
+            id="compatibleWithModelIds"
+            name="compatibleWithModelIds"
+            value={deviceModels.filter((dm) =>
+              compatibleWithModelIds.includes(dm._id),
+            )}
+            onChange={compatibleModelsChangeHandler}
+            options={deviceModels}
+            placeholder="Выберите совместимые модели..."
+            isClearable
+            isSearchable
+            isMulti
+            closeMenuOnSelect={false}
+            getOptionLabel={(option) =>
+              `${option.deviceTypeId?.name || "—"} - ${option.vendorId?.name || "—"} ${option.name || ""}`
+            }
+            getOptionValue={(option) => option._id}
+          />
+          <Form.Text className="text-muted">
+            Укажите другие модели устройств, с которыми совместима данная модель
+          </Form.Text>
+        </Form.Group>
       )}
 
       <Form.Group className="py-3">
@@ -320,9 +319,177 @@ const DeviceModelForm = ({ title }) => {
           rows={3}
           value={notes}
           onChange={notesChangeHandler}
-          placeholder="Дополнительная информация"
+          placeholder="Дополнительная информация о модели"
         />
       </Form.Group>
+
+      <hr className="my-4" />
+      <h5 className="mb-3">Конфигурации</h5>
+
+      {configurations.length > 0 && (
+        <Card className="mb-3">
+          <Card.Body>
+            <Table responsive hover size="sm">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Атрибуты</th>
+                  <th style={{ width: "120px" }}>Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {configurations.map((config, index) => (
+                  <tr key={index}>
+                    <td>{index + 1}</td>
+                    <td>
+                      <div className="d-flex flex-wrap gap-1">
+                        {config.values?.map((val, idx) => (
+                          <Badge key={idx} bg="secondary" className="me-1">
+                            {getAttributeName(val.attributeId)}: {val.value}
+                          </Badge>
+                        ))}
+                      </div>
+                    </td>
+                    <td>
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        className="me-1"
+                        onClick={() => handleEditConfiguration(index)}
+                      >
+                        <RiEditLine />
+                      </Button>
+                      <Button
+                        variant="outline-danger"
+                        size="sm"
+                        onClick={() => handleDeleteConfiguration(index)}
+                      >
+                        <RiDeleteBinLine />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card.Body>
+        </Card>
+      )}
+
+      {!showConfigForm && (
+        <Button
+          variant="success"
+          size="sm"
+          onClick={handleAddConfiguration}
+          disabled={!deviceTypeId}
+        >
+          <RiAddLine /> Добавить конфигурацию
+        </Button>
+      )}
+
+      {showConfigForm && (
+        <Card className="mb-3">
+          <Card.Header>
+            <h6 className="mb-0">
+              {editingConfigIndex !== null
+                ? "Редактировать конфигурацию"
+                : "Новая конфигурация"}
+            </h6>
+          </Card.Header>
+          <Card.Body>
+            {availableAttributes.length === 0 ? (
+              <p className="text-muted">
+                У выбранного типа устройства нет атрибутов. Сначала добавьте
+                атрибуты к типу устройства.
+              </p>
+            ) : (
+              <Row>
+                {availableAttributes.map((attr) => {
+                  const attrId =
+                    typeof attr.attributeId === "object"
+                      ? attr.attributeId._id
+                      : attr.attributeId;
+                  const attrData =
+                    typeof attr.attributeId === "object"
+                      ? attr.attributeId
+                      : null;
+
+                  return (
+                    <Col md={6} key={attrId}>
+                      <Form.Group className="mb-3">
+                        <Form.Label htmlFor={`config-attr-${attrId}`}>
+                          {attrData?.name || "Атрибут"}
+                          {attr.required && (
+                            <span style={{ color: "red" }}>*</span>
+                          )}
+                          {attrData?.unit && (
+                            <span className="text-muted">
+                              {" "}
+                              ({attrData.unit})
+                            </span>
+                          )}
+                        </Form.Label>
+                        {renderAttributeInput(attr)}
+                      </Form.Group>
+                    </Col>
+                  );
+                })}
+              </Row>
+            )}
+          </Card.Body>
+          <Card.Footer className="d-flex gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveConfiguration}
+              disabled={availableAttributes.length === 0}
+            >
+              Сохранить
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCancelConfiguration}
+            >
+              Отмена
+            </Button>
+          </Card.Footer>
+        </Card>
+      )}
+
+      {deviceModel && existingConfigurations.length > 0 && (
+        <>
+          <hr className="my-4" />
+          <h6 className="mb-3">Существующие конфигурации</h6>
+          <p className="text-muted small">
+            Эти конфигурации уже сохранены. Для их редактирования или удаления
+            используйте страницу просмотра модели.
+          </p>
+          <Table responsive hover size="sm">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Атрибуты</th>
+              </tr>
+            </thead>
+            <tbody>
+              {existingConfigurations.map((config, index) => (
+                <tr key={config._id}>
+                  <td>{index + 1}</td>
+                  <td>
+                    <div className="d-flex flex-wrap gap-1">
+                      {config.values?.map((val, idx) => (
+                        <Badge key={idx} bg="info">
+                          {val.attributeId?.name || "—"}: {val.value || "—"}
+                        </Badge>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </>
+      )}
     </FormWrapper>
   );
 };

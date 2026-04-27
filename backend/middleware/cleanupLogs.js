@@ -11,7 +11,9 @@ const cleanupOldLogs = async (daysToKeep = 90) => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-    logger.info(`Starting cleanup of logs older than ${cutoffDate.toISOString()}`);
+    logger.info(
+      `Starting cleanup of logs older than ${cutoffDate.toISOString()}`,
+    );
 
     // Подсчитываем количество логов для удаления
     const logsToDeleteCount = await CompanyLog.countDocuments({
@@ -23,7 +25,7 @@ const cleanupOldLogs = async (daysToKeep = 90) => {
       return {
         success: true,
         deletedCount: 0,
-        message: "No logs were deleted - no old logs found"
+        message: "No logs were deleted - no old logs found",
       };
     }
 
@@ -33,16 +35,15 @@ const cleanupOldLogs = async (daysToKeep = 90) => {
     });
 
     logger.info(
-      `Cleanup completed: deleted ${deleteResult.deletedCount} logs older than ${daysToKeep} days`
+      `Cleanup completed: deleted ${deleteResult.deletedCount} logs older than ${daysToKeep} days`,
     );
 
     return {
       success: true,
       deletedCount: deleteResult.deletedCount,
       cutoffDate: cutoffDate,
-      message: `Successfully deleted ${deleteResult.deletedCount} logs older than ${daysToKeep} days`
+      message: `Successfully deleted ${deleteResult.deletedCount} logs older than ${daysToKeep} days`,
     };
-
   } catch (error) {
     logger.error("Error during logs cleanup:", error);
 
@@ -50,7 +51,7 @@ const cleanupOldLogs = async (daysToKeep = 90) => {
       success: false,
       deletedCount: 0,
       error: error.message,
-      message: "Logs cleanup failed"
+      message: "Logs cleanup failed",
     };
   }
 };
@@ -62,15 +63,15 @@ const cleanupOldLogs = async (daysToKeep = 90) => {
 const getLogsStatistics = async () => {
   try {
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-    const ninetyDaysAgo = new Date(now.getTime() - (90 * 24 * 60 * 60 * 1000));
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
     const [
       totalLogs,
       logsLast30Days,
       logsOlderThan90Days,
       oldestLog,
-      newestLog
+      newestLog,
     ] = await Promise.all([
       CompanyLog.countDocuments(),
       CompanyLog.countDocuments({ timeStamp: { $gte: thirtyDaysAgo } }),
@@ -85,9 +86,8 @@ const getLogsStatistics = async () => {
       logsOlderThan90Days,
       oldestLogDate: oldestLog?.timeStamp,
       newestLogDate: newestLog?.timeStamp,
-      generatedAt: now
+      generatedAt: now,
     };
-
   } catch (error) {
     logger.error("Error getting logs statistics:", error);
     throw error;
@@ -106,28 +106,28 @@ const scheduleLogsCleanup = async () => {
     const statsBefore = await getLogsStatistics();
     logger.info(`Logs statistics before cleanup:`, {
       total: statsBefore.totalLogs,
-      olderThan90Days: statsBefore.logsOlderThan90Days
+      olderThan90Days: statsBefore.logsOlderThan90Days,
     });
 
     // Выполняем очистку (храним логи 90 дней)
     const result = await cleanupOldLogs(90);
 
     if (result.success) {
-      logger.info(`Scheduled cleanup completed successfully: ${result.message}`);
+      logger.info(
+        `Scheduled cleanup completed successfully: ${result.message}`,
+      );
 
       // Получаем статистику после очистки
       const statsAfter = await getLogsStatistics();
       logger.info(`Logs statistics after cleanup:`, {
         total: statsAfter.totalLogs,
-        deleted: result.deletedCount
+        deleted: result.deletedCount,
       });
-
     } else {
       logger.error(`Scheduled cleanup failed: ${result.message}`);
     }
 
     return result;
-
   } catch (error) {
     logger.error("Error in scheduled logs cleanup:", error);
     throw error;
@@ -137,5 +137,5 @@ const scheduleLogsCleanup = async () => {
 module.exports = {
   cleanupOldLogs,
   getLogsStatistics,
-  scheduleLogsCleanup
+  scheduleLogsCleanup,
 };

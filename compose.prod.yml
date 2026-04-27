@@ -12,6 +12,7 @@ services:
     volumes:
       - hd_data:/data/db
       - hd_mongodb_config:/data/configdb
+      - ./mongodb/docker-entrypoint-wrapper.sh:/docker-entrypoint-wrapper.sh:ro
     networks:
       - hd-network
     healthcheck:

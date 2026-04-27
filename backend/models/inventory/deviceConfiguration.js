@@ -2,34 +2,32 @@ const mongoose = require("mongoose");
 
 const Schema = mongoose.Schema;
 
-const deviceModelSchema = new Schema(
+const deviceConfigurationSchema = new Schema(
   {
     name: {
       type: String,
       required: false,
-      trim: true,
+    },
+    description: {
+      type: String,
+      required: false,
     },
     deviceTypeId: {
       type: Schema.Types.ObjectId,
       ref: "DeviceType",
       required: true,
     },
-    vendorId: {
-      type: Schema.Types.ObjectId,
-      ref: "Vendor",
-      required: true,
-    },
-    compatibleWithModelIds: [
+    values: [
       {
-        type: Schema.Types.ObjectId,
-        ref: "DeviceModel",
+        attributeId: { type: Schema.Types.ObjectId, ref: "DeviceAttribute" },
+        value: String,
       },
     ],
-    notes: {
-      type: String,
-      trim: true,
+    deletedAt: Date,
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
     },
-
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -40,15 +38,13 @@ const deviceModelSchema = new Schema(
       ref: "User",
       required: false,
     },
-    deletedAt: Date,
-    deletedBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-    },
   },
   { timestamps: true },
 );
 
-const DeviceModel = mongoose.model("DeviceModel", deviceModelSchema);
+const DeviceConfiguration = mongoose.model(
+  "DeviceConfiguration",
+  deviceConfigurationSchema,
+);
 
-module.exports = DeviceModel;
+module.exports = DeviceConfiguration;

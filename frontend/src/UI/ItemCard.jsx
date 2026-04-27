@@ -33,6 +33,7 @@ const ItemCard = ({
 
   const actionsAreActive =
     itemTitle === "clientDevice" ||
+    itemTitle === "deviceModel" ||
     itemTitle === "deviceType" ||
     itemTitle === "vendor" ||
     itemTitle === "deviceAttribute"
