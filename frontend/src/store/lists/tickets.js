@@ -264,7 +264,7 @@ const useTicketFilterStore = create((set) => ({
     const data = await response.json();
 
     set({
-      originalList: data.tickets,
+      originalList: data.tickets ?? [],
       isLoading: false,
     });
   },
@@ -286,17 +286,26 @@ const useTicketFilterStore = create((set) => ({
       return data;
     }
 
-    set((state) => ({
-      originalList: [
-        ...state.originalList.filter((ticket) => !ticket.isClosed),
-        ...data.tickets,
-      ],
-      isLoading: false,
-    }));
+    set((state) => {
+      const nextState = {
+        ...state,
+        originalList: [
+          ...state.originalList.filter((ticket) => !ticket.isClosed),
+          ...data.tickets,
+        ],
+        recentlyClosedList: data.tickets,
+        isLoading: false,
+      };
+      const filteredList = ticketFilter(nextState);
+      const sortedList = handleSorting(nextState.sortBy, filteredList);
 
-    set(() => ({
-      recentlyClosedList: data.tickets,
-    }));
+      return {
+        originalList: nextState.originalList,
+        filteredList: sortedList || filteredList,
+        recentlyClosedList: nextState.recentlyClosedList,
+        isLoading: false,
+      };
+    });
   },
   updateFilter: (data) =>
     set(() => ({

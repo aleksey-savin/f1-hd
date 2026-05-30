@@ -25,6 +25,7 @@ import PrefsIntegrations from "../components/Preferences/Integrations";
 import PrefsService from "../components/Preferences/Service";
 import PrefsModules from "../components/Preferences/Modules";
 import PrefsGlobals from "../components/Preferences/Globals";
+import PrefsAi from "../components/Preferences/Ai";
 
 import Forbidden from "../components/Error/403";
 import { getLocalStorageData } from "../util/auth";
@@ -96,6 +97,9 @@ const Preferences = () => {
                     <Nav.Link eventKey="integrations">Интеграции</Nav.Link>
                   </Nav.Item>
                   <Nav.Item>
+                    <Nav.Link eventKey="ai">AI</Nav.Link>
+                  </Nav.Item>
+                  <Nav.Item>
                     <Nav.Link eventKey="service">Обслуживание</Nav.Link>
                   </Nav.Item>
                 </Nav>
@@ -117,6 +121,9 @@ const Preferences = () => {
                     </Tab.Pane>
                     <Tab.Pane eventKey="integrations">
                       <PrefsIntegrations prefs={prefs} />
+                    </Tab.Pane>
+                    <Tab.Pane eventKey="ai">
+                      <PrefsAi prefs={prefs} />
                     </Tab.Pane>
                     <Tab.Pane eventKey="service">
                       <PrefsService prefs={prefs} />

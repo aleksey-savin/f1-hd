@@ -36,7 +36,7 @@ const TicketFilter = () => {
 
   const filterStore = useTicketFilterStore();
 
-  const items = filterStore.originalList;
+  const items = filterStore.originalList ?? [];
 
   // Фильтруем заявки на мои, необработанные, просроченные и к выполнению на сегодня
   const iAmResponsible = (tickets) =>

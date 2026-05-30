@@ -90,6 +90,7 @@ exports.update = async (req, res, next) => {
       contacts,
       getScreen,
       modules,
+      ai,
     } = req.body;
 
     if (!preferences) {
@@ -110,6 +111,7 @@ exports.update = async (req, res, next) => {
         contacts,
         getScreen,
         modules,
+        ai,
       });
     } else {
       preferences.timezone = timezone;
@@ -140,6 +142,7 @@ exports.update = async (req, res, next) => {
           isActive: modules.inventory.isActive,
         },
       };
+      preferences.ai = ai;
     }
 
     await preferences.save();
@@ -149,6 +152,79 @@ exports.update = async (req, res, next) => {
     });
   } catch (error) {
     next(new AppError(`Failed to update preferences`, 500, true, error));
+  }
+};
+
+exports.getAiModels = async (req, res, next) => {
+  try {
+    const { provider } = req.body;
+    let { apiKey } = req.body;
+
+    if (!provider || !["openai", "anthropic"].includes(provider)) {
+      return next(new AppError("Unknown AI provider", 400, true));
+    }
+
+    // Fall back to the stored key if the client didn't send one.
+    if (!apiKey) {
+      const preferences = await Preferences.findOne({});
+      apiKey = preferences?.ai?.[provider]?.apiKey;
+    }
+
+    if (!apiKey) {
+      return next(new AppError("AI API key is not set", 400, true));
+    }
+
+    let models = [];
+
+    if (provider === "openai") {
+      const response = await fetch("https://api.openai.com/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+
+      if (!response.ok) {
+        return next(
+          new AppError("Failed to fetch OpenAI models", response.status, true),
+        );
+      }
+
+      const data = await response.json();
+      models = (data.data || [])
+        .filter((model) => /^(gpt|o\d|chatgpt)/.test(model.id))
+        .map((model) => ({ id: model.id, name: model.id }))
+        .sort((a, b) => b.id.localeCompare(a.id));
+    }
+
+    if (provider === "anthropic") {
+      const response = await fetch(
+        "https://api.anthropic.com/v1/models?limit=1000",
+        {
+          headers: {
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+        },
+      );
+
+      if (!response.ok) {
+        return next(
+          new AppError(
+            "Failed to fetch Anthropic models",
+            response.status,
+            true,
+          ),
+        );
+      }
+
+      const data = await response.json();
+      models = (data.data || []).map((model) => ({
+        id: model.id,
+        name: model.display_name || model.id,
+      }));
+    }
+
+    res.status(200).json({ models });
+  } catch (error) {
+    next(new AppError(`Failed to fetch AI models`, 500, true, error));
   }
 };
 

@@ -10,33 +10,91 @@ const Preferences = require("../models//preferences");
 const User = require("../models//user");
 const Work = require("../models/work");
 
+const NOTIFICATION_BATCH_SIZE = 100;
+
+const isTransientMongoNetworkError = (error) =>
+  error?.code === "ECONNRESET" ||
+  error?.message?.includes("ECONNRESET") ||
+  error?.message?.includes("socket has been ended");
+
+const withMongoRetry = async (operation, context) => {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isTransientMongoNetworkError(error)) {
+      throw error;
+    }
+
+    logger.log("warn", `Retrying ${context} after MongoDB socket error`, {
+      error: error.message,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    return operation();
+  }
+};
+
+const notificationsEnabled = (prefs) =>
+  prefs?.notify?.byEmail?.isActive || prefs?.notify?.byTelegram?.isActive;
+
 exports.createTicketNotifications = async () => {
-  const prefs = await Preferences.findOne({});
-  const tickets = await Ticket.find({
-    "notifications.pending": true,
-  }).populate("applicantId");
-
-  const notifyTg = (user, state) =>
-    prefs.notify.byTelegram?.isActive &&
-    user.telegramBot?.isActive &&
-    user.notify.byTelegram?.[state] &&
-    prefs.notify.personal?.[state];
-
-  const notifyTgGroup =
-    prefs?.notify.byTelegram.sendToGroup && prefs.notify.byTelegram.isActive;
-
-  const notifyEmail = (user, state) =>
-    prefs.notify.byEmail.isActive &&
-    user.notify.byEmail?.[state] &&
-    prefs.notify.personal?.[state];
-
   if (process.env.NODE_ENV === "development") {
     return;
   }
 
+  const prefs = await withMongoRetry(
+    () => Preferences.findOne({}),
+    "loading preferences for ticket notifications",
+  );
+  if (!notificationsEnabled(prefs)) {
+    logger.log(
+      "debug",
+      "Skipping ticket notifications because notifications are disabled",
+    );
+    return;
+  }
+
+  const tickets = await withMongoRetry(
+    () =>
+      Ticket.find({
+        "notifications.pending": true,
+      })
+        .sort({ updatedAt: 1 })
+        .limit(NOTIFICATION_BATCH_SIZE)
+        .populate("applicantId"),
+    "loading pending ticket notifications",
+  );
+
+  const notifyTg = (user, state) =>
+    prefs.notify?.byTelegram?.isActive &&
+    user?.telegramBot?.isActive &&
+    user?.notify?.byTelegram?.[state] &&
+    prefs.notify?.personal?.[state];
+
+  const notifyTgGroup =
+    prefs.notify?.byTelegram?.sendToGroup &&
+    prefs.notify?.byTelegram?.isActive;
+
+  const notifyEmail = (user, state) =>
+    prefs.notify?.byEmail?.isActive &&
+    user?.notify?.byEmail?.[state] &&
+    prefs.notify?.personal?.[state];
+
   for (let ticket of tickets) {
     const lastAction = ticket.notifications.lastAction;
-    const applicant = await User.findById(ticket.applicantId._id);
+    const applicantId = ticket.applicantId?._id;
+
+    if (!applicantId) {
+      logger.log("warn", "Skipping ticket notification without applicant", {
+        ticketId: ticket._id,
+        ticketNum: ticket.num,
+      });
+      ticket.notifications.pending = false;
+      await ticket.save();
+      continue;
+    }
+
+    const applicant = await User.findById(applicantId);
 
     if (!applicant) {
       ticket.notifications.pending = false;
@@ -1082,24 +1140,43 @@ exports.createTicketNotifications = async () => {
 };
 
 exports.createCommentNotifications = async () => {
-  const prefs = await Preferences.findOne({});
-  const comments = await Comment.find({
-    "notifications.pending": true,
-  }).populate("createdBy");
+  const prefs = await withMongoRetry(
+    () => Preferences.findOne({}),
+    "loading preferences for comment notifications",
+  );
+  if (!notificationsEnabled(prefs)) {
+    logger.log(
+      "debug",
+      "Skipping comment notifications because notifications are disabled",
+    );
+    return;
+  }
+
+  const comments = await withMongoRetry(
+    () =>
+      Comment.find({
+        "notifications.pending": true,
+      })
+        .sort({ updatedAt: 1 })
+        .limit(NOTIFICATION_BATCH_SIZE)
+        .populate("createdBy"),
+    "loading pending comment notifications",
+  );
 
   const notifyTg = (user, state) =>
-    prefs.notify.byTelegram?.isActive &&
-    user.telegramBot?.isActive &&
-    user.notify.byTelegram?.[state] &&
-    prefs.notify.personal?.[state];
+    prefs.notify?.byTelegram?.isActive &&
+    user?.telegramBot?.isActive &&
+    user?.notify?.byTelegram?.[state] &&
+    prefs.notify?.personal?.[state];
 
   const notifyTgGroup =
-    prefs?.notify.byTelegram.sendToGroup && prefs.notify.byTelegram.isActive;
+    prefs.notify?.byTelegram?.sendToGroup &&
+    prefs.notify?.byTelegram?.isActive;
 
   const notifyEmail = (user, state) =>
-    prefs.notify.byEmail.isActive &&
-    user.notify.byEmail?.[state] &&
-    prefs.notify.personal?.[state];
+    prefs.notify?.byEmail?.isActive &&
+    user?.notify?.byEmail?.[state] &&
+    prefs.notify?.personal?.[state];
 
   for (let comment of comments) {
     const lastAction = comment.notifications.lastAction;
@@ -1288,12 +1365,31 @@ exports.createCommentNotifications = async () => {
 };
 
 exports.createUserNotifications = async () => {
-  const prefs = await Preferences.findOne({});
-  if (prefs && prefs.notify.byEmail?.isActive) {
-    const users = await User.find({
-      "notifications.pending": true,
-    });
-    for (let user of users) {
+  const prefs = await withMongoRetry(
+    () => Preferences.findOne({}),
+    "loading preferences for user notifications",
+  );
+
+  if (!prefs?.notify?.byEmail?.isActive) {
+    logger.log(
+      "debug",
+      "Skipping user notifications because email notifications are disabled",
+    );
+    return;
+  }
+
+  const users = await withMongoRetry(
+    () =>
+      User.find({
+        "notifications.pending": true,
+      })
+        .sort({ updatedAt: 1 })
+        .limit(NOTIFICATION_BATCH_SIZE),
+    "loading pending user notifications",
+  );
+
+  for (let user of users) {
+    try {
       const lastAction = user.notifications.lastAction;
 
       const decodedPassword = jwt.decode(
@@ -1472,12 +1568,30 @@ exports.createUserNotifications = async () => {
             );
           }
       }
+    } catch (error) {
+      logger.log("notification", "Failed to process user notification", {
+        userId: user._id,
+        userEmail: user.email,
+        lastAction: user.notifications?.lastAction,
+        error: error.message,
+        stack: error.stack,
+      });
     }
   }
 };
 
 exports.createScheduledWorkNotifications = async () => {
-  const prefs = await Preferences.findOne({});
+  const prefs = await withMongoRetry(
+    () => Preferences.findOne({}),
+    "loading preferences for scheduled work notifications",
+  );
+  if (!notificationsEnabled(prefs)) {
+    logger.log(
+      "debug",
+      "Skipping scheduled work notifications because notifications are disabled",
+    );
+    return;
+  }
 
   const formatDateTime = (date) => {
     const timezone = prefs.timezone;
@@ -1509,27 +1623,34 @@ exports.createScheduledWorkNotifications = async () => {
     return humanized;
   };
 
-  const works = await Work.find({
-    $and: [
-      { scheduled: true },
-      { finishedAt: null },
-      { "notifications.pending": true },
-    ],
-  });
+  const works = await withMongoRetry(
+    () =>
+      Work.find({
+        $and: [
+          { scheduled: true },
+          { finishedAt: null },
+          { "notifications.pending": true },
+        ],
+      })
+        .sort({ updatedAt: 1 })
+        .limit(NOTIFICATION_BATCH_SIZE),
+    "loading pending scheduled work notifications",
+  );
 
   const notifyTg = (user, state) =>
-    prefs.notify.byTelegram?.isActive &&
-    user.telegramBot?.isActive &&
-    user.notify.byTelegram?.[state] &&
-    prefs.notify.personal?.[state];
+    prefs.notify?.byTelegram?.isActive &&
+    user?.telegramBot?.isActive &&
+    user?.notify?.byTelegram?.[state] &&
+    prefs.notify?.personal?.[state];
 
   const notifyTgGroup =
-    prefs?.notify.byTelegram.sendToGroup && prefs.notify.byTelegram.isActive;
+    prefs.notify?.byTelegram?.sendToGroup &&
+    prefs.notify?.byTelegram?.isActive;
 
   const notifyEmail = (user, state) =>
-    prefs.notify.byEmail.isActive &&
-    user.notify.byEmail?.[state] &&
-    prefs.notify.personal?.[state];
+    prefs.notify?.byEmail?.isActive &&
+    user?.notify?.byEmail?.[state] &&
+    prefs.notify?.personal?.[state];
 
   for (let work of works) {
     const lastAction = work.notifications.lastAction;

@@ -9,6 +9,12 @@ router.get("/preferences-initial", isAuth, preferencesController.getInitial);
 router.get("/preferences-auth", preferencesController.getAuth);
 router.post("/preferences", isAuth, isAdmin, preferencesController.update);
 router.post(
+  "/preferences/ai-models",
+  isAuth,
+  isAdmin,
+  preferencesController.getAiModels,
+);
+router.post(
   "/preferences/update-db-conf",
   isAuth,
   isAdmin,

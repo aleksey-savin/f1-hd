@@ -119,7 +119,7 @@ const NavigationBar = ({ handleShowAuthModal }) => {
 
   const { token } = getLocalStorageData();
   const { modules } = useInitialPrefs();
-  const { isAdmin, firstName, lastName, dashboard, permissions } =
+  const { isAdmin, firstName, lastName, dashboard, permissions = {} } =
     useContext(AuthedUserContext);
   const isLoggedIn = !!token;
 

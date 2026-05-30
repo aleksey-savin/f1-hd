@@ -27,6 +27,7 @@ const {
 } = require("./middleware/notifications");
 
 const { scheduleLogsCleanup } = require("./middleware/cleanupLogs");
+const Preferences = require("./models/preferences");
 
 const PORT = process.env.PORT || 8080;
 const app = express();
@@ -103,16 +104,75 @@ mongoose
   });
 
 // check email for new tickets
+let isHandlingEmails = false;
 cron.schedule("*/20 * * * * *", () => {
-  handleNewEmails();
+  if (isHandlingEmails) {
+    logger.log(
+      "warn",
+      "Skipping email processing because previous run is still active",
+    );
+    return;
+  }
+
+  isHandlingEmails = true;
+  handleNewEmails().finally(() => {
+    isHandlingEmails = false;
+  });
 });
 
 // create notifications
-cron.schedule("*/1 * * * * *", () => {
-  createTicketNotifications();
-  createCommentNotifications();
-  createUserNotifications();
-  createScheduledWorkNotifications();
+let isCreatingNotifications = false;
+cron.schedule("*/10 * * * * *", async () => {
+  if (isCreatingNotifications) {
+    logger.log(
+      "debug",
+      "Skipping notification processing because previous run is still active",
+    );
+    return;
+  }
+
+  if (mongoose.connection.readyState !== 1) {
+    logger.log(
+      "warn",
+      "Skipping notification processing because MongoDB is not connected",
+      {
+        readyState: mongoose.connection.readyState,
+      },
+    );
+    return;
+  }
+
+  isCreatingNotifications = true;
+
+  try {
+    const prefs = await Preferences.findOne({});
+    const notificationsAreEnabled =
+      prefs?.notify?.byEmail?.isActive || prefs?.notify?.byTelegram?.isActive;
+
+    if (!notificationsAreEnabled) {
+      return;
+    }
+
+    const notificationJobs = [
+      ["ticket notifications", createTicketNotifications],
+      ["comment notifications", createCommentNotifications],
+      ["user notifications", createUserNotifications],
+      ["scheduled work notifications", createScheduledWorkNotifications],
+    ];
+
+    for (const [jobName, createNotifications] of notificationJobs) {
+      try {
+        await createNotifications();
+      } catch (error) {
+        logger.log("error", `Failed to create ${jobName}`, {
+          error: error.message,
+          stack: error.stack,
+        });
+      }
+    }
+  } finally {
+    isCreatingNotifications = false;
+  }
 });
 
 // Cleanup old company logs every day at 2:00 AM

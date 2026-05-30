@@ -1,3 +1,7 @@
 import { createContext } from "react";
 
-export const AuthedUserContext = createContext({});
+export const defaultAuthedUser = {
+  permissions: {},
+};
+
+export const AuthedUserContext = createContext(defaultAuthedUser);

@@ -71,6 +71,18 @@ const preferencesSchema = new Schema({
     finances: { isActive: { type: Boolean, default: false } },
     inventory: { isActive: { type: Boolean, default: false } },
   },
+  ai: {
+    isActive: { type: Boolean, default: false },
+    provider: { type: String, enum: ["openai", "anthropic"], default: "openai" },
+    openai: {
+      apiKey: { type: String, default: "" },
+      model: { type: String, default: "gpt-4o" },
+    },
+    anthropic: {
+      apiKey: { type: String, default: "" },
+      model: { type: String, default: "claude-opus-4-8" },
+    },
+  },
 });
 
 module.exports = mongoose.model("Preferences", preferencesSchema);

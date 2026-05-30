@@ -36,13 +36,14 @@ const getSafeExtension = (filename) => {
   return ext || "unknown";
 };
 
-let emailArray = [];
-
 exports.handleNewEmails = async () => {
   const context = {
     module: "emailHandling",
     operation: "processEmails",
   };
+  const emailArray = [];
+  let connection;
+
   try {
     const prefs = await Preferences.findOne({});
 
@@ -73,13 +74,13 @@ exports.handleNewEmails = async () => {
 
     // logger.log("info", "Starting email processing", emailContext);
 
-    const connection = await imaps.connect(config);
+    connection = await imaps.connect(config);
     await connection.openBox("INBOX");
     const searchCriteria = ["UNSEEN"];
     const fetchOptions = {
       bodies: ["HEADER", "TEXT", ""],
       struct: true,
-      markSeen: true,
+      markSeen: false,
     };
     const messages = await connection.search(searchCriteria, fetchOptions);
 
@@ -270,14 +271,14 @@ exports.handleNewEmails = async () => {
           }
         } //end of for loop
 
-        simpleParser(idHeader + all.body, (err, mail) => {
-          emailArray.push({
-            from: mail.from.text,
-            name: mail.subject,
-            description: mail.text,
-            htmlDescription: mail.html,
-            attachments: attachmentNames,
-          });
+        const mail = await simpleParser(idHeader + all.body);
+        emailArray.push({
+          uid: message.attributes.uid,
+          from: mail.from?.text,
+          name: mail.subject,
+          description: mail.text,
+          htmlDescription: mail.html,
+          attachments: attachmentNames,
         });
       } catch (messageError) {
         logger.log("error", `Failed to process message ${index + 1}`, {
@@ -288,8 +289,6 @@ exports.handleNewEmails = async () => {
         continue; // Continue with next message
       }
     }
-
-    connection.end();
 
     for (let [index, email] of emailArray.entries()) {
       const emailProcessingContext = {
@@ -458,6 +457,8 @@ exports.handleNewEmails = async () => {
 
           logger.log("info", `Created ticket ${ticket.num}`, context);
         }
+
+        await connection.addFlags(email.uid, "\\Seen");
       } catch (emailError) {
         logger.log("error", `Failed to process email ${index + 1}`, {
           ...emailProcessingContext,
@@ -466,6 +467,9 @@ exports.handleNewEmails = async () => {
         });
       }
     }
+    connection.end();
+    connection = null;
+
     if (emailArray.length > 0) {
       logger.log("info", "Email processing completed successfully", {
         ...context,
@@ -479,6 +483,8 @@ exports.handleNewEmails = async () => {
       stack: error.stack,
     });
   } finally {
-    emailArray = [];
+    if (connection) {
+      connection.end();
+    }
   }
 };

@@ -3,7 +3,10 @@ import { useLocation, useRevalidator } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 import { Outlet, useLoaderData, useSubmit } from "react-router";
 
-import { AuthedUserContext } from "../store/authed-user-context";
+import {
+  AuthedUserContext,
+  defaultAuthedUser,
+} from "../store/authed-user-context";
 import useSidebarStore from "../store/sidebar";
 
 import NavigationBar from "./Navbar";
@@ -136,7 +139,13 @@ const RootLayout = () => {
   }, [fetchUser, token]);
 
   return (
-    <AuthedUserContext.Provider value={userData}>
+    <AuthedUserContext.Provider
+      value={{
+        ...defaultAuthedUser,
+        ...userData,
+        permissions: userData?.permissions || defaultAuthedUser.permissions,
+      }}
+    >
       {isLoggedIn && <NavigationBar userPermissions={userPermissions} />}
       <Transitions>
         <BrowserView>

@@ -111,7 +111,9 @@ exports.getAllOpened = async (req, res, next) => {
 
 exports.getRecentlyClosed = async (req, res, next) => {
   try {
-    const { isAdmin, permissions, userId, company } = await getAuthData(req);
+    const { _id: userId, isAdmin, permissions, company } = await getAuthData(
+      req,
+    );
 
     // Calculate date threshold (14 days ago)
     const fourteenDaysAgo = new Date();
@@ -119,6 +121,7 @@ exports.getRecentlyClosed = async (req, res, next) => {
 
     // Build query conditions based on permissions
     let matchConditions = {
+      isClosed: true,
       finishedAt: { $gte: fourteenDaysAgo },
     };
 
@@ -231,7 +234,7 @@ exports.getRecentlyClosed = async (req, res, next) => {
               $match: {
                 $expr: {
                   $and: [
-                    { $in: ["$$ticketId", "$tickets"] },
+                    { $in: ["$$ticketId", { $ifNull: ["$tickets", []] }] },
                     { $eq: ["$scheduled", true] },
                     { $eq: ["$finishedAt", null] },
                   ],
