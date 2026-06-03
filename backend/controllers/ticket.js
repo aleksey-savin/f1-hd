@@ -16,6 +16,21 @@ const Comment = require("../models/comment");
 
 const Connection = require("../models/pro32Connect/connection");
 
+const { generateTicketAiGuide } = require("../services/ticketAiGuide");
+const {
+  isAudioAttachment,
+  transcribeAttachment,
+} = require("../services/speechToTextService");
+const { buildKnownCaller } = require("../services/callerIdentityService");
+
+const buildAttachment = (file) => ({
+  mimetype: file.mimetype,
+  mimeType: file.mimetype,
+  name: file.filename,
+  originalName: file.originalname,
+  size: file.size,
+});
+
 exports.getAllOpened = async (req, res, next) => {
   try {
     const { isAdmin, permissions, userId, company } = await getAuthData(req);
@@ -100,6 +115,7 @@ exports.getAllOpened = async (req, res, next) => {
         latestComment: ticket.comments[ticket.comments.length - 1],
         scheduledWorks: scheduledWorks,
         routineTask: ticket.routineTask,
+        aiSpeech: ticket.aiSpeech,
       });
     }
 
@@ -451,6 +467,8 @@ exports.getOne = async (req, res, next) => {
         doc.category = doc.categoryId;
         delete doc.applicantId;
         delete doc.categoryId;
+        // AI guide is an internal aid — never expose it to end-users/clients.
+        if (isEndUser) delete doc.aiGuide;
         return doc;
       });
 
@@ -588,12 +606,7 @@ exports.add = async (req, res, next) => {
 
     const applicant = applicantId ? applicantId : userId;
 
-    const attachments = req.files?.map((file) => {
-      return {
-        mimetype: file.mimetype,
-        name: file.filename,
-      };
-    });
+    const attachments = req.files?.map(buildAttachment);
 
     const customFields = req.body.customFields
       ? JSON.parse(req.body.customFields)
@@ -626,6 +639,9 @@ exports.add = async (req, res, next) => {
         lastAction: "new ticket",
         pending: true,
       },
+      aiGuide: {
+        status: prefs?.ai?.isActive ? "pending" : "idle",
+      },
     });
 
     await ticket.save();
@@ -646,6 +662,17 @@ exports.add = async (req, res, next) => {
       message: "Ticket added successfully!",
       ticket: ticket,
     });
+
+    // Generate the AI solution guide in the background — do not block (or fail)
+    // the create response on it.
+    if (prefs?.ai?.isActive) {
+      generateTicketAiGuide(ticket._id).catch((error) =>
+        logger.log("error", "Background AI guide generation failed", {
+          ticketId: ticket._id.toString(),
+          error: error.message,
+        }),
+      );
+    }
   } catch (error) {
     if (req.files) {
       for (let file of req.files) {
@@ -658,6 +685,159 @@ exports.add = async (req, res, next) => {
       }
     }
     next(new AppError(`Failed to add ticket`, 500, true, error));
+  }
+};
+
+exports.regenerateAiGuide = async (req, res, next) => {
+  try {
+    const { _id } = req.body;
+
+    const ticket = await Ticket.findById(_id).select("_id");
+    if (!ticket) {
+      return next(new AppError(`Ticket not found`, 404, true));
+    }
+
+    await Ticket.findByIdAndUpdate(_id, { "aiGuide.status": "pending" });
+
+    const aiGuide = await generateTicketAiGuide(_id);
+
+    if (aiGuide?.status === "error") {
+      return next(
+        new AppError(
+          aiGuide.error || "Failed to generate AI guide",
+          502,
+          true,
+        ),
+      );
+    }
+
+    res.status(200).json({
+      message: "AI guide regenerated",
+      aiGuide,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to regenerate AI guide`, 500, true, error));
+  }
+};
+
+exports.toggleAiGuideItem = async (req, res, next) => {
+  try {
+    const { _id, index, done } = req.body;
+
+    const ticket = await Ticket.findById(_id).select("aiGuide");
+    if (!ticket || !ticket.aiGuide?.items?.[index]) {
+      return next(new AppError(`AI guide item not found`, 404, true));
+    }
+
+    ticket.aiGuide.items[index].done = !!done;
+    await ticket.save();
+
+    res.status(200).json({
+      message: "AI guide item updated",
+      aiGuide: ticket.aiGuide,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to update AI guide item`, 500, true, error));
+  }
+};
+
+exports.transcribeAttachment = async (req, res, next) => {
+  let ticket;
+  let attachmentIndex = -1;
+
+  try {
+    const { ticketNum } = req.params;
+    const { attachmentName } = req.body;
+
+    if (!attachmentName) {
+      return next(new AppError("Attachment name is required", 400, true));
+    }
+
+    ticket = await Ticket.findOne({ num: ticketNum });
+    if (!ticket) {
+      return next(new AppError("Ticket not found", 404, true));
+    }
+
+    attachmentIndex = ticket.attachments.findIndex(
+      (attachment) => attachment.name === attachmentName,
+    );
+
+    if (attachmentIndex === -1) {
+      return next(new AppError("Attachment not found", 404, true));
+    }
+
+    if (!isAudioAttachment(ticket.attachments[attachmentIndex])) {
+      return next(
+        new AppError("Attachment is not a supported audio file", 400, true),
+      );
+    }
+
+    ticket.attachments[attachmentIndex].speechToText = {
+      status: "pending",
+      text: ticket.attachments[attachmentIndex].speechToText?.text || "",
+      error: "",
+    };
+    ticket.markModified("attachments");
+    await ticket.save();
+
+    // Достоверные имя клиента и компания (если опознаны) — для исправления
+    // искажённых распознаванием имён в диалоге и итоге.
+    const prefs = await Preferences.findOne({});
+    const knownContext = await buildKnownCaller(ticket, prefs);
+
+    const result = await transcribeAttachment(
+      ticket.attachments[attachmentIndex],
+      knownContext,
+    );
+
+    ticket = await Ticket.findOne({ num: ticketNum });
+    attachmentIndex = ticket.attachments.findIndex(
+      (attachment) => attachment.name === attachmentName,
+    );
+
+    ticket.attachments[attachmentIndex].speechToText = {
+      status: "ready",
+      text: result.text,
+      summary: result.summary,
+      segments: result.segments,
+      model: result.model,
+      error: "",
+      generatedAt: result.generatedAt,
+    };
+    ticket.markModified("attachments");
+    await ticket.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Speech recognition completed",
+      attachment: ticket.attachments[attachmentIndex],
+      attachments: ticket.attachments,
+    });
+  } catch (error) {
+    if (ticket && attachmentIndex >= 0) {
+      ticket.attachments[attachmentIndex].speechToText = {
+        status: "error",
+        text: ticket.attachments[attachmentIndex].speechToText?.text || "",
+        error: error.message,
+        generatedAt: new Date(),
+      };
+      ticket.markModified("attachments");
+      await ticket.save().catch((saveError) =>
+        logger.log("error", "Failed to save speech recognition error", {
+          error: saveError.message,
+          stack: saveError.stack,
+        }),
+      );
+
+      return res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message || "Failed to recognize speech",
+        attachment: ticket.attachments[attachmentIndex],
+        attachments: ticket.attachments,
+      });
+    }
+
+    next(new AppError(`Failed to recognize speech`, 500, true, error));
   }
 };
 
@@ -1318,12 +1498,7 @@ exports.update = async (req, res, next) => {
       return next(new AppError(`Couldn't find ticket ${_id}`, 404));
     }
 
-    const attachments = req.files?.map((file) => {
-      return {
-        mimetype: file.mimetype,
-        name: file.filename,
-      };
-    });
+    const attachments = req.files?.map(buildAttachment);
 
     const customFields = req.body.customFields
       ? JSON.parse(req.body.customFields)
@@ -1718,12 +1893,7 @@ exports.addAttachments = async (req, res, next) => {
         mimetype: file.mimetype,
       });
 
-      return {
-        name: file.filename,
-        originalName: file.originalname,
-        size: file.size,
-        mimeType: file.mimetype,
-      };
+      return buildAttachment(file);
     });
 
     ticket.attachments = [...(ticket.attachments || []), ...newAttachments];

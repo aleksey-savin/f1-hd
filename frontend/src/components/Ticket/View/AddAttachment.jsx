@@ -123,7 +123,7 @@ const AddAttachment = ({ ticket, onAttachmentAdded }) => {
   }
 
   return (
-    <div className="m-2">
+    <div className="my-2">
       <Button
         variant="outline-primary"
         size="md"

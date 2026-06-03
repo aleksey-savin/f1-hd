@@ -94,6 +94,25 @@ router.post(
 router.post("/tickets/back-to-work", isAuth, ticketController.backToWork);
 
 router.post(
+  "/tickets/ai-guide/generate",
+  isAuth,
+  canPerformTickets,
+  ticketController.regenerateAiGuide,
+);
+router.post(
+  "/tickets/ai-guide/toggle-item",
+  isAuth,
+  canPerformTickets,
+  ticketController.toggleAiGuideItem,
+);
+router.post(
+  "/tickets/:ticketNum/attachments/speech-to-text",
+  isAuth,
+  canPerformTickets,
+  ticketController.transcribeAttachment,
+);
+
+router.post(
   "/tickets/delete/:id",
   isAuth,
   canDeleteTickets,

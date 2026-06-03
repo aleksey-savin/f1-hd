@@ -82,6 +82,17 @@ const preferencesSchema = new Schema({
       apiKey: { type: String, default: "" },
       model: { type: String, default: "claude-opus-4-8" },
     },
+    speechToText: {
+      isActive: { type: Boolean, default: false },
+      provider: { type: String, enum: ["openai", "yandex"], default: "openai" },
+      apiKey: { type: String, default: "" },
+      model: { type: String, default: "gpt-4o-transcribe-diarize" },
+      yandex: {
+        apiKey: { type: String, default: "" },
+        folderId: { type: String, default: "" },
+        model: { type: String, default: "general" },
+      },
+    },
   },
 });
 

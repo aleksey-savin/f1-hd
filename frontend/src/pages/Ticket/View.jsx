@@ -7,6 +7,7 @@ import {
   Outlet,
   useNavigate,
   useFetcher,
+  useRevalidator,
 } from "react-router";
 
 import "react-h5-audio-player/lib/styles.css";
@@ -24,6 +25,9 @@ import Col from "react-bootstrap/Col";
 import Badge from "react-bootstrap/Badge";
 import Table from "react-bootstrap/Table";
 import Button from "react-bootstrap/Button";
+import Tabs from "react-bootstrap/Tabs";
+import Tab from "react-bootstrap/Tab";
+import ListGroup from "react-bootstrap/ListGroup";
 
 import { formatDate } from "../../util/format-date";
 import { getLocalStorageData } from "../../util/auth";
@@ -33,11 +37,12 @@ import { RiHistoryLine } from "react-icons/ri";
 import Comments from "../../components/Comment/List";
 import Works from "../../components/Work/List";
 
-import DisplayOriginalModal from "../../components/Ticket/View/DisplayOriginalModal";
 import Attachments from "../../components/Ticket/View/Attachments";
 import ApplicantModal from "../../components/Ticket/View/ApplicantModal";
 import CompanyModal from "../../components/Ticket/View/CompanyModal";
 import DescriptionCard from "../../components/Ticket/View/DescriptionCard";
+import AiGuide from "../../components/Ticket/View/AiGuide";
+import AiSpeechBadge from "../../UI/AiSpeechBadge";
 import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
 
 import TakeToWork from "../../components/Ticket/Actions/TakeToWork";
@@ -51,7 +56,6 @@ import Error from "../Error";
 
 import ChecklistItem from "../../components/Ticket/View/ChecklistItem";
 import ActionDropdown from "../../components/Ticket/View/ActionsDropDown";
-import TicketLogList from "../../components/TicketLog/List";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useOffcanvasStore from "../../store/offcanvas";
@@ -67,7 +71,7 @@ const ViewTicket = () => {
 
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
-  const { modules } = useInitialPrefsStore();
+  const { modules, ai } = useInitialPrefsStore();
   const data = useLoaderData();
   const { ticketData, otherCompanyTickets, responsiblesData } = data;
 
@@ -89,10 +93,18 @@ const ViewTicket = () => {
     ticketStore.updateOtherCompanyTickets(otherCompanyTickets);
   }, [ticket, company, works, otherCompanyTickets, responsiblesData]);
 
-  const { _id: userId, permissions, isClient } = useContext(AuthedUserContext);
+  const {
+    _id: userId,
+    permissions,
+    isClient,
+    isEndUser,
+  } = useContext(AuthedUserContext);
   const { canAvoidWorks, canUseTimeTrackingModule } = permissions;
 
-  const [isOverdue, setIsOverdue] = useState(false);
+  const isOverdue =
+    !!ticket?.deadline &&
+    new Date(ticket.deadline) < new Date() &&
+    ticket.state !== "Закрыта";
 
   const [badgeBg, setBadgeBg] = useState("light");
 
@@ -144,40 +156,73 @@ const ViewTicket = () => {
     }
   }, [ticket]);
 
+  // Пока распознавание речи звонка не завершено, опрашиваем заявку и обновляем
+  // страницу (заголовок, описание, бейдж) без ручной перезагрузки.
+  const revalidator = useRevalidator();
+  useEffect(() => {
+    if (ticket?.aiSpeech?.status !== "pending") return;
+
+    const { token } = getLocalStorageData();
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticket.num}`,
+          { headers: { Authorization: "Bearer " + token } },
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        const nextStatus = data?.ticket?.aiSpeech?.status;
+        if (nextStatus && nextStatus !== "pending") {
+          revalidator.revalidate();
+        }
+      } catch (error) {
+        console.error("AI speech status poll failed:", error);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [ticket?.aiSpeech?.status, ticket?.num]);
+
   const firstColumnRef = useRef();
 
   const [firstColumnHeight, setFirstColumnHeight] = useState("0px");
   const [firstColumnClassName, setFirstColumnClassName] = useState("");
 
   const screenWidth = window.innerWidth;
+  const isWideLayout = screenWidth >= 1500;
 
   useEffect(() => {
     const updateFirstColumnHeight = () => {
-      if (firstColumnRef.current && screenWidth >= 1500) {
+      if (firstColumnRef.current && isWideLayout) {
         setFirstColumnHeight(firstColumnRef.current.clientHeight + "px");
-        setFirstColumnClassName("col col-8 border-end");
+        setFirstColumnClassName("col col-8 border-end d-flex flex-column");
       } else {
         setFirstColumnHeight("100%");
         setFirstColumnClassName("col mb-3");
       }
     };
 
-    updateFirstColumnHeight(); // Set initial height
+    updateFirstColumnHeight();
 
-    // Update height when the window is resized
     window.addEventListener("resize", updateFirstColumnHeight);
 
     return () => {
       window.removeEventListener("resize", updateFirstColumnHeight);
     };
-  }, [screenWidth]);
+  }, [isWideLayout]);
 
   return (
     <>
       {routerState === "idle" && ticket?.num && (
         <Transitions>
-          <Row className="h-100">
-            <Col ref={firstColumnRef} className={firstColumnClassName}>
+          <Row>
+            <Col
+              ref={firstColumnRef}
+              className={firstColumnClassName}
+              style={{
+                minHeight: isWideLayout ? "calc(100svh - 156px)" : undefined,
+              }}
+            >
               {ticket.isArchived && (
                 <Row>
                   <Col>
@@ -214,9 +259,17 @@ const ViewTicket = () => {
                       </BrowserView>
                     </Col>
                   </Row>
-                  <Row>
+                  <Row className="mb-2">
                     <Col>
-                      <h1 className="display-6">{ticket.title}</h1>
+                      <div className="d-flex justify-content-between align-items-center gap-2">
+                        <h1 className="display-6 mb-0">{ticket.title}</h1>
+                        {!isClient && (
+                          <AiSpeechBadge
+                            status={ticket.aiSpeech?.status}
+                            className="flex-shrink-0 mt-1"
+                          />
+                        )}
+                      </div>
                     </Col>
                   </Row>
                   <Row className="mb-2">
@@ -225,171 +278,158 @@ const ViewTicket = () => {
                     </Col>
                   </Row>
                   <CustomFieldsDisplay customFields={ticket.customFields} />
-                  <DisplayOriginalModal ticket={ticket} />
-                  <Attachments ticket={ticket} />
-                  <h6>
-                    <Row className="mb-2">
-                      <Col sm="12">
-                        <Table>
-                          <tbody>
-                            <tr>
-                              <th>Создана</th>
-                              <td>{formatDate(ticket.createdAt)}</td>
-                            </tr>
-                            <tr>
-                              <th>Дедлайн</th>
-                              <td
-                                className={
-                                  isOverdue && ticket.state !== "Закрыта"
-                                    ? "text-danger"
-                                    : ""
-                                }
-                              >
-                                {ticket.deadline && (
-                                  <>{formatDate(ticket.deadline)}</>
-                                )}
-                              </td>
-                            </tr>
-                            {ticket.realSender && (
-                              <>
+                  <Tabs defaultActiveKey="info">
+                    <Tab eventKey="info" title="Информация">
+                      <h6>
+                        <Row>
+                          <Col sm="12">
+                            <Table>
+                              <tbody>
                                 <tr>
-                                  <th>Отправитель</th>
-                                  <td>{ticket.realSender}</td>
+                                  <th>Создана</th>
+                                  <td>{formatDate(ticket.createdAt)}</td>
                                 </tr>
-                              </>
-                            )}
-                            <tr>
-                              <th>Компания</th>
-                              <td>
-                                <h5 className="mb-0 d-flex align-items-center gap-2">
-                                  <CompanyModal
-                                    ticket={ticket}
-                                    company={company}
-                                  />
-                                  <small className={`ms-2`}>
-                                    <WorkingStatusIndicator
-                                      workSchedule={company.workSchedule}
-                                    />
-                                  </small>
-                                  {!isClient && (
-                                    <Button
-                                      onClick={() => handleShowLogs()}
-                                      size="sm"
-                                      variant="outline-info"
-                                      title="Логи активности компании"
-                                    >
-                                      <RiHistoryLine />
-                                    </Button>
-                                  )}
-                                </h5>
-                              </td>
-                            </tr>
-                            <tr>
-                              <th>Инициатор</th>
-                              <td>
-                                <h5 className="mb-0 d-flex align-items-center gap-2">
-                                  <ApplicantModal ticket={ticket} />
-                                  {permissions.canManageCompanies &&
-                                    ticket.applicant
-                                      ?.activeDirectoryObjectGUID && (
-                                      <Button
-                                        onClick={() =>
-                                          handleShowLogs(
-                                            `${ticket.applicant.firstName} ${ticket.applicant.lastName}`,
-                                          )
-                                        }
-                                        size="sm"
-                                        variant="outline-success"
-                                        title="Логи активности пользователя"
-                                      >
-                                        <RiHistoryLine />
-                                      </Button>
+                                <tr>
+                                  <th>Дедлайн</th>
+                                  <td className={isOverdue ? "text-danger" : ""}>
+                                    {ticket.deadline && (
+                                      <>{formatDate(ticket.deadline)}</>
                                     )}
-                                </h5>
-                              </td>
-                            </tr>
-                            <tr>
-                              <th>Ответственные</th>
-                              <td>
-                                <h5 className="mb-0">
-                                  {ticket.responsibles?.map((user) => {
-                                    return (
-                                      <Badge
-                                        bg="secondary"
-                                        style={{
-                                          marginLeft: "0.5rem",
-                                        }}
-                                        key={user._id}
-                                      >
-                                        {user.lastName + " " + user.firstName}
+                                    {isOverdue && (
+                                      <Badge bg="danger" className="ms-2">
+                                        Просрочена
                                       </Badge>
-                                    );
-                                  })}
-                                </h5>
-                              </td>
-                            </tr>
-                            <tr>
-                              <th>Категория</th>
-                              <td>{ticket.category?.title}</td>
-                            </tr>
-                            <tr>
-                              <th>Источник</th>
-                              <td>{ticket.source}</td>
-                            </tr>
-                          </tbody>
-                        </Table>
-                      </Col>
-                    </Row>
-                  </h6>
-                  <Row className="mb-3">
-                    <Col>
-                      {ticket.checklist.map((item) => (
-                        <ChecklistItem
-                          key={item._id}
-                          item={item}
-                          ticketResponsibles={ticket.responsibles}
-                          ticketNum={ticket.num}
-                        />
-                      ))}
-                    </Col>
-                  </Row>
-                  {/* ад, переделать */}
-                  <Row className="mb-3" id="ticket-actions">
-                    {!ticket.isArchived && (
-                      <>
-                        <ProcessTicket ticket={ticket} />
-                        <JoinResponsibles ticket={ticket} />
-                        <TakeToWork ticket={ticket} />
-                        <CloseTicket
-                          scheduledWorks={
-                            works.filter(
-                              (item) =>
-                                !item.finishedAt && item.planningToStart,
-                            ).length > 0
+                                    )}
+                                  </td>
+                                </tr>
+                                {ticket.realSender && (
+                                  <tr>
+                                    <th>Отправитель</th>
+                                    <td>{ticket.realSender}</td>
+                                  </tr>
+                                )}
+                                <tr>
+                                  <th>Компания</th>
+                                  <td>
+                                    <h5 className="mb-0 d-flex align-items-center gap-2">
+                                      <CompanyModal
+                                        ticket={ticket}
+                                        company={company}
+                                      />
+                                      <small className={`ms-2`}>
+                                        <WorkingStatusIndicator
+                                          workSchedule={company.workSchedule}
+                                        />
+                                      </small>
+                                      {!isClient && (
+                                        <Button
+                                          onClick={() => handleShowLogs()}
+                                          size="sm"
+                                          variant="outline-info"
+                                          title="Логи активности компании"
+                                        >
+                                          <RiHistoryLine />
+                                        </Button>
+                                      )}
+                                    </h5>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <th>Инициатор</th>
+                                  <td>
+                                    <h5 className="mb-0 d-flex align-items-center gap-2">
+                                      <ApplicantModal ticket={ticket} />
+                                      {permissions.canManageCompanies &&
+                                        ticket.applicant
+                                          ?.activeDirectoryObjectGUID && (
+                                          <Button
+                                            onClick={() =>
+                                              handleShowLogs(
+                                                `${ticket.applicant.firstName} ${ticket.applicant.lastName}`,
+                                              )
+                                            }
+                                            size="sm"
+                                            variant="outline-success"
+                                            title="Логи активности пользователя"
+                                          >
+                                            <RiHistoryLine />
+                                          </Button>
+                                        )}
+                                    </h5>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <th>Ответственные</th>
+                                  <td>
+                                    <h5 className="mb-0">
+                                      {ticket.responsibles?.map((user) => (
+                                        <Badge
+                                          bg="secondary"
+                                          style={{ marginLeft: "0.5rem" }}
+                                          key={user._id}
+                                        >
+                                          {user.lastName + " " + user.firstName}
+                                        </Badge>
+                                      ))}
+                                    </h5>
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <th>Категория</th>
+                                  <td>{ticket.category?.title}</td>
+                                </tr>
+                                <tr>
+                                  <th>Источник</th>
+                                  <td>{ticket.source}</td>
+                                </tr>
+                              </tbody>
+                            </Table>
+                          </Col>
+                        </Row>
+                      </h6>
+                      <Row className="mb-3">
+                        <Col>
+                          {ticket.checklist.map((item) => (
+                            <ChecklistItem
+                              key={item._id}
+                              item={item}
+                              ticketResponsibles={ticket.responsibles}
+                              ticketNum={ticket.num}
+                            />
+                          ))}
+                        </Col>
+                      </Row>
+                    </Tab>
+                    <Tab
+                      eventKey="attachments"
+                      title={
+                        <>
+                          Вложения{" "}
+                          {ticket.attachments?.length > 0 && (
+                            <Badge bg="secondary" pill>
+                              {ticket.attachments.length}
+                            </Badge>
+                          )}
+                        </>
+                      }
+                    >
+                      <Attachments ticket={ticket} />
+                    </Tab>
+                    {modules.timeTracking.isActive &&
+                      canUseTimeTrackingModule && (
+                        <Tab
+                          eventKey="works"
+                          title={
+                            <>
+                              Работы{" "}
+                              {works.length > 0 && (
+                                <Badge bg="secondary" pill>
+                                  {works.length}
+                                </Badge>
+                              )}
+                            </>
                           }
-                        />
-                        <Pro32Connect ticket={ticket} />
-                        {ticket.state === "Закрыта" && (
-                          <>
-                            <Col sm="auto">
-                              <BackToWork ticket={ticket} />
-                            </Col>
-                          </>
-                        )}
-                        <ActionDropdown
-                          ticket={ticket}
-                          isOverdue={isOverdue}
-                          setIsOverdue={setIsOverdue}
-                          responsibles={responsiblesData}
-                        />
-                      </>
-                    )}
-                    <TicketLogList logs={logs} />
-                  </Row>
-                  {modules.timeTracking.isActive &&
-                    canUseTimeTrackingModule && (
-                      <Row>
-                        <Col sm="auto" className="w-100" id="works-section">
+                        >
                           <Works
                             ticket={ticket}
                             company={company}
@@ -398,9 +438,75 @@ const ViewTicket = () => {
                             works={works}
                             closeTicketIsActive={closeTicketIsActive}
                           />
-                        </Col>
-                      </Row>
+                        </Tab>
+                      )}
+                    {!isClient && ai?.isActive && (
+                      <Tab eventKey="ai" title="AI-ассистент">
+                        <AiGuide />
+                      </Tab>
                     )}
+                    {!isEndUser && (
+                      <Tab
+                        eventKey="log"
+                        title={
+                          <>
+                            Лог{" "}
+                            {logs?.length > 0 && (
+                              <Badge bg="secondary" pill>
+                                {logs.length}
+                              </Badge>
+                            )}
+                          </>
+                        }
+                      >
+                        <ListGroup variant="flush">
+                          {logs?.length > 0 ? (
+                            logs.map((entry) => (
+                              <ListGroup.Item key={entry._id}>
+                                <Badge className="me-2" bg={entry.severity}>
+                                  {entry.severity}
+                                </Badge>
+                                {entry.user
+                                  ? `${formatDate(entry.createdAt)} — ${entry.user.firstName} ${entry.user.lastName}, ${entry.event}`
+                                  : `${formatDate(entry.createdAt)} — ${entry.event}`}
+                              </ListGroup.Item>
+                            ))
+                          ) : (
+                            <Alert variant="light">Нет записей</Alert>
+                          )}
+                        </ListGroup>
+                      </Tab>
+                    )}
+                  </Tabs>
+                </Col>
+              </Row>
+              <Row className="mt-auto">
+                <Col>
+                  {!ticket.isArchived && (
+                    <Row id="ticket-actions">
+                      <ProcessTicket ticket={ticket} />
+                      <JoinResponsibles ticket={ticket} />
+                      <TakeToWork ticket={ticket} />
+                      <CloseTicket
+                        scheduledWorks={
+                          works.filter(
+                            (item) => !item.finishedAt && item.planningToStart,
+                          ).length > 0
+                        }
+                      />
+                      <Pro32Connect ticket={ticket} />
+                      {ticket.state === "Закрыта" && (
+                        <Col sm="auto">
+                          <BackToWork ticket={ticket} />
+                        </Col>
+                      )}
+                      <ActionDropdown
+                        ticket={ticket}
+                        isOverdue={isOverdue}
+                        responsibles={responsiblesData}
+                      />
+                    </Row>
+                  )}
                 </Col>
               </Row>
             </Col>

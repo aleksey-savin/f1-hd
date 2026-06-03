@@ -17,7 +17,7 @@ import { AuthedUserContext } from "../../../store/authed-user-context";
 import useOffcanvasStore from "../../../store/offcanvas";
 import { Link } from "react-router";
 
-const ActionDropdown = ({ ticket, isOverdue, setIsOverdue, responsibles }) => {
+const ActionDropdown = ({ ticket, isOverdue, responsibles }) => {
   const { isEndUser, permissions, _id: userId } = useContext(AuthedUserContext);
 
   const { canEditTickets, canDeleteTickets, canPerformTickets } = permissions;
@@ -44,7 +44,6 @@ const ActionDropdown = ({ ticket, isOverdue, setIsOverdue, responsibles }) => {
           key="update-deadline"
           ticket={ticket}
           isOverdue={isOverdue}
-          setIsOverdue={setIsOverdue}
         />
       ),
       isActive:

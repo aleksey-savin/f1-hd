@@ -36,6 +36,7 @@ const TicketItem = ({ item, isSelected, onSelect }) => {
     routineTask,
     latestComment,
     scheduledWorks,
+    aiSpeech,
   } = item;
 
   const TitleContent = () => {
@@ -93,6 +94,16 @@ const TicketItem = ({ item, isSelected, onSelect }) => {
     { title: state.toLowerCase(), isActive: true, bg: badgeBg },
     { title: "просрочена", isActive: isOverdue && !isClosed, bg: "danger" },
     { title: "регламент", isActive: routineTask, bg: "primary" },
+    {
+      title: "ИИ обрабатывает запись",
+      isActive: aiSpeech?.status === "pending",
+      bg: "info",
+    },
+    {
+      title: "Processed by AI",
+      isActive: aiSpeech?.status === "processed",
+      bg: "success",
+    },
   ];
 
   const latestCommentPopover = (

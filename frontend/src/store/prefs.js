@@ -12,6 +12,7 @@ const useInitialPrefsStore = create((set) => ({
     finances: { isActive: false },
     timeTracking: { isActive: false },
   },
+  ai: { isActive: false, speechToText: { isActive: false } },
   set: (data) =>
     set(() => ({
       contacts: data.contacts,
@@ -21,6 +22,7 @@ const useInitialPrefsStore = create((set) => ({
       telegramNotifications: data.telegramNotifications,
       personalNotifications: data.personalNotifications,
       modules: data.modules,
+      ai: data.ai || { isActive: false, speechToText: { isActive: false } },
     })),
 }));
 

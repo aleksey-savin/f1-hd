@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Button from "react-bootstrap/Button";
 import Badge from "react-bootstrap/Badge";
 import Image from "react-bootstrap/Image";
 import Modal from "react-bootstrap/Modal";
 import Spinner from "react-bootstrap/Spinner";
 import Alert from "react-bootstrap/Alert";
+import Accordion from "react-bootstrap/Accordion";
 import AudioPlayer from "react-h5-audio-player";
 import "react-h5-audio-player/lib/styles.css";
 
@@ -14,6 +15,10 @@ const AttachmentPreview = ({
   showAudioPlayer = true,
   canDelete = false,
   onDelete = null,
+  canTranscribe = false,
+  onTranscribe = null,
+  transcribingAttachmentName = "",
+  openTranscriptionName = "",
 }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -21,6 +26,13 @@ const AttachmentPreview = ({
   const [error, setError] = useState(false);
   const [fileToDelete, setFileToDelete] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [openSpeechName, setOpenSpeechName] = useState("");
+
+  useEffect(() => {
+    if (openTranscriptionName) {
+      setOpenSpeechName(openTranscriptionName);
+    }
+  }, [openTranscriptionName]);
 
   const getFileExtension = (filename) => {
     return filename.split(".").pop().toLowerCase();
@@ -50,6 +62,9 @@ const AttachmentPreview = ({
       xml: "bi-file-code",
       md: "bi-file-text",
       mp3: "bi-music-note",
+      m4a: "bi-music-note",
+      mpeg: "bi-music-note",
+      mpga: "bi-music-note",
       wav: "bi-music-note",
       ogg: "bi-music-note",
       aac: "bi-music-note",
@@ -75,8 +90,81 @@ const AttachmentPreview = ({
   };
 
   const isAudio = (filename) => {
-    const audioExtensions = ["mp3", "wav", "ogg", "aac", "flac"];
+    const audioExtensions = [
+      "mp3",
+      "m4a",
+      "mpeg",
+      "mpga",
+      "wav",
+      "webm",
+      "ogg",
+      "aac",
+      "flac",
+    ];
     return audioExtensions.includes(getFileExtension(filename));
+  };
+
+  const isSpeechRecognizable = (filename) => {
+    const speechExtensions = [
+      "mp3",
+      "mp4",
+      "mpeg",
+      "mpga",
+      "m4a",
+      "wav",
+      "webm",
+    ];
+    return speechExtensions.includes(getFileExtension(filename));
+  };
+
+  const renderSpeechToText = (speechToText) => {
+    if (speechToText.status === "error") {
+      return (
+        <Alert variant="danger" className="mb-0">
+          {speechToText.error || "Не удалось распознать аудиофайл"}
+        </Alert>
+      );
+    }
+
+    if (speechToText.status !== "ready") {
+      return null;
+    }
+
+    const segments = Array.isArray(speechToText.segments)
+      ? speechToText.segments
+      : [];
+
+    if (segments.length > 0) {
+      return (
+        <div className="d-flex flex-column gap-2">
+          {segments.map((segment, index) => (
+            <div key={index}>
+              <span className="fw-bold">{segment.speaker}: </span>
+              <span style={{ whiteSpace: "pre-wrap" }}>{segment.text}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    const fallback = speechToText.text || speechToText.summary;
+
+    if (fallback) {
+      return <div style={{ whiteSpace: "pre-wrap" }}>{fallback}</div>;
+    }
+
+    return null;
+  };
+
+  const audioActionButtonStyle = {
+    width: "32px",
+    height: "32px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
+    fontSize: "1rem",
+    lineHeight: 1,
   };
 
   const isVideo = (filename) => {
@@ -315,13 +403,6 @@ const AttachmentPreview = ({
     <>
       {/* Очень компактное отображение */}
       <div className={compact ? "mt-2" : "mt-3"}>
-        {!compact && (
-          <small className="text-muted fw-bold d-block mb-2">
-            <i className="bi bi-paperclip me-1"></i>
-            Файлы ({attachments.length})
-          </small>
-        )}
-
         <div className="d-flex flex-wrap gap-1">
           {attachments.map((attachment) => {
             const extension = getFileExtension(attachment.name);
@@ -329,6 +410,11 @@ const AttachmentPreview = ({
 
             // Для аудио файлов показываем мини-плеер
             if (isAudio(attachment.name) && showAudioPlayer) {
+              const speechToText = attachment.speechToText || {};
+              const isTranscribing =
+                transcribingAttachmentName === attachment.name ||
+                speechToText.status === "pending";
+
               return (
                 <div key={attachment.name} className="w-100 mb-2">
                   <div
@@ -340,24 +426,41 @@ const AttachmentPreview = ({
                         <i className="bi bi-music-note me-1"></i>
                         {attachment.name}
                       </small>
-                      <div className="d-flex gap-1">
+                      <div className="d-flex align-items-center gap-2">
                         <Button
                           size="sm"
                           variant="outline-secondary"
-                          className="py-0 px-1"
                           href={fileUrl}
                           target="_blank"
-                          style={{ fontSize: "0.7rem" }}
+                          style={audioActionButtonStyle}
+                          title="Скачать"
                         >
                           <i className="bi bi-download"></i>
                         </Button>
+                        {canTranscribe &&
+                          isSpeechRecognizable(attachment.name) && (
+                            <Button
+                              size="sm"
+                              variant="outline-primary"
+                              onClick={() => onTranscribe?.(attachment)}
+                              disabled={isTranscribing}
+                              style={audioActionButtonStyle}
+                              title="Распознать речь"
+                            >
+                              {isTranscribing ? (
+                                <Spinner animation="border" size="sm" />
+                              ) : (
+                                <i className="bi bi-file-earmark-text"></i>
+                              )}
+                            </Button>
+                          )}
                         {canDelete && (
                           <Button
                             size="sm"
                             variant="outline-danger"
-                            className="py-0 px-1"
                             onClick={() => handleDelete(attachment)}
-                            style={{ fontSize: "0.7rem" }}
+                            style={audioActionButtonStyle}
+                            title="Удалить"
                           >
                             <i className="bi bi-trash"></i>
                           </Button>
@@ -389,6 +492,25 @@ const AttachmentPreview = ({
                         console.warn("Audio player error:", e);
                       }}
                     />
+                    {(speechToText.status === "ready" ||
+                      speechToText.status === "error") && (
+                      <Accordion
+                        className="mt-2"
+                        activeKey={
+                          openSpeechName === attachment.name ? "speech" : null
+                        }
+                        onSelect={(eventKey) =>
+                          setOpenSpeechName(eventKey ? attachment.name : "")
+                        }
+                      >
+                        <Accordion.Item eventKey="speech">
+                          <Accordion.Header>Итог разговора</Accordion.Header>
+                          <Accordion.Body>
+                            {renderSpeechToText(speechToText)}
+                          </Accordion.Body>
+                        </Accordion.Item>
+                      </Accordion>
+                    )}
                   </div>
                 </div>
               );

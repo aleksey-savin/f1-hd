@@ -3,8 +3,24 @@
 /** Embedded file attachment (tickets, comments). */
 export interface IAttachment {
   mimetype?: string;
+  mimeType?: string;
   name?: string;
   originalName?: string;
+  size?: number;
+  speechToText?: {
+    status?: "idle" | "pending" | "ready" | "error";
+    text?: string;
+    summary?: string;
+    segments?: {
+      speaker?: string;
+      text?: string;
+      start?: number;
+      end?: number;
+    }[];
+    model?: string;
+    error?: string;
+    generatedAt?: Date;
+  };
 }
 
 /** A single day within a weekly work schedule. */

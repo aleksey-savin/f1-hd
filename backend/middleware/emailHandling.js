@@ -12,6 +12,17 @@ const MongoCompany = require("../models/company");
 const MongoUser = require("../models/user");
 const Preferences = require("../models/preferences");
 const TicketLog = require("../models/ticketLog");
+const {
+  isAudioAttachment,
+  transcribeAttachment,
+} = require("../services/speechToTextService");
+const {
+  extractCallerPhone,
+  findApplicantByPhone,
+  findCompanyByPhone,
+  buildKnownCaller,
+  isCloudTelephonySender,
+} = require("../services/callerIdentityService");
 
 const logger = require("../utils/logger");
 
@@ -34,6 +45,134 @@ const getSafeExtension = (filename) => {
 
   const ext = mime.extension(originalMime);
   return ext || "unknown";
+};
+
+const transcribeTicketAudioAttachments = async (ticketId) => {
+  const ticket = await Ticket.findById(ticketId);
+  if (!ticket?.attachments?.length) return;
+
+  const audioAttachmentNames = ticket.attachments
+    .filter((attachment) => isAudioAttachment(attachment))
+    .map((attachment) => attachment.name);
+
+  // Достоверные имя клиента и название компании (опознанные по номеру) — чтобы
+  // исправить искажённые распознаванием имена в диалоге и итоге.
+  const prefs = await Preferences.findOne({});
+  const knownContext = await buildKnownCaller(ticket, prefs);
+
+  // Заголовок и описание подменяем итогом звонка ТОЛЬКО для заявок с аккаунта
+  // облачной телефонии (проверяем по email отправителя). Для обычных писем с
+  // аудио мы всё равно распознаём речь и показываем диалог, но тему/описание
+  // письма не трогаем.
+  const isTelephonyTicket = await isCloudTelephonySender(ticket.realSender);
+
+  // Заголовок и описание заявки задаём по первому удачно распознанному звонку
+  let ticketContentUpdated = false;
+
+  for (let attachmentName of audioAttachmentNames) {
+    let freshTicket = await Ticket.findById(ticketId);
+    const index = freshTicket?.attachments?.findIndex(
+      (attachment) => attachment.name === attachmentName,
+    );
+
+    if (!freshTicket || index === -1) continue;
+
+    const attachment = freshTicket.attachments[index];
+
+    if (attachment.speechToText?.status === "ready") continue;
+
+    try {
+      freshTicket.attachments[index].speechToText = {
+        status: "pending",
+        text: attachment.speechToText?.text || "",
+        summary: attachment.speechToText?.summary || "",
+        error: "",
+      };
+      freshTicket.markModified("attachments");
+      await freshTicket.save();
+
+      const result = await transcribeAttachment(attachment, knownContext);
+
+      freshTicket = await Ticket.findById(ticketId);
+      const resultIndex = freshTicket?.attachments?.findIndex(
+        (item) => item.name === attachmentName,
+      );
+      if (!freshTicket || resultIndex === -1) continue;
+
+      freshTicket.attachments[resultIndex].speechToText = {
+        status: "ready",
+        text: result.text,
+        summary: result.summary,
+        segments: result.segments,
+        model: result.model,
+        error: "",
+        generatedAt: result.generatedAt,
+      };
+
+      // Итог звонка становится описанием заявки, заголовок — на основе
+      // распознанного текста. Только для заявок с телефонии; оригинал письма
+      // сохраняем в htmlDescription.
+      if (!ticketContentUpdated && result.summary && isTelephonyTicket) {
+        if (!freshTicket.htmlDescription) {
+          freshTicket.htmlDescription = (freshTicket.description || "").replace(
+            /\n/g,
+            "<br>",
+          );
+        }
+        freshTicket.description = result.summary.replace(/\n/g, "<br>");
+        if (result.title) {
+          freshTicket.title = result.title;
+        }
+        freshTicket.aiSpeech = { status: "processed" };
+        ticketContentUpdated = true;
+      }
+
+      freshTicket.markModified("attachments");
+      await freshTicket.save();
+
+      logger.log("info", "Email audio attachment transcribed", {
+        ticketId: ticketId.toString(),
+        attachment: attachment.name,
+      });
+    } catch (error) {
+      const freshTicket = await Ticket.findById(ticketId);
+      const errorIndex = freshTicket?.attachments?.findIndex(
+        (item) => item.name === attachmentName,
+      );
+      if (freshTicket && errorIndex !== -1) {
+        freshTicket.attachments[errorIndex].speechToText = {
+          status: "error",
+          text: attachment.speechToText?.text || "",
+          summary: attachment.speechToText?.summary || "",
+          error: error.message,
+          generatedAt: new Date(),
+        };
+        freshTicket.markModified("attachments");
+        await freshTicket.save();
+      }
+
+      logger.log("error", "Failed to transcribe email audio attachment", {
+        ticketId: ticketId.toString(),
+        attachment: attachment.name,
+        error: error.message,
+        stack: error.stack,
+      });
+    }
+  }
+
+  // Фиксируем итоговый статус обработки: если описание/заголовок так и не
+  // обновились (нет итога), считаем заявку обработанной при удачном распознавании
+  // хотя бы одного файла, иначе помечаем ошибкой.
+  const finalTicket = await Ticket.findById(ticketId);
+  if (finalTicket && finalTicket.aiSpeech?.status === "pending") {
+    const anyReady = finalTicket.attachments?.some(
+      (attachment) =>
+        isAudioAttachment(attachment) &&
+        attachment.speechToText?.status === "ready",
+    );
+    finalTicket.aiSpeech = { status: anyReady ? "processed" : "error" };
+    await finalTicket.save();
+  }
 };
 
 exports.handleNewEmails = async () => {
@@ -229,6 +368,7 @@ exports.handleNewEmails = async () => {
 
             attachmentNames.push({
               mimetype: mime.lookup(attachment.filename),
+              mimeType: mime.lookup(attachment.filename),
               name: attachmentName,
               originalName: attachment.filename, // Keep original for reference
             });
@@ -311,9 +451,8 @@ exports.handleNewEmails = async () => {
         let applicant = defaultApplicant;
         let ticketTitle = email.name;
 
-        const phoneNumber = /^\+/.test(email.name?.split(" ")[4])
-          ? email.name.split(" ")[4]
-          : null;
+        // Номер звонящего: из темы письма или из тела ("Кто звонил:")
+        const phoneNumber = extractCallerPhone(email);
 
         const source = applicant?.isCloudTelephony
           ? "Облачная телефония"
@@ -323,13 +462,11 @@ exports.handleNewEmails = async () => {
           const emailDomain = email.from.replace(/.*@/, "").replace(">", "");
 
           if (prefs.checkPhoneNumber && phoneNumber) {
-            company = await MongoCompany.findOne({
-              $or: [
-                { emailDomains: { $in: [emailDomain] } },
-                { phones: { $in: [phoneNumber] } },
-              ],
-            });
-            company ? (ticketTitle = "Входящий звонок") : ticketTitle;
+            company =
+              (await MongoCompany.findOne({
+                emailDomains: { $in: [emailDomain] },
+              })) || (await findCompanyByPhone(phoneNumber));
+            if (company) ticketTitle = "Входящий звонок";
           } else {
             company = await MongoCompany.findOne({
               emailDomains: { $in: [emailDomain] },
@@ -351,15 +488,20 @@ exports.handleNewEmails = async () => {
 
         if (prefs.identifyApplicant) {
           if (prefs.checkPhoneNumber && phoneNumber) {
-            applicant = await MongoUser.findOne({
-              $or: [{ email: emailAddress }, { phone: phoneNumber }],
-            });
-            applicant ? (ticketTitle = "Входящий звонок") : applicant;
-            applicant
-              ? (company = await MongoCompany.findOne({
-                  _id: applicant.company._id,
-                }))
-              : applicant;
+            // По номеру находим клиента и привязанную к нему компанию
+            const identity = await findApplicantByPhone(phoneNumber);
+            applicant =
+              identity?.applicant ||
+              (await MongoUser.findOne({ email: emailAddress }));
+
+            if (applicant) {
+              ticketTitle = "Входящий звонок";
+              company =
+                identity?.company ||
+                (applicant.company?._id
+                  ? await MongoCompany.findOne({ _id: applicant.company._id })
+                  : company);
+            }
           } else {
             applicant = await MongoUser.findOne({
               email: emailAddress,
@@ -419,6 +561,12 @@ exports.handleNewEmails = async () => {
             );
           }
         } else {
+          const hasAudioAttachments = email.attachments?.some((attachment) =>
+            isAudioAttachment(attachment),
+          );
+          const willTranscribe =
+            !!prefs?.ai?.speechToText?.isActive && hasAudioAttachments;
+
           const ticket = new Ticket({
             title: ticketTitle || "",
             description: email.description,
@@ -437,11 +585,27 @@ exports.handleNewEmails = async () => {
             },
             source: source,
             attachments: email.attachments,
+            // помечаем заявку как ожидающую распознавания речи звонка
+            ...(willTranscribe ? { aiSpeech: { status: "pending" } } : {}),
             createdBy: applicant || prefs.defaultApplicant,
             updatedBy: applicant || prefs.defaultApplicant,
           });
 
           await ticket.save();
+
+          if (willTranscribe) {
+            transcribeTicketAudioAttachments(ticket._id).catch((error) =>
+              logger.log(
+                "error",
+                "Background email audio transcription failed",
+                {
+                  ticketId: ticket._id.toString(),
+                  error: error.message,
+                  stack: error.stack,
+                },
+              ),
+            );
+          }
 
           // добавляем запись в лог заявки
           const logEntry = new TicketLog({

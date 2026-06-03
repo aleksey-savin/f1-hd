@@ -25,39 +25,7 @@ const WorksList = ({ ticket }) => {
 
   return (
     <>
-      <h3>Работы</h3>
-      {!ticket.isArchived &&
-        !isEndUser &&
-        ticket.responsibles
-          .map((user) => user._id.toString())
-          .includes(userId) &&
-        !["Новая", "Не в работе"].includes(ticket.state) && (
-          <Row className="mb-3">
-            <Col md="auto">
-              <Button
-                as={NavLink}
-                variant="outline-info"
-                size="lg"
-                className="mb-2 w-100"
-                to="work/add"
-              >
-                Добавить
-              </Button>
-            </Col>
-            <Col md="auto">
-              <Button
-                as={NavLink}
-                to="work/schedule"
-                variant="outline-info"
-                size="lg"
-                className="mb-2 w-100"
-              >
-                Запланировать
-              </Button>
-            </Col>
-          </Row>
-        )}
-      <Row>
+      <Row className="mt-3">
         <Col>
           {scheduledWorks.length > 0 && (
             <>
@@ -82,6 +50,37 @@ const WorksList = ({ ticket }) => {
           )}
         </Col>
       </Row>
+      {!ticket.isArchived &&
+        !isEndUser &&
+        ticket.responsibles
+          .map((user) => user._id.toString())
+          .includes(userId) &&
+        !["Новая", "Не в работе"].includes(ticket.state) && (
+          <Row>
+            <Col md="auto">
+              <Button
+                as={NavLink}
+                variant="outline-info"
+                size="lg"
+                className="mb-2 w-100"
+                to="work/add"
+              >
+                Добавить
+              </Button>
+            </Col>
+            <Col md="auto">
+              <Button
+                as={NavLink}
+                to="work/schedule"
+                variant="outline-info"
+                size="lg"
+                className="mb-2 w-100"
+              >
+                Запланировать
+              </Button>
+            </Col>
+          </Row>
+        )}
     </>
   );
 };

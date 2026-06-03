@@ -11,6 +11,37 @@ const Counter = mongoose.model("Counter", CounterSchema);
 
 const STARTING_NUMBER = process.env.TICKET_COUNTER_STARTING_NUMBER || 45926;
 
+const attachmentSchema = new Schema(
+  {
+    mimetype: String,
+    mimeType: String,
+    name: String,
+    originalName: String,
+    size: Number,
+    speechToText: {
+      status: {
+        type: String,
+        enum: ["idle", "pending", "ready", "error"],
+        default: "idle",
+      },
+      text: { type: String, default: "" },
+      summary: { type: String, default: "" },
+      segments: [
+        {
+          speaker: String,
+          text: String,
+          start: Number,
+          end: Number,
+        },
+      ],
+      model: String,
+      error: { type: String, default: "" },
+      generatedAt: Date,
+    },
+  },
+  { _id: false },
+);
+
 // Initialize counter if it doesn't exist
 const initCounter = async () => {
   try {
@@ -89,13 +120,7 @@ const ticketSchema = new Schema(
       type: String,
       required: false,
     },
-    attachments: [
-      {
-        mimetype: String,
-        name: String,
-        originalName: String,
-      },
-    ],
+    attachments: [attachmentSchema],
     template: {
       type: Schema.Types.ObjectId,
       ref: "TicketTemplate",
@@ -254,6 +279,38 @@ const ticketSchema = new Schema(
       },
     ],
     isArchived: { type: Boolean, default: false },
+
+    aiGuide: {
+      status: {
+        type: String,
+        enum: ["idle", "pending", "ready", "error"],
+        default: "idle",
+      },
+      kind: {
+        type: String,
+        enum: ["solution", "questions"],
+      },
+      summary: { type: String, default: "" },
+      items: [
+        {
+          text: String,
+          done: { type: Boolean, default: false },
+        },
+      ],
+      provider: String,
+      model: String,
+      error: { type: String, default: "" },
+      generatedAt: Date,
+      generatedFromCommentCount: { type: Number, default: 0 },
+    },
+
+    // Состояние фоновой обработки аудиозаписи звонка распознаванием речи
+    aiSpeech: {
+      status: {
+        type: String,
+        enum: ["pending", "processed", "error"],
+      },
+    },
 
     // Timestamps
     processedAt: Date,

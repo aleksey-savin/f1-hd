@@ -72,6 +72,26 @@ export interface ITicketChecklistItem {
   checkedBy?: { _id?: Types.ObjectId; firstName?: string; lastName?: string };
 }
 
+export type TicketAiGuideStatus = "idle" | "pending" | "ready" | "error";
+export type TicketAiGuideKind = "solution" | "questions";
+
+export interface ITicketAiGuideItem {
+  text?: string;
+  done?: boolean;
+}
+
+export interface ITicketAiGuide {
+  status?: TicketAiGuideStatus;
+  kind?: TicketAiGuideKind;
+  summary?: string;
+  items?: ITicketAiGuideItem[];
+  provider?: string;
+  model?: string;
+  error?: string;
+  generatedAt?: Date;
+  generatedFromCommentCount?: number;
+}
+
 export interface ITicket extends ITicketDefaultFields {
   num?: number;
   htmlDescription?: string;
@@ -112,6 +132,7 @@ export interface ITicket extends ITicketDefaultFields {
   returningComment?: string;
   deadline?: Date;
   checklist?: ITicketChecklistItem[];
+  aiGuide?: ITicketAiGuide;
   isArchived: boolean;
   processedAt?: Date;
   startedAt?: Date;

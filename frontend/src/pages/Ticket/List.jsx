@@ -37,6 +37,21 @@ const Tickets = () => {
     }
   }, [filterStore.nowActive]);
 
+  // Пока хотя бы одна заявка ждёт распознавания речи, периодически обновляем
+  // список, чтобы бейджи статуса менялись без ручной перезагрузки страницы.
+  useEffect(() => {
+    const anyPending = filterStore.originalList?.some(
+      (ticket) => ticket.aiSpeech?.status === "pending",
+    );
+    if (!anyPending) return;
+
+    const interval = setInterval(() => {
+      filterStore.fetchOpened();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [filterStore.originalList]);
+
   useEffect(() => {
     setLeftSidebarContent(
       <BrowserView>

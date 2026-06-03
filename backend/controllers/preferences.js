@@ -6,6 +6,11 @@ const Comment = require("../models/comment");
 
 const { AppError } = require("../middleware/errorHandling");
 
+const isOpenaiSpeechModel = (modelId) =>
+  /^(whisper-1|gpt-4o(?:-mini)?-transcribe(?:-diarize)?(?:-\d{4}-\d{2}-\d{2})?)$/.test(
+    modelId,
+  );
+
 exports.get = async (req, res, next) => {
   try {
     const preferences = await Preferences.findOne({});
@@ -63,6 +68,12 @@ exports.getInitial = async (req, res, next) => {
       telegramNotifications: preferences.notify?.byTelegram?.isActive,
       personalNotifications: preferences.notify.personal,
       modules: preferences.modules,
+      ai: {
+        isActive: preferences.ai?.isActive || false,
+        speechToText: {
+          isActive: preferences.ai?.speechToText?.isActive || false,
+        },
+      },
     });
   } catch (error) {
     next(new AppError(`Failed to fetch initial preferences`, 500, true, error));
@@ -157,17 +168,37 @@ exports.update = async (req, res, next) => {
 
 exports.getAiModels = async (req, res, next) => {
   try {
-    const { provider } = req.body;
+    const { provider, feature } = req.body;
     let { apiKey } = req.body;
+
+    // Yandex SpeechKit не отдаёт список моделей по API — возвращаем статический.
+    if (feature === "speechToText" && provider === "yandex") {
+      return res.status(200).json({
+        models: [{ id: "general", name: "general (Yandex SpeechKit)" }],
+      });
+    }
 
     if (!provider || !["openai", "anthropic"].includes(provider)) {
       return next(new AppError("Unknown AI provider", 400, true));
     }
 
+    if (feature === "speechToText" && provider !== "openai") {
+      return next(
+        new AppError(
+          "Speech recognition is only supported by OpenAI or Yandex",
+          400,
+          true,
+        ),
+      );
+    }
+
     // Fall back to the stored key if the client didn't send one.
     if (!apiKey) {
       const preferences = await Preferences.findOne({});
-      apiKey = preferences?.ai?.[provider]?.apiKey;
+      apiKey =
+        feature === "speechToText"
+          ? preferences?.ai?.speechToText?.apiKey
+          : preferences?.ai?.[provider]?.apiKey;
     }
 
     if (!apiKey) {
@@ -189,7 +220,11 @@ exports.getAiModels = async (req, res, next) => {
 
       const data = await response.json();
       models = (data.data || [])
-        .filter((model) => /^(gpt|o\d|chatgpt)/.test(model.id))
+        .filter((model) =>
+          feature === "speechToText"
+            ? isOpenaiSpeechModel(model.id)
+            : /^(gpt|o\d|chatgpt)/.test(model.id),
+        )
         .map((model) => ({ id: model.id, name: model.id }))
         .sort((a, b) => b.id.localeCompare(a.id));
     }
