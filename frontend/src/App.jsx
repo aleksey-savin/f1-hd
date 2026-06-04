@@ -91,6 +91,19 @@ import UpdateTicketCategoryPage, {
   loader as updateTicketCategoryLoader,
 } from "./pages/TicketCategory/Update.jsx";
 
+// Knowledge Base
+import KnowledgeBaseList, {
+  loader as knowledgeBaseListLoader,
+} from "./pages/KnowledgeBase/List.jsx";
+
+import AddKnowledgeNotePage, {
+  loader as addKnowledgeNoteLoader,
+} from "./pages/KnowledgeBase/Add.jsx";
+
+import ViewKnowledgeNotePage, {
+  loader as viewKnowledgeNoteLoader,
+} from "./pages/KnowledgeBase/View.jsx";
+
 // Ticket templates
 import TicketTemplates, {
   loader as ticketTemplatesLoader,
@@ -434,6 +447,24 @@ function App() {
           element: <TicketsArchive />,
           loader: ticketsArchiveLoader,
           action: ticketsArchiveAction,
+        },
+        // Knowledge Base
+        {
+          path: "knowledge-base",
+          element: <KnowledgeBaseList />,
+          loader: knowledgeBaseListLoader,
+          children: [
+            {
+              path: "add",
+              element: <AddKnowledgeNotePage />,
+              loader: addKnowledgeNoteLoader,
+            },
+            {
+              path: ":id",
+              element: <ViewKnowledgeNotePage />,
+              loader: viewKnowledgeNoteLoader,
+            },
+          ],
         },
         // Works
         {

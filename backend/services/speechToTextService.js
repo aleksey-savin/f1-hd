@@ -5,12 +5,12 @@ const Preferences = require("@/models/preferences");
 const { AppError } = require("@/middleware/errorHandling");
 const logger = require("@/utils/logger");
 const aiService = require("./aiService");
+const buildSummaryPrompt = require("@/prompts/callSummary");
+const transcriptionPrompt = require("@/prompts/transcription");
 
 const OPENAI_TRANSCRIPTIONS_ENDPOINT =
   "https://api.openai.com/v1/audio/transcriptions";
 const MAX_AUDIO_SIZE_BYTES = 25 * 1024 * 1024;
-// Название нашей службы поддержки — оператор представляется им в начале звонка.
-const SUPPORT_COMPANY = "F1Lab";
 // Лимит вывода для пост-обработки: возвращаем весь очищенный диалог + итог одним
 // JSON, поэтому нужен запас, иначе Anthropic (дефолт 1500) обрежет ответ и JSON
 // станет невалидным — итог и очищенный диалог потеряются.
@@ -200,55 +200,6 @@ const normalizeSummary = (parsed) => {
   return typeof value === "string" ? value.trim() : "";
 };
 
-// Собираем system/user-промпт для пост-обработки расшифровки: очищенный диалог,
-// связный итог и заголовок. Един для всех провайдеров распознавания.
-const buildSummaryPrompt = ({ segments, context = {} }) => {
-  const { applicantName, companyName, operatorName } = context;
-
-  const known = {
-    supportCompany: SUPPORT_COMPANY,
-    operator: operatorName || "",
-    caller: applicantName || "",
-    company: companyName || "",
-  };
-
-  const system = [
-    "Ты обрабатываешь плохую ASR-расшифровку телефонного разговора службы поддержки.",
-    "В разговоре всегда ровно два человека: сотрудник поддержки (оператор) и клиент.",
-    `Наша компания (служба поддержки) называется «${SUPPORT_COMPANY}». В начале оператор обычно представляется: «Здравствуйте, техподдержка ${SUPPORT_COMPANY}». Если распознавание исказило это (например «техподдержка Фатима», «техподдержка эф один лаб»), всегда исправляй на «${SUPPORT_COMPANY}».`,
-    "Тебе передают сырые реплики (segments) и достоверные данные (known).",
-    "Верни ТОЛЬКО JSON с полями title, summary, dialog.",
-    "",
-    "dialog — очищенный диалог: массив реплик по порядку, каждая { speaker, text }. Правила:",
-    "- Убирай дублирование: ASR часто повторяет одну и ту же фразу дважды (сырой и нормализованный варианты подряд) — оставляй один грамотный вариант.",
-    "- Убирай слова-паразиты и пустые междометия (угу, ага, э-э, мм, ну, как бы, алло), если они не несут смысла.",
-    "- Исправляй очевидные ошибки распознавания по контексту, не выдумывая фактов.",
-    "- speaker реплики оператора — имя сотрудника known.operator, если оно задано, иначе «Оператор». speaker реплики клиента — имя known.caller, если задано, иначе «Клиент».",
-    "- Исправляй искажённые имена людей и названия компаний на достоверные значения из known.",
-    "",
-    "summary — описание обращения на русском связным текстом, как оператор записал бы его в карточке заявки. Правила:",
-    'Не используй заголовки-рубрики ("Суть обращения", "Действия оператора", "Итог" и т.п.) и маркированные списки — только несколько обычных предложений.',
-    "- Если имя сотрудника known.operator задано, называй его по имени, а не словом «оператор».",
-    "- ОБЯЗАТЕЛЬНО указывай конкретные технические детали, если они звучали: названия и модели компьютеров, принтеров, серверов, hostname, серийные номера, IP-адреса, номера заявок, названия программ. Это важная информация — не опускай её.",
-    '- НЕ включай неинформативные дежурные фразы («оператор принял заявку и попрощался», «оператор подтвердил, что формирует заявку, и попросил ожидать»), приветствия и прощания. Только суть обращения и значимые факты.',
-    "- Не выдумывай факты, которых нет в разговоре.",
-    "",
-    "title — короткий заголовок заявки (до 8 слов, без кавычек).",
-  ].join("\n");
-
-  const user = JSON.stringify({
-    schema:
-      '{"title":"короткий заголовок заявки","summary":"описание связным текстом без рубрик и списков","dialog":[{"speaker":"имя или роль","text":"очищенная реплика"}]}',
-    known,
-    segments: compactSegments(segments).map((segment) => ({
-      speaker: segment.speaker,
-      text: segment.text,
-    })),
-  });
-
-  return { system, user };
-};
-
 // Терпимо разбираем диалог: модель может вернуть массив объектов {speaker,text}
 // либо массив строк вида "Оператор: текст". Оба варианта приводим к {speaker,text}.
 const normalizeDialog = (parsed) => {
@@ -284,7 +235,10 @@ const normalizeDialog = (parsed) => {
 const summarizeDialog = async ({ segments, context = {} }) => {
   if (!segments.length) return { summary: "", title: "", dialog: [] };
 
-  const { system, user } = buildSummaryPrompt({ segments, context });
+  const { system, user } = buildSummaryPrompt({
+    segments: compactSegments(segments),
+    context,
+  });
 
   // Итог звонка завязан на собственный тумблер распознавания речи, поэтому не
   // требуем общий тумблер AI-функций (ai.isActive) — достаточно ключа провайдера.
@@ -329,10 +283,7 @@ const transcribeWithOpenai = async (attachment, { apiKey, model }) => {
   } else {
     formData.append("response_format", "json");
     formData.append("language", "ru");
-    formData.append(
-      "prompt",
-      "Это запись телефонного разговора службы поддержки. Расшифруй на русском языке с аккуратной пунктуацией, без добавления фактов и без перевода.",
-    );
+    formData.append("prompt", transcriptionPrompt);
   }
 
   logger.log("info", "Requesting OpenAI speech recognition", {

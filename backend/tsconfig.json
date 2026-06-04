@@ -11,6 +11,7 @@
       "@/middleware/*": ["./middleware/*"],
       "@/models/*": ["./models/*"],
       "@/routes/*": ["./routes/*"],
+      "@/prompts/*": ["./prompts/*"],
       "@/utils/*": ["./utils/*"],
       "@/validations/*": ["./validations/*"],
       "@/helpers/*": ["./helpers/*"]

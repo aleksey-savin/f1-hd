@@ -76,6 +76,31 @@ export default defineConfig({
       "date-fns",
       "zustand",
       "pad",
+      // Lexical: перечисляем все пакеты и подпути react-плагинов одним списком,
+      // чтобы Vite оптимизировал их совместно и дедуплицировал. Иначе при
+      // раздельном предбандлинге @lexical/link и @lexical/table вшиваются
+      // копиями внутрь своих react-плагинов — отдельные createCommand() и
+      // классы узлов, из-за чего INSERT_TABLE_COMMAND/TOGGLE_LINK_COMMAND из
+      // тулбара не совпадают с теми, что слушают плагины (команды молча
+      // игнорируются, без ошибок в консоли).
+      "lexical",
+      "@lexical/rich-text",
+      "@lexical/list",
+      "@lexical/link",
+      "@lexical/table",
+      "@lexical/html",
+      "@lexical/selection",
+      "@lexical/utils",
+      "@lexical/react/LexicalComposer",
+      "@lexical/react/LexicalComposerContext",
+      "@lexical/react/LexicalRichTextPlugin",
+      "@lexical/react/LexicalContentEditable",
+      "@lexical/react/LexicalHistoryPlugin",
+      "@lexical/react/LexicalListPlugin",
+      "@lexical/react/LexicalLinkPlugin",
+      "@lexical/react/LexicalTablePlugin",
+      "@lexical/react/LexicalOnChangePlugin",
+      "@lexical/react/LexicalErrorBoundary",
     ],
   },
   // Configure CSS preprocessing

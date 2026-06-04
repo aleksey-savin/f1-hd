@@ -6,6 +6,9 @@ const { Ticket } = require("../models/ticket");
 const TelegramBot = require("node-telegram-bot-api");
 const Preferences = require("../models/preferences");
 const User = require("../models/user");
+const {
+  detectTicketCategory,
+} = require("../services/ticketCategoryService");
 
 const logger = require("../utils/logger");
 
@@ -167,6 +170,18 @@ exports.launchTgBot = async () => {
         });
 
         await ticket.save();
+
+        // Автоопределение категории заявки в фоне (если ИИ включён в настройках).
+        // Читаем настройки заново, чтобы учитывать актуальное состояние тумблера.
+        const freshPrefs = await Preferences.findOne({});
+        if (freshPrefs?.ai?.isActive) {
+          detectTicketCategory(ticket._id).catch((error) =>
+            logger.log("error", "Background telegram category detection failed", {
+              ticketId: ticket._id.toString(),
+              error: error.message,
+            }),
+          );
+        }
 
         return;
       } catch (error) {

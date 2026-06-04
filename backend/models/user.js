@@ -95,6 +95,7 @@ const userSchema = new Schema(
       canManageCompanies: { type: Boolean, default: false },
       canManageUsers: { type: Boolean, default: false },
       canManageTicketCategories: { type: Boolean, default: false },
+      canManageKnowledgeBase: { type: Boolean, default: false }, // может создавать/редактировать заметки базы знаний
       canManageRoutineTasks: { type: Boolean, default: false }, // может управлять регламентными заданиями
       canUpdateChangelog: { type: Boolean, default: false }, // может создавать записи в changelog
       canManageTicketTemplates: { type: Boolean, default: false }, // может управлять шаблонами заявок

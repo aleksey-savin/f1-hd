@@ -326,7 +326,7 @@ const CompanyLogsOffcanvas = ({
       >
         <Offcanvas.Header closeButton>
           <Offcanvas.Title>
-            Логи активности - {company.alias}
+            Лог активности - {company.alias}
             <small className="text-muted ms-2">
               Всего записей: {pagination.count}
             </small>
@@ -457,7 +457,7 @@ const CompanyLogsOffcanvas = ({
               <p className="text-muted">
                 {searchQuery
                   ? "По вашему запросу ничего не найдено"
-                  : "Логи активности отсутствуют"}
+                  : "Лог активности отсутствует"}
               </p>
             </div>
           )}

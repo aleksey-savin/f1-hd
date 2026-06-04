@@ -71,6 +71,20 @@ const preferencesSchema = new Schema({
     finances: { isActive: { type: Boolean, default: false } },
     inventory: { isActive: { type: Boolean, default: false } },
   },
+  // Зеркало backend ai-настроек — telegram-bot использует их для автоопределения
+  // категории заявки. Достаточно провайдера, ключа и модели текстовой генерации.
+  ai: {
+    isActive: { type: Boolean, default: false },
+    provider: { type: String, enum: ["openai", "anthropic"] },
+    openai: {
+      apiKey: { type: String, default: "" },
+      model: { type: String, default: "gpt-4o" },
+    },
+    anthropic: {
+      apiKey: { type: String, default: "" },
+      model: { type: String, default: "claude-opus-4-8" },
+    },
+  },
 });
 
 module.exports = mongoose.model("Preferences", preferencesSchema);

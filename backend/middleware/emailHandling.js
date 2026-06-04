@@ -23,6 +23,8 @@ const {
   buildKnownCaller,
   isCloudTelephonySender,
 } = require("../services/callerIdentityService");
+const { detectTicketCategory } = require("../services/ticketCategoryService");
+const { logAiTicketEvent } = require("../services/aiTicketLog");
 
 const logger = require("../utils/logger");
 
@@ -91,6 +93,8 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
       freshTicket.markModified("attachments");
       await freshTicket.save();
 
+      await logAiTicketEvent(ticketId, "начал распознавание записи звонка");
+
       const result = await transcribeAttachment(attachment, knownContext);
 
       freshTicket = await Ticket.findById(ticketId);
@@ -130,6 +134,8 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
       freshTicket.markModified("attachments");
       await freshTicket.save();
 
+      await logAiTicketEvent(ticketId, "завершил распознавание записи звонка");
+
       logger.log("info", "Email audio attachment transcribed", {
         ticketId: ticketId.toString(),
         attachment: attachment.name,
@@ -150,6 +156,12 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
         freshTicket.markModified("attachments");
         await freshTicket.save();
       }
+
+      await logAiTicketEvent(
+        ticketId,
+        `Ошибка распознавания записи звонка: ${error.message}`,
+        "danger",
+      );
 
       logger.log("error", "Failed to transcribe email audio attachment", {
         ticketId: ticketId.toString(),
@@ -172,6 +184,14 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
     );
     finalTicket.aiSpeech = { status: anyReady ? "processed" : "error" };
     await finalTicket.save();
+  }
+
+  // Определяем категорию уже после распознавания: для телефонных заявок описание
+  // заменено итогом звонка, поэтому сигнал гораздо точнее, чем «Входящий звонок».
+  // detectTicketCategory никогда не бросает исключение и заполняет категорию,
+  // только если она ещё не задана.
+  if (prefs?.ai?.isActive) {
+    await detectTicketCategory(ticketId);
   }
 };
 
@@ -587,6 +607,12 @@ exports.handleNewEmails = async () => {
             attachments: email.attachments,
             // помечаем заявку как ожидающую распознавания речи звонка
             ...(willTranscribe ? { aiSpeech: { status: "pending" } } : {}),
+            // без распознавания категорию подбираем сразу — помечаем заявку
+            // ожидающей автоопределения (для заявок с аудио это сделает поток
+            // транскрипции после готового итога звонка)
+            ...(!willTranscribe && prefs?.ai?.isActive
+              ? { aiCategory: { status: "pending" } }
+              : {}),
             createdBy: applicant || prefs.defaultApplicant,
             updatedBy: applicant || prefs.defaultApplicant,
           });
@@ -594,10 +620,30 @@ exports.handleNewEmails = async () => {
           await ticket.save();
 
           if (willTranscribe) {
-            transcribeTicketAudioAttachments(ticket._id).catch((error) =>
+            transcribeTicketAudioAttachments(ticket._id).catch(async (error) => {
               logger.log(
                 "error",
                 "Background email audio transcription failed",
+                {
+                  ticketId: ticket._id.toString(),
+                  error: error.message,
+                  stack: error.stack,
+                },
+              );
+              // Гарантируем завершение статуса, иначе уведомление о новой
+              // заявке навсегда останется отложенным (гейт по
+              // aiSpeech.status === "pending" в createTicketNotifications).
+              await Ticket.findByIdAndUpdate(ticket._id, {
+                "aiSpeech.status": "error",
+              }).catch(() => {});
+            });
+          } else if (prefs?.ai?.isActive) {
+            // Без распознавания речи определяем категорию по теме/телу письма.
+            // Для willTranscribe это сделает поток транскрипции на готовом итоге.
+            detectTicketCategory(ticket._id).catch((error) =>
+              logger.log(
+                "error",
+                "Background email category detection failed",
                 {
                   ticketId: ticket._id.toString(),
                   error: error.message,

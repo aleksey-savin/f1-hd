@@ -249,6 +249,17 @@ const ProcessTicket = ({ ticket }) => {
                       onChange={categoryChangeHandler}
                     />
                   </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label>Дедлайн</Form.Label>
+                    <Form.Control
+                      id="deadline"
+                      name="deadline"
+                      type="datetime-local"
+                      ref={deadlineInputRef}
+                      defaultValue={utcToLocalForm(ticket.deadline)}
+                    />
+                  </Form.Group>
                   <Form.Group className="mb-3">
                     <Form.Label htmlFor="responsibles">
                       Ответственные
@@ -257,7 +268,6 @@ const ProcessTicket = ({ ticket }) => {
                       id="responsibles"
                       name="responsibles"
                       placeholder="Выберите пользователей"
-                      required
                       isClearable
                       isSearchable
                       isMulti
@@ -281,16 +291,6 @@ const ProcessTicket = ({ ticket }) => {
                           {`${option.lastName} ${option.firstName}`}
                         </div>
                       )}
-                    />
-                  </Form.Group>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Дедлайн</Form.Label>
-                    <Form.Control
-                      id="deadline"
-                      name="deadline"
-                      type="datetime-local"
-                      ref={deadlineInputRef}
-                      defaultValue={utcToLocalForm(ticket.deadline)}
                     />
                   </Form.Group>
                 </Modal.Body>

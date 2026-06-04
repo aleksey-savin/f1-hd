@@ -250,6 +250,11 @@ const useTicketFilterStore = create((set) => ({
   filteredList: [],
   recentlyClosedList: [],
   isLoading: false,
+  // Признак того, что список только что обновлён "тихо" (фоновым опросом).
+  // По нему страница пропускает повторный пересчёт фильтра/сортировки, чтобы
+  // не дёргать спиннер и fade-анимацию при живом обновлении бейджей.
+  silentUpdate: false,
+  clearSilentUpdate: () => set({ silentUpdate: false }),
   fetchOpened: async () => {
     set({ isLoading: true });
     const { token } = getLocalStorageData();
@@ -266,6 +271,33 @@ const useTicketFilterStore = create((set) => ({
     set({
       originalList: data.tickets ?? [],
       isLoading: false,
+    });
+  },
+  // Фоновое обновление без флагов загрузки: подтягивает свежие данные и
+  // пересчитывает отфильтрованный/отсортированный список одним set-вызовом.
+  // Так бейджи (например, статус ИИ) обновляются на месте — без перерисовки
+  // всего списка и fade-анимации в ListWrapper.
+  silentRefresh: async () => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
+      {
+        headers: {
+          Authorization: "Bearer " + token,
+        },
+      },
+    );
+    const data = await response.json();
+
+    set((state) => {
+      const nextState = { ...state, originalList: data.tickets ?? [] };
+      const filteredList = ticketFilter(nextState);
+      const sortedList = handleSorting(nextState.sortBy, filteredList);
+      return {
+        originalList: nextState.originalList,
+        filteredList: sortedList || filteredList,
+        silentUpdate: true,
+      };
     });
   },
   fetchRecentlyClosed: async () => {

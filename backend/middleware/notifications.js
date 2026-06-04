@@ -58,6 +58,10 @@ exports.createTicketNotifications = async () => {
     () =>
       Ticket.find({
         "notifications.pending": true,
+        // Не уведомляем, пока ИИ распознаёт звонок: дождёмся итога и заголовка,
+        // иначе в уведомление попадёт заглушка вместо сформированных ИИ данных.
+        // $ne: "pending" также пропускает заявки без поля aiSpeech (портал/почта).
+        "aiSpeech.status": { $ne: "pending" },
       })
         .sort({ updatedAt: 1 })
         .limit(NOTIFICATION_BATCH_SIZE)
@@ -1180,6 +1184,7 @@ exports.createCommentNotifications = async () => {
 
   for (let comment of comments) {
     const lastAction = comment.notifications.lastAction;
+    const authorId = String(comment.createdBy?._id || comment.createdBy);
     const ticket = await Ticket.findById(comment.ticketId);
     if (!ticket) {
       comment.notifications.pending = false;
@@ -1197,7 +1202,10 @@ exports.createCommentNotifications = async () => {
 
         // notifying applicant
         try {
-          if (notifyTg(applicant, "ticketNewComment")) {
+          if (
+            String(applicant?._id) !== authorId &&
+            notifyTg(applicant, "ticketNewComment")
+          ) {
             const newCommentNotification = new Notification({
               instrument: "telegram",
               commentId: comment._id,
@@ -1252,7 +1260,10 @@ exports.createCommentNotifications = async () => {
           for (let responsible of ticket.responsibles) {
             const user = await User.findById(responsible._id);
 
-            if (notifyTg(user, "ticketNewComment")) {
+            if (
+              String(user?._id) !== authorId &&
+              notifyTg(user, "ticketNewComment")
+            ) {
               const newTicketNotification = new Notification({
                 instrument: "telegram",
                 ticketId: ticket._id,
@@ -1282,7 +1293,10 @@ exports.createCommentNotifications = async () => {
 
         // notifying applicant
         try {
-          if (notifyTg(applicant, "ticketNewComment")) {
+          if (
+            String(applicant?._id) !== authorId &&
+            notifyEmail(applicant, "ticketNewComment")
+          ) {
             const newCommentNotification = new Notification({
               instrument: "email",
               source: "comment",
@@ -1321,7 +1335,10 @@ exports.createCommentNotifications = async () => {
         try {
           for (let resp of ticket.responsibles) {
             const user = await User.findById(resp._id);
-            if (notifyEmail(user, "ticketNewComment")) {
+            if (
+              String(user?._id) !== authorId &&
+              notifyEmail(user, "ticketNewComment")
+            ) {
               const newCommentNotification = new Notification({
                 instrument: "email",
                 commentId: comment._id,
@@ -1330,7 +1347,7 @@ exports.createCommentNotifications = async () => {
                   email: user.email,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                title: `[F1-HD-${ticket.num}] Новый комментарий к Заявке ${comment.ticket}`,
+                title: `[F1-HD-${ticket.num}] Новый комментарий к Заявке ${ticket.num}`,
                 text: `<div>
                                 <h3>Новый комментарий.</h3>
                                 <p>

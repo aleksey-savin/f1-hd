@@ -13,10 +13,13 @@ const Category = require("../models/ticketCategory");
 const TicketLog = require("../models/ticketLog");
 const Work = require("../models/work");
 const Comment = require("../models/comment");
+const CompanyLog = require("../models/companyLog");
 
 const Connection = require("../models/pro32Connect/connection");
 
 const { generateTicketAiGuide } = require("../services/ticketAiGuide");
+const { detectTicketCategory } = require("../services/ticketCategoryService");
+const { logAiTicketEvent } = require("../services/aiTicketLog");
 const {
   isAudioAttachment,
   transcribeAttachment,
@@ -116,6 +119,7 @@ exports.getAllOpened = async (req, res, next) => {
         scheduledWorks: scheduledWorks,
         routineTask: ticket.routineTask,
         aiSpeech: ticket.aiSpeech,
+        aiCategory: ticket.aiCategory,
       });
     }
 
@@ -127,9 +131,12 @@ exports.getAllOpened = async (req, res, next) => {
 
 exports.getRecentlyClosed = async (req, res, next) => {
   try {
-    const { _id: userId, isAdmin, permissions, company } = await getAuthData(
-      req,
-    );
+    const {
+      _id: userId,
+      isAdmin,
+      permissions,
+      company,
+    } = await getAuthData(req);
 
     // Calculate date threshold (14 days ago)
     const fourteenDaysAgo = new Date();
@@ -444,7 +451,7 @@ exports.getOne = async (req, res, next) => {
       .populate({
         path: "applicantId",
         select:
-          "firstName lastName email phone position role isActive subdivision",
+          "firstName lastName email phone position role isActive subdivision activeDirectoryObjectGUID",
         populate: {
           path: "subdivision",
           select: "name email address phone linkToMap",
@@ -476,6 +483,26 @@ exports.getOne = async (req, res, next) => {
       path: "employees",
       select: "firstName lastName email phone position isActive",
     });
+
+    // Если инициатор связан с Active Directory, подтягиваем его последний ПК
+    // из логов активности компании (последняя запись входа с именем компьютера).
+    if (ticket.applicant?.activeDirectoryObjectGUID) {
+      const lastLog = await CompanyLog.findOne({
+        activeDirectoryObjectGUID: ticket.applicant.activeDirectoryObjectGUID,
+        computerName: { $nin: [null, ""] },
+      })
+        .sort({ createdAt: -1 })
+        .select("computerName activeDirectoryLogin createdAt")
+        .lean();
+
+      if (lastLog) {
+        ticket.applicant.computer = {
+          name: lastLog.computerName,
+          activeDirectoryLogin: lastLog.activeDirectoryLogin,
+          lastSeenAt: lastLog.createdAt,
+        };
+      }
+    }
 
     const works = await Work.find({ tickets: ticket._id });
     const logs = await TicketLog.find({
@@ -642,6 +669,11 @@ exports.add = async (req, res, next) => {
       aiGuide: {
         status: prefs?.ai?.isActive ? "pending" : "idle",
       },
+      // Если категория не выбрана и ИИ включён — помечаем заявку ожидающей
+      // автоопределения категории (бейдж статуса появится сразу).
+      ...(prefs?.ai?.isActive && !categoryId
+        ? { aiCategory: { status: "pending" } }
+        : {}),
     });
 
     await ticket.save();
@@ -663,11 +695,17 @@ exports.add = async (req, res, next) => {
       ticket: ticket,
     });
 
-    // Generate the AI solution guide in the background — do not block (or fail)
-    // the create response on it.
+    // В фоне (ответ 201 уже отправлен): сначала определяем категорию, если она не
+    // выбрана, затем строим AI-руководство — чтобы оно уже учитывало категорию.
+    // Создание заявки не блокируется и не падает из-за этого.
     if (prefs?.ai?.isActive) {
-      generateTicketAiGuide(ticket._id).catch((error) =>
-        logger.log("error", "Background AI guide generation failed", {
+      (async () => {
+        if (!categoryId) {
+          await detectTicketCategory(ticket._id);
+        }
+        await generateTicketAiGuide(ticket._id);
+      })().catch((error) =>
+        logger.log("error", "Background AI ticket processing failed", {
           ticketId: ticket._id.toString(),
           error: error.message,
         }),
@@ -703,11 +741,7 @@ exports.regenerateAiGuide = async (req, res, next) => {
 
     if (aiGuide?.status === "error") {
       return next(
-        new AppError(
-          aiGuide.error || "Failed to generate AI guide",
-          502,
-          true,
-        ),
+        new AppError(aiGuide.error || "Failed to generate AI guide", 502, true),
       );
     }
 
@@ -780,6 +814,8 @@ exports.transcribeAttachment = async (req, res, next) => {
     ticket.markModified("attachments");
     await ticket.save();
 
+    await logAiTicketEvent(ticket._id, "начал распознавание записи звонка");
+
     // Достоверные имя клиента и компания (если опознаны) — для исправления
     // искажённых распознаванием имён в диалоге и итоге.
     const prefs = await Preferences.findOne({});
@@ -807,6 +843,8 @@ exports.transcribeAttachment = async (req, res, next) => {
     ticket.markModified("attachments");
     await ticket.save();
 
+    await logAiTicketEvent(ticket._id, "завершил распознавание записи звонка");
+
     res.status(200).json({
       success: true,
       message: "Speech recognition completed",
@@ -827,6 +865,12 @@ exports.transcribeAttachment = async (req, res, next) => {
           error: saveError.message,
           stack: saveError.stack,
         }),
+      );
+
+      await logAiTicketEvent(
+        ticket._id,
+        `Ошибка распознавания записи звонка: ${error.message}`,
+        "danger",
       );
 
       return res.status(error.statusCode || 500).json({
@@ -917,11 +961,24 @@ exports.takeToWork = async (req, res, next) => {
       pending: true,
     };
 
-    // if take over is true, clear all other responsibles
+    const authedUserId = authedUser._id.toString();
+    const isResponsible = ticket.responsibles.some(
+      (resp) => resp._id.toString() === authedUserId,
+    );
+
     if (req.body.takeOver) {
-      ticket.responsibles = ticket.responsibles.filter(
-        (resp) => resp._id.toString() === authedUser._id.toString(),
+      // Взять на себя: единственным ответственным остаётся текущий пользователь.
+      // Сохраняем его существующую запись (с флагами isNotified), а если заявка
+      // была без ответственных — добавляем пользователя.
+      const self = ticket.responsibles.find(
+        (resp) => resp._id.toString() === authedUserId,
       );
+      ticket.responsibles = self ? [self] : [authedUser];
+    } else if (!isResponsible) {
+      // Заявку принимает в работу пользователь, которого не было в ответственных
+      // (например, у заявки не было ответственных) — добавляем его, чтобы заявка
+      // не оказалась «В работе» без ответственных.
+      ticket.responsibles = ticket.responsibles.concat(authedUser);
     }
 
     await ticket.save();

@@ -1,0 +1,44 @@
+/* Редактируемый заголовок заметки выглядит как <h3>, без рамки;
+   в фокусе — нижнее подчёркивание. */
+.kb-title-input.form-control {
+  border: 0;
+  background-color: transparent;
+  padding: 0;
+  height: auto;
+  min-width: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.kb-title-input.form-control:focus {
+  box-shadow: none;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+/* Toast UI Editor/Viewer без внешней рамки — визуальный паритет с остальной
+   страницей заметки. */
+.toastui-editor-defaultUI {
+  border: 0;
+}
+
+/* Компактный тулбар: меньше высота, кнопки и отступы (по умолчанию 45px/32px). */
+.toastui-editor-defaultUI-toolbar {
+  height: 34px;
+  padding: 0 8px;
+}
+.toastui-editor-defaultUI-toolbar button {
+  width: 28px;
+  height: 28px;
+  margin: 3px 2px;
+}
+.toastui-editor-toolbar-item-wrapper {
+  height: 28px;
+  line-height: 28px;
+  margin: 3px 2px;
+}
+.toastui-editor-toolbar-icons {
+  background-position-y: 1px;
+}
+.toastui-editor-toolbar-divider {
+  height: 16px;
+  margin: 9px 6px;
+}

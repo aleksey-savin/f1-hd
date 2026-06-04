@@ -1,12 +1,12 @@
 # AI Integration — Implementation Notes
 
-_Last updated: 2026-05-31. This document describes the AI features as currently
+_Last updated: 2026-06-04. This document describes the AI features as currently
 implemented, so the code can be reviewed and optimized later. It is a snapshot,
 not a spec — verify against the code before relying on any detail._
 
 ## Overview
 
-Three AI capabilities have been added:
+Four AI capabilities have been added:
 
 1. **AI provider preferences** — admin chooses OpenAI or Anthropic and stores the
    API key + model. Models are fetched live from the provider. Speech recognition
@@ -25,10 +25,28 @@ Three AI capabilities have been added:
    structured Russian call summary and a short ticket title. On the ticket page
    the call **dialog** (diarized segments) is shown; the summary/title feed
    email-created tickets (see §3).
+4. **AI ticket category detection** — on ticket creation the configured provider
+   picks the best-matching `TicketCategory` from the ticket's title/description and
+   the categories' own descriptions, filling `categoryId` only when it is empty. Runs
+   for web-form, email- and Telegram-created tickets, and (for telephony) after the call
+   summary replaces the description, so the category reflects the recognized call. A
+   `aiCategory.status` badge shows progress (like the speech badge), and both the
+   category and speech flows write start/end/error ticket-log entries (see §4).
 
 Design principle throughout: **provider-agnostic via the global `fetch`** (no
 OpenAI/Anthropic SDK), matching the pre-existing `getAiModels` pattern. Output is
 in Russian.
+
+All LLM prompt text lives in **`backend/prompts/`** (one prompt per file, each with
+a header comment stating what it does and where it is used), imported via the
+`@/prompts` alias rather than inlined in services:
+- `prompts/ticketGuide.js` — ticket solution-guide system prompt (§2);
+- `prompts/callSummary.js` — call ASR post-processing prompt builder, `({ segments,
+  context }) → { system, user }`; also owns the `SUPPORT_COMPANY` (`F1Lab`)
+  constant (§3);
+- `prompts/transcription.js` — OpenAI speech-to-text Russian support-call hint (§3);
+- `prompts/ticketCategory.js` — category-classification prompt builder, `({ title,
+  description, categories }) → { system, user }` (§4).
 
 ---
 
@@ -135,14 +153,15 @@ aiGuide: {
     `attachments`); fetches company `alias`/`fullTitle`;
   - `buildUserContent` — title, HTML-stripped description, category, priority/
     impact/urgency, source, custom fields, applicant, company, last ~20 comments;
-  - appends extracted document text and an image-count note to the prompt;
+  - appends extracted document text and an image-count note to the prompt; the
+    system prompt itself is imported from `prompts/ticketGuide.js`;
   - calls `generateJson` with images; **text-only fallback** if the vision call
     fails (e.g. non-vision model) so a guide is still produced;
   - persists `aiGuide` via `findByIdAndUpdate`; **never throws** — failures are
     recorded as `status:"error"`.
 
-`backend/package.json` — added `@/services` module alias and deps `pdf-parse`,
-`mammoth`, `xlsx`.
+`backend/package.json` / `tsconfig.json` — added `@/services` and `@/prompts`
+module aliases and deps `pdf-parse`, `mammoth`, `xlsx`.
 
 ### Controller / routes — `backend/controllers/ticket.js`, `routes/internal/ticket.js`
 - `add` — sets `aiGuide.status` to `pending` (if AI on) and, **after** sending the
@@ -208,7 +227,7 @@ older ticket code used `mimetype`, while later attachment upload code used
   - for `gpt-4o-transcribe-diarize` uses `response_format:"diarized_json"`,
     `chunking_strategy:"auto"`, and `language:"ru"`;
   - for non-diarize speech models uses `response_format:"json"`, `language:"ru"`,
-    and a Russian support-call prompt.
+    and a Russian support-call prompt (`prompts/transcription.js`).
 - **Yandex SpeechKit path** (`transcribeWithYandex`) — STT **v3 async REST**, no
   SDK, matching the global-`fetch` principle:
   - maps the file extension to a Yandex container (`mp3`→MP3, `wav`→WAV,
@@ -243,9 +262,11 @@ older ticket code used `mimetype`, while later attachment upload code used
   - `normalizeDialog` accepts the model's `dialog` as either `[{speaker,text}]`
     objects **or** `["Speaker: text"]` strings, so a validly-returned dialog isn't
     dropped on a shape mismatch (which would leave the raw ASR text on screen);
-  - **dialog cleanup + name correction** (`buildSummaryPrompt`): the prompt has the
-    model (a) fix the support-side greeting to our company name **`F1Lab`**
-    (constant `SUPPORT_COMPANY`) — so "техподдержка Фатима" → "техподдержка F1Lab";
+  - **dialog cleanup + name correction** (`buildSummaryPrompt`, imported from
+    `prompts/callSummary.js`; the service passes it already-`compactSegments`-ed
+    segments): the prompt has the model (a) fix the support-side greeting to our
+    company name **`F1Lab`** (constant `SUPPORT_COMPANY`, also in that file) — so
+    "техподдержка Фатима" → "техподдержка F1Lab";
     (b) label the operator's turns with the real employee name and refer to them by
     name in the summary (not "оператор"); (c) remove duplicated text and filler
     words (угу/ага/мм…); (d) capture equipment identifiers (PC/printer/host/serial/
@@ -336,14 +357,95 @@ confusion and conflicts.
     attachments.
 - `store/prefs.js` carries `ai.speechToText.isActive` from `getInitial`.
 - `UI/AiSpeechBadge.jsx` — renders `ticket.aiSpeech.status`: `pending` → spinner +
-  "ИИ обрабатывает запись", `processed` → green "Processed by AI", `error` → danger.
+  "ИИ обрабатывает запись", `processed` → green "Обработана ИИ", `error` → danger.
   - **Ticket view** (`pages/Ticket/View.jsx`, staff only): shown under the title;
     while `pending` it polls `GET /api/tickets/:num` every 5 s and, once the status
     changes, calls `revalidator.revalidate()` so the title/description/badge refresh
     without a manual reload.
   - **Ticket list** (`components/Ticket/Item.jsx` via the `ItemCard` badges array):
     `pages/Ticket/List.jsx` re-fetches the opened list every 5 s while any row is
-    `pending`, so all badges update live with a single request.
+    `pending`, so all badges update live with a single request. The poll uses the
+    store's `silentRefresh` (in `store/lists/tickets.js`), which updates
+    `originalList`/`filteredList` atomically **without** touching `isLoading`/
+    `isSorting` and sets a `silentUpdate` flag so the page skips the re-filter/sort
+    effect. This keeps `ListWrapper` from swapping the list for a `<Spinner>`, so
+    rows update in place (stable `key={item._id}`) with no fade-out/fade-in.
+
+---
+
+## 4. AI ticket category detection
+
+Picks the best-matching `TicketCategory` for a new ticket from its title/description
+and the categories' descriptions, filling `categoryId` **only when it is empty** (a
+manually chosen category is never overwritten). Gated by the same master switch
+`ai.isActive` as the solution guide.
+
+**Status field** — `ticketSchema.aiCategory.status` (`pending` | `processed` | `error`,
+mirroring `aiSpeech`) tracks the background job for the UI. It is set to `pending` at
+creation (or by the service when it starts), flipped to `processed` once detection is
+done (whether or not a category was assigned) and `error` on failure. Returned by
+`getOne` and the opened-list projection; drives a live badge (see Frontend below).
+
+### Prompt — `backend/prompts/ticketCategory.js`
+Builder `({ title, description, categories }) → { system, user }`, where `categories`
+is `[{ id, title, description }]`. The system prompt frames the model as a support-ticket
+classifier, tells it to choose **one** category primarily by the category's `description`
+(title as a hint), and to return `null` if nothing fits confidently. Output is strict
+JSON: `{ "categoryId": "<id from the list>" | null, "reason": "..." }` (`reason` is
+log-only). The user message is `JSON.stringify({ ticket: { title, description },
+categories })`.
+
+### Service — `backend/services/ticketCategoryService.js`
+`detectTicketCategory(ticketId)` (mirrors `ticketAiGuide.js`; **never throws** — errors
+are logged):
+- loads the ticket (`num title description htmlDescription categoryId`); **returns early
+  if `categoryId` is already set**;
+- loads `TicketCategory.find({ isActive: true }).select("title description")`; returns if
+  there are none;
+- strips HTML and truncates the description (local `stripHtml`/`truncate`, ~2k chars;
+  category descriptions capped ~600), then calls `aiService.generateJson({ system, user })`
+  (default `requireActive: true`, so it respects `ai.isActive`);
+- **validates** the returned `categoryId` against the candidate id set; on a valid match
+  `Ticket.findByIdAndUpdate(ticketId, { categoryId, "aiCategory.status": "processed" })`,
+  otherwise leaves the category empty (status `processed`) and logs at `info`; on any error
+  sets status `error`.
+- writes **ticket-log** entries (`TicketLog`) for start / end / error via
+  `services/aiTicketLog.js` `logAiTicketEvent(ticketId, event, severity)` (system actor
+  "ИИ"; `info`/`danger`).
+
+### Triggers
+- **Web form** — `controllers/ticket.js` `add`: sets `aiCategory.status = "pending"` at
+  creation (when no `categoryId` and `ai.isActive`); after the 201 a background chain runs
+  `detectTicketCategory` **then** `generateTicketAiGuide`, so the guide already sees the
+  detected category. Never blocks/fails ticket creation.
+- **Email (no transcription)** — `middleware/emailHandling.js` new-ticket branch: when the
+  ticket will **not** be transcribed and `ai.isActive`, sets `aiCategory.status = "pending"`
+  and fires `detectTicketCategory` in the background from the email subject/body.
+- **Telephony / transcribe→summary→title** — `transcribeTicketAudioAttachments`: after the
+  `aiSpeech.status` finalization (and when `ai.isActive`), awaits `detectTicketCategory` so
+  the category is chosen from the **call summary** that replaced the description, not the
+  original "Входящий звонок". Email replies that become comments are not categorized.
+- **Telegram** — the bot is a **separate service** with its own models and no shared code,
+  so detection is self-contained in `telegram-bot/services/ticketCategoryService.js` (a
+  mirror of the backend prompt + a minimal `axios`-based provider call). On a new ticket
+  (`tgBotApi.js` `addTicket`), after save and when `ai.isActive`, it runs detection in the
+  background. Requires the `ai` sub-doc on `telegram-bot/models/preferences.js`, a
+  `TicketCategory` model, and `aiCategory` on the bot's ticket model. **Keep this file in
+  sync with the backend prompt/logic.**
+
+### Speech-recognition ticket logs
+The speech flow also writes `TicketLog` start/end/error entries via the same
+`logAiTicketEvent` helper — in `controllers/ticket.js` `transcribeAttachment` (manual) and
+`middleware/emailHandling.js` `transcribeTicketAudioAttachments` (auto, per attachment).
+
+### Frontend
+- `UI/AiCategoryBadge.jsx` — `pending` → spinner "ИИ подбирает категорию"; `error` → danger
+  "Не удалось определить категорию"; `processed` → no badge (the category itself is shown).
+- `pages/Ticket/View.jsx` renders it next to `AiSpeechBadge` under the title; the existing
+  poll now also runs while `aiCategory.status === "pending"` and revalidates when it
+  resolves.
+- `components/Ticket/Item.jsx` adds an "ИИ подбирает категорию" badge; `pages/Ticket/List.jsx`
+  extends the live-refresh `anyPending` check to `aiCategory.status === "pending"`.
 
 ---
 
@@ -435,10 +537,19 @@ Backend: `models/preferences.js`, `models/ticket.js`, `types/ticket.ts`,
 `controllers/preferences.js`, `controllers/ticket.js`, `routes/internal/ticket.js`,
 `services/aiService.js`, `services/ticketAiGuide.js`,
 `services/attachmentExtractor.js`, `services/speechToTextService.js`,
-`services/callerIdentityService.js`,
-`middleware/fileUpload.js`, `middleware/emailHandling.js`, `package.json`.
+`services/callerIdentityService.js`, `services/ticketCategoryService.js`,
+`services/aiTicketLog.js`,
+`prompts/ticketGuide.js`, `prompts/callSummary.js`, `prompts/transcription.js`,
+`prompts/ticketCategory.js`,
+`middleware/fileUpload.js`, `middleware/emailHandling.js`, `package.json`,
+`tsconfig.json`.
 
 Frontend: `components/Preferences/Ai.jsx`, `pages/Preferences.jsx`,
 `components/Ticket/View/AiGuide.jsx`, `components/Ticket/View/Attachments.jsx`,
-`UI/AttachmentPreview.jsx`, `UI/AiSpeechBadge.jsx`, `pages/Ticket/View.jsx`,
+`UI/AttachmentPreview.jsx`, `UI/AiSpeechBadge.jsx`, `UI/AiCategoryBadge.jsx`,
+`pages/Ticket/View.jsx`,
 `pages/Ticket/List.jsx`, `components/Ticket/Item.jsx`, `store/prefs.js`.
+
+Telegram-bot (self-contained category detection): `models/ticket.js`,
+`models/ticketCategory.js`, `models/preferences.js`,
+`services/ticketCategoryService.js`, `middleware/tgBotApi.js`.

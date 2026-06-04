@@ -1,6 +1,6 @@
 {
   "name": "hd-backend-nodejs",
-  "version": "1.11.1",
+  "version": "1.11.2",
   "description": "",
   "main": "app.js",
   "scripts": {
@@ -75,6 +75,7 @@
     "@/middleware": "./middleware",
     "@/models": "./models",
     "@/routes": "./routes",
+    "@/prompts": "./prompts",
     "@/services": "./services",
     "@/utils": "./utils",
     "@/validations": "./validations",

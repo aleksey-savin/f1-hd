@@ -23,6 +23,12 @@ const Tickets = () => {
   const filterStore = useTicketFilterStore();
 
   useEffect(() => {
+    // Тихое фоновое обновление уже пересчитало фильтр/сортировку атомарно —
+    // не пересчитываем повторно, иначе мелькнёт спиннер и fade-анимация.
+    if (filterStore.silentUpdate) {
+      filterStore.clearSilentUpdate();
+      return;
+    }
     filterStore.applyFilter();
     filterStore.handleSorting(filterStore.sortBy);
   }, [filterStore.originalList]);
@@ -37,16 +43,19 @@ const Tickets = () => {
     }
   }, [filterStore.nowActive]);
 
-  // Пока хотя бы одна заявка ждёт распознавания речи, периодически обновляем
-  // список, чтобы бейджи статуса менялись без ручной перезагрузки страницы.
+  // Пока хотя бы одна заявка ждёт распознавания речи или автоопределения
+  // категории, периодически обновляем список, чтобы бейджи статуса менялись без
+  // ручной перезагрузки страницы.
   useEffect(() => {
     const anyPending = filterStore.originalList?.some(
-      (ticket) => ticket.aiSpeech?.status === "pending",
+      (ticket) =>
+        ticket.aiSpeech?.status === "pending" ||
+        ticket.aiCategory?.status === "pending",
     );
     if (!anyPending) return;
 
     const interval = setInterval(() => {
-      filterStore.fetchOpened();
+      filterStore.silentRefresh();
     }, 5000);
 
     return () => clearInterval(interval);

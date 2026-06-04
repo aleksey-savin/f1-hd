@@ -101,6 +101,7 @@ export async function action({ request }) {
       canManageUsers: data.get("canManageUsers") === "true",
       canManageTicketCategories:
         data.get("canManageTicketCategories") === "true",
+      canManageKnowledgeBase: data.get("canManageKnowledgeBase") === "true",
       canManageRoutineTasks: data.get("canManageRoutineTasks") === "true",
       canUpdateChangelog: data.get("canUpdateChangelog") === "true",
       canManageTicketTemplates: data.get("canManageTicketTemplates") === "true",

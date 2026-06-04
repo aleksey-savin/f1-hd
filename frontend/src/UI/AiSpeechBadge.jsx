@@ -1,5 +1,6 @@
 import Badge from "react-bootstrap/Badge";
 import Spinner from "react-bootstrap/Spinner";
+import { RiAiGenerate2 } from "react-icons/ri";
 
 // Бейдж статуса фоновой обработки аудиозаписи звонка распознаванием речи.
 const AiSpeechBadge = ({ status, className = "" }) => {
@@ -18,7 +19,7 @@ const AiSpeechBadge = ({ status, className = "" }) => {
   if (status === "processed") {
     return (
       <Badge bg="success" className={className}>
-        <i className="bi bi-stars me-1"></i>
+        <RiAiGenerate2 />
         Обработана ИИ
       </Badge>
     );

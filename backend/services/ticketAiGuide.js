@@ -3,6 +3,7 @@ const Company = require("@/models/company");
 const logger = require("@/utils/logger");
 
 const aiService = require("./aiService");
+const SYSTEM_PROMPT = require("@/prompts/ticketGuide");
 const {
   collectAttachments,
   extractAttachments,
@@ -30,22 +31,6 @@ const truncate = (value, max = MAX_FIELD_LENGTH) => {
   if (!value) return "";
   return value.length > max ? `${value.slice(0, max)}…` : value;
 };
-
-const SYSTEM_PROMPT = `Ты — опытный инженер технической поддержки. На основе данных заявки, комментариев, информации о заявителе и компании составь чёткое пошаговое руководство для специалиста поддержки по решению описанной в заявке проблемы.
-
-Если предоставленной информации недостаточно для уверенного решения, НЕ выдумывай шаги. Вместо этого верни контрольный список конкретных уточняющих вопросов, которые специалист должен задать пользователю, чтобы прояснить проблему.
-
-Отвечай СТРОГО в формате JSON без какого-либо текста вокруг:
-{
-  "kind": "solution" | "questions",
-  "summary": "краткое резюме проблемы (1-2 предложения)",
-  "items": ["пункт 1", "пункт 2", "..."]
-}
-
-Где:
-- kind = "solution" — items это последовательные шаги решения;
-- kind = "questions" — items это уточняющие вопросы пользователю.
-Пиши на русском языке, кратко и по делу. Каждый item — отдельная строка.`;
 
 const buildUserContent = (ticket, company) => {
   const lines = [];

@@ -128,6 +128,12 @@ const UserForm = ({ title }) => {
         isDisabled: false,
       },
       {
+        label: "Управление базой знаний",
+        title: "canManageKnowledgeBase",
+        isActive: permissions.canManageKnowledgeBase || false,
+        isDisabled: false,
+      },
+      {
         label: "Управление регламентными заданиями",
         title: "canManageRoutineTasks",
         isActive: permissions.canManageRoutineTasks || false,

@@ -37,6 +37,7 @@ const TicketItem = ({ item, isSelected, onSelect }) => {
     latestComment,
     scheduledWorks,
     aiSpeech,
+    aiCategory,
   } = item;
 
   const TitleContent = () => {
@@ -100,9 +101,14 @@ const TicketItem = ({ item, isSelected, onSelect }) => {
       bg: "info",
     },
     {
-      title: "Processed by AI",
+      title: "Обработана ИИ",
       isActive: aiSpeech?.status === "processed",
       bg: "success",
+    },
+    {
+      title: "ИИ подбирает категорию",
+      isActive: aiCategory?.status === "pending",
+      bg: "info",
     },
   ];
 

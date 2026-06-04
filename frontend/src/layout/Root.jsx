@@ -69,7 +69,8 @@ const RootLayout = () => {
         "/finances/summary-report",
         "/inventory/device-types",
         "/inventory/locations",
-      ].includes(location.pathname)
+      ].includes(location.pathname) ||
+      location.pathname.startsWith("/knowledge-base")
     ) {
       return showLeftSidebar();
     }
@@ -78,13 +79,15 @@ const RootLayout = () => {
   }, [location]);
 
   useEffect(() => {
+    // Формы базы знаний открываются в основной панели, а не в offcanvas
     if (
-      ["add", "update", "schedule", "confirm"].includes(
+      !location.pathname.startsWith("/knowledge-base") &&
+      (["add", "update", "schedule", "confirm"].includes(
         location.pathname.split("/")[location.pathname.split("/").length - 1],
       ) ||
-      ["update"].includes(
-        location.pathname.split("/")[location.pathname.split("/").length - 2],
-      )
+        ["update"].includes(
+          location.pathname.split("/")[location.pathname.split("/").length - 2],
+        ))
     ) {
       return offcanvas.setShow();
     } else {

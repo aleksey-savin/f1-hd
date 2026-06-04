@@ -173,7 +173,7 @@ const ViewCompany = ({
               className="w-100"
               variant="info"
             >
-              <RiHistoryLine /> Логи активности
+              <RiHistoryLine /> Лог активности
             </Button>
           </Col>
         )}

@@ -29,20 +29,19 @@
   margin-bottom: 0.25rem;
 }
 
+/* Без flex: Lexical предупреждает, что flex-родитель contentEditable ломает
+   фокус/выделение в Chrome при клике вне области (по кнопкам тулбара). */
 .editor-body {
   padding: 0 0.75rem;
-  min-height: 150px;
   position: relative;
-  display: flex;
-  flex-direction: column;
 }
 
 .editor-input {
-  flex: 1;
   outline: none;
   border: none !important;
   background: transparent;
   width: 100%;
+  min-height: 150px;
   font-size: 1rem;
   line-height: 1.5;
   padding: 0.5rem;
@@ -50,6 +49,7 @@
 
 .editor-placeholder {
   position: absolute;
+  top: 0.5rem;
   left: 0.75rem;
   pointer-events: none;
   color: var(--bs-secondary-color);

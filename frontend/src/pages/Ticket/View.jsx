@@ -32,7 +32,7 @@ import ListGroup from "react-bootstrap/ListGroup";
 import { formatDate } from "../../util/format-date";
 import { getLocalStorageData } from "../../util/auth";
 
-import { RiHistoryLine } from "react-icons/ri";
+import { RiHistoryLine, RiComputerLine } from "react-icons/ri";
 
 import Comments from "../../components/Comment/List";
 import Works from "../../components/Work/List";
@@ -43,6 +43,7 @@ import CompanyModal from "../../components/Ticket/View/CompanyModal";
 import DescriptionCard from "../../components/Ticket/View/DescriptionCard";
 import AiGuide from "../../components/Ticket/View/AiGuide";
 import AiSpeechBadge from "../../UI/AiSpeechBadge";
+import AiCategoryBadge from "../../UI/AiCategoryBadge";
 import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
 
 import TakeToWork from "../../components/Ticket/Actions/TakeToWork";
@@ -156,11 +157,14 @@ const ViewTicket = () => {
     }
   }, [ticket]);
 
-  // Пока распознавание речи звонка не завершено, опрашиваем заявку и обновляем
-  // страницу (заголовок, описание, бейдж) без ручной перезагрузки.
+  // Пока идёт фоновая ИИ-обработка (распознавание речи звонка или автоопределение
+  // категории), опрашиваем заявку и обновляем страницу (заголовок, описание,
+  // категория, бейджи) без ручной перезагрузки.
   const revalidator = useRevalidator();
   useEffect(() => {
-    if (ticket?.aiSpeech?.status !== "pending") return;
+    const speechPending = ticket?.aiSpeech?.status === "pending";
+    const categoryPending = ticket?.aiCategory?.status === "pending";
+    if (!speechPending && !categoryPending) return;
 
     const { token } = getLocalStorageData();
     const interval = setInterval(async () => {
@@ -171,17 +175,20 @@ const ViewTicket = () => {
         );
         if (!response.ok) return;
         const data = await response.json();
-        const nextStatus = data?.ticket?.aiSpeech?.status;
-        if (nextStatus && nextStatus !== "pending") {
+        const nextSpeech = data?.ticket?.aiSpeech?.status;
+        const nextCategory = data?.ticket?.aiCategory?.status;
+        const speechResolved = speechPending && nextSpeech !== "pending";
+        const categoryResolved = categoryPending && nextCategory !== "pending";
+        if (speechResolved || categoryResolved) {
           revalidator.revalidate();
         }
       } catch (error) {
-        console.error("AI speech status poll failed:", error);
+        console.error("AI status poll failed:", error);
       }
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [ticket?.aiSpeech?.status, ticket?.num]);
+  }, [ticket?.aiSpeech?.status, ticket?.aiCategory?.status, ticket?.num]);
 
   const firstColumnRef = useRef();
 
@@ -264,10 +271,12 @@ const ViewTicket = () => {
                       <div className="d-flex justify-content-between align-items-center gap-2">
                         <h1 className="display-6 mb-0">{ticket.title}</h1>
                         {!isClient && (
-                          <AiSpeechBadge
-                            status={ticket.aiSpeech?.status}
-                            className="flex-shrink-0 mt-1"
-                          />
+                          <div className="d-flex flex-shrink-0 gap-2 mt-1">
+                            <AiSpeechBadge status={ticket.aiSpeech?.status} />
+                            <AiCategoryBadge
+                              status={ticket.aiCategory?.status}
+                            />
+                          </div>
                         )}
                       </div>
                     </Col>
@@ -291,7 +300,9 @@ const ViewTicket = () => {
                                 </tr>
                                 <tr>
                                   <th>Дедлайн</th>
-                                  <td className={isOverdue ? "text-danger" : ""}>
+                                  <td
+                                    className={isOverdue ? "text-danger" : ""}
+                                  >
                                     {ticket.deadline && (
                                       <>{formatDate(ticket.deadline)}</>
                                     )}
@@ -326,7 +337,7 @@ const ViewTicket = () => {
                                           onClick={() => handleShowLogs()}
                                           size="sm"
                                           variant="outline-info"
-                                          title="Логи активности компании"
+                                          title="Лог активности компании"
                                         >
                                           <RiHistoryLine />
                                         </Button>
@@ -350,7 +361,7 @@ const ViewTicket = () => {
                                             }
                                             size="sm"
                                             variant="outline-success"
-                                            title="Логи активности пользователя"
+                                            title="Лог активности пользователя"
                                           >
                                             <RiHistoryLine />
                                           </Button>
@@ -358,6 +369,43 @@ const ViewTicket = () => {
                                     </h5>
                                   </td>
                                 </tr>
+                                {!isClient &&
+                                  ticket.applicant?.computer?.name && (
+                                    <tr>
+                                      <th>Компьютер</th>
+                                      <td>
+                                        <span className="d-inline-flex align-items-center gap-1">
+                                          <RiComputerLine />
+                                          <span className="font-monospace">
+                                            {ticket.applicant.computer.name}
+                                          </span>
+                                          {ticket.applicant.computer
+                                            .activeDirectoryLogin && (
+                                            <small className="text-muted ms-1">
+                                              (
+                                              {
+                                                ticket.applicant.computer
+                                                  .activeDirectoryLogin
+                                              }
+                                              )
+                                            </small>
+                                          )}
+                                        </span>
+                                        {ticket.applicant.computer
+                                          .lastSeenAt && (
+                                          <div>
+                                            <small className="text-muted">
+                                              Вход:{" "}
+                                              {formatDate(
+                                                ticket.applicant.computer
+                                                  .lastSeenAt,
+                                              )}
+                                            </small>
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )}
                                 <tr>
                                   <th>Ответственные</th>
                                   <td>

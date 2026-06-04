@@ -200,7 +200,7 @@ const CompanyLogsSection = ({ company, permissions }) => {
   return (
     <>
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <h5 className="mb-0">Логи активности</h5>
+        <h5 className="mb-0">Лог активности</h5>
         <div className="text-muted small">
           Всего записей: {pagination.count}
         </div>
@@ -283,7 +283,7 @@ const CompanyLogsSection = ({ company, permissions }) => {
           {renderPagination()}
         </>
       ) : (
-        !loading && <p className="text-muted">Логи активности отсутствуют</p>
+        !loading && <p className="text-muted">Лог активности отсутствует</p>
       )}
 
       {/* Модальное окно для связывания пользователя */}

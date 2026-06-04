@@ -10,6 +10,7 @@ import {
   RiArchiveLine,
   RiDashboard2Line,
   RiBuilding2Line,
+  RiBookOpenLine,
 } from "react-icons/ri";
 
 import { TbCheckbox } from "react-icons/tb";
@@ -43,6 +44,15 @@ const MobileBottomNavbar = () => {
               to="/companies"
             >
               <RiBuilding2Line />
+            </Button>
+            <Button
+              as={NavLink}
+              size="lg"
+              variant="link"
+              replace
+              to="/knowledge-base"
+            >
+              <RiBookOpenLine />
             </Button>
           </>
         )}

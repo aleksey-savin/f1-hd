@@ -312,6 +312,14 @@ const ticketSchema = new Schema(
       },
     },
 
+    // Состояние фонового автоопределения категории заявки ИИ
+    aiCategory: {
+      status: {
+        type: String,
+        enum: ["pending", "processed", "error"],
+      },
+    },
+
     // Timestamps
     processedAt: Date,
     startedAt: Date,

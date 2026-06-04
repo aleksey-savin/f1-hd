@@ -32,6 +32,7 @@ import {
   RiContactsLine,
   RiMapPinLine,
   RiListSettingsLine,
+  RiBookOpenLine,
 } from "react-icons/ri";
 import { GoProjectTemplate } from "react-icons/go";
 import { MdOutlineDarkMode, MdLightMode, MdComputer } from "react-icons/md";
@@ -119,8 +120,14 @@ const NavigationBar = ({ handleShowAuthModal }) => {
 
   const { token } = getLocalStorageData();
   const { modules } = useInitialPrefs();
-  const { isAdmin, firstName, lastName, dashboard, permissions = {} } =
-    useContext(AuthedUserContext);
+  const {
+    isAdmin,
+    isEndUser,
+    firstName,
+    lastName,
+    dashboard,
+    permissions = {},
+  } = useContext(AuthedUserContext);
   const isLoggedIn = !!token;
 
   const {
@@ -237,6 +244,16 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                   <Nav.Link as={NavLink} to="/tickets" onClick={handleClose}>
                     <TbCheckbox /> Заявки
                   </Nav.Link>
+
+                  {!isEndUser && (
+                    <Nav.Link
+                      as={NavLink}
+                      to="/knowledge-base"
+                      onClick={handleClose}
+                    >
+                      <RiBookOpenLine /> База знаний
+                    </Nav.Link>
+                  )}
 
                   {/* Conditional Navigation Items */}
                   {canPerformTickets && !canManageCompanies && (
