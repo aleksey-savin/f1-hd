@@ -55,6 +55,12 @@ const knowledgeNoteSchema = new Schema(
         title: String,
       },
     ],
+    // Назначение заметки: общая информация / известные проблемы / инструкции
+    type: {
+      type: String,
+      enum: ["info", "backlog", "instructions"],
+      default: "info",
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -73,5 +79,6 @@ knowledgeNoteSchema.index({ "companies._id": 1 });
 knowledgeNoteSchema.index({ "users._id": 1 });
 knowledgeNoteSchema.index({ "categories._id": 1 });
 knowledgeNoteSchema.index({ title: 1 });
+knowledgeNoteSchema.index({ type: 1 });
 
 module.exports = mongoose.model("KnowledgeNote", knowledgeNoteSchema);

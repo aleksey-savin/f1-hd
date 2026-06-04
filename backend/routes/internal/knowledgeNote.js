@@ -17,6 +17,14 @@ router.get(
   knowledgeNoteController.getFormData,
 );
 
+// related объявляется до :id, чтобы не быть перехваченным динамическим сегментом
+router.get(
+  "/knowledge-notes/related",
+  isAuth,
+  isNotClient,
+  knowledgeNoteController.getRelated,
+);
+
 router.get(
   "/knowledge-notes/:id",
   isAuth,

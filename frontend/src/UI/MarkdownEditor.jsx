@@ -1,7 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useRef } from "react";
 
 import Editor from "@toast-ui/editor";
 import "@toast-ui/editor/dist/toastui-editor.css";
+import "@toast-ui/editor/dist/theme/toastui-editor-dark.css";
+
+import { ThemeContext } from "../store/theme-context";
 
 // Тонкая обёртка над ванильным Toast UI Editor (markdown-нативный редактор).
 // Источник истины — Markdown: наружу отдаём instance.getMarkdown(). Ванильный
@@ -10,6 +13,7 @@ import "@toast-ui/editor/dist/toastui-editor.css";
 const MarkdownEditor = ({ initialValue = "", onChange, height = "500px" }) => {
   const elRef = useRef(null);
   const editorRef = useRef(null);
+  const { isDark } = useContext(ThemeContext);
 
   // Держим актуальный onChange без пересоздания редактора
   const onChangeRef = useRef(onChange);
@@ -19,6 +23,7 @@ const MarkdownEditor = ({ initialValue = "", onChange, height = "500px" }) => {
     const editor = new Editor({
       el: elRef.current,
       height,
+      theme: isDark ? "dark" : "default",
       initialEditType: "wysiwyg",
       previewStyle: "vertical",
       usageStatistics: false,
@@ -47,7 +52,15 @@ const MarkdownEditor = ({ initialValue = "", onChange, height = "500px" }) => {
     // чтобы внешние ре-рендеры не сбрасывали курсор.
   }, []);
 
-  return <div ref={elRef} />;
+  // Переключаем тему без пересоздания редактора (иначе терялся бы курсор/ввод).
+  // Тёмная тема Toast UI — это класс `toastui-editor-dark` на корне defaultUI.
+  useEffect(() => {
+    const ui = elRef.current?.querySelector(".toastui-editor-defaultUI");
+    ui?.classList.toggle("toastui-editor-dark", isDark);
+  }, [isDark]);
+
+  // height:100% позволяет редактору заполнить flex-родителя с заданной высотой
+  return <div ref={elRef} style={{ height: "100%" }} />;
 };
 
 export default MarkdownEditor;

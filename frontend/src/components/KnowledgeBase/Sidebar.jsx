@@ -1,6 +1,7 @@
 import { useContext, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
+import Badge from "react-bootstrap/Badge";
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 import ListGroup from "react-bootstrap/ListGroup";
@@ -11,6 +12,7 @@ import { RiAddLine } from "react-icons/ri";
 import Select from "../../UI/Select";
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
 import { AuthedUserContext } from "../../store/authed-user-context";
+import { NOTE_TYPES } from "../../util/knowledgeNoteTypes";
 
 // Уникальные объекты по _id
 const uniqueById = (items) => {
@@ -33,6 +35,7 @@ const KnowledgeBaseSidebar = () => {
     originalList,
     filteredList,
     isLoading,
+    enabledTypes,
     updateFilter,
     refresh,
     ensureLoaded,
@@ -84,6 +87,18 @@ const KnowledgeBaseSidebar = () => {
   const categoriesHandler = (selected) => {
     setCategories(selected || []);
     updateFilter({ categories: (selected || []).map((item) => item._id) });
+    refresh();
+  };
+
+  // Тип — переключатель на каждый вид заметки; по умолчанию все включены.
+  // Выключение типа убирает его заметки из выдачи (тип сам по себе список не открывает).
+  const typeToggleHandler = (value) => {
+    updateFilter({
+      enabledTypes: {
+        ...enabledTypes,
+        [value]: !(enabledTypes?.[value] ?? true),
+      },
+    });
     refresh();
   };
 
@@ -145,6 +160,20 @@ const KnowledgeBaseSidebar = () => {
           getOptionValue={(option) => option._id}
           onChange={categoriesHandler}
         />
+      </Stack>
+
+      {/* Переключатели типов — сужают выдачу; по умолчанию все включены */}
+      <Stack direction="horizontal" gap={3} className="flex-wrap">
+        {NOTE_TYPES.map((type) => (
+          <Form.Check
+            key={type.value}
+            type="switch"
+            id={`note-type-${type.value}`}
+            label={<Badge bg={type.badge}>{type.label}</Badge>}
+            checked={enabledTypes?.[type.value] ?? true}
+            onChange={() => typeToggleHandler(type.value)}
+          />
+        ))}
       </Stack>
 
       <div className="overflow-auto">

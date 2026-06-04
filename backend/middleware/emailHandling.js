@@ -62,11 +62,16 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
   const prefs = await Preferences.findOne({});
   const knownContext = await buildKnownCaller(ticket, prefs);
 
-  // Заголовок и описание подменяем итогом звонка ТОЛЬКО для заявок с аккаунта
-  // облачной телефонии (проверяем по email отправителя). Для обычных писем с
-  // аудио мы всё равно распознаём речь и показываем диалог, но тему/описание
-  // письма не трогаем.
+  // Заголовок и описание подменяем итогом звонка ТОЛЬКО для настоящих входящих
+  // звонков, и оба условия обязательны:
+  //  1) письмо пришло с аккаунта облачной телефонии (по email отправителя), и
+  //  2) в теме письма (она же заголовок заявки) есть "Входящий звонок".
+  // Аудио при этом гарантировано — функция вызывается лишь при наличии
+  // аудиовложения. Для обычных писем с аудио (например, от рядовых пользователей
+  // вроде fedoseeva@/churinova@) распознаём речь и показываем диалог, но
+  // тему/описание письма не трогаем.
   const isTelephonyTicket = await isCloudTelephonySender(ticket.realSender);
+  const isIncomingCall = /входящий\s+звонок/i.test(ticket.title || "");
 
   // Заголовок и описание заявки задаём по первому удачно распознанному звонку
   let ticketContentUpdated = false;
@@ -116,7 +121,12 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
       // Итог звонка становится описанием заявки, заголовок — на основе
       // распознанного текста. Только для заявок с телефонии; оригинал письма
       // сохраняем в htmlDescription.
-      if (!ticketContentUpdated && result.summary && isTelephonyTicket) {
+      if (
+        !ticketContentUpdated &&
+        result.summary &&
+        isTelephonyTicket &&
+        isIncomingCall
+      ) {
         if (!freshTicket.htmlDescription) {
           freshTicket.htmlDescription = (freshTicket.description || "").replace(
             /\n/g,
@@ -471,6 +481,18 @@ exports.handleNewEmails = async () => {
         let applicant = defaultApplicant;
         let ticketTitle = email.name;
 
+        // Тему/тело заявки подменяем итогом звонка ИСКЛЮЧИТЕЛЬНО для настоящих
+        // входящих звонков: в теме оригинала письма есть "Входящий звонок" и
+        // присутствует аудиовложение. При любых других обстоятельствах тему и
+        // тело письма не трогаем — например, у письма с пустым телом (проблема
+        // в теме) или с пересланной перепиской в htmlDescription, даже если
+        // телефон звонящего удалось вытащить из тела/подписи.
+        const hasAudioAttachments = email.attachments?.some((attachment) =>
+          isAudioAttachment(attachment),
+        );
+        const isIncomingCall =
+          /входящий\s+звонок/i.test(email.name || "") && hasAudioAttachments;
+
         // Номер звонящего: из темы письма или из тела ("Кто звонил:")
         const phoneNumber = extractCallerPhone(email);
 
@@ -486,7 +508,7 @@ exports.handleNewEmails = async () => {
               (await MongoCompany.findOne({
                 emailDomains: { $in: [emailDomain] },
               })) || (await findCompanyByPhone(phoneNumber));
-            if (company) ticketTitle = "Входящий звонок";
+            if (company && isIncomingCall) ticketTitle = "Входящий звонок";
           } else {
             company = await MongoCompany.findOne({
               emailDomains: { $in: [emailDomain] },
@@ -515,7 +537,7 @@ exports.handleNewEmails = async () => {
               (await MongoUser.findOne({ email: emailAddress }));
 
             if (applicant) {
-              ticketTitle = "Входящий звонок";
+              if (isIncomingCall) ticketTitle = "Входящий звонок";
               company =
                 identity?.company ||
                 (applicant.company?._id
@@ -581,9 +603,6 @@ exports.handleNewEmails = async () => {
             );
           }
         } else {
-          const hasAudioAttachments = email.attachments?.some((attachment) =>
-            isAudioAttachment(attachment),
-          );
           const willTranscribe =
             !!prefs?.ai?.speechToText?.isActive && hasAudioAttachments;
 

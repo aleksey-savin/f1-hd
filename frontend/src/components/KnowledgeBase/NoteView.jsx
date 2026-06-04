@@ -26,6 +26,7 @@ import useToastStore from "../../store/toast-store";
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
+import { NOTE_TYPES, getNoteTypeMeta } from "../../util/knowledgeNoteTypes";
 
 import "../../UI/knowledgeBase.css";
 
@@ -55,6 +56,7 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
   const [companies, setCompanies] = useState(initialNote?.companies || []);
   const [users, setUsers] = useState(initialNote?.users || []);
   const [categories, setCategories] = useState(initialNote?.categories || []);
+  const [type, setType] = useState(initialNote?.type || "info");
 
   // Опции селектов связей — грузятся лениво (только для редактирования)
   const [formData, setFormData] = useState(null);
@@ -65,6 +67,7 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
     setCompanies(note?.companies || []);
     setUsers(note?.users || []);
     setCategories(note?.categories || []);
+    setType(note?.type || "info");
   };
 
   const loadFormData = (onReady) => {
@@ -137,6 +140,7 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
           companies: companies.map((company) => company._id),
           users: users.map((user) => user._id),
           categories: categories.map((category) => category._id),
+          type,
         },
       },
       (data) => {
@@ -215,11 +219,28 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
   );
 
   return (
-    <article>
+    <article
+      className={isEditing ? "d-flex flex-column" : undefined}
+      // В режиме редактирования заметка занимает всю доступную высоту карточки
+      // (как в Root: 100svh минус навбар и паддинги Card.Body), чтобы редактор
+      // растянулся на оставшееся место.
+      style={isEditing ? { height: "calc(100svh - 156px)" } : undefined}
+    >
       {/* Верхняя строка: связи + действия в одну строку */}
       <Row className="mb-2 g-2 align-items-center">
         {isEditing ? (
           <>
+            <Col xs="auto" style={{ minWidth: "10rem" }}>
+              <Select
+                placeholder="Тип"
+                isSearchable={false}
+                value={getNoteTypeMeta(type)}
+                options={NOTE_TYPES}
+                getOptionLabel={(option) => option.label}
+                getOptionValue={(option) => option.value}
+                onChange={(selected) => setType(selected?.value || "info")}
+              />
+            </Col>
             <Col>
               <Select
                 placeholder="Категории"
@@ -267,6 +288,9 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
           </>
         ) : (
           <Col className="d-flex flex-wrap gap-1 align-items-center">
+            <Badge bg={getNoteTypeMeta(currentNote?.type).badge}>
+              {getNoteTypeMeta(currentNote?.type).label}
+            </Badge>
             {(currentNote?.categories || []).map((category) => (
               <Badge key={category._id} bg="info">
                 <RiPriceTag3Line /> {category.title}
@@ -278,7 +302,7 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
               </Badge>
             ))}
             {(currentNote?.users || []).map((user) => (
-              <Badge key={user._id} bg="light" text="dark">
+              <Badge key={user._id} className="kb-user-badge">
                 <RiAccountBoxLine /> {user.lastName} {user.firstName}
               </Badge>
             ))}
@@ -308,7 +332,13 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
 
       {/* Содержимое: Markdown — редактор (edit) ↔ просмотр (read) */}
       {isEditing ? (
-        <MarkdownEditor initialValue={content} onChange={setContent} />
+        <div className="flex-grow-1" style={{ minHeight: 0 }}>
+          <MarkdownEditor
+            initialValue={content}
+            onChange={setContent}
+            height="100%"
+          />
+        </div>
       ) : (
         <MarkdownViewer value={currentNote?.content || ""} />
       )}

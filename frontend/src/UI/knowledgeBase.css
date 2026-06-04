@@ -14,6 +14,14 @@
   border-bottom: 1px solid var(--bs-border-color);
 }
 
+/* Бейдж пользователя — «светлая пилюля». В тёмной теме bootstrap-овские
+   `bg-light`/`text-dark` переопределены на серые тона и контраст теряется,
+   поэтому фиксируем светлый фон и тёмный текст независимо от темы. */
+.kb-user-badge.badge {
+  background-color: #e9ecef !important;
+  color: #212529 !important;
+}
+
 /* Toast UI Editor/Viewer без внешней рамки — визуальный паритет с остальной
    страницей заметки. */
 .toastui-editor-defaultUI {

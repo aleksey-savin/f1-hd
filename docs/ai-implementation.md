@@ -302,17 +302,26 @@ older ticket code used `mimetype`, while later attachment upload code used
   after `ticket.save()`.
 - The email processor does not await OpenAI before continuing IMAP processing.
   Each audio attachment is saved as `pending`, then `ready`/`error`.
-- **Title/description overwrite is telephony-only.** On the **first** audio
-  attachment that yields a summary, the ticket's `description` is overwritten with
-  the call summary and `title` with the generated title — **but only when the
-  ticket came from a cloud-telephony account**, determined by looking up the sender
-  (`ticket.realSender` email) and checking `isCloudTelephony`
-  (`callerIdentityService.isCloudTelephonySender`). For ordinary emails that happen
-  to carry audio, the recording is still transcribed and the dialog/summary shown,
-  but the email's own subject/body are left as the title/description. When it does
-  apply: the original email body is preserved in `htmlDescription` (still reachable
-  via "Просмотр оригинала"); if it was empty, the original `description` is moved
-  there first. Newlines → `<br>` since both fields render as HTML.
+- **Title/description overwrite needs both: a telephony sender AND an incoming-call
+  subject.** On the **first** audio attachment that yields a summary, the ticket's
+  `description` is overwritten with the call summary and `title` with the generated
+  title — **but only when both hold**: (1) the ticket came from a **cloud-telephony
+  account**, determined by looking up the sender (`ticket.realSender` email) and
+  checking `isCloudTelephony` (`callerIdentityService.isCloudTelephonySender`), **and**
+  (2) the **original email subject contains "Входящий звонок"** (re-checked on
+  `ticket.title`; audio is guaranteed since the job only runs with an audio
+  attachment). For ordinary emails that happen to carry audio — e.g. from rank-and-file
+  users like `fedoseeva@`/`churinova@`, where `isCloudTelephonySender` is `false` — the
+  recording is still transcribed and the dialog/summary shown, but the email's own
+  subject/body are left untouched. The email handler enforces the same subject rule
+  separately: it only normalizes the ticket title to `"Входящий звонок"` when the
+  subject already contains it **and** there is audio, so phone-number identification
+  alone (a number found in a forwarded thread, signature, or an empty-body email) never
+  rewrites the subject. `extractCallerPhone` is still used to identify the
+  applicant/company, just not to change the title. When the overwrite does apply: the
+  original email body is preserved in `htmlDescription` (still reachable via "Просмотр
+  оригинала"); if it was empty, the original `description` is moved there first.
+  Newlines → `<br>` since both fields render as HTML.
 - This currently applies only to **new email-created tickets**, not email replies
   that become comments.
 - **Ticket-level status** `ticket.aiSpeech.status` tracks the background job for the

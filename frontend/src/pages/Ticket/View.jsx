@@ -45,6 +45,7 @@ import AiGuide from "../../components/Ticket/View/AiGuide";
 import AiSpeechBadge from "../../UI/AiSpeechBadge";
 import AiCategoryBadge from "../../UI/AiCategoryBadge";
 import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
+import RelatedNotes from "../../components/Ticket/RelatedNotes";
 
 import TakeToWork from "../../components/Ticket/Actions/TakeToWork";
 import ProcessTicket from "../../components/Ticket/Actions/Process";
@@ -114,6 +115,9 @@ const ViewTicket = () => {
   // Состояние для Offcanvas с логами
   const [showLogsOffcanvas, setShowLogsOffcanvas] = useState(false);
   const [logsSearchQuery, setLogsSearchQuery] = useState("");
+
+  // Кол-во связанных заметок базы знаний — для счётчика во вкладке
+  const [relatedNotesCount, setRelatedNotesCount] = useState(0);
 
   const handleShowLogs = (searchQuery = "") => {
     setLogsSearchQuery(searchQuery);
@@ -287,7 +291,7 @@ const ViewTicket = () => {
                     </Col>
                   </Row>
                   <CustomFieldsDisplay customFields={ticket.customFields} />
-                  <Tabs defaultActiveKey="info">
+                  <Tabs defaultActiveKey="info" className="mb-3">
                     <Tab eventKey="info" title="Информация">
                       <h6>
                         <Row>
@@ -488,6 +492,26 @@ const ViewTicket = () => {
                           />
                         </Tab>
                       )}
+                    {!isClient && (
+                      <Tab
+                        eventKey="knowledge"
+                        title={
+                          <>
+                            База знаний{" "}
+                            <Badge bg="secondary" pill>
+                              {relatedNotesCount}
+                            </Badge>
+                          </>
+                        }
+                      >
+                        <RelatedNotes
+                          companyId={ticket.company?._id}
+                          categoryId={ticket.category?._id}
+                          applicantId={ticket.applicant?._id}
+                          onCountChange={setRelatedNotesCount}
+                        />
+                      </Tab>
+                    )}
                     {!isClient && ai?.isActive && (
                       <Tab eventKey="ai" title="AI-ассистент">
                         <AiGuide />

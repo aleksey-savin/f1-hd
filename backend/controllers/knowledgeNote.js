@@ -8,6 +8,11 @@ const getAuthData = require("../middleware/getAuthData");
 const { markdownToPlainText } = require("../helpers/markdownToPlainText");
 const { canViewNote } = require("../helpers/knowledgeNoteVisibility");
 
+const NOTE_TYPES = ["info", "backlog", "instructions"];
+
+// Приводит тип заметки к допустимому значению (некорректное/пустое → "info")
+const normalizeType = (type) => (NOTE_TYPES.includes(type) ? type : "info");
+
 // Превращает массив id компаний в denormalized-массив для заметки
 const buildCompanies = async (ids = []) => {
   const list = [];
@@ -71,6 +76,37 @@ exports.getAll = async (req, res, next) => {
   }
 };
 
+// Заметки, связанные с контекстом заявки (компания / категория / инициатор).
+// Совпадение хотя бы по одному из переданных id; контент не отдаём (для списка),
+// ранжирование по релевантности — на клиенте.
+exports.getRelated = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const { company, category, user } = req.query;
+
+    const or = [];
+    if (company) or.push({ "companies._id": company });
+    if (category) or.push({ "categories._id": category });
+    if (user) or.push({ "users._id": user });
+
+    if (!or.length) {
+      return res.status(200).json([]);
+    }
+
+    const notes = await KnowledgeNote.find({ $or: or }, { content: 0 })
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const visibleNotes = notes.filter((note) => canViewNote(note, authedUser));
+
+    res.status(200).json(visibleNotes);
+  } catch (error) {
+    next(
+      new AppError(`Failed to fetch related knowledge notes`, 500, true, error),
+    );
+  }
+};
+
 // Полная заметка (с content) — с проверкой видимости
 exports.getOne = async (req, res, next) => {
   try {
@@ -109,6 +145,7 @@ exports.add = async (req, res, next) => {
       companies = [],
       users = [],
       categories = [],
+      type,
     } = req.body;
 
     if (!title.trim()) {
@@ -122,6 +159,7 @@ exports.add = async (req, res, next) => {
       companies: await buildCompanies(companies),
       users: await buildUsers(users),
       categories: await buildCategories(categories),
+      type: normalizeType(type),
       createdBy: userId,
       updatedBy: userId,
     });
@@ -154,6 +192,7 @@ exports.update = async (req, res, next) => {
       companies = [],
       users = [],
       categories = [],
+      type,
     } = req.body;
 
     if (!title.trim()) {
@@ -166,6 +205,7 @@ exports.update = async (req, res, next) => {
     note.companies = await buildCompanies(companies);
     note.users = await buildUsers(users);
     note.categories = await buildCategories(categories);
+    note.type = normalizeType(type);
     note.updatedBy = userId;
 
     await note.save();

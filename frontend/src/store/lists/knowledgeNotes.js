@@ -1,11 +1,17 @@
 import { create } from "zustand";
 import { getLocalStorageData } from "../../util/auth";
+import { NOTE_TYPES, getNoteTypeMeta } from "../../util/knowledgeNoteTypes";
 
-// Строка для поиска по заметке: заголовок, текст, связанные сущности
+// Все типы включены — значение по умолчанию для фильтра по типу
+const defaultEnabledTypes = () =>
+  Object.fromEntries(NOTE_TYPES.map((type) => [type.value, true]));
+
+// Строка для поиска по заметке: заголовок, текст, связанные сущности, тип
 const buildSearchString = (note) =>
   [
     note.title,
     note.plainText,
+    getNoteTypeMeta(note.type).label,
     ...(note.companies || []).map((company) => company.alias),
     ...(note.users || []).flatMap((user) => [
       user.firstName,
@@ -33,6 +39,11 @@ const noteFilter = (state) => {
   }
 
   let list = state.originalList ? state.originalList : [];
+
+  // Фильтр по типу: применяется всегда; при всех включённых типах эффекта нет,
+  // выключение типа убирает его заметки из выдачи
+  const enabledTypes = state.enabledTypes || {};
+  list = list.filter((note) => enabledTypes[note.type || "info"] !== false);
 
   if (state.companies?.length > 0) {
     list = list.filter((note) =>
@@ -98,13 +109,14 @@ const useKnowledgeNotesStore = create((set, get) => ({
   companies: [],
   users: [],
   categories: [],
+  enabledTypes: defaultEnabledTypes(),
   searchTerm: "",
   sortingOptions: [
     { label: "Сначала изменённые" },
     { label: "Сначала старые" },
     { label: "По алфавиту" },
   ],
-  sortBy: { label: "Сначала изменённые" },
+  sortBy: { label: "По алфавиту" },
   isSorting: false,
   originalList: [],
   filteredList: [],
@@ -174,6 +186,7 @@ const useKnowledgeNotesStore = create((set, get) => ({
       companies: [],
       users: [],
       categories: [],
+      enabledTypes: defaultEnabledTypes(),
       searchTerm: "",
     }));
     set((state) => ({
