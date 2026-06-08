@@ -117,64 +117,82 @@ exports.getOne = async (req, res, next) => {
       return next(new AppError(`Company ${req.params.id} not found`, 404));
     }
 
-    // Add lastActivity for each employee
-    if (company.employees && company.employees.length > 0) {
-      for (let employee of company.employees) {
-        try {
-          // Find the latest ticket where this employee was the applicant
-          const lastTicket = await Ticket.findOne({
-            $or: [
-              { applicantId: employee._id },
-              { "applicant._id": employee._id },
-            ],
-          })
-            .sort({ createdAt: -1 })
-            .select("createdAt num title")
-            .lean();
+    // Work on a plain object from here on. Mutating the Mongoose document's
+    // `employees` array (typed as [ObjectId]) doesn't persist added fields like
+    // `lastActivity` — index assignment is a no-op and reassigning casts each
+    // entry back to an ObjectId. toJSON() yields the same shape res.json would.
+    const companyObj = company.toJSON();
 
-          // Convert to plain object to be able to add new properties
-          const employeeObj = employee.toObject();
-          employeeObj.lastActivity = lastTicket
+    // Add lastActivity for each employee.
+    // One aggregation finds the latest ticket per applicant instead of issuing
+    // a separate (unindexed) query per employee.
+    if (companyObj.employees && companyObj.employees.length > 0) {
+      // Take ids from the Mongoose document (real ObjectIds). companyObj came
+      // from toJSON(), where _id is a string — and aggregate() does not cast,
+      // so string ids in $in would never match the ObjectId applicant fields.
+      const employeeIds = company.employees.map((employee) => employee._id);
+
+      const latestTickets = await Ticket.aggregate([
+        {
+          $match: {
+            $or: [
+              { applicantId: { $in: employeeIds } },
+              { "applicant._id": { $in: employeeIds } },
+            ],
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        {
+          $group: {
+            _id: { $ifNull: ["$applicantId", "$applicant._id"] },
+            createdAt: { $first: "$createdAt" },
+            num: { $first: "$num" },
+            title: { $first: "$title" },
+          },
+        },
+      ]);
+
+      const lastActivityByUser = new Map(
+        latestTickets.map((ticket) => [ticket._id.toString(), ticket]),
+      );
+
+      companyObj.employees = companyObj.employees.map((employee) => {
+        const lastTicket = lastActivityByUser.get(employee._id.toString());
+        return {
+          ...employee,
+          lastActivity: lastTicket
             ? {
                 date: lastTicket.createdAt,
                 ticketNum: lastTicket.num,
                 ticketTitle: lastTicket.title,
               }
-            : null;
-
-          // Replace the original employee with the modified object
-          const index = company.employees.indexOf(employee);
-          company.employees[index] = employeeObj;
-        } catch (error) {
-          console.error(
-            `Error fetching lastActivity for employee ${employee._id}:`,
-            error,
-          );
-          // Convert to plain object and add null lastActivity
-          const employeeObj = employee.toObject();
-          employeeObj.lastActivity = null;
-          const index = company.employees.indexOf(employee);
-          company.employees[index] = employeeObj;
-        }
-      }
+            : null,
+        };
+      });
     }
 
     let servicePlans = [];
 
     if (authedUser.permissions.canUseFinancesModule) {
-      for (let plan of company.servicePlans) {
-        const isActiveSince = plan.isActiveSince;
-        const servicePlan = await ServicePlan.findById(plan._id);
+      // ObjectIds from the Mongoose document (see employees note above).
+      const planIds = company.servicePlans.map((plan) => plan._id);
+      const planDocs = await ServicePlan.find({ _id: { $in: planIds } }).lean();
+      const planById = new Map(
+        planDocs.map((doc) => [doc._id.toString(), doc]),
+      );
+
+      for (let plan of companyObj.servicePlans) {
+        const servicePlan = planById.get(plan._id.toString());
         if (servicePlan) {
           servicePlans.push({
-            ...servicePlan.toObject(),
-            isActiveSince: isActiveSince,
+            ...servicePlan,
+            isActiveSince: plan.isActiveSince,
           });
         }
       }
     }
 
-    res.status(200).json({ company: company, servicePlans: servicePlans });
+    res.status(200).json({ company: companyObj, servicePlans: servicePlans });
   } catch (error) {
     next(
       new AppError(

@@ -20,25 +20,26 @@ export default ViewCompanyPage;
 export async function loader({ params }) {
   const { token, userId } = getLocalStorageData();
 
-  const userResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+  const headers = {
+    Authorization: "Bearer " + token,
+  };
+
+  // These three requests are independent of one another, so fire them in
+  // parallel instead of awaiting each in sequence.
+  const [userResponse, companyResponse, initialPrefsResponse] =
+    await Promise.all([
+      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`, {
+        headers,
+      }),
+      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/companies/${params.id}`, {
+        headers,
+      }),
+      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`, {
+        headers,
+      }),
+    ]);
 
   const user = await userResponse.json();
-
-  const companyResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/companies/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
 
   if (!companyResponse.ok) {
     throw companyResponse;
@@ -87,15 +88,6 @@ export async function loader({ params }) {
     companyData.company.subdivisions,
   );
 
-  const initialPrefsResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
-
   if (!initialPrefsResponse.ok) {
     throw initialPrefsResponse;
   }
@@ -111,9 +103,7 @@ export async function loader({ params }) {
     const servicePlansResponse = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/`,
       {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
+        headers,
       },
     );
 

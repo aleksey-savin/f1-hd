@@ -379,7 +379,7 @@ ticketSchema.index({ isClosed: 1, _id: -1 }); // For getAllOpened query
 ticketSchema.index({ isClosed: 1, "company._id": 1 }); // For company-specific queries
 ticketSchema.index({ "responsibles._id": 1 }); // For responsible user queries
 ticketSchema.index({ createdBy: 1 }); // For created by queries
-ticketSchema.index({ applicantId: 1 }); // For applicant queries
+ticketSchema.index({ applicantId: 1, createdAt: -1 }); // For applicant queries + latest-per-applicant
 // num field already has unique: true, no additional index needed
 ticketSchema.index({ state: 1 }); // For state-based queries
 ticketSchema.index({ createdAt: -1 }); // For date-based sorting
@@ -401,6 +401,7 @@ ticketSchema.index({ isClosed: 1, deadline: 1 }); // For open tickets with deadl
 ticketSchema.index({ state: 1, createdAt: -1 }); // For state-based date sorting
 ticketSchema.index({ "company._id": 1, isClosed: 1, createdAt: -1 }); // For company tickets
 ticketSchema.index({ "responsibles._id": 1, isClosed: 1, createdAt: -1 }); // For user's tickets
+ticketSchema.index({ "applicant._id": 1, createdAt: -1 }); // For latest-ticket-per-applicant (legacy embedded applicant)
 
 const Ticket = mongoose.model("Ticket", ticketSchema);
 
