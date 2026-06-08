@@ -16,7 +16,9 @@ Four AI capabilities have been added:
 2. **AI ticket solution guide (experimental)** — on ticket creation, the
    configured provider generates either a step-by-step solution guide or a
    checklist of clarifying questions, using the ticket + comments + applicant +
-   company context **and** its image/document attachments. Shown interactively on
+   company context, its image/document attachments, **and the most relevant
+   knowledge-base notes** (matched by company/category/applicant, used as a
+   priority source; the used notes are shown as links). Shown interactively on
    the ticket page, regenerable on demand. Staff-only.
 3. **Speech recognition / call summary** — staff can summarize audio attachments
    on ticket pages; new email-created tickets with audio attachments trigger the

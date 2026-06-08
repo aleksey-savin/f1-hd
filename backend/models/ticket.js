@@ -297,7 +297,9 @@ const ticketSchema = new Schema(
           done: { type: Boolean, default: false },
         },
       ],
-      // Заметки базы знаний, использованные при генерации руководства
+      // Заметки базы знаний, использованные при генерации руководства.
+      // Поле "type" объявлено как { type: String }, иначе Mongoose принимает
+      // объект за дескриптор типа и трактует sources как массив строк.
       sources: [
         {
           _id: {
@@ -305,7 +307,7 @@ const ticketSchema = new Schema(
             ref: "KnowledgeNote",
           },
           title: String,
-          type: String,
+          type: { type: String },
         },
       ],
       provider: String,
