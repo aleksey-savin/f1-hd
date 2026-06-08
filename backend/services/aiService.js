@@ -45,7 +45,7 @@ const parseJsonResponse = (raw) => {
   }
 };
 
-const callOpenai = async ({ apiKey, model, system, user, images, maxTokens }) => {
+const callOpenai = async ({ apiKey, model, system, user, images }) => {
   const content = images.length
     ? [
         { type: "text", text: user },
@@ -62,13 +62,14 @@ const callOpenai = async ({ apiKey, model, system, user, images, maxTokens }) =>
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    // Не задаём temperature (новые модели GPT-5/o-серии принимают только дефолт)
-    // и используем max_completion_tokens вместо устаревшего max_tokens, который
-    // эти модели отклоняют с ошибкой 400.
+    // Не задаём temperature (новые модели GPT-5/o-серии принимают только дефолт).
+    // Лимит вывода не передаём: у reasoning-моделей (GPT-5/o-серии) даже валидный
+    // max_completion_tokens уходит в бюджет рассуждений и приводит к отклонению
+    // запроса (400) либо пустому ответу. Дефолтного лимита модели хватает для
+    // JSON-ответа (так же работает вызов AI-guide, который лимит не задаёт).
     body: JSON.stringify({
       model,
       response_format: { type: "json_object" },
-      ...(maxTokens ? { max_completion_tokens: maxTokens } : {}),
       messages: [
         { role: "system", content: system },
         { role: "user", content },

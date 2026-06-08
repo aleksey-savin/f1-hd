@@ -853,11 +853,22 @@ exports.transcribeAttachment = async (req, res, next) => {
 
     await logAiTicketEvent(ticket._id, "завершил распознавание записи звонка");
 
+    // ASR прошёл, но AI-итог/заголовок не сформированы — фиксируем сбой в логе
+    // заявки и отдаём причину наружу, а не рапортуем чистый успех.
+    if (result.summaryError) {
+      await logAiTicketEvent(
+        ticket._id,
+        `не удалось сформировать AI-итог и заголовок: ${result.summaryError}`,
+        "danger",
+      );
+    }
+
     res.status(200).json({
       success: true,
       message: "Speech recognition completed",
       attachment: ticket.attachments[attachmentIndex],
       attachments: ticket.attachments,
+      summaryError: result.summaryError || "",
     });
   } catch (error) {
     if (ticket && attachmentIndex >= 0) {

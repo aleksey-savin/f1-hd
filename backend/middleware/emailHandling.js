@@ -75,6 +75,9 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
 
   // Заголовок и описание заявки задаём по первому удачно распознанному звонку
   let ticketContentUpdated = false;
+  // Хотя бы по одному файлу ASR прошёл, но AI-итог сформировать не удалось —
+  // чтобы не пометить заявку «обработанной» и зафиксировать сбой в логе.
+  let summaryFailed = false;
 
   for (let attachmentName of audioAttachmentNames) {
     let freshTicket = await Ticket.findById(ticketId);
@@ -146,6 +149,17 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
 
       await logAiTicketEvent(ticketId, "завершил распознавание записи звонка");
 
+      // ASR прошёл, но AI-итог/заголовок не сформированы — честно фиксируем сбой
+      // в логе заявки, а не рапортуем чистый успех.
+      if (result.summaryError) {
+        summaryFailed = true;
+        await logAiTicketEvent(
+          ticketId,
+          `не удалось сформировать AI-итог и заголовок звонка: ${result.summaryError}`,
+          "danger",
+        );
+      }
+
       logger.log("info", "Email audio attachment transcribed", {
         ticketId: ticketId.toString(),
         attachment: attachment.name,
@@ -182,9 +196,10 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
     }
   }
 
-  // Фиксируем итоговый статус обработки: если описание/заголовок так и не
-  // обновились (нет итога), считаем заявку обработанной при удачном распознавании
-  // хотя бы одного файла, иначе помечаем ошибкой.
+  // Фиксируем итоговый статус обработки: processed только если хотя бы один файл
+  // распознан И формирование AI-итога не падало. Иначе error — в том числе когда
+  // ASR прошёл, но итог сформировать не удалось: не помечаем заявку ложно
+  // «обработанной ИИ» (бэдж не должен врать).
   const finalTicket = await Ticket.findById(ticketId);
   if (finalTicket && finalTicket.aiSpeech?.status === "pending") {
     const anyReady = finalTicket.attachments?.some(
@@ -192,7 +207,9 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
         isAudioAttachment(attachment) &&
         attachment.speechToText?.status === "ready",
     );
-    finalTicket.aiSpeech = { status: anyReady ? "processed" : "error" };
+    finalTicket.aiSpeech = {
+      status: anyReady && !summaryFailed ? "processed" : "error",
+    };
     await finalTicket.save();
   }
 

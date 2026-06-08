@@ -8,6 +8,7 @@ const {
   collectAttachments,
   extractAttachments,
 } = require("./attachmentExtractor");
+const { logAiTicketEvent } = require("./aiTicketLog");
 
 const MAX_COMMENTS = 20;
 const MAX_FIELD_LENGTH = 2000;
@@ -199,6 +200,12 @@ exports.generateTicketAiGuide = async (ticketId) => {
     };
 
     await Ticket.findByIdAndUpdate(ticketId, { aiGuide }).catch(() => {});
+
+    await logAiTicketEvent(
+      ticketId,
+      `Ошибка формирования AI-руководства: ${error.message}`,
+      "danger",
+    );
 
     return aiGuide;
   }

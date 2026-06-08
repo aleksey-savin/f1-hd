@@ -551,6 +551,7 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
   let summary = "";
   let title = "";
   let cleanedDialog = [];
+  let summaryError = "";
 
   try {
     const result = await summarizeDialog({ segments, context });
@@ -558,9 +559,11 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
     title = result.title || "";
     cleanedDialog = result.dialog || [];
   } catch (error) {
-    // Итог/диалог не сформированы — показываем сырые реплики. Логируем как error
-    // с причиной (напр. "AI features are disabled", неверная модель/ключ), чтобы
-    // было видно, почему итог пустой и заголовок/описание не обновились.
+    // Итог/диалог не сформированы — показываем сырые реплики, но причину
+    // возвращаем наружу (summaryError), чтобы вызывающий код записал её в лог
+    // заявки и не рапортовал ложный «успех» (напр. "AI features are disabled",
+    // неверная модель/ключ, ошибка провайдера).
+    summaryError = error.message || "Не удалось сформировать итог звонка";
     logger.log("error", "Speech summary/dialog generation failed", {
       attachment: attachment.name,
       error: error.message,
@@ -588,5 +591,6 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
     segments,
     model,
     generatedAt: new Date(),
+    summaryError,
   };
 };
