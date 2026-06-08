@@ -92,36 +92,44 @@ exports.getAllOpened = async (req, res, next) => {
       });
     }
 
-    let shortenedTickets = [];
+    // Одним запросом достаём запланированные работы для всех заявок сразу и
+    // группируем по заявке — вместо N+1 (отдельный Work.find на каждую заявку).
+    const ticketIds = filteredTickets.map((ticket) => ticket._id);
+    const allScheduledWorks = await Work.find({
+      tickets: { $in: ticketIds },
+      scheduled: true,
+      finishedAt: null,
+    });
 
-    for (let ticket of filteredTickets) {
-      const scheduledWorks = await Work.find({
-        tickets: ticket._id,
-        scheduled: true,
-        finishedAt: null,
-      });
-
-      shortenedTickets.push({
-        _id: ticket._id,
-        num: ticket.num,
-        company: ticket.company,
-        category: ticket.categoryId || ticket.category,
-        title: ticket.title,
-        attachments: ticket.attachments,
-        applicant: ticket.applicantId || ticket.applicant,
-        responsibles: ticket.responsibles,
-        createdAt: ticket.createdAt,
-        deadline: ticket.deadline,
-        finishedAt: ticket.finishedAt,
-        isClosed: ticket.isClosed,
-        state: ticket.state,
-        latestComment: ticket.comments[ticket.comments.length - 1],
-        scheduledWorks: scheduledWorks,
-        routineTask: ticket.routineTask,
-        aiSpeech: ticket.aiSpeech,
-        aiCategory: ticket.aiCategory,
-      });
+    const worksByTicket = new Map();
+    for (const work of allScheduledWorks) {
+      for (const tId of work.tickets) {
+        const key = tId.toString();
+        if (!worksByTicket.has(key)) worksByTicket.set(key, []);
+        worksByTicket.get(key).push(work);
+      }
     }
+
+    const shortenedTickets = filteredTickets.map((ticket) => ({
+      _id: ticket._id,
+      num: ticket.num,
+      company: ticket.company,
+      category: ticket.categoryId || ticket.category,
+      title: ticket.title,
+      attachments: ticket.attachments,
+      applicant: ticket.applicantId || ticket.applicant,
+      responsibles: ticket.responsibles,
+      createdAt: ticket.createdAt,
+      deadline: ticket.deadline,
+      finishedAt: ticket.finishedAt,
+      isClosed: ticket.isClosed,
+      state: ticket.state,
+      latestComment: ticket.comments[ticket.comments.length - 1],
+      scheduledWorks: worksByTicket.get(ticket._id.toString()) || [],
+      routineTask: ticket.routineTask,
+      aiSpeech: ticket.aiSpeech,
+      aiCategory: ticket.aiCategory,
+    }));
 
     res.status(200).json({ tickets: shortenedTickets });
   } catch (error) {

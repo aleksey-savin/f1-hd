@@ -105,6 +105,10 @@ mongoose
 
 // check email for new tickets
 let isHandlingEmails = false;
+// Запас: нормальный прогон занимает секунды. Watchdog — последний рубеж на
+// случай, если handleNewEmails повиснет (БД/парсер/будущая ошибка) и не снимет
+// замок. Реальные зависания IMAP закрывает socketTimeout (30с) задолго до этого.
+const EMAIL_RUN_TIMEOUT_MS = 180000;
 cron.schedule("*/20 * * * * *", () => {
   if (isHandlingEmails) {
     logger.log(
@@ -115,9 +119,25 @@ cron.schedule("*/20 * * * * *", () => {
   }
 
   isHandlingEmails = true;
-  handleNewEmails().finally(() => {
-    isHandlingEmails = false;
+
+  let watchdogTimer;
+  const watchdog = new Promise((_, reject) => {
+    watchdogTimer = setTimeout(
+      () => reject(new Error("handleNewEmails watchdog timeout")),
+      EMAIL_RUN_TIMEOUT_MS,
+    );
   });
+
+  Promise.race([handleNewEmails(), watchdog])
+    .catch((error) =>
+      logger.log("error", "Email processing run failed or timed out", {
+        error: error.message,
+      }),
+    )
+    .finally(() => {
+      clearTimeout(watchdogTimer);
+      isHandlingEmails = false;
+    });
 });
 
 // create notifications

@@ -131,4 +131,7 @@ const workSchema = new Schema(
   { timestamps: true },
 );
 
+// Под выборку запланированных работ по заявкам в getAllOpened
+workSchema.index({ tickets: 1, scheduled: 1, finishedAt: 1 });
+
 module.exports = mongoose.model("Work", workSchema);

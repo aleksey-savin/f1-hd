@@ -227,7 +227,13 @@ exports.handleNewEmails = async () => {
         host: prefs.imapServer,
         port: 993,
         tls: true,
-        authTimeout: 3000,
+        connTimeout: 15000, // установка TCP+TLS соединения
+        authTimeout: 10000, // было 3000 — слишком жёстко для внешнего TLS
+        // socketTimeout по умолчанию 0 (выключен). Без него «мёртвый» сокет в
+        // середине команды (openBox/search/getPartData/addFlags) висит вечно,
+        // handleNewEmails не завершается и замок isHandlingEmails залипает.
+        socketTimeout: 30000,
+        keepalive: true,
       },
     };
 
