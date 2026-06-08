@@ -40,6 +40,7 @@ const Select = (props) => {
   return (
     <FixRequiredSelect
       menuPlacement="auto"
+      menuPosition="fixed"
       {...props}
       SelectComponent={BaseSelect}
       menuPortalTarget={
