@@ -8,6 +8,10 @@ const {
   collectAttachments,
   extractAttachments,
 } = require("./attachmentExtractor");
+const {
+  collectRelevantNotes,
+  buildKnowledgeContext,
+} = require("./knowledgeBaseContext");
 const { logAiTicketEvent } = require("./aiTicketLog");
 
 const MAX_COMMENTS = 20;
@@ -139,6 +143,20 @@ exports.generateTicketAiGuide = async (ticketId) => {
       user += `\n\nК заявке приложено изображений: ${images.length}. Они переданы ниже — учти их при анализе.`;
     }
 
+    // Подмешиваем релевантные заметки базы знаний (известные проблемы, инструкции,
+    // общая информация) — приоритетный источник для модели.
+    const knowledgeNotes = await collectRelevantNotes({
+      companyId: ticket.company?._id,
+      categoryId: ticket.categoryId?._id,
+      applicantId: ticket.applicantId?._id,
+    });
+
+    if (knowledgeNotes.length) {
+      user += `\n\nРелевантные заметки базы знаний (приоритетный источник — известные проблемы и инструкции):\n${buildKnowledgeContext(
+        knowledgeNotes,
+      )}`;
+    }
+
     // Vision can fail if the configured model isn't multimodal — fall back to a
     // text-only request so a guide is still produced.
     let result;
@@ -170,6 +188,11 @@ exports.generateTicketAiGuide = async (ticketId) => {
       kind,
       summary: typeof data.summary === "string" ? data.summary : "",
       items,
+      sources: knowledgeNotes.map((note) => ({
+        _id: note._id,
+        title: note.title,
+        type: note.type,
+      })),
       provider,
       model,
       error: "",

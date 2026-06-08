@@ -297,6 +297,17 @@ const ticketSchema = new Schema(
           done: { type: Boolean, default: false },
         },
       ],
+      // Заметки базы знаний, использованные при генерации руководства
+      sources: [
+        {
+          _id: {
+            type: Schema.Types.ObjectId,
+            ref: "KnowledgeNote",
+          },
+          title: String,
+          type: String,
+        },
+      ],
       provider: String,
       model: String,
       error: { type: String, default: "" },

@@ -1,16 +1,19 @@
 import { useEffect, useRef } from "react";
+import { Link } from "react-router";
 
 import Card from "react-bootstrap/Card";
 import Form from "react-bootstrap/Form";
 import Alert from "react-bootstrap/Alert";
 import Button from "react-bootstrap/Button";
 import Spinner from "react-bootstrap/Spinner";
+import Badge from "react-bootstrap/Badge";
 
-import { RiRobot2Line, RiRefreshLine } from "react-icons/ri";
+import { RiRefreshLine, RiBookOpenLine } from "react-icons/ri";
 
 import useViewTicketStore from "../../../store/view-ticket";
 import useHttp from "../../../hooks/use-http";
 import { getLocalStorageData } from "../../../util/auth";
+import { getNoteTypeMeta } from "../../../util/knowledgeNoteTypes";
 import { Row } from "react-bootstrap";
 
 const POLL_INTERVAL = 4000;
@@ -168,6 +171,34 @@ const AiGuide = () => {
 
             {(aiGuide.items || []).length === 0 && (
               <p className="text-muted mb-0">Нет пунктов.</p>
+            )}
+
+            {(aiGuide.sources || []).length > 0 && (
+              <div className="mt-3 pt-3 border-top">
+                <h6 className="d-flex align-items-center gap-1 text-muted">
+                  <RiBookOpenLine /> Источники из базы знаний
+                </h6>
+                <ul className="list-unstyled mb-0">
+                  {aiGuide.sources.map((source) => {
+                    const typeMeta = getNoteTypeMeta(source.type);
+                    return (
+                      <li
+                        key={source._id}
+                        className="d-flex align-items-center gap-2 mb-1"
+                      >
+                        <Badge bg={typeMeta.badge}>{typeMeta.label}</Badge>
+                        <Link
+                          to={`/knowledge-base/${source._id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {source.title}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             )}
           </>
         )}

@@ -80,11 +80,18 @@ export interface ITicketAiGuideItem {
   done?: boolean;
 }
 
+export interface ITicketAiGuideSource {
+  _id?: string;
+  title?: string;
+  type?: string;
+}
+
 export interface ITicketAiGuide {
   status?: TicketAiGuideStatus;
   kind?: TicketAiGuideKind;
   summary?: string;
   items?: ITicketAiGuideItem[];
+  sources?: ITicketAiGuideSource[];
   provider?: string;
   model?: string;
   error?: string;

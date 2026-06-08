@@ -116,6 +116,7 @@ aiGuide: {
   kind:   "solution" | "questions",
   summary: String,
   items:  [{ text: String, done: Boolean }],   // checkable in the UI
+  sources: [{ _id: ObjectId(KnowledgeNote), title: String, type: String }], // KB notes used
   provider, model: String,
   error: String,
   generatedAt: Date,
@@ -155,6 +156,13 @@ aiGuide: {
     impact/urgency, source, custom fields, applicant, company, last ~20 comments;
   - appends extracted document text and an image-count note to the prompt; the
     system prompt itself is imported from `prompts/ticketGuide.js`;
+  - **pulls in relevant knowledge-base notes** via
+    `services/knowledgeBaseContext.js` `collectRelevantNotes({ companyId, categoryId,
+    applicantId })` — same company/category/applicant matching + ranking as the ticket
+    "База знаний" tab (`RelatedNotes.jsx`), top 5, formatted by `buildKnowledgeContext`
+    and appended to the prompt as a **priority source** (known issues/instructions).
+    Per-user `canViewNote` is intentionally **not** applied — the guide is a shared
+    staff-only artifact. The used notes are persisted on `aiGuide.sources`;
   - calls `generateJson` with images; **text-only fallback** if the vision call
     fails (e.g. non-vision model) so a guide is still produced;
   - persists `aiGuide` via `findByIdAndUpdate`; **never throws** — failures are
@@ -178,6 +186,9 @@ module aliases and deps `pdf-parse`, `mammoth`, `xlsx`.
   - `solution` → summary + checkable `Form.Check` steps;
   - `questions` → warning + checkable question list;
   - `error`/`idle` → message; header **regenerate** button (also used to generate);
+  - when `aiGuide.sources` is non-empty, a **"Источники из базы знаний"** section lists
+    the used KB notes as links to `/knowledge-base/:id` (new tab), badged by note type
+    via `util/knowledgeNoteTypes`;
   - checkbox toggles call the toggle endpoint and update the `view-ticket` store
     optimistically.
 - `pages/Ticket/View.jsx` — renders `<AiGuide />` after the description, gated by
@@ -545,6 +556,7 @@ Backend: `models/preferences.js`, `models/ticket.js`, `types/ticket.ts`,
 `types/_shared.ts`,
 `controllers/preferences.js`, `controllers/ticket.js`, `routes/internal/ticket.js`,
 `services/aiService.js`, `services/ticketAiGuide.js`,
+`services/knowledgeBaseContext.js`,
 `services/attachmentExtractor.js`, `services/speechToTextService.js`,
 `services/callerIdentityService.js`, `services/ticketCategoryService.js`,
 `services/aiTicketLog.js`,
