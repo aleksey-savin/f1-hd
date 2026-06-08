@@ -32,7 +32,9 @@ import ListGroup from "react-bootstrap/ListGroup";
 import { formatDate } from "../../util/format-date";
 import { getLocalStorageData } from "../../util/auth";
 
-import { RiHistoryLine, RiComputerLine } from "react-icons/ri";
+import { RiHistoryLine, RiComputerLine, RiCheckLine } from "react-icons/ri";
+
+import BootstrapSpinner from "react-bootstrap/Spinner";
 
 import Comments from "../../components/Comment/List";
 import Works from "../../components/Work/List";
@@ -161,14 +163,16 @@ const ViewTicket = () => {
     }
   }, [ticket]);
 
-  // Пока идёт фоновая ИИ-обработка (распознавание речи звонка или автоопределение
-  // категории), опрашиваем заявку и обновляем страницу (заголовок, описание,
-  // категория, бейджи) без ручной перезагрузки.
+  // Пока идёт фоновая ИИ-обработка (распознавание речи звонка, автоопределение
+  // категории или формирование руководства), опрашиваем заявку и обновляем
+  // страницу (заголовок, описание, категория, бейджи, маркер вкладки) без ручной
+  // перезагрузки.
   const revalidator = useRevalidator();
   useEffect(() => {
     const speechPending = ticket?.aiSpeech?.status === "pending";
     const categoryPending = ticket?.aiCategory?.status === "pending";
-    if (!speechPending && !categoryPending) return;
+    const guidePending = ticket?.aiGuide?.status === "pending";
+    if (!speechPending && !categoryPending && !guidePending) return;
 
     const { token } = getLocalStorageData();
     const interval = setInterval(async () => {
@@ -181,9 +185,11 @@ const ViewTicket = () => {
         const data = await response.json();
         const nextSpeech = data?.ticket?.aiSpeech?.status;
         const nextCategory = data?.ticket?.aiCategory?.status;
+        const nextGuide = data?.ticket?.aiGuide?.status;
         const speechResolved = speechPending && nextSpeech !== "pending";
         const categoryResolved = categoryPending && nextCategory !== "pending";
-        if (speechResolved || categoryResolved) {
+        const guideResolved = guidePending && nextGuide !== "pending";
+        if (speechResolved || categoryResolved || guideResolved) {
           revalidator.revalidate();
         }
       } catch (error) {
@@ -192,7 +198,12 @@ const ViewTicket = () => {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [ticket?.aiSpeech?.status, ticket?.aiCategory?.status, ticket?.num]);
+  }, [
+    ticket?.aiSpeech?.status,
+    ticket?.aiCategory?.status,
+    ticket?.aiGuide?.status,
+    ticket?.num,
+  ]);
 
   const firstColumnRef = useRef();
 
@@ -326,12 +337,12 @@ const ViewTicket = () => {
                                 <tr>
                                   <th>Компания</th>
                                   <td>
-                                    <h5 className="mb-0 d-flex align-items-center gap-2">
+                                    <h5 className="mb-0 d-flex align-items-center flex-wrap gap-2">
                                       <CompanyModal
                                         ticket={ticket}
                                         company={company}
                                       />
-                                      <small className={`ms-2`}>
+                                      <small>
                                         <WorkingStatusIndicator
                                           workSchedule={company.workSchedule}
                                         />
@@ -513,7 +524,35 @@ const ViewTicket = () => {
                       </Tab>
                     )}
                     {!isClient && ai?.isActive && (
-                      <Tab eventKey="ai" title="AI-ассистент">
+                      <Tab
+                        eventKey="ai"
+                        title={
+                          <>
+                            AI-ассистент{" "}
+                            {ticket.aiGuide?.status === "pending" && (
+                              <BootstrapSpinner
+                                animation="border"
+                                size="sm"
+                                title="ИИ готовит руководство"
+                              />
+                            )}
+                            {ticket.aiGuide?.status === "ready" && (
+                              <Badge
+                                bg="success"
+                                pill
+                                title="Руководство сформировано"
+                              >
+                                <RiCheckLine className="align-middle" />
+                              </Badge>
+                            )}
+                            {ticket.aiGuide?.status === "error" && (
+                              <Badge bg="danger" pill title="Ошибка генерации">
+                                !
+                              </Badge>
+                            )}
+                          </>
+                        }
+                      >
                         <AiGuide />
                       </Tab>
                     )}
@@ -552,7 +591,7 @@ const ViewTicket = () => {
                   </Tabs>
                 </Col>
               </Row>
-              <Row className="mt-auto">
+              <Row className="mt-auto pt-3">
                 <Col>
                   {!ticket.isArchived && (
                     <Row id="ticket-actions">

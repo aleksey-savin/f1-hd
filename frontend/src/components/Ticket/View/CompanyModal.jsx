@@ -28,8 +28,13 @@ const CompanyModal = ({ ticket, company = {} }) => {
   return (
     <>
       <Badge bg="primary" onClick={companyModalShowHandler}>
-        {`${company.alias} ${subdivision ? "| " + subdivision.name : ""}`}
+        {company.alias}
       </Badge>
+      {subdivision && (
+        <Badge bg="info" onClick={companyModalShowHandler}>
+          {subdivision.name}
+        </Badge>
+      )}
       <Modal centered show={showCompanyModal} onHide={companyModalCloseHandler}>
         <Modal.Header closeButton>
           <Modal.Title>Данные компании по Заявке {ticket.num}</Modal.Title>

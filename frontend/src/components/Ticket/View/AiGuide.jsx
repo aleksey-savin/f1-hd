@@ -7,14 +7,22 @@ import Alert from "react-bootstrap/Alert";
 import Button from "react-bootstrap/Button";
 import Spinner from "react-bootstrap/Spinner";
 import Badge from "react-bootstrap/Badge";
+import ListGroup from "react-bootstrap/ListGroup";
+import ProgressBar from "react-bootstrap/ProgressBar";
 
-import { RiRefreshLine, RiBookOpenLine } from "react-icons/ri";
+import {
+  RiRobot2Line,
+  RiRefreshLine,
+  RiBookOpenLine,
+  RiExternalLinkLine,
+  RiQuestionLine,
+} from "react-icons/ri";
 
 import useViewTicketStore from "../../../store/view-ticket";
 import useHttp from "../../../hooks/use-http";
 import { getLocalStorageData } from "../../../util/auth";
 import { getNoteTypeMeta } from "../../../util/knowledgeNoteTypes";
-import { Row } from "react-bootstrap";
+import { formatDate } from "../../../util/format-date";
 
 const POLL_INTERVAL = 4000;
 
@@ -102,107 +110,173 @@ const AiGuide = () => {
 
   const busy = isRegenerating || status === "pending";
 
-  return (
-    <Card className="mt-3">
-      <Card.Body>
-        <Row className="d-flex justify-content-end mb-3">
-          <Button
-            className="w-auto me-2"
-            variant="outline-secondary"
-            size="sm"
-            disabled={busy}
-            onClick={regenerate}
-            title="Сгенерировать заново"
-          >
-            {busy ? (
-              <Spinner animation="border" size="sm" />
-            ) : (
-              <RiRefreshLine />
-            )}
-          </Button>
-        </Row>
+  const items = aiGuide?.items || [];
+  const sources = aiGuide?.sources || [];
+  const isQuestions = aiGuide?.kind === "questions";
+  const doneCount = items.filter((item) => item.done).length;
+  const progress = items.length
+    ? Math.round((doneCount / items.length) * 100)
+    : 0;
 
+  return (
+    <Card className="mt-3 shadow-sm">
+      <Card.Header className="d-flex justify-content-between align-items-center">
+        <span className="d-flex align-items-center gap-2 fw-semibold">
+          <RiRobot2Line className="text-success" size={18} /> AI-ассистент
+        </span>
+        <Button
+          variant="outline-secondary"
+          size="sm"
+          disabled={busy}
+          onClick={regenerate}
+          title="Сгенерировать заново"
+          className="d-flex align-items-center gap-1"
+        >
+          {busy ? <Spinner animation="border" size="sm" /> : <RiRefreshLine />}
+          <span className="d-none d-sm-inline">
+            {busy ? "Обновление…" : "Обновить"}
+          </span>
+        </Button>
+      </Card.Header>
+
+      <Card.Body>
         {status === "pending" && (
-          <div className="text-muted d-flex align-items-center gap-2">
-            <Spinner animation="border" size="sm" /> Анализируем заявку и
-            готовим решение…
+          <div className="d-flex flex-column align-items-center text-center text-muted py-4 gap-2">
+            <Spinner animation="border" />
+            <span>Анализируем заявку и базу знаний, готовим решение…</span>
           </div>
         )}
 
         {status === "error" && (
           <Alert variant="danger" className="mb-0">
-            Не удалось сгенерировать руководство
-            {aiGuide?.error ? `: ${aiGuide.error}` : "."} Попробуйте обновить.
+            <Alert.Heading className="h6">
+              Не удалось сгенерировать руководство
+            </Alert.Heading>
+            <p className="mb-0 small">
+              {aiGuide?.error || "Произошла ошибка."} Попробуйте обновить.
+            </p>
           </Alert>
         )}
 
         {status === "idle" && (
-          <p className="text-muted mb-0">
-            Руководство ещё не сгенерировано. Нажмите кнопку обновления, чтобы
-            создать его.
-          </p>
+          <div className="d-flex flex-column align-items-center text-center text-muted py-4 gap-2">
+            <RiRobot2Line size={32} className="opacity-50" />
+            <p className="mb-0">
+              Руководство ещё не сгенерировано. Нажмите «Обновить», чтобы создать
+              его.
+            </p>
+          </div>
         )}
 
         {status === "ready" && (
           <>
-            {aiGuide.kind === "questions" ? (
-              <Alert variant="warning">
-                Недостаточно информации для решения. Уточните у пользователя:
+            {isQuestions ? (
+              <Alert
+                variant="warning"
+                className="d-flex align-items-start gap-2"
+              >
+                <RiQuestionLine className="flex-shrink-0 mt-1" size={20} />
+                <div>
+                  <strong>Недостаточно информации для решения.</strong>
+                  <div className="small">Уточните у пользователя:</div>
+                </div>
               </Alert>
             ) : (
+              aiGuide.summary && (
+                <p className="lead fs-6 mb-3">{aiGuide.summary}</p>
+              )
+            )}
+
+            {items.length > 0 && (
               <>
-                {aiGuide.summary && (
-                  <p className="text-muted">{aiGuide.summary}</p>
-                )}
+                <div className="d-flex justify-content-between align-items-center mb-1">
+                  <span className="text-uppercase small fw-semibold text-muted">
+                    {isQuestions ? "Вопросы" : "Шаги решения"}
+                  </span>
+                  <span className="small text-muted">
+                    {doneCount} / {items.length}
+                  </span>
+                </div>
+                <ProgressBar
+                  now={progress}
+                  variant={progress === 100 ? "success" : "info"}
+                  className="mb-3"
+                  style={{ height: "0.4rem" }}
+                />
+
+                <ListGroup className="mb-0">
+                  {items.map((item, index) => (
+                    <ListGroup.Item
+                      key={index}
+                      className="d-flex align-items-start gap-2"
+                    >
+                      <Form.Check
+                        type="checkbox"
+                        id={`ai-guide-item-${index}`}
+                        className="mb-0"
+                        checked={!!item.done}
+                        onChange={(event) =>
+                          toggleItem(index, event.target.checked)
+                        }
+                        label={
+                          <span
+                            className={
+                              item.done
+                                ? "text-decoration-line-through text-muted"
+                                : ""
+                            }
+                          >
+                            {item.text}
+                          </span>
+                        }
+                      />
+                    </ListGroup.Item>
+                  ))}
+                </ListGroup>
               </>
             )}
 
-            {(aiGuide.items || []).map((item, index) => (
-              <Form.Group className="mb-2" key={index}>
-                <Form.Check
-                  type="checkbox"
-                  id={`ai-guide-item-${index}`}
-                  label={item.text}
-                  checked={!!item.done}
-                  onChange={(event) => toggleItem(index, event.target.checked)}
-                />
-              </Form.Group>
-            ))}
-
-            {(aiGuide.items || []).length === 0 && (
+            {items.length === 0 && (
               <p className="text-muted mb-0">Нет пунктов.</p>
             )}
 
-            {(aiGuide.sources || []).length > 0 && (
-              <div className="mt-3 pt-3 border-top">
-                <h6 className="d-flex align-items-center gap-1 text-muted">
+            {sources.length > 0 && (
+              <div className="mt-4">
+                <h6 className="text-uppercase small fw-semibold text-muted d-flex align-items-center gap-1 mb-2">
                   <RiBookOpenLine /> Источники из базы знаний
                 </h6>
-                <ul className="list-unstyled mb-0">
-                  {aiGuide.sources.map((source) => {
+                <ListGroup variant="flush">
+                  {sources.map((source) => {
                     const typeMeta = getNoteTypeMeta(source.type);
                     return (
-                      <li
+                      <ListGroup.Item
                         key={source._id}
-                        className="d-flex align-items-center gap-2 mb-1"
+                        as={Link}
+                        to={`/knowledge-base/${source._id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        action
+                        className="d-flex align-items-center gap-2 px-0"
                       >
                         <Badge bg={typeMeta.badge}>{typeMeta.label}</Badge>
-                        <Link
-                          to={`/knowledge-base/${source._id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {source.title}
-                        </Link>
-                      </li>
+                        <span className="flex-grow-1">{source.title}</span>
+                        <RiExternalLinkLine className="text-muted" />
+                      </ListGroup.Item>
                     );
                   })}
-                </ul>
+                </ListGroup>
               </div>
             )}
           </>
         )}
       </Card.Body>
+
+      {status === "ready" && aiGuide.generatedAt && (
+        <Card.Footer className="small text-muted d-flex flex-wrap justify-content-between gap-2">
+          <span>Сгенерировано {formatDate(aiGuide.generatedAt)}</span>
+          {aiGuide.model && <span>Модель: {aiGuide.model}</span>}
+        </Card.Footer>
+      )}
     </Card>
   );
 };
