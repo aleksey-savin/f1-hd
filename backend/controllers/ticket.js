@@ -1113,7 +1113,16 @@ exports.joinResponsibles = async (req, res, next) => {
         message: "Пользователь уже находится в списке ответственных",
       });
     }
+
+    // если до присоединения за заявкой никто не закреплён, переводим её
+    // в состояние «Не в работе» (назначена, но ещё не взята в работу)
+    const wasUnassigned = ticket.responsibles.length === 0;
+
     ticket.responsibles = ticket.responsibles.concat(authedUser);
+
+    if (wasUnassigned) {
+      ticket.state = "Не в работе";
+    }
 
     ticket.notifications = {
       lastAction: "join responsibles",

@@ -44,6 +44,7 @@ const JoinResponsibles = ({ ticket }) => {
 
   const canJoin =
     canPerformTickets &&
+    !!ticket.category &&
     !ticket.responsibles
       .map((user) => user._id.toString())
       .includes(userId) &&
