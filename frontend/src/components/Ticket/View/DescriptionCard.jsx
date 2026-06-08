@@ -18,9 +18,16 @@ const DescriptionCard = ({ ticket }) => {
             {ticket.description ? (
                 <Card>
                     <Card.Body>
-                        <p className='lead mb-0'>
-                            <span dangerouslySetInnerHTML={createMarkup(ticket.description)} />
-                        </p>
+                        {/* Описание может быть очень большим (напр. логи бэкапа) —
+                            ограничиваем высоту и скроллим внутри, чтобы карточка
+                            не растягивала страницу. */}
+                        <div
+                            style={{ maxHeight: '50vh', overflowY: 'auto' }}
+                        >
+                            <p className='lead mb-0'>
+                                <span dangerouslySetInnerHTML={createMarkup(ticket.description)} />
+                            </p>
+                        </div>
                         {ticket.htmlDescription && (
                             <div className='d-flex justify-content-end mt-2'>
                                 <Button
