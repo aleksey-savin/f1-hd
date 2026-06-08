@@ -1,81 +1,85 @@
 const { body } = require("express-validator");
 
+const STATUS_VALUES = [
+  "readyForDeployment",
+  "deployed",
+  "inRepair",
+  "decommissioned",
+  "inReserve",
+  "disposed",
+];
+
+// Note: the form submits "" for empty optional fields, so optional rules use
+// { checkFalsy: true } to treat blanks as absent rather than failing format checks.
 const clientDeviceValidation = [
-  body("company")
+  body("companyId")
     .notEmpty()
     .withMessage("Компания обязательна")
     .isMongoId()
     .withMessage("Некорректный ID компании"),
-  body("user")
-    .optional()
+  body("deviceModelId")
+    .notEmpty()
+    .withMessage("Модель устройства обязательна")
+    .isMongoId()
+    .withMessage("Некорректный ID модели устройства"),
+  body("userId")
+    .optional({ checkFalsy: true })
     .isMongoId()
     .withMessage("Некорректный ID пользователя"),
-  body("location")
-    .optional()
-    .isLength({ max: 200 })
-    .withMessage("Расположение не должно превышать 200 символов")
-    .trim(),
-  body("deviceType")
-    .notEmpty()
-    .withMessage("Тип устройства обязателен")
+  body("locationId")
+    .optional({ checkFalsy: true })
     .isMongoId()
-    .withMessage("Некорректный ID типа устройства"),
-  body("vendor")
-    .notEmpty()
-    .withMessage("Вендор обязателен")
-    .isMongoId()
-    .withMessage("Некорректный ID вендора"),
-  body("model")
-    .notEmpty()
-    .withMessage("Модель обязательна")
-    .isLength({ min: 1, max: 100 })
-    .withMessage("Модель должна содержать от 1 до 100 символов")
-    .trim(),
+    .withMessage("Некорректный ID расположения"),
   body("serialNumber")
     .notEmpty()
     .withMessage("Серийный номер обязателен")
     .isLength({ min: 1, max: 100 })
     .withMessage("Серийный номер должен содержать от 1 до 100 символов")
     .trim(),
-  body("purchaseDate")
-    .optional()
-    .isDate()
-    .withMessage("Некорректная дата приобретения"),
-  body("price").optional().isNumeric().withMessage("Цена должна быть числом"),
+  body("status")
+    .optional({ checkFalsy: true })
+    .isIn(STATUS_VALUES)
+    .withMessage("Некорректный статус устройства"),
+  body("price")
+    .optional({ checkFalsy: true })
+    .isNumeric()
+    .withMessage("Цена должна быть числом"),
   body("purchaseDocument")
-    .optional()
+    .optional({ checkFalsy: true })
     .isLength({ max: 200 })
     .withMessage("Документ не должен превышать 200 символов")
     .trim(),
+  body("supplierId")
+    .optional({ checkFalsy: true })
+    .isMongoId()
+    .withMessage("Некорректный ID поставщика"),
+  body("purchasedAt")
+    .optional({ checkFalsy: true })
+    .isISO8601()
+    .withMessage("Некорректная дата приобретения"),
   body("warrantyExpirationDate")
-    .optional()
-    .isDate()
+    .optional({ checkFalsy: true })
+    .isISO8601()
     .withMessage("Некорректная дата окончания гарантии"),
-  body("status")
-    .optional()
-    .isIn(["Готово к выдаче", "Выдано", "В ремонте", "Списано"])
-    .withMessage("Некорректный статус устройства"),
   body("lastMaintenanceDate")
-    .optional()
-    .isDate()
+    .optional({ checkFalsy: true })
+    .isISO8601()
     .withMessage("Некорректная дата последнего обслуживания"),
   body("notes")
-    .optional()
+    .optional({ checkFalsy: true })
     .isLength({ max: 1000 })
     .withMessage("Заметки не должны превышать 1000 символов")
     .trim(),
-  body("assignedTo")
-    .optional()
-    .isLength({ max: 200 })
-    .withMessage("Назначен не должно превышать 200 символов")
-    .trim(),
-  body("ipAddress").optional().isIP().withMessage("Некорректный IP-адрес"),
+  body("ipAddress")
+    .optional({ checkFalsy: true })
+    .isIP()
+    .withMessage("Некорректный IP-адрес"),
   body("macAddress")
-    .optional()
+    .optional({ checkFalsy: true })
     .isMACAddress()
     .withMessage("Некорректный MAC-адрес"),
   body("operatingSystem")
-    .optional()
+    .optional({ checkFalsy: true })
     .isLength({ max: 100 })
     .withMessage("Операционная система не должна превышать 100 символов")
     .trim(),

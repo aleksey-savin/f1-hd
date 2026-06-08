@@ -46,6 +46,10 @@ const clientDeviceSchema = new Schema(
       type: String,
       trim: true,
     },
+    supplierId: {
+      type: Schema.Types.ObjectId,
+      ref: "Supplier",
+    },
     warrantyExpirationDate: {
       type: Date,
     },

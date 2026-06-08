@@ -30,6 +30,12 @@ router.post("/users/add", isAuth, canManageUsers, userController.add);
 router.post("/users/update/:id", isAuth, canManageUsers, userController.update);
 router.post("/users/update-account", isAuth, userController.updateMyAccount);
 router.post("/users/delete/:id", isAuth, canManageUsers, userController.delete);
+router.post(
+  "/users/toggle-active/:id",
+  isAuth,
+  canManageUsers,
+  userController.toggleActive,
+);
 router.post("/users/reset-password/:id", isAuth, userController.changePassword);
 router.post(
   "/users/:id/add-profile-image",

@@ -97,7 +97,7 @@ export async function loader() {
   const { token } = getLocalStorageData();
 
   const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/mikrotik-devices/report/networks`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/report/networks`,
     {
       headers: {
         Authorization: "Bearer " + token,

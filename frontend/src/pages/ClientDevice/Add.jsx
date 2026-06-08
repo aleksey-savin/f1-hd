@@ -20,9 +20,6 @@ export async function action({ request }) {
 
   const clientDevice = Object.fromEntries(data.entries());
 
-  // Log the form data for debugging
-  console.log("Form data received:", clientDevice);
-
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/add`,
     {

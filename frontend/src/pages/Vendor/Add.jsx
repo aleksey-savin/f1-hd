@@ -20,6 +20,8 @@ export async function action({ request }) {
   const vendorData = {
     name: data.get("name"),
     isActive: data.get("isActive") === "true",
+    isMikrotikManagementEnabled:
+      data.get("isMikrotikManagementEnabled") === "true",
   };
 
   const response = await fetch(

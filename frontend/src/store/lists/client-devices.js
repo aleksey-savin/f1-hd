@@ -1,30 +1,36 @@
 import { create } from "zustand";
 import { getLocalStorageData } from "../../util/auth";
 
+// Searchable text fields of a populated client-device.
+const deviceSearchFields = (item) => [
+  item.companyId?.alias,
+  item.companyId?.fullTitle,
+  item.userId?.firstName,
+  item.userId?.lastName,
+  item.userId?.email,
+  item.locationId?.name,
+  item.deviceModelId?.name,
+  item.deviceModelId?.vendorId?.name,
+  item.deviceModelId?.deviceTypeId?.name,
+  item.supplierId?.name,
+  item.serialNumber,
+  item.purchaseDocument,
+  item.status,
+  item.notes,
+  item.ipAddress,
+  item.macAddress,
+  item.operatingSystem,
+];
+
 // функция последовательно отсеивает заявки согласно активным фильтрам
 const clientDeviceFilter = (state) => {
-  const originalList = state.originalList ? state.originalList : [];
+  const originalList = Array.isArray(state.originalList)
+    ? state.originalList
+    : [];
   return originalList.filter((item) => {
     if (state.searchTerm.length > 0) {
-      return [
-        item.company?.alias,
-        item.company?.fullTitle,
-        item.user?.firstName,
-        item.user?.lastName,
-        item.user?.email,
-        item.location,
-        item.deviceType?.name,
-        item.vendor?.name,
-        item.model,
-        item.serialNumber,
-        item.purchaseDocument,
-        item.status,
-        item.notes,
-        item.assignedTo,
-        item.ipAddress,
-        item.macAddress,
-        item.operatingSystem,
-      ]
+      return deviceSearchFields(item)
+        .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(state.searchTerm);
@@ -37,33 +43,13 @@ const clientDeviceFilter = (state) => {
 const searchItems = (query, items) => {
   if (!query) return items;
 
-  // Split the query into individual terms (e.g., "Ольга Вознюк" becomes ["Ольга", "Вознюк"])
   const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
 
   return items.filter((item) => {
-    const fieldsToSearch = [
-      item.company?.alias,
-      item.company?.fullTitle,
-      item.user?.firstName,
-      item.user?.lastName,
-      item.user?.email,
-      item.location,
-      item.deviceType?.name,
-      item.vendor?.name,
-      item.model,
-      item.serialNumber,
-      item.purchaseDocument,
-      item.status,
-      item.notes,
-      item.assignedTo,
-      item.ipAddress,
-      item.macAddress,
-      item.operatingSystem,
-    ];
-
+    const fieldsToSearch = deviceSearchFields(item);
     return queryTerms.every((term) =>
       fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term),
+        (field) => field && String(field).toLowerCase().includes(term),
       ),
     );
   });
@@ -88,7 +74,7 @@ const useClientDeviceFilterStore = create((set) => ({
     const data = await response.json();
 
     set({
-      originalList: data,
+      originalList: Array.isArray(data) ? data : [],
       isLoading: false,
     });
   },

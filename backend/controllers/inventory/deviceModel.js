@@ -6,9 +6,7 @@ exports.getAll = async (req, res, next) => {
   try {
     const deviceModels = await DeviceModel.find({ deletedAt: null })
       .populate("deviceTypeId", "name")
-      .populate("vendorId", "name")
-      .populate("configurationIds")
-      .populate("compatibleWithModelIds", "name")
+      .populate("vendorId", "name")      .populate("compatibleWithModelIds", "name")
       .populate("createdBy", "firstName lastName")
       .populate("updatedBy", "firstName lastName")
       .sort({ name: 1 });
@@ -26,9 +24,7 @@ exports.getOne = async (req, res, next) => {
       deletedAt: null,
     })
       .populate("deviceTypeId", "name")
-      .populate("vendorId", "name")
-      .populate("configurationIds")
-      .populate("compatibleWithModelIds", "name")
+      .populate("vendorId", "name")      .populate("compatibleWithModelIds", "name")
       .populate("createdBy", "firstName lastName")
       .populate("updatedBy", "firstName lastName");
 
@@ -55,9 +51,7 @@ exports.add = async (req, res, next) => {
     const {
       deviceTypeId,
       vendorId,
-      name,
-      configurationIds,
-      compatibleWithModelIds,
+      name,      compatibleWithModelIds,
       notes,
     } = req.body;
 
@@ -77,9 +71,7 @@ exports.add = async (req, res, next) => {
     const deviceModel = new DeviceModel({
       deviceTypeId,
       vendorId,
-      name,
-      configurationIds: configurationIds || [],
-      compatibleWithModelIds: compatibleWithModelIds || [],
+      name,      compatibleWithModelIds: compatibleWithModelIds || [],
       notes,
       createdBy: req.userId,
     });
@@ -88,9 +80,7 @@ exports.add = async (req, res, next) => {
 
     const populatedDeviceModel = await DeviceModel.findById(deviceModel._id)
       .populate("deviceTypeId", "name")
-      .populate("vendorId", "name")
-      .populate("configurationIds")
-      .populate("compatibleWithModelIds", "name");
+      .populate("vendorId", "name")      .populate("compatibleWithModelIds", "name");
 
     res.status(201).json({
       message: "Device model added successfully",
@@ -106,9 +96,7 @@ exports.update = async (req, res, next) => {
     const {
       deviceTypeId,
       vendorId,
-      name,
-      configurationIds,
-      compatibleWithModelIds,
+      name,      compatibleWithModelIds,
       notes,
     } = req.body;
 
@@ -139,10 +127,7 @@ exports.update = async (req, res, next) => {
     // Update fields
     if (name !== undefined) deviceModel.name = name;
     if (deviceTypeId) deviceModel.deviceTypeId = deviceTypeId;
-    if (vendorId) deviceModel.vendorId = vendorId;
-    if (configurationIds !== undefined)
-      deviceModel.configurationIds = configurationIds;
-    if (compatibleWithModelIds !== undefined)
+    if (vendorId) deviceModel.vendorId = vendorId;    if (compatibleWithModelIds !== undefined)
       deviceModel.compatibleWithModelIds = compatibleWithModelIds;
     if (notes !== undefined) deviceModel.notes = notes;
     deviceModel.updatedBy = req.userId;
@@ -151,9 +136,7 @@ exports.update = async (req, res, next) => {
 
     const populatedDeviceModel = await DeviceModel.findById(deviceModel._id)
       .populate("deviceTypeId", "name")
-      .populate("vendorId", "name")
-      .populate("configurationIds")
-      .populate("compatibleWithModelIds", "name");
+      .populate("vendorId", "name")      .populate("compatibleWithModelIds", "name");
 
     res.status(200).json({
       message: "Device model updated successfully",

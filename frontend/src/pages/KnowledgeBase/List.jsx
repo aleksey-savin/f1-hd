@@ -9,7 +9,7 @@ import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
 import KnowledgeBaseSidebar from "../../components/KnowledgeBase/Sidebar";
 
 const Placeholder = () => (
-  <div className="text-center text-secondary py-5">
+  <div className="text-center text-body-secondary py-5">
     <RiBookOpenLine size={48} className="mb-3" />
     <p className="mb-0">Выберите заметку слева или создайте новую</p>
   </div>

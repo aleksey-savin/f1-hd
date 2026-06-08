@@ -1,19 +1,30 @@
 import { create } from "zustand";
 import { getLocalStorageData } from "../../util/auth";
 
-// функция последовательно отсеивает заявки согласно активным фильтрам
+const API = `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices`;
+
+// Searchable text fields of a managed-device row.
+const rowSearchFields = (item) => [
+  item.displayName,
+  item.host,
+  item.serialNumber,
+  item.currentFirmware,
+  item.boardName,
+  item.status,
+  item.model?.name,
+  item.model?.vendor,
+  item.location?.name,
+];
+
+// последовательно отсеивает устройства согласно активному поиску
 const clientDeviceFilter = (state) => {
-  const originalList = state.originalList ? state.originalList : [];
+  const originalList = Array.isArray(state.originalList)
+    ? state.originalList
+    : [];
   return originalList.filter((item) => {
     if (state.searchTerm.length > 0) {
-      return [
-        item.name,
-        item.boardName,
-        item.serialNumber,
-        item.currentFirmware,
-        JSON.stringify(item.addresses),
-        item.description,
-      ]
+      return rowSearchFields(item)
+        .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(state.searchTerm);
@@ -26,26 +37,19 @@ const clientDeviceFilter = (state) => {
 const searchItems = (query, items) => {
   if (!query) return items;
 
-  // Split the query into individual terms (e.g., "Ольга Вознюк" becomes ["Ольга", "Вознюк"])
   const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
 
   return items.filter((item) => {
-    const fieldsToSearch = [
-      item.name,
-      item.boardName,
-      item.serialNumber,
-      item.currentFirmware,
-      ...item.addresses.flatMap((address) => [address]),
-      item.description,
-    ];
-
+    const fieldsToSearch = rowSearchFields(item);
     return queryTerms.every((term) =>
       fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term),
+        (field) => field && String(field).toLowerCase().includes(term),
       ),
     );
   });
 };
+
+const getTime = (value) => (value ? new Date(value).getTime() : 0);
 
 const handleSorting = (selected, list) => {
   if (!selected || !list.length) {
@@ -56,15 +60,25 @@ const handleSorting = (selected, list) => {
 
   switch (selected.label) {
     case "По алфавиту":
-      sortedList.sort((a, b) => a.name.localeCompare(b.name));
+      sortedList.sort((a, b) =>
+        (a.displayName || "").localeCompare(b.displayName || "", "ru"),
+      );
       break;
 
     case "Сначала новые":
-      sortedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      sortedList.sort(
+        (a, b) =>
+          getTime(b.lastSuccessfulConnectionAt) -
+          getTime(a.lastSuccessfulConnectionAt),
+      );
       break;
 
     case "Сначала старые":
-      sortedList.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      sortedList.sort(
+        (a, b) =>
+          getTime(a.lastSuccessfulConnectionAt) -
+          getTime(b.lastSuccessfulConnectionAt),
+      );
       break;
 
     default:
@@ -74,13 +88,11 @@ const handleSorting = (selected, list) => {
   return sortedList;
 };
 
-const useMikrotikDeviceFilterStore = create((set) => ({
+const useMikrotikDeviceFilterStore = create((set, get) => ({
   searchTerm: "",
   sortingOptions: [
     { label: "По алфавиту" },
-    {
-      label: "Сначала новые",
-    },
+    { label: "Сначала новые" },
     { label: "Сначала старые" },
   ],
   sortBy: {
@@ -89,11 +101,8 @@ const useMikrotikDeviceFilterStore = create((set) => ({
   isSorting: false,
   handleSorting: async (data) => {
     set({ isSorting: true });
-
-    // Set new sort option immediately
     set({ sortBy: data });
 
-    // Use Promise and setTimeout to make sorting async
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     set((state) => {
@@ -111,20 +120,57 @@ const useMikrotikDeviceFilterStore = create((set) => ({
   fetch: async () => {
     set({ isLoading: true });
     const { token } = getLocalStorageData();
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/mikrotik-devices`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
+    const response = await fetch(API, {
+      headers: {
+        Authorization: "Bearer " + token,
       },
-    );
+    });
     const data = await response.json();
 
     set({
-      originalList: data,
+      originalList: Array.isArray(data) ? data : [],
       isLoading: false,
     });
+  },
+  // Enable monitoring + immediate poll, then refresh the list.
+  connect: async (clientDeviceId) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(`${API}/${clientDeviceId}/connect`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+    if (response.ok) {
+      await get().fetch();
+    }
+    return response;
+  },
+  // Disable monitoring, then refresh the list.
+  disconnect: async (clientDeviceId) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(`${API}/${clientDeviceId}/disconnect`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+    if (response.ok) {
+      await get().fetch();
+    }
+    return response;
+  },
+  // Verify-on-save connection parameters, then refresh the list.
+  saveParameters: async (clientDeviceId, body) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(`${API}/${clientDeviceId}/parameters`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+      body: JSON.stringify(body),
+    });
+    if (response.ok) {
+      await get().fetch();
+    }
+    return response;
   },
   updateFilter: (data) =>
     set(() => ({

@@ -1,4 +1,7 @@
 import ItemCard from "../../UI/ItemCard";
+import ToggleActive from "./ToggleActive";
+
+import { formatDate } from "../../util/format-date";
 
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
@@ -17,6 +20,8 @@ function UserItem({ item }) {
     isServiceAccount,
     isAdmin,
     isCloudTelephony,
+    isActive,
+    lastActivity,
   } = item;
 
   const Title = () => {
@@ -38,6 +43,7 @@ function UserItem({ item }) {
   };
 
   const badges = [
+    { title: "отключен", isActive: !isActive, bg: "danger" },
     { title: "сервисный аккаунт", isActive: isServiceAccount, bg: "secondary" },
     { title: "администратор", isActive: isAdmin, bg: "success" },
     { title: "телефония", isActive: isCloudTelephony, bg: "secondary" },
@@ -50,6 +56,7 @@ function UserItem({ item }) {
       itemTitle="user"
       title={<Title />}
       badges={badges}
+      extraActions={<ToggleActive item={item} />}
     >
       <Row>
         <Col>
@@ -58,7 +65,7 @@ function UserItem({ item }) {
             {position ? (
               position
             ) : (
-              <span className="text-secondary">Должность не указана</span>
+              <span className="text-body-secondary">Должность не указана</span>
             )}
           </div>
           <div className="py-1">
@@ -68,8 +75,12 @@ function UserItem({ item }) {
             {phone ? (
               <a href={`tel:${phone}`}>{phone}</a>
             ) : (
-              <span className="text-secondary">Телефон не указан</span>
+              <span className="text-body-secondary">Телефон не указан</span>
             )}
+          </div>
+          <div className="py-1">
+            <span className="text-body-secondary">Последняя активность: </span>
+            {lastActivity?.date ? formatDate(lastActivity.date) : "—"}
           </div>
         </Col>
       </Row>

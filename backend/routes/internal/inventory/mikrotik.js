@@ -3,38 +3,50 @@ const router = new Router();
 const mikrotikController = require("@/controllers/inventory/mikrotik");
 const isAuth = require("@/middleware/isAuth");
 const { canManageMikrotikDevices } = require("@/middleware/permissions");
+const rateLimit = require("express-rate-limit");
 
-router.get("/mikrotik-devices", isAuth, mikrotikController.getAll);
-router.get("/mikrotik-devices/:id", isAuth, mikrotikController.getOne);
+// Verify-on-save opens an outbound connection — throttle it per user.
+const parametersLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.userId || req.ip,
+});
+
+// Reads. NOTE: the static "report/networks" route must be declared before the
+// ":clientDeviceId" param route so it isn't swallowed as an id.
+router.get("/mikrotik-devices", isAuth, mikrotikController.getManagedDevices);
 router.get(
   "/mikrotik-devices/report/networks",
   isAuth,
   mikrotikController.networksReport,
 );
+router.get(
+  "/mikrotik-devices/:clientDeviceId",
+  isAuth,
+  mikrotikController.getOne,
+);
 
+// Mutations (verify-on-save parameters, start/stop monitoring).
 router.post(
-  "/mikrotik-devices/add",
+  "/mikrotik-devices/:clientDeviceId/parameters",
   isAuth,
   canManageMikrotikDevices,
-  mikrotikController.add,
+  parametersLimiter,
+  mikrotikController.updateParameters,
 );
-router.patch(
-  "/mikrotik-devices/update-info",
+router.post(
+  "/mikrotik-devices/:clientDeviceId/connect",
   isAuth,
   canManageMikrotikDevices,
-  mikrotikController.updateInfo,
+  mikrotikController.connect,
 );
-router.patch(
-  "/mikrotik-devices/update-credentials",
+router.post(
+  "/mikrotik-devices/:clientDeviceId/disconnect",
   isAuth,
   canManageMikrotikDevices,
-  mikrotikController.updateCredentials,
-);
-router.delete(
-  "/mikrotik-devices/delete",
-  isAuth,
-  canManageMikrotikDevices,
-  mikrotikController.delete,
+  mikrotikController.disconnect,
 );
 
 module.exports = router;

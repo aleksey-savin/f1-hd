@@ -39,6 +39,7 @@ const deviceModelRoutes = require("./internal/inventory/deviceModel");
 const deviceTypeRoutes = require("./internal/inventory/deviceType");
 const locationRoutes = require("./internal/inventory/location");
 const mikrotikRoutes = require("./internal/inventory/mikrotik");
+const supplierRoutes = require("./internal/inventory/supplier");
 const vendorRoutes = require("./internal/inventory/vendor");
 
 // External routes
@@ -128,6 +129,12 @@ internalRoutes.use(
   inventoryModuleIsActive,
   canUseInventoryModule,
   mikrotikRoutes,
+);
+internalRoutes.use(
+  "/inventory",
+  inventoryModuleIsActive,
+  canUseInventoryModule,
+  supplierRoutes,
 );
 internalRoutes.use(
   "/inventory",

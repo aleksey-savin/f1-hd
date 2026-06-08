@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const Schema = mongoose.Schema;
 
-const vendorSchema = new Schema(
+const supplierSchema = new Schema(
   {
     name: {
       type: String,
@@ -13,10 +13,6 @@ const vendorSchema = new Schema(
     isActive: {
       type: Boolean,
       default: true,
-    },
-    isMikrotikManagementEnabled: {
-      type: Boolean,
-      default: false,
     },
     createdBy: {
       type: Schema.Types.ObjectId,
@@ -32,6 +28,6 @@ const vendorSchema = new Schema(
   { timestamps: true },
 );
 
-const Vendor = mongoose.model("Vendor", vendorSchema);
+const Supplier = mongoose.model("Supplier", supplierSchema);
 
-module.exports = Vendor;
+module.exports = Supplier;

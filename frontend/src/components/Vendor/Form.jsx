@@ -8,6 +8,8 @@ const VendorForm = ({ title }) => {
 
   const [name, setName] = useState(vendor?.name || "");
   const [isActive, setIsActive] = useState(vendor ? vendor.isActive : true);
+  const [isMikrotikManagementEnabled, setIsMikrotikManagementEnabled] =
+    useState(vendor ? vendor.isMikrotikManagementEnabled : false);
 
   const nameChangeHandler = (event) => {
     setName(event.target.value);
@@ -15,6 +17,10 @@ const VendorForm = ({ title }) => {
 
   const isActiveChangeHandler = () => {
     setIsActive(!isActive);
+  };
+
+  const isMikrotikManagementEnabledChangeHandler = () => {
+    setIsMikrotikManagementEnabled(!isMikrotikManagementEnabled);
   };
 
   return (
@@ -46,6 +52,19 @@ const VendorForm = ({ title }) => {
           className="py-2"
           value={isActive}
           onChange={isActiveChangeHandler}
+        />
+      </Form.Group>
+
+      <Form.Group>
+        <Form.Check
+          checked={isMikrotikManagementEnabled}
+          type="switch"
+          id="isMikrotikManagementEnabled"
+          name="isMikrotikManagementEnabled"
+          label="Включить управление устройствами Mikrotik"
+          className="py-2"
+          value={isMikrotikManagementEnabled}
+          onChange={isMikrotikManagementEnabledChangeHandler}
         />
       </Form.Group>
     </FormWrapper>

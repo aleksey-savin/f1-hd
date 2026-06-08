@@ -35,7 +35,7 @@ exports.getOne = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { name, description } = req.body;
+    const { name, isMikrotikManagementEnabled } = req.body;
 
     const vendorExists = await Vendor.findOne({ name });
     if (vendorExists) {
@@ -46,6 +46,7 @@ exports.add = async (req, res, next) => {
 
     const vendor = new Vendor({
       name,
+      isMikrotikManagementEnabled: isMikrotikManagementEnabled ?? false,
       createdBy: req.userId,
     });
 
@@ -62,7 +63,7 @@ exports.add = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { name, isActive } = req.body;
+    const { name, isActive, isMikrotikManagementEnabled } = req.body;
 
     const vendor = await Vendor.findById(req.params.id);
     if (!vendor) {
@@ -86,6 +87,7 @@ exports.update = async (req, res, next) => {
 
     vendor.name = name;
     vendor.isActive = isActive;
+    vendor.isMikrotikManagementEnabled = isMikrotikManagementEnabled;
 
     await vendor.save();
 

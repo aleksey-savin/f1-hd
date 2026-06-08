@@ -1,882 +1,635 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 import Form from "react-bootstrap/Form";
-import Modal from "react-bootstrap/Modal";
-import Button from "react-bootstrap/Button";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Card from "react-bootstrap/Card";
+import Button from "react-bootstrap/Button";
+import Stack from "react-bootstrap/Stack";
+import Container from "react-bootstrap/Container";
+import Spinner from "react-bootstrap/Spinner";
 
-import { useLoaderData } from "react-router";
+import { useLoaderData, useFetcher, useNavigate } from "react-router";
+import { motion, AnimatePresence } from "framer-motion";
 
-import FormWrapper from "../../UI/FormWrapper";
+import {
+  RiArrowLeftLine,
+  RiArrowRightLine,
+  RiSaveLine,
+  RiArrowGoBackFill,
+  RiAddLine,
+} from "react-icons/ri";
+
 import Select from "../../UI/Select";
 import AlertMessage from "../../UI/AlertMessage";
+import useOffcanvasStore from "../../store/offcanvas";
 import { getLocalStorageData } from "../../util/auth";
 
-import { RiAddLine, RiSaveLine } from "react-icons/ri";
+import WizardStepper from "./WizardStepper";
+import PurchaseFields from "./PurchaseFields";
+import TechFields from "./TechFields";
+import InlineCreateModal from "./InlineCreateModal";
+
+const STATUS_OPTIONS = [
+  { value: "readyForDeployment", label: "Готово к выдаче" },
+  { value: "deployed", label: "Выдано" },
+  { value: "inRepair", label: "В ремонте" },
+  { value: "inReserve", label: "В резерве" },
+  { value: "decommissioned", label: "Выведено из эксплуатации" },
+  { value: "disposed", label: "Утилизировано" },
+];
+
+const STEPS = [
+  { label: "Компания" },
+  { label: "Устройство" },
+  { label: "Покупка" },
+  { label: "Тех. инфо" },
+];
+
+const LAST_STEP = STEPS.length - 1;
+const PURCHASE_STEP = 2;
+
+// Поля устройства, отправляемые на сервер (тип/вендор — только навигация).
+const SUBMIT_FIELDS = [
+  "companyId",
+  "locationId",
+  "deviceModelId",
+  "serialNumber",
+  "status",
+  "purchasedAt",
+  "price",
+  "purchaseDocument",
+  "supplierId",
+  "warrantyExpirationDate",
+  "ipAddress",
+  "macAddress",
+  "operatingSystem",
+  "lastMaintenanceDate",
+  "notes",
+];
+
+const STEP_ERRORS = {
+  0: "Выберите компанию",
+  1: "Заполните тип, вендора, модель и серийный номер",
+};
+
+// ISO date -> "yyyy-MM-dd" для <input type="date">.
+const toDateInput = (date) => {
+  if (!date) return "";
+  return new Date(date).toISOString().split("T")[0];
+};
+
+// Ссылка может прийти populated ({_id}) или сырым id.
+const refId = (value) => value?._id || value || "";
+
+const findOption = (options, value) =>
+  options.find((option) => option.value === value) || null;
+
+const stepVariants = {
+  enter: { opacity: 0, x: 40 },
+  center: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -40 },
+};
+
+// Select с кнопкой быстрого создания справочника рядом.
+const SelectWithAdd = ({ addTitle, onAdd, addDisabled, ...selectProps }) => (
+  <div className="d-flex gap-2">
+    <div className="flex-grow-1">
+      <Select {...selectProps} />
+    </div>
+    <Button
+      variant="outline-secondary"
+      title={addTitle}
+      onClick={onAdd}
+      disabled={addDisabled}
+    >
+      <RiAddLine />
+    </Button>
+  </div>
+);
 
 const ClientDeviceForm = ({ title }) => {
   const data = useLoaderData();
+  const isEdit = !!data?._id;
 
-  const formatDate = (date) => {
-    if (!date) return "";
-    const utcDate = new Date(date);
-    return utcDate.toISOString().split("T")[0];
-  };
+  const fetcher = useFetcher();
+  const navigate = useNavigate();
+  const offcanvas = useOffcanvasStore();
 
-  const [clientDevice, setClientDevice] = useState(
-    data || {
-      company: "",
-      user: "",
-      location: "",
-      assignmentOption: "", // Новое поле для комбинированного выбора
-      deviceType: "",
-      vendor: "",
-      model: "",
-      serialNumber: "",
-      purchaseDate: "",
-      price: 0,
-      purchaseDocument: "",
-      warrantyExpirationDate: "",
-      lastMaintenanceDate: "",
-      notes: "",
-      assignedTo: "",
-      ipAddress: "",
-      macAddress: "",
-      operatingSystem: "",
-      status: "Готово к выдаче",
-    },
-  );
+  const [form, setForm] = useState({
+    companyId: refId(data?.companyId),
+    locationId: refId(data?.locationId),
+    deviceTypeId: refId(data?.deviceModelId?.deviceTypeId),
+    vendorId: refId(data?.deviceModelId?.vendorId),
+    deviceModelId: refId(data?.deviceModelId),
+    serialNumber: data?.serialNumber || "",
+    status: data?.status || "readyForDeployment",
+    purchasedAt: toDateInput(data?.purchasedAt),
+    price: data?.price ?? "",
+    purchaseDocument: data?.purchaseDocument || "",
+    supplierId: refId(data?.supplierId),
+    warrantyExpirationDate: toDateInput(data?.warrantyExpirationDate),
+    lastMaintenanceDate: toDateInput(data?.lastMaintenanceDate),
+    ipAddress: data?.ipAddress || "",
+    macAddress: data?.macAddress || "",
+    operatingSystem: data?.operatingSystem || "",
+    notes: data?.notes || "",
+  });
 
   const [companies, setCompanies] = useState([]);
-  const [assignmentOptions, setAssignmentOptions] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [deviceTypes, setDeviceTypes] = useState([]);
   const [vendors, setVendors] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [deviceModels, setDeviceModels] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Modal states
-  const [showDeviceTypeModal, setShowDeviceTypeModal] = useState(false);
-  const [showVendorModal, setShowVendorModal] = useState(false);
-  const [modalLoading, setModalLoading] = useState(false);
-  const [modalError, setModalError] = useState("");
+  const [step, setStep] = useState(0);
+  const [maxReached, setMaxReached] = useState(isEdit ? LAST_STEP : 0);
+  const [attempted, setAttempted] = useState(false);
+  const [inlineKind, setInlineKind] = useState(null);
 
-  // New item forms
-  const [newDeviceType, setNewDeviceType] = useState({
-    name: "",
-    description: "",
-  });
-  const [newVendor, setNewVendor] = useState({
-    name: "",
-    description: "",
-  });
+  const setField = (name, value) =>
+    setForm((prev) => ({ ...prev, [name]: value }));
 
-  const clientDeviceChangeHandler = (event) => {
-    const { name, value } = event.target;
-
-    setClientDevice({
-      ...clientDevice,
-      [name]: value,
-    });
-
-    // If company changes, reset assignment options and fetch new data
-    if (name === "company") {
-      setClientDevice((prev) => ({
-        ...prev,
-        [name]: value,
-        user: "", // Reset user when company changes
-        location: "", // Reset location when company changes
-        assignmentOption: "", // Reset assignment option when company changes
-      }));
-      if (value) {
-        fetchAssignmentOptions(value);
-      } else {
-        setAssignmentOptions([]);
-      }
-    }
-  };
-
-  const handleSelectChange = (name, selectedOption) => {
-    const value = selectedOption ? selectedOption.value : "";
-
-    setClientDevice({
-      ...clientDevice,
-      [name]: value,
-    });
-
-    // If company changes, reset assignment options and fetch new data
-    if (name === "company") {
-      setClientDevice((prev) => ({
-        ...prev,
-        [name]: value,
-        user: "", // Reset user when company changes
-        location: "", // Reset location when company changes
-        assignmentOption: "", // Reset assignment option when company changes
-      }));
-      if (value) {
-        fetchAssignmentOptions(value);
-      } else {
-        setAssignmentOptions([]);
-      }
-    }
-  };
-
-  const fetchReferenceData = async () => {
-    setLoading(true);
-    const { token } = getLocalStorageData();
-
-    try {
-      // Fetch companies
-      const companiesResponse = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/reference/companies`,
-        {
-          headers: {
-            Authorization: "Bearer " + token,
-          },
-        },
-      );
-      const companiesData = await companiesResponse.json();
-      setCompanies(companiesData);
-
-      // Fetch device types
-      const deviceTypesResponse = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/reference/device-types`,
-        {
-          headers: {
-            Authorization: "Bearer " + token,
-          },
-        },
-      );
-      const deviceTypesData = await deviceTypesResponse.json();
-      setDeviceTypes(deviceTypesData);
-
-      // Fetch vendors
-      const vendorsResponse = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/reference/vendors`,
-        {
-          headers: {
-            Authorization: "Bearer " + token,
-          },
-        },
-      );
-      const vendorsData = await vendorsResponse.json();
-      setVendors(vendorsData);
-
-      // If editing existing device, fetch assignment options for the company
-      if (data && data.company) {
-        fetchAssignmentOptions(data.company._id || data.company);
-      }
-    } catch (error) {
-      console.error("Error fetching reference data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchAssignmentOptions = async (companyId) => {
-    const { token } = getLocalStorageData();
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/reference/assignment-options?companyId=${companyId}`,
-        {
-          headers: {
-            Authorization: "Bearer " + token,
-          },
-        },
-      );
-      const optionsData = await response.json();
-      setAssignmentOptions(optionsData);
-    } catch (error) {
-      console.error("Error fetching assignment options:", error);
-      setAssignmentOptions([]);
-    }
-  };
-
-  const createDeviceType = async () => {
-    setModalLoading(true);
-    setModalError("");
-    const { token } = getLocalStorageData();
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types/add`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
-          },
-          body: JSON.stringify({
-            ...newDeviceType,
-            isActive: true,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to create device type");
-      }
-
-      const responseData = await response.json();
-      const createdDeviceType = responseData.deviceType;
-
-      // Update device types list
-      setDeviceTypes((prev) =>
-        [...prev, createdDeviceType].sort((a, b) =>
-          a.name.localeCompare(b.name),
-        ),
-      );
-
-      // Set the new device type as selected
-      setClientDevice((prev) => ({
-        ...prev,
-        deviceType: createdDeviceType._id,
-      }));
-
-      // Reset form and close modal
-      setNewDeviceType({ name: "", description: "" });
-      setShowDeviceTypeModal(false);
-    } catch (error) {
-      setModalError(error.message);
-    } finally {
-      setModalLoading(false);
-    }
-  };
-
-  const createVendor = async () => {
-    setModalLoading(true);
-    setModalError("");
-    const { token } = getLocalStorageData();
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/vendors/add`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
-          },
-          body: JSON.stringify({
-            ...newVendor,
-            isActive: true,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to create vendor");
-      }
-
-      const responseData = await response.json();
-      const createdVendor = responseData.vendor;
-
-      // Update vendors list
-      setVendors((prev) =>
-        [...prev, createdVendor].sort((a, b) => a.name.localeCompare(b.name)),
-      );
-
-      // Set the new vendor as selected
-      setClientDevice((prev) => ({
-        ...prev,
-        vendor: createdVendor._id,
-      }));
-
-      // Reset form and close modal
-      setNewVendor({ name: "", description: "" });
-      setShowVendorModal(false);
-    } catch (error) {
-      setModalError(error.message);
-    } finally {
-      setModalLoading(false);
-    }
-  };
-
+  // Загрузка справочников.
   useEffect(() => {
+    const fetchReferenceData = async () => {
+      setLoading(true);
+      const { token } = getLocalStorageData();
+      const headers = { Authorization: "Bearer " + token };
+      const base = import.meta.env.VITE_API_ADDRESS;
+
+      try {
+        const responses = await Promise.all([
+          fetch(`${base}/api/companies`, { headers }),
+          fetch(`${base}/api/inventory/companies-locations`, { headers }),
+          fetch(`${base}/api/inventory/device-types`, { headers }),
+          fetch(`${base}/api/inventory/vendors`, { headers }),
+          fetch(`${base}/api/inventory/device-models`, { headers }),
+          fetch(`${base}/api/inventory/suppliers`, { headers }),
+        ]);
+
+        const [
+          companiesData,
+          locationsData,
+          typesData,
+          vendorsData,
+          modelsData,
+          suppliersData,
+        ] = await Promise.all(responses.map((r) => r.json()));
+
+        setCompanies(Array.isArray(companiesData) ? companiesData : []);
+        setLocations(Array.isArray(locationsData) ? locationsData : []);
+        setDeviceTypes(Array.isArray(typesData) ? typesData : []);
+        setVendors(Array.isArray(vendorsData) ? vendorsData : []);
+        setDeviceModels(Array.isArray(modelsData) ? modelsData : []);
+        setSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
+      } catch (error) {
+        console.error("Error fetching reference data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchReferenceData();
   }, []);
 
-  const deviceStatusList = [
-    "Готово к выдаче",
-    "Выдано",
-    "В ремонте",
-    "Списано",
-  ];
+  // Успешный сабмит — закрываем offcanvas и возвращаемся к списку.
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
+      offcanvas.setClose();
+      navigate("..");
+    }
+  }, [fetcher.state, fetcher.data]);
 
-  // Helper function to format group labels
-  const formatGroupLabel = (data) => (
-    <div
-      style={{
-        color: "#666",
-        fontWeight: "bold",
-        fontSize: "0.9em",
-        textTransform: "uppercase",
-        letterSpacing: "0.5px",
-      }}
-    >
-      {data.label}
-    </div>
+  // --- options ---
+  const companyOptions = useMemo(
+    () =>
+      companies.map((company) => ({
+        value: company._id,
+        label: company.alias || company.fullTitle,
+      })),
+    [companies],
   );
 
-  // Helper function to find option in grouped data
-  function findOptionInGroups(groups, value) {
-    for (const group of groups) {
-      if (group.options) {
-        const found = group.options.find((option) => option.value === value);
-        if (found) return found;
-      }
+  const locationOptions = useMemo(
+    () =>
+      locations.map((location) => ({
+        value: location._id,
+        label: location.company?.alias
+          ? `${location.name} — ${location.company.alias}`
+          : location.name,
+      })),
+    [locations],
+  );
+
+  const typeOptions = useMemo(
+    () => deviceTypes.map((type) => ({ value: type._id, label: type.name })),
+    [deviceTypes],
+  );
+
+  // Вендоры показываем все (без фильтра по типу — иначе для нового типа список
+  // всегда пуст). Сужение происходит уже на уровне моделей.
+  const vendorOptions = useMemo(
+    () => vendors.map((v) => ({ value: v._id, label: v.name })),
+    [vendors],
+  );
+
+  // Модели выбранного типа и вендора.
+  const modelOptions = useMemo(() => {
+    if (!form.deviceTypeId || !form.vendorId) return [];
+    return deviceModels
+      .filter(
+        (model) =>
+          model.deviceTypeId?._id === form.deviceTypeId &&
+          model.vendorId?._id === form.vendorId,
+      )
+      .map((model) => ({
+        value: model._id,
+        label: model.name || "— без названия —",
+      }));
+  }, [deviceModels, form.deviceTypeId, form.vendorId]);
+
+  const modelDisabled = !form.deviceTypeId || !form.vendorId;
+
+  // --- каскадные сбросы: модель зависит от типа и вендора ---
+  const handleTypeChange = (value) =>
+    setForm((prev) => ({ ...prev, deviceTypeId: value, deviceModelId: "" }));
+
+  const handleVendorChange = (value) =>
+    setForm((prev) => ({ ...prev, vendorId: value, deviceModelId: "" }));
+
+  // --- инлайн-создание справочников ---
+  const handleTypeCreated = (type) => {
+    setDeviceTypes((prev) => [...prev, type]);
+    setForm((prev) => ({ ...prev, deviceTypeId: type._id, deviceModelId: "" }));
+  };
+
+  const handleVendorCreated = (vendor) => {
+    setVendors((prev) => [...prev, vendor]);
+    setForm((prev) => ({ ...prev, vendorId: vendor._id, deviceModelId: "" }));
+  };
+
+  const handleModelCreated = (model) => {
+    setDeviceModels((prev) => [...prev, model]);
+    setField("deviceModelId", model._id);
+  };
+
+  const handleSupplierCreated = (supplier) =>
+    setSuppliers((prev) => [...prev, supplier]);
+
+  // --- валидация шагов ---
+  const stepValid = (index) => {
+    switch (index) {
+      case 0:
+        return !!form.companyId;
+      case 1:
+        return (
+          !!form.deviceTypeId &&
+          !!form.vendorId &&
+          !!form.deviceModelId &&
+          form.serialNumber.trim().length > 0
+        );
+      default:
+        return true;
     }
-    return null;
+  };
+
+  // --- навигация ---
+  const goToStep = (index) => {
+    setAttempted(false);
+    setStep(index);
+  };
+
+  const handleNext = () => {
+    if (!stepValid(step)) {
+      setAttempted(true);
+      return;
+    }
+    const next = Math.min(step + 1, LAST_STEP);
+    setAttempted(false);
+    setStep(next);
+    setMaxReached((prev) => Math.max(prev, next));
+  };
+
+  const handleBack = () => {
+    setAttempted(false);
+    setStep((s) => Math.max(0, s - 1));
+  };
+
+  const handleStepClick = (index) => {
+    if (isEdit || index <= maxReached) goToStep(index);
+  };
+
+  const handleClose = () => {
+    offcanvas.setClose();
+    navigate(-1);
+  };
+
+  const saving = fetcher.state !== "idle";
+
+  const handleSubmit = () => {
+    const formData = new FormData();
+    SUBMIT_FIELDS.forEach((field) => formData.append(field, form[field] ?? ""));
+    fetcher.submit(formData, { method: "post" });
+  };
+
+  // Контекст для инлайн-создания модели (тип/вендор уже выбраны).
+  const modelContext = {
+    deviceTypeId: form.deviceTypeId,
+    vendorId: form.vendorId,
+    deviceTypeName: deviceTypes.find((t) => t._id === form.deviceTypeId)?.name,
+    vendorName: vendors.find((v) => v._id === form.vendorId)?.name,
+  };
+
+  const renderStep = () => {
+    switch (step) {
+      case 0:
+        return (
+          <Card>
+            <Card.Header>
+              <h6 className="mb-0">Компания и расположение</h6>
+            </Card.Header>
+            <Card.Body>
+              <Form.Group className="mb-3">
+                <Form.Label htmlFor="companyId">
+                  Компания <span className="text-danger">*</span>
+                </Form.Label>
+                <Select
+                  id="companyId"
+                  placeholder="Выберите компанию"
+                  options={companyOptions}
+                  value={findOption(companyOptions, form.companyId)}
+                  onChange={(o) => setField("companyId", o ? o.value : "")}
+                  isClearable
+                  autoFocus
+                />
+              </Form.Group>
+              <Form.Group className="mb-0">
+                <Form.Label htmlFor="locationId">Расположение</Form.Label>
+                <Select
+                  id="locationId"
+                  placeholder="Выберите расположение"
+                  options={locationOptions}
+                  value={findOption(locationOptions, form.locationId)}
+                  onChange={(o) => setField("locationId", o ? o.value : "")}
+                  isClearable
+                />
+              </Form.Group>
+            </Card.Body>
+          </Card>
+        );
+
+      case 1:
+        return (
+          <Card>
+            <Card.Header>
+              <h6 className="mb-0">Тип, вендор и модель</h6>
+            </Card.Header>
+            <Card.Body>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label htmlFor="deviceTypeId">
+                      Тип устройства <span className="text-danger">*</span>
+                    </Form.Label>
+                    <SelectWithAdd
+                      id="deviceTypeId"
+                      placeholder="Выберите тип"
+                      options={typeOptions}
+                      value={findOption(typeOptions, form.deviceTypeId)}
+                      onChange={(o) => handleTypeChange(o ? o.value : "")}
+                      isClearable
+                      autoFocus
+                      addTitle="Добавить тип"
+                      onAdd={() => setInlineKind("deviceType")}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label htmlFor="vendorId">
+                      Вендор <span className="text-danger">*</span>
+                    </Form.Label>
+                    <SelectWithAdd
+                      id="vendorId"
+                      placeholder="Выберите вендора"
+                      options={vendorOptions}
+                      value={findOption(vendorOptions, form.vendorId)}
+                      onChange={(o) => handleVendorChange(o ? o.value : "")}
+                      isClearable
+                      addTitle="Добавить вендора"
+                      onAdd={() => setInlineKind("vendor")}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+
+              <Form.Group className="mb-3">
+                <Form.Label htmlFor="deviceModelId">
+                  Модель устройства <span className="text-danger">*</span>
+                </Form.Label>
+                <SelectWithAdd
+                  id="deviceModelId"
+                  placeholder={
+                    modelDisabled
+                      ? "Сначала выберите тип и вендора"
+                      : "Выберите модель"
+                  }
+                  options={modelOptions}
+                  value={findOption(modelOptions, form.deviceModelId)}
+                  onChange={(o) => setField("deviceModelId", o ? o.value : "")}
+                  isDisabled={modelDisabled}
+                  isClearable
+                  noOptionsMessage={() => "Нет моделей — добавьте кнопкой рядом"}
+                  addTitle="Добавить модель"
+                  onAdd={() => setInlineKind("deviceModel")}
+                  addDisabled={modelDisabled}
+                />
+                <Form.Text className="text-muted">
+                  Показаны модели выбранного типа и вендора. Нужной нет?
+                  Добавьте её кнопкой рядом.
+                </Form.Text>
+              </Form.Group>
+
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3 mb-md-0">
+                    <Form.Label htmlFor="serialNumber">
+                      Серийный номер <span className="text-danger">*</span>
+                    </Form.Label>
+                    <Form.Control
+                      id="serialNumber"
+                      name="serialNumber"
+                      type="text"
+                      placeholder="Введите серийный номер"
+                      value={form.serialNumber}
+                      onChange={(e) => setField("serialNumber", e.target.value)}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-0">
+                    <Form.Label htmlFor="status">Статус</Form.Label>
+                    <Select
+                      id="status"
+                      placeholder="Выберите статус"
+                      options={STATUS_OPTIONS}
+                      value={findOption(STATUS_OPTIONS, form.status)}
+                      onChange={(o) =>
+                        setField("status", o ? o.value : "readyForDeployment")
+                      }
+                      isClearable={false}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+        );
+
+      case 2:
+        return (
+          <Card>
+            <Card.Header>
+              <h6 className="mb-0">Покупка</h6>
+              <small className="text-muted">Необязательный блок</small>
+            </Card.Header>
+            <Card.Body>
+              <PurchaseFields
+                values={form}
+                onChange={setField}
+                suppliers={suppliers}
+                onSupplierCreated={handleSupplierCreated}
+              />
+            </Card.Body>
+          </Card>
+        );
+
+      case 3:
+        return (
+          <Card>
+            <Card.Header>
+              <h6 className="mb-0">Техническая информация</h6>
+              <small className="text-muted">Необязательный блок</small>
+            </Card.Header>
+            <Card.Body>
+              <TechFields values={form} onChange={setField} />
+            </Card.Body>
+          </Card>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  if (loading) {
+    return (
+      <Container className="text-center py-5">
+        <Spinner animation="border" />
+      </Container>
+    );
   }
 
-  // Convert data to react-select format
-  const companyOptions = companies.map((company) => ({
-    value: company._id,
-    label: `${company.alias}`,
-  }));
-
-  const deviceTypeOptions = deviceTypes.map((deviceType) => ({
-    value: deviceType._id,
-    label: deviceType.name,
-  }));
-
-  const vendorOptions = vendors.map((vendor) => ({
-    value: vendor._id,
-    label: vendor.name,
-  }));
-
-  const statusOptions = deviceStatusList.map((status) => ({
-    value: status,
-    label: status,
-  }));
-
-  // Get current selected values
-  const selectedCompany = companyOptions.find(
-    (option) =>
-      option.value === (clientDevice.company._id || clientDevice.company),
-  );
-  const selectedDeviceType = deviceTypeOptions.find(
-    (option) =>
-      option.value === (clientDevice.deviceType._id || clientDevice.deviceType),
-  );
-  const selectedVendor = vendorOptions.find(
-    (option) =>
-      option.value === (clientDevice.vendor._id || clientDevice.vendor),
-  );
-  const selectedStatus = statusOptions.find(
-    (option) => option.value === clientDevice.status,
-  );
-
-  // Get current selected assignment option
-  const selectedAssignmentOption = clientDevice.assignmentOption
-    ? findOptionInGroups(assignmentOptions, clientDevice.assignmentOption)
-    : null;
-
   return (
-    <>
-      <FormWrapper title={title}>
-        {/* Company and Assignment Information */}
-        <Card className="mb-4">
-          <Card.Header>
-            <h6 className="mb-0">Информация о компании и назначении</h6>
-          </Card.Header>
-          <Card.Body>
-            <Form.Group className="mb-3">
-              <Form.Label htmlFor="company">
-                Компания
-                <span style={{ color: "red" }}>*</span>
-              </Form.Label>
-              <Select
-                id="company"
-                name="company"
-                placeholder="Выберите компанию"
-                options={companyOptions}
-                value={selectedCompany}
-                onChange={(selectedOption) =>
-                  handleSelectChange("company", selectedOption)
-                }
-                isDisabled={loading}
-                isClearable
-                autoFocus
-              />
-            </Form.Group>
+    <Container>
+      <h1>{title}</h1>
+      <hr />
 
-            <Form.Group className="mb-3">
-              <Form.Label htmlFor="assignmentOption">
-                Назначение устройства
-                <span style={{ color: "red" }}>*</span>
-              </Form.Label>
-              <Select
-                id="assignmentOption"
-                name="assignmentOption"
-                placeholder="Выберите расположение или пользователя"
-                options={assignmentOptions}
-                value={selectedAssignmentOption}
-                onChange={(selectedOption) =>
-                  handleSelectChange("assignmentOption", selectedOption)
-                }
-                isDisabled={!clientDevice.company || loading}
-                isClearable
-                isSearchable
-                formatGroupLabel={formatGroupLabel}
-              />
-              <Form.Text className="text-muted">
-                Выберите конкретное расположение или пользователя (устройство
-                будет назначено на его рабочее место)
-              </Form.Text>
-            </Form.Group>
+      <WizardStepper
+        steps={STEPS}
+        currentStep={step}
+        maxReached={maxReached}
+        allowJump={isEdit}
+        onStepClick={handleStepClick}
+      />
 
-            {/* Hidden inputs for FormData */}
-            <input
-              type="hidden"
-              name="company"
-              value={clientDevice.company._id || clientDevice.company || ""}
-            />
-            <input
-              type="hidden"
-              name="assignmentOption"
-              value={clientDevice.assignmentOption || ""}
-            />
-          </Card.Body>
-        </Card>
+      {fetcher.data && fetcher.data.error && (
+        <AlertMessage variant="danger" message={fetcher.data.message} />
+      )}
 
-        {/* Device Information */}
-        <Card className="mb-4">
-          <Card.Header>
-            <h6 className="mb-0">Информация об устройстве</h6>
-          </Card.Header>
-          <Card.Body>
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="deviceType">
-                    Тип устройства
-                    <span style={{ color: "red" }}>*</span>
-                  </Form.Label>
-                  <div className="d-flex gap-2">
-                    <Select
-                      id="deviceType"
-                      name="deviceType"
-                      placeholder="Выберите тип устройства"
-                      options={deviceTypeOptions}
-                      value={selectedDeviceType}
-                      onChange={(selectedOption) =>
-                        handleSelectChange("deviceType", selectedOption)
-                      }
-                      isDisabled={loading}
-                      isClearable
-                      className="flex-grow-1"
-                    />
-                    <Button
-                      variant="outline-primary"
-                      size="sm"
-                      onClick={() => setShowDeviceTypeModal(true)}
-                      title="Добавить новый тип устройства"
-                    >
-                      <RiAddLine />
-                    </Button>
-                  </div>
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="vendor">
-                    Производитель
-                    <span style={{ color: "red" }}>*</span>
-                  </Form.Label>
-                  <div className="d-flex gap-2">
-                    <Select
-                      id="vendor"
-                      name="vendor"
-                      placeholder="Выберите производителя"
-                      options={vendorOptions}
-                      value={selectedVendor}
-                      onChange={(selectedOption) =>
-                        handleSelectChange("vendor", selectedOption)
-                      }
-                      isDisabled={loading}
-                      isClearable
-                      className="flex-grow-1"
-                    />
-                    <Button
-                      variant="outline-primary"
-                      size="sm"
-                      onClick={() => setShowVendorModal(true)}
-                      title="Добавить нового производителя"
-                    >
-                      <RiAddLine />
-                    </Button>
-                  </div>
-                </Form.Group>
-              </Col>
-            </Row>
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="model">
-                    Модель
-                    <span style={{ color: "red" }}>*</span>
-                  </Form.Label>
-                  <Form.Control
-                    id="model"
-                    name="model"
-                    type="text"
-                    placeholder="Введите модель устройства"
-                    value={clientDevice.model}
-                    onChange={clientDeviceChangeHandler}
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="serialNumber">
-                    Серийный номер
-                    <span style={{ color: "red" }}>*</span>
-                  </Form.Label>
-                  <Form.Control
-                    id="serialNumber"
-                    name="serialNumber"
-                    type="text"
-                    placeholder="Введите серийный номер"
-                    value={clientDevice.serialNumber}
-                    onChange={clientDeviceChangeHandler}
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-            <Form.Group className="mb-3">
-              <Form.Label htmlFor="status">
-                Статус
-                <span style={{ color: "red" }}>*</span>
-              </Form.Label>
-              <Select
-                id="status"
-                name="status"
-                placeholder="Выберите статус"
-                options={statusOptions}
-                value={selectedStatus}
-                onChange={(selectedOption) =>
-                  handleSelectChange("status", selectedOption)
-                }
-                isClearable={false}
-              />
-            </Form.Group>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={step}
+          variants={stepVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.25 }}
+        >
+          {renderStep()}
+        </motion.div>
+      </AnimatePresence>
 
-            {/* Hidden inputs for FormData */}
-            <input
-              type="hidden"
-              name="deviceType"
-              value={
-                clientDevice.deviceType._id || clientDevice.deviceType || ""
-              }
-            />
-            <input
-              type="hidden"
-              name="vendor"
-              value={clientDevice.vendor._id || clientDevice.vendor || ""}
-            />
-            <input
-              type="hidden"
-              name="status"
-              value={clientDevice.status || ""}
-            />
-          </Card.Body>
-        </Card>
+      {attempted && !stepValid(step) && STEP_ERRORS[step] && (
+        <p className="text-danger small mt-2 mb-0">{STEP_ERRORS[step]}</p>
+      )}
 
-        {/* Purchase Information */}
-        <Card className="mb-4">
-          <Card.Header>
-            <h6 className="mb-0">Информация о покупке</h6>
-          </Card.Header>
-          <Card.Body>
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="purchaseDate">
-                    Дата приобретения
-                  </Form.Label>
-                  <Form.Control
-                    id="purchaseDate"
-                    name="purchaseDate"
-                    type="date"
-                    value={formatDate(clientDevice.purchaseDate)}
-                    onChange={clientDeviceChangeHandler}
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="price">
-                    Стоимость
-                    <span style={{ color: "red" }}>*</span>
-                  </Form.Label>
-                  <Form.Control
-                    id="price"
-                    name="price"
-                    type="number"
-                    placeholder="0"
-                    value={clientDevice.price}
-                    onChange={clientDeviceChangeHandler}
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="purchaseDocument">Документ</Form.Label>
-                  <Form.Control
-                    id="purchaseDocument"
-                    name="purchaseDocument"
-                    type="text"
-                    placeholder="Номер документа о покупке"
-                    value={clientDevice.purchaseDocument}
-                    onChange={clientDeviceChangeHandler}
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="warrantyExpirationDate">
-                    Гарантия до
-                    <span style={{ color: "red" }}>*</span>
-                  </Form.Label>
-                  <Form.Control
-                    id="warrantyExpirationDate"
-                    name="warrantyExpirationDate"
-                    type="date"
-                    value={formatDate(clientDevice.warrantyExpirationDate)}
-                    onChange={clientDeviceChangeHandler}
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-          </Card.Body>
-        </Card>
+      <hr />
+      <Stack direction="horizontal" gap={2}>
+        <Button variant="secondary" onClick={handleClose} disabled={saving}>
+          <RiArrowGoBackFill /> Закрыть
+        </Button>
 
-        {/* Technical Information */}
-        <Card className="mb-4">
-          <Card.Header>
-            <h6 className="mb-0">Техническая информация</h6>
-          </Card.Header>
-          <Card.Body>
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="ipAddress">IP-адрес</Form.Label>
-                  <Form.Control
-                    id="ipAddress"
-                    name="ipAddress"
-                    type="text"
-                    placeholder="192.168.1.100"
-                    value={clientDevice.ipAddress}
-                    onChange={clientDeviceChangeHandler}
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="macAddress">MAC-адрес</Form.Label>
-                  <Form.Control
-                    id="macAddress"
-                    name="macAddress"
-                    type="text"
-                    placeholder="AA:BB:CC:DD:EE:FF"
-                    value={clientDevice.macAddress}
-                    onChange={clientDeviceChangeHandler}
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-            <Row>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="operatingSystem">
-                    Операционная система
-                  </Form.Label>
-                  <Form.Control
-                    id="operatingSystem"
-                    name="operatingSystem"
-                    type="text"
-                    placeholder="Windows 11, macOS, Ubuntu 22.04"
-                    value={clientDevice.operatingSystem}
-                    onChange={clientDeviceChangeHandler}
-                  />
-                </Form.Group>
-              </Col>
-              <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor="lastMaintenanceDate">
-                    Дата последнего обслуживания
-                  </Form.Label>
-                  <Form.Control
-                    id="lastMaintenanceDate"
-                    name="lastMaintenanceDate"
-                    type="date"
-                    value={formatDate(clientDevice.lastMaintenanceDate)}
-                    onChange={clientDeviceChangeHandler}
-                  />
-                </Form.Group>
-              </Col>
-            </Row>
-          </Card.Body>
-        </Card>
+        <div className="ms-auto d-flex gap-2">
+          {step > 0 && (
+            <Button
+              variant="outline-secondary"
+              onClick={handleBack}
+              disabled={saving}
+            >
+              <RiArrowLeftLine /> Назад
+            </Button>
+          )}
 
-        {/* Additional Information */}
-        <Card className="mb-4">
-          <Card.Header>
-            <h6 className="mb-0">Дополнительная информация</h6>
-          </Card.Header>
-          <Card.Body>
-            <Form.Group className="mb-3">
-              <Form.Label htmlFor="notes">Заметки</Form.Label>
-              <Form.Control
-                id="notes"
-                name="notes"
-                as="textarea"
-                rows={4}
-                placeholder="Дополнительные заметки об устройстве..."
-                value={clientDevice.notes}
-                onChange={clientDeviceChangeHandler}
-              />
-            </Form.Group>
-          </Card.Body>
-        </Card>
-      </FormWrapper>
+          {step === PURCHASE_STEP && (
+            <Button variant="outline-primary" onClick={handleNext}>
+              Пропустить
+            </Button>
+          )}
 
-      {/* Device Type Modal */}
-      <Modal
-        show={showDeviceTypeModal}
-        onHide={() => setShowDeviceTypeModal(false)}
-        centered
-      >
-        <Modal.Header closeButton>
-          <Modal.Title>Новый тип устройства</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {modalError && <AlertMessage variant="danger" message={modalError} />}
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="deviceTypeName">
-              Название
-              <span style={{ color: "red" }}>*</span>
-            </Form.Label>
-            <Form.Control
-              id="deviceTypeName"
-              type="text"
-              placeholder="Например: Ноутбук, Принтер, Монитор"
-              value={newDeviceType.name}
-              onChange={(e) =>
-                setNewDeviceType((prev) => ({ ...prev, name: e.target.value }))
-              }
-              autoFocus
-            />
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="deviceTypeDescription">Описание</Form.Label>
-            <Form.Control
-              id="deviceTypeDescription"
-              as="textarea"
-              rows={3}
-              placeholder="Описание типа устройства (необязательно)"
-              value={newDeviceType.description}
-              onChange={(e) =>
-                setNewDeviceType((prev) => ({
-                  ...prev,
-                  description: e.target.value,
-                }))
-              }
-            />
-          </Form.Group>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setShowDeviceTypeModal(false);
-              setNewDeviceType({ name: "", description: "" });
-              setModalError("");
-            }}
-          >
-            Отмена
-          </Button>
-          <Button
-            variant="primary"
-            onClick={createDeviceType}
-            disabled={modalLoading || !newDeviceType.name.trim()}
-          >
-            <RiSaveLine /> {modalLoading ? "Сохранение..." : "Сохранить"}
-          </Button>
-        </Modal.Footer>
-      </Modal>
+          {step < LAST_STEP && (
+            <Button variant="primary" onClick={handleNext}>
+              Далее <RiArrowRightLine />
+            </Button>
+          )}
 
-      {/* Vendor Modal */}
-      <Modal
-        show={showVendorModal}
-        onHide={() => setShowVendorModal(false)}
-        centered
-      >
-        <Modal.Header closeButton>
-          <Modal.Title>Новый производитель</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {modalError && <AlertMessage variant="danger" message={modalError} />}
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="vendorName">
-              Название
-              <span style={{ color: "red" }}>*</span>
-            </Form.Label>
-            <Form.Control
-              id="vendorName"
-              type="text"
-              placeholder="Например: Dell, HP, Apple, Lenovo"
-              value={newVendor.name}
-              onChange={(e) =>
-                setNewVendor((prev) => ({ ...prev, name: e.target.value }))
-              }
-              autoFocus
-            />
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="vendorDescription">Описание</Form.Label>
-            <Form.Control
-              id="vendorDescription"
-              as="textarea"
-              rows={3}
-              placeholder="Описание производителя (необязательно)"
-              value={newVendor.description}
-              onChange={(e) =>
-                setNewVendor((prev) => ({
-                  ...prev,
-                  description: e.target.value,
-                }))
-              }
-            />
-          </Form.Group>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setShowVendorModal(false);
-              setNewVendor({ name: "", description: "" });
-              setModalError("");
-            }}
-          >
-            Отмена
-          </Button>
-          <Button
-            variant="primary"
-            onClick={createVendor}
-            disabled={modalLoading || !newVendor.name.trim()}
-          >
-            <RiSaveLine /> {modalLoading ? "Сохранение..." : "Сохранить"}
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    </>
+          {step === LAST_STEP && (
+            <Button variant="primary" onClick={handleSubmit} disabled={saving}>
+              {saving ? (
+                <Spinner animation="border" size="sm" />
+              ) : (
+                <>
+                  <RiSaveLine /> Сохранить
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+      </Stack>
+
+      <InlineCreateModal
+        show={inlineKind === "deviceType"}
+        onHide={() => setInlineKind(null)}
+        kind="deviceType"
+        onCreated={handleTypeCreated}
+      />
+      <InlineCreateModal
+        show={inlineKind === "vendor"}
+        onHide={() => setInlineKind(null)}
+        kind="vendor"
+        onCreated={handleVendorCreated}
+      />
+      <InlineCreateModal
+        show={inlineKind === "deviceModel"}
+        onHide={() => setInlineKind(null)}
+        kind="deviceModel"
+        context={modelContext}
+        onCreated={handleModelCreated}
+      />
+    </Container>
   );
 };
 

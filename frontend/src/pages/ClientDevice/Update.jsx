@@ -8,7 +8,7 @@ const UpdateClientDevicePage = () => {
 export default UpdateClientDevicePage;
 
 export async function loader({ params }) {
-  document.title = "Изменение устройстваы";
+  document.title = "Изменение устройства";
 
   const { token } = getLocalStorageData();
 

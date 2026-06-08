@@ -173,6 +173,16 @@ import UpdateClientDevicePage, {
   action as updateClientDeviceAction,
 } from "./pages/ClientDevice/Update.jsx";
 
+import PurchaseClientDevicePage, {
+  loader as purchaseClientDeviceLoader,
+  action as purchaseClientDeviceAction,
+} from "./pages/ClientDevice/Purchase.jsx";
+
+import TechClientDevicePage, {
+  loader as techClientDeviceLoader,
+  action as techClientDeviceAction,
+} from "./pages/ClientDevice/Tech.jsx";
+
 // Location Management
 import LocationList, {
   loader as locationLoader,
@@ -257,15 +267,6 @@ import UpdateDeviceConfigurationPage, {
 import MikrotikDevices, {
   loader as mikrotikDevicesLoader,
 } from "./pages/Mikrotik/List.jsx";
-
-import AddMikrotikDevicePage, {
-  action as AddMikrotikDeviceAction,
-} from "./pages/Mikrotik/Add.jsx";
-
-import UpdateMikrotikDevicePage, {
-  action as UpdateMikrotikDeviceInfoAction,
-  loader as UpdateMikrotikDeviceInfoLoader,
-} from "./pages/Mikrotik/Update.jsx";
 
 // Users
 import Users, { loader as usersLoader } from "./pages/User/List.jsx";
@@ -676,6 +677,18 @@ function App() {
               element: <UpdateClientDevicePage />,
             },
             {
+              path: "purchase/:id",
+              loader: purchaseClientDeviceLoader,
+              action: purchaseClientDeviceAction,
+              element: <PurchaseClientDevicePage />,
+            },
+            {
+              path: "tech/:id",
+              loader: techClientDeviceLoader,
+              action: techClientDeviceAction,
+              element: <TechClientDevicePage />,
+            },
+            {
               path: "delete/:id",
             },
           ],
@@ -833,19 +846,6 @@ function App() {
           path: "devices/mikrotik",
           element: <MikrotikDevices />,
           loader: mikrotikDevicesLoader,
-          children: [
-            {
-              path: "add",
-              action: AddMikrotikDeviceAction,
-              element: <AddMikrotikDevicePage />,
-            },
-            {
-              path: "update-info/:id",
-              loader: UpdateMikrotikDeviceInfoLoader,
-              action: UpdateMikrotikDeviceInfoAction,
-              element: <UpdateMikrotikDevicePage />,
-            },
-          ],
         },
         // Reports
         {

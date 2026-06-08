@@ -24,6 +24,7 @@ const ItemCard = ({
   detailsButton,
   danger,
   customDeleteMessage,
+  extraActions,
   children,
   onClick,
 }) => {
@@ -110,6 +111,7 @@ const ItemCard = ({
                   <Dropdown>
                     <Dropdown.Toggle>Действия</Dropdown.Toggle>
                     <Dropdown.Menu>
+                      {extraActions}
                       {(itemTitle !== "ticket" ||
                         permissions.canEditTickets) && (
                         <Dropdown.Item

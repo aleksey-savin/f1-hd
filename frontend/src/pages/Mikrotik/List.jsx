@@ -33,7 +33,7 @@ const MikrotikDevices = () => {
   const title = () => {
     return (
       <>
-        <FaNetworkWired /> Устройства Mikrotik
+        <FaNetworkWired /> Управление устройствами Mikrotik
       </>
     );
   };
@@ -43,7 +43,7 @@ const MikrotikDevices = () => {
       <ListWrapper
         title={title}
         filterStore={filterStore}
-        addRoute="/devices/mikrotik/add"
+        showAddButton={false}
       >
         <MikrotikDevicesList
           items={filterStore.filteredList}
@@ -56,7 +56,7 @@ const MikrotikDevices = () => {
 export default MikrotikDevices;
 
 export async function loader() {
-  document.title = "УСТРОЙСТВА MIKROTIK";
+  document.title = "УПРАВЛЕНИЕ MIKROTIK";
 
   return null;
 }

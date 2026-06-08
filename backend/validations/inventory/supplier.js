@@ -1,9 +1,9 @@
 const { body } = require("express-validator");
 
-const vendorValidation = [
+const supplierValidation = [
   body("name")
     .notEmpty()
-    .withMessage("Название вендора обязательно")
+    .withMessage("Название поставщика обязательно")
     .isLength({ min: 2, max: 100 })
     .withMessage("Название должно содержать от 2 до 100 символов")
     .trim(),
@@ -11,14 +11,8 @@ const vendorValidation = [
     .optional()
     .isBoolean()
     .withMessage("Поле isActive должно быть булевым значением"),
-  body("isMikrotikManagementEnabled")
-    .optional()
-    .isBoolean()
-    .withMessage(
-      "Поле isMikrotikManagementEnabled должно быть булевым значением",
-    ),
 ];
 
 module.exports = {
-  vendorValidation,
+  supplierValidation,
 };

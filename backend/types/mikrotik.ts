@@ -1,3 +1,5 @@
+import type { Types } from "mongoose";
+
 export interface IMikrotikAddress {
   address?: string;
   network?: string;
@@ -9,18 +11,26 @@ export interface IMikrotikAddress {
 }
 
 export interface IMikrotik {
+  clientDevice: Types.ObjectId;
   credentials?: {
     host?: string;
     port?: number;
     user?: string;
     password?: string;
+    useTls?: boolean;
+    tlsCert?: string;
+    knockSequence?: string;
   };
   name?: string;
   boardName?: string;
   serialNumber?: string;
   currentFirmware?: string;
   addresses?: IMikrotikAddress[];
-  description?: string;
+  status?: "online" | "offline";
+  monitoringEnabled: boolean;
+  lastSuccessfulConnectionAt?: Date;
+  lastCheckedAt?: Date;
+  lastError?: string;
   createdAt: Date;
   updatedAt: Date;
 }

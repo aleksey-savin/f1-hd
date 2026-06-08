@@ -14,13 +14,17 @@ const TicketCategory = require("../models/ticketCategory");
 const Prefs = require("../models/preferences");
 const Location = require("../models/inventory/location");
 const CompanyLog = require("../models/companyLog");
+const { Ticket } = require("../models/ticket");
 
 exports.getAll = async (req, res, next) => {
   try {
     const { userId } = await getAuthData(req);
     const authedUser = await User.findById(userId);
 
-    const allUsers = await User.find({}).sort({ lastName: 1 });
+    // When the "only active" toggle is on, the frontend asks for active users
+    // only — inactive accounts are not loaded until the toggle is turned off.
+    const query = req.query.activeOnly === "true" ? { isActive: true } : {};
+    const allUsers = await User.find(query).sort({ lastName: 1 });
 
     const filteredUsers = allUsers.filter((user) => {
       if (
@@ -34,7 +38,37 @@ exports.getAll = async (req, res, next) => {
       }
     });
 
+    // Last activity = latest ticket created by each user. One aggregation finds
+    // the newest ticket per applicant instead of querying per user (same pattern
+    // as company.js employee lastActivity).
+    const userIds = filteredUsers.map((user) => user._id);
+
+    const latestTickets = await Ticket.aggregate([
+      {
+        $match: {
+          $or: [
+            { applicantId: { $in: userIds } },
+            { "applicant._id": { $in: userIds } },
+          ],
+        },
+      },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: { $ifNull: ["$applicantId", "$applicant._id"] },
+          createdAt: { $first: "$createdAt" },
+          num: { $first: "$num" },
+          title: { $first: "$title" },
+        },
+      },
+    ]);
+
+    const lastActivityByUser = new Map(
+      latestTickets.map((ticket) => [ticket._id.toString(), ticket]),
+    );
+
     const reducedUsers = filteredUsers.map((user) => {
+      const lastTicket = lastActivityByUser.get(user._id.toString());
       return {
         _id: user._id,
         lastName: user.lastName,
@@ -49,8 +83,16 @@ exports.getAll = async (req, res, next) => {
         isAdmin: user.isAdmin,
         isEndUser: user.isEndUser,
         isCloudTelephony: user.isCloudTelephony,
+        isActive: user.isActive,
         permissions: user.permissions,
         createdAt: user.createdAt,
+        lastActivity: lastTicket
+          ? {
+              date: lastTicket.createdAt,
+              ticketNum: lastTicket.num,
+              ticketTitle: lastTicket.title,
+            }
+          : null,
       };
     });
 
@@ -471,6 +513,26 @@ exports.update = async (req, res, next) => {
     next(
       new AppError(`Failed to update user ${req.params.id}`, 500, true, error),
     );
+  }
+};
+
+exports.toggleActive = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return next(new AppError(`User ${req.params.id} not found`, 404));
+    }
+
+    user.isActive = !user.isActive;
+    await user.save();
+
+    res.status(200).json({
+      message: "User active status toggled",
+      isActive: user.isActive,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to toggle user active status`, 500, true, error));
   }
 };
 

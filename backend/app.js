@@ -27,6 +27,9 @@ const {
 } = require("./middleware/notifications");
 
 const { scheduleLogsCleanup } = require("./middleware/cleanupLogs");
+const {
+  runMikrotikHealthCheck,
+} = require("./middleware/mikrotikHealthCheck");
 const Preferences = require("./models/preferences");
 
 const PORT = process.env.PORT || 8080;
@@ -198,6 +201,30 @@ cron.schedule("*/10 * * * * *", async () => {
 // Cleanup old company logs every day at 2:00 AM
 cron.schedule("0 2 * * *", () => {
   scheduleLogsCleanup();
+});
+
+// Refresh connectivity status of monitored Mikrotik devices every 5 minutes
+let isCheckingMikrotik = false;
+cron.schedule("*/5 * * * *", async () => {
+  if (isCheckingMikrotik) {
+    return;
+  }
+
+  if (mongoose.connection.readyState !== 1) {
+    return;
+  }
+
+  isCheckingMikrotik = true;
+
+  try {
+    await runMikrotikHealthCheck();
+  } catch (error) {
+    logger.log("error", "Mikrotik health-check run failed", {
+      error: error.message,
+    });
+  } finally {
+    isCheckingMikrotik = false;
+  }
 });
 
 // Initialize monitoring first

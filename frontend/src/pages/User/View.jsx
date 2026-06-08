@@ -81,6 +81,28 @@ export async function action({ request }) {
     return redirect("/users");
   }
 
+  if (intent === "toggle-active") {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/users/toggle-active/${id}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw Response.json(
+        { message: "Не удалось изменить статус пользователя" },
+        { status: 500 },
+      );
+    }
+
+    return redirect("/users");
+  }
+
   if (intent === "reset-password") {
     const userData = {
       password: data.get("password"),

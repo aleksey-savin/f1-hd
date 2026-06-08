@@ -33,6 +33,7 @@ export interface IClientDevice {
   purchasedAt?: Date;
   price?: number;
   purchaseDocument?: string;
+  supplierId?: Types.ObjectId;
   warrantyExpirationDate?: Date;
   // Device status and lifecycle
   status: ClientDeviceStatus;

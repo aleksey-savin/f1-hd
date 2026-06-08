@@ -72,7 +72,7 @@ router.get('/ready', async (req, res) => {
     }
 
     // Check environment variables
-    const requiredEnvVars = ['MONGODB_USERNAME', 'MONGODB_PASSWORD', 'JWT_SECRET'];
+    const requiredEnvVars = ['MONGODB_USERNAME', 'MONGODB_PASSWORD', 'JWT_SECRET', 'MIKROTIK_ENC_KEY'];
     const envCheck = requiredEnvVars.every(envVar => process.env[envVar]);
     checks.push({
       service: 'environment',

@@ -440,7 +440,7 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                         to="/devices/mikrotik"
                         onClick={handleClose}
                       >
-                        <FaNetworkWired /> Mikrotik
+                        <FaNetworkWired /> Управление Mikrotik
                       </NavDropdown.Item>
 
                       <NavDropdown.Divider />
