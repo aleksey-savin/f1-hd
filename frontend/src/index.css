@@ -98,3 +98,24 @@ img {
 h1 svg {
   margin-top: -0.45rem;
 }
+
+/* Табы просмотра заявки: не переносим на новую строку (особенно на мобильных),
+   а делаем горизонтальную прокрутку без видимого скроллбара */
+.scrollable-tabs.nav-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.scrollable-tabs.nav-tabs::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+.scrollable-tabs .nav-item {
+  flex-shrink: 0;
+}
+
+.scrollable-tabs .nav-link {
+  white-space: nowrap;
+}

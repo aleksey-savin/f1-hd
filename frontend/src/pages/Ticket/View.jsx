@@ -291,7 +291,7 @@ const ViewTicket = () => {
                     </Col>
                   </Row>
                   <CustomFieldsDisplay customFields={ticket.customFields} />
-                  <Tabs defaultActiveKey="info" className="mb-3">
+                  <Tabs defaultActiveKey="info" className="mb-3 scrollable-tabs">
                     <Tab eventKey="info" title="Информация">
                       <h6>
                         <Row>
