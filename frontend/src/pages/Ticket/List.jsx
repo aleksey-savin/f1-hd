@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import useSidebarStore from "../../store/sidebar";
 import useTicketFilterStore from "../../store/lists/tickets";
+import usePolling from "../../hooks/use-polling";
 
 import { BrowserView, MobileView } from "react-device-detect";
 
@@ -21,6 +22,9 @@ const Tickets = () => {
   const location = useLocation();
   const { setLeftSidebarContent } = useSidebarStore();
   const filterStore = useTicketFilterStore();
+
+  // Пока пользователь выделил заявки для удаления — фоновый опрос на паузе.
+  const [selectionActive, setSelectionActive] = useState(false);
 
   useEffect(() => {
     // Тихое фоновое обновление уже пересчитало фильтр/сортировку атомарно —
@@ -43,23 +47,13 @@ const Tickets = () => {
     }
   }, [filterStore.nowActive]);
 
-  // Пока хотя бы одна заявка ждёт распознавания речи или автоопределения
-  // категории, периодически обновляем список, чтобы бейджи статуса менялись без
-  // ручной перезагрузки страницы.
-  useEffect(() => {
-    const anyPending = filterStore.originalList?.some(
-      (ticket) =>
-        ticket.aiSpeech?.status === "pending" ||
-        ticket.aiCategory?.status === "pending",
-    );
-    if (!anyPending) return;
-
-    const interval = setInterval(() => {
-      filterStore.silentRefresh();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [filterStore.originalList]);
+  // Постоянное фоновое автообновление списка: тихо подтягиваем свежие заявки
+  // (новые, смена статуса, ИИ-бейджи) без спиннера и fade. Опрос на паузе, когда
+  // вкладка скрыта или активно выделение заявок; при возврате фокуса — сразу.
+  usePolling(() => filterStore.silentRefresh(), {
+    intervalMs: 15000,
+    enabled: !selectionActive,
+  });
 
   useEffect(() => {
     setLeftSidebarContent(
@@ -137,6 +131,7 @@ const Tickets = () => {
       <List
         items={filterStore.filteredList}
         onDeleteSelected={handleDeleteSelected}
+        onSelectionActiveChange={setSelectionActive}
       ></List>
     </ListWrapper>
   );

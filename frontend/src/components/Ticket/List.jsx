@@ -1,16 +1,25 @@
-import { useState, useContext } from "react";
+import { useState, useEffect, useContext } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { isMobile } from "react-device-detect";
-import Item from "./Item";
+import AnimatedItem from "./AnimatedItem";
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
+import useTicketFilterStore from "../../store/lists/tickets";
+import LiveUpdateIndicator from "../../UI/LiveUpdateIndicator";
 
-const List = ({ items = [], onDeleteSelected }) => {
+const List = ({ items = [], onDeleteSelected, onSelectionActiveChange }) => {
   const { permissions } = useContext(AuthedUserContext);
+  const lastSyncedAt = useTicketFilterStore((state) => state.lastSyncedAt);
   const [selectedTickets, setSelectedTickets] = useState([]);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Сообщаем странице, активно ли выделение — пока что-то выбрано, фоновый опрос
+  // ставится на паузу, чтобы список не переобновлялся под рукой.
+  useEffect(() => {
+    onSelectionActiveChange?.(selectedTickets.length > 0);
+  }, [selectedTickets.length, onSelectionActiveChange]);
 
   const handleSelect = (ticketId) => {
     if (permissions.canDeleteTickets) {
@@ -65,14 +74,19 @@ const List = ({ items = [], onDeleteSelected }) => {
   return (
     <>
       <ConfirmDeleteModal />
-      {items.map((item) => (
-        <Item
-          key={item._id}
-          item={item}
-          isSelected={selectedTickets.includes(item._id)}
-          onSelect={handleSelect}
-        />
-      ))}
+      <div className="d-flex justify-content-end mb-2">
+        <LiveUpdateIndicator timestamp={lastSyncedAt} />
+      </div>
+      <AnimatePresence initial={false}>
+        {items.map((item) => (
+          <AnimatedItem
+            key={item._id}
+            item={item}
+            isSelected={selectedTickets.includes(item._id)}
+            onSelect={handleSelect}
+          />
+        ))}
+      </AnimatePresence>
       <AnimatePresence>
         {selectedTickets.length > 0 && (
           <motion.div

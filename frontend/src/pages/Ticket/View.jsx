@@ -12,6 +12,8 @@ import {
 
 import "react-h5-audio-player/lib/styles.css";
 
+import { motion } from "framer-motion";
+
 import useViewTicketStore from "../../store/view-ticket";
 
 import { BrowserView, MobileView } from "react-device-detect";
@@ -64,10 +66,28 @@ import ActionDropdown from "../../components/Ticket/View/ActionsDropDown";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useOffcanvasStore from "../../store/offcanvas";
 import useInitialPrefsStore from "../../store/prefs";
+import usePolling from "../../hooks/use-polling";
 
 import CustomFieldsDisplay from "../../components/CustomFieldsDisplay";
 import { Alert } from "react-bootstrap";
 import WorkingStatusIndicator from "../../components/Company/WorkingStatusIndicator";
+
+// Слепок «значимого» состояния заявки. Если он меняется между опросами — значит
+// заявку обновили (чужой комментарий, смена статуса, дедлайн, ответственные,
+// чек-лист, ИИ-статусы) и нужно тихо ревалидировать loader. Комментарии живут
+// отдельной коллекцией и могут не двигать ticket.updatedAt — учитываем их явно.
+const ticketSignature = (ticket) =>
+  [
+    ticket?.updatedAt,
+    ticket?.state,
+    ticket?.deadline,
+    ticket?.comments?.length,
+    ticket?.responsibles?.length,
+    ticket?.checklist?.map((item) => `${item._id}:${item.checked}`).join(","),
+    ticket?.aiSpeech?.status,
+    ticket?.aiCategory?.status,
+    ticket?.aiGuide?.status,
+  ].join("|");
 
 const ViewTicket = () => {
   const { state: routerState } = useNavigation();
@@ -163,19 +183,23 @@ const ViewTicket = () => {
     }
   }, [ticket]);
 
-  // Пока идёт фоновая ИИ-обработка (распознавание речи звонка, автоопределение
-  // категории или формирование руководства), опрашиваем заявку и обновляем
-  // страницу (заголовок, описание, категория, бейджи, маркер вкладки) без ручной
-  // перезагрузки.
+  // Постоянное фоновое автообновление заявки: опрашиваем лёгкий GET, сравниваем
+  // слепок состояния и тихо ревалидируем loader при изменениях (чужой
+  // комментарий, смена статуса, новые работы, чек-лист, ИИ-бейджи). Ревалидация
+  // не триггерит navigation "loading" — спиннер и fade не появляются.
+  // Не вмешиваемся во время сабмита действия/навигации и при открытой
+  // Offcanvas-форме, чтобы не затереть ввод. Пауза при скрытой вкладке — внутри
+  // usePolling.
   const revalidator = useRevalidator();
-  useEffect(() => {
-    const speechPending = ticket?.aiSpeech?.status === "pending";
-    const categoryPending = ticket?.aiCategory?.status === "pending";
-    const guidePending = ticket?.aiGuide?.status === "pending";
-    if (!speechPending && !categoryPending && !guidePending) return;
+  const autoUpdateEnabled =
+    routerState === "idle" &&
+    revalidator.state === "idle" &&
+    !offcanvas.isActive;
 
-    const { token } = getLocalStorageData();
-    const interval = setInterval(async () => {
+  usePolling(
+    async () => {
+      if (!ticket?.num) return;
+      const { token } = getLocalStorageData();
       try {
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticket.num}`,
@@ -183,27 +207,18 @@ const ViewTicket = () => {
         );
         if (!response.ok) return;
         const data = await response.json();
-        const nextSpeech = data?.ticket?.aiSpeech?.status;
-        const nextCategory = data?.ticket?.aiCategory?.status;
-        const nextGuide = data?.ticket?.aiGuide?.status;
-        const speechResolved = speechPending && nextSpeech !== "pending";
-        const categoryResolved = categoryPending && nextCategory !== "pending";
-        const guideResolved = guidePending && nextGuide !== "pending";
-        if (speechResolved || categoryResolved || guideResolved) {
+        if (
+          data?.ticket &&
+          ticketSignature(data.ticket) !== ticketSignature(ticket)
+        ) {
           revalidator.revalidate();
         }
       } catch (error) {
-        console.error("AI status poll failed:", error);
+        console.error("Ticket auto-update poll failed:", error);
       }
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [
-    ticket?.aiSpeech?.status,
-    ticket?.aiCategory?.status,
-    ticket?.aiGuide?.status,
-    ticket?.num,
-  ]);
+    },
+    { intervalMs: 15000, enabled: autoUpdateEnabled },
+  );
 
   const firstColumnRef = useRef();
 
@@ -260,9 +275,17 @@ const ViewTicket = () => {
                     <MobileView>
                       <Col sm="auto">
                         <h3>
-                          <Badge bg={badgeBg} className="w-100">
-                            {ticket.state}
-                          </Badge>
+                          <motion.span
+                            key={ticket.state}
+                            className="d-block w-100"
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <Badge bg={badgeBg} className="w-100">
+                              {ticket.state}
+                            </Badge>
+                          </motion.span>
                         </h3>
                       </Col>
                     </MobileView>
@@ -276,7 +299,15 @@ const ViewTicket = () => {
                     <Col sm="auto">
                       <BrowserView>
                         <h3>
-                          <Badge bg={badgeBg}>{ticket.state}</Badge>
+                          <motion.span
+                            key={ticket.state}
+                            className="d-inline-block"
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <Badge bg={badgeBg}>{ticket.state}</Badge>
+                          </motion.span>
                         </h3>
                       </BrowserView>
                     </Col>
@@ -778,6 +809,7 @@ export async function action({ request }) {
       applicantId: data.get("applicantId"),
       responsibles: JSON.parse(data.getAll("responsibles")),
       deadline: new Date(data.get("deadline")),
+      expectedVersion: data.get("expectedVersion"),
     };
 
     const response = await fetch(
@@ -791,6 +823,10 @@ export async function action({ request }) {
         body: JSON.stringify(ticketData),
       },
     );
+
+    if (response.status === 409) {
+      return await response.json();
+    }
 
     if (!response.ok) {
       throw response;
@@ -811,9 +847,14 @@ export async function action({ request }) {
         body: JSON.stringify({
           _id: data.get("_id"),
           takeOver: data.get("takeOver") === "true",
+          expectedVersion: data.get("expectedVersion"),
         }),
       },
     );
+
+    if (response.status === 409) {
+      return await response.json();
+    }
 
     if (!response.ok) {
       throw response;
@@ -834,9 +875,15 @@ export async function action({ request }) {
         body: JSON.stringify({
           _id: data.get("_id"),
           rejectDesc: data.get("rejectDesc"),
+          expectedVersion: data.get("expectedVersion"),
         }),
       },
     );
+
+    if (response.status === 409) {
+      return await response.json();
+    }
+
     if (!response.ok) {
       throw response;
     }
@@ -855,9 +902,15 @@ export async function action({ request }) {
         },
         body: JSON.stringify({
           _id: data.get("_id"),
+          expectedVersion: data.get("expectedVersion"),
         }),
       },
     );
+
+    if (response.status === 409) {
+      return await response.json();
+    }
+
     if (!response.ok) {
       throw response;
     }
@@ -869,6 +922,7 @@ export async function action({ request }) {
     const ticketData = {
       _id: data.get("_id"),
       responsibles: JSON.parse(data.getAll("responsibles")),
+      expectedVersion: data.get("expectedVersion"),
     };
 
     const response = await fetch(
@@ -882,6 +936,10 @@ export async function action({ request }) {
         body: JSON.stringify(ticketData),
       },
     );
+
+    if (response.status === 409) {
+      return await response.json();
+    }
 
     if (!response.ok) {
       throw response;
@@ -901,9 +959,15 @@ export async function action({ request }) {
         body: JSON.stringify({
           _id: data.get("_id"),
           deadline: data.get("deadline"),
+          expectedVersion: data.get("expectedVersion"),
         }),
       },
     );
+
+    if (response.status === 409) {
+      return await response.json();
+    }
+
     if (!response.ok) {
       throw response;
     }
@@ -923,9 +987,14 @@ export async function action({ request }) {
         body: JSON.stringify({
           _id: data.get("_id"),
           closingComment: data.get("closingComment"),
+          expectedVersion: data.get("expectedVersion"),
         }),
       },
     );
+
+    if (response.status === 409) {
+      return await response.json();
+    }
 
     if ([403].includes(response.status)) {
       return response;
@@ -950,9 +1019,15 @@ export async function action({ request }) {
         body: JSON.stringify({
           _id: data.get("_id"),
           returningComment: data.get("returningComment"),
+          expectedVersion: data.get("expectedVersion"),
         }),
       },
     );
+
+    if (response.status === 409) {
+      return await response.json();
+    }
+
     if (!response.ok) {
       throw Response.json(
         { message: "Не удалось вернуть заявку в работу" },

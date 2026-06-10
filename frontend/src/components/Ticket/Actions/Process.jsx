@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useContext } from "react";
-import { useFetcher } from "react-router";
 
+import useTicketAction from "../../../hooks/use-ticket-action";
 import useHttp from "../../../hooks/use-http";
 import { utcToLocalForm } from "../../../util/format-date";
 
@@ -17,7 +17,7 @@ import { AuthedUserContext } from "../../../store/authed-user-context";
 import { getLocalStorageData } from "../../../util/auth";
 
 const ProcessTicket = ({ ticket }) => {
-  const fetcher = useFetcher();
+  const fetcher = useTicketAction();
 
   const { token } = getLocalStorageData();
   const { permissions, isAdmin } = useContext(AuthedUserContext);
@@ -117,6 +117,7 @@ const ProcessTicket = ({ ticket }) => {
     formData.append("applicantId", applicant._id);
     formData.append("responsibles", JSON.stringify(responsibles));
     formData.append("deadline", deadlineInputRef.current.value);
+    formData.append("expectedVersion", ticket.version);
 
     fetcher.submit(formData, {
       method: "POST",

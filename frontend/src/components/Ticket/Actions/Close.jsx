@@ -1,5 +1,7 @@
 import { useRef, useState, useContext, useEffect } from "react";
-import { NavLink, useFetcher } from "react-router";
+import { NavLink } from "react-router";
+
+import useTicketAction from "../../../hooks/use-ticket-action";
 
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
@@ -16,7 +18,7 @@ import useViewTicketStore from "../../../store/view-ticket";
 import { SlActionRedo } from "react-icons/sl";
 
 const CloseTicket = ({ scheduledWorks }) => {
-  const fetcher = useFetcher();
+  const fetcher = useTicketAction();
   const { ticket, works } = useViewTicketStore();
 
   const { isEndUser, permissions, _id: userId } = useContext(AuthedUserContext);
@@ -51,6 +53,7 @@ const CloseTicket = ({ scheduledWorks }) => {
         intent: "close",
         _id: ticket._id,
         closingComment: closingComment.current.value,
+        expectedVersion: ticket.version,
       },
       {
         method: "POST",

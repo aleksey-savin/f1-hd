@@ -19,6 +19,38 @@ const TYPE_LABEL = {
 const includesId = (items, id) =>
   !!id && (items || []).some((item) => item?._id?.toString() === id.toString());
 
+const idList = (items = []) =>
+  items.map((item) => item?._id?.toString()).filter(Boolean);
+
+// Подходит ли заметка контексту заявки с учётом ограничительных привязок.
+// Компания и инициатор — ограничения: привязанная к ним заметка не «протекает» в
+// чужие заявки. Категория ограничением не является. Та же логика, что в
+// knowledgeNote.getRelated (карточка «База знаний»), чтобы AI не получал в
+// контекст заметки других компаний.
+const matchesTicketContext = (note, { companyId, categoryId, applicantId }) => {
+  const noteCompanyIds = idList(note.companies);
+  const noteUserIds = idList(note.users);
+  const noteCategoryIds = idList(note.categories);
+
+  const company = companyId?.toString();
+  const category = categoryId?.toString();
+  const applicant = applicantId?.toString();
+
+  if (noteCompanyIds.length && !(company && noteCompanyIds.includes(company))) {
+    return false;
+  }
+
+  if (noteUserIds.length && !(applicant && noteUserIds.includes(applicant))) {
+    return false;
+  }
+
+  const matchCompany = !!company && noteCompanyIds.includes(company);
+  const matchCategory = !!category && noteCategoryIds.includes(category);
+  const matchUser = !!applicant && noteUserIds.includes(applicant);
+
+  return matchCompany || matchCategory || matchUser;
+};
+
 const truncate = (value, max = MAX_NOTE_LENGTH) => {
   if (!value) return "";
   return value.length > max ? `${value.slice(0, max)}…` : value;
@@ -68,6 +100,9 @@ exports.collectRelevantNotes = async ({
     .lean();
 
   return notes
+    .filter((note) =>
+      matchesTicketContext(note, { companyId, categoryId, applicantId }),
+    )
     .map((note) => annotate(note, companyId, categoryId, applicantId))
     .sort(byRelevance)
     .slice(0, MAX_NOTES);

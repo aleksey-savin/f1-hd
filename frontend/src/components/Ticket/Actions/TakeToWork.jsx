@@ -1,5 +1,6 @@
 import { useState, useContext } from "react";
-import { useFetcher } from "react-router";
+
+import useTicketAction from "../../../hooks/use-ticket-action";
 
 import { RiCheckboxCircleLine } from "react-icons/ri";
 import Button from "react-bootstrap/Button";
@@ -11,7 +12,7 @@ import Col from "react-bootstrap/Col";
 import { AuthedUserContext } from "../../../store/authed-user-context";
 
 const TakeToWork = ({ ticket }) => {
-  const fetcher = useFetcher();
+  const fetcher = useTicketAction();
   const { _id: userId, permissions } = useContext(AuthedUserContext);
   const { canPerformTickets } = permissions;
 
@@ -58,7 +59,12 @@ const TakeToWork = ({ ticket }) => {
     event.preventDefault();
 
     fetcher.submit(
-      { intent: "takeToWork", _id: ticket._id, takeOver: effectiveTakeOver },
+      {
+        intent: "takeToWork",
+        _id: ticket._id,
+        takeOver: effectiveTakeOver,
+        expectedVersion: ticket.version,
+      },
       {
         method: "POST",
         action: `/tickets/${ticket.num}`,

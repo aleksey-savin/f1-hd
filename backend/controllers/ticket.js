@@ -7,6 +7,7 @@ const getAuthData = require("../middleware/getAuthData");
 const Preferences = require("../models//preferences");
 
 const { Ticket } = require("../models/ticket");
+const { isStaleVersion, sendConflict } = require("../helpers/ticketVersion");
 const User = require("../models//user");
 const Company = require("../models/company");
 const Category = require("../models/ticketCategory");
@@ -920,6 +921,10 @@ exports.process = async (req, res, next) => {
 
     const ticket = await Ticket.findOne({ _id: req.body._id });
 
+    if (isStaleVersion(ticket, req.body.expectedVersion)) {
+      return sendConflict(res, ticket);
+    }
+
     ticket.title = title;
     ticket.company = company;
     ticket.description = description;
@@ -935,6 +940,7 @@ exports.process = async (req, res, next) => {
       lastAction: "process ticket",
       pending: true,
     };
+    ticket.version = (ticket.version ?? 0) + 1;
 
     await ticket.save();
 
@@ -971,6 +977,10 @@ exports.takeToWork = async (req, res, next) => {
 
     const ticket = await Ticket.findById(req.body._id);
 
+    if (isStaleVersion(ticket, req.body.expectedVersion)) {
+      return sendConflict(res, ticket);
+    }
+
     ticket.state = "В работе";
     ticket.startedAt = new Date();
     ticket.startedBy = authedUser._id;
@@ -999,6 +1009,8 @@ exports.takeToWork = async (req, res, next) => {
       // не оказалась «В работе» без ответственных.
       ticket.responsibles = ticket.responsibles.concat(authedUser);
     }
+
+    ticket.version = (ticket.version ?? 0) + 1;
 
     await ticket.save();
     // добавляем запись в лог заявки
@@ -1048,6 +1060,10 @@ exports.requestHelp = async (req, res, next) => {
 
     const ticket = await Ticket.findById(req.body._id);
 
+    if (isStaleVersion(ticket, req.body.expectedVersion)) {
+      return sendConflict(res, ticket);
+    }
+
     const filteredResponsibles = req.body.responsibles.filter((user) => {
       const respList = ticket.responsibles.map((resp) => resp._id.toString());
       if (respList.includes(user._id.toString())) {
@@ -1061,6 +1077,7 @@ exports.requestHelp = async (req, res, next) => {
       lastAction: "request help",
       pending: true,
     };
+    ticket.version = (ticket.version ?? 0) + 1;
 
     await ticket.save();
 
@@ -1097,6 +1114,10 @@ exports.joinResponsibles = async (req, res, next) => {
 
     const ticket = await Ticket.findById(req.body._id);
 
+    if (isStaleVersion(ticket, req.body.expectedVersion)) {
+      return sendConflict(res, ticket);
+    }
+
     const isDuplicated = () => {
       for (let resp of ticket.responsibles) {
         if (resp._id.toString() === authedUser._id.toString()) {
@@ -1128,6 +1149,7 @@ exports.joinResponsibles = async (req, res, next) => {
       lastAction: "join responsibles",
       pending: true,
     };
+    ticket.version = (ticket.version ?? 0) + 1;
 
     await ticket.save();
 
@@ -1164,7 +1186,12 @@ exports.updateDeadline = async (req, res, next) => {
 
     const ticket = await Ticket.findById(req.body._id);
 
+    if (isStaleVersion(ticket, req.body.expectedVersion)) {
+      return sendConflict(res, ticket);
+    }
+
     ticket.deadline = req.body.deadline;
+    ticket.version = (ticket.version ?? 0) + 1;
 
     await ticket.save();
 
@@ -1201,6 +1228,10 @@ exports.reject = async (req, res, next) => {
 
     const ticket = await Ticket.findById(req.body._id);
 
+    if (isStaleVersion(ticket, req.body.expectedVersion)) {
+      return sendConflict(res, ticket);
+    }
+
     const updatedResponsibles = ticket.responsibles.filter(
       (user) => user?._id.toString() !== authData.userId.toString(),
     );
@@ -1236,6 +1267,7 @@ exports.reject = async (req, res, next) => {
       lastAction: "reject ticket",
       pending: true,
     };
+    ticket.version = (ticket.version ?? 0) + 1;
 
     await ticket.save();
 
@@ -1268,6 +1300,11 @@ exports.close = async (req, res, next) => {
     const { permissions } = authedUser;
 
     const ticket = await Ticket.findById(req.body._id);
+
+    if (isStaleVersion(ticket, req.body.expectedVersion)) {
+      return sendConflict(res, ticket);
+    }
+
     const works = await Work.find({
       tickets: ticket._id,
     });
@@ -1303,6 +1340,7 @@ exports.close = async (req, res, next) => {
         lastAction: "close ticket",
         pending: true,
       };
+      ticket.version = (ticket.version ?? 0) + 1;
     } else {
       return next(
         new AppError(`Невозможно закрыть заявку без указания работ`, 422),
@@ -1375,6 +1413,10 @@ exports.backToWork = async (req, res, next) => {
 
     const ticket = await Ticket.findById(req.body._id);
 
+    if (isStaleVersion(ticket, req.body.expectedVersion)) {
+      return sendConflict(res, ticket);
+    }
+
     ticket.finishedAt = null;
     ticket.finishedBy = null;
     ticket.isClosed = false;
@@ -1384,6 +1426,7 @@ exports.backToWork = async (req, res, next) => {
       lastAction: "back to work",
       pending: true,
     };
+    ticket.version = (ticket.version ?? 0) + 1;
 
     // добавляем комментарий
     const comment = new Comment({
@@ -1583,6 +1626,10 @@ exports.update = async (req, res, next) => {
       return next(new AppError(`Couldn't find ticket ${_id}`, 404));
     }
 
+    if (isStaleVersion(ticket, req.body.expectedVersion)) {
+      return sendConflict(res, ticket);
+    }
+
     const attachments = req.files?.map(buildAttachment);
 
     const customFields = req.body.customFields
@@ -1706,6 +1753,8 @@ exports.update = async (req, res, next) => {
         await Connection.deleteOne({ _id: connection._id });
       }
     }
+
+    ticket.version = (ticket.version ?? 0) + 1;
 
     await ticket.save();
 

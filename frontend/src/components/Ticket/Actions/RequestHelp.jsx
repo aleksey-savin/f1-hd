@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useFetcher } from "react-router";
+
+import useTicketAction from "../../../hooks/use-ticket-action";
 
 import Select from "../../../UI/Select";
 import Button from "react-bootstrap/Button";
@@ -11,7 +12,7 @@ import Dropdown from "react-bootstrap/Dropdown";
 import { RiShakeHandsLine } from "react-icons/ri";
 
 const RequestHelp = ({ ticket, responsibles }) => {
-  const fetcher = useFetcher();
+  const fetcher = useTicketAction();
 
   const [responsiblesList, setResponsiblesList] = useState(responsibles);
 
@@ -45,6 +46,7 @@ const RequestHelp = ({ ticket, responsibles }) => {
         intent: "requestHelp",
         _id: ticket._id,
         responsibles: JSON.stringify(responsiblesList),
+        expectedVersion: ticket.version,
       },
       {
         method: "POST",

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { useFetcher } from "react-router";
+
+import useTicketAction from "../../../hooks/use-ticket-action";
 
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
@@ -11,7 +12,7 @@ import { RiTimeLine } from "react-icons/ri";
 import { utcToLocalForm } from "../../../util/format-date";
 
 const UpdateDeadline = ({ ticket, isOverdue }) => {
-  const fetcher = useFetcher();
+  const fetcher = useTicketAction();
 
   const deadlineInputRef = useRef();
 
@@ -33,6 +34,7 @@ const UpdateDeadline = ({ ticket, isOverdue }) => {
         intent: "updateDeadline",
         _id: ticket._id,
         deadline: new Date(deadlineInputRef.current.value),
+        expectedVersion: ticket.version,
       },
       {
         method: "POST",

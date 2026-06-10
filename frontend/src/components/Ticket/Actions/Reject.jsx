@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { useFetcher } from "react-router";
+
+import useTicketAction from "../../../hooks/use-ticket-action";
 
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
@@ -10,7 +11,7 @@ import Dropdown from "react-bootstrap/Dropdown";
 import { RiCloseCircleLine } from "react-icons/ri";
 
 const RejectTicket = ({ ticket, type }) => {
-  const fetcher = useFetcher();
+  const fetcher = useTicketAction();
 
   const rejectDesc = useRef();
   const [show, setShow] = useState(false);
@@ -31,6 +32,7 @@ const RejectTicket = ({ ticket, type }) => {
         intent: "reject",
         _id: ticket._id,
         rejectDesc: rejectDesc.current.value,
+        expectedVersion: ticket.version,
       },
       {
         method: "POST",

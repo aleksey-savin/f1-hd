@@ -250,6 +250,8 @@ const useTicketFilterStore = create((set) => ({
   filteredList: [],
   recentlyClosedList: [],
   isLoading: false,
+  // Время последнего успешного обновления данных (для индикатора «обновлено»).
+  lastSyncedAt: null,
   // Признак того, что список только что обновлён "тихо" (фоновым опросом).
   // По нему страница пропускает повторный пересчёт фильтра/сортировки, чтобы
   // не дёргать спиннер и fade-анимацию при живом обновлении бейджей.
@@ -271,6 +273,7 @@ const useTicketFilterStore = create((set) => ({
     set({
       originalList: data.tickets ?? [],
       isLoading: false,
+      lastSyncedAt: Date.now(),
     });
   },
   // Фоновое обновление без флагов загрузки: подтягивает свежие данные и
@@ -290,13 +293,21 @@ const useTicketFilterStore = create((set) => ({
     const data = await response.json();
 
     set((state) => {
-      const nextState = { ...state, originalList: data.tickets ?? [] };
+      // На вкладке «Недавно закрытые» ответ all-opened не содержит закрытых
+      // заявок — домёрдживаем ранее загруженные, иначе фоновый опрос их сотрёт.
+      const opened = data.tickets ?? [];
+      const mergedList =
+        state.nowActive === "recently_closed"
+          ? [...opened, ...state.recentlyClosedList]
+          : opened;
+      const nextState = { ...state, originalList: mergedList };
       const filteredList = ticketFilter(nextState);
       const sortedList = handleSorting(nextState.sortBy, filteredList);
       return {
         originalList: nextState.originalList,
         filteredList: sortedList || filteredList,
         silentUpdate: true,
+        lastSyncedAt: Date.now(),
       };
     });
   },
@@ -336,6 +347,7 @@ const useTicketFilterStore = create((set) => ({
         filteredList: sortedList || filteredList,
         recentlyClosedList: nextState.recentlyClosedList,
         isLoading: false,
+        lastSyncedAt: Date.now(),
       };
     });
   },

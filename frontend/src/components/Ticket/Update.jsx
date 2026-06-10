@@ -146,7 +146,12 @@ const UpdateTicket = () => {
     }
 
     const update = (data) => {
-      if (data.ticket) {
+      if (data.conflict) {
+        showToast(
+          "warning",
+          "Заявка была изменена другим пользователем. Данные обновлены — повторите редактирование.",
+        );
+      } else if (data.ticket) {
         showToast("success text-white", "Данные заявки изменены");
       } else {
         showToast("danger text-white", data.message);
@@ -174,6 +179,7 @@ const UpdateTicket = () => {
     );
 
     formData.append("customFields", JSON.stringify(validCustomFields));
+    formData.append("expectedVersion", ticket.version);
 
     postTicketHandler(
       {

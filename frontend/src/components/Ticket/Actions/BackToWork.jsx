@@ -1,5 +1,6 @@
 import { useRef, useState, useContext } from "react";
-import { useFetcher } from "react-router";
+
+import useTicketAction from "../../../hooks/use-ticket-action";
 
 import Button from "react-bootstrap/Button";
 import Col from "react-bootstrap/Col";
@@ -12,7 +13,7 @@ import { RiArrowGoBackFill } from "react-icons/ri";
 import { AuthedUserContext } from "../../../store/authed-user-context";
 
 const BackToWork = ({ ticket }) => {
-  const fetcher = useFetcher();
+  const fetcher = useTicketAction();
 
   const { _id: userId, isAdmin, permissions } = useContext(AuthedUserContext);
 
@@ -36,6 +37,7 @@ const BackToWork = ({ ticket }) => {
         intent: "backToWork",
         _id: ticket._id,
         returningComment: returningComment.current.value,
+        expectedVersion: ticket.version,
       },
       {
         method: "POST",

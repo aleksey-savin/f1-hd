@@ -76,9 +76,43 @@ exports.getAll = async (req, res, next) => {
   }
 };
 
+// Список id из denormalized-массива привязок заметки (компании/категории/пользователи)
+const idList = (items = []) =>
+  items.map((item) => item?._id?.toString()).filter(Boolean);
+
+// Подходит ли заметка контексту заявки с учётом ограничительных привязок.
+// Компания и инициатор работают как ограничения: заметка, привязанная к
+// компаниям (пользователям), показывается только в заявках этих компаний (этих
+// инициаторов) и не «протекает» в чужие. Категория ограничением не является —
+// заметка с категорией без компании видна в заявке любой компании по совпадению
+// категории. Чтобы попасть в список, заметка должна совпасть хотя бы по одному
+// измерению заявки.
+const matchesTicketContext = (note, { company, category, user }) => {
+  const noteCompanyIds = idList(note.companies);
+  const noteUserIds = idList(note.users);
+  const noteCategoryIds = idList(note.categories);
+
+  // Ограничение по компании: за пределы привязанных компаний заметка не выходит
+  if (noteCompanyIds.length && !(company && noteCompanyIds.includes(company))) {
+    return false;
+  }
+
+  // Ограничение по инициатору: привязанная к пользователям заметка видна только им
+  if (noteUserIds.length && !(user && noteUserIds.includes(user))) {
+    return false;
+  }
+
+  const matchCompany = !!company && noteCompanyIds.includes(company);
+  const matchCategory = !!category && noteCategoryIds.includes(category);
+  const matchUser = !!user && noteUserIds.includes(user);
+
+  return matchCompany || matchCategory || matchUser;
+};
+
 // Заметки, связанные с контекстом заявки (компания / категория / инициатор).
-// Совпадение хотя бы по одному из переданных id; контент не отдаём (для списка),
-// ранжирование по релевантности — на клиенте.
+// Кандидаты — совпавшие хотя бы по одному id; затем отсекаем заметки, выходящие
+// за свои ограничительные привязки (компания/инициатор). Контент не отдаём (для
+// списка), ранжирование по релевантности — на клиенте.
 exports.getRelated = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
@@ -97,7 +131,11 @@ exports.getRelated = async (req, res, next) => {
       .sort({ updatedAt: -1 })
       .lean();
 
-    const visibleNotes = notes.filter((note) => canViewNote(note, authedUser));
+    const visibleNotes = notes.filter(
+      (note) =>
+        canViewNote(note, authedUser) &&
+        matchesTicketContext(note, { company, category, user }),
+    );
 
     res.status(200).json(visibleNotes);
   } catch (error) {
