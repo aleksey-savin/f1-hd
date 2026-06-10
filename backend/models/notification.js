@@ -27,6 +27,7 @@ const notificationSchema = new Schema(
     },
     title: String,
     text: String,
+    replyMarkup: { type: Schema.Types.Mixed },
     sent: { type: Boolean, default: false },
     failed: { type: Boolean, default: false },
     attemptsCounter: { type: Number, default: 0 },

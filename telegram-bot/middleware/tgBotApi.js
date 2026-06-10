@@ -34,6 +34,19 @@ const formatDate = (date, timezone) => {
   });
 };
 
+// Inline-кнопка со ссылкой на заявку. Telegram отклоняет кнопки с localhost/невалидным
+// URL (BUTTON_URL_INVALID) и роняет всю отправку — в dev (ADDRESS=localhost) не добавляем.
+const ticketButton = (num) => {
+  const base = process.env.ADDRESS || "";
+  const isLocal = /\/\/(localhost|127\.|0\.0\.0\.0|\[?::1)/i.test(base);
+  if (!/^https?:\/\//i.test(base) || isLocal) {
+    return undefined;
+  }
+  return {
+    inline_keyboard: [[{ text: "Подробнее", url: `${base}/tickets/${num}` }]],
+  };
+};
+
 const bot = new TelegramBot(TOKEN, {
   polling: true,
 });
@@ -507,9 +520,7 @@ exports.launchTgBot = async () => {
               `<b>Заявка ${num}</b>\n<b>Тема: ${title}</b>\nДедлайн: ${formatDate(
                 deadline,
                 timezone,
-              )}\n<b>Статус: ${state}</b>\n<a href='${
-                process.env.ADDRESS
-              }/tickets/${num}'><b>Подробнее</b></a>`
+              )}\n<b>Статус: ${state}</b>`
             : // не для Клиентов
               `<b>Заявка ${num}</b>\n<b>Тема: ${title}</b>\nКомпания: ${
                 company.alias
@@ -520,16 +531,16 @@ exports.launchTgBot = async () => {
               }</a>\nОтветственные:${responsibles}\n<b>Дедлайн: ${formatDate(
                 deadline,
                 timezone,
-              )}</b>${
-                isOverdue ? " 🔴" : ""
-              }\n<b>Статус: ${state}</b>\n<a href='${
-                process.env.ADDRESS
-              }/tickets/${num}'><b>Подробнее</b></a>`;
+              )}</b>${isOverdue ? " 🔴" : ""}\n<b>Статус: ${state}</b>`;
 
-          await bot.sendMessage(ctx.message.chat.id, message, {
+          const detailsButton = ticketButton(num);
+          const sendOptions = {
             parse_mode: "HTML",
             disable_web_page_preview: true,
-          });
+          };
+          if (detailsButton) sendOptions.reply_markup = detailsButton;
+
+          await bot.sendMessage(ctx.message.chat.id, message, sendOptions);
 
           await bot.deleteMessage(ctx.message.chat.id, ctx.message.message_id);
         }
@@ -566,13 +577,15 @@ exports.launchTgBot = async () => {
 
 //-------------------- SENDING NOTIFICATIONS --------------------
 
-exports.tgSendMessage = async (channelId, msg) => {
+exports.tgSendMessage = async (channelId, msg, replyMarkup) => {
   try {
     sleep(2000);
-    const message = await bot.sendMessage(channelId, msg, {
+    const options = {
       disable_web_page_preview: true,
       parse_mode: "HTML",
-    });
+    };
+    if (replyMarkup) options.reply_markup = replyMarkup;
+    const message = await bot.sendMessage(channelId, msg, options);
     logger.log("info", `Message sent to Telegram`);
     return message;
   } catch (error) {

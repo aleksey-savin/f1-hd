@@ -51,8 +51,11 @@ export interface IPreferences {
   };
   ai: {
     isActive: boolean;
-    provider: "openai" | "anthropic";
+    provider: "openai" | "anthropic" | "deepseek" | "yandexgpt" | "yandexai";
     openai: { apiKey: string; model: string };
     anthropic: { apiKey: string; model: string };
+    deepseek: { apiKey: string; model: string };
+    yandexgpt: { apiKey: string; model: string; folderId: string };
+    yandexai: { apiKey: string; model: string; folderId: string };
   };
 }

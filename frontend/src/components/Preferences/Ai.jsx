@@ -18,6 +18,9 @@ const PrefsAi = (props) => {
       provider: "openai",
       openai: { apiKey: "", model: "" },
       anthropic: { apiKey: "", model: "" },
+      deepseek: { apiKey: "", model: "deepseek-chat" },
+      yandexgpt: { apiKey: "", folderId: "", model: "yandexgpt" },
+      yandexai: { apiKey: "", folderId: "", model: "deepseek-r1" },
       speechToText: {
         isActive: false,
         provider: "openai",
@@ -33,6 +36,19 @@ const PrefsAi = (props) => {
   ai.provider = ai.provider || "openai";
   ai.openai = { apiKey: "", model: "", ...(ai.openai || {}) };
   ai.anthropic = { apiKey: "", model: "", ...(ai.anthropic || {}) };
+  ai.deepseek = { apiKey: "", model: "deepseek-chat", ...(ai.deepseek || {}) };
+  ai.yandexgpt = {
+    apiKey: "",
+    folderId: "",
+    model: "yandexgpt",
+    ...(ai.yandexgpt || {}),
+  };
+  ai.yandexai = {
+    apiKey: "",
+    folderId: "",
+    model: "deepseek-r1",
+    ...(ai.yandexai || {}),
+  };
   ai.speechToText = {
     isActive: false,
     provider: "openai",
@@ -57,6 +73,21 @@ const PrefsAi = (props) => {
   const [anthropicApiKey, setAnthropicApiKey] = useState(ai.anthropic?.apiKey);
   const [anthropicModel, setAnthropicModel] = useState(ai.anthropic?.model);
 
+  const [deepseekApiKey, setDeepseekApiKey] = useState(ai.deepseek?.apiKey);
+  const [deepseekModel, setDeepseekModel] = useState(ai.deepseek?.model);
+
+  const [yandexGptApiKey, setYandexGptApiKey] = useState(ai.yandexgpt?.apiKey);
+  const [yandexGptFolderId, setYandexGptFolderId] = useState(
+    ai.yandexgpt?.folderId,
+  );
+  const [yandexGptModel, setYandexGptModel] = useState(ai.yandexgpt?.model);
+
+  const [yandexAiApiKey, setYandexAiApiKey] = useState(ai.yandexai?.apiKey);
+  const [yandexAiFolderId, setYandexAiFolderId] = useState(
+    ai.yandexai?.folderId,
+  );
+  const [yandexAiModel, setYandexAiModel] = useState(ai.yandexai?.model);
+
   const [speechIsActive, setSpeechIsActive] = useState(
     ai.speechToText?.isActive,
   );
@@ -80,11 +111,25 @@ const PrefsAi = (props) => {
   const [loadingSpeechModels, setLoadingSpeechModels] = useState(false);
   const [speechModelsError, setSpeechModelsError] = useState(null);
 
-  const currentApiKey = provider === "openai" ? openaiApiKey : anthropicApiKey;
+  const currentApiKey = {
+    openai: openaiApiKey,
+    anthropic: anthropicApiKey,
+    deepseek: deepseekApiKey,
+    yandexgpt: yandexGptApiKey,
+    yandexai: yandexAiApiKey,
+  }[provider];
   const speechDiarizeModel = "gpt-4o-transcribe-diarize";
 
   const loadModels = useCallback(async () => {
-    const apiKey = provider === "openai" ? openaiApiKey : anthropicApiKey;
+    // У YandexGPT фиксированный список, у Yandex AI Studio — свободный ввод
+    // модели; динамически грузить нечего.
+    if (provider === "yandexgpt" || provider === "yandexai") return;
+
+    const apiKey = {
+      openai: openaiApiKey,
+      anthropic: anthropicApiKey,
+      deepseek: deepseekApiKey,
+    }[provider];
 
     if (!apiKey) {
       setModels([]);
@@ -120,7 +165,7 @@ const PrefsAi = (props) => {
     } finally {
       setLoadingModels(false);
     }
-  }, [provider, openaiApiKey, anthropicApiKey, token]);
+  }, [provider, openaiApiKey, anthropicApiKey, deepseekApiKey, token]);
 
   const loadSpeechModels = useCallback(async () => {
     if (!speechApiKey) {
@@ -227,6 +272,46 @@ const PrefsAi = (props) => {
   const anthropicModelHandler = (event) => {
     setAnthropicModel(event.target.value);
     ai.anthropic.model = event.target.value;
+  };
+
+  const deepseekApiKeyHandler = (event) => {
+    setDeepseekApiKey(event.target.value);
+    ai.deepseek.apiKey = event.target.value;
+  };
+
+  const deepseekModelHandler = (event) => {
+    setDeepseekModel(event.target.value);
+    ai.deepseek.model = event.target.value;
+  };
+
+  const yandexGptApiKeyHandler = (event) => {
+    setYandexGptApiKey(event.target.value);
+    ai.yandexgpt.apiKey = event.target.value;
+  };
+
+  const yandexGptFolderIdHandler = (event) => {
+    setYandexGptFolderId(event.target.value);
+    ai.yandexgpt.folderId = event.target.value;
+  };
+
+  const yandexGptModelHandler = (event) => {
+    setYandexGptModel(event.target.value);
+    ai.yandexgpt.model = event.target.value;
+  };
+
+  const yandexAiApiKeyHandler = (event) => {
+    setYandexAiApiKey(event.target.value);
+    ai.yandexai.apiKey = event.target.value;
+  };
+
+  const yandexAiFolderIdHandler = (event) => {
+    setYandexAiFolderId(event.target.value);
+    ai.yandexai.folderId = event.target.value;
+  };
+
+  const yandexAiModelHandler = (event) => {
+    setYandexAiModel(event.target.value);
+    ai.yandexai.model = event.target.value;
   };
 
   const speechIsActiveHandler = () => {
@@ -378,6 +463,11 @@ const PrefsAi = (props) => {
             >
               <option value="openai">OpenAI ChatGPT</option>
               <option value="anthropic">Anthropic Claude</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="yandexgpt">Yandex GPT</option>
+              <option value="yandexai">
+                Yandex AI Studio (DeepSeek, Qwen…)
+              </option>
             </Form.Select>
           </Form.Group>
 
@@ -424,6 +514,118 @@ const PrefsAi = (props) => {
                 disabled: !isActive || !currentApiKey,
                 onRefresh: loadModels,
               })}
+            </>
+          )}
+
+          {provider === "deepseek" && (
+            <>
+              <Form.Group className="mb-3 w-100">
+                <Form.Label>API-ключ DeepSeek</Form.Label>
+                <Form.Control
+                  disabled={!isActive}
+                  type="password"
+                  value={deepseekApiKey}
+                  onChange={deepseekApiKeyHandler}
+                />
+              </Form.Group>
+              {renderModelField({
+                currentModel: deepseekModel,
+                onChange: deepseekModelHandler,
+                availableModels: models,
+                loading: loadingModels,
+                error: modelsError,
+                disabled: !isActive || !currentApiKey,
+                onRefresh: loadModels,
+              })}
+            </>
+          )}
+
+          {provider === "yandexgpt" && (
+            <>
+              <Form.Group className="mb-3 w-100">
+                <Form.Label>API-ключ Yandex GPT</Form.Label>
+                <Form.Control
+                  disabled={!isActive}
+                  type="password"
+                  value={yandexGptApiKey}
+                  onChange={yandexGptApiKeyHandler}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3 w-100">
+                <Form.Label>
+                  Идентификатор каталога (folder ID){" "}
+                  <span className="text-danger">*</span>
+                </Form.Label>
+                <Form.Control
+                  disabled={!isActive}
+                  type="text"
+                  value={yandexGptFolderId}
+                  onChange={yandexGptFolderIdHandler}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3 w-100">
+                <Form.Label>Модель</Form.Label>
+                <Form.Select
+                  disabled={!isActive}
+                  value={yandexGptModel}
+                  onChange={yandexGptModelHandler}
+                >
+                  <option value="yandexgpt">YandexGPT Pro</option>
+                  <option value="yandexgpt-lite">YandexGPT Lite</option>
+                  <option value="yandexgpt-32k">YandexGPT 32k</option>
+                </Form.Select>
+                <Form.Text className="text-muted">
+                  YandexGPT требует API-ключ сервисного аккаунта и идентификатор
+                  каталога. Набор моделей фиксированный.
+                </Form.Text>
+              </Form.Group>
+            </>
+          )}
+
+          {provider === "yandexai" && (
+            <>
+              <Form.Group className="mb-3 w-100">
+                <Form.Label>API-ключ Yandex AI Studio</Form.Label>
+                <Form.Control
+                  disabled={!isActive}
+                  type="password"
+                  value={yandexAiApiKey}
+                  onChange={yandexAiApiKeyHandler}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3 w-100">
+                <Form.Label>
+                  Идентификатор каталога (folder ID){" "}
+                  <span className="text-danger">*</span>
+                </Form.Label>
+                <Form.Control
+                  disabled={!isActive}
+                  type="text"
+                  value={yandexAiFolderId}
+                  onChange={yandexAiFolderIdHandler}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3 w-100">
+                <Form.Label>Модель</Form.Label>
+                <Form.Control
+                  disabled={!isActive}
+                  type="text"
+                  list="yandexai-models"
+                  value={yandexAiModel}
+                  onChange={yandexAiModelHandler}
+                />
+                <datalist id="yandexai-models">
+                  <option value="deepseek-r1" />
+                  <option value="deepseek-v3" />
+                  <option value="qwen3-235b-a22b-fp8" />
+                </datalist>
+                <Form.Text className="text-muted">
+                  Идентификатор модели Yandex AI Studio (например deepseek-r1,
+                  deepseek-v3, qwen3-235b-a22b-fp8); точные слаги — в консоли
+                  Yandex Cloud (AI Studio → Модели). Итоговый URI:{" "}
+                  {"gpt://<folder>/<модель>/latest"}.
+                </Form.Text>
+              </Form.Group>
             </>
           )}
 
@@ -502,10 +704,13 @@ const PrefsAi = (props) => {
 
           <Form.Group>
             <Alert variant="light">
-              Список моделей чата загружается напрямую от выбранного провайдера
-              по вашему API-ключу — нажмите кнопку обновления после ввода ключа.
-              Для распознавания речи доступны OpenAI (модели speech-to-text) и
-              Yandex SpeechKit.
+              Список моделей чата OpenAI, Anthropic и DeepSeek загружается
+              напрямую от провайдера по вашему API-ключу — нажмите кнопку
+              обновления после ввода ключа. Для YandexGPT и Yandex AI Studio
+              модель указывается вручную и нужен идентификатор каталога (folder
+              ID); Yandex AI Studio открывает open-source модели (DeepSeek,
+              Qwen) по OpenAI-совместимому API. Для распознавания речи доступны
+              OpenAI (модели speech-to-text) и Yandex SpeechKit.
             </Alert>
           </Form.Group>
         </Col>

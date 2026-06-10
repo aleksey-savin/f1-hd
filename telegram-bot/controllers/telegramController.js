@@ -42,6 +42,7 @@ exports.checkTgNotifications = async () => {
           const message = await tgSendMessage(
             notification.to.chatId,
             notification.text,
+            notification.replyMarkup,
           );
           if (message?.message_id) {
             notification.attemptsCounter += 1;

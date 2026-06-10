@@ -11,6 +11,13 @@ const isOpenaiSpeechModel = (modelId) =>
     modelId,
   );
 
+// YandexGPT не отдаёт каталог моделей по API — список фиксированный.
+const YANDEX_GPT_MODELS = [
+  { id: "yandexgpt", name: "YandexGPT Pro" },
+  { id: "yandexgpt-lite", name: "YandexGPT Lite" },
+  { id: "yandexgpt-32k", name: "YandexGPT 32k" },
+];
+
 exports.get = async (req, res, next) => {
   try {
     const preferences = await Preferences.findOne({});
@@ -178,7 +185,12 @@ exports.getAiModels = async (req, res, next) => {
       });
     }
 
-    if (!provider || !["openai", "anthropic"].includes(provider)) {
+    // YandexGPT (чат) тоже без каталога по API — отдаём фиксированный набор.
+    if (provider === "yandexgpt") {
+      return res.status(200).json({ models: YANDEX_GPT_MODELS });
+    }
+
+    if (!provider || !["openai", "anthropic", "deepseek"].includes(provider)) {
       return next(new AppError("Unknown AI provider", 400, true));
     }
 
@@ -255,6 +267,24 @@ exports.getAiModels = async (req, res, next) => {
         id: model.id,
         name: model.display_name || model.id,
       }));
+    }
+
+    // DeepSeek предоставляет OpenAI-совместимый эндпоинт каталога моделей.
+    if (provider === "deepseek") {
+      const response = await fetch("https://api.deepseek.com/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+
+      if (!response.ok) {
+        return next(
+          new AppError("Failed to fetch DeepSeek models", response.status, true),
+        );
+      }
+
+      const data = await response.json();
+      models = (data.data || [])
+        .map((model) => ({ id: model.id, name: model.id }))
+        .sort((a, b) => a.id.localeCompare(b.id));
     }
 
     res.status(200).json({ models });

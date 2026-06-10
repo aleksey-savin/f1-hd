@@ -152,7 +152,7 @@ const ClientDeviceForm = ({ title }) => {
   const setField = (name, value) =>
     setForm((prev) => ({ ...prev, [name]: value }));
 
-  // Загрузка справочников.
+  // Загрузка справочников (расположения грузим отдельно — они зависят от компании).
   useEffect(() => {
     const fetchReferenceData = async () => {
       setLoading(true);
@@ -163,7 +163,6 @@ const ClientDeviceForm = ({ title }) => {
       try {
         const responses = await Promise.all([
           fetch(`${base}/api/companies`, { headers }),
-          fetch(`${base}/api/inventory/companies-locations`, { headers }),
           fetch(`${base}/api/inventory/device-types`, { headers }),
           fetch(`${base}/api/inventory/vendors`, { headers }),
           fetch(`${base}/api/inventory/device-models`, { headers }),
@@ -172,7 +171,6 @@ const ClientDeviceForm = ({ title }) => {
 
         const [
           companiesData,
-          locationsData,
           typesData,
           vendorsData,
           modelsData,
@@ -180,7 +178,6 @@ const ClientDeviceForm = ({ title }) => {
         ] = await Promise.all(responses.map((r) => r.json()));
 
         setCompanies(Array.isArray(companiesData) ? companiesData : []);
-        setLocations(Array.isArray(locationsData) ? locationsData : []);
         setDeviceTypes(Array.isArray(typesData) ? typesData : []);
         setVendors(Array.isArray(vendorsData) ? vendorsData : []);
         setDeviceModels(Array.isArray(modelsData) ? modelsData : []);
@@ -194,6 +191,36 @@ const ClientDeviceForm = ({ title }) => {
 
     fetchReferenceData();
   }, []);
+
+  // Расположения выбранной компании. Бэкенд фильтрует по companyIds; без
+  // компании список пуст. При смене компании подгружаем заново (см. также
+  // handleCompanyChange — он сбрасывает выбранное расположение).
+  useEffect(() => {
+    if (!form.companyId) {
+      setLocations([]);
+      return;
+    }
+
+    const fetchLocations = async () => {
+      const { token } = getLocalStorageData();
+      const headers = { Authorization: "Bearer " + token };
+      const base = import.meta.env.VITE_API_ADDRESS;
+
+      try {
+        const response = await fetch(
+          `${base}/api/inventory/companies-locations?companyIds=${form.companyId}`,
+          { headers },
+        );
+        const data = await response.json();
+        setLocations(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Error fetching locations:", error);
+        setLocations([]);
+      }
+    };
+
+    fetchLocations();
+  }, [form.companyId]);
 
   // Успешный сабмит — закрываем offcanvas и возвращаемся к списку.
   useEffect(() => {
@@ -213,13 +240,12 @@ const ClientDeviceForm = ({ title }) => {
     [companies],
   );
 
+  // Список уже отфильтрован по выбранной компании — суффикс с алиасом не нужен.
   const locationOptions = useMemo(
     () =>
       locations.map((location) => ({
         value: location._id,
-        label: location.company?.alias
-          ? `${location.name} — ${location.company.alias}`
-          : location.name,
+        label: location.name,
       })),
     [locations],
   );
@@ -236,15 +262,18 @@ const ClientDeviceForm = ({ title }) => {
     [vendors],
   );
 
-  // Модели выбранного типа и вендора.
+  // Модели выбранного типа и вендора. Ссылки могут быть populated ({_id}) или
+  // сырым id (например, у только что созданной инлайн модели).
   const modelOptions = useMemo(() => {
     if (!form.deviceTypeId || !form.vendorId) return [];
     return deviceModels
-      .filter(
-        (model) =>
-          model.deviceTypeId?._id === form.deviceTypeId &&
-          model.vendorId?._id === form.vendorId,
-      )
+      .filter((model) => {
+        const modelTypeId = model.deviceTypeId?._id || model.deviceTypeId;
+        const modelVendorId = model.vendorId?._id || model.vendorId;
+        return (
+          modelTypeId === form.deviceTypeId && modelVendorId === form.vendorId
+        );
+      })
       .map((model) => ({
         value: model._id,
         label: model.name || "— без названия —",
@@ -253,7 +282,12 @@ const ClientDeviceForm = ({ title }) => {
 
   const modelDisabled = !form.deviceTypeId || !form.vendorId;
 
-  // --- каскадные сбросы: модель зависит от типа и вендора ---
+  // --- каскадные сбросы ---
+  // Расположение зависит от компании — при смене компании сбрасываем его.
+  const handleCompanyChange = (value) =>
+    setForm((prev) => ({ ...prev, companyId: value, locationId: "" }));
+
+  // Модель зависит от типа и вендора.
   const handleTypeChange = (value) =>
     setForm((prev) => ({ ...prev, deviceTypeId: value, deviceModelId: "" }));
 
@@ -271,13 +305,26 @@ const ClientDeviceForm = ({ title }) => {
     setForm((prev) => ({ ...prev, vendorId: vendor._id, deviceModelId: "" }));
   };
 
+  // Модель могла быть создана с другим типом/вендором (полная форма в модалке) —
+  // синхронизируем выбор, чтобы новая модель попала в отфильтрованный список.
   const handleModelCreated = (model) => {
     setDeviceModels((prev) => [...prev, model]);
-    setField("deviceModelId", model._id);
+    setForm((prev) => ({
+      ...prev,
+      deviceTypeId:
+        model.deviceTypeId?._id || model.deviceTypeId || prev.deviceTypeId,
+      vendorId: model.vendorId?._id || model.vendorId || prev.vendorId,
+      deviceModelId: model._id,
+    }));
   };
 
   const handleSupplierCreated = (supplier) =>
     setSuppliers((prev) => [...prev, supplier]);
+
+  const handleLocationCreated = (location) => {
+    setLocations((prev) => [...prev, location]);
+    setField("locationId", location._id);
+  };
 
   // --- валидация шагов ---
   const stepValid = (index) => {
@@ -361,20 +408,28 @@ const ClientDeviceForm = ({ title }) => {
                   placeholder="Выберите компанию"
                   options={companyOptions}
                   value={findOption(companyOptions, form.companyId)}
-                  onChange={(o) => setField("companyId", o ? o.value : "")}
+                  onChange={(o) => handleCompanyChange(o ? o.value : "")}
                   isClearable
                   autoFocus
                 />
               </Form.Group>
               <Form.Group className="mb-0">
                 <Form.Label htmlFor="locationId">Расположение</Form.Label>
-                <Select
+                <SelectWithAdd
                   id="locationId"
-                  placeholder="Выберите расположение"
+                  placeholder={
+                    form.companyId
+                      ? "Выберите расположение"
+                      : "Сначала выберите компанию"
+                  }
                   options={locationOptions}
                   value={findOption(locationOptions, form.locationId)}
                   onChange={(o) => setField("locationId", o ? o.value : "")}
+                  isDisabled={!form.companyId}
                   isClearable
+                  addTitle="Добавить расположение"
+                  onAdd={() => setInlineKind("location")}
+                  addDisabled={!form.companyId}
                 />
               </Form.Group>
             </Card.Body>
@@ -442,7 +497,9 @@ const ClientDeviceForm = ({ title }) => {
                   onChange={(o) => setField("deviceModelId", o ? o.value : "")}
                   isDisabled={modelDisabled}
                   isClearable
-                  noOptionsMessage={() => "Нет моделей — добавьте кнопкой рядом"}
+                  noOptionsMessage={() =>
+                    "Нет моделей — добавьте кнопкой рядом"
+                  }
                   addTitle="Добавить модель"
                   onAdd={() => setInlineKind("deviceModel")}
                   addDisabled={modelDisabled}
@@ -614,6 +671,7 @@ const ClientDeviceForm = ({ title }) => {
         show={inlineKind === "deviceType"}
         onHide={() => setInlineKind(null)}
         kind="deviceType"
+        resources={{ deviceTypes }}
         onCreated={handleTypeCreated}
       />
       <InlineCreateModal
@@ -627,7 +685,16 @@ const ClientDeviceForm = ({ title }) => {
         onHide={() => setInlineKind(null)}
         kind="deviceModel"
         context={modelContext}
+        resources={{ deviceTypes, vendors, deviceModels }}
         onCreated={handleModelCreated}
+      />
+      <InlineCreateModal
+        show={inlineKind === "location"}
+        onHide={() => setInlineKind(null)}
+        kind="location"
+        context={{ companyId: form.companyId }}
+        resources={{ companies }}
+        onCreated={handleLocationCreated}
       />
     </Container>
   );

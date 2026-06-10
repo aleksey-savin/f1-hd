@@ -75,7 +75,10 @@ const preferencesSchema = new Schema({
   // категории заявки. Достаточно провайдера, ключа и модели текстовой генерации.
   ai: {
     isActive: { type: Boolean, default: false },
-    provider: { type: String, enum: ["openai", "anthropic"] },
+    provider: {
+      type: String,
+      enum: ["openai", "anthropic", "deepseek", "yandexgpt", "yandexai"],
+    },
     openai: {
       apiKey: { type: String, default: "" },
       model: { type: String, default: "gpt-4o" },
@@ -83,6 +86,20 @@ const preferencesSchema = new Schema({
     anthropic: {
       apiKey: { type: String, default: "" },
       model: { type: String, default: "claude-opus-4-8" },
+    },
+    deepseek: {
+      apiKey: { type: String, default: "" },
+      model: { type: String, default: "deepseek-chat" },
+    },
+    yandexgpt: {
+      apiKey: { type: String, default: "" },
+      folderId: { type: String, default: "" },
+      model: { type: String, default: "yandexgpt" },
+    },
+    yandexai: {
+      apiKey: { type: String, default: "" },
+      folderId: { type: String, default: "" },
+      model: { type: String, default: "deepseek-r1" },
     },
   },
 });

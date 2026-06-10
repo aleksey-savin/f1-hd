@@ -9,7 +9,7 @@ import Modal from "react-bootstrap/Modal";
 import Alert from "react-bootstrap/Alert";
 import Dropdown from "react-bootstrap/Dropdown";
 
-import { RiShakeHandsLine } from "react-icons/ri";
+import { RiLinksFill } from "react-icons/ri";
 
 const RequestHelp = ({ ticket, responsibles }) => {
   const fetcher = useTicketAction();
@@ -60,7 +60,7 @@ const RequestHelp = ({ ticket, responsibles }) => {
   return (
     <>
       <Dropdown.Item onClick={showRequestHelp}>
-        <RiShakeHandsLine /> Запросить помощь
+        <RiLinksFill /> Запросить помощь
       </Dropdown.Item>
       <Dropdown.Divider />
       <Modal show={requestHelp} onHide={closeRequestHelp} centered>

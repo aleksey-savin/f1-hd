@@ -37,11 +37,24 @@ const withMongoRetry = async (operation, context) => {
 const notificationsEnabled = (prefs) =>
   prefs?.notify?.byEmail?.isActive || prefs?.notify?.byTelegram?.isActive;
 
-exports.createTicketNotifications = async () => {
-  if (process.env.NODE_ENV === "development") {
-    return;
+// Inline-кнопка Telegram со ссылкой на заявку (заменяет текстовые <a href> в уведомлениях).
+// Telegram отклоняет inline-кнопки с невалидным URL (localhost/127.* и пустой ADDRESS)
+// ошибкой BUTTON_URL_INVALID, что роняет всю отправку. В таких случаях (например, в dev)
+// кнопку не добавляем — сообщение уходит без неё.
+const ticketButton = (num) => {
+  const base = process.env.ADDRESS || "";
+  const isLocal = /\/\/(localhost|127\.|0\.0\.0\.0|\[?::1)/i.test(base);
+  if (!/^https?:\/\//i.test(base) || isLocal) {
+    return undefined;
   }
+  return {
+    inline_keyboard: [
+      [{ text: "Подробнее", url: `${base}/tickets/${num}` }],
+    ],
+  };
+};
 
+exports.createTicketNotifications = async () => {
   const prefs = await withMongoRetry(
     () => Preferences.findOne({}),
     "loading preferences for ticket notifications",
@@ -80,6 +93,9 @@ exports.createTicketNotifications = async () => {
     prefs.notify?.byTelegram?.isActive;
 
   const notifyEmail = (user, state) =>
+    // В dev почтовые уведомления подавляем, чтобы не слать письма реальным
+    // пользователям; telegram при этом работает (тест-бот безопасен).
+    process.env.NODE_ENV !== "development" &&
     prefs.notify?.byEmail?.isActive &&
     user?.notify?.byEmail?.[state] &&
     prefs.notify?.personal?.[state];
@@ -122,7 +138,8 @@ exports.createTicketNotifications = async () => {
                 chatId: prefs.notify.byTelegram.chatId,
                 globalChat: true,
               },
-              text: `⭐️ <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Новая заявка ${ticket.num}</b></a>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+              text: `⭐️ <b>Новая заявка ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+              replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
           }
@@ -147,7 +164,8 @@ exports.createTicketNotifications = async () => {
                 chatId: applicant.telegramBot.chatId,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              text: `⭐️ <b>Новая заявка ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\n<a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Подробнее</b></a>\n#ticket_${ticket.num}`,
+              text: `⭐️ <b>Новая заявка ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\n#ticket_${ticket.num}`,
+              replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
           }
@@ -178,7 +196,8 @@ exports.createTicketNotifications = async () => {
                   chatId: resp.telegramBot.chatId,
                   responsible: `${resp.lastName} ${resp.firstName}`,
                 },
-                text: `🟢 <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Вы добавлены в список ответственных заявки ${ticket.num}</b></a>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
 
@@ -318,7 +337,8 @@ exports.createTicketNotifications = async () => {
                   chatId: resp.telegramBot.chatId,
                   responsible: `${resp.lastName} ${resp.firstName}`,
                 },
-                text: `🟢 <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Вы добавлены в список ответственных заявки ${ticket.num}</b></a>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
 
@@ -406,7 +426,8 @@ exports.createTicketNotifications = async () => {
                 chatId: applicant.telegramBot?.chatId,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              text: `📌 <b>Заявка ${ticket.num} принята в работу</b>\nТема: ${ticket.title}\n<a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Подробнее</b></a>\n#ticket_${ticket.num}`,
+              text: `📌 <b>Заявка ${ticket.num} принята в работу</b>\nТема: ${ticket.title}\n#ticket_${ticket.num}`,
+              replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
           }
@@ -498,7 +519,8 @@ exports.createTicketNotifications = async () => {
                   chatId: user.telegramBot?.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `🟢 <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Вы добавлены в список ответственных заявки ${ticket.num}</b></a>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
 
@@ -586,7 +608,8 @@ exports.createTicketNotifications = async () => {
                 chatId: prefs.notify.byTelegram.chatId,
                 globalChat: true,
               },
-              text: `‼️ <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Заявка ${ticket.num} возвращена в статус "Новая"</b></a>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n#ticket_${ticket.num}`,
+              text: `‼️ <b>Заявка ${ticket.num} возвращена в статус "Новая"</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n#ticket_${ticket.num}`,
+              replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
           }
@@ -617,19 +640,18 @@ exports.createTicketNotifications = async () => {
                   chatId: user.telegramBot?.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `🟠 <a href='${process.env.ADDRESS}/tickets/${
-                  ticket.num
-                }'><b>${userRejected.firstName} ${
+                text: `🟠 <b>${userRejected.firstName} ${
                   userRejected.lastName
                 } убрал(а) себя из списка ответственных заявки ${
                   ticket.num
-                }</b></a>\n<b>Причина: ${
+                }</b>\n<b>Причина: ${
                   ticket.rejected[ticket.rejected.length - 1].reason
                 }</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${
                   ticket.company.alias
                 }\nИнициатор: ${ticket.applicantId.lastName} ${
                   ticket.applicantId.firstName
                 }\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
             }
@@ -795,7 +817,8 @@ exports.createTicketNotifications = async () => {
                 chatId: prefs.notify.byTelegram?.chatId,
                 globalChat: true,
               },
-              text: `✅ <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Закрыта заявка ${ticket.num}</b></a>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.closingComment}</b>\n#ticket_${ticket.num}`,
+              text: `✅ <b>Закрыта заявка ${ticket.num}</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.closingComment}</b>\n#ticket_${ticket.num}`,
+              replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
           }
@@ -820,7 +843,8 @@ exports.createTicketNotifications = async () => {
                 chatId: applicant.telegramBot.chatId,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              text: `✅ <b>Закрыта заявка ${ticket.num}</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.closingComment}</b>\n<a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Подробнее</b></a>\n#ticket_${ticket.num}`,
+              text: `✅ <b>Закрыта заявка ${ticket.num}</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.closingComment}</b>\n#ticket_${ticket.num}`,
+              replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
           }
@@ -848,7 +872,8 @@ exports.createTicketNotifications = async () => {
                   chatId: user.telegramBot?.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `✅ <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Закрыта заявка ${ticket.num}</b></a>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.closingComment}</b>\n#ticket_${ticket.num}`,
+                text: `✅ <b>Закрыта заявка ${ticket.num}</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.closingComment}</b>\n#ticket_${ticket.num}`,
+                replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
             }
@@ -975,7 +1000,8 @@ exports.createTicketNotifications = async () => {
                 chatId: prefs.notify.byTelegram?.chatId,
                 globalChat: true,
               },
-              text: `‼️ <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Заявка ${ticket.num} возвращена в статус "В работе"</b></a>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.returningComment}</b>\n#ticket_${ticket.num}`,
+              text: `‼️ <b>Заявка ${ticket.num} возвращена в статус "В работе"</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.returningComment}</b>\n#ticket_${ticket.num}`,
+              replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
           }
@@ -1003,7 +1029,8 @@ exports.createTicketNotifications = async () => {
                   chatId: user.telegramBot?.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `‼️ <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Заявка ${ticket.num} возвращена в статус "В работе"</b></a>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.returningComment}</b>\n#ticket_${ticket.num}`,
+                text: `‼️ <b>Заявка ${ticket.num} возвращена в статус "В работе"</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.returningComment}</b>\n#ticket_${ticket.num}`,
+                replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
             }
@@ -1029,7 +1056,8 @@ exports.createTicketNotifications = async () => {
                 chatId: applicant.telegramBot?.chatId,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              text: `‼️ <b>Заявка ${ticket.num} возвращена в статус "В работе"</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.returningComment}</b>\n<a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Подробнее</b></a>\n#ticket_${ticket.num}`,
+              text: `‼️ <b>Заявка ${ticket.num} возвращена в статус "В работе"</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.returningComment}</b>\n#ticket_${ticket.num}`,
+              replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
           }
@@ -1139,6 +1167,17 @@ exports.createTicketNotifications = async () => {
         await ticket.save();
 
         break;
+
+      default:
+        // Снимаем pending даже для lastAction без ветки уведомлений,
+        // чтобы заявки не копились в очереди бесконечно.
+        logger.log("warn", "Ticket notification: unhandled lastAction", {
+          ticketNum: ticket.num,
+          lastAction,
+        });
+        ticket.notifications.pending = false;
+        await ticket.save();
+        break;
     }
   }
 };
@@ -1178,6 +1217,9 @@ exports.createCommentNotifications = async () => {
     prefs.notify?.byTelegram?.isActive;
 
   const notifyEmail = (user, state) =>
+    // В dev почтовые уведомления подавляем, чтобы не слать письма реальным
+    // пользователям; telegram при этом работает (тест-бот безопасен).
+    process.env.NODE_ENV !== "development" &&
     prefs.notify?.byEmail?.isActive &&
     user?.notify?.byEmail?.[state] &&
     prefs.notify?.personal?.[state];
@@ -1214,7 +1256,8 @@ exports.createCommentNotifications = async () => {
                 chatId: applicant.telegramBot?.chatId,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              text: `💬 <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Комментарий к заявке ${ticket.num}</b></a>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
+              text: `💬 <b>Комментарий к заявке ${ticket.num}</b>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
+              replyMarkup: ticketButton(ticket.num),
             });
             await newCommentNotification.save();
           }
@@ -1240,7 +1283,8 @@ exports.createCommentNotifications = async () => {
                 chatId: prefs.notify.byTelegram.chatId,
                 globalChat: true,
               },
-              text: `💬 <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Комментарий к заявке ${ticket.num}</b></a>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
+              text: `💬 <b>Комментарий к заявке ${ticket.num}</b>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
+              replyMarkup: ticketButton(ticket.num),
             });
             await newCommentNotification.save();
           }
@@ -1271,7 +1315,8 @@ exports.createCommentNotifications = async () => {
                   chatId: user.telegramBot.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `💬 <a href='${process.env.ADDRESS}/tickets/${ticket.num}'><b>Комментарий к заявке ${ticket.num}</b></a>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
+                text: `💬 <b>Комментарий к заявке ${ticket.num}</b>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
+                replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
             }
@@ -1665,6 +1710,9 @@ exports.createScheduledWorkNotifications = async () => {
     prefs.notify?.byTelegram?.isActive;
 
   const notifyEmail = (user, state) =>
+    // В dev почтовые уведомления подавляем, чтобы не слать письма реальным
+    // пользователям; telegram при этом работает (тест-бот безопасен).
+    process.env.NODE_ENV !== "development" &&
     prefs.notify?.byEmail?.isActive &&
     user?.notify?.byEmail?.[state] &&
     prefs.notify?.personal?.[state];

@@ -14,6 +14,12 @@ const logger = require("../utils/logger");
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const ANTHROPIC_ENDPOINT = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
+// DeepSeek OpenAI-совместим; YandexGPT — Foundation Models API.
+const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
+const YANDEX_GPT_ENDPOINT =
+  "https://llm.api.cloud.yandex.net/foundationModels/v1/completion";
+const YANDEX_AI_STUDIO_ENDPOINT =
+  "https://llm.api.cloud.yandex.net/v1/chat/completions";
 
 const MAX_FIELD_LENGTH = 2000;
 const MAX_CATEGORY_DESCRIPTION_LENGTH = 600;
@@ -82,26 +88,55 @@ const parseJsonResponse = (raw) => {
   return JSON.parse(text);
 };
 
-const callOpenai = async ({ apiKey, model, system, user }) => {
-  const response = await axios.post(
-    OPENAI_ENDPOINT,
-    {
-      model,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
+const callOpenai = async ({
+  apiKey,
+  model,
+  system,
+  user,
+  endpoint = OPENAI_ENDPOINT,
+  authScheme = "Bearer",
+  extraHeaders = {},
+  jsonMode = true,
+}) => {
+  const body = {
+    model,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+  };
+  if (jsonMode) body.response_format = { type: "json_object" };
+
+  const response = await axios.post(endpoint, body, {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `${authScheme} ${apiKey}`,
+      ...extraHeaders,
     },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-    },
-  );
+  });
 
   return response.data?.choices?.[0]?.message?.content;
+};
+
+// DeepSeek использует тот же протокол, что и OpenAI.
+const callDeepseek = (params) =>
+  callOpenai({ ...params, endpoint: DEEPSEEK_ENDPOINT });
+
+// Yandex AI Studio — OpenAI-совместимый шлюз (DeepSeek, Qwen …): Api-Key +
+// x-folder-id, модель задаётся как modelUri gpt://<folder>/<model>/latest.
+const callYandexAi = ({ apiKey, model, folderId, system, user }) => {
+  if (!folderId) throw new Error("Yandex AI Studio folder ID is not set");
+
+  return callOpenai({
+    apiKey,
+    model: `gpt://${folderId}/${model || "deepseek-r1"}/latest`,
+    system,
+    user,
+    endpoint: YANDEX_AI_STUDIO_ENDPOINT,
+    authScheme: "Api-Key",
+    extraHeaders: { "x-folder-id": folderId },
+    jsonMode: false,
+  });
 };
 
 const callAnthropic = async ({ apiKey, model, system, user }) => {
@@ -125,6 +160,41 @@ const callAnthropic = async ({ apiKey, model, system, user }) => {
   return response.data?.content?.[0]?.text;
 };
 
+const callYandexGpt = async ({ apiKey, model, folderId, system, user }) => {
+  if (!folderId) throw new Error("Yandex GPT folder ID is not set");
+
+  const modelUri = `gpt://${folderId}/${model || "yandexgpt"}/latest`;
+
+  const response = await axios.post(
+    YANDEX_GPT_ENDPOINT,
+    {
+      modelUri,
+      completionOptions: { stream: false, temperature: 0.3, maxTokens: "2000" },
+      messages: [
+        { role: "system", text: system },
+        { role: "user", text: user },
+      ],
+    },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Api-Key ${apiKey}`,
+        "x-folder-id": folderId,
+      },
+    },
+  );
+
+  return response.data?.result?.alternatives?.[0]?.message?.text;
+};
+
+const PROVIDER_CALLERS = {
+  openai: callOpenai,
+  anthropic: callAnthropic,
+  deepseek: callDeepseek,
+  yandexgpt: callYandexGpt,
+  yandexai: callYandexAi,
+};
+
 const generateJson = async ({ system, user }) => {
   const preferences = await Preferences.findOne({});
   const ai = preferences?.ai;
@@ -135,14 +205,15 @@ const generateJson = async ({ system, user }) => {
   const providerConfig = provider ? ai[provider] : null;
   const apiKey = providerConfig?.apiKey;
   const model = providerConfig?.model;
+  const folderId = providerConfig?.folderId;
 
   if (!apiKey)
     throw new Error(`API key for ${provider || "AI provider"} is not set`);
 
-  const raw =
-    provider === "openai"
-      ? await callOpenai({ apiKey, model, system, user })
-      : await callAnthropic({ apiKey, model, system, user });
+  const call = PROVIDER_CALLERS[provider];
+  if (!call) throw new Error(`Unsupported AI provider: ${provider}`);
+
+  const raw = await call({ apiKey, model, folderId, system, user });
 
   return parseJsonResponse(raw);
 };

@@ -73,7 +73,11 @@ const preferencesSchema = new Schema({
   },
   ai: {
     isActive: { type: Boolean, default: false },
-    provider: { type: String, enum: ["openai", "anthropic"], default: "openai" },
+    provider: {
+      type: String,
+      enum: ["openai", "anthropic", "deepseek", "yandexgpt", "yandexai"],
+      default: "openai",
+    },
     openai: {
       apiKey: { type: String, default: "" },
       model: { type: String, default: "gpt-4o" },
@@ -81,6 +85,23 @@ const preferencesSchema = new Schema({
     anthropic: {
       apiKey: { type: String, default: "" },
       model: { type: String, default: "claude-opus-4-8" },
+    },
+    deepseek: {
+      apiKey: { type: String, default: "" },
+      model: { type: String, default: "deepseek-chat" },
+    },
+    yandexgpt: {
+      apiKey: { type: String, default: "" },
+      folderId: { type: String, default: "" },
+      model: { type: String, default: "yandexgpt" },
+    },
+    // Yandex AI Studio через OpenAI-совместимый эндпоинт: открывает open-source
+    // каталог (DeepSeek, Qwen, OpenAI-OSS …). model — слаг модели, из него и
+    // folderId собирается modelUri gpt://<folderId>/<model>/latest.
+    yandexai: {
+      apiKey: { type: String, default: "" },
+      folderId: { type: String, default: "" },
+      model: { type: String, default: "deepseek-r1" },
     },
     speechToText: {
       isActive: { type: Boolean, default: false },

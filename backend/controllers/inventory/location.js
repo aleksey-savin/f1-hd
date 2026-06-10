@@ -41,7 +41,6 @@ exports.getAllCompanies = async (req, res, next) => {
 
     if (companyIds) {
       const idsArray = companyIds.split(",").filter(Boolean);
-      console.log(idsArray);
       companyFilter = { company: { $in: idsArray } };
     } else {
       // Default to user's company
