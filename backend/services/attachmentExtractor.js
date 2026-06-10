@@ -1,13 +1,9 @@
-const fs = require("fs/promises");
-const path = require("path");
-
 const XLSX = require("xlsx");
 const mammoth = require("mammoth");
 const { PDFParse } = require("pdf-parse");
 
 const logger = require("@/utils/logger");
-
-const UPLOADS_DIR = "uploads";
+const storage = require("@/services/storage");
 
 const MAX_IMAGES = 5; // cap how many images we send (cost / payload)
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // skip images larger than 5 MB
@@ -42,9 +38,14 @@ const collectAttachments = (ticket) => {
   });
 };
 
-const extractDocumentText = async (filePath, mimetype) => {
+const isExtractableDocument = (mimetype) =>
+  PDF_MIME.has(mimetype) ||
+  mimetype === DOCX_MIME ||
+  mimetype === XLSX_MIME ||
+  TEXT_MIME.has(mimetype);
+
+const extractDocumentText = async (buffer, mimetype) => {
   if (PDF_MIME.has(mimetype)) {
-    const buffer = await fs.readFile(filePath);
     const parser = new PDFParse({ data: buffer });
     try {
       const result = await parser.getText();
@@ -55,12 +56,12 @@ const extractDocumentText = async (filePath, mimetype) => {
   }
 
   if (mimetype === DOCX_MIME) {
-    const result = await mammoth.extractRawText({ path: filePath });
+    const result = await mammoth.extractRawText({ buffer });
     return result.value;
   }
 
   if (mimetype === XLSX_MIME) {
-    const workbook = XLSX.readFile(filePath);
+    const workbook = XLSX.read(buffer, { type: "buffer" });
     return workbook.SheetNames.map(
       (sheet) =>
         `# ${sheet}\n${XLSX.utils.sheet_to_csv(workbook.Sheets[sheet])}`,
@@ -68,7 +69,7 @@ const extractDocumentText = async (filePath, mimetype) => {
   }
 
   if (TEXT_MIME.has(mimetype)) {
-    return fs.readFile(filePath, "utf8");
+    return buffer.toString("utf8");
   }
 
   return null;
@@ -86,7 +87,6 @@ const extractAttachments = async (attachments) => {
   const documents = [];
 
   for (const att of attachments) {
-    const filePath = path.join(UPLOADS_DIR, att.name);
     const label = att.originalName || att.name;
 
     try {
@@ -94,7 +94,7 @@ const extractAttachments = async (attachments) => {
 
       if (mediaType) {
         if (images.length >= MAX_IMAGES) continue;
-        const buffer = await fs.readFile(filePath);
+        const buffer = await storage.getObjectBuffer(att.name);
         if (buffer.length > MAX_IMAGE_BYTES) {
           logger.log("warn", "AI guide: skipping oversized image", {
             name: att.name,
@@ -106,7 +106,11 @@ const extractAttachments = async (attachments) => {
         continue;
       }
 
-      const text = await extractDocumentText(filePath, att.mimetype);
+      // Skip non-extractable types (audio, archives, …) without fetching them.
+      if (!isExtractableDocument(att.mimetype)) continue;
+
+      const buffer = await storage.getObjectBuffer(att.name);
+      const text = await extractDocumentText(buffer, att.mimetype);
       if (text && text.trim()) {
         const trimmed = text.trim();
         documents.push({

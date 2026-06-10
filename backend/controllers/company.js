@@ -1,6 +1,3 @@
-const fs = require("fs");
-const util = require("util");
-const path = require("path");
 const mongoose = require("mongoose");
 
 const getAuthData = require("../middleware/getAuthData");
@@ -14,9 +11,7 @@ const { AppError } = require("../middleware/errorHandling");
 const { generateApiKey } = require("../utils/apiKeyGenerator");
 const CompanyLog = require("../models/companyLog");
 const logger = require("../utils/logger");
-
-// Convert fs.unlink to promise-based
-const unlinkFile = util.promisify(fs.unlink);
+const storage = require("../services/storage");
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -459,34 +454,17 @@ exports.addProfileImage = async (req, res, next) => {
       return next(new AppError(`Company not found`, 404));
     }
 
-    // Delete old image if it exists
+    // Delete old image (local or S3) if it exists; tolerant of a missing file.
     if (company.profileImagePath) {
-      const filePath = path.join("uploads", company.profileImagePath);
-
-      try {
-        // Check if file exists before trying to delete
-        await fs.promises.access(filePath, fs.constants.F_OK);
-        await unlinkFile(filePath);
-        logger.info(`Deleted old profile image: ${filePath}`);
-      } catch (error) {
-        // Only log the error if it's not "file not found"
-        if (error.code !== "ENOENT") {
-          logger.error(`Error deleting old profile image: ${filePath}`, error);
-          next(
-            new AppError(`Error deleting old profile image`, 404, true, error),
-          );
-        } else {
-          logger.warn(`Old profile image file not found: ${filePath}`);
-        }
-      }
+      await storage.deleteObject(company.profileImagePath);
     }
 
-    company.profileImagePath = req.file.filename;
+    company.profileImagePath = req.file.key;
 
     await company.save();
 
     logger.info(
-      `Profile image uploaded for company ${companyId}: ${req.file.filename}`,
+      `Profile image uploaded for company ${companyId}: ${req.file.key}`,
     );
 
     res.status(200).json({

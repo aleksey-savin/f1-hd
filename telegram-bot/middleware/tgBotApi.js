@@ -1,4 +1,3 @@
-const fs = require("fs");
 const crypto = require("crypto");
 
 const { Ticket } = require("../models/ticket");
@@ -9,6 +8,7 @@ const User = require("../models/user");
 const {
   detectTicketCategory,
 } = require("../services/ticketCategoryService");
+const storage = require("../services/storage");
 
 const logger = require("../utils/logger");
 
@@ -144,12 +144,12 @@ exports.launchTgBot = async () => {
               .file_id;
 
           const fileName = `${crypto.randomUUID()}.jpeg`;
-          const fileStream = bot.getFileStream(fileId);
-          fileStream
-            .pipe(fs.createWriteStream(`./uploads/${fileName}`))
-            .on("close", () => {
-              logger.log("info", `File downloaded`);
-            });
+          await storage.uploadStream({
+            key: fileName,
+            body: bot.getFileStream(fileId),
+            contentType: "image/jpeg",
+          });
+          logger.log("info", `File uploaded to S3`);
 
           attachment = { name: fileName };
         }

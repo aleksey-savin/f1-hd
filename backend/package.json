@@ -1,6 +1,6 @@
 {
   "name": "hd-backend-nodejs",
-  "version": "1.12.4",
+  "version": "1.13.1",
   "description": "",
   "main": "app.js",
   "scripts": {
@@ -27,6 +27,8 @@
   },
   "homepage": "https://gitlab.com/aleksey-savin/hd-backend-nodejs#readme",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1065.0",
+    "@aws-sdk/s3-request-presigner": "^3.1065.0",
     "bcryptjs": "^3.0.2",
     "date-fns-tz": "^3.2.0",
     "dayjs": "^1.11.13",
@@ -42,6 +44,7 @@
     "module-alias": "^2.2.3",
     "mongoose": "^8.14.1",
     "multer": "^1.4.5-lts.2",
+    "multer-s3": "^3.0.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^7.0.2",
     "pad": "^3.3.0",

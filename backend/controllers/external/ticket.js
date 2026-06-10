@@ -1,5 +1,6 @@
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
+const storage = require("../../services/storage");
 
 const Preferences = require("../../models/preferences");
 const { Ticket } = require("../../models/ticket");
@@ -89,7 +90,7 @@ exports.createTicket = async (req, res, next) => {
     const attachments = req.files?.map((file) => {
       return {
         mimetype: file.mimetype,
-        name: file.filename,
+        name: file.key,
       };
     });
 
@@ -191,16 +192,13 @@ exports.createTicket = async (req, res, next) => {
 
     // Удаляем загруженные файлы в случае ошибки
     if (req.files) {
-      const fs = require("fs");
       for (let file of req.files) {
-        fs.unlink(file.path, (unlinkError) => {
-          if (unlinkError) {
-            logger.log("error", "Ошибка при удалении файла", {
-              error: unlinkError.message,
-              filePath: file.path,
-            });
-          }
-        });
+        storage.deleteObject(file.key).catch((unlinkError) =>
+          logger.log("error", "Ошибка при удалении файла", {
+            error: unlinkError.message,
+            key: file.key,
+          }),
+        );
       }
     }
 

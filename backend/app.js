@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const path = require("path");
 
 const logger = require("./utils/logger");
+const storage = require("./services/storage");
 const { AppError, errorResponse } = require("./middleware/errorHandling");
 const {
   performanceMonitor,
@@ -46,14 +47,41 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 mongoose.set("strictQuery", false);
 
-// Static file serving for uploads with better error handling
-app.use("/uploads", express.static(path.join("uploads")));
+// File serving for uploads. Legacy files (old tickets) live on the local/shared
+// volume; new uploads live in S3. Serve local-first so old URLs keep working
+// unchanged, otherwise 302-redirect to a short-lived presigned S3 URL. The
+// /uploads/<name> URL is therefore identical for old and new files.
+app.get("/uploads/:name", async (req, res) => {
+  const name = path.basename(req.params.name);
 
-// Handle 404 for uploads specifically
-app.use("/uploads", (req, res, next) => {
-  if (!res.headersSent) {
-    logger.warn(`File not found: ${req.originalUrl}`);
-    res.status(404).json({
+  // Defense-in-depth against path traversal: must be a plain file name.
+  if (!name || name !== req.params.name) {
+    return res.status(400).json({ error: "Invalid file name" });
+  }
+
+  if (storage.objectExistsLocally(name)) {
+    return res.sendFile(
+      path.resolve("uploads", name),
+      { headers: { "Cache-Control": "public, max-age=31536000, immutable" } },
+      (error) => {
+        if (error && !res.headersSent) {
+          logger.warn(`File not found: ${req.originalUrl}`);
+          res.status(404).json({
+            error: "File not found",
+            message: "The requested file does not exist",
+          });
+        }
+      },
+    );
+  }
+
+  try {
+    return res.redirect(302, await storage.presignGetUrl(name));
+  } catch (error) {
+    logger.warn(
+      `Failed to resolve upload ${req.originalUrl}: ${error.message}`,
+    );
+    return res.status(404).json({
       error: "File not found",
       message: "The requested file does not exist",
     });

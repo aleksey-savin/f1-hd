@@ -1,4 +1,4 @@
-const fs = require("fs");
+const storage = require("../services/storage");
 
 const { AppError } = require("../middleware/errorHandling");
 const logger = require("../utils/logger");
@@ -30,7 +30,7 @@ const { buildKnownCaller } = require("../services/callerIdentityService");
 const buildAttachment = (file) => ({
   mimetype: file.mimetype,
   mimeType: file.mimetype,
-  name: file.filename,
+  name: file.key,
   originalName: file.originalname,
   size: file.size,
 });
@@ -723,8 +723,8 @@ exports.add = async (req, res, next) => {
   } catch (error) {
     if (req.files) {
       for (let file of req.files) {
-        fs.unlink(file.path, (error) =>
-          logger.log("error", "Failed to unlink file", {
+        storage.deleteObject(file.key).catch((error) =>
+          logger.log("error", "Failed to delete file", {
             error: error.message,
             stack: error.stack,
           }),
@@ -1500,8 +1500,8 @@ exports.delete = async (req, res, next) => {
 
       if (ticket.attachments) {
         for (let file of ticket.attachments) {
-          fs.unlink(`uploads/${file.name}`, (error) =>
-            logger.log("error", `Failed to unlink file`, error),
+          storage.deleteObject(file.name).catch((error) =>
+            logger.log("error", `Failed to delete file`, error),
           );
         }
       }
@@ -1568,8 +1568,8 @@ exports.deleteMultiple = async (req, res, next) => {
 
         if (ticket.attachments) {
           for (let file of ticket.attachments) {
-            fs.unlink(`uploads/${file.name}`, (error) =>
-              logger.log("error", "Failed to unlink file", error),
+            storage.deleteObject(file.name).catch((error) =>
+              logger.log("error", "Failed to delete file", error),
             );
           }
         }
@@ -1777,8 +1777,8 @@ exports.update = async (req, res, next) => {
   } catch (error) {
     if (req.files) {
       for (let file of req.files) {
-        fs.unlink(file.path, () =>
-          logger.log("error", "Failed to unlink file"),
+        storage.deleteObject(file.key).catch(() =>
+          logger.log("error", "Failed to delete file"),
         );
       }
     }
@@ -2022,7 +2022,7 @@ exports.addAttachments = async (req, res, next) => {
 
     // Add new attachments to existing ones
     const newAttachments = files.map((file) => {
-      logger.info(`Processing file: ${file.originalname} -> ${file.filename}`, {
+      logger.info(`Processing file: ${file.originalname} -> ${file.key}`, {
         size: file.size,
         mimetype: file.mimetype,
       });
@@ -2090,12 +2090,9 @@ exports.removeAttachment = async (req, res, next) => {
     ticket.attachments.splice(attachmentIndex, 1);
     await ticket.save();
 
-    // Try to delete physical file (don't fail if file doesn't exist)
+    // Delete the underlying file (local or S3); never fail the request over it.
     try {
-      const filePath = `uploads/${attachmentName}`;
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+      await storage.deleteObject(attachmentName);
     } catch (fileError) {
       logger.warn(`Could not delete file ${attachmentName}:`, fileError);
     }

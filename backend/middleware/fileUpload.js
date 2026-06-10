@@ -1,6 +1,9 @@
 const multer = require("multer");
+const multerS3 = require("multer-s3");
 const crypto = require("crypto");
 const path = require("path");
+
+const storage = require("@/services/storage");
 
 const MIME_TYPE_MAP = {
   "image/png": "png",
@@ -148,11 +151,15 @@ const fileUpload = multer({
     files: 10, // максимум 10 файлов
     fieldSize: 2 * 1024 * 1024, // 2MB для текстовых полей
   },
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, "uploads");
-    },
-    filename: (req, file, cb) => {
+  storage: multerS3({
+    s3: storage.s3Client,
+    bucket: storage.bucket,
+    // Preserve the client-sent (and fileFilter-validated) content type so S3
+    // serves images/PDFs inline with the correct Content-Type.
+    contentType: (req, file, cb) => cb(null, file.mimetype),
+    // Object key == the attachment `name` stored in Mongo (same string the old
+    // disk `filename` produced), so /uploads/<name> keeps resolving 1:1.
+    key: (req, file, cb) => {
       let ext = MIME_TYPE_MAP[file.mimetype];
 
       // For octet-stream, determine extension from original filename
@@ -179,6 +186,8 @@ const fileUpload = multer({
 
       cb(null, `${crypto.randomUUID()}_${finalName}.${ext}`);
     },
+    // Optional SSE-KMS when S3_KMS_KEY_ID is configured.
+    ...storage.sseUploadOptions,
   }),
   fileFilter: (req, file, cb) => {
     // Дополнительные проверки безопасности

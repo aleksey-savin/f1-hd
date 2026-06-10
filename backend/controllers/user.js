@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const fs = require("fs");
+const storage = require("../services/storage");
 
 const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
@@ -740,9 +740,7 @@ exports.deleteBackgroundImage = async (req, res, next) => {
       return next(new AppError(`User not found`, 404));
     }
 
-    fs.unlink(`uploads/${user.backgroundImagePath}`, (error) =>
-      next(new AppError(`Failed to unlink background image`, 500, true, error)),
-    );
+    await storage.deleteObject(user.backgroundImagePath);
 
     user.backgroundImagePath = "";
 
@@ -772,12 +770,10 @@ exports.addBackgroundImage = async (req, res, next) => {
     }
 
     if (user.backgroundImagePath) {
-      fs.unlink(`uploads/${user.backgroundImagePath}`, (error) =>
-        next(new AppError(`Failed to unlink file`, 500, true, error)),
-      );
+      await storage.deleteObject(user.backgroundImagePath);
     }
 
-    user.backgroundImagePath = req.file.filename;
+    user.backgroundImagePath = req.file.key;
 
     await user.save();
 
@@ -805,12 +801,10 @@ exports.addProfileImage = async (req, res, next) => {
     }
 
     if (user.profileImagePath) {
-      fs.unlink(`uploads/${user.profileImagePath}`, (error) =>
-        next(new AppError(`Failed to unlink file`, 500, true, error)),
-      );
+      await storage.deleteObject(user.profileImagePath);
     }
 
-    user.profileImagePath = req.file.filename;
+    user.profileImagePath = req.file.key;
 
     await user.save();
 

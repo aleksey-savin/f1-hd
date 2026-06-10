@@ -1,4 +1,4 @@
-const fs = require("fs");
+const storage = require("../services/storage");
 
 const Comment = require("../models/comment");
 const TicketLog = require("../models/ticketLog");
@@ -39,7 +39,7 @@ exports.add = async (req, res, next) => {
       ? req.files.map((file) => {
           return {
             mimetype: file.mimetype,
-            name: file.filename,
+            name: file.key,
           };
         })
       : [];
@@ -84,8 +84,8 @@ exports.add = async (req, res, next) => {
   } catch (error) {
     if (req.files) {
       for (let file of req.files) {
-        fs.unlink(file.path, (error) =>
-          logger.log("error", "Failed to unlink file", {
+        storage.deleteObject(file.key).catch((error) =>
+          logger.log("error", "Failed to delete file", {
             error: error.message,
             stack: error.stack,
           }),

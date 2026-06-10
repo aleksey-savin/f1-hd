@@ -1,9 +1,9 @@
-const fs = require("fs/promises");
 const path = require("path");
 
 const Preferences = require("@/models/preferences");
 const { AppError } = require("@/middleware/errorHandling");
 const logger = require("@/utils/logger");
+const storage = require("@/services/storage");
 const aiService = require("./aiService");
 const buildSummaryPrompt = require("@/prompts/callSummary");
 const transcriptionPrompt = require("@/prompts/transcription");
@@ -259,14 +259,11 @@ const summarizeDialog = async ({ segments, context = {} }) => {
 // --- OpenAI: распознавание речи -------------------------------------------
 
 const transcribeWithOpenai = async (attachment, { apiKey, model }) => {
-  const filePath = path.join("uploads", attachment.name);
-  const stats = await fs.stat(filePath);
+  const buffer = await storage.getObjectBuffer(attachment.name);
 
-  if (stats.size > MAX_AUDIO_SIZE_BYTES) {
+  if (buffer.length > MAX_AUDIO_SIZE_BYTES) {
     throw new AppError("Audio file is larger than 25 MB", 400, true);
   }
-
-  const buffer = await fs.readFile(filePath);
   const fileName = attachment.originalName || attachment.name;
   const formData = new FormData();
   formData.append(
@@ -403,14 +400,11 @@ const transcribeWithYandex = async (
     );
   }
 
-  const filePath = path.join("uploads", attachment.name);
-  const stats = await fs.stat(filePath);
+  const buffer = await storage.getObjectBuffer(attachment.name);
 
-  if (stats.size > YANDEX_MAX_AUDIO_SIZE_BYTES) {
+  if (buffer.length > YANDEX_MAX_AUDIO_SIZE_BYTES) {
     throw new AppError("Audio file is larger than 100 MB", 400, true);
   }
-
-  const buffer = await fs.readFile(filePath);
 
   logger.log("info", "Requesting Yandex SpeechKit recognition", {
     model,
