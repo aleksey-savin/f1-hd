@@ -6,7 +6,7 @@ import {
   useNavigation,
   Outlet,
   useNavigate,
-  useFetcher,
+  useFetchers,
   useRevalidator,
 } from "react-router";
 
@@ -91,19 +91,12 @@ const ticketSignature = (ticket) =>
 
 const ViewTicket = () => {
   const { state: routerState } = useNavigation();
-  const fetcher = useFetcher();
 
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
   const { modules, ai } = useInitialPrefsStore();
   const data = useLoaderData();
   const { ticketData, otherCompanyTickets, responsiblesData } = data;
-
-  useEffect(() => {
-    if (fetcher.state === "idle" && !fetcher.data) {
-      fetcher.load();
-    }
-  }, [fetcher]);
 
   const { ticket, company, works, logs } = ticketData;
 
@@ -191,9 +184,16 @@ const ViewTicket = () => {
   // Offcanvas-форме, чтобы не затереть ввод. Пауза при скрытой вкладке — внутри
   // usePolling.
   const revalidator = useRevalidator();
+  // Сабмит действия по заявке идёт через fetcher и НЕ меняет navigation state,
+  // поэтому фетчеры проверяем отдельно. Ревалидация во время висящего фетчера
+  // роняет роутер ("Did not find corresponding fetcher result") и способна
+  // затереть оптимистичный ввод — на это время автообновление ставим на паузу.
+  const fetchers = useFetchers();
+  const hasActiveFetcher = fetchers.some((f) => f.state !== "idle");
   const autoUpdateEnabled =
     routerState === "idle" &&
     revalidator.state === "idle" &&
+    !hasActiveFetcher &&
     !offcanvas.isActive;
 
   usePolling(

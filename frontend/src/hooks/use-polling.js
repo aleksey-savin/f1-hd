@@ -16,9 +16,26 @@ const usePolling = (callback, { intervalMs = 15000, enabled = true } = {}) => {
 
     let intervalId;
 
+    // Колбэк опроса обычно async и ходит в сеть: его reject (например,
+    // TypeError "Failed to fetch" при обрыве связи или сне вкладки) иначе
+    // становится необработанным и улетает в Sentry. Гасим здесь — пропущенный
+    // цикл некритичен, следующий тик подтянет данные.
+    const invoke = () => {
+      try {
+        const result = savedCallback.current();
+        if (result && typeof result.then === "function") {
+          result.catch((error) =>
+            console.warn("usePolling: цикл опроса пропущен:", error),
+          );
+        }
+      } catch (error) {
+        console.warn("usePolling: цикл опроса пропущен:", error);
+      }
+    };
+
     const tick = () => {
       if (document.visibilityState === "visible") {
-        savedCallback.current();
+        invoke();
       }
     };
 
@@ -29,7 +46,7 @@ const usePolling = (callback, { intervalMs = 15000, enabled = true } = {}) => {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        savedCallback.current();
+        invoke();
         start();
       } else {
         clearInterval(intervalId);

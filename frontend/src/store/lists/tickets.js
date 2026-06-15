@@ -260,15 +260,26 @@ const useTicketFilterStore = create((set) => ({
   fetchOpened: async () => {
     set({ isLoading: true });
     const { token } = getLocalStorageData();
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
+    let data;
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
+        {
+          headers: {
+            Authorization: "Bearer " + token,
+          },
         },
-      },
-    );
-    const data = await response.json();
+      );
+      if (!response.ok) throw new Error(`all-opened ${response.status}`);
+      data = await response.json();
+    } catch (error) {
+      // Сетевой сбой/недоступность сервера: не валимся необработанным reject
+      // (иначе TypeError "Failed to fetch" улетает в Sentry), снимаем спиннер
+      // и оставляем ранее загруженный список.
+      console.error("Не удалось загрузить список заявок:", error);
+      set({ isLoading: false });
+      return;
+    }
 
     set({
       originalList: data.tickets ?? [],
@@ -282,15 +293,26 @@ const useTicketFilterStore = create((set) => ({
   // всего списка и fade-анимации в ListWrapper.
   silentRefresh: async () => {
     const { token } = getLocalStorageData();
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
+    let data;
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
+        {
+          headers: {
+            Authorization: "Bearer " + token,
+          },
         },
-      },
-    );
-    const data = await response.json();
+      );
+      if (!response.ok) throw new Error(`all-opened ${response.status}`);
+      data = await response.json();
+    } catch (error) {
+      // Фоновый опрос: транзиентный сетевой сбой ожидаем (сон вкладки/обрыв
+      // связи). Тихо пропускаем цикл — данные остаются прежними, следующий
+      // опрос через 15 c подтянет свежие. Без catch reject уходит в Sentry
+      // ("Failed to fetch"), т.к. usePolling не ловит ошибку колбэка.
+      console.warn("Фоновое обновление заявок пропущено:", error);
+      return;
+    }
 
     set((state) => {
       // На вкладке «Недавно закрытые» ответ all-opened не содержит закрытых
@@ -314,15 +336,23 @@ const useTicketFilterStore = create((set) => ({
   fetchRecentlyClosed: async () => {
     set({ isLoading: true });
     const { token } = getLocalStorageData();
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/recently-closed`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
+    let data;
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/tickets/recently-closed`,
+        {
+          headers: {
+            Authorization: "Bearer " + token,
+          },
         },
-      },
-    );
-    const data = await response.json();
+      );
+      if (!response.ok) throw new Error(`recently-closed ${response.status}`);
+      data = await response.json();
+    } catch (error) {
+      console.error("Не удалось загрузить недавно закрытые заявки:", error);
+      set({ isLoading: false });
+      return;
+    }
 
     if (data.error) {
       set({ isLoading: false });

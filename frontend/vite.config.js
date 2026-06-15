@@ -1,8 +1,14 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
+  // console/debugger вырезаем только из прод-сборки (vite build); в dev (serve)
+  // они нужны для отладки. Раньше тут стоял несуществующий
+  // build.esbuildOptions.drop — Vite его молча игнорировал, и логи уезжали в прод.
+  esbuild: {
+    drop: command === "build" ? ["console", "debugger"] : [],
+  },
   server: {
     host: true,
     watch: {
@@ -17,9 +23,6 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     // Enable minification with esbuild
     minify: "esbuild",
-    esbuildOptions: {
-      drop: ["console", "debugger"],
-    },
     // Rollup options for better optimization
     rollupOptions: {
       output: {
@@ -117,11 +120,6 @@ export default defineConfig({
   },
   // Configure asset handling
   assetsInclude: ["**/*.woff", "**/*.woff2", "**/*.ttf", "**/*.eot"],
-  // Environment variables
-  define: {
-    // Remove console.log in production
-    __DEV__: JSON.stringify(process.env.NODE_ENV === "development"),
-  },
   // Configure preview server
   preview: {
     port: 3000,
@@ -136,4 +134,4 @@ export default defineConfig({
       return { relative: true };
     },
   },
-});
+}));

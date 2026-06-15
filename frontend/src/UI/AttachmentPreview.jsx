@@ -9,6 +9,12 @@ import Accordion from "react-bootstrap/Accordion";
 import AudioPlayer from "react-h5-audio-player";
 import "react-h5-audio-player/lib/styles.css";
 
+// react-h5-audio-player@3.10.0-rc.1 поставляется без defaultProps: при
+// showJumpControls, но без явного progressJumpSteps, обработчики перемотки
+// читают .backward/.forward у undefined и роняют приложение (Sentry:
+// "undefined is not an object (evaluating 'e.backward')"). Задаём шаги явно.
+const AUDIO_JUMP_STEPS = { backward: 5000, forward: 5000 };
+
 const AttachmentPreview = ({
   attachments,
   compact = false,
@@ -297,6 +303,7 @@ const AttachmentPreview = ({
               setError(true);
             }}
             showJumpControls={true}
+            progressJumpSteps={AUDIO_JUMP_STEPS}
             showDownloadProgress={true}
             hasDefaultKeyBindings={true}
             customProgressBarSection={[
@@ -470,6 +477,7 @@ const AttachmentPreview = ({
                     <AudioPlayer
                       src={fileUrl}
                       showJumpControls={true}
+                      progressJumpSteps={AUDIO_JUMP_STEPS}
                       showDownloadProgress={true}
                       hasDefaultKeyBindings={true}
                       layout="horizontal"
