@@ -120,6 +120,31 @@ const knowledgeNoteSchema = new Schema(
       ignoredHashes: [String],
       scannedAt: Date,
     },
+    // Архивирование: двухэтапно, как удаление. Менеджер запрашивает архивацию
+    // (pendingArchive), модератор подтверждает — ставится archivedAt, и заметка
+    // исчезает отовсюду. Восстановить (снять archivedAt) может менеджер.
+    pendingArchive: {
+      type: Boolean,
+      default: false,
+    },
+    pendingArchiveBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+    },
+    pendingArchiveAt: {
+      type: Date,
+      required: false,
+    },
+    archivedAt: {
+      type: Date,
+      required: false,
+    },
+    archivedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+    },
   },
   { timestamps: true },
 );
@@ -132,5 +157,7 @@ knowledgeNoteSchema.index({ type: 1 });
 knowledgeNoteSchema.index({ approved: 1, approvedAt: 1 });
 knowledgeNoteSchema.index({ pendingDeletion: 1 });
 knowledgeNoteSchema.index({ "secretsScan.flagged": 1 });
+knowledgeNoteSchema.index({ archivedAt: 1 });
+knowledgeNoteSchema.index({ pendingArchive: 1 });
 
 module.exports = mongoose.model("KnowledgeNote", knowledgeNoteSchema);

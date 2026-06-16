@@ -102,6 +102,56 @@ router.post(
   knowledgeNoteController.confirmDeletion,
 );
 
+// Отклонение запроса на удаление — проверка модератора в контроллере
+router.post(
+  "/knowledge-notes/decline-deletion/:id",
+  isAuth,
+  isNotClient,
+  canSeeKnowledgeBase,
+  canManageKnowledgeBase,
+  knowledgeNoteController.declineDeletion,
+);
+
+// Запрос на архивацию (мягко) — носители canManageKnowledgeBase
+router.post(
+  "/knowledge-notes/request-archive/:id",
+  isAuth,
+  isNotClient,
+  canSeeKnowledgeBase,
+  canManageKnowledgeBase,
+  knowledgeNoteController.requestArchive,
+);
+
+// Подтверждение архивации — проверка модератора в контроллере
+router.post(
+  "/knowledge-notes/confirm-archive/:id",
+  isAuth,
+  isNotClient,
+  canSeeKnowledgeBase,
+  canManageKnowledgeBase,
+  knowledgeNoteController.confirmArchive,
+);
+
+// Отклонение запроса на архивацию — проверка модератора в контроллере
+router.post(
+  "/knowledge-notes/decline-archive/:id",
+  isAuth,
+  isNotClient,
+  canSeeKnowledgeBase,
+  canManageKnowledgeBase,
+  knowledgeNoteController.declineArchive,
+);
+
+// Восстановление из архива — носители canManageKnowledgeBase
+router.post(
+  "/knowledge-notes/unarchive/:id",
+  isAuth,
+  isNotClient,
+  canSeeKnowledgeBase,
+  canManageKnowledgeBase,
+  knowledgeNoteController.unarchive,
+);
+
 // Пометить находку секрета как «не секрет» — проверка модератора в контроллере
 router.post(
   "/knowledge-notes/:id/ignore-secret",

@@ -95,7 +95,8 @@ exports.collectRelevantNotes = async ({
 
   if (!or.length) return [];
 
-  const notes = await KnowledgeNote.find({ $or: or })
+  // Архивные заметки в контекст AI не подмешиваем
+  const notes = await KnowledgeNote.find({ $or: or, archivedAt: null })
     .select("title type plainText companies categories users updatedAt")
     .lean();
 

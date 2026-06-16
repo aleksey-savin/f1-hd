@@ -81,7 +81,17 @@ exports.getAll = async (req, res, next) => {
     const authedUser = await getAuthData(req);
     const kbConfig = await getKbConfig();
 
-    const notes = await KnowledgeNote.find({}, { content: 0 })
+    // По умолчанию — активные заметки (не в архиве). archived=true → архивные;
+    // flaggedSecrets=true → все с найденными секретами (активные + архивные),
+    // чтобы модератор мог добраться до утечек даже в архиве.
+    let filter = { archivedAt: null };
+    if (req.query.archived === "true") {
+      filter = { archivedAt: { $ne: null } };
+    } else if (req.query.flaggedSecrets === "true") {
+      filter = { "secretsScan.flagged": true };
+    }
+
+    const notes = await KnowledgeNote.find(filter, { content: 0 })
       .sort({ updatedAt: -1 })
       .lean();
 
@@ -147,9 +157,9 @@ exports.getRelated = async (req, res, next) => {
       return res.status(200).json([]);
     }
 
-    // Заметки, отправленные на удаление, в заявках не показываем
+    // Заметки на удалении и в архиве в заявках не показываем
     const notes = await KnowledgeNote.find(
-      { $or: or, pendingDeletion: { $ne: true } },
+      { $or: or, pendingDeletion: { $ne: true }, archivedAt: null },
       { content: 0 },
     )
       .sort({ updatedAt: -1 })
@@ -383,6 +393,46 @@ exports.confirmDeletion = async (req, res, next) => {
   }
 };
 
+// Отклонить запрос на удаление (модератор) — снимает pendingDeletion
+exports.declineDeletion = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const { moderatorIds } = await getKbConfig();
+
+    if (!isModerator(authedUser, moderatorIds)) {
+      return next(
+        new AppError(
+          `Недостаточно прав: отклонять запросы могут только модераторы`,
+          403,
+        ),
+      );
+    }
+
+    const note = await KnowledgeNote.findById(req.params.id);
+    if (!note) {
+      return next(
+        new AppError(`Заметка с id ${req.params.id} не найдена`, 404),
+      );
+    }
+
+    note.pendingDeletion = false;
+    note.pendingDeletionBy = undefined;
+    note.pendingDeletionAt = undefined;
+    await note.save();
+
+    res.status(200).json({ message: "Запрос на удаление отклонён", note });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to decline deletion of knowledge note ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
 // Одобрить заметку. Только модераторы. Требуются оба подтверждения из диалога.
 exports.approve = async (req, res, next) => {
   try {
@@ -431,6 +481,147 @@ exports.approve = async (req, res, next) => {
   }
 };
 
+// Запросить архивацию (мягко): ждёт подтверждения модератора.
+// Доступно носителям canManageKnowledgeBase.
+exports.requestArchive = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+    const note = await KnowledgeNote.findById(req.params.id);
+
+    if (!note) {
+      return next(
+        new AppError(`Заметка с id ${req.params.id} не найдена`, 404),
+      );
+    }
+
+    note.pendingArchive = true;
+    note.pendingArchiveBy = userId;
+    note.pendingArchiveAt = new Date();
+    await note.save();
+
+    res.status(200).json({ message: "Запрошена архивация заметки", note });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to request archive for knowledge note ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Подтвердить архивацию. Только модераторы. Заметка исчезает отовсюду.
+exports.confirmArchive = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const { moderatorIds } = await getKbConfig();
+
+    if (!isModerator(authedUser, moderatorIds)) {
+      return next(
+        new AppError(
+          `Недостаточно прав: подтверждать архивацию могут только модераторы`,
+          403,
+        ),
+      );
+    }
+
+    const note = await KnowledgeNote.findById(req.params.id);
+    if (!note) {
+      return next(
+        new AppError(`Заметка с id ${req.params.id} не найдена`, 404),
+      );
+    }
+
+    note.archivedAt = new Date();
+    note.archivedBy = authedUser.userId;
+    note.pendingArchive = false;
+    note.pendingArchiveBy = undefined;
+    note.pendingArchiveAt = undefined;
+    await note.save();
+
+    res.status(200).json({ message: "Заметка перемещена в архив", note });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to confirm archive for knowledge note ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Отклонить запрос на архивацию (модератор) — снимает pendingArchive
+exports.declineArchive = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const { moderatorIds } = await getKbConfig();
+
+    if (!isModerator(authedUser, moderatorIds)) {
+      return next(
+        new AppError(
+          `Недостаточно прав: отклонять запросы могут только модераторы`,
+          403,
+        ),
+      );
+    }
+
+    const note = await KnowledgeNote.findById(req.params.id);
+    if (!note) {
+      return next(
+        new AppError(`Заметка с id ${req.params.id} не найдена`, 404),
+      );
+    }
+
+    note.pendingArchive = false;
+    note.pendingArchiveBy = undefined;
+    note.pendingArchiveAt = undefined;
+    await note.save();
+
+    res.status(200).json({ message: "Запрос на архивацию отклонён", note });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to decline archive for knowledge note ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Восстановить заметку из архива. Доступно носителям canManageKnowledgeBase.
+exports.unarchive = async (req, res, next) => {
+  try {
+    const note = await KnowledgeNote.findById(req.params.id);
+
+    if (!note) {
+      return next(
+        new AppError(`Заметка с id ${req.params.id} не найдена`, 404),
+      );
+    }
+
+    note.archivedAt = undefined;
+    note.archivedBy = undefined;
+    await note.save();
+
+    res.status(200).json({ message: "Заметка восстановлена из архива", note });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to unarchive knowledge note ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
 // Сводка для модератора: счётчики для карточки на странице заявок и алерта.
 // Немодераторам возвращаем нули.
 exports.getModerationSummary = async (req, res, next) => {
@@ -443,14 +634,21 @@ exports.getModerationSummary = async (req, res, next) => {
         isModerator: false,
         pendingApproval: 0,
         pendingDeletion: 0,
+        pendingArchive: 0,
         secretsFlagged: 0,
       });
     }
 
-    const [pendingApproval, pendingDeletion, secretsFlagged] =
+    // Архивные заметки исключаем из счётчиков (они «исчезли»), кроме секретов —
+    // утечку нужно видеть и в архиве.
+    const [pendingApproval, pendingDeletion, pendingArchive, secretsFlagged] =
       await Promise.all([
-        KnowledgeNote.countDocuments({ approved: { $ne: true } }),
-        KnowledgeNote.countDocuments({ pendingDeletion: true }),
+        KnowledgeNote.countDocuments({
+          approved: { $ne: true },
+          archivedAt: null,
+        }),
+        KnowledgeNote.countDocuments({ pendingDeletion: true, archivedAt: null }),
+        KnowledgeNote.countDocuments({ pendingArchive: true, archivedAt: null }),
         KnowledgeNote.countDocuments({ "secretsScan.flagged": true }),
       ]);
 
@@ -458,6 +656,7 @@ exports.getModerationSummary = async (req, res, next) => {
       isModerator: true,
       pendingApproval,
       pendingDeletion,
+      pendingArchive,
       secretsFlagged,
     });
   } catch (error) {

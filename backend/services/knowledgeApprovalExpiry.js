@@ -17,8 +17,9 @@ const runKnowledgeApprovalExpiry = async () => {
 
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
+  // Архивные заметки не трогаем — их одобрение не истекает
   const result = await KnowledgeNote.updateMany(
-    { approved: true, approvedAt: { $lte: cutoff } },
+    { approved: true, approvedAt: { $lte: cutoff }, archivedAt: null },
     { $set: { approved: false }, $unset: { approvedBy: "", approvedAt: "" } },
   );
 

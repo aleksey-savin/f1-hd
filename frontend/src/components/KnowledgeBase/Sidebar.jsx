@@ -11,6 +11,7 @@ import {
   RiAddLine,
   RiDeleteBin6Line,
   RiShieldKeyholeLine,
+  RiArchiveLine,
 } from "react-icons/ri";
 
 import Select from "../../UI/Select";
@@ -34,6 +35,7 @@ const uniqueById = (items) => {
 const MODERATION_FILTERS = [
   { mode: "all-unapproved", label: "Не одобрены" },
   { mode: "pending-deletion", label: "Запрос на удаление" },
+  { mode: "pending-archive", label: "Запрос на архивацию" },
   { mode: "flagged-secrets", label: "Найдены секреты" },
 ];
 
@@ -59,6 +61,8 @@ const KnowledgeBaseSidebar = () => {
     ensureLoaded,
     moderationMode,
     setModerationMode,
+    showArchived,
+    setShowArchived,
   } = store;
 
   const [query, setQuery] = useState(store.searchTerm || "");
@@ -126,11 +130,11 @@ const KnowledgeBaseSidebar = () => {
 
   // Кнопки модерации: повторный клик по активной — сброс режима
   const toggleModerationMode = (mode) => {
-    const next = moderationMode === mode ? null : mode;
-    if (next) {
-      ensureLoaded();
-    }
-    setModerationMode(next);
+    setModerationMode(moderationMode === mode ? null : mode);
+  };
+
+  const archiveToggleHandler = () => {
+    setShowArchived(!showArchived);
   };
 
   // Тип — переключатель на каждый вид заметки; по умолчанию все включены.
@@ -219,8 +223,17 @@ const KnowledgeBaseSidebar = () => {
         ))}
       </Stack>
 
-      {/* Фильтры модерации — только для модераторов; игнорируют скоуп-фильтры */}
-      {isModerator && (
+      {/* Просмотр архива — переключает список на архивные заметки */}
+      <Form.Check
+        type="switch"
+        id="kb-show-archived"
+        label="Показать архив"
+        checked={showArchived}
+        onChange={archiveToggleHandler}
+      />
+
+      {/* Фильтры модерации — модераторам в активном виде; игнорируют скоуп-фильтры */}
+      {isModerator && !showArchived && (
         <Stack direction="horizontal" gap={2} className="flex-wrap">
           {MODERATION_FILTERS.filter(
             (item) => item.mode !== "flagged-secrets" || scanForSecrets,
@@ -245,9 +258,11 @@ const KnowledgeBaseSidebar = () => {
             <ListGroup.Item className="text-secondary text-center py-3">
               {isLoading
                 ? "Загрузка…"
-                : hasFilter
-                  ? "Заметки не найдены"
-                  : "Введите запрос или выберите фильтр"}
+                : showArchived
+                  ? "Архив пуст"
+                  : hasFilter
+                    ? "Заметки не найдены"
+                    : "Введите запрос или выберите фильтр"}
             </ListGroup.Item>
           )}
           {filteredList.map((note) => {
@@ -279,12 +294,20 @@ const KnowledgeBaseSidebar = () => {
                       {company.alias}
                     </Badge>
                   ))}
-                {(note.pendingDeletion || note.secretsScan?.flagged) && (
+                {(note.pendingDeletion ||
+                  note.pendingArchive ||
+                  note.secretsScan?.flagged) && (
                   <span className="ms-auto d-flex align-items-center gap-1 flex-shrink-0">
                     {note.secretsScan?.flagged && (
                       <RiShieldKeyholeLine
                         className="text-danger"
                         title="Найдены секреты"
+                      />
+                    )}
+                    {note.pendingArchive && (
+                      <RiArchiveLine
+                        className="text-warning"
+                        title="Ожидает архивации"
                       />
                     )}
                     {note.pendingDeletion && (

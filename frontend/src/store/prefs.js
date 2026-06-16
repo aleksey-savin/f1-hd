@@ -5,7 +5,12 @@ const defaultKnowledgeBase = {
   isModerator: false,
   hideNotApproved: false,
   scanForSecrets: false,
-  counts: { pendingApproval: 0, pendingDeletion: 0, secretsFlagged: 0 },
+  counts: {
+    pendingApproval: 0,
+    pendingDeletion: 0,
+    pendingArchive: 0,
+    secretsFlagged: 0,
+  },
 };
 
 const useInitialPrefsStore = create((set) => ({

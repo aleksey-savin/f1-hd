@@ -78,15 +78,36 @@ exports.getInitial = async (req, res, next) => {
       .filter(Boolean);
     const userIsModerator = isModerator(authedUser, moderatorIds);
 
-    let counts = { pendingApproval: 0, pendingDeletion: 0, secretsFlagged: 0 };
+    let counts = {
+      pendingApproval: 0,
+      pendingDeletion: 0,
+      pendingArchive: 0,
+      secretsFlagged: 0,
+    };
     if (userIsModerator) {
-      const [pendingApproval, pendingDeletion, secretsFlagged] =
+      // Архивные исключаем из счётчиков, кроме секретов (утечку видно и в архиве)
+      const [pendingApproval, pendingDeletion, pendingArchive, secretsFlagged] =
         await Promise.all([
-          KnowledgeNote.countDocuments({ approved: { $ne: true } }),
-          KnowledgeNote.countDocuments({ pendingDeletion: true }),
+          KnowledgeNote.countDocuments({
+            approved: { $ne: true },
+            archivedAt: null,
+          }),
+          KnowledgeNote.countDocuments({
+            pendingDeletion: true,
+            archivedAt: null,
+          }),
+          KnowledgeNote.countDocuments({
+            pendingArchive: true,
+            archivedAt: null,
+          }),
           KnowledgeNote.countDocuments({ "secretsScan.flagged": true }),
         ]);
-      counts = { pendingApproval, pendingDeletion, secretsFlagged };
+      counts = {
+        pendingApproval,
+        pendingDeletion,
+        pendingArchive,
+        secretsFlagged,
+      };
     }
 
     res.status(200).json({

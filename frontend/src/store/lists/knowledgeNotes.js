@@ -43,6 +43,9 @@ const moderationFilter = (state) => {
     case "pending-deletion":
       list = list.filter((note) => note.pendingDeletion);
       break;
+    case "pending-archive":
+      list = list.filter((note) => note.pendingArchive);
+      break;
     case "flagged-secrets":
       list = list.filter((note) => note.secretsScan?.flagged);
       break;
@@ -70,6 +73,13 @@ const isGlobalNote = (note) =>
   (note.users || []).length === 0 &&
   (note.categories || []).length === 0;
 
+// Какой набор грузить с сервера: активные (по умолчанию), архив или все с секретами
+const datasetQuery = (state) => {
+  if (state.showArchived) return "?archived=true";
+  if (state.moderationMode === "flagged-secrets") return "?flaggedSecrets=true";
+  return "";
+};
+
 // Последовательно отсеивает заметки по активным фильтрам (мультивыбор + поиск).
 // Режим модерации игнорирует фильтры. Без активного фильтра показываем только
 // «общие» заметки (без привязок) — иначе их невозможно увидеть в списке.
@@ -81,10 +91,11 @@ const noteFilter = (state) => {
   const enabledTypes = state.enabledTypes || {};
 
   if (!hasActiveFilter(state)) {
-    return (state.originalList || []).filter(
-      (note) =>
-        isGlobalNote(note) && enabledTypes[note.type || "info"] !== false,
+    const base = (state.originalList || []).filter(
+      (note) => enabledTypes[note.type || "info"] !== false,
     );
+    // В архиве показываем все архивные; в активном виде без фильтра — только «общие»
+    return state.showArchived ? base : base.filter((note) => isGlobalNote(note));
   }
 
   let list = state.originalList ? state.originalList : [];
@@ -170,14 +181,19 @@ const useKnowledgeNotesStore = create((set, get) => ({
   filteredList: [],
   isLoading: false,
   loaded: false,
-  // Режим модерации: null | "all-unapproved" | "pending-deletion" | "flagged-secrets"
+  // Режим модерации: null | "all-unapproved" | "pending-deletion" | "pending-archive" | "flagged-secrets"
   moderationMode: null,
+  // Просмотр архива: грузит архивные заметки вместо активных
+  showArchived: false,
+  // Последний загруженный с сервера набор — чтобы решать, нужен ли рефетч
+  lastFetchedQuery: "",
 
   fetch: async () => {
+    const query = datasetQuery(get());
     set({ isLoading: true });
     const { token } = getLocalStorageData();
     const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/knowledge-notes`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/knowledge-notes${query}`,
       {
         headers: { Authorization: "Bearer " + token },
       },
@@ -190,7 +206,13 @@ const useKnowledgeNotesStore = create((set, get) => ({
         state.sortBy,
         noteFilter({ ...state, originalList }),
       );
-      return { originalList, filteredList, loaded: true, isLoading: false };
+      return {
+        originalList,
+        filteredList,
+        loaded: true,
+        isLoading: false,
+        lastFetchedQuery: query,
+      };
     });
   },
 
@@ -203,10 +225,11 @@ const useKnowledgeNotesStore = create((set, get) => ({
     return state.fetch();
   },
 
-  // Применяет текущие фильтры; при необходимости сначала лениво грузит список
+  // Применяет текущие фильтры; рефетчит, если сменился набор (активные/архив/секреты)
   refresh: async () => {
     const state = get();
-    if (!state.loaded) {
+    const query = datasetQuery(state);
+    if (!state.loaded || query !== state.lastFetchedQuery) {
       await state.fetch();
     } else {
       state.applyFilter();
@@ -216,15 +239,18 @@ const useKnowledgeNotesStore = create((set, get) => ({
   // Частичное обновление фильтров (компании / пользователи / категории / поиск)
   updateFilter: (data) => set((state) => ({ ...state, ...data })),
 
-  // Режим модерации: показать все заметки заданного статуса, игнорируя скоупинг
-  setModerationMode: (mode) =>
-    set((state) => ({
-      moderationMode: mode,
-      filteredList: handleSorting(
-        state.sortBy,
-        noteFilter({ ...state, moderationMode: mode }),
-      ),
-    })),
+  // Режим модерации: показать все заметки заданного статуса, игнорируя скоупинг.
+  // Взаимоисключающе с просмотром архива; flagged-secrets грузит свой набор.
+  setModerationMode: (mode) => {
+    set({ moderationMode: mode, showArchived: false });
+    return get().refresh();
+  },
+
+  // Просмотр архива (или возврат к активным). Взаимоисключающе с режимом модерации.
+  setShowArchived: (value) => {
+    set({ showArchived: value, moderationMode: null });
+    return get().refresh();
+  },
 
   applyFilter: () =>
     set((state) => ({
@@ -249,10 +275,9 @@ const useKnowledgeNotesStore = create((set, get) => ({
       enabledTypes: defaultEnabledTypes(),
       searchTerm: "",
       moderationMode: null,
+      showArchived: false,
     }));
-    set((state) => ({
-      filteredList: handleSorting(state.sortBy, noteFilter(state)),
-    }));
+    return get().refresh();
   },
 }));
 

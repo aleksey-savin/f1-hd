@@ -16,7 +16,12 @@ const KnowledgeModerationCard = () => {
   const kb = useInitialPrefsStore((state) => state.knowledgeBase);
 
   const [counts, setCounts] = useState(
-    kb.counts || { pendingApproval: 0, pendingDeletion: 0, secretsFlagged: 0 },
+    kb.counts || {
+      pendingApproval: 0,
+      pendingDeletion: 0,
+      pendingArchive: 0,
+      secretsFlagged: 0,
+    },
   );
 
   useEffect(() => {
@@ -34,6 +39,7 @@ const KnowledgeModerationCard = () => {
           setCounts({
             pendingApproval: data.pendingApproval || 0,
             pendingDeletion: data.pendingDeletion || 0,
+            pendingArchive: data.pendingArchive || 0,
             secretsFlagged: data.secretsFlagged || 0,
           });
         }
@@ -65,7 +71,7 @@ const KnowledgeModerationCard = () => {
           size="sm"
         >
           Проверить неодобренные{" "}
-          <Badge bg="warning" text="dark">
+          <Badge bg="warning" text="white">
             {counts.pendingApproval}
           </Badge>
         </Button>
@@ -76,8 +82,19 @@ const KnowledgeModerationCard = () => {
           size="sm"
         >
           Заметки на удаление{" "}
-          <Badge bg="info" text="dark">
+          <Badge bg="info" text="white">
             {counts.pendingDeletion}
+          </Badge>
+        </Button>
+        <Button
+          as={Link}
+          to="/knowledge-base?moderation=pending-archive"
+          variant="outline-secondary"
+          size="sm"
+        >
+          Запросы на архивацию{" "}
+          <Badge bg="secondary" text="white">
+            {counts.pendingArchive}
           </Badge>
         </Button>
         {showSecrets && (
@@ -87,7 +104,10 @@ const KnowledgeModerationCard = () => {
             variant="outline-danger"
             size="sm"
           >
-            Найденные секреты <Badge bg="danger">{counts.secretsFlagged}</Badge>
+            Найденные секреты{" "}
+            <Badge bg="danger" text="white">
+              {counts.secretsFlagged}
+            </Badge>
           </Button>
         )}
       </div>

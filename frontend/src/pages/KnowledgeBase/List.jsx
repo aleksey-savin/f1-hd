@@ -18,6 +18,7 @@ const Placeholder = () => (
 const MODERATION_MODES = [
   "all-unapproved",
   "pending-deletion",
+  "pending-archive",
   "flagged-secrets",
 ];
 
@@ -35,7 +36,6 @@ const KnowledgeBaseList = () => {
   useEffect(() => {
     if (moderationParam && MODERATION_MODES.includes(moderationParam)) {
       store.setModerationMode(moderationParam);
-      store.fetch();
     }
   }, [moderationParam]);
 

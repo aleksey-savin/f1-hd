@@ -1,5 +1,9 @@
 import Badge from "react-bootstrap/Badge";
-import { RiDeleteBin6Line, RiShieldKeyholeLine } from "react-icons/ri";
+import {
+  RiDeleteBin6Line,
+  RiShieldKeyholeLine,
+  RiArchiveLine,
+} from "react-icons/ri";
 
 import { getApprovalMeta } from "../../util/knowledgeNoteTypes";
 
@@ -29,6 +33,16 @@ const NoteStatusBadges = ({ note, showApproval = true, className = "" }) => {
       {note.secretsScan?.flagged && (
         <Badge bg="danger" className={className}>
           <RiShieldKeyholeLine /> Секреты
+        </Badge>
+      )}
+      {note.pendingArchive && (
+        <Badge bg="secondary" className={className}>
+          <RiArchiveLine /> Ожидает архивации
+        </Badge>
+      )}
+      {note.archivedAt && (
+        <Badge bg="dark" className={className}>
+          <RiArchiveLine /> В архиве
         </Badge>
       )}
     </>

@@ -8,6 +8,7 @@ import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Alert from "react-bootstrap/Alert";
 import ListGroup from "react-bootstrap/ListGroup";
+import Dropdown from "react-bootstrap/Dropdown";
 
 import {
   RiEditLine,
@@ -20,6 +21,10 @@ import {
   RiPriceTag3Line,
   RiCheckboxCircleLine,
   RiShieldKeyholeLine,
+  RiArchiveLine,
+  RiInboxArchiveLine,
+  RiInboxUnarchiveLine,
+  RiCloseLine,
 } from "react-icons/ri";
 
 import Select from "../../UI/Select";
@@ -36,6 +41,7 @@ import useInitialPrefsStore from "../../store/prefs";
 import NoteStatusBadges from "./NoteStatusBadges";
 import ApprovalModal from "./ApprovalModal";
 import ConfirmDeletionModal from "./ConfirmDeletionModal";
+import ConfirmActionModal from "./ConfirmActionModal";
 
 import "../../UI/knowledgeBase.css";
 
@@ -62,6 +68,8 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
 
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showRequestArchiveModal, setShowRequestArchiveModal] = useState(false);
+  const [showConfirmArchiveModal, setShowConfirmArchiveModal] = useState(false);
 
   const isNew = !initialNote?._id;
 
@@ -302,9 +310,122 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
     );
   };
 
+  // Менеджер запрашивает архивацию (мягко); подтверждает её модератор
+  const requestArchiveHandler = () => {
+    sendRequest(
+      {
+        url: `${API}/api/knowledge-notes/request-archive/${currentNote._id}`,
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+      },
+      (data) => {
+        if (!data || data.error) {
+          return showToast(
+            "danger text-white",
+            data?.message || "Не удалось запросить архивацию",
+          );
+        }
+        showToast("success text-white", "Запрошена архивация заметки");
+        setShowRequestArchiveModal(false);
+        setCurrentNote(data.note);
+        refreshNotes();
+      },
+    );
+  };
+
+  // Подтверждение архивации модератором — заметка уходит в архив
+  const confirmArchiveHandler = () => {
+    sendRequest(
+      {
+        url: `${API}/api/knowledge-notes/confirm-archive/${currentNote._id}`,
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+      },
+      (data) => {
+        if (!data || data.error) {
+          return showToast(
+            "danger text-white",
+            data?.message || "Не удалось архивировать заметку",
+          );
+        }
+        showToast("success text-white", "Заметка перемещена в архив");
+        setShowConfirmArchiveModal(false);
+        setCurrentNote(data.note);
+        refreshNotes();
+      },
+    );
+  };
+
+  // Восстановление заметки из архива (менеджер)
+  const unarchiveHandler = () => {
+    sendRequest(
+      {
+        url: `${API}/api/knowledge-notes/unarchive/${currentNote._id}`,
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+      },
+      (data) => {
+        if (!data || data.error) {
+          return showToast(
+            "danger text-white",
+            data?.message || "Не удалось восстановить заметку",
+          );
+        }
+        showToast("success text-white", "Заметка восстановлена из архива");
+        setCurrentNote(data.note);
+        refreshNotes();
+      },
+    );
+  };
+
+  // Модератор отклоняет запрос на удаление — снимает pendingDeletion
+  const declineDeletionHandler = () => {
+    sendRequest(
+      {
+        url: `${API}/api/knowledge-notes/decline-deletion/${currentNote._id}`,
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+      },
+      (data) => {
+        if (!data || data.error) {
+          return showToast(
+            "danger text-white",
+            data?.message || "Не удалось отклонить запрос",
+          );
+        }
+        showToast("success text-white", "Запрос на удаление отклонён");
+        setCurrentNote(data.note);
+        refreshNotes();
+      },
+    );
+  };
+
+  // Модератор отклоняет запрос на архивацию — снимает pendingArchive
+  const declineArchiveHandler = () => {
+    sendRequest(
+      {
+        url: `${API}/api/knowledge-notes/decline-archive/${currentNote._id}`,
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+      },
+      (data) => {
+        if (!data || data.error) {
+          return showToast(
+            "danger text-white",
+            data?.message || "Не удалось отклонить запрос",
+          );
+        }
+        showToast("success text-white", "Запрос на архивацию отклонён");
+        setCurrentNote(data.note);
+        refreshNotes();
+      },
+    );
+  };
+
   const fd = formData || {};
 
-  const actionButtons = isEditing ? (
+  // Кнопки режима редактирования
+  const editActions = (
     <>
       <Button variant="primary" onClick={saveHandler} disabled={isLoading}>
         <RiSaveLine /> Сохранить
@@ -317,6 +438,85 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
         <RiArrowGoBackFill /> Отмена
       </Button>
     </>
+  );
+
+  // Пункты меню «Действия» в режиме просмотра (модерация / жизненный цикл).
+  // Собираем массивом, чтобы не показывать пустое меню и избежать дублей «Отклонить».
+  const moderationItems = [];
+  if (currentNote && !currentNote.archivedAt) {
+    if (isModerator && currentNote.approved !== true) {
+      moderationItems.push(
+        <Dropdown.Item key="approve" onClick={() => setShowApproveModal(true)}>
+          <RiCheckboxCircleLine className="text-success me-2" />
+          Одобрить
+        </Dropdown.Item>,
+      );
+    }
+    if (canManage && !currentNote.pendingDeletion) {
+      moderationItems.push(
+        <Dropdown.Item key="send-del" onClick={sendToDeletionHandler}>
+          <RiDeleteBinLine className="me-2" />
+          Отправить на удаление
+        </Dropdown.Item>,
+      );
+    }
+    if (isModerator && currentNote.pendingDeletion) {
+      moderationItems.push(
+        <Dropdown.Item
+          key="confirm-del"
+          className="text-danger"
+          onClick={() => setShowDeleteModal(true)}
+        >
+          <RiDeleteBin6Line className="me-2" />
+          Подтвердить удаление
+        </Dropdown.Item>,
+        <Dropdown.Item key="decline-del" onClick={declineDeletionHandler}>
+          <RiCloseLine className="me-2" />
+          Отклонить запрос на удаление
+        </Dropdown.Item>,
+      );
+    }
+    if (canManage && !currentNote.pendingArchive) {
+      moderationItems.push(
+        <Dropdown.Item
+          key="req-arch"
+          onClick={() => setShowRequestArchiveModal(true)}
+        >
+          <RiArchiveLine className="me-2" />
+          Запросить архивацию
+        </Dropdown.Item>,
+      );
+    }
+    if (isModerator && currentNote.pendingArchive) {
+      moderationItems.push(
+        <Dropdown.Item
+          key="confirm-arch"
+          onClick={() => setShowConfirmArchiveModal(true)}
+        >
+          <RiInboxArchiveLine className="me-2" />
+          Подтвердить архивацию
+        </Dropdown.Item>,
+        <Dropdown.Item key="decline-arch" onClick={declineArchiveHandler}>
+          <RiCloseLine className="me-2" />
+          Отклонить запрос на архивацию
+        </Dropdown.Item>,
+      );
+    }
+  }
+
+  // Действия в режиме просмотра: основная кнопка + меню. Для архивной заметки —
+  // только восстановление.
+  const readActions = currentNote?.archivedAt ? (
+    canManage && (
+      <Button
+        size="sm"
+        variant="outline-primary"
+        onClick={unarchiveHandler}
+        disabled={isLoading}
+      >
+        <RiInboxUnarchiveLine /> Восстановить из архива
+      </Button>
+    )
   ) : (
     <>
       {canManage && (
@@ -324,33 +524,13 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
           <RiEditLine /> Редактировать
         </Button>
       )}
-      {isModerator && currentNote?.approved !== true && (
-        <Button
-          size="sm"
-          variant="outline-success"
-          onClick={() => setShowApproveModal(true)}
-        >
-          <RiCheckboxCircleLine /> Одобрить
-        </Button>
-      )}
-      {canManage && !currentNote?.pendingDeletion && (
-        <Button
-          size="sm"
-          variant="outline-danger"
-          onClick={sendToDeletionHandler}
-          disabled={isLoading}
-        >
-          <RiDeleteBinLine /> Отправить на удаление
-        </Button>
-      )}
-      {isModerator && currentNote?.pendingDeletion && (
-        <Button
-          size="sm"
-          variant="danger"
-          onClick={() => setShowDeleteModal(true)}
-        >
-          <RiDeleteBin6Line /> Подтвердить удаление
-        </Button>
+      {moderationItems.length > 0 && (
+        <Dropdown align="end">
+          <Dropdown.Toggle size="sm" variant="outline-secondary">
+            Действия
+          </Dropdown.Toggle>
+          <Dropdown.Menu>{moderationItems}</Dropdown.Menu>
+        </Dropdown>
       )}
     </>
   );
@@ -426,30 +606,12 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
         ) : (
           <Col className="d-flex flex-wrap gap-1 align-items-center">
             <NoteStatusBadges note={currentNote} />
-            <Badge bg={getNoteTypeMeta(currentNote?.type).badge}>
-              {getNoteTypeMeta(currentNote?.type).label}
-            </Badge>
-            {(currentNote?.categories || []).map((category) => (
-              <Badge key={category._id} bg="info">
-                <RiPriceTag3Line /> {category.title}
-              </Badge>
-            ))}
-            {(currentNote?.companies || []).map((company) => (
-              <Badge key={company._id} bg="secondary">
-                <RiBuilding2Line /> {company.alias}
-              </Badge>
-            ))}
-            {(currentNote?.users || []).map((user) => (
-              <Badge key={user._id} className="kb-user-badge">
-                <RiAccountBoxLine /> {user.lastName} {user.firstName}
-              </Badge>
-            ))}
           </Col>
         )}
 
         {(isEditing || canManage || isModerator) && (
           <Col xs="auto" className="d-flex gap-2 align-items-start flex-wrap">
-            {actionButtons}
+            {isEditing ? editActions : readActions}
           </Col>
         )}
       </Row>
@@ -466,6 +628,30 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
         />
       ) : (
         <h3 className="mb-2">{currentNote?.title}</h3>
+      )}
+
+      {/* Метаданные: тип, категории, компании, пользователи */}
+      {!isEditing && (
+        <div className="d-flex flex-wrap gap-1 mb-3">
+          <Badge bg={getNoteTypeMeta(currentNote?.type).badge}>
+            {getNoteTypeMeta(currentNote?.type).label}
+          </Badge>
+          {(currentNote?.categories || []).map((category) => (
+            <Badge key={category._id} bg="info">
+              <RiPriceTag3Line /> {category.title}
+            </Badge>
+          ))}
+          {(currentNote?.companies || []).map((company) => (
+            <Badge key={company._id} bg="secondary">
+              <RiBuilding2Line /> {company.alias}
+            </Badge>
+          ))}
+          {(currentNote?.users || []).map((user) => (
+            <Badge key={user._id} className="kb-user-badge">
+              <RiAccountBoxLine /> {user.lastName} {user.firstName}
+            </Badge>
+          ))}
+        </div>
       )}
 
       {/* Находки секретов — только модераторам, с возможностью пометить «не секрет» */}
@@ -523,6 +709,26 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
             show={showDeleteModal}
             onHide={() => setShowDeleteModal(false)}
             onConfirm={confirmDeletionHandler}
+            isLoading={isLoading}
+          />
+          <ConfirmActionModal
+            show={showRequestArchiveModal}
+            onHide={() => setShowRequestArchiveModal(false)}
+            onConfirm={requestArchiveHandler}
+            title="Запросить архивацию"
+            body="Заметка будет отправлена на архивацию и после подтверждения модератором скрыта из базы знаний. Продолжить?"
+            confirmLabel="Запросить"
+            confirmVariant="secondary"
+            isLoading={isLoading}
+          />
+          <ConfirmActionModal
+            show={showConfirmArchiveModal}
+            onHide={() => setShowConfirmArchiveModal(false)}
+            onConfirm={confirmArchiveHandler}
+            title="Подтверждение архивации"
+            body="Заметка будет перемещена в архив и исчезнет из базы знаний. Она останется доступной через фильтр «Показать архив». Продолжить?"
+            confirmLabel="В архив"
+            confirmVariant="secondary"
             isLoading={isLoading}
           />
         </>
