@@ -46,6 +46,15 @@ router.get(
   knowledgeNoteController.getModerationSummary,
 );
 
+// domain-expiry объявляется до :id, чтобы не быть перехваченным динамическим сегментом
+router.get(
+  "/knowledge-notes/domain-expiry",
+  isAuth,
+  isNotClient,
+  canSeeKnowledgeBase,
+  knowledgeNoteController.getDomainExpiry,
+);
+
 router.get(
   "/knowledge-notes/:id",
   isAuth,

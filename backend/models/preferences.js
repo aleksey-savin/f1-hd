@@ -91,6 +91,9 @@ const preferencesSchema = new Schema({
     approvalPeriodDays: { type: Number, default: 0 },
     // Включить почасовой поиск утечек секретов в заметках
     scanForSecrets: { type: Boolean, default: false },
+    // Отслеживание продления доменов из таблиц в заметках (+ окно предупреждения в днях)
+    trackDomainExpiry: { type: Boolean, default: false },
+    domainExpiryDays: { type: Number, default: 30 },
   },
   ai: {
     isActive: { type: Boolean, default: false },

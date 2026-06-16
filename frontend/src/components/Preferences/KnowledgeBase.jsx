@@ -10,6 +10,8 @@ const defaultKnowledgeBase = {
   hideNotApproved: false,
   approvalPeriodDays: 0,
   scanForSecrets: false,
+  trackDomainExpiry: false,
+  domainExpiryDays: 30,
 };
 
 const PrefsKnowledgeBase = ({ prefs }) => {
@@ -31,6 +33,12 @@ const PrefsKnowledgeBase = ({ prefs }) => {
   );
   const [scanForSecrets, setScanForSecrets] = useState(
     prefs.knowledgeBase.scanForSecrets || false,
+  );
+  const [trackDomainExpiry, setTrackDomainExpiry] = useState(
+    prefs.knowledgeBase.trackDomainExpiry || false,
+  );
+  const [domainExpiryDays, setDomainExpiryDays] = useState(
+    prefs.knowledgeBase.domainExpiryDays || 30,
   );
   const [candidates, setCandidates] = useState([]);
 
@@ -78,6 +86,18 @@ const PrefsKnowledgeBase = ({ prefs }) => {
     const value = Math.max(0, parseInt(event.target.value, 10) || 0);
     setApprovalPeriodDays(value);
     prefs.knowledgeBase.approvalPeriodDays = value;
+  };
+
+  const trackDomainExpiryChangeHandler = () => {
+    const next = !trackDomainExpiry;
+    setTrackDomainExpiry(next);
+    prefs.knowledgeBase.trackDomainExpiry = next;
+  };
+
+  const domainExpiryDaysChangeHandler = (event) => {
+    const value = Math.max(1, parseInt(event.target.value, 10) || 1);
+    setDomainExpiryDays(value);
+    prefs.knowledgeBase.domainExpiryDays = value;
   };
 
   return (
@@ -134,6 +154,31 @@ const PrefsKnowledgeBase = ({ prefs }) => {
           value={scanForSecrets}
           onChange={scanForSecretsChangeHandler}
         />
+      </Form.Group>
+
+      <Form.Group className="mb-3">
+        <Form.Check
+          type="switch"
+          label="Отслеживать продление доменов (по таблицам доменов/хостинга в заметках)"
+          checked={trackDomainExpiry}
+          value={trackDomainExpiry}
+          onChange={trackDomainExpiryChangeHandler}
+        />
+      </Form.Group>
+
+      <Form.Group className="mb-3">
+        <Form.Label>За сколько дней предупреждать о продлении домена</Form.Label>
+        <Form.Control
+          type="number"
+          min={1}
+          value={domainExpiryDays}
+          disabled={!trackDomainExpiry}
+          onChange={domainExpiryDaysChangeHandler}
+        />
+        <Form.Text muted>
+          Домен попадёт в карточку на странице заявок, если до даты продления
+          осталось столько дней или меньше. Просроченные показываются всегда.
+        </Form.Text>
       </Form.Group>
     </>
   );

@@ -35,6 +35,9 @@ const {
   runKnowledgeApprovalExpiry,
 } = require("./services/knowledgeApprovalExpiry");
 const { runSecretsScan } = require("./services/secretsScanRun");
+const {
+  runDomainExpiryScan,
+} = require("./services/domainExpiryScanRun");
 const Preferences = require("./models/preferences");
 
 const PORT = process.env.PORT || 8080;
@@ -304,6 +307,30 @@ cron.schedule("0 * * * *", async () => {
     });
   } finally {
     isScanningSecrets = false;
+  }
+});
+
+// Knowledge base: parse domain-renewal tables daily (3:30)
+let isScanningDomains = false;
+cron.schedule("30 3 * * *", async () => {
+  if (isScanningDomains) {
+    return;
+  }
+
+  if (mongoose.connection.readyState !== 1) {
+    return;
+  }
+
+  isScanningDomains = true;
+
+  try {
+    await runDomainExpiryScan();
+  } catch (error) {
+    logger.log("error", "Knowledge base domain-expiry scan run failed", {
+      error: error.message,
+    });
+  } finally {
+    isScanningDomains = false;
   }
 });
 

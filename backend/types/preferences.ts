@@ -67,5 +67,7 @@ export interface IPreferences {
     hideNotApproved: boolean;
     approvalPeriodDays: number;
     scanForSecrets: boolean;
+    trackDomainExpiry: boolean;
+    domainExpiryDays: number;
   };
 }
