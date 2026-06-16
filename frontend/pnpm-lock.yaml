@@ -90,7 +90,7 @@ importers:
         specifier: ^19.1.0
         version: 19.1.0
       react-bootstrap:
-        specifier: ^2.10.9
+        specifier: ^2.10.10
         version: 2.10.10(@types/react@19.1.6)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       react-chartjs-2:
         specifier: ^5.3.1
