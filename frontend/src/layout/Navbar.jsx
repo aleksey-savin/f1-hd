@@ -245,15 +245,16 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                     <TbCheckbox /> Заявки
                   </Nav.Link>
 
-                  {!isEndUser && (
-                    <Nav.Link
-                      as={NavLink}
-                      to="/knowledge-base"
-                      onClick={handleClose}
-                    >
-                      <RiBookOpenLine /> База знаний
-                    </Nav.Link>
-                  )}
+                  {!isEndUser &&
+                    (isAdmin || permissions.canSeeKnowledgeBase) && (
+                      <Nav.Link
+                        as={NavLink}
+                        to="/knowledge-base"
+                        onClick={handleClose}
+                      >
+                        <RiBookOpenLine /> База знаний
+                      </Nav.Link>
+                    )}
 
                   {/* Conditional Navigation Items */}
                   {canPerformTickets && !canManageCompanies && (

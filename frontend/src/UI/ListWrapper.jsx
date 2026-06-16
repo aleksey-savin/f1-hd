@@ -26,6 +26,7 @@ const ListWrapper = ({
   title,
   filter,
   customData,
+  topContent,
   filterStore,
   addRoute,
   hiddenAddButton,
@@ -56,6 +57,7 @@ const ListWrapper = ({
       <Card.Title className="mb-3 border-bottom">
         <h1 className="display-4">{title()}</h1>
       </Card.Title>
+      {topContent}
       <BrowserView>
         <Row>
           <Col sm="auto">

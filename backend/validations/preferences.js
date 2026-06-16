@@ -16,4 +16,5 @@ exports.update = [
   body("contacts").isObject(),
   body("getScreen").isObject(),
   body("modules").isObject(),
+  body("knowledgeBase").optional().isObject(),
 ];

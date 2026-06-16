@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Outlet, useLocation } from "react-router";
+import { Outlet, useLocation, useSearchParams } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 
 import { RiBookOpenLine } from "react-icons/ri";
@@ -15,10 +15,29 @@ const Placeholder = () => (
   </div>
 );
 
+const MODERATION_MODES = [
+  "all-unapproved",
+  "pending-deletion",
+  "flagged-secrets",
+];
+
 const KnowledgeBaseList = () => {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { setLeftSidebarContent } = useSidebarStore();
   const store = useKnowledgeNotesStore();
+
+  const moderationParam = searchParams.get("moderation");
+
+  // Вход в режим модерации по ссылке с карточки/алерта. Режим НЕ сбрасываем при
+  // переходе к заметке или назад — им управляют кнопки фильтров в сайдбаре. Иначе
+  // при открытии заметки список модерации терялся бы (параметр уходит из URL).
+  useEffect(() => {
+    if (moderationParam && MODERATION_MODES.includes(moderationParam)) {
+      store.setModerationMode(moderationParam);
+      store.fetch();
+    }
+  }, [moderationParam]);
 
   // Заметки не грузим автоматически — только когда применён поиск/фильтр
   // (логика в Sidebar). Здесь лишь пересчитываем список при обновлении данных.

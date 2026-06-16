@@ -30,7 +30,7 @@
     "pad": "^3.3.0",
     "prop-types": "^15.8.1",
     "react": "^19.1.0",
-    "react-bootstrap": "^2.10.9",
+    "react-bootstrap": "^2.10.10",
     "react-chartjs-2": "^5.3.1",
     "react-datepicker": "^8.3.0",
     "react-device-detect": "^2.2.3",

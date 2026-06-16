@@ -31,6 +31,10 @@ const { scheduleLogsCleanup } = require("./middleware/cleanupLogs");
 const {
   runMikrotikHealthCheck,
 } = require("./middleware/mikrotikHealthCheck");
+const {
+  runKnowledgeApprovalExpiry,
+} = require("./services/knowledgeApprovalExpiry");
+const { runSecretsScan } = require("./services/secretsScanRun");
 const Preferences = require("./models/preferences");
 
 const PORT = process.env.PORT || 8080;
@@ -252,6 +256,54 @@ cron.schedule("*/5 * * * *", async () => {
     });
   } finally {
     isCheckingMikrotik = false;
+  }
+});
+
+// Knowledge base: revert approvals whose approval period has expired (daily 3:00)
+let isExpiringApprovals = false;
+cron.schedule("0 3 * * *", async () => {
+  if (isExpiringApprovals) {
+    return;
+  }
+
+  if (mongoose.connection.readyState !== 1) {
+    return;
+  }
+
+  isExpiringApprovals = true;
+
+  try {
+    await runKnowledgeApprovalExpiry();
+  } catch (error) {
+    logger.log("error", "Knowledge approval expiry run failed", {
+      error: error.message,
+    });
+  } finally {
+    isExpiringApprovals = false;
+  }
+});
+
+// Knowledge base: scan notes for exposed secrets every hour
+let isScanningSecrets = false;
+cron.schedule("0 * * * *", async () => {
+  if (isScanningSecrets) {
+    return;
+  }
+
+  if (mongoose.connection.readyState !== 1) {
+    return;
+  }
+
+  isScanningSecrets = true;
+
+  try {
+    await runSecretsScan();
+  } catch (error) {
+    logger.log("error", "Knowledge base secrets scan run failed", {
+      error: error.message,
+    });
+  } finally {
+    isScanningSecrets = false;
   }
 });
 

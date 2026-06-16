@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import Form from "react-bootstrap/Form";
@@ -6,15 +6,20 @@ import Button from "react-bootstrap/Button";
 import Badge from "react-bootstrap/Badge";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
+import Alert from "react-bootstrap/Alert";
+import ListGroup from "react-bootstrap/ListGroup";
 
 import {
   RiEditLine,
   RiDeleteBinLine,
+  RiDeleteBin6Line,
   RiSaveLine,
   RiArrowGoBackFill,
   RiBuilding2Line,
   RiAccountBoxLine,
   RiPriceTag3Line,
+  RiCheckboxCircleLine,
+  RiShieldKeyholeLine,
 } from "react-icons/ri";
 
 import Select from "../../UI/Select";
@@ -27,6 +32,10 @@ import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
 import { NOTE_TYPES, getNoteTypeMeta } from "../../util/knowledgeNoteTypes";
+import useInitialPrefsStore from "../../store/prefs";
+import NoteStatusBadges from "./NoteStatusBadges";
+import ApprovalModal from "./ApprovalModal";
+import ConfirmDeletionModal from "./ConfirmDeletionModal";
 
 import "../../UI/knowledgeBase.css";
 
@@ -40,9 +49,19 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
   const { showToast } = useToastStore();
   const { sendRequest, isLoading } = useHttp();
   const refreshNotes = useKnowledgeNotesStore((state) => state.fetch);
+  // Активные фильтры списка — для предзаполнения новой заметки
+  const filterCompanies = useKnowledgeNotesStore((state) => state.companies);
+  const filterUsers = useKnowledgeNotesStore((state) => state.users);
+  const filterCategories = useKnowledgeNotesStore((state) => state.categories);
 
   const { isAdmin, permissions } = useContext(AuthedUserContext);
   const canManage = isAdmin || permissions?.canManageKnowledgeBase;
+  const isModerator = useInitialPrefsStore(
+    (state) => state.knowledgeBase.isModerator,
+  );
+
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const isNew = !initialNote?._id;
 
@@ -60,6 +79,8 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
 
   // Опции селектов связей — грузятся лениво (только для редактирования)
   const [formData, setFormData] = useState(null);
+  // Предзаполнение новой заметки активными фильтрами делаем один раз
+  const prefilledRef = useRef(false);
 
   const resetFields = (note) => {
     setTitle(note?.title || "");
@@ -98,6 +119,22 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
       loadFormData();
     }
   }, []);
+
+  // Новая заметка: переносим активные фильтры списка (компания/категория/
+  // пользователь) в форму — один раз, после загрузки опций связей.
+  useEffect(() => {
+    if (!isNew || !formData || prefilledRef.current) {
+      return;
+    }
+    prefilledRef.current = true;
+    const pick = (list, ids) =>
+      (list || []).filter((item) =>
+        (ids || []).map(String).includes(item._id.toString()),
+      );
+    setCompanies(pick(formData.companies, filterCompanies));
+    setUsers(pick(formData.users, filterUsers));
+    setCategories(pick(formData.categories, filterCategories));
+  }, [formData, isNew, filterCompanies, filterUsers, filterCategories]);
 
   const enterEdit = () => {
     resetFields(currentNote);
@@ -166,13 +203,61 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
     );
   };
 
-  const deleteHandler = () => {
-    if (!window.confirm("Удалить заметку безвозвратно?")) {
-      return;
-    }
+  // Менеджер отправляет заметку на удаление (мягко); прунит её позже модератор
+  const sendToDeletionHandler = () => {
     sendRequest(
       {
-        url: `${API}/api/knowledge-notes/delete/${currentNote._id}`,
+        url: `${API}/api/knowledge-notes/send-to-deletion/${currentNote._id}`,
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+      },
+      (data) => {
+        if (!data || data.error) {
+          return showToast(
+            "danger text-white",
+            data?.message || "Не удалось отправить заметку на удаление",
+          );
+        }
+        showToast("success text-white", "Заметка отправлена на удаление");
+        setCurrentNote(data.note);
+        refreshNotes();
+      },
+    );
+  };
+
+  // Одобрение модератором (после подтверждения обоих условий в диалоге)
+  const approveHandler = ({ confirmCurrent, confirmNoSecrets }, reset) => {
+    sendRequest(
+      {
+        url: `${API}/api/knowledge-notes/approve/${currentNote._id}`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: { confirmCurrent, confirmNoSecrets },
+      },
+      (data) => {
+        if (!data || data.error) {
+          return showToast(
+            "danger text-white",
+            data?.message || "Не удалось одобрить заметку",
+          );
+        }
+        showToast("success text-white", "Заметка одобрена");
+        reset?.();
+        setShowApproveModal(false);
+        setCurrentNote(data.note);
+        refreshNotes();
+      },
+    );
+  };
+
+  // Подтверждение удаления модератором — безвозвратный прун из БД
+  const confirmDeletionHandler = () => {
+    sendRequest(
+      {
+        url: `${API}/api/knowledge-notes/confirm-deletion/${currentNote._id}`,
         method: "POST",
         headers: { Authorization: "Bearer " + token },
       },
@@ -184,8 +269,35 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
           );
         }
         showToast("success text-white", "Заметка удалена");
+        setShowDeleteModal(false);
         refreshNotes();
         navigate("/knowledge-base");
+      },
+    );
+  };
+
+  // Модератор помечает находку секрета как «не секрет» (ложное срабатывание)
+  const ignoreSecretHandler = (hash) => {
+    sendRequest(
+      {
+        url: `${API}/api/knowledge-notes/${currentNote._id}/ignore-secret`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: { hash },
+      },
+      (data) => {
+        if (!data || data.error) {
+          return showToast(
+            "danger text-white",
+            data?.message || "Не удалось обновить находку",
+          );
+        }
+        showToast("success text-white", "Находка помечена как не секрет");
+        setCurrentNote(data.note);
+        refreshNotes();
       },
     );
   };
@@ -206,16 +318,41 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
       </Button>
     </>
   ) : (
-    canManage && (
-      <>
+    <>
+      {canManage && (
         <Button size="sm" variant="outline-primary" onClick={enterEdit}>
           <RiEditLine /> Редактировать
         </Button>
-        <Button size="sm" variant="outline-danger" onClick={deleteHandler}>
-          <RiDeleteBinLine /> Удалить
+      )}
+      {isModerator && currentNote?.approved !== true && (
+        <Button
+          size="sm"
+          variant="outline-success"
+          onClick={() => setShowApproveModal(true)}
+        >
+          <RiCheckboxCircleLine /> Одобрить
         </Button>
-      </>
-    )
+      )}
+      {canManage && !currentNote?.pendingDeletion && (
+        <Button
+          size="sm"
+          variant="outline-danger"
+          onClick={sendToDeletionHandler}
+          disabled={isLoading}
+        >
+          <RiDeleteBinLine /> Отправить на удаление
+        </Button>
+      )}
+      {isModerator && currentNote?.pendingDeletion && (
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={() => setShowDeleteModal(true)}
+        >
+          <RiDeleteBin6Line /> Подтвердить удаление
+        </Button>
+      )}
+    </>
   );
 
   return (
@@ -288,6 +425,7 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
           </>
         ) : (
           <Col className="d-flex flex-wrap gap-1 align-items-center">
+            <NoteStatusBadges note={currentNote} />
             <Badge bg={getNoteTypeMeta(currentNote?.type).badge}>
               {getNoteTypeMeta(currentNote?.type).label}
             </Badge>
@@ -309,8 +447,8 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
           </Col>
         )}
 
-        {(isEditing || canManage) && (
-          <Col xs="auto" className="d-flex gap-2 align-items-start">
+        {(isEditing || canManage || isModerator) && (
+          <Col xs="auto" className="d-flex gap-2 align-items-start flex-wrap">
             {actionButtons}
           </Col>
         )}
@@ -330,6 +468,36 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
         <h3 className="mb-2">{currentNote?.title}</h3>
       )}
 
+      {/* Находки секретов — только модераторам, с возможностью пометить «не секрет» */}
+      {!isEditing &&
+        isModerator &&
+        currentNote?.secretsScan?.flagged &&
+        (currentNote.secretsScan.findings || []).length > 0 && (
+          <Alert variant="danger" className="mb-2">
+            <div className="fw-semibold mb-2">
+              <RiShieldKeyholeLine /> Возможные чувствительные данные
+            </div>
+            <ListGroup variant="flush">
+              {currentNote.secretsScan.findings.map((finding, index) => (
+                <ListGroup.Item
+                  key={finding.hash || index}
+                  className="d-flex flex-wrap align-items-center gap-2 bg-transparent px-0 border-0 py-1"
+                >
+                  <span>{finding.maskedSnippet}</span>
+                  <Button
+                    size="sm"
+                    variant="outline-secondary"
+                    className="ms-auto"
+                    onClick={() => ignoreSecretHandler(finding.hash)}
+                  >
+                    Не секрет
+                  </Button>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+          </Alert>
+        )}
+
       {/* Содержимое: Markdown — редактор (edit) ↔ просмотр (read) */}
       {isEditing ? (
         <div className="flex-grow-1" style={{ minHeight: 0 }}>
@@ -341,6 +509,23 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
         </div>
       ) : (
         <MarkdownViewer value={currentNote?.content || ""} />
+      )}
+
+      {!isNew && (
+        <>
+          <ApprovalModal
+            show={showApproveModal}
+            onHide={() => setShowApproveModal(false)}
+            onConfirm={approveHandler}
+            isLoading={isLoading}
+          />
+          <ConfirmDeletionModal
+            show={showDeleteModal}
+            onHide={() => setShowDeleteModal(false)}
+            onConfirm={confirmDeletionHandler}
+            isLoading={isLoading}
+          />
+        </>
       )}
     </article>
   );

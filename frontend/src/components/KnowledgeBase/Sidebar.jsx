@@ -7,12 +7,17 @@ import Form from "react-bootstrap/Form";
 import ListGroup from "react-bootstrap/ListGroup";
 import Stack from "react-bootstrap/Stack";
 
-import { RiAddLine } from "react-icons/ri";
+import {
+  RiAddLine,
+  RiDeleteBin6Line,
+  RiShieldKeyholeLine,
+} from "react-icons/ri";
 
 import Select from "../../UI/Select";
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
+import useInitialPrefsStore from "../../store/prefs";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { NOTE_TYPES } from "../../util/knowledgeNoteTypes";
+import { NOTE_TYPES, getApprovalMeta } from "../../util/knowledgeNoteTypes";
 
 // Уникальные объекты по _id
 const uniqueById = (items) => {
@@ -25,10 +30,23 @@ const uniqueById = (items) => {
   return [...map.values()];
 };
 
+// Фильтры модерации (только для модераторов) — в обход скоупинга
+const MODERATION_FILTERS = [
+  { mode: "all-unapproved", label: "Не одобрены" },
+  { mode: "pending-deletion", label: "Запрос на удаление" },
+  { mode: "flagged-secrets", label: "Найдены секреты" },
+];
+
 const KnowledgeBaseSidebar = () => {
   const { id: activeId } = useParams();
   const { isAdmin, permissions } = useContext(AuthedUserContext);
   const canManage = isAdmin || permissions?.canManageKnowledgeBase;
+  const isModerator = useInitialPrefsStore(
+    (state) => state.knowledgeBase.isModerator,
+  );
+  const scanForSecrets = useInitialPrefsStore(
+    (state) => state.knowledgeBase.scanForSecrets,
+  );
 
   const store = useKnowledgeNotesStore();
   const {
@@ -39,6 +57,8 @@ const KnowledgeBaseSidebar = () => {
     updateFilter,
     refresh,
     ensureLoaded,
+    moderationMode,
+    setModerationMode,
   } = store;
 
   const [query, setQuery] = useState(store.searchTerm || "");
@@ -65,6 +85,10 @@ const KnowledgeBaseSidebar = () => {
     users.length > 0 ||
     categories.length > 0;
 
+  // Бейдж компании показываем после названия заметки, кроме случая, когда в
+  // фильтре выбрана ровно одна компания (тогда он избыточен)
+  const showCompanyBadges = companies.length !== 1;
+
   const searchHandler = (event) => {
     const value = event.target.value;
     setQuery(value);
@@ -72,22 +96,41 @@ const KnowledgeBaseSidebar = () => {
     refresh();
   };
 
+  // Скоуп-фильтры (компания/пользователь/категория) выходят из режима модерации
   const companiesHandler = (selected) => {
     setCompanies(selected || []);
-    updateFilter({ companies: (selected || []).map((item) => item._id) });
+    updateFilter({
+      companies: (selected || []).map((item) => item._id),
+      moderationMode: null,
+    });
     refresh();
   };
 
   const usersHandler = (selected) => {
     setUsers(selected || []);
-    updateFilter({ users: (selected || []).map((item) => item._id) });
+    updateFilter({
+      users: (selected || []).map((item) => item._id),
+      moderationMode: null,
+    });
     refresh();
   };
 
   const categoriesHandler = (selected) => {
     setCategories(selected || []);
-    updateFilter({ categories: (selected || []).map((item) => item._id) });
+    updateFilter({
+      categories: (selected || []).map((item) => item._id),
+      moderationMode: null,
+    });
     refresh();
+  };
+
+  // Кнопки модерации: повторный клик по активной — сброс режима
+  const toggleModerationMode = (mode) => {
+    const next = moderationMode === mode ? null : mode;
+    if (next) {
+      ensureLoaded();
+    }
+    setModerationMode(next);
   };
 
   // Тип — переключатель на каждый вид заметки; по умолчанию все включены.
@@ -176,6 +219,26 @@ const KnowledgeBaseSidebar = () => {
         ))}
       </Stack>
 
+      {/* Фильтры модерации — только для модераторов; игнорируют скоуп-фильтры */}
+      {isModerator && (
+        <Stack direction="horizontal" gap={2} className="flex-wrap">
+          {MODERATION_FILTERS.filter(
+            (item) => item.mode !== "flagged-secrets" || scanForSecrets,
+          ).map((item) => (
+            <Button
+              key={item.mode}
+              size="sm"
+              variant={
+                moderationMode === item.mode ? "primary" : "outline-secondary"
+              }
+              onClick={() => toggleModerationMode(item.mode)}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </Stack>
+      )}
+
       <div className="overflow-auto">
         <ListGroup variant="flush">
           {filteredList.length === 0 && (
@@ -187,17 +250,54 @@ const KnowledgeBaseSidebar = () => {
                   : "Введите запрос или выберите фильтр"}
             </ListGroup.Item>
           )}
-          {filteredList.map((note) => (
-            <ListGroup.Item
-              key={note._id}
-              action
-              as={Link}
-              to={`/knowledge-base/${note._id}`}
-              active={note._id === activeId}
-            >
-              {note.title}
-            </ListGroup.Item>
-          ))}
+          {filteredList.map((note) => {
+            const approval = getApprovalMeta(note);
+            const ApprovalIcon = approval.icon;
+            return (
+              <ListGroup.Item
+                key={note._id}
+                action
+                as={Link}
+                to={`/knowledge-base/${note._id}`}
+                active={note._id === activeId}
+                className="d-flex align-items-center gap-1"
+              >
+                <ApprovalIcon
+                  className={`text-${approval.bg} flex-shrink-0`}
+                  title={approval.label}
+                />
+                <span className="text-truncate" style={{ minWidth: 0 }}>
+                  {note.title}
+                </span>
+                {showCompanyBadges &&
+                  (note.companies || []).map((company) => (
+                    <Badge
+                      key={company._id}
+                      bg="secondary"
+                      className="flex-shrink-0"
+                    >
+                      {company.alias}
+                    </Badge>
+                  ))}
+                {(note.pendingDeletion || note.secretsScan?.flagged) && (
+                  <span className="ms-auto d-flex align-items-center gap-1 flex-shrink-0">
+                    {note.secretsScan?.flagged && (
+                      <RiShieldKeyholeLine
+                        className="text-danger"
+                        title="Найдены секреты"
+                      />
+                    )}
+                    {note.pendingDeletion && (
+                      <RiDeleteBin6Line
+                        className="text-danger"
+                        title="На удалении"
+                      />
+                    )}
+                  </span>
+                )}
+              </ListGroup.Item>
+            );
+          })}
         </ListGroup>
       </div>
     </Stack>

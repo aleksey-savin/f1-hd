@@ -3,8 +3,11 @@ const User = require("../models/user");
 const { Ticket } = require("../models/ticket");
 const Company = require("../models/company");
 const Comment = require("../models/comment");
+const KnowledgeNote = require("../models/knowledgeNote");
 
 const { AppError } = require("../middleware/errorHandling");
+const getAuthData = require("../middleware/getAuthData");
+const { isModerator } = require("../helpers/knowledgeNoteVisibility");
 
 const isOpenaiSpeechModel = (modelId) =>
   /^(whisper-1|gpt-4o(?:-mini)?-transcribe(?:-diarize)?(?:-\d{4}-\d{2}-\d{2})?)$/.test(
@@ -66,6 +69,26 @@ exports.getInitial = async (req, res, next) => {
       return res.status(200).json({ message: "Preferences are not set" });
     }
 
+    // Статус модерации базы знаний для текущего пользователя — нужен глобально
+    // (карточка модерации на странице заявок и алерт об утечках на каждой странице).
+    const authedUser = await getAuthData(req);
+    const kb = preferences.knowledgeBase || {};
+    const moderatorIds = (kb.moderators || [])
+      .map((moderator) => moderator?._id?.toString())
+      .filter(Boolean);
+    const userIsModerator = isModerator(authedUser, moderatorIds);
+
+    let counts = { pendingApproval: 0, pendingDeletion: 0, secretsFlagged: 0 };
+    if (userIsModerator) {
+      const [pendingApproval, pendingDeletion, secretsFlagged] =
+        await Promise.all([
+          KnowledgeNote.countDocuments({ approved: { $ne: true } }),
+          KnowledgeNote.countDocuments({ pendingDeletion: true }),
+          KnowledgeNote.countDocuments({ "secretsScan.flagged": true }),
+        ]);
+      counts = { pendingApproval, pendingDeletion, secretsFlagged };
+    }
+
     res.status(200).json({
       contacts: preferences.contacts,
       htmlTicketDesc: preferences.htmlTicketDesc,
@@ -80,6 +103,12 @@ exports.getInitial = async (req, res, next) => {
         speechToText: {
           isActive: preferences.ai?.speechToText?.isActive || false,
         },
+      },
+      knowledgeBase: {
+        isModerator: userIsModerator,
+        hideNotApproved: !!kb.hideNotApproved,
+        scanForSecrets: !!kb.scanForSecrets,
+        counts,
       },
     });
   } catch (error) {
@@ -109,6 +138,7 @@ exports.update = async (req, res, next) => {
       getScreen,
       modules,
       ai,
+      knowledgeBase,
     } = req.body;
 
     if (!preferences) {
@@ -130,6 +160,7 @@ exports.update = async (req, res, next) => {
         getScreen,
         modules,
         ai,
+        knowledgeBase,
       });
     } else {
       preferences.timezone = timezone;
@@ -161,6 +192,10 @@ exports.update = async (req, res, next) => {
         },
       };
       preferences.ai = ai;
+      // Защищаемся от затирания конфигурации модерации при частичном POST
+      if (knowledgeBase) {
+        preferences.knowledgeBase = knowledgeBase;
+      }
     }
 
     await preferences.save();

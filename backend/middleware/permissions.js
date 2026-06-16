@@ -251,6 +251,22 @@ module.exports.canManageKnowledgeBase = async (req, res, next) => {
   next();
 };
 
+module.exports.canSeeKnowledgeBase = async (req, res, next) => {
+  const { userId } = await getAuthData(req);
+  const authedUser = await User.findById(userId);
+  const { permissions, isAdmin } = authedUser;
+  if (!permissions.canSeeKnowledgeBase && !isAdmin) {
+    const error = new Error("Недостаточно прав для просмотра данной страницы");
+    error.statusCode = 403;
+    return res.status(error.statusCode).json({
+      error: false,
+      status: error.statusCode,
+      message: error.message,
+    });
+  }
+  next();
+};
+
 module.exports.canManageRoutineTasks = async (req, res, next) => {
   const { userId } = await getAuthData(req);
   const authedUser = await User.findById(userId);

@@ -3,7 +3,11 @@ const router = new Router();
 const userController = require("@/controllers/user");
 
 const isAuth = require("@/middleware/isAuth");
-const { canManageUsers, isNotClient } = require("@/middleware/permissions");
+const {
+  canManageUsers,
+  isNotClient,
+  isAdmin,
+} = require("@/middleware/permissions");
 
 const fileUpload = require("@/middleware/fileUpload");
 
@@ -18,6 +22,12 @@ router.get(
   "/users/with-workplaces",
   isAuth,
   userController.getUsersWithWorkplaces,
+);
+router.get(
+  "/users/knowledge-base-moderators",
+  isAuth,
+  isAdmin,
+  userController.getKnowledgeBaseModerators,
 );
 router.post(
   "/users/create-workplaces",

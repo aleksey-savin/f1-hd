@@ -2,11 +2,27 @@ const KnowledgeNote = require("../models/knowledgeNote");
 const Company = require("../models/company");
 const User = require("../models/user");
 const TicketCategory = require("../models/ticketCategory");
+const Preferences = require("../models/preferences");
 
 const { AppError } = require("../middleware/errorHandling");
 const getAuthData = require("../middleware/getAuthData");
 const { markdownToPlainText } = require("../helpers/markdownToPlainText");
-const { canViewNote } = require("../helpers/knowledgeNoteVisibility");
+const {
+  canViewNote,
+  isModerator,
+} = require("../helpers/knowledgeNoteVisibility");
+
+// Конфиг модерации для проверки видимости: флаг скрытия и id модераторов.
+const getKbConfig = async () => {
+  const prefs = await Preferences.findOne({}).lean();
+  const kb = prefs?.knowledgeBase || {};
+  return {
+    hideNotApproved: !!kb.hideNotApproved,
+    moderatorIds: (kb.moderators || [])
+      .map((moderator) => moderator?._id?.toString())
+      .filter(Boolean),
+  };
+};
 
 const NOTE_TYPES = ["info", "backlog", "instructions"];
 
@@ -63,12 +79,15 @@ const buildCategories = async (ids = []) => {
 exports.getAll = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
+    const kbConfig = await getKbConfig();
 
     const notes = await KnowledgeNote.find({}, { content: 0 })
       .sort({ updatedAt: -1 })
       .lean();
 
-    const visibleNotes = notes.filter((note) => canViewNote(note, authedUser));
+    const visibleNotes = notes.filter((note) =>
+      canViewNote(note, authedUser, kbConfig),
+    );
 
     res.status(200).json(visibleNotes);
   } catch (error) {
@@ -116,6 +135,7 @@ const matchesTicketContext = (note, { company, category, user }) => {
 exports.getRelated = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
+    const kbConfig = await getKbConfig();
     const { company, category, user } = req.query;
 
     const or = [];
@@ -127,13 +147,17 @@ exports.getRelated = async (req, res, next) => {
       return res.status(200).json([]);
     }
 
-    const notes = await KnowledgeNote.find({ $or: or }, { content: 0 })
+    // Заметки, отправленные на удаление, в заявках не показываем
+    const notes = await KnowledgeNote.find(
+      { $or: or, pendingDeletion: { $ne: true } },
+      { content: 0 },
+    )
       .sort({ updatedAt: -1 })
       .lean();
 
     const visibleNotes = notes.filter(
       (note) =>
-        canViewNote(note, authedUser) &&
+        canViewNote(note, authedUser, kbConfig) &&
         matchesTicketContext(note, { company, category, user }),
     );
 
@@ -149,6 +173,7 @@ exports.getRelated = async (req, res, next) => {
 exports.getOne = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
+    const kbConfig = await getKbConfig();
     const note = await KnowledgeNote.findById(req.params.id).lean();
 
     if (!note) {
@@ -157,7 +182,7 @@ exports.getOne = async (req, res, next) => {
       );
     }
 
-    if (!canViewNote(note, authedUser)) {
+    if (!canViewNote(note, authedUser, kbConfig)) {
       return next(new AppError(`Недостаточно прав для просмотра заметки`, 403));
     }
 
@@ -245,6 +270,10 @@ exports.update = async (req, res, next) => {
     note.categories = await buildCategories(categories);
     note.type = normalizeType(type);
     note.updatedBy = userId;
+    // Любое изменение сбрасывает одобрение — заметку нужно повторно одобрить
+    note.approved = false;
+    note.approvedBy = undefined;
+    note.approvedAt = undefined;
 
     await note.save();
 
@@ -279,6 +308,222 @@ exports.delete = async (req, res, next) => {
     next(
       new AppError(
         `Failed to delete knowledge note ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Отправить заметку на удаление (мягко): ждёт подтверждения модератора.
+// Доступно носителям canManageKnowledgeBase.
+exports.sendToDeletion = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+    const note = await KnowledgeNote.findById(req.params.id);
+
+    if (!note) {
+      return next(
+        new AppError(`Заметка с id ${req.params.id} не найдена`, 404),
+      );
+    }
+
+    note.pendingDeletion = true;
+    note.pendingDeletionBy = userId;
+    note.pendingDeletionAt = new Date();
+    await note.save();
+
+    res.status(200).json({ message: "Заметка отправлена на удаление", note });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to send knowledge note ${req.params.id} to deletion`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Подтвердить удаление заметки (жёсткое удаление из БД). Только модераторы.
+exports.confirmDeletion = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const { moderatorIds } = await getKbConfig();
+
+    if (!isModerator(authedUser, moderatorIds)) {
+      return next(
+        new AppError(
+          `Недостаточно прав: подтверждать удаление могут только модераторы`,
+          403,
+        ),
+      );
+    }
+
+    const note = await KnowledgeNote.findById(req.params.id);
+
+    if (!note) {
+      return next(new AppError(`Заметка не найдена`, 404));
+    }
+
+    await KnowledgeNote.deleteOne({ _id: req.params.id });
+
+    res.status(200).json({ message: "Заметка удалена" });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to confirm deletion of knowledge note ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Одобрить заметку. Только модераторы. Требуются оба подтверждения из диалога.
+exports.approve = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const { moderatorIds } = await getKbConfig();
+
+    if (!isModerator(authedUser, moderatorIds)) {
+      return next(
+        new AppError(
+          `Недостаточно прав: одобрять заметки могут только модераторы`,
+          403,
+        ),
+      );
+    }
+
+    const { confirmCurrent, confirmNoSecrets } = req.body;
+    if (confirmCurrent !== true || confirmNoSecrets !== true) {
+      return next(
+        new AppError(`Необходимо подтвердить оба условия одобрения`, 422),
+      );
+    }
+
+    const note = await KnowledgeNote.findById(req.params.id);
+
+    if (!note) {
+      return next(
+        new AppError(`Заметка с id ${req.params.id} не найдена`, 404),
+      );
+    }
+
+    note.approved = true;
+    note.approvedBy = authedUser.userId;
+    note.approvedAt = new Date();
+    await note.save();
+
+    res.status(200).json({ message: "Заметка одобрена", note });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to approve knowledge note ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Сводка для модератора: счётчики для карточки на странице заявок и алерта.
+// Немодераторам возвращаем нули.
+exports.getModerationSummary = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const { moderatorIds } = await getKbConfig();
+
+    if (!isModerator(authedUser, moderatorIds)) {
+      return res.status(200).json({
+        isModerator: false,
+        pendingApproval: 0,
+        pendingDeletion: 0,
+        secretsFlagged: 0,
+      });
+    }
+
+    const [pendingApproval, pendingDeletion, secretsFlagged] =
+      await Promise.all([
+        KnowledgeNote.countDocuments({ approved: { $ne: true } }),
+        KnowledgeNote.countDocuments({ pendingDeletion: true }),
+        KnowledgeNote.countDocuments({ "secretsScan.flagged": true }),
+      ]);
+
+    res.status(200).json({
+      isModerator: true,
+      pendingApproval,
+      pendingDeletion,
+      secretsFlagged,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch knowledge base moderation summary`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Пометить находку секрета как «не секрет» (ложное срабатывание). Только модераторы.
+// Сохраняем хэш значения в ignoredHashes — будущие сканы его пропустят. Реальный
+// секрет (другое значение) в той же заметке по-прежнему сработает.
+exports.ignoreSecretFinding = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const { moderatorIds } = await getKbConfig();
+
+    if (!isModerator(authedUser, moderatorIds)) {
+      return next(
+        new AppError(
+          `Недостаточно прав: помечать находки может только модератор`,
+          403,
+        ),
+      );
+    }
+
+    const { hash } = req.body;
+    if (!hash) {
+      return next(new AppError(`Не указан идентификатор находки`, 422));
+    }
+
+    const note = await KnowledgeNote.findById(req.params.id);
+    if (!note) {
+      return next(
+        new AppError(`Заметка с id ${req.params.id} не найдена`, 404),
+      );
+    }
+
+    if (!note.secretsScan) {
+      note.secretsScan = { flagged: false, findings: [], ignoredHashes: [] };
+    }
+
+    const ignored = new Set(
+      (note.secretsScan.ignoredHashes || []).map(String),
+    );
+    ignored.add(String(hash));
+    note.secretsScan.ignoredHashes = [...ignored];
+
+    // Убираем помеченную находку (во всех местах) и пересчитываем флаг
+    note.secretsScan.findings = (note.secretsScan.findings || []).filter(
+      (finding) => finding.hash !== hash,
+    );
+    note.secretsScan.flagged = note.secretsScan.findings.length > 0;
+
+    await note.save();
+
+    res.status(200).json({ message: "Находка помечена как не секрет", note });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to ignore secret finding for note ${req.params.id}`,
         500,
         true,
         error,

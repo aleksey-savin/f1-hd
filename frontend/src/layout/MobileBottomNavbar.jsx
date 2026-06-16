@@ -18,7 +18,8 @@ import { TbCheckbox } from "react-icons/tb";
 import { AuthedUserContext } from "../store/authed-user-context";
 
 const MobileBottomNavbar = () => {
-  const { dashboard, isEndUser } = useContext(AuthedUserContext);
+  const { dashboard, isEndUser, isAdmin, permissions } =
+    useContext(AuthedUserContext);
 
   return (
     <Navbar className="fixed-bottom bg-primary" style={{ zIndex: 1000 }}>
@@ -45,15 +46,17 @@ const MobileBottomNavbar = () => {
             >
               <RiBuilding2Line />
             </Button>
-            <Button
-              as={NavLink}
-              size="lg"
-              variant="link"
-              replace
-              to="/knowledge-base"
-            >
-              <RiBookOpenLine />
-            </Button>
+            {(isAdmin || permissions?.canSeeKnowledgeBase) && (
+              <Button
+                as={NavLink}
+                size="lg"
+                variant="link"
+                replace
+                to="/knowledge-base"
+              >
+                <RiBookOpenLine />
+              </Button>
+            )}
           </>
         )}
         {isEndUser && (

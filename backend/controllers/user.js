@@ -167,6 +167,38 @@ exports.getCanPerformTicketsUsers = async (req, res, next) => {
   }
 };
 
+// Кандидаты в модераторы базы знаний: активные сотрудники, которые могут видеть
+// и управлять базой знаний (либо админы). Используется в настройках (вкладка
+// «База знаний») для списка модераторов.
+exports.getKnowledgeBaseModerators = async (req, res, next) => {
+  try {
+    const users = await User.find({
+      isActive: true,
+      isServiceAccount: false,
+      $or: [
+        {
+          "permissions.canSeeKnowledgeBase": true,
+          "permissions.canManageKnowledgeBase": true,
+        },
+        { isAdmin: true },
+      ],
+    })
+      .sort({ lastName: 1 })
+      .select("_id firstName lastName");
+
+    res.status(200).json(users);
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch knowledge base moderators`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
 exports.getUsersWithWorkplaces = async (req, res, next) => {
   try {
     const { userId } = await getAuthData(req);

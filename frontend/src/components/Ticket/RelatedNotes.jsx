@@ -18,7 +18,12 @@ import {
 
 import MarkdownViewer from "../../UI/MarkdownViewer";
 import { getLocalStorageData } from "../../util/auth";
-import { NOTE_TYPES, getNoteTypeMeta } from "../../util/knowledgeNoteTypes";
+import {
+  NOTE_TYPES,
+  getNoteTypeMeta,
+  getApprovalMeta,
+} from "../../util/knowledgeNoteTypes";
+import useInitialPrefsStore from "../../store/prefs";
 
 import "../../UI/knowledgeBase.css";
 
@@ -60,6 +65,9 @@ const RelatedNotes = ({
   onCountChange,
 }) => {
   const { token } = getLocalStorageData();
+  const hideNotApproved = useInitialPrefsStore(
+    (state) => state.knowledgeBase.hideNotApproved,
+  );
 
   const [notes, setNotes] = useState([]);
   const [enabledTypes, setEnabledTypes] = useState(defaultEnabledTypes());
@@ -117,6 +125,9 @@ const RelatedNotes = ({
     (note) => enabledTypes[note.type || "info"],
   );
 
+  const activeApproval = activeNote ? getApprovalMeta(activeNote) : null;
+  const ActiveApprovalIcon = activeApproval?.icon;
+
   const openNote = async (id) => {
     setShow(true);
     setActiveNote(null);
@@ -162,6 +173,8 @@ const RelatedNotes = ({
         <ListGroup variant="flush">
           {visibleNotes.map((note) => {
             const typeMeta = getNoteTypeMeta(note.type);
+            const approval = getApprovalMeta(note);
+            const ApprovalIcon = approval.icon;
             return (
               <ListGroup.Item
                 key={note._id}
@@ -170,6 +183,11 @@ const RelatedNotes = ({
                 className="d-flex flex-wrap align-items-center gap-2"
               >
                 <Badge bg={typeMeta.badge}>{typeMeta.label}</Badge>
+                {!hideNotApproved && (
+                  <Badge bg={approval.bg} title={approval.label}>
+                    <ApprovalIcon />
+                  </Badge>
+                )}
                 <span className="flex-grow-1">{note.title}</span>
                 {note.matchCompany && (
                   <Badge bg="secondary" title="Совпадение по компании">
@@ -210,6 +228,11 @@ const RelatedNotes = ({
                 <Badge bg={getNoteTypeMeta(activeNote.type).badge}>
                   {getNoteTypeMeta(activeNote.type).label}
                 </Badge>
+                {!hideNotApproved && activeApproval && (
+                  <Badge bg={activeApproval.bg} title={activeApproval.label}>
+                    <ActiveApprovalIcon />
+                  </Badge>
+                )}
                 {(activeNote.categories || []).map((category) => (
                   <Badge key={category._id} bg="info">
                     <RiPriceTag3Line /> {category.title}

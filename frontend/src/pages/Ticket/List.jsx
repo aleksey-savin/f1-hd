@@ -12,6 +12,7 @@ import ListWrapper from "../../UI/ListWrapper";
 
 import TicketFilter from "../../components/Ticket/Filter";
 import List from "../../components/Ticket/List";
+import KnowledgeModerationCard from "../../components/KnowledgeBase/ModerationCard";
 
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
@@ -127,6 +128,7 @@ const Tickets = () => {
       filterStore={filterStore}
       addRoute="/tickets/add"
       customData={customData}
+      topContent={<KnowledgeModerationCard />}
     >
       <List
         items={filterStore.filteredList}

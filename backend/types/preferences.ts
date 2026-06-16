@@ -58,4 +58,14 @@ export interface IPreferences {
     yandexgpt: { apiKey: string; model: string; folderId: string };
     yandexai: { apiKey: string; model: string; folderId: string };
   };
+  knowledgeBase: {
+    moderators: {
+      _id?: Types.ObjectId;
+      firstName?: string;
+      lastName?: string;
+    }[];
+    hideNotApproved: boolean;
+    approvalPeriodDays: number;
+    scanForSecrets: boolean;
+  };
 }

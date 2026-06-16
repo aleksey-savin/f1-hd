@@ -71,6 +71,27 @@ const preferencesSchema = new Schema({
     finances: { isActive: { type: Boolean, default: false } },
     inventory: { isActive: { type: Boolean, default: false } },
   },
+  knowledgeBase: {
+    // Модераторы базы знаний (денормализуем имя для отрисовки чипов без join).
+    // Кандидаты ограничены пользователями с canSeeKnowledgeBase + canManageKnowledgeBase.
+    moderators: [
+      {
+        _id: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+          required: false,
+        },
+        firstName: String,
+        lastName: String,
+      },
+    ],
+    // Скрывать неодобренные заметки от обычных пользователей
+    hideNotApproved: { type: Boolean, default: false },
+    // Через сколько дней одобренная заметка снова становится неодобренной (0 = выключено)
+    approvalPeriodDays: { type: Number, default: 0 },
+    // Включить почасовой поиск утечек секретов в заметках
+    scanForSecrets: { type: Boolean, default: false },
+  },
   ai: {
     isActive: { type: Boolean, default: false },
     provider: {

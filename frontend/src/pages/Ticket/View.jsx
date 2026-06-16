@@ -115,6 +115,7 @@ const ViewTicket = () => {
     permissions,
     isClient,
     isEndUser,
+    isAdmin,
   } = useContext(AuthedUserContext);
   const { canAvoidWorks, canUseTimeTrackingModule } = permissions;
 
@@ -534,7 +535,7 @@ const ViewTicket = () => {
                           />
                         </Tab>
                       )}
-                    {!isClient && (
+                    {!isClient && (isAdmin || permissions?.canSeeKnowledgeBase) && (
                       <Tab
                         eventKey="knowledge"
                         title={

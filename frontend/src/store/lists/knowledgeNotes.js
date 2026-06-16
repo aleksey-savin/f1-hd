@@ -31,18 +31,66 @@ const hasActiveFilter = (state) =>
   (state.users && state.users.length > 0) ||
   (state.categories && state.categories.length > 0);
 
+// Заметки для режима модерации — в обход скоупинга (компания/категория/пользователь),
+// но с учётом фильтра по типу и поиска, чтобы можно было сузить набор на проверку.
+const moderationFilter = (state) => {
+  let list = state.originalList || [];
+
+  switch (state.moderationMode) {
+    case "all-unapproved":
+      list = list.filter((note) => note.approved !== true);
+      break;
+    case "pending-deletion":
+      list = list.filter((note) => note.pendingDeletion);
+      break;
+    case "flagged-secrets":
+      list = list.filter((note) => note.secretsScan?.flagged);
+      break;
+    default:
+      break;
+  }
+
+  const enabledTypes = state.enabledTypes || {};
+  list = list.filter((note) => enabledTypes[note.type || "info"] !== false);
+
+  if (state.searchTerm?.length > 0) {
+    const terms = state.searchTerm.toLowerCase().split(" ").filter(Boolean);
+    list = list.filter((note) => {
+      const haystack = buildSearchString(note);
+      return terms.every((term) => haystack.includes(term));
+    });
+  }
+
+  return list;
+};
+
+// «Общая» заметка — без привязок к компаниям, пользователям и категориям
+const isGlobalNote = (note) =>
+  (note.companies || []).length === 0 &&
+  (note.users || []).length === 0 &&
+  (note.categories || []).length === 0;
+
 // Последовательно отсеивает заметки по активным фильтрам (мультивыбор + поиск).
-// Без активного фильтра список пуст — заметки не показываем.
+// Режим модерации игнорирует фильтры. Без активного фильтра показываем только
+// «общие» заметки (без привязок) — иначе их невозможно увидеть в списке.
 const noteFilter = (state) => {
+  if (state.moderationMode) {
+    return moderationFilter(state);
+  }
+
+  const enabledTypes = state.enabledTypes || {};
+
   if (!hasActiveFilter(state)) {
-    return [];
+    return (state.originalList || []).filter(
+      (note) =>
+        isGlobalNote(note) && enabledTypes[note.type || "info"] !== false,
+    );
   }
 
   let list = state.originalList ? state.originalList : [];
 
   // Фильтр по типу: применяется всегда; при всех включённых типах эффекта нет,
   // выключение типа убирает его заметки из выдачи
-  const enabledTypes = state.enabledTypes || {};
   list = list.filter((note) => enabledTypes[note.type || "info"] !== false);
 
   if (state.companies?.length > 0) {
@@ -122,6 +170,8 @@ const useKnowledgeNotesStore = create((set, get) => ({
   filteredList: [],
   isLoading: false,
   loaded: false,
+  // Режим модерации: null | "all-unapproved" | "pending-deletion" | "flagged-secrets"
+  moderationMode: null,
 
   fetch: async () => {
     set({ isLoading: true });
@@ -166,6 +216,16 @@ const useKnowledgeNotesStore = create((set, get) => ({
   // Частичное обновление фильтров (компании / пользователи / категории / поиск)
   updateFilter: (data) => set((state) => ({ ...state, ...data })),
 
+  // Режим модерации: показать все заметки заданного статуса, игнорируя скоупинг
+  setModerationMode: (mode) =>
+    set((state) => ({
+      moderationMode: mode,
+      filteredList: handleSorting(
+        state.sortBy,
+        noteFilter({ ...state, moderationMode: mode }),
+      ),
+    })),
+
   applyFilter: () =>
     set((state) => ({
       filteredList: handleSorting(state.sortBy, noteFilter(state)),
@@ -188,6 +248,7 @@ const useKnowledgeNotesStore = create((set, get) => ({
       categories: [],
       enabledTypes: defaultEnabledTypes(),
       searchTerm: "",
+      moderationMode: null,
     }));
     set((state) => ({
       filteredList: handleSorting(state.sortBy, noteFilter(state)),

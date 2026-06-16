@@ -18,13 +18,32 @@ const getAccessibleCompanyIds = (authedUser) => {
 };
 
 // Может ли сотрудник видеть заметку базы знаний.
-// Админ и носитель canManageKnowledgeBase видят все. Остальные — по пересечению
-// связей заметки (категории / компании / связанные пользователи) с их доступом.
+// Без права canSeeKnowledgeBase заметки недоступны. Админ и носитель
+// canManageKnowledgeBase видят все. Остальные — по пересечению связей заметки
+// (категории / компании / связанные пользователи) с их доступом.
 // Заметка без связей считается общей и видна всем сотрудникам.
-const canViewNote = (note, authedUser) => {
+// kbConfig = { hideNotApproved, moderatorIds } — настройки модерации из Preferences.
+const canViewNote = (note, authedUser, kbConfig = {}) => {
   const { isAdmin, permissions } = authedUser;
+  const { hideNotApproved = false } = kbConfig;
 
-  if (isAdmin || permissions?.canManageKnowledgeBase) {
+  // Без права «видеть базу знаний» заметки недоступны (маршруты тоже закрыты
+  // middleware canSeeKnowledgeBase — это защита в глубину)
+  if (!isAdmin && !permissions?.canSeeKnowledgeBase) {
+    return false;
+  }
+
+  const canManage = isAdmin || permissions?.canManageKnowledgeBase;
+
+  // Скрытие неодобренных заметок: их видят только админы и менеджеры (а значит и
+  // модераторы — по условию модератор всегда имеет canManageKnowledgeBase).
+  // approved !== true: старые заметки без поля approved тоже считаются
+  // неодобренными — их должен одобрить модератор.
+  if (hideNotApproved && note.approved !== true && !canManage) {
+    return false;
+  }
+
+  if (canManage) {
     return true;
   }
 
@@ -74,4 +93,14 @@ const canViewNote = (note, authedUser) => {
   return false;
 };
 
-module.exports = { getAccessibleCompanyIds, canViewNote };
+// Является ли пользователь модератором базы знаний.
+// Админ — всегда модератор; остальные — по списку id модераторов из настроек.
+const isModerator = (authedUser, moderatorIds = []) => {
+  if (authedUser?.isAdmin) {
+    return true;
+  }
+  const userId = authedUser?.userId || authedUser?._id?.toString();
+  return moderatorIds.map((id) => id?.toString()).includes(userId);
+};
+
+module.exports = { getAccessibleCompanyIds, canViewNote, isModerator };

@@ -128,6 +128,12 @@ const UserForm = ({ title }) => {
         isDisabled: false,
       },
       {
+        label: "Просмотр базы знаний",
+        title: "canSeeKnowledgeBase",
+        isActive: permissions.canSeeKnowledgeBase || false,
+        isDisabled: false,
+      },
+      {
         label: "Управление базой знаний",
         title: "canManageKnowledgeBase",
         isActive: permissions.canManageKnowledgeBase || false,
