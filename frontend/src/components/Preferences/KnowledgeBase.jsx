@@ -10,8 +10,8 @@ const defaultKnowledgeBase = {
   hideNotApproved: false,
   approvalPeriodDays: 0,
   scanForSecrets: false,
-  trackDomainExpiry: false,
-  domainExpiryDays: 30,
+  trackServiceExpiry: false,
+  serviceExpiryDays: 30,
 };
 
 const PrefsKnowledgeBase = ({ prefs }) => {
@@ -34,11 +34,11 @@ const PrefsKnowledgeBase = ({ prefs }) => {
   const [scanForSecrets, setScanForSecrets] = useState(
     prefs.knowledgeBase.scanForSecrets || false,
   );
-  const [trackDomainExpiry, setTrackDomainExpiry] = useState(
-    prefs.knowledgeBase.trackDomainExpiry || false,
+  const [trackServiceExpiry, setTrackServiceExpiry] = useState(
+    prefs.knowledgeBase.trackServiceExpiry || false,
   );
-  const [domainExpiryDays, setDomainExpiryDays] = useState(
-    prefs.knowledgeBase.domainExpiryDays || 30,
+  const [serviceExpiryDays, setServiceExpiryDays] = useState(
+    prefs.knowledgeBase.serviceExpiryDays || 30,
   );
   const [candidates, setCandidates] = useState([]);
 
@@ -88,16 +88,16 @@ const PrefsKnowledgeBase = ({ prefs }) => {
     prefs.knowledgeBase.approvalPeriodDays = value;
   };
 
-  const trackDomainExpiryChangeHandler = () => {
-    const next = !trackDomainExpiry;
-    setTrackDomainExpiry(next);
-    prefs.knowledgeBase.trackDomainExpiry = next;
+  const trackServiceExpiryChangeHandler = () => {
+    const next = !trackServiceExpiry;
+    setTrackServiceExpiry(next);
+    prefs.knowledgeBase.trackServiceExpiry = next;
   };
 
-  const domainExpiryDaysChangeHandler = (event) => {
+  const serviceExpiryDaysChangeHandler = (event) => {
     const value = Math.max(1, parseInt(event.target.value, 10) || 1);
-    setDomainExpiryDays(value);
-    prefs.knowledgeBase.domainExpiryDays = value;
+    setServiceExpiryDays(value);
+    prefs.knowledgeBase.serviceExpiryDays = value;
   };
 
   return (
@@ -159,24 +159,24 @@ const PrefsKnowledgeBase = ({ prefs }) => {
       <Form.Group className="mb-3">
         <Form.Check
           type="switch"
-          label="Отслеживать продление доменов (по таблицам доменов/хостинга в заметках)"
-          checked={trackDomainExpiry}
-          value={trackDomainExpiry}
-          onChange={trackDomainExpiryChangeHandler}
+          label="Отслеживать продление услуг (домены, хостинг и т. п. — по таблицам в заметках)"
+          checked={trackServiceExpiry}
+          value={trackServiceExpiry}
+          onChange={trackServiceExpiryChangeHandler}
         />
       </Form.Group>
 
       <Form.Group className="mb-3">
-        <Form.Label>За сколько дней предупреждать о продлении домена</Form.Label>
+        <Form.Label>За сколько дней предупреждать о продлении услуги</Form.Label>
         <Form.Control
           type="number"
           min={1}
-          value={domainExpiryDays}
-          disabled={!trackDomainExpiry}
-          onChange={domainExpiryDaysChangeHandler}
+          value={serviceExpiryDays}
+          disabled={!trackServiceExpiry}
+          onChange={serviceExpiryDaysChangeHandler}
         />
         <Form.Text muted>
-          Домен попадёт в карточку на странице заявок, если до даты продления
+          Услуга попадёт в карточку на странице заявок, если до даты продления
           осталось столько дней или меньше. Просроченные показываются всегда.
         </Form.Text>
       </Form.Group>

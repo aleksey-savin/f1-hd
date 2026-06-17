@@ -661,7 +661,7 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
         (currentNote.secretsScan.findings || []).length > 0 && (
           <Alert variant="danger" className="mb-2">
             <div className="fw-semibold mb-2">
-              <RiShieldKeyholeLine /> Возможные чувствительные данные
+              <RiShieldKeyholeLine /> Возможные учётные данные
             </div>
             <ListGroup variant="flush">
               {currentNote.secretsScan.findings.map((finding, index) => (

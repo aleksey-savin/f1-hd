@@ -211,6 +211,9 @@ exports.update = async (req, res, next) => {
         inventory: {
           isActive: modules.inventory.isActive,
         },
+        knowledgeBase: {
+          isActive: modules.knowledgeBase.isActive,
+        },
       };
       preferences.ai = ai;
       // Защищаемся от затирания конфигурации модерации при частичном POST
@@ -333,7 +336,11 @@ exports.getAiModels = async (req, res, next) => {
 
       if (!response.ok) {
         return next(
-          new AppError("Failed to fetch DeepSeek models", response.status, true),
+          new AppError(
+            "Failed to fetch DeepSeek models",
+            response.status,
+            true,
+          ),
         );
       }
 

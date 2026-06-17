@@ -31,8 +31,8 @@ const NoteStatusBadges = ({ note, showApproval = true, className = "" }) => {
         </Badge>
       )}
       {note.secretsScan?.flagged && (
-        <Badge bg="danger" className={className}>
-          <RiShieldKeyholeLine /> Секреты
+        <Badge bg="warning" className={className}>
+          <RiShieldKeyholeLine /> Учётные данные
         </Badge>
       )}
       {note.pendingArchive && (

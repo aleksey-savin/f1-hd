@@ -122,7 +122,6 @@ const NavigationBar = ({ handleShowAuthModal }) => {
   const { modules } = useInitialPrefs();
   const {
     isAdmin,
-    isEndUser,
     firstName,
     lastName,
     dashboard,
@@ -245,8 +244,8 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                     <TbCheckbox /> Заявки
                   </Nav.Link>
 
-                  {!isEndUser &&
-                    (isAdmin || permissions.canSeeKnowledgeBase) && (
+                  {modules.knowledgeBase.isActive &&
+                    permissions.canSeeKnowledgeBase && (
                       <Nav.Link
                         as={NavLink}
                         to="/knowledge-base"

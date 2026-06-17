@@ -24,6 +24,7 @@ const useInitialPrefsStore = create((set) => ({
     inventory: { isActive: false },
     finances: { isActive: false },
     timeTracking: { isActive: false },
+    knowledgeBase: { isActive: false },
   },
   ai: { isActive: false, speechToText: { isActive: false } },
   knowledgeBase: defaultKnowledgeBase,

@@ -13,14 +13,16 @@ import ListWrapper from "../../UI/ListWrapper";
 import TicketFilter from "../../components/Ticket/Filter";
 import List from "../../components/Ticket/List";
 import KnowledgeModerationCard from "../../components/KnowledgeBase/ModerationCard";
-import DomainExpiryCard from "../../components/KnowledgeBase/DomainExpiryCard";
+import ServiceExpiryCard from "../../components/KnowledgeBase/ServiceExpiryCard";
 
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Form from "react-bootstrap/Form";
 import { useLocation } from "react-router";
+import useInitialPrefsStore from "../../store/prefs";
 
 const Tickets = () => {
+  const { modules } = useInitialPrefsStore();
   const location = useLocation();
   const { setLeftSidebarContent } = useSidebarStore();
   const filterStore = useTicketFilterStore();
@@ -131,8 +133,8 @@ const Tickets = () => {
       customData={customData}
       topContent={
         <>
-          <KnowledgeModerationCard />
-          <DomainExpiryCard />
+          {modules.knowledgeBase.isActive && <KnowledgeModerationCard />}
+          <ServiceExpiryCard />
         </>
       }
     >

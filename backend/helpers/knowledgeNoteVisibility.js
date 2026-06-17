@@ -47,6 +47,18 @@ const canViewNote = (note, authedUser, kbConfig = {}) => {
     return true;
   }
 
+  // Конечный пользователь (клиент) видит только заметки своей компании:
+  // общие, категорийные и заметки чужих компаний ему недоступны.
+  if (authedUser.isEndUser) {
+    const companyId = authedUser.company?._id?.toString();
+    if (!companyId) {
+      return false;
+    }
+    return (note.companies || []).some(
+      (company) => company._id.toString() === companyId,
+    );
+  }
+
   const accessibleCompanyIds = getAccessibleCompanyIds(authedUser);
   const userCategoryIds = (authedUser.categories || []).map((category) =>
     category._id.toString(),

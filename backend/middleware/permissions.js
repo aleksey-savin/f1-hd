@@ -255,7 +255,7 @@ module.exports.canSeeKnowledgeBase = async (req, res, next) => {
   const { userId } = await getAuthData(req);
   const authedUser = await User.findById(userId);
   const { permissions, isAdmin } = authedUser;
-  if (!permissions.canSeeKnowledgeBase && !isAdmin) {
+  if (!permissions.canSeeKnowledgeBase) {
     const error = new Error("Недостаточно прав для просмотра данной страницы");
     error.statusCode = 403;
     return res.status(error.statusCode).json({
@@ -583,6 +583,23 @@ module.exports.financesModuleIsActive = async (req, res, next) => {
   if (!prefs.modules?.finances.isActive) {
     req.isAuth = false;
     const error = new Error(`Модуль "Финансы" отключен.`);
+    error.statusCode = 403;
+    return res.status(error.statusCode).json({
+      error: true,
+      status: error.statusCode,
+      message: error.message,
+    });
+  }
+
+  next();
+};
+
+module.exports.knowledgeBaseModuleIsActive = async (req, res, next) => {
+  const prefs = await Preferences.findOne();
+
+  if (!prefs.modules?.knowledgeBase.isActive) {
+    req.isAuth = false;
+    const error = new Error(`Модуль "База знаний" отключен.`);
     error.statusCode = 403;
     return res.status(error.statusCode).json({
       error: true,

@@ -7,13 +7,14 @@ const {
   isNotClient,
   canManageKnowledgeBase,
   canSeeKnowledgeBase,
+  knowledgeBaseModuleIsActive,
 } = require("@/middleware/permissions");
 
 // Чтение доступно сотрудникам с правом canSeeKnowledgeBase; скоупинг по видимости — в контроллере
 router.get(
   "/knowledge-notes",
   isAuth,
-  isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   knowledgeNoteController.getAll,
 );
@@ -22,6 +23,7 @@ router.get(
 router.get(
   "/knowledge-notes/form-data",
   isAuth,
+  knowledgeBaseModuleIsActive,
   isNotClient,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
@@ -32,7 +34,7 @@ router.get(
 router.get(
   "/knowledge-notes/related",
   isAuth,
-  isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   knowledgeNoteController.getRelated,
 );
@@ -41,24 +43,24 @@ router.get(
 router.get(
   "/knowledge-notes/moderation-summary",
   isAuth,
-  isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   knowledgeNoteController.getModerationSummary,
 );
 
-// domain-expiry объявляется до :id, чтобы не быть перехваченным динамическим сегментом
+// service-expiry объявляется до :id, чтобы не быть перехваченным динамическим сегментом
 router.get(
-  "/knowledge-notes/domain-expiry",
+  "/knowledge-notes/service-expiry",
   isAuth,
-  isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
-  knowledgeNoteController.getDomainExpiry,
+  knowledgeNoteController.getServiceExpiry,
 );
 
 router.get(
   "/knowledge-notes/:id",
   isAuth,
-  isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   knowledgeNoteController.getOne,
 );
@@ -67,6 +69,7 @@ router.post(
   "/knowledge-notes/add",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.add,
@@ -76,6 +79,7 @@ router.post(
   "/knowledge-notes/update/:id",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.update,
@@ -86,6 +90,7 @@ router.post(
   "/knowledge-notes/approve/:id",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.approve,
@@ -96,6 +101,7 @@ router.post(
   "/knowledge-notes/send-to-deletion/:id",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.sendToDeletion,
@@ -106,6 +112,7 @@ router.post(
   "/knowledge-notes/confirm-deletion/:id",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.confirmDeletion,
@@ -116,6 +123,7 @@ router.post(
   "/knowledge-notes/decline-deletion/:id",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.declineDeletion,
@@ -126,6 +134,7 @@ router.post(
   "/knowledge-notes/request-archive/:id",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.requestArchive,
@@ -136,6 +145,7 @@ router.post(
   "/knowledge-notes/confirm-archive/:id",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.confirmArchive,
@@ -146,6 +156,7 @@ router.post(
   "/knowledge-notes/decline-archive/:id",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.declineArchive,
@@ -156,6 +167,7 @@ router.post(
   "/knowledge-notes/unarchive/:id",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.unarchive,
@@ -166,6 +178,7 @@ router.post(
   "/knowledge-notes/:id/ignore-secret",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.ignoreSecretFinding,
@@ -175,6 +188,7 @@ router.post(
   "/knowledge-notes/delete/:id",
   isAuth,
   isNotClient,
+  knowledgeBaseModuleIsActive,
   canSeeKnowledgeBase,
   canManageKnowledgeBase,
   knowledgeNoteController.delete,

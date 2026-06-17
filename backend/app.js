@@ -36,8 +36,8 @@ const {
 } = require("./services/knowledgeApprovalExpiry");
 const { runSecretsScan } = require("./services/secretsScanRun");
 const {
-  runDomainExpiryScan,
-} = require("./services/domainExpiryScanRun");
+  runServiceExpiryScan,
+} = require("./services/serviceExpiryScanRun");
 const Preferences = require("./models/preferences");
 
 const PORT = process.env.PORT || 8080;
@@ -310,10 +310,10 @@ cron.schedule("0 * * * *", async () => {
   }
 });
 
-// Knowledge base: parse domain-renewal tables daily (3:30)
-let isScanningDomains = false;
+// Knowledge base: parse service-renewal tables daily (3:30)
+let isScanningServices = false;
 cron.schedule("30 3 * * *", async () => {
-  if (isScanningDomains) {
+  if (isScanningServices) {
     return;
   }
 
@@ -321,16 +321,16 @@ cron.schedule("30 3 * * *", async () => {
     return;
   }
 
-  isScanningDomains = true;
+  isScanningServices = true;
 
   try {
-    await runDomainExpiryScan();
+    await runServiceExpiryScan();
   } catch (error) {
-    logger.log("error", "Knowledge base domain-expiry scan run failed", {
+    logger.log("error", "Knowledge base service-expiry scan run failed", {
       error: error.message,
     });
   } finally {
-    isScanningDomains = false;
+    isScanningServices = false;
   }
 });
 

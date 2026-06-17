@@ -70,10 +70,9 @@ const preferencesSchema = new Schema({
     timeTracking: { isActive: { type: Boolean, default: false } },
     finances: { isActive: { type: Boolean, default: false } },
     inventory: { isActive: { type: Boolean, default: false } },
+    knowledgeBase: { isActive: { type: Boolean, default: false } },
   },
   knowledgeBase: {
-    // Модераторы базы знаний (денормализуем имя для отрисовки чипов без join).
-    // Кандидаты ограничены пользователями с canSeeKnowledgeBase + canManageKnowledgeBase.
     moderators: [
       {
         _id: {
@@ -85,15 +84,11 @@ const preferencesSchema = new Schema({
         lastName: String,
       },
     ],
-    // Скрывать неодобренные заметки от обычных пользователей
     hideNotApproved: { type: Boolean, default: false },
-    // Через сколько дней одобренная заметка снова становится неодобренной (0 = выключено)
     approvalPeriodDays: { type: Number, default: 0 },
-    // Включить почасовой поиск утечек секретов в заметках
     scanForSecrets: { type: Boolean, default: false },
-    // Отслеживание продления доменов из таблиц в заметках (+ окно предупреждения в днях)
-    trackDomainExpiry: { type: Boolean, default: false },
-    domainExpiryDays: { type: Number, default: 30 },
+    trackServiceExpiry: { type: Boolean, default: false },
+    serviceExpiryDays: { type: Number, default: 30 },
   },
   ai: {
     isActive: { type: Boolean, default: false },
@@ -119,9 +114,6 @@ const preferencesSchema = new Schema({
       folderId: { type: String, default: "" },
       model: { type: String, default: "yandexgpt" },
     },
-    // Yandex AI Studio через OpenAI-совместимый эндпоинт: открывает open-source
-    // каталог (DeepSeek, Qwen, OpenAI-OSS …). model — слаг модели, из него и
-    // folderId собирается modelUri gpt://<folderId>/<model>/latest.
     yandexai: {
       apiKey: { type: String, default: "" },
       folderId: { type: String, default: "" },

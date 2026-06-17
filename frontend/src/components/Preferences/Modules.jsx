@@ -3,35 +3,52 @@ import { useState } from "react";
 import Form from "react-bootstrap/Form";
 
 const PrefsModules = ({ prefs }) => {
+  const { timeTracking, finances, inventory, knowledgeBase } = prefs.modules;
   const [timeTrackingIsActive, setTimeTrackingIsActive] = useState(
-    prefs.modules?.timeTracking?.isActive,
+    timeTracking?.isActive,
   );
 
-  const [financesIsActive, setFinancesIsActive] = useState(
-    prefs.modules?.finances?.isActive,
-  );
+  const [financesIsActive, setFinancesIsActive] = useState(finances?.isActive);
 
   const [inventoryIsActive, setInventoryIsActive] = useState(
-    prefs.modules?.inventory?.isActive,
+    inventory?.isActive,
+  );
+
+  const [knowledgeBaseIsActive, setKnowledgeBaseIsActive] = useState(
+    knowledgeBase?.isActive,
   );
 
   const timeTrackingIsActiveChangeHandler = () => {
     setTimeTrackingIsActive(!timeTrackingIsActive);
-    prefs.modules.timeTracking.isActive = !timeTrackingIsActive;
+    timeTracking.isActive = !timeTrackingIsActive;
   };
 
   const financesIsActiveChangeHandler = () => {
     setFinancesIsActive(!financesIsActive);
-    prefs.modules.finances.isActive = !financesIsActive;
+    finances.isActive = !financesIsActive;
   };
 
   const inventoryIsActiveChangeHandler = () => {
     setInventoryIsActive(!inventoryIsActive);
-    prefs.modules.inventory.isActive = !inventoryIsActive;
+    inventory.isActive = !inventoryIsActive;
+  };
+
+  const knowledgeBaseIsActiveChangeHandler = () => {
+    setKnowledgeBaseIsActive(!knowledgeBaseIsActive);
+    knowledgeBase.isActive = !knowledgeBaseIsActive;
   };
 
   return (
     <>
+      <Form.Group className="mb-3">
+        <Form.Check
+          type="switch"
+          label="База знаний"
+          checked={knowledgeBaseIsActive}
+          value={knowledgeBaseIsActive}
+          onChange={knowledgeBaseIsActiveChangeHandler}
+        />
+      </Form.Group>
       <Form.Group className="mb-3">
         <Form.Check
           type="switch"

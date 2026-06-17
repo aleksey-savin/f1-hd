@@ -671,41 +671,41 @@ exports.getModerationSummary = async (req, res, next) => {
   }
 };
 
-// Домены, у которых до продления остался месяц или меньше (включая просроченные).
+// Услуги, у которых до продления остался месяц или меньше (включая просроченные).
 // Для карточки на странице заявок; доступно всем с canSeeKnowledgeBase.
-exports.getDomainExpiry = async (req, res, next) => {
+exports.getServiceExpiry = async (req, res, next) => {
   try {
     const prefs = await Preferences.findOne({}).lean();
     const kb = prefs?.knowledgeBase || {};
 
-    if (!kb.trackDomainExpiry) {
-      return res.status(200).json({ domains: [], count: 0 });
+    if (!kb.trackServiceExpiry) {
+      return res.status(200).json({ services: [], count: 0 });
     }
 
-    const days = kb.domainExpiryDays > 0 ? kb.domainExpiryDays : 30;
+    const days = kb.serviceExpiryDays > 0 ? kb.serviceExpiryDays : 30;
     const now = new Date();
     const cutoff = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
     const notes = await KnowledgeNote.find(
-      { archivedAt: null, "domainExpiry.entries.expiresAt": { $lte: cutoff } },
-      { title: 1, domainExpiry: 1 },
+      { archivedAt: null, "serviceExpiry.entries.expiresAt": { $lte: cutoff } },
+      { title: 1, serviceExpiry: 1 },
     ).lean();
 
-    // Все записи в окне, дедуп по домену (оставляем ближайшую дату)
-    const byDomain = new Map();
+    // Все записи в окне, дедуп по услуге (оставляем ближайшую дату)
+    const byService = new Map();
     for (const note of notes) {
-      for (const entry of note.domainExpiry?.entries || []) {
+      for (const entry of note.serviceExpiry?.entries || []) {
         const expiresAt = entry.expiresAt ? new Date(entry.expiresAt) : null;
         if (!expiresAt || expiresAt > cutoff) {
           continue;
         }
-        const key = entry.domain.toLowerCase();
-        const existing = byDomain.get(key);
+        const key = entry.service.toLowerCase();
+        const existing = byService.get(key);
         if (existing && new Date(existing.expiresAt) <= expiresAt) {
           continue;
         }
-        byDomain.set(key, {
-          domain: entry.domain,
+        byService.set(key, {
+          service: entry.service,
           registrar: entry.registrar || "",
           expiresAt: entry.expiresAt,
           overdue: expiresAt < now,
@@ -715,15 +715,15 @@ exports.getDomainExpiry = async (req, res, next) => {
       }
     }
 
-    const domains = [...byDomain.values()].sort(
+    const services = [...byService.values()].sort(
       (a, b) => new Date(a.expiresAt) - new Date(b.expiresAt),
     );
 
-    res.status(200).json({ domains, count: domains.length });
+    res.status(200).json({ services, count: services.length });
   } catch (error) {
     next(
       new AppError(
-        `Failed to fetch knowledge base domain expiry`,
+        `Failed to fetch knowledge base service expiry`,
         500,
         true,
         error,

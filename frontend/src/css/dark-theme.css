@@ -1,7 +1,18 @@
-@import url('dark/bootstrap.css');
-@import url('dark/dark-mode.css');
-@import url('./table.css');
+@import url("dark/bootstrap.css");
+@import url("dark/dark-mode.css");
+@import url("./table.css");
 
 table {
-    background: #303030;
+  background: #303030;
+}
+
+/* В Bootstrap 5.3 утилита .text-secondary красит текст темовым цветом
+   --bs-secondary (в этой теме это #444), а не «приглушённым текстом». На
+   тёмных поверхностях такой текст почти не виден. Приложение исторически
+   использует .text-secondary в значении «muted» (семантика BS ≤5.2), поэтому
+   в тёмной теме приводим её к читаемому --bs-secondary-color — как у
+   .text-body-secondary. Светлой темы не касается: правило лежит в dark-only
+   стиле. */
+.text-secondary {
+  color: var(--bs-secondary-color) !important;
 }

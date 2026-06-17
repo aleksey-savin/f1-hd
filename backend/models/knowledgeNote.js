@@ -145,12 +145,13 @@ const knowledgeNoteSchema = new Schema(
       ref: "User",
       required: false,
     },
-    // Отслеживание продления доменов: таблицы доменов/хостинга парсятся из content
-    // (см. services/domainExpiryScanner) — сюда складываются распознанные записи.
-    domainExpiry: {
+    // Отслеживание продления услуг: таблицы услуг (домены, хостинг и т. п.)
+    // парсятся из content (см. services/serviceExpiryScanner) — сюда складываются
+    // распознанные записи.
+    serviceExpiry: {
       entries: [
         {
-          domain: String,
+          service: String,
           registrar: String,
           expiresAt: Date,
         },
@@ -171,6 +172,6 @@ knowledgeNoteSchema.index({ pendingDeletion: 1 });
 knowledgeNoteSchema.index({ "secretsScan.flagged": 1 });
 knowledgeNoteSchema.index({ archivedAt: 1 });
 knowledgeNoteSchema.index({ pendingArchive: 1 });
-knowledgeNoteSchema.index({ "domainExpiry.entries.expiresAt": 1 });
+knowledgeNoteSchema.index({ "serviceExpiry.entries.expiresAt": 1 });
 
 module.exports = mongoose.model("KnowledgeNote", knowledgeNoteSchema);

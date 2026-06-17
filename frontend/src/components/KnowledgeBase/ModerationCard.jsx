@@ -64,48 +64,54 @@ const KnowledgeModerationCard = () => {
       title="База знаний — модерация"
     >
       <div className="d-flex flex-wrap gap-2 mt-2">
-        <Button
-          as={Link}
-          to="/knowledge-base?moderation=all-unapproved"
-          variant="outline-warning"
-          size="sm"
-        >
-          Проверить неодобренные{" "}
-          <Badge bg="warning" text="white">
-            {counts.pendingApproval}
-          </Badge>
-        </Button>
-        <Button
-          as={Link}
-          to="/knowledge-base?moderation=pending-deletion"
-          variant="outline-info"
-          size="sm"
-        >
-          Заметки на удаление{" "}
-          <Badge bg="info" text="white">
-            {counts.pendingDeletion}
-          </Badge>
-        </Button>
-        <Button
-          as={Link}
-          to="/knowledge-base?moderation=pending-archive"
-          variant="outline-secondary"
-          size="sm"
-        >
-          Запросы на архивацию{" "}
-          <Badge bg="secondary" text="white">
-            {counts.pendingArchive}
-          </Badge>
-        </Button>
+        {counts.pendingApproval > 0 && (
+          <Button
+            as={Link}
+            to="/knowledge-base?moderation=all-unapproved"
+            variant="outline-info"
+            size="sm"
+          >
+            На одобрение{" "}
+            <Badge bg="info" text="white">
+              {counts.pendingApproval}
+            </Badge>
+          </Button>
+        )}
+        {counts.pendingDeletion > 0 && (
+          <Button
+            as={Link}
+            to="/knowledge-base?moderation=pending-deletion"
+            variant="outline-danger"
+            size="sm"
+          >
+            На удаление{" "}
+            <Badge bg="danger" text="white">
+              {counts.pendingDeletion}
+            </Badge>
+          </Button>
+        )}
+        {counts.pendingArchive > 0 && (
+          <Button
+            as={Link}
+            to="/knowledge-base?moderation=pending-archive"
+            variant="outline-secondary"
+            size="sm"
+          >
+            На архивацию{" "}
+            <Badge bg="secondary" text="white">
+              {counts.pendingArchive}
+            </Badge>
+          </Button>
+        )}
         {showSecrets && (
           <Button
             as={Link}
             to="/knowledge-base?moderation=flagged-secrets"
-            variant="outline-danger"
+            variant="outline-warning"
             size="sm"
           >
-            Найденные секреты{" "}
-            <Badge bg="danger" text="white">
+            Учётные данные{" "}
+            <Badge bg="warning" text="white">
               {counts.secretsFlagged}
             </Badge>
           </Button>

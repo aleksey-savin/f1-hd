@@ -115,7 +115,6 @@ const ViewTicket = () => {
     permissions,
     isClient,
     isEndUser,
-    isAdmin,
   } = useContext(AuthedUserContext);
   const { canAvoidWorks, canUseTimeTrackingModule } = permissions;
 
@@ -334,7 +333,10 @@ const ViewTicket = () => {
                     </Col>
                   </Row>
                   <CustomFieldsDisplay customFields={ticket.customFields} />
-                  <Tabs defaultActiveKey="info" className="mb-3 scrollable-tabs">
+                  <Tabs
+                    defaultActiveKey="info"
+                    className="mb-3 scrollable-tabs"
+                  >
                     <Tab eventKey="info" title="Информация">
                       <h6>
                         <Row>
@@ -535,26 +537,27 @@ const ViewTicket = () => {
                           />
                         </Tab>
                       )}
-                    {!isClient && (isAdmin || permissions?.canSeeKnowledgeBase) && (
-                      <Tab
-                        eventKey="knowledge"
-                        title={
-                          <>
-                            База знаний{" "}
-                            <Badge bg="secondary" pill>
-                              {relatedNotesCount}
-                            </Badge>
-                          </>
-                        }
-                      >
-                        <RelatedNotes
-                          companyId={ticket.company?._id}
-                          categoryId={ticket.category?._id}
-                          applicantId={ticket.applicant?._id}
-                          onCountChange={setRelatedNotesCount}
-                        />
-                      </Tab>
-                    )}
+                    {modules.knowledgeBase.isActive &&
+                      permissions?.canSeeKnowledgeBase && (
+                        <Tab
+                          eventKey="knowledge"
+                          title={
+                            <>
+                              База знаний{" "}
+                              <Badge bg="secondary" pill>
+                                {relatedNotesCount}
+                              </Badge>
+                            </>
+                          }
+                        >
+                          <RelatedNotes
+                            companyId={ticket.company?._id}
+                            categoryId={ticket.category?._id}
+                            applicantId={ticket.applicant?._id}
+                            onCountChange={setRelatedNotesCount}
+                          />
+                        </Tab>
+                      )}
                     {!isClient && ai?.isActive && (
                       <Tab
                         eventKey="ai"

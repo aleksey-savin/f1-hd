@@ -33,10 +33,10 @@ const uniqueById = (items) => {
 
 // Фильтры модерации (только для модераторов) — в обход скоупинга
 const MODERATION_FILTERS = [
-  { mode: "all-unapproved", label: "Не одобрены" },
-  { mode: "pending-deletion", label: "Запрос на удаление" },
-  { mode: "pending-archive", label: "Запрос на архивацию" },
-  { mode: "flagged-secrets", label: "Найдены секреты" },
+  { mode: "all-unapproved", label: "На одобрение" },
+  { mode: "pending-deletion", label: "На удаление" },
+  { mode: "pending-archive", label: "На архивацию" },
+  { mode: "flagged-secrets", label: "Учётные данные" },
 ];
 
 const KnowledgeBaseSidebar = () => {
@@ -231,26 +231,30 @@ const KnowledgeBaseSidebar = () => {
         checked={showArchived}
         onChange={archiveToggleHandler}
       />
-
-      {/* Фильтры модерации — модераторам в активном виде; игнорируют скоуп-фильтры */}
-      {isModerator && !showArchived && (
-        <Stack direction="horizontal" gap={2} className="flex-wrap">
-          {MODERATION_FILTERS.filter(
-            (item) => item.mode !== "flagged-secrets" || scanForSecrets,
-          ).map((item) => (
-            <Button
-              key={item.mode}
-              size="sm"
-              variant={
-                moderationMode === item.mode ? "primary" : "outline-secondary"
-              }
-              onClick={() => toggleModerationMode(item.mode)}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </Stack>
-      )}
+      <div>
+        <h5>Модерация</h5>
+        <hr />
+        {/* Фильтры модерации — модераторам в активном виде; игнорируют скоуп-фильтры */}
+        {isModerator && !showArchived && (
+          <Stack direction="horizontal" gap={2} className="flex-wrap">
+            {MODERATION_FILTERS.filter(
+              (item) => item.mode !== "flagged-secrets" || scanForSecrets,
+            ).map((item) => (
+              <Button
+                key={item.mode}
+                size="sm"
+                variant={
+                  moderationMode === item.mode ? "primary" : "outline-secondary"
+                }
+                onClick={() => toggleModerationMode(item.mode)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </Stack>
+        )}
+        <hr />
+      </div>
 
       <div className="overflow-auto">
         <ListGroup variant="flush">
@@ -300,13 +304,13 @@ const KnowledgeBaseSidebar = () => {
                   <span className="ms-auto d-flex align-items-center gap-1 flex-shrink-0">
                     {note.secretsScan?.flagged && (
                       <RiShieldKeyholeLine
-                        className="text-danger"
-                        title="Найдены секреты"
+                        className="text-warning"
+                        title="Найдены учётные данные"
                       />
                     )}
                     {note.pendingArchive && (
                       <RiArchiveLine
-                        className="text-warning"
+                        className="text-secondary"
                         title="Ожидает архивации"
                       />
                     )}

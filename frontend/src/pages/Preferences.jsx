@@ -100,9 +100,11 @@ const Preferences = () => {
                   <Nav.Item>
                     <Nav.Link eventKey="ai">AI</Nav.Link>
                   </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="knowledgeBase">База знаний</Nav.Link>
-                  </Nav.Item>
+                  {prefs?.modules?.knowledgeBase.isActive && (
+                    <Nav.Item>
+                      <Nav.Link eventKey="knowledgeBase">База знаний</Nav.Link>
+                    </Nav.Item>
+                  )}
                   <Nav.Item>
                     <Nav.Link eventKey="service">Обслуживание</Nav.Link>
                   </Nav.Item>
@@ -129,9 +131,11 @@ const Preferences = () => {
                     <Tab.Pane eventKey="ai">
                       <PrefsAi prefs={prefs} />
                     </Tab.Pane>
-                    <Tab.Pane eventKey="knowledgeBase">
-                      <PrefsKnowledgeBase prefs={prefs} />
-                    </Tab.Pane>
+                    {prefs?.modules?.knowledgeBase.isActive && (
+                      <Tab.Pane eventKey="knowledgeBase">
+                        <PrefsKnowledgeBase prefs={prefs} />
+                      </Tab.Pane>
+                    )}
                     <Tab.Pane eventKey="service">
                       <PrefsService prefs={prefs} />
                     </Tab.Pane>

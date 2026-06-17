@@ -119,3 +119,181 @@ h1 svg {
 .scrollable-tabs .nav-link {
   white-space: nowrap;
 }
+
+/* ===== Страница пользователя (User/View): hero, табы, карточки ===== */
+
+/* Шапка-«личность»: закрепляет, чей это профиль, над табами */
+.account-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.25rem 1.5rem;
+  padding: 1.5rem 1.75rem;
+  /* Совпадает с обычными карточками страницы (border-0 shadow-sm):
+     тот же фон/радиус/тень — поэтому надёжно тёмный в тёмной теме.
+     --bs-tertiary-bg в этой теме двоится и резолвится в светлый — не годится. */
+  border-radius: var(--bs-border-radius);
+  background-color: var(--bs-card-bg);
+  background-image: radial-gradient(
+    130% 150% at 0% 0%,
+    rgba(var(--bs-primary-rgb), 0.14),
+    transparent 55%
+  );
+  box-shadow: var(--bs-box-shadow-sm);
+  overflow: hidden;
+}
+
+/* Аватар рисуем фоном на <div>: глобальное правило
+   img{ width:auto!important; height:auto!important } ломает фикс. размер */
+.account-avatar {
+  flex: 0 0 auto;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background-color: var(--bs-secondary-bg);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow:
+    0 0 0 4px var(--bs-card-bg),
+    0 0 0 6px var(--bs-success);
+}
+.account-avatar--off {
+  box-shadow:
+    0 0 0 4px var(--bs-card-bg),
+    0 0 0 6px var(--bs-border-color);
+  filter: grayscale(0.45);
+}
+
+/* Компактный аватар в карточке списка пользователей (User/Item) */
+.user-mini-avatar {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: var(--bs-secondary-bg);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow:
+    0 0 0 2px var(--bs-card-bg),
+    0 0 0 4px var(--bs-success);
+}
+.user-mini-avatar--off {
+  box-shadow:
+    0 0 0 2px var(--bs-card-bg),
+    0 0 0 4px var(--bs-border-color);
+  filter: grayscale(0.4);
+}
+
+/* Поле «иконка + значение» в карточке списка пользователей.
+   Отдельный класс — чтобы иконка надёжно центрировалась по тексту (flex),
+   без точечных margin-хаков как у .btn svg / .badge svg. */
+.user-item-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.user-item-field > svg {
+  flex: 0 0 auto;
+  font-size: 1.1rem;
+  color: var(--bs-secondary-color);
+}
+.user-item-field > span {
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* Строка «возможность/уведомление»: статус-иконка + подпись */
+.cap-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--bs-border-color);
+  line-height: 1.3;
+}
+.cap-row:last-child {
+  border-bottom: 0;
+}
+.cap-row__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  margin-top: 0.05rem;
+  font-size: 1.05rem;
+}
+.cap-row--on {
+  color: var(--bs-body-color);
+}
+.cap-row--on .cap-row__icon {
+  color: var(--bs-success);
+}
+.cap-row--off {
+  color: var(--bs-secondary-color);
+}
+/* Не выдано → красный крест (явный «нет») */
+.cap-row--off .cap-row__icon {
+  color: var(--bs-danger);
+}
+/* Модуль отключён целиком → крест приглушаем, как и всю группу (не красный) */
+.cap-rows--disabled .cap-row--off .cap-row__icon {
+  color: var(--bs-secondary-color);
+  opacity: 0.55;
+}
+
+/* Группа возможностей: заголовок карточки со статусом модуля */
+.cap-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.cap-card-title svg {
+  color: var(--bs-primary);
+}
+
+/* Контактная строка профиля: иконка-плашка + подпись/значение */
+.contact-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+.contact-row:last-child {
+  border-bottom: 0;
+}
+.contact-row__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 0.7rem;
+  background: rgba(var(--bs-primary-rgb), 0.12);
+  color: var(--bs-primary);
+  font-size: 1.15rem;
+}
+.contact-row__label {
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+.contact-row__value {
+  font-weight: 500;
+  word-break: break-word;
+}
+
+@media (max-width: 575.98px) {
+  .account-hero {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.5rem 1rem;
+  }
+}

@@ -1,15 +1,17 @@
-// Парсер таблиц доменов/хостинга из markdown-контента заметок (без ИИ).
-// Находит таблицы со столбцами «домен» и «дата продления»; порядок столбцов
-// произвольный — определяем по заголовкам и по содержимому ячеек. Структура
-// сервиса повторяет services/secretsScanner.js.
+// Парсер таблиц услуг (домены, хостинг и т. п.) из markdown-контента заметок
+// (без ИИ). Находит таблицы со столбцами «услуга» и «дата продления»; порядок
+// столбцов произвольный — определяем по заголовкам и по содержимому ячеек.
+// Структура сервиса повторяет services/secretsScanner.js.
 
-// Домено-подобная строка: bsb.ru, syndicate-portcafe.online и т. п.
-const DOMAIN_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)+$/i;
+// Значение услуги обычно выглядит как домен: bsb.ru, syndicate-portcafe.online
+// и т. п. — этим же шаблоном находим столбец услуги по содержимому.
+const SERVICE_RE = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)+$/i;
 
 // Ключевые слова заголовков столбцов
 const DATE_HEADER_RE = /продл|действ|оплач|срок|дата|expir|valid|renew|\bдо\b/i;
 const REGISTRAR_HEADER_RE = /регистр|хостер|host|provider/i;
-const DOMAIN_HEADER_RE = /домен|наимен|сайт|адрес|name|url|site/i;
+const SERVICE_HEADER_RE =
+  /услуг|сервис|service|домен|наимен|сайт|адрес|name|url|site/i;
 
 const SEPARATOR_RE = /^\s*\|?[\s:|-]+\|?\s*$/;
 const TABLE_LINE_RE = /^\s*\|.*\|\s*$/;
@@ -108,11 +110,11 @@ const columnMatchRatio = (rows, colIndex, predicate) => {
 };
 
 const isDateCell = (cell) => parseDate(cell) !== null;
-const isDomainCell = (cell) => DOMAIN_RE.test(String(cell || "").trim());
+const isServiceCell = (cell) => SERVICE_RE.test(String(cell || "").trim());
 
-// Парсит таблицы доменов из контента заметки → [{ domain, registrar, expiresAt }].
-// Таблица считается доменной только при наличии и столбца даты, и столбца домена.
-const parseDomainTables = (content) => {
+// Парсит таблицы услуг из контента заметки → [{ service, registrar, expiresAt }].
+// Таблица считается таблицей услуг только при наличии и столбца даты, и столбца услуги.
+const parseServiceTables = (content) => {
   const tables = extractTables(content);
   const entries = [];
   const seen = new Set();
@@ -131,43 +133,47 @@ const parseDomainTables = (content) => {
       }
     }
 
-    // Столбец регистратора: по заголовку (его ячейки тоже домено-подобны,
+    // Столбец регистратора/провайдера: по заголовку (его ячейки тоже домено-подобны,
     // поэтому отличаем именно по заголовку)
     const registrarCol = header.findIndex((h) => REGISTRAR_HEADER_RE.test(h));
 
-    // Столбец домена: по заголовку, иначе первый домено-подобный, не совпадающий
+    // Столбец услуги: по заголовку, иначе первый домено-подобный, не совпадающий
     // со столбцом даты/регистратора
-    let domainCol = header.findIndex((h) => DOMAIN_HEADER_RE.test(h));
-    if (domainCol === -1 || domainCol === dateCol || domainCol === registrarCol) {
-      domainCol = -1;
+    let serviceCol = header.findIndex((h) => SERVICE_HEADER_RE.test(h));
+    if (
+      serviceCol === -1 ||
+      serviceCol === dateCol ||
+      serviceCol === registrarCol
+    ) {
+      serviceCol = -1;
       for (let i = 0; i < colCount; i += 1) {
         if (i === dateCol || i === registrarCol) {
           continue;
         }
-        if (columnMatchRatio(rows, i, isDomainCell) >= 0.5) {
-          domainCol = i;
+        if (columnMatchRatio(rows, i, isServiceCell) >= 0.5) {
+          serviceCol = i;
           break;
         }
       }
     }
 
-    if (dateCol === -1 || domainCol === -1) {
+    if (dateCol === -1 || serviceCol === -1) {
       continue;
     }
 
     for (const row of rows) {
-      const domain = String(row[domainCol] || "").trim();
+      const service = String(row[serviceCol] || "").trim();
       const expiresAt = parseDate(row[dateCol]);
-      if (!domain || !expiresAt) {
+      if (!service || !expiresAt) {
         continue;
       }
-      const key = domain.toLowerCase();
+      const key = service.toLowerCase();
       if (seen.has(key)) {
         continue;
       }
       seen.add(key);
       entries.push({
-        domain,
+        service,
         registrar:
           registrarCol !== -1 ? String(row[registrarCol] || "").trim() : "",
         expiresAt,
@@ -178,4 +184,4 @@ const parseDomainTables = (content) => {
   return entries;
 };
 
-module.exports = { parseDomainTables, parseDate, extractTables };
+module.exports = { parseServiceTables, parseDate, extractTables };

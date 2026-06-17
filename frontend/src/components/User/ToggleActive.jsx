@@ -8,7 +8,7 @@ import Dropdown from "react-bootstrap/Dropdown";
 
 import { RiUserUnfollowLine, RiUserFollowLine } from "react-icons/ri";
 
-const ToggleActive = ({ item }) => {
+const ToggleActive = ({ item, isButton = false }) => {
   const [show, setShow] = useState(false);
   const handleClose = () => setShow(false);
   const handleShow = () => setShow(true);
@@ -21,12 +21,22 @@ const ToggleActive = ({ item }) => {
 
   return (
     <>
-      <Dropdown.Item
-        onClick={handleShow}
-        className={`w-100 my-1 ${isActive ? "text-warning" : "text-success"}`}
-      >
-        <Icon /> {actionLabel}
-      </Dropdown.Item>
+      {isButton ? (
+        <Button
+          variant={isActive ? "warning" : "success"}
+          className="mb-2 w-100"
+          onClick={handleShow}
+        >
+          <Icon /> {actionLabel}
+        </Button>
+      ) : (
+        <Dropdown.Item
+          onClick={handleShow}
+          className={`w-100 my-1 ${isActive ? "text-warning" : "text-success"}`}
+        >
+          <Icon /> {actionLabel}
+        </Dropdown.Item>
+      )}
 
       <Modal show={show} onHide={handleClose} centered>
         <RouterForm method="post">
