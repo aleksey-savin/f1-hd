@@ -8,12 +8,15 @@ import Form from "react-bootstrap/Form";
 import Alert from "react-bootstrap/Alert";
 import Badge from "react-bootstrap/Badge";
 
+import AlertMessage from "../../../UI/AlertMessage";
+
 import {
   RiAddLine,
   RiDeleteBinLine,
   RiEyeLine,
   RiEyeOffLine,
   RiFileCopyLine,
+  RiKey2Line,
 } from "react-icons/ri";
 
 const ApiKeysSection = ({ company, permissions }) => {
@@ -119,8 +122,11 @@ const ApiKeysSection = ({ company, permissions }) => {
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h5 className="mb-0">API-ключи</h5>
+      <div className="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <div className="cap-card-title">
+          <RiKey2Line />
+          <span>API-ключи</span>
+        </div>
         {permissions.canManageCompanies && (
           <Button variant="primary" size="sm" onClick={handleShow}>
             <RiAddLine /> Создать ключ
@@ -193,7 +199,7 @@ const ApiKeysSection = ({ company, permissions }) => {
           </tbody>
         </Table>
       ) : (
-        <p className="text-muted">API-ключи не созданы</p>
+        <AlertMessage variant="light" message="API-ключи не созданы" />
       )}
 
       <Modal show={showModal} onHide={handleClose} centered>

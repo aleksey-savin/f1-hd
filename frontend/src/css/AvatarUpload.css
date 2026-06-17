@@ -1,0 +1,54 @@
+/* Аватар-загрузчик: круглая аватарка (account-avatar) с оверлеем «Изменить
+   фото» при наведении. Кадрирование/загрузка живут в самом компоненте. */
+
+.avatar-upload {
+  position: relative;
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.avatar-upload:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 5px;
+}
+
+/* Тёмный круг поверх аватара — появляется на hover/focus. inset:0 совпадает с
+   кругом .account-avatar (кольцо-тень снаружи остаётся видимым). */
+.avatar-upload__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.3rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  text-align: center;
+  line-height: 1.1;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transform: scale(0.96);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.avatar-upload:hover .avatar-upload__overlay,
+.avatar-upload:focus-visible .avatar-upload__overlay {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.avatar-upload__overlay svg {
+  font-size: 1.35rem;
+}

@@ -1,7 +1,6 @@
 import { useLoaderData } from "react-router";
 import { Link } from "react-router";
 import { useState, useRef, useMemo } from "react";
-import Card from "react-bootstrap/Card";
 import Table from "react-bootstrap/Table";
 import Alert from "react-bootstrap/Alert";
 import Button from "react-bootstrap/Button";
@@ -12,6 +11,7 @@ import {
   HiChevronDown,
   HiChevronUpDown,
 } from "react-icons/hi2";
+import { RiGroupLine } from "react-icons/ri";
 
 import { formatDate } from "../../../util/format-date";
 
@@ -114,83 +114,80 @@ const UserSection = () => {
   };
 
   return (
-    <Card className="mb-4" ref={sectionRef}>
-      <Card.Body>
+    <div ref={sectionRef}>
+      <div className="cap-card-title mb-3">
+        <RiGroupLine />
+        <span>Сотрудники ({company.employees.length})</span>
+      </div>
+      {company.employees.length > 0 ? (
         <>
-          <h4>Все пользователи ({company.employees.length})</h4>
-          {company.employees.length > 0 ? (
-            <>
-              <Table responsive striped hover>
-                <thead>
-                  <tr>
-                    {SORT_COLUMNS.map((column) => (
-                      <th
-                        key={column.key}
-                        onClick={() => requestSort(column.key)}
-                        style={{ cursor: "pointer", userSelect: "none" }}
-                      >
-                        {column.label} {renderSortIcon(column.key)}
-                      </th>
-                    ))}
-                    <th>Действия</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayedUsers.map((user) => (
-                    <tr key={user._id}>
-                      <td data-cell="Имя">{`${user.lastName} ${user.firstName}`}</td>
-                      <td data-cell="Подразделение">
-                        {user.subdivision?.name}
-                      </td>
-                      <td data-cell="Email">
-                        <a href={`mailto:${user.email}`}>{user.email}</a>
-                      </td>
-                      <td data-cell="Телефон">
-                        <a href={`tel:${user.phone}`}>{user.phone}</a>
-                      </td>
-                      <td data-cell="Последняя активность">
-                        {user.lastActivity?.date
-                          ? formatDate(user.lastActivity.date)
-                          : "—"}
-                      </td>
-                      <td data-cell="Действия">
-                        <Button
-                          as={Link}
-                          size="sm"
-                          to={`/users/${user._id}`}
-                          target="_blank"
-                          variant="outline-secondary"
-                        >
-                          <HiOutlineMagnifyingGlass />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-
-              {hasMoreUsers && (
-                <div className="text-center mt-3">
-                  <Button
-                    variant="outline-primary"
-                    size="sm"
-                    onClick={handleToggle}
+          <Table responsive striped hover className="mb-0">
+            <thead>
+              <tr>
+                {SORT_COLUMNS.map((column) => (
+                  <th
+                    key={column.key}
+                    onClick={() => requestSort(column.key)}
+                    style={{ cursor: "pointer", userSelect: "none" }}
                   >
-                    {showAll
-                      ? "Показать меньше"
-                      : `Показать еще (${company.employees.length - 10})`}
-                  </Button>
-                </div>
-              )}
-            </>
-          ) : (
-            <Alert variant="light" className="text-center mb-0">
-              Пользователи не найдены
-            </Alert>
+                    {column.label} {renderSortIcon(column.key)}
+                  </th>
+                ))}
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayedUsers.map((user) => (
+                <tr key={user._id}>
+                  <td data-cell="Имя">{`${user.lastName} ${user.firstName}`}</td>
+                  <td data-cell="Подразделение">{user.subdivision?.name}</td>
+                  <td data-cell="Email">
+                    <a href={`mailto:${user.email}`}>{user.email}</a>
+                  </td>
+                  <td data-cell="Телефон">
+                    <a href={`tel:${user.phone}`}>{user.phone}</a>
+                  </td>
+                  <td data-cell="Последняя активность">
+                    {user.lastActivity?.date
+                      ? formatDate(user.lastActivity.date)
+                      : "—"}
+                  </td>
+                  <td data-cell="Действия">
+                    <Button
+                      as={Link}
+                      size="sm"
+                      to={`/users/${user._id}`}
+                      target="_blank"
+                      variant="outline-secondary"
+                    >
+                      <HiOutlineMagnifyingGlass />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+
+          {hasMoreUsers && (
+            <div className="text-center mt-3">
+              <Button
+                variant="outline-primary"
+                size="sm"
+                onClick={handleToggle}
+              >
+                {showAll
+                  ? "Показать меньше"
+                  : `Показать еще (${company.employees.length - 10})`}
+              </Button>
+            </div>
           )}
         </>
-      </Card.Body>
-    </Card>
+      ) : (
+        <Alert variant="light" className="text-center mb-0">
+          Пользователи не найдены
+        </Alert>
+      )}
+    </div>
   );
 };
 export default UserSection;

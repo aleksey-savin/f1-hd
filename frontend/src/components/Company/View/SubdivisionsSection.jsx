@@ -8,6 +8,8 @@ import TreeNode from "../../../UI/TreeView";
 import Select from "../../../UI/Select";
 import SubdivisionUsersModal from "./SubdivisionUsersModal";
 
+import { RiNodeTree, RiAddLine } from "react-icons/ri";
+
 const SubdivisionsSection = ({ company, permissions }) => {
   const fetcher = useFetcher();
   const [showModal, setShowModal] = useState(false);
@@ -209,11 +211,14 @@ const SubdivisionsSection = ({ company, permissions }) => {
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h5 className="mb-0">Структура компании</h5>
+      <div className="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <div className="cap-card-title">
+          <RiNodeTree />
+          <span>Структура компании</span>
+        </div>
         {permissions.canManageCompanies && (
           <Button size="sm" onClick={handleShow}>
-            Добавить
+            <RiAddLine /> Добавить
           </Button>
         )}
       </div>

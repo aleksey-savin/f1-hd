@@ -29,7 +29,6 @@ import {
   RiBuilding2Line,
   RiLoginCircleLine,
   RiContactsBook2Line,
-  RiImageLine,
   RiPriceTag3Line,
   RiNotification3Line,
   RiTelegramLine,
@@ -51,7 +50,7 @@ import Transitions from "../../animations/Transition";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useOffcanvasStore from "../../store/offcanvas";
 import DeleteItem from "../DeleteItem";
-import ImageUpload from "./ImageUpload";
+import AvatarUpload from "../../UI/AvatarUpload";
 import ToggleActive from "./ToggleActive";
 import LinkToActiveDirectory from "./LinkToActiveDirectory";
 
@@ -378,13 +377,18 @@ const ViewUser = ({ user, tickets }) => {
         initial="hidden"
         animate="show"
       >
-        <motion.div
-          variants={heroAvatar}
-          className={`account-avatar ${user.isActive ? "" : "account-avatar--off"}`}
-          style={{ backgroundImage: `url(${profileImage})` }}
-          role="img"
-          aria-label={`${user.firstName} ${user.lastName}`}
-        />
+        <motion.div variants={heroAvatar}>
+          <AvatarUpload
+            image={profileImage}
+            onChange={setProfileImage}
+            uploadUrl={`${import.meta.env.VITE_API_ADDRESS}/api/users/${user._id}/add-profile-image`}
+            method="POST"
+            ringOn={user.isActive}
+            canEdit={canManageUsers}
+            alt={`${user.firstName} ${user.lastName}`}
+            placeholder="/profilepic-placeholder.jpg"
+          />
+        </motion.div>
         <motion.div variants={heroItem} className="flex-grow-1">
           {user.company && (
             <Link
@@ -430,7 +434,7 @@ const ViewUser = ({ user, tickets }) => {
         >
           <div className="pt-3">
             <Row className="g-3">
-              <Col lg={7}>
+              <Col xs={12}>
                 <Card className="border-0 shadow-sm h-100">
                   <Card.Body>
                     <div className="cap-card-title mb-3">
@@ -471,22 +475,6 @@ const ViewUser = ({ user, tickets }) => {
                   </Card.Body>
                 </Card>
               </Col>
-              {canManageUsers && (
-                <Col lg={5}>
-                  <Card className="border-0 shadow-sm h-100">
-                    <Card.Body>
-                      <div className="cap-card-title mb-3">
-                        <RiImageLine />
-                        <span>Фотография профиля</span>
-                      </div>
-                      <ImageUpload
-                        userId={user._id.toString()}
-                        setProfileImage={setProfileImage}
-                      />
-                    </Card.Body>
-                  </Card>
-                </Col>
-              )}
             </Row>
             {user.permissions?.canPerformTickets && (
               <Card className="border-0 shadow-sm mt-3">

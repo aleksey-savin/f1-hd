@@ -1,5 +1,7 @@
-import { Row, Col, Table } from "react-bootstrap";
+import { Table } from "react-bootstrap";
 import AlertMessage from "../../../UI/AlertMessage";
+
+import { RiTimeLine } from "react-icons/ri";
 
 import { useLoaderData } from "react-router";
 
@@ -25,7 +27,7 @@ const WorkScheduleRow = ({ day, schedule }) => (
 );
 
 const WorkScheduleTable = ({ workSchedule }) => (
-  <Table striped>
+  <Table responsive striped className="mb-0">
     <thead>
       <tr>
         <th>День недели</th>
@@ -47,20 +49,20 @@ const WorkSchedule = () => {
   const { workSchedule } = company;
 
   return (
-    <Row>
-      <Col>
-        <h4>График работы</h4>
-        <div className="mb-3">
-          <WorkingStatusIndicator workSchedule={workSchedule} />
-        </div>
-
-        {!workSchedule ? (
-          <AlertMessage variant="light" message="Не указан" />
-        ) : (
-          <WorkScheduleTable workSchedule={workSchedule} />
-        )}
-      </Col>
-    </Row>
+    <>
+      <div className="cap-card-title mb-3">
+        <RiTimeLine />
+        <span>График работы</span>
+      </div>
+      <div className="mb-3">
+        <WorkingStatusIndicator workSchedule={workSchedule} />
+      </div>
+      {!workSchedule ? (
+        <AlertMessage variant="light" message="Не указан" />
+      ) : (
+        <WorkScheduleTable workSchedule={workSchedule} />
+      )}
+    </>
   );
 };
 

@@ -1,19 +1,46 @@
-import { useState, useRef } from "react";
-import { Image, Modal, Button } from "react-bootstrap";
-import { BiUpload } from "react-icons/bi";
+import { useRef, useState } from "react";
+
+import Modal from "react-bootstrap/Modal";
+import Button from "react-bootstrap/Button";
+
 import ReactCrop, { centerCrop, makeAspectCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
-import { getLocalStorageData } from "../../../util/auth";
 
-import "../../../css/ProfileImage.css";
+import { RiCameraLine } from "react-icons/ri";
+
+import { getLocalStorageData } from "../util/auth";
+
+import "../css/AvatarUpload.css";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif"];
 
-const ProfileImage = ({ companyId, initialImage }) => {
-  const [profileImage, setProfileImage] = useState(
-    initialImage || "/companypic-placeholder.png",
+function centerAspectCrop(mediaWidth, mediaHeight, aspect) {
+  const width = Math.min(mediaWidth, mediaHeight);
+  return centerCrop(
+    makeAspectCrop({ unit: "px", width }, aspect, mediaWidth, mediaHeight),
+    mediaWidth,
+    mediaHeight,
   );
+}
+
+// Единый аватар-загрузчик для шапок пользователя и компании.
+// Рисует круглую аватарку с кольцом-статусом (.account-avatar); при наличии
+// прав (canEdit) аватар становится кнопкой: наведение → оверлей «Изменить фото»,
+// клик → выбор файла → кадрирование (1:1, круг) → загрузка на uploadUrl.
+// Эндпоинт/метод задаются пропсами — компания шлёт PATCH, пользователь POST.
+function AvatarUpload({
+  image,
+  onChange,
+  uploadUrl,
+  method = "POST",
+  fieldName = "profileImage",
+  ringOn = true,
+  canEdit = false,
+  alt = "",
+  placeholder,
+  label = "Изменить фото",
+}) {
   const [imgSrc, setImgSrc] = useState("");
   const [crop, setCrop] = useState();
   const [loading, setLoading] = useState(false);
@@ -21,6 +48,22 @@ const ProfileImage = ({ companyId, initialImage }) => {
   const [show, setShow] = useState(false);
 
   const imgRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const avatarClass = `account-avatar ${ringOn ? "" : "account-avatar--off"}`;
+  const avatarStyle = { backgroundImage: `url(${image || placeholder})` };
+
+  // Без прав — просто аватар (без оверлея и модалки)
+  if (!canEdit) {
+    return (
+      <div
+        className={avatarClass}
+        style={avatarStyle}
+        role="img"
+        aria-label={alt}
+      />
+    );
+  }
 
   const handleClose = () => {
     setShow(false);
@@ -29,54 +72,38 @@ const ProfileImage = ({ companyId, initialImage }) => {
     setError(null);
   };
 
-  const handleShow = () => setShow(true);
-
-  function centerAspectCrop(mediaWidth, mediaHeight, aspect) {
-    const width = Math.min(mediaWidth, mediaHeight);
-    return centerCrop(
-      makeAspectCrop(
-        {
-          unit: "px",
-          width,
-        },
-        aspect,
-        mediaWidth,
-        mediaHeight,
-      ),
-      mediaWidth,
-      mediaHeight,
-    );
-  }
-
-  const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
+  const handleFileSelect = (event) => {
+    const file = event.target.files?.[0];
+    // сбрасываем value: повторный выбор того же файла снова сработает
+    event.target.value = "";
     if (!file) return;
 
     if (!ALLOWED_TYPES.includes(file.type)) {
       setError("Пожалуйста, выберите файл с изображением (jpg, png, gif)");
+      setShow(true);
       return;
     }
-
     if (file.size > MAX_FILE_SIZE) {
       setError("Размер файла не должен превышать 5Мб");
+      setShow(true);
       return;
     }
 
     const reader = new FileReader();
     reader.addEventListener("load", () => {
       setImgSrc(reader.result?.toString() || "");
-      handleShow();
+      setError(null);
+      setShow(true);
     });
     reader.readAsDataURL(file);
   };
 
-  const onImageLoad = (e) => {
-    const { width, height } = e.currentTarget;
-    const crop = centerAspectCrop(width, height, 1);
-    setCrop(crop);
+  const onImageLoad = (event) => {
+    const { width, height } = event.currentTarget;
+    setCrop(centerAspectCrop(width, height, 1));
   };
 
-  const createCroppedImage = async (crop) => {
+  const createCroppedImage = async () => {
     if (!imgRef.current || !crop) return null;
 
     const image = imgRef.current;
@@ -86,7 +113,6 @@ const ProfileImage = ({ companyId, initialImage }) => {
 
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
-
     canvas.width = crop.width * scaleX;
     canvas.height = crop.height * scaleY;
 
@@ -103,23 +129,13 @@ const ProfileImage = ({ companyId, initialImage }) => {
     );
 
     return new Promise((resolve) => {
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            console.error("Canvas is empty");
-            return;
-          }
-          resolve(blob);
-        },
-        "image/jpeg",
-        0.95,
-      );
+      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.95);
     });
   };
 
   const handleUpload = async () => {
     if (!imgRef.current || !crop) {
-      setError("Please select and crop an image first!");
+      setError("Сначала выберите и обрежьте изображение");
       return;
     }
 
@@ -129,42 +145,37 @@ const ProfileImage = ({ companyId, initialImage }) => {
     try {
       const { token } = getLocalStorageData();
       if (!token) {
-        throw new Error("Authentication token not found");
+        throw new Error("Токен авторизации не найден");
       }
 
-      const croppedImageBlob = await createCroppedImage(crop);
+      const croppedImageBlob = await createCroppedImage();
       if (!croppedImageBlob) {
-        throw new Error("Failed to crop image");
+        throw new Error("Не удалось обрезать изображение");
       }
 
       const formData = new FormData();
-      formData.append("profileImage", croppedImageBlob, "profile.jpg");
+      formData.append(fieldName, croppedImageBlob, "profile.jpg");
 
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/companies/${companyId}/add-profile-image`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        },
-      );
+      const response = await fetch(uploadUrl, {
+        method,
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
 
       if (!response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         throw new Error(data.error || "Загрузка не удалась");
       }
 
       const data = await response.json();
-      setProfileImage(
+      onChange?.(
         `${import.meta.env.VITE_API_ADDRESS}/uploads/${data.profileImagePath}`,
       );
 
       handleClose();
-    } catch (error) {
-      console.error("Error:", error);
-      setError(error.message || "Что-то пошло не так, попробуйте ещё раз");
+    } catch (err) {
+      console.error("Avatar upload error:", err);
+      setError(err.message || "Что-то пошло не так, попробуйте ещё раз");
     } finally {
       setLoading(false);
     }
@@ -172,28 +183,30 @@ const ProfileImage = ({ companyId, initialImage }) => {
 
   return (
     <>
-      <div className="profile-image-container">
-        <Image
-          src={profileImage}
-          roundedCircle
-          style={{ maxWidth: "15rem" }}
-          className="profile-image"
-          onError={(e) => {
-            e.target.src = "/companypic-placeholder.png";
-          }}
+      <button
+        type="button"
+        className="avatar-upload"
+        onClick={() => inputRef.current?.click()}
+        aria-label={label}
+      >
+        <span
+          className={avatarClass}
+          style={avatarStyle}
+          role="img"
+          aria-label={alt}
         />
-        <label className="profile-image-overlay" htmlFor="profile-image-input">
-          <BiUpload size={24} />
-          <span>Изменить фото</span>
-        </label>
-        <input
-          id="profile-image-input"
-          type="file"
-          accept="image/*"
-          onChange={handleFileSelect}
-          style={{ display: "none" }}
-        />
-      </div>
+        <span className="avatar-upload__overlay">
+          <RiCameraLine />
+          <span>{label}</span>
+        </span>
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileSelect}
+        hidden
+      />
 
       <Modal show={show} onHide={handleClose} centered>
         <Modal.Header closeButton>
@@ -211,7 +224,7 @@ const ProfileImage = ({ companyId, initialImage }) => {
             >
               <img
                 ref={imgRef}
-                alt="Crop me"
+                alt="Кадрирование"
                 src={imgSrc}
                 onLoad={onImageLoad}
                 style={{ maxWidth: "100%" }}
@@ -241,6 +254,6 @@ const ProfileImage = ({ companyId, initialImage }) => {
       </Modal>
     </>
   );
-};
+}
 
-export default ProfileImage;
+export default AvatarUpload;
