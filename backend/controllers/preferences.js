@@ -8,6 +8,9 @@ const KnowledgeNote = require("../models/knowledgeNote");
 const { AppError } = require("../middleware/errorHandling");
 const getAuthData = require("../middleware/getAuthData");
 const { isModerator } = require("../helpers/knowledgeNoteVisibility");
+const { runSecretsScan } = require("../services/secretsScanRun");
+const { runServiceExpiryScan } = require("../services/serviceExpiryScanRun");
+const logger = require("../utils/logger");
 
 const isOpenaiSpeechModel = (modelId) =>
   /^(whisper-1|gpt-4o(?:-mini)?-transcribe(?:-diarize)?(?:-\d{4}-\d{2}-\d{2})?)$/.test(
@@ -162,6 +165,11 @@ exports.update = async (req, res, next) => {
       knowledgeBase,
     } = req.body;
 
+    // Переход флага «выкл→вкл» — повод просканировать сразу, не дожидаясь крона.
+    // Старое значение читаем до перезаписи preferences.knowledgeBase.
+    let secretsJustEnabled = false;
+    let serviceJustEnabled = false;
+
     if (!preferences) {
       preferences = new Preferences({
         timezone,
@@ -183,6 +191,8 @@ exports.update = async (req, res, next) => {
         ai,
         knowledgeBase,
       });
+      secretsJustEnabled = !!knowledgeBase?.scanForSecrets;
+      serviceJustEnabled = !!knowledgeBase?.trackServiceExpiry;
     } else {
       preferences.timezone = timezone;
       preferences.htmlTicketDesc = htmlTicketDesc;
@@ -218,11 +228,32 @@ exports.update = async (req, res, next) => {
       preferences.ai = ai;
       // Защищаемся от затирания конфигурации модерации при частичном POST
       if (knowledgeBase) {
+        const prevKb = preferences.knowledgeBase || {};
+        secretsJustEnabled =
+          !prevKb.scanForSecrets && !!knowledgeBase.scanForSecrets;
+        serviceJustEnabled =
+          !prevKb.trackServiceExpiry && !!knowledgeBase.trackServiceExpiry;
         preferences.knowledgeBase = knowledgeBase;
       }
     }
 
     await preferences.save();
+
+    // Только что включённые фичи сканируем сразу. Ошибка скана не должна
+    // валить уже сохранённые настройки — логируем и продолжаем.
+    try {
+      if (secretsJustEnabled) {
+        await runSecretsScan();
+      }
+      if (serviceJustEnabled) {
+        await runServiceExpiryScan();
+      }
+    } catch (error) {
+      logger.log("error", "Knowledge base scan after enabling failed", {
+        error,
+      });
+    }
+
     res.status(200).json({
       message: "Preferences updated successfully!",
       preferences: preferences,

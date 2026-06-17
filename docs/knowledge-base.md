@@ -193,6 +193,11 @@ sync.
 
 - **Create / edit** (`add` / `update`) — manager only. `update` recomputes
   `plainText` and **resets approval** (`approved=false`, clears approvedBy/At).
+  Both also **re-derive the scan fields synchronously** (`rescanNoteDerived`):
+  the secret scan (gated by `scanForSecrets`, `ignoredHashes` preserved) and the
+  service-expiry parse (gated by `trackServiceExpiry`, skipped for archived notes)
+  run with the same semantics as their crons — so a leak flag clears, and renewal
+  dates refresh, the moment the content changes instead of waiting for the cron.
 - **Approve** — moderator only, requires **both** confirmations in the dialog
   (`confirmCurrent` = data is current, `confirmNoSecrets` = no secrets). Sets
   `approved/approvedBy/approvedAt`.
@@ -264,6 +269,12 @@ unless its preference flag is on.
   `ignoredHashes` survive.
 - **Service-renewal parse** — parses `content` of **non-archived** notes,
   `bulkWrite`s `serviceExpiry.entries/scannedAt`.
+
+Both whole-base scans also run **on demand the moment their flag is switched on**:
+`preferences.update` (`backend/controllers/preferences.js`) detects the off→on
+transition of `scanForSecrets` / `trackServiceExpiry` and awaits `runSecretsScan` /
+`runServiceExpiryScan` before responding (failures are logged, not fatal to the
+save), so results exist immediately instead of after the next cron tick.
 
 ## Secret scanner — `backend/services/secretsScanner.js`
 

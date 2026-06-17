@@ -7,6 +7,8 @@ const Preferences = require("../models/preferences");
 const { AppError } = require("../middleware/errorHandling");
 const getAuthData = require("../middleware/getAuthData");
 const { markdownToPlainText } = require("../helpers/markdownToPlainText");
+const { scanNote } = require("../services/secretsScanner");
+const { parseServiceTables } = require("../services/serviceExpiryScanner");
 const {
   canViewNote,
   isModerator,
@@ -22,6 +24,36 @@ const getKbConfig = async () => {
       .map((moderator) => moderator?._id?.toString())
       .filter(Boolean),
   };
+};
+
+// Пересчитать производные поля заметки (секреты + продление услуг) сразу после
+// создания/правки, чтобы они не оставались устаревшими до соответствующего крона.
+// Семантика крона сохранена: каждый блок — no-op без своего флага; для секретов
+// сохраняем ignoredHashes (список «не секрет» модератора). Мутирует note; вызывать
+// до note.save() — сканеры читают уже обновлённые title/plainText/content.
+const rescanNoteDerived = async (note) => {
+  const prefs = await Preferences.findOne({}, { knowledgeBase: 1 }).lean();
+  const kb = prefs?.knowledgeBase || {};
+  const scannedAt = new Date();
+
+  if (kb.scanForSecrets) {
+    const ignoredHashes = note.secretsScan?.ignoredHashes || [];
+    const findings = scanNote(note, ignoredHashes);
+    note.secretsScan = {
+      flagged: findings.length > 0,
+      findings,
+      ignoredHashes,
+      scannedAt,
+    };
+  }
+
+  // Крон разбора услуг пропускает архивные заметки — повторяем это здесь
+  if (kb.trackServiceExpiry && !note.archivedAt) {
+    note.serviceExpiry = {
+      entries: parseServiceTables(note.content),
+      scannedAt,
+    };
+  }
 };
 
 const NOTE_TYPES = ["info", "backlog", "instructions"];
@@ -237,6 +269,7 @@ exports.add = async (req, res, next) => {
       updatedBy: userId,
     });
 
+    await rescanNoteDerived(note);
     await note.save();
 
     res.status(201).json({
@@ -284,6 +317,9 @@ exports.update = async (req, res, next) => {
     note.approved = false;
     note.approvedBy = undefined;
     note.approvedAt = undefined;
+    // Заново пересчитываем секреты и услуги на свежем тексте, чтобы статусы
+    // не висели устаревшими до кронов после правки содержимого заметки
+    await rescanNoteDerived(note);
 
     await note.save();
 
