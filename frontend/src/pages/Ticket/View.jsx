@@ -110,12 +110,7 @@ const ViewTicket = () => {
     ticketStore.updateOtherCompanyTickets(otherCompanyTickets);
   }, [ticket, company, works, otherCompanyTickets, responsiblesData]);
 
-  const {
-    _id: userId,
-    permissions,
-    isClient,
-    isEndUser,
-  } = useContext(AuthedUserContext);
+  const { _id: userId, permissions, isEndUser } = useContext(AuthedUserContext);
   const { canAvoidWorks, canUseTimeTrackingModule } = permissions;
 
   const isOverdue =
@@ -316,7 +311,7 @@ const ViewTicket = () => {
                     <Col>
                       <div className="d-flex justify-content-between align-items-center gap-2">
                         <h1 className="display-6 mb-0">{ticket.title}</h1>
-                        {!isClient && (
+                        {!isEndUser && (
                           <div className="d-flex flex-shrink-0 gap-2 mt-1">
                             <AiSpeechBadge status={ticket.aiSpeech?.status} />
                             <AiCategoryBadge
@@ -381,7 +376,7 @@ const ViewTicket = () => {
                                           workSchedule={company.workSchedule}
                                         />
                                       </small>
-                                      {!isClient && (
+                                      {!isEndUser && (
                                         <Button
                                           onClick={() => handleShowLogs()}
                                           size="sm"
@@ -418,7 +413,7 @@ const ViewTicket = () => {
                                     </h5>
                                   </td>
                                 </tr>
-                                {!isClient &&
+                                {!isEndUser &&
                                   ticket.applicant?.computer?.name && (
                                     <tr>
                                       <th>Компьютер</th>
@@ -558,7 +553,7 @@ const ViewTicket = () => {
                           />
                         </Tab>
                       )}
-                    {!isClient && ai?.isActive && (
+                    {!isEndUser && ai?.isActive && (
                       <Tab
                         eventKey="ai"
                         title={
