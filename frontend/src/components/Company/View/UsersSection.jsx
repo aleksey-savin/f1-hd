@@ -26,6 +26,7 @@ import ViewUser from "../../User/View";
 // Sortable columns. `type: "date"` sorts by timestamp, not alphabetically.
 const SORT_COLUMNS = [
   { key: "name", label: "Имя", type: "string" },
+  { key: "position", label: "Должность", type: "string" },
   { key: "subdivision", label: "Подразделение", type: "string" },
   { key: "email", label: "Email", type: "string" },
   { key: "phone", label: "Телефон", type: "string" },
@@ -41,6 +42,8 @@ const getSortValue = (user, key) => {
   switch (key) {
     case "name":
       return `${user.lastName} ${user.firstName}`;
+    case "position":
+      return user.position || "";
     case "subdivision":
       return user.subdivision?.name || "";
     case "email":
@@ -152,6 +155,7 @@ const UserSection = () => {
       list = list.filter((user) => {
         const haystack = [
           `${user.lastName} ${user.firstName}`,
+          user.position,
           user.email,
           user.phone,
           user.subdivision?.name,
@@ -273,6 +277,7 @@ const UserSection = () => {
                           {`${user.lastName} ${user.firstName}`}
                         </Button>
                       </td>
+                      <td data-cell="Должность">{user.position}</td>
                       <td data-cell="Подразделение">
                         {user.subdivision?.name}
                       </td>

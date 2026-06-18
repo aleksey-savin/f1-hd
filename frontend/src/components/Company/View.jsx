@@ -349,6 +349,25 @@ const ViewCompany = ({
           </div>
         </Tab>
 
+        {/* ---- Сотрудники ---- */}
+        <Tab
+          eventKey="employees"
+          title={
+            <>
+              <RiGroupLine /> Сотрудники{" "}
+              <Badge bg="secondary" pill>
+                {company.employees?.length ?? 0}
+              </Badge>
+            </>
+          }
+        >
+          <div className="pt-3">
+            <SectionCard>
+              <UserSection />
+            </SectionCard>
+          </div>
+        </Tab>
+
         {/* ---- Услуги (модуль финансов) ---- */}
         {showFinances && (
           <Tab
@@ -387,25 +406,6 @@ const ViewCompany = ({
           <div className="pt-3">
             <SectionCard>
               <ResponsiblesSection company={company} />
-            </SectionCard>
-          </div>
-        </Tab>
-
-        {/* ---- Сотрудники ---- */}
-        <Tab
-          eventKey="employees"
-          title={
-            <>
-              <RiGroupLine /> Сотрудники{" "}
-              <Badge bg="secondary" pill>
-                {company.employees?.length ?? 0}
-              </Badge>
-            </>
-          }
-        >
-          <div className="pt-3">
-            <SectionCard>
-              <UserSection />
             </SectionCard>
           </div>
         </Tab>

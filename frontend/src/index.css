@@ -325,30 +325,6 @@ h1 svg {
   overflow-x: auto;
 }
 
-/* Одна кнопка-тоггл «развернуть/свернуть всё» — читаема в обеих темах. */
-.org-toggle-all {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.375rem 0.75rem;
-  border: 1px solid var(--org-chip-border);
-  border-radius: var(--bs-border-radius);
-  background: transparent;
-  color: var(--bs-body-color);
-  font-size: 0.875rem;
-  white-space: nowrap;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease;
-}
-.org-toggle-all:hover {
-  background-color: var(--org-hover);
-  border-color: var(--org-accent);
-}
-.org-toggle-all svg {
-  color: var(--org-accent);
-}
-
 /* Строка узла — кликабельна целиком (открывает offcanvas с деталями). */
 .org-tree__row {
   display: flex;
@@ -537,6 +513,35 @@ h1 svg {
 }
 .org-tree__crumb-sep {
   margin: 0 0.35rem;
+  color: var(--bs-secondary-color);
+}
+
+/* Список сотрудников в offcanvas: имя + должность во вторую строку (читаемо,
+   как .contact-row/.cap-row), без обрезки имён. */
+.org-people {
+  display: flex;
+  flex-direction: column;
+}
+.org-person {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--org-chip-border);
+}
+.org-person:last-child {
+  border-bottom: 0;
+}
+.org-person__icon {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+  color: var(--bs-secondary-color);
+}
+.org-person__body {
+  min-width: 0;
+}
+.org-person__role {
+  font-size: 0.8rem;
   color: var(--bs-secondary-color);
 }
 

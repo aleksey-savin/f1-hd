@@ -349,9 +349,8 @@ const SubdivisionsSection = ({ company, permissions }) => {
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
             </InputGroup>
-            <button
-              type="button"
-              className="org-toggle-all"
+            <Button
+              variant="secondary"
               onClick={hasCollapsed ? expandAll : collapseAll}
             >
               {hasCollapsed ? (
@@ -363,7 +362,7 @@ const SubdivisionsSection = ({ company, permissions }) => {
                   <RiCollapseVerticalLine /> Свернуть всё
                 </>
               )}
-            </button>
+            </Button>
           </div>
 
           {displayTree.length > 0 ? (
