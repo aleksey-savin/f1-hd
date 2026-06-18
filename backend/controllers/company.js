@@ -43,70 +43,15 @@ exports.getOne = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
 
-    const company = await Company.findById(req.params.id)
-      .populate({
-        path: "subdivisions",
-        match: { parent: null },
-        populate: [
-          {
-            path: "subdivisions",
-            populate: [
-              {
-                path: "subdivisions",
-                populate: [
-                  {
-                    path: "users",
-                    select: "firstName lastName email position role isActive",
-                  },
-                  {
-                    path: "manager",
-                    select: "firstName lastName email position role isActive",
-                  },
-                  {
-                    path: "subdivisions",
-                    populate: [
-                      {
-                        path: "users",
-                        select:
-                          "firstName lastName email position role isActive",
-                      },
-                      {
-                        path: "manager",
-                        select:
-                          "firstName lastName email position role isActive",
-                      },
-                    ],
-                  },
-                ],
-              },
-              {
-                path: "users",
-                select: "firstName lastName email position role isActive",
-              },
-              {
-                path: "manager",
-                select: "firstName lastName email position role isActive",
-              },
-            ],
-          },
-          {
-            path: "users",
-            select: "firstName lastName email position role isActive",
-          },
-          {
-            path: "manager",
-            select: "firstName lastName email position role isActive",
-          },
-        ],
-      })
-      .populate({
-        path: "employees",
-        select: "_id firstName lastName email phone position role isActive",
-        populate: {
-          path: "subdivision",
-          select: "name",
-        },
-      });
+    const company = await Company.findById(req.params.id).populate({
+      path: "employees",
+      match: { isActive: true },
+      select: "_id firstName lastName email phone position role isActive",
+      populate: {
+        path: "subdivision",
+        select: "name",
+      },
+    });
 
     if (!company) {
       return next(new AppError(`Company ${req.params.id} not found`, 404));
@@ -117,6 +62,39 @@ exports.getOne = async (req, res, next) => {
     // `lastActivity` — index assignment is a no-op and reassigning casts each
     // entry back to an ObjectId. toJSON() yields the same shape res.json would.
     const companyObj = company.toJSON();
+
+    // Subdivisions: fetch the whole set for this company in one query and
+    // assemble the tree in JS by `parent`. This replaces the previous
+    // hand-rolled nested populate that only reached ~4 levels deep — beyond that
+    // subdivisions arrived as bare ObjectIds (no name/manager/users/children),
+    // which broke deeply nested structures. JS assembly has no depth limit.
+    const subdivisionDocs = await Subdivision.find({ company: company._id })
+      .select("name email phone address linkToMap manager users parent")
+      .populate("manager", "firstName lastName email position role isActive")
+      .populate("users", "firstName lastName email position role isActive")
+      .lean();
+
+    const subdivisionById = new Map();
+    subdivisionDocs.forEach((sub) => {
+      sub.subdivisions = [];
+      subdivisionById.set(sub._id.toString(), sub);
+    });
+
+    const rootSubdivisions = [];
+    subdivisionDocs.forEach((sub) => {
+      const parent = sub.parent
+        ? subdivisionById.get(sub.parent.toString())
+        : null;
+      // Orphans (parent outside this company's set) fall back to roots so they
+      // remain visible instead of silently disappearing from the tree.
+      if (parent) {
+        parent.subdivisions.push(sub);
+      } else {
+        rootSubdivisions.push(sub);
+      }
+    });
+
+    companyObj.subdivisions = rootSubdivisions;
 
     // Add lastActivity for each employee.
     // One aggregation finds the latest ticket per applicant instead of issuing

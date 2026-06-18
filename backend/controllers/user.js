@@ -158,6 +158,7 @@ exports.getCanPerformTicketsUsers = async (req, res, next) => {
   try {
     const users = await User.find({
       "permissions.canPerformTickets": true,
+      isActive: true,
     });
     res.status(200).json(users);
   } catch (error) {
@@ -204,8 +205,8 @@ exports.getUsersWithWorkplaces = async (req, res, next) => {
     const { userId } = await getAuthData(req);
     const authedUser = await User.findById(userId);
 
-    // Получаем всех пользователей
-    const allUsers = await User.find({}).sort({ lastName: 1 });
+    // Получаем всех активных пользователей (отключённые в выборку не попадают)
+    const allUsers = await User.find({ isActive: true }).sort({ lastName: 1 });
 
     // Фильтруем пользователей по правам доступа
     const filteredUsers = allUsers.filter((user) => {

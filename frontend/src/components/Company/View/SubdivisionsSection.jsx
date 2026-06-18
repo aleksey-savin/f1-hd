@@ -4,11 +4,60 @@ import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import Form from "react-bootstrap/Form";
 import Alert from "react-bootstrap/Alert";
-import TreeNode from "../../../UI/TreeView";
+import InputGroup from "react-bootstrap/InputGroup";
 import Select from "../../../UI/Select";
 import SubdivisionUsersModal from "./SubdivisionUsersModal";
+import SubdivisionTree from "./SubdivisionTree";
+import SubdivisionOffcanvas from "./SubdivisionOffcanvas";
 
-import { RiNodeTree, RiAddLine } from "react-icons/ri";
+import {
+  RiNodeTree,
+  RiAddLine,
+  RiSearchLine,
+  RiExpandVerticalLine,
+  RiCollapseVerticalLine,
+} from "react-icons/ri";
+
+// Locate a node in the tree by id, collecting its ancestor chain (root → parent)
+// for the offcanvas breadcrumb. Returns null when the id is no longer present
+// (e.g. after a delete), which lets the offcanvas close itself.
+const findNodeWithPath = (nodes, id, path = []) => {
+  for (const node of nodes || []) {
+    if (node._id === id) return { node, ancestors: path };
+    const found = findNodeWithPath(node.subdivisions, id, [...path, node]);
+    if (found) return found;
+  }
+  return null;
+};
+
+// Ids of every node that has children — used by «Свернуть всё».
+const collectParentIds = (nodes, acc = []) => {
+  (nodes || []).forEach((node) => {
+    if (node.subdivisions?.length) {
+      acc.push(node._id);
+      collectParentIds(node.subdivisions, acc);
+    }
+  });
+  return acc;
+};
+
+// Keep branches whose name matches the query or that contain a match. A node
+// that matches itself keeps its full subtree; otherwise only the path to the
+// matching descendants is kept.
+const filterTree = (nodes, query) => {
+  const out = [];
+  (nodes || []).forEach((node) => {
+    const selfMatch = (node.name || "").toLowerCase().includes(query);
+    const matchedKids = filterTree(node.subdivisions, query);
+    if (selfMatch || matchedKids.length) {
+      out.push({
+        ...node,
+        subdivisions: selfMatch ? node.subdivisions || [] : matchedKids,
+      });
+    }
+  });
+  return out;
+};
 
 const SubdivisionsSection = ({ company, permissions }) => {
   const fetcher = useFetcher();
@@ -20,24 +69,34 @@ const SubdivisionsSection = ({ company, permissions }) => {
   const [subdivisionToDelete, setSubdivisionToDelete] = useState(null);
   const [error, setError] = useState(null);
 
+  // Detail/actions offcanvas (right) — driven by the selected node id, resolved
+  // against the live tree so edits show immediately and deletes auto-close it.
+  const [selectedSubdivisionId, setSelectedSubdivisionId] = useState(null);
+
+  // Tree view controls: a set of *collapsed* ids (empty = everything expanded)
+  // and a free-text filter.
+  const [collapsedIds, setCollapsedIds] = useState(() => new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+
   const handleClose = () => {
     setShowModal(false);
     setEditMode(false);
     setSelectedSubdivision(null);
-    setParentSubdivision(undefined); // Changed from null to undefined
+    setParentSubdivision(undefined);
   };
 
-  // Reset form when modal opens
+  // Reset form when opening the root-level «add» modal.
   const handleShow = () => {
     setSelectedSubdivision(null);
-    setParentSubdivision(undefined); // Changed from null to undefined
+    setParentSubdivision(undefined);
     setEditMode(false);
+    setError(null);
     setShowModal(true);
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    setError(null); // Clear any existing error
+    setError(null);
     const formData = new FormData(event.target);
 
     if (editMode) {
@@ -119,7 +178,8 @@ const SubdivisionsSection = ({ company, permissions }) => {
     return checkParents(targetParentId);
   };
 
-  // Add this helper function to get all descendants
+  // All descendant ids of a subdivision. Children in the assembled tree are
+  // full node objects (not raw ids), so read `child._id`.
   const getDescendantIds = (subdivisionId, allSubdivisions) => {
     const descendants = new Set();
 
@@ -127,7 +187,8 @@ const SubdivisionsSection = ({ company, permissions }) => {
       const subdivision = allSubdivisions.find((s) => s._id === id);
       if (!subdivision) return;
 
-      subdivision.subdivisions?.forEach((childId) => {
+      subdivision.subdivisions?.forEach((child) => {
+        const childId = child._id ?? child;
         descendants.add(childId.toString());
         addDescendants(childId);
       });
@@ -183,7 +244,6 @@ const SubdivisionsSection = ({ company, permissions }) => {
   const [selectedSubdivisionForUsers, setSelectedSubdivisionForUsers] =
     useState(null);
 
-  // Add this handler
   const handleManageUsers = (subdivision) => {
     setSelectedSubdivisionForUsers(subdivision);
     setShowUsersModal(true);
@@ -201,6 +261,58 @@ const SubdivisionsSection = ({ company, permissions }) => {
       },
     );
   };
+
+  // --- Offcanvas actions ---------------------------------------------------
+
+  const handleEditFromPanel = (subdivision) => {
+    setSelectedSubdivision(subdivision);
+    setEditMode(true);
+    setError(null);
+    setShowModal(true);
+  };
+
+  // Add a child under the given subdivision (parent preset, add mode).
+  const handleAddChild = (subdivision) => {
+    setSelectedSubdivision(null);
+    setEditMode(false);
+    setParentSubdivision(subdivision);
+    setError(null);
+    setShowModal(true);
+  };
+
+  // --- Tree expand/collapse + search ---------------------------------------
+
+  const isExpanded = (id) => !collapsedIds.has(id);
+
+  const handleToggle = (id) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const expandAll = () => setCollapsedIds(new Set());
+  const collapseAll = () =>
+    setCollapsedIds(new Set(collectParentIds(company.subdivisions)));
+
+  const hasCollapsed = collapsedIds.size > 0;
+
+  const query = searchQuery.trim().toLowerCase();
+  const displayTree = query
+    ? filterTree(company.subdivisions, query)
+    : company.subdivisions;
+
+  // Resolve the open node (and its path) from the live tree.
+  const found = selectedSubdivisionId
+    ? findNodeWithPath(company.subdivisions, selectedSubdivisionId)
+    : null;
+  const selectedNode = found?.node || null;
+  const selectedAncestors = found?.ancestors || [];
 
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
@@ -223,27 +335,72 @@ const SubdivisionsSection = ({ company, permissions }) => {
         )}
       </div>
 
-      {company.subdivisions.length > 0 && (
-        <div className="border rounded p-3">
-          {company.subdivisions?.map((subdivision) => (
-            <TreeNode
-              key={subdivision._id}
-              node={subdivision}
-              onEdit={(sub) => {
-                setSelectedSubdivision(sub);
-                setEditMode(true);
-                setShowModal(true);
-              }}
-              onDelete={handleDeleteClick} // Changed from handleDelete
-              onManageUsers={handleManageUsers}
-              canManage={permissions.canManageCompanies}
-            />
-          ))}
+      {company.subdivisions.length > 0 ? (
+        <div className="org-structure">
+          <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <InputGroup style={{ maxWidth: 300 }}>
+              <InputGroup.Text>
+                <RiSearchLine />
+              </InputGroup.Text>
+              <Form.Control
+                type="search"
+                placeholder="Поиск подразделения…"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+            </InputGroup>
+            <button
+              type="button"
+              className="org-toggle-all"
+              onClick={hasCollapsed ? expandAll : collapseAll}
+            >
+              {hasCollapsed ? (
+                <>
+                  <RiExpandVerticalLine /> Развернуть всё
+                </>
+              ) : (
+                <>
+                  <RiCollapseVerticalLine /> Свернуть всё
+                </>
+              )}
+            </button>
+          </div>
+
+          {displayTree.length > 0 ? (
+            <div className="org-tree-wrap">
+              <SubdivisionTree
+                nodes={displayTree}
+                selectedId={selectedSubdivisionId}
+                onSelect={(node) => setSelectedSubdivisionId(node._id)}
+                isExpanded={isExpanded}
+                onToggle={handleToggle}
+                forceExpand={Boolean(query)}
+              />
+            </div>
+          ) : (
+            <Alert variant="light" className="mb-0">
+              Подразделения не найдены
+            </Alert>
+          )}
         </div>
+      ) : (
+        <Alert variant="light" className="mb-0">
+          Нет подразделений
+        </Alert>
       )}
-      {company.subdivisions.length === 0 && (
-        <Alert variant="light">Нет подразделений</Alert>
-      )}
+
+      <SubdivisionOffcanvas
+        show={Boolean(selectedNode)}
+        node={selectedNode}
+        ancestors={selectedAncestors}
+        onHide={() => setSelectedSubdivisionId(null)}
+        canManage={permissions.canManageCompanies}
+        onNavigate={(node) => setSelectedSubdivisionId(node._id)}
+        onManageUsers={handleManageUsers}
+        onAddChild={handleAddChild}
+        onEdit={handleEditFromPanel}
+        onDelete={handleDeleteClick}
+      />
 
       <SubdivisionUsersModal
         show={showUsersModal}

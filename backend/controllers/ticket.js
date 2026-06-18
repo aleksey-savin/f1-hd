@@ -559,6 +559,7 @@ exports.getFormData = async (req, res, next) => {
         applicants = await User.find({
           "company._id": authedUser.company._id,
           isServiceAccount: false,
+          isActive: true,
         });
       } else {
         applicants = [authedUser];
@@ -589,6 +590,7 @@ exports.getFormData = async (req, res, next) => {
 
       applicants = await User.find({
         "company._id": { $in: companies },
+        isActive: true,
       }).sort({ lastName: 1 });
 
       categories = await Category.find({

@@ -297,3 +297,250 @@ h1 svg {
     padding: 1.5rem 1rem;
   }
 }
+
+/* ===== Дерево структуры компании (Company/View → SubdivisionTree) ===== */
+
+/* Тема (Darkly) не выставляет data-bs-theme=dark, поэтому --bs-secondary-bg/
+   --bs-tertiary-bg резолвятся в светлые, а --bs-primary — слишком тёмный навель.
+   Цвета дерева вынесены в переменные --org-* со светлыми дефолтами здесь и
+   переопределяются для тёмной темы в css/dark-theme.css (грузится только в
+   тёмном режиме). */
+.org-structure,
+.org-subdivision-offcanvas {
+  --org-hover: rgba(var(--bs-emphasis-color-rgb), 0.05);
+  --org-selected-bg: rgba(var(--bs-primary-rgb), 0.1);
+  --org-selected-border: rgba(var(--bs-primary-rgb), 0.35);
+  --org-accent: var(--bs-primary);
+  --org-chip-bg: rgba(var(--bs-emphasis-color-rgb), 0.06);
+  --org-chip-fg: var(--bs-secondary-color);
+  --org-chip-border: var(--bs-border-color);
+}
+
+/* Обёртка дерева: при экстремальной глубине/длинных бейджах — горизонтальная
+   прокрутка вместо ломки вёрстки. */
+.org-tree-wrap {
+  border: 1px solid var(--org-chip-border);
+  border-radius: var(--bs-border-radius);
+  padding: 0.5rem;
+  overflow-x: auto;
+}
+
+/* Одна кнопка-тоггл «развернуть/свернуть всё» — читаема в обеих темах. */
+.org-toggle-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--org-chip-border);
+  border-radius: var(--bs-border-radius);
+  background: transparent;
+  color: var(--bs-body-color);
+  font-size: 0.875rem;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.org-toggle-all:hover {
+  background-color: var(--org-hover);
+  border-color: var(--org-accent);
+}
+.org-toggle-all svg {
+  color: var(--org-accent);
+}
+
+/* Строка узла — кликабельна целиком (открывает offcanvas с деталями). */
+.org-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.org-tree__row:hover {
+  background-color: var(--org-hover);
+}
+.org-tree__row:focus-visible {
+  outline: 2px solid var(--org-accent);
+  outline-offset: -2px;
+}
+.org-tree__row--selected {
+  background-color: var(--org-selected-bg);
+  border-color: var(--org-selected-border);
+}
+.org-tree__row--selected:hover {
+  background-color: var(--org-selected-bg);
+}
+
+/* Шеврон разворота — отдельная кнопка (клик не открывает offcanvas). */
+.org-tree__toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--bs-secondary-color);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.org-tree__toggle:hover {
+  background-color: var(--org-hover);
+  color: var(--bs-body-color);
+}
+.org-tree__toggle--leaf {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Название не растягивается — бейджи идут сразу после него, а не у правого края. */
+.org-tree__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.org-tree__name--empty {
+  font-style: italic;
+  font-weight: 400;
+  color: var(--bs-secondary-color);
+}
+
+/* Бейджи руководителя / числа сотрудников — подложка/текст из --org-*. */
+.org-tree__badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 16rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background-color: var(--org-chip-bg);
+  color: var(--org-chip-fg);
+}
+.org-tree__badge svg {
+  flex: 0 0 auto;
+}
+.org-tree__badge-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.org-tree__badge--manager svg {
+  color: var(--org-accent);
+}
+.org-tree__badge--count svg {
+  color: var(--bs-secondary-color);
+}
+
+/* Подсказка «откроется панель» — у правого края, появляется на ховере/выборе. */
+.org-tree__open-hint {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--bs-secondary-color);
+  font-size: 1.1rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.org-tree__row:hover .org-tree__open-hint,
+.org-tree__row:focus-visible .org-tree__open-hint,
+.org-tree__row--selected .org-tree__open-hint {
+  opacity: 0.7;
+}
+
+/* Вложенность: один фиксированный отступ + направляющая линия на уровень.
+   Линейный отступ за счёт вложенности DOM (без quadratic marginLeft). */
+.org-tree__children {
+  margin-left: 0.75rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid var(--org-chip-border);
+}
+
+/* Чип дочернего подразделения в offcanvas + хлебные крошки. */
+.org-tree__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--org-chip-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--bs-body-color);
+  font-size: 0.85rem;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.org-tree__chip:hover {
+  border-color: var(--org-accent);
+  background-color: var(--org-hover);
+}
+.org-tree__chip svg {
+  flex: 0 0 auto;
+  color: var(--org-accent);
+}
+.org-tree__chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background-color: var(--org-chip-bg);
+  color: var(--org-chip-fg);
+  font-size: 0.75rem;
+}
+
+.org-tree__breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.15rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+.org-tree__crumb-wrap {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.org-tree__crumb {
+  max-width: 12rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.org-tree__crumb:hover {
+  color: var(--org-accent);
+  text-decoration: underline;
+}
+.org-tree__crumb-sep {
+  margin: 0 0.35rem;
+  color: var(--bs-secondary-color);
+}
+
+/* Offcanvas деталей подразделения — комфортная ширина для списка сотрудников. */
+.org-subdivision-offcanvas.offcanvas-end {
+  --bs-offcanvas-width: min(440px, 92vw);
+}

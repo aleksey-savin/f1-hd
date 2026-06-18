@@ -154,7 +154,9 @@ const KINDS = {
     respKey: "location",
     size: "lg",
     loadRefs: async () => {
-      const res = await fetch(`${base}/api/users`, { headers: authHeaders() });
+      const res = await fetch(`${base}/api/users?activeOnly=true`, {
+        headers: authHeaders(),
+      });
       const data = await res.json();
       return { users: Array.isArray(data) ? data : data.users || [] };
     },

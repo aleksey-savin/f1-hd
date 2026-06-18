@@ -16,3 +16,25 @@ table {
 .text-secondary {
   color: var(--bs-secondary-color) !important;
 }
+
+/* Дерево структуры компании: цвета под тёмную тему (этот файл грузится только
+   в тёмном режиме). Базовые --org-* в index.css рассчитаны на светлую тему,
+   где --bs-secondary-bg/--bs-primary читаемы; здесь — светлые оверлеи поверх
+   тёмного фона и светло-синий акцент #6ea8d8 вместо тёмного навеля. */
+.org-structure,
+.org-subdivision-offcanvas {
+  --org-hover: rgba(255, 255, 255, 0.07);
+  --org-selected-bg: rgba(110, 168, 216, 0.16);
+  --org-selected-border: rgba(110, 168, 216, 0.5);
+  --org-accent: #6ea8d8;
+  --org-chip-bg: rgba(255, 255, 255, 0.08);
+  --org-chip-fg: rgba(222, 226, 230, 0.85);
+  --org-chip-border: rgba(255, 255, 255, 0.18);
+}
+
+/* Иконки заголовков секций и плашки контактов в offcanvas (рендерится в портал
+   вне .company-view-tabs) — тем же светлым синим, что и на странице компании. */
+.org-subdivision-offcanvas .cap-card-title svg,
+.org-subdivision-offcanvas .contact-row__icon {
+  color: #6ea8d8;
+}

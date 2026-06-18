@@ -49,9 +49,9 @@ export const loader = async ({ params }) => {
       }),
     );
 
-    // Fetch users
+    // Fetch users (active only — disabled users aren't offered for assignment)
     promises.push(
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users`, {
+      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users?activeOnly=true`, {
         headers: {
           Authorization: "Bearer " + token,
         },
