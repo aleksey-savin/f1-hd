@@ -519,7 +519,13 @@ exports.handleNewEmails = async () => {
         // Номер звонящего: из темы письма или из тела ("Кто звонил:")
         const phoneNumber = extractCallerPhone(email);
 
-        const source = applicant?.isCloudTelephony
+        // Источник «Облачная телефония» определяется по ОТПРАВИТЕЛЮ письма
+        // (аккаунт телефонии, с которого пришло письмо), а не по заявителю:
+        // applicant ниже подменяется на реального звонящего (по номеру), у
+        // которого isCloudTelephony=false, да и здесь он ещё равен дефолтному.
+        // Поэтому источник фиксируется по email.from один раз при создании и не
+        // меняется при последующей смене заявителя.
+        const source = (await isCloudTelephonySender(email.from))
           ? "Облачная телефония"
           : "Почта";
 

@@ -195,7 +195,7 @@ const getCompanyStats = async (companyId) => {
     (row) => row._id && companyUserIdSet.has(row._id.toString()),
   ).length;
   const total = companyUserIds.length;
-  const users = { total, active, dead: total - active };
+  const users = { total, active, inactive: total - active };
 
   const channelTotal = channelRows.reduce((sum, row) => sum + row.count, 0);
   const breakdown = channelRows.map((row) => ({

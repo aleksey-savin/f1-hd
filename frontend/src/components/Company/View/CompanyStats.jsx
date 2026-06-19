@@ -85,7 +85,7 @@ const CompanyStats = ({ stats }) => {
   const days = period.daysElapsed;
 
   const activePct = users.total ? (users.active / users.total) * 100 : 0;
-  const deadPct = users.total ? (users.dead / users.total) * 100 : 0;
+  const inactivePct = users.total ? (users.inactive / users.total) * 100 : 0;
 
   return (
     <Row className="g-3 mb-4">
@@ -130,12 +130,12 @@ const CompanyStats = ({ stats }) => {
             </div>
             <ProgressBar className="mb-1" style={{ height: 8 }}>
               <ProgressBar variant="success" now={activePct} key={1} />
-              <ProgressBar variant="secondary" now={deadPct} key={2} />
+              <ProgressBar variant="secondary" now={inactivePct} key={2} />
             </ProgressBar>
             <div className="d-flex justify-content-between small">
               <span className="text-success">Активные: {users.active}</span>
               <span className="text-body-secondary">
-                Мёртвые: {users.dead}
+                Неактивные: {users.inactive}
               </span>
             </div>
           </>
@@ -145,15 +145,20 @@ const CompanyStats = ({ stats }) => {
       {/* Основной канал связи */}
       <StatCard icon={<RiChat3Line />} title="Основной канал">
         {!channels.primary || channels.total === 0 ? (
-          <div className="text-body-secondary">Нет заявок за год</div>
+          <div className="text-body-secondary">
+            Нет заявок за последний год
+          </div>
         ) : (
           <>
             <div className="fs-4 fw-semibold lh-1">
               {channels.primary.source}
             </div>
-            <div className="text-body-secondary mb-3" style={{ fontSize: "0.78em" }}>
+            <div className="text-body-secondary" style={{ fontSize: "0.78em" }}>
               {channels.primary.percentage}% заявок ({channels.primary.count} из{" "}
               {channels.total})
+            </div>
+            <div className="text-body-secondary mb-3" style={{ fontSize: "0.72em" }}>
+              за последний год
             </div>
             {channels.breakdown.map((channel) => (
               <div key={channel.source} className="mb-2">
