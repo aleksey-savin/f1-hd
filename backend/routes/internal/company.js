@@ -23,6 +23,14 @@ router.get(
   runValidation,
   companyController.getOne,
 );
+router.get(
+  "/companies/:id/stats",
+  isAuth,
+  isNotClient,
+  companyValidation.getOne,
+  runValidation,
+  companyController.getStats,
+);
 
 router.post(
   "/companies/add",

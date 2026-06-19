@@ -12,6 +12,7 @@ const { generateApiKey } = require("../utils/apiKeyGenerator");
 const CompanyLog = require("../models/companyLog");
 const logger = require("../utils/logger");
 const storage = require("../services/storage");
+const companyStatsService = require("../services/companyStatsService");
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -170,6 +171,29 @@ exports.getOne = async (req, res, next) => {
     next(
       new AppError(
         `Failed to fetch company ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+exports.getStats = async (req, res, next) => {
+  try {
+    await getAuthData(req);
+
+    const stats = await companyStatsService.getCompanyStats(req.params.id);
+
+    res.status(200).json(stats);
+  } catch (error) {
+    // 404 (компания не найдена) пробрасываем как есть, остальное — как 500.
+    if (error instanceof AppError) {
+      return next(error);
+    }
+    next(
+      new AppError(
+        `Failed to fetch company stats ${req.params.id}`,
         500,
         true,
         error,

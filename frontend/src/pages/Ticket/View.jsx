@@ -45,7 +45,7 @@ import Attachments from "../../components/Ticket/View/Attachments";
 import ApplicantModal from "../../components/Ticket/View/ApplicantModal";
 import CompanyModal from "../../components/Ticket/View/CompanyModal";
 import DescriptionCard from "../../components/Ticket/View/DescriptionCard";
-import AiGuide from "../../components/Ticket/View/AiGuide";
+import AiAssistant from "../../components/Ticket/View/AiAssistant";
 import AiSpeechBadge from "../../UI/AiSpeechBadge";
 import AiCategoryBadge from "../../UI/AiCategoryBadge";
 import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
@@ -575,15 +575,10 @@ const ViewTicket = () => {
                                 <RiCheckLine className="align-middle" />
                               </Badge>
                             )}
-                            {ticket.aiGuide?.status === "error" && (
-                              <Badge bg="danger" pill title="Ошибка генерации">
-                                !
-                              </Badge>
-                            )}
                           </>
                         }
                       >
-                        <AiGuide />
+                        <AiAssistant />
                       </Tab>
                     )}
                     {!isEndUser && (

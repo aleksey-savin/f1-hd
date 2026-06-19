@@ -2,6 +2,14 @@
 @import url("dark/dark-mode.css");
 @import url("./table.css");
 
+/* Нативные контролы (выпадающий список <select>, скроллбары, дата-пикеры) на
+   Windows Chrome в тёмной теме рендерятся светлыми, пока странице не объявлен
+   color-scheme (на Linux/Firefox не проявляется). Объявляем dark — нативные
+   элементы становятся тёмными на всех платформах. */
+:root {
+  color-scheme: dark;
+}
+
 table {
   background: #303030;
 }
@@ -15,6 +23,53 @@ table {
    стиле. */
 .text-secondary {
   color: var(--bs-secondary-color) !important;
+}
+
+/* В тёмной теме .btn-outline-secondary почти невидим: его бордер и текст
+   красятся темовым --bs-secondary (#444) по тёмному фону. Поднимаем контраст
+   до читаемого светло-серого для ВСЕХ таких кнопок интерфейса разом — через
+   CSS-переменные кнопки Bootstrap 5.3. Правило идёт после @import dark/bootstrap,
+   поэтому при равной специфичности перебивает темовое. Файл грузится только в
+   тёмном режиме — светлой темы не касается. */
+.btn-outline-secondary {
+  --bs-btn-color: #ced4da;
+  --bs-btn-border-color: rgba(206, 212, 218, 0.5);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #6c757d;
+  --bs-btn-hover-border-color: #6c757d;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #6c757d;
+  --bs-btn-active-border-color: #6c757d;
+  --bs-btn-disabled-color: #adb5bd;
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color: rgba(206, 212, 218, 0.25);
+  --bs-btn-focus-shadow-rgb: 108, 117, 125;
+}
+
+/* Та же история у primary: в Darkly --bs-primary = #375a7f (тёмно-синий), поэтому
+   в тёмной теме плохо читаются и .btn-outline-primary, и иконки/текст с
+   .text-primary. Осветляем ПЕРЕДНИЙ план до светло-синего акцента #6ea8d8 (тот
+   же, что у дерева структуры компании). Сплошной фон .btn-primary/.bg-primary НЕ
+   трогаем — там тёмно-синий с белым текстом читается нормально. */
+.btn-outline-primary {
+  --bs-btn-color: #6ea8d8;
+  --bs-btn-border-color: rgba(110, 168, 216, 0.55);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #375a7f;
+  --bs-btn-hover-border-color: #375a7f;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #375a7f;
+  --bs-btn-active-border-color: #375a7f;
+  --bs-btn-disabled-color: #6ea8d8;
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color: rgba(110, 168, 216, 0.3);
+  --bs-btn-focus-shadow-rgb: 110, 168, 216;
+}
+
+/* Иконки и текст в primary-цвете (как фикс .text-secondary выше) — к читаемому
+   светло-синему. Только тёмная тема, светлой не касается. */
+.text-primary {
+  color: #6ea8d8 !important;
 }
 
 /* Дерево структуры компании: цвета под тёмную тему (этот файл грузится только

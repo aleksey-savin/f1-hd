@@ -25,14 +25,7 @@ const AiSpeechBadge = ({ status, className = "" }) => {
     );
   }
 
-  if (status === "error") {
-    return (
-      <Badge bg="danger" className={className}>
-        Ошибка обработки ИИ
-      </Badge>
-    );
-  }
-
+  // Ошибку намеренно не показываем (засоряет интерфейс) — её видно в логе заявки.
   return null;
 };
 

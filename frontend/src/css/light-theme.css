@@ -1,6 +1,13 @@
 @import url("light/bootstrap.css");
 @import url("./table.css");
 
+/* Явно объявляем светлую схему: нативные контролы (<select>, скроллбары) остаются
+   светлыми, даже если ОС в тёмном режиме (зеркально к color-scheme: dark в
+   dark-theme.css). */
+:root {
+  color-scheme: light;
+}
+
 #root {
     background-color: #ecf0f1;
 }

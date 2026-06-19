@@ -95,6 +95,16 @@ img {
   margin-top: -0.25rem;
 }
 
+/* Кнопки/бейджи с flex-вёрсткой (d-flex/d-inline-flex + align-items-center) уже
+   центрируют иконку по тексту — для них хак -0.25rem выше вреден (задирает
+   иконку вверх). Возвращаем margin в ноль именно для flex-вариантов. */
+.btn.d-flex svg,
+.btn.d-inline-flex svg,
+.badge.d-flex svg,
+.badge.d-inline-flex svg {
+  margin-top: 0;
+}
+
 h1 svg {
   margin-top: -0.45rem;
 }
@@ -288,6 +298,18 @@ h1 svg {
 .contact-row__value {
   font-weight: 500;
   word-break: break-word;
+}
+
+/* Иконки разделов и контактных плашек на странице компании (во всех вкладках) —
+   фирменным success-цветом: в тёмной теме базовый primary (#375a7f) почти не
+   виден. Скоуп .company-view-tabs (обёртка вокруг <Tabs>) покрывает контент
+   панелей; страницы профиля с теми же классами не затрагиваем. */
+.company-view-tabs .contact-row__icon {
+  background: rgba(var(--bs-success-rgb), 0.12);
+  color: var(--bs-success);
+}
+.company-view-tabs .cap-card-title svg {
+  color: var(--bs-success);
 }
 
 @media (max-width: 575.98px) {
@@ -548,4 +570,223 @@ h1 svg {
 /* Offcanvas деталей подразделения — комфортная ширина для списка сотрудников. */
 .org-subdivision-offcanvas.offcanvas-end {
   --bs-offcanvas-width: min(440px, 92vw);
+}
+
+/* ===== AI-ассистент (Ticket/View → AiAssistant) ===== */
+
+/* Локальные акценты панели: teal (success) → blue (info). Держим в одном scope,
+   как --org-* у дерева структуры, чтобы тёмная тема подхватывалась автоматически
+   через --bs-*-rgb (в Darkly data-bs-theme не выставлен — используем только
+   адаптивные токены, как .account-hero). */
+.ai-assistant {
+  --ai-accent: var(--bs-success);
+  --ai-accent-rgb: var(--bs-success-rgb);
+  --ai-accent-2-rgb: var(--bs-info-rgb);
+  --ai-row-hover: rgba(var(--bs-emphasis-color-rgb), 0.05);
+}
+
+/* Шапка-«личность» панели: мягкий двойной радиальный градиент (teal слева,
+   blue справа) поверх фона карточки — надёжно тёмная в тёмной теме. */
+.ai-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem 1.25rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  border-radius: var(--bs-border-radius-lg);
+  background-color: var(--bs-card-bg);
+  background-image: radial-gradient(
+      120% 140% at 0% 0%,
+      rgba(var(--ai-accent-rgb), 0.16),
+      transparent 55%
+    ),
+    radial-gradient(
+      120% 140% at 100% 0%,
+      rgba(var(--ai-accent-2-rgb), 0.12),
+      transparent 55%
+    );
+  box-shadow: var(--bs-box-shadow-sm);
+  overflow: hidden;
+}
+
+/* Иконка-плашка в тонированном скруглённом квадрате (как .contact-row__icon) */
+.ai-hero__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.85rem;
+  background: rgba(var(--ai-accent-rgb), 0.16);
+  color: var(--ai-accent);
+  font-size: 1.6rem;
+}
+
+.ai-hero__body {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.ai-hero__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.ai-hero__subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: var(--bs-secondary-color);
+}
+
+/* Чип атрибуции: поставщик · модель ИИ */
+.ai-hero__attr {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(var(--bs-emphasis-color-rgb), 0.06);
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.ai-hero__model {
+  font-family: var(--bs-font-monospace);
+  color: var(--bs-body-color);
+}
+
+@media (max-width: 575.98px) {
+  .ai-hero {
+    padding: 1.1rem 1rem;
+  }
+  .ai-hero__attr {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: center;
+  }
+}
+
+/* Секция (Категория / Руководство). Разделитель — только между секциями. */
+.ai-section + .ai-section {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--bs-border-color);
+}
+.ai-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.ai-section__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+.ai-section__label svg {
+  color: var(--ai-accent);
+}
+
+/* Шаг руководства: скруглённая строка с ховером (как .org-tree__row) */
+.ai-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.6rem;
+  transition: background-color 0.15s ease;
+}
+.ai-step:hover {
+  background-color: var(--ai-row-hover);
+}
+.ai-step--done {
+  opacity: 0.65;
+}
+.ai-step .form-check {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+.ai-step .form-check-input {
+  margin-top: 0.18rem;
+  cursor: pointer;
+}
+
+/* Источник из базы знаний: кликабельная строка */
+.ai-source {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.6rem;
+  color: var(--bs-body-color);
+  text-decoration: none;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.ai-source:hover {
+  background-color: var(--ai-row-hover);
+  border-color: var(--bs-border-color);
+  color: var(--bs-body-color);
+}
+.ai-source__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ai-source__ext {
+  flex: 0 0 auto;
+  color: var(--bs-secondary-color);
+}
+
+/* Кольцо прогресса (UI/ProgressRing) */
+.ai-ring {
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+.ai-ring__track {
+  stroke: rgba(var(--bs-emphasis-color-rgb), 0.12);
+}
+.ai-ring__arc {
+  transition: stroke-dashoffset 0.5s ease;
+  stroke-linecap: round;
+}
+.ai-ring__label {
+  fill: var(--bs-body-color);
+  font-weight: 600;
+}
+
+/* Спокойная пульсация плашки в состоянии загрузки (без shimmer) */
+@media (prefers-reduced-motion: no-preference) {
+  .ai-pulse {
+    animation: ai-pulse 1.6s ease-in-out infinite;
+  }
+}
+@keyframes ai-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
 }

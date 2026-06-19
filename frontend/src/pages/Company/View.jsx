@@ -5,12 +5,13 @@ import { getLocalStorageData } from "../../util/auth";
 import ViewCompany from "../../components/Company/View";
 
 const ViewCompanyPage = () => {
-  const { company, servicePlans, servicePlansList } = useLoaderData();
+  const { company, servicePlans, servicePlansList, stats } = useLoaderData();
   return (
     <ViewCompany
       company={company}
       servicePlans={servicePlans}
       servicePlansList={servicePlansList}
+      stats={stats}
     />
   );
 };
@@ -24,9 +25,11 @@ export async function loader({ params }) {
     Authorization: "Bearer " + token,
   };
 
-  // These three requests are independent of one another, so fire them in
+  // These requests are independent of one another, so fire them in
   // parallel instead of awaiting each in sequence.
-  const [userResponse, companyResponse, initialPrefsResponse] =
+  // Статистика — второстепенная: её сбой не должен ронять страницу, поэтому
+  // запрос самодостаточно резолвится в распарсенный объект или null.
+  const [userResponse, companyResponse, initialPrefsResponse, stats] =
     await Promise.all([
       fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`, {
         headers,
@@ -37,6 +40,11 @@ export async function loader({ params }) {
       fetch(`${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`, {
         headers,
       }),
+      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/companies/${params.id}/stats`, {
+        headers,
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .catch(() => null),
     ]);
 
   const user = await userResponse.json();
@@ -120,6 +128,7 @@ export async function loader({ params }) {
     company: companyData.company,
     servicePlans: companyData.servicePlans,
     servicePlansList: servicePlansData,
+    stats,
   };
 }
 

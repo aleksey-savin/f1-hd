@@ -57,9 +57,10 @@ const buildCategoryPrompt = ({
     "Тебе передают заявку (тема, описание) и список категорий-кандидатов, у каждой — id, название и описание.",
     "Выбери ОДНУ категорию, которая лучше всего подходит к заявке, опираясь прежде всего на ОПИСАНИЕ категории (description), а название используй как подсказку.",
     "Если ни одна категория не подходит уверенно — верни categoryId со значением null. Не угадывай и не выдумывай категории вне списка.",
+    "Также всегда возвращай closest — массив id до 3 наиболее близких по смыслу категорий, отсортированных по убыванию релевантности. Если categoryId определён — это следующие по близости варианты; если categoryId = null — самые близкие из возможных (чтобы человек мог выбрать вручную).",
     "Отвечай СТРОГО в формате JSON без какого-либо текста вокруг:",
-    '{ "categoryId": "<id выбранной категории или null>", "reason": "краткое обоснование на русском" }',
-    "categoryId должен быть либо ровно одним из id переданных категорий, либо null.",
+    '{ "categoryId": "<id выбранной категории или null>", "closest": ["<id>", "<id>", "<id>"], "reason": "краткое обоснование на русском" }',
+    "categoryId и все значения closest должны быть только из id переданных категорий (categoryId может быть null).",
   ].join("\n");
 
   const user = JSON.stringify({ ticket: { title, description }, categories });
@@ -293,6 +294,7 @@ exports.detectTicketCategory = async (ticketId) => {
       await logAiTicketEvent(
         ticketId,
         "ИИ не нашёл подходящую категорию для заявки",
+        "warning",
       );
       return null;
     }
@@ -303,7 +305,7 @@ exports.detectTicketCategory = async (ticketId) => {
     });
     await logAiTicketEvent(
       ticketId,
-      `ИИ определил категорию заявки: «${match.title}»`,
+      `определил категорию заявки: «${match.title}»`,
     );
 
     logger.log("info", "Telegram ticket category detected", {

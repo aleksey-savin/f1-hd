@@ -765,6 +765,29 @@ exports.regenerateAiGuide = async (req, res, next) => {
   }
 };
 
+// Подбор категории заявки ИИ по запросу пользователя. Использует ту же логику, что
+// и фоновое автоопределение (detectTicketCategory), но синхронно возвращает результат
+// для обратной связи в интерфейсе: назначенную категорию либо ближайшие кандидаты.
+exports.detectCategory = async (req, res, next) => {
+  try {
+    const { _id } = req.body;
+
+    const ticket = await Ticket.findById(_id).select("_id");
+    if (!ticket) {
+      return next(new AppError(`Ticket not found`, 404, true));
+    }
+
+    const result = await detectTicketCategory(_id);
+
+    res.status(200).json({
+      message: "Category detection finished",
+      result,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to detect ticket category`, 500, true, error));
+  }
+};
+
 exports.toggleAiGuideItem = async (req, res, next) => {
   try {
     const { _id, index, done } = req.body;
@@ -1204,7 +1227,7 @@ exports.updateDeadline = async (req, res, next) => {
         firstName: authData.firstName,
         lastName: authData.lastName,
       },
-      severity: "info",
+      severity: "warning",
       event: "обновлён дедлайн заявки",
     });
     await logEntry.save();

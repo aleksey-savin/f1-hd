@@ -106,6 +106,12 @@ router.post(
   ticketController.toggleAiGuideItem,
 );
 router.post(
+  "/tickets/ai-category/detect",
+  isAuth,
+  canPerformTickets,
+  ticketController.detectCategory,
+);
+router.post(
   "/tickets/:ticketNum/attachments/speech-to-text",
   isAuth,
   canPerformTickets,
