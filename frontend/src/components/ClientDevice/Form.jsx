@@ -34,6 +34,7 @@ import ComponentsFields from "./ComponentsFields";
 import ModelChainFields from "./ModelChainFields";
 import SelectWithAdd from "./SelectWithAdd";
 import DeviceSummary from "./DeviceSummary";
+import useAssignableUsers, { userOptionLabel } from "./useAssignableUsers";
 
 const STATUS_OPTIONS = [
   { value: "readyForDeployment", label: "Готово к выдаче" },
@@ -183,7 +184,6 @@ const ClientDeviceForm = ({ title }) => {
 
   const [companies, setCompanies] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [users, setUsers] = useState([]);
   const [deviceTypes, setDeviceTypes] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [deviceModels, setDeviceModels] = useState([]);
@@ -198,6 +198,15 @@ const ClientDeviceForm = ({ title }) => {
 
   const setField = (name, value) =>
     setForm((prev) => ({ ...prev, [name]: value }));
+
+  // Кандидаты на пользователя по правилам расположения (рабочее место →
+  // назначенный сотрудник; подразделение → его сотрудники + руководитель;
+  // иначе — вся компания).
+  const {
+    users: assignableUsers,
+    defaultUserId: assignDefaultUserId,
+    single: assignSingle,
+  } = useAssignableUsers(form.locationId, form.companyId);
 
   // Загрузка справочников (расположения грузим отдельно — они зависят от компании).
   useEffect(() => {
@@ -267,37 +276,6 @@ const ClientDeviceForm = ({ title }) => {
     };
 
     fetchLocations();
-  }, [form.companyId]);
-
-  // Пользователи выбранной компании (для статуса «Выдано»). Фильтр по компании —
-  // как в LocationFormFields: назначаемый пользователь должен быть из неё.
-  useEffect(() => {
-    if (!form.companyId) {
-      setUsers([]);
-      return;
-    }
-
-    const fetchUsers = async () => {
-      const { token } = getLocalStorageData();
-      const headers = { Authorization: "Bearer " + token };
-      const base = import.meta.env.VITE_API_ADDRESS;
-
-      try {
-        const response = await fetch(`${base}/api/users?activeOnly=true`, {
-          headers,
-        });
-        const data = await response.json();
-        const list = Array.isArray(data) ? data : data.users || [];
-        setUsers(
-          list.filter((u) => (u.company?._id || u.company) === form.companyId),
-        );
-      } catch (error) {
-        console.error("Error fetching users:", error);
-        setUsers([]);
-      }
-    };
-
-    fetchUsers();
   }, [form.companyId]);
 
   // Конфигурации выбранной модели (заводская сборка). Без модели — список пуст.
@@ -464,12 +442,27 @@ const ClientDeviceForm = ({ title }) => {
 
   const userOptions = useMemo(
     () =>
-      users.map((u) => ({
+      assignableUsers.map((u) => ({
         value: u._id,
-        label: `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email,
+        label: userOptionLabel(u),
       })),
-    [users],
+    [assignableUsers],
   );
+
+  // Статус «Выдано»: если текущий выбор не из списка кандидатов — ставим дефолт
+  // (назначенный сотрудник рабочего места / руководитель подразделения). Пока
+  // список не загружен (пуст), ничего не трогаем — иначе на редактировании
+  // затрём уже сохранённого пользователя во время асинхронной загрузки.
+  useEffect(() => {
+    if (form.status !== "deployed") return;
+    if (assignableUsers.length === 0) return;
+    setForm((prev) => {
+      const ids = new Set(assignableUsers.map((u) => u._id));
+      if (prev.userId && ids.has(prev.userId)) return prev;
+      const next = assignSingle ? assignableUsers[0]._id : assignDefaultUserId || "";
+      return next === prev.userId ? prev : { ...prev, userId: next };
+    });
+  }, [assignableUsers, assignDefaultUserId, assignSingle, form.status]);
 
   // Типы-комплектующие (isComponent). Если у типа задан attachableToTypeIds,
   // показываем его только для подходящего родительского типа; пустой список —
@@ -959,7 +952,7 @@ const ClientDeviceForm = ({ title }) => {
             deviceModels={deviceModels}
             suppliers={suppliers}
             configurations={configurations}
-            users={users}
+            users={assignableUsers}
           />
         </Col>
       </Row>

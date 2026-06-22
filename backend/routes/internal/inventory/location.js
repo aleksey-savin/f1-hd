@@ -32,6 +32,13 @@ router.get(
   locationController.getLocationDevices,
 );
 
+// Get assignable users for a location (правила привязки устройства к пользователю)
+router.get(
+  "/locations/:id/assignable-users",
+  isAuth,
+  locationController.getAssignableUsers,
+);
+
 // Get single location
 router.get("/locations/:id", isAuth, locationController.getOne);
 

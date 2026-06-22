@@ -391,6 +391,100 @@ exports.update = async (req, res, next) => {
   }
 };
 
+// Кандидаты на привязку устройства к пользователю по правилам расположения:
+//  • рабочее место с назначенным сотрудником → только он (и по умолчанию);
+//  • есть подразделение → только его сотрудники, руководитель по умолчанию и с
+//    пометкой isSubdivisionManager;
+//  • иначе → все активные пользователи компании.
+exports.getAssignableUsers = async (req, res, next) => {
+  try {
+    const location = await Location.findById(req.params.id)
+      .populate("assignedUser", "firstName lastName email")
+      .populate({ path: "subdivision", select: "name manager users" });
+
+    if (!location) {
+      return next(
+        new AppError(`Location with id ${req.params.id} not found`, 404),
+      );
+    }
+
+    const toDTO = (u, isManager = false) => ({
+      _id: u._id,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      email: u.email,
+      isSubdivisionManager: isManager,
+    });
+
+    // 1) Рабочее место с назначенным сотрудником → только он.
+    if (location.type === "workplace" && location.assignedUser) {
+      const u = location.assignedUser;
+      return res.status(200).json({
+        users: [toDTO(u)],
+        defaultUserId: u._id,
+        single: true,
+      });
+    }
+
+    // 2) Есть подразделение → его сотрудники, руководитель по умолчанию.
+    if (location.subdivision) {
+      const sub = location.subdivision;
+      const managerId = sub.manager ? sub.manager.toString() : null;
+
+      // Состав: по полю user.subdivision ИЛИ из массива sub.users, плюс сам
+      // руководитель (мог не числиться в составе). Только активные.
+      const extraIds = new Set((sub.users || []).map((id) => id.toString()));
+      if (managerId) extraIds.add(managerId);
+
+      const employees = await User.find({
+        isActive: true,
+        $or: [{ subdivision: sub._id }, { _id: { $in: Array.from(extraIds) } }],
+      }).select("firstName lastName email");
+
+      const seen = new Set();
+      const users = [];
+      for (const u of employees) {
+        const id = u._id.toString();
+        if (seen.has(id)) continue;
+        seen.add(id);
+        users.push(toDTO(u, id === managerId));
+      }
+      // руководителя — первым в списке
+      users.sort(
+        (a, b) =>
+          (b.isSubdivisionManager ? 1 : 0) - (a.isSubdivisionManager ? 1 : 0),
+      );
+
+      return res.status(200).json({
+        users,
+        defaultUserId: managerId,
+        single: false,
+      });
+    }
+
+    // 3) Без подразделения → все активные пользователи компании.
+    const companyUsers = await User.find({
+      isActive: true,
+      "company._id": location.company,
+    }).select("firstName lastName email");
+
+    return res.status(200).json({
+      users: companyUsers.map((u) => toDTO(u)),
+      defaultUserId: null,
+      single: false,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch assignable users for location ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
 // Soft delete location
 exports.delete = async (req, res, next) => {
   try {

@@ -10,20 +10,25 @@ import { RiUserAddLine } from "react-icons/ri";
 import Select from "../../UI/Select";
 import AlertMessage from "../../UI/AlertMessage";
 import { getLocalStorageData } from "../../util/auth";
+import useAssignableUsers, { userOptionLabel } from "./useAssignableUsers";
 
 const refId = (value) => value?._id || value || "";
 
-// Модал привязки/смены/снятия пользователя устройства. Отдельный лёгкий экшен
-// (бэкенд: POST /client-devices/:id/assign-user) — не трогает прочие поля и сам
-// переводит статус в «Выдано» (снятие — обратно в «Готово к выдаче»).
+// Модал привязки/смены/снятия пользователя устройства. Кандидаты и пользователь
+// по умолчанию — по правилам расположения (хук useAssignableUsers). Отдельный
+// лёгкий экшен (бэкенд: POST /client-devices/:id/assign-user) — не трогает прочие
+// поля и сам переводит статус в «Выдано» (снятие — обратно в «Готово к выдаче»).
 const AssignUserModal = ({ show, onHide, device, onAssigned }) => {
   const companyId = refId(device?.companyId);
-  const [users, setUsers] = useState([]);
+  const { users, defaultUserId, single } = useAssignableUsers(
+    refId(device?.locationId),
+    companyId,
+  );
   const [userId, setUserId] = useState(refId(device?.userId));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Под текущее устройство при каждом открытии.
+  // На открытии — берём текущего пользователя устройства.
   useEffect(() => {
     if (show) {
       setUserId(refId(device?.userId));
@@ -31,34 +36,19 @@ const AssignUserModal = ({ show, onHide, device, onAssigned }) => {
     }
   }, [show, device]);
 
-  // Пользователи компании устройства (фильтр по компании — как в форме).
+  // Когда кандидаты загрузились и выбор пуст — ставим дефолт по правилам
+  // (назначенный сотрудник рабочего места / руководитель подразделения).
   useEffect(() => {
-    if (!show || !companyId) return;
-
-    const fetchUsers = async () => {
-      const { token } = getLocalStorageData();
-      const base = import.meta.env.VITE_API_ADDRESS;
-      try {
-        const response = await fetch(`${base}/api/users?activeOnly=true`, {
-          headers: { Authorization: "Bearer " + token },
-        });
-        const data = await response.json();
-        const list = Array.isArray(data) ? data : data.users || [];
-        setUsers(
-          list.filter((u) => (u.company?._id || u.company) === companyId),
-        );
-      } catch (err) {
-        console.error("Error fetching users:", err);
-        setUsers([]);
-      }
-    };
-
-    fetchUsers();
-  }, [show, companyId]);
+    if (!show) return;
+    setUserId((prev) => {
+      if (prev) return prev;
+      return single && users[0] ? users[0]._id : defaultUserId || "";
+    });
+  }, [show, users, defaultUserId, single]);
 
   const userOptions = users.map((u) => ({
     value: u._id,
-    label: `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email,
+    label: userOptionLabel(u),
   }));
   const selected = userOptions.find((o) => o.value === userId) || null;
 
@@ -114,10 +104,11 @@ const AssignUserModal = ({ show, onHide, device, onAssigned }) => {
             isClearable
             isSearchable
             isDisabled={saving || !companyId}
-            noOptionsMessage={() => "Нет пользователей в компании"}
+            noOptionsMessage={() => "Нет подходящих пользователей"}
           />
           <Form.Text className="text-muted">
-            Назначение переведёт статус устройства в «Выдано».
+            Список и пользователь по умолчанию зависят от расположения устройства.
+            Назначение переведёт статус в «Выдано».
           </Form.Text>
         </Form.Group>
       </Modal.Body>

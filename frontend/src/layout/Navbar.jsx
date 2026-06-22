@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from "react";
 import { NavLink } from "react-router";
 import { AuthedUserContext } from "../store/authed-user-context";
-import useInitialPrefs from "../store/prefs";
+
 import { getLocalStorageData } from "../util/auth";
 import Logout from "../components/Auth/Logout";
 
@@ -13,61 +13,18 @@ import NavDropdown from "react-bootstrap/NavDropdown";
 import Offcanvas from "react-bootstrap/Offcanvas";
 
 // Icons
-import {
-  RiAccountBoxLine,
-  RiServerLine,
-  RiBuilding2Line,
-  RiSettings3Line,
-  RiDraftLine,
-  RiArchiveLine,
-  RiUserLine,
-  RiUserSettingsLine,
-  RiFileList2Line,
-  RiDashboard2Line,
-  RiCalendar2Line,
-  RiCoinLine,
-  RiServiceLine,
-  RiDeviceLine,
-  RiTeamLine,
-  RiContactsLine,
-  RiMapPinLine,
-  RiListSettingsLine,
-  RiBookOpenLine,
-} from "react-icons/ri";
-import { GoProjectTemplate } from "react-icons/go";
+import { RiUserLine, RiUserSettingsLine } from "react-icons/ri";
+
 import { MdOutlineDarkMode, MdLightMode, MdComputer } from "react-icons/md";
-import { FaNetworkWired } from "react-icons/fa";
-import { IoHardwareChipOutline } from "react-icons/io5";
-import { TbCheckbox } from "react-icons/tb";
-import { BiCategory } from "react-icons/bi";
-import { HiOutlineBuildingOffice2 } from "react-icons/hi2";
+
+import EndUserNavs from "./Navigation/EndUser";
+import EmployeeNavs from "./Navigation/Employee";
 
 // Dropdown Title Components
 const DropdownTitles = {
   User: ({ firstName, lastName }) => (
     <span>
       <RiUserLine /> {`${firstName} ${lastName}`}
-    </span>
-  ),
-
-  Reports: () => (
-    <span>
-      <RiDraftLine /> Отчёты
-    </span>
-  ),
-  Finances: () => (
-    <span>
-      <RiCoinLine /> Финансы
-    </span>
-  ),
-  Templates: () => (
-    <span>
-      <GoProjectTemplate /> Шаблоны
-    </span>
-  ),
-  Inventory: () => (
-    <span>
-      <IoHardwareChipOutline /> Оборудование
     </span>
   ),
 };
@@ -107,6 +64,8 @@ const ThemeSelector = ({ theme, isDark, handleThemeChange }) => (
 );
 
 const NavigationBar = ({ handleShowAuthModal }) => {
+  const { token } = getLocalStorageData();
+
   // State and Context
   const [showOffcanvas, setShowOffcanvas] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem("theme") || "system");
@@ -114,34 +73,8 @@ const NavigationBar = ({ handleShowAuthModal }) => {
     localStorage.getItem("darkMode") === "true",
   );
 
-  const { token } = getLocalStorageData();
-  const { modules } = useInitialPrefs();
-  const {
-    isAdmin,
-    firstName,
-    lastName,
-    dashboard,
-    permissions = {},
-  } = useContext(AuthedUserContext);
+  const { firstName, lastName, isEndUser } = useContext(AuthedUserContext);
   const isLoggedIn = !!token;
-
-  const {
-    canManageTicketCategories,
-    canManageCompanies,
-    canManageUsers,
-    canManageRoutineTasks,
-    canSeeWorksReport,
-    canSeeAnalytics,
-    canUseTimeTrackingModule,
-    canUseInventoryModule,
-    canManageMikrotikDevices,
-    canManageClientDevices,
-    canUseFinancesModule,
-    canSeeGlobalFinancialReport,
-    canSeePersonalFinancialReport,
-    canManageServicePlans,
-    canPerformTickets,
-  } = permissions;
 
   // Event Handlers
   const handleClose = () => setShowOffcanvas(false);
@@ -170,6 +103,8 @@ const NavigationBar = ({ handleShowAuthModal }) => {
     localStorage.setItem("darkMode", newIsDark);
     window.location.reload();
   };
+
+  console.log(isEndUser);
 
   // System Theme Effect
   useEffect(() => {
@@ -226,294 +161,16 @@ const NavigationBar = ({ handleShowAuthModal }) => {
             <Nav className="justify-content-start flex-grow-1 pe-3">
               {isLoggedIn && (
                 <>
-                  {/* Main Navigation Items */}
-                  <Nav.Link
-                    hidden={!dashboard?.isActive}
-                    as={NavLink}
-                    to="/dashboard"
-                    onClick={handleClose}
-                  >
-                    <RiDashboard2Line /> Dashboard
-                  </Nav.Link>
-
-                  <Nav.Link as={NavLink} to="/tickets" onClick={handleClose}>
-                    <TbCheckbox /> Заявки
-                  </Nav.Link>
-
-                  {modules.knowledgeBase.isActive &&
-                    permissions.canSeeKnowledgeBase && (
-                      <Nav.Link
-                        as={NavLink}
-                        to="/knowledge-base"
-                        onClick={handleClose}
-                      >
-                        <RiBookOpenLine /> База знаний
-                      </Nav.Link>
-                    )}
-
-                  {/* Conditional Navigation Items */}
-                  {canPerformTickets && !canManageCompanies && (
-                    <Nav.Link
-                      as={NavLink}
-                      to="/companies"
-                      onClick={handleClose}
-                    >
-                      <RiAccountBoxLine /> Компании
-                    </Nav.Link>
+                  {isEndUser && (
+                    <EndUserNavs setShowOffcanvas={setShowOffcanvas} />
                   )}
-
-                  {canPerformTickets && (
-                    <Nav.Link
-                      as={NavLink}
-                      to="/inventory/client-devices"
-                      onClick={handleClose}
-                    >
-                      <RiDeviceLine /> Устройства
-                    </Nav.Link>
+                  {!isEndUser && (
+                    <EmployeeNavs setShowOffcanvas={setShowOffcanvas} />
                   )}
-
-                  {canPerformTickets && !canManageUsers && (
-                    <Nav.Link as={NavLink} to="/users" onClick={handleClose}>
-                      <RiAccountBoxLine /> Пользователи
-                    </Nav.Link>
-                  )}
-
-                  {/* Templates Dropdown */}
-                  {!canPerformTickets && (
-                    <Nav.Link
-                      as={NavLink}
-                      to="/ticket-templates"
-                      onClick={handleClose}
-                    >
-                      <GoProjectTemplate /> Шаблоны заявок
-                    </Nav.Link>
-                  )}
-
-                  {/* Reports Dropdown */}
-                  {(modules.timeTracking.isActive ||
-                    modules.inventory.isActive) && (
-                    <NavDropdown
-                      hidden={
-                        !canSeeWorksReport &&
-                        !canSeeAnalytics &&
-                        !canManageMikrotikDevices
-                      }
-                      title={<DropdownTitles.Reports />}
-                    >
-                      {canUseTimeTrackingModule &&
-                        modules.timeTracking.isActive && (
-                          <NavDropdown.Item
-                            as={NavLink}
-                            hidden={!canSeeWorksReport}
-                            to="/report/work"
-                            onClick={handleClose}
-                          >
-                            <RiDraftLine /> Отчёт по работам
-                          </NavDropdown.Item>
-                        )}
-                      {canUseTimeTrackingModule &&
-                        modules.timeTracking.isActive && (
-                          <NavDropdown.Item
-                            as={NavLink}
-                            hidden={!canSeeAnalytics}
-                            to="/report/analytics"
-                            onClick={handleClose}
-                          >
-                            <RiBuilding2Line /> Аналитика
-                          </NavDropdown.Item>
-                        )}
-                      {canUseInventoryModule && modules.inventory.isActive && (
-                        <NavDropdown.Item
-                          hidden={!canManageMikrotikDevices}
-                          as={NavLink}
-                          to="/report/networks"
-                          onClick={handleClose}
-                        >
-                          <RiDraftLine /> Диапазоны сетей
-                        </NavDropdown.Item>
-                      )}
-                      <NavDropdown.Divider />
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canSeeGlobalFinancialReport}
-                        to="/finances/summary-report"
-                        onClick={handleClose}
-                      >
-                        <RiDraftLine /> Согласование отчётов
-                      </NavDropdown.Item>
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canSeePersonalFinancialReport}
-                        to="/finances/personal-report"
-                        onClick={handleClose}
-                      >
-                        <RiContactsLine /> Персональный отчёт
-                      </NavDropdown.Item>
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canSeeGlobalFinancialReport}
-                        to="/finances/employee-report"
-                        onClick={handleClose}
-                      >
-                        <RiTeamLine /> Отчёт по сотрудникам
-                      </NavDropdown.Item>
-                    </NavDropdown>
-                  )}
-                  {/* Inventory Dropdown */}
-                  {modules?.inventory.isActive && canUseInventoryModule && (
-                    <NavDropdown title={<DropdownTitles.Inventory />}>
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageClientDevices}
-                        to="/inventory/client-devices"
-                        onClick={handleClose}
-                      >
-                        <RiDeviceLine /> Устройства
-                      </NavDropdown.Item>
-
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageMikrotikDevices}
-                        to="/devices/mikrotik"
-                        onClick={handleClose}
-                      >
-                        <FaNetworkWired /> Управление Mikrotik
-                      </NavDropdown.Item>
-
-                      <NavDropdown.Divider />
-
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageClientDevices}
-                        to="/inventory/locations"
-                        onClick={handleClose}
-                      >
-                        <RiMapPinLine /> Расположения
-                      </NavDropdown.Item>
-
-                      <NavDropdown.Divider />
-
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageClientDevices}
-                        to="/inventory/device-types"
-                        onClick={handleClose}
-                      >
-                        <BiCategory /> Типы устройств
-                      </NavDropdown.Item>
-
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageClientDevices}
-                        to="/inventory/vendors"
-                        onClick={handleClose}
-                      >
-                        <HiOutlineBuildingOffice2 /> Вендоры
-                      </NavDropdown.Item>
-
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageClientDevices}
-                        to="/inventory/device-attributes"
-                        onClick={handleClose}
-                      >
-                        <RiListSettingsLine /> Атрибуты устройств
-                      </NavDropdown.Item>
-
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageClientDevices}
-                        to="/inventory/device-models"
-                        onClick={handleClose}
-                      >
-                        <RiDeviceLine /> Модели устройств
-                      </NavDropdown.Item>
-                    </NavDropdown>
-                  )}
-
-                  {/* Admin Settings */}
-                  {isAdmin && (
-                    <NavDropdown
-                      title={
-                        <span>
-                          <RiSettings3Line /> Администрирование
-                        </span>
-                      }
-                    >
-                      <NavDropdown.Item
-                        as={NavLink}
-                        to="/ticket-templates"
-                        onClick={handleClose}
-                      >
-                        <GoProjectTemplate /> Шаблоны заявок
-                      </NavDropdown.Item>
-                      {canManageRoutineTasks && (
-                        <NavDropdown.Item
-                          as={NavLink}
-                          hidden={!canManageRoutineTasks}
-                          to="/routine-tasks"
-                          onClick={handleClose}
-                        >
-                          <RiCalendar2Line /> Регламентные задания
-                        </NavDropdown.Item>
-                      )}
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageTicketCategories}
-                        to="/ticket-categories"
-                        onClick={handleClose}
-                      >
-                        <RiServerLine /> Категории заявок
-                      </NavDropdown.Item>
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageCompanies}
-                        to="/companies"
-                        onClick={handleClose}
-                      >
-                        <RiBuilding2Line /> Компании
-                      </NavDropdown.Item>
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageUsers && !isAdmin}
-                        to="/users"
-                        onClick={handleClose}
-                      >
-                        <RiAccountBoxLine /> Пользователи
-                      </NavDropdown.Item>
-
-                      <NavDropdown.Divider />
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageServicePlans}
-                        to="/finances/service-plans"
-                        onClick={handleClose}
-                      >
-                        <RiServiceLine /> Услуги
-                      </NavDropdown.Item>
-                      <NavDropdown.Divider />
-                      <NavDropdown.Item
-                        as={NavLink}
-                        to="/preferences"
-                        onClick={handleClose}
-                      >
-                        <RiSettings3Line /> Настройки системы
-                      </NavDropdown.Item>
-                    </NavDropdown>
-                  )}
-
-                  <Nav.Link
-                    as={NavLink}
-                    to="/closed-tickets"
-                    onClick={handleClose}
-                  >
-                    <RiArchiveLine /> Архив заявок
-                  </Nav.Link>
                 </>
               )}
             </Nav>
 
-            {/* User Navigation */}
             <Nav>
               {isLoggedIn && (
                 <>
