@@ -12,6 +12,24 @@ const clientDeviceSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "DeviceModel",
     },
+    // Прямой тип устройства — для самосборной техники без модели/вендора
+    // (для брендовых устройств тип берётся из deviceModelId).
+    deviceTypeId: {
+      type: Schema.Types.ObjectId,
+      ref: "DeviceType",
+    },
+    // Родительская сборка — для комплектующих (системник → CPU/ОЗУ/…).
+    // У самостоятельных устройств отсутствует; такие исключаются из общего списка.
+    parentDeviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "ClientDevice",
+    },
+    // Количество (для комплектующих: напр. 2×16 ГБ ОЗУ).
+    quantity: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
     companyId: {
       type: Schema.Types.ObjectId,
       ref: "Company",
@@ -28,10 +46,10 @@ const clientDeviceSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Location",
     },
+    // Серийный номер опционален: у самосборной техники его нет. Уникальность
+    // обеспечивает партиал-индекс ниже (только для реально заданных строк).
     serialNumber: {
       type: String,
-      unique: true,
-      required: true,
       trim: true,
     },
     // Purchase and warranty information
@@ -166,6 +184,26 @@ const clientDeviceSchema = new Schema(
     versionKey: "__v",
   },
 );
+
+// Партиал-уникальные индексы: ограничение действует только для документов, где
+// поле реально присутствует строкой. Отсутствующие (unset) значения в индекс не
+// попадают, поэтому много активов без серийника/инв.номера сосуществуют.
+clientDeviceSchema.index(
+  { serialNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { serialNumber: { $type: "string" } },
+  },
+);
+clientDeviceSchema.index(
+  { inventoryNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { inventoryNumber: { $type: "string" } },
+  },
+);
+// Быстрая выборка комплектующих сборки.
+clientDeviceSchema.index({ parentDeviceId: 1 });
 
 const ClientDevice = mongoose.model("ClientDevice", clientDeviceSchema);
 

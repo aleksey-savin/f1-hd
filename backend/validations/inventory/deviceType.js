@@ -36,6 +36,11 @@ const deviceTypeValidation = [
   body("isConsumable")
     .isBoolean()
     .withMessage("Поле isConsumable должно быть булевым значением"),
+  body("inventoryPrefix")
+    .optional({ checkFalsy: true })
+    .isLength({ max: 12 })
+    .withMessage("Префикс не должен превышать 12 символов")
+    .trim(),
 ];
 
 module.exports = {

@@ -1,18 +1,23 @@
 import { useEffect } from "react";
 import { redirect, useLocation } from "react-router";
 
+import { BrowserView } from "react-device-detect";
+
 import { getLocalStorageData } from "../../util/auth";
 
 import { RiServerLine } from "react-icons/ri";
 
 import List from "../../components/ClientDevice/List";
+import ClientDeviceFilter from "../../components/ClientDevice/Filter";
 import useClientDeviceFilterStore from "../../store/lists/client-devices";
+import useSidebarStore from "../../store/sidebar";
 
 import ListWrapper from "../../UI/ListWrapper";
 
 const ClientDevices = () => {
   const location = useLocation();
   const filterStore = useClientDeviceFilterStore();
+  const { setLeftSidebarContent } = useSidebarStore();
 
   useEffect(() => {
     filterStore.applyFilter();
@@ -21,6 +26,15 @@ const ClientDevices = () => {
   useEffect(() => {
     filterStore.fetch();
   }, [location]);
+
+  // Десктоп: фильтр в левый сайдбар (мобайл — через проп filter в ListWrapper)
+  useEffect(() => {
+    setLeftSidebarContent(
+      <BrowserView>
+        <ClientDeviceFilter />
+      </BrowserView>,
+    );
+  }, [setLeftSidebarContent, filterStore.originalList]);
 
   const title = () => {
     return (
@@ -34,6 +48,7 @@ const ClientDevices = () => {
     <>
       <ListWrapper
         title={title}
+        filter={<ClientDeviceFilter />}
         filterStore={filterStore}
         addRoute="/inventory/client-devices/add"
       >

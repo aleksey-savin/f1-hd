@@ -6,6 +6,8 @@ import Col from "react-bootstrap/Col";
 import Card from "react-bootstrap/Card";
 import Button from "react-bootstrap/Button";
 import Stack from "react-bootstrap/Stack";
+import ButtonGroup from "react-bootstrap/ButtonGroup";
+import ToggleButton from "react-bootstrap/ToggleButton";
 import Container from "react-bootstrap/Container";
 import Spinner from "react-bootstrap/Spinner";
 
@@ -17,7 +19,6 @@ import {
   RiArrowRightLine,
   RiSaveLine,
   RiArrowGoBackFill,
-  RiAddLine,
 } from "react-icons/ri";
 
 import Select from "../../UI/Select";
@@ -29,6 +30,10 @@ import WizardStepper from "./WizardStepper";
 import PurchaseFields from "./PurchaseFields";
 import TechFields from "./TechFields";
 import InlineCreateModal from "./InlineCreateModal";
+import ComponentsFields from "./ComponentsFields";
+import ModelChainFields from "./ModelChainFields";
+import SelectWithAdd from "./SelectWithAdd";
+import DeviceSummary from "./DeviceSummary";
 
 const STATUS_OPTIONS = [
   { value: "readyForDeployment", label: "Готово к выдаче" },
@@ -49,12 +54,15 @@ const STEPS = [
 const LAST_STEP = STEPS.length - 1;
 const PURCHASE_STEP = 2;
 
-// Поля устройства, отправляемые на сервер (тип/вендор — только навигация).
+// Поля устройства, отправляемые на сервер. Вендор — только навигация (нужен для
+// выбора модели); тип отправляется для самосборных устройств без модели.
 const SUBMIT_FIELDS = [
   "companyId",
   "locationId",
   "deviceModelId",
+  "deviceTypeId",
   "serialNumber",
+  "inventoryNumber",
   "status",
   "purchasedAt",
   "price",
@@ -68,9 +76,14 @@ const SUBMIT_FIELDS = [
   "notes",
 ];
 
-const STEP_ERRORS = {
-  0: "Выберите компанию",
-  1: "Заполните тип, вендора, модель и серийный номер",
+// Сообщение об ошибке шага зависит от вида устройства (custom требует только тип).
+const stepError = (index, deviceKind) => {
+  if (index === 0) return "Выберите компанию";
+  if (index === 1)
+    return deviceKind === "custom"
+      ? "Выберите тип устройства"
+      : "Заполните тип, вендора и модель";
+  return null;
 };
 
 // ISO date -> "yyyy-MM-dd" для <input type="date">.
@@ -91,23 +104,6 @@ const stepVariants = {
   exit: { opacity: 0, x: -40 },
 };
 
-// Select с кнопкой быстрого создания справочника рядом.
-const SelectWithAdd = ({ addTitle, onAdd, addDisabled, ...selectProps }) => (
-  <div className="d-flex gap-2">
-    <div className="flex-grow-1">
-      <Select {...selectProps} />
-    </div>
-    <Button
-      variant="outline-secondary"
-      title={addTitle}
-      onClick={onAdd}
-      disabled={addDisabled}
-    >
-      <RiAddLine />
-    </Button>
-  </div>
-);
-
 const ClientDeviceForm = ({ title }) => {
   const data = useLoaderData();
   const isEdit = !!data?._id;
@@ -119,10 +115,12 @@ const ClientDeviceForm = ({ title }) => {
   const [form, setForm] = useState({
     companyId: refId(data?.companyId),
     locationId: refId(data?.locationId),
-    deviceTypeId: refId(data?.deviceModelId?.deviceTypeId),
+    deviceTypeId:
+      refId(data?.deviceModelId?.deviceTypeId) || refId(data?.deviceTypeId),
     vendorId: refId(data?.deviceModelId?.vendorId),
     deviceModelId: refId(data?.deviceModelId),
     serialNumber: data?.serialNumber || "",
+    inventoryNumber: data?.inventoryNumber || "",
     status: data?.status || "readyForDeployment",
     purchasedAt: toDateInput(data?.purchasedAt),
     price: data?.price ?? "",
@@ -135,6 +133,42 @@ const ClientDeviceForm = ({ title }) => {
     operatingSystem: data?.operatingSystem || "",
     notes: data?.notes || "",
   });
+
+  // Вид устройства: "branded" (тип+вендор+модель) или "custom" (самосборка —
+  // только тип). На редактировании выводим из наличия модели/типа.
+  const [deviceKind, setDeviceKind] = useState(
+    data?.deviceModelId ? "branded" : data?.deviceTypeId ? "custom" : "branded",
+  );
+
+  // Комплектующие сборки (дочерние устройства). _orig хранит исходный объект,
+  // чтобы при обновлении не затереть служебные поля (инв.номер, статус и т.п.).
+  const [components, setComponents] = useState(
+    (data?.components || []).map((c) => ({
+      _id: c._id,
+      _orig: c,
+      // тип/вендор — из модели (брендовая деталь) либо из прямого типа (безымянная)
+      deviceTypeId:
+        c.deviceModelId?.deviceTypeId?._id ||
+        c.deviceModelId?.deviceTypeId ||
+        c.deviceTypeId?._id ||
+        c.deviceTypeId ||
+        "",
+      vendorId:
+        c.deviceModelId?.vendorId?._id || c.deviceModelId?.vendorId || "",
+      deviceModelId: c.deviceModelId?._id || c.deviceModelId || "",
+      serialNumber: c.serialNumber || "",
+      quantity: c.quantity ?? 1,
+      purchasedAt: c.purchasedAt ? toDateInput(c.purchasedAt) : "",
+      price: c.price ?? "",
+      purchaseDocument: c.purchaseDocument || "",
+      supplierId: c.supplierId?._id || c.supplierId || "",
+      warrantyExpirationDate: c.warrantyExpirationDate
+        ? toDateInput(c.warrantyExpirationDate)
+        : "",
+    })),
+  );
+  // Страхует от повторного запуска финализации (синхронизации компонентов).
+  const [finalizing, setFinalizing] = useState(false);
 
   const [companies, setCompanies] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -222,12 +256,95 @@ const ClientDeviceForm = ({ title }) => {
     fetchLocations();
   }, [form.companyId]);
 
-  // Успешный сабмит — закрываем offcanvas и возвращаемся к списку.
+  // Тело запроса для компонента: связка модели + серийник + кол-во + блок
+  // закупки/гарантии (всё из строки). Компания берётся от родителя. Для
+  // существующего компонента сохраняем служебные поля из _orig (инв.номер,
+  // статус, локацию/пользователя) — иначе update затрёт их undefined-ом.
+  const buildComponentBody = (comp, parentId) => {
+    const orig = comp._orig;
+    return {
+      companyId: form.companyId,
+      parentDeviceId: parentId,
+      // модель ИЛИ тип: при выбранной модели тип берётся из неё на сервере
+      deviceModelId: comp.deviceModelId || "",
+      deviceTypeId: comp.deviceModelId ? "" : comp.deviceTypeId || "",
+      serialNumber: comp.serialNumber || "",
+      quantity: comp.quantity || 1,
+      purchasedAt: comp.purchasedAt || "",
+      price: comp.price ?? "",
+      purchaseDocument: comp.purchaseDocument || "",
+      supplierId: comp.supplierId || "",
+      warrantyExpirationDate: comp.warrantyExpirationDate || "",
+      inventoryNumber: orig?.inventoryNumber || "",
+      status: orig?.status || "",
+      locationId: refId(orig?.locationId),
+      userId: refId(orig?.userId),
+    };
+  };
+
+  // Синхронизируем комплектующие сборки после сохранения родителя: создаём новые,
+  // обновляем существующие, удаляем убранные. Для branded целевой список пуст —
+  // при переключении вида старые компоненты удаляются.
+  const syncComponents = async (parentId) => {
+    const target = deviceKind === "custom" ? components : [];
+    const original = data?.components || [];
+    const { token } = getLocalStorageData();
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token,
+    };
+    const apiBase = import.meta.env.VITE_API_ADDRESS;
+
+    const targetIds = new Set(target.filter((c) => c._id).map((c) => c._id));
+    for (const orig of original) {
+      if (!targetIds.has(orig._id)) {
+        await fetch(
+          `${apiBase}/api/inventory/client-devices/delete/${orig._id}`,
+          { method: "DELETE", headers },
+        );
+      }
+    }
+
+    for (const comp of target) {
+      // пропускаем незаполненные строки (ни типа, ни модели)
+      if (!comp.deviceTypeId && !comp.deviceModelId) continue;
+      const body = JSON.stringify(buildComponentBody(comp, parentId));
+      if (comp._id) {
+        await fetch(
+          `${apiBase}/api/inventory/client-devices/update/${comp._id}`,
+          { method: "PUT", headers, body },
+        );
+      } else {
+        await fetch(`${apiBase}/api/inventory/client-devices/add`, {
+          method: "POST",
+          headers,
+          body,
+        });
+      }
+    }
+  };
+
+  // Успешный сабмит — синхронизируем комплектующие, затем закрываем offcanvas и
+  // возвращаемся к списку.
   useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.error) return;
+    if (finalizing) return;
+
+    const savedId =
+      fetcher.data?.clientDevice?._id || fetcher.data?.device?._id || data?._id;
+
+    const finalize = async () => {
+      setFinalizing(true);
+      try {
+        if (savedId) await syncComponents(savedId);
+      } catch (error) {
+        console.error("Не удалось сохранить комплектующие:", error);
+      }
       offcanvas.setClose();
       navigate("..");
-    }
+    };
+
+    finalize();
   }, [fetcher.state, fetcher.data]);
 
   // --- options ---
@@ -255,67 +372,51 @@ const ClientDeviceForm = ({ title }) => {
     [deviceTypes],
   );
 
-  // Вендоры показываем все (без фильтра по типу — иначе для нового типа список
-  // всегда пуст). Сужение происходит уже на уровне моделей.
-  const vendorOptions = useMemo(
-    () => vendors.map((v) => ({ value: v._id, label: v.name })),
-    [vendors],
+  // Типы-комплектующие (isComponent). Если у типа задан attachableToTypeIds,
+  // показываем его только для подходящего родительского типа; пустой список —
+  // совместим со всеми.
+  const componentTypes = useMemo(
+    () =>
+      deviceTypes.filter((t) => {
+        if (!t.isComponent) return false;
+        const attachable = t.attachableToTypeIds || [];
+        if (attachable.length === 0) return true;
+        return attachable.some((a) => (a?._id || a) === form.deviceTypeId);
+      }),
+    [deviceTypes, form.deviceTypeId],
   );
-
-  // Модели выбранного типа и вендора. Ссылки могут быть populated ({_id}) или
-  // сырым id (например, у только что созданной инлайн модели).
-  const modelOptions = useMemo(() => {
-    if (!form.deviceTypeId || !form.vendorId) return [];
-    return deviceModels
-      .filter((model) => {
-        const modelTypeId = model.deviceTypeId?._id || model.deviceTypeId;
-        const modelVendorId = model.vendorId?._id || model.vendorId;
-        return (
-          modelTypeId === form.deviceTypeId && modelVendorId === form.vendorId
-        );
-      })
-      .map((model) => ({
-        value: model._id,
-        label: model.name || "— без названия —",
-      }));
-  }, [deviceModels, form.deviceTypeId, form.vendorId]);
-
-  const modelDisabled = !form.deviceTypeId || !form.vendorId;
 
   // --- каскадные сбросы ---
   // Расположение зависит от компании — при смене компании сбрасываем его.
   const handleCompanyChange = (value) =>
     setForm((prev) => ({ ...prev, companyId: value, locationId: "" }));
 
-  // Модель зависит от типа и вендора.
+  // custom-ветка: одиночный select типа (модель там не используется).
   const handleTypeChange = (value) =>
     setForm((prev) => ({ ...prev, deviceTypeId: value, deviceModelId: "" }));
 
-  const handleVendorChange = (value) =>
-    setForm((prev) => ({ ...prev, vendorId: value, deviceModelId: "" }));
+  // При переходе на самосборку чистим вендора и модель (они там бессмысленны).
+  const handleKindChange = (kind) => {
+    setDeviceKind(kind);
+    if (kind === "custom") {
+      setForm((prev) => ({ ...prev, vendorId: "", deviceModelId: "" }));
+    }
+  };
 
   // --- инлайн-создание справочников ---
+  // Тип, созданный из одиночного селекта custom-ветки.
   const handleTypeCreated = (type) => {
     setDeviceTypes((prev) => [...prev, type]);
     setForm((prev) => ({ ...prev, deviceTypeId: type._id, deviceModelId: "" }));
   };
 
-  const handleVendorCreated = (vendor) => {
-    setVendors((prev) => [...prev, vendor]);
-    setForm((prev) => ({ ...prev, vendorId: vendor._id, deviceModelId: "" }));
-  };
-
-  // Модель могла быть создана с другим типом/вендором (полная форма в модалке) —
-  // синхронизируем выбор, чтобы новая модель попала в отфильтрованный список.
-  const handleModelCreated = (model) => {
-    setDeviceModels((prev) => [...prev, model]);
-    setForm((prev) => ({
-      ...prev,
-      deviceTypeId:
-        model.deviceTypeId?._id || model.deviceTypeId || prev.deviceTypeId,
-      vendorId: model.vendorId?._id || model.vendorId || prev.vendorId,
-      deviceModelId: model._id,
-    }));
+  // Новые тип/вендор/модель из ModelChainFields (branded-ветка мастера и карточки
+  // компонентов) — пополняем общие массивы; выбор делает сам ModelChainFields.
+  const handleResourceCreated = (kind, entity) => {
+    if (kind === "deviceType") setDeviceTypes((prev) => [...prev, entity]);
+    else if (kind === "vendor") setVendors((prev) => [...prev, entity]);
+    else if (kind === "deviceModel")
+      setDeviceModels((prev) => [...prev, entity]);
   };
 
   const handleSupplierCreated = (supplier) =>
@@ -332,12 +433,9 @@ const ClientDeviceForm = ({ title }) => {
       case 0:
         return !!form.companyId;
       case 1:
-        return (
-          !!form.deviceTypeId &&
-          !!form.vendorId &&
-          !!form.deviceModelId &&
-          form.serialNumber.trim().length > 0
-        );
+        // Серийник больше не обязателен ни в одной ветке.
+        if (deviceKind === "custom") return !!form.deviceTypeId;
+        return !!form.deviceTypeId && !!form.vendorId && !!form.deviceModelId;
       default:
         return true;
     }
@@ -377,17 +475,20 @@ const ClientDeviceForm = ({ title }) => {
   const saving = fetcher.state !== "idle";
 
   const handleSubmit = () => {
-    const formData = new FormData();
-    SUBMIT_FIELDS.forEach((field) => formData.append(field, form[field] ?? ""));
-    fetcher.submit(formData, { method: "post" });
-  };
+    // Нормализуем поля ветки: custom не шлёт модель, branded — прямой тип
+    // (тип берётся из модели на сервере). Иначе залипшие поля уедут на бэк.
+    const payload = { ...form };
+    if (deviceKind === "custom") {
+      payload.deviceModelId = "";
+    } else {
+      payload.deviceTypeId = "";
+    }
 
-  // Контекст для инлайн-создания модели (тип/вендор уже выбраны).
-  const modelContext = {
-    deviceTypeId: form.deviceTypeId,
-    vendorId: form.vendorId,
-    deviceTypeName: deviceTypes.find((t) => t._id === form.deviceTypeId)?.name,
-    vendorName: vendors.find((v) => v._id === form.vendorId)?.name,
+    const formData = new FormData();
+    SUBMIT_FIELDS.forEach((field) =>
+      formData.append(field, payload[field] ?? ""),
+    );
+    fetcher.submit(formData, { method: "post" });
   };
 
   const renderStep = () => {
@@ -440,11 +541,54 @@ const ClientDeviceForm = ({ title }) => {
         return (
           <Card>
             <Card.Header>
-              <h6 className="mb-0">Тип, вендор и модель</h6>
+              <h6 className="mb-0">Устройство</h6>
             </Card.Header>
             <Card.Body>
-              <Row>
-                <Col md={6}>
+              <ButtonGroup className="mb-3 w-100">
+                <ToggleButton
+                  id="kind-branded"
+                  type="radio"
+                  variant="outline-primary"
+                  name="deviceKind"
+                  value="branded"
+                  checked={deviceKind === "branded"}
+                  onChange={() => handleKindChange("branded")}
+                >
+                  Заводская сборка
+                </ToggleButton>
+                <ToggleButton
+                  id="kind-custom"
+                  type="radio"
+                  variant="outline-primary"
+                  name="deviceKind"
+                  value="custom"
+                  checked={deviceKind === "custom"}
+                  onChange={() => handleKindChange("custom")}
+                >
+                  Кастомная сборка
+                </ToggleButton>
+              </ButtonGroup>
+
+              {deviceKind === "branded" ? (
+                <ModelChainFields
+                  value={{
+                    deviceTypeId: form.deviceTypeId,
+                    vendorId: form.vendorId,
+                    deviceModelId: form.deviceModelId,
+                  }}
+                  onChange={(partial) =>
+                    setForm((prev) => ({ ...prev, ...partial }))
+                  }
+                  deviceTypes={deviceTypes}
+                  vendors={vendors}
+                  deviceModels={deviceModels}
+                  onResourceCreated={handleResourceCreated}
+                  modelRequired
+                  autoFocusType
+                  idPrefix="device"
+                />
+              ) : (
+                <>
                   <Form.Group className="mb-3">
                     <Form.Label htmlFor="deviceTypeId">
                       Тип устройства <span className="text-danger">*</span>
@@ -461,60 +605,36 @@ const ClientDeviceForm = ({ title }) => {
                       onAdd={() => setInlineKind("deviceType")}
                     />
                   </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label htmlFor="vendorId">
-                      Вендор <span className="text-danger">*</span>
-                    </Form.Label>
-                    <SelectWithAdd
-                      id="vendorId"
-                      placeholder="Выберите вендора"
-                      options={vendorOptions}
-                      value={findOption(vendorOptions, form.vendorId)}
-                      onChange={(o) => handleVendorChange(o ? o.value : "")}
-                      isClearable
-                      addTitle="Добавить вендора"
-                      onAdd={() => setInlineKind("vendor")}
-                    />
-                  </Form.Group>
-                </Col>
-              </Row>
-
-              <Form.Group className="mb-3">
-                <Form.Label htmlFor="deviceModelId">
-                  Модель устройства <span className="text-danger">*</span>
-                </Form.Label>
-                <SelectWithAdd
-                  id="deviceModelId"
-                  placeholder={
-                    modelDisabled
-                      ? "Сначала выберите тип и вендора"
-                      : "Выберите модель"
-                  }
-                  options={modelOptions}
-                  value={findOption(modelOptions, form.deviceModelId)}
-                  onChange={(o) => setField("deviceModelId", o ? o.value : "")}
-                  isDisabled={modelDisabled}
-                  isClearable
-                  noOptionsMessage={() =>
-                    "Нет моделей — добавьте кнопкой рядом"
-                  }
-                  addTitle="Добавить модель"
-                  onAdd={() => setInlineKind("deviceModel")}
-                  addDisabled={modelDisabled}
-                />
-                <Form.Text className="text-muted">
-                  Показаны модели выбранного типа и вендора. Нужной нет?
-                  Добавьте её кнопкой рядом.
-                </Form.Text>
-              </Form.Group>
+                  <p className="text-muted small">
+                    Самосборная техника: вендор и модель не указываются.
+                    Идентификатор — инвентарный номер (сгенерируется
+                    автоматически, если оставить поле пустым).
+                  </p>
+                </>
+              )}
 
               <Row>
                 <Col md={6}>
                   <Form.Group className="mb-3 mb-md-0">
+                    <Form.Label htmlFor="inventoryNumber">
+                      Инвентарный номер
+                    </Form.Label>
+                    <Form.Control
+                      id="inventoryNumber"
+                      name="inventoryNumber"
+                      type="text"
+                      placeholder="Автоматически, если оставить пустым"
+                      value={form.inventoryNumber}
+                      onChange={(e) =>
+                        setField("inventoryNumber", e.target.value)
+                      }
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-0">
                     <Form.Label htmlFor="serialNumber">
-                      Серийный номер <span className="text-danger">*</span>
+                      Серийный номер
                     </Form.Label>
                     <Form.Control
                       id="serialNumber"
@@ -526,22 +646,35 @@ const ClientDeviceForm = ({ title }) => {
                     />
                   </Form.Group>
                 </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-0">
-                    <Form.Label htmlFor="status">Статус</Form.Label>
-                    <Select
-                      id="status"
-                      placeholder="Выберите статус"
-                      options={STATUS_OPTIONS}
-                      value={findOption(STATUS_OPTIONS, form.status)}
-                      onChange={(o) =>
-                        setField("status", o ? o.value : "readyForDeployment")
-                      }
-                      isClearable={false}
-                    />
-                  </Form.Group>
-                </Col>
               </Row>
+
+              <Form.Group className="mt-3 mb-0">
+                <Form.Label htmlFor="status">Статус</Form.Label>
+                <Select
+                  id="status"
+                  placeholder="Выберите статус"
+                  options={STATUS_OPTIONS}
+                  value={findOption(STATUS_OPTIONS, form.status)}
+                  onChange={(o) =>
+                    setField("status", o ? o.value : "readyForDeployment")
+                  }
+                  isClearable={false}
+                />
+              </Form.Group>
+
+              {deviceKind === "custom" && (
+                <ComponentsFields
+                  value={components}
+                  onChange={setComponents}
+                  componentTypes={componentTypes}
+                  deviceTypes={deviceTypes}
+                  vendors={vendors}
+                  deviceModels={deviceModels}
+                  suppliers={suppliers}
+                  onResourceCreated={handleResourceCreated}
+                  onSupplierCreated={handleSupplierCreated}
+                />
+              )}
             </Card.Body>
           </Card>
         );
@@ -607,22 +740,42 @@ const ClientDeviceForm = ({ title }) => {
         <AlertMessage variant="danger" message={fetcher.data.message} />
       )}
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={step}
-          variants={stepVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{ duration: 0.25 }}
-        >
-          {renderStep()}
-        </motion.div>
-      </AnimatePresence>
+      <Row>
+        <Col lg={8}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={step}
+              variants={stepVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.25 }}
+            >
+              {renderStep()}
+            </motion.div>
+          </AnimatePresence>
 
-      {attempted && !stepValid(step) && STEP_ERRORS[step] && (
-        <p className="text-danger small mt-2 mb-0">{STEP_ERRORS[step]}</p>
-      )}
+          {attempted && !stepValid(step) && stepError(step, deviceKind) && (
+            <p className="text-danger small mt-2 mb-0">
+              {stepError(step, deviceKind)}
+            </p>
+          )}
+        </Col>
+
+        <Col lg={4} className="mt-3 mt-lg-0">
+          <DeviceSummary
+            form={form}
+            deviceKind={deviceKind}
+            components={components}
+            companies={companies}
+            locations={locations}
+            deviceTypes={deviceTypes}
+            vendors={vendors}
+            deviceModels={deviceModels}
+            suppliers={suppliers}
+          />
+        </Col>
+      </Row>
 
       <hr />
       <Stack direction="horizontal" gap={2}>
@@ -673,20 +826,6 @@ const ClientDeviceForm = ({ title }) => {
         kind="deviceType"
         resources={{ deviceTypes }}
         onCreated={handleTypeCreated}
-      />
-      <InlineCreateModal
-        show={inlineKind === "vendor"}
-        onHide={() => setInlineKind(null)}
-        kind="vendor"
-        onCreated={handleVendorCreated}
-      />
-      <InlineCreateModal
-        show={inlineKind === "deviceModel"}
-        onHide={() => setInlineKind(null)}
-        kind="deviceModel"
-        context={modelContext}
-        resources={{ deviceTypes, vendors, deviceModels }}
-        onCreated={handleModelCreated}
       />
       <InlineCreateModal
         show={inlineKind === "location"}

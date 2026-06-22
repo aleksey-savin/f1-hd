@@ -60,6 +60,7 @@ exports.add = async (req, res, next) => {
       isActive,
       isComponent,
       isConsumable,
+      inventoryPrefix,
       attachableToTypeIds,
       attributes,
     } = req.body;
@@ -76,6 +77,7 @@ exports.add = async (req, res, next) => {
       isActive,
       isComponent,
       isConsumable,
+      inventoryPrefix,
       attachableToTypeIds,
       createdBy: req.userId,
     });
@@ -111,6 +113,7 @@ exports.update = async (req, res, next) => {
       isActive,
       isComponent,
       isConsumable,
+      inventoryPrefix,
       attachableToTypeIds,
       attributes,
     } = req.body;
@@ -139,6 +142,7 @@ exports.update = async (req, res, next) => {
     deviceType.isActive = isActive;
     deviceType.isComponent = isComponent;
     deviceType.isConsumable = isConsumable;
+    deviceType.inventoryPrefix = inventoryPrefix;
     deviceType.attachableToTypeIds = attachableToTypeIds;
     deviceType.updatedBy = req.userId;
 

@@ -1,6 +1,6 @@
 {
   "name": "hd-backend-nodejs",
-  "version": "1.13.10",
+  "version": "1.13.11",
   "description": "",
   "main": "app.js",
   "scripts": {
@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "echo \"No tests yet\" && exit 0",
     "init:inventory": "node scripts/initializeInventoryData.js",
+    "migrate:device-indexes": "node scripts/migrateClientDeviceIndexes.js",
     "test:workplace": "node test-workplace-system.js",
     "security": "npm audit",
     "precommit": "npx eslint . && npm test && npm run security"

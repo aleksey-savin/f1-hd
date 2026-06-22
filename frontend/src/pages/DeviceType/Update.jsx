@@ -89,6 +89,7 @@ export async function action({ request, params }) {
     isActive: data.get("isActive") === "true",
     isComponent: data.get("isComponent") === "true",
     isConsumable: data.get("isConsumable") === "true",
+    inventoryPrefix: data.get("inventoryPrefix"),
     attachableToTypeIds: data.getAll("attachableToTypeIds"),
     attributes,
   };

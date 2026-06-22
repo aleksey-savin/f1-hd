@@ -1,6 +1,6 @@
 {
   "name": "hd-frontend-reactjs",
-  "version": "1.13.10",
+  "version": "1.13.11",
   "private": true,
   "dependencies": {
     "@fullcalendar/core": "^6.1.17",
@@ -29,6 +29,7 @@
     "lexical": "^0.31.0",
     "pad": "^3.3.0",
     "prop-types": "^15.8.1",
+    "qr-code-styling": "^1.9.2",
     "react": "^19.1.0",
     "react-bootstrap": "^2.10.10",
     "react-chartjs-2": "^5.3.1",

@@ -1,6 +1,8 @@
 const ClientDevice = require("../../models/inventory/clientDevice");
 const Company = require("../../models/company");
 const DeviceModel = require("../../models/inventory/deviceModel");
+const DeviceType = require("../../models/inventory/deviceType");
+const Counter = require("../../models/inventory/counter");
 
 const { AppError } = require("../../middleware/errorHandling");
 
@@ -14,6 +16,8 @@ const DEVICE_POPULATE = [
       { path: "deviceTypeId", select: "name" },
     ],
   },
+  // Прямой тип — для самосборных устройств без модели.
+  { path: "deviceTypeId", select: "name" },
   { path: "companyId", select: "alias fullTitle" },
   { path: "locationId", select: "name fullPath" },
   { path: "supplierId", select: "name" },
@@ -24,7 +28,8 @@ const DEVICE_POPULATE = [
 
 // Mongoose can't cast "" to ObjectId / Number / Date — turn blanks into
 // undefined so empty optional fields are stored as unset rather than throwing.
-const clean = (value) => (value === "" || value === undefined ? undefined : value);
+const clean = (value) =>
+  value === "" || value === undefined ? undefined : value;
 
 // Maps the (schema-aligned) request body onto ClientDevice fields.
 const buildDevicePayload = (body) => ({
@@ -32,7 +37,13 @@ const buildDevicePayload = (body) => ({
   userId: clean(body.userId),
   locationId: clean(body.locationId),
   deviceModelId: clean(body.deviceModelId),
-  serialNumber: body.serialNumber,
+  deviceTypeId: clean(body.deviceTypeId),
+  parentDeviceId: clean(body.parentDeviceId),
+  quantity: clean(body.quantity),
+  // clean(): пустой серийник сохраняем как unset (не ""), иначе пустые строки
+  // конфликтуют по партиал-уникальному индексу.
+  serialNumber: clean(body.serialNumber),
+  inventoryNumber: clean(body.inventoryNumber),
   status: clean(body.status),
   purchasedAt: clean(body.purchasedAt),
   price: clean(body.price),
@@ -46,13 +57,44 @@ const buildDevicePayload = (body) => ({
   notes: clean(body.notes),
 });
 
+// Префикс инвентарного номера берём из типа устройства
+// (DeviceType.inventoryPrefix), иначе — дефолтный "INV". Формат: PREFIX-000001,
+// счётчик ведётся отдельно на каждый префикс.
+const generateInventoryNumber = async (deviceTypeId) => {
+  let prefix = "INV";
+  if (deviceTypeId) {
+    const type =
+      await DeviceType.findById(deviceTypeId).select("inventoryPrefix");
+    if (type?.inventoryPrefix) prefix = type.inventoryPrefix;
+  }
+  const seq = await Counter.getNextSequence(`clientDevice:${prefix}`);
+  return `${prefix}-${String(seq).padStart(6, "0")}`;
+};
+
 exports.getAll = async (req, res, next) => {
   try {
-    const devices = await ClientDevice.find({ deletedAt: null })
+    // Только самостоятельные устройства — комплектующие сборок (parentDeviceId)
+    // в общий список не попадают.
+    const devices = await ClientDevice.find({
+      deletedAt: null,
+      parentDeviceId: null,
+    })
       .populate(DEVICE_POPULATE)
       .sort({ _id: -1 });
 
-    res.status(200).json(devices);
+    // Кол-во комплектующих на каждую сборку — одним агрегатом.
+    const counts = await ClientDevice.aggregate([
+      { $match: { deletedAt: null, parentDeviceId: { $ne: null } } },
+      { $group: { _id: "$parentDeviceId", count: { $sum: 1 } } },
+    ]);
+    const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
+
+    const result = devices.map((d) => ({
+      ...d.toObject(),
+      componentCount: countMap.get(String(d._id)) || 0,
+    }));
+
+    res.status(200).json(result);
   } catch (error) {
     next(new AppError("Failed to fetch devices", 500, true, error));
   }
@@ -69,7 +111,14 @@ exports.getOne = async (req, res, next) => {
         new AppError(`Device with id ${req.params.id} not found`, 404),
       );
     }
-    res.status(200).json(device);
+
+    // Комплектующие сборки (если есть) — для отображения/редактирования состава.
+    const components = await ClientDevice.find({
+      parentDeviceId: req.params.id,
+      deletedAt: null,
+    }).populate(DEVICE_POPULATE);
+
+    res.status(200).json({ ...device.toObject(), components });
   } catch (error) {
     next(
       new AppError(`Failed to fetch device ${req.params.id}`, 500, true, error),
@@ -81,16 +130,44 @@ exports.add = async (req, res, next) => {
   try {
     const payload = buildDevicePayload(req.body);
 
-    const deviceExists = await ClientDevice.findOne({
-      serialNumber: payload.serialNumber,
-    });
-    if (deviceExists) {
-      return next(
-        new AppError(
-          `Device with serial number ${payload.serialNumber} already exists`,
-          409,
-        ),
-      );
+    // Серийник опционален — проверяем дубль только если он задан.
+    if (payload.serialNumber) {
+      const serialExists = await ClientDevice.findOne({
+        serialNumber: payload.serialNumber,
+      });
+      if (serialExists) {
+        return next(
+          new AppError(
+            `Device with serial number ${payload.serialNumber} already exists`,
+            409,
+          ),
+        );
+      }
+    }
+
+    if (payload.inventoryNumber) {
+      const invExists = await ClientDevice.findOne({
+        inventoryNumber: payload.inventoryNumber,
+      });
+      if (invExists) {
+        return next(
+          new AppError(
+            `Устройство с инвентарным номером ${payload.inventoryNumber} уже существует`,
+            409,
+          ),
+        );
+      }
+    }
+
+    // Компонент наследует компанию/расположение/пользователя от родителя.
+    if (payload.parentDeviceId) {
+      const parent = await ClientDevice.findById(payload.parentDeviceId);
+      if (!parent) {
+        return next(new AppError("Invalid parent device ID", 400));
+      }
+      payload.companyId = payload.companyId || parent.companyId;
+      payload.locationId = payload.locationId || parent.locationId;
+      payload.userId = payload.userId || parent.userId;
     }
 
     const company = await Company.findById(payload.companyId);
@@ -98,9 +175,29 @@ exports.add = async (req, res, next) => {
       return next(new AppError("Invalid company ID", 400));
     }
 
-    const deviceModel = await DeviceModel.findById(payload.deviceModelId);
-    if (!deviceModel) {
-      return next(new AppError("Invalid device model ID", 400));
+    // Устройство задаётся либо моделью (заводская сборка), либо напрямую типом
+    // (самосборное). Тип нужен и для префикса инвентарного номера.
+    let deviceTypeId;
+    if (payload.deviceModelId) {
+      const deviceModel = await DeviceModel.findById(payload.deviceModelId);
+      if (!deviceModel) {
+        return next(new AppError("Invalid device model ID", 400));
+      }
+      deviceTypeId = deviceModel.deviceTypeId;
+    } else if (payload.deviceTypeId) {
+      const deviceType = await DeviceType.findById(payload.deviceTypeId);
+      if (!deviceType) {
+        return next(new AppError("Invalid device type ID", 400));
+      }
+      deviceTypeId = payload.deviceTypeId;
+    } else {
+      return next(new AppError("Укажите модель или тип устройства", 400));
+    }
+
+    // Инвентарный номер — первичный идентификатор актива: если не задан вручную,
+    // генерируем автоматически по префиксу типа.
+    if (!payload.inventoryNumber) {
+      payload.inventoryNumber = await generateInventoryNumber(deviceTypeId);
     }
 
     const clientDevice = new ClientDevice({
@@ -139,6 +236,24 @@ exports.update = async (req, res, next) => {
         return next(
           new AppError(
             `Device with serial number ${payload.serialNumber} already exists`,
+            409,
+          ),
+        );
+      }
+    }
+
+    if (
+      payload.inventoryNumber &&
+      payload.inventoryNumber !== device.inventoryNumber
+    ) {
+      const invExists = await ClientDevice.findOne({
+        inventoryNumber: payload.inventoryNumber,
+        _id: { $ne: req.params.id },
+      });
+      if (invExists) {
+        return next(
+          new AppError(
+            `Устройство с инвентарным номером ${payload.inventoryNumber} уже существует`,
             409,
           ),
         );

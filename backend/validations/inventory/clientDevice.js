@@ -13,15 +13,33 @@ const STATUS_VALUES = [
 // { checkFalsy: true } to treat blanks as absent rather than failing format checks.
 const clientDeviceValidation = [
   body("companyId")
-    .notEmpty()
-    .withMessage("Компания обязательна")
+    .optional({ checkFalsy: true })
     .isMongoId()
     .withMessage("Некорректный ID компании"),
+  // Компания обязательна для самостоятельного устройства; компонент наследует её
+  // от родителя. Отдельная цепочка без optional — выполняется всегда.
+  body("companyId").custom((value, { req }) => {
+    if (!value && !req.body.parentDeviceId) {
+      throw new Error("Компания обязательна");
+    }
+    return true;
+  }),
   body("deviceModelId")
-    .notEmpty()
-    .withMessage("Модель устройства обязательна")
+    .optional({ checkFalsy: true })
     .isMongoId()
     .withMessage("Некорректный ID модели устройства"),
+  body("deviceTypeId")
+    .optional({ checkFalsy: true })
+    .isMongoId()
+    .withMessage("Некорректный ID типа устройства"),
+  // Устройство задаётся моделью (заводская сборка) ИЛИ типом (самосборное). Отдельная
+  // цепочка без optional — иначе при пустой модели проверка была бы пропущена.
+  body("deviceModelId").custom((value, { req }) => {
+    if (!value && !req.body.deviceTypeId) {
+      throw new Error("Укажите модель или тип устройства");
+    }
+    return true;
+  }),
   body("userId")
     .optional({ checkFalsy: true })
     .isMongoId()
@@ -31,11 +49,23 @@ const clientDeviceValidation = [
     .isMongoId()
     .withMessage("Некорректный ID расположения"),
   body("serialNumber")
-    .notEmpty()
-    .withMessage("Серийный номер обязателен")
+    .optional({ checkFalsy: true })
     .isLength({ min: 1, max: 100 })
     .withMessage("Серийный номер должен содержать от 1 до 100 символов")
     .trim(),
+  body("inventoryNumber")
+    .optional({ checkFalsy: true })
+    .isLength({ max: 100 })
+    .withMessage("Инвентарный номер не должен превышать 100 символов")
+    .trim(),
+  body("parentDeviceId")
+    .optional({ checkFalsy: true })
+    .isMongoId()
+    .withMessage("Некорректный ID родительского устройства"),
+  body("quantity")
+    .optional({ checkFalsy: true })
+    .isInt({ min: 1 })
+    .withMessage("Количество должно быть целым числом не менее 1"),
   body("status")
     .optional({ checkFalsy: true })
     .isIn(STATUS_VALUES)

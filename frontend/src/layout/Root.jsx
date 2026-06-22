@@ -69,6 +69,7 @@ const RootLayout = () => {
         "/finances/summary-report",
         "/inventory/device-types",
         "/inventory/locations",
+        "/inventory/client-devices",
       ].includes(location.pathname) ||
       location.pathname.startsWith("/knowledge-base")
     ) {

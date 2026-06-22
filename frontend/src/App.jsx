@@ -173,15 +173,10 @@ import UpdateClientDevicePage, {
   action as updateClientDeviceAction,
 } from "./pages/ClientDevice/Update.jsx";
 
-import PurchaseClientDevicePage, {
-  loader as purchaseClientDeviceLoader,
-  action as purchaseClientDeviceAction,
-} from "./pages/ClientDevice/Purchase.jsx";
-
-import TechClientDevicePage, {
-  loader as techClientDeviceLoader,
-  action as techClientDeviceAction,
-} from "./pages/ClientDevice/Tech.jsx";
+import ViewClientDevicePage, {
+  loader as viewClientDeviceLoader,
+  action as viewClientDeviceAction,
+} from "./pages/ClientDevice/View.jsx";
 
 // Location Management
 import LocationList, {
@@ -677,19 +672,22 @@ function App() {
               element: <UpdateClientDevicePage />,
             },
             {
-              path: "purchase/:id",
-              loader: purchaseClientDeviceLoader,
-              action: purchaseClientDeviceAction,
-              element: <PurchaseClientDevicePage />,
-            },
-            {
-              path: "tech/:id",
-              loader: techClientDeviceLoader,
-              action: techClientDeviceAction,
-              element: <TechClientDevicePage />,
-            },
-            {
               path: "delete/:id",
+            },
+          ],
+        },
+        // Карточка устройства (полная страница) + редактирование в offcanvas
+        {
+          path: "inventory/client-devices/:id",
+          element: <ViewClientDevicePage />,
+          loader: viewClientDeviceLoader,
+          action: viewClientDeviceAction,
+          children: [
+            {
+              path: "update",
+              loader: updateClientDeviceLoader,
+              action: updateClientDeviceAction,
+              element: <UpdateClientDevicePage />,
             },
           ],
         },

@@ -22,6 +22,13 @@ const deviceTypeSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    // Префикс для автогенерации инвентарных номеров активов этого типа
+    // (напр. "СБ" → "СБ-000001"). Пусто — используется дефолтный префикс.
+    inventoryPrefix: {
+      type: String,
+      trim: true,
+      uppercase: true,
+    },
     configurationIds: [
       {
         type: Schema.Types.ObjectId,

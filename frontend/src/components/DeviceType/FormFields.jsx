@@ -28,6 +28,9 @@ const DeviceTypeFormFields = ({
   const [isConsumable, setIsConsumable] = useState(
     deviceType ? deviceType.isConsumable : false,
   );
+  const [inventoryPrefix, setInventoryPrefix] = useState(
+    deviceType?.inventoryPrefix || "",
+  );
   const [attachableToTypeIds, setAttachableToTypeIds] = useState(
     deviceType?.attachableToTypeIds || [],
   );
@@ -53,6 +56,7 @@ const DeviceTypeFormFields = ({
       isActive,
       isComponent,
       isConsumable,
+      inventoryPrefix,
       attachableToTypeIds: (attachableToTypeIds || []).map((t) => t._id || t),
       attributes: (attributes || [])
         .filter((a) => a.attributeId)
@@ -67,6 +71,7 @@ const DeviceTypeFormFields = ({
     isActive,
     isComponent,
     isConsumable,
+    inventoryPrefix,
     attachableToTypeIds,
     attributes,
   ]);
@@ -136,6 +141,26 @@ const DeviceTypeFormFields = ({
           onChange={(event) => setName(event.target.value)}
           placeholder="Введите название типа устройства"
         />
+      </Form.Group>
+
+      <Form.Group className="pb-2">
+        <Form.Label htmlFor="inventoryPrefix">
+          Префикс инвентарного номера
+        </Form.Label>
+        <Form.Control
+          id="inventoryPrefix"
+          name="inventoryPrefix"
+          type="text"
+          value={inventoryPrefix}
+          onChange={(event) =>
+            setInventoryPrefix(event.target.value.toUpperCase())
+          }
+          placeholder="Напр. СБ — номера вида СБ-000001"
+        />
+        <Form.Text className="text-muted">
+          Используется для автогенерации инвентарных номеров устройств этого
+          типа. Пусто — префикс по умолчанию.
+        </Form.Text>
       </Form.Group>
 
       <Form.Group>
