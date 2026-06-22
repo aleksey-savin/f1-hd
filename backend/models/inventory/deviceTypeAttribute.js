@@ -22,6 +22,11 @@ const deviceTypeAttributeSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    // Порядок атрибута в типе устройства (для управляемой последовательности).
+    order: {
+      type: Number,
+      default: 0,
+    },
     extendableFromIds: [
       {
         deviceTypeId: {

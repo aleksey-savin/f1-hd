@@ -1,5 +1,5 @@
-import { useContext } from "react";
-import { Link, useNavigate, Outlet } from "react-router";
+import { useContext, useState } from "react";
+import { Link, useNavigate, useRevalidator, Outlet } from "react-router";
 
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
@@ -29,6 +29,7 @@ import {
   RiFileList2Line,
   RiArrowGoBackFill,
   RiEdit2Line,
+  RiUserAddLine,
 } from "react-icons/ri";
 
 import Transitions from "../../animations/Transition";
@@ -36,6 +37,7 @@ import useOffcanvasStore from "../../store/offcanvas";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import DeleteItem from "../DeleteItem";
 import DeviceQr from "./DeviceQr";
+import AssignUserModal from "./AssignUserModal";
 import { STATUS_LABELS, STATUS_VARIANTS } from "./constants";
 
 const refName = (ref) => ref?.name || ref?.alias || ref?.fullTitle || "";
@@ -85,9 +87,11 @@ const Line = ({ icon, label, mono, children }) => (
 
 const ViewClientDevice = ({ device = {} }) => {
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const offcanvas = useOffcanvasStore();
   const { permissions } = useContext(AuthedUserContext);
   const canManage = permissions.canManageClientDevices;
+  const [showAssign, setShowAssign] = useState(false);
 
   const model = device.deviceModelId;
   const typeName = model?.deviceTypeId?.name || device.deviceTypeId?.name;
@@ -101,6 +105,18 @@ const ViewClientDevice = ({ device = {} }) => {
 
   const assignee = device.userId
     ? `${device.userId.firstName} ${device.userId.lastName}`
+    : null;
+
+  // Конфигурация (пресет характеристик модели): имя или собранная из значений строка.
+  const config = device.configurationId;
+  const configLabel = config
+    ? config.name ||
+      (config.values || [])
+        .map(
+          (v) =>
+            `${v.attributeId?.name || v.attributeId?.code || "—"}: ${v.value}`,
+        )
+        .join(", ")
     : null;
 
   const components = device.components || [];
@@ -199,6 +215,11 @@ const ViewClientDevice = ({ device = {} }) => {
             {!isCustom && (
               <Line icon={<RiPriceTag3Line />} label="Вендор / модель">
                 {[vendorName, model?.name].filter(Boolean).join(" ")}
+              </Line>
+            )}
+            {configLabel && (
+              <Line icon={<RiCpuLine />} label="Конфигурация">
+                {configLabel}
               </Line>
             )}
             <Line icon={<RiBarcodeLine />} label="Инвентарный номер" mono>
@@ -322,6 +343,16 @@ const ViewClientDevice = ({ device = {} }) => {
           <>
             <Col sm="auto">
               <Button
+                variant="info"
+                className="w-100"
+                onClick={() => setShowAssign(true)}
+              >
+                <RiUserAddLine />{" "}
+                {assignee ? "Сменить пользователя" : "Выдать пользователю"}
+              </Button>
+            </Col>
+            <Col sm="auto">
+              <Button
                 as={Link}
                 to="update"
                 className="w-100"
@@ -336,6 +367,13 @@ const ViewClientDevice = ({ device = {} }) => {
           </>
         )}
       </Row>
+
+      <AssignUserModal
+        show={showAssign}
+        onHide={() => setShowAssign(false)}
+        device={device}
+        onAssigned={() => revalidator.revalidate()}
+      />
 
       <Offcanvas
         show={offcanvas.isActive}

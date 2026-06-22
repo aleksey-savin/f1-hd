@@ -1,10 +1,22 @@
-import { RiBuilding2Line, RiUser3Line, RiMapPin2Line } from "react-icons/ri";
+import { useState } from "react";
+
+import Button from "react-bootstrap/Button";
+import {
+  RiBuilding2Line,
+  RiUser3Line,
+  RiMapPin2Line,
+  RiQrCodeLine,
+} from "react-icons/ri";
 
 import ItemCard from "../../UI/ItemCard";
 import DeviceQr from "./DeviceQr";
 import { STATUS_LABELS, STATUS_VARIANTS } from "./constants";
 
 function ClientDeviceItem({ item }) {
+  // QR скрыт за кнопкой-заглушкой: в списке много карточек, иначе камера при
+  // сканировании одной метки случайно ловит соседние коды.
+  const [showQr, setShowQr] = useState(false);
+
   const model = item.deviceModelId;
   const vendorName = model?.vendorId?.name;
   // Тип — из модели (брендовое) или напрямую (самосборное устройство).
@@ -44,7 +56,37 @@ function ClientDeviceItem({ item }) {
     >
       {/* Media-object: QR-метка слева, сведения об устройстве справа */}
       <div className="d-flex align-items-center gap-3">
-        <DeviceQr id={item._id} size={76} className="d-none d-sm-inline-flex" />
+        {showQr ? (
+          <button
+            type="button"
+            title="Скрыть QR-код"
+            className="d-none d-sm-inline-flex p-0 border-0 bg-transparent flex-shrink-0"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowQr(false);
+            }}
+          >
+            <DeviceQr id={item._id} size={76} />
+          </button>
+        ) : (
+          <Button
+            variant="outline-secondary"
+            className="d-none d-sm-flex flex-column align-items-center justify-content-center flex-shrink-0 p-1 lh-sm text-center"
+            style={{ width: 76, height: 76 }}
+            title="Показать QR-код"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowQr(true);
+            }}
+          >
+            <RiQrCodeLine size={22} />
+            <span style={{ fontSize: "0.6rem" }} className="mt-1">
+              Показать QR
+            </span>
+          </Button>
+        )}
 
         <div style={{ minWidth: 0 }}>
           {/* Инвентарный номер — первичный идентификатор актива, как наклейка-тег */}

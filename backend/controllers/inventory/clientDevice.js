@@ -1,5 +1,6 @@
 const ClientDevice = require("../../models/inventory/clientDevice");
 const Company = require("../../models/company");
+const User = require("../../models/user");
 const DeviceModel = require("../../models/inventory/deviceModel");
 const DeviceType = require("../../models/inventory/deviceType");
 const Counter = require("../../models/inventory/counter");
@@ -18,6 +19,12 @@ const DEVICE_POPULATE = [
   },
   // Прямой тип — для самосборных устройств без модели.
   { path: "deviceTypeId", select: "name" },
+  // Конфигурация (пресет характеристик модели) с расшифровкой значений.
+  {
+    path: "configurationId",
+    select: "name values",
+    populate: { path: "values.attributeId", select: "code name unit" },
+  },
   { path: "companyId", select: "alias fullTitle" },
   { path: "locationId", select: "name fullPath" },
   { path: "supplierId", select: "name" },
@@ -37,6 +44,7 @@ const buildDevicePayload = (body) => ({
   userId: clean(body.userId),
   locationId: clean(body.locationId),
   deviceModelId: clean(body.deviceModelId),
+  configurationId: clean(body.configurationId),
   deviceTypeId: clean(body.deviceTypeId),
   parentDeviceId: clean(body.parentDeviceId),
   quantity: clean(body.quantity),
@@ -175,6 +183,18 @@ exports.add = async (req, res, next) => {
       return next(new AppError("Invalid company ID", 400));
     }
 
+    // Назначенный пользователь должен быть из компании устройства (company у
+    // User — вложенный объект { _id, alias }; сравниваем по _id).
+    if (payload.userId) {
+      const user = await User.findById(payload.userId);
+      const userCompanyId = user?.company?._id || user?.company;
+      if (!user || userCompanyId?.toString() !== payload.companyId?.toString()) {
+        return next(
+          new AppError("Assigned user must belong to the same company", 400),
+        );
+      }
+    }
+
     // Устройство задаётся либо моделью (заводская сборка), либо напрямую типом
     // (самосборное). Тип нужен и для префикса инвентарного номера.
     let deviceTypeId;
@@ -267,6 +287,18 @@ exports.update = async (req, res, next) => {
       }
     }
 
+    // Назначенный пользователь — из компании устройства (новой или текущей).
+    if (payload.userId) {
+      const user = await User.findById(payload.userId);
+      const userCompanyId = user?.company?._id || user?.company;
+      const deviceCompanyId = payload.companyId || device.companyId;
+      if (!user || userCompanyId?.toString() !== deviceCompanyId?.toString()) {
+        return next(
+          new AppError("Assigned user must belong to the same company", 400),
+        );
+      }
+    }
+
     if (payload.deviceModelId) {
       const deviceModel = await DeviceModel.findById(payload.deviceModelId);
       if (!deviceModel) {
@@ -285,6 +317,62 @@ exports.update = async (req, res, next) => {
     next(
       new AppError(
         `Failed to update device ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Привязка/снятие пользователя — отдельный лёгкий экшен (со страницы устройства).
+// Не используем общий update: тот через buildDevicePayload затирает незаданные
+// поля. Назначение пользователя переводит статус в "deployed" (Выдано); снятие
+// (пустой userId) возвращает "readyForDeployment", если было "deployed".
+exports.assignUser = async (req, res, next) => {
+  try {
+    const device = await ClientDevice.findById(req.params.id);
+    if (!device) {
+      return next(
+        new AppError(`Device with id ${req.params.id} not found`, 404),
+      );
+    }
+
+    const userId = clean(req.body.userId);
+
+    if (userId) {
+      const user = await User.findById(userId);
+      const userCompanyId = user?.company?._id || user?.company;
+      if (
+        !user ||
+        userCompanyId?.toString() !== device.companyId?.toString()
+      ) {
+        return next(
+          new AppError("Assigned user must belong to the same company", 400),
+        );
+      }
+      device.userId = userId;
+      device.status = "deployed";
+    } else {
+      device.userId = undefined;
+      if (device.status === "deployed") device.status = "readyForDeployment";
+    }
+
+    device.updatedBy = req.userId;
+    await device.save();
+
+    const populated = await ClientDevice.findById(device._id).populate(
+      DEVICE_POPULATE,
+    );
+
+    res.status(200).json({
+      message: userId ? "Пользователь назначен" : "Пользователь снят",
+      device: populated,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to assign user to device ${req.params.id}`,
         500,
         true,
         error,

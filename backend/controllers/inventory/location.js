@@ -178,7 +178,10 @@ exports.add = async (req, res, next) => {
     // Check if user belongs to the same company
     if (assignedUser) {
       const user = await User.findById(assignedUser);
-      if (!user || user.company.toString() !== targetCompanyId.toString()) {
+      // company у User — вложенный объект { _id, alias }; сравниваем по _id
+      // (с фолбэком на сырой ObjectId для непопулированных/legacy данных).
+      const userCompanyId = user?.company?._id || user?.company;
+      if (!user || userCompanyId?.toString() !== targetCompanyId.toString()) {
         return next(
           new AppError("Assigned user must belong to the same company", 400),
         );
@@ -316,6 +319,21 @@ exports.update = async (req, res, next) => {
           400,
         ),
       );
+    }
+
+    // Назначаемый пользователь должен быть из той же компании. company может
+    // меняться в этом же запросе — берём новое значение, иначе текущую компанию
+    // локации (она populated). Сравнение по user.company._id (см. add).
+    if (assignedUser) {
+      const user = await User.findById(assignedUser);
+      const userCompanyId = user?.company?._id || user?.company;
+      const targetCompanyId =
+        company || location.company?._id || location.company;
+      if (!user || userCompanyId?.toString() !== targetCompanyId?.toString()) {
+        return next(
+          new AppError("Assigned user must belong to the same company", 400),
+        );
+      }
     }
 
     // Prevent creating circular references in parent-child relationships

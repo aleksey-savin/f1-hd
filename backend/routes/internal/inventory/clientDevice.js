@@ -27,6 +27,12 @@ router.put(
   checkValidationResult,
   deviceController.update,
 );
+router.post(
+  "/client-devices/:id/assign-user",
+  isAuth,
+  canManageClientDevices,
+  deviceController.assignUser,
+);
 router.delete(
   "/client-devices/delete/:id",
   isAuth,

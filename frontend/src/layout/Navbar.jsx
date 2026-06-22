@@ -49,11 +49,7 @@ const DropdownTitles = {
       <RiUserLine /> {`${firstName} ${lastName}`}
     </span>
   ),
-  Lists: () => (
-    <span>
-      <RiFileList2Line /> Списки
-    </span>
-  ),
+
   Reports: () => (
     <span>
       <RiDraftLine /> Отчёты
@@ -266,6 +262,16 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                     </Nav.Link>
                   )}
 
+                  {canPerformTickets && (
+                    <Nav.Link
+                      as={NavLink}
+                      to="/inventory/client-devices"
+                      onClick={handleClose}
+                    >
+                      <RiDeviceLine /> Устройства
+                    </Nav.Link>
+                  )}
+
                   {canPerformTickets && !canManageUsers && (
                     <Nav.Link as={NavLink} to="/users" onClick={handleClose}>
                       <RiAccountBoxLine /> Пользователи
@@ -282,61 +288,6 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                       <GoProjectTemplate /> Шаблоны заявок
                     </Nav.Link>
                   )}
-
-                  {/* Lists Dropdown */}
-                  <NavDropdown
-                    hidden={
-                      !canPerformTickets &&
-                      !isAdmin &&
-                      !canManageTicketCategories &&
-                      !canManageCompanies &&
-                      !canManageUsers &&
-                      !canManageRoutineTasks
-                    }
-                    title={<DropdownTitles.Lists />}
-                  >
-                    <NavDropdown.Item
-                      as={NavLink}
-                      to="/ticket-templates"
-                      onClick={handleClose}
-                    >
-                      <GoProjectTemplate /> Шаблоны заявок
-                    </NavDropdown.Item>
-                    <NavDropdown.Item
-                      as={NavLink}
-                      hidden={!canManageTicketCategories}
-                      to="/ticket-categories"
-                      onClick={handleClose}
-                    >
-                      <RiServerLine /> Категории заявок
-                    </NavDropdown.Item>
-                    <NavDropdown.Item
-                      as={NavLink}
-                      hidden={!canManageCompanies}
-                      to="/companies"
-                      onClick={handleClose}
-                    >
-                      <RiBuilding2Line /> Компании
-                    </NavDropdown.Item>
-                    <NavDropdown.Item
-                      as={NavLink}
-                      hidden={!canManageUsers && !isAdmin}
-                      to="/users"
-                      onClick={handleClose}
-                    >
-                      <RiAccountBoxLine /> Пользователи
-                    </NavDropdown.Item>
-                    {canManageRoutineTasks && (
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageRoutineTasks}
-                        to="/routine-tasks"
-                        onClick={handleClose}
-                      >
-                        <RiCalendar2Line /> Регламентные задания
-                      </NavDropdown.Item>
-                    )}
-                  </NavDropdown>
 
                   {/* Reports Dropdown */}
                   {(modules.timeTracking.isActive ||
@@ -381,20 +332,7 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                           <RiDraftLine /> Диапазоны сетей
                         </NavDropdown.Item>
                       )}
-                    </NavDropdown>
-                  )}
-
-                  {/* Finances Dropdown */}
-                  {modules?.finances.isActive && canUseFinancesModule && (
-                    <NavDropdown title={<DropdownTitles.Finances />}>
-                      <NavDropdown.Item
-                        as={NavLink}
-                        hidden={!canManageServicePlans}
-                        to="/finances/service-plans"
-                        onClick={handleClose}
-                      >
-                        <RiServiceLine /> Услуги
-                      </NavDropdown.Item>
+                      <NavDropdown.Divider />
                       <NavDropdown.Item
                         as={NavLink}
                         hidden={!canSeeGlobalFinancialReport}
@@ -421,7 +359,6 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                       </NavDropdown.Item>
                     </NavDropdown>
                   )}
-
                   {/* Inventory Dropdown */}
                   {modules?.inventory.isActive && canUseInventoryModule && (
                     <NavDropdown title={<DropdownTitles.Inventory />}>
@@ -503,6 +440,58 @@ const NavigationBar = ({ handleShowAuthModal }) => {
                         </span>
                       }
                     >
+                      <NavDropdown.Item
+                        as={NavLink}
+                        to="/ticket-templates"
+                        onClick={handleClose}
+                      >
+                        <GoProjectTemplate /> Шаблоны заявок
+                      </NavDropdown.Item>
+                      {canManageRoutineTasks && (
+                        <NavDropdown.Item
+                          as={NavLink}
+                          hidden={!canManageRoutineTasks}
+                          to="/routine-tasks"
+                          onClick={handleClose}
+                        >
+                          <RiCalendar2Line /> Регламентные задания
+                        </NavDropdown.Item>
+                      )}
+                      <NavDropdown.Item
+                        as={NavLink}
+                        hidden={!canManageTicketCategories}
+                        to="/ticket-categories"
+                        onClick={handleClose}
+                      >
+                        <RiServerLine /> Категории заявок
+                      </NavDropdown.Item>
+                      <NavDropdown.Item
+                        as={NavLink}
+                        hidden={!canManageCompanies}
+                        to="/companies"
+                        onClick={handleClose}
+                      >
+                        <RiBuilding2Line /> Компании
+                      </NavDropdown.Item>
+                      <NavDropdown.Item
+                        as={NavLink}
+                        hidden={!canManageUsers && !isAdmin}
+                        to="/users"
+                        onClick={handleClose}
+                      >
+                        <RiAccountBoxLine /> Пользователи
+                      </NavDropdown.Item>
+
+                      <NavDropdown.Divider />
+                      <NavDropdown.Item
+                        as={NavLink}
+                        hidden={!canManageServicePlans}
+                        to="/finances/service-plans"
+                        onClick={handleClose}
+                      >
+                        <RiServiceLine /> Услуги
+                      </NavDropdown.Item>
+                      <NavDropdown.Divider />
                       <NavDropdown.Item
                         as={NavLink}
                         to="/preferences"

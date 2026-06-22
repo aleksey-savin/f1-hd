@@ -12,9 +12,9 @@ const deviceConfigurationSchema = new Schema(
       type: String,
       required: false,
     },
-    deviceTypeId: {
+    deviceModelId: {
       type: Schema.Types.ObjectId,
-      ref: "DeviceType",
+      ref: "DeviceModel",
       required: true,
     },
     values: [

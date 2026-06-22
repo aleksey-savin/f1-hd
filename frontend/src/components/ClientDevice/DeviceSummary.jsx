@@ -33,6 +33,8 @@ const DeviceSummary = ({
   vendors = [],
   deviceModels = [],
   suppliers = [],
+  configurations = [],
+  users = [],
 }) => {
   const companyName = nameById(companies, form.companyId);
   const locationName = nameById(locations, form.locationId);
@@ -40,6 +42,24 @@ const DeviceSummary = ({
   const vendorName = nameById(vendors, form.vendorId);
   const modelName = nameById(deviceModels, form.deviceModelId);
   const supplierName = nameById(suppliers, form.supplierId);
+
+  // Конфигурация: имя или собранная из значений строка; пользователь — ФИО/email.
+  const config = configurations.find(
+    (c) => c._id === refId(form.configurationId),
+  );
+  const configName = config
+    ? config.name ||
+      (config.values || [])
+        .map(
+          (v) =>
+            `${v.attributeId?.name || v.attributeId?.code || "—"}: ${v.value}`,
+        )
+        .join(", ")
+    : "";
+  const user = users.find((u) => u._id === refId(form.userId));
+  const userName = user
+    ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email
+    : "";
 
   const filledComponents = components.filter(
     (c) => c.deviceTypeId || c.deviceModelId,
@@ -73,6 +93,9 @@ const DeviceSummary = ({
           <>
             <Line label="Вендор" value={vendorName} />
             <Line label="Модель" value={modelName} />
+            {form.deviceModelId && (
+              <Line label="Конфигурация" value={configName} />
+            )}
           </>
         )}
         <Line
@@ -82,6 +105,9 @@ const DeviceSummary = ({
         />
         <Line label="Серийный номер" value={form.serialNumber} />
         <Line label="Статус" value={STATUS_LABELS[form.status]} />
+        {form.status === "deployed" && (
+          <Line label="Пользователь" value={userName} />
+        )}
 
         {deviceKind === "custom" && (
           <Line

@@ -33,7 +33,7 @@ exports.getOne = async (req, res, next) => {
       deviceTypeId: req.params.id,
     })
       .populate("attributeId", "code name valueType unit options isActive")
-      .sort({ createdAt: 1 });
+      .sort({ order: 1, createdAt: 1 });
 
     const deviceTypeWithAttributes = {
       ...deviceType.toObject(),
@@ -86,11 +86,12 @@ exports.add = async (req, res, next) => {
 
     // Save device type attributes if provided
     if (attributes && attributes.length > 0) {
-      const attributeDocs = attributes.map((attr) => ({
+      const attributeDocs = attributes.map((attr, index) => ({
         deviceTypeId: deviceType._id,
         attributeId: attr.attributeId,
         required: attr.required || false,
         extendable: attr.extendable || false,
+        order: index,
         createdBy: req.userId,
       }));
 
@@ -155,11 +156,12 @@ exports.update = async (req, res, next) => {
 
       // Add new attributes
       if (attributes.length > 0) {
-        const attributeDocs = attributes.map((attr) => ({
+        const attributeDocs = attributes.map((attr, index) => ({
           deviceTypeId: req.params.id,
           attributeId: attr.attributeId,
           required: attr.required || false,
           extendable: attr.extendable || false,
+          order: index,
           createdBy: req.userId,
         }));
 

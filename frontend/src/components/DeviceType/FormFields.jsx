@@ -3,7 +3,12 @@ import Form from "react-bootstrap/Form";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Button from "react-bootstrap/Button";
-import { RiAddFill, RiCloseFill } from "react-icons/ri";
+import {
+  RiAddFill,
+  RiCloseFill,
+  RiArrowUpLine,
+  RiArrowDownLine,
+} from "react-icons/ri";
 
 import Select from "../../UI/Select";
 import AddDeviceAttributeModal from "./AddDeviceAttributeModal";
@@ -91,6 +96,15 @@ const DeviceTypeFormFields = ({
     const newAttributes = [...attributes];
     newAttributes[index] = { ...newAttributes[index], [field]: value };
     setAttributes(newAttributes);
+  };
+
+  // Перемещение атрибута для управляемой последовательности (dir: -1 вверх, +1 вниз).
+  const moveAttribute = (index, dir) => {
+    const target = index + dir;
+    if (target < 0 || target >= attributes.length) return;
+    const next = [...attributes];
+    [next[index], next[target]] = [next[target], next[index]];
+    setAttributes(next);
   };
 
   const openAttributeModal = (index) => {
@@ -217,58 +231,90 @@ const DeviceTypeFormFields = ({
 
       <Form.Group className="py-3">
         <Form.Label>Атрибуты устройства</Form.Label>
-        {attributes.map((attr, index) => (
-          <div key={index}>
-            <Row className="mb-2 align-items-center">
-              <Col md={5}>
-                <Select
-                  id={`attribute-${index}`}
-                  name={`attributes[${index}].attributeId`}
-                  value={availableAttributes.find(
-                    (a) => a._id === attr.attributeId,
-                  )}
-                  onChange={(selected) =>
-                    attributeChangeHandler(
-                      index,
-                      "attributeId",
-                      selected?._id || "",
-                    )
-                  }
-                  options={availableAttributes}
-                  placeholder="Выберите из списка..."
-                  isClearable
-                  isSearchable
-                  getOptionLabel={(option) => `${option.name} (${option.code})`}
-                  getOptionValue={(option) => option._id}
-                />
-              </Col>
+        {attributes.map((attr, index) => {
+          // Уже выбранные в других строках атрибуты убираем из списка (своё
+          // значение оставляем, чтобы оно отображалось).
+          const usedElsewhere = new Set(
+            attributes
+              .filter((_, j) => j !== index)
+              .map((a) => a.attributeId)
+              .filter(Boolean),
+          );
+          const optionsForRow = availableAttributes.filter(
+            (a) => a._id === attr.attributeId || !usedElsewhere.has(a._id),
+          );
 
-              <Col md={4}>
-                <Button
-                  className="me-4"
-                  variant="danger"
-                  size="sm"
-                  onClick={() => removeAttributeHandler(index)}
-                >
-                  <RiCloseFill /> Удалить
-                </Button>
-                {!availableAttributes.find(
-                  (a) => a._id === attr.attributeId,
-                ) && (
+          return (
+            <div key={index}>
+              <Row className="mb-2 align-items-center">
+                <Col md={5}>
+                  <Select
+                    id={`attribute-${index}`}
+                    name={`attributes[${index}].attributeId`}
+                    value={availableAttributes.find(
+                      (a) => a._id === attr.attributeId,
+                    )}
+                    onChange={(selected) =>
+                      attributeChangeHandler(
+                        index,
+                        "attributeId",
+                        selected?._id || "",
+                      )
+                    }
+                    options={optionsForRow}
+                    placeholder="Выберите из списка..."
+                    isClearable
+                    isSearchable
+                    getOptionLabel={(option) =>
+                      `${option.name} (${option.code})`
+                    }
+                    getOptionValue={(option) => option._id}
+                  />
+                </Col>
+
+                <Col md={7} className="d-flex align-items-center gap-2">
+                  <div className="btn-group" role="group">
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      onClick={() => moveAttribute(index, -1)}
+                      disabled={index === 0}
+                      title="Переместить выше"
+                    >
+                      <RiArrowUpLine />
+                    </Button>
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      onClick={() => moveAttribute(index, 1)}
+                      disabled={index === attributes.length - 1}
+                      title="Переместить ниже"
+                    >
+                      <RiArrowDownLine />
+                    </Button>
+                  </div>
                   <Button
-                    variant="success"
+                    variant="danger"
                     size="sm"
-                    onClick={() => openAttributeModal(index)}
-                    title="Создать новый атрибут"
+                    onClick={() => removeAttributeHandler(index)}
                   >
-                    <RiAddFill /> Создать новый
+                    <RiCloseFill /> Удалить
                   </Button>
-                )}
-              </Col>
-
-              <Col md={1}></Col>
-            </Row>
-            <Row className="my-2">
+                  {!availableAttributes.find(
+                    (a) => a._id === attr.attributeId,
+                  ) && (
+                    <Button
+                      variant="success"
+                      size="sm"
+                      onClick={() => openAttributeModal(index)}
+                      title="Создать новый атрибут"
+                    >
+                      <RiAddFill /> Создать новый
+                    </Button>
+                  )}
+                </Col>
+              </Row>
+              <Row className="my-2">
               <Col sm="auto">
                 <Form.Check
                   type="checkbox"
@@ -297,10 +343,11 @@ const DeviceTypeFormFields = ({
                   }
                 />
               </Col>
-            </Row>
-            <Row className="mb-2"></Row>
-          </div>
-        ))}
+              </Row>
+              <Row className="mb-2"></Row>
+            </div>
+          );
+        })}
         <Row>
           <Col>
             <Button variant="secondary" size="sm" onClick={addAttributeHandler}>

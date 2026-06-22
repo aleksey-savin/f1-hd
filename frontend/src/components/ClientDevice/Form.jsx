@@ -59,7 +59,9 @@ const PURCHASE_STEP = 2;
 const SUBMIT_FIELDS = [
   "companyId",
   "locationId",
+  "userId",
   "deviceModelId",
+  "configurationId",
   "deviceTypeId",
   "serialNumber",
   "inventoryNumber",
@@ -76,13 +78,20 @@ const SUBMIT_FIELDS = [
   "notes",
 ];
 
-// Сообщение об ошибке шага зависит от вида устройства (custom требует только тип).
-const stepError = (index, deviceKind) => {
+// Сообщение об ошибке шага зависит от вида устройства (custom требует только тип)
+// и от статуса (Выдано требует пользователя).
+const stepError = (index, deviceKind, form) => {
   if (index === 0) return "Выберите компанию";
-  if (index === 1)
-    return deviceKind === "custom"
-      ? "Выберите тип устройства"
-      : "Заполните тип, вендора и модель";
+  if (index === 1) {
+    const base =
+      deviceKind === "custom"
+        ? !form.deviceTypeId && "Выберите тип устройства"
+        : (!form.deviceTypeId || !form.vendorId || !form.deviceModelId) &&
+          "Заполните тип, вендора и модель";
+    if (base) return base;
+    if (form.status === "deployed" && !form.userId)
+      return "Выберите пользователя (статус «Выдано»)";
+  }
   return null;
 };
 
@@ -115,10 +124,12 @@ const ClientDeviceForm = ({ title }) => {
   const [form, setForm] = useState({
     companyId: refId(data?.companyId),
     locationId: refId(data?.locationId),
+    userId: refId(data?.userId),
     deviceTypeId:
       refId(data?.deviceModelId?.deviceTypeId) || refId(data?.deviceTypeId),
     vendorId: refId(data?.deviceModelId?.vendorId),
     deviceModelId: refId(data?.deviceModelId),
+    configurationId: refId(data?.configurationId),
     serialNumber: data?.serialNumber || "",
     inventoryNumber: data?.inventoryNumber || "",
     status: data?.status || "readyForDeployment",
@@ -172,9 +183,11 @@ const ClientDeviceForm = ({ title }) => {
 
   const [companies, setCompanies] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [users, setUsers] = useState([]);
   const [deviceTypes, setDeviceTypes] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [deviceModels, setDeviceModels] = useState([]);
+  const [configurations, setConfigurations] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -255,6 +268,65 @@ const ClientDeviceForm = ({ title }) => {
 
     fetchLocations();
   }, [form.companyId]);
+
+  // Пользователи выбранной компании (для статуса «Выдано»). Фильтр по компании —
+  // как в LocationFormFields: назначаемый пользователь должен быть из неё.
+  useEffect(() => {
+    if (!form.companyId) {
+      setUsers([]);
+      return;
+    }
+
+    const fetchUsers = async () => {
+      const { token } = getLocalStorageData();
+      const headers = { Authorization: "Bearer " + token };
+      const base = import.meta.env.VITE_API_ADDRESS;
+
+      try {
+        const response = await fetch(`${base}/api/users?activeOnly=true`, {
+          headers,
+        });
+        const data = await response.json();
+        const list = Array.isArray(data) ? data : data.users || [];
+        setUsers(
+          list.filter((u) => (u.company?._id || u.company) === form.companyId),
+        );
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        setUsers([]);
+      }
+    };
+
+    fetchUsers();
+  }, [form.companyId]);
+
+  // Конфигурации выбранной модели (заводская сборка). Без модели — список пуст.
+  useEffect(() => {
+    if (!form.deviceModelId) {
+      setConfigurations([]);
+      return;
+    }
+
+    const fetchConfigurations = async () => {
+      const { token } = getLocalStorageData();
+      const headers = { Authorization: "Bearer " + token };
+      const base = import.meta.env.VITE_API_ADDRESS;
+
+      try {
+        const response = await fetch(
+          `${base}/api/inventory/device-configurations/model/${form.deviceModelId}`,
+          { headers },
+        );
+        const data = await response.json();
+        setConfigurations(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Error fetching configurations:", error);
+        setConfigurations([]);
+      }
+    };
+
+    fetchConfigurations();
+  }, [form.deviceModelId]);
 
   // Тело запроса для компонента: связка модели + серийник + кол-во + блок
   // закупки/гарантии (всё из строки). Компания берётся от родителя. Для
@@ -372,6 +444,33 @@ const ClientDeviceForm = ({ title }) => {
     [deviceTypes],
   );
 
+  // Конфигурации модели → опции (имя или собранная из значений строка).
+  const configOptions = useMemo(
+    () =>
+      configurations.map((c) => ({
+        value: c._id,
+        label:
+          c.name ||
+          (c.values || [])
+            .map(
+              (v) =>
+                `${v.attributeId?.name || v.attributeId?.code || "—"}: ${v.value}`,
+            )
+            .join(", ") ||
+          "Конфигурация",
+      })),
+    [configurations],
+  );
+
+  const userOptions = useMemo(
+    () =>
+      users.map((u) => ({
+        value: u._id,
+        label: `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email,
+      })),
+    [users],
+  );
+
   // Типы-комплектующие (isComponent). Если у типа задан attachableToTypeIds,
   // показываем его только для подходящего родительского типа; пустой список —
   // совместим со всеми.
@@ -388,18 +487,30 @@ const ClientDeviceForm = ({ title }) => {
 
   // --- каскадные сбросы ---
   // Расположение зависит от компании — при смене компании сбрасываем его.
+  // Смена компании сбрасывает расположение и пользователя (они привязаны к ней).
   const handleCompanyChange = (value) =>
-    setForm((prev) => ({ ...prev, companyId: value, locationId: "" }));
+    setForm((prev) => ({
+      ...prev,
+      companyId: value,
+      locationId: "",
+      userId: "",
+    }));
 
   // custom-ветка: одиночный select типа (модель там не используется).
   const handleTypeChange = (value) =>
     setForm((prev) => ({ ...prev, deviceTypeId: value, deviceModelId: "" }));
 
-  // При переходе на самосборку чистим вендора и модель (они там бессмысленны).
+  // При переходе на самосборку чистим вендора, модель и конфигурацию (они там
+  // бессмысленны — конфигурации привязаны к модели).
   const handleKindChange = (kind) => {
     setDeviceKind(kind);
     if (kind === "custom") {
-      setForm((prev) => ({ ...prev, vendorId: "", deviceModelId: "" }));
+      setForm((prev) => ({
+        ...prev,
+        vendorId: "",
+        deviceModelId: "",
+        configurationId: "",
+      }));
     }
   };
 
@@ -432,10 +543,15 @@ const ClientDeviceForm = ({ title }) => {
     switch (index) {
       case 0:
         return !!form.companyId;
-      case 1:
+      case 1: {
         // Серийник больше не обязателен ни в одной ветке.
-        if (deviceKind === "custom") return !!form.deviceTypeId;
-        return !!form.deviceTypeId && !!form.vendorId && !!form.deviceModelId;
+        const baseValid =
+          deviceKind === "custom"
+            ? !!form.deviceTypeId
+            : !!form.deviceTypeId && !!form.vendorId && !!form.deviceModelId;
+        // Статус «Выдано» требует выбранного пользователя.
+        return baseValid && (form.status !== "deployed" || !!form.userId);
+      }
       default:
         return true;
     }
@@ -480,6 +596,8 @@ const ClientDeviceForm = ({ title }) => {
     const payload = { ...form };
     if (deviceKind === "custom") {
       payload.deviceModelId = "";
+      // конфигурации привязаны к модели — у самосборки их нет
+      payload.configurationId = "";
     } else {
       payload.deviceTypeId = "";
     }
@@ -570,23 +688,60 @@ const ClientDeviceForm = ({ title }) => {
               </ButtonGroup>
 
               {deviceKind === "branded" ? (
-                <ModelChainFields
-                  value={{
-                    deviceTypeId: form.deviceTypeId,
-                    vendorId: form.vendorId,
-                    deviceModelId: form.deviceModelId,
-                  }}
-                  onChange={(partial) =>
-                    setForm((prev) => ({ ...prev, ...partial }))
-                  }
-                  deviceTypes={deviceTypes}
-                  vendors={vendors}
-                  deviceModels={deviceModels}
-                  onResourceCreated={handleResourceCreated}
-                  modelRequired
-                  autoFocusType
-                  idPrefix="device"
-                />
+                <>
+                  <ModelChainFields
+                    value={{
+                      deviceTypeId: form.deviceTypeId,
+                      vendorId: form.vendorId,
+                      deviceModelId: form.deviceModelId,
+                    }}
+                    onChange={(partial) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        ...partial,
+                        // смена модели/типа/вендора сбрасывает конфигурацию
+                        ...("deviceModelId" in partial
+                          ? { configurationId: "" }
+                          : {}),
+                      }))
+                    }
+                    deviceTypes={deviceTypes}
+                    vendors={vendors}
+                    deviceModels={deviceModels}
+                    onResourceCreated={handleResourceCreated}
+                    modelRequired
+                    autoFocusType
+                    idPrefix="device"
+                  />
+                  {form.deviceModelId && (
+                    <Form.Group className="mt-3 mb-0">
+                      <Form.Label htmlFor="configurationId">
+                        Конфигурация
+                      </Form.Label>
+                      <Select
+                        id="configurationId"
+                        placeholder={
+                          configOptions.length
+                            ? "Выберите конфигурацию"
+                            : "У модели нет конфигураций"
+                        }
+                        options={configOptions}
+                        value={findOption(configOptions, form.configurationId)}
+                        onChange={(o) =>
+                          setField("configurationId", o ? o.value : "")
+                        }
+                        isClearable
+                        isDisabled={!configOptions.length}
+                        noOptionsMessage={() => "У модели нет конфигураций"}
+                      />
+                      <Form.Text className="text-muted">
+                        {configOptions.length
+                          ? "Набор характеристик модели (ОЗУ, CPU, накопитель…)."
+                          : "У этой модели нет конфигураций — добавьте их на странице модели."}
+                      </Form.Text>
+                    </Form.Group>
+                  )}
+                </>
               ) : (
                 <>
                   <Form.Group className="mb-3">
@@ -655,12 +810,40 @@ const ClientDeviceForm = ({ title }) => {
                   placeholder="Выберите статус"
                   options={STATUS_OPTIONS}
                   value={findOption(STATUS_OPTIONS, form.status)}
-                  onChange={(o) =>
-                    setField("status", o ? o.value : "readyForDeployment")
-                  }
+                  onChange={(o) => {
+                    const value = o ? o.value : "readyForDeployment";
+                    setForm((prev) => ({
+                      ...prev,
+                      status: value,
+                      // вне «Выдано» пользователь не привязывается
+                      ...(value !== "deployed" ? { userId: "" } : {}),
+                    }));
+                  }}
                   isClearable={false}
                 />
               </Form.Group>
+
+              {form.status === "deployed" && (
+                <Form.Group className="mt-3 mb-0">
+                  <Form.Label htmlFor="userId">
+                    Пользователь <span className="text-danger">*</span>
+                  </Form.Label>
+                  <Select
+                    id="userId"
+                    placeholder={
+                      form.companyId
+                        ? "Выберите пользователя"
+                        : "Сначала выберите компанию"
+                    }
+                    options={userOptions}
+                    value={findOption(userOptions, form.userId)}
+                    onChange={(o) => setField("userId", o ? o.value : "")}
+                    isClearable
+                    isDisabled={!form.companyId}
+                    noOptionsMessage={() => "Нет пользователей в компании"}
+                  />
+                </Form.Group>
+              )}
 
               {deviceKind === "custom" && (
                 <ComponentsFields
@@ -755,11 +938,13 @@ const ClientDeviceForm = ({ title }) => {
             </motion.div>
           </AnimatePresence>
 
-          {attempted && !stepValid(step) && stepError(step, deviceKind) && (
-            <p className="text-danger small mt-2 mb-0">
-              {stepError(step, deviceKind)}
-            </p>
-          )}
+          {attempted &&
+            !stepValid(step) &&
+            stepError(step, deviceKind, form) && (
+              <p className="text-danger small mt-2 mb-0">
+                {stepError(step, deviceKind, form)}
+              </p>
+            )}
         </Col>
 
         <Col lg={4} className="mt-3 mt-lg-0">
@@ -773,6 +958,8 @@ const ClientDeviceForm = ({ title }) => {
             vendors={vendors}
             deviceModels={deviceModels}
             suppliers={suppliers}
+            configurations={configurations}
+            users={users}
           />
         </Col>
       </Row>
