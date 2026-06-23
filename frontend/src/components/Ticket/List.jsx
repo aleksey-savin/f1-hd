@@ -36,6 +36,17 @@ const List = ({
     onSelectionActiveChange?.(selectedTickets.length > 0);
   }, [selectedTickets.length, onSelectionActiveChange]);
 
+  // После тихого обновления списка убираем из выделения заявки, которых больше
+  // нет в списке (закрыты/удалены) — чтобы они не попали в следующее действие и
+  // не держали фоновый опрос на паузе. Срабатывает только при смене items
+  // (например, silentRefresh после массового действия), не при самом выделении.
+  useEffect(() => {
+    setSelectedTickets((prev) => {
+      const next = prev.filter((id) => items.some((item) => item._id === id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [items]);
+
   // Стабильная ссылка (useCallback), чтобы memo(AnimatedItem) не перерисовывал
   // все карточки при каждом переключении выделения.
   const handleSelect = useCallback(
@@ -55,14 +66,15 @@ const List = ({
   );
 
   // Выполняем массовое действие текущим выделением: на время запроса показываем
-  // спиннер (выделение держим), по завершении — сбрасываем выделение.
+  // спиннер. Выделение НЕ сбрасываем — заявки, оставшиеся в списке, остаются
+  // выделёнными (можно сразу сделать следующее действие), а исчезнувшие
+  // (закрытые/удалённые) уберёт эффект-отсев ниже.
   const runAction = async (callback, payload) => {
     setProcessing(true);
     try {
       await callback(selectedTickets, payload);
     } finally {
       setProcessing(false);
-      setSelectedTickets([]);
     }
   };
 

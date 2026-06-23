@@ -294,9 +294,12 @@ older ticket code used `mimetype`, while later attachment upload code used
     never replaced with a service account), the ticket company alias, and the
     operator name parsed from the **"С кем говорил:"** field of the email body
     (text or HTML). Names are corrected toward these values;
-  - returns `{ text, summary, title, segments, model, generatedAt }`. `text` is
-    currently set to the summary for compatibility with earlier UI/data reads;
-    `title` is consumed by the email auto-trigger and ignored by the manual path.
+  - returns `{ text, summary, title, segments, model, generatedAt, summaryError,
+    recognized }`. `text` is currently set to the summary for compatibility with earlier
+    UI/data reads; `title` is consumed by the email auto-trigger and ignored by the manual
+    path; `recognized` is `true` only when ASR produced real non-empty speech (not just an
+    empty fallback segment), and the email auto-trigger uses it to gate the ticket
+    title/description overwrite (see §3 Email auto-trigger).
 
 ### Controller / routes — `backend/controllers/ticket.js`, `routes/internal/ticket.js`
 - `POST /tickets/:ticketNum/attachments/speech-to-text` (`isAuth,
@@ -315,26 +318,33 @@ older ticket code used `mimetype`, while later attachment upload code used
   after `ticket.save()`.
 - The email processor does not await OpenAI before continuing IMAP processing.
   Each audio attachment is saved as `pending`, then `ready`/`error`.
-- **Title/description overwrite needs both: a telephony sender AND an incoming-call
-  subject.** On the **first** audio attachment that yields a summary, the ticket's
+- **Title/description overwrite needs both: a telephony sender AND a successful
+  recognition.** On the **first** audio attachment that yields a summary, the ticket's
   `description` is overwritten with the call summary and `title` with the generated
   title — **but only when both hold**: (1) the ticket came from a **cloud-telephony
   account**, determined by looking up the sender (`ticket.realSender` email) and
   checking `isCloudTelephony` (`callerIdentityService.isCloudTelephonySender`), **and**
-  (2) the **original email subject contains "Входящий звонок"** (re-checked on
-  `ticket.title`; audio is guaranteed since the job only runs with an audio
-  attachment). For ordinary emails that happen to carry audio — e.g. from rank-and-file
-  users like `fedoseeva@`/`churinova@`, where `isCloudTelephonySender` is `false` — the
-  recording is still transcribed and the dialog/summary shown, but the email's own
-  subject/body are left untouched. The email handler enforces the same subject rule
-  separately: it only normalizes the ticket title to `"Входящий звонок"` when the
-  subject already contains it **and** there is audio, so phone-number identification
-  alone (a number found in a forwarded thread, signature, or an empty-body email) never
-  rewrites the subject. `extractCallerPhone` is still used to identify the
-  applicant/company, just not to change the title. When the overwrite does apply: the
-  original email body is preserved in `htmlDescription` (still reachable via "Просмотр
-  оригинала"); if it was empty, the original `description` is moved there first.
-  Newlines → `<br>` since both fields render as HTML.
+  (2) **recognition genuinely succeeded** — `transcribeAttachment` returned
+  `recognized:true` (ASR produced real non-empty speech, not just an empty fallback
+  segment), a non-empty `summary`, and no `summaryError`. The **email subject is no
+  longer checked**: the telephony provider (Mango) sends recordings with varying subjects
+  ("Запись разговора … +<номер> <имя>", "Входящий звонок", …), so keying the overwrite on
+  the literal "Входящий звонок" string silently skipped real recordings (the dialog and
+  summary were generated but never written back to the ticket, and the category was then
+  detected from the raw provider email). The `recognized` guard also keeps an
+  empty/garbled call — or a hallucinated summary on empty ASR input — from wiping the
+  original description. For ordinary emails that happen to carry audio — e.g. from
+  rank-and-file users like `fedoseeva@`/`churinova@`, where `isCloudTelephonySender` is
+  `false` — the recording is still transcribed and the dialog/summary shown, but the
+  email's own subject/body are left untouched (the `isTelephonyTicket` check alone
+  protects them). Separately and **unchanged**, the email handler still normalizes the
+  **creation-time** ticket title to `"Входящий звонок"` only when the subject already
+  contains it **and** there is audio, so phone-number identification alone (a number
+  found in a forwarded thread, signature, or an empty-body email) never rewrites the
+  subject; `extractCallerPhone` is still used to identify the applicant/company. When the
+  overwrite does apply: the original email body is preserved in `htmlDescription` (still
+  reachable via "Просмотр оригинала"); if it was empty, the original `description` is
+  moved there first. Newlines → `<br>` since both fields render as HTML.
 - This currently applies only to **new email-created tickets**, not email replies
   that become comments.
 - **Ticket-level status** `ticket.aiSpeech.status` tracks the background job for the
@@ -445,8 +455,9 @@ are logged):
   and fires `detectTicketCategory` in the background from the email subject/body.
 - **Telephony / transcribe→summary→title** — `transcribeTicketAudioAttachments`: after the
   `aiSpeech.status` finalization (and when `ai.isActive`), awaits `detectTicketCategory` so
-  the category is chosen from the **call summary** that replaced the description, not the
-  original "Входящий звонок". Email replies that become comments are not categorized.
+  the category is chosen from the **call summary** that replaced the description (when the
+  overwrite applied — see Email auto-trigger gate), not the raw telephony-provider email.
+  Email replies that become comments are not categorized.
 - **Telegram** — the bot is a **separate service** with its own models and no shared code,
   so detection is self-contained in `telegram-bot/services/ticketCategoryService.js` (a
   mirror of the backend prompt + a minimal `axios`-based provider call). On a new ticket

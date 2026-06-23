@@ -541,6 +541,14 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
       ? await transcribeWithYandex(attachment, config)
       : await transcribeWithOpenai(attachment, config);
 
+  // Реальная речь распознана, если ASR вернул непустой текст (а не единственный
+  // пустой fallback-сегмент). Нужно вызывающему коду, чтобы НЕ подменять
+  // описание/заголовок заявки при пустом аудио или возможной галлюцинации итога
+  // на пустом входе.
+  const hasRecognizedSpeech = recognizedSegments.some(
+    (segment) => segment.text && segment.text.trim(),
+  );
+
   let segments = recognizedSegments;
   let summary = "";
   let title = "";
@@ -586,5 +594,6 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
     model,
     generatedAt: new Date(),
     summaryError,
+    recognized: hasRecognizedSpeech,
   };
 };

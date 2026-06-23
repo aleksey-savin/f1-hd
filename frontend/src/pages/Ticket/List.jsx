@@ -107,7 +107,9 @@ const Tickets = () => {
       console.error("Ошибка массового действия:", error);
       showToast("danger", "Не удалось выполнить действие. Попробуйте ещё раз.");
     } finally {
-      filterStore.fetchOpened();
+      // Тихое обновление (без isLoading-спиннера и пропадания списка) —
+      // обновляем заявки на месте, выделение при этом сохраняется.
+      await filterStore.silentRefresh();
     }
   };
 

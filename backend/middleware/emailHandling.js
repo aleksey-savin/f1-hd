@@ -62,16 +62,15 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
   const prefs = await Preferences.findOne({});
   const knownContext = await buildKnownCaller(ticket, prefs);
 
-  // Заголовок и описание подменяем итогом звонка ТОЛЬКО для настоящих входящих
-  // звонков, и оба условия обязательны:
-  //  1) письмо пришло с аккаунта облачной телефонии (по email отправителя), и
-  //  2) в теме письма (она же заголовок заявки) есть "Входящий звонок".
-  // Аудио при этом гарантировано — функция вызывается лишь при наличии
-  // аудиовложения. Для обычных писем с аудио (например, от рядовых пользователей
-  // вроде fedoseeva@/churinova@) распознаём речь и показываем диалог, но
-  // тему/описание письма не трогаем.
+  // Заголовок и описание подменяем итогом звонка ТОЛЬКО для писем с аккаунта
+  // облачной телефонии (определяем по email отправителя) и ТОЛЬКО при реально
+  // удавшемся распознавании (см. recognitionSucceeded ниже). Тему письма НЕ
+  // проверяем: провайдер (Mango) присылает записи с разными темами — "Запись
+  // разговора …", "Входящий звонок" и т.п., и привязка к строке темы ломала
+  // реальный кейс. Защита от затирания обычных писем с аудио (от рядовых
+  // пользователей вроде fedoseeva@/churinova@) и так обеспечивается
+  // isTelephonyTicket — у таких отправителей isCloudTelephony=false.
   const isTelephonyTicket = await isCloudTelephonySender(ticket.realSender);
-  const isIncomingCall = /входящий\s+звонок/i.test(ticket.title || "");
 
   // Заголовок и описание заявки задаём по первому удачно распознанному звонку
   let ticketContentUpdated = false;
@@ -122,14 +121,14 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
       };
 
       // Итог звонка становится описанием заявки, заголовок — на основе
-      // распознанного текста. Только для заявок с телефонии; оригинал письма
-      // сохраняем в htmlDescription.
-      if (
-        !ticketContentUpdated &&
-        result.summary &&
-        isTelephonyTicket &&
-        isIncomingCall
-      ) {
+      // распознанного текста. Только для заявок с телефонии и только если речь
+      // реально распознана и сформирован осмысленный итог без ошибок — иначе
+      // оригинальные описание/заголовок письма НЕ трогаем. Оригинал письма при
+      // подмене сохраняем в htmlDescription.
+      const recognitionSucceeded =
+        result.recognized && !!result.summary && !result.summaryError;
+
+      if (!ticketContentUpdated && isTelephonyTicket && recognitionSucceeded) {
         if (!freshTicket.htmlDescription) {
           freshTicket.htmlDescription = (freshTicket.description || "").replace(
             /\n/g,
