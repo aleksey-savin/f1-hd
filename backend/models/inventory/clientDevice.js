@@ -111,6 +111,19 @@ const clientDeviceSchema = new Schema(
       type: String,
       trim: true,
     },
+    // Сетевое имя машины (hostname, напр. "AG-WS001"). Опционально — нужно в
+    // основном для ПК/ноутбуков. Ключ сопоставления при синхронизации с агентом
+    // (в паре с companyId). Уникальность — составной партиал-индекс ниже.
+    hostname: {
+      type: String,
+      trim: true,
+    },
+    // Стабильный «якорь» под будущего агента (hardware UUID / GUID). Заполняет
+    // ТОЛЬКО агент; в мастере не редактируется. Глобально уникален (индекс ниже).
+    machineId: {
+      type: String,
+      trim: true,
+    },
     inventoryNumber: {
       type: String,
       trim: true,
@@ -200,6 +213,22 @@ clientDeviceSchema.index(
   {
     unique: true,
     partialFilterExpression: { inventoryNumber: { $type: "string" } },
+  },
+);
+// Hostname уникален в пределах компании (в разных компаниях — может совпадать).
+clientDeviceSchema.index(
+  { companyId: 1, hostname: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { hostname: { $type: "string" } },
+  },
+);
+// machineId глобально уникален (стабильный идентификатор реальной машины).
+clientDeviceSchema.index(
+  { machineId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { machineId: { $type: "string" } },
   },
 );
 // Быстрая выборка комплектующих сборки.

@@ -25,6 +25,7 @@ import {
   RiToolsLine,
   RiGlobalLine,
   RiHardDrive2Line,
+  RiFingerprintLine,
   RiStackLine,
   RiFileList2Line,
   RiArrowGoBackFill,
@@ -253,6 +254,14 @@ const ViewClientDevice = ({ device = {} }) => {
 
         <Col xs={12} lg={6}>
           <SectionCard icon={<RiToolsLine />} title="Техническая информация">
+            <Line icon={<RiComputerLine />} label="Имя компьютера" mono>
+              {device.hostname}
+            </Line>
+            {device.machineId && (
+              <Line icon={<RiFingerprintLine />} label="ID машины (агент)" mono>
+                {device.machineId}
+              </Line>
+            )}
             <Line icon={<RiGlobalLine />} label="IP-адрес" mono>
               {device.ipAddress}
             </Line>

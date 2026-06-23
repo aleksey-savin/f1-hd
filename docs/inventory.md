@@ -122,6 +122,16 @@ vendor+type, optionally `configurationId`) **or** self-built (`deviceTypeId` dir
   `expectedLifespan` (months, def 36).
 - **Technical:** `ipAddress`, `macAddress`, `operatingSystem`,
   `installedSoftware[{name,version,licenseKey,installedDate}]`.
+- **Agent sync / naming:** `hostname` (PC / network name, e.g. `AG-WS001`; optional,
+  mainly for PCs/laptops) — **partial-unique per company** via the compound index
+  `{ companyId, hostname }`, so two companies may reuse a name but not within one. The
+  controller `add`/`update` also do an explicit per-company duplicate check (friendly
+  409). `machineId` (stable hardware UUID / agent GUID) — **globally** partial-unique,
+  *reserved* for the planned on-PC agent: it is **not** in `buildDevicePayload` (the
+  wizard never sends it, and `update` does `Object.assign`, which would otherwise wipe an
+  agent-set value), so only a future agent path writes it. Intended enrollment: first
+  contact matches `{ companyId, hostname }` and stores `machineId`; later syncs match by
+  `machineId` (survives renames) and refresh `hostname`.
 - **Meta:** `importSource` (`manual\|csv_import\|api_import\|migration`), audit
   (`createdBy`/`updatedBy`), **soft-delete** (`deletedAt`/`deletedBy`), `__v`
   (`versionKey`, intended for optimistic locking).

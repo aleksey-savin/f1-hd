@@ -23,6 +23,7 @@ const deviceSearchFields = (item) => [
   item.ipAddress,
   item.macAddress,
   item.operatingSystem,
+  item.hostname,
 ];
 
 // функция последовательно отсеивает устройства согласно активным фильтрам

@@ -62,6 +62,10 @@ const buildDevicePayload = (body) => ({
   ipAddress: clean(body.ipAddress),
   macAddress: clean(body.macAddress),
   operatingSystem: clean(body.operatingSystem),
+  // Сетевое имя ПК. machineId здесь НЕ маппим намеренно: его проставляет агент
+  // отдельным путём, а update делает Object.assign(payload) — иначе правка из
+  // мастера (без machineId в теле) затёрла бы значение агента.
+  hostname: clean(body.hostname),
   notes: clean(body.notes),
 });
 
@@ -183,6 +187,23 @@ exports.add = async (req, res, next) => {
       return next(new AppError("Invalid company ID", 400));
     }
 
+    // Hostname опционален и уникален в пределах компании — проверяем дубль,
+    // только если задан (companyId здесь уже разрешён, в т.ч. от родителя).
+    if (payload.hostname) {
+      const hostExists = await ClientDevice.findOne({
+        companyId: payload.companyId,
+        hostname: payload.hostname,
+      });
+      if (hostExists) {
+        return next(
+          new AppError(
+            `Устройство с именем "${payload.hostname}" уже есть в этой компании`,
+            409,
+          ),
+        );
+      }
+    }
+
     // Назначенный пользователь должен быть из компании устройства (company у
     // User — вложенный объект { _id, alias }; сравниваем по _id).
     if (payload.userId) {
@@ -284,6 +305,25 @@ exports.update = async (req, res, next) => {
       const company = await Company.findById(payload.companyId);
       if (!company) {
         return next(new AppError("Invalid company ID", 400));
+      }
+    }
+
+    // Hostname уникален в пределах компании. Проверяем, только если изменился;
+    // компанию берём новую (если меняется) или текущую.
+    if (payload.hostname && payload.hostname !== device.hostname) {
+      const companyId = payload.companyId || device.companyId;
+      const hostExists = await ClientDevice.findOne({
+        companyId,
+        hostname: payload.hostname,
+        _id: { $ne: req.params.id },
+      });
+      if (hostExists) {
+        return next(
+          new AppError(
+            `Устройство с именем "${payload.hostname}" уже есть в этой компании`,
+            409,
+          ),
+        );
       }
     }
 

@@ -53,6 +53,11 @@ const clientDeviceValidation = [
     .isLength({ min: 1, max: 100 })
     .withMessage("Серийный номер должен содержать от 1 до 100 символов")
     .trim(),
+  body("hostname")
+    .optional({ checkFalsy: true })
+    .isLength({ max: 100 })
+    .withMessage("Имя компьютера не должно превышать 100 символов")
+    .trim(),
   body("inventoryNumber")
     .optional({ checkFalsy: true })
     .isLength({ max: 100 })

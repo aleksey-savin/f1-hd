@@ -75,6 +75,7 @@ const SUBMIT_FIELDS = [
   "ipAddress",
   "macAddress",
   "operatingSystem",
+  "hostname",
   "lastMaintenanceDate",
   "notes",
 ];
@@ -143,6 +144,7 @@ const ClientDeviceForm = ({ title }) => {
     ipAddress: data?.ipAddress || "",
     macAddress: data?.macAddress || "",
     operatingSystem: data?.operatingSystem || "",
+    hostname: data?.hostname || "",
     notes: data?.notes || "",
   });
 

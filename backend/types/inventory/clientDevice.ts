@@ -45,6 +45,10 @@ export interface IClientDevice {
   ipAddress?: string;
   macAddress?: string;
   operatingSystem?: string;
+  // Сетевое имя ПК (hostname); уникально в пределах компании.
+  hostname?: string;
+  // Стабильный идентификатор реальной машины под агента; глобально уникален.
+  machineId?: string;
   inventoryNumber?: string;
   notes?: string;
   installedSoftware?: IInstalledSoftware[];

@@ -12,6 +12,37 @@ const TechFields = ({ values, onChange }) => {
       <Row>
         <Col md={6}>
           <Form.Group className="mb-3">
+            <Form.Label htmlFor="hostname">Имя компьютера (hostname)</Form.Label>
+            <Form.Control
+              id="hostname"
+              name="hostname"
+              type="text"
+              placeholder="AG-WS001"
+              value={values.hostname}
+              onChange={(e) => onChange("hostname", e.target.value)}
+            />
+          </Form.Group>
+        </Col>
+        <Col md={6}>
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="operatingSystem">
+              Операционная система
+            </Form.Label>
+            <Form.Control
+              id="operatingSystem"
+              name="operatingSystem"
+              type="text"
+              placeholder="Windows 11, Ubuntu 22.04, RouterOS"
+              value={values.operatingSystem}
+              onChange={(e) => onChange("operatingSystem", e.target.value)}
+            />
+          </Form.Group>
+        </Col>
+      </Row>
+
+      <Row>
+        <Col md={6}>
+          <Form.Group className="mb-3">
             <Form.Label htmlFor="ipAddress">IP-адрес</Form.Label>
             <Form.Control
               id="ipAddress"
@@ -39,21 +70,6 @@ const TechFields = ({ values, onChange }) => {
       </Row>
 
       <Row>
-        <Col md={6}>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="operatingSystem">
-              Операционная система
-            </Form.Label>
-            <Form.Control
-              id="operatingSystem"
-              name="operatingSystem"
-              type="text"
-              placeholder="Windows 11, Ubuntu 22.04, RouterOS"
-              value={values.operatingSystem}
-              onChange={(e) => onChange("operatingSystem", e.target.value)}
-            />
-          </Form.Group>
-        </Col>
         <Col md={6}>
           <Form.Group className="mb-3">
             <Form.Label htmlFor="lastMaintenanceDate">

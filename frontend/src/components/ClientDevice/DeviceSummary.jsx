@@ -71,7 +71,11 @@ const DeviceSummary = ({
     form.warrantyExpirationDate ||
     supplierName;
   const hasTech =
-    form.ipAddress || form.macAddress || form.operatingSystem || form.notes;
+    form.hostname ||
+    form.ipAddress ||
+    form.macAddress ||
+    form.operatingSystem ||
+    form.notes;
 
   return (
     <Card className="position-sticky" style={{ top: "1rem" }}>
@@ -136,6 +140,7 @@ const DeviceSummary = ({
             <div className="text-muted text-uppercase small fw-semibold pt-3 pb-1">
               Тех. инфо
             </div>
+            {form.hostname && <Line label="Имя ПК" value={form.hostname} />}
             {form.ipAddress && <Line label="IP" value={form.ipAddress} />}
             {form.macAddress && <Line label="MAC" value={form.macAddress} />}
             {form.operatingSystem && (
