@@ -103,6 +103,65 @@ exports.add = async (req, res, next) => {
   }
 };
 
+// Массовое добавление комментария: один и тот же текст на несколько заявок.
+// Без вложений (для bulk не поддерживаем). Повторяет логику add по каждой заявке.
+exports.addMultiple = async (req, res, next) => {
+  try {
+    const authData = await getAuthData(req);
+    const prefs = await Preferences.findOne({});
+
+    const { ids, content } = req.body;
+
+    for (const id of ids) {
+      const ticket = await Ticket.findById(id);
+      if (!ticket) continue;
+
+      const comment = new Comment({
+        content: content,
+        ticketId: id,
+        notifications: {
+          lastAction: "new comment",
+          pending:
+            prefs.notify?.byEmail.isActive || prefs.notify?.byTelegram.isActive,
+        },
+        createdBy: authData.userId,
+        updatedBy: authData.userId,
+      });
+
+      await comment.save();
+
+      ticket.comments
+        ? ticket.comments.push(comment._id)
+        : (ticket.comments = [comment._id]);
+      await ticket.save();
+
+      const logEntry = new TicketLog({
+        ticketId: ticket._id,
+        user: {
+          firstName: authData.firstName,
+          lastName: authData.lastName,
+        },
+        severity: "info",
+        event: `добавлен комментарий`,
+      });
+      await logEntry.save();
+    }
+
+    res.status(201).json({
+      message: "Comments added successfully!",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to add comment to multiple tickets`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
 exports.update = async (req, res, next) => {
   try {
     const authData = await getAuthData(req);

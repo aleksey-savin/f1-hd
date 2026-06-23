@@ -3,6 +3,7 @@ const router = new Router();
 const commentController = require("@/controllers/comment");
 const isAuth = require("@/middleware/isAuth");
 const fileUpload = require("@/middleware/fileUpload");
+const { canPerformTickets } = require("@/middleware/permissions");
 
 const { runValidation } = require("@/middleware/runValidation");
 const commentValidation = require("@/validations/comment");
@@ -16,6 +17,13 @@ router.post(
   commentValidation.add,
   runValidation,
   commentController.add,
+);
+
+router.post(
+  "/comments/add-multiple",
+  isAuth,
+  canPerformTickets,
+  commentController.addMultiple,
 );
 
 module.exports = router;

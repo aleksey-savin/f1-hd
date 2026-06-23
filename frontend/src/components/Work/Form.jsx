@@ -19,10 +19,17 @@ import { useLoaderData, useParams } from "react-router";
 import useViewTicketStore from "../../store/view-ticket";
 
 const WorkForm = ({ title }) => {
-  const { ticket, company, otherCompanyTickets, responsibles, works } =
+  const { ticket, otherCompanyTickets, responsibles, works } =
     useViewTicketStore();
 
-  const { limitWorksDateFrom } = useLoaderData();
+  const {
+    limitWorksDateFrom,
+    hasServicePlan,
+    schedule,
+    pricePerHourNonWorking,
+    tariffingPeriod,
+    alwaysWithinPlan,
+  } = useLoaderData();
 
   const { workId } = useParams();
 
@@ -42,10 +49,15 @@ const WorkForm = ({ title }) => {
   const [finishedAt, setFinishedAt] = useState(
     work?.finishedAt ? utcToLocalForm(work.finishedAt) : "",
   );
+  // Уже привязанные заявки берём из work.linkedTickets (резолвятся бэкендом со
+  // всеми связями работы), а не фильтром по otherCompanyTickets — иначе связи с
+  // заявками вне кандидатного списка (другая категория и т.п.) не отображались бы
+  // и терялись при сохранении. otherCompanyTickets остаётся списком опций для
+  // добавления новых связей.
   const [linkToTickets, setLinkToTickets] = useState(
-    otherCompanyTickets.filter((ticket) =>
-      work?.tickets?.includes(ticket._id.toString()),
-    ) || [],
+    (work?.linkedTickets || []).filter(
+      (linked) => linked._id.toString() !== ticket._id.toString(),
+    ),
   );
   const [workDuration, setWorkDuration] = useState("00:00 ч.");
 
@@ -248,10 +260,13 @@ const WorkForm = ({ title }) => {
       </Form.Group>
       <CheckIfWithinPlan
         work={work}
-        company={company}
-        ticket={ticket}
         startedAt={startedAt}
         finishedAt={finishedAt}
+        hasServicePlan={hasServicePlan}
+        schedule={schedule}
+        pricePerHourNonWorking={pricePerHourNonWorking}
+        tariffingPeriod={tariffingPeriod}
+        alwaysWithinPlan={alwaysWithinPlan}
       />
       {isAdmin && (
         <Form.Group as={Row}>

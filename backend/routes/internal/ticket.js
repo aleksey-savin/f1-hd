@@ -133,6 +133,20 @@ router.post(
 );
 
 router.post(
+  "/tickets/take-to-work-multiple",
+  isAuth,
+  canPerformTickets,
+  ticketController.takeToWorkMultiple,
+);
+
+router.post(
+  "/tickets/close-multiple",
+  isAuth,
+  canPerformTickets,
+  ticketController.closeMultiple,
+);
+
+router.post(
   "/tickets/:ticketNum/update-checklist",
   isAuth,
   canPerformTickets,

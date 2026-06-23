@@ -34,6 +34,7 @@ const ListWrapper = ({
   showBackButton = false,
   backRoute,
   defaultSearchValue = "",
+  showSortAndCount = true,
   children,
 }) => {
   const { state } = useNavigation();
@@ -143,22 +144,26 @@ const ListWrapper = ({
             <Filter items={filterStore.originalList} />
           </Offcanvas.Body>
         </Offcanvas>
-        <Row className="justify-content-between my-3  fs-5">
-          <Col>{`Найдено: ${filterStore.filteredList?.length || 0}`}</Col>
-        </Row>
+        {showSortAndCount && (
+          <Row className="justify-content-between my-3  fs-5">
+            <Col>{`Найдено: ${filterStore.filteredList?.length || 0}`}</Col>
+          </Row>
+        )}
         <Row className="justify-content-between align-items-center my-3 fs-6">
-          <Col xs={7}>
-            <Select
-              placeholder="Сортировка"
-              defaultValue={filterStore.sortBy}
-              options={filterStore.sortingOptions}
-              getOptionLabel={(option) => `${option.label}`}
-              getOptionValue={(option) => option.label}
-              onChange={(selectedItem) =>
-                filterStore.handleSorting(selectedItem)
-              }
-            />
-          </Col>
+          {showSortAndCount && (
+            <Col xs={7}>
+              <Select
+                placeholder="Сортировка"
+                defaultValue={filterStore.sortBy}
+                options={filterStore.sortingOptions}
+                getOptionLabel={(option) => `${option.label}`}
+                getOptionValue={(option) => option.label}
+                onChange={(selectedItem) =>
+                  filterStore.handleSorting(selectedItem)
+                }
+              />
+            </Col>
+          )}
           <Col
             className="text-end text-success"
             onClick={filterOffcanvas.handleShow}
@@ -168,21 +173,23 @@ const ListWrapper = ({
         </Row>
       </MobileView>
       <BrowserView>
-        <Row className="justify-content-between my-3 fs-6 align-items-end">
-          <Col>{`Найдено: ${filterStore.filteredList?.length || 0}`}</Col>
-          <Col sm={3}>
-            <Select
-              placeholder="Сортировка"
-              defaultValue={filterStore.sortBy}
-              options={filterStore.sortingOptions}
-              getOptionLabel={(option) => `${option.label}`}
-              getOptionValue={(option) => option.label}
-              onChange={(selectedItem) =>
-                filterStore.handleSorting(selectedItem)
-              }
-            />
-          </Col>
-        </Row>
+        {showSortAndCount && (
+          <Row className="justify-content-between my-3 fs-6 align-items-end">
+            <Col>{`Найдено: ${filterStore.filteredList?.length || 0}`}</Col>
+            <Col sm={3}>
+              <Select
+                placeholder="Сортировка"
+                defaultValue={filterStore.sortBy}
+                options={filterStore.sortingOptions}
+                getOptionLabel={(option) => `${option.label}`}
+                getOptionValue={(option) => option.label}
+                onChange={(selectedItem) =>
+                  filterStore.handleSorting(selectedItem)
+                }
+              />
+            </Col>
+          </Row>
+        )}
       </BrowserView>
       {(filterStore.filteredList?.length > 0 ||
         filterStore.originalList?.length > 0) && (

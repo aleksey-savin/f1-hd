@@ -1,0 +1,520 @@
+/* Виджет «Окружение» заявки: семантический zoom по физической иерархии
+   (здание → этаж → помещение → рабочее место). Цвета — через bootstrap-токены,
+   поэтому корректны в светлой и тёмной теме. Холодная «структура» (accent =
+   --bs-primary, сине-чертёжный) + одна тёплая фокус-точка (focus = --bs-success).
+   Вся смелость — в движении и глубине, палитра намеренно сдержанная. */
+.env-viewer {
+  --env-accent: var(--bs-primary);
+  --env-accent-rgb: var(--bs-primary-rgb);
+  --env-focus: var(--bs-success);
+  --env-focus-rgb: var(--bs-success-rgb);
+  --env-star: #e0a458;
+  --env-border: var(--bs-border-color);
+  --env-muted: var(--bs-secondary-color);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.min-w-0 {
+  min-width: 0;
+}
+
+/* ── Крошки пути ───────────────────────────────────────────────────────── */
+.env-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.1rem;
+  font-size: 0.85rem;
+}
+.env-breadcrumb__seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+.env-breadcrumb__btn {
+  border: 0;
+  background: transparent;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.35rem;
+  color: var(--env-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.env-breadcrumb__btn:hover {
+  background: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
+}
+.env-breadcrumb__btn.is-active {
+  color: var(--env-accent);
+  font-weight: 600;
+}
+.env-breadcrumb__sep {
+  color: var(--env-muted);
+  opacity: 0.55;
+}
+
+/* ── Сцена и шкала глубины ─────────────────────────────────────────────── */
+/* Линейка глубины — только в ряд со сценой (row 1); кнопки масштаба и подсказка —
+   в колонке сцены (row 2/3), поэтому центрируются по карточке, а не по всей
+   ширине с навигацией. */
+.env-stage-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "ruler stage"
+    ".     controls"
+    ".     hint";
+  column-gap: 0.75rem;
+  row-gap: 0.75rem;
+  align-items: stretch;
+}
+.env-ruler {
+  grid-area: ruler;
+}
+.env-stage {
+  grid-area: stage;
+}
+.env-controls {
+  grid-area: controls;
+}
+.env-hint {
+  grid-area: hint;
+}
+
+.env-ruler {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.5rem 0;
+  flex: 0 0 auto;
+  position: relative;
+}
+.env-ruler::before {
+  content: "";
+  position: absolute;
+  left: 0.6rem;
+  top: 0.85rem;
+  bottom: 0.85rem;
+  width: 2px;
+  background: var(--env-border);
+}
+.env-ruler__tick {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0.2rem 0.3rem;
+  border-radius: 0.35rem;
+  color: var(--env-muted);
+  position: relative;
+}
+.env-ruler__dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--bs-body-bg);
+  border: 2px solid var(--env-border);
+  z-index: 1;
+  flex: 0 0 auto;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.env-ruler__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.env-ruler__tick:hover {
+  color: var(--bs-body-color);
+}
+.env-ruler__tick.is-active {
+  color: var(--env-focus);
+  font-weight: 600;
+}
+.env-ruler__tick.is-active .env-ruler__dot {
+  background: var(--env-focus);
+  border-color: var(--env-focus);
+  box-shadow: 0 0 0 4px rgba(var(--env-focus-rgb), 0.2);
+}
+
+.env-stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--env-border);
+  border-radius: 0.65rem;
+  background:
+    radial-gradient(
+      120% 120% at 50% 0%,
+      rgba(var(--env-accent-rgb), 0.06),
+      transparent 60%
+    ),
+    var(--bs-body-bg);
+  padding: 1rem;
+  min-height: 340px;
+  max-height: calc(100svh - 360px);
+  /* overflow-x скрыт + стабильный жёлоб скролла: при «наезде» (scale>1) кадр не
+     вылезает по горизонтали и вертикальный скролл не дёргает ширину. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+/* ── Кадр уровня ───────────────────────────────────────────────────────── */
+.env-frame__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.env-frame__icon {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--env-accent-rgb), 0.12);
+  color: var(--env-accent);
+  font-size: 1.4rem;
+  flex: 0 0 auto;
+}
+.env-frame__eyebrow {
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--env-muted);
+}
+.env-frame__name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+.env-frame__sub {
+  font-size: 0.8rem;
+  color: var(--env-muted);
+}
+
+.env-section {
+  margin-top: 1rem;
+}
+.env-section__label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--env-muted);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Вложенные пространства (ячейки) ───────────────────────────────────── */
+.env-children {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.env-cell {
+  border: 1px solid var(--env-border);
+  background: var(--bs-body-bg);
+  border-radius: 0.55rem;
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  min-width: 8.5rem;
+  position: relative;
+  cursor: pointer;
+  color: var(--bs-body-color);
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+.env-cell:hover {
+  border-color: var(--env-accent);
+  background: rgba(var(--env-accent-rgb), 0.06);
+}
+.env-cell:focus-visible {
+  outline: 2px solid var(--env-accent);
+  outline-offset: 2px;
+}
+.env-cell.is-current {
+  border-color: var(--env-focus);
+  box-shadow: 0 0 0 1px var(--env-focus) inset;
+}
+.env-cell.is-current:hover {
+  background: rgba(var(--env-focus-rgb), 0.1);
+  border-color: var(--env-focus);
+}
+.env-cell__name {
+  font-weight: 500;
+}
+.env-cell__meta {
+  font-size: 0.72rem;
+  color: var(--env-muted);
+}
+.env-cell__here {
+  position: absolute;
+  top: -0.55rem;
+  right: 0.5rem;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--env-focus);
+  color: #fff;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+}
+
+/* ── Техника ───────────────────────────────────────────────────────────── */
+.env-devices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.6rem;
+}
+.env-device {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.6rem;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 1px solid var(--env-border);
+  border-radius: 0.55rem;
+  background: var(--bs-body-bg);
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.env-device:hover {
+  border-color: var(--env-accent);
+}
+.env-device:focus-visible {
+  outline: 2px solid var(--env-accent);
+  outline-offset: 2px;
+}
+.env-device.is-personal:hover {
+  border-color: var(--env-star);
+}
+.env-device.is-personal {
+  border-color: var(--env-star);
+  background:
+    linear-gradient(
+      0deg,
+      rgba(224, 164, 88, 0.07),
+      rgba(224, 164, 88, 0.07)
+    ),
+    var(--bs-body-bg);
+}
+.env-device__icon {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.5rem;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--env-accent-rgb), 0.1);
+  color: var(--env-accent);
+  font-size: 1.1rem;
+}
+.env-device__body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.env-device__name {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.env-device__name .text-truncate {
+  min-width: 0;
+}
+.env-device__star {
+  color: var(--env-star);
+  flex: 0 0 auto;
+}
+.env-device__vendor {
+  font-size: 0.74rem;
+  color: var(--env-muted);
+}
+.env-device__loc {
+  font-size: 0.72rem;
+  color: var(--env-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.env-device__ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.25rem 0;
+}
+.env-id {
+  font-family: var(--bs-font-monospace, monospace);
+  font-size: 0.68rem;
+  /* Корпусный текст на тинте emphasis-цвета — читаемо в обеих темах.
+     var(--bs-tertiary-bg) в тёмной теме давал светлый фон → текст сливался. */
+  color: var(--bs-body-color);
+  background: rgba(var(--bs-emphasis-color-rgb), 0.1);
+  border: 1px solid rgba(var(--bs-emphasis-color-rgb), 0.14);
+  padding: 0.02rem 0.32rem;
+  border-radius: 0.3rem;
+  white-space: nowrap;
+}
+.env-device__status {
+  font-weight: 500;
+  font-size: 0.64rem;
+}
+
+.env-empty {
+  color: var(--env-muted);
+  font-size: 0.85rem;
+  padding: 0.3rem 0;
+}
+
+/* ── Управление масштабом ──────────────────────────────────────────────── */
+.env-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+.env-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--env-border);
+  background: var(--bs-body-bg);
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.7rem;
+  color: var(--bs-body-color);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.env-btn:hover:not(:disabled) {
+  background: var(--bs-secondary-bg);
+}
+.env-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.env-controls__hint {
+  font-size: 0.8rem;
+  color: var(--env-muted);
+  min-width: 9rem;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.env-hint {
+  text-align: center;
+  font-size: 0.74rem;
+  color: var(--env-muted);
+  opacity: 0.8;
+}
+
+/* Фокус на сцене — видимое кольцо для доступности (клавиатурный зум). */
+.env-stage:focus-visible {
+  outline: 2px solid var(--env-accent);
+  outline-offset: 2px;
+}
+
+/* ── Полоса личной техники / пустые состояния ──────────────────────────── */
+.env-personal {
+  border-top: 1px solid var(--env-border);
+  padding-top: 0.85rem;
+}
+.env-noworkplace {
+  display: flex;
+  align-items: center;
+}
+.env-loading {
+  display: flex;
+  justify-content: center;
+  padding: 2.5rem 0;
+}
+
+/* ── Offcanvas с детальной карточкой устройства ────────────────────────── */
+.env-detail-canvas {
+  max-width: 90vw;
+  width: 380px;
+}
+.env-detail__icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--env-accent-rgb), 0.12);
+  color: var(--env-accent);
+  flex: 0 0 auto;
+}
+.env-detail__personal {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--env-star);
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+.env-detail__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--env-border);
+}
+.env-detail__row:last-child {
+  border-bottom: 0;
+}
+.env-detail__label {
+  color: var(--env-muted);
+  font-size: 0.8rem;
+  flex: 0 0 auto;
+}
+.env-detail__value {
+  text-align: right;
+  font-weight: 500;
+  min-width: 0;
+  word-break: break-word;
+}
+.env-mono {
+  font-family: var(--bs-font-monospace, monospace);
+  font-weight: 400;
+}
+
+@media (max-width: 576px) {
+  .env-stage-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "ruler"
+      "stage"
+      "controls"
+      "hint";
+  }
+  .env-ruler {
+    flex-direction: row;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+  .env-ruler::before {
+    display: none;
+  }
+}

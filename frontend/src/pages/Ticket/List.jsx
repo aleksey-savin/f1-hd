@@ -20,12 +20,14 @@ import Col from "react-bootstrap/Col";
 import Form from "react-bootstrap/Form";
 import { useLocation } from "react-router";
 import useInitialPrefsStore from "../../store/prefs";
+import useToastStore from "../../store/toast-store";
 
 const Tickets = () => {
   const { modules } = useInitialPrefsStore();
   const location = useLocation();
   const { setLeftSidebarContent } = useSidebarStore();
   const filterStore = useTicketFilterStore();
+  const { showToast } = useToastStore();
 
   // Пока пользователь выделил заявки для удаления — фоновый опрос на паузе.
   const [selectionActive, setSelectionActive] = useState(false);
@@ -83,26 +85,62 @@ const Tickets = () => {
     );
   };
 
-  const handleDeleteSelected = async (selectedIds) => {
+  // Общий запрос массового действия: POST на bulk-эндпоинт + обновление списка.
+  // Сетевые сбои не роняем (см. память polling-fetch-error-handling) — показываем
+  // тост, в любом случае перечитываем список.
+  const bulkRequest = async (url, body, successMessage) => {
     try {
-      await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/tickets/delete-multiple`,
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}${url}`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: "Bearer " + localStorage.getItem("token"),
           },
-          body: JSON.stringify({ ids: selectedIds }),
+          body: JSON.stringify(body),
         },
       );
-
-      // Refresh the list
-      filterStore.fetchOpened();
+      if (!response.ok) throw new Error(`${url} ${response.status}`);
+      showToast("success", successMessage);
     } catch (error) {
-      console.error("Error deleting tickets:", error);
+      console.error("Ошибка массового действия:", error);
+      showToast("danger", "Не удалось выполнить действие. Попробуйте ещё раз.");
+    } finally {
+      filterStore.fetchOpened();
     }
   };
+
+  const handleDeleteSelected = (ids) =>
+    bulkRequest("/api/tickets/delete-multiple", { ids }, "Заявки удалены");
+
+  const handleTakeToWorkSelected = (ids, { takeOver }) =>
+    bulkRequest(
+      "/api/tickets/take-to-work-multiple",
+      { ids, takeOver },
+      "Заявки приняты в работу",
+    );
+
+  const handleCommentSelected = (ids, { content }) =>
+    bulkRequest(
+      "/api/comments/add-multiple",
+      { ids, content },
+      "Комментарий добавлен",
+    );
+
+  const handleAddWorksSelected = (ids, payload) =>
+    bulkRequest(
+      "/api/works/add",
+      { ...payload, tickets: ids },
+      "Работы добавлены",
+    );
+
+  const handleCloseSelected = (ids, { closingComment }) =>
+    bulkRequest(
+      "/api/tickets/close-multiple",
+      { ids, closingComment },
+      "Заявки закрыты",
+    );
 
   const customData = () => {
     return (
@@ -141,6 +179,10 @@ const Tickets = () => {
       <List
         items={filterStore.filteredList}
         onDeleteSelected={handleDeleteSelected}
+        onTakeToWorkSelected={handleTakeToWorkSelected}
+        onCommentSelected={handleCommentSelected}
+        onAddWorksSelected={handleAddWorksSelected}
+        onCloseSelected={handleCloseSelected}
         onSelectionActiveChange={setSelectionActive}
       ></List>
     </ListWrapper>

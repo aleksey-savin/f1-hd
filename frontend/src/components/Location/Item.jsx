@@ -3,17 +3,13 @@ import Col from "react-bootstrap/Col";
 
 import ItemCard from "../../UI/ItemCard";
 
-function LocationItem({ item }) {
-  const {
-    name,
-    type,
-    fullPath,
-    address,
-    description,
-    company,
-    subdivision,
-    isPublic,
-  } = item;
+function LocationItem({ item, pathLabel }) {
+  const { name, type, address, description, company, subdivision, isPublic } =
+    item;
+
+  // fullPath (virtual на бэке) асинхронный и по сети не приходит. Показываем
+  // переданный путь из дерева, иначе — имя непосредственного родителя.
+  const breadcrumb = pathLabel || item.parent?.name;
 
   const getLocationTypeLabel = (type) => {
     const labels = {
@@ -30,7 +26,9 @@ function LocationItem({ item }) {
     return (
       <>
         {name || "Без названия"}
-        {fullPath && <small className="text-muted ms-2">{fullPath}</small>}
+        {breadcrumb && (
+          <small className="text-muted ms-2">{breadcrumb}</small>
+        )}
       </>
     );
   };

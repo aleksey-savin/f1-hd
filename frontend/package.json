@@ -1,6 +1,6 @@
 {
   "name": "hd-frontend-reactjs",
-  "version": "1.13.13",
+  "version": "1.14.1",
   "private": true,
   "dependencies": {
     "@fullcalendar/core": "^6.1.17",

@@ -111,6 +111,17 @@ exports.getAllOpened = async (req, res, next) => {
       }
     }
 
+    // Лёгкий запрос: множество заявок, у которых есть хотя бы одна завершённая
+    // работа. Нужно фронту, чтобы заранее знать, можно ли массово закрыть заявку
+    // (закрытие требует указанных работ) и блокировать кнопку с пояснением.
+    const finishedWorkTicketIds = await Work.find({
+      tickets: { $in: ticketIds },
+      finishedAt: { $ne: null },
+    }).distinct("tickets");
+    const finishedSet = new Set(
+      finishedWorkTicketIds.map((id) => id.toString()),
+    );
+
     const shortenedTickets = filteredTickets.map((ticket) => ({
       _id: ticket._id,
       num: ticket.num,
@@ -127,6 +138,7 @@ exports.getAllOpened = async (req, res, next) => {
       state: ticket.state,
       latestComment: ticket.comments[ticket.comments.length - 1],
       scheduledWorks: worksByTicket.get(ticket._id.toString()) || [],
+      hasFinishedWorks: finishedSet.has(ticket._id.toString()),
       routineTask: ticket.routineTask,
       aiSpeech: ticket.aiSpeech,
       aiCategory: ticket.aiCategory,
@@ -514,6 +526,32 @@ exports.getOne = async (req, res, next) => {
     }
 
     const works = await Work.find({ tickets: ticket._id });
+
+    // Резолвим связанные заявки каждой работы в {_id, num, title}. Форма
+    // редактирования работ заполняет «Также привязать к» по work.linkedTickets,
+    // а не по кандидатному списку otherCompanyTickets (он сужен до заявок той же
+    // категории, где пользователь ответственный). Иначе связи с заявками вне
+    // этого списка (например, другой категории при массовом добавлении работ) не
+    // отображались бы и терялись при сохранении.
+    const linkedTicketIds = [
+      ...new Set(works.flatMap((work) => work.tickets.map((t) => t.toString()))),
+    ];
+    const linkedTicketDocs = await Ticket.find({
+      _id: { $in: linkedTicketIds },
+    }).select("num title");
+    const linkedById = new Map(
+      linkedTicketDocs.map((t) => [
+        t._id.toString(),
+        { _id: t._id, num: t.num, title: t.title },
+      ]),
+    );
+    const worksWithLinks = works.map((work) => ({
+      ...work.toObject(),
+      linkedTickets: work.tickets
+        .map((t) => linkedById.get(t.toString()))
+        .filter(Boolean),
+    }));
+
     const logs = await TicketLog.find({
       $or: [{ ticket: ticketNum }, { ticketId: ticket._id }],
     });
@@ -522,7 +560,7 @@ exports.getOne = async (req, res, next) => {
       message: "Ticket fetched",
       ticket: ticket,
       company: company || {},
-      works: works,
+      works: worksWithLinks,
       logs: isEndUser ? [] : logs,
     });
   } catch (error) {
@@ -1621,6 +1659,187 @@ exports.deleteMultiple = async (req, res, next) => {
     });
   } catch (error) {
     next(new AppError(`Failed to delete multiple tickets`, 500, true, error));
+  }
+};
+
+// Массовое принятие в работу. Повторяет логику takeToWork по каждой заявке.
+// Версию не проверяем (в списке её нет), но инкрементируем — чтобы открытые
+// detail-вью ловили конфликт.
+exports.takeToWorkMultiple = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const { ids, takeOver } = req.body;
+    const authedUserId = authedUser._id.toString();
+
+    for (const id of ids) {
+      const ticket = await Ticket.findById(id);
+      if (!ticket) continue;
+
+      ticket.state = "В работе";
+      ticket.startedAt = new Date();
+      ticket.startedBy = authedUser._id;
+      ticket.updatedBy = authedUser._id;
+      ticket.notifications = {
+        lastAction: "take ticket to work",
+        pending: true,
+      };
+
+      const isResponsible = ticket.responsibles.some(
+        (resp) => resp._id.toString() === authedUserId,
+      );
+
+      if (takeOver) {
+        const self = ticket.responsibles.find(
+          (resp) => resp._id.toString() === authedUserId,
+        );
+        ticket.responsibles = self ? [self] : [authedUser];
+      } else if (!isResponsible) {
+        ticket.responsibles = ticket.responsibles.concat(authedUser);
+      }
+
+      ticket.version = (ticket.version ?? 0) + 1;
+      await ticket.save();
+
+      const logEntry = new TicketLog({
+        ticketId: ticket._id,
+        user: {
+          firstName: authedUser.firstName,
+          lastName: authedUser.lastName,
+        },
+        severity: "info",
+        event: "заявка принята в работу",
+      });
+      await logEntry.save();
+
+      if (takeOver) {
+        const takeOverLog = new TicketLog({
+          ticketId: ticket._id,
+          user: {
+            firstName: authedUser.firstName,
+            lastName: authedUser.lastName,
+          },
+          severity: "info",
+          event: "взял(а) заявку на себя",
+        });
+        await takeOverLog.save();
+      }
+    }
+
+    res.status(201).json({
+      message: "Tickets taken to work successfully!",
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        "Failed to take multiple tickets to work",
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Массовое закрытие. Повторяет логику close по каждой заявке. Сохраняем правило
+// одиночного закрытия: закрываем только заявки с указанными работами (или при
+// праве canAvoidWorks); остальные пропускаем, не роняя весь батч.
+exports.closeMultiple = async (req, res, next) => {
+  try {
+    const prefs = await Preferences.findOne({});
+    const authedUser = await getAuthData(req);
+    const { permissions } = authedUser;
+    const { ids, closingComment } = req.body;
+
+    for (const id of ids) {
+      const ticket = await Ticket.findById(id);
+      if (!ticket) continue;
+
+      const works = await Work.find({ tickets: ticket._id });
+
+      if (!(works.length > 0 || permissions.canAvoidWorks)) continue;
+
+      let responsibles = [];
+      for (let resp of ticket.responsibles) {
+        const user = await User.findById(resp._id);
+
+        const worksExecutorsIds = works
+          .filter((work) => work.finishedAt)
+          .map((work) => work.finishedBy._id.toString());
+
+        if (
+          worksExecutorsIds.includes(resp._id.toString()) ||
+          user.permissions.canAvoidWorks
+        ) {
+          responsibles.push(user);
+        }
+      }
+
+      const prevState = ticket.state;
+
+      ticket.finishedAt = new Date();
+      ticket.responsibles = responsibles;
+      ticket.finishedBy = authedUser._id;
+      ticket.isClosed = true;
+      ticket.closingComment = closingComment;
+      ticket.state = "Закрыта";
+      ticket.notifications = {
+        lastAction: "close ticket",
+        pending: true,
+      };
+      ticket.version = (ticket.version ?? 0) + 1;
+
+      // удаление активных сеансов pro32connect
+      if (prevState !== ticket.state && ticket.state === "Закрыта") {
+        const connection = await Connection.findOne({
+          ticket: ticket.num,
+        });
+
+        if (connection) {
+          if (prefs.getScreen?.isActive) {
+            await fetch(
+              `https://api.pro32connect.ru/v1/support/close?apikey=${authedUser.getScreen.api}&connection_id=${connection.getScreenId}`,
+              {
+                method: "POST",
+              },
+            );
+          }
+          await Connection.deleteOne({ _id: connection._id });
+        }
+      }
+
+      // добавляем комментарий с результатом выполнения
+      const comment = new Comment({
+        content: closingComment,
+        ticketId: ticket._id,
+        notifications: {
+          lastAction: "new comment",
+          pending: false,
+        },
+        createdBy: authedUser,
+        updatedBy: authedUser,
+      });
+      await comment.save();
+      ticket.comments.push(comment._id);
+
+      await ticket.save();
+
+      const logEntry = new TicketLog({
+        ticketId: ticket._id,
+        user: {
+          firstName: authedUser.firstName,
+          lastName: authedUser.lastName,
+        },
+        severity: "info",
+        event: `заявка закрыта`,
+      });
+      await logEntry.save();
+    }
+
+    res.status(201).json({
+      message: "Tickets closed successfully!",
+    });
+  } catch (error) {
+    next(new AppError(`Failed to close multiple tickets`, 500, true, error));
   }
 };
 

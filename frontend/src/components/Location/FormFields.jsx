@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Form from "react-bootstrap/Form";
@@ -14,6 +14,63 @@ const LOCATION_TYPE_OPTIONS = [
   { value: "storage", label: "Склад" },
 ];
 
+// Допустимые типы родителя для каждого типа локации. Списки «ослаблены» (можно
+// пропускать уровни — помещение прямо в здании), т.к. реальные данные не всегда
+// содержат полную цепочку. Здание — корень, родителя не имеет.
+const ALLOWED_PARENT_TYPES = {
+  building: [],
+  floor: ["building"],
+  room: ["floor", "building"],
+  workplace: ["room", "floor", "building"],
+  storage: ["building", "floor", "room"],
+};
+
+const TYPE_LABEL = Object.fromEntries(
+  LOCATION_TYPE_OPTIONS.map((o) => [o.value, o.label]),
+);
+
+// Крошка из цепочки parent (virtual fullPath на бэке асинхронный и непригоден
+// для сериализации — строим путь сами по плоскому списку).
+const buildLocationPath = (loc, byId) => {
+  const names = [loc.name];
+  let cur = loc;
+  let guard = 0;
+  while (cur?.parent && guard < 8) {
+    const pid = cur.parent?._id || cur.parent;
+    const p = byId.get(String(pid));
+    if (!p) break;
+    names.unshift(p.name);
+    cur = p;
+    guard += 1;
+  }
+  return names.join(" → ");
+};
+
+// Все потомки узла (по parent-рёбрам плоского списка) — их нельзя предлагать в
+// родители, иначе образуется цикл.
+const collectDescendantIds = (rootId, list) => {
+  const childrenMap = new Map();
+  list.forEach((l) => {
+    const pid = l.parent?._id || l.parent;
+    if (!pid) return;
+    const key = String(pid);
+    if (!childrenMap.has(key)) childrenMap.set(key, []);
+    childrenMap.get(key).push(String(l._id));
+  });
+  const result = new Set();
+  const stack = [String(rootId)];
+  while (stack.length) {
+    const id = stack.pop();
+    (childrenMap.get(id) || []).forEach((k) => {
+      if (!result.has(k)) {
+        result.add(k);
+        stack.push(k);
+      }
+    });
+  }
+  return result;
+};
+
 // Поля расположения. Рендерят `name`-атрибуты для сабмита со страницы
 // (react-router action) и сообщают агрегированное состояние через onChange для
 // инлайн-модалки. Подразделения подгружаются по выбранной компании.
@@ -22,8 +79,10 @@ const LocationFormFields = ({
   location: initialLocation,
   companies = [],
   users = [],
+  parentLocations = [],
   subdivisions: initialSubdivisions = [],
   preselectedCompany = null,
+  preselectedParent = null,
   lockCompany = false,
   onChange,
 }) => {
@@ -41,6 +100,11 @@ const LocationFormFields = ({
     type: initialLocation?.type || "",
     assignedUser:
       initialLocation?.assignedUser?._id || initialLocation?.assignedUser || "",
+    parent:
+      initialLocation?.parent?._id ||
+      initialLocation?.parent ||
+      preselectedParent ||
+      "",
   });
 
   const [subdivisions, setSubdivisions] = useState(initialSubdivisions || []);
@@ -78,6 +142,7 @@ const LocationFormFields = ({
       type: location.type,
       company: location.company,
       subdivision: location.subdivision || undefined,
+      parent: location.parent || undefined,
       assignedUser: location.assignedUser || undefined,
       description: location.description,
       isPublic: location.isPublic,
@@ -126,6 +191,50 @@ const LocationFormFields = ({
     label: `${u.firstName} ${u.lastName}`,
   }));
 
+  // Опции родителя: та же компания, без себя и потомков, с учётом допустимых
+  // типов; подпись — крошка пути. Текущий родитель всегда присутствует, иначе
+  // react-select не покажет выбор и сабмит может его обнулить.
+  const parentOptions = useMemo(() => {
+    if (!location.company) return [];
+    const byId = new Map(parentLocations.map((l) => [String(l._id), l]));
+    const selfId = initialLocation?._id ? String(initialLocation._id) : null;
+    const descendants = selfId
+      ? collectDescendantIds(selfId, parentLocations)
+      : new Set();
+    const allowed = location.type ? ALLOWED_PARENT_TYPES[location.type] : null;
+
+    const toOption = (l) => ({
+      value: l._id,
+      label: `${buildLocationPath(l, byId)} — ${TYPE_LABEL[l.type] || l.type}`,
+    });
+
+    const options = parentLocations
+      .filter((l) => {
+        const compId = l.company?._id || l.company;
+        if (String(compId) !== String(location.company)) return false;
+        if (selfId && String(l._id) === selfId) return false;
+        if (descendants.has(String(l._id))) return false;
+        if (allowed && !allowed.includes(l.type)) return false;
+        return true;
+      })
+      .map(toOption);
+
+    if (
+      location.parent &&
+      !options.some((o) => String(o.value) === String(location.parent))
+    ) {
+      const cur = byId.get(String(location.parent));
+      if (cur) options.unshift(toOption(cur));
+    }
+    return options;
+  }, [
+    parentLocations,
+    location.company,
+    location.type,
+    location.parent,
+    initialLocation,
+  ]);
+
   const findOption = (options, value) =>
     options.find((o) => o.value === value) || null;
 
@@ -144,7 +253,10 @@ const LocationFormFields = ({
               placeholder="Выберите компанию"
               options={companyOptions}
               value={findOption(companyOptions, location.company)}
-              onChange={(o) => setField("company", o ? o.value : "")}
+              onChange={(o) => {
+                setField("company", o ? o.value : "");
+                setField("parent", "");
+              }}
               isDisabled={lockCompany}
               required
             />
@@ -203,6 +315,32 @@ const LocationFormFields = ({
               onChange={(o) => setField("type", o ? o.value : "")}
               required
             />
+          </Form.Group>
+        </Col>
+      </Row>
+
+      <Row>
+        <Col md={12}>
+          <Form.Group className="mb-3">
+            <Form.Label htmlFor="parent">Родительское расположение</Form.Label>
+            <Select
+              id="parent"
+              name="parentLocation"
+              placeholder={
+                location.type === "building"
+                  ? "Здание — верхний уровень иерархии"
+                  : "Выберите родительское расположение"
+              }
+              options={parentOptions}
+              value={findOption(parentOptions, location.parent)}
+              onChange={(o) => setField("parent", o ? o.value : "")}
+              isDisabled={!location.company || location.type === "building"}
+              isClearable
+            />
+            <Form.Text className="text-muted">
+              Где это расположение находится в иерархии: здание → этаж →
+              помещение → рабочее место
+            </Form.Text>
           </Form.Group>
         </Col>
       </Row>

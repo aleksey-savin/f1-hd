@@ -163,8 +163,16 @@ const hierarchyValidation = [
           throw new Error("Родительское расположение не найдено");
         }
 
-        // Check if parent belongs to the same company
-        if (parent.company.toString() !== req.user.company.toString()) {
+        // Родитель должен принадлежать той же компании, что и создаваемое/
+        // редактируемое расположение. isAuth выставляет только req.userId (не
+        // req.user), поэтому сверяем с company из тела запроса — его всегда шлёт
+        // форма, и контроллер использует тот же источник.
+        const targetCompany = req.body.company;
+        if (
+          targetCompany &&
+          parent.company &&
+          parent.company.toString() !== targetCompany.toString()
+        ) {
           throw new Error(
             "Родительское расположение должно принадлежать той же компании",
           );

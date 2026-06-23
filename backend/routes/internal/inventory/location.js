@@ -25,6 +25,14 @@ router.get(
   locationController.getUserWorkplaces,
 );
 
+// Get full environment for a user (workplace + ancestor chain + devices).
+// Должен идти до "/locations/:id", иначе :id перехватит "user".
+router.get(
+  "/locations/user/:userId/environment",
+  isAuth,
+  locationController.getUserEnvironment,
+);
+
 // Get devices in a location
 router.get(
   "/locations/:id/devices",
@@ -38,6 +46,9 @@ router.get(
   isAuth,
   locationController.getAssignableUsers,
 );
+
+// Get a single location node for the environment widget (devices + children)
+router.get("/locations/:id/node", isAuth, locationController.getLocationNode);
 
 // Get single location
 router.get("/locations/:id", isAuth, locationController.getOne);

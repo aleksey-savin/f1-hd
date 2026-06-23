@@ -6,6 +6,94 @@ const ClientDevice = require("../../models/inventory/clientDevice");
 const { AppError } = require("../../middleware/errorHandling");
 const getAuthData = require("../../middleware/getAuthData");
 
+// Лёгкий populate-граф для виджета окружения заявки: только то, что нужно
+// карточке устройства. userId НЕ populate — сравниваем сырой ObjectId для флага
+// isPersonal, чтобы не тянуть лишнее.
+const ENV_DEVICE_POPULATE = [
+  {
+    path: "deviceModelId",
+    select: "name vendorId deviceTypeId",
+    populate: [
+      { path: "vendorId", select: "name" },
+      { path: "deviceTypeId", select: "name" },
+    ],
+  },
+  { path: "deviceTypeId", select: "name" },
+  { path: "locationId", select: "name type" },
+];
+
+// Тонкий DTO устройства для окружения. Имя — из модели или прямого типа
+// (самосборные), вендор/тип человекочитаемые. isPersonal: устройство закреплено
+// лично за заявителем (бейдж «★»). Только не удалённые самостоятельные единицы.
+const toEnvDevice = (d, userId) => {
+  const model = d.deviceModelId;
+  const typeName = model?.deviceTypeId?.name || d.deviceTypeId?.name || null;
+  return {
+    _id: d._id,
+    name: model?.name || typeName || "Устройство",
+    typeName,
+    vendorName: model?.vendorId?.name || null,
+    serialNumber: d.serialNumber || null,
+    inventoryNumber: d.inventoryNumber || null,
+    status: d.status || null,
+    ipAddress: d.ipAddress || null,
+    operatingSystem: d.operatingSystem || null,
+    locationId: d.locationId?._id || d.locationId || null,
+    locationName: d.locationId?.name || null,
+    isPersonal: String(d.userId?._id || d.userId || "") === String(userId),
+  };
+};
+
+// Узел окружения: устройства локации (со слоем isPersonal) + дочерние локации с
+// числом устройств. Без isCurrent — «ветку заявителя» подсвечивает фронт по id
+// цепочки, чтобы кликабельны были ВСЕ дочерние узлы. Общий код для
+// getUserEnvironment и getLocationNode.
+const buildEnvNode = async (location, userId) => {
+  const devicesRaw = await ClientDevice.find({
+    deletedAt: null,
+    parentDeviceId: null,
+    locationId: location._id,
+  }).populate(ENV_DEVICE_POPULATE);
+  const devices = devicesRaw.map((d) => toEnvDevice(d, userId));
+
+  const childrenDocs = await Location.find({
+    parent: location._id,
+    isActive: true,
+  }).select("name type");
+
+  const childIds = childrenDocs.map((c) => c._id);
+  const countAgg = childIds.length
+    ? await ClientDevice.aggregate([
+        {
+          $match: {
+            locationId: { $in: childIds },
+            deletedAt: null,
+            parentDeviceId: null,
+          },
+        },
+        { $group: { _id: "$locationId", count: { $sum: 1 } } },
+      ])
+    : [];
+  const countMap = new Map(countAgg.map((c) => [String(c._id), c.count]));
+
+  const children = childrenDocs.map((child) => ({
+    _id: child._id,
+    name: child.name,
+    type: child.type,
+    deviceCount: countMap.get(String(child._id)) || 0,
+  }));
+
+  return {
+    _id: location._id,
+    name: location.name,
+    type: location.type,
+    subdivisionName: location.subdivision?.name || null,
+    deviceCount: devices.length,
+    devices,
+    children,
+  };
+};
+
 exports.getAll = async (req, res, next) => {
   try {
     const locations = await Location.find({})
@@ -198,13 +286,16 @@ exports.add = async (req, res, next) => {
       }
     }
 
-    // Check if parent exists and belongs to the same company
+    // Check if parent exists and belongs to the same company.
+    // Не populate'им company: нужен только ObjectId для сравнения (у populated
+    // документа .toString() ≠ id, из-за чего проверка ложно срабатывала).
     if (parent) {
-      const parentLocation =
-        await Location.findById(parent).populate("company");
+      const parentLocation = await Location.findById(parent);
+      const parentCompanyId =
+        parentLocation?.company?._id || parentLocation?.company;
       if (
         !parentLocation ||
-        parentLocation.company.toString() !== targetCompanyId.toString()
+        parentCompanyId?.toString() !== targetCompanyId.toString()
       ) {
         return next(
           new AppError("Parent location must belong to the same company", 400),
@@ -550,6 +641,121 @@ exports.getUserWorkplaces = async (req, res, next) => {
     next(
       new AppError(
         `Failed to fetch workplaces for user ${req.params.userId}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Окружение заявителя: рабочее место + цепочка вверх (здание→этаж→помещение→
+// рабочее место) с техникой и дочерними узлами на каждом уровне, плюс личная
+// техника пользователя. Питает zoom-виджет «Окружение» в карточке заявки.
+// Если рабочее место не сопоставлено — отдаём только личную технику (chain:null).
+exports.getUserEnvironment = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId).select("firstName lastName");
+    if (!user) {
+      return next(new AppError(`User with id ${userId} not found`, 404));
+    }
+
+    // Только не удалённые самостоятельные единицы (без комплектующих сборок).
+    const deviceFilter = { deletedAt: null, parentDeviceId: null };
+
+    // Личная техника (по userId) — показывается всегда, даже без рабочего места.
+    const personalDevicesRaw = await ClientDevice.find({
+      ...deviceFilter,
+      userId,
+    }).populate(ENV_DEVICE_POPULATE);
+    const personalDevices = personalDevicesRaw.map((d) =>
+      toEnvDevice(d, userId),
+    );
+
+    // Рабочее место (workplace с assignedUser=userId). populate parent/subdivision.
+    const workplaces = await Location.getUserWorkplaces(userId);
+    const workplace = workplaces[0] || null;
+
+    if (!workplace) {
+      return res.status(200).json({
+        user: {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+        workplace: null,
+        workplaceCount: 0,
+        chain: null,
+        personalDevices,
+      });
+    }
+
+    // Цепочка root→leaf: поднимаемся по parent. Кап глубины — защита от циклов.
+    const chainDocs = [];
+    let current = workplace;
+    let guard = 0;
+    while (current && guard < 8) {
+      chainDocs.unshift(current);
+      const parentId = current.parent?._id || current.parent;
+      if (!parentId) break;
+      current = await Location.findById(parentId)
+        .select("name type parent subdivision")
+        .populate("subdivision", "name");
+      guard += 1;
+    }
+
+    // На каждом узле — устройства и дочерние локации (общий хелпер).
+    const chain = [];
+    for (const node of chainDocs) {
+      chain.push(await buildEnvNode(node, userId));
+    }
+
+    res.status(200).json({
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+      workplace: { _id: workplace._id, name: workplace.name },
+      workplaceCount: workplaces.length,
+      chain,
+      personalDevices,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch environment for user ${req.params.userId}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Узел окружения по id локации — для свободной навигации в виджете «Окружение»
+// (клик по любому дочернему расположению, не только по ветке заявителя). userId
+// в query — чтобы проставить слой isPersonal на технике относительно заявителя.
+exports.getLocationNode = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query;
+
+    const location = await Location.findById(id)
+      .select("name type subdivision")
+      .populate("subdivision", "name");
+    if (!location) {
+      return next(new AppError(`Location with id ${id} not found`, 404));
+    }
+
+    const node = await buildEnvNode(location, userId);
+    res.status(200).json(node);
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch location node ${req.params.id}`,
         500,
         true,
         error,

@@ -13,19 +13,22 @@ import {
 
 import { formatPrice } from "../../util/format-string";
 
-import { useLoaderData } from "react-router";
-
 import { AuthedUserContext } from "../../store/authed-user-context";
 
-const CheckIfWithinPlan = ({ work, startedAt, finishedAt }) => {
-  const {
-    hasServicePlan,
-    schedule,
-    pricePerHourNonWorking = 0,
-    tariffingPeriod = 0,
-    alwaysWithinPlan = false,
-  } = useLoaderData();
-
+// Данные плана (hasServicePlan/schedule/тарификация/alwaysWithinPlan) приходят
+// через props: на странице работ их прокидывает loader, в модалке массового
+// добавления работ — fetch additional-data. Так компонент не привязан к роутеру.
+const CheckIfWithinPlan = ({
+  work,
+  startedAt,
+  finishedAt,
+  hasServicePlan = false,
+  schedule = {},
+  pricePerHourNonWorking = 0,
+  tariffingPeriod = 0,
+  alwaysWithinPlan = false,
+  onWithinPlanChange,
+}) => {
   const { permissions } = useContext(AuthedUserContext);
   const { canUseFinancesModule, canSeeGlobalFinancialReport } = permissions;
 
@@ -41,6 +44,13 @@ const CheckIfWithinPlan = ({ work, startedAt, finishedAt }) => {
   const withinPlanHandler = () => {
     setWithinPlan(!withinPlan);
   };
+
+  // Сообщаем родителю значение «в рамках плана» (нужно модалке массового
+  // добавления работ, которая шлёт JSON, а не FormData). В одиночном потоке
+  // проп не передаётся — эффект no-op.
+  useEffect(() => {
+    if (onWithinPlanChange) onWithinPlanChange(withinPlan);
+  }, [withinPlan]);
 
   useEffect(() => {
     const overtime = calcSingleWorkOvertime(

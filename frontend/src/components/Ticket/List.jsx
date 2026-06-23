@@ -1,19 +1,34 @@
-import { useState, useEffect, useContext } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { isMobile } from "react-device-detect";
+import { useState, useEffect, useContext, useCallback } from "react";
+import { AnimatePresence } from "framer-motion";
 import AnimatedItem from "./AnimatedItem";
-import Button from "react-bootstrap/Button";
-import Modal from "react-bootstrap/Modal";
+import BulkActionBar from "./BulkActionBar";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useTicketFilterStore from "../../store/lists/tickets";
 import LiveUpdateIndicator from "../../UI/LiveUpdateIndicator";
 
-const List = ({ items = [], onDeleteSelected, onSelectionActiveChange }) => {
+const List = ({
+  items = [],
+  onDeleteSelected,
+  onTakeToWorkSelected,
+  onCommentSelected,
+  onAddWorksSelected,
+  onCloseSelected,
+  onSelectionActiveChange,
+}) => {
   const { permissions } = useContext(AuthedUserContext);
   const lastSyncedAt = useTicketFilterStore((state) => state.lastSyncedAt);
+  const isLoading = useTicketFilterStore((state) => state.isLoading);
   const [selectedTickets, setSelectedTickets] = useState([]);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  // Пока массовое действие выполняется (запрос в полёте) — держим выделение и
+  // показываем спиннер в панели, чтобы было видно, что данные обрабатываются.
+  const [processing, setProcessing] = useState(false);
+
+  // Выделять заявки могут как пользователи с правом удаления, так и исполнители
+  // (для новых массовых действий — принять в работу / комментарий / работы /
+  // закрыть). Каждая конкретная кнопка дополнительно гейтится своим правом.
+  const canSelect =
+    permissions.canDeleteTickets || permissions.canPerformTickets;
 
   // Сообщаем странице, активно ли выделение — пока что-то выбрано, фоновый опрос
   // ставится на паузу, чтобы список не переобновлялся под рукой.
@@ -21,59 +36,38 @@ const List = ({ items = [], onDeleteSelected, onSelectionActiveChange }) => {
     onSelectionActiveChange?.(selectedTickets.length > 0);
   }, [selectedTickets.length, onSelectionActiveChange]);
 
-  const handleSelect = (ticketId) => {
-    if (permissions.canDeleteTickets) {
-      setSelectedTickets((prev) => {
-        if (prev.includes(ticketId)) {
-          return prev.filter((id) => id !== ticketId);
-        } else {
-          return [...prev, ticketId];
-        }
-      });
+  // Стабильная ссылка (useCallback), чтобы memo(AnimatedItem) не перерисовывал
+  // все карточки при каждом переключении выделения.
+  const handleSelect = useCallback(
+    (ticketId) => {
+      if (!canSelect) return;
+      setSelectedTickets((prev) =>
+        prev.includes(ticketId)
+          ? prev.filter((id) => id !== ticketId)
+          : [...prev, ticketId],
+      );
+    },
+    [canSelect],
+  );
+
+  const selectedItems = items.filter((item) =>
+    selectedTickets.includes(item._id),
+  );
+
+  // Выполняем массовое действие текущим выделением: на время запроса показываем
+  // спиннер (выделение держим), по завершении — сбрасываем выделение.
+  const runAction = async (callback, payload) => {
+    setProcessing(true);
+    try {
+      await callback(selectedTickets, payload);
+    } finally {
+      setProcessing(false);
+      setSelectedTickets([]);
     }
-  };
-
-  const handleDeleteSelected = () => {
-    setShowConfirmModal(false);
-    onDeleteSelected(selectedTickets);
-    setSelectedTickets([]);
-  };
-
-  const handleResetSelection = () => {
-    setSelectedTickets([]);
-  };
-
-  const ConfirmDeleteModal = () => {
-    return (
-      <Modal
-        show={showConfirmModal}
-        centered
-        onHide={() => setShowConfirmModal(false)}
-      >
-        <Modal.Header closeButton>
-          <Modal.Title>Подтверждение удаления</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          Вы уверены, что хотите удалить выбранные заявки?
-        </Modal.Body>
-        <Modal.Footer>
-          <Button
-            variant="secondary"
-            onClick={() => setShowConfirmModal(false)}
-          >
-            Отмена
-          </Button>
-          <Button variant="danger" onClick={handleDeleteSelected}>
-            Удалить
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    );
   };
 
   return (
     <>
-      <ConfirmDeleteModal />
       <div className="d-flex justify-content-end mb-2">
         <LiveUpdateIndicator timestamp={lastSyncedAt} />
       </div>
@@ -87,46 +81,17 @@ const List = ({ items = [], onDeleteSelected, onSelectionActiveChange }) => {
           />
         ))}
       </AnimatePresence>
-      <AnimatePresence>
-        {selectedTickets.length > 0 && (
-          <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            transition={{ type: "spring", duration: 0.3 }}
-            style={{
-              position: "fixed",
-              bottom: isMobile ? "6rem" : "1rem",
-              left: 0,
-              right: 0,
-              padding: "0.5rem 1rem",
-              background: "white",
-              boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-              zIndex: 1100,
-              borderRadius: "8px",
-              width: "fit-content",
-              margin: "0 auto",
-              display: "flex",
-              justifyContent: "center",
-            }}
-          >
-            <Button
-              variant="danger"
-              className="mx-2"
-              onClick={() => setShowConfirmModal(true)}
-            >
-              Удалить выбранные ({selectedTickets.length})
-            </Button>
-            <Button
-              variant="secondary"
-              className="me-2"
-              onClick={handleResetSelection}
-            >
-              Сбросить
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+      <BulkActionBar
+        selectedItems={selectedItems}
+        isLoading={processing || isLoading}
+        onTakeToWork={(payload) => runAction(onTakeToWorkSelected, payload)}
+        onComment={(payload) => runAction(onCommentSelected, payload)}
+        onAddWorks={(payload) => runAction(onAddWorksSelected, payload)}
+        onClose={(payload) => runAction(onCloseSelected, payload)}
+        onDelete={() => runAction(onDeleteSelected)}
+        onReset={() => setSelectedTickets([])}
+      />
     </>
   );
 };

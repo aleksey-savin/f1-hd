@@ -46,6 +46,7 @@ import ApplicantModal from "../../components/Ticket/View/ApplicantModal";
 import CompanyModal from "../../components/Ticket/View/CompanyModal";
 import DescriptionCard from "../../components/Ticket/View/DescriptionCard";
 import AiAssistant from "../../components/Ticket/View/AiAssistant";
+import EnvironmentViewer from "../../components/Ticket/View/EnvironmentViewer";
 import AiSpeechBadge from "../../UI/AiSpeechBadge";
 import AiCategoryBadge from "../../UI/AiCategoryBadge";
 import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
@@ -492,6 +493,13 @@ const ViewTicket = () => {
                         </Col>
                       </Row>
                     </Tab>
+                    {!isEndUser &&
+                      modules.inventory?.isActive &&
+                      permissions.canUseInventoryModule && (
+                        <Tab eventKey="environment" title="Окружение">
+                          <EnvironmentViewer userId={ticket.applicant?._id} />
+                        </Tab>
+                      )}
                     <Tab
                       eventKey="attachments"
                       title={

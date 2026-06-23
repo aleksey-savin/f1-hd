@@ -10,8 +10,10 @@ const LocationForm = ({
   location: initialLocation,
   companies = [],
   users = [],
+  parentLocations = [],
   subdivisions = [],
   preselectedCompany = null,
+  preselectedParent = null,
 }) => {
   const params = useParams();
   const isEdit = Boolean(params.id);
@@ -28,8 +30,10 @@ const LocationForm = ({
               location={initialLocation}
               companies={companies}
               users={users}
+              parentLocations={parentLocations}
               subdivisions={subdivisions}
               preselectedCompany={preselectedCompany}
+              preselectedParent={preselectedParent}
             />
           </Col>
         </Row>

@@ -5,6 +5,10 @@ import { getLocalStorageData } from "../../util/auth";
 const locationFilter = (state) => {
   const originalList = state.originalList ? state.originalList : [];
   return originalList
+    .filter(
+      // Рабочие места по умолчанию скрыты — их обычно много; показываем по свитчу.
+      (location) => state.showWorkplaces || location.type !== "workplace",
+    )
     .filter((location) => {
       // Filter by type
       if (state.filterType && state.filterType !== "all") {
@@ -99,6 +103,7 @@ const handleSorting = (selected, list) => {
 
 const useLocationFilterStore = create((set) => ({
   filterType: "all",
+  showWorkplaces: false,
   selectedCompanyIds: [],
   searchTerm: "",
   sortingOptions: [
@@ -170,6 +175,11 @@ const useLocationFilterStore = create((set) => ({
         filteredList: locationFilter(newState),
       };
     }),
+  setShowWorkplaces: (value) =>
+    set((state) => ({
+      showWorkplaces: value,
+      filteredList: locationFilter({ ...state, showWorkplaces: value }),
+    })),
   setSelectedCompanies: (companyIds) =>
     set((state) => {
       const newState = { ...state, selectedCompanyIds: companyIds };
@@ -212,6 +222,7 @@ const useLocationFilterStore = create((set) => ({
   resetFilter: () => {
     set(() => ({
       filterType: "all",
+      showWorkplaces: false,
       selectedCompanyIds: [],
       originalList: [],
       filteredList: [],

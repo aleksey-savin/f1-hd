@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
 import Item from "./Item";
@@ -61,4 +61,9 @@ const AnimatedItem = ({ item, isSelected, onSelect }) => {
   );
 };
 
-export default AnimatedItem;
+// Мемоизация: при выделении заявки меняется только isSelected у одной карточки.
+// Без memo переключение выделения перерисовывало все карточки списка (каждая —
+// motion.div с layout-анимацией и тремя поповерами), отчего выделение «тупило».
+// item стабилен между фоновыми обновлениями, onSelect стабилизирован useCallback
+// в List — поэтому перерисовывается только переключённая карточка.
+export default memo(AnimatedItem);

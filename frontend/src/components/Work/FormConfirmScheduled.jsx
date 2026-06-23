@@ -37,10 +37,12 @@ const ConfirmScheduledWork = ({ title }) => {
   const [finishedAt, setFinishedAt] = useState(
     work.planningToFinish ? utcToLocalForm(work.planningToFinish) : "",
   );
+  // См. Work/Form.jsx: значение берём из work.linkedTickets (все связи работы),
+  // а otherCompanyTickets оставляем как список опций для добавления новых.
   const [linkToTickets, setLinkToTickets] = useState(
-    otherCompanyTickets.filter((ticket) =>
-      work.tickets.includes(ticket._id.toString()),
-    ) || [],
+    (work?.linkedTickets || []).filter(
+      (linked) => linked._id.toString() !== ticket._id.toString(),
+    ),
   );
   const [workDuration, setWorkDuration] = useState("00:00 ч.");
 

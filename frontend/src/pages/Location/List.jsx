@@ -5,7 +5,7 @@ import { BrowserView } from "react-device-detect";
 
 import { RiMapPinLine } from "react-icons/ri";
 
-import List from "../../components/Location/List";
+import Tree from "../../components/Location/Tree";
 import LocationFilter from "../../components/Location/Filter";
 
 import ListWrapper from "../../UI/ListWrapper";
@@ -33,20 +33,34 @@ const LocationList = () => {
     filterStore.handleSorting(filterStore.sortBy);
   }, [filterStore.originalList]);
 
+  // Перечитываем при возврате к списку (напр. после закрытия формы), но только
+  // если компания уже выбрана — иначе на первом маунте подтянулась бы не та
+  // (дефолтная) компания, пока выбор ещё не восстановлен из URL.
   useEffect(() => {
-    filterStore.fetch();
+    if (filterStore.selectedCompanyIds.length > 0) {
+      filterStore.fetch();
+    }
   }, [appLocation]);
 
-  // Initialize selected companies from URL params (only once)
+  // После успешного действия (удаления) перечитываем список выбранной компании.
+  useEffect(() => {
+    if (actionData?.success) filterStore.fetch();
+  }, [actionData]);
+
+  // Восстанавливаем выбранную компанию из URL и сразу подгружаем её расположения
+  // (иначе после обновления страницы фильтр есть, а дерево пустое).
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const companyIds = urlParams.get("companyIds");
 
-    if (companies.length > 0 && filterStore.selectedCompanyIds.length === 0) {
-      if (companyIds) {
-        const idsArray = companyIds.split(",").filter(Boolean);
-        filterStore.setSelectedCompanies(idsArray);
-      }
+    if (
+      companies.length > 0 &&
+      filterStore.selectedCompanyIds.length === 0 &&
+      companyIds
+    ) {
+      const idsArray = companyIds.split(",").filter(Boolean);
+      filterStore.setSelectedCompanies(idsArray);
+      filterStore.fetch(idsArray.join(","));
     }
   }, [companies.length, appLocation]);
 
@@ -112,16 +126,15 @@ const LocationList = () => {
     filterStore.selectedCompanyIds.length === 0
   ) {
     return (
-      <ListWrapper title={title} filterStore={filterStore}>
+      <ListWrapper title={title} filterStore={filterStore} showSortAndCount={false}>
         <ActionMessages />
         <Card className="text-center py-5">
           <Card.Body>
             <RiMapPinLine size={48} className="text-muted mb-3" />
-            <h5 className="text-muted">Выберите компании</h5>
+            <h5 className="text-muted">Выберите компанию</h5>
             <p className="text-muted">
-              Для просмотра расположений выберите одну или несколько компаний из
-              списка в левой боковой панели. Доступно компаний:{" "}
-              {companies.length}
+              Для просмотра расположений выберите компанию из списка в левой
+              боковой панели. Доступно компаний: {companies.length}
             </p>
           </Card.Body>
         </Card>
@@ -136,9 +149,10 @@ const LocationList = () => {
         title={title}
         filter={<LocationFilter />}
         filterStore={filterStore}
+        showSortAndCount={false}
         addRoute={`/inventory/locations/add?company=${filterStore.selectedCompanyIds[0] || ""}`}
       >
-        <List items={filterStore.filteredList} />
+        <Tree items={filterStore.filteredList} />
       </ListWrapper>
     </Container>
   );

@@ -17,7 +17,7 @@ exports.getTicketWorks = async (req, res, next) => {
     if (!ticket) {
       return next(new AppError(`Ticket not found`, 404));
     }
-    const works = await Work.find({ tickets: [ticket._id] }).sort({
+    const works = await Work.find({ tickets: ticket._id }).sort({
       _id: 1,
     });
 
@@ -214,17 +214,21 @@ exports.add = async (req, res, next) => {
 
     await work.save();
 
-    // добавляем запись в лог заявки
-    const logEntry = new TicketLog({
-      ticketId: req.body.ticketId,
-      user: {
-        firstName: authData.firstName,
-        lastName: authData.lastName,
-      },
-      severity: "info",
-      event: `добавлены работы`,
-    });
-    await logEntry.save();
+    // добавляем запись в лог по каждой привязанной заявке: одна работа может
+    // быть привязана сразу к нескольким заявкам (linkToTickets в одиночной форме
+    // или массовое добавление работ из списка) — отметка нужна у всех.
+    for (const linkedTicketId of tickets.filter(Boolean)) {
+      const logEntry = new TicketLog({
+        ticketId: linkedTicketId,
+        user: {
+          firstName: authData.firstName,
+          lastName: authData.lastName,
+        },
+        severity: "info",
+        event: `добавлены работы`,
+      });
+      await logEntry.save();
+    }
 
     res.status(201).json({
       message: "Work added successfully!",
