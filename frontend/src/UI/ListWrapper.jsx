@@ -1,10 +1,16 @@
+import { useState } from "react";
+
 import { Outlet, useNavigation, Link, useNavigate } from "react-router";
 
 import { BrowserView, MobileView } from "react-device-detect";
 
-import { RiRefreshLine, RiArrowGoBackLine } from "react-icons/ri";
-
-import AddButton from "./AddButton";
+import {
+  RiRefreshLine,
+  RiArrowGoBackLine,
+  RiAddFill,
+  RiFilter3Line,
+  RiSearchLine,
+} from "react-icons/ri";
 
 import Transitions from "../animations/Transition";
 
@@ -32,6 +38,7 @@ const ListWrapper = ({
   hiddenAddButton,
   showAddButton = true,
   showBackButton = false,
+  showRefreshButton = true,
   backRoute,
   defaultSearchValue = "",
   showSortAndCount = true,
@@ -53,105 +60,105 @@ const ListWrapper = ({
     filterStore.fullTextSearch(query);
   };
 
+  // Мобайл: поиск свёрнут в иконку-лупу в одном ряду с «Фильтр». Тап
+  // разворачивает инпут, повторный тап — сворачивает и сбрасывает запрос
+  // (инпут неконтролируемый и при монтировании пустой, поэтому свёрнутое
+  // состояние всегда совпадает с «фильтр не применён»).
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const toggleSearch = () => {
+    if (searchOpen) {
+      filterStore.fullTextSearch("");
+    }
+    setSearchOpen((open) => !open);
+  };
+
   return (
     <>
-      <Card.Title className="mb-3 border-bottom">
-        <h1 className="display-4">{title()}</h1>
-      </Card.Title>
-      {topContent}
-      <BrowserView>
-        <Row>
-          <Col sm="auto">
-            <Button as={Link} replace to="." size="lg" className="w-100 mb-3">
+      <Card.Title className="mb-3 pb-2 border-bottom d-flex flex-wrap align-items-center gap-2">
+        <h1 className="display-4 mb-0">{title()}</h1>
+        <div className="d-flex gap-2 flex-shrink-0 ms-auto">
+          {showBackButton && (
+            <Button
+              as={Link}
+              to={backRoute || -1}
+              size="lg"
+              variant="outline-secondary"
+              title="Назад"
+              aria-label="Назад"
+            >
+              <RiArrowGoBackLine />
+            </Button>
+          )}
+          {showRefreshButton && (
+            <Button
+              as={Link}
+              replace
+              to="."
+              size="lg"
+              variant="outline-secondary"
+              title="Обновить"
+              aria-label="Обновить список"
+            >
               <RiRefreshLine />
             </Button>
-          </Col>
-          {showBackButton && (
-            <Col sm="auto">
-              <Button
-                as={Link}
-                to={backRoute || -1}
-                size="lg"
-                className="w-100 mb-3"
-                variant="secondary"
-              >
-                <RiArrowGoBackLine /> Назад
-              </Button>
-            </Col>
           )}
           {showAddButton && !hiddenAddButton && (
-            <Col sm="auto">
-              <AddButton
-                onClick={offcanvas.setShow}
-                content="Добавить"
-                to={addRoute ? addRoute : "add"}
-              />
-            </Col>
-          )}
-          <Col>
-            <SearchBar
-              onChange={searchHandler}
-              defaultValue={defaultSearchValue}
-            />
-          </Col>
-        </Row>
-      </BrowserView>
-      <MobileView>
-        <Row className="mb-3">
-          <Col xs={showBackButton ? 4 : 6}>
-            <Button as={Link} replace to="." size="lg" className="w-100">
-              <RiRefreshLine /> Обновить
+            <Button
+              as={Link}
+              to={addRoute ? addRoute : "add"}
+              onClick={offcanvas.setShow}
+              size="lg"
+              title="Добавить"
+              aria-label="Добавить"
+            >
+              <RiAddFill />
             </Button>
-          </Col>
-          {showBackButton && (
-            <Col xs={4}>
-              <Button
-                as={Link}
-                to={backRoute || -1}
-                size="lg"
-                className="w-100"
-                variant="secondary"
-              >
-                <RiArrowGoBackLine /> Назад
-              </Button>
-            </Col>
           )}
-          {showAddButton && !hiddenAddButton && (
-            <Col xs={showBackButton ? 4 : 6}>
-              <AddButton content="Добавить" to={addRoute ? addRoute : "add"} />
-            </Col>
-          )}
-        </Row>
-        <Row className="mb-3">
-          <Col>
-            <SearchBar
-              onChange={searchHandler}
-              defaultValue={defaultSearchValue}
-            />
-          </Col>
-        </Row>
-      </MobileView>
+        </div>
+      </Card.Title>
+      {topContent}
       {customData ? customData() : ""}
       <MobileView>
-        <Offcanvas
-          show={filterOffcanvas.isActive}
-          onHide={filterOffcanvas.handleClose}
-        >
-          <Offcanvas.Header closeButton>
-            <Offcanvas.Title>Фильтр</Offcanvas.Title>
-          </Offcanvas.Header>
-          <Offcanvas.Body>
-            <Filter items={filterStore.originalList} />
-          </Offcanvas.Body>
-        </Offcanvas>
-        {showSortAndCount && (
-          <Row className="justify-content-between my-3  fs-5">
-            <Col>{`Найдено: ${filterStore.filteredList?.length || 0}`}</Col>
-          </Row>
+        {filter && (
+          <Offcanvas
+            show={filterOffcanvas.isActive}
+            onHide={filterOffcanvas.handleClose}
+          >
+            <Offcanvas.Header closeButton>
+              <Offcanvas.Title>Фильтр</Offcanvas.Title>
+            </Offcanvas.Header>
+            <Offcanvas.Body>
+              <Filter items={filterStore.originalList} />
+            </Offcanvas.Body>
+          </Offcanvas>
         )}
-        <Row className="justify-content-between align-items-center my-3 fs-6">
+        <Row className="g-2 my-3 align-items-center">
+          <Col xs="auto">
+            <Button
+              variant={searchOpen ? "secondary" : "outline-secondary"}
+              onClick={toggleSearch}
+              title="Поиск"
+              aria-label="Поиск"
+              aria-expanded={searchOpen}
+            >
+              <RiSearchLine />
+            </Button>
+          </Col>
+          {filter && (
+            <Col xs="auto">
+              <Button
+                variant="outline-secondary"
+                onClick={filterOffcanvas.handleShow}
+                title="Фильтр"
+                aria-label="Фильтр"
+              >
+                <RiFilter3Line />
+              </Button>
+            </Col>
+          )}
           {showSortAndCount && (
-            <Col xs={7}>
+            <Col>
               <Select
                 placeholder="Сортировка"
                 defaultValue={filterStore.sortBy}
@@ -164,18 +171,41 @@ const ListWrapper = ({
               />
             </Col>
           )}
-          <Col
-            className="text-end text-success"
-            onClick={filterOffcanvas.handleShow}
-          >
-            <u>Фильтр</u>
-          </Col>
         </Row>
+        {searchOpen && (
+          <Row className="mb-3">
+            <Col>
+              <SearchBar
+                onChange={searchHandler}
+                defaultValue={defaultSearchValue}
+                size="lg"
+                autoFocus
+              />
+            </Col>
+          </Row>
+        )}
+        {showSortAndCount && (
+          <Row className="my-2">
+            <Col className="fs-6 text-body-secondary">
+              {`Найдено: ${filterStore.filteredList?.length || 0}`}
+            </Col>
+          </Row>
+        )}
       </MobileView>
       <BrowserView>
-        {showSortAndCount && (
-          <Row className="justify-content-between my-3 fs-6 align-items-end">
-            <Col>{`Найдено: ${filterStore.filteredList?.length || 0}`}</Col>
+        <Row className="my-3 g-2 align-items-center">
+          {showSortAndCount && (
+            <Col xs="auto" className="fs-6 text-body-secondary">
+              {`Найдено: ${filterStore.filteredList?.length || 0}`}
+            </Col>
+          )}
+          <Col className="px-4">
+            <SearchBar
+              onChange={searchHandler}
+              defaultValue={defaultSearchValue}
+            />
+          </Col>
+          {showSortAndCount && (
             <Col sm={3}>
               <Select
                 placeholder="Сортировка"
@@ -188,8 +218,8 @@ const ListWrapper = ({
                 }
               />
             </Col>
-          </Row>
-        )}
+          )}
+        </Row>
       </BrowserView>
       {(filterStore.filteredList?.length > 0 ||
         filterStore.originalList?.length > 0) && (

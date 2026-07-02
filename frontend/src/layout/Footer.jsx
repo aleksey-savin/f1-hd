@@ -4,7 +4,6 @@ import Card from "react-bootstrap/Card";
 
 import { getLocalStorageData } from "../util/auth";
 import { getInitialPrefsData } from "../util/prefs";
-import { MobileView } from "react-device-detect";
 
 const Footer = () => {
   const { token } = getLocalStorageData();
@@ -44,9 +43,6 @@ const Footer = () => {
               </div>
             </Card.Body>
           </Card>
-          <MobileView>
-            <div style={{ marginBottom: "120px" }} />
-          </MobileView>
         </>
       )}
     </>

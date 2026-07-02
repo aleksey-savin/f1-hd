@@ -35,10 +35,15 @@ const locationSchema = new Schema(
       ref: "Company",
       required: true,
     },
-    subdivision: {
-      type: Schema.Types.ObjectId,
-      ref: "Subdivision",
-    },
+    // Одно расположение может относиться к нескольким подразделениям (напр. два
+    // подразделения в одном опенспейсе, или мелкое подразделение подселено в
+    // кабинет к более крупному).
+    subdivisions: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Subdivision",
+      },
+    ],
 
     // Physical details
     address: {
@@ -132,7 +137,7 @@ const locationSchema = new Schema(
 // Indexes for better performance
 locationSchema.index({ company: 1, type: 1 });
 locationSchema.index({ parent: 1 });
-locationSchema.index({ subdivision: 1 });
+locationSchema.index({ subdivisions: 1 });
 locationSchema.index({ assignedUser: 1 });
 locationSchema.index({ name: "text", description: "text" });
 
@@ -228,7 +233,7 @@ locationSchema.statics.getHierarchy = async function (
     isActive: true,
   })
     .populate("assignedUser", "firstName lastName email")
-    .populate("subdivision", "name manager")
+    .populate("subdivisions", "name manager")
     .populate("defaultResponsible", "firstName lastName email")
     .sort({ type: 1, name: 1 });
 
@@ -247,7 +252,7 @@ locationSchema.statics.findResponsibleUser = async function (
 ) {
   const location = await this.findById(locationId)
     .populate("assignedUser")
-    .populate("subdivision")
+    .populate("subdivisions")
     .populate("defaultResponsible");
 
   if (!location) return null;
@@ -271,9 +276,10 @@ locationSchema.statics.findResponsibleUser = async function (
     return location.defaultResponsible;
   }
 
-  // If has subdivision, return subdivision manager
-  if (location.subdivision?.manager) {
-    return await mongoose.model("User").findById(location.subdivision.manager);
+  // If has subdivisions, return the manager of the first one that has a manager
+  const subWithManager = (location.subdivisions || []).find((s) => s?.manager);
+  if (subWithManager?.manager) {
+    return await mongoose.model("User").findById(subWithManager.manager);
   }
 
   // If inherit from parent is enabled, check parent
@@ -292,7 +298,7 @@ locationSchema.statics.getUserWorkplaces = async function (userId) {
     isActive: true,
   })
     .populate("parent", "name type")
-    .populate("subdivision", "name");
+    .populate("subdivisions", "name");
 };
 
 const Location = mongoose.model("Location", locationSchema);

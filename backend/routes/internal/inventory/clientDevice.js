@@ -9,6 +9,8 @@ const {
 const { checkValidationResult } = require("@/middleware/validation");
 
 router.get("/client-devices", isAuth, deviceController.getAll);
+// До "/:id", иначе "attachable" уедет в параметр id.
+router.get("/client-devices/attachable", isAuth, deviceController.getAttachable);
 router.get("/client-devices/:id", isAuth, deviceController.getOne);
 
 router.post(
@@ -32,6 +34,18 @@ router.post(
   isAuth,
   canManageClientDevices,
   deviceController.assignUser,
+);
+router.post(
+  "/client-devices/:id/components",
+  isAuth,
+  canManageClientDevices,
+  deviceController.attachComponent,
+);
+router.delete(
+  "/client-devices/:id/components/:componentId",
+  isAuth,
+  canManageClientDevices,
+  deviceController.detachComponent,
 );
 router.delete(
   "/client-devices/delete/:id",

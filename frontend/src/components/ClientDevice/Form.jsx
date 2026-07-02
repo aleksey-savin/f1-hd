@@ -31,6 +31,7 @@ import PurchaseFields from "./PurchaseFields";
 import TechFields from "./TechFields";
 import InlineCreateModal from "./InlineCreateModal";
 import ComponentsFields from "./ComponentsFields";
+import { fetchAttachableDevices } from "./attachable";
 import ModelChainFields from "./ModelChainFields";
 import SelectWithAdd from "./SelectWithAdd";
 import DeviceSummary from "./DeviceSummary";
@@ -154,33 +155,20 @@ const ClientDeviceForm = ({ title }) => {
     data?.deviceModelId ? "branded" : data?.deviceTypeId ? "custom" : "branded",
   );
 
-  // Комплектующие сборки (дочерние устройства). _orig хранит исходный объект,
-  // чтобы при обновлении не затереть служебные поля (инв.номер, статус и т.п.).
+  // Состав сборки. Загруженные комплектующие — уже существующие устройства,
+  // привязанные к хосту: в форме их можно только открепить (редактируются на
+  // своей странице). Новые позиции добавляются ниже и создаются при сохранении.
+  // _attached помечает прикреплённое существующее устройство, _orig хранит его
+  // populated-объект для отображения.
   const [components, setComponents] = useState(
     (data?.components || []).map((c) => ({
       _id: c._id,
+      _attached: true,
       _orig: c,
-      // тип/вендор — из модели (брендовая деталь) либо из прямого типа (безымянная)
-      deviceTypeId:
-        c.deviceModelId?.deviceTypeId?._id ||
-        c.deviceModelId?.deviceTypeId ||
-        c.deviceTypeId?._id ||
-        c.deviceTypeId ||
-        "",
-      vendorId:
-        c.deviceModelId?.vendorId?._id || c.deviceModelId?.vendorId || "",
-      deviceModelId: c.deviceModelId?._id || c.deviceModelId || "",
-      serialNumber: c.serialNumber || "",
-      quantity: c.quantity ?? 1,
-      purchasedAt: c.purchasedAt ? toDateInput(c.purchasedAt) : "",
-      price: c.price ?? "",
-      purchaseDocument: c.purchaseDocument || "",
-      supplierId: c.supplierId?._id || c.supplierId || "",
-      warrantyExpirationDate: c.warrantyExpirationDate
-        ? toDateInput(c.warrantyExpirationDate)
-        : "",
     })),
   );
+  // Свободные устройства, доступные для прикрепления (зависят от компании/типа).
+  const [attachableDevices, setAttachableDevices] = useState([]);
   // Страхует от повторного запуска финализации (синхронизации компонентов).
   const [finalizing, setFinalizing] = useState(false);
 
@@ -308,38 +296,51 @@ const ClientDeviceForm = ({ title }) => {
     fetchConfigurations();
   }, [form.deviceModelId]);
 
-  // Тело запроса для компонента: связка модели + серийник + кол-во + блок
-  // закупки/гарантии (всё из строки). Компания берётся от родителя. Для
-  // существующего компонента сохраняем служебные поля из _orig (инв.номер,
-  // статус, локацию/пользователя) — иначе update затрёт их undefined-ом.
-  const buildComponentBody = (comp, parentId) => {
-    const orig = comp._orig;
-    return {
+  // Свободные устройства-комплектующие для прикрепления: зависят от компании и
+  // типа хоста (для ограничения attachableToTypeIds). На редактировании
+  // исключаем само устройство.
+  useEffect(() => {
+    if (!form.companyId) {
+      setAttachableDevices([]);
+      return;
+    }
+    let cancelled = false;
+    fetchAttachableDevices({
       companyId: form.companyId,
-      parentDeviceId: parentId,
-      // модель ИЛИ тип: при выбранной модели тип берётся из неё на сервере
-      deviceModelId: comp.deviceModelId || "",
-      deviceTypeId: comp.deviceModelId ? "" : comp.deviceTypeId || "",
-      serialNumber: comp.serialNumber || "",
-      quantity: comp.quantity || 1,
-      purchasedAt: comp.purchasedAt || "",
-      price: comp.price ?? "",
-      purchaseDocument: comp.purchaseDocument || "",
-      supplierId: comp.supplierId || "",
-      warrantyExpirationDate: comp.warrantyExpirationDate || "",
-      inventoryNumber: orig?.inventoryNumber || "",
-      status: orig?.status || "",
-      locationId: refId(orig?.locationId),
-      userId: refId(orig?.userId),
+      excludeId: data?._id,
+      hostTypeId: form.deviceTypeId,
+    }).then((list) => {
+      if (!cancelled) setAttachableDevices(list);
+    });
+    return () => {
+      cancelled = true;
     };
-  };
+  }, [form.companyId, form.deviceTypeId, data?._id]);
 
-  // Синхронизируем комплектующие сборки после сохранения родителя: создаём новые,
-  // обновляем существующие, удаляем убранные. Для branded целевой список пуст —
-  // при переключении вида старые компоненты удаляются.
+  // Тело запроса для НОВОГО компонента (создаётся как дочерний ClientDevice).
+  // Компания/расположение/пользователь наследуются от родителя на сервере;
+  // статус проставляем как у хоста — комплектующее «следует за хостом».
+  const buildComponentBody = (comp, parentId) => ({
+    companyId: form.companyId,
+    parentDeviceId: parentId,
+    // модель ИЛИ тип: при выбранной модели тип берётся из неё на сервере
+    deviceModelId: comp.deviceModelId || "",
+    deviceTypeId: comp.deviceModelId ? "" : comp.deviceTypeId || "",
+    serialNumber: comp.serialNumber || "",
+    quantity: comp.quantity || 1,
+    purchasedAt: comp.purchasedAt || "",
+    price: comp.price ?? "",
+    purchaseDocument: comp.purchaseDocument || "",
+    supplierId: comp.supplierId || "",
+    warrantyExpirationDate: comp.warrantyExpirationDate || "",
+    status: form.status || "",
+  });
+
+  // Применяем состав сборки после сохранения хоста: открепляем убранные, цепляем
+  // новые существующие устройства, создаём новые позиции. Работает для обеих
+  // сборок. Открепление НЕ удаляет устройство — оно возвращается в общий список
+  // как «Готово к выдаче».
   const syncComponents = async (parentId) => {
-    const target = deviceKind === "custom" ? components : [];
-    const original = data?.components || [];
     const { token } = getLocalStorageData();
     const headers = {
       "Content-Type": "application/json",
@@ -347,32 +348,43 @@ const ClientDeviceForm = ({ title }) => {
     };
     const apiBase = import.meta.env.VITE_API_ADDRESS;
 
-    const targetIds = new Set(target.filter((c) => c._id).map((c) => c._id));
-    for (const orig of original) {
-      if (!targetIds.has(orig._id)) {
+    const originalIds = (data?.components || []).map((c) => String(c._id));
+    const currentIds = new Set(
+      components.filter((c) => c._id).map((c) => String(c._id)),
+    );
+
+    // Открепляем убранные (было привязано, теперь нет в списке).
+    for (const origId of originalIds) {
+      if (!currentIds.has(origId)) {
         await fetch(
-          `${apiBase}/api/inventory/client-devices/delete/${orig._id}`,
+          `${apiBase}/api/inventory/client-devices/${parentId}/components/${origId}`,
           { method: "DELETE", headers },
         );
       }
     }
 
-    for (const comp of target) {
-      // пропускаем незаполненные строки (ни типа, ни модели)
-      if (!comp.deviceTypeId && !comp.deviceModelId) continue;
-      const body = JSON.stringify(buildComponentBody(comp, parentId));
+    for (const comp of components) {
       if (comp._id) {
-        await fetch(
-          `${apiBase}/api/inventory/client-devices/update/${comp._id}`,
-          { method: "PUT", headers, body },
-        );
-      } else {
-        await fetch(`${apiBase}/api/inventory/client-devices/add`, {
-          method: "POST",
-          headers,
-          body,
-        });
+        // Прикрепляем только новые (ранее не привязанные) существующие устройства.
+        if (!originalIds.includes(String(comp._id))) {
+          await fetch(
+            `${apiBase}/api/inventory/client-devices/${parentId}/components`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ componentId: comp._id }),
+            },
+          );
+        }
+        continue;
       }
+      // Новая позиция: создаём дочернее устройство (пропускаем пустые строки).
+      if (!comp.deviceTypeId && !comp.deviceModelId) continue;
+      await fetch(`${apiBase}/api/inventory/client-devices/add`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(buildComponentBody(comp, parentId)),
+      });
     }
   };
 
@@ -466,13 +478,13 @@ const ClientDeviceForm = ({ title }) => {
     });
   }, [assignableUsers, assignDefaultUserId, assignSingle, form.status]);
 
-  // Типы-комплектующие (isComponent). Если у типа задан attachableToTypeIds,
-  // показываем его только для подходящего родительского типа; пустой список —
-  // совместим со всеми.
+  // Типы-комплектующие (комплектующие/расходники/периферия). Если у типа задан
+  // attachableToTypeIds, показываем его только для подходящего родительского
+  // типа; пустой список — совместим со всеми.
   const componentTypes = useMemo(
     () =>
       deviceTypes.filter((t) => {
-        if (!t.isComponent) return false;
+        if (!(t.isComponent || t.isConsumable || t.isPeripheral)) return false;
         const attachable = t.attachableToTypeIds || [];
         if (attachable.length === 0) return true;
         return attachable.some((a) => (a?._id || a) === form.deviceTypeId);
@@ -840,19 +852,18 @@ const ClientDeviceForm = ({ title }) => {
                 </Form.Group>
               )}
 
-              {deviceKind === "custom" && (
-                <ComponentsFields
-                  value={components}
-                  onChange={setComponents}
-                  componentTypes={componentTypes}
-                  deviceTypes={deviceTypes}
-                  vendors={vendors}
-                  deviceModels={deviceModels}
-                  suppliers={suppliers}
-                  onResourceCreated={handleResourceCreated}
-                  onSupplierCreated={handleSupplierCreated}
-                />
-              )}
+              <ComponentsFields
+                value={components}
+                onChange={setComponents}
+                componentTypes={componentTypes}
+                deviceTypes={deviceTypes}
+                vendors={vendors}
+                deviceModels={deviceModels}
+                suppliers={suppliers}
+                attachableDevices={attachableDevices}
+                onResourceCreated={handleResourceCreated}
+                onSupplierCreated={handleSupplierCreated}
+              />
             </Card.Body>
           </Card>
         );

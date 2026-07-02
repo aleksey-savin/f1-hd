@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import Badge from "react-bootstrap/Badge";
 import ListGroup from "react-bootstrap/ListGroup";
+import { RiPriceTag3Line } from "react-icons/ri";
 
 import ItemCard from "../../UI/ItemCard";
 import { AuthedUserContext } from "../../store/authed-user-context";
@@ -62,6 +63,11 @@ const ServiceExpiryCard = () => {
             action
             className="d-flex flex-wrap align-items-center gap-2 bg-transparent px-0"
           >
+            {(service.categories || []).map((category) => (
+              <Badge key={category._id} bg="info" className="fw-normal">
+                <RiPriceTag3Line /> {category.title}
+              </Badge>
+            ))}
             <span className="fw-semibold">{service.service}</span>
             <span className="text-body-secondary">
               до {formatDate(service.expiresAt)}

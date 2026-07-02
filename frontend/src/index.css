@@ -790,3 +790,303 @@ h1 svg {
     transform: scale(1.05);
   }
 }
+
+/* ===================================================================
+   Мобильная навигация 2026: нескроллящийся app-shell + плавающий
+   таб-бар «остров» + переработанное бургер-меню (offcanvas).
+   Токены темизируются как префиксы --org- и --ai-: light-дефолты здесь,
+   dark-переопределения — в css/dark-theme.css (грузится только в dark).
+   =================================================================== */
+
+/* Каркас: фиксированная флекс-колонка на весь вьюпорт. body не скроллится
+   → на iOS Safari fixed-панелям нечего «отрывать» при инерции скролла. */
+.mobile-shell {
+  position: fixed;
+  inset: 0;
+  height: 100vh; /* фолбэк для старых движков */
+  height: 100dvh; /* динамический вьюпорт: трекает адресную строку iOS */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* сам shell не скроллится */
+
+  /* light-дефолты токенов навигации (dark — в dark-theme.css) */
+  --nav-border: rgba(0, 0, 0, 0.08);
+  --tabbar-surface: rgba(255, 255, 255, 0.86);
+  --tabbar-border: rgba(0, 0, 0, 0.06);
+  --tab-active: var(--bs-success);
+  --tab-active-rgb: var(--bs-success-rgb);
+  --tab-inactive: var(--bs-secondary-color);
+}
+
+/* Встроенный верхний бар (NavigationBar embedded) — в потоке, не fixed. */
+/* Специфичность .navbar.mobile-shell__header (0,2,0) перебивает падинги
+   .navbar (0,1,0). py-2 на embedded не вешаем — это утилита с !important. */
+.navbar.mobile-shell__header {
+  flex: 0 0 auto;
+  padding-top: calc(0.5rem + env(safe-area-inset-top));
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--nav-border);
+}
+
+/* Единственный скролл-контейнер на мобайле. */
+.mobile-shell__scroll {
+  flex: 1 1 auto;
+  min-height: 0; /* критично: позволяет флекс-ребёнку скроллиться */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  /* зазор под плавающий остров: высота + отступ снизу + safe-area */
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+}
+
+/* Блокируем скролл страницы только когда shell в DOM (т.е. только мобайл;
+   на десктопе MobileView = null, .mobile-shell отсутствует). */
+html:has(.mobile-shell),
+body:has(.mobile-shell),
+#root:has(.mobile-shell) {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* --- Нижний таб-бар «Плавающий остров» ------------------------------
+   position:absolute внутри fixed-shell (не fixed относительно body),
+   поэтому дрейф структурно невозможен, а контент реально скроллится под
+   островом → backdrop-filter blur осмыслен. */
+.mobile-tabbar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 3;
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  min-height: 60px;
+  padding: 4px 6px;
+  background: var(--tabbar-surface);
+  border: 1px solid var(--tabbar-border);
+  border-radius: 22px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+@supports (backdrop-filter: blur(16px)) or
+  (-webkit-backdrop-filter: blur(16px)) {
+  .mobile-tabbar {
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+  }
+}
+
+.mobile-tabbar__tab {
+  position: relative;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 52px; /* тач-таргет ≥44px */
+  padding: 4px;
+  color: var(--tab-inactive);
+  text-decoration: none;
+  transition: color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-tabbar__tab.is-active {
+  color: var(--tab-active);
+}
+.mobile-tabbar__icon {
+  position: relative;
+  z-index: 1;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+.mobile-tabbar__label {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  font-size: 0.7rem;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Скользящая пилюля активной вкладки (framer-motion layoutId).
+   Центрируем через равные inset, а НЕ через transform: layoutId-анимация
+   framer сама управляет transform и перетёрла бы translateX(-50%). */
+.mobile-tabbar__pill {
+  position: absolute;
+  inset: 4px 8px;
+  z-index: 0;
+  border-radius: 14px;
+  background: rgba(var(--tab-active-rgb), 0.16);
+}
+.mobile-tabbar__tab:focus-visible {
+  outline: 2px solid var(--tab-active);
+  outline-offset: -2px;
+  border-radius: 14px;
+}
+
+/* --- Бургер-меню (offcanvas) на мобайле: современный вид ------------
+   Классы .drawer-* добавляются только в мобильной (embedded) ветке
+   Navbar.jsx, поэтому десктопного бара (в т.ч. инлайн-режима xxl+) не
+   касаются. */
+.offcanvas-body.drawer-body {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+
+/* Шапка пользователя: аватар-инициалы + имя + роль */
+.drawer-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.25rem 0.25rem 1rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+.drawer-user__avatar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(var(--bs-success-rgb), 0.16);
+  color: var(--bs-success);
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.drawer-user__name {
+  font-weight: 600;
+  line-height: 1.2;
+}
+.drawer-user__role {
+  font-size: 0.78rem;
+  color: var(--bs-secondary-color);
+}
+
+/* Заголовок-eyebrow группы (как .ai-section__label) */
+.drawer-section__label {
+  padding: 0.75rem 0.75rem 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+
+/* Основная навигация в меню: крупные скруглённые строки, активная — бирюза.
+   Навбар — navbar-dark (светлый текст), но фон офканваса = --bs-body-bg
+   (в Flatly белый), поэтому явно возвращаем читаемый цвет тела. */
+.drawer-nav {
+  flex: 1 1 auto;
+  gap: 0.1rem;
+}
+.drawer-nav .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.6rem;
+  color: var(--bs-body-color) !important; /* перебиваем navbar-dark .nav-link */
+  font-weight: 500;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.drawer-nav .nav-link svg {
+  flex: 0 0 auto;
+  margin-top: 0; /* гасим глобальный хак .nav-link svg{margin-top:-0.2rem} */
+  font-size: 1.2rem;
+}
+.drawer-nav .nav-link:hover {
+  background: rgba(var(--bs-emphasis-color-rgb), 0.06);
+  color: var(--bs-body-color) !important;
+}
+.drawer-nav .nav-link.active {
+  background: rgba(var(--bs-success-rgb), 0.14);
+  color: var(--bs-success) !important;
+}
+/* Вложенные выпадающие (Отчёты / Администрирование) внутри меню */
+.drawer-nav .dropdown-item.active,
+.drawer-nav .dropdown-item:active {
+  background: rgba(var(--bs-success-rgb), 0.14);
+  color: var(--bs-success);
+}
+
+/* Футер меню: тема + аккаунт + выход, прижат книзу */
+.drawer-footer {
+  flex: 0 0 auto;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--bs-border-color);
+}
+.drawer-theme {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+.drawer-theme__btn {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--bs-body-color);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.drawer-theme__btn.is-active {
+  background: rgba(var(--bs-success-rgb), 0.14);
+  border-color: rgba(var(--bs-success-rgb), 0.5);
+  color: var(--bs-success);
+}
+.drawer-theme__btn svg {
+  margin-top: 0;
+}
+
+/* Строка-действие в футере меню (аккаунт / выход) */
+.drawer-action {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--bs-body-color);
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+.drawer-action:hover {
+  background: rgba(var(--bs-emphasis-color-rgb), 0.06);
+  color: var(--bs-body-color);
+}
+.drawer-action svg {
+  flex: 0 0 auto;
+  margin-top: 0;
+  font-size: 1.2rem;
+}
+.drawer-action--danger {
+  color: var(--bs-danger);
+}
+.drawer-action--danger:hover {
+  background: rgba(var(--bs-danger-rgb), 0.1);
+  color: var(--bs-danger);
+}
+.drawer-footer form {
+  margin: 0;
+}

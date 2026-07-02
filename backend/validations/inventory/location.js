@@ -25,8 +25,12 @@ const locationValidation = [
     .isMongoId()
     .withMessage("Некорректный ID родительского расположения"),
 
-  body("subdivision")
+  body("subdivisions")
     .optional()
+    .isArray()
+    .withMessage("Подразделения должны быть массивом"),
+
+  body("subdivisions.*")
     .isMongoId()
     .withMessage("Некорректный ID подразделения"),
 

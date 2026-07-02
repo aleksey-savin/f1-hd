@@ -33,6 +33,9 @@ const DeviceTypeFormFields = ({
   const [isConsumable, setIsConsumable] = useState(
     deviceType ? deviceType.isConsumable : false,
   );
+  const [isPeripheral, setIsPeripheral] = useState(
+    deviceType ? deviceType.isPeripheral : false,
+  );
   const [inventoryPrefix, setInventoryPrefix] = useState(
     deviceType?.inventoryPrefix || "",
   );
@@ -61,6 +64,7 @@ const DeviceTypeFormFields = ({
       isActive,
       isComponent,
       isConsumable,
+      isPeripheral,
       inventoryPrefix,
       attachableToTypeIds: (attachableToTypeIds || []).map((t) => t._id || t),
       attributes: (attributes || [])
@@ -76,6 +80,7 @@ const DeviceTypeFormFields = ({
     isActive,
     isComponent,
     isConsumable,
+    isPeripheral,
     inventoryPrefix,
     attachableToTypeIds,
     attributes,
@@ -201,7 +206,19 @@ const DeviceTypeFormFields = ({
           onChange={() => setIsConsumable(!isConsumable)}
         />
       </Form.Group>
-      {(isComponent || isConsumable) && (
+      <Form.Group>
+        <Form.Check
+          checked={isPeripheral}
+          type="switch"
+          id="isPeripheral"
+          name="isPeripheral"
+          label="Периферия"
+          className="py-2"
+          value={isPeripheral}
+          onChange={() => setIsPeripheral(!isPeripheral)}
+        />
+      </Form.Group>
+      {(isComponent || isConsumable || isPeripheral) && (
         <Form.Group className="py-3">
           <Form.Label htmlFor="attachableToTypeIds">
             К каким типам устройств можно прикреплять

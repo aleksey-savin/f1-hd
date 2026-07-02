@@ -12,7 +12,7 @@ import Transitions from "../animations/Transition";
 import useOffcanvasStore from "../store/offcanvas";
 import { useEffect } from "react";
 
-const FormWrapper = ({ title, action, children }) => {
+const FormWrapper = ({ title, action, successTo, children }) => {
   const data = useActionData();
   const offcanvas = useOffcanvasStore();
 
@@ -30,7 +30,7 @@ const FormWrapper = ({ title, action, children }) => {
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
       offcanvas.setClose();
-      navigate("..");
+      navigate(successTo ?? "..");
     }
   }, [fetcher.state, fetcher.data]);
 

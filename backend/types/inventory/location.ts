@@ -27,7 +27,7 @@ export interface ILocation {
   children?: Types.ObjectId[];
   // Company and subdivision references
   company: Types.ObjectId;
-  subdivision?: Types.ObjectId;
+  subdivisions?: Types.ObjectId[];
   // Physical details
   address?: string;
   coordinates?: { x?: number; y?: number; floor?: number; room?: string };

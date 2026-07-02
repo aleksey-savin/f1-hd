@@ -114,7 +114,10 @@ const DeviceConfigurationForm = ({ title }) => {
   };
 
   return (
-    <FormWrapper title={title}>
+    <FormWrapper
+      title={title}
+      successTo={`/inventory/device-models/${deviceModel?._id}`}
+    >
       {/* Hidden fields */}
       <input
         type="hidden"
@@ -129,15 +132,14 @@ const DeviceConfigurationForm = ({ title }) => {
         )}
       />
 
-      <div className="mb-4">
-        <p>
-          <strong>Модель устройства:</strong> {deviceModel?.vendorId?.name}{" "}
-          {deviceModel?.name || "(Без названия)"}
-        </p>
-        <p>
-          <strong>Тип устройства:</strong> {deviceModel?.deviceTypeId?.name}
-        </p>
-      </div>
+      <p className="text-muted mb-4">
+        {[deviceModel?.vendorId?.name, deviceModel?.name]
+          .filter(Boolean)
+          .join(" ") || "(Без названия)"}
+        {deviceModel?.deviceTypeId?.name
+          ? ` · ${deviceModel.deviceTypeId.name}`
+          : ""}
+      </p>
 
       {attributes.length === 0 ? (
         <div className="alert alert-warning">

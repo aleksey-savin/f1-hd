@@ -83,6 +83,25 @@ const generateInventoryNumber = async (deviceTypeId) => {
   return `${prefix}-${String(seq).padStart(6, "0")}`;
 };
 
+// Эффективный тип устройства: у заводской сборки берём из модели, у самосборной —
+// напрямую. Принимает «сырой» документ (deviceModelId/deviceTypeId — ObjectId).
+const getEffectiveTypeId = async (device) => {
+  if (device.deviceModelId) {
+    const model =
+      await DeviceModel.findById(device.deviceModelId).select("deviceTypeId");
+    return model?.deviceTypeId || null;
+  }
+  return device.deviceTypeId || null;
+};
+
+// Тот же расчёт для populated-документа (deviceModelId.deviceTypeId раскрыт).
+const populatedTypeId = (d) =>
+  d.deviceModelId?.deviceTypeId?._id ||
+  d.deviceModelId?.deviceTypeId ||
+  d.deviceTypeId?._id ||
+  d.deviceTypeId ||
+  null;
+
 exports.getAll = async (req, res, next) => {
   try {
     // Только самостоятельные устройства — комплектующие сборок (parentDeviceId)
@@ -418,6 +437,175 @@ exports.assignUser = async (req, res, next) => {
         error,
       ),
     );
+  }
+};
+
+// Свободные устройства, которые можно прикрепить к сборке как комплектующие:
+// самостоятельные (без parentDeviceId), не являющиеся сами сборкой, той же
+// компании, с «прикрепляемым» типом (комплектующие/расходники/периферия) и —
+// если задан hostTypeId — совместимые с типом хоста (attachableToTypeIds).
+exports.getAttachable = async (req, res, next) => {
+  try {
+    const companyId = clean(req.query.companyId);
+    const excludeId = clean(req.query.excludeId);
+    const hostTypeId = clean(req.query.hostTypeId);
+
+    if (!companyId) return res.status(200).json([]);
+
+    const attachableTypes = await DeviceType.find({
+      $or: [
+        { isComponent: true },
+        { isConsumable: true },
+        { isPeripheral: true },
+      ],
+    }).select("_id attachableToTypeIds");
+    const typeMap = new Map(attachableTypes.map((t) => [String(t._id), t]));
+
+    // Устройства, которые сами являются сборкой (имеют комплектующие), — не
+    // предлагаем (избегаем вложенных сборок).
+    const parentIds = await ClientDevice.distinct("parentDeviceId", {
+      deletedAt: null,
+      parentDeviceId: { $ne: null },
+    });
+    const assemblySet = new Set(parentIds.map(String));
+
+    const query = { deletedAt: null, parentDeviceId: null, companyId };
+    if (excludeId) query._id = { $ne: excludeId };
+
+    const candidates = await ClientDevice.find(query)
+      .populate(DEVICE_POPULATE)
+      .sort({ _id: -1 });
+
+    const result = candidates.filter((d) => {
+      if (assemblySet.has(String(d._id))) return false;
+      const typeId = populatedTypeId(d);
+      if (!typeId) return false;
+      const type = typeMap.get(String(typeId));
+      if (!type) return false;
+      const attachable = type.attachableToTypeIds || [];
+      if (attachable.length && hostTypeId) {
+        return attachable.some((a) => String(a) === String(hostTypeId));
+      }
+      return true;
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    next(new AppError("Failed to fetch attachable devices", 500, true, error));
+  }
+};
+
+// Прикрепить существующее устройство к сборке. Компонент «следует за хостом»:
+// перенимает компанию/расположение/пользователя/статус. Тип должен быть
+// прикрепляемым и совместимым с хостом; нельзя прикрепить сборку или само себя.
+exports.attachComponent = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const componentId = clean(req.body.componentId);
+
+    if (!componentId) return next(new AppError("Не указан компонент", 400));
+    if (String(componentId) === String(id)) {
+      return next(
+        new AppError("Нельзя прикрепить устройство к самому себе", 400),
+      );
+    }
+
+    const host = await ClientDevice.findById(id);
+    if (!host || host.deletedAt) {
+      return next(new AppError(`Device with id ${id} not found`, 404));
+    }
+
+    const component = await ClientDevice.findById(componentId);
+    if (!component || component.deletedAt) {
+      return next(new AppError(`Component ${componentId} not found`, 404));
+    }
+
+    if (
+      component.parentDeviceId &&
+      String(component.parentDeviceId) !== String(host._id)
+    ) {
+      return next(new AppError("Устройство уже входит в другую сборку", 409));
+    }
+
+    const hasChildren = await ClientDevice.exists({
+      parentDeviceId: component._id,
+      deletedAt: null,
+    });
+    if (hasChildren) {
+      return next(
+        new AppError(
+          "Нельзя прикрепить устройство, которое само является сборкой",
+          409,
+        ),
+      );
+    }
+
+    const typeId = await getEffectiveTypeId(component);
+    const type = typeId
+      ? await DeviceType.findById(typeId).select(
+          "isComponent isConsumable isPeripheral attachableToTypeIds",
+        )
+      : null;
+    if (!type || !(type.isComponent || type.isConsumable || type.isPeripheral)) {
+      return next(
+        new AppError(
+          "Этот тип устройства нельзя прикреплять как комплектующее",
+          400,
+        ),
+      );
+    }
+
+    const attachable = type.attachableToTypeIds || [];
+    if (attachable.length) {
+      const hostTypeId = await getEffectiveTypeId(host);
+      if (
+        !hostTypeId ||
+        !attachable.some((a) => String(a) === String(hostTypeId))
+      ) {
+        return next(
+          new AppError("Этот компонент несовместим с типом хоста", 400),
+        );
+      }
+    }
+
+    // Следует за хостом.
+    component.parentDeviceId = host._id;
+    component.companyId = host.companyId;
+    component.locationId = host.locationId;
+    component.userId = host.userId;
+    component.status = host.status;
+    component.updatedBy = req.userId;
+    await component.save();
+
+    res.status(200).json({ message: "Комплектующее прикреплено", component });
+  } catch (error) {
+    next(new AppError("Failed to attach component", 500, true, error));
+  }
+};
+
+// Открепить комплектующее: разрывает связь с хостом и возвращает устройство в
+// общий список как «Готово к выдаче» (без пользователя). Расположение сохраняем.
+exports.detachComponent = async (req, res, next) => {
+  try {
+    const { id, componentId } = req.params;
+
+    const component = await ClientDevice.findById(componentId);
+    if (!component || component.deletedAt) {
+      return next(new AppError(`Component ${componentId} not found`, 404));
+    }
+    if (String(component.parentDeviceId || "") !== String(id)) {
+      return next(new AppError("Устройство не входит в эту сборку", 400));
+    }
+
+    component.parentDeviceId = undefined;
+    component.userId = undefined;
+    component.status = "readyForDeployment";
+    component.updatedBy = req.userId;
+    await component.save();
+
+    res.status(200).json({ message: "Комплектующее откреплено", component });
+  } catch (error) {
+    next(new AppError("Failed to detach component", 500, true, error));
   }
 };
 

@@ -724,7 +724,7 @@ exports.getServiceExpiry = async (req, res, next) => {
 
     const notes = await KnowledgeNote.find(
       { archivedAt: null, "serviceExpiry.entries.expiresAt": { $lte: cutoff } },
-      { title: 1, serviceExpiry: 1 },
+      { title: 1, serviceExpiry: 1, categories: 1 },
     ).lean();
 
     // Все записи в окне, дедуп по услуге (оставляем ближайшую дату)
@@ -747,6 +747,10 @@ exports.getServiceExpiry = async (req, res, next) => {
           overdue: expiresAt < now,
           noteId: note._id,
           noteTitle: note.title,
+          categories: (note.categories || []).map((category) => ({
+            _id: category._id,
+            title: category.title,
+          })),
         });
       }
     }

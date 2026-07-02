@@ -10,7 +10,7 @@ import { BrowserView } from "react-device-detect";
 import DeviceModelFilter from "../../components/DeviceModel/Filter";
 import useSidebarStore from "../../store/sidebar";
 
-import { HiOutlineDevicePhoneMobile } from "react-icons/hi2";
+import { RiComputerLine } from "react-icons/ri";
 
 import { getLocalStorageData } from "../../util/auth";
 
@@ -38,7 +38,7 @@ const DeviceModelListPage = () => {
   const title = () => {
     return (
       <>
-        <HiOutlineDevicePhoneMobile /> Модели устройств
+        <RiComputerLine /> Модели устройств
       </>
     );
   };

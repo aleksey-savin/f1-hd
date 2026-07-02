@@ -255,7 +255,7 @@ const DeviceModelFormFields = ({
           <Form.Group className="py-3">
             <Form.Label htmlFor="deviceTypeId">
               Тип устройства
-              <span style={{ color: "red" }}>*</span>
+              <span className="text-danger">*</span>
             </Form.Label>
             <Select
               id="deviceTypeId"
@@ -279,7 +279,7 @@ const DeviceModelFormFields = ({
           <Form.Group className="py-3">
             <Form.Label htmlFor="vendorId">
               Производитель
-              <span style={{ color: "red" }}>*</span>
+              <span className="text-danger">*</span>
             </Form.Label>
             <Select
               id="vendorId"
@@ -455,7 +455,7 @@ const DeviceModelFormFields = ({
                         <Form.Label htmlFor={`config-attr-${attrId}`}>
                           {attrData?.name || "Атрибут"}
                           {attr.required && (
-                            <span style={{ color: "red" }}>*</span>
+                            <span className="text-danger">*</span>
                           )}
                           {attrData?.unit && (
                             <span className="text-muted">
@@ -514,7 +514,7 @@ const DeviceModelFormFields = ({
                   <td>
                     <div className="d-flex flex-wrap gap-1">
                       {config.values?.map((val, idx) => (
-                        <Badge key={idx} bg="info">
+                        <Badge key={idx} bg="secondary">
                           {val.attributeId?.name || "—"}: {val.value || "—"}
                         </Badge>
                       ))}

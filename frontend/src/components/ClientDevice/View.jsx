@@ -31,14 +31,21 @@ import {
   RiArrowGoBackFill,
   RiEdit2Line,
   RiUserAddLine,
+  RiLinksLine,
+  RiLinkUnlink,
 } from "react-icons/ri";
 
+import Spinner from "react-bootstrap/Spinner";
+
 import Transitions from "../../animations/Transition";
+import AlertMessage from "../../UI/AlertMessage";
 import useOffcanvasStore from "../../store/offcanvas";
 import { AuthedUserContext } from "../../store/authed-user-context";
+import { getLocalStorageData } from "../../util/auth";
 import DeleteItem from "../DeleteItem";
 import DeviceQr from "./DeviceQr";
 import AssignUserModal from "./AssignUserModal";
+import AttachComponentModal from "./AttachComponentModal";
 import { STATUS_LABELS, STATUS_VARIANTS } from "./constants";
 
 const refName = (ref) => ref?.name || ref?.alias || ref?.fullTitle || "";
@@ -93,6 +100,39 @@ const ViewClientDevice = ({ device = {} }) => {
   const { permissions } = useContext(AuthedUserContext);
   const canManage = permissions.canManageClientDevices;
   const [showAssign, setShowAssign] = useState(false);
+  const [showAttach, setShowAttach] = useState(false);
+  const [detachingId, setDetachingId] = useState(null);
+  const [detachError, setDetachError] = useState("");
+
+  // Открепить комплектующее: разрывает связь с хостом (устройство возвращается в
+  // общий список как «Готово к выдаче»). После — ревалидация загрузчика страницы.
+  const detachComponent = async (componentId) => {
+    setDetachingId(componentId);
+    setDetachError("");
+    const { token } = getLocalStorageData();
+    const base = import.meta.env.VITE_API_ADDRESS;
+    try {
+      const response = await fetch(
+        `${base}/api/inventory/client-devices/${device._id}/components/${componentId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+        },
+      );
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || "Не удалось открепить устройство");
+      }
+      revalidator.revalidate();
+    } catch (err) {
+      setDetachError(err.message);
+    } finally {
+      setDetachingId(null);
+    }
+  };
 
   const model = device.deviceModelId;
   const typeName = model?.deviceTypeId?.name || device.deviceTypeId?.name;
@@ -282,56 +322,95 @@ const ViewClientDevice = ({ device = {} }) => {
           </SectionCard>
         </Col>
 
-        {components.length > 0 && (
+        {(canManage || components.length > 0) && (
           <Col xs={12}>
             <SectionCard
               icon={<RiStackLine />}
               title={`Состав сборки · ${components.length}`}
             >
-              <Table responsive hover size="sm" className="mb-0 align-middle">
-                <thead>
-                  <tr className="text-body-secondary">
-                    <th>Тип</th>
-                    <th>Производитель / модель</th>
-                    <th>Серийный номер</th>
-                    <th className="text-center">Кол-во</th>
-                    <th>Гарантия</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {components.map((c) => {
-                    const cType =
-                      c.deviceModelId?.deviceTypeId?.name ||
-                      c.deviceTypeId?.name;
-                    const cName = [
-                      c.deviceModelId?.vendorId?.name,
-                      c.deviceModelId?.name,
-                    ]
-                      .filter(Boolean)
-                      .join(" ");
-                    const cWar = warrantyState(c.warrantyExpirationDate);
-                    return (
-                      <tr key={c._id}>
-                        <td>{cType || dash}</td>
-                        <td>{cName || dash}</td>
-                        <td className="font-monospace">
-                          {c.serialNumber || dash}
-                        </td>
-                        <td className="text-center">{c.quantity ?? 1}</td>
-                        <td>
-                          {cWar ? (
-                            <Badge bg={cWar.variant} className="fw-normal">
-                              {cWar.text}
-                            </Badge>
-                          ) : (
-                            dash
+              {detachError && (
+                <AlertMessage variant="danger" message={detachError} />
+              )}
+              {canManage && (
+                <div className="d-flex justify-content-end mb-2">
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
+                    onClick={() => setShowAttach(true)}
+                  >
+                    <RiLinksLine /> Прикрепить
+                  </Button>
+                </div>
+              )}
+              {components.length === 0 ? (
+                <p className="text-body-secondary small mb-0">
+                  Комплектующие не прикреплены. Нажмите «Прикрепить», чтобы
+                  добавить устройство в сборку.
+                </p>
+              ) : (
+                <Table responsive hover size="sm" className="mb-0 align-middle">
+                  <thead>
+                    <tr className="text-body-secondary">
+                      <th>Тип</th>
+                      <th>Производитель / модель</th>
+                      <th>Серийный номер</th>
+                      <th className="text-center">Кол-во</th>
+                      <th>Гарантия</th>
+                      {canManage && <th className="text-end">Действия</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {components.map((c) => {
+                      const cType =
+                        c.deviceModelId?.deviceTypeId?.name ||
+                        c.deviceTypeId?.name;
+                      const cName = [
+                        c.deviceModelId?.vendorId?.name,
+                        c.deviceModelId?.name,
+                      ]
+                        .filter(Boolean)
+                        .join(" ");
+                      const cWar = warrantyState(c.warrantyExpirationDate);
+                      return (
+                        <tr key={c._id}>
+                          <td>{cType || dash}</td>
+                          <td>{cName || dash}</td>
+                          <td className="font-monospace">
+                            {c.serialNumber || dash}
+                          </td>
+                          <td className="text-center">{c.quantity ?? 1}</td>
+                          <td>
+                            {cWar ? (
+                              <Badge bg={cWar.variant} className="fw-normal">
+                                {cWar.text}
+                              </Badge>
+                            ) : (
+                              dash
+                            )}
+                          </td>
+                          {canManage && (
+                            <td className="text-end">
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                disabled={detachingId === c._id}
+                                onClick={() => detachComponent(c._id)}
+                                title="Открепить от сборки"
+                              >
+                                {detachingId === c._id ? (
+                                  <Spinner animation="border" size="sm" />
+                                ) : (
+                                  <RiLinkUnlink />
+                                )}
+                              </Button>
+                            </td>
                           )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </Table>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </Table>
+              )}
             </SectionCard>
           </Col>
         )}
@@ -382,6 +461,13 @@ const ViewClientDevice = ({ device = {} }) => {
         onHide={() => setShowAssign(false)}
         device={device}
         onAssigned={() => revalidator.revalidate()}
+      />
+
+      <AttachComponentModal
+        show={showAttach}
+        onHide={() => setShowAttach(false)}
+        device={device}
+        onAttached={() => revalidator.revalidate()}
       />
 
       <Offcanvas

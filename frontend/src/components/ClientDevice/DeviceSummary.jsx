@@ -62,7 +62,7 @@ const DeviceSummary = ({
     : "";
 
   const filledComponents = components.filter(
-    (c) => c.deviceTypeId || c.deviceModelId,
+    (c) => c._attached || c.deviceTypeId || c.deviceModelId,
   ).length;
 
   const hasPurchase =
@@ -113,13 +113,11 @@ const DeviceSummary = ({
           <Line label="Пользователь" value={userName} />
         )}
 
-        {deviceKind === "custom" && (
-          <Line
-            label="Комплектующие"
-            value={filledComponents ? `${filledComponents} шт.` : ""}
-            placeholder="нет"
-          />
-        )}
+        <Line
+          label="Комплектующие"
+          value={filledComponents ? `${filledComponents} шт.` : ""}
+          placeholder="нет"
+        />
 
         {hasPurchase && (
           <>

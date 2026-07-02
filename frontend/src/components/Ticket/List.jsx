@@ -80,9 +80,6 @@ const List = ({
 
   return (
     <>
-      <div className="d-flex justify-content-end mb-2">
-        <LiveUpdateIndicator timestamp={lastSyncedAt} />
-      </div>
       <AnimatePresence initial={false}>
         {items.map((item) => (
           <AnimatedItem

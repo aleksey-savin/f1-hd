@@ -93,3 +93,16 @@ table {
 .org-subdivision-offcanvas .contact-row__icon {
   color: #6ea8d8;
 }
+
+/* Мобильная навигация: тёмные переопределения токенов .mobile-shell
+   (базовые light-значения — в index.css; файл грузится только в dark).
+   --tab-active/-rgb ссылаются на --bs-success, который во Flatly/Darkly
+   уже бирюзовый и флипается сам — хардкодить hex не нужно. */
+.mobile-shell {
+  --nav-border: rgba(255, 255, 255, 0.1);
+  --tabbar-surface: rgba(28, 32, 38, 0.8);
+  --tabbar-border: rgba(255, 255, 255, 0.1);
+  --tab-active: var(--bs-success); /* Darkly #00bc8c (авто из бандла) */
+  --tab-active-rgb: var(--bs-success-rgb);
+  --tab-inactive: var(--bs-secondary-color);
+}

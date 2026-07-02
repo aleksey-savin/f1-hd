@@ -246,6 +246,7 @@ import UpdateDeviceModelPage, {
 } from "./pages/DeviceModel/Update.jsx";
 import ViewDeviceModelPage, {
   loader as viewDeviceModelLoader,
+  action as viewDeviceModelAction,
 } from "./pages/DeviceModel/View.jsx";
 
 // Device Configurations
@@ -801,20 +802,17 @@ function App() {
           path: "inventory/device-models/:id",
           element: <ViewDeviceModelPage />,
           loader: viewDeviceModelLoader,
-        },
-
-        // Device Configurations
-        {
-          path: "inventory/device-configurations",
+          action: viewDeviceModelAction,
           children: [
+            // Конфигурации модели открываются в нижнем Offcanvas страницы просмотра.
             {
-              path: ":modelId/add",
+              path: "add",
               element: <AddDeviceConfigurationPage />,
               loader: addDeviceConfigurationLoader,
               action: addDeviceConfigurationAction,
             },
             {
-              path: ":id/update",
+              path: "update/:configId",
               element: <UpdateDeviceConfigurationPage />,
               loader: updateDeviceConfigurationLoader,
               action: updateDeviceConfigurationAction,

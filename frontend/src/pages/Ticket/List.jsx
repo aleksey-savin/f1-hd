@@ -170,6 +170,7 @@ const Tickets = () => {
       filter={<TicketFilter />}
       filterStore={filterStore}
       addRoute="/tickets/add"
+      showRefreshButton={false}
       customData={customData}
       topContent={
         <>

@@ -3,7 +3,6 @@ import Form from "../../components/DeviceConfiguration/Form";
 import Forbidden from "../../components/Error/403";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
-import { redirect } from "react-router";
 
 const UpdateDeviceConfigurationPage = () => {
   const { permissions } = useContext(AuthedUserContext);
@@ -28,7 +27,7 @@ export async function loader({ params }) {
 
   // Fetch configuration
   const configurationResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-configurations/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-configurations/${params.configId}`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -93,7 +92,7 @@ export async function action({ request, params }) {
   };
 
   const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-configurations/update/${params.id}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-configurations/update/${params.configId}`,
     {
       method: "PUT",
       headers: {
@@ -108,5 +107,5 @@ export async function action({ request, params }) {
     throw response;
   }
 
-  return redirect(`/inventory/device-models/${deviceModelId}`);
+  return { ok: true };
 }

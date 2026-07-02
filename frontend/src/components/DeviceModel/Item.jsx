@@ -15,11 +15,6 @@ const DeviceModelItem = ({ item }) => {
   const Description = () => {
     return (
       <div className="text-muted small">
-        {deviceTypeId?.name && (
-          <div className="mb-1">
-            <strong>Тип:</strong> {deviceTypeId.name}
-          </div>
-        )}
         {compatibleWithModelIds && compatibleWithModelIds.length > 0 && (
           <div className="mt-2">
             <strong>Совместимо с:</strong>{" "}
@@ -43,7 +38,7 @@ const DeviceModelItem = ({ item }) => {
     {
       title: deviceTypeId?.name,
       isActive: deviceTypeId?.name,
-      bg: "info",
+      bg: "secondary",
     },
   ];
 

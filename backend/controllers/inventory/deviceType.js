@@ -60,6 +60,7 @@ exports.add = async (req, res, next) => {
       isActive,
       isComponent,
       isConsumable,
+      isPeripheral,
       inventoryPrefix,
       attachableToTypeIds,
       attributes,
@@ -77,6 +78,7 @@ exports.add = async (req, res, next) => {
       isActive,
       isComponent,
       isConsumable,
+      isPeripheral,
       inventoryPrefix,
       attachableToTypeIds,
       createdBy: req.userId,
@@ -114,6 +116,7 @@ exports.update = async (req, res, next) => {
       isActive,
       isComponent,
       isConsumable,
+      isPeripheral,
       inventoryPrefix,
       attachableToTypeIds,
       attributes,
@@ -143,6 +146,7 @@ exports.update = async (req, res, next) => {
     deviceType.isActive = isActive;
     deviceType.isComponent = isComponent;
     deviceType.isConsumable = isConsumable;
+    deviceType.isPeripheral = isPeripheral;
     deviceType.inventoryPrefix = inventoryPrefix;
     deviceType.attachableToTypeIds = attachableToTypeIds;
     deviceType.updatedBy = req.userId;

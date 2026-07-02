@@ -3,7 +3,6 @@ import Form from "../../components/DeviceConfiguration/Form";
 import Forbidden from "../../components/Error/403";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
-import { redirect } from "react-router";
 
 const AddDeviceConfigurationPage = () => {
   const { permissions } = useContext(AuthedUserContext);
@@ -28,7 +27,7 @@ export async function loader({ params }) {
 
   // Fetch device model
   const deviceModelResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models/${params.modelId}`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models/${params.id}`,
     {
       headers: {
         Authorization: "Bearer " + token,
@@ -70,7 +69,7 @@ export async function action({ request, params }) {
   const values = valuesJson ? JSON.parse(valuesJson) : [];
 
   const configurationData = {
-    deviceModelId: params.modelId,
+    deviceModelId: params.id,
     values,
   };
 
@@ -90,5 +89,5 @@ export async function action({ request, params }) {
     throw response;
   }
 
-  return redirect(`/inventory/device-models/${params.modelId}`);
+  return { ok: true };
 }

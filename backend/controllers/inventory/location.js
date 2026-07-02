@@ -87,7 +87,11 @@ const buildEnvNode = async (location, userId) => {
     _id: location._id,
     name: location.name,
     type: location.type,
-    subdivisionName: location.subdivision?.name || null,
+    subdivisionName:
+      (location.subdivisions || [])
+        .map((s) => s?.name)
+        .filter(Boolean)
+        .join(", ") || null,
     deviceCount: devices.length,
     devices,
     children,
@@ -99,7 +103,7 @@ exports.getAll = async (req, res, next) => {
     const locations = await Location.find({})
       .populate("company", "alias fullTitle")
       .populate({
-        path: "subdivision",
+        path: "subdivisions",
         select: "name manager",
         populate: {
           path: "manager",
@@ -138,7 +142,7 @@ exports.getAllCompanies = async (req, res, next) => {
     const locations = await Location.find(companyFilter)
       .populate("company", "alias fullTitle")
       .populate({
-        path: "subdivision",
+        path: "subdivisions",
         select: "name manager",
         populate: {
           path: "manager",
@@ -175,7 +179,7 @@ exports.getOne = async (req, res, next) => {
     const location = await Location.findById(req.params.id)
       .populate("company", "alias fullTitle")
       .populate({
-        path: "subdivision",
+        path: "subdivisions",
         select: "name manager",
         populate: {
           path: "manager",
@@ -226,7 +230,7 @@ exports.add = async (req, res, next) => {
       name,
       type,
       company,
-      subdivision,
+      subdivisions,
       parent,
       assignedUser,
       defaultResponsible,
@@ -276,10 +280,15 @@ exports.add = async (req, res, next) => {
       }
     }
 
-    // Check if subdivision belongs to the same company
-    if (subdivision) {
-      const sub = await Subdivision.findById(subdivision);
-      if (!sub || sub.company.toString() !== targetCompanyId.toString()) {
+    // Check that every subdivision belongs to the same company
+    if (subdivisions && subdivisions.length) {
+      const subs = await Subdivision.find({ _id: { $in: subdivisions } });
+      const allValid =
+        subs.length === subdivisions.length &&
+        subs.every(
+          (s) => s.company.toString() === targetCompanyId.toString(),
+        );
+      if (!allValid) {
         return next(
           new AppError("Subdivision must belong to the same company", 400),
         );
@@ -307,7 +316,7 @@ exports.add = async (req, res, next) => {
       name,
       type,
       company: targetCompanyId,
-      subdivision,
+      subdivisions: subdivisions || [],
       parent,
       assignedUser,
       defaultResponsible,
@@ -330,7 +339,7 @@ exports.add = async (req, res, next) => {
     await location.populate([
       { path: "company", select: "alias fullTitle" },
       {
-        path: "subdivision",
+        path: "subdivisions",
         select: "name manager",
         populate: {
           path: "manager",
@@ -376,7 +385,7 @@ exports.update = async (req, res, next) => {
       name,
       type,
       company,
-      subdivision,
+      subdivisions,
       parent,
       assignedUser,
       defaultResponsible,
@@ -436,7 +445,7 @@ exports.update = async (req, res, next) => {
     if (name !== undefined) location.name = name;
     if (type !== undefined) location.type = type;
     if (company !== undefined) location.company = company;
-    if (subdivision !== undefined) location.subdivision = subdivision;
+    if (subdivisions !== undefined) location.subdivisions = subdivisions;
     if (parent !== undefined) location.parent = parent;
     if (assignedUser !== undefined) location.assignedUser = assignedUser;
     if (defaultResponsible !== undefined)
@@ -460,7 +469,7 @@ exports.update = async (req, res, next) => {
 
     // Populate the response
     await location.populate([
-      { path: "subdivision", select: "name manager" },
+      { path: "subdivisions", select: "name manager" },
       { path: "assignedUser", select: "firstName lastName email" },
       { path: "defaultResponsible", select: "firstName lastName email" },
       { path: "parent", select: "name type" },
@@ -491,7 +500,7 @@ exports.getAssignableUsers = async (req, res, next) => {
   try {
     const location = await Location.findById(req.params.id)
       .populate("assignedUser", "firstName lastName email")
-      .populate({ path: "subdivision", select: "name manager users" });
+      .populate({ path: "subdivisions", select: "name manager users" });
 
     if (!location) {
       return next(
@@ -517,19 +526,28 @@ exports.getAssignableUsers = async (req, res, next) => {
       });
     }
 
-    // 2) Есть подразделение → его сотрудники, руководитель по умолчанию.
-    if (location.subdivision) {
-      const sub = location.subdivision;
-      const managerId = sub.manager ? sub.manager.toString() : null;
+    // 2) Есть подразделения → их сотрудники, руководители по умолчанию/с пометкой.
+    const subs = location.subdivisions || [];
+    if (subs.length) {
+      const managerIds = new Set(
+        subs.filter((s) => s.manager).map((s) => s.manager.toString()),
+      );
 
-      // Состав: по полю user.subdivision ИЛИ из массива sub.users, плюс сам
-      // руководитель (мог не числиться в составе). Только активные.
-      const extraIds = new Set((sub.users || []).map((id) => id.toString()));
-      if (managerId) extraIds.add(managerId);
+      // Состав: по полю user.subdivision (любое из подразделений локации) ИЛИ из
+      // массива sub.users, плюс сами руководители. Только активные.
+      const extraIds = new Set();
+      subs.forEach((sub) =>
+        (sub.users || []).forEach((id) => extraIds.add(id.toString())),
+      );
+      managerIds.forEach((id) => extraIds.add(id));
 
+      const subIds = subs.map((s) => s._id);
       const employees = await User.find({
         isActive: true,
-        $or: [{ subdivision: sub._id }, { _id: { $in: Array.from(extraIds) } }],
+        $or: [
+          { subdivision: { $in: subIds } },
+          { _id: { $in: Array.from(extraIds) } },
+        ],
       }).select("firstName lastName email");
 
       const seen = new Set();
@@ -538,17 +556,21 @@ exports.getAssignableUsers = async (req, res, next) => {
         const id = u._id.toString();
         if (seen.has(id)) continue;
         seen.add(id);
-        users.push(toDTO(u, id === managerId));
+        users.push(toDTO(u, managerIds.has(id)));
       }
-      // руководителя — первым в списке
+      // руководителей — в начало списка
       users.sort(
         (a, b) =>
           (b.isSubdivisionManager ? 1 : 0) - (a.isSubdivisionManager ? 1 : 0),
       );
 
+      // По умолчанию — руководитель первого подразделения с руководителем.
+      const defaultUserId =
+        subs.find((s) => s.manager)?.manager?.toString() || null;
+
       return res.status(200).json({
         users,
-        defaultUserId: managerId,
+        defaultUserId,
         single: false,
       });
     }
@@ -701,8 +723,8 @@ exports.getUserEnvironment = async (req, res, next) => {
       const parentId = current.parent?._id || current.parent;
       if (!parentId) break;
       current = await Location.findById(parentId)
-        .select("name type parent subdivision")
-        .populate("subdivision", "name");
+        .select("name type parent subdivisions")
+        .populate("subdivisions", "name");
       guard += 1;
     }
 
@@ -744,8 +766,8 @@ exports.getLocationNode = async (req, res, next) => {
     const { userId } = req.query;
 
     const location = await Location.findById(id)
-      .select("name type subdivision")
-      .populate("subdivision", "name");
+      .select("name type subdivisions")
+      .populate("subdivisions", "name");
     if (!location) {
       return next(new AppError(`Location with id ${id} not found`, 404));
     }

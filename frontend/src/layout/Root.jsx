@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation, useRevalidator } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 import { Outlet, useLoaderData, useSubmit } from "react-router";
@@ -23,7 +23,6 @@ import Col from "react-bootstrap/Col";
 
 import Transitions from "../animations/Transition";
 
-import useHttp from "../hooks/use-http";
 import MobileBottomNavbar from "./MobileBottomNavbar";
 
 import { getLocalStorageData, getTokenDuration } from "../util/auth";
@@ -31,7 +30,7 @@ import useOffcanvasStore from "../store/offcanvas";
 import useInitialPrefsStore from "../store/prefs";
 
 const RootLayout = () => {
-  const { token, userId } = getLocalStorageData();
+  const { token } = getLocalStorageData();
   const { appVersion, userData, prefs } = useLoaderData();
 
   const {
@@ -50,6 +49,15 @@ const RootLayout = () => {
   const offcanvas = useOffcanvasStore();
   const location = useLocation();
   const revalidator = useRevalidator();
+
+  // Мобильный app-shell: <main> — свой скролл-контейнер (не window), поэтому
+  // сбрасываем прокрутку вверх при смене маршрута вручную.
+  const mobileScrollRef = useRef(null);
+  useEffect(() => {
+    if (mobileScrollRef.current) {
+      mobileScrollRef.current.scrollTop = 0;
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     if (location.state?.refresh) {
@@ -116,32 +124,6 @@ const RootLayout = () => {
     }, tokenDuration);
   }, [token, submit]);
 
-  const [userPermissions, setUserPermissions] = useState([]);
-
-  const { sendRequest: fetchUserHandler } = useHttp();
-  const fetchUser = useCallback(() => {
-    fetchUserHandler(
-      {
-        url: `${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`,
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-      (data) => {
-        if (data.permissions) {
-          setUserPermissions(data.permissions);
-        }
-      },
-    );
-  }, [fetchUserHandler, token, userId]);
-
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-    fetchUser();
-  }, [fetchUser, token]);
-
   return (
     <AuthedUserContext.Provider
       value={{
@@ -150,7 +132,11 @@ const RootLayout = () => {
         permissions: userData?.permissions || defaultAuthedUser.permissions,
       }}
     >
-      {isLoggedIn && <NavigationBar userPermissions={userPermissions} />}
+      {isLoggedIn && (
+        <BrowserView>
+          <NavigationBar />
+        </BrowserView>
+      )}
       <Transitions>
         <BrowserView>
           {/* <Pro32Connect /> */}
@@ -202,11 +188,22 @@ const RootLayout = () => {
         </BrowserView>
       </Transitions>
       <MobileView>
-        <Container style={{ paddingTop: "100px" }}>
-          <Outlet />
-          <Footer />
-          <MobileBottomNavbar />
-        </Container>
+        {isLoggedIn ? (
+          <div className="mobile-shell">
+            <NavigationBar embedded />
+            <main className="mobile-shell__scroll" ref={mobileScrollRef}>
+              <Container className="pt-3">
+                <Outlet />
+                <Footer />
+              </Container>
+            </main>
+            <MobileBottomNavbar />
+          </div>
+        ) : (
+          <Container className="py-4">
+            <Outlet />
+          </Container>
+        )}
       </MobileView>
       <ToastContainer className="p-3" position="bottom-end">
         <AlertToast />

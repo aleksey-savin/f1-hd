@@ -4,7 +4,7 @@ import InputGroup from "react-bootstrap/InputGroup";
 
 import { RiSearchLine } from "react-icons/ri";
 
-const SearchBar = ({ onChange, size, defaultValue }) => {
+const SearchBar = ({ onChange, size, defaultValue, autoFocus }) => {
   const submitHandler = (event) => {
     event.preventDefault();
   };
@@ -16,11 +16,12 @@ const SearchBar = ({ onChange, size, defaultValue }) => {
         </InputGroup.Text>
         <FormControl
           id="search-bar"
-          size={size || "lg"}
+          size={size || "md"}
           type="search"
           placeholder="Поиск..."
           defaultValue={defaultValue || ""}
           onChange={onChange}
+          autoFocus={autoFocus}
         />
       </InputGroup>
     </Form>

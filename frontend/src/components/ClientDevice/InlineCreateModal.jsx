@@ -87,6 +87,7 @@ const KINDS = {
       isActive: true,
       isComponent: state.isComponent,
       isConsumable: state.isConsumable,
+      isPeripheral: state.isPeripheral,
       inventoryPrefix: state.inventoryPrefix,
       attachableToTypeIds: state.attachableToTypeIds || [],
       attributes: state.attributes || [],

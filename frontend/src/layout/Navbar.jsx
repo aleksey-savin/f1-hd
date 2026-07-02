@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from "react";
-import { NavLink } from "react-router";
+import { NavLink, Form } from "react-router";
 import { AuthedUserContext } from "../store/authed-user-context";
 
 import { getLocalStorageData } from "../util/auth";
@@ -13,7 +13,7 @@ import NavDropdown from "react-bootstrap/NavDropdown";
 import Offcanvas from "react-bootstrap/Offcanvas";
 
 // Icons
-import { RiUserLine, RiUserSettingsLine } from "react-icons/ri";
+import { RiUserLine, RiUserSettingsLine, RiDoorOpenLine } from "react-icons/ri";
 
 import { MdOutlineDarkMode, MdLightMode, MdComputer } from "react-icons/md";
 
@@ -63,7 +63,33 @@ const ThemeSelector = ({ theme, isDark, handleThemeChange }) => (
   </NavDropdown>
 );
 
-const NavigationBar = ({ handleShowAuthModal }) => {
+// Сегментированный переключатель темы для мобильного бургер-меню
+const DrawerThemeSwitch = ({ theme, handleThemeChange }) => {
+  const options = [
+    { value: "light", label: "Светлая", Icon: MdLightMode },
+    { value: "dark", label: "Тёмная", Icon: MdOutlineDarkMode },
+    { value: "system", label: "Системная", Icon: MdComputer },
+  ];
+
+  return (
+    <div className="drawer-theme" role="group" aria-label="Тема оформления">
+      {options.map(({ value, label, Icon }) => (
+        <button
+          key={value}
+          type="button"
+          aria-label={label}
+          aria-pressed={theme === value}
+          className={`drawer-theme__btn${theme === value ? " is-active" : ""}`}
+          onClick={() => handleThemeChange(value)}
+        >
+          <Icon />
+        </button>
+      ))}
+    </div>
+  );
+};
+
+const NavigationBar = ({ handleShowAuthModal, embedded = false }) => {
   const { token } = getLocalStorageData();
 
   // State and Context
@@ -73,7 +99,8 @@ const NavigationBar = ({ handleShowAuthModal }) => {
     localStorage.getItem("darkMode") === "true",
   );
 
-  const { firstName, lastName, isEndUser } = useContext(AuthedUserContext);
+  const { firstName, lastName, isEndUser, isAdmin } =
+    useContext(AuthedUserContext);
   const isLoggedIn = !!token;
 
   // Event Handlers
@@ -104,8 +131,6 @@ const NavigationBar = ({ handleShowAuthModal }) => {
     window.location.reload();
   };
 
-  console.log(isEndUser);
-
   // System Theme Effect
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -124,11 +149,19 @@ const NavigationBar = ({ handleShowAuthModal }) => {
       mediaQuery.removeEventListener("change", handleSystemThemeChange);
   }, [theme]);
 
+  const roleLabel = isAdmin
+    ? "Администратор"
+    : isEndUser
+      ? "Пользователь"
+      : "Сотрудник";
+  const initials =
+    `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.trim() || "?";
+
   return (
     <Navbar
       expand="xxl"
       bg={isDark ? "dark" : "primary"}
-      className="navbar-dark fixed-top py-2"
+      className={`navbar-dark ${embedded ? "mobile-shell__header" : "fixed-top py-2"}`}
     >
       <Container fluid>
         <Navbar.Toggle
@@ -157,51 +190,103 @@ const NavigationBar = ({ handleShowAuthModal }) => {
             </Offcanvas.Title>
           </Offcanvas.Header>
 
-          <Offcanvas.Body>
-            <Nav className="justify-content-start flex-grow-1 pe-3">
+          {embedded ? (
+            // Мобильное бургер-меню: шапка пользователя + навигация + футер.
+            // Классы .drawer-* стилизуют его независимо от десктопного бара.
+            <Offcanvas.Body className="drawer-body">
               {isLoggedIn && (
                 <>
-                  {isEndUser && (
-                    <EndUserNavs setShowOffcanvas={setShowOffcanvas} />
-                  )}
-                  {!isEndUser && (
-                    <EmployeeNavs setShowOffcanvas={setShowOffcanvas} />
-                  )}
-                </>
-              )}
-            </Nav>
+                  <div className="drawer-user">
+                    <span className="drawer-user__avatar">{initials}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="drawer-user__name text-truncate">
+                        {firstName} {lastName}
+                      </div>
+                      <div className="drawer-user__role">{roleLabel}</div>
+                    </div>
+                  </div>
 
-            <Nav>
-              {isLoggedIn && (
-                <>
-                  <ThemeSelector
-                    theme={theme}
-                    isDark={isDark}
-                    handleThemeChange={handleThemeChange}
-                  />
-                  <NavDropdown
-                    title={
-                      <DropdownTitles.User
-                        firstName={firstName}
-                        lastName={lastName}
-                      />
-                    }
-                    align="end"
-                  >
-                    <NavDropdown.Item
-                      as={NavLink}
+                  <div className="drawer-section__label">Навигация</div>
+                  <Nav className="drawer-nav flex-column">
+                    {isEndUser ? (
+                      <EndUserNavs setShowOffcanvas={setShowOffcanvas} />
+                    ) : (
+                      <EmployeeNavs setShowOffcanvas={setShowOffcanvas} />
+                    )}
+                  </Nav>
+
+                  <div className="drawer-footer">
+                    <div className="drawer-section__label">Тема</div>
+                    <DrawerThemeSwitch
+                      theme={theme}
+                      handleThemeChange={handleThemeChange}
+                    />
+                    <NavLink
                       to="/my-account"
                       onClick={handleClose}
+                      className="drawer-action"
                     >
                       <RiUserSettingsLine /> Мой аккаунт
-                    </NavDropdown.Item>
-                    <NavDropdown.Divider />
-                    <Logout handleShowAuthModal={handleShowAuthModal} />
-                  </NavDropdown>
+                    </NavLink>
+                    <Form action="/logout" method="POST">
+                      <button
+                        type="submit"
+                        className="drawer-action drawer-action--danger"
+                      >
+                        <RiDoorOpenLine /> Выйти
+                      </button>
+                    </Form>
+                  </div>
                 </>
               )}
-            </Nav>
-          </Offcanvas.Body>
+            </Offcanvas.Body>
+          ) : (
+            <Offcanvas.Body>
+              <Nav className="justify-content-start flex-grow-1 pe-3">
+                {isLoggedIn && (
+                  <>
+                    {isEndUser && (
+                      <EndUserNavs setShowOffcanvas={setShowOffcanvas} />
+                    )}
+                    {!isEndUser && (
+                      <EmployeeNavs setShowOffcanvas={setShowOffcanvas} />
+                    )}
+                  </>
+                )}
+              </Nav>
+
+              <Nav>
+                {isLoggedIn && (
+                  <>
+                    <ThemeSelector
+                      theme={theme}
+                      isDark={isDark}
+                      handleThemeChange={handleThemeChange}
+                    />
+                    <NavDropdown
+                      title={
+                        <DropdownTitles.User
+                          firstName={firstName}
+                          lastName={lastName}
+                        />
+                      }
+                      align="end"
+                    >
+                      <NavDropdown.Item
+                        as={NavLink}
+                        to="/my-account"
+                        onClick={handleClose}
+                      >
+                        <RiUserSettingsLine /> Мой аккаунт
+                      </NavDropdown.Item>
+                      <NavDropdown.Divider />
+                      <Logout handleShowAuthModal={handleShowAuthModal} />
+                    </NavDropdown>
+                  </>
+                )}
+              </Nav>
+            </Offcanvas.Body>
+          )}
         </Navbar.Offcanvas>
       </Container>
     </Navbar>

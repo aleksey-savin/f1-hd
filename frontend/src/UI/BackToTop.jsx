@@ -26,6 +26,9 @@ const BackToTop = () => {
   };
 
   useEffect(() => {
+    // На мобайле скроллится .mobile-shell__scroll, а не window — виджет не нужен.
+    if (!isBrowser) return;
+
     // Add scroll event listener
     window.addEventListener("scroll", toggleVisibility);
 
@@ -34,6 +37,8 @@ const BackToTop = () => {
       window.removeEventListener("scroll", toggleVisibility);
     };
   }, []);
+
+  if (!isBrowser) return null;
 
   return (
     <div>

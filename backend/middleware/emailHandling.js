@@ -302,19 +302,24 @@ exports.handleNewEmails = async () => {
         attachments = attachments.concat(
           parts
             .filter((part) => {
-              return part.disposition?.type.toUpperCase() === "ATTACHMENT";
+              return part.disposition?.type?.toUpperCase() === "ATTACHMENT";
             })
             .map((part) => {
               // retrieve the attachments only of the messages with attachments
               return connection.getPartData(message, part).then((partData) => {
+                const rawFilename = part.disposition?.params?.filename;
+                // No filename (some clients only set it via Content-Type name),
+                // or a koi8-r-encoded one that urldecode can't handle:
+                // synthesize a name from the MIME type so a valid extension is
+                // kept for the downstream mime.lookup / getAttachmentName.
+                const needsGeneratedName =
+                  !rawFilename || rawFilename.split("?").includes("koi8-r");
                 return {
-                  filename: part.disposition.params.filename
-                    .split("?")
-                    .includes("koi8-r")
+                  filename: needsGeneratedName
                     ? `${part.type}_${Math.floor(
                         Math.random() * 1000 + 1,
                       )}.${part.subtype}`
-                    : decode(part.disposition.params.filename),
+                    : decode(rawFilename),
                   data: partData,
                 };
               });
