@@ -35,6 +35,7 @@ const ListWrapper = ({
   topContent,
   filterStore,
   addRoute,
+  onAddClick,
   hiddenAddButton,
   showAddButton = true,
   showBackButton = false,
@@ -103,18 +104,29 @@ const ListWrapper = ({
               <RiRefreshLine />
             </Button>
           )}
-          {showAddButton && !hiddenAddButton && (
-            <Button
-              as={Link}
-              to={addRoute ? addRoute : "add"}
-              onClick={offcanvas.setShow}
-              size="lg"
-              title="Добавить"
-              aria-label="Добавить"
-            >
-              <RiAddFill />
-            </Button>
-          )}
+          {showAddButton &&
+            !hiddenAddButton &&
+            (onAddClick ? (
+              <Button
+                onClick={onAddClick}
+                size="lg"
+                title="Добавить"
+                aria-label="Добавить"
+              >
+                <RiAddFill />
+              </Button>
+            ) : (
+              <Button
+                as={Link}
+                to={addRoute ? addRoute : "add"}
+                onClick={offcanvas.setShow}
+                size="lg"
+                title="Добавить"
+                aria-label="Добавить"
+              >
+                <RiAddFill />
+              </Button>
+            ))}
         </div>
       </Card.Title>
       {topContent}

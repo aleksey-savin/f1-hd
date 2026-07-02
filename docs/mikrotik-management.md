@@ -1,6 +1,6 @@
 # Mikrotik Device Management — Implementation Notes
 
-_Last updated: 2026-06-08. This document describes the Mikrotik management module
+_Last updated: 2026-07-02. This document describes the Mikrotik management module
 as currently implemented, so the code can be reviewed and optimized later. It is
 a snapshot, not a spec — verify against the code before relying on any detail._
 
@@ -20,8 +20,10 @@ per-vendor:
    parameters (host/port/user/password, TLS, port-knock sequence). Saving them is
    **verified live**. The device then shows a connectivity **status** and polled
    metadata.
-4. **Monitoring** — **Connect/Disconnect** enrol/remove a device from a
-   background cron health-check that re-polls it every 5 minutes.
+4. **Monitoring** — saving verified parameters **enrols** the device in a
+   background cron health-check that re-polls it every 5 minutes; **detaching**
+   (deleting the record) removes it. The former manual Connect/Disconnect toggle
+   was dropped from the UI.
 
 There is **no migration** — the legacy module had no real data.
 
@@ -45,12 +47,14 @@ Mikrotik  (management/connection record)
 
 | Field | Meaning | Set by |
 | --- | --- | --- |
-| `status` (`online` / `offline`) | connectivity from the **last poll** | parameter-save, connect, cron |
-| `monitoringEnabled` (bool) | whether the cron polls it | **Connect** ⇒ true, **Disconnect** ⇒ false |
+| `status` (`online` / `offline`) | connectivity from the **last poll** | parameter-save, cron |
+| `monitoringEnabled` (bool) | whether the cron polls it | **parameter-save** ⇒ true; cleared only by **deleting** the record (detach) |
 
 A device with **no record** is reported as `notConfigured` (derived in the list,
-not stored). The status badge reflects `status`; the Connect/Disconnect button
-reflects/toggles `monitoringEnabled`.
+not stored) and is **hidden from the management table** — it appears instead in
+the "Добавить устройство" picker. Saving parameters creates the record (and
+enables monitoring); **Отключить** deletes it. The legacy `connect`/`disconnect`
+endpoints still exist but are no longer used by the UI.
 
 ## Backend
 
@@ -104,9 +108,10 @@ to the client**, and the verify-on-save endpoint is **rate-limited** per user.
 | `GET /mikrotik-devices` | `getManagedDevices` | Vendor-flag-filtered `ClientDevice`s left-joined to records. |
 | `GET /mikrotik-devices/report/networks` | `networksReport` | IP/network aggregation + duplicate-network flagging. |
 | `GET /mikrotik-devices/:clientDeviceId` | `getOne` | One row + record (credentials without password) for prefill. |
-| `POST /mikrotik-devices/:clientDeviceId/parameters` | `updateParameters` | **Verify-on-save**: SSRF host check → port-knock → live TLS poll + Full-group guard, then upsert record (`status: online`). Rejects invalid creds / unreachable host (`502`). Rate-limited. |
-| `POST /mikrotik-devices/:clientDeviceId/connect` | `connect` | `monitoringEnabled: true` + immediate poll (monitoring stays on even if the poll fails). |
-| `POST /mikrotik-devices/:clientDeviceId/disconnect` | `disconnect` | `monitoringEnabled: false`, `status: offline`. |
+| `POST /mikrotik-devices/:clientDeviceId/parameters` | `updateParameters` | **Verify-on-save**: SSRF host check → port-knock → live TLS poll + Full-group guard, then upsert record (`status: online`, `monitoringEnabled: true`). Rejects invalid creds / unreachable host (`502`). Rate-limited. |
+| `DELETE /mikrotik-devices/:clientDeviceId` | `detach` | Deletes the management record (encrypted credentials, pinned cert, polled data); the `ClientDevice` returns to the `notConfigured` pool. Requires `canManageMikrotikDevices`. |
+| `POST /mikrotik-devices/:clientDeviceId/connect` | `connect` | _Legacy, unused by the UI._ `monitoringEnabled: true` + immediate poll. |
+| `POST /mikrotik-devices/:clientDeviceId/disconnect` | `disconnect` | _Legacy, unused by the UI._ `monitoringEnabled: false`, `status: offline`. |
 
 `getManagedDevices` query (`backend/controllers/inventory/mikrotik.js`):
 ```
@@ -133,22 +138,31 @@ an in-flight lock and a `mongoose.connection.readyState` guard.
 
 - **Page / nav** — `frontend/src/pages/Mikrotik/List.jsx` (title "Управление
   устройствами Mikrotik"); `frontend/src/layout/Navbar.jsx` label "Управление
-  Mikrotik". `ListWrapper` is given `showAddButton={false}` — devices are no
-  longer added here; they come from the ClientDevice inventory.
-- **Table** — `frontend/src/components/Devices/Mikrotik/List.jsx`. Columns:
-  Имя · Статус · Локация · Модель · Хост · Прошивка · Последнее подключение ·
-  Действия. Status badge: `online`→success "В сети", `offline`→danger "Не в
-  сети", `notConfigured`→secondary "Не настроено".
-- **Per-row actions** (gated by `canManageMikrotikDevices`): **Параметры**
-  (opens `ParametersModal`) and **Подключить/Отключить** (disabled until
-  configured). Subnets are shown via `AddressesModal`.
+  Mikrotik". The header **+** button (`ListWrapper` `onAddClick`, shown only when
+  `canManageMikrotikDevices`) opens a two-step add flow.
+- **Add flow** — `frontend/src/components/Devices/Mikrotik/AddDeviceModal.jsx`.
+  Step 1: pick a manageable `ClientDevice` **not yet added**
+  (`status === "notConfigured"`; already-added devices are excluded) from a
+  searchable list. Step 2: the same `ParametersModal`. On save the record is
+  created and the device joins the table.
+- **Table** — `frontend/src/components/Devices/Mikrotik/List.jsx`. Shows **only
+  added (configured) devices** — `notConfigured` are filtered out in the store.
+  Columns: Имя · Статус · Расположение · Модель · Хост · Адреса · Прошивка ·
+  Последнее подключение · Действия. Status badge: `online`→success "В сети",
+  `offline`→danger "Не в сети". Last-connection uses `formatDate` (local date +
+  time); subnets show via `AddressesModal` in the Адреса column.
+- **Per-row actions** (gated by `canManageMikrotikDevices`, icon-only):
+  **Параметры** (opens `ParametersModal`) and **Отключить** (detach — confirms
+  via the shared `UI/ConfirmActionModal`, then `DELETE`).
 - **Parameters modal** — `frontend/src/components/Devices/Mikrotik/ParametersModal.jsx`.
   Fields: host, port (8729 default), API-SSL toggle, user, password, port-knock
   sequence. Prefills host/port/user/useTls from `getOne`; the password and knock
   sequence are secrets the API never returns, so they stay blank (a blank knock on
   re-save keeps the stored one). Submits to `…/parameters`; errors inline.
-- **Store** — `frontend/src/store/lists/mikrotik-devices.js`: `fetch`, plus
-  `connect` / `disconnect` / `saveParameters` (POST → re-`fetch`).
+- **Store** — `frontend/src/store/lists/mikrotik-devices.js`: `fetch`,
+  `saveParameters` (POST → re-`fetch`), `detach` (DELETE → re-`fetch`). The table
+  filter hides `notConfigured` devices; the add flow reads them from
+  `originalList`.
 
 The standalone Add/Update pages and modals (`pages/Mikrotik/Add.jsx`,
 `Update.jsx`, `components/Devices/Mikrotik/AddModal.jsx`, `UpdateModal.jsx`) were
@@ -256,14 +270,17 @@ MikroTik or a CHR VM); otherwise temporarily stub `pollDevice`.
    registers at startup.
 2. Vendor → enable the switch. Create a `DeviceModel` under that vendor, then a
    `ClientDevice` with that model.
-3. Open `/devices/mikrotik` — the device shows status **Не настроено**, host `—`.
-4. **Параметры** → enter host/port/user/password. For a hardened device keep
-   **API-SSL** on (port 8729) and fill the knock sequence; to smoke-test a plain
-   device, toggle API-SSL off (8728). On success the row flips to **В сети** and
-   identity/model/host/firmware/last-connection populate. A `full`-group user, or
-   an internal/loopback host, is rejected.
-5. **Подключить** → `monitoringEnabled: true`; after a cron tick `lastCheckedAt`
-   advances. Power the device off → the next tick flips it to **Не в сети**.
-   **Отключить** stops monitoring.
+3. Open the Mikrotik management page — the new device is **not** in the table
+   (it is `notConfigured`). Click **+**: it appears in the "Добавить устройство"
+   picker.
+4. Pick it → the **Параметры** modal opens → enter host/port/user/password. For a
+   hardened device keep **API-SSL** on (port 8729) and fill the knock sequence;
+   to smoke-test a plain device, toggle API-SSL off (8728). On success the device
+   joins the table as **В сети** with identity/model/host/firmware/last-connection
+   populated and `monitoringEnabled: true`. A `full`-group user, or an
+   internal/loopback host, is rejected.
+5. After a cron tick `lastCheckedAt` advances. Power the device off → the next
+   tick flips it to **Не в сети**. **Отключить** → confirm → the record is
+   deleted; the device leaves the table and returns to the picker.
 6. Confirm `credentials.password` is absent from every `/mikrotik-devices`
    response.

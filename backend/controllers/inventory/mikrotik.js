@@ -275,6 +275,11 @@ exports.updateParameters = async (req, res, next) => {
         },
         ...mapPollToFields(poll),
         status: "online",
+        // Saving verified parameters enrols the device in the health-check cron.
+        // The separate Connect/Disconnect toggle was removed from the UI: a
+        // configured device is monitored, and detaching (deleting the record)
+        // is how monitoring stops.
+        monitoringEnabled: true,
         lastSuccessfulConnectionAt: now,
         lastCheckedAt: now,
         lastError: null,
@@ -385,6 +390,31 @@ exports.disconnect = async (req, res, next) => {
     next(
       new AppError("Failed to disconnect mikrotik device", 500, true, error),
     );
+  }
+};
+
+// Detach a device from Mikrotik management: delete its record (encrypted
+// credentials, pinned TLS cert, polled metadata). The ClientDevice itself is
+// untouched and returns to the "not configured" pool, so it can be re-added.
+exports.detach = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findOneAndDelete({
+      clientDevice: req.params.clientDeviceId,
+    });
+
+    if (!record) {
+      return next(new AppError("Устройство не настроено", 404));
+    }
+
+    logger.log("info", "Mikrotik device detached", {
+      actor: req.userId,
+      clientDeviceId: req.params.clientDeviceId,
+      ip: req.ip,
+    });
+
+    res.status(200).json({ message: "Устройство отвязано от управления" });
+  } catch (error) {
+    next(new AppError("Failed to detach mikrotik device", 500, true, error));
   }
 };
 

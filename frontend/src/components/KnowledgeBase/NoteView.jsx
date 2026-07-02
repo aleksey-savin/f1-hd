@@ -41,7 +41,7 @@ import useInitialPrefsStore from "../../store/prefs";
 import NoteStatusBadges from "./NoteStatusBadges";
 import ApprovalModal from "./ApprovalModal";
 import ConfirmDeletionModal from "./ConfirmDeletionModal";
-import ConfirmActionModal from "./ConfirmActionModal";
+import ConfirmActionModal from "../../UI/ConfirmActionModal";
 
 import "../../UI/knowledgeBase.css";
 

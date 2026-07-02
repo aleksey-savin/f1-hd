@@ -49,4 +49,13 @@ router.post(
   mikrotikController.disconnect,
 );
 
+// Detach: delete the management record (credentials + polled data). The
+// ClientDevice returns to the "not configured" pool for re-adding.
+router.delete(
+  "/mikrotik-devices/:clientDeviceId",
+  isAuth,
+  canManageMikrotikDevices,
+  mikrotikController.detach,
+);
+
 module.exports = router;

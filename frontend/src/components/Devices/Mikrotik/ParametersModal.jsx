@@ -48,7 +48,7 @@ const SectionLabel = ({ children, className = "" }) => (
   </div>
 );
 
-const ParametersModal = ({ device, show, onClose }) => {
+const ParametersModal = ({ device, show, onClose, onSaved }) => {
   const saveParameters = useMikrotikDeviceFilterStore(
     (state) => state.saveParameters,
   );
@@ -134,7 +134,8 @@ const ParametersModal = ({ device, show, onClose }) => {
         setError(data.message || "Не удалось сохранить параметры");
         return;
       }
-      onClose();
+      // onSaved (add-flow) закрывает весь мастер; иначе просто закрываем модалку.
+      (onSaved || onClose)();
     } finally {
       setIsSaving(false);
     }

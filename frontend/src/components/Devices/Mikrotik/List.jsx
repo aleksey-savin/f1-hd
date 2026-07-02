@@ -4,66 +4,67 @@ import Table from "react-bootstrap/Table";
 import Badge from "react-bootstrap/Badge";
 import Button from "react-bootstrap/Button";
 import ButtonGroup from "react-bootstrap/ButtonGroup";
-import Spinner from "react-bootstrap/Spinner";
 import Alert from "react-bootstrap/Alert";
 
-import { RiSettings3Line, RiLink, RiLinkUnlink } from "react-icons/ri";
+import { RiSettings3Line, RiLinkUnlink } from "react-icons/ri";
 
 import MikrotikAddressesModal from "./AddressesModal";
 import ParametersModal from "./ParametersModal";
+import ConfirmActionModal from "../../../UI/ConfirmActionModal";
 
-import { formatShortDate } from "../../../util/format-date";
+import { formatDate } from "../../../util/format-date";
 import { AuthedUserContext } from "../../../store/authed-user-context";
 import useMikrotikDeviceFilterStore from "../../../store/lists/mikrotik-devices";
 
 const STATUS_BADGE = {
   online: { bg: "success", label: "В сети" },
   offline: { bg: "danger", label: "Не в сети" },
-  notConfigured: { bg: "secondary", label: "Не настроено" },
 };
 
 const MikrotikDevicesList = ({ items = [] }) => {
   const { permissions } = useContext(AuthedUserContext);
   const canManage = permissions.canManageMikrotikDevices;
 
-  const connect = useMikrotikDeviceFilterStore((state) => state.connect);
-  const disconnect = useMikrotikDeviceFilterStore((state) => state.disconnect);
+  const detach = useMikrotikDeviceFilterStore((state) => state.detach);
 
   const [paramsDevice, setParamsDevice] = useState(null);
-  const [busyId, setBusyId] = useState(null);
-  const [actionError, setActionError] = useState(null);
+  const [detachDevice, setDetachDevice] = useState(null);
+  const [isDetaching, setIsDetaching] = useState(false);
+  const [detachError, setDetachError] = useState(null);
 
-  const handleMonitoringToggle = async (device) => {
-    setBusyId(device.clientDeviceId);
-    setActionError(null);
+  const closeDetach = () => {
+    setDetachDevice(null);
+    setDetachError(null);
+  };
+
+  const handleDetach = async () => {
+    if (!detachDevice) return;
+    setIsDetaching(true);
+    setDetachError(null);
     try {
-      const action = device.monitoringEnabled ? disconnect : connect;
-      const response = await action(device.clientDeviceId);
+      const response = await detach(detachDevice.clientDeviceId);
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        setActionError(data.message || "Не удалось выполнить действие");
+        setDetachError(data.message || "Не удалось отключить устройство");
+        return;
       }
+      setDetachDevice(null);
     } finally {
-      setBusyId(null);
+      setIsDetaching(false);
     }
   };
 
   return (
     <>
-      {actionError && (
-        <Alert variant="danger" dismissible onClose={() => setActionError(null)}>
-          {actionError}
-        </Alert>
-      )}
-
       <Table responsive striped hover className="align-middle">
         <thead>
           <tr>
             <th>Имя</th>
             <th>Статус</th>
-            <th>Локация</th>
+            <th>Расположение</th>
             <th>Модель</th>
             <th>Хост</th>
+            <th>Адреса</th>
             <th>Прошивка</th>
             <th>Последнее подключение</th>
             {canManage && <th className="text-end">Действия</th>}
@@ -72,44 +73,27 @@ const MikrotikDevicesList = ({ items = [] }) => {
         <tbody>
           {items.map((device) => {
             const badge = STATUS_BADGE[device.status] || STATUS_BADGE.offline;
-            const isBusy = busyId === device.clientDeviceId;
-            const configured = device.status !== "notConfigured";
-            const hasNetworks = device.addresses?.some((a) => a.network);
 
             return (
               <tr key={device.clientDeviceId}>
                 <td data-cell="Имя">
                   <span className="fw-semibold">{device.displayName}</span>
-                  {hasNetworks && (
-                    <div className="mt-1">
-                      <MikrotikAddressesModal device={device} />
-                    </div>
-                  )}
                 </td>
                 <td data-cell="Статус">
                   <Badge bg={badge.bg}>{badge.label}</Badge>
-                  {device.monitoringEnabled && (
-                    <Badge bg="light" text="dark" className="ms-1">
-                      мониторинг
-                    </Badge>
-                  )}
                 </td>
-                <td data-cell="Локация">{device.location?.name || "—"}</td>
-                <td data-cell="Модель">
-                  {device.model?.name || "—"}
-                  {device.model?.vendor && (
-                    <div className="small text-muted">{device.model.vendor}</div>
-                  )}
+                <td data-cell="Расположение">
+                  {device.location?.name || "—"}
                 </td>
+                <td data-cell="Модель">{device.model?.name || "—"}</td>
                 <td data-cell="Хост" className="font-monospace">
                   {device.host || "—"}
                 </td>
-                <td data-cell="Прошивка">
-                  {device.currentFirmware ? (
-                    <Badge bg="info" text="dark">
-                      {device.currentFirmware}
-                    </Badge>
-                  ) : (
+                <td data-cell="Адреса">
+                  <MikrotikAddressesModal device={device} />
+                </td>
+                <td data-cell="Прошивка" className="font-monospace">
+                  {device.currentFirmware || (
                     <span className="text-muted">—</span>
                   )}
                 </td>
@@ -118,7 +102,7 @@ const MikrotikDevicesList = ({ items = [] }) => {
                   className="text-nowrap text-muted"
                 >
                   {device.lastSuccessfulConnectionAt
-                    ? formatShortDate(device.lastSuccessfulConnectionAt)
+                    ? formatDate(device.lastSuccessfulConnectionAt)
                     : "—"}
                 </td>
                 {canManage && (
@@ -128,32 +112,17 @@ const MikrotikDevicesList = ({ items = [] }) => {
                         variant="outline-secondary"
                         onClick={() => setParamsDevice(device)}
                         title="Параметры подключения"
+                        aria-label="Параметры подключения"
                       >
-                        <RiSettings3Line /> Параметры
+                        <RiSettings3Line />
                       </Button>
                       <Button
-                        variant={
-                          device.monitoringEnabled
-                            ? "outline-danger"
-                            : "outline-success"
-                        }
-                        disabled={!configured || isBusy}
-                        onClick={() => handleMonitoringToggle(device)}
-                        title={
-                          configured ? "" : "Сначала задайте параметры подключения"
-                        }
+                        variant="outline-danger"
+                        onClick={() => setDetachDevice(device)}
+                        title="Отключить"
+                        aria-label="Отключить"
                       >
-                        {isBusy ? (
-                          <Spinner animation="border" size="sm" />
-                        ) : device.monitoringEnabled ? (
-                          <>
-                            <RiLinkUnlink /> Отключить
-                          </>
-                        ) : (
-                          <>
-                            <RiLink /> Подключить
-                          </>
-                        )}
+                        <RiLinkUnlink />
                       </Button>
                     </ButtonGroup>
                   </td>
@@ -168,6 +137,29 @@ const MikrotikDevicesList = ({ items = [] }) => {
         device={paramsDevice}
         show={!!paramsDevice}
         onClose={() => setParamsDevice(null)}
+      />
+
+      <ConfirmActionModal
+        show={!!detachDevice}
+        onHide={closeDetach}
+        onConfirm={handleDetach}
+        title="Отключить устройство"
+        body={
+          <>
+            Устройство <strong>{detachDevice?.displayName}</strong> будет
+            отвязано от управления Mikrotik: сохранённые параметры подключения
+            (учётные данные и сертификат) будут удалены, а мониторинг остановлен.
+            Само устройство останется в инвентаре — его можно добавить снова.
+            {detachError && (
+              <Alert variant="danger" className="mt-3 mb-0">
+                {detachError}
+              </Alert>
+            )}
+          </>
+        }
+        confirmLabel="Отключить"
+        confirmVariant="danger"
+        isLoading={isDetaching}
       />
     </>
   );

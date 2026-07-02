@@ -21,17 +21,21 @@ const clientDeviceFilter = (state) => {
   const originalList = Array.isArray(state.originalList)
     ? state.originalList
     : [];
-  return originalList.filter((item) => {
-    if (state.searchTerm.length > 0) {
-      return rowSearchFields(item)
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(state.searchTerm);
-    } else {
+  // В таблице показываем только привязанные (настроенные) устройства. Не
+  // привязанные (status === "notConfigured") остаются в originalList — из них
+  // формируется список доступных для добавления через «+».
+  return originalList
+    .filter((item) => item.status !== "notConfigured")
+    .filter((item) => {
+      if (state.searchTerm.length > 0) {
+        return rowSearchFields(item)
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(state.searchTerm);
+      }
       return true;
-    }
-  });
+    });
 };
 
 const searchItems = (query, items) => {
@@ -132,23 +136,12 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
       isLoading: false,
     });
   },
-  // Enable monitoring + immediate poll, then refresh the list.
-  connect: async (clientDeviceId) => {
+  // Detach a device from management (delete its record), then refresh. The
+  // ClientDevice returns to the "available" pool for re-adding via «+».
+  detach: async (clientDeviceId) => {
     const { token } = getLocalStorageData();
-    const response = await fetch(`${API}/${clientDeviceId}/connect`, {
-      method: "POST",
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (response.ok) {
-      await get().fetch();
-    }
-    return response;
-  },
-  // Disable monitoring, then refresh the list.
-  disconnect: async (clientDeviceId) => {
-    const { token } = getLocalStorageData();
-    const response = await fetch(`${API}/${clientDeviceId}/disconnect`, {
-      method: "POST",
+    const response = await fetch(`${API}/${clientDeviceId}`, {
+      method: "DELETE",
       headers: { Authorization: "Bearer " + token },
     });
     if (response.ok) {
