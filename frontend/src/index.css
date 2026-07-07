@@ -320,6 +320,15 @@ h1 svg {
   }
 }
 
+/* ===== Панель управления устройством Mikrotik (правый Offcanvas) ===== */
+/* Шире дефолтных 400px — чтобы 3-колоночная таблица адресов и список копий
+   помещались без горизонтального скролла. Задаём через bootstrap-переменную
+   (иначе `.offcanvas-end { width: var(--bs-offcanvas-width) }` перебивает голый
+   `width`). На узких экранах не выходит за вьюпорт. */
+.offcanvas.mikrotik-panel.offcanvas-end {
+  --bs-offcanvas-width: min(760px, 100vw);
+}
+
 /* ===== Дерево структуры компании (Company/View → SubdivisionTree) ===== */
 
 /* Тема (Darkly) не выставляет data-bs-theme=dark, поэтому --bs-secondary-bg/

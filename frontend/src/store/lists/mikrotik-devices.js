@@ -14,6 +14,7 @@ const rowSearchFields = (item) => [
   item.model?.name,
   item.model?.vendor,
   item.location?.name,
+  item.company?.name,
 ];
 
 // последовательно отсеивает устройства согласно активному поиску
@@ -136,11 +137,67 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
       isLoading: false,
     });
   },
-  // Detach a device from management (delete its record), then refresh. The
-  // ClientDevice returns to the "available" pool for re-adding via «+».
+  // Patch one already-loaded row in place (no network) so the table badge reflects
+  // a panel action without a full refetch. A refetch toggles isLoading / isSorting,
+  // and ListWrapper swaps its children (incl. the device Offcanvas) for a spinner —
+  // which would close the panel. Touches only filteredList (what the table renders);
+  // originalList reconciles on the next full fetch.
+  patchRow: (recordId, patch) =>
+    set((state) => ({
+      filteredList: (state.filteredList || []).map((row) =>
+        row.recordId === recordId ? { ...row, ...patch } : row,
+      ),
+    })),
+  // Detach an inventory-backed device from management (delete its record), then
+  // refresh. The ClientDevice returns to the "available" pool for re-adding.
   detach: async (clientDeviceId) => {
     const { token } = getLocalStorageData();
     const response = await fetch(`${API}/${clientDeviceId}`, {
+      method: "DELETE",
+      headers: { Authorization: "Bearer " + token },
+    });
+    if (response.ok) {
+      await get().fetch();
+    }
+    return response;
+  },
+  // Create a standalone device (no inventory ClientDevice, e.g. Cloud Hosted
+  // Router): verify-on-save, then refresh.
+  createStandalone: async (body) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(`${API}/standalone/parameters`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+      body: JSON.stringify(body),
+    });
+    if (response.ok) {
+      await get().fetch();
+    }
+    return response;
+  },
+  // Verify-on-save parameters (and company/label) of a standalone record.
+  saveStandaloneParameters: async (recordId, body) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(`${API}/standalone/${recordId}/parameters`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+      body: JSON.stringify(body),
+    });
+    if (response.ok) {
+      await get().fetch();
+    }
+    return response;
+  },
+  // Delete a standalone record entirely, then refresh.
+  detachStandalone: async (recordId) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(`${API}/standalone/${recordId}`, {
       method: "DELETE",
       headers: { Authorization: "Bearer " + token },
     });
@@ -163,6 +220,87 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
     if (response.ok) {
       await get().fetch();
     }
+    return response;
+  },
+  // --- Backups & config exports (keyed by the Mikrotik record id) ---
+  // Fetch a device's stored artifacts (optionally filtered by type). Returns the
+  // array for panel-local state; not kept in the global store.
+  fetchArtifacts: async (recordId, type) => {
+    const { token } = getLocalStorageData();
+    const suffix = type ? `?type=${type}` : "";
+    const response = await fetch(
+      `${API}/records/${recordId}/artifacts${suffix}`,
+      { headers: { Authorization: "Bearer " + token } },
+    );
+    if (!response.ok) return [];
+    const data = await response.json();
+    return Array.isArray(data.artifacts) ? data.artifacts : [];
+  },
+  // Export the running config now (live SSH). The caller patches the row badge via
+  // `patchRow` — a full refetch would close the device panel (see `patchRow`).
+  createExport: async (recordId) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(`${API}/records/${recordId}/exports`, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+    return response;
+  },
+  // Delete a stored artifact. The caller patches the row badge via `patchRow`.
+  deleteArtifact: async (recordId, artifactId) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(
+      `${API}/records/${recordId}/artifacts/${artifactId}`,
+      { method: "DELETE", headers: { Authorization: "Bearer " + token } },
+    );
+    return response;
+  },
+  // Save the config-export schedule + retention. The caller patches the row badge
+  // via `patchRow`.
+  saveSchedules: async (recordId, body) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(`${API}/records/${recordId}/schedules`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+      body: JSON.stringify(body),
+    });
+    return response;
+  },
+  // 2FA step 1: ask the backend to email a one-time download code.
+  requestDownloadCode: async (recordId, artifactId) => {
+    const { token } = getLocalStorageData();
+    return fetch(
+      `${API}/records/${recordId}/artifacts/${artifactId}/download-code`,
+      { method: "POST", headers: { Authorization: "Bearer " + token } },
+    );
+  },
+  // 2FA step 2: submit the emailed code; on success stream the file as a blob.
+  downloadArtifact: async (recordId, artifactId, fileName, code) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(
+      `${API}/records/${recordId}/artifacts/${artifactId}/download`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({ code }),
+      },
+    );
+    if (!response.ok) return response;
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName || "mikrotik";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     return response;
   },
   updateFilter: (data) =>

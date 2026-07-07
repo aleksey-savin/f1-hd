@@ -312,8 +312,7 @@ CSS-наборы переключают `layout/DarkTheme.jsx` / `layout/LightTh
 - акцентный текст/иконки — `primary`, `success` либо нейтральный «корпусный»
   цвет (`text-body` / `text-body-emphasis`), которые сами адаптируются к теме;
 - если нужен бейдж `bg="info"` — обязательно задавайте читаемый текст
-  (`<Badge bg="info" text="dark">`, как в `components/Devices/Mikrotik/List.jsx`),
-  не полагайтесь на цвет «по умолчанию».
+  (`<Badge bg="info" text="dark">`), не полагайтесь на цвет «по умолчанию».
 
 В коде ещё встречаются `text-info` и `bg="info"` (например `AiSpeechBadge`,
 `AiCategoryBadge`, виджеты дашборда, активные пункты фильтров) — это легаси; в

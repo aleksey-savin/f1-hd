@@ -6,29 +6,33 @@ import Form from "react-bootstrap/Form";
 import ListGroup from "react-bootstrap/ListGroup";
 
 import { FaNetworkWired } from "react-icons/fa";
-import { RiArrowRightLine } from "react-icons/ri";
+import { RiArrowRightLine, RiCloudLine } from "react-icons/ri";
 
 import ParametersModal from "./ParametersModal";
+import StandaloneModal from "./StandaloneModal";
 import useMikrotikDeviceFilterStore from "../../../store/lists/mikrotik-devices";
 
-// Двухшаговое добавление устройства под управление Mikrotik:
-//   Шаг 1 — выбор устройства из инвентаря, ещё не привязанного к управлению
-//           (status === "notConfigured"); уже добавленные не показываются.
-//   Шаг 2 — модалка «Параметры» для выбранного устройства (то же окно, что и
-//           по кнопке «Параметры» в строке таблицы). После сохранения стор
-//           перезапрашивает список, и устройство появляется в таблице.
+// Add a device under Mikrotik management. Two paths:
+//   • Из инвентаря — pick a manageable ClientDevice not yet added
+//     (status === "notConfigured"; already-added devices are excluded), then
+//     configure it in ParametersModal.
+//   • Cloud Hosted Router вручную — StandaloneModal creates a record with no
+//     inventory device (identified by company + optional label).
+// After either save the store re-fetches and the device joins the table.
 const AddDeviceModal = ({ show, onClose }) => {
   const originalList = useMikrotikDeviceFilterStore(
     (state) => state.originalList,
   );
 
   const [selected, setSelected] = useState(null);
+  const [standaloneOpen, setStandaloneOpen] = useState(false);
   const [query, setQuery] = useState("");
 
-  // Сброс мастера при закрытии, чтобы повторное открытие начиналось с шага 1.
+  // Reset the wizard on close so reopening starts at step 1.
   useEffect(() => {
     if (!show) {
       setSelected(null);
+      setStandaloneOpen(false);
       setQuery("");
     }
   }, [show]);
@@ -42,6 +46,7 @@ const AddDeviceModal = ({ show, onClose }) => {
     ? available.filter((device) =>
         [
           device.displayName,
+          device.company?.name,
           device.model?.name,
           device.location?.name,
           device.serialNumber,
@@ -55,13 +60,19 @@ const AddDeviceModal = ({ show, onClose }) => {
 
   const closeAll = () => {
     setSelected(null);
+    setStandaloneOpen(false);
     onClose();
   };
 
   return (
     <>
-      {/* Шаг 1 — выбор устройства */}
-      <Modal show={show && !selected} onHide={closeAll} centered scrollable>
+      {/* Шаг 1 — выбор устройства из инвентаря или переход к ручному вводу */}
+      <Modal
+        show={show && !selected && !standaloneOpen}
+        onHide={closeAll}
+        centered
+        scrollable
+      >
         <Modal.Header closeButton>
           <Modal.Title className="h5 mb-0 d-flex align-items-center gap-2">
             <FaNetworkWired className="text-primary" />
@@ -71,16 +82,16 @@ const AddDeviceModal = ({ show, onClose }) => {
         <Modal.Body>
           {available.length === 0 ? (
             <p className="text-muted mb-0">
-              Нет доступных устройств для добавления. Все управляемые устройства
-              Mikrotik уже добавлены, либо в инвентаре нет устройств с вендором,
-              для которого включено управление Mikrotik.
+              Нет доступных устройств из инвентаря. Добавьте Cloud Hosted Router
+              кнопкой выше, либо заведите устройство в инвентаре у вендора с
+              включённым управлением Mikrotik.
             </p>
           ) : (
             <>
               <Form.Group className="mb-3">
                 <Form.Control
                   type="search"
-                  placeholder="Поиск по имени, модели, расположению…"
+                  placeholder="Поиск по имени, компании, модели…"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   autoFocus
@@ -99,11 +110,16 @@ const AddDeviceModal = ({ show, onClose }) => {
                     >
                       <div>
                         <div className="fw-semibold">{device.displayName}</div>
-                        <div className="small text-muted">
-                          {[device.model?.name, device.location?.name]
-                            .filter(Boolean)
-                            .join(" · ") || "—"}
+                        <div className="small text-body-secondary">
+                          {device.company?.name || "— без компании —"}
                         </div>
+                        {(device.model?.name || device.location?.name) && (
+                          <div className="small text-muted">
+                            {[device.model?.name, device.location?.name]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </div>
+                        )}
                       </div>
                       <RiArrowRightLine className="flex-shrink-0 text-muted" />
                     </ListGroup.Item>
@@ -114,17 +130,31 @@ const AddDeviceModal = ({ show, onClose }) => {
           )}
         </Modal.Body>
         <Modal.Footer>
+          <Button
+            variant="outline-primary"
+            onClick={() => setStandaloneOpen(true)}
+            className="d-inline-flex align-items-center gap-2"
+          >
+            <RiCloudLine /> Вручную
+          </Button>
           <Button variant="secondary" onClick={closeAll}>
             Отмена
           </Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Шаг 2 — параметры подключения выбранного устройства */}
+      {/* Шаг 2 (инвентарь) — параметры подключения выбранного устройства */}
       <ParametersModal
         device={selected}
         show={show && !!selected}
         onClose={() => setSelected(null)}
+        onSaved={closeAll}
+      />
+
+      {/* Ручной ввод — Cloud Hosted Router без инвентаря */}
+      <StandaloneModal
+        show={show && standaloneOpen}
+        onClose={() => setStandaloneOpen(false)}
         onSaved={closeAll}
       />
     </>

@@ -2,14 +2,17 @@ import { useContext, useState } from "react";
 
 import Table from "react-bootstrap/Table";
 import Badge from "react-bootstrap/Badge";
-import Button from "react-bootstrap/Button";
-import ButtonGroup from "react-bootstrap/ButtonGroup";
 import Alert from "react-bootstrap/Alert";
 
-import { RiSettings3Line, RiLinkUnlink } from "react-icons/ri";
+import {
+  RiShieldCheckLine,
+  RiCalendarScheduleLine,
+  RiArrowRightSLine,
+} from "react-icons/ri";
 
-import MikrotikAddressesModal from "./AddressesModal";
+import DevicePanel from "./DevicePanel";
 import ParametersModal from "./ParametersModal";
+import StandaloneModal from "./StandaloneModal";
 import ConfirmActionModal from "../../../UI/ConfirmActionModal";
 
 import { formatDate } from "../../../util/format-date";
@@ -21,16 +24,79 @@ const STATUS_BADGE = {
   offline: { bg: "danger", label: "Не в сети" },
 };
 
+const shortDate = (value) => new Date(value).toLocaleDateString("ru-RU");
+
+const isScheduled = (schedule) =>
+  schedule?.frequency && schedule.frequency !== "off";
+
+// Protection badge for the config export (.rsc): green with the last-export date
+// when a copy exists (+ a calendar mark if a schedule is active), or a red
+// "Нет копий" when the device has never been exported.
+const ProtectionCell = ({ device }) => {
+  const scheduled = isScheduled(device.schedules?.export);
+
+  if (device.lastExportAt) {
+    return (
+      <Badge
+        bg="success"
+        className="d-inline-flex align-items-center gap-1"
+        title={scheduled ? "Есть копия · по расписанию" : "Последняя копия"}
+      >
+        <RiShieldCheckLine /> {shortDate(device.lastExportAt)}
+        {scheduled && <RiCalendarScheduleLine title="По расписанию" />}
+      </Badge>
+    );
+  }
+
+  return (
+    <div className="d-flex flex-column gap-1 align-items-start">
+      <Badge bg="danger" title="Конфигурация ни разу не экспортирована">
+        Нет копий
+      </Badge>
+      {scheduled && (
+        <span className="small text-muted d-inline-flex align-items-center gap-1">
+          <RiCalendarScheduleLine /> запланировано
+        </span>
+      )}
+    </div>
+  );
+};
+
 const MikrotikDevicesList = ({ items = [] }) => {
   const { permissions } = useContext(AuthedUserContext);
   const canManage = permissions.canManageMikrotikDevices;
 
   const detach = useMikrotikDeviceFilterStore((state) => state.detach);
+  const detachStandalone = useMikrotikDeviceFilterStore(
+    (state) => state.detachStandalone,
+  );
 
+  const [panelDevice, setPanelDevice] = useState(null);
   const [paramsDevice, setParamsDevice] = useState(null);
+  const [standaloneEdit, setStandaloneEdit] = useState(null);
   const [detachDevice, setDetachDevice] = useState(null);
   const [isDetaching, setIsDetaching] = useState(false);
   const [detachError, setDetachError] = useState(null);
+
+  const openParams = (device) => {
+    if (device.source === "standalone") {
+      setStandaloneEdit(device.recordId);
+    } else {
+      setParamsDevice(device);
+    }
+  };
+
+  // Panel footer actions: open the connection modal / confirm detach, closing the
+  // panel so the dialogs don't stack on top of the offcanvas.
+  const handleEditParams = (device) => {
+    setPanelDevice(null);
+    openParams(device);
+  };
+
+  const handleDetachRequest = (device) => {
+    setPanelDevice(null);
+    setDetachDevice(device);
+  };
 
   const closeDetach = () => {
     setDetachDevice(null);
@@ -42,10 +108,13 @@ const MikrotikDevicesList = ({ items = [] }) => {
     setIsDetaching(true);
     setDetachError(null);
     try {
-      const response = await detach(detachDevice.clientDeviceId);
+      const response =
+        detachDevice.source === "standalone"
+          ? await detachStandalone(detachDevice.recordId)
+          : await detach(detachDevice.clientDeviceId);
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        setDetachError(data.message || "Не удалось отключить устройство");
+        setDetachError(data.message || "Не удалось выполнить действие");
         return;
       }
       setDetachDevice(null);
@@ -54,6 +123,8 @@ const MikrotikDevicesList = ({ items = [] }) => {
     }
   };
 
+  const isStandaloneDetach = detachDevice?.source === "standalone";
+
   return (
     <>
       <Table responsive striped hover className="align-middle">
@@ -61,13 +132,13 @@ const MikrotikDevicesList = ({ items = [] }) => {
           <tr>
             <th>Имя</th>
             <th>Статус</th>
+            <th>Защита</th>
             <th>Расположение</th>
             <th>Модель</th>
             <th>Хост</th>
-            <th>Адреса</th>
             <th>Прошивка</th>
             <th>Последнее подключение</th>
-            {canManage && <th className="text-end">Действия</th>}
+            <th aria-hidden />
           </tr>
         </thead>
         <tbody>
@@ -75,12 +146,26 @@ const MikrotikDevicesList = ({ items = [] }) => {
             const badge = STATUS_BADGE[device.status] || STATUS_BADGE.offline;
 
             return (
-              <tr key={device.clientDeviceId}>
+              <tr
+                key={device.recordId || device.clientDeviceId}
+                onClick={() => setPanelDevice(device)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") setPanelDevice(device);
+                }}
+                tabIndex={0}
+                style={{ cursor: "pointer" }}
+              >
                 <td data-cell="Имя">
-                  <span className="fw-semibold">{device.displayName}</span>
+                  <div className="fw-semibold">{device.displayName}</div>
+                  {device.company?.name && (
+                    <div className="small text-muted">{device.company.name}</div>
+                  )}
                 </td>
                 <td data-cell="Статус">
                   <Badge bg={badge.bg}>{badge.label}</Badge>
+                </td>
+                <td data-cell="Защита">
+                  <ProtectionCell device={device} />
                 </td>
                 <td data-cell="Расположение">
                   {device.location?.name || "—"}
@@ -88,9 +173,6 @@ const MikrotikDevicesList = ({ items = [] }) => {
                 <td data-cell="Модель">{device.model?.name || "—"}</td>
                 <td data-cell="Хост" className="font-monospace">
                   {device.host || "—"}
-                </td>
-                <td data-cell="Адреса">
-                  <MikrotikAddressesModal device={device} />
                 </td>
                 <td data-cell="Прошивка" className="font-monospace">
                   {device.currentFirmware || (
@@ -105,33 +187,22 @@ const MikrotikDevicesList = ({ items = [] }) => {
                     ? formatDate(device.lastSuccessfulConnectionAt)
                     : "—"}
                 </td>
-                {canManage && (
-                  <td data-cell="Действия" className="text-end">
-                    <ButtonGroup size="sm">
-                      <Button
-                        variant="outline-secondary"
-                        onClick={() => setParamsDevice(device)}
-                        title="Параметры подключения"
-                        aria-label="Параметры подключения"
-                      >
-                        <RiSettings3Line />
-                      </Button>
-                      <Button
-                        variant="outline-danger"
-                        onClick={() => setDetachDevice(device)}
-                        title="Отключить"
-                        aria-label="Отключить"
-                      >
-                        <RiLinkUnlink />
-                      </Button>
-                    </ButtonGroup>
-                  </td>
-                )}
+                <td className="text-end text-muted">
+                  <RiArrowRightSLine />
+                </td>
               </tr>
             );
           })}
         </tbody>
       </Table>
+
+      <DevicePanel
+        device={panelDevice}
+        onClose={() => setPanelDevice(null)}
+        canManage={canManage}
+        onEditParams={handleEditParams}
+        onDetach={handleDetachRequest}
+      />
 
       <ParametersModal
         device={paramsDevice}
@@ -139,17 +210,33 @@ const MikrotikDevicesList = ({ items = [] }) => {
         onClose={() => setParamsDevice(null)}
       />
 
+      <StandaloneModal
+        show={!!standaloneEdit}
+        recordId={standaloneEdit}
+        onClose={() => setStandaloneEdit(null)}
+      />
+
       <ConfirmActionModal
         show={!!detachDevice}
         onHide={closeDetach}
         onConfirm={handleDetach}
-        title="Отключить устройство"
+        title={isStandaloneDetach ? "Удалить устройство" : "Отключить устройство"}
         body={
           <>
-            Устройство <strong>{detachDevice?.displayName}</strong> будет
-            отвязано от управления Mikrotik: сохранённые параметры подключения
-            (учётные данные и сертификат) будут удалены, а мониторинг остановлен.
-            Само устройство останется в инвентаре — его можно добавить снова.
+            {isStandaloneDetach ? (
+              <>
+                Cloud Hosted Router <strong>{detachDevice?.displayName}</strong>{" "}
+                будет удалён из управления безвозвратно: запись, учётные данные и
+                сертификат будут стёрты.
+              </>
+            ) : (
+              <>
+                Устройство <strong>{detachDevice?.displayName}</strong> будет
+                отвязано от управления Mikrotik: сохранённые параметры (учётные
+                данные и сертификат) будут удалены, а мониторинг остановлен. Само
+                устройство останется в инвентаре — его можно добавить снова.
+              </>
+            )}
             {detachError && (
               <Alert variant="danger" className="mt-3 mb-0">
                 {detachError}
@@ -157,7 +244,7 @@ const MikrotikDevicesList = ({ items = [] }) => {
             )}
           </>
         }
-        confirmLabel="Отключить"
+        confirmLabel={isStandaloneDetach ? "Удалить" : "Отключить"}
         confirmVariant="danger"
         isLoading={isDetaching}
       />
