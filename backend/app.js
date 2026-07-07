@@ -34,6 +34,7 @@ const {
 const {
   runMikrotikScheduler,
 } = require("./middleware/mikrotikScheduler");
+const { runMikrotikOfflineAlerts } = require("./services/mikrotik/alerts");
 const {
   runKnowledgeApprovalExpiry,
 } = require("./services/knowledgeApprovalExpiry");
@@ -286,6 +287,30 @@ cron.schedule("*/5 * * * *", async () => {
     });
   } finally {
     isRunningMikrotikScheduler = false;
+  }
+});
+
+// Raise a ticket for Mikrotik devices offline past the configured threshold (5 min)
+let isAlertingMikrotik = false;
+cron.schedule("*/5 * * * *", async () => {
+  if (isAlertingMikrotik) {
+    return;
+  }
+
+  if (mongoose.connection.readyState !== 1) {
+    return;
+  }
+
+  isAlertingMikrotik = true;
+
+  try {
+    await runMikrotikOfflineAlerts();
+  } catch (error) {
+    logger.log("error", "Mikrotik offline-alert run failed", {
+      error: error.message,
+    });
+  } finally {
+    isAlertingMikrotik = false;
   }
 });
 

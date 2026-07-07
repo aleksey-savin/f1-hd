@@ -7,6 +7,7 @@ export interface IMikrotikArtifact {
   storageKey: string;
   fileName: string;
   size?: number;
+  contentHash?: string;
   storage: "s3" | "local";
   routerOsVersion?: string;
   createdBy?: Types.ObjectId;

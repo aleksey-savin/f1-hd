@@ -70,4 +70,15 @@ export interface IPreferences {
     trackServiceExpiry: boolean;
     serviceExpiryDays: number;
   };
+  mikrotik: {
+    offlineTicket: {
+      isActive: boolean;
+      thresholdMinutes: number;
+      categoryId: Types.ObjectId | null;
+    };
+    configChangeTicket: {
+      isActive: boolean;
+      categoryId: Types.ObjectId | null;
+    };
+  };
 }

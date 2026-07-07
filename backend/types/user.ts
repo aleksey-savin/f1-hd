@@ -29,6 +29,7 @@ export interface IUserPermissions {
   canManageDeviceTypes: boolean;
   canManageDeviceAttributes: boolean;
   canManageMikrotikDevices: boolean;
+  canManageMikrotikConfigs: boolean;
   // finances module
   canUseFinancesModule: boolean;
   canManageServicePlans: boolean;

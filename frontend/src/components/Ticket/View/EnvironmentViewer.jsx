@@ -22,6 +22,7 @@ import { getLocalStorageData } from "../../../util/auth";
 import EnvironmentLevel from "./EnvironmentLevel";
 import EnvironmentDeviceCard, {
   STATUS_META,
+  mikrotikBadge,
   deviceIcon,
 } from "./EnvironmentDeviceCard";
 
@@ -194,6 +195,7 @@ const EnvironmentViewer = ({ userId }) => {
   const DetailIcon = selectedDevice
     ? deviceIcon(selectedDevice.typeName)
     : null;
+  const detailMikro = selectedDevice ? mikrotikBadge(selectedDevice) : null;
 
   return (
     <div className="env-viewer">
@@ -338,6 +340,14 @@ const EnvironmentViewer = ({ userId }) => {
                     </span>
                   </div>
                 )}
+                {detailMikro && (
+                  <div className="env-detail__row">
+                    <span className="env-detail__label">Mikrotik</span>
+                    <span className="env-detail__value">
+                      <Badge bg={detailMikro.bg}>{detailMikro.label}</Badge>
+                    </span>
+                  </div>
+                )}
                 <DetailRow
                   label="Расположение"
                   value={selectedDevice.locationName}
@@ -365,6 +375,14 @@ const EnvironmentViewer = ({ userId }) => {
               >
                 <RiExternalLinkLine /> Открыть страницу устройства
               </Link>
+              {selectedDevice.mikrotikManaged && (
+                <Link
+                  to={`/devices/mikrotik?clientDeviceId=${selectedDevice._id}`}
+                  className="btn btn-outline-primary w-100 mt-2 d-inline-flex align-items-center justify-content-center gap-2"
+                >
+                  <RiExternalLinkLine /> Открыть в управлении Mikrotik
+                </Link>
+              )}
             </>
           )}
         </Offcanvas.Body>

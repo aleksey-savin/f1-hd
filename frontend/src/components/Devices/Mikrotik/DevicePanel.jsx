@@ -1,3 +1,5 @@
+import { Link } from "react-router";
+
 import Offcanvas from "react-bootstrap/Offcanvas";
 import Button from "react-bootstrap/Button";
 import Badge from "react-bootstrap/Badge";
@@ -21,6 +23,7 @@ import {
   RiSettings3Line,
   RiLinkUnlink,
   RiDeleteBinLine,
+  RiExternalLinkLine,
 } from "react-icons/ri";
 
 import ArtifactsSection from "./ArtifactsSection";
@@ -57,6 +60,7 @@ const DevicePanel = ({
   device,
   onClose,
   canManage,
+  canManageConfigs,
   onEditParams,
   onDetach,
 }) => {
@@ -106,9 +110,11 @@ const DevicePanel = ({
               <Nav.Item>
                 <Nav.Link eventKey="overview">Обзор</Nav.Link>
               </Nav.Item>
-              <Nav.Item>
-                <Nav.Link eventKey="export">Конфигурации</Nav.Link>
-              </Nav.Item>
+              {canManageConfigs && (
+                <Nav.Item>
+                  <Nav.Link eventKey="export">Конфигурации</Nav.Link>
+                </Nav.Item>
+              )}
             </Nav>
 
             <Tab.Content className="flex-grow-1 overflow-auto px-3">
@@ -159,6 +165,14 @@ const DevicePanel = ({
                     <span className="text-danger">{device.lastError}</span>
                   </InfoRow>
                 )}
+                {!isStandalone && device.clientDeviceId && (
+                  <Link
+                    to={`/inventory/client-devices/${device.clientDeviceId}`}
+                    className="btn btn-outline-secondary btn-sm w-100 mt-3 d-inline-flex align-items-center justify-content-center gap-2"
+                  >
+                    <RiExternalLinkLine /> Открыть в инвентаре
+                  </Link>
+                )}
 
                 <div className="cap-card-title mt-4 mb-2">
                   <FaNetworkWired />
@@ -195,16 +209,18 @@ const DevicePanel = ({
                 )}
               </Tab.Pane>
 
-              <Tab.Pane eventKey="export">
-                {device.recordId && (
-                  <ArtifactsSection
-                    recordId={device.recordId}
-                    type="export"
-                    initialSchedule={device.schedules?.export}
-                    canManage={canManage}
-                  />
-                )}
-              </Tab.Pane>
+              {canManageConfigs && (
+                <Tab.Pane eventKey="export">
+                  {device.recordId && (
+                    <ArtifactsSection
+                      recordId={device.recordId}
+                      type="export"
+                      initialSchedule={device.schedules?.export}
+                      canManage={canManageConfigs}
+                    />
+                  )}
+                </Tab.Pane>
+              )}
             </Tab.Content>
 
             {canManage && (

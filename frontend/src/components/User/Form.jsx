@@ -211,6 +211,12 @@ const UserForm = ({ title }) => {
       isActive: permissions.canManageMikrotikDevices || false,
       isDisabled: false,
     },
+    {
+      label: "Резервные копии конфигураций Mikrotik",
+      title: "canManageMikrotikConfigs",
+      isActive: permissions.canManageMikrotikConfigs || false,
+      isDisabled: false,
+    },
   ]);
 
   const [financesModulePermissions, setFinancesModulePermissions] = useState([

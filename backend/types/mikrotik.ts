@@ -49,6 +49,9 @@ export interface IMikrotik {
   lastSuccessfulConnectionAt?: Date;
   lastCheckedAt?: Date;
   lastError?: string;
+  offlineSince?: Date;
+  offlineAlertedAt?: Date;
+  alertTicketId?: Types.ObjectId;
   schedules?: {
     backup?: IMikrotikSchedule;
     export?: IMikrotikSchedule;

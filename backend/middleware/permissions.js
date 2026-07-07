@@ -445,6 +445,24 @@ module.exports.canManageMikrotikDevices = async (req, res, next) => {
   next();
 };
 
+module.exports.canManageMikrotikConfigs = async (req, res, next) => {
+  const { userId } = await getAuthData(req);
+  const authedUser = await User.findById(userId);
+  const { permissions, isAdmin } = authedUser;
+  if (!permissions.canManageMikrotikConfigs && !isAdmin) {
+    const error = new Error(
+      "Недостаточно прав для управления резервными копиями конфигураций Mikrotik",
+    );
+    error.statusCode = 403;
+    return res.status(error.statusCode).json({
+      error: false,
+      status: error.statusCode,
+      message: error.message,
+    });
+  }
+  next();
+};
+
 // finances module
 module.exports.canUseFinancesModule = async (req, res, next) => {
   const { userId } = await getAuthData(req);

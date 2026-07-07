@@ -2,7 +2,10 @@ const Router = require("express");
 const router = new Router();
 const mikrotikController = require("@/controllers/inventory/mikrotik");
 const isAuth = require("@/middleware/isAuth");
-const { canManageMikrotikDevices } = require("@/middleware/permissions");
+const {
+  canManageMikrotikDevices,
+  canManageMikrotikConfigs,
+} = require("@/middleware/permissions");
 const rateLimit = require("express-rate-limit");
 
 // Verify-on-save opens an outbound connection — throttle it per user.
@@ -65,15 +68,20 @@ router.delete(
 // serve both inventory-backed and standalone devices. Declared before the
 // ":clientDeviceId" routes so the literal "records" segment isn't captured as an
 // id. Live operations open an outbound SSH session — throttle them per user. ---
+// Config-management routes are gated by the dedicated `canManageMikrotikConfigs`
+// permission (separation of duties) — a config operator can be granted access to
+// backups/exports WITHOUT the device-editing `canManageMikrotikDevices` right. Even
+// listing stored configs requires it (defense in depth; the frontend hides the tab).
 router.get(
   "/mikrotik-devices/records/:recordId/artifacts",
   isAuth,
+  canManageMikrotikConfigs,
   mikrotikController.listArtifacts,
 );
 router.post(
   "/mikrotik-devices/records/:recordId/exports",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotikConfigs,
   parametersLimiter,
   mikrotikController.createExportNow,
 );
@@ -81,26 +89,26 @@ router.post(
 router.post(
   "/mikrotik-devices/records/:recordId/artifacts/:artifactId/download-code",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotikConfigs,
   downloadCodeLimiter,
   mikrotikController.requestDownloadCode,
 );
 router.post(
   "/mikrotik-devices/records/:recordId/artifacts/:artifactId/download",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotikConfigs,
   mikrotikController.downloadArtifact,
 );
 router.delete(
   "/mikrotik-devices/records/:recordId/artifacts/:artifactId",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotikConfigs,
   mikrotikController.deleteArtifact,
 );
 router.put(
   "/mikrotik-devices/records/:recordId/schedules",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotikConfigs,
   mikrotikController.updateSchedules,
 );
 

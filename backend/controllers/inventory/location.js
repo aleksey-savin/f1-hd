@@ -3,6 +3,7 @@ const Subdivision = require("../../models/subdivision");
 const User = require("../../models/user");
 const Company = require("../../models/company");
 const ClientDevice = require("../../models/inventory/clientDevice");
+const Mikrotik = require("../../models/mikrotik");
 const { AppError } = require("../../middleware/errorHandling");
 const getAuthData = require("../../middleware/getAuthData");
 
@@ -25,9 +26,10 @@ const ENV_DEVICE_POPULATE = [
 // Тонкий DTO устройства для окружения. Имя — из модели или прямого типа
 // (самосборные), вендор/тип человекочитаемые. isPersonal: устройство закреплено
 // лично за заявителем (бейдж «★»). Только не удалённые самостоятельные единицы.
-const toEnvDevice = (d, userId) => {
+const toEnvDevice = (d, userId, mikroMap) => {
   const model = d.deviceModelId;
   const typeName = model?.deviceTypeId?.name || d.deviceTypeId?.name || null;
+  const mikro = mikroMap?.get(String(d._id));
   return {
     _id: d._id,
     name: model?.name || typeName || "Устройство",
@@ -41,7 +43,24 @@ const toEnvDevice = (d, userId) => {
     locationId: d.locationId?._id || d.locationId || null,
     locationName: d.locationId?.name || null,
     isPersonal: String(d.userId?._id || d.userId || "") === String(userId),
+    // Mikrotik management overlay — present only for devices with a record.
+    mikrotikManaged: !!mikro,
+    mikrotikStatus: mikro ? mikro.status || "offline" : null,
+    mikrotikRecordId: mikro ? mikro._id : null,
+    mikrotikMonitoringEnabled: mikro ? mikro.monitoringEnabled : false,
+    mikrotikLastSeenAt: mikro ? mikro.lastSuccessfulConnectionAt || null : null,
   };
+};
+
+// Map ClientDevice _id → its Mikrotik management record (status / monitoring /
+// last-seen) for the environment online-offline overlay. Only devices that have a
+// management record appear in the map.
+const buildMikrotikStatusMap = async (deviceIds) => {
+  if (!deviceIds.length) return new Map();
+  const records = await Mikrotik.find({
+    clientDevice: { $in: deviceIds },
+  }).select("clientDevice status monitoringEnabled lastSuccessfulConnectionAt");
+  return new Map(records.map((r) => [String(r.clientDevice), r]));
 };
 
 // Узел окружения: устройства локации (со слоем isPersonal) + дочерние локации с
@@ -54,7 +73,8 @@ const buildEnvNode = async (location, userId) => {
     parentDeviceId: null,
     locationId: location._id,
   }).populate(ENV_DEVICE_POPULATE);
-  const devices = devicesRaw.map((d) => toEnvDevice(d, userId));
+  const mikroMap = await buildMikrotikStatusMap(devicesRaw.map((d) => d._id));
+  const devices = devicesRaw.map((d) => toEnvDevice(d, userId, mikroMap));
 
   const childrenDocs = await Location.find({
     parent: location._id,
@@ -692,8 +712,11 @@ exports.getUserEnvironment = async (req, res, next) => {
       ...deviceFilter,
       userId,
     }).populate(ENV_DEVICE_POPULATE);
+    const personalMikroMap = await buildMikrotikStatusMap(
+      personalDevicesRaw.map((d) => d._id),
+    );
     const personalDevices = personalDevicesRaw.map((d) =>
-      toEnvDevice(d, userId),
+      toEnvDevice(d, userId, personalMikroMap),
     );
 
     // Рабочее место (workplace с assignedUser=userId). populate parent/subdivision.

@@ -91,6 +91,13 @@ const mikrotikSchema = new Schema(
     lastSuccessfulConnectionAt: Date,
     lastCheckedAt: Date,
     lastError: String,
+    // Offline-alert state — one auto-ticket per outage episode. offlineSince is set
+    // on the online→offline edge (measured against the Preferences threshold);
+    // offlineAlertedAt + alertTicketId are set once a ticket is raised; all three
+    // are cleared on recovery (the ticket itself is left open for a human).
+    offlineSince: Date,
+    offlineAlertedAt: Date,
+    alertTicketId: { type: Schema.Types.ObjectId, ref: "Ticket" },
     // Automated backup / config-export schedules with retention (keep last N).
     // A cron tick runs any whose nextRunAt is due; frequency "off" = disabled.
     schedules: {

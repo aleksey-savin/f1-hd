@@ -1,4 +1,5 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 
 import Table from "react-bootstrap/Table";
 import Badge from "react-bootstrap/Badge";
@@ -65,6 +66,7 @@ const ProtectionCell = ({ device }) => {
 const MikrotikDevicesList = ({ items = [] }) => {
   const { permissions } = useContext(AuthedUserContext);
   const canManage = permissions.canManageMikrotikDevices;
+  const canManageConfigs = permissions.canManageMikrotikConfigs;
 
   const detach = useMikrotikDeviceFilterStore((state) => state.detach);
   const detachStandalone = useMikrotikDeviceFilterStore(
@@ -77,6 +79,28 @@ const MikrotikDevicesList = ({ items = [] }) => {
   const [detachDevice, setDetachDevice] = useState(null);
   const [isDetaching, setIsDetaching] = useState(false);
   const [detachError, setDetachError] = useState(null);
+
+  const [searchParams] = useSearchParams();
+  const deepLinkHandled = useRef(false);
+
+  // Deep-link: open a device's panel when the page is opened with ?clientDeviceId=
+  // (from a ticket's environment) or ?recordId= (from an offline-alert ticket).
+  // Fires once the list has loaded; a ref guards against reopening after the user
+  // closes it or the list refreshes.
+  useEffect(() => {
+    if (deepLinkHandled.current || !items.length) return;
+    const cd = searchParams.get("clientDeviceId");
+    const rec = searchParams.get("recordId");
+    if (!cd && !rec) return;
+    const match = items.find(
+      (row) =>
+        (cd && String(row.clientDeviceId) === cd) ||
+        (rec && String(row.recordId) === rec),
+    );
+    if (match) setPanelDevice(match);
+    deepLinkHandled.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
 
   const openParams = (device) => {
     if (device.source === "standalone") {
@@ -200,6 +224,7 @@ const MikrotikDevicesList = ({ items = [] }) => {
         device={panelDevice}
         onClose={() => setPanelDevice(null)}
         canManage={canManage}
+        canManageConfigs={canManageConfigs}
         onEditParams={handleEditParams}
         onDetach={handleDetachRequest}
       />

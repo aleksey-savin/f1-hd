@@ -35,6 +35,9 @@ const mikrotikArtifactSchema = new Schema(
       required: true,
     },
     size: Number,
+    // sha256 of the normalized export (comment/timestamp header stripped) — lets the
+    // exporter detect running-config changes between successive .rsc exports.
+    contentHash: String,
     // Where the file landed (S3 when configured, otherwise a private local dir).
     storage: {
       type: String,

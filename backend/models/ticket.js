@@ -213,6 +213,7 @@ const ticketSchema = new Schema(
         "Облачная телефония",
         "Telegram",
         "Регламентное задание",
+        "Мониторинг устройств",
         "Другое",
       ],
       required: true,

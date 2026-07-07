@@ -27,6 +27,7 @@ import PrefsModules from "../components/Preferences/Modules";
 import PrefsGlobals from "../components/Preferences/Globals";
 import PrefsAi from "../components/Preferences/Ai";
 import PrefsKnowledgeBase from "../components/Preferences/KnowledgeBase";
+import PrefsMikrotik from "../components/Preferences/Mikrotik";
 
 import Forbidden from "../components/Error/403";
 import { getLocalStorageData } from "../util/auth";
@@ -105,6 +106,11 @@ const Preferences = () => {
                       <Nav.Link eventKey="knowledgeBase">База знаний</Nav.Link>
                     </Nav.Item>
                   )}
+                  {prefs?.modules?.inventory?.isActive && (
+                    <Nav.Item>
+                      <Nav.Link eventKey="mikrotik">Mikrotik</Nav.Link>
+                    </Nav.Item>
+                  )}
                   <Nav.Item>
                     <Nav.Link eventKey="service">Обслуживание</Nav.Link>
                   </Nav.Item>
@@ -134,6 +140,11 @@ const Preferences = () => {
                     {prefs?.modules?.knowledgeBase.isActive && (
                       <Tab.Pane eventKey="knowledgeBase">
                         <PrefsKnowledgeBase prefs={prefs} />
+                      </Tab.Pane>
+                    )}
+                    {prefs?.modules?.inventory?.isActive && (
+                      <Tab.Pane eventKey="mikrotik">
+                        <PrefsMikrotik prefs={prefs} />
                       </Tab.Pane>
                     )}
                     <Tab.Pane eventKey="service">

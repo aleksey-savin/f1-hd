@@ -4,7 +4,25 @@ const crypto = require("crypto");
 
 const MikrotikArtifact = require("../../models/mikrotikArtifact");
 const { decryptSecret, withSshSession, exportConfig } = require("./connector");
+const { encryptArtifact } = require("../crypto/artifactBox");
 const storage = require("../storage");
+const Preferences = require("../../models/preferences");
+const { createMikrotikTicket } = require("./tickets");
+const logger = require("../../utils/logger");
+
+// Normalize an export for change-detection: drop comment/header lines (the volatile
+// "# <date> by RouterOS" timestamp lives there) and trailing whitespace, so only
+// the actual config commands are hashed.
+const normalizeConfig = (buffer) =>
+  buffer
+    .toString("utf8")
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*#/.test(line))
+    .join("\n")
+    .trim();
+
+const configHash = (buffer) =>
+  crypto.createHash("sha256").update(normalizeConfig(buffer)).digest("hex");
 
 // --- SSRF guard: the device host is operator-supplied, so refuse to open
 // connections to loopback / private / link-local (incl. cloud-metadata) targets.
@@ -122,16 +140,29 @@ const createArtifact = async (
     (conn) => exportConfig(conn),
   );
 
+  // Hash the new config and grab the previous export's hash for change detection.
+  const contentHash = configHash(buffer);
+  const previous = await MikrotikArtifact.findOne({
+    mikrotik: record._id,
+    type: "export",
+  })
+    .sort({ createdAt: -1 })
+    .select("contentHash");
+
   // Trust-on-first-use: pin the observed SSH host key on the first successful op.
   if (hostKey && !record.credentials.sshHostKey) {
     record.credentials.sshHostKey = hostKey;
     await record.save();
   }
 
+  // Envelope-encrypt the config before it leaves the process, so what lands in S3
+  // / on disk is ciphertext an operator can't read without MIKROTIK_ENC_KEY (an
+  // .rsc may contain secrets). `size` stays the plaintext length — that's what the
+  // 2FA download decrypts and streams back.
   const { storage: storageBackend } = await storage.putArtifact(
     storageKey,
-    buffer,
-    "text/plain; charset=utf-8",
+    encryptArtifact(buffer),
+    "application/octet-stream",
   );
 
   const fileName = `${sanitizeBaseName(
@@ -145,12 +176,42 @@ const createArtifact = async (
     storageKey,
     fileName,
     size: buffer.length,
+    contentHash,
     storage: storageBackend,
     routerOsVersion: record.currentFirmware,
     createdBy: userId || undefined,
   });
 
   await pruneArtifacts(record, "export");
+
+  // Config-change detection (opt-in). Best-effort — a raised ticket must never fail
+  // an already-stored export, so it's wrapped and logged.
+  if (previous?.contentHash && previous.contentHash !== contentHash) {
+    try {
+      const prefs = await Preferences.findOne({});
+      const cfg = prefs?.mikrotik?.configChangeTicket;
+      if (cfg?.isActive) {
+        const name =
+          record.name ||
+          record.label ||
+          record.credentials?.host ||
+          "устройство Mikrotik";
+        await createMikrotikTicket(record, {
+          title: `Изменилась конфигурация Mikrotik: ${name}`,
+          description:
+            `Конфигурация устройства «${name}» (${record.credentials?.host || "—"}) ` +
+            `изменилась по сравнению с предыдущим экспортом.\n` +
+            `Открыть в управлении Mikrotik: /devices/mikrotik?recordId=${record._id}`,
+          categoryId: cfg.categoryId || null,
+        });
+      }
+    } catch (error) {
+      logger.log("error", "Mikrotik config-change detection failed", {
+        error: error.message,
+        recordId: record._id,
+      });
+    }
+  }
 
   return artifact;
 };

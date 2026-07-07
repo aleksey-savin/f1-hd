@@ -92,6 +92,7 @@ addresses[] { address, network, interface, invalid, dynamic, disabled, comment }
 status                       → "online" | "offline"
 monitoringEnabled            → Boolean, default false
 lastSuccessfulConnectionAt, lastCheckedAt, lastError
+offlineSince, offlineAlertedAt, alertTicketId   // offline-alert state (one ticket per outage)
 timestamps
 ```
 TS interface kept in sync in `backend/types/mikrotik.ts`.
@@ -177,7 +178,32 @@ rows; from the record's `companyId` for standalone).
 batches of 5 (`Promise.allSettled`), and writes back `status` +
 `lastSuccessfulConnectionAt` / `lastCheckedAt` / `lastError`. Registered in
 `backend/app.js` next to the other crons: `cron.schedule("*/5 * * * *", …)` with
-an in-flight lock and a `mongoose.connection.readyState` guard.
+an in-flight lock and a `mongoose.connection.readyState` guard. It also tracks the
+**online↔offline edge**: on going offline it stamps `offlineSince` (once, kept until
+recovery); on recovery it clears the offline-alert state (`offlineSince`,
+`offlineAlertedAt`, `alertTicketId`) — the alert ticket itself is left open.
+
+### Auto-tickets (monitoring → helpdesk)
+Two opt-in automations turn monitoring events into helpdesk tickets. Both are
+configured under **`Preferences.mikrotik`** (Настройки → Mikrotik; the tab shows when
+the inventory module is on) and authored by **`Preferences.defaultApplicant`** (there
+is no system user) with `source: "Мониторинг устройств"`, company resolved from the
+device, deadline from `Preferences.deadline`, and `notifications.pending` so the
+mailer delivers them. Ticket text is human-readable (device name, host, last-seen,
+error) and links to `/devices/mikrotik?recordId=…`. The shared factory is
+`backend/services/mikrotik/tickets.js` → `createMikrotikTicket` (never throws).
+
+- **Offline alert** (`offlineTicket`: `isActive`, `thresholdMinutes`, `categoryId`) —
+  a dedicated cron `backend/services/mikrotik/alerts.js` → `runMikrotikOfflineAlerts()`
+  (own `*/5 * * * *` schedule + in-flight lock in `app.js`) raises **one ticket per
+  outage episode** for devices offline past the threshold. `offlineAlertedAt` +
+  `alertTicketId` on the `Mikrotik` record guarantee no duplicates; the health-check
+  clears them on recovery so the next outage can alert again.
+- **Config change** (`configChangeTicket`: `isActive`, `categoryId`) — folded into
+  `createArtifact` (see _Model_ above): the normalized `contentHash` of a new `.rsc`
+  is compared to the previous export's; a difference raises a ticket. Works for both
+  manual and scheduled exports (no extra cron). Normalization strips the volatile
+  RouterOS header so a mere re-export doesn't false-positive.
 
 ## Config export (`.rsc`)
 
@@ -226,19 +252,28 @@ Exports contain device configuration, so they are **never** served by the public
 `/uploads/:name` resolver. New helpers store them under a private prefix
 (`putArtifact` → S3 `mikrotik/…` when configured, else a private local dir
 `MIKROTIK_ARTIFACTS_DIR`; plus `getArtifactBuffer` / `presignArtifact` /
-`deleteArtifact`). Downloads stream **through** the authenticated backend route
-(local-first, else fetched from S3 server-side) so they work for token-authenticated
-fetches without depending on bucket CORS.
+`deleteArtifact`). What lands in storage is **app-side envelope-encrypted** (see
+_Security model_): `createArtifact` encrypts the `.rsc` before `putArtifact`, and
+the download route decrypts server-side after `getArtifactBuffer`. Downloads stream
+**through** the authenticated backend route (local-first, else fetched from S3
+server-side) so they work for token-authenticated fetches without depending on
+bucket CORS — and because the stored bytes are ciphertext, `presignArtifact`
+(direct-to-client redirect) is intentionally left unused for downloads.
 
 ### Model — `backend/models/mikrotikArtifact.js`
 
 One doc per artifact: `mikrotik`(ref), `type` (`"export"`; the enum keeps `"backup"`
 dormant for a possible future push-based backup), `trigger`(manual|scheduled),
-`storageKey`, `fileName`, `size`, `storage`(s3|local), `routerOsVersion`, `createdBy`,
-timestamps; index `{ mikrotik, type, createdAt:-1 }` for listing + retention pruning.
-`createArtifact()` (in `backend/services/mikrotik/artifacts.js`, shared by the
-controller and the cron) runs the SSRF guard → SSH `/export` → `putArtifact` → doc →
-**prune to `keepLast`**.
+`storageKey`, `fileName`, `size`, `contentHash` (sha256 of the **normalized** export —
+comment/timestamp header stripped — for config-change detection), `storage`(s3|local),
+`routerOsVersion`, `createdBy`, timestamps; index `{ mikrotik, type, createdAt:-1 }`
+for listing + retention pruning. `createArtifact()` (in
+`backend/services/mikrotik/artifacts.js`, shared by the controller and the cron) runs
+the SSRF guard → SSH `/export` → **envelope-encrypt** → `putArtifact` → doc → **prune
+to `keepLast`** → **config-change check** (if the normalized hash differs from the
+previous export and `Preferences.mikrotik.configChangeTicket` is on, raise a ticket —
+see _Auto-tickets_). `size` stores the *plaintext* length (what the download returns),
+not the ciphertext.
 
 ### Schedules & scheduler
 
@@ -254,8 +289,12 @@ is due, records the outcome, prunes retention, and advances `nextRunAt`.
 ### Endpoints (record-scoped, under `/api/inventory`)
 
 Keyed by the **Mikrotik record id** so one set of routes serves inventory and
-standalone devices. Reads require `isAuth`; the rest also require
-`canManageMikrotikDevices` (live creates are rate-limited via `parametersLimiter`):
+standalone devices. Reads require `isAuth`; every route below — **including
+`listArtifacts`** — requires the dedicated **`canManageMikrotikConfigs`**
+permission. This is a **separation of duties** from device management
+(`canManageMikrotikDevices`): a config operator can be granted backup/export access
+without the right to edit device connection params. Live creates are rate-limited via
+`parametersLimiter`:
 
 | Method & path | Handler |
 | --- | --- |
@@ -373,6 +412,14 @@ device, so the module is hardened in depth:
   `credentials.password` is an opaque `v1:iv:tag:ciphertext` blob; the boot
   health check fails if the key is missing. The same box encrypts the knock
   sequence.
+- **Config artifacts at rest** are **envelope-encrypted** in the app before they
+  reach storage (`backend/services/crypto/artifactBox.js`): a random 256-bit data
+  key (DEK) per `.rsc` encrypts the body (AES-256-GCM), and the DEK is wrapped with
+  a KEK **HKDF-derived from `MIKROTIK_ENC_KEY`** (a *distinct* subkey from the
+  credential box — domain separation). So a leaked S3 object / stolen disk / even
+  the bucket's SSE-KMS-decrypted bytes are useless without `MIKROTIK_ENC_KEY`. The
+  self-describing envelope (`HDE1` magic) means legacy pre-encryption artifacts
+  still download as plaintext, and a tampered/wrong-key blob fails GCM auth.
 - **Transport** is **API-SSL (TLS, port 8729) — mandatory**. `pollDevice` always
   builds TLS options; plaintext API is never used, so credentials and polled data
   can't travel in the clear (the legacy `credentials.useTls` toggle is gone from
@@ -380,9 +427,15 @@ device, so the module is hardened in depth:
   trust-on-first-use**: the cert (PEM) is captured on the first connect and stored,
   and later connects validate against it — a different (MITM) cert fails the TLS
   handshake **before** credentials are sent.
+- **Separation of duties on configs** — config-management routes (list / export /
+  download-code / download / delete / schedules) are gated by a **dedicated
+  `canManageMikrotikConfigs`** permission, distinct from device management
+  (`canManageMikrotikDevices`). The management page is reachable with **either** right;
+  the «Конфигурации» panel tab and its actions appear only with the config right, while
+  device add/edit/detach stay under `canManageMikrotikDevices`. `isAdmin` bypasses both.
 - **Config-export download is step-up 2FA** — an emailed 6-digit code (hashed at
   rest, 10-min TTL, single-use, attempt-capped, rate-limited) is required per
-  download, on top of `canManageMikrotikDevices`. See _Two-factor download_ above.
+  download, on top of `canManageMikrotikConfigs`. See _Two-factor download_ above.
 - **Port knocking** — the API stays closed until our server touches the device's
   secret port sequence (`knockDevice` runs before every poll). Stored encrypted,
   per device.
@@ -477,8 +530,13 @@ rotation re-encrypts records via the `v1` version prefix.
   the `mikrotik/` key prefix; otherwise they fall back to a **private** local dir
   **`MIKROTIK_ARTIFACTS_DIR`** (default `storage/mikrotik`), served only through the
   authorized download route — never the public `/uploads`. Mount a volume for it if
-  you rely on local storage in prod. SSE-KMS (`S3_KMS_KEY_ID`) applies to exports
-  too.
+  you rely on local storage in prod. Bodies are **app-side envelope-encrypted**
+  under `MIKROTIK_ENC_KEY` (see _Security model_), so confidentiality does **not**
+  depend on the storage backend; SSE-KMS (`S3_KMS_KEY_ID`) still applies on top as a
+  second, at-rest layer. Because the KEK is derived from `MIKROTIK_ENC_KEY`,
+  **rotating that key requires re-encrypting existing artifacts** (the `HDE1`
+  envelope supports re-wrapping DEKs, but there is no automated migration yet — new
+  exports use the new key, old ones need the old key to read).
 - **`ssh2`** dependency (backend) provides the SSH transport for the `/export`
   config capture.
 

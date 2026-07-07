@@ -112,6 +112,7 @@ const userSchema = new Schema(
       canManageDeviceTypes: { type: Boolean, default: false },
       canManageDeviceAttributes: { type: Boolean, default: false },
       canManageMikrotikDevices: { type: Boolean, default: false },
+      canManageMikrotikConfigs: { type: Boolean, default: false }, // резервные копии конфигураций Mikrotik (бэкапы/экспорт)
       // finances module
       canUseFinancesModule: { type: Boolean, default: false },
       canManageServicePlans: { type: Boolean, default: false },

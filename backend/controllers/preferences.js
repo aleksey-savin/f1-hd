@@ -163,6 +163,7 @@ exports.update = async (req, res, next) => {
       modules,
       ai,
       knowledgeBase,
+      mikrotik,
     } = req.body;
 
     // Переход флага «выкл→вкл» — повод просканировать сразу, не дожидаясь крона.
@@ -190,6 +191,7 @@ exports.update = async (req, res, next) => {
         modules,
         ai,
         knowledgeBase,
+        mikrotik,
       });
       secretsJustEnabled = !!knowledgeBase?.scanForSecrets;
       serviceJustEnabled = !!knowledgeBase?.trackServiceExpiry;
@@ -234,6 +236,9 @@ exports.update = async (req, res, next) => {
         serviceJustEnabled =
           !prevKb.trackServiceExpiry && !!knowledgeBase.trackServiceExpiry;
         preferences.knowledgeBase = knowledgeBase;
+      }
+      if (mikrotik) {
+        preferences.mikrotik = mikrotik;
       }
     }
 

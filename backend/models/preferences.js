@@ -72,6 +72,28 @@ const preferencesSchema = new Schema({
     inventory: { isActive: { type: Boolean, default: false } },
     knowledgeBase: { isActive: { type: Boolean, default: false } },
   },
+  // Управление устройствами Mikrotik: авто-заявки на события мониторинга.
+  mikrotik: {
+    // Устройство офлайн дольше порога → создать заявку (одну на эпизод).
+    offlineTicket: {
+      isActive: { type: Boolean, default: false },
+      thresholdMinutes: { type: Number, default: 15 },
+      categoryId: {
+        type: Schema.Types.ObjectId,
+        ref: "TicketCategory",
+        default: null,
+      },
+    },
+    // Running-config изменился между экспортами → создать заявку.
+    configChangeTicket: {
+      isActive: { type: Boolean, default: false },
+      categoryId: {
+        type: Schema.Types.ObjectId,
+        ref: "TicketCategory",
+        default: null,
+      },
+    },
+  },
   knowledgeBase: {
     moderators: [
       {

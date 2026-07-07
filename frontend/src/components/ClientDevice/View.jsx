@@ -33,6 +33,8 @@ import {
   RiUserAddLine,
   RiLinksLine,
   RiLinkUnlink,
+  RiRouterLine,
+  RiExternalLinkLine,
 } from "react-icons/ri";
 
 import Spinner from "react-bootstrap/Spinner";
@@ -166,6 +168,17 @@ const ViewClientDevice = ({ device = {} }) => {
   // Человекочитаемое название для модалки удаления.
   const deleteItem = { _id: device._id, title };
 
+  // Mikrotik-оверлей (если у устройства есть управляющая запись): статус связи +
+  // переход на панель управления. В тёмной теме — без info.
+  const mikro = device.mikrotik;
+  const mikroBadge = !mikro
+    ? null
+    : !mikro.monitoringEnabled
+      ? { variant: "secondary", label: "Mikrotik: мониторинг выкл" }
+      : mikro.status === "online"
+        ? { variant: "success", label: "Mikrotik: в сети" }
+        : { variant: "danger", label: "Mikrotik: не в сети" };
+
   return (
     <Transitions>
       {/* ── Шапка ── */}
@@ -226,6 +239,29 @@ const ViewClientDevice = ({ device = {} }) => {
                 )}
                 Гарантия {warranty.text}
               </Badge>
+            )}
+            {mikroBadge && (
+              <Badge
+                bg={mikroBadge.variant}
+                className="fw-normal d-inline-flex align-items-center gap-1"
+                title={
+                  mikro.lastSuccessfulConnectionAt
+                    ? `Последняя связь: ${new Date(
+                        mikro.lastSuccessfulConnectionAt,
+                      ).toLocaleString("ru-RU")}`
+                    : undefined
+                }
+              >
+                <RiRouterLine /> {mikroBadge.label}
+              </Badge>
+            )}
+            {mikro && (
+              <Link
+                to={`/devices/mikrotik?clientDeviceId=${device._id}`}
+                className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1"
+              >
+                <RiExternalLinkLine /> Управление Mikrotik
+              </Link>
             )}
           </div>
           <DeviceQr id={device._id} size={128} />

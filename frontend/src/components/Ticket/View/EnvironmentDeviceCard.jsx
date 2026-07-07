@@ -23,6 +23,18 @@ export const STATUS_META = {
   disposed: { label: "Утилизировано", bg: "danger" },
 };
 
+// Mikrotik-статус связи → бейдж. Показываем только для управляемых устройств;
+// при выключенном мониторинге статус устаревший — так и пишем, не утверждая
+// онлайн/офлайн. В тёмной теме — без info (success/danger/secondary читаемы).
+export const mikrotikBadge = (device) => {
+  if (!device.mikrotikManaged) return null;
+  if (!device.mikrotikMonitoringEnabled)
+    return { label: "мониторинг выкл", bg: "secondary" };
+  if (device.mikrotikStatus === "online")
+    return { label: "В сети", bg: "success" };
+  return { label: "Не в сети", bg: "danger" };
+};
+
 // Иконка по названию типа устройства — типы свободные, поэтому матчим по ключевым
 // словам с разумным запасным вариантом.
 export const deviceIcon = (typeName = "") => {
@@ -41,6 +53,7 @@ export const deviceIcon = (typeName = "") => {
 const EnvironmentDeviceCard = ({ device, showLocation = false, onSelect }) => {
   const Icon = deviceIcon(device.typeName);
   const status = STATUS_META[device.status];
+  const mikro = mikrotikBadge(device);
 
   return (
     <button
@@ -91,6 +104,14 @@ const EnvironmentDeviceCard = ({ device, showLocation = false, onSelect }) => {
             className="env-device__status"
           >
             {status.label}
+          </Badge>
+        )}
+        {mikro && (
+          <Badge
+            bg={mikro.bg}
+            className="env-device__status d-inline-flex align-items-center gap-1"
+          >
+            <RiRouterLine /> {mikro.label}
           </Badge>
         )}
       </div>

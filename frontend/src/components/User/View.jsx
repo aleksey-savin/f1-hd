@@ -190,6 +190,7 @@ const ViewUser = ({ user, tickets }) => {
     canUseInventoryModule,
     canManageClientDevices,
     canManageMikrotikDevices,
+    canManageMikrotikConfigs,
     canUseFinancesModule,
     canManageServicePlans,
     canSeeGlobalFinancialReport,
@@ -258,6 +259,10 @@ const ViewUser = ({ user, tickets }) => {
     {
       permission: canManageMikrotikDevices,
       label: "Управление устройствами Mikrotik",
+    },
+    {
+      permission: canManageMikrotikConfigs,
+      label: "Резервные копии конфигураций Mikrotik",
     },
   ];
 

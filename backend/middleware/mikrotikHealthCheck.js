@@ -44,10 +44,23 @@ const checkDevice = async (device) => {
     device.lastSuccessfulConnectionAt = now;
     device.lastCheckedAt = now;
     device.lastError = undefined;
+    // Recovery: clear offline-alert state so the next outage can alert again. The
+    // alert ticket itself is intentionally left open for a human to close.
+    if (device.offlineSince) {
+      device.offlineSince = undefined;
+      device.offlineAlertedAt = undefined;
+      device.alertTicketId = undefined;
+    }
   } catch (error) {
     device.status = "offline";
     device.lastCheckedAt = now;
     device.lastError = error.message;
+    // Mark the start of the outage on the online→offline edge; kept (not
+    // overwritten) across subsequent failed polls until recovery. The separate
+    // offline-alert cron measures duration against this.
+    if (!device.offlineSince) {
+      device.offlineSince = now;
+    }
   }
 
   await device.save();

@@ -4,6 +4,7 @@ const User = require("../../models/user");
 const DeviceModel = require("../../models/inventory/deviceModel");
 const DeviceType = require("../../models/inventory/deviceType");
 const Counter = require("../../models/inventory/counter");
+const Mikrotik = require("../../models/mikrotik");
 
 const { AppError } = require("../../middleware/errorHandling");
 
@@ -149,7 +150,22 @@ exports.getOne = async (req, res, next) => {
       deletedAt: null,
     }).populate(DEVICE_POPULATE);
 
-    res.status(200).json({ ...device.toObject(), components });
+    // Mikrotik management overlay: connectivity + a link target for the panel,
+    // present only when the device has a management record.
+    const mikrotikRecord = await Mikrotik.findOne({
+      clientDevice: device._id,
+    }).select("status monitoringEnabled lastSuccessfulConnectionAt");
+    const mikrotik = mikrotikRecord
+      ? {
+          recordId: mikrotikRecord._id,
+          status: mikrotikRecord.status || "offline",
+          monitoringEnabled: mikrotikRecord.monitoringEnabled,
+          lastSuccessfulConnectionAt:
+            mikrotikRecord.lastSuccessfulConnectionAt,
+        }
+      : null;
+
+    res.status(200).json({ ...device.toObject(), components, mikrotik });
   } catch (error) {
     next(
       new AppError(`Failed to fetch device ${req.params.id}`, 500, true, error),

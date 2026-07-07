@@ -127,6 +127,8 @@ export async function action({ request, params }) {
       canUseInventoryModule: data.get("canUseInventoryModule"),
       canManageClientDevices: data.get("canManageClientDevices"),
       canManageMikrotikDevices: data.get("canManageMikrotikDevices"),
+      canManageMikrotikConfigs:
+        data.get("canManageMikrotikConfigs") === "true",
       // finance module
       canUseFinancesModule: data.get("canUseFinancesModule"),
       canManageServicePlans: data.get("canManageServicePlans"),

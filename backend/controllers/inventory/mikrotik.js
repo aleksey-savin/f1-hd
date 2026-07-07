@@ -19,6 +19,7 @@ const {
   describeConnectionError,
 } = require("../../services/mikrotik/connector");
 const storage = require("../../services/storage");
+const { decryptArtifact } = require("../../services/crypto/artifactBox");
 const { computeNextRun } = require("../../services/mikrotik/schedule");
 const {
   assertPublicHost,
@@ -943,7 +944,11 @@ exports.downloadArtifact = async (req, res, next) => {
     // Valid — single use.
     await MikrotikDownloadCode.deleteOne({ _id: record._id });
 
-    const buffer = await storage.getArtifactBuffer(artifact.storageKey);
+    // Stored bytes are envelope-encrypted (see artifactBox); decrypt to plaintext
+    // before streaming. Legacy pre-encryption artifacts pass through unchanged.
+    const buffer = decryptArtifact(
+      await storage.getArtifactBuffer(artifact.storageKey),
+    );
     const contentType =
       artifact.type === "export"
         ? "text/plain; charset=utf-8"

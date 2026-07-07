@@ -81,6 +81,7 @@ const EmployeeNavs = ({ setShowOffcanvas }) => {
     canUseTimeTrackingModule,
     canUseInventoryModule,
     canManageMikrotikDevices,
+    canManageMikrotikConfigs,
     canManageClientDevices,
     canSeeGlobalFinancialReport,
     canSeePersonalFinancialReport,
@@ -265,7 +266,7 @@ const EmployeeNavs = ({ setShowOffcanvas }) => {
 
           <NavDropdown.Item
             as={NavLink}
-            hidden={!canManageMikrotikDevices}
+            hidden={!(canManageMikrotikDevices || canManageMikrotikConfigs)}
             to="/devices/mikrotik"
             onClick={handleClose}
           >
