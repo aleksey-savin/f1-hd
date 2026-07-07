@@ -14,6 +14,16 @@ const parametersLimiter = rateLimit({
   keyGenerator: (req) => req.userId || req.ip,
 });
 
+// Requesting a download code sends an email — throttle tightly per user to avoid
+// mailbox spam / OTP grinding.
+const downloadCodeLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.userId || req.ip,
+});
+
 // Reads. NOTE: the static "report/networks" route must be declared before the
 // ":clientDeviceId" param route so it isn't swallowed as an id.
 router.get("/mikrotik-devices", isAuth, mikrotikController.getManagedDevices);
@@ -22,6 +32,78 @@ router.get(
   isAuth,
   mikrotikController.networksReport,
 );
+// --- Standalone devices (no inventory ClientDevice, e.g. Cloud Hosted Router).
+// Declared before the ":clientDeviceId" routes so the literal "standalone"
+// segment isn't captured as a device id. ---
+router.get(
+  "/mikrotik-devices/standalone/:recordId",
+  isAuth,
+  mikrotikController.getStandaloneOne,
+);
+router.post(
+  "/mikrotik-devices/standalone/parameters",
+  isAuth,
+  canManageMikrotikDevices,
+  parametersLimiter,
+  mikrotikController.createStandalone,
+);
+router.post(
+  "/mikrotik-devices/standalone/:recordId/parameters",
+  isAuth,
+  canManageMikrotikDevices,
+  parametersLimiter,
+  mikrotikController.updateStandaloneParameters,
+);
+router.delete(
+  "/mikrotik-devices/standalone/:recordId",
+  isAuth,
+  canManageMikrotikDevices,
+  mikrotikController.detachStandalone,
+);
+
+// --- Config exports (.rsc). Keyed by the Mikrotik record id, so the same routes
+// serve both inventory-backed and standalone devices. Declared before the
+// ":clientDeviceId" routes so the literal "records" segment isn't captured as an
+// id. Live operations open an outbound SSH session — throttle them per user. ---
+router.get(
+  "/mikrotik-devices/records/:recordId/artifacts",
+  isAuth,
+  mikrotikController.listArtifacts,
+);
+router.post(
+  "/mikrotik-devices/records/:recordId/exports",
+  isAuth,
+  canManageMikrotikDevices,
+  parametersLimiter,
+  mikrotikController.createExportNow,
+);
+// Two-factor download: request an emailed code, then POST it to fetch the file.
+router.post(
+  "/mikrotik-devices/records/:recordId/artifacts/:artifactId/download-code",
+  isAuth,
+  canManageMikrotikDevices,
+  downloadCodeLimiter,
+  mikrotikController.requestDownloadCode,
+);
+router.post(
+  "/mikrotik-devices/records/:recordId/artifacts/:artifactId/download",
+  isAuth,
+  canManageMikrotikDevices,
+  mikrotikController.downloadArtifact,
+);
+router.delete(
+  "/mikrotik-devices/records/:recordId/artifacts/:artifactId",
+  isAuth,
+  canManageMikrotikDevices,
+  mikrotikController.deleteArtifact,
+);
+router.put(
+  "/mikrotik-devices/records/:recordId/schedules",
+  isAuth,
+  canManageMikrotikDevices,
+  mikrotikController.updateSchedules,
+);
+
 router.get(
   "/mikrotik-devices/:clientDeviceId",
   isAuth,

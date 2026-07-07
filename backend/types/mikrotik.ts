@@ -10,8 +10,24 @@ export interface IMikrotikAddress {
   comment?: string;
 }
 
+export interface IMikrotikSchedule {
+  frequency: "off" | "daily" | "weekly" | "monthly";
+  time: string;
+  weekday: number;
+  dayOfMonth: number;
+  keepLast: number;
+  lastRunAt?: Date;
+  lastSuccessAt?: Date;
+  lastError?: string;
+  nextRunAt?: Date;
+}
+
 export interface IMikrotik {
-  clientDevice: Types.ObjectId;
+  // Unset for standalone devices (e.g. Cloud Hosted Router).
+  clientDevice?: Types.ObjectId;
+  // Standalone identity, used when there is no clientDevice.
+  companyId?: Types.ObjectId;
+  label?: string;
   credentials?: {
     host?: string;
     port?: number;
@@ -20,6 +36,8 @@ export interface IMikrotik {
     useTls?: boolean;
     tlsCert?: string;
     knockSequence?: string;
+    sshPort?: number;
+    sshHostKey?: string;
   };
   name?: string;
   boardName?: string;
@@ -31,6 +49,10 @@ export interface IMikrotik {
   lastSuccessfulConnectionAt?: Date;
   lastCheckedAt?: Date;
   lastError?: string;
+  schedules?: {
+    backup?: IMikrotikSchedule;
+    export?: IMikrotikSchedule;
+  };
   createdAt: Date;
   updatedAt: Date;
 }

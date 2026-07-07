@@ -4,6 +4,7 @@ const path = require("path");
 const {
   S3Client,
   GetObjectCommand,
+  PutObjectCommand,
   DeleteObjectCommand,
 } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
@@ -15,6 +16,14 @@ const logger = require("@/utils/logger");
 // the migration. The stored attachment `name` doubles as the S3 object key.
 const UPLOADS_DIR = "uploads";
 const PRESIGN_TTL_SECONDS = 300; // short-lived; each page view re-requests it
+
+// Private artifacts (Mikrotik backups / config exports). They contain device
+// configuration, so — unlike UPLOADS_DIR — they are NEVER served by the public
+// /uploads resolver: downloads go through an authorized route (local file
+// streamed, or a short-lived presigned S3 URL). Kept out of uploads/ entirely.
+const PRIVATE_ARTIFACTS_DIR =
+  process.env.MIKROTIK_ARTIFACTS_DIR || "storage/mikrotik";
+const S3_ARTIFACT_PREFIX = "mikrotik/";
 
 const {
   S3_ACCESS_KEY_ID,
@@ -121,6 +130,86 @@ const deleteObject = async (name) => {
   }
 };
 
+// --- Private artifacts (Mikrotik backups / config exports) -------------------
+// `key` is a flat, server-generated filename (e.g. "<uuid>.backup"); we namespace
+// it under the S3 prefix or the private local dir. path.basename() defends against
+// any accidental separators. Never touches uploads/ or the public resolver.
+
+const privateArtifactPath = (key) =>
+  path.join(PRIVATE_ARTIFACTS_DIR, path.basename(key));
+
+const s3ArtifactKey = (key) => `${S3_ARTIFACT_PREFIX}${path.basename(key)}`;
+
+// Store an artifact. Prefers S3 when configured; otherwise writes to the private
+// local dir. Returns where it landed so the caller can persist it.
+const putArtifact = async (key, buffer, contentType) => {
+  if (s3Client) {
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: s3ArtifactKey(key),
+        Body: buffer,
+        ContentType: contentType,
+        ...sseUploadOptions,
+      }),
+    );
+    return { storage: "s3" };
+  }
+  await fs.promises.mkdir(PRIVATE_ARTIFACTS_DIR, { recursive: true });
+  await fs.promises.writeFile(privateArtifactPath(key), buffer);
+  return { storage: "local" };
+};
+
+// Read an artifact's bytes (local-first so a dev-created file keeps working even
+// after S3 is configured). Used to stream a local download.
+const getArtifactBuffer = async (key) => {
+  const local = privateArtifactPath(key);
+  if (fs.existsSync(local)) {
+    return fs.promises.readFile(local);
+  }
+  if (!s3Client) {
+    throw new Error(`Artifact "${key}" not found`);
+  }
+  const response = await s3Client.send(
+    new GetObjectCommand({ Bucket: bucket, Key: s3ArtifactKey(key) }),
+  );
+  return streamToBuffer(response.Body);
+};
+
+// Presigned GET URL for an S3-stored artifact (used by the download route to
+// 302-redirect). Only valid when the artifact lives in S3.
+const presignArtifact = async (key) => {
+  if (!s3Client) {
+    throw new Error(`S3 is not configured; cannot presign artifact "${key}"`);
+  }
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: s3ArtifactKey(key),
+  });
+  return getSignedUrl(s3Client, command, { expiresIn: PRESIGN_TTL_SECONDS });
+};
+
+// Delete an artifact from wherever it lives. Tolerant — never throws if gone.
+const deleteArtifact = async (key) => {
+  const local = privateArtifactPath(key);
+  if (fs.existsSync(local)) {
+    await fs.promises.unlink(local).catch((error) => {
+      if (error.code !== "ENOENT") {
+        logger.warn(`Failed to delete local artifact ${key}: ${error.message}`);
+      }
+    });
+  }
+  if (s3Client) {
+    try {
+      await s3Client.send(
+        new DeleteObjectCommand({ Bucket: bucket, Key: s3ArtifactKey(key) }),
+      );
+    } catch (error) {
+      logger.warn(`Failed to delete S3 artifact ${key}: ${error.message}`);
+    }
+  }
+};
+
 module.exports = {
   s3Client,
   bucket,
@@ -130,4 +219,8 @@ module.exports = {
   presignGetUrl,
   deleteObject,
   sseUploadOptions,
+  putArtifact,
+  getArtifactBuffer,
+  presignArtifact,
+  deleteArtifact,
 };

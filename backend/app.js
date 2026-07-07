@@ -32,6 +32,9 @@ const {
   runMikrotikHealthCheck,
 } = require("./middleware/mikrotikHealthCheck");
 const {
+  runMikrotikScheduler,
+} = require("./middleware/mikrotikScheduler");
+const {
   runKnowledgeApprovalExpiry,
 } = require("./services/knowledgeApprovalExpiry");
 const { runSecretsScan } = require("./services/secretsScanRun");
@@ -259,6 +262,30 @@ cron.schedule("*/5 * * * *", async () => {
     });
   } finally {
     isCheckingMikrotik = false;
+  }
+});
+
+// Run due Mikrotik backup / config-export schedules every 5 minutes
+let isRunningMikrotikScheduler = false;
+cron.schedule("*/5 * * * *", async () => {
+  if (isRunningMikrotikScheduler) {
+    return;
+  }
+
+  if (mongoose.connection.readyState !== 1) {
+    return;
+  }
+
+  isRunningMikrotikScheduler = true;
+
+  try {
+    await runMikrotikScheduler();
+  } catch (error) {
+    logger.log("error", "Mikrotik scheduler run failed", {
+      error: error.message,
+    });
+  } finally {
+    isRunningMikrotikScheduler = false;
   }
 });
 

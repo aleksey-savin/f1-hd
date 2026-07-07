@@ -32,7 +32,6 @@ const checkDevice = async (device) => {
       port: device.credentials.port,
       user: device.credentials.user,
       password: decryptSecret(device.credentials.password),
-      useTls: device.credentials.useTls !== false,
       tlsCert: device.credentials.tlsCert,
       knockSequence: decodeKnockSequence(device.credentials.knockSequence),
     });

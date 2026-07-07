@@ -1,10 +1,14 @@
-const net = require("net");
-const dns = require("dns").promises;
+const crypto = require("crypto");
 
 const Mikrotik = require("../../models/mikrotik");
+const MikrotikArtifact = require("../../models/mikrotikArtifact");
+const MikrotikDownloadCode = require("../../models/mikrotikDownloadCode");
 const ClientDevice = require("../../models/inventory/clientDevice");
 const DeviceModel = require("../../models/inventory/deviceModel");
 const Vendor = require("../../models/inventory/vendor");
+const Preferences = require("../../models/preferences");
+const User = require("../../models/user");
+const Notification = require("../../models/notification");
 
 const {
   encryptSecret,
@@ -12,60 +16,51 @@ const {
   assertUserNotFullGroup,
   pollDevice,
   mapPollToFields,
+  describeConnectionError,
 } = require("../../services/mikrotik/connector");
+const storage = require("../../services/storage");
+const { computeNextRun } = require("../../services/mikrotik/schedule");
+const {
+  assertPublicHost,
+  decodeKnockSequence,
+  createArtifact,
+} = require("../../services/mikrotik/artifacts");
 
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
 
-// --- SSRF guard: the device host is operator-supplied, so refuse to open
-// connections to loopback / private / link-local (incl. cloud-metadata) targets. ---
-const isBlockedIp = (ip) => {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split(".").map(Number);
-    if (a === 127 || a === 10 || a === 0) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 169 && b === 254) return true; // link-local + cloud metadata
-    return false;
-  }
-  if (net.isIPv6(ip)) {
-    const low = ip.toLowerCase();
-    return (
-      low === "::1" ||
-      low.startsWith("fe80") ||
-      low.startsWith("fc") ||
-      low.startsWith("fd")
-    );
-  }
-  return false;
+// Config exports contain device secrets, so downloading one requires a step-up
+// email OTP: a 6-digit code, valid 10 minutes, single-use, max 5 tries.
+const DOWNLOAD_CODE_TTL_MS = 10 * 60 * 1000;
+const MAX_DOWNLOAD_CODE_ATTEMPTS = 5;
+
+// "petr@example.com" -> "p***@example.com" (don't echo the full address back).
+const maskEmail = (email) => {
+  const [name, domain] = String(email).split("@");
+  if (!domain) return "почту";
+  const head = name.slice(0, 1);
+  return `${head}${"*".repeat(Math.max(1, name.length - 1))}@${domain}`;
 };
 
-const assertPublicHost = async (host) => {
-  let ips;
-  if (net.isIP(host)) {
-    ips = [host];
-  } else {
-    const resolved = await dns.lookup(host, { all: true });
-    ips = resolved.map((entry) => entry.address);
-  }
-  if (ips.some(isBlockedIp)) {
-    const error = new Error(
-      `Хост ${host} указывает на внутренний адрес и запрещён`,
-    );
-    error.code = "MIKROTIK_BLOCKED_HOST";
-    throw error;
-  }
-};
-
-// Decrypts a stored knock sequence ("v1:…" of a JSON port array) to numbers.
-const decodeKnockSequence = (blob) => {
-  if (!blob) return undefined;
-  try {
-    const arr = JSON.parse(decryptSecret(blob));
-    return Array.isArray(arr) ? arr : undefined;
-  } catch {
-    return undefined;
-  }
+// Full backup/export schedule per artifact type, embedded in each row so the
+// device panel can render the schedule editor and the badges without an extra
+// request. Schedules aren't secret. Defaults describe an unconfigured device.
+const scheduleSummary = (record) => {
+  const pick = (schedule) => ({
+    frequency: schedule?.frequency || "off",
+    time: schedule?.time || "03:00",
+    weekday: schedule?.weekday ?? 1,
+    dayOfMonth: schedule?.dayOfMonth ?? 1,
+    keepLast: schedule?.keepLast ?? 10,
+    lastRunAt: schedule?.lastRunAt || null,
+    lastSuccessAt: schedule?.lastSuccessAt || null,
+    lastError: schedule?.lastError || null,
+    nextRunAt: schedule?.nextRunAt || null,
+  });
+  return {
+    backup: pick(record?.schedules?.backup),
+    export: pick(record?.schedules?.export),
+  };
 };
 
 // Builds the display name: RouterOS identity when configured, otherwise the
@@ -81,13 +76,19 @@ const buildDisplayName = (record, device) => {
 };
 
 // Shapes one merged row for the management table. Never exposes the password.
-const buildRow = (device, record) => {
+// `protection` carries the latest backup/export artifact dates for the badges.
+const buildRow = (device, record, protection) => {
   const model = device.deviceModelId;
 
   return {
+    source: "inventory",
     clientDeviceId: device._id,
+    recordId: record?._id || null,
     displayName: buildDisplayName(record, device),
     serialNumber: device.serialNumber,
+    company: device.companyId
+      ? { name: device.companyId.alias || device.companyId.fullTitle }
+      : null,
     model: model ? { name: model.name, vendor: model.vendorId?.name } : null,
     location: device.locationId
       ? { name: device.locationId.name, address: device.locationId.address }
@@ -101,11 +102,224 @@ const buildRow = (device, record) => {
     lastSuccessfulConnectionAt: record?.lastSuccessfulConnectionAt || null,
     lastCheckedAt: record?.lastCheckedAt || null,
     lastError: record?.lastError || null,
+    schedules: scheduleSummary(record),
+    lastBackupAt: protection?.lastBackupAt || null,
+    lastExportAt: protection?.lastExportAt || null,
   };
 };
 
-// Returns the ClientDevices whose model's vendor has Mikrotik management
-// enabled, each left-joined with its (optional) Mikrotik management record.
+// Shapes a standalone row (no inventory ClientDevice, e.g. Cloud Hosted Router).
+const buildStandaloneRow = (record, protection) => ({
+  source: "standalone",
+  clientDeviceId: null,
+  recordId: record._id,
+  displayName:
+    record.label || record.name || record.credentials?.host || "Cloud Hosted Router",
+  serialNumber: record.serialNumber || null,
+  company: record.companyId
+    ? { name: record.companyId.alias || record.companyId.fullTitle }
+    : null,
+  model: null,
+  location: null,
+  status: record.status || "offline",
+  monitoringEnabled: record.monitoringEnabled || false,
+  host: record.credentials?.host || null,
+  boardName: record.boardName || null,
+  currentFirmware: record.currentFirmware || null,
+  addresses: record.addresses || [],
+  lastSuccessfulConnectionAt: record.lastSuccessfulConnectionAt || null,
+  lastCheckedAt: record.lastCheckedAt || null,
+  lastError: record.lastError || null,
+  schedules: scheduleSummary(record),
+  lastBackupAt: protection?.lastBackupAt || null,
+  lastExportAt: protection?.lastExportAt || null,
+});
+
+// Validates connection params, opens a verified live session (SSRF-guarded,
+// port-knock + TLS poll + Full-group guard) and returns the record fields to
+// persist. Throws an AppError for validation/host problems and re-throws poll
+// errors unchanged so the caller can classify them. Shared by the inventory and
+// standalone save paths.
+const verifyAndBuild = async (body, existing) => {
+  const { host, user, password } = body;
+  const port = Number(body.port);
+  // API-SSL (TLS) is mandatory — plaintext API is never allowed, so credentials
+  // and polled data can't travel in the clear. Any `useTls` from the client is
+  // ignored; the device must have api-ssl configured or verification fails.
+  const useTls = true;
+  const knockPorts = Array.isArray(body.knockSequence)
+    ? body.knockSequence
+        .map(Number)
+        .filter((n) => Number.isInteger(n) && n > 0 && n < 65536)
+    : [];
+  // Optional SSH port (used for backups / exports); default 22 via schema.
+  const sshPortInput = Number(body.sshPort);
+  const sshPort =
+    Number.isInteger(sshPortInput) && sshPortInput > 0 && sshPortInput < 65536
+      ? sshPortInput
+      : existing?.credentials?.sshPort;
+  // A changed host invalidates the previously pinned SSH host key (re-pin TOFU).
+  const hostChanged = existing?.credentials?.host
+    ? existing.credentials.host !== host
+    : false;
+
+  if (!host || !port || !user || !password) {
+    throw new AppError("host, port, user и password обязательны", 422);
+  }
+
+  try {
+    await assertPublicHost(host);
+  } catch (error) {
+    throw new AppError(error.message, 422, true, error);
+  }
+
+  const poll = await pollDevice({
+    host,
+    port,
+    user,
+    password,
+    // Pin to the device's already-trusted cert (if any) while verifying.
+    tlsCert: existing?.credentials?.tlsCert,
+    knockSequence: knockPorts,
+  });
+  assertUserNotFullGroup(poll.users, user);
+
+  const now = new Date();
+  return {
+    credentials: {
+      host,
+      port,
+      user,
+      password: encryptSecret(password),
+      useTls,
+      // Pin the observed cert (TOFU) or keep the previously pinned one.
+      tlsCert: poll.tlsCert || existing?.credentials?.tlsCert,
+      knockSequence: knockPorts.length
+        ? encryptSecret(JSON.stringify(knockPorts))
+        : existing?.credentials?.knockSequence,
+      // Preserve SSH settings across param re-saves (this object replaces the
+      // whole credentials sub-doc). Drop the pinned host key if the host changed.
+      sshPort,
+      sshHostKey: hostChanged ? undefined : existing?.credentials?.sshHostKey,
+    },
+    ...mapPollToFields(poll),
+    status: "online",
+    // Saving verified parameters enrols the device in the health-check cron.
+    monitoringEnabled: true,
+    lastSuccessfulConnectionAt: now,
+    lastCheckedAt: now,
+    lastError: null,
+  };
+};
+
+// Maps an error thrown by verifyAndBuild() onto a clear operator-facing AppError:
+// validation/host → the AppError it already is; Full-group → 409; a connection
+// failure → classified via describeConnectionError (TLS/cert/timeout/login).
+const mapVerifyError = (error, host) => {
+  if (error instanceof AppError) return error;
+  if (error.code === "MIKROTIK_FULL_GROUP_USER") {
+    return new AppError(error.message, 409);
+  }
+  const described = describeConnectionError(error);
+  return new AppError(
+    described
+      ? described.message
+      : `Не удалось подключиться к устройству ${host}`,
+    described ? described.status : 502,
+    true,
+    error,
+  );
+};
+
+// --- Backups & config exports -------------------------------------------------
+
+// Client-facing artifact shape (no internal storage key).
+const publicArtifact = (doc) => ({
+  id: doc._id,
+  type: doc.type,
+  trigger: doc.trigger,
+  fileName: doc.fileName,
+  size: doc.size,
+  storage: doc.storage,
+  routerOsVersion: doc.routerOsVersion,
+  createdAt: doc.createdAt,
+});
+
+// Aggregates the latest artifact date per (record, type) for the table badges.
+const summarizeArtifacts = async (recordIds) => {
+  const map = new Map();
+  if (!recordIds.length) return map;
+  const rows = await MikrotikArtifact.aggregate([
+    { $match: { mikrotik: { $in: recordIds } } },
+    {
+      $group: {
+        _id: { mikrotik: "$mikrotik", type: "$type" },
+        last: { $max: "$createdAt" },
+      },
+    },
+  ]);
+  for (const row of rows) {
+    map.set(`${row._id.mikrotik}:${row._id.type}`, row.last);
+  }
+  return map;
+};
+
+const protectionFor = (map, recordId) => ({
+  lastBackupAt: recordId ? map.get(`${recordId}:backup`) || null : null,
+  lastExportAt: recordId ? map.get(`${recordId}:export`) || null : null,
+});
+
+// Maps a createArtifact() failure onto a clear operator-facing AppError.
+const mapArtifactError = (error, host) => {
+  if (error instanceof AppError) return error;
+  if (error.code === "MIKROTIK_BLOCKED_HOST") {
+    return new AppError(error.message, 422);
+  }
+  if (error.code === "MIKROTIK_SSH_HOSTKEY_MISMATCH") {
+    return new AppError(error.message, 409);
+  }
+  const described = describeConnectionError(error);
+  return new AppError(
+    described ? described.message : `Не удалось подключиться к устройству ${host}`,
+    described ? described.status : 502,
+    true,
+    error,
+  );
+};
+
+// --- Schedules ----------------------------------------------------------------
+
+const normalizeFrequency = (value) =>
+  ["off", "daily", "weekly", "monthly"].includes(value) ? value : "off";
+
+const normalizeTime = (value, fallback = "03:00") =>
+  /^\d{2}:\d{2}$/.test(value) ? value : fallback;
+
+const clampInt = (value, min, max, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+};
+
+const publicSchedule = (schedule) => ({
+  frequency: schedule?.frequency || "off",
+  time: schedule?.time || "03:00",
+  weekday: schedule?.weekday ?? 1,
+  dayOfMonth: schedule?.dayOfMonth ?? 1,
+  keepLast: schedule?.keepLast ?? 10,
+  lastRunAt: schedule?.lastRunAt || null,
+  lastSuccessAt: schedule?.lastSuccessAt || null,
+  lastError: schedule?.lastError || null,
+  nextRunAt: schedule?.nextRunAt || null,
+});
+
+const publicSchedules = (record) => ({
+  backup: publicSchedule(record.schedules?.backup),
+  export: publicSchedule(record.schedules?.export),
+});
+
+// Returns the ClientDevices whose model's vendor has Mikrotik management enabled
+// (each left-joined with its optional record) plus all standalone records.
 exports.getManagedDevices = async (req, res, next) => {
   try {
     const vendorIds = await Vendor.find({
@@ -125,6 +339,7 @@ exports.getManagedDevices = async (req, res, next) => {
         populate: { path: "vendorId", select: "name" },
       })
       .populate("locationId", "name address")
+      .populate("companyId", "alias fullTitle")
       .sort({ _id: -1 })
       .lean();
 
@@ -134,15 +349,38 @@ exports.getManagedDevices = async (req, res, next) => {
       .select("-credentials.password -credentials.knockSequence")
       .lean();
 
+    // Standalone devices (no ClientDevice, e.g. Cloud Hosted Router).
+    const standaloneRecords = await Mikrotik.find({
+      clientDevice: { $exists: false },
+    })
+      .populate("companyId", "alias fullTitle")
+      .select("-credentials.password -credentials.knockSequence")
+      .lean();
+
+    // Latest backup/export dates per record, for the table protection badges.
+    const artifactSummary = await summarizeArtifacts([
+      ...records.map((record) => record._id),
+      ...standaloneRecords.map((record) => record._id),
+    ]);
+
     const recordByDevice = new Map(
       records.map((record) => [String(record.clientDevice), record]),
     );
 
-    const rows = devices.map((device) =>
-      buildRow(device, recordByDevice.get(String(device._id))),
+    const inventoryRows = devices.map((device) => {
+      const record = recordByDevice.get(String(device._id));
+      return buildRow(
+        device,
+        record,
+        protectionFor(artifactSummary, record?._id),
+      );
+    });
+
+    const standaloneRows = standaloneRecords.map((record) =>
+      buildStandaloneRow(record, protectionFor(artifactSummary, record._id)),
     );
 
-    res.status(200).json(rows);
+    res.status(200).json([...standaloneRows, ...inventoryRows]);
   } catch (error) {
     next(
       new AppError(
@@ -166,6 +404,7 @@ exports.getOne = async (req, res, next) => {
         populate: { path: "vendorId", select: "name" },
       })
       .populate("locationId", "name address")
+      .populate("companyId", "alias fullTitle")
       .lean();
 
     if (!device) {
@@ -199,20 +438,6 @@ exports.getOne = async (req, res, next) => {
 exports.updateParameters = async (req, res, next) => {
   try {
     const { clientDeviceId } = req.params;
-    const { host, user, password } = req.body;
-    const port = Number(req.body.port);
-    const useTls = req.body.useTls !== false; // default to API-SSL
-    const knockPorts = Array.isArray(req.body.knockSequence)
-      ? req.body.knockSequence
-          .map(Number)
-          .filter((n) => Number.isInteger(n) && n > 0 && n < 65536)
-      : [];
-
-    if (!host || !port || !user || !password) {
-      return next(
-        new AppError("host, port, user и password обязательны", 422),
-      );
-    }
 
     const device = await ClientDevice.findById(clientDeviceId);
     if (!device) {
@@ -221,84 +446,30 @@ exports.updateParameters = async (req, res, next) => {
       );
     }
 
-    try {
-      await assertPublicHost(host);
-    } catch (error) {
-      return next(new AppError(error.message, 422, true, error));
-    }
-
-    // Pin to the device's already-trusted cert (if any) while verifying.
     const existing = await Mikrotik.findOne({ clientDevice: clientDeviceId });
 
-    let poll;
+    let update;
     try {
-      poll = await pollDevice({
-        host,
-        port,
-        user,
-        password,
-        useTls,
-        tlsCert: existing?.credentials?.tlsCert,
-        knockSequence: knockPorts,
-      });
-      assertUserNotFullGroup(poll.users, user);
+      update = await verifyAndBuild(req.body, existing);
     } catch (error) {
-      if (error.code === "MIKROTIK_FULL_GROUP_USER") {
-        return next(new AppError(error.message, 409));
-      }
-      return next(
-        new AppError(
-          `Не удалось подключиться к устройству ${host}`,
-          502,
-          true,
-          error,
-        ),
-      );
+      return next(mapVerifyError(error, req.body.host));
     }
 
-    const now = new Date();
     const record = await Mikrotik.findOneAndUpdate(
       { clientDevice: clientDeviceId },
-      {
-        clientDevice: clientDeviceId,
-        credentials: {
-          host,
-          port,
-          user,
-          password: encryptSecret(password),
-          useTls,
-          // Pin the observed cert (TOFU) or keep the previously pinned one.
-          tlsCert: poll.tlsCert || existing?.credentials?.tlsCert,
-          knockSequence: knockPorts.length
-            ? encryptSecret(JSON.stringify(knockPorts))
-            : existing?.credentials?.knockSequence,
-        },
-        ...mapPollToFields(poll),
-        status: "online",
-        // Saving verified parameters enrols the device in the health-check cron.
-        // The separate Connect/Disconnect toggle was removed from the UI: a
-        // configured device is monitored, and detaching (deleting the record)
-        // is how monitoring stops.
-        monitoringEnabled: true,
-        lastSuccessfulConnectionAt: now,
-        lastCheckedAt: now,
-        lastError: null,
-      },
+      { clientDevice: clientDeviceId, ...update },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     ).select("-credentials.password -credentials.knockSequence");
 
     logger.log("info", "Mikrotik parameters saved", {
       actor: req.userId,
       clientDeviceId,
-      host,
-      useTls,
+      host: update.credentials.host,
+      useTls: update.credentials.useTls,
       ip: req.ip,
     });
 
-    res.status(200).json({
-      message: "Параметры сохранены и проверены",
-      record,
-    });
+    res.status(200).json({ message: "Параметры сохранены и проверены", record });
   } catch (error) {
     next(new AppError("Failed to save mikrotik parameters", 500, true, error));
   }
@@ -327,7 +498,6 @@ exports.connect = async (req, res, next) => {
         port: record.credentials.port,
         user: record.credentials.user,
         password: decryptSecret(record.credentials.password),
-        useTls: record.credentials.useTls !== false,
         tlsCert: record.credentials.tlsCert,
         knockSequence: decodeKnockSequence(record.credentials.knockSequence),
       });
@@ -418,6 +588,160 @@ exports.detach = async (req, res, next) => {
   }
 };
 
+// --- Standalone devices (no inventory ClientDevice, e.g. Cloud Hosted Router) ---
+
+// Create a standalone managed device: verify-on-save, then persist a record with
+// no clientDevice (identified by companyId + optional label).
+exports.createStandalone = async (req, res, next) => {
+  try {
+    let update;
+    try {
+      update = await verifyAndBuild(req.body, null);
+    } catch (error) {
+      return next(mapVerifyError(error, req.body.host));
+    }
+
+    const record = await Mikrotik.create({
+      companyId: req.body.companyId || undefined,
+      label: req.body.label || undefined,
+      ...update,
+    });
+
+    const safe = record.toObject();
+    if (safe.credentials) {
+      delete safe.credentials.password;
+      delete safe.credentials.knockSequence;
+    }
+
+    logger.log("info", "Standalone mikrotik device created", {
+      actor: req.userId,
+      recordId: record._id,
+      host: update.credentials.host,
+      ip: req.ip,
+    });
+
+    res
+      .status(201)
+      .json({ message: "Устройство добавлено и проверено", record: safe });
+  } catch (error) {
+    next(
+      new AppError(
+        "Failed to create standalone mikrotik device",
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// One standalone record (credentials without password) for the edit-modal prefill.
+exports.getStandaloneOne = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findOne({
+      _id: req.params.recordId,
+      clientDevice: { $exists: false },
+    })
+      .populate("companyId", "alias fullTitle")
+      .select("-credentials.password -credentials.knockSequence")
+      .lean();
+
+    if (!record) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+
+    res.status(200).json({ ...buildStandaloneRow(record), record });
+  } catch (error) {
+    next(
+      new AppError(
+        "Failed to fetch standalone mikrotik device",
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Re-verify and update a standalone record's parameters (and company/label).
+exports.updateStandaloneParameters = async (req, res, next) => {
+  try {
+    const existing = await Mikrotik.findOne({
+      _id: req.params.recordId,
+      clientDevice: { $exists: false },
+    });
+    if (!existing) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+
+    let update;
+    try {
+      update = await verifyAndBuild(req.body, existing);
+    } catch (error) {
+      return next(mapVerifyError(error, req.body.host));
+    }
+
+    if (req.body.companyId !== undefined) {
+      update.companyId = req.body.companyId || null;
+    }
+    if (req.body.label !== undefined) {
+      update.label = req.body.label || null;
+    }
+
+    const record = await Mikrotik.findByIdAndUpdate(req.params.recordId, update, {
+      new: true,
+    }).select("-credentials.password -credentials.knockSequence");
+
+    logger.log("info", "Standalone mikrotik parameters saved", {
+      actor: req.userId,
+      recordId: req.params.recordId,
+      host: update.credentials.host,
+      ip: req.ip,
+    });
+
+    res.status(200).json({ message: "Параметры сохранены и проверены", record });
+  } catch (error) {
+    next(
+      new AppError(
+        "Failed to save standalone mikrotik parameters",
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Delete a standalone record entirely (no inventory device to fall back to).
+exports.detachStandalone = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findOneAndDelete({
+      _id: req.params.recordId,
+      clientDevice: { $exists: false },
+    });
+    if (!record) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+
+    logger.log("info", "Standalone mikrotik device deleted", {
+      actor: req.userId,
+      recordId: req.params.recordId,
+      ip: req.ip,
+    });
+
+    res.status(200).json({ message: "Устройство удалено" });
+  } catch (error) {
+    next(
+      new AppError(
+        "Failed to delete standalone mikrotik device",
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
 // Aggregates IP addresses across all managed devices and flags duplicate
 // networks (unchanged logic, now sourced from the per-device records).
 exports.networksReport = async (req, res, next) => {
@@ -453,5 +777,266 @@ exports.networksReport = async (req, res, next) => {
     res.status(200).json({ entries });
   } catch (error) {
     next(new AppError("Failed to generate networks report", 500, true, error));
+  }
+};
+
+// --- Backups & config exports (keyed by the Mikrotik record id) ---------------
+
+// List a device's stored backups/exports (metadata only). Optional ?type filter.
+exports.listArtifacts = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findById(req.params.recordId).select("_id");
+    if (!record) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+    const query = { mikrotik: record._id };
+    if (req.query.type === "backup" || req.query.type === "export") {
+      query.type = req.query.type;
+    }
+    const artifacts = await MikrotikArtifact.find(query)
+      .sort({ createdAt: -1 })
+      .lean();
+    res.status(200).json({ artifacts: artifacts.map(publicArtifact) });
+  } catch (error) {
+    next(new AppError("Failed to list mikrotik artifacts", 500, true, error));
+  }
+};
+
+// Export the running config now (manual). Captures /export over SSH into a .rsc.
+exports.createExportNow = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findById(req.params.recordId);
+    if (!record || !record.credentials?.host) {
+      return next(new AppError("Устройство не настроено", 404));
+    }
+
+    let artifact;
+    try {
+      artifact = await createArtifact(record, {
+        trigger: "manual",
+        userId: req.userId,
+      });
+    } catch (error) {
+      return next(mapArtifactError(error, record.credentials.host));
+    }
+
+    logger.log("info", "Mikrotik config export created", {
+      actor: req.userId,
+      recordId: record._id,
+      ip: req.ip,
+    });
+
+    res
+      .status(201)
+      .json({ message: "Конфигурация экспортирована", artifact: publicArtifact(artifact) });
+  } catch (error) {
+    next(new AppError("Failed to export mikrotik config", 500, true, error));
+  }
+};
+
+// Step 1 of the 2FA download: email the requesting user a fresh 6-digit code and
+// store its hash. Replaces any previous code for this (user, artifact). Never
+// returns the code; in non-prod it's logged (dev email is off) so it's testable.
+exports.requestDownloadCode = async (req, res, next) => {
+  try {
+    const artifact = await MikrotikArtifact.findOne({
+      _id: req.params.artifactId,
+      mikrotik: req.params.recordId,
+    });
+    if (!artifact) {
+      return next(new AppError("Файл не найден", 404));
+    }
+
+    const user = await User.findById(req.userId).select("email");
+    if (!user?.email) {
+      return next(
+        new AppError("У вашего профиля нет email для отправки кода", 422),
+      );
+    }
+
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+    const codeHash = crypto.createHash("sha256").update(code).digest("hex");
+
+    await MikrotikDownloadCode.deleteMany({
+      user: user._id,
+      artifact: artifact._id,
+    });
+    await MikrotikDownloadCode.create({
+      user: user._id,
+      artifact: artifact._id,
+      codeHash,
+      expiresAt: new Date(Date.now() + DOWNLOAD_CODE_TTL_MS),
+    });
+
+    // Queue the email (delivered by the telegram-bot mailer worker).
+    await new Notification({
+      instrument: "email",
+      to: { email: user.email },
+      title: "Код для скачивания конфигурации Mikrotik",
+      text:
+        `<div>Код для скачивания файла <b>${artifact.fileName}</b>: ` +
+        `<b style="font-size:20px;letter-spacing:2px">${code}</b><br/><br/>` +
+        `Код действует 10 минут и работает один раз. ` +
+        `Если вы не запрашивали скачивание — просто проигнорируйте это письмо.</div>`,
+    }).save();
+
+    if (process.env.NODE_ENV !== "production") {
+      logger.log("info", "Mikrotik download code (non-prod)", {
+        code,
+        artifactId: artifact._id,
+        userId: user._id,
+      });
+    }
+
+    logger.log("info", "Mikrotik download code requested", {
+      actor: req.userId,
+      recordId: req.params.recordId,
+      artifactId: artifact._id,
+      ip: req.ip,
+    });
+
+    res.json({ message: `Код отправлен на ${maskEmail(user.email)}` });
+  } catch (error) {
+    next(new AppError("Failed to send download code", 500, true, error));
+  }
+};
+
+// Step 2: verify the emailed code, then stream the bytes through the backend
+// (local-first, else fetched from S3 server-side) so it works for token-auth
+// fetches without depending on bucket CORS. The code is single-use.
+exports.downloadArtifact = async (req, res, next) => {
+  try {
+    const artifact = await MikrotikArtifact.findOne({
+      _id: req.params.artifactId,
+      mikrotik: req.params.recordId,
+    });
+    if (!artifact) {
+      return next(new AppError("Файл не найден", 404));
+    }
+
+    const code = String(req.body?.code || "").trim();
+    if (!/^\d{6}$/.test(code)) {
+      return next(new AppError("Введите 6-значный код из письма", 400));
+    }
+
+    const record = await MikrotikDownloadCode.findOne({
+      user: req.userId,
+      artifact: artifact._id,
+    });
+    if (!record || record.expiresAt <= new Date()) {
+      return next(new AppError("Код не найден или истёк — запросите новый", 401));
+    }
+    if (record.attempts >= MAX_DOWNLOAD_CODE_ATTEMPTS) {
+      await MikrotikDownloadCode.deleteOne({ _id: record._id });
+      return next(
+        new AppError("Слишком много попыток — запросите новый код", 429),
+      );
+    }
+
+    const codeHash = crypto.createHash("sha256").update(code).digest("hex");
+    if (codeHash !== record.codeHash) {
+      record.attempts += 1;
+      await record.save();
+      return next(new AppError("Неверный код", 401));
+    }
+
+    // Valid — single use.
+    await MikrotikDownloadCode.deleteOne({ _id: record._id });
+
+    const buffer = await storage.getArtifactBuffer(artifact.storageKey);
+    const contentType =
+      artifact.type === "export"
+        ? "text/plain; charset=utf-8"
+        : "application/octet-stream";
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename*=UTF-8''${encodeURIComponent(artifact.fileName)}`,
+    );
+
+    logger.log("info", "Mikrotik artifact downloaded", {
+      actor: req.userId,
+      recordId: req.params.recordId,
+      artifactId: artifact._id,
+      ip: req.ip,
+    });
+
+    res.status(200).send(buffer);
+  } catch (error) {
+    next(new AppError("Failed to download mikrotik artifact", 500, true, error));
+  }
+};
+
+// Delete a stored artifact (DB doc + underlying file).
+exports.deleteArtifact = async (req, res, next) => {
+  try {
+    const artifact = await MikrotikArtifact.findOne({
+      _id: req.params.artifactId,
+      mikrotik: req.params.recordId,
+    });
+    if (!artifact) {
+      return next(new AppError("Файл не найден", 404));
+    }
+
+    await storage.deleteArtifact(artifact.storageKey);
+    await MikrotikArtifact.deleteOne({ _id: artifact._id });
+
+    logger.log("info", "Mikrotik artifact deleted", {
+      actor: req.userId,
+      recordId: req.params.recordId,
+      artifactId: artifact._id,
+      ip: req.ip,
+    });
+
+    res.status(200).json({ message: "Копия удалена" });
+  } catch (error) {
+    next(new AppError("Failed to delete mikrotik artifact", 500, true, error));
+  }
+};
+
+// Save the backup/export schedules + retention, recomputing each nextRunAt.
+exports.updateSchedules = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findById(req.params.recordId);
+    if (!record) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+
+    const prefs = await Preferences.findOne({}).lean();
+    const timezone = prefs?.timezone;
+
+    record.schedules = record.schedules || {};
+    for (const type of ["backup", "export"]) {
+      const input = req.body?.[type];
+      if (!input) continue;
+      const current = record.schedules[type] || {};
+      const nextSchedule = {
+        frequency: normalizeFrequency(input.frequency),
+        time: normalizeTime(input.time, current.time || "03:00"),
+        weekday: clampInt(input.weekday, 0, 6, current.weekday ?? 1),
+        dayOfMonth: clampInt(input.dayOfMonth, 1, 28, current.dayOfMonth ?? 1),
+        keepLast: clampInt(input.keepLast, 1, 365, current.keepLast ?? 10),
+        lastRunAt: current.lastRunAt,
+        lastSuccessAt: current.lastSuccessAt,
+        lastError: current.lastError,
+      };
+      nextSchedule.nextRunAt = computeNextRun(nextSchedule, new Date(), timezone);
+      record.schedules[type] = nextSchedule;
+    }
+    record.markModified("schedules");
+    await record.save();
+
+    logger.log("info", "Mikrotik schedules updated", {
+      actor: req.userId,
+      recordId: record._id,
+      ip: req.ip,
+    });
+
+    res
+      .status(200)
+      .json({ message: "Расписание сохранено", schedules: publicSchedules(record) });
+  } catch (error) {
+    next(new AppError("Failed to update mikrotik schedules", 500, true, error));
   }
 };
