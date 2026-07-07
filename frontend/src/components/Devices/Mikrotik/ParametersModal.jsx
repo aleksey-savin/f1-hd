@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 
-import Modal from "react-bootstrap/Modal";
+import Offcanvas from "react-bootstrap/Offcanvas";
+import Container from "react-bootstrap/Container";
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 import Alert from "react-bootstrap/Alert";
@@ -102,40 +103,50 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
   if (!device) return null;
 
   return (
-    <Modal show={show} onHide={onClose} centered scrollable size="lg">
-      <Modal.Header closeButton>
-        <Modal.Title className="h5 mb-0 d-flex align-items-center gap-2">
+    <Offcanvas
+      show={show}
+      onHide={onClose}
+      onEscapeKeyDown={onClose}
+      keyboard
+      placement="bottom"
+      className="h-100"
+    >
+      <Offcanvas.Header closeButton>
+        <Offcanvas.Title className="h5 mb-0 d-flex align-items-center gap-2">
           <FaNetworkWired className="text-primary" />
           Параметры — {device.displayName}
-        </Modal.Title>
-      </Modal.Header>
+        </Offcanvas.Title>
+      </Offcanvas.Header>
 
-      <Form onSubmit={submitHandler}>
-        <Modal.Body>
-          {error && <Alert variant="danger">{error}</Alert>}
+      <Offcanvas.Body>
+        <Container style={{ maxWidth: 820 }} className="pb-3">
+          <Form onSubmit={submitHandler}>
+            {error && <Alert variant="danger">{error}</Alert>}
 
-          <MikrotikConnectionFields
-            form={form}
-            onChange={changeHandler}
-            showPassword={showPassword}
-            onToggleShowPassword={() => setShowPassword((prev) => !prev)}
-          />
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={onClose}>
-            Закрыть
-          </Button>
-          <Button variant="primary" type="submit" disabled={isSaving}>
-            {isSaving ? (
-              <Spinner animation="border" size="sm" />
-            ) : (
-              <RiSaveLine />
-            )}{" "}
-            Проверить и сохранить
-          </Button>
-        </Modal.Footer>
-      </Form>
-    </Modal>
+            <MikrotikConnectionFields
+              form={form}
+              onChange={changeHandler}
+              showPassword={showPassword}
+              onToggleShowPassword={() => setShowPassword((prev) => !prev)}
+            />
+
+            <div className="d-flex justify-content-end gap-2 pt-3 mt-3 border-top">
+              <Button variant="secondary" onClick={onClose}>
+                Закрыть
+              </Button>
+              <Button variant="primary" type="submit" disabled={isSaving}>
+                {isSaving ? (
+                  <Spinner animation="border" size="sm" />
+                ) : (
+                  <RiSaveLine />
+                )}{" "}
+                Проверить и сохранить
+              </Button>
+            </div>
+          </Form>
+        </Container>
+      </Offcanvas.Body>
+    </Offcanvas>
   );
 };
 

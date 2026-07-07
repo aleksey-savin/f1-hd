@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 
-import Modal from "react-bootstrap/Modal";
+import Offcanvas from "react-bootstrap/Offcanvas";
+import Container from "react-bootstrap/Container";
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 import Alert from "react-bootstrap/Alert";
@@ -150,85 +151,95 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
   };
 
   return (
-    <Modal show={show} onHide={onClose} centered scrollable size="lg">
-      <Modal.Header closeButton>
-        <Modal.Title className="h5 mb-0 d-flex align-items-center gap-2">
+    <Offcanvas
+      show={show}
+      onHide={onClose}
+      onEscapeKeyDown={onClose}
+      keyboard
+      placement="bottom"
+      className="h-100"
+    >
+      <Offcanvas.Header closeButton>
+        <Offcanvas.Title className="h5 mb-0 d-flex align-items-center gap-2">
           <FaNetworkWired className="text-primary" />
           {isEdit
             ? "Параметры — Cloud Hosted Router"
             : "Добавить Cloud Hosted Router"}
-        </Modal.Title>
-      </Modal.Header>
+        </Offcanvas.Title>
+      </Offcanvas.Header>
 
-      <Form onSubmit={submitHandler}>
-        <Modal.Body>
-          {error && <Alert variant="danger">{error}</Alert>}
+      <Offcanvas.Body>
+        <Container style={{ maxWidth: 820 }} className="pb-3">
+          <Form onSubmit={submitHandler}>
+            {error && <Alert variant="danger">{error}</Alert>}
 
-          <SectionLabel>Устройство</SectionLabel>
+            <SectionLabel>Устройство</SectionLabel>
 
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="companyId" className="small mb-1">
-              Компания <span className="text-danger">*</span>
-            </Form.Label>
-            <Select
-              inputId="companyId"
-              options={companyOptions}
-              value={findOption(companyOptions, form.companyId)}
-              onChange={(option) =>
-                setForm((prev) => ({
-                  ...prev,
-                  companyId: option ? option.value : "",
-                }))
-              }
-              placeholder="Выберите компанию"
-              isClearable
-            />
-          </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label htmlFor="companyId" className="small mb-1">
+                Компания <span className="text-danger">*</span>
+              </Form.Label>
+              <Select
+                inputId="companyId"
+                options={companyOptions}
+                value={findOption(companyOptions, form.companyId)}
+                onChange={(option) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    companyId: option ? option.value : "",
+                  }))
+                }
+                placeholder="Выберите компанию"
+                isClearable
+              />
+            </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="label" className="small mb-1">
-              Название
-            </Form.Label>
-            <Form.Control
-              id="label"
-              name="label"
-              type="text"
-              placeholder="напр. CHR — Владивосток"
-              value={form.label}
+            <Form.Group className="mb-3">
+              <Form.Label htmlFor="label" className="small mb-1">
+                Название
+              </Form.Label>
+              <Form.Control
+                id="label"
+                name="label"
+                type="text"
+                placeholder="напр. CHR — Владивосток"
+                value={form.label}
+                onChange={changeHandler}
+              />
+              <Form.Text className="text-muted">
+                Необязательно. Если пусто — берётся имя из RouterOS.
+              </Form.Text>
+            </Form.Group>
+
+            <MikrotikConnectionFields
+              form={form}
               onChange={changeHandler}
+              showPassword={showPassword}
+              onToggleShowPassword={() => setShowPassword((prev) => !prev)}
+              autoFocusHost={false}
             />
-            <Form.Text className="text-muted">
-              Необязательно. Если пусто — берётся имя из RouterOS.
-            </Form.Text>
-          </Form.Group>
 
-          <MikrotikConnectionFields
-            form={form}
-            onChange={changeHandler}
-            showPassword={showPassword}
-            onToggleShowPassword={() => setShowPassword((prev) => !prev)}
-            autoFocusHost={false}
-          />
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={onClose}>
-            Закрыть
-          </Button>
-          <Button
-            variant="primary"
-            type="submit"
-            disabled={isSaving || !form.companyId}
-          >
-            {isSaving ? (
-              <Spinner animation="border" size="sm" />
-            ) : (
-              <RiSaveLine />
-            )}{" "}
-            Проверить и сохранить
-          </Button>
-        </Modal.Footer>
-      </Form>
-    </Modal>
+            <div className="d-flex justify-content-end gap-2 pt-3 mt-3 border-top">
+              <Button variant="secondary" onClick={onClose}>
+                Закрыть
+              </Button>
+              <Button
+                variant="primary"
+                type="submit"
+                disabled={isSaving || !form.companyId}
+              >
+                {isSaving ? (
+                  <Spinner animation="border" size="sm" />
+                ) : (
+                  <RiSaveLine />
+                )}{" "}
+                Проверить и сохранить
+              </Button>
+            </div>
+          </Form>
+        </Container>
+      </Offcanvas.Body>
+    </Offcanvas>
   );
 };
 

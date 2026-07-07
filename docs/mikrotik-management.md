@@ -400,6 +400,12 @@ rotation re-encrypts records via the `v1` version prefix.
 
 ## Device-side hardening runbook (apply on every managed device)
 
+> The **Параметры подключения** form has a collapsible **«Инструкция по настройке
+> устройства»** with presets (create user / port-knocking / cert + API-SSL) that
+> generates this exact script with the login, ports and random knock sequence
+> pre-filled (and writes the knock ports back into the form) — copy-paste it into
+> the RouterOS terminal. The steps below are the reference for what it does.
+
 1. **API-SSL + SSH — API-SSL is MANDATORY** (the backend forces TLS: plaintext
    API is never used, so credentials and polled data can't travel in the clear; a
    device without api-ssl simply fails to connect). Generate a self-signed cert on
@@ -423,21 +429,37 @@ rotation re-encrypts records via the `v1` version prefix.
    (`ssh` lets the poller run `/export`; no `ftp` needed — nothing is transferred;
    add only the writes you use — never `full`/`policy`/`sensitive`), unique
    generated password per device.
-3. **Port knocking** (illustrative 3-stage — choose your own secret ports):
+3. **Port knocking** (illustrative 3-stage — choose your own secret ports).
+   Rules must be inserted at the **top** of `input` (`place-before`), not appended,
+   or they land below the admin-block rule and never match. The knock allow-path
+   assumes the chain already drops admin access from the WAN below.
    ```
    /ip firewall filter
-   add chain=input protocol=tcp dst-port=<P1> action=add-src-to-address-list \
-       address-list=knock1 address-list-timeout=15s comment="knock-1"
-   add chain=input protocol=tcp dst-port=<P2> src-address-list=knock1 \
-       action=add-src-to-address-list address-list=knock2 address-list-timeout=15s
-   add chain=input protocol=tcp dst-port=<P3> src-address-list=knock2 \
-       action=add-src-to-address-list address-list=mgmt-allowed address-list-timeout=60s
-   add chain=input protocol=tcp dst-port=8729 src-address-list=mgmt-allowed action=accept
-   add chain=input protocol=tcp dst-port=22 src-address-list=mgmt-allowed action=accept
-   add chain=input protocol=tcp dst-port=8729 action=drop
+   :global hdTop [:pick [find chain=input] 0]   # anchor = current first input rule
+   add chain=input action=add-src-to-address-list address-list=hd-knock1 \
+       address-list-timeout=15s protocol=tcp dst-port=<P1> comment="hd knock 1" place-before=$hdTop
+   add chain=input action=add-src-to-address-list address-list=hd-knock2 \
+       address-list-timeout=15s protocol=tcp dst-port=<P2> src-address-list=hd-knock1 place-before=$hdTop
+   add chain=input action=add-src-to-address-list address-list=hd-allowed \
+       address-list-timeout=8h protocol=tcp dst-port=<P3> src-address-list=hd-knock2 place-before=$hdTop
+   add chain=input action=accept protocol=tcp dst-port=8729,22 \
+       src-address-list=hd-allowed comment="hd allow admin" place-before=$hdTop
    ```
-   Save the same `<P1> <P2> <P3>` as the device's knock sequence in the Параметры
-   modal.
+   Use `:global` (not `:local`) for the anchor — `:local` doesn't survive line-by-
+   line terminal paste. The **Параметры** form's setup generator emits exactly this
+   with random ports pre-filled; save the same `<P1> <P2> <P3>` as the knock
+   sequence (the generator does it for you).
+
+   The allow-path above assumes the chain already drops admin access from the WAN.
+   If it doesn't, enable the generator's **«закрыть admin-порты из WAN»** option to
+   append a self-sufficient drop (also placed at the top, just below the accept):
+   ```
+   add chain=input action=drop protocol=tcp dst-port=8729,22 \
+       connection-state=new in-interface-list=WAN comment="hd drop admin (WAN)" place-before=$hdTop
+   ```
+   `connection-state=new` keeps existing admin sessions alive; `in-interface-list=WAN`
+   scopes it to the internet side so LAN management is untouched (needs an interface
+   list named `WAN` — present in the stock config; otherwise set your own WAN iface).
 4. Keep RouterOS firmware patched (notable RCE/CVE history).
 
 ## Required configuration
