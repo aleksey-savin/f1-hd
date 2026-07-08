@@ -34,6 +34,7 @@ const ListWrapper = ({
   customData,
   topContent,
   filterStore,
+  filterActive = false,
   addRoute,
   onAddClick,
   hiddenAddButton,
@@ -160,7 +161,7 @@ const ListWrapper = ({
           {filter && (
             <Col xs="auto">
               <Button
-                variant="outline-secondary"
+                variant={filterActive ? "info" : "outline-secondary"}
                 onClick={filterOffcanvas.handleShow}
                 title="Фильтр"
                 aria-label="Фильтр"

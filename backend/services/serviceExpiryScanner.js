@@ -13,6 +13,14 @@ const REGISTRAR_HEADER_RE = /регистр|хостер|host|provider/i;
 const SERVICE_HEADER_RE =
   /услуг|сервис|service|домен|наимен|сайт|адрес|name|url|site/i;
 
+// «Владелец услуги» (юрлицо, организация, подписант…) — запасной признак столбца
+// услуги для таблиц, где значение — не домен и заголовок не «услуга/наименование»
+// (напр. электронные подписи, привязанные к юрлицам). Применяется ТОЛЬКО когда ни
+// SERVICE_HEADER_RE, ни домено-подобное содержимое не дали столбца, — чтобы в
+// таблице доменов услугой оставался домен, а не компания-владелец.
+const SERVICE_OWNER_HEADER_RE =
+  /юр\.?\s*лиц|организац|компан|владел|подписант|контрагент/i;
+
 const SEPARATOR_RE = /^\s*\|?[\s:|-]+\|?\s*$/;
 const TABLE_LINE_RE = /^\s*\|.*\|\s*$/;
 
@@ -137,8 +145,9 @@ const parseServiceTables = (content) => {
     // поэтому отличаем именно по заголовку)
     const registrarCol = header.findIndex((h) => REGISTRAR_HEADER_RE.test(h));
 
-    // Столбец услуги: по заголовку, иначе первый домено-подобный, не совпадающий
-    // со столбцом даты/регистратора
+    // Столбец услуги: сначала по «сильному» заголовку (услуга/домен/сайт…), иначе
+    // первый домено-подобный столбец, не совпадающий со столбцом даты/регистратора,
+    // и лишь в последнюю очередь — по заголовку «владельца услуги» (юрлицо/компания…)
     let serviceCol = header.findIndex((h) => SERVICE_HEADER_RE.test(h));
     if (
       serviceCol === -1 ||
@@ -154,6 +163,12 @@ const parseServiceTables = (content) => {
           serviceCol = i;
           break;
         }
+      }
+    }
+    if (serviceCol === -1) {
+      const ownerCol = header.findIndex((h) => SERVICE_OWNER_HEADER_RE.test(h));
+      if (ownerCol !== -1 && ownerCol !== dateCol && ownerCol !== registrarCol) {
+        serviceCol = ownerCol;
       }
     }
 

@@ -307,8 +307,13 @@ classifies columns:
 - **Date column** — by header (`продл|действ|оплач|срок|дата|expir|valid|renew|до`)
   or, failing that, by content (≥ half the cells parse as a date).
 - **Service column** — by header
-  (`услуг|сервис|service|домен|наимен|сайт|адрес|name|url|site`) or the first
-  domain-shaped column not already taken.
+  (`услуг|сервис|service|домен|наимен|сайт|адрес|name|url|site`), else the first
+  domain-shaped column not already taken, else — last resort — a **service-owner**
+  header (`юр.лиц|организац|компан|владел|подписант|контрагент`), so tables keyed by
+  legal entity (e.g. e-signatures per юрлицо, where the value is a company name, not
+  a domain) are still recognised. The owner fallback runs **only** when neither a
+  strong header nor domain-shaped content matched — so in a domain table the service
+  stays the domain, not the owner company.
 - **Registrar column** — by header only (`регистр|хостер|host|provider`).
 
 A table counts as a service table only if it has **both** a date and a service

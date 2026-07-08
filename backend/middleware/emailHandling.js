@@ -613,6 +613,13 @@ exports.handleNewEmails = async () => {
 
             await comment.save();
 
+            // Карточка заявки показывает только populated ticket.comments —
+            // без записи в массив комментарий существует, но невидим в UI.
+            await Ticket.updateOne(
+              { _id: ticket._id },
+              { $push: { comments: comment._id } },
+            );
+
             // добавляем запись в лог заявки
             const logEntry = new TicketLog({
               ticket: +match[1],

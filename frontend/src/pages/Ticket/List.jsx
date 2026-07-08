@@ -144,6 +144,17 @@ const Tickets = () => {
       "Заявки закрыты",
     );
 
+  // Мобайл: подсветка кнопки «Фильтр», когда в offcanvas выбрано что-то
+  // помимо значений по умолчанию. Поиск и «Назначены на меня» не учитываем —
+  // у них свои видимые индикаторы (раскрытый инпут и переключатель).
+  const filterActive =
+    filterStore.nowActive !== "all_active" ||
+    filterStore.companies?.length > 0 ||
+    filterStore.responsibles?.length > 0 ||
+    filterStore.comments !== "any" ||
+    filterStore.scheduledWorks !== "any" ||
+    filterStore.routineTask !== "any";
+
   const customData = () => {
     return (
       <MobileView>
@@ -169,6 +180,7 @@ const Tickets = () => {
       title={title}
       filter={<TicketFilter />}
       filterStore={filterStore}
+      filterActive={filterActive}
       addRoute="/tickets/add"
       showRefreshButton={false}
       customData={customData}
