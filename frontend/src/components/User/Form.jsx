@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useActionData, useLoaderData, useNavigate } from "react-router";
+
+import { AuthedUserContext } from "../../store/authed-user-context";
 
 import Select from "../../UI/Select";
 
@@ -34,6 +36,11 @@ const UserForm = ({ title }) => {
   }, [actionData, navigate]);
 
   const { getScreen } = getInitialPrefsData();
+
+  // Финансовые поля видят и редактируют только админ и фин. менеджеры
+  const authedUser = useContext(AuthedUserContext);
+  const canEditFinances =
+    authedUser.isAdmin || authedUser.permissions?.canSeeGlobalFinancialReport;
 
   const [isServiceAccount, setIsServiceAccount] = useState(
     user ? user.isServiceAccount : false,
@@ -426,6 +433,11 @@ const UserForm = ({ title }) => {
           {!isServiceAccount && (
             <Nav.Item>
               <Nav.Link eventKey="integrations">Интеграции</Nav.Link>
+            </Nav.Item>
+          )}
+          {!isServiceAccount && canEditFinances && (
+            <Nav.Item>
+              <Nav.Link eventKey="userFinances">Финансы</Nav.Link>
             </Nav.Item>
           )}
         </Nav>
@@ -864,6 +876,49 @@ const UserForm = ({ title }) => {
                       disabled={getScreen?.isActive && !isEndUser}
                       defaultValue={user ? user.getScreen.api : ""}
                     />
+                  </Form.Group>
+                </Col>
+              </Row>
+            </Tab.Pane>
+          )}
+          {!isServiceAccount && canEditFinances && (
+            <Tab.Pane eventKey="userFinances">
+              <Row>
+                <Col lg="4">
+                  <Form.Group className="mb-3">
+                    <Form.Label htmlFor="financesSalary">
+                      Оклад, ₽/мес
+                    </Form.Label>
+                    <Form.Control
+                      id="financesSalary"
+                      name="financesSalary"
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={user?.finances?.salary ?? ""}
+                    />
+                    <Form.Text muted>
+                      Отображается в персональном отчёте сотрудника.
+                    </Form.Text>
+                  </Form.Group>
+                </Col>
+                <Col lg="4">
+                  <Form.Group className="mb-3">
+                    <Form.Label htmlFor="financesOvertimeRate">
+                      Ставка переработок, ₽/час
+                    </Form.Label>
+                    <Form.Control
+                      id="financesOvertimeRate"
+                      name="financesOvertimeRate"
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={user?.finances?.overtimeHourlyRate ?? ""}
+                    />
+                    <Form.Text muted>
+                      Доплата = часы переработки × ставка × коэффициент из
+                      глобальных настроек.
+                    </Form.Text>
                   </Form.Group>
                 </Col>
               </Row>

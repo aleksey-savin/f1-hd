@@ -1,162 +1,131 @@
-import { Modal, Table, Badge, Row, Col } from "react-bootstrap";
-import { formatShortDate } from "../../../util/format-date";
-import { formatPrice } from "../../../util/format-string";
-import { msToHMS } from "../../../util/time-helpers";
-import { calculateWorkTime, calculateCost } from "../../../util/finances";
+import { Link } from "react-router";
 
-const WorkDetailsModal = ({ show, onHide, work }) => {
-  if (!work) return null;
+import Badge from "react-bootstrap/Badge";
+import Modal from "react-bootstrap/Modal";
+import Table from "react-bootstrap/Table";
 
-  const workTime = work.finishedAt && work.startedAt
-    ? calculateWorkTime(work.startedAt, work.finishedAt)
-    : 0;
+import { RiCarLine } from "react-icons/ri";
 
-  const cost = workTime > 0
-    ? calculateCost(workTime / (1000 * 60), 1000, 20)
-    : 0;
+import { formatDateTime, formatShortDate } from "../../../util/format-date";
+import {
+  SCHEDULE_SOURCE_LABELS,
+  formatMinutes,
+  workStatusMeta,
+} from "./format";
 
-  const getStatusBadge = (status) => {
-    const statusMap = {
-      approved: { variant: "success", text: "Утверждён" },
-      awaitingPayment: { variant: "warning", text: "Ожидает оплаты" },
-      pending: { variant: "secondary", text: "В ожидании" },
-      preview: { variant: "info", text: "Превью" },
-      rejected: { variant: "danger", text: "Отклонён" },
-    };
+// Детали работы — всё уже посчитано сервером, компонент только отображает
+const WorkDetailsModal = ({ work, show, onHide }) => {
+  if (!work) {
+    return null;
+  }
 
-    return statusMap[status] || { variant: "secondary", text: status };
-  };
+  const status = workStatusMeta(work.financesStatus);
 
   return (
-    <Modal show={show} onHide={onHide} size="lg">
+    <Modal show={show} onHide={onHide} centered size="lg">
       <Modal.Header closeButton>
-        <Modal.Title>Детали работы</Modal.Title>
+        <Modal.Title className="fs-5">
+          Работа от {work.finishedAt ? formatShortDate(work.finishedAt) : "—"}
+        </Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        <Row className="mb-3">
-          <Col md={6}>
-            <h6>Основная информация</h6>
-            <Table size="sm" borderless>
+        <div className="d-flex flex-wrap gap-2 mb-3">
+          <Badge bg={status.variant} className="fw-normal">
+            {status.label}
+          </Badge>
+          {work.visitRequired && (
+            <Badge bg="info" className="fw-normal">
+              <RiCarLine /> выезд
+            </Badge>
+          )}
+          {work.withinPlan && (
+            <Badge bg="secondary" className="fw-normal">
+              в рамках тарифа
+            </Badge>
+          )}
+        </div>
+
+        <p className="mb-3">{work.description || "Без описания"}</p>
+
+        <Table size="sm" borderless className="mb-3 w-auto">
+          <tbody>
+            <tr>
+              <td className="text-body-secondary pe-3">Компания</td>
+              <td>{work.company?.alias || "—"}</td>
+            </tr>
+            <tr>
+              <td className="text-body-secondary pe-3">Заявки</td>
+              <td>
+                {work.tickets.length > 0
+                  ? work.tickets.map((ticket, index) => (
+                      <span key={ticket._id}>
+                        {index > 0 && ", "}
+                        <Link to={`/tickets/${ticket.num}`}>
+                          #{ticket.num}
+                        </Link>{" "}
+                        {ticket.title}
+                      </span>
+                    ))
+                  : "—"}
+              </td>
+            </tr>
+            <tr>
+              <td className="text-body-secondary pe-3">Начало</td>
+              <td>{work.startedAt ? formatDateTime(work.startedAt) : "—"}</td>
+            </tr>
+            <tr>
+              <td className="text-body-secondary pe-3">Окончание</td>
+              <td>{work.finishedAt ? formatDateTime(work.finishedAt) : "—"}</td>
+            </tr>
+            <tr>
+              <td className="text-body-secondary pe-3">Длительность</td>
+              <td className="pr-num">{formatMinutes(work.durationMinutes)}</td>
+            </tr>
+          </tbody>
+        </Table>
+
+        {work.overtime.roundedMinutes > 0 && (
+          <>
+            <h6>Переработка</h6>
+            <Table size="sm" className="align-middle">
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Тип дня</th>
+                  <th className="text-end">Фактически</th>
+                  <th className="text-end">С округлением</th>
+                </tr>
+              </thead>
               <tbody>
-                <tr>
-                  <td><strong>Компания:</strong></td>
-                  <td>{work.company?.name || "—"}</td>
-                </tr>
-                <tr>
-                  <td><strong>Тариф:</strong></td>
-                  <td>{work.servicePlan?.name || "—"}</td>
-                </tr>
-                <tr>
-                  <td><strong>Статус:</strong></td>
-                  <td>
-                    <Badge bg={getStatusBadge(work.status || "pending").variant}>
-                      {getStatusBadge(work.status || "pending").text}
-                    </Badge>
-                  </td>
-                </tr>
-                <tr>
-                  <td><strong>Дата создания:</strong></td>
-                  <td>{formatShortDate(work.createdAt)}</td>
-                </tr>
+                {work.overtime.days.map((day) => (
+                  <tr key={day.date}>
+                    <td>{formatShortDate(`${day.date}T00:00:00`)}</td>
+                    <td>
+                      {day.bucket === "weekend" ? (
+                        <Badge bg="secondary" className="fw-normal">
+                          выходной
+                        </Badge>
+                      ) : (
+                        "будний"
+                      )}
+                    </td>
+                    <td className="text-end pr-num">
+                      {formatMinutes(day.actualMinutes)}
+                    </td>
+                    <td className="text-end pr-num">
+                      {formatMinutes(day.roundedMinutes)}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </Table>
-          </Col>
-          <Col md={6}>
-            <h6>Время и оплата</h6>
-            <Table size="sm" borderless>
-              <tbody>
-                <tr>
-                  <td><strong>Начало:</strong></td>
-                  <td>{work.startedAt ? formatShortDate(work.startedAt) : "—"}</td>
-                </tr>
-                <tr>
-                  <td><strong>Окончание:</strong></td>
-                  <td>{work.finishedAt ? formatShortDate(work.finishedAt) : "—"}</td>
-                </tr>
-                <tr>
-                  <td><strong>Время работы:</strong></td>
-                  <td>{workTime > 0 ? msToHMS(workTime) : "—"}</td>
-                </tr>
-                {work.overtime && work.overtime.formatted && (
-                  <tr>
-                    <td><strong>Переработка:</strong></td>
-                    <td className="text-warning">{work.overtime.formatted}</td>
-                  </tr>
-                )}
-                <tr>
-                  <td><strong>Стоимость:</strong></td>
-                  <td className="text-success fw-bold">
-                    {cost > 0 ? formatPrice(cost) : "—"}
-                  </td>
-                </tr>
-              </tbody>
-            </Table>
-          </Col>
-        </Row>
-
-        {work.description && (
-          <Row>
-            <Col>
-              <h6>Описание работы</h6>
-              <div className="p-3 bg-light rounded">
-                {work.description}
-              </div>
-            </Col>
-          </Row>
-        )}
-
-        {work.servicePlan && (
-          <Row className="mt-3">
-            <Col>
-              <h6>Информация о тарифе</h6>
-              <Table size="sm" striped>
-                <tbody>
-                  <tr>
-                    <td><strong>Название тарифа:</strong></td>
-                    <td>{work.servicePlan.name}</td>
-                  </tr>
-                  {work.servicePlan.description && (
-                    <tr>
-                      <td><strong>Описание:</strong></td>
-                      <td>{work.servicePlan.description}</td>
-                    </tr>
-                  )}
-                  {work.servicePlan.hourlyRate && (
-                    <tr>
-                      <td><strong>Часовая ставка:</strong></td>
-                      <td>{formatPrice(work.servicePlan.hourlyRate)}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </Table>
-            </Col>
-          </Row>
-        )}
-
-        {work.ticket && (
-          <Row className="mt-3">
-            <Col>
-              <h6>Связанный тикет</h6>
-              <Table size="sm" striped>
-                <tbody>
-                  <tr>
-                    <td><strong>Номер тикета:</strong></td>
-                    <td>#{work.ticket.id}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Заголовок:</strong></td>
-                    <td>{work.ticket.title}</td>
-                  </tr>
-                  {work.ticket.description && (
-                    <tr>
-                      <td><strong>Описание:</strong></td>
-                      <td>{work.ticket.description}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </Table>
-            </Col>
-          </Row>
+            <div className="small text-body-secondary">
+              Округление вверх до {work.tariffingPeriodMinutes} мин — как в
+              сводном финансовом отчёте. Источник:{" "}
+              {SCHEDULE_SOURCE_LABELS[work.scheduleSource]}
+              {work.planTitle ? ` «${work.planTitle}»` : ""}.
+            </div>
+          </>
         )}
       </Modal.Body>
     </Modal>

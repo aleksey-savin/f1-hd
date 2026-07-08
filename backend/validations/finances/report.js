@@ -1,4 +1,4 @@
-const { body } = require("express-validator");
+const { body, query } = require("express-validator");
 
 exports.confirmWorksByContractor = [
   body("relatedWorks").isArray().withMessage("Related works must be an array"),
@@ -67,6 +67,23 @@ exports.archive = [
     .withMessage("Report ID is required")
     .isMongoId()
     .withMessage("Report ID must be a valid MongoDB ID"),
+];
+
+exports.personalSummary = [
+  query("from")
+    .notEmpty()
+    .withMessage("Period start date is required")
+    .isISO8601()
+    .withMessage("Invalid start date format"),
+  query("to")
+    .notEmpty()
+    .withMessage("Period end date is required")
+    .isISO8601()
+    .withMessage("Invalid end date format"),
+  query("userId")
+    .optional()
+    .isMongoId()
+    .withMessage("User ID must be a valid MongoDB ID"),
 ];
 
 exports.employeeReport = [

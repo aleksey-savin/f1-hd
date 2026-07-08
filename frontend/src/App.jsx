@@ -314,7 +314,6 @@ import SummaryReport, {
 
 import PersonalReport, {
   loader as personalFinanceReportLoader,
-  action as personalFinanceReportAction,
 } from "./pages/Finances/PersonalReport.jsx";
 
 import EmployeeReport, {
@@ -870,7 +869,6 @@ function App() {
           path: "finances/personal-report",
           element: <PersonalReport />,
           loader: personalFinanceReportLoader,
-          action: personalFinanceReportAction,
         },
         {
           path: "finances/employee-report",

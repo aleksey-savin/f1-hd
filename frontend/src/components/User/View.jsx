@@ -44,6 +44,7 @@ import {
 } from "react-icons/ri";
 
 import { formatDate, formatShortDate } from "../../util/format-date";
+import { formatPrice } from "../../util/format-string";
 
 import Transitions from "../../animations/Transition";
 
@@ -481,6 +482,38 @@ const ViewUser = ({ user, tickets }) => {
                 </Card>
               </Col>
             </Row>
+            {/* Финансы: сервер вырезает user.finances для неавторизованных,
+                клиентский гейт лишь прячет пустую карточку */}
+            {user.finances &&
+              (authedUser.isAdmin ||
+                authedUser.permissions?.canSeeGlobalFinancialReport ||
+                authedUser._id === user._id) && (
+                <Card className="border-0 shadow-sm mt-3">
+                  <Card.Body>
+                    <div className="cap-card-title mb-3">
+                      <RiMoneyDollarCircleLine />
+                      <span>Финансы</span>
+                    </div>
+                    <ContactRow
+                      icon={<RiMoneyDollarCircleLine />}
+                      label="Оклад"
+                    >
+                      {user.finances.salary != null ? (
+                        `${formatPrice(user.finances.salary)}/мес`
+                      ) : (
+                        <span className="text-body-secondary">Не задан</span>
+                      )}
+                    </ContactRow>
+                    <ContactRow icon={<RiTimeLine />} label="Ставка переработок">
+                      {user.finances.overtimeHourlyRate != null ? (
+                        `${formatPrice(user.finances.overtimeHourlyRate)}/час`
+                      ) : (
+                        <span className="text-body-secondary">Не задана</span>
+                      )}
+                    </ContactRow>
+                  </Card.Body>
+                </Card>
+              )}
             {user.permissions?.canPerformTickets && (
               <Card className="border-0 shadow-sm mt-3">
                 <Card.Body>

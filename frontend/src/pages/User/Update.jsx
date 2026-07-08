@@ -151,6 +151,22 @@ export async function action({ request, params }) {
     categories: data.getAll("categories"),
   };
 
+  // Поля есть в форме только у админа/фин. менеджера; без них ключ не шлём,
+  // чтобы бэкенд не трогал сохранённые значения
+  if (
+    data.get("financesSalary") !== null ||
+    data.get("financesOvertimeRate") !== null
+  ) {
+    userData.finances = {
+      salary: data.get("financesSalary")
+        ? Number(data.get("financesSalary"))
+        : null,
+      overtimeHourlyRate: data.get("financesOvertimeRate")
+        ? Number(data.get("financesOvertimeRate"))
+        : null,
+    };
+  }
+
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/update/${params.id}`,
     {

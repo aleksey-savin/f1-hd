@@ -1058,6 +1058,15 @@ exports.takeToWork = async (req, res, next) => {
       (resp) => resp._id.toString() === authedUserId,
     );
 
+    // Пользователь добавляет себя сам — уведомлять о назначении не нужно,
+    // поэтому сразу помечаем его уведомлённым. Пустой isNotified позже
+    // заставил бы ветку "process ticket" прислать ему «вы назначены
+    // ответственным» при первом же редактировании заявки.
+    const selfAsResponsible = {
+      ...authedUser,
+      isNotified: { telegram: true, email: true },
+    };
+
     if (req.body.takeOver) {
       // Взять на себя: единственным ответственным остаётся текущий пользователь.
       // Сохраняем его существующую запись (с флагами isNotified), а если заявка
@@ -1065,12 +1074,12 @@ exports.takeToWork = async (req, res, next) => {
       const self = ticket.responsibles.find(
         (resp) => resp._id.toString() === authedUserId,
       );
-      ticket.responsibles = self ? [self] : [authedUser];
+      ticket.responsibles = self ? [self] : [selfAsResponsible];
     } else if (!isResponsible) {
       // Заявку принимает в работу пользователь, которого не было в ответственных
       // (например, у заявки не было ответственных) — добавляем его, чтобы заявка
       // не оказалась «В работе» без ответственных.
-      ticket.responsibles = ticket.responsibles.concat(authedUser);
+      ticket.responsibles = ticket.responsibles.concat(selfAsResponsible);
     }
 
     ticket.version = (ticket.version ?? 0) + 1;
@@ -1202,7 +1211,13 @@ exports.joinResponsibles = async (req, res, next) => {
     // в состояние «Не в работе» (назначена, но ещё не взята в работу)
     const wasUnassigned = ticket.responsibles.length === 0;
 
-    ticket.responsibles = ticket.responsibles.concat(authedUser);
+    // Пользователь присоединяется сам — помечаем его уведомлённым, чтобы
+    // ветка "process ticket" не прислала ему «вы назначены ответственным»
+    // при последующем редактировании заявки.
+    ticket.responsibles = ticket.responsibles.concat({
+      ...authedUser,
+      isNotified: { telegram: true, email: true },
+    });
 
     if (wasUnassigned) {
       ticket.state = "Не в работе";
@@ -1688,13 +1703,20 @@ exports.takeToWorkMultiple = async (req, res, next) => {
         (resp) => resp._id.toString() === authedUserId,
       );
 
+      // Как и в takeToWork: самодобавление сразу помечаем уведомлённым,
+      // чтобы будущие редактирования не слали «вы назначены ответственным».
+      const selfAsResponsible = {
+        ...authedUser,
+        isNotified: { telegram: true, email: true },
+      };
+
       if (takeOver) {
         const self = ticket.responsibles.find(
           (resp) => resp._id.toString() === authedUserId,
         );
-        ticket.responsibles = self ? [self] : [authedUser];
+        ticket.responsibles = self ? [self] : [selfAsResponsible];
       } else if (!isResponsible) {
-        ticket.responsibles = ticket.responsibles.concat(authedUser);
+        ticket.responsibles = ticket.responsibles.concat(selfAsResponsible);
       }
 
       ticket.version = (ticket.version ?? 0) + 1;
@@ -1889,6 +1911,7 @@ exports.update = async (req, res, next) => {
     // Изменяем список ответственных, добавляем новых
     let newRespArray = [];
     let removedReps = [];
+    let hasNewResponsibles = false;
     if (responsibles) {
       for (let resp of JSON.parse(responsibles)) {
         if (
@@ -1897,6 +1920,7 @@ exports.update = async (req, res, next) => {
             .includes(resp._id.toString())
         ) {
           ticket.responsibles.push(resp);
+          hasNewResponsibles = true;
         }
       }
 
@@ -1963,10 +1987,17 @@ exports.update = async (req, res, next) => {
       });
       } */
 
-    ticket.notifications = {
-      lastAction: "process ticket",
-      pending: true,
-    };
+    // Ветка "process ticket" уведомляет каждого ответственного с пустым
+    // isNotified, поэтому запускаем её только когда в этом редактировании
+    // реально добавлены новые ответственные. Иначе правка любого поля
+    // (категории, темы и т.п.) повторно слала бы «вы назначены ответственным»
+    // тем, кто когда-то добавил себя сам и флага не получил.
+    if (hasNewResponsibles) {
+      ticket.notifications = {
+        lastAction: "process ticket",
+        pending: true,
+      };
+    }
     ticket.updatedBy = authData.userId;
     //если заявка принята в работу делаем отметки кто и когда её принял
     if (state === "В работе") {

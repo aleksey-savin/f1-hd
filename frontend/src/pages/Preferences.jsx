@@ -28,6 +28,7 @@ import PrefsGlobals from "../components/Preferences/Globals";
 import PrefsAi from "../components/Preferences/Ai";
 import PrefsKnowledgeBase from "../components/Preferences/KnowledgeBase";
 import PrefsMikrotik from "../components/Preferences/Mikrotik";
+import PrefsOvertime from "../components/Preferences/Overtime";
 
 import Forbidden from "../components/Error/403";
 import { getLocalStorageData } from "../util/auth";
@@ -106,6 +107,11 @@ const Preferences = () => {
                       <Nav.Link eventKey="knowledgeBase">База знаний</Nav.Link>
                     </Nav.Item>
                   )}
+                  {prefs?.modules?.finances?.isActive && (
+                    <Nav.Item>
+                      <Nav.Link eventKey="overtime">Переработки</Nav.Link>
+                    </Nav.Item>
+                  )}
                   {prefs?.modules?.inventory?.isActive && (
                     <Nav.Item>
                       <Nav.Link eventKey="mikrotik">Mikrotik</Nav.Link>
@@ -140,6 +146,11 @@ const Preferences = () => {
                     {prefs?.modules?.knowledgeBase.isActive && (
                       <Tab.Pane eventKey="knowledgeBase">
                         <PrefsKnowledgeBase prefs={prefs} />
+                      </Tab.Pane>
+                    )}
+                    {prefs?.modules?.finances?.isActive && (
+                      <Tab.Pane eventKey="overtime">
+                        <PrefsOvertime prefs={prefs} />
                       </Tab.Pane>
                     )}
                     {prefs?.modules?.inventory?.isActive && (

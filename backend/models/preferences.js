@@ -1,5 +1,8 @@
 const mongoose = require("mongoose");
 
+const workScheduleSchema = require("./workSchedule");
+const { DEFAULT_OVERTIME_SCHEDULE } = require("../utils/overtimeDefaults");
+
 const Schema = mongoose.Schema;
 
 const preferencesSchema = new Schema({
@@ -71,6 +74,19 @@ const preferencesSchema = new Schema({
     finances: { isActive: { type: Boolean, default: false } },
     inventory: { isActive: { type: Boolean, default: false } },
     knowledgeBase: { isActive: { type: Boolean, default: false } },
+  },
+  // Расчёт переработок сотрудников (персональный отчёт). Детекция идентична
+  // сводному фин. отчёту: график и период тарификации берутся из тарифа/компании;
+  // резервные значения ниже — для работ вне тарифов.
+  overtime: {
+    defaultSchedule: {
+      type: workScheduleSchema,
+      default: () => DEFAULT_OVERTIME_SCHEDULE,
+    },
+    defaultTariffingPeriodMinutes: { type: Number, default: 15 },
+    // Оплата: доплата = часы × ставка × коэффициент; на величину переработки не влияет
+    weekdayCoefficient: { type: Number, default: 1 },
+    weekendCoefficient: { type: Number, default: 1 },
   },
   // Управление устройствами Mikrotik: авто-заявки на события мониторинга.
   mikrotik: {

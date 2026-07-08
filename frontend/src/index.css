@@ -1099,3 +1099,201 @@ body:has(.mobile-shell),
 .drawer-footer form {
   margin: 0;
 }
+
+/* ============================================================
+   Персональный отчёт (/finances/personal-report)
+   Цвета серий: --pr-chart-work / --pr-chart-ot — общие для
+   графика, полос нагрузки и календаря; пара валидирована на
+   светлой поверхности, тёмная тема переопределяет переработку
+   в css/dark-theme.css.
+   ============================================================ */
+:root {
+  --pr-chart-work: #3498db;
+  --pr-chart-ot: #f39c12;
+}
+
+.pr-loading {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.pr-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pr-ot-text {
+  color: var(--pr-chart-ot);
+}
+
+/* --- KPI-карты --- */
+.pr-kpi__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bs-secondary-color);
+}
+.pr-kpi__value {
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.pr-kpi__value--ot {
+  color: var(--pr-chart-ot);
+}
+.pr-kpi__foot {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-height: 1.2em;
+}
+.pr-kpi__delta {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.pr-kpi__sub {
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color);
+}
+
+/* --- Расчётный листок --- */
+.payslip__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px dashed var(--bs-border-color);
+}
+.payslip__formula {
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color);
+  font-variant-numeric: tabular-nums;
+}
+.payslip__amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+.payslip__total {
+  border-bottom: none;
+  border-top: 2px solid var(--bs-border-color);
+  margin-top: 0.25rem;
+  font-weight: 600;
+}
+.payslip__grand {
+  border-bottom: none;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+/* --- Нагрузка по компаниям --- */
+.pr-load-table__bar-col {
+  width: 28%;
+  min-width: 140px;
+}
+.pr-loadbar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--bs-tertiary-bg);
+  overflow: hidden;
+}
+.pr-loadbar__work {
+  background: var(--pr-chart-work);
+}
+.pr-loadbar__ot {
+  background: var(--pr-chart-ot);
+}
+.pr-legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.pr-legend-swatch--work {
+  background: var(--pr-chart-work);
+}
+.pr-legend-swatch--ot {
+  background: var(--pr-chart-ot);
+}
+
+/* --- Календарь занятости --- */
+.wcal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.wcal-grid--head {
+  margin-bottom: 4px;
+}
+.wcal-weekday {
+  text-align: center;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bs-secondary-color);
+}
+.wcal-day {
+  position: relative;
+  min-height: 44px;
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: var(--bs-tertiary-bg);
+}
+.wcal-day--blank {
+  background: transparent;
+}
+.wcal-day__num {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.wcal-day--off .wcal-day__num {
+  color: var(--bs-secondary-color);
+  opacity: 0.7;
+}
+.wcal-day--outside {
+  opacity: 0.35;
+}
+.wcal-day--today {
+  outline: 2px solid var(--pr-chart-work);
+  outline-offset: -2px;
+}
+.wcal-day__ot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pr-chart-ot);
+}
+/* Интенсивность: один синий, ступени прозрачности поверх tertiary-bg */
+.wcal-int-1 {
+  background: rgba(52, 152, 219, 0.18);
+}
+.wcal-int-2 {
+  background: rgba(52, 152, 219, 0.38);
+}
+.wcal-int-3 {
+  background: rgba(52, 152, 219, 0.6);
+}
+.wcal-int-4 {
+  background: rgba(52, 152, 219, 0.85);
+}
+.wcal-int-3 .wcal-day__num,
+.wcal-int-4 .wcal-day__num {
+  color: #fff;
+}
+.wcal-legend {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--bs-tertiary-bg);
+}
+.wcal-legend--ot {
+  border-radius: 50%;
+  background: var(--pr-chart-ot);
+}

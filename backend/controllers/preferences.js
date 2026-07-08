@@ -164,6 +164,7 @@ exports.update = async (req, res, next) => {
       ai,
       knowledgeBase,
       mikrotik,
+      overtime,
     } = req.body;
 
     // Переход флага «выкл→вкл» — повод просканировать сразу, не дожидаясь крона.
@@ -192,6 +193,7 @@ exports.update = async (req, res, next) => {
         ai,
         knowledgeBase,
         mikrotik,
+        overtime,
       });
       secretsJustEnabled = !!knowledgeBase?.scanForSecrets;
       serviceJustEnabled = !!knowledgeBase?.trackServiceExpiry;
@@ -239,6 +241,10 @@ exports.update = async (req, res, next) => {
       }
       if (mikrotik) {
         preferences.mikrotik = mikrotik;
+      }
+      // Защищаемся от затирания настроек переработок при частичном POST
+      if (overtime) {
+        preferences.overtime = overtime;
       }
     }
 

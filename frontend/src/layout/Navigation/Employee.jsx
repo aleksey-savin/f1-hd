@@ -185,7 +185,13 @@ const EmployeeNavs = ({ setShowOffcanvas }) => {
           </NavDropdown.Item>
           <NavDropdown.Item
             as={NavLink}
-            hidden={!canSeePersonalFinancialReport}
+            hidden={
+              !(
+                canSeePersonalFinancialReport ||
+                canSeeGlobalFinancialReport ||
+                isAdmin
+              )
+            }
             to="/finances/personal-report"
             onClick={handleClose}
           >

@@ -512,6 +512,28 @@ module.exports.canSeePersonalFinancialReport = async (req, res, next) => {
   next();
 };
 
+// Персональный отчёт открывают и «личные», и «глобальные» обладатели прав;
+// доступ к чужому userId дополнительно проверяется в контроллере
+module.exports.canSeePersonalOrGlobalFinancialReport = async (req, res, next) => {
+  const { userId } = await getAuthData(req);
+  const authedUser = await User.findById(userId);
+  const { permissions, isAdmin } = authedUser;
+  if (
+    !permissions.canSeePersonalFinancialReport &&
+    !permissions.canSeeGlobalFinancialReport &&
+    !isAdmin
+  ) {
+    const error = new Error("Недостаточно прав для просмотра данной страницы");
+    error.statusCode = 403;
+    return res.status(error.statusCode).json({
+      error: true,
+      status: error.statusCode,
+      message: error.message,
+    });
+  }
+  next();
+};
+
 module.exports.canConfirmReportActions = async (req, res, next) => {
   const { userId } = await getAuthData(req);
   const authedUser = await User.findById(userId);

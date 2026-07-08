@@ -16,6 +16,18 @@ const Location = require("../models/inventory/location");
 const CompanyLog = require("../models/companyLog");
 const { Ticket } = require("../models/ticket");
 
+// Финансовые поля пользователя (оклад, ставка переработок)
+const toNonNegativeOrNull = (value) => {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) && num >= 0 ? num : null;
+};
+
+const canManageFinances = (caller) =>
+  Boolean(caller.isAdmin || caller.permissions?.canSeeGlobalFinancialReport);
+
 exports.getAll = async (req, res, next) => {
   try {
     const { userId } = await getAuthData(req);
@@ -127,7 +139,15 @@ exports.getOne = async (req, res, next) => {
     }
 
     if (!authedUser.isEndUser) {
-      res.status(200).json(user);
+      const isSelf = authedUser._id.toString() === user._id.toString();
+      if (canManageFinances(authedUser) || isSelf) {
+        res.status(200).json(user);
+      } else {
+        // Оклад и ставка видны только самому сотруднику и фин. менеджерам
+        const payload = user.toObject();
+        delete payload.finances;
+        res.status(200).json(payload);
+      }
     } else {
       res.status(200).json(authedUser);
     }
@@ -303,7 +323,7 @@ exports.add = async (req, res, next) => {
       isCloudTelephony,
       permissions,
       dashboard,
-
+      finances,
       getScreenApi,
     } = req.body;
 
@@ -361,6 +381,16 @@ exports.add = async (req, res, next) => {
         pending: sendPassword,
       },
     });
+
+    // Финансовые поля задают только админ или обладатель глобального фин. права
+    const caller = await getAuthData(req);
+    if (finances && canManageFinances(caller)) {
+      user.finances = {
+        salary: toNonNegativeOrNull(finances.salary),
+        overtimeHourlyRate: toNonNegativeOrNull(finances.overtimeHourlyRate),
+      };
+    }
+
     await user.save();
 
     company.employees.push(user._id);
@@ -440,6 +470,7 @@ exports.update = async (req, res, next) => {
       categories,
       permissions,
       dashboard,
+      finances,
       getScreen,
     } = req.body;
 
@@ -491,6 +522,16 @@ exports.update = async (req, res, next) => {
     user.isCloudTelephony = isCloudTelephony;
     user.permissions = permissions;
     user.dashboard = dashboard;
+
+    // Финансовые поля меняют только админ или обладатель глобального фин.
+    // права; без права или без поля в запросе — не трогаем, чтобы не затереть
+    const caller = await getAuthData(req);
+    if (finances !== undefined && canManageFinances(caller)) {
+      user.finances = {
+        salary: toNonNegativeOrNull(finances?.salary),
+        overtimeHourlyRate: toNonNegativeOrNull(finances?.overtimeHourlyRate),
+      };
+    }
 
     if (prefs.getScreen.isActive) {
       user.getScreen.api = getScreen ? getScreen.api : user.getScreen.api;

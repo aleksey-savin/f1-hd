@@ -9,6 +9,16 @@ const logger = require("../../utils/logger");
 // Live-connection timeout (seconds). routeros-node multiplies by 1000 and applies
 // it via socket.setTimeout, so an unreachable host fails fast.
 const CONNECT_TIMEOUT_SECONDS = 8;
+// Overall wall-clock bound for one API poll (connect + reads), independent of the
+// library's per-socket inactivity timeout. socket.setTimeout can't abort a hanging
+// TCP connect to a filtered port, so without this a failed knock / offline device
+// blocks for the OS TCP timeout (~127s) and trips nginx's 60s gateway (504).
+const POLL_DEADLINE_MS = 20000;
+// Per-read bound for /user/print. It needs the `policy` privilege; a least-privilege
+// managed user (api,read,test,ssh,ftp — the recommended setup) lacks it, so RouterOS
+// sends no reply and the read hangs. Cap it and skip the full-group check rather than
+// stalling the whole poll (this was the real 504).
+const USER_READ_TIMEOUT_MS = 4000;
 const KNOCK_TOUCH_TIMEOUT_MS = 1500; // per knock-port touch
 const KNOCK_INTER_DELAY_MS = 250; // gap between knocks so the sequence is ordered
 
@@ -19,9 +29,27 @@ const SSH_OP_TIMEOUT_MS = 60000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Bound a single API read so one unanswered command can't stall the whole poll.
+const withReadTimeout = (promise, ms) =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("read timeout")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+
 // Guard: a managed RouterOS user must not belong to the "full" group (and should
 // be a dedicated least-privilege account — see the device hardening runbook).
 const assertUserNotFullGroup = (users, user) => {
+  // users is null when /user was unreadable (least-privilege) — nothing to check.
+  if (!Array.isArray(users)) return;
   const mikrotikUser = users.find((item) => item.name === user);
   if (mikrotikUser && mikrotikUser.group === "full") {
     const error = new Error(
@@ -118,7 +146,24 @@ const pollDevice = async ({
     tlsOptions: buildTlsOptions(tlsCert),
   });
 
-  try {
+  // Watchdog: the library's `timeout` guards inactivity on an ESTABLISHED socket
+  // but can't abort a hanging TCP connect to a filtered port (RouterOS drops the
+  // SYN until the knock opens the API). Bound the whole connect+read cycle so a
+  // failed verify fails fast instead of blocking ~127s and returning a 504. On
+  // timeout the finally destroys the socket, which unblocks the pending connect;
+  // the "ETIMEDOUT" text routes through describeConnectionError to a clear 502.
+  let watchdogTimer;
+  const watchdog = new Promise((_, reject) => {
+    watchdogTimer = setTimeout(
+      () =>
+        reject(
+          new Error("ETIMEDOUT: device did not respond within poll deadline"),
+        ),
+      POLL_DEADLINE_MS,
+    );
+  });
+
+  const run = (async () => {
     const conn = await routeros.connect();
 
     const observedCert = peerCertPem(routeros);
@@ -126,10 +171,34 @@ const pollDevice = async ({
     const addresses = await conn.write(["/ip/address/print"]);
     const identity = await conn.write(["/system/identity/print"]);
     const resource = await conn.write(["/system/resource/print"]);
-    const users = await conn.write(["/user/print"]);
+
+    // /user/print requires the `policy` privilege; a least-privilege managed user
+    // (the recommended setup) lacks it, so RouterOS sends no reply and this read
+    // hangs forever. That was the real 504: the first three reads succeed, then the
+    // poll stalls here until nginx times out. Bound it and treat a failure as "group
+    // unknown" so the poll still succeeds; the full-group guard just no-ops when the
+    // list couldn't be read.
+    let users = null;
+    try {
+      users = await withReadTimeout(
+        conn.write(["/user/print"]),
+        USER_READ_TIMEOUT_MS,
+      );
+    } catch (error) {
+      logger.log(
+        "warn",
+        "Mikrotik /user/print unavailable — skipping full-group check",
+        { host, error: error.message },
+      );
+    }
 
     return { addresses, identity, resource, users, tlsCert: observedCert };
+  })();
+
+  try {
+    return await Promise.race([run, watchdog]);
   } finally {
+    clearTimeout(watchdogTimer);
     routeros.destroy();
   }
 };

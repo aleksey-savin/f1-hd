@@ -129,6 +129,12 @@ const userSchema = new Schema(
       globalTasks: { type: Boolean, default: false }, // общие задачи
       globalStats: { type: Boolean, default: false },
     },
+    // Финансовые параметры сотрудника: видны самому пользователю, isAdmin и
+    // обладателям canSeeGlobalFinancialReport (getOne вырезает поле остальным)
+    finances: {
+      salary: { type: Number, default: null }, // оклад, ₽/мес
+      overtimeHourlyRate: { type: Number, default: null }, // ставка переработок, ₽/час
+    },
     notify: {
       byTelegram: {
         newTicket: { type: Boolean, default: true },

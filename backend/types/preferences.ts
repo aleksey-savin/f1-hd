@@ -1,5 +1,7 @@
 import type { Types } from "mongoose";
 
+import type { IWorkSchedule } from "./_shared";
+
 export interface IPreferences {
   timezone: string;
   htmlTicketDesc: boolean;
@@ -48,6 +50,12 @@ export interface IPreferences {
     timeTracking: { isActive: boolean };
     finances: { isActive: boolean };
     inventory: { isActive: boolean };
+  };
+  overtime: {
+    defaultSchedule?: IWorkSchedule;
+    defaultTariffingPeriodMinutes: number;
+    weekdayCoefficient: number;
+    weekendCoefficient: number;
   };
   ai: {
     isActive: boolean;

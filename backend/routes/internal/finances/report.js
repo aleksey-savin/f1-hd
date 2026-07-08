@@ -1,6 +1,7 @@
 const Router = require("express");
 const router = new Router();
 const reportController = require("@/controllers/finances/report");
+const personalReportController = require("@/controllers/finances/personalReport");
 const isAuth = require("@/middleware/isAuth");
 
 const { runValidation } = require("@/middleware/runValidation");
@@ -11,6 +12,7 @@ const {
   canUseFinancesModule,
   canSeeGlobalFinancialReport,
   canSeePersonalFinancialReport,
+  canSeePersonalOrGlobalFinancialReport,
   canConfirmReportActions,
 } = require("@/middleware/permissions");
 
@@ -26,6 +28,22 @@ router.get(
   isAuth,
   canSeeGlobalFinancialReport,
   reportController.getAllActive,
+);
+
+router.get(
+  "/personal-report-summary",
+  isAuth,
+  canSeePersonalOrGlobalFinancialReport,
+  reportValidation.personalSummary,
+  runValidation,
+  personalReportController.getSummary,
+);
+
+router.get(
+  "/report-employees",
+  isAuth,
+  canSeeGlobalFinancialReport,
+  personalReportController.getReportEmployees,
 );
 
 router.get(

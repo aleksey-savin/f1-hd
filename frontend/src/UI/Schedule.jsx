@@ -4,7 +4,9 @@ import Form from "react-bootstrap/Form";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 
-const Schedule = ({ existingSchedule = [] }) => {
+// onChange (опционально) получает актуальный объект графика после каждого
+// изменения — для форм, отправляющих JSON-объект вместо сбора FormData по name
+const Schedule = ({ existingSchedule = [], onChange }) => {
   const daysInRussian = {
     Понедельник: "Monday",
     Вторник: "Tuesday",
@@ -47,30 +49,35 @@ const Schedule = ({ existingSchedule = [] }) => {
     formatExistingSchedule(existingSchedule) || initialSchedule,
   );
 
+  const applyChange = (next) => {
+    setSchedule(next);
+    onChange?.(next);
+  };
+
   const handleCheckboxChange = (day) => {
-    setSchedule((prevSchedule) => ({
-      ...prevSchedule,
-      [day]: { ...prevSchedule[day], isWorking: !prevSchedule[day].isWorking },
-    }));
+    applyChange({
+      ...schedule,
+      [day]: { ...schedule[day], isWorking: !schedule[day].isWorking },
+    });
   };
 
   const handleSwitchChange = (day) => {
-    setSchedule((prevSchedule) => ({
-      ...prevSchedule,
+    applyChange({
+      ...schedule,
       [day]: {
-        ...prevSchedule[day],
+        ...schedule[day],
         start: "",
         end: "",
-        is24hours: !prevSchedule[day].is24hours,
+        is24hours: !schedule[day].is24hours,
       },
-    }));
+    });
   };
 
   const handleTimeChange = (day, field, value) => {
-    setSchedule((prevSchedule) => ({
-      ...prevSchedule,
-      [day]: { ...prevSchedule[day], [field]: value },
-    }));
+    applyChange({
+      ...schedule,
+      [day]: { ...schedule[day], [field]: value },
+    });
   };
 
   return (

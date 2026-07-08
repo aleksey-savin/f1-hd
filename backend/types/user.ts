@@ -86,6 +86,10 @@ export interface IUser {
   isCloudTelephony: boolean;
   permissions: IUserPermissions;
   dashboard: IUserDashboard;
+  finances?: {
+    salary: number | null;
+    overtimeHourlyRate: number | null;
+  };
   notify: { byTelegram: IUserTelegramNotify; byEmail: IUserEmailNotify };
   password: string;
   isActive: boolean;
