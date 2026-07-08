@@ -222,6 +222,30 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
     }
     return response;
   },
+  // Apply device-derived values to the inventory card (reconciliation step).
+  // The backend derives the values itself — only field NAMES are sent.
+  syncInventory: async (clientDeviceId, fields) => {
+    const { token } = getLocalStorageData();
+    return fetch(`${API}/${clientDeviceId}/sync-inventory`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+      body: JSON.stringify({ fields }),
+    });
+  },
+  // Availability report (uptime / outage episodes) for one record. Returns the
+  // report object for component-local state, or null on failure.
+  fetchAvailability: async (recordId, days = 30) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(
+      `${API}/records/${recordId}/availability?days=${days}`,
+      { headers: { Authorization: "Bearer " + token } },
+    );
+    if (!response.ok) return null;
+    return response.json().catch(() => null);
+  },
   // --- Backups & config exports (keyed by the Mikrotik record id) ---
   // Fetch a device's stored artifacts (optionally filtered by type). Returns the
   // array for panel-local state; not kept in the global store.

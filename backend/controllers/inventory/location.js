@@ -118,6 +118,24 @@ const buildEnvNode = async (location, userId) => {
   };
 };
 
+// Цепочка root→leaf: поднимаемся по parent от листа. Кап глубины — защита от
+// циклов. Общий код для getUserEnvironment и getDeviceEnvironment.
+const buildLocationChain = async (leaf) => {
+  const chainDocs = [];
+  let current = leaf;
+  let guard = 0;
+  while (current && guard < 8) {
+    chainDocs.unshift(current);
+    const parentId = current.parent?._id || current.parent;
+    if (!parentId) break;
+    current = await Location.findById(parentId)
+      .select("name type parent subdivisions")
+      .populate("subdivisions", "name");
+    guard += 1;
+  }
+  return chainDocs;
+};
+
 exports.getAll = async (req, res, next) => {
   try {
     const locations = await Location.find({})
@@ -737,19 +755,8 @@ exports.getUserEnvironment = async (req, res, next) => {
       });
     }
 
-    // Цепочка root→leaf: поднимаемся по parent. Кап глубины — защита от циклов.
-    const chainDocs = [];
-    let current = workplace;
-    let guard = 0;
-    while (current && guard < 8) {
-      chainDocs.unshift(current);
-      const parentId = current.parent?._id || current.parent;
-      if (!parentId) break;
-      current = await Location.findById(parentId)
-        .select("name type parent subdivisions")
-        .populate("subdivisions", "name");
-      guard += 1;
-    }
+    // Цепочка root→leaf (общий хелпер с окружением по устройству).
+    const chainDocs = await buildLocationChain(workplace);
 
     // На каждом узле — устройства и дочерние локации (общий хелпер).
     const chain = [];
@@ -801,6 +808,58 @@ exports.getLocationNode = async (req, res, next) => {
     next(
       new AppError(
         `Failed to fetch location node ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Окружение по УСТРОЙСТВУ — для заявок мониторинга (их автор — служебный
+// applicant без рабочего места, поэтому окружение по заявителю пусто):
+// устройство → его расположение → цепочка вверх. Слой isPersonal смысла не
+// имеет — userId передаём null. Удалённое устройство по-прежнему резолвится
+// (старые заявки должны открываться), но помечается флагом deleted.
+exports.getDeviceEnvironment = async (req, res, next) => {
+  try {
+    const { deviceId } = req.params;
+
+    const device =
+      await ClientDevice.findById(deviceId).populate(ENV_DEVICE_POPULATE);
+    if (!device) {
+      return next(new AppError(`Device with id ${deviceId} not found`, 404));
+    }
+
+    const mikroMap = await buildMikrotikStatusMap([device._id]);
+    const deviceDto = {
+      ...toEnvDevice(device, null, mikroMap),
+      deleted: !!device.deletedAt,
+    };
+
+    const locationId = device.locationId?._id || device.locationId;
+    if (!locationId) {
+      return res.status(200).json({ device: deviceDto, chain: null });
+    }
+
+    const leaf = await Location.findById(locationId)
+      .select("name type parent subdivisions")
+      .populate("subdivisions", "name");
+    if (!leaf) {
+      return res.status(200).json({ device: deviceDto, chain: null });
+    }
+
+    const chainDocs = await buildLocationChain(leaf);
+    const chain = [];
+    for (const node of chainDocs) {
+      chain.push(await buildEnvNode(node, null));
+    }
+
+    res.status(200).json({ device: deviceDto, chain });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch environment for device ${req.params.deviceId}`,
         500,
         true,
         error,

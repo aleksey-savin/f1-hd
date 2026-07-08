@@ -5,14 +5,47 @@ import Col from "react-bootstrap/Col";
 /**
  * Поля блока «Техническая информация». Управляемый компонент: используется в
  * шаге мастера и в отдельном редакторе с карточки устройства.
+ *
+ * mikrotikMode — для устройств вендора с управлением Mikrotik: спрашиваем только
+ * имя устройства, остальное (серийник, ОС, IP) подтянется с самого устройства
+ * при подключении к мониторингу. Скрытые поля не размонтируют значения — они
+ * живут в form-состоянии мастера и по-прежнему отправляются.
  */
-const TechFields = ({ values, onChange }) => {
+const TechFields = ({ values, onChange, mikrotikMode = false }) => {
+  if (mikrotikMode) {
+    return (
+      <Row>
+        <Col md={6}>
+          <Form.Group className="mb-0">
+            <Form.Label htmlFor="hostname">
+              Имя устройства (hostname)
+            </Form.Label>
+            <Form.Control
+              id="hostname"
+              name="hostname"
+              type="text"
+              placeholder="GW-OFFICE"
+              value={values.hostname}
+              onChange={(e) => onChange("hostname", e.target.value)}
+            />
+            <Form.Text muted>
+              Остальные данные (серийный номер, ОС, IP-адреса) подтянутся с
+              устройства при подключении к мониторингу Mikrotik.
+            </Form.Text>
+          </Form.Group>
+        </Col>
+      </Row>
+    );
+  }
+
   return (
     <>
       <Row>
         <Col md={6}>
           <Form.Group className="mb-3">
-            <Form.Label htmlFor="hostname">Имя компьютера (hostname)</Form.Label>
+            <Form.Label htmlFor="hostname">
+              Имя устройства (hostname)
+            </Form.Label>
             <Form.Control
               id="hostname"
               name="hostname"

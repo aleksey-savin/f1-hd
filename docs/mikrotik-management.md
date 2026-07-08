@@ -1,6 +1,6 @@
 # Mikrotik Device Management — Implementation Notes
 
-_Last updated: 2026-07-02. This document describes the Mikrotik management module
+_Last updated: 2026-07-09. This document describes the Mikrotik management module
 as currently implemented, so the code can be reviewed and optimized later. It is
 a snapshot, not a spec — verify against the code before relying on any detail._
 
@@ -31,8 +31,25 @@ per-vendor:
 6. **Config export** — a configured device can produce a **config export**
    (`.rsc` via `/export`), manually or on a schedule with retention. Captured over
    **SSH** stdout (routeros-node can't retrieve it), stored in **S3** (or a private
-   local dir), and managed from the device panel. Binary `.backup` isn't offered —
+   local dir), and managed from the device page. Binary `.backup` isn't offered —
    RouterOS's SSH can't serve a binary file. See _Config export_ below.
+7. **Outage history & availability** — every offline episode is persisted as a
+   **`MikrotikOutage`** document, so each device has an **availability report**
+   (uptime %, total downtime, outage log with ticket links, timeline strip).
+   Downtime counts from the **connectivity-loss edge** (`offlineSince`), not from
+   the alert threshold. See _Outage episodes & availability_ below.
+8. **Ticket lifecycle** — an offline alert still raises one ticket per outage;
+   on **recovery** a system **comment** («связь восстановлена, простой N мин») is
+   posted to that ticket (the ticket stays open, notifications go out through the
+   standard pipeline). Monitoring tickets carry **`relatedClientDeviceId`**, so
+   the ticket's «Окружение» tab renders the **device's** location chain (the
+   author is the service applicant with no workplace).
+9. **Unified device page** — the inventory device page hosts «Мониторинг» and
+   «Конфигурации» tabs; the management-list offcanvas is now a slim **preview**.
+   Standalone records get their own page (`/devices/mikrotik/records/:recordId`).
+   The creation wizard offers to enrol devices of Mikrotik-enabled vendors right
+   after saving, and a successful parameters save runs a card-vs-device
+   **reconciliation** dialog.
 
 The `Mikrotik` collection previously required a `clientDevice`; supporting
 standalone devices relaxes that (see _Index migration_ below).
@@ -56,6 +73,17 @@ Mikrotik  (management/connection record) ─────────┘
   (`companyId` + optional `label` identify it, e.g. a Cloud Hosted Router).
   Uniqueness of `clientDevice` is enforced by a **partial** index so multiple
   standalone records don't collide on a missing value.
+- **`MikrotikOutage`** (`backend/models/mikrotikOutage.js`) — one document per
+  outage episode: `mikrotik` (ref), `startedAt`, `endedAt` (null = ongoing),
+  `open` (present only while ongoing; a **partial unique index** `{mikrotik:1}`
+  where `{open:true}` makes «one open episode per device» race-safe), `ticketId`
+  (the alert ticket), `lastError`. Opened on the offline edge, closed on
+  recovery (or silently on `disconnect`), deleted on detach. Unlike the mutable
+  offline-alert state on the record, episodes survive recovery — they power the
+  availability report. TS mirror `IMikrotikOutage` in `backend/types/mikrotik.ts`.
+- **`Ticket.relatedClientDeviceId`** (ref ClientDevice) — monitoring tickets
+  reference the inventory device they are about; the «Окружение» tab uses it.
+  Standalone records have no card, so the field stays unset for them.
 
 ### Two orthogonal states on a `Mikrotik` record
 
@@ -114,15 +142,28 @@ share it. Uses `routeros-node` (`new Routeros(...)` → `connect()` →
 
 - `knockDevice(host, sequence)` — port-knocks the device (touches each port in
   order) so its firewall opens the API for our IP; no-op when unset.
-- `pollDevice({host, port, user, password, useTls, tlsCert, knockSequence})` —
-  knocks, opens an **API-SSL** session (8 s timeout; TLS cert pinned via
-  `tlsCert`, captured TOFU on first connect), runs `/ip/address/print`,
-  `/system/identity/print`, `/system/resource/print`, `/user/print`, always
-  closes the socket, and throws on any failure (interpreted as "offline").
+- `pollDevice({host, port, user, password, tlsCert, knockSequence})` — knocks,
+  opens an **API-SSL** session (8 s connect timeout; TLS cert pinned via `tlsCert`,
+  captured TOFU on first connect), reads `/ip/address/print`,
+  `/system/identity/print`, `/system/resource/print` and — **best-effort** —
+  `/user/print` and `/system/routerboard/print`, always closes the socket, and
+  throws on any failure (interpreted as "offline"). Two guards stop an
+  unresponsive device from stalling the request past nginx's 60 s gateway (→ 504):
+  an overall **watchdog** (`POLL_DEADLINE_MS`, 20 s) bounds the whole connect+read
+  cycle — the library's `timeout` only guards an *established* socket, not a
+  hanging TCP connect to a filtered port — and the best-effort reads have their
+  own short bounds: `/user/print` (`USER_READ_TIMEOUT_MS`, 4 s) needs the `policy`
+  privilege, which the recommended least-privilege user lacks, so RouterOS never
+  replies and the read would otherwise hang forever; `/system/routerboard/print`
+  (`ROUTERBOARD_READ_TIMEOUT_MS`, 4 s) is absent on CHR. On timeout each is
+  skipped without failing the poll.
 - `mapPollToFields(poll)` — `name` (identity), `boardName`, `currentFirmware`,
-  `addresses`.
-- `assertUserNotFullGroup(users, user)` — rejects RouterOS accounts in the
-  `full` group.
+  `addresses`, and `serialNumber` (from routerboard) — the serial key is emitted
+  **only when the read succeeded**, so a CHR / timed-out read never erases a
+  previously captured value via the health-check's `Object.assign`.
+- `assertUserNotFullGroup(users, user)` — rejects RouterOS accounts in the `full`
+  group. **Best-effort**: when `/user/print` was unreadable (least-privilege user,
+  see `pollDevice`) `users` is null and the check is skipped.
 - `encryptSecret` / `decryptSecret` — AES-256-GCM helpers re-exported from
   `services/crypto/secretBox.js` (see _Security model_).
 - `describeConnectionError(error)` — classifies a failed poll (TLS handshake /
@@ -140,7 +181,9 @@ to the client**, and the verify-on-save endpoint is **rate-limited** per user.
 | `GET /mikrotik-devices` | `getManagedDevices` | Vendor-flag-filtered `ClientDevice`s left-joined to records. |
 | `GET /mikrotik-devices/report/networks` | `networksReport` | IP/network aggregation + duplicate-network flagging. |
 | `GET /mikrotik-devices/:clientDeviceId` | `getOne` | One row + record (credentials without password) for prefill. |
-| `POST /mikrotik-devices/:clientDeviceId/parameters` | `updateParameters` | **Verify-on-save**: SSRF host check → port-knock → live TLS poll + Full-group guard, then upsert record (`status: online`, `monitoringEnabled: true`). Rejects invalid creds / unreachable host (`502`). Rate-limited. |
+| `POST /mikrotik-devices/:clientDeviceId/parameters` | `updateParameters` | **Verify-on-save**: SSRF host check → port-knock → live TLS poll + Full-group guard, then upsert record (`status: online`, `monitoringEnabled: true`). A verified save also acts as **recovery** (closes the outage episode, posts the ticket comment, clears alert state). Response carries `reconciliation` (card-vs-device mismatches). Rejects invalid creds / unreachable host (`502`). Rate-limited. |
+| `POST /mikrotik-devices/:clientDeviceId/sync-inventory` | `syncInventory` | Apply device-derived values (`hostname`/`serialNumber`/`operatingSystem`/`ipAddress`) to the ClientDevice card. Strict whitelist; values derived **server-side** from the stored record (client sends field names only); dup checks (serial globally, hostname per company) → 409. `canManageMikrotikDevices`. |
+| `GET /mikrotik-devices/records/:recordId/availability?days=1\|7\|30\|90` | `getAvailability` | Availability report: uptime % / downtime / outage episodes over the window (clamped to `monitoredSince` = record.createdAt; overlap-merged), `ticketNum` resolved server-side. isAuth. |
 | `DELETE /mikrotik-devices/:clientDeviceId` | `detach` | Deletes the management record (encrypted credentials, pinned cert, polled data); the `ClientDevice` returns to the `notConfigured` pool. Requires `canManageMikrotikDevices`. |
 | `POST /mikrotik-devices/standalone/parameters` | `createStandalone` | Verify-on-save a **standalone** device (no ClientDevice); creates a record with `companyId` + optional `label`. Rate-limited. |
 | `GET /mikrotik-devices/standalone/:recordId` | `getStandaloneOne` | One standalone record (credentials without password) for edit-modal prefill. |
@@ -180,8 +223,42 @@ batches of 5 (`Promise.allSettled`), and writes back `status` +
 `backend/app.js` next to the other crons: `cron.schedule("*/5 * * * *", …)` with
 an in-flight lock and a `mongoose.connection.readyState` guard. It also tracks the
 **online↔offline edge**: on going offline it stamps `offlineSince` (once, kept until
-recovery); on recovery it clears the offline-alert state (`offlineSince`,
+recovery) and calls `ensureOpenOutage` (opens/refreshes the episode; self-heals
+devices that were offline before episode tracking existed); on recovery it calls
+`markRecovered` (closes the episode + posts the recovery comment on the alert
+ticket) and then clears the offline-alert state (`offlineSince`,
 `offlineAlertedAt`, `alertTicketId`) — the alert ticket itself is left open.
+
+### Outage episodes & availability — `backend/services/mikrotik/outages.js`
+All bookkeeping is **never-throw** (a report must not break the crons/saves):
+- `ensureOpenOutage(record)` — upsert of the open episode (`startedAt =
+  offlineSince`); called on every failed poll (cheap, keeps `lastError` fresh).
+  The partial unique index makes concurrent upserts race-safe (E11000 swallowed).
+- `attachTicket(record, ticketId)` — the alert cron stamps the ticket onto the
+  episode after raising it.
+- `markRecovered(record)` — closes the open episode (self-heals a missing one
+  from `offlineSince`), and if `alertTicketId` is set posts the system comment:
+  author = `Preferences.defaultApplicant` (email-pipeline pattern), pushed into
+  `ticket.comments` via atomic `$push` (**no `version` bump** — comments never
+  trip the optimistic lock), `notifications.pending: true` → delivered by the
+  notifications cron, plus a `TicketLog` entry. The caller clears the alert
+  state and saves the record. Runs from the health-check **and** from verified
+  parameter saves / legacy `connect` (previously a successful re-save left stale
+  `offlineSince` until the next tick).
+- `closeOpenOutage(record)` — silent close for `disconnect` (monitoring off ≠
+  recovery; without it the episode would stay open forever). `disconnect` also
+  clears the offline-alert state, so re-enabling on a still-down device restarts
+  the outage clock (and may raise a new ticket after the threshold).
+- `deleteOutages(recordId)` — detach/delete removes the record's episodes.
+- `computeAvailability(record, {days})` — window `[now−days, now]` clamped to
+  `monitoredSince` (= `record.createdAt`; there is no toggle history); episodes
+  are window-clamped and **overlap-merged** before summing, so >100% downtime is
+  impossible; an ongoing episode clamps to `now`; `uptimePct: null` when the
+  effective window is empty («недостаточно данных»). Returns KPIs + the outage
+  list (real bounds, newest first, `ticketNum` populated).
+
+Comment text: `🟢 Связь с устройством «…» восстановлена DD.MM.YYYY, HH:mm.` +
+`Продолжительность простоя: X ч Y мин (с DD.MM.YYYY, HH:mm).`
 
 ### Auto-tickets (monitoring → helpdesk)
 Two opt-in automations turn monitoring events into helpdesk tickets. Both are
@@ -198,7 +275,18 @@ error) and links to `/devices/mikrotik?recordId=…`. The shared factory is
   (own `*/5 * * * *` schedule + in-flight lock in `app.js`) raises **one ticket per
   outage episode** for devices offline past the threshold. `offlineAlertedAt` +
   `alertTicketId` on the `Mikrotik` record guarantee no duplicates; the health-check
-  clears them on recovery so the next outage can alert again.
+  clears them on recovery so the next outage can alert again. The cron also stamps
+  the ticket onto the `MikrotikOutage` episode (`attachTicket`).
+- **Recovery comment** — when connectivity returns (health-check tick or a
+  verified parameter save), `markRecovered` posts a system comment on the alert
+  ticket with the recovery time and the outage duration (measured from
+  `offlineSince`, i.e. the loss edge — not from the ticket). The ticket **stays
+  open** for a human; notifications go out through the standard comment pipeline
+  (responsibles + global TG; the applicant is the comment author, so the
+  author-guard skips them).
+- **`relatedClientDeviceId`** — `createMikrotikTicket` sets it for inventory-backed
+  records (offline alerts, config-change and export-failure tickets alike), which
+  powers the ticket's «Окружение» tab (see _Helpdesk integrations_).
 - **Config change** (`configChangeTicket`: `isActive`, `categoryId`) — folded into
   `createArtifact` (see _Model_ above): the normalized `contentHash` of a new `.rsc`
   is compared to the previous export's; a difference raises a ticket. Works for both
@@ -342,20 +430,58 @@ requests a code → opens an entry modal (`ArtifactsSection`) → POSTs the code
   «запланировано» hint if a schedule exists but no export yet). The **row is
   clickable** and opens the device panel (a chevron hints at it); the former Адреса
   column and inline action buttons were removed.
-- **Device panel** — `frontend/src/components/Devices/Mikrotik/DevicePanel.jsx`, a
-  right-side `Offcanvas` (`placement="end"`, local state — like `LocationOffcanvas`;
-  width via `.mikrotik-panel`). Opened by clicking a row. Tabs:
-  - **Обзор** — read-only `.contact-row` details (host, model, location, firmware,
-    board, serial, monitoring, last connection/check, errors) and the **Адреса**
-    list (moved here from the removed column).
-  - **Конфигурации** — `ArtifactsSection.jsx`: a schedule card
-    (`SchedulePresetFields.jsx` — presets + retention), an **Экспортировать сейчас**
-    button (live SSH, spinner + toast), and the list of stored `.rsc` copies with
-    **download** (authorized `fetch`→blob) and **delete** (`ConfirmActionModal`).
-- **Panel footer actions** (gated by `canManageMikrotikDevices`): **Параметры**
-  (inventory → `ParametersModal`; standalone → `StandaloneModal`) and
-  **Отключить**/**Удалить**. Opening either closes the panel (so the dialog doesn't
-  stack on the offcanvas); the modals + confirm still live in `List.jsx`.
+- **Device panel = slim preview** — `Devices/Mikrotik/DevicePanel.jsx`, a
+  right-side `Offcanvas` (`placement="end"`, width via `.mikrotik-panel`), opened
+  by clicking a row. One scroll column: a primary **«Открыть страницу
+  устройства»** link (inventory → `/inventory/client-devices/:id?tab=monitoring`;
+  standalone → `/devices/mikrotik/records/:recordId`), the key facts
+  (`DeviceOverview`), and a 30-day mini uptime strip (`AvailabilityStrip`).
+  Configs and the addresses table moved to the pages. Footer actions (gated by
+  `canManageMikrotikDevices`): **Параметры** (inventory → `ParametersModal`;
+  standalone → `StandaloneModal`) and **Отключить**/**Удалить** — opening either
+  closes the panel; the modals + confirm live in `List.jsx`.
+- **Shared sections** (`Devices/Mikrotik/`): `DeviceOverview.jsx` (facts rows +
+  `InfoRow`/`STATUS_BADGE`; `showIdentity=false` on pages whose hero already
+  shows company/model/location), `AddressesTable.jsx`, `AvailabilityReport.jsx`
+  (period switcher 24ч/7дн/30дн/90дн, KPI tiles, proportional green/red timeline
+  strip with tooltips + pulsing ongoing segment, outage table with
+  `/tickets/:num` links, «точность до 5 минут» footnote; strip colors via
+  `--bs-success/--bs-danger`, neutral track via a local var overridden in
+  `css/dark-theme.css`), `AvailabilityStrip.jsx` (compact 30d variant),
+  `MonitoringSection.jsx` (ReconciliationAlert + Подключение/Адреса/Доступность
+  cards + management buttons), `ReconciliationTable.jsx`,
+  `ReconciliationAlert.jsx`.
+- **Unified device page** — `components/ClientDevice/View.jsx` wraps its sections
+  in house-style Tabs (`.company-view-tabs` + `scrollable-tabs`): **Карточка**
+  (the original SectionCard grid), **Мониторинг** (visible when the device is
+  managed *or* its vendor has the flag — vendor populate now includes
+  `isMikrotikManagementEnabled`; configured → `MonitoringSection`, else an
+  empty-state CTA «Подключить к мониторингу» opening `ParametersModal` in-page),
+  **Конфигурации** (`ArtifactsSection`, gated `canManageMikrotikConfigs`). The
+  mikrotik row (+`record`+`reconciliation`) is fetched client-side from
+  `GET /mikrotik-devices/:clientDeviceId`. Deep links: `?tab=card|monitoring|configs`
+  and one-shot `?mikrotikSetup=1` (switches to Мониторинг, opens the parameters
+  form, strips itself from the URL).
+- **Standalone device page** — `pages/Mikrotik/Record.jsx`
+  (`/devices/mikrotik/records/:recordId`, loader = `getStandaloneOne`): mini
+  `.account-hero` (label, company, status, host) + Мониторинг / Конфигурации tabs
+  from the same shared sections; edit via `StandaloneModal`, delete navigates
+  back to the list.
+- **Reconciliation UX** — after a successful verify-on-save, `ParametersModal`
+  switches to a **«Сверка данных»** step when the response carries mismatches:
+  a diff table (В карточке ↔ На устройстве) with per-field checkboxes
+  (model/board is «только сверка»), «Обновить карточку» → `syncInventory`
+  (409/422 shown inline), «Пропустить»/close = skip. The device page shows a
+  standing `ReconciliationAlert` (collapsible table + «Синхронизировать») while
+  `getOne` keeps reporting mismatches.
+- **Creation wizard hookup** — `ClientDevice/Form.jsx`: for a vendor with the
+  Mikrotik flag the «Тех. инфо» step collapses to a single **«Имя устройства
+  (hostname)»** field (`TechFields` `mikrotikMode`; hidden fields keep their
+  values — edit mode loses nothing), and after a successful **create** a modal
+  offers «Подключить к мониторингу?» → navigates to the device page with
+  `?tab=monitoring&mikrotikSetup=1` («Позже» → back to the list as before).
+  The «Имя компьютера»/«Имя ПК» labels were renamed to «Имя устройства»
+  everywhere (TechFields, DeviceSummary, device View, backend validation).
 - **Store** — `frontend/src/store/lists/mikrotik-devices.js` adds
   `fetchArtifacts` / `createExport` / `deleteArtifact` / `saveSchedules` /
   `downloadArtifact`; mutations re-`fetch()` so the badge refreshes.
@@ -374,6 +500,40 @@ requests a code → opens an entry modal (`ArtifactsSection`) → POSTs the code
 The standalone Add/Update pages and modals (`pages/Mikrotik/Add.jsx`,
 `Update.jsx`, `components/Devices/Mikrotik/AddModal.jsx`, `UpdateModal.jsx`) were
 removed; the route is now just the list (`frontend/src/App.jsx`).
+
+### Helpdesk integrations
+
+The module is woven into the everyday ticket / inventory flow:
+
+- **Ticket → Окружение** — device cards and the detail offcanvas show a Mikrotik
+  online/offline badge (`Ticket/View/EnvironmentDeviceCard.jsx` `mikrotikBadge`;
+  "мониторинг выкл" when monitoring is off) and an **«Открыть в управлении
+  Mikrotik»** link. No extra fetch: the environment DTO is enriched server-side in
+  `controllers/inventory/location.js` (join `Mikrotik` by `clientDevice`), so the
+  fields ride on the device object (`mikrotikManaged`, `mikrotikStatus`,
+  `mikrotikMonitoringEnabled`, `mikrotikRecordId`, `mikrotikLastSeenAt`).
+- **Окружение по устройству (заявки мониторинга)** — `EnvironmentViewer` is
+  dual-mode: `deviceId` (= `ticket.relatedClientDeviceId`, passed by
+  `pages/Ticket/View.jsx`) takes precedence over `userId` and fetches
+  `GET /api/inventory/locations/device/:deviceId/environment`
+  (`getDeviceEnvironment`: device → its `locationId` → the shared
+  `buildLocationChain` walk → `buildEnvNode(node, null)`; `isPersonal` is
+  meaningless without a user). The device card is ring-highlighted
+  (`.env-device.is-target`, pulse ×3, `prefers-reduced-motion`-safe) with an
+  «устройство заявки» chip; the detail offcanvas marks it too. Edge states: no
+  `locationId` → alert + the lone device card; soft-deleted device → «удалено из
+  учёта» note (old tickets keep working). Dive-in (`/locations/:id/node`) omits
+  `userId` in device mode. User mode is untouched.
+- **Deep-link into the Mikrotik page** — `components/Devices/Mikrotik/List.jsx`
+  auto-opens a device's panel once (via `useSearchParams`) from `?clientDeviceId=`
+  (ticket environment) or `?recordId=` (offline-alert ticket link).
+- **Mikrotik panel → inventory** — the panel's **Обзор** tab has an **«Открыть в
+  инвентаре»** link (`/inventory/client-devices/:id`) for inventory-backed devices
+  (hidden for standalone), visible regardless of edit rights.
+- **Inventory device page** — `ClientDevice/View.jsx` shows a Mikrotik status badge
+  + last-seen and a **«Управление Mikrotik»** link; `clientDevice.getOne` returns a
+  `mikrotik: { recordId, status, monitoringEnabled, lastSuccessfulConnectionAt }`
+  overlay when the device is managed.
 
 ## ClientDevice repair (prerequisite)
 
@@ -466,7 +626,10 @@ rotation re-encrypts records via the `v1` version prefix.
    ```
    # Self-signed cert for the API (TOFU-pinned by the backend on first connect —
    # a public-CA cert is NOT required; any cert the device presents is pinned).
-   /certificate add name=hd-api common-name=<device-name> key-usage=tls-server \
+   # key-cert-sign + crl-sign make it a self-signed authority, so `/certificate sign`
+   # needs no external CA (this mirrors Winbox's default Key Usage for a manual cert).
+   /certificate add name=hd-api common-name=<device-name> \
+       key-usage=digital-signature,key-encipherment,key-cert-sign,crl-sign,tls-server \
        days-valid=3650 key-size=2048
    /certificate sign hd-api                # generates the key + self-signs (can take ~1 min)
    /ip service set api-ssl certificate=hd-api disabled=no
@@ -481,7 +644,9 @@ rotation re-encrypts records via the `v1` version prefix.
 2. **Least-privilege user:** a custom group with `policy=api,read,test,ssh`
    (`ssh` lets the poller run `/export`; no `ftp` needed — nothing is transferred;
    add only the writes you use — never `full`/`policy`/`sensitive`), unique
-   generated password per device.
+   generated password per device. Without `policy` this user **cannot read `/user`**,
+   so the poll's full-group guard is skipped for it — by design (the poll bounds and
+   skips that read; see `pollDevice`), and it's why the guard is best-effort.
 3. **Port knocking** (illustrative 3-stage — choose your own secret ports).
    Rules must be inserted at the **top** of `input` (`place-before`), not appended,
    or they land below the admin-block rule and never match. The knock allow-path
@@ -565,10 +730,38 @@ MikroTik or a CHR VM); otherwise temporarily stub `pollDevice`.
 6. Confirm `credentials.password` is absent from every `/mikrotik-devices`
    response.
 7. **Config export:** ensure the device user has the **`ssh`** policy and SSH is
-   reachable (knock-gated). Open a device row → **Конфигурации** →
+   reachable (knock-gated). Open the device page → **Конфигурации** →
    **Экспортировать сейчас**: a `.rsc` appears in the list, **download** returns the
    config text, **delete** removes it. Set a schedule (e.g. daily 03:00) → the row's
    **Защита** badge turns green with the date and a calendar icon; the `*/5` cron
    runs it when `nextRunAt` is due and prunes to `keepLast`. A user missing `ssh`,
    an unreachable SSH port, or a host-key change (after pinning) is rejected with a
    clear message.
+8. **Outages / recovery comment:** black-hole the device's host (firewall / power
+   off) → within a poll tick an open `MikrotikOutage` appears
+   (`db.mikrotikoutages`) with `startedAt = offlineSince`; after the threshold the
+   alert ticket is raised and stamped onto the episode. Restore connectivity →
+   the episode closes and the still-open ticket gets the «🟢 Связь…
+   восстановлена… Продолжительность простоя…» comment (TG notification goes out).
+   Repeat, but recover by re-saving **Параметры** during the outage — the comment
+   posts immediately. `Отключить мониторинг` (legacy disconnect) closes the
+   episode silently, detach deletes the episodes.
+9. **Availability report:** device page → **Мониторинг** → «Доступность»: KPI
+   tiles + timeline strip + outage table with `№<num>` ticket links; switch
+   24ч/7дн/30дн/90дн; durations follow `offlineSince` (loss edge), not the ticket
+   time; a freshly enrolled device shows «Недостаточно данных». The list panel
+   shows the 30-day mini strip.
+10. **Unified page / wizard / reconciliation:** create a device with a
+    Mikrotik-flagged vendor → step 4 shows only «Имя устройства (hostname)» →
+    save → the «Подключить к мониторингу?» modal → «Подключить» lands on the
+    device page with the parameters form open; after a successful verify the
+    «Сверка данных» step lists card↔device mismatches (CHR shows no serial row)
+    → «Обновить карточку» writes the checked fields (duplicate hostname in the
+    company → clear 409 inline). The Мониторинг tab shows a standing
+    reconciliation warning until synced. `?tab=monitoring` deep link works; a
+    standalone row's panel links to its own page.
+11. **Окружение for monitoring tickets:** open an offline-alert ticket →
+    «Окружение» renders the device's location chain with the device card
+    ring-highlighted («устройство заявки»); zoom/dive-in works; click-through
+    opens the device page. A ticket for a standalone record (no card) falls back
+    to the old empty state; ordinary user tickets are unchanged.

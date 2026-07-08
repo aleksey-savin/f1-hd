@@ -33,6 +33,15 @@ router.get(
   locationController.getUserEnvironment,
 );
 
+// Get full environment for a DEVICE (its location + ancestor chain). Питает
+// вкладку «Окружение» заявок мониторинга (их автор — служебный applicant без
+// рабочего места). Тоже до "/locations/:id".
+router.get(
+  "/locations/device/:deviceId/environment",
+  isAuth,
+  locationController.getDeviceEnvironment,
+);
+
 // Get devices in a location
 router.get(
   "/locations/:id/devices",

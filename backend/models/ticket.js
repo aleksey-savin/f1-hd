@@ -142,6 +142,13 @@ const ticketSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
+    // Устройство, о котором заявка (авто-заявки мониторинга Mikrotik: офлайн /
+    // изменение конфигурации). Питает вкладку «Окружение» — у таких заявок
+    // автор служебный и рабочего места не имеет.
+    relatedClientDeviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "ClientDevice",
+    },
     // legacy, delete after 1.8.9
     applicant: {
       _id: {

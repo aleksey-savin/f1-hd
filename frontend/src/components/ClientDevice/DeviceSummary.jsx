@@ -138,7 +138,9 @@ const DeviceSummary = ({
             <div className="text-muted text-uppercase small fw-semibold pt-3 pb-1">
               Тех. инфо
             </div>
-            {form.hostname && <Line label="Имя ПК" value={form.hostname} />}
+            {form.hostname && (
+              <Line label="Имя устройства" value={form.hostname} />
+            )}
             {form.ipAddress && <Line label="IP" value={form.ipAddress} />}
             {form.macAddress && <Line label="MAC" value={form.macAddress} />}
             {form.operatingSystem && (

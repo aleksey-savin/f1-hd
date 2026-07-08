@@ -72,6 +72,12 @@ router.delete(
 // permission (separation of duties) — a config operator can be granted access to
 // backups/exports WITHOUT the device-editing `canManageMikrotikDevices` right. Even
 // listing stored configs requires it (defense in depth; the frontend hides the tab).
+// Availability report (uptime / outage episodes) — a read, like getOne.
+router.get(
+  "/mikrotik-devices/records/:recordId/availability",
+  isAuth,
+  mikrotikController.getAvailability,
+);
 router.get(
   "/mikrotik-devices/records/:recordId/artifacts",
   isAuth,
@@ -125,6 +131,14 @@ router.post(
   canManageMikrotikDevices,
   parametersLimiter,
   mikrotikController.updateParameters,
+);
+// Apply device-derived values to the inventory card (reconciliation). No rate
+// limit: the endpoint never opens an outbound connection.
+router.post(
+  "/mikrotik-devices/:clientDeviceId/sync-inventory",
+  isAuth,
+  canManageMikrotikDevices,
+  mikrotikController.syncInventory,
 );
 router.post(
   "/mikrotik-devices/:clientDeviceId/connect",

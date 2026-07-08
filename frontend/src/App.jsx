@@ -263,6 +263,9 @@ import UpdateDeviceConfigurationPage, {
 import MikrotikDevices, {
   loader as mikrotikDevicesLoader,
 } from "./pages/Mikrotik/List.jsx";
+import MikrotikRecordPage, {
+  loader as mikrotikRecordLoader,
+} from "./pages/Mikrotik/Record.jsx";
 
 // Users
 import Users, { loader as usersLoader } from "./pages/User/List.jsx";
@@ -841,6 +844,13 @@ function App() {
           path: "devices/mikrotik",
           element: <MikrotikDevices />,
           loader: mikrotikDevicesLoader,
+        },
+        // Страница standalone-устройства (Cloud Hosted Router) — у него нет
+        // карточки в инвентаре, мониторинг и конфигурации живут здесь.
+        {
+          path: "devices/mikrotik/records/:recordId",
+          element: <MikrotikRecordPage />,
+          loader: mikrotikRecordLoader,
         },
         // Reports
         {

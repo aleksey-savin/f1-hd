@@ -497,7 +497,10 @@ const ViewTicket = () => {
                       modules.inventory?.isActive &&
                       permissions.canUseInventoryModule && (
                         <Tab eventKey="environment" title="Окружение">
-                          <EnvironmentViewer userId={ticket.applicant?._id} />
+                          <EnvironmentViewer
+                            userId={ticket.applicant?._id}
+                            deviceId={ticket.relatedClientDeviceId}
+                          />
                         </Tab>
                       )}
                     <Tab

@@ -56,7 +56,7 @@ const clientDeviceValidation = [
   body("hostname")
     .optional({ checkFalsy: true })
     .isLength({ max: 100 })
-    .withMessage("Имя компьютера не должно превышать 100 символов")
+    .withMessage("Имя устройства не должно превышать 100 символов")
     .trim(),
   body("inventoryNumber")
     .optional({ checkFalsy: true })

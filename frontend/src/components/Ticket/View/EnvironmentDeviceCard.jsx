@@ -50,17 +50,30 @@ export const deviceIcon = (typeName = "") => {
   return RiHardDrive2Line;
 };
 
-const EnvironmentDeviceCard = ({ device, showLocation = false, onSelect }) => {
+const EnvironmentDeviceCard = ({
+  device,
+  showLocation = false,
+  highlightId = null,
+  onSelect,
+}) => {
   const Icon = deviceIcon(device.typeName);
   const status = STATUS_META[device.status];
   const mikro = mikrotikBadge(device);
+  // Устройство, о котором создана заявка (режим окружения по устройству).
+  const isTarget = highlightId && String(device._id) === String(highlightId);
 
   return (
     <button
       type="button"
-      className={`env-device${device.isPersonal ? " is-personal" : ""}`}
+      className={`env-device${device.isPersonal ? " is-personal" : ""}${
+        isTarget ? " is-target" : ""
+      }`}
       onClick={() => onSelect?.(device)}
-      title="Открыть карточку устройства"
+      title={
+        isTarget
+          ? "Устройство, о котором создана заявка"
+          : "Открыть карточку устройства"
+      }
     >
       <span className="env-device__icon">
         <Icon />
@@ -75,6 +88,9 @@ const EnvironmentDeviceCard = ({ device, showLocation = false, onSelect }) => {
             />
           )}
         </div>
+        {isTarget && (
+          <div className="env-device__target-chip">устройство заявки</div>
+        )}
         {device.vendorName && (
           <div className="env-device__vendor">{device.vendorName}</div>
         )}

@@ -14,7 +14,9 @@ const DEVICE_POPULATE = [
     path: "deviceModelId",
     select: "name vendorId deviceTypeId",
     populate: [
-      { path: "vendorId", select: "name" },
+      // Флаг вендора нужен странице устройства: показывать ли вкладку
+      // «Мониторинг» (устройство управляемо, даже если ещё не подключено).
+      { path: "vendorId", select: "name isMikrotikManagementEnabled" },
       { path: "deviceTypeId", select: "name" },
     ],
   },

@@ -26,6 +26,16 @@ const {
   decodeKnockSequence,
   createArtifact,
 } = require("../../services/mikrotik/artifacts");
+const {
+  markRecovered,
+  closeOpenOutage,
+  deleteOutages,
+  computeAvailability,
+} = require("../../services/mikrotik/outages");
+const {
+  computeReconciliation,
+  deriveSyncValues,
+} = require("../../services/mikrotik/reconciliation");
 
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
@@ -421,7 +431,12 @@ exports.getOne = async (req, res, next) => {
       .select("-credentials.password -credentials.knockSequence")
       .lean();
 
-    res.status(200).json({ ...buildRow(device, record), record: record || null });
+    res.status(200).json({
+      ...buildRow(device, record),
+      record: record || null,
+      // Стоячее предупреждение о расхождениях карточки с устройством.
+      reconciliation: computeReconciliation(device, record),
+    });
   } catch (error) {
     next(
       new AppError(
@@ -440,7 +455,11 @@ exports.updateParameters = async (req, res, next) => {
   try {
     const { clientDeviceId } = req.params;
 
-    const device = await ClientDevice.findById(clientDeviceId);
+    // Модель нужна для сверки полей карточки с данными устройства.
+    const device = await ClientDevice.findById(clientDeviceId).populate(
+      "deviceModelId",
+      "name",
+    );
     if (!device) {
       return next(
         new AppError(`Client device ${clientDeviceId} not found`, 404),
@@ -454,6 +473,16 @@ exports.updateParameters = async (req, res, next) => {
       update = await verifyAndBuild(req.body, existing);
     } catch (error) {
       return next(mapVerifyError(error, req.body.host));
+    }
+
+    // The verified save proves the device is reachable again — close the outage
+    // episode (+ recovery comment) and clear the stale offline-alert state, which
+    // a bare upsert would otherwise leave behind until the next cron tick.
+    if (existing?.offlineSince) {
+      await markRecovered(existing);
+      update.offlineSince = null;
+      update.offlineAlertedAt = null;
+      update.alertTicketId = null;
     }
 
     const record = await Mikrotik.findOneAndUpdate(
@@ -470,9 +499,122 @@ exports.updateParameters = async (req, res, next) => {
       ip: req.ip,
     });
 
-    res.status(200).json({ message: "Параметры сохранены и проверены", record });
+    res.status(200).json({
+      message: "Параметры сохранены и проверены",
+      record,
+      // Расхождения карточки с только что снятыми данными — модалка предлагает
+      // обновить карточку сразу после подключения.
+      reconciliation: computeReconciliation(device, record),
+    });
   } catch (error) {
     next(new AppError("Failed to save mikrotik parameters", 500, true, error));
+  }
+};
+
+// Fields the sync-inventory endpoint may write to the ClientDevice card. Values
+// are always derived server-side from the stored record (deriveSyncValues) — the
+// client only chooses WHICH fields to apply, never their values.
+const SYNCABLE_FIELDS = [
+  "hostname",
+  "serialNumber",
+  "operatingSystem",
+  "ipAddress",
+];
+
+// Apply device-derived values to the inventory card (reconciliation step of the
+// parameters modal / the standing warning on the device page).
+exports.syncInventory = async (req, res, next) => {
+  try {
+    const { clientDeviceId } = req.params;
+
+    const device = await ClientDevice.findById(clientDeviceId).populate(
+      "deviceModelId",
+      "name",
+    );
+    if (!device) {
+      return next(
+        new AppError(`Client device ${clientDeviceId} not found`, 404),
+      );
+    }
+
+    const record = await Mikrotik.findOne({ clientDevice: clientDeviceId });
+    if (!record) {
+      return next(new AppError("Устройство не настроено", 404));
+    }
+
+    const requested = Array.isArray(req.body.fields) ? req.body.fields : [];
+    const values = deriveSyncValues(record);
+    const updates = {};
+    for (const field of requested) {
+      if (SYNCABLE_FIELDS.includes(field) && values[field] != null) {
+        updates[field] = values[field];
+      }
+    }
+    if (Object.keys(updates).length === 0) {
+      return next(new AppError("Нет данных для синхронизации", 422));
+    }
+
+    // Дубль-проверки как в update-контроллере устройств: серийник глобально,
+    // hostname — в пределах компании (+ страховка от гонки через E11000 ниже).
+    if (updates.serialNumber && updates.serialNumber !== device.serialNumber) {
+      const serialExists = await ClientDevice.findOne({
+        _id: { $ne: device._id },
+        serialNumber: updates.serialNumber,
+      });
+      if (serialExists) {
+        return next(
+          new AppError(
+            `Device with serial number ${updates.serialNumber} already exists`,
+            409,
+          ),
+        );
+      }
+    }
+    if (updates.hostname && updates.hostname !== device.hostname) {
+      const hostExists = await ClientDevice.findOne({
+        _id: { $ne: device._id },
+        companyId: device.companyId,
+        hostname: updates.hostname,
+      });
+      if (hostExists) {
+        return next(
+          new AppError(
+            `Устройство с именем "${updates.hostname}" уже есть в этой компании`,
+            409,
+          ),
+        );
+      }
+    }
+
+    Object.assign(device, updates);
+    device.updatedBy = req.userId;
+    try {
+      await device.save();
+    } catch (error) {
+      if (error?.code === 11000) {
+        return next(
+          new AppError("Значение уже используется другим устройством", 409),
+        );
+      }
+      throw error;
+    }
+
+    logger.log("info", "Mikrotik inventory sync applied", {
+      actor: req.userId,
+      clientDeviceId,
+      fields: Object.keys(updates),
+      ip: req.ip,
+    });
+
+    res.status(200).json({
+      message: "Карточка устройства обновлена",
+      updated: Object.keys(updates),
+      reconciliation: computeReconciliation(device, record),
+    });
+  } catch (error) {
+    next(
+      new AppError("Failed to sync inventory from mikrotik", 500, true, error),
+    );
   }
 };
 
@@ -510,6 +652,14 @@ exports.connect = async (req, res, next) => {
       record.lastSuccessfulConnectionAt = now;
       record.lastCheckedAt = now;
       record.lastError = null;
+      // A successful poll is a recovery: close the outage episode (+ ticket
+      // comment) and clear the offline-alert state.
+      if (record.offlineSince) {
+        await markRecovered(record);
+        record.offlineSince = undefined;
+        record.offlineAlertedAt = undefined;
+        record.alertTicketId = undefined;
+      }
     } catch (error) {
       record.status = "offline";
       record.lastCheckedAt = now;
@@ -542,13 +692,23 @@ exports.disconnect = async (req, res, next) => {
   try {
     const record = await Mikrotik.findOneAndUpdate(
       { clientDevice: req.params.clientDeviceId },
-      { monitoringEnabled: false, status: "offline" },
+      {
+        monitoringEnabled: false,
+        status: "offline",
+        // Monitoring off means no poll will ever end the outage — drop the alert
+        // state and close the episode silently (connectivity was not restored).
+        offlineSince: null,
+        offlineAlertedAt: null,
+        alertTicketId: null,
+      },
       { new: true },
     ).select("-credentials.password -credentials.knockSequence");
 
     if (!record) {
       return next(new AppError("Устройство не настроено", 404));
     }
+
+    await closeOpenOutage(record);
 
     logger.log("info", "Mikrotik monitoring disabled", {
       actor: req.userId,
@@ -576,6 +736,8 @@ exports.detach = async (req, res, next) => {
     if (!record) {
       return next(new AppError("Устройство не настроено", 404));
     }
+
+    await deleteOutages(record._id);
 
     logger.log("info", "Mikrotik device detached", {
       actor: req.userId,
@@ -682,6 +844,14 @@ exports.updateStandaloneParameters = async (req, res, next) => {
       return next(mapVerifyError(error, req.body.host));
     }
 
+    // Verified save = recovery (see updateParameters).
+    if (existing.offlineSince) {
+      await markRecovered(existing);
+      update.offlineSince = null;
+      update.offlineAlertedAt = null;
+      update.alertTicketId = null;
+    }
+
     if (req.body.companyId !== undefined) {
       update.companyId = req.body.companyId || null;
     }
@@ -724,6 +894,8 @@ exports.detachStandalone = async (req, res, next) => {
       return next(new AppError("Устройство не найдено", 404));
     }
 
+    await deleteOutages(record._id);
+
     logger.log("info", "Standalone mikrotik device deleted", {
       actor: req.userId,
       recordId: req.params.recordId,
@@ -735,6 +907,33 @@ exports.detachStandalone = async (req, res, next) => {
     next(
       new AppError(
         "Failed to delete standalone mikrotik device",
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Availability report for one managed device (inventory-backed or standalone):
+// uptime % / downtime / outage episodes over a trailing window. Episode bounds
+// follow the connectivity-loss edge (offlineSince), not the alert threshold.
+exports.getAvailability = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findById(req.params.recordId);
+    if (!record) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+
+    const requested = Number(req.query.days);
+    const days = [1, 7, 30, 90].includes(requested) ? requested : 30;
+
+    const report = await computeAvailability(record, { days });
+    res.status(200).json(report);
+  } catch (error) {
+    next(
+      new AppError(
+        "Failed to compute mikrotik availability",
         500,
         true,
         error,

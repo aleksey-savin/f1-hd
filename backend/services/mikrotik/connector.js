@@ -19,6 +19,10 @@ const POLL_DEADLINE_MS = 20000;
 // sends no reply and the read hangs. Cap it and skip the full-group check rather than
 // stalling the whole poll (this was the real 504).
 const USER_READ_TIMEOUT_MS = 4000;
+// /system/routerboard/print is best-effort too: CHR (Cloud Hosted Router) has no
+// routerboard at all, and some builds don't answer the command — never let it
+// stall or fail the poll.
+const ROUTERBOARD_READ_TIMEOUT_MS = 4000;
 const KNOCK_TOUCH_TIMEOUT_MS = 1500; // per knock-port touch
 const KNOCK_INTER_DELAY_MS = 250; // gap between knocks so the sequence is ordered
 
@@ -192,7 +196,30 @@ const pollDevice = async ({
       );
     }
 
-    return { addresses, identity, resource, users, tlsCert: observedCert };
+    // Serial number lives in /system/routerboard (absent on CHR) — best-effort,
+    // used for reconciling the inventory card with the live device.
+    let routerboard = null;
+    try {
+      routerboard = await withReadTimeout(
+        conn.write(["/system/routerboard/print"]),
+        ROUTERBOARD_READ_TIMEOUT_MS,
+      );
+    } catch (error) {
+      logger.log(
+        "warn",
+        "Mikrotik /system/routerboard unavailable — skipping serial number",
+        { host, error: error.message },
+      );
+    }
+
+    return {
+      addresses,
+      identity,
+      resource,
+      users,
+      routerboard,
+      tlsCert: observedCert,
+    };
   })();
 
   try {
@@ -203,13 +230,20 @@ const pollDevice = async ({
   }
 };
 
-// Maps a successful poll result onto Mikrotik document fields.
-const mapPollToFields = ({ addresses, identity, resource }) => ({
-  name: identity?.[0]?.name,
-  boardName: resource?.[0]?.["board-name"],
-  currentFirmware: resource?.[0]?.version,
-  addresses,
-});
+// Maps a successful poll result onto Mikrotik document fields. The serial number
+// is emitted only when the routerboard read succeeded — an unconditional
+// `serialNumber: undefined` would erase a previously captured value via the
+// health-check's Object.assign.
+const mapPollToFields = ({ addresses, identity, resource, routerboard }) => {
+  const serialNumber = routerboard?.[0]?.["serial-number"];
+  return {
+    name: identity?.[0]?.name,
+    boardName: resource?.[0]?.["board-name"],
+    currentFirmware: resource?.[0]?.version,
+    addresses,
+    ...(serialNumber ? { serialNumber } : {}),
+  };
+};
 
 // --- SSH transport (config export over stdout) --------------------------------
 // routeros-node cannot retrieve /export text or a binary .backup (it truncates

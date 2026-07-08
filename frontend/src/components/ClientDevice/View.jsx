@@ -1,5 +1,11 @@
-import { useContext, useState } from "react";
-import { Link, useNavigate, useRevalidator, Outlet } from "react-router";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  Link,
+  useNavigate,
+  useRevalidator,
+  useSearchParams,
+  Outlet,
+} from "react-router";
 
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
@@ -8,6 +14,9 @@ import Button from "react-bootstrap/Button";
 import Badge from "react-bootstrap/Badge";
 import Table from "react-bootstrap/Table";
 import Offcanvas from "react-bootstrap/Offcanvas";
+import Tabs from "react-bootstrap/Tabs";
+import Tab from "react-bootstrap/Tab";
+import Alert from "react-bootstrap/Alert";
 
 import {
   RiComputerLine,
@@ -35,6 +44,8 @@ import {
   RiLinkUnlink,
   RiRouterLine,
   RiExternalLinkLine,
+  RiProfileLine,
+  RiPulseLine,
 } from "react-icons/ri";
 
 import Spinner from "react-bootstrap/Spinner";
@@ -48,6 +59,11 @@ import DeleteItem from "../DeleteItem";
 import DeviceQr from "./DeviceQr";
 import AssignUserModal from "./AssignUserModal";
 import AttachComponentModal from "./AttachComponentModal";
+import MonitoringSection from "../Devices/Mikrotik/MonitoringSection";
+import ArtifactsSection from "../Devices/Mikrotik/ArtifactsSection";
+import ParametersModal from "../Devices/Mikrotik/ParametersModal";
+import ConfirmActionModal from "../../UI/ConfirmActionModal";
+import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 import { STATUS_LABELS, STATUS_VARIANTS } from "./constants";
 
 const refName = (ref) => ref?.name || ref?.alias || ref?.fullTitle || "";
@@ -179,6 +195,110 @@ const ViewClientDevice = ({ device = {} }) => {
         ? { variant: "success", label: "Mikrotik: в сети" }
         : { variant: "danger", label: "Mikrotik: не в сети" };
 
+  // ── Mikrotik: вкладки «Мониторинг» и «Конфигурации» ──
+  const canManageMikrotik = permissions.canManageMikrotikDevices;
+  const canManageMikrotikConfigs = permissions.canManageMikrotikConfigs;
+  // Вкладка мониторинга видна и для ещё не подключённых устройств управляемого
+  // вендора — там живёт CTA «Подключить к мониторингу».
+  const vendorMikrotikEnabled =
+    !!device.deviceModelId?.vendorId?.isMikrotikManagementEnabled;
+  const showMonitoringTab = !!mikro || vendorMikrotikEnabled;
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(
+    ["card", "monitoring", "configs"].includes(requestedTab)
+      ? requestedTab
+      : "card",
+  );
+
+  const [mikrotikRow, setMikrotikRow] = useState(null);
+  const [mikrotikLoading, setMikrotikLoading] = useState(false);
+  const [showParams, setShowParams] = useState(false);
+  const [showMikrotikDetach, setShowMikrotikDetach] = useState(false);
+  const [isMikrotikDetaching, setIsMikrotikDetaching] = useState(false);
+  const [mikrotikDetachError, setMikrotikDetachError] = useState(null);
+  const detachMikrotik = useMikrotikDeviceFilterStore((state) => state.detach);
+
+  // Строка управления Mikrotik (статус, адреса, расписания) для вкладок.
+  const reloadMikrotik = useCallback(async () => {
+    setMikrotikLoading(true);
+    try {
+      const { token } = getLocalStorageData();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/${device._id}`,
+        { headers: { Authorization: "Bearer " + token } },
+      );
+      if (response.ok) setMikrotikRow(await response.json());
+    } catch {
+      // сеть — вкладка покажет пустое состояние
+    } finally {
+      setMikrotikLoading(false);
+    }
+  }, [device._id]);
+
+  useEffect(() => {
+    if (showMonitoringTab) reloadMikrotik();
+  }, [showMonitoringTab, reloadMikrotik]);
+
+  const mikrotikConfigured =
+    !!mikrotikRow && mikrotikRow.status !== "notConfigured";
+  const showConfigsTab = mikrotikConfigured && canManageMikrotikConfigs;
+
+  // Deep-link из мастера создания (?mikrotikSetup=1): открыть вкладку мониторинга
+  // сразу с формой подключения. Одноразово; параметр стирается из URL.
+  const setupHandled = useRef(false);
+  useEffect(() => {
+    if (setupHandled.current) return;
+    if (searchParams.get("mikrotikSetup") !== "1") return;
+    setupHandled.current = true;
+    if (showMonitoringTab && canManageMikrotik) {
+      setActiveTab("monitoring");
+      setShowParams(true);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("mikrotikSetup");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, showMonitoringTab, canManageMikrotik]);
+
+  // Активная вкладка стала недоступной (устройство отключили / нет прав) —
+  // откатываемся на ближайшую доступную. Пока строка грузится, не дёргаемся.
+  useEffect(() => {
+    if (activeTab === "monitoring" && !showMonitoringTab) {
+      setActiveTab("card");
+    }
+    if (
+      activeTab === "configs" &&
+      (!canManageMikrotikConfigs || (mikrotikRow && !mikrotikConfigured))
+    ) {
+      setActiveTab(showMonitoringTab ? "monitoring" : "card");
+    }
+  }, [
+    activeTab,
+    showMonitoringTab,
+    canManageMikrotikConfigs,
+    mikrotikRow,
+    mikrotikConfigured,
+  ]);
+
+  const handleMikrotikDetach = async () => {
+    setIsMikrotikDetaching(true);
+    setMikrotikDetachError(null);
+    try {
+      const response = await detachMikrotik(device._id);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setMikrotikDetachError(data.message || "Не удалось выполнить действие");
+        return;
+      }
+      setShowMikrotikDetach(false);
+      revalidator.revalidate();
+      reloadMikrotik();
+    } finally {
+      setIsMikrotikDetaching(false);
+    }
+  };
+
   return (
     <Transitions>
       {/* ── Шапка ── */}
@@ -268,7 +388,22 @@ const ViewClientDevice = ({ device = {} }) => {
         </div>
       </div>
 
-      {/* ── Секции ── */}
+      {/* ── Вкладки: карточка / мониторинг Mikrotik / конфигурации ── */}
+      <div className="company-view-tabs">
+        <Tabs
+          activeKey={activeTab}
+          onSelect={(key) => setActiveTab(key || "card")}
+          className="mb-3 scrollable-tabs"
+        >
+          <Tab
+            eventKey="card"
+            title={
+              <>
+                <RiProfileLine /> Карточка
+              </>
+            }
+          >
+            <div className="pt-1">
       <Row className="g-3">
         <Col xs={12} lg={6}>
           <SectionCard icon={<RiBuilding2Line />} title="Назначение">
@@ -330,7 +465,7 @@ const ViewClientDevice = ({ device = {} }) => {
 
         <Col xs={12} lg={6}>
           <SectionCard icon={<RiToolsLine />} title="Техническая информация">
-            <Line icon={<RiComputerLine />} label="Имя компьютера" mono>
+            <Line icon={<RiComputerLine />} label="Имя устройства" mono>
               {device.hostname}
             </Line>
             {device.machineId && (
@@ -451,6 +586,103 @@ const ViewClientDevice = ({ device = {} }) => {
           </Col>
         )}
       </Row>
+            </div>
+          </Tab>
+
+          {showMonitoringTab && (
+            <Tab
+              eventKey="monitoring"
+              title={
+                <>
+                  <RiPulseLine /> Мониторинг
+                  {mikrotikConfigured && (
+                    <span
+                      className={`mikrotik-tab-dot bg-${
+                        mikrotikRow.status === "online" ? "success" : "danger"
+                      }`}
+                    />
+                  )}
+                </>
+              }
+            >
+              <div className="pt-1">
+                {mikrotikLoading && !mikrotikRow ? (
+                  <div className="text-center py-5">
+                    <Spinner animation="border" />
+                  </div>
+                ) : mikrotikConfigured ? (
+                  <MonitoringSection
+                    device={mikrotikRow}
+                    canManage={canManageMikrotik}
+                    onEditParams={() => setShowParams(true)}
+                    onDetach={() => {
+                      setMikrotikDetachError(null);
+                      setShowMikrotikDetach(true);
+                    }}
+                    reconciliation={mikrotikRow.reconciliation}
+                    onSynced={() => {
+                      revalidator.revalidate();
+                      reloadMikrotik();
+                    }}
+                  />
+                ) : (
+                  <Card className="border-0 shadow-sm">
+                    <Card.Body className="text-center py-5">
+                      <div className="display-6 text-body-secondary mb-2">
+                        <RiRouterLine />
+                      </div>
+                      <h5 className="mb-2">
+                        Устройство ещё не подключено к мониторингу
+                      </h5>
+                      <p
+                        className="text-body-secondary mb-4 mx-auto"
+                        style={{ maxWidth: 480 }}
+                      >
+                        Подключение проверит доступ по API, включит фоновые
+                        проверки связи каждые 5 минут и позволит хранить копии
+                        конфигурации устройства.
+                      </p>
+                      {canManageMikrotik ? (
+                        <Button
+                          variant="primary"
+                          onClick={() => setShowParams(true)}
+                        >
+                          <RiRouterLine /> Подключить к мониторингу
+                        </Button>
+                      ) : (
+                        <div className="text-body-secondary small">
+                          Недостаточно прав для подключения — обратитесь к
+                          администратору.
+                        </div>
+                      )}
+                    </Card.Body>
+                  </Card>
+                )}
+              </div>
+            </Tab>
+          )}
+
+          {showConfigsTab && (
+            <Tab
+              eventKey="configs"
+              title={
+                <>
+                  <RiShieldCheckLine /> Конфигурации
+                </>
+              }
+            >
+              <div className="pt-1">
+                <ArtifactsSection
+                  recordId={mikrotikRow.recordId}
+                  type="export"
+                  initialSchedule={mikrotikRow.schedules?.export}
+                  canManage={canManageMikrotikConfigs}
+                />
+              </div>
+            </Tab>
+          )}
+        </Tabs>
+      </div>
 
       {/* ── Действия ── */}
       <Row className="py-3 mt-2 border-top justify-content-end gap-2">
@@ -504,6 +736,45 @@ const ViewClientDevice = ({ device = {} }) => {
         onHide={() => setShowAttach(false)}
         device={device}
         onAttached={() => revalidator.revalidate()}
+      />
+
+      {/* Подключение к мониторингу Mikrotik / правка параметров (verify-on-save). */}
+      <ParametersModal
+        device={{
+          clientDeviceId: device._id,
+          displayName: title,
+          host: mikrotikRow?.host,
+        }}
+        show={showParams}
+        onClose={() => setShowParams(false)}
+        onSaved={() => {
+          setShowParams(false);
+          revalidator.revalidate();
+          reloadMikrotik();
+        }}
+      />
+
+      <ConfirmActionModal
+        show={showMikrotikDetach}
+        onHide={() => setShowMikrotikDetach(false)}
+        onConfirm={handleMikrotikDetach}
+        title="Отключить устройство"
+        body={
+          <>
+            Устройство <strong>{title}</strong> будет отвязано от управления
+            Mikrotik: сохранённые параметры (учётные данные и сертификат) будут
+            удалены, а мониторинг остановлен. Само устройство останется в
+            инвентаре — его можно подключить снова.
+            {mikrotikDetachError && (
+              <Alert variant="danger" className="mt-3 mb-0">
+                {mikrotikDetachError}
+              </Alert>
+            )}
+          </>
+        }
+        confirmLabel="Отключить"
+        confirmVariant="danger"
+        isLoading={isMikrotikDetaching}
       />
 
       <Offcanvas

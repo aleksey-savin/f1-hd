@@ -27,8 +27,15 @@ const TYPE_ICON = {
 // Один уровень иерархии: шапка (тип/имя/подразделение), вложенные пространства
 // (кликабельны все — переход внутрь; ветка заявителя подсвечена «здесь») и
 // техника, закреплённая непосредственно за этим уровнем (в т.ч. общая — напр.
-// МФУ помещения, которым пользуется весь отдел).
-const EnvironmentLevel = ({ node, chainIds, onSelectChild, onSelectDevice }) => {
+// МФУ помещения, которым пользуется весь отдел). highlightId — устройство
+// заявки (режим окружения по устройству): его карточка получает кольцо-акцент.
+const EnvironmentLevel = ({
+  node,
+  chainIds,
+  highlightId,
+  onSelectChild,
+  onSelectDevice,
+}) => {
   const Icon = TYPE_ICON[node.type] || RiDoorLine;
   const children = node.children || [];
   const devices = node.devices || [];
@@ -87,6 +94,7 @@ const EnvironmentLevel = ({ node, chainIds, onSelectChild, onSelectDevice }) => 
               <EnvironmentDeviceCard
                 key={device._id}
                 device={device}
+                highlightId={highlightId}
                 onSelect={onSelectDevice}
               />
             ))}

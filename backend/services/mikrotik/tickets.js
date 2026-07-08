@@ -5,6 +5,17 @@ const Company = require("../../models/company");
 const ClientDevice = require("../../models/inventory/clientDevice");
 const logger = require("../../utils/logger");
 
+// Human-readable device name for ticket/comment text (RouterOS identity /
+// standalone label / host — never an internal id).
+const deviceLabel = (record) =>
+  record.name ||
+  record.label ||
+  record.credentials?.host ||
+  "устройство Mikrotik";
+
+const fmtTime = (date) =>
+  date ? new Date(date).toLocaleString("ru-RU") : "неизвестно";
+
 // Resolve the embedded { _id, alias } company for a Mikrotik record. Standalone
 // records carry companyId directly; inventory-backed records inherit it from the
 // linked ClientDevice. Returns undefined when it can't be resolved (the ticket is
@@ -63,6 +74,9 @@ const createMikrotikTicket = async (
       description: description || "",
       categoryId: categoryId || null,
       applicantId: applicant._id,
+      // Инвентарное устройство, о котором заявка, — питает вкладку «Окружение».
+      // У standalone-записей (CHR) карточки нет — поле остаётся пустым.
+      relatedClientDeviceId: record.clientDevice || undefined,
       company,
       deadline: new Date(now.getTime() + deadlineHours * 60 * 60 * 1000),
       isClosed: false,
@@ -83,4 +97,4 @@ const createMikrotikTicket = async (
   }
 };
 
-module.exports = { createMikrotikTicket };
+module.exports = { createMikrotikTicket, deviceLabel, fmtTime };

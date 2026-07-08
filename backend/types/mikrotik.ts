@@ -22,6 +22,19 @@ export interface IMikrotikSchedule {
   nextRunAt?: Date;
 }
 
+// Mirror of backend/models/mikrotikOutage.js — one outage episode per document.
+export interface IMikrotikOutage {
+  mikrotik: Types.ObjectId;
+  startedAt: Date;
+  endedAt?: Date | null;
+  // Present (true) only while the outage is ongoing; unset on close.
+  open?: boolean;
+  ticketId?: Types.ObjectId | null;
+  lastError?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface IMikrotik {
   // Unset for standalone devices (e.g. Cloud Hosted Router).
   clientDevice?: Types.ObjectId;

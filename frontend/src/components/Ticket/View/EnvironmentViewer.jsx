@@ -13,6 +13,7 @@ import {
   RiMapPin2Line,
   RiStarFill,
   RiExternalLinkLine,
+  RiFocus3Line,
 } from "react-icons/ri";
 
 import useHttp from "../../../hooks/use-http";
@@ -59,16 +60,21 @@ const DetailRow = ({ label, value, mono }) =>
     </div>
   ) : null;
 
-// Физическое окружение заявителя: рабочее место и цепочка вверх (здание → этаж →
-// помещение → рабочее место). Скролл/стрелки/линейка меняют масштаб по текущему
-// пути; клик по любой дочерней локации подгружает её и ветвит путь — можно
-// посмотреть соседние рабочие места и общую технику помещения. Клик по технике —
-// детальная карточка справа.
-const EnvironmentViewer = ({ userId }) => {
+// Физическое окружение заявки. Два режима:
+//  - по заявителю (userId): рабочее место и цепочка вверх (здание → этаж →
+//    помещение → рабочее место);
+//  - по устройству (deviceId, приоритетный): расположение устройства и цепочка
+//    вверх, само устройство подсвечено. Режим для авто-заявок мониторинга — их
+//    автор служебный и рабочего места не имеет.
+// Скролл/стрелки/линейка меняют масштаб по текущему пути; клик по любой дочерней
+// локации подгружает её и ветвит путь. Клик по технике — детальная карточка.
+const EnvironmentViewer = ({ userId, deviceId }) => {
   const { token } = getLocalStorageData();
   const reduceMotion = useReducedMotion();
   const { isLoading, error, sendRequest } = useHttp();
   const { isLoading: isDiving, sendRequest: fetchNode } = useHttp();
+
+  const deviceMode = !!deviceId;
 
   const [env, setEnv] = useState(null);
   // Текущий путь (загруженные узлы root→focus) и индекс активного уровня.
@@ -79,22 +85,27 @@ const EnvironmentViewer = ({ userId }) => {
   const dirRef = useRef(0); // направление последнего перехода для анимации
 
   useEffect(() => {
-    if (!userId) return;
+    if (!deviceMode && !userId) return;
+    const base = import.meta.env.VITE_API_ADDRESS;
+    const url = deviceMode
+      ? `${base}/api/inventory/locations/device/${deviceId}/environment`
+      : `${base}/api/inventory/locations/user/${userId}/environment`;
     sendRequest(
       {
-        url: `${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations/user/${userId}/environment`,
+        url,
         headers: { Authorization: "Bearer " + token },
       },
       (data) => {
         setEnv(data);
         if (data?.chain?.length) {
           setPath(data.chain);
-          // Дефолт — рабочее место (самый «приближённый» уровень).
+          // Дефолт — самый «приближённый» уровень (рабочее место / расположение
+          // устройства).
           setFocusIndex(data.chain.length - 1);
         }
       },
     );
-  }, [userId, token, sendRequest]);
+  }, [userId, deviceId, deviceMode, token, sendRequest]);
 
   // Id узлов цепочки заявителя — по ним подсвечиваем «ветку заявителя» (здесь),
   // оставляя кликабельными ВСЕ дочерние узлы.
@@ -133,7 +144,8 @@ const EnvironmentViewer = ({ userId }) => {
       }
       fetchNode(
         {
-          url: `${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations/${child._id}/node?userId=${userId}`,
+          // userId нужен только для слоя isPersonal — в режиме устройства его нет.
+          url: `${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations/${child._id}/node${userId ? `?userId=${userId}` : ""}`,
           headers: { Authorization: "Bearer " + token },
         },
         (node) => {
@@ -164,7 +176,7 @@ const EnvironmentViewer = ({ userId }) => {
     }
   };
 
-  if (!userId) {
+  if (!deviceMode && !userId) {
     return (
       <Alert variant="light" className="mb-0">
         У заявки не указан инициатор — окружение недоступно.
@@ -181,7 +193,9 @@ const EnvironmentViewer = ({ userId }) => {
   if (error || !env) {
     return (
       <Alert variant="light" className="mb-0">
-        Не удалось загрузить окружение заявителя.
+        {deviceMode
+          ? "Не удалось загрузить окружение устройства."
+          : "Не удалось загрузить окружение заявителя."}
       </Alert>
     );
   }
@@ -199,6 +213,11 @@ const EnvironmentViewer = ({ userId }) => {
 
   return (
     <div className="env-viewer">
+      {deviceMode && env.device?.deleted && (
+        <Alert variant="light" className="mb-3">
+          Устройство удалено из учёта — показано его последнее расположение.
+        </Alert>
+      )}
       {hasChain ? (
         <>
           <div className="env-stage-grid">
@@ -243,6 +262,7 @@ const EnvironmentViewer = ({ userId }) => {
                   <EnvironmentLevel
                     node={current}
                     chainIds={chainIds}
+                    highlightId={deviceMode ? deviceId : null}
                     onSelectChild={diveInto}
                     onSelectDevice={setSelectedDevice}
                   />
@@ -275,6 +295,26 @@ const EnvironmentViewer = ({ userId }) => {
               Колесо мыши или стрелки ↑ / ↓ — масштаб · клик по локации — перейти
             </div>
           </div>
+        </>
+      ) : deviceMode ? (
+        <>
+          <Alert variant="light" className="env-noworkplace mb-0">
+            <RiMapPin2Line className="me-2 flex-shrink-0" />
+            <span>
+              Устройство не привязано к расположению в учёте техники. Ниже —
+              его карточка.
+            </span>
+          </Alert>
+          {env.device && (
+            <div className="env-devices">
+              <EnvironmentDeviceCard
+                device={env.device}
+                showLocation
+                highlightId={deviceId}
+                onSelect={setSelectedDevice}
+              />
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -319,6 +359,12 @@ const EnvironmentViewer = ({ userId }) => {
         <Offcanvas.Body>
           {selectedDevice && (
             <>
+              {deviceMode &&
+                String(selectedDevice._id) === String(deviceId) && (
+                  <div className="env-detail__personal">
+                    <RiFocus3Line /> Устройство, о котором создана заявка
+                  </div>
+                )}
               {selectedDevice.isPersonal && (
                 <div className="env-detail__personal">
                   <RiStarFill /> Закреплено лично за заявителем

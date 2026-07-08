@@ -329,6 +329,63 @@ h1 svg {
   --bs-offcanvas-width: min(760px, 100vw);
 }
 
+/* ===== Лента доступности Mikrotik (отчёт + мини-полоска в превью) ===== */
+/* Сегменты пропорциональны длительности (flex-grow = мс). Статусные цвета берём
+   из активной сборки Bootstrap (--bs-success/--bs-danger корректны в обеих
+   темах), а нейтральный трек — локальной переменной: светлый дефолт здесь,
+   тёмный переопределяется в css/dark-theme.css (Darkly не выставляет
+   data-bs-theme, на «тёмные» --bs-* полагаться нельзя). */
+.mikrotik-uptime {
+  --uptime-track: rgba(33, 37, 41, 0.12);
+  display: flex;
+  width: 100%;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--uptime-track);
+}
+.mikrotik-uptime__seg {
+  min-width: 0;
+}
+.mikrotik-uptime__seg--up {
+  background: var(--bs-success);
+}
+.mikrotik-uptime__seg--down {
+  background: var(--bs-danger);
+  /* Короткий простой на длинном окне не должен исчезать. */
+  min-width: 3px;
+}
+.mikrotik-uptime__seg--idle {
+  background: transparent;
+}
+/* Идущий прямо сейчас простой мягко пульсирует. */
+.mikrotik-uptime__seg--ongoing {
+  animation: mikrotik-uptime-pulse 2s ease-in-out infinite;
+}
+@keyframes mikrotik-uptime-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mikrotik-uptime__seg--ongoing {
+    animation: none;
+  }
+}
+
+/* Точка текущего статуса связи на ярлыке вкладки «Мониторинг». */
+.mikrotik-tab-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 /* ===== Дерево структуры компании (Company/View → SubdivisionTree) ===== */
 
 /* Тема (Darkly) не выставляет data-bs-theme=dark, поэтому --bs-secondary-bg/

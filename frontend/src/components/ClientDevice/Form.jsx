@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useContext } from "react";
 
 import Form from "react-bootstrap/Form";
 import Row from "react-bootstrap/Row";
@@ -10,6 +10,7 @@ import ButtonGroup from "react-bootstrap/ButtonGroup";
 import ToggleButton from "react-bootstrap/ToggleButton";
 import Container from "react-bootstrap/Container";
 import Spinner from "react-bootstrap/Spinner";
+import Modal from "react-bootstrap/Modal";
 
 import { useLoaderData, useFetcher, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,11 +20,13 @@ import {
   RiArrowRightLine,
   RiSaveLine,
   RiArrowGoBackFill,
+  RiRouterLine,
 } from "react-icons/ri";
 
 import Select from "../../UI/Select";
 import AlertMessage from "../../UI/AlertMessage";
 import useOffcanvasStore from "../../store/offcanvas";
+import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
 
 import WizardStepper from "./WizardStepper";
@@ -188,6 +191,18 @@ const ClientDeviceForm = ({ title }) => {
 
   const setField = (name, value) =>
     setForm((prev) => ({ ...prev, [name]: value }));
+
+  const { permissions } = useContext(AuthedUserContext);
+
+  // Вендор с управлением Mikrotik: тех-шаг сворачивается до имени устройства
+  // (остальное подтянется с устройства), а после создания предлагаем сразу
+  // подключить устройство к мониторингу.
+  const isMikrotikVendor =
+    deviceKind === "branded" &&
+    !!vendors.find((v) => v._id === form.vendorId)?.isMikrotikManagementEnabled;
+
+  // id только что созданного устройства, которому предложено подключение.
+  const [connectOffer, setConnectOffer] = useState(null);
 
   // Кандидаты на пользователя по правилам расположения (рабочее место →
   // назначенный сотрудник; подразделение → его сотрудники + руководитель;
@@ -404,12 +419,37 @@ const ClientDeviceForm = ({ title }) => {
       } catch (error) {
         console.error("Не удалось сохранить комплектующие:", error);
       }
+      // Новое устройство Mikrotik-вендора: вместо возврата к списку предлагаем
+      // сразу подключить его к мониторингу (модалка ниже). Offcanvas мастера
+      // пока не закрываем — модалка порталится поверх него.
+      if (
+        !isEdit &&
+        savedId &&
+        isMikrotikVendor &&
+        permissions.canManageMikrotikDevices
+      ) {
+        setConnectOffer(savedId);
+        return;
+      }
       offcanvas.setClose();
       navigate("..");
     };
 
     finalize();
   }, [fetcher.state, fetcher.data]);
+
+  // Оффер «Подключить к мониторингу?» после создания устройства.
+  const offerConnect = () => {
+    offcanvas.setClose();
+    navigate(
+      `/inventory/client-devices/${connectOffer}?tab=monitoring&mikrotikSetup=1`,
+    );
+  };
+  const offerLater = () => {
+    setConnectOffer(null);
+    offcanvas.setClose();
+    navigate("..");
+  };
 
   // --- options ---
   const companyOptions = useMemo(
@@ -891,10 +931,18 @@ const ClientDeviceForm = ({ title }) => {
           <Card>
             <Card.Header>
               <h6 className="mb-0">Техническая информация</h6>
-              <small className="text-muted">Необязательный блок</small>
+              <small className="text-muted">
+                {isMikrotikVendor
+                  ? "Только имя — остальное заполнится с устройства"
+                  : "Необязательный блок"}
+              </small>
             </Card.Header>
             <Card.Body>
-              <TechFields values={form} onChange={setField} />
+              <TechFields
+                values={form}
+                onChange={setField}
+                mikrotikMode={isMikrotikVendor}
+              />
             </Card.Body>
           </Card>
         );
@@ -1028,6 +1076,30 @@ const ClientDeviceForm = ({ title }) => {
         resources={{ companies }}
         onCreated={handleLocationCreated}
       />
+
+      {/* После создания устройства Mikrotik-вендора: предложение сразу
+          подключить его к мониторингу (переход на страницу устройства с
+          открытой формой параметров). */}
+      <Modal show={!!connectOffer} onHide={offerLater} centered>
+        <Modal.Header closeButton>
+          <Modal.Title className="h5 d-flex align-items-center gap-2">
+            <RiRouterLine className="text-primary" /> Подключить к мониторингу?
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Устройство сохранено. Подключить его к мониторингу Mikrotik сейчас?
+          Технические данные (серийный номер, прошивка, IP-адреса) заполнятся с
+          устройства автоматически.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={offerLater}>
+            Позже
+          </Button>
+          <Button variant="primary" onClick={offerConnect}>
+            <RiRouterLine /> Подключить
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 };

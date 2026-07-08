@@ -6,6 +6,10 @@ const {
   pollDevice,
   mapPollToFields,
 } = require("../services/mikrotik/connector");
+const {
+  markRecovered,
+  ensureOpenOutage,
+} = require("../services/mikrotik/outages");
 const logger = require("../utils/logger");
 
 // How many devices to poll concurrently per batch.
@@ -44,9 +48,11 @@ const checkDevice = async (device) => {
     device.lastSuccessfulConnectionAt = now;
     device.lastCheckedAt = now;
     device.lastError = undefined;
-    // Recovery: clear offline-alert state so the next outage can alert again. The
+    // Recovery: close the outage episode + comment on the alert ticket (if any),
+    // then clear the offline-alert state so the next outage can alert again. The
     // alert ticket itself is intentionally left open for a human to close.
     if (device.offlineSince) {
+      await markRecovered(device);
       device.offlineSince = undefined;
       device.offlineAlertedAt = undefined;
       device.alertTicketId = undefined;
@@ -61,6 +67,8 @@ const checkDevice = async (device) => {
     if (!device.offlineSince) {
       device.offlineSince = now;
     }
+    // Keep the outage episode open/fresh (self-heals a missing one).
+    await ensureOpenOutage(device);
   }
 
   await device.save();

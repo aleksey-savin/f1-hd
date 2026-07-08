@@ -2,19 +2,9 @@ const mongoose = require("mongoose");
 
 const Mikrotik = require("../../models/mikrotik");
 const Preferences = require("../../models/preferences");
-const { createMikrotikTicket } = require("./tickets");
+const { createMikrotikTicket, deviceLabel, fmtTime } = require("./tickets");
+const { attachTicket } = require("./outages");
 const logger = require("../../utils/logger");
-
-// Human-readable device name for the ticket text (RouterOS identity / standalone
-// label / host — never an internal id).
-const deviceLabel = (record) =>
-  record.name ||
-  record.label ||
-  record.credentials?.host ||
-  "устройство Mikrotik";
-
-const fmtTime = (date) =>
-  date ? new Date(date).toLocaleString("ru-RU") : "неизвестно";
 
 // Background job: raise ONE ticket per outage episode for monitored devices that
 // have been offline longer than the configured threshold. Idempotent —
@@ -62,6 +52,9 @@ const runMikrotikOfflineAlerts = async () => {
     record.offlineAlertedAt = new Date();
     record.alertTicketId = ticket._id;
     await record.save();
+
+    // Stamp the ticket onto the outage episode for the availability report.
+    await attachTicket(record, ticket._id);
 
     logger.log("info", "Mikrotik offline alert ticket created", {
       recordId: record._id,

@@ -66,7 +66,6 @@ const ProtectionCell = ({ device }) => {
 const MikrotikDevicesList = ({ items = [] }) => {
   const { permissions } = useContext(AuthedUserContext);
   const canManage = permissions.canManageMikrotikDevices;
-  const canManageConfigs = permissions.canManageMikrotikConfigs;
 
   const detach = useMikrotikDeviceFilterStore((state) => state.detach);
   const detachStandalone = useMikrotikDeviceFilterStore(
@@ -224,7 +223,6 @@ const MikrotikDevicesList = ({ items = [] }) => {
         device={panelDevice}
         onClose={() => setPanelDevice(null)}
         canManage={canManage}
-        canManageConfigs={canManageConfigs}
         onEditParams={handleEditParams}
         onDetach={handleDetachRequest}
       />

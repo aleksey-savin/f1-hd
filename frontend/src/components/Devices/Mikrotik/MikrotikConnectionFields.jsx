@@ -99,8 +99,8 @@ const buildSetupCommands = ({
 
   if (presets.cert) {
     blocks.push(
-      `# Самоподписанный сертификат, включить API-SSL, выключить плейнтекст-API
-/certificate add name=hd-api common-name=${commonName} key-usage=tls-server days-valid=3650 key-size=2048
+      `# Самоподписанный сертификат (key-cert-sign+crl-sign → подпись без внешнего CA), API-SSL вкл, плейнтекст-API выкл
+/certificate add name=hd-api common-name=${commonName} key-usage=digital-signature,key-encipherment,key-cert-sign,crl-sign,tls-server days-valid=3650 key-size=2048
 /certificate sign hd-api
 /ip service set api-ssl certificate=hd-api disabled=no
 /ip service set api disabled=yes`,

@@ -318,6 +318,48 @@
     ),
     var(--bs-body-bg);
 }
+/* Устройство, о котором создана заявка (режим окружения по устройству):
+   кольцо-акцент и короткий пульс при появлении — взгляд сразу находит цель. */
+.env-device.is-target {
+  position: relative;
+  border-color: var(--env-accent);
+  box-shadow: 0 0 0 2px rgba(var(--env-accent-rgb), 0.55);
+}
+.env-device.is-target::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 0.7rem;
+  border: 2px solid rgba(var(--env-accent-rgb), 0.7);
+  pointer-events: none;
+  opacity: 0;
+  animation: env-target-pulse 1.6s ease-out 3;
+}
+@keyframes env-target-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  70%,
+  100% {
+    transform: scale(1.06);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .env-device.is-target::after {
+    animation: none;
+  }
+}
+.env-device__target-chip {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.45rem;
+  font-size: 0.68rem;
+  border-radius: 999px;
+  background: rgba(var(--env-accent-rgb), 0.12);
+  color: var(--env-accent);
+}
 .env-device__icon {
   width: 2.2rem;
   height: 2.2rem;
