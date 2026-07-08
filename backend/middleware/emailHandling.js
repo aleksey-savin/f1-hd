@@ -25,6 +25,7 @@ const {
 } = require("../services/callerIdentityService");
 const { detectTicketCategory } = require("../services/ticketCategoryService");
 const { logAiTicketEvent } = require("../services/aiTicketLog");
+const { stripQuotedReply } = require("../services/emailReplyStripper");
 
 const logger = require("../utils/logger");
 
@@ -599,8 +600,13 @@ exports.handleNewEmails = async () => {
           const ticket = await Ticket.findOne({ num: +match[1] });
 
           if (ticket) {
+            // Отрезаем процитированную переписку — иначе комментарий тонет в
+            // хвосте предыдущих писем. Хвост сохраняется в quotedText.
+            const { content, quotedText } = stripQuotedReply(email.description);
+
             const comment = new Comment({
-              content: email.description,
+              content,
+              ...(quotedText ? { quotedText } : {}),
               ticketId: ticket._id,
               attachments: email.attachments,
               notifications: {

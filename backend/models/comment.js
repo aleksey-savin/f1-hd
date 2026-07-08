@@ -8,6 +8,11 @@ const commentSchema = new Schema(
       type: String,
       required: true,
     },
+    // Цитируемая переписка, отрезанная от почтового ответа (хвост письма).
+    // В content остаётся только новый текст; хвост раскрывается в UI по клику.
+    quotedText: {
+      type: String,
+    },
     attachments: [
       {
         mimetype: String,

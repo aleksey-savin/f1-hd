@@ -7,6 +7,12 @@ const User = require("../models/user");
 
 const logger = require("../utils/logger");
 
+// Маркер границы ответа: почтовый клиент цитирует его в reply, и парсер
+// входящей почты (backend/services/emailReplyStripper.js) отрезает всё от него
+// и ниже. Не менять текст без синхронного изменения в стриппере.
+const REPLY_MARKER = "##- Пожалуйста, пишите ответ над этой строкой -##";
+const REPLY_MARKER_HTML = `<p style="color:#999999;font-size:12px;margin:0 0 12px 0">${REPLY_MARKER}</p>`;
+
 exports.checkEmailNotifications = async () => {
   try {
     const notifications = await Notification.find({
@@ -64,7 +70,7 @@ exports.checkEmailNotifications = async () => {
               notification.to.email,
               notification.title,
               "",
-              notification.text,
+              REPLY_MARKER_HTML + notification.text,
             );
             if (message?.success) {
               notification.sent = true;

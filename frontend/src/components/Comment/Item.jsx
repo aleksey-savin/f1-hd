@@ -10,9 +10,11 @@ import { AuthedUserContext } from "../../store/authed-user-context";
 import AttachmentPreview from "../../UI/AttachmentPreview";
 
 const CommentItem = ({ comment, danger }) => {
-  const { createdAt, createdBy, content, attachments } = comment;
+  const { createdAt, createdBy, content, attachments, quotedText } = comment;
 
   const { _id: userId } = useContext(AuthedUserContext);
+
+  const [showQuoted, setShowQuoted] = useState(false);
 
   const [isNew, setIsNew] = useState(
     new Date() - new Date(createdAt) < 10000 ? true : false,
@@ -58,6 +60,28 @@ const CommentItem = ({ comment, danger }) => {
         <p className={attachments && attachments.length > 0 ? "mb-2" : "mb-0"}>
           {content}
         </p>
+
+        {quotedText && (
+          <div className={attachments && attachments.length > 0 ? "mb-2" : ""}>
+            <button
+              type="button"
+              className="btn btn-link btn-sm p-0 text-body-secondary text-decoration-none"
+              onClick={() => setShowQuoted((prev) => !prev)}
+            >
+              {showQuoted
+                ? "▾ Скрыть цитируемую переписку"
+                : "▸ Показать цитируемую переписку"}
+            </button>
+            {showQuoted && (
+              <p
+                className="text-body-secondary mb-0 mt-1 border-start ps-3"
+                style={{ whiteSpace: "pre-wrap", fontSize: "0.875em" }}
+              >
+                {quotedText}
+              </p>
+            )}
+          </div>
+        )}
 
         {attachments && attachments.length > 0 && (
           <AttachmentPreview
