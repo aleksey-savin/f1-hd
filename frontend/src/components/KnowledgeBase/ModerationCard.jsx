@@ -1,61 +1,61 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import Button from "react-bootstrap/Button";
 import Badge from "react-bootstrap/Badge";
 
 import ItemCard from "../../UI/ItemCard";
-import useInitialPrefsStore from "../../store/prefs";
-import { getLocalStorageData } from "../../util/auth";
+import useModerationSummary from "./useModerationSummary";
+
+// Кнопка очереди. Deep-link ?moderation=… открывает базу знаний сразу в нужной
+// очереди — ключи совпадают с MODERATION_FILTERS в Filter.jsx.
+const QUEUES = [
+  {
+    mode: "all-unapproved",
+    label: "На проверку",
+    countKey: "pendingApproval",
+    variant: "outline-primary",
+  },
+  {
+    mode: "pending-deletion",
+    label: "На удаление",
+    countKey: "pendingDeletion",
+    variant: "outline-danger",
+  },
+  {
+    mode: "pending-archive",
+    label: "На архивацию",
+    countKey: "pendingArchive",
+    variant: "outline-secondary",
+  },
+  {
+    mode: "flagged-secrets",
+    label: "Учётные данные",
+    countKey: "secretsFlagged",
+    variant: "outline-warning",
+    needsSecretsScan: true,
+  },
+];
 
 // Карточка модерации базы знаний на странице заявок (имитирует карточку заявки).
-// Видна только модераторам. Счётчики берём из снимка настроек и обновляем свежим
-// запросом moderation-summary при монтировании.
+// Видна только модераторам; счётчики берёт из общего стора модерации, который
+// обновляется и после массовых действий в самой базе знаний.
 const KnowledgeModerationCard = () => {
-  const { token } = getLocalStorageData();
-  const kb = useInitialPrefsStore((state) => state.knowledgeBase);
+  const { counts, isModerator, scanForSecrets } = useModerationSummary();
 
-  const [counts, setCounts] = useState(
-    kb.counts || {
-      pendingApproval: 0,
-      pendingDeletion: 0,
-      pendingArchive: 0,
-      secretsFlagged: 0,
-    },
-  );
-
-  useEffect(() => {
-    if (!kb.isModerator) {
-      return;
-    }
-    const fetchSummary = async () => {
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_ADDRESS}/api/knowledge-notes/moderation-summary`,
-          { headers: { Authorization: "Bearer " + token } },
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setCounts({
-            pendingApproval: data.pendingApproval || 0,
-            pendingDeletion: data.pendingDeletion || 0,
-            pendingArchive: data.pendingArchive || 0,
-            secretsFlagged: data.secretsFlagged || 0,
-          });
-        }
-      } catch {
-        // оставляем снимок из настроек
-      }
-    };
-    fetchSummary();
-  }, [kb.isModerator, token]);
-
-  if (!kb.isModerator) {
+  if (!isModerator) {
     return null;
   }
 
-  // Кнопка секретов — только когда поиск секретов включён и есть находки
-  const showSecrets = kb.scanForSecrets && counts.secretsFlagged > 0;
+  // Очередь секретов показываем только при включённом сканере: без него
+  // счётчик может остаться от прошлых сканов и вести в пустую очередь.
+  const visible = QUEUES.filter(
+    (queue) =>
+      counts[queue.countKey] > 0 && (!queue.needsSecretsScan || scanForSecrets),
+  );
+
+  if (visible.length === 0) {
+    return null;
+  }
 
   return (
     <ItemCard
@@ -64,58 +64,17 @@ const KnowledgeModerationCard = () => {
       title="База знаний — модерация"
     >
       <div className="d-flex flex-wrap gap-2 mt-2">
-        {counts.pendingApproval > 0 && (
+        {visible.map((queue) => (
           <Button
+            key={queue.mode}
             as={Link}
-            to="/knowledge-base?moderation=all-unapproved"
-            variant="outline-info"
+            to={`/knowledge-base?moderation=${queue.mode}`}
+            variant={queue.variant}
             size="sm"
           >
-            На одобрение{" "}
-            <Badge bg="info" text="white">
-              {counts.pendingApproval}
-            </Badge>
+            {queue.label} <Badge bg="dark">{counts[queue.countKey]}</Badge>
           </Button>
-        )}
-        {counts.pendingDeletion > 0 && (
-          <Button
-            as={Link}
-            to="/knowledge-base?moderation=pending-deletion"
-            variant="outline-danger"
-            size="sm"
-          >
-            На удаление{" "}
-            <Badge bg="danger" text="white">
-              {counts.pendingDeletion}
-            </Badge>
-          </Button>
-        )}
-        {counts.pendingArchive > 0 && (
-          <Button
-            as={Link}
-            to="/knowledge-base?moderation=pending-archive"
-            variant="outline-secondary"
-            size="sm"
-          >
-            На архивацию{" "}
-            <Badge bg="secondary" text="white">
-              {counts.pendingArchive}
-            </Badge>
-          </Button>
-        )}
-        {showSecrets && (
-          <Button
-            as={Link}
-            to="/knowledge-base?moderation=flagged-secrets"
-            variant="outline-warning"
-            size="sm"
-          >
-            Учётные данные{" "}
-            <Badge bg="warning" text="white">
-              {counts.secretsFlagged}
-            </Badge>
-          </Button>
-        )}
+        ))}
       </div>
     </ItemCard>
   );

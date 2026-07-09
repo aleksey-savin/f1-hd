@@ -1,5 +1,70 @@
-/* Редактируемый заголовок заметки выглядит как <h3>, без рамки;
-   в фокусе — нижнее подчёркивание. */
+/* ===================================================================
+   База знаний: страница-документ и список.
+   Опорная идея — минимальная разница между чтением и правкой: заголовок,
+   свойства и текст стоят на одном месте в обоих режимах, меняется только
+   то, чем в них управляют.
+   =================================================================== */
+
+/* --- Шапка заметки (по образцу .account-hero на странице устройства) --- */
+.note-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding: 0.9rem 1.15rem;
+  border-radius: var(--bs-border-radius);
+  background-color: var(--bs-card-bg);
+  background-image: radial-gradient(
+    130% 150% at 0% 0%,
+    rgba(var(--bs-primary-rgb), 0.14),
+    transparent 55%
+  );
+  box-shadow: var(--bs-box-shadow-sm);
+  /* Без overflow: hidden — иначе шапка режет меню «⋯». Радиальный фон и так
+     обрезается по border-radius: фон всегда клипается по border-box. */
+}
+
+.note-hero__actions {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Плитка типа заметки — увеличенная .contact-row__icon. Цвет несёт смысл:
+   информация / инструкции / бэклог. */
+.note-type-tile {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 0.8rem;
+  font-size: 1.4rem;
+}
+.note-type-tile--primary {
+  background: rgba(var(--bs-primary-rgb), 0.14);
+  color: var(--bs-primary);
+}
+.note-type-tile--success {
+  background: rgba(var(--bs-success-rgb), 0.14);
+  color: var(--bs-success);
+}
+.note-type-tile--warning {
+  background: rgba(var(--bs-warning-rgb), 0.16);
+  color: var(--bs-warning);
+}
+
+/* Заголовок: h2 и редактируемый инпут одной метрики — при переключении режима
+   текст не сдвигается ни на пиксель. */
+.kb-title,
+.kb-title-input.form-control {
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
 .kb-title-input.form-control {
   border: 0;
   background-color: transparent;
@@ -14,18 +79,121 @@
   border-bottom: 1px solid var(--bs-border-color);
 }
 
-/* Бейдж пользователя — «светлая пилюля». В тёмной теме bootstrap-овские
-   `bg-light`/`text-dark` переопределены на серые тона и контраст теряется,
-   поэтому фиксируем светлый фон и тёмный текст независимо от темы. */
-.kb-user-badge.badge {
-  background-color: #e9ecef !important;
-  color: #212529 !important;
+/* --- Строка доверия --------------------------------------------------
+   Состояние заметки — предложение с автором и датой, а не бейдж. Цветом
+   красим только иконку и само состояние, метаданные остаются нейтральными. */
+.kb-trust {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+.kb-trust > svg {
+  flex: 0 0 auto;
+  font-size: 1rem;
+}
+.kb-trust__state {
+  font-weight: 600;
+}
+.kb-trust__meta {
+  color: var(--bs-secondary-color);
+}
+.kb-trust__meta::before {
+  content: "·";
+  margin-right: 0.35rem;
+}
+.kb-trust--success > svg,
+.kb-trust--success .kb-trust__state {
+  color: var(--bs-success);
+}
+.kb-trust--warning > svg,
+.kb-trust--warning .kb-trust__state {
+  color: var(--bs-warning);
+}
+.kb-trust--editing > svg,
+.kb-trust--editing {
+  color: var(--bs-secondary-color);
 }
 
-/* Toast UI Editor/Viewer без внешней рамки — визуальный паритет с остальной
-   страницей заметки. */
+/* --- Свойства --------------------------------------------------------
+   Метаданные не должны отжимать текст заметки вниз: строка «подпись слева —
+   значение справа», две колонки на широком экране, без карточки и плиток.
+   Значение держит высоту селекта, поэтому пилюли в чтении и Select в правке
+   занимают один и тот же бокс — при переключении режима ничего не прыгает. */
+.kb-props {
+  border-top: 1px solid var(--bs-border-color);
+  border-bottom: 1px solid var(--bs-border-color);
+  padding: 0.25rem 0;
+}
+.kb-prop {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0.75rem 0.2rem 0;
+}
+.kb-prop__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+.kb-prop__label > svg {
+  font-size: 0.95rem;
+}
+.kb-prop__value {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-height: 38px;
+}
+/* Обёртка react-select занимает всю ширину значения */
+.kb-prop__value > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@media (max-width: 767.98px) {
+  .kb-prop {
+    grid-template-columns: 7rem minmax(0, 1fr);
+  }
+}
+
+.kb-chip.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* --- Тело заметки ----------------------------------------------------
+   Вьюер и WYSIWYG-редактор рендерят в один класс .toastui-editor-contents,
+   поэтому мера чтения задаётся один раз и действует в обоих режимах.
+   Таблицы и код — во всю ширину: услуги и конфиги не читают «колонкой». */
 .toastui-editor-defaultUI {
   border: 0;
+}
+.kb-doc .toastui-editor-defaultUI {
+  min-height: 380px;
+}
+.kb-doc .toastui-editor-contents > p,
+.kb-doc .toastui-editor-contents > ul,
+.kb-doc .toastui-editor-contents > ol,
+.kb-doc .toastui-editor-contents > blockquote,
+.kb-doc .toastui-editor-contents > h1,
+.kb-doc .toastui-editor-contents > h2,
+.kb-doc .toastui-editor-contents > h3,
+.kb-doc .toastui-editor-contents > h4 {
+  max-width: 74ch;
+}
+.kb-doc .toastui-editor-contents table,
+.kb-doc .toastui-editor-contents pre {
+  max-width: none;
 }
 
 /* Компактный тулбар: меньше высота, кнопки и отступы (по умолчанию 45px/32px). */
@@ -49,4 +217,206 @@
 .toastui-editor-toolbar-divider {
   height: 16px;
   margin: 9px 6px;
+}
+
+/* Icon-only «⋯»: квадратная кнопка без стрелки-каретки дропдауна. */
+.kb-actions__more.dropdown-toggle::after {
+  display: none;
+}
+.kb-actions__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+}
+
+/* --- Проводник по базе знаний ---------------------------------------- */
+.kb-explorer {
+  max-height: calc(100svh - 160px);
+}
+/* Скроллится только список: фильтры и сортировка остаются на месте. */
+.kb-explorer__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* На мобайле проводник — обычная страница внутри .mobile-shell__scroll,
+   собственного скролла у него быть не должно (см. docs/ux-ui-guide.md). */
+.mobile-shell .kb-explorer {
+  max-height: none;
+}
+.mobile-shell .kb-explorer__list {
+  overflow: visible;
+}
+
+/* Счётчик очередей внутри кнопки. Не Badge: своя заливка поверх залитой кнопки
+   даёт две спорящие плашки и мутный контраст в тёмной теме. Берём цвет у самой
+   кнопки — на outline это тихий серый, на активной primary — полупрозрачный
+   белый, и оба работают в обеих темах. */
+.kb-queue__count {
+  display: inline-block;
+  min-width: 1.5em;
+  margin-left: 0.4rem;
+  padding: 0 0.35em;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 22%, transparent);
+  color: inherit;
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1.55;
+  vertical-align: 0.1em;
+}
+
+/* Иконки без подписи должны читаться как действие, а не как значок. */
+.kb-explorer__add svg,
+.kb-queue-toggle svg {
+  font-size: 1.25rem;
+  vertical-align: -0.15em;
+}
+
+/* Аккордеон фильтров без рамок карточки — он вложен в панель сайдбара.
+   Горизонтальный отступ такой же, как у текста в поле поиска: подписи стоят на
+   одной вертикали, а не липнут к разделителю. */
+.kb-filters .accordion-button {
+  padding: 0.5rem 0.75rem;
+  font-weight: 600;
+}
+.kb-filters .accordion-body {
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+/* Строка состояния под фильтрами: контекст, счётчик, сброс и сортировка в один
+   ряд высотой в строку текста. Переносится, если контекст длинный. */
+.kb-explorer__status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  padding: 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--bs-secondary-color);
+}
+.kb-explorer__status .btn,
+.kb-explorer__sort {
+  --bs-btn-padding-x: 0;
+  --bs-btn-padding-y: 0;
+  --bs-btn-font-size: 0.85rem;
+  text-decoration: none;
+  vertical-align: baseline;
+}
+.kb-explorer__sort {
+  margin-left: auto;
+  color: var(--bs-secondary-color);
+}
+.kb-explorer__sort:hover {
+  color: var(--bs-body-color);
+}
+
+/* Папка-компания: липкая, чтобы в длинном списке было видно, чьи заметки на
+   экране. Это имя папки, а не микро-подпись к секции — поэтому обычный регистр
+   и размер, сопоставимый с заголовком заметки. */
+.kb-group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.5rem;
+  border: 0;
+  border-bottom: 1px solid var(--bs-border-color);
+  background: var(--bs-card-bg);
+  color: var(--bs-body-color);
+  font-size: 1rem;
+  font-weight: 600;
+}
+.kb-group__chevron {
+  flex: 0 0 auto;
+  font-size: 1.15rem;
+  transition: transform 0.15s ease;
+  transform: rotate(90deg);
+}
+.kb-group.is-collapsed .kb-group__chevron {
+  transform: rotate(0deg);
+}
+.kb-group__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Строка заметки: две строки текста, иконка состояния слева, флаги справа. */
+.kb-item.list-group-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.kb-item__check {
+  flex: 0 0 auto;
+  margin: 0;
+}
+.kb-item__approval {
+  flex: 0 0 auto;
+  font-size: 1.05rem;
+}
+.kb-item__body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+/* Заголовок заметки — главный текст списка, а не подпись к иконке. */
+.kb-item__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.kb-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--bs-secondary-color);
+}
+.kb-item__meta > span + span::before {
+  content: "·";
+  margin-right: 0.35rem;
+}
+.kb-item__type {
+  font-weight: 600;
+}
+.kb-item.active .kb-item__meta,
+.kb-item.active .kb-item__type,
+.kb-item.active .kb-item__approval {
+  color: inherit !important;
+}
+.kb-item__flags {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-group__chevron {
+    transition: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .note-hero {
+    padding: 1rem;
+  }
+  .note-hero__actions {
+    margin-left: 0;
+    width: 100%;
+  }
+  /* На узком экране редактор растёт по содержимому — высоту не навязываем,
+     скроллит .mobile-shell__scroll. */
+  .kb-doc .toastui-editor-defaultUI {
+    min-height: 60vh;
+  }
 }

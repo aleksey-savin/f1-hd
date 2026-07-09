@@ -752,7 +752,7 @@ const ViewClientDevice = ({ device = {} }) => {
           <>
             <Col sm="auto">
               <Button
-                variant="info"
+                variant="outline-primary"
                 className="w-100"
                 onClick={() => setShowAssign(true)}
               >

@@ -44,6 +44,10 @@ const ListWrapper = ({
   backRoute,
   defaultSearchValue = "",
   showSortAndCount = true,
+  // Нижний Offcanvas с <Outlet/> для форм add/update. База знаний открывает
+  // формы в основной панели и рендерит <Outlet/> сама, поэтому отключает его —
+  // иначе маршрут заметки смонтировался бы дважды.
+  renderOutlet = true,
   children,
 }) => {
   const { state } = useNavigation();
@@ -250,23 +254,25 @@ const ListWrapper = ({
       {filterStore.filteredList?.length === 0 &&
         filterStore.originalList?.length === 0 &&
         !isLoading && <AlertMessage variant="light" message="Список пуст" />}
-      <Offcanvas
-        show={offcanvas.isActive}
-        onHide={() => {
-          navigate(-1);
-          offcanvas.setClose();
-        }}
-        keyboard
-        placement="bottom"
-        className="h-100"
-      >
-        <Offcanvas.Header closeButton>
-          <Offcanvas.Title></Offcanvas.Title>
-        </Offcanvas.Header>
-        <Offcanvas.Body>
-          <Outlet />
-        </Offcanvas.Body>
-      </Offcanvas>
+      {renderOutlet && (
+        <Offcanvas
+          show={offcanvas.isActive}
+          onHide={() => {
+            navigate(-1);
+            offcanvas.setClose();
+          }}
+          keyboard
+          placement="bottom"
+          className="h-100"
+        >
+          <Offcanvas.Header closeButton>
+            <Offcanvas.Title></Offcanvas.Title>
+          </Offcanvas.Header>
+          <Offcanvas.Body>
+            <Outlet />
+          </Offcanvas.Body>
+        </Offcanvas>
+      )}
     </>
   );
 };

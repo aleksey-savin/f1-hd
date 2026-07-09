@@ -85,7 +85,30 @@ router.post(
   knowledgeNoteController.update,
 );
 
-// Одобрение заметки — canManageKnowledgeBase + проверка модератора в контроллере
+// Массовые действия модерации. Литеральные пути объявляем до динамических
+// маршрутов вида /approve/:id — иначе `:id` перехватит `-multiple`.
+// Гарды те же, что у одиночных близнецов; модератор проверяется в контроллере.
+const moderationBulkRoutes = [
+  ["approve-multiple", knowledgeNoteController.approveMultiple],
+  ["confirm-deletion-multiple", knowledgeNoteController.confirmDeletionMultiple],
+  ["decline-deletion-multiple", knowledgeNoteController.declineDeletionMultiple],
+  ["confirm-archive-multiple", knowledgeNoteController.confirmArchiveMultiple],
+  ["decline-archive-multiple", knowledgeNoteController.declineArchiveMultiple],
+];
+
+moderationBulkRoutes.forEach(([path, handler]) => {
+  router.post(
+    `/knowledge-notes/${path}`,
+    isAuth,
+    isNotClient,
+    knowledgeBaseModuleIsActive,
+    canSeeKnowledgeBase,
+    canManageKnowledgeBase,
+    handler,
+  );
+});
+
+// Отметка «Проверено» — canManageKnowledgeBase + проверка модератора в контроллере
 router.post(
   "/knowledge-notes/approve/:id",
   isAuth,

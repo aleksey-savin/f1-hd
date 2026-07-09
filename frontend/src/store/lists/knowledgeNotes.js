@@ -1,38 +1,27 @@
 import { create } from "zustand";
 import { getLocalStorageData } from "../../util/auth";
-import { NOTE_TYPES, getNoteTypeMeta } from "../../util/knowledgeNoteTypes";
+import { NOTE_TYPES } from "../../util/knowledgeNoteTypes";
 
 // Все типы включены — значение по умолчанию для фильтра по типу
 const defaultEnabledTypes = () =>
   Object.fromEntries(NOTE_TYPES.map((type) => [type.value, true]));
 
-// Строка для поиска по заметке: заголовок, текст, связанные сущности, тип
-const buildSearchString = (note) =>
-  [
-    note.title,
-    note.plainText,
-    getNoteTypeMeta(note.type).label,
-    ...(note.companies || []).map((company) => company.alias),
-    ...(note.users || []).flatMap((user) => [
-      user.firstName,
-      user.lastName,
-      `${user.firstName} ${user.lastName}`,
-    ]),
-    ...(note.categories || []).map((category) => category.title),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-// Есть ли активный фильтр (поиск или хотя бы один выбранный селект)
-const hasActiveFilter = (state) =>
+// Есть ли активный фильтр (поиск или хотя бы один выбранный селект).
+// Нужен для текста пустого состояния: сам список фильтр не «открывает».
+export const hasActiveFilter = (state) =>
   (state.searchTerm && state.searchTerm.length > 0) ||
-  (state.companies && state.companies.length > 0) ||
-  (state.users && state.users.length > 0) ||
-  (state.categories && state.categories.length > 0);
+  state.companies.length > 0 ||
+  state.users.length > 0 ||
+  state.categories.length > 0;
+
+// Отсев по типу: применяется всегда; при всех включённых типах эффекта нет
+const applyTypes = (list, enabledTypes = {}) =>
+  list.filter((note) => enabledTypes[note.type || "info"] !== false);
+
+const idsOf = (items = []) => items.map((item) => item._id.toString());
 
 // Заметки для режима модерации — в обход скоупинга (компания/категория/пользователь),
-// но с учётом фильтра по типу и поиска, чтобы можно было сузить набор на проверку.
+// но с учётом фильтра по типу: набор на проверку можно сузить.
 const moderationFilter = (state) => {
   let list = state.originalList || [];
 
@@ -53,88 +42,59 @@ const moderationFilter = (state) => {
       break;
   }
 
-  const enabledTypes = state.enabledTypes || {};
-  list = list.filter((note) => enabledTypes[note.type || "info"] !== false);
-
-  if (state.searchTerm?.length > 0) {
-    const terms = state.searchTerm.toLowerCase().split(" ").filter(Boolean);
-    list = list.filter((note) => {
-      const haystack = buildSearchString(note);
-      return terms.every((term) => haystack.includes(term));
-    });
-  }
-
-  return list;
+  return applyTypes(list, state.enabledTypes);
 };
 
-// «Общая» заметка — без привязок к компаниям, пользователям и категориям
-const isGlobalNote = (note) =>
-  (note.companies || []).length === 0 &&
-  (note.users || []).length === 0 &&
-  (note.categories || []).length === 0;
-
-// Какой набор грузить с сервера: активные (по умолчанию), архив или все с секретами
+// Набор данных на сервере + поиск. Поиск ушёл на бэкенд вместе с plainText:
+// на двух сотнях статей клиентский поиск стоил мегабайты трафика на каждый
+// заход в раздел.
 const datasetQuery = (state) => {
-  if (state.showArchived) return "?archived=true";
-  if (state.moderationMode === "flagged-secrets") return "?flaggedSecrets=true";
-  return "";
+  const params = new URLSearchParams();
+  if (state.scope === "archived") {
+    params.set("archived", "true");
+  } else if (state.moderationMode === "flagged-secrets") {
+    params.set("flaggedSecrets", "true");
+  }
+  if (state.searchTerm?.trim()) {
+    params.set("search", state.searchTerm.trim());
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
 };
 
-// Последовательно отсеивает заметки по активным фильтрам (мультивыбор + поиск).
-// Режим модерации игнорирует фильтры. Без активного фильтра показываем только
-// «общие» заметки (без привязок) — иначе их невозможно увидеть в списке.
+// Клиентские фильтры поверх серверного набора: тип и привязки. Без фильтра
+// показываем ВСЕ видимые заметки — бэкенд уже отдал ровно разрешённое, и
+// прятать их до ввода запроса значило бы прятать базу знаний от её читателей.
 const noteFilter = (state) => {
   if (state.moderationMode) {
     return moderationFilter(state);
   }
 
-  const enabledTypes = state.enabledTypes || {};
+  let list = applyTypes(state.originalList || [], state.enabledTypes);
 
-  if (!hasActiveFilter(state)) {
-    const base = (state.originalList || []).filter(
-      (note) => enabledTypes[note.type || "info"] !== false,
-    );
-    // В архиве показываем все архивные; в активном виде без фильтра — только «общие»
-    return state.showArchived ? base : base.filter((note) => isGlobalNote(note));
-  }
-
-  let list = state.originalList ? state.originalList : [];
-
-  // Фильтр по типу: применяется всегда; при всех включённых типах эффекта нет,
-  // выключение типа убирает его заметки из выдачи
-  list = list.filter((note) => enabledTypes[note.type || "info"] !== false);
-
-  if (state.companies?.length > 0) {
+  const companyIds = idsOf(state.companies);
+  if (companyIds.length > 0) {
     list = list.filter((note) =>
       (note.companies || []).some((company) =>
-        state.companies.includes(company._id.toString()),
+        companyIds.includes(company._id.toString()),
       ),
     );
   }
 
-  if (state.users?.length > 0) {
+  const userIds = idsOf(state.users);
+  if (userIds.length > 0) {
     list = list.filter((note) =>
-      (note.users || []).some((user) =>
-        state.users.includes(user._id.toString()),
-      ),
+      (note.users || []).some((user) => userIds.includes(user._id.toString())),
     );
   }
 
-  if (state.categories?.length > 0) {
+  const categoryIds = idsOf(state.categories);
+  if (categoryIds.length > 0) {
     list = list.filter((note) =>
       (note.categories || []).some((category) =>
-        state.categories.includes(category._id.toString()),
+        categoryIds.includes(category._id.toString()),
       ),
     );
-  }
-
-  if (state.searchTerm?.length > 0) {
-    // Каждое слово запроса должно встречаться где-то в заметке
-    const terms = state.searchTerm.toLowerCase().split(" ").filter(Boolean);
-    list = list.filter((note) => {
-      const haystack = buildSearchString(note);
-      return terms.every((term) => haystack.includes(term));
-    });
   }
 
   return list;
@@ -164,7 +124,14 @@ const handleSorting = (selected, list) => {
   return sortedList;
 };
 
+// Поиск бьёт по серверу, поэтому не на каждую букву.
+const SEARCH_DEBOUNCE_MS = 300;
+let searchTimer = null;
+
 const useKnowledgeNotesStore = create((set, get) => ({
+  // Выбранные значения фасетов храним объектами, а не id: серверный поиск
+  // сужает набор, а вместе с ним и список опций — по одному id восстановить
+  // пилюлю выбранного значения было бы уже нечем.
   companies: [],
   users: [],
   categories: [],
@@ -175,7 +142,7 @@ const useKnowledgeNotesStore = create((set, get) => ({
     { label: "Сначала старые" },
     { label: "По алфавиту" },
   ],
-  sortBy: { label: "По алфавиту" },
+  sortBy: { label: "Сначала изменённые" },
   isSorting: false,
   originalList: [],
   filteredList: [],
@@ -183,8 +150,15 @@ const useKnowledgeNotesStore = create((set, get) => ({
   loaded: false,
   // Режим модерации: null | "all-unapproved" | "pending-deletion" | "pending-archive" | "flagged-secrets"
   moderationMode: null,
-  // Просмотр архива: грузит архивные заметки вместо активных
-  showArchived: false,
+  // Набор данных: активные заметки или архив (взаимоисключающие)
+  scope: "active",
+  // Выделение для массовых действий модерации
+  selectedIds: [],
+  // Раскрытые группы-компании в проводнике. По умолчанию свёрнуты все, включая
+  // «Общие»: список папок целиком помещается на экран, и это и есть навигация.
+  expandedGroups: [],
+  // Мобильный drill-down: открытая компания (ключ группы) или null — список компаний
+  openCompany: null,
   // Последний загруженный с сервера набор — чтобы решать, нужен ли рефетч
   lastFetchedQuery: "",
 
@@ -206,12 +180,16 @@ const useKnowledgeNotesStore = create((set, get) => ({
         state.sortBy,
         noteFilter({ ...state, originalList }),
       );
+      // Заметки, исчезнувшие из набора (удалены, заархивированы, проверены),
+      // не должны тянуться в следующее массовое действие.
+      const present = new Set(originalList.map((note) => note._id));
       return {
         originalList,
         filteredList,
         loaded: true,
         isLoading: false,
         lastFetchedQuery: query,
+        selectedIds: state.selectedIds.filter((id) => present.has(id)),
       };
     });
   },
@@ -225,7 +203,7 @@ const useKnowledgeNotesStore = create((set, get) => ({
     return state.fetch();
   },
 
-  // Применяет текущие фильтры; рефетчит, если сменился набор (активные/архив/секреты)
+  // Применяет текущие фильтры; рефетчит, если сменился серверный набор
   refresh: async () => {
     const state = get();
     const query = datasetQuery(state);
@@ -236,21 +214,68 @@ const useKnowledgeNotesStore = create((set, get) => ({
     }
   },
 
-  // Частичное обновление фильтров (компании / пользователи / категории / поиск)
+  // Частичное обновление фильтров (компании / пользователи / категории / тип)
   updateFilter: (data) => set((state) => ({ ...state, ...data })),
 
+  // Поиск: значение в инпуте меняем сразу, серверный запрос — с задержкой.
+  // Очистка запроса сворачивает папки обратно: их раскрыл поиск, а не человек.
+  fullTextSearch: (query) => {
+    const searchTerm = query || "";
+    set(
+      searchTerm.trim()
+        ? { searchTerm }
+        : { searchTerm, expandedGroups: [], openCompany: null },
+    );
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => get().refresh(), SEARCH_DEBOUNCE_MS);
+  },
+
   // Режим модерации: показать все заметки заданного статуса, игнорируя скоупинг.
-  // Взаимоисключающе с просмотром архива; flagged-secrets грузит свой набор.
+  // Взаимоисключающе с архивом; flagged-secrets грузит свой набор.
   setModerationMode: (mode) => {
-    set({ moderationMode: mode, showArchived: false });
+    set({
+      moderationMode: mode,
+      scope: "active",
+      selectedIds: [],
+      openCompany: null,
+    });
     return get().refresh();
   },
 
-  // Просмотр архива (или возврат к активным). Взаимоисключающе с режимом модерации.
-  setShowArchived: (value) => {
-    set({ showArchived: value, moderationMode: null });
+  // Набор данных: "active" | "archived". Архив несовместим с режимом модерации.
+  setScope: (scope) => {
+    set({ scope, moderationMode: null, selectedIds: [], openCompany: null });
     return get().refresh();
   },
+
+  toggleSelected: (id) =>
+    set((state) => ({
+      selectedIds: state.selectedIds.includes(id)
+        ? state.selectedIds.filter((selected) => selected !== id)
+        : [...state.selectedIds, id],
+    })),
+
+  clearSelection: () => set({ selectedIds: [] }),
+
+  toggleGroup: (key) =>
+    set((state) => ({
+      expandedGroups: state.expandedGroups.includes(key)
+        ? state.expandedGroups.filter((group) => group !== key)
+        : [...state.expandedGroups, key],
+    })),
+
+  // Раскрыть папки, не трогая уже раскрытые. Возврат state без изменений —
+  // настоящий no-op: zustand сравнивает по Object.is и не будит подписчиков,
+  // иначе вызов из useEffect зациклил бы рендер.
+  expandGroups: (keys) =>
+    set((state) => {
+      const missing = keys.filter((key) => !state.expandedGroups.includes(key));
+      return missing.length
+        ? { expandedGroups: [...state.expandedGroups, ...missing] }
+        : state;
+    }),
+
+  setOpenCompany: (key) => set({ openCompany: key }),
 
   applyFilter: () =>
     set((state) => ({
@@ -268,6 +293,7 @@ const useKnowledgeNotesStore = create((set, get) => ({
   },
 
   resetFilter: () => {
+    clearTimeout(searchTimer);
     set(() => ({
       companies: [],
       users: [],
@@ -275,7 +301,9 @@ const useKnowledgeNotesStore = create((set, get) => ({
       enabledTypes: defaultEnabledTypes(),
       searchTerm: "",
       moderationMode: null,
-      showArchived: false,
+      scope: "active",
+      selectedIds: [],
+      openCompany: null,
     }));
     return get().refresh();
   },

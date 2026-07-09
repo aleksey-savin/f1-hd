@@ -10,14 +10,21 @@ import { ThemeContext } from "../store/theme-context";
 // Источник истины — Markdown: наружу отдаём instance.getMarkdown(). Ванильный
 // пакет не зависит от React, поэтому совместим с React 19 (в отличие от
 // устаревшей @toast-ui/react-editor).
-const MarkdownEditor = ({ initialValue = "", onChange, height = "500px" }) => {
+const MarkdownEditor = ({
+  initialValue = "",
+  onChange,
+  onReady,
+  height = "500px",
+}) => {
   const elRef = useRef(null);
   const editorRef = useRef(null);
   const { isDark } = useContext(ThemeContext);
 
-  // Держим актуальный onChange без пересоздания редактора
+  // Держим актуальные колбэки без пересоздания редактора
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
 
   useEffect(() => {
     const editor = new Editor({
@@ -43,6 +50,9 @@ const MarkdownEditor = ({ initialValue = "", onChange, height = "500px" }) => {
     });
 
     editorRef.current = editor;
+    // Отдаём инстанс наружу: вызывающий код фокусирует редактор и прокручивает
+    // его к нужному блоку (вход в правку двойным кликом по тексту).
+    onReadyRef.current?.(editor);
 
     return () => {
       editor.destroy();
@@ -59,8 +69,12 @@ const MarkdownEditor = ({ initialValue = "", onChange, height = "500px" }) => {
     ui?.classList.toggle("toastui-editor-dark", isDark);
   }, [isDark]);
 
-  // height:100% позволяет редактору заполнить flex-родителя с заданной высотой
-  return <div ref={elRef} style={{ height: "100%" }} />;
+  // height:100% позволяет редактору заполнить flex-родителя с заданной высотой.
+  // height="auto" (мобайл) — редактор растёт по содержимому, скроллит страница,
+  // поэтому обёртке высоту не навязываем.
+  return (
+    <div ref={elRef} style={height === "auto" ? undefined : { height: "100%" }} />
+  );
 };
 
 export default MarkdownEditor;

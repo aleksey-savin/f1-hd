@@ -1,54 +1,42 @@
-import { useContext, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useBlocker } from "react-router";
+import { isMobile, MobileView } from "react-device-detect";
 
-import Form from "react-bootstrap/Form";
-import Button from "react-bootstrap/Button";
-import Badge from "react-bootstrap/Badge";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Alert from "react-bootstrap/Alert";
-import ListGroup from "react-bootstrap/ListGroup";
-import Dropdown from "react-bootstrap/Dropdown";
+import { RiArrowLeftLine, RiSaveLine } from "react-icons/ri";
 
-import {
-  RiEditLine,
-  RiDeleteBinLine,
-  RiDeleteBin6Line,
-  RiSaveLine,
-  RiArrowGoBackFill,
-  RiBuilding2Line,
-  RiAccountBoxLine,
-  RiPriceTag3Line,
-  RiCheckboxCircleLine,
-  RiShieldKeyholeLine,
-  RiArchiveLine,
-  RiInboxArchiveLine,
-  RiInboxUnarchiveLine,
-  RiCloseLine,
-} from "react-icons/ri";
-
-import Select from "../../UI/Select";
 import MarkdownEditor from "../../UI/MarkdownEditor";
 import MarkdownViewer from "../../UI/MarkdownViewer";
+import ConfirmActionModal from "../../UI/ConfirmActionModal";
+import MobileActionBar from "../../UI/MobileActionBar";
 
 import useHttp from "../../hooks/use-http";
 import useToastStore from "../../store/toast-store";
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
-import { NOTE_TYPES, getNoteTypeMeta } from "../../util/knowledgeNoteTypes";
 import useInitialPrefsStore from "../../store/prefs";
-import NoteStatusBadges from "./NoteStatusBadges";
-import ApprovalModal from "./ApprovalModal";
+
+import NoteHero from "./NoteHero";
+import NoteActions from "./NoteActions";
+import NoteProperties from "./NoteProperties";
+import PendingRequestAlert from "./PendingRequestAlert";
+import SecretsAlert from "./SecretsAlert";
+import VerifyModal from "./VerifyModal";
 import ConfirmDeletionModal from "./ConfirmDeletionModal";
-import ConfirmActionModal from "../../UI/ConfirmActionModal";
 
 import "../../UI/knowledgeBase.css";
 
 const API = import.meta.env.VITE_API_ADDRESS;
 
-// Единый компонент заметки: режимы "read" (по умолчанию) и "edit" с одинаковой
-// вёрсткой. Верхняя строка — связи + действия; ниже заголовок, затем содержимое.
+// Высота редактора на десктопе: карточка Root минус навбар и паддинги.
+// На мобайле фиксированная высота не годится — редактор живёт внутри
+// .mobile-shell__scroll и должен расти по содержимому (см. docs/ux-ui-guide.md).
+const EDITOR_HEIGHT = isMobile ? "auto" : "calc(100svh - 300px)";
+
+const idsOf = (list = []) => (list || []).map((item) => String(item._id)).sort();
+const sameIds = (a, b) =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
+
 const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
   const navigate = useNavigate();
   const { token } = getLocalStorageData();
@@ -66,16 +54,15 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
     (state) => state.knowledgeBase.isModerator,
   );
 
-  const [showApproveModal, setShowApproveModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showRequestArchiveModal, setShowRequestArchiveModal] = useState(false);
-  const [showConfirmArchiveModal, setShowConfirmArchiveModal] = useState(false);
-
   const isNew = !initialNote?._id;
 
   const [currentNote, setCurrentNote] = useState(initialNote);
   const [mode, setMode] = useState(initialMode);
   const isEditing = mode === "edit";
+
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showRequestArchiveModal, setShowRequestArchiveModal] = useState(false);
 
   // Редактируемые поля (инициализируются из заметки, сбрасываются при отмене)
   const [title, setTitle] = useState(initialNote?.title || "");
@@ -87,8 +74,14 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
 
   // Опции селектов связей — грузятся лениво (только для редактирования)
   const [formData, setFormData] = useState(null);
-  // Предзаполнение новой заметки активными фильтрами делаем один раз
   const prefilledRef = useRef(false);
+  // Индекс блока, по которому пользователь дважды кликнул: после монтирования
+  // редактора прокручиваем к нему и ставим туда каретку.
+  const pendingCaretRef = useRef(null);
+  const viewerRef = useRef(null);
+  // Наши собственные переходы (сохранили новую заметку, отменили её создание)
+  // не должны упираться в блокировку «есть несохранённые изменения».
+  const bypassBlockRef = useRef(false);
 
   const resetFields = (note) => {
     setTitle(note?.title || "");
@@ -98,6 +91,17 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
     setCategories(note?.categories || []);
     setType(note?.type || "info");
   };
+
+  // Есть ли несохранённые изменения. Считаем честно по всем редактируемым полям:
+  // на этом же признаке стоит блокировка перехода со страницы.
+  const isDirty =
+    isEditing &&
+    (title !== (currentNote?.title || "") ||
+      content !== (currentNote?.content || "") ||
+      type !== (currentNote?.type || "info") ||
+      !sameIds(idsOf(companies), idsOf(currentNote?.companies)) ||
+      !sameIds(idsOf(users), idsOf(currentNote?.users)) ||
+      !sameIds(idsOf(categories), idsOf(currentNote?.categories)));
 
   const loadFormData = (onReady) => {
     if (formData) {
@@ -135,131 +139,177 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
       return;
     }
     prefilledRef.current = true;
-    const pick = (list, ids) =>
-      (list || []).filter((item) =>
-        (ids || []).map(String).includes(item._id.toString()),
-      );
+    // Берём объекты из formData, а не из фильтра: в селекте значение должно быть
+    // тем же объектом, что и опция.
+    const pick = (list, selected) => {
+      const ids = new Set((selected || []).map((item) => item._id.toString()));
+      return (list || []).filter((item) => ids.has(item._id.toString()));
+    };
     setCompanies(pick(formData.companies, filterCompanies));
     setUsers(pick(formData.users, filterUsers));
     setCategories(pick(formData.categories, filterCategories));
   }, [formData, isNew, filterCompanies, filterUsers, filterCategories]);
 
-  const enterEdit = () => {
-    resetFields(currentNote);
-    loadFormData(() => setMode("edit"));
-  };
+  const enterEdit = useCallback(
+    (blockIndex = null) => {
+      if (!canManage || currentNote?.archivedAt) {
+        return;
+      }
+      pendingCaretRef.current = blockIndex;
+      resetFields(currentNote);
+      loadFormData(() => setMode("edit"));
+    },
+    [canManage, currentNote, formData],
+  );
 
-  const cancelEdit = () => {
+  const cancelEdit = useCallback(() => {
     if (isNew) {
+      bypassBlockRef.current = true;
       return navigate("/knowledge-base");
     }
     resetFields(currentNote);
     setMode("read");
-  };
+  }, [isNew, navigate, currentNote]);
 
-  const saveHandler = (event) => {
-    event?.preventDefault?.();
+  const saveHandler = useCallback(
+    (event) => {
+      event?.preventDefault?.();
 
-    if (!title.trim()) {
-      return showToast("danger text-white", "Заголовок обязателен");
-    }
-    if (!content.trim()) {
-      return showToast("danger text-white", "Заполните содержимое заметки");
-    }
+      if (!title.trim()) {
+        return showToast("danger text-white", "Заголовок обязателен");
+      }
+      if (!content.trim()) {
+        return showToast("danger text-white", "Заполните содержимое заметки");
+      }
 
-    const url = isNew
-      ? `${API}/api/knowledge-notes/add`
-      : `${API}/api/knowledge-notes/update/${currentNote._id}`;
+      const url = isNew
+        ? `${API}/api/knowledge-notes/add`
+        : `${API}/api/knowledge-notes/update/${currentNote._id}`;
 
+      sendRequest(
+        {
+          url,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+          body: {
+            title: title.trim(),
+            content,
+            companies: companies.map((company) => company._id),
+            users: users.map((user) => user._id),
+            categories: categories.map((category) => category._id),
+            type,
+          },
+        },
+        (data) => {
+          if (!data || data.error) {
+            return showToast(
+              "danger text-white",
+              data?.message || "Не удалось сохранить заметку",
+            );
+          }
+          showToast(
+            "success text-white",
+            isNew ? "Заметка создана" : "Заметка обновлена",
+          );
+          refreshNotes();
+          if (isNew) {
+            bypassBlockRef.current = true;
+            navigate(`/knowledge-base/${data.note._id}`);
+          } else {
+            setCurrentNote(data.note);
+            resetFields(data.note);
+            setMode("read");
+          }
+        },
+      );
+    },
+    [title, content, companies, users, categories, type, isNew, currentNote],
+  );
+
+  // ── Действия жизненного цикла ──────────────────────────────────────────
+  // Все ходят одним путём: POST, тост, обновлённая заметка в стейт, рефреш списка.
+  const lifecycleRequest = (path, { body, success, failure, onDone } = {}) => {
     sendRequest(
       {
-        url,
+        url: `${API}/api/knowledge-notes/${path}`,
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          ...(body ? { "Content-Type": "application/json" } : {}),
           Authorization: "Bearer " + token,
         },
-        body: {
-          title: title.trim(),
-          content,
-          companies: companies.map((company) => company._id),
-          users: users.map((user) => user._id),
-          categories: categories.map((category) => category._id),
-          type,
-        },
+        ...(body ? { body } : {}),
       },
       (data) => {
         if (!data || data.error) {
-          return showToast(
-            "danger text-white",
-            data?.message || "Не удалось сохранить заметку",
-          );
+          return showToast("danger text-white", data?.message || failure);
         }
-        showToast(
-          "success text-white",
-          isNew ? "Заметка создана" : "Заметка обновлена",
-        );
-        refreshNotes();
-        if (isNew) {
-          navigate(`/knowledge-base/${data.note._id}`);
-        } else {
+        showToast("success text-white", success);
+        if (data.note) {
           setCurrentNote(data.note);
-          resetFields(data.note);
-          setMode("read");
         }
-      },
-    );
-  };
-
-  // Менеджер отправляет заметку на удаление (мягко); прунит её позже модератор
-  const sendToDeletionHandler = () => {
-    sendRequest(
-      {
-        url: `${API}/api/knowledge-notes/send-to-deletion/${currentNote._id}`,
-        method: "POST",
-        headers: { Authorization: "Bearer " + token },
-      },
-      (data) => {
-        if (!data || data.error) {
-          return showToast(
-            "danger text-white",
-            data?.message || "Не удалось отправить заметку на удаление",
-          );
-        }
-        showToast("success text-white", "Заметка отправлена на удаление");
-        setCurrentNote(data.note);
         refreshNotes();
+        onDone?.();
       },
     );
   };
 
-  // Одобрение модератором (после подтверждения обоих условий в диалоге)
-  const approveHandler = ({ confirmCurrent, confirmNoSecrets }, reset) => {
-    sendRequest(
-      {
-        url: `${API}/api/knowledge-notes/approve/${currentNote._id}`,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: { confirmCurrent, confirmNoSecrets },
-      },
-      (data) => {
-        if (!data || data.error) {
-          return showToast(
-            "danger text-white",
-            data?.message || "Не удалось одобрить заметку",
-          );
-        }
-        showToast("success text-white", "Заметка одобрена");
+  const verifyHandler = ({ confirmCurrent, confirmNoSecrets }, reset) =>
+    lifecycleRequest(`approve/${currentNote._id}`, {
+      body: { confirmCurrent, confirmNoSecrets },
+      success: "Заметка отмечена как проверенная",
+      failure: "Не удалось отметить заметку проверенной",
+      onDone: () => {
         reset?.();
-        setShowApproveModal(false);
-        setCurrentNote(data.note);
-        refreshNotes();
+        setShowVerifyModal(false);
       },
-    );
-  };
+    });
+
+  const sendToDeletionHandler = () =>
+    lifecycleRequest(`send-to-deletion/${currentNote._id}`, {
+      success: "Заметка отправлена на удаление",
+      failure: "Не удалось отправить заметку на удаление",
+    });
+
+  const declineDeletionHandler = () =>
+    lifecycleRequest(`decline-deletion/${currentNote._id}`, {
+      success: "Запрос на удаление отклонён",
+      failure: "Не удалось отклонить запрос",
+    });
+
+  const requestArchiveHandler = () =>
+    lifecycleRequest(`request-archive/${currentNote._id}`, {
+      success: "Запрошена архивация заметки",
+      failure: "Не удалось запросить архивацию",
+      onDone: () => setShowRequestArchiveModal(false),
+    });
+
+  const confirmArchiveHandler = () =>
+    lifecycleRequest(`confirm-archive/${currentNote._id}`, {
+      success: "Заметка перемещена в архив",
+      failure: "Не удалось архивировать заметку",
+    });
+
+  const declineArchiveHandler = () =>
+    lifecycleRequest(`decline-archive/${currentNote._id}`, {
+      success: "Запрос на архивацию отклонён",
+      failure: "Не удалось отклонить запрос",
+    });
+
+  const unarchiveHandler = () =>
+    lifecycleRequest(`unarchive/${currentNote._id}`, {
+      success: "Заметка восстановлена из архива",
+      failure: "Не удалось восстановить заметку",
+    });
+
+  const ignoreSecretHandler = (hash) =>
+    lifecycleRequest(`${currentNote._id}/ignore-secret`, {
+      body: { hash },
+      success: "Находка помечена как не секрет",
+      failure: "Не удалось обновить находку",
+    });
 
   // Подтверждение удаления модератором — безвозвратный прун из БД
   const confirmDeletionHandler = () => {
@@ -284,455 +334,253 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
     );
   };
 
-  // Модератор помечает находку секрета как «не секрет» (ложное срабатывание)
-  const ignoreSecretHandler = (hash) => {
-    sendRequest(
-      {
-        url: `${API}/api/knowledge-notes/${currentNote._id}/ignore-secret`,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: { hash },
-      },
-      (data) => {
-        if (!data || data.error) {
-          return showToast(
-            "danger text-white",
-            data?.message || "Не удалось обновить находку",
-          );
-        }
-        showToast("success text-white", "Находка помечена как не секрет");
-        setCurrentNote(data.note);
-        refreshNotes();
-      },
-    );
-  };
+  // ── Правка на месте ────────────────────────────────────────────────────
 
-  // Менеджер запрашивает архивацию (мягко); подтверждает её модератор
-  const requestArchiveHandler = () => {
-    sendRequest(
-      {
-        url: `${API}/api/knowledge-notes/request-archive/${currentNote._id}`,
-        method: "POST",
-        headers: { Authorization: "Bearer " + token },
-      },
-      (data) => {
-        if (!data || data.error) {
-          return showToast(
-            "danger text-white",
-            data?.message || "Не удалось запросить архивацию",
-          );
-        }
-        showToast("success text-white", "Запрошена архивация заметки");
-        setShowRequestArchiveModal(false);
-        setCurrentNote(data.note);
-        refreshNotes();
-      },
-    );
-  };
-
-  // Подтверждение архивации модератором — заметка уходит в архив
-  const confirmArchiveHandler = () => {
-    sendRequest(
-      {
-        url: `${API}/api/knowledge-notes/confirm-archive/${currentNote._id}`,
-        method: "POST",
-        headers: { Authorization: "Bearer " + token },
-      },
-      (data) => {
-        if (!data || data.error) {
-          return showToast(
-            "danger text-white",
-            data?.message || "Не удалось архивировать заметку",
-          );
-        }
-        showToast("success text-white", "Заметка перемещена в архив");
-        setShowConfirmArchiveModal(false);
-        setCurrentNote(data.note);
-        refreshNotes();
-      },
-    );
-  };
-
-  // Восстановление заметки из архива (менеджер)
-  const unarchiveHandler = () => {
-    sendRequest(
-      {
-        url: `${API}/api/knowledge-notes/unarchive/${currentNote._id}`,
-        method: "POST",
-        headers: { Authorization: "Bearer " + token },
-      },
-      (data) => {
-        if (!data || data.error) {
-          return showToast(
-            "danger text-white",
-            data?.message || "Не удалось восстановить заметку",
-          );
-        }
-        showToast("success text-white", "Заметка восстановлена из архива");
-        setCurrentNote(data.note);
-        refreshNotes();
-      },
-    );
-  };
-
-  // Модератор отклоняет запрос на удаление — снимает pendingDeletion
-  const declineDeletionHandler = () => {
-    sendRequest(
-      {
-        url: `${API}/api/knowledge-notes/decline-deletion/${currentNote._id}`,
-        method: "POST",
-        headers: { Authorization: "Bearer " + token },
-      },
-      (data) => {
-        if (!data || data.error) {
-          return showToast(
-            "danger text-white",
-            data?.message || "Не удалось отклонить запрос",
-          );
-        }
-        showToast("success text-white", "Запрос на удаление отклонён");
-        setCurrentNote(data.note);
-        refreshNotes();
-      },
-    );
-  };
-
-  // Модератор отклоняет запрос на архивацию — снимает pendingArchive
-  const declineArchiveHandler = () => {
-    sendRequest(
-      {
-        url: `${API}/api/knowledge-notes/decline-archive/${currentNote._id}`,
-        method: "POST",
-        headers: { Authorization: "Bearer " + token },
-      },
-      (data) => {
-        if (!data || data.error) {
-          return showToast(
-            "danger text-white",
-            data?.message || "Не удалось отклонить запрос",
-          );
-        }
-        showToast("success text-white", "Запрос на архивацию отклонён");
-        setCurrentNote(data.note);
-        refreshNotes();
-      },
-    );
-  };
-
-  const fd = formData || {};
-
-  // Кнопки режима редактирования
-  const editActions = (
-    <>
-      <Button variant="primary" onClick={saveHandler} disabled={isLoading}>
-        <RiSaveLine /> Сохранить
-      </Button>
-      <Button
-        variant="outline-secondary"
-        onClick={cancelEdit}
-        disabled={isLoading}
-      >
-        <RiArrowGoBackFill /> Отмена
-      </Button>
-    </>
-  );
-
-  // Пункты меню «Действия» в режиме просмотра (модерация / жизненный цикл).
-  // Собираем массивом, чтобы не показывать пустое меню и избежать дублей «Отклонить».
-  const moderationItems = [];
-  if (currentNote && !currentNote.archivedAt) {
-    if (isModerator && currentNote.approved !== true) {
-      moderationItems.push(
-        <Dropdown.Item key="approve" onClick={() => setShowApproveModal(true)}>
-          <RiCheckboxCircleLine className="text-success me-2" />
-          Одобрить
-        </Dropdown.Item>,
-      );
+  // Двойной клик по тексту открывает правку в том же месте. Ссылки и чекбоксы
+  // списков задач исключаем: по ним кликают, чтобы перейти/отметить.
+  const bodyDoubleClickHandler = (event) => {
+    if (!canManage || isEditing || currentNote?.archivedAt) {
+      return;
     }
-    if (canManage && !currentNote.pendingDeletion) {
-      moderationItems.push(
-        <Dropdown.Item key="send-del" onClick={sendToDeletionHandler}>
-          <RiDeleteBinLine className="me-2" />
-          Отправить на удаление
-        </Dropdown.Item>,
-      );
+    if (event.target.closest("a, input[type='checkbox']")) {
+      return;
     }
-    if (isModerator && currentNote.pendingDeletion) {
-      moderationItems.push(
-        <Dropdown.Item
-          key="confirm-del"
-          className="text-danger"
-          onClick={() => setShowDeleteModal(true)}
-        >
-          <RiDeleteBin6Line className="me-2" />
-          Подтвердить удаление
-        </Dropdown.Item>,
-        <Dropdown.Item key="decline-del" onClick={declineDeletionHandler}>
-          <RiCloseLine className="me-2" />
-          Отклонить запрос на удаление
-        </Dropdown.Item>,
-      );
-    }
-    if (canManage && !currentNote.pendingArchive) {
-      moderationItems.push(
-        <Dropdown.Item
-          key="req-arch"
-          onClick={() => setShowRequestArchiveModal(true)}
-        >
-          <RiArchiveLine className="me-2" />
-          Запросить архивацию
-        </Dropdown.Item>,
-      );
-    }
-    if (isModerator && currentNote.pendingArchive) {
-      moderationItems.push(
-        <Dropdown.Item
-          key="confirm-arch"
-          onClick={() => setShowConfirmArchiveModal(true)}
-        >
-          <RiInboxArchiveLine className="me-2" />
-          Подтвердить архивацию
-        </Dropdown.Item>,
-        <Dropdown.Item key="decline-arch" onClick={declineArchiveHandler}>
-          <RiCloseLine className="me-2" />
-          Отклонить запрос на архивацию
-        </Dropdown.Item>,
-      );
-    }
-  }
+    const block = event.target.closest(".toastui-editor-contents > *");
+    const contents = viewerRef.current?.querySelector(".toastui-editor-contents");
+    const index =
+      block && contents ? [...contents.children].indexOf(block) : null;
+    enterEdit(index !== null && index >= 0 ? index : null);
+  };
 
-  // Действия в режиме просмотра: основная кнопка + меню. Для архивной заметки —
-  // только восстановление.
-  const readActions = currentNote?.archivedAt ? (
-    canManage && (
-      <Button
-        size="sm"
-        variant="outline-primary"
-        onClick={unarchiveHandler}
-        disabled={isLoading}
-      >
-        <RiInboxUnarchiveLine /> Восстановить из архива
-      </Button>
-    )
-  ) : (
-    <>
-      {canManage && (
-        <Button size="sm" variant="outline-primary" onClick={enterEdit}>
-          <RiEditLine /> Редактировать
-        </Button>
-      )}
-      {moderationItems.length > 0 && (
-        <Dropdown align="end">
-          <Dropdown.Toggle size="sm" variant="outline-secondary">
-            Действия
-          </Dropdown.Toggle>
-          <Dropdown.Menu>{moderationItems}</Dropdown.Menu>
-        </Dropdown>
-      )}
-    </>
+  // Редактор смонтирован: прокручиваем к блоку, по которому кликнули, и ставим
+  // туда каретку. Точного посимвольного соответствия между вьюером и редактором
+  // нет (в WYSIWYG позиция — offset ProseMirror-документа), поэтому целимся в
+  // начало блока; не вышло — фокус в начало заметки.
+  const editorReadyHandler = useCallback((editor) => {
+    const index = pendingCaretRef.current;
+    pendingCaretRef.current = null;
+
+    if (index === null || index === undefined) {
+      return;
+    }
+
+    const contents = document.querySelector(
+      ".kb-doc .toastui-editor-ww-container .toastui-editor-contents",
+    );
+    const block = contents?.children?.[index];
+
+    if (!block) {
+      return editor.moveCursorToStart(true);
+    }
+
+    block.scrollIntoView({ block: "center" });
+    try {
+      const range = document.createRange();
+      range.setStart(block, 0);
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      editor.focus();
+    } catch {
+      editor.moveCursorToStart(true);
+    }
+  }, []);
+
+  // Ctrl/Cmd+E — переключить режим, Ctrl/Cmd+S — сохранить, Esc — выйти.
+  // Esc игнорируем, когда фокус в поле ввода (там он закрывает выпадающий
+  // список react-select), а Ctrl+S ловим всегда — иначе он уходит браузеру.
+  useEffect(() => {
+    const handler = (event) => {
+      const key = event.key.toLowerCase();
+      const mod = event.ctrlKey || event.metaKey;
+
+      if (mod && key === "s") {
+        event.preventDefault();
+        if (isEditing) {
+          saveHandler();
+        }
+        return;
+      }
+
+      const inField = ["INPUT", "TEXTAREA"].includes(
+        document.activeElement?.tagName,
+      );
+
+      if (mod && key === "e") {
+        event.preventDefault();
+        return isEditing ? cancelEdit() : enterEdit();
+      }
+
+      if (event.key === "Escape" && isEditing && !inField) {
+        event.preventDefault();
+        cancelEdit();
+      }
+    };
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [isEditing, saveHandler, cancelEdit, enterEdit]);
+
+  // Уход со страницы с несохранёнными правками. Роутер данных умеет блокировать
+  // переход; закрытие вкладки перехватываем стандартным beforeunload.
+  const blocker = useBlocker(() => isDirty && !bypassBlockRef.current);
+
+  useEffect(() => {
+    if (!isDirty) {
+      return;
+    }
+    const handler = (event) => event.preventDefault();
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  // На мобилке кнопки правки уезжают в плавающий остров: шапка прокручивается,
+  // а «Сохранить» должно оставаться под большим пальцем.
+  const inlineActions = isMobile && isEditing ? null : (
+    <NoteActions
+      note={currentNote}
+      isNew={isNew}
+      isEditing={isEditing}
+      isLoading={isLoading}
+      canManage={canManage}
+      isModerator={isModerator}
+      onEdit={() => enterEdit()}
+      onSave={saveHandler}
+      onCancel={cancelEdit}
+      onVerify={() => setShowVerifyModal(true)}
+      onSendToDeletion={sendToDeletionHandler}
+      onRequestArchive={() => setShowRequestArchiveModal(true)}
+      onUnarchive={unarchiveHandler}
+    />
   );
 
   return (
-    <article
-      className={isEditing ? "d-flex flex-column" : undefined}
-      // В режиме редактирования заметка занимает всю доступную высоту карточки
-      // (как в Root: 100svh минус навбар и паддинги Card.Body), чтобы редактор
-      // растянулся на оставшееся место.
-      style={isEditing ? { height: "calc(100svh - 156px)" } : undefined}
-    >
-      {/* Верхняя строка: связи + действия в одну строку */}
-      <Row className="mb-2 g-2 align-items-center">
-        {isEditing ? (
-          <>
-            <Col xs="auto" style={{ minWidth: "10rem" }}>
-              <Select
-                placeholder="Тип"
-                isSearchable={false}
-                value={getNoteTypeMeta(type)}
-                options={NOTE_TYPES}
-                getOptionLabel={(option) => option.label}
-                getOptionValue={(option) => option.value}
-                onChange={(selected) => setType(selected?.value || "info")}
-              />
-            </Col>
-            <Col>
-              <Select
-                placeholder="Категории"
-                closeMenuOnSelect={false}
-                isClearable
-                isSearchable
-                isMulti
-                value={categories}
-                options={fd.categories || []}
-                getOptionLabel={(option) => option.title}
-                getOptionValue={(option) => option._id}
-                onChange={(selected) => setCategories(selected || [])}
-              />
-            </Col>
-            <Col>
-              <Select
-                placeholder="Компании"
-                closeMenuOnSelect={false}
-                isClearable
-                isSearchable
-                isMulti
-                value={companies}
-                options={fd.companies || []}
-                getOptionLabel={(option) => option.alias}
-                getOptionValue={(option) => option._id}
-                onChange={(selected) => setCompanies(selected || [])}
-              />
-            </Col>
-            <Col>
-              <Select
-                placeholder="Пользователи"
-                closeMenuOnSelect={false}
-                isClearable
-                isSearchable
-                isMulti
-                value={users}
-                options={fd.users || []}
-                getOptionLabel={(option) =>
-                  `${option.lastName || ""} ${option.firstName || ""}`.trim()
-                }
-                getOptionValue={(option) => option._id}
-                onChange={(selected) => setUsers(selected || [])}
-              />
-            </Col>
-          </>
-        ) : (
-          <Col className="d-flex flex-wrap gap-1 align-items-center">
-            <NoteStatusBadges note={currentNote} />
-          </Col>
-        )}
+    <article className="kb-note">
+      <MobileView>
+        <Link
+          to="/knowledge-base"
+          className="d-inline-flex align-items-center gap-1 mb-3"
+        >
+          <RiArrowLeftLine /> К списку
+        </Link>
+      </MobileView>
 
-        {(isEditing || canManage || isModerator) && (
-          <Col xs="auto" className="d-flex gap-2 align-items-start flex-wrap">
-            {isEditing ? editActions : readActions}
-          </Col>
-        )}
-      </Row>
+      <NoteHero
+        note={currentNote}
+        isNew={isNew}
+        isEditing={isEditing}
+        title={title}
+        type={type}
+        onTitleChange={setTitle}
+        actions={inlineActions}
+      />
 
-      {/* Заголовок */}
-      {isEditing ? (
-        <Form.Control
-          autoFocus
-          type="text"
-          placeholder="Заголовок заметки"
-          className="h3 mb-2 kb-title-input"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-        />
-      ) : (
-        <h3 className="mb-2">{currentNote?.title}</h3>
-      )}
-
-      {/* Метаданные: тип, категории, компании, пользователи */}
       {!isEditing && (
-        <div className="d-flex flex-wrap gap-1 mb-3">
-          <Badge bg={getNoteTypeMeta(currentNote?.type).badge}>
-            {getNoteTypeMeta(currentNote?.type).label}
-          </Badge>
-          {(currentNote?.categories || []).map((category) => (
-            <Badge key={category._id} bg="info">
-              <RiPriceTag3Line /> {category.title}
-            </Badge>
-          ))}
-          {(currentNote?.companies || []).map((company) => (
-            <Badge key={company._id} bg="secondary">
-              <RiBuilding2Line /> {company.alias}
-            </Badge>
-          ))}
-          {(currentNote?.users || []).map((user) => (
-            <Badge key={user._id} className="kb-user-badge">
-              <RiAccountBoxLine /> {user.lastName} {user.firstName}
-            </Badge>
-          ))}
-        </div>
+        <PendingRequestAlert
+          note={currentNote}
+          isModerator={isModerator}
+          isLoading={isLoading}
+          onConfirmDeletion={() => setShowDeleteModal(true)}
+          onDeclineDeletion={declineDeletionHandler}
+          onConfirmArchive={confirmArchiveHandler}
+          onDeclineArchive={declineArchiveHandler}
+        />
       )}
 
-      {/* Находки секретов — только модераторам, с возможностью пометить «не секрет» */}
-      {!isEditing &&
-        isModerator &&
-        currentNote?.secretsScan?.flagged &&
-        (currentNote.secretsScan.findings || []).length > 0 && (
-          <Alert variant="danger" className="mb-2">
-            <div className="fw-semibold mb-2">
-              <RiShieldKeyholeLine /> Возможные учётные данные
-            </div>
-            <ListGroup variant="flush">
-              {currentNote.secretsScan.findings.map((finding, index) => (
-                <ListGroup.Item
-                  key={finding.hash || index}
-                  className="d-flex flex-wrap align-items-center gap-2 bg-transparent px-0 border-0 py-1"
-                >
-                  <span>{finding.maskedSnippet}</span>
-                  <Button
-                    size="sm"
-                    variant="outline-secondary"
-                    className="ms-auto"
-                    onClick={() => ignoreSecretHandler(finding.hash)}
-                  >
-                    Не секрет
-                  </Button>
-                </ListGroup.Item>
-              ))}
-            </ListGroup>
-          </Alert>
-        )}
+      {!isEditing && (
+        <SecretsAlert
+          note={currentNote}
+          isModerator={isModerator}
+          isLoading={isLoading}
+          onIgnore={ignoreSecretHandler}
+        />
+      )}
 
-      {/* Содержимое: Markdown — редактор (edit) ↔ просмотр (read) */}
-      {isEditing ? (
-        <div className="flex-grow-1" style={{ minHeight: 0 }}>
+      <NoteProperties
+        isEditing={isEditing}
+        type={type}
+        categories={isEditing ? categories : currentNote?.categories || []}
+        companies={isEditing ? companies : currentNote?.companies || []}
+        users={isEditing ? users : currentNote?.users || []}
+        formData={formData || {}}
+        onTypeChange={setType}
+        onCategoriesChange={setCategories}
+        onCompaniesChange={setCompanies}
+        onUsersChange={setUsers}
+      />
+
+      {/* Вьюер и WYSIWYG-редактор рендерят в один и тот же .toastui-editor-contents,
+          поэтому текст в обоих режимах стоит на месте (см. knowledgeBase.css). */}
+      <div className="kb-doc">
+        {isEditing ? (
           <MarkdownEditor
             initialValue={content}
             onChange={setContent}
-            height="100%"
+            onReady={editorReadyHandler}
+            height={EDITOR_HEIGHT}
           />
-        </div>
-      ) : (
-        <MarkdownViewer value={currentNote?.content || ""} />
+        ) : (
+          <div
+            ref={viewerRef}
+            onDoubleClick={bodyDoubleClickHandler}
+            title={
+              canManage && !currentNote?.archivedAt
+                ? "Двойной клик — редактировать (Ctrl+E)"
+                : undefined
+            }
+          >
+            <MarkdownViewer value={currentNote?.content || ""} />
+          </div>
+        )}
+      </div>
+
+      {isMobile && (
+        <MobileActionBar
+          show={isEditing}
+          statusText={isDirty ? "Есть несохранённые изменения" : "Правка"}
+          actions={[{ key: "save", icon: RiSaveLine, label: "Сохранить" }]}
+          isLoading={isLoading}
+          onPick={() => saveHandler()}
+          onCancel={cancelEdit}
+          ariaLabel="Действия над заметкой"
+        />
       )}
 
-      {!isNew && (
-        <>
-          <ApprovalModal
-            show={showApproveModal}
-            onHide={() => setShowApproveModal(false)}
-            onConfirm={approveHandler}
-            isLoading={isLoading}
-          />
-          <ConfirmDeletionModal
-            show={showDeleteModal}
-            onHide={() => setShowDeleteModal(false)}
-            onConfirm={confirmDeletionHandler}
-            isLoading={isLoading}
-          />
-          <ConfirmActionModal
-            show={showRequestArchiveModal}
-            onHide={() => setShowRequestArchiveModal(false)}
-            onConfirm={requestArchiveHandler}
-            title="Запросить архивацию"
-            body="Заметка будет отправлена на архивацию и после подтверждения модератором скрыта из базы знаний. Продолжить?"
-            confirmLabel="Запросить"
-            confirmVariant="secondary"
-            isLoading={isLoading}
-          />
-          <ConfirmActionModal
-            show={showConfirmArchiveModal}
-            onHide={() => setShowConfirmArchiveModal(false)}
-            onConfirm={confirmArchiveHandler}
-            title="Подтверждение архивации"
-            body="Заметка будет перемещена в архив и исчезнет из базы знаний. Она останется доступной через фильтр «Показать архив». Продолжить?"
-            confirmLabel="В архив"
-            confirmVariant="secondary"
-            isLoading={isLoading}
-          />
-        </>
-      )}
+      <VerifyModal
+        show={showVerifyModal}
+        onHide={() => setShowVerifyModal(false)}
+        onConfirm={verifyHandler}
+        isLoading={isLoading}
+      />
+
+      <ConfirmDeletionModal
+        show={showDeleteModal}
+        onHide={() => setShowDeleteModal(false)}
+        onConfirm={confirmDeletionHandler}
+        isLoading={isLoading}
+      />
+
+      <ConfirmActionModal
+        show={showRequestArchiveModal}
+        onHide={() => setShowRequestArchiveModal(false)}
+        onConfirm={requestArchiveHandler}
+        title="Запросить архивацию"
+        body="Заметка будет отправлена на архивацию и после подтверждения модератором скрыта из базы знаний. Продолжить?"
+        confirmLabel="Запросить"
+        confirmVariant="secondary"
+        isLoading={isLoading}
+      />
+
+      <ConfirmActionModal
+        show={blocker.state === "blocked"}
+        onHide={() => blocker.reset?.()}
+        onConfirm={() => blocker.proceed?.()}
+        title="Несохранённые изменения"
+        body="Заметка изменена, но не сохранена. Уйти со страницы и потерять правки?"
+        confirmLabel="Уйти без сохранения"
+        confirmVariant="danger"
+      />
     </article>
   );
 };

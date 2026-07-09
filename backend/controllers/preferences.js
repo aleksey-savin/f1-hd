@@ -132,6 +132,8 @@ exports.getInitial = async (req, res, next) => {
         isModerator: userIsModerator,
         hideNotApproved: !!kb.hideNotApproved,
         scanForSecrets: !!kb.scanForSecrets,
+        // Срок действия проверки: клиент считает по нему «действует ещё N дн.»
+        approvalPeriodDays: kb.approvalPeriodDays || 0,
         counts,
       },
     });

@@ -17,6 +17,7 @@ import {
 } from "react-icons/ri";
 
 import MarkdownViewer from "../../UI/MarkdownViewer";
+import { BindingChipList } from "../KnowledgeBase/BindingChips";
 import { getLocalStorageData } from "../../util/auth";
 import {
   NOTE_TYPES,
@@ -233,21 +234,12 @@ const RelatedNotes = ({
                     <ActiveApprovalIcon />
                   </Badge>
                 )}
-                {(activeNote.categories || []).map((category) => (
-                  <Badge key={category._id} bg="info">
-                    <RiPriceTag3Line /> {category.title}
-                  </Badge>
-                ))}
-                {(activeNote.companies || []).map((company) => (
-                  <Badge key={company._id} bg="secondary">
-                    <RiBuilding2Line /> {company.alias}
-                  </Badge>
-                ))}
-                {(activeNote.users || []).map((user) => (
-                  <Badge key={user._id} className="kb-user-badge">
-                    <RiAccountBoxLine /> {user.lastName} {user.firstName}
-                  </Badge>
-                ))}
+                <BindingChipList
+                  kind="category"
+                  items={activeNote.categories}
+                />
+                <BindingChipList kind="company" items={activeNote.companies} />
+                <BindingChipList kind="user" items={activeNote.users} />
               </div>
 
               <MarkdownViewer value={activeNote.content || ""} />

@@ -26,6 +26,19 @@ const getKbConfig = async () => {
   };
 };
 
+// Ссылки на людей, совершивших действие над заметкой. Клиент показывает их
+// имена («Проверено · Иванов И. · 12 июня», «Пётр Петров запросил удаление»),
+// поэтому подтягиваем их и в getOne, и в ответы мутаций — иначе после действия
+// в интерфейсе висел бы голый id до перезагрузки страницы.
+// В getAll не подтягиваем: список показывает только иконку проверки, не имена.
+const ACTOR_PATHS = [
+  "approvedBy",
+  "updatedBy",
+  "pendingDeletionBy",
+  "pendingArchiveBy",
+  "archivedBy",
+].map((path) => ({ path, select: "firstName lastName" }));
+
 // Пересчитать производные поля заметки (секреты + продление услуг) сразу после
 // создания/правки, чтобы они не оставались устаревшими до соответствующего крона.
 // Семантика крона сохранена: каждый блок — no-op без своего флага; для секретов
@@ -107,7 +120,52 @@ const buildCategories = async (ids = []) => {
   return list;
 };
 
-// Список заметок, доступных пользователю (без тяжёлого content; plainText — для поиска на клиенте)
+// Что список НЕ получает. Раньше отдавали plainText, потому что поиск жил на
+// клиенте: на двух сотнях статей это мегабайты при каждом заходе в раздел.
+// Теперь ищет сервер, а списку хватает заголовка, привязок и флагов.
+// secretsScan.flagged остаётся (иконка в строке), findings — нет.
+const LIST_PROJECTION = {
+  content: 0,
+  plainText: 0,
+  "secretsScan.findings": 0,
+  "secretsScan.ignoredHashes": 0,
+  serviceExpiry: 0,
+};
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Каждое слово запроса должно встретиться где-то в заметке (AND по словам,
+// OR по полям) — та же семантика, что была на клиенте. Число слов ограничиваем:
+// запрос из сотни слов превратился бы в сотню регулярок по коллекции.
+const MAX_SEARCH_TERMS = 8;
+
+const buildSearchConditions = (raw) => {
+  const terms = String(raw || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, MAX_SEARCH_TERMS);
+
+  if (terms.length === 0) {
+    return null;
+  }
+
+  return terms.map((term) => {
+    const pattern = new RegExp(escapeRegex(term), "i");
+    return {
+      $or: [
+        { title: pattern },
+        { plainText: pattern },
+        { "companies.alias": pattern },
+        { "categories.title": pattern },
+        { "users.firstName": pattern },
+        { "users.lastName": pattern },
+      ],
+    };
+  });
+};
+
+// Список заметок, доступных пользователю. Поиск (?search=) — на сервере.
 exports.getAll = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
@@ -123,7 +181,12 @@ exports.getAll = async (req, res, next) => {
       filter = { "secretsScan.flagged": true };
     }
 
-    const notes = await KnowledgeNote.find(filter, { content: 0 })
+    const searchConditions = buildSearchConditions(req.query.search);
+    if (searchConditions) {
+      filter.$and = searchConditions;
+    }
+
+    const notes = await KnowledgeNote.find(filter, LIST_PROJECTION)
       .sort({ updatedAt: -1 })
       .lean();
 
@@ -216,7 +279,9 @@ exports.getOne = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
     const kbConfig = await getKbConfig();
-    const note = await KnowledgeNote.findById(req.params.id).lean();
+    const note = await KnowledgeNote.findById(req.params.id)
+      .populate(ACTOR_PATHS)
+      .lean();
 
     if (!note) {
       return next(
@@ -271,6 +336,7 @@ exports.add = async (req, res, next) => {
 
     await rescanNoteDerived(note);
     await note.save();
+    await note.populate(ACTOR_PATHS);
 
     res.status(201).json({
       message: "Заметка успешно создана",
@@ -313,7 +379,7 @@ exports.update = async (req, res, next) => {
     note.categories = await buildCategories(categories);
     note.type = normalizeType(type);
     note.updatedBy = userId;
-    // Любое изменение сбрасывает одобрение — заметку нужно повторно одобрить
+    // Любое изменение снимает отметку «Проверено» — заметку нужно проверить заново
     note.approved = false;
     note.approvedBy = undefined;
     note.approvedAt = undefined;
@@ -322,6 +388,7 @@ exports.update = async (req, res, next) => {
     await rescanNoteDerived(note);
 
     await note.save();
+    await note.populate(ACTOR_PATHS);
 
     res.status(200).json({
       message: "Заметка успешно изменена",
@@ -379,6 +446,7 @@ exports.sendToDeletion = async (req, res, next) => {
     note.pendingDeletionBy = userId;
     note.pendingDeletionAt = new Date();
     await note.save();
+    await note.populate(ACTOR_PATHS);
 
     res.status(200).json({ message: "Заметка отправлена на удаление", note });
   } catch (error) {
@@ -455,6 +523,7 @@ exports.declineDeletion = async (req, res, next) => {
     note.pendingDeletionBy = undefined;
     note.pendingDeletionAt = undefined;
     await note.save();
+    await note.populate(ACTOR_PATHS);
 
     res.status(200).json({ message: "Запрос на удаление отклонён", note });
   } catch (error) {
@@ -469,7 +538,8 @@ exports.declineDeletion = async (req, res, next) => {
   }
 };
 
-// Одобрить заметку. Только модераторы. Требуются оба подтверждения из диалога.
+// Отметить заметку проверенной. Только модераторы. Требуются оба подтверждения
+// из диалога. В БД состояние хранится в полях approved/approvedBy/approvedAt.
 exports.approve = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
@@ -478,7 +548,7 @@ exports.approve = async (req, res, next) => {
     if (!isModerator(authedUser, moderatorIds)) {
       return next(
         new AppError(
-          `Недостаточно прав: одобрять заметки могут только модераторы`,
+          `Недостаточно прав: отмечать заметки проверенными могут только модераторы`,
           403,
         ),
       );
@@ -487,7 +557,7 @@ exports.approve = async (req, res, next) => {
     const { confirmCurrent, confirmNoSecrets } = req.body;
     if (confirmCurrent !== true || confirmNoSecrets !== true) {
       return next(
-        new AppError(`Необходимо подтвердить оба условия одобрения`, 422),
+        new AppError(`Необходимо подтвердить оба условия проверки`, 422),
       );
     }
 
@@ -503,8 +573,9 @@ exports.approve = async (req, res, next) => {
     note.approvedBy = authedUser.userId;
     note.approvedAt = new Date();
     await note.save();
+    await note.populate(ACTOR_PATHS);
 
-    res.status(200).json({ message: "Заметка одобрена", note });
+    res.status(200).json({ message: "Заметка отмечена как проверенная", note });
   } catch (error) {
     next(
       new AppError(
@@ -534,6 +605,7 @@ exports.requestArchive = async (req, res, next) => {
     note.pendingArchiveBy = userId;
     note.pendingArchiveAt = new Date();
     await note.save();
+    await note.populate(ACTOR_PATHS);
 
     res.status(200).json({ message: "Запрошена архивация заметки", note });
   } catch (error) {
@@ -576,6 +648,7 @@ exports.confirmArchive = async (req, res, next) => {
     note.pendingArchiveBy = undefined;
     note.pendingArchiveAt = undefined;
     await note.save();
+    await note.populate(ACTOR_PATHS);
 
     res.status(200).json({ message: "Заметка перемещена в архив", note });
   } catch (error) {
@@ -616,6 +689,7 @@ exports.declineArchive = async (req, res, next) => {
     note.pendingArchiveBy = undefined;
     note.pendingArchiveAt = undefined;
     await note.save();
+    await note.populate(ACTOR_PATHS);
 
     res.status(200).json({ message: "Запрос на архивацию отклонён", note });
   } catch (error) {
@@ -644,6 +718,7 @@ exports.unarchive = async (req, res, next) => {
     note.archivedAt = undefined;
     note.archivedBy = undefined;
     await note.save();
+    await note.populate(ACTOR_PATHS);
 
     res.status(200).json({ message: "Заметка восстановлена из архива", note });
   } catch (error) {
@@ -657,6 +732,153 @@ exports.unarchive = async (req, res, next) => {
     );
   }
 };
+
+// ── Массовые действия модерации ────────────────────────────────────────
+// Очереди модерации разбирают пачками: 14 заметок на проверку — это 14 кликов
+// по одиночному маршруту. Обходим выделение по одной заметке, а не updateMany:
+// нужна человекочитаемая причина для тех, кого пропустили (статус успел
+// измениться, пока модератор смотрел список).
+const runBulkModeration = async (req, { precondition, skipReason, apply }) => {
+  const authedUser = await getAuthData(req);
+  const kbConfig = await getKbConfig();
+
+  if (!isModerator(authedUser, kbConfig.moderatorIds)) {
+    return { forbidden: true };
+  }
+
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter(Boolean) : [];
+  if (ids.length === 0) {
+    return { invalid: true };
+  }
+
+  const notes = await KnowledgeNote.find({ _id: { $in: ids } });
+  const processed = [];
+  const skipped = [];
+
+  for (const note of notes) {
+    // Модератор видит всё, но предикат видимости — единственная граница
+    // доступа в этом модуле, поэтому проверяем и здесь (защита в глубину).
+    if (!canViewNote(note, authedUser, kbConfig)) {
+      skipped.push({ title: note.title, reason: "нет доступа" });
+      continue;
+    }
+    if (!precondition(note)) {
+      skipped.push({ title: note.title, reason: skipReason });
+      continue;
+    }
+    await apply(note, authedUser);
+    processed.push(note.title);
+  }
+
+  return { processed, skipped };
+};
+
+const bulkModerationHandler = ({
+  precondition,
+  skipReason,
+  apply,
+  success,
+  failure,
+}) => async (req, res, next) => {
+  try {
+    const result = await runBulkModeration(req, {
+      precondition,
+      skipReason,
+      apply,
+    });
+
+    if (result.forbidden) {
+      return next(
+        new AppError(
+          `Недостаточно прав: массовые действия модерации доступны только модераторам`,
+          403,
+        ),
+      );
+    }
+    if (result.invalid) {
+      return next(new AppError(`Не выбрано ни одной заметки`, 422));
+    }
+
+    res.status(200).json({
+      message: success(result.processed.length),
+      processed: result.processed.length,
+      skipped: result.skipped,
+    });
+  } catch (error) {
+    next(new AppError(failure, 500, true, error));
+  }
+};
+
+// Отметить проверенными. Требует обоих подтверждений, как и одиночный маршрут:
+// массовость не отменяет аттестацию модератора.
+exports.approveMultiple = async (req, res, next) => {
+  const { confirmCurrent, confirmNoSecrets } = req.body || {};
+  if (confirmCurrent !== true || confirmNoSecrets !== true) {
+    return next(new AppError(`Необходимо подтвердить оба условия проверки`, 422));
+  }
+
+  return bulkModerationHandler({
+    precondition: (note) => !note.archivedAt,
+    skipReason: "в архиве",
+    apply: async (note, authedUser) => {
+      note.approved = true;
+      note.approvedBy = authedUser.userId;
+      note.approvedAt = new Date();
+      await note.save();
+    },
+    success: (count) => `Проверено: ${count}`,
+    failure: "Failed to approve knowledge notes",
+  })(req, res, next);
+};
+
+exports.confirmDeletionMultiple = bulkModerationHandler({
+  precondition: (note) => note.pendingDeletion,
+  skipReason: "нет запроса на удаление",
+  apply: (note) => note.deleteOne(),
+  success: (count) => `Удалено: ${count}`,
+  failure: "Failed to confirm deletion of knowledge notes",
+});
+
+exports.declineDeletionMultiple = bulkModerationHandler({
+  precondition: (note) => note.pendingDeletion,
+  skipReason: "нет запроса на удаление",
+  apply: async (note) => {
+    note.pendingDeletion = false;
+    note.pendingDeletionBy = undefined;
+    note.pendingDeletionAt = undefined;
+    await note.save();
+  },
+  success: (count) => `Запросов на удаление отклонено: ${count}`,
+  failure: "Failed to decline deletion of knowledge notes",
+});
+
+exports.confirmArchiveMultiple = bulkModerationHandler({
+  precondition: (note) => note.pendingArchive,
+  skipReason: "нет запроса на архивацию",
+  apply: async (note, authedUser) => {
+    note.archivedAt = new Date();
+    note.archivedBy = authedUser.userId;
+    note.pendingArchive = false;
+    note.pendingArchiveBy = undefined;
+    note.pendingArchiveAt = undefined;
+    await note.save();
+  },
+  success: (count) => `Перемещено в архив: ${count}`,
+  failure: "Failed to confirm archive of knowledge notes",
+});
+
+exports.declineArchiveMultiple = bulkModerationHandler({
+  precondition: (note) => note.pendingArchive,
+  skipReason: "нет запроса на архивацию",
+  apply: async (note) => {
+    note.pendingArchive = false;
+    note.pendingArchiveBy = undefined;
+    note.pendingArchiveAt = undefined;
+    await note.save();
+  },
+  success: (count) => `Запросов на архивацию отклонено: ${count}`,
+  failure: "Failed to decline archive of knowledge notes",
+});
 
 // Сводка для модератора: счётчики для карточки на странице заявок и алерта.
 // Немодераторам возвращаем нули.
@@ -818,6 +1040,7 @@ exports.ignoreSecretFinding = async (req, res, next) => {
     note.secretsScan.flagged = note.secretsScan.findings.length > 0;
 
     await note.save();
+    await note.populate(ACTOR_PATHS);
 
     res.status(200).json({ message: "Находка помечена как не секрет", note });
   } catch (error) {

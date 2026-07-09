@@ -125,7 +125,7 @@ const PrefsKnowledgeBase = ({ prefs }) => {
       <Form.Group className="mb-3">
         <Form.Check
           type="switch"
-          label="Скрывать неодобренные заметки от обычных пользователей"
+          label="Скрывать непроверенные заметки от обычных пользователей"
           checked={hideNotApproved}
           value={hideNotApproved}
           onChange={hideNotApprovedChangeHandler}
@@ -133,7 +133,7 @@ const PrefsKnowledgeBase = ({ prefs }) => {
       </Form.Group>
 
       <Form.Group className="mb-3">
-        <Form.Label>Срок действия одобрения, дней</Form.Label>
+        <Form.Label>Срок действия проверки, дней</Form.Label>
         <Form.Control
           type="number"
           min={0}
@@ -141,8 +141,8 @@ const PrefsKnowledgeBase = ({ prefs }) => {
           onChange={approvalPeriodChangeHandler}
         />
         <Form.Text muted>
-          Через столько дней одобренная заметка снова станет неодобренной. 0 — не
-          сбрасывать.
+          Через столько дней проверенная заметка снова станет непроверенной. 0 —
+          не сбрасывать.
         </Form.Text>
       </Form.Group>
 

@@ -4,13 +4,18 @@ import InputGroup from "react-bootstrap/InputGroup";
 
 import { RiSearchLine } from "react-icons/ri";
 
-const SearchBar = ({ onChange, size, defaultValue, autoFocus }) => {
+// Передайте `value` — поле станет управляемым и будет очищаться вместе с
+// фильтром. С одним `defaultValue` сброс фильтра оставляет запрос в поле.
+const SearchBar = ({ onChange, size, defaultValue, value, autoFocus }) => {
   const submitHandler = (event) => {
     event.preventDefault();
   };
+  const controlled = value !== undefined;
   return (
     <Form onSubmit={submitHandler}>
-      <InputGroup>
+      {/* size — на всей группе, иначе иконка слева остаётся крупной и тянет
+          высоту вверх независимо от размера поля. */}
+      <InputGroup size={size}>
         <InputGroup.Text>
           <RiSearchLine />
         </InputGroup.Text>
@@ -19,7 +24,7 @@ const SearchBar = ({ onChange, size, defaultValue, autoFocus }) => {
           size={size || "md"}
           type="search"
           placeholder="Поиск..."
-          defaultValue={defaultValue || ""}
+          {...(controlled ? { value } : { defaultValue: defaultValue || "" })}
           onChange={onChange}
           autoFocus={autoFocus}
         />

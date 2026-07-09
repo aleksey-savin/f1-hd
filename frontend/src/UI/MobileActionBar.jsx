@@ -6,21 +6,33 @@ import Spinner from "react-bootstrap/Spinner";
 
 import { RiErrorWarningLine } from "react-icons/ri";
 
-// Сколько показывать причину блокировки, прежде чем вернуть счётчик.
+// Сколько показывать причину блокировки, прежде чем вернуть строку статуса.
 const HINT_MS = 4000;
 
-// Контекстная панель массовых действий на мобильных. Пока выделены заявки, она
-// занимает место плавающего острова навигации (тот же бокс и поверхность), а не
-// висит над ним второй плашкой. Позиционируется absolute внутри .mobile-shell —
-// fixed на мобайле не используем (см. app-shell в index.css).
-const BulkActionBarMobile = ({ count, actions, isLoading, onPick, onReset }) => {
+// Контекстная панель действий на мобильных. Пока она в DOM, панель занимает
+// место плавающего острова навигации (тот же бокс и поверхность), а не висит
+// над ним второй плашкой: на экране всегда ровно один плавающий объект.
+// Позиционируется absolute внутри .mobile-shell — fixed на мобайле не
+// используем (см. app-shell в index.css).
+//
+// actions: [{ key, icon, label, reason, danger }]. Непустая reason гасит
+// действие, но кнопка остаётся нажимаемой: на тач-экране hover-тултипа нет, и
+// тап должен объяснить причину, а не промолчать.
+const MobileActionBar = ({
+  show,
+  statusText,
+  actions = [],
+  isLoading,
+  onPick,
+  onCancel,
+  cancelLabel = "Отмена",
+  ariaLabel = "Действия",
+}) => {
   const reduceMotion = useReducedMotion();
 
   const [shell, setShell] = useState(null);
   useEffect(() => setShell(document.querySelector(".mobile-shell")), []);
 
-  // На тач-экране hover-тултипа нет, поэтому заблокированная кнопка остаётся
-  // нажимаемой: тап подменяет строку счётчика причиной блокировки.
   const [hint, setHint] = useState(null);
   const hintTimer = useRef(null);
 
@@ -30,11 +42,11 @@ const BulkActionBarMobile = ({ count, actions, isLoading, onPick, onReset }) => 
     hintTimer.current = setTimeout(() => setHint(null), HINT_MS);
   };
 
-  // Сменилось выделение — прежняя причина устарела.
+  // Сменился статус (например, выделение) — прежняя причина устарела.
   useEffect(() => {
     clearTimeout(hintTimer.current);
     setHint(null);
-  }, [count]);
+  }, [statusText]);
 
   useEffect(() => () => clearTimeout(hintTimer.current), []);
 
@@ -42,11 +54,11 @@ const BulkActionBarMobile = ({ count, actions, isLoading, onPick, onReset }) => 
 
   return createPortal(
     <AnimatePresence>
-      {count > 0 && (
+      {show && (
         <motion.div
           className="mobile-actionbar"
           role="toolbar"
-          aria-label="Действия над выбранными заявками"
+          aria-label={ariaLabel}
           initial={{ y: 24, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 24, opacity: 0 }}
@@ -73,14 +85,14 @@ const BulkActionBarMobile = ({ count, actions, isLoading, onPick, onReset }) => 
                 </motion.p>
               ) : (
                 <motion.div
-                  key="count"
+                  key="status"
                   className="mobile-actionbar__count"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: reduceMotion ? 0 : 0.12 }}
                 >
-                  <span>Выбрано: {count}</span>
+                  <span>{statusText}</span>
                   {isLoading && (
                     <Spinner
                       animation="border"
@@ -96,10 +108,10 @@ const BulkActionBarMobile = ({ count, actions, isLoading, onPick, onReset }) => 
             <button
               type="button"
               className="mobile-actionbar__cancel"
-              onClick={onReset}
+              onClick={onCancel}
               disabled={isLoading}
             >
-              Отмена
+              {cancelLabel}
             </button>
           </div>
 
@@ -134,4 +146,4 @@ const BulkActionBarMobile = ({ count, actions, isLoading, onPick, onReset }) => 
   );
 };
 
-export default BulkActionBarMobile;
+export default MobileActionBar;

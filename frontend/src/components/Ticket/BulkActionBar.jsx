@@ -20,7 +20,7 @@ import {
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { ThemeContext } from "../../store/theme-context";
 
-import BulkActionBarMobile from "./BulkActionBarMobile";
+import MobileActionBar from "../../UI/MobileActionBar";
 
 import TakeToWorkModal from "./BulkActions/TakeToWorkModal";
 import CommentModal from "./BulkActions/CommentModal";
@@ -193,12 +193,14 @@ const BulkActionBar = ({
       </Modal>
 
       {isMobile ? (
-        <BulkActionBarMobile
-          count={count}
+        <MobileActionBar
+          show={count > 0}
+          statusText={`Выбрано: ${count}`}
           actions={actions}
           isLoading={isLoading}
           onPick={setOpenModal}
-          onReset={onReset}
+          onCancel={onReset}
+          ariaLabel="Действия над выбранными заявками"
         />
       ) : (
         <AnimatePresence>

@@ -5,6 +5,7 @@ const defaultKnowledgeBase = {
   isModerator: false,
   hideNotApproved: false,
   scanForSecrets: false,
+  approvalPeriodDays: 0,
   counts: {
     pendingApproval: 0,
     pendingDeletion: 0,

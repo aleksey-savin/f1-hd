@@ -3,9 +3,9 @@ import { Link } from "react-router";
 
 import Badge from "react-bootstrap/Badge";
 import ListGroup from "react-bootstrap/ListGroup";
-import { RiPriceTag3Line } from "react-icons/ri";
 
 import ItemCard from "../../UI/ItemCard";
+import { BindingChipList } from "./BindingChips";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
 // Дата хранится UTC-полночью — общий календарный форматтер (UTC-пиннинг).
@@ -61,11 +61,7 @@ const ServiceExpiryCard = () => {
             action
             className="d-flex flex-wrap align-items-center gap-2 bg-transparent px-0"
           >
-            {(service.categories || []).map((category) => (
-              <Badge key={category._id} bg="info" className="fw-normal">
-                <RiPriceTag3Line /> {category.title}
-              </Badge>
-            ))}
+            <BindingChipList kind="category" items={service.categories} />
             <span className="fw-semibold">{service.service}</span>
             <span className="text-body-secondary">
               до {formatDate(service.expiresAt)}

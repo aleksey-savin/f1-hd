@@ -1,12 +1,19 @@
-import { useEffect } from "react";
-import { Outlet, useLocation, useSearchParams } from "react-router";
+import { useContext, useEffect } from "react";
+import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 
 import { RiBookOpenLine } from "react-icons/ri";
 
+import ListWrapper from "../../UI/ListWrapper";
 import useSidebarStore from "../../store/sidebar";
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
-import KnowledgeBaseSidebar from "../../components/KnowledgeBase/Sidebar";
+import { AuthedUserContext } from "../../store/authed-user-context";
+import KnowledgeBaseExplorer from "../../components/KnowledgeBase/Explorer";
+import KnowledgeBaseFilter, {
+  isFilterActive,
+} from "../../components/KnowledgeBase/Filter";
+import NoteList from "../../components/KnowledgeBase/NoteList";
+import CompanyFolders from "../../components/KnowledgeBase/CompanyFolders";
 
 const Placeholder = () => (
   <div className="text-center text-body-secondary py-5">
@@ -22,25 +29,38 @@ const MODERATION_MODES = [
   "flagged-secrets",
 ];
 
+const title = () => (
+  <>
+    <RiBookOpenLine /> База знаний
+  </>
+);
+
 const KnowledgeBaseList = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { setLeftSidebarContent } = useSidebarStore();
   const store = useKnowledgeNotesStore();
+  const { isAdmin, permissions } = useContext(AuthedUserContext);
+  const canManage = isAdmin || permissions?.canManageKnowledgeBase;
 
   const moderationParam = searchParams.get("moderation");
 
+  // Заметки грузим сразу: по умолчанию список показывает всё, что доступно
+  // пользователю, сгруппированное по компаниям.
+  useEffect(() => {
+    store.ensureLoaded();
+  }, []);
+
   // Вход в режим модерации по ссылке с карточки/алерта. Режим НЕ сбрасываем при
-  // переходе к заметке или назад — им управляют кнопки фильтров в сайдбаре. Иначе
-  // при открытии заметки список модерации терялся бы (параметр уходит из URL).
+  // переходе к заметке или назад — им управляют кнопки очередей в проводнике.
+  // Иначе при открытии заметки список модерации терялся бы (параметр уходит из URL).
   useEffect(() => {
     if (moderationParam && MODERATION_MODES.includes(moderationParam)) {
       store.setModerationMode(moderationParam);
     }
   }, [moderationParam]);
 
-  // Заметки не грузим автоматически — только когда применён поиск/фильтр
-  // (логика в Sidebar). Здесь лишь пересчитываем список при обновлении данных.
   useEffect(() => {
     store.applyFilter();
   }, [store.originalList]);
@@ -48,7 +68,7 @@ const KnowledgeBaseList = () => {
   useEffect(() => {
     setLeftSidebarContent(
       <BrowserView>
-        <KnowledgeBaseSidebar />
+        <KnowledgeBaseExplorer />
       </BrowserView>,
     );
   }, [setLeftSidebarContent, store.originalList]);
@@ -57,10 +77,38 @@ const KnowledgeBaseList = () => {
     location.pathname === "/knowledge-base" ||
     location.pathname === "/knowledge-base/";
 
+  // Мобайл: подсветка кнопки «Фильтр», когда выбрано что-то помимо значений по
+  // умолчанию. Поиск не учитываем — у него свой видимый индикатор.
+  const filterActive = isFilterActive(store);
+
+  // Компания — ось навигации только в обычном просмотре. Поиск и очереди
+  // модерации отвечают на другой вопрос («где это сказано», «что разобрать»),
+  // поэтому показывают плоский список результатов.
+  const useDrillDown = !store.searchTerm.trim() && !store.moderationMode;
+
   return (
     <>
       <BrowserView>{atRoot ? <Placeholder /> : <Outlet />}</BrowserView>
-      <MobileView>{atRoot ? <KnowledgeBaseSidebar /> : <Outlet />}</MobileView>
+      <MobileView>
+        {atRoot ? (
+          <ListWrapper
+            title={title}
+            filter={<KnowledgeBaseFilter />}
+            filterStore={store}
+            filterActive={filterActive}
+            showRefreshButton={false}
+            hiddenAddButton={!canManage}
+            // Формы базы знаний открываются в основной панели, а не в нижнем
+            // Offcanvas: <Outlet/> рендерит сама эта страница.
+            renderOutlet={false}
+            onAddClick={() => navigate("/knowledge-base/add")}
+          >
+            {useDrillDown ? <CompanyFolders /> : <NoteList flat />}
+          </ListWrapper>
+        ) : (
+          <Outlet />
+        )}
+      </MobileView>
     </>
   );
 };
