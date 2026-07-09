@@ -4,7 +4,15 @@ const Category = require("../models/ticketCategory");
 const Work = require("../models/work");
 const { Ticket } = require("../models/ticket");
 const Subdivision = require("../models/subdivision");
+const Preferences = require("../models/preferences");
 const getAuthData = require("../middleware/getAuthData");
+const { resolveTimezone } = require("../utils/datetime");
+
+const dayjs = require("dayjs");
+const dayjsUtc = require("dayjs/plugin/utc");
+const dayjsTimezone = require("dayjs/plugin/timezone");
+dayjs.extend(dayjsUtc);
+dayjs.extend(dayjsTimezone);
 
 const { AppError } = require("../middleware/errorHandling");
 
@@ -393,27 +401,27 @@ exports.getTrendsAnalysis = async (req, res, next) => {
     } = req.body;
     const authedUser = await getAuthData(req);
 
-    // Определяем диапазон дат
+    // Диапазон дат — по настенным часам БИЗНЕС-таймзоны (сервер живёт в UTC:
+    // серверно-локальные границы резали периоды по UTC-полуночи и утаскивали
+    // работы первых часов месяца/года в соседний бакет).
+    const prefs = await Preferences.findOne({});
+    const tz = resolveTimezone(prefs);
+    const now = dayjs.tz(new Date(), tz);
+
     let startDate, endDate;
     if (period === "12months") {
-      endDate = new Date();
-      endDate.setHours(23, 59, 59, 999); // Конец текущего дня
-      startDate = new Date();
-      startDate.setMonth(startDate.getMonth() - 12);
-      startDate.setHours(0, 0, 0, 0); // Начало дня 12 месяцев назад
+      endDate = now.endOf("day").toDate();
+      startDate = now.subtract(12, "month").startOf("day").toDate();
     } else if (period === "currentYear") {
-      const currentYear = new Date().getFullYear();
-      startDate = new Date(currentYear, 0, 1, 0, 0, 0, 0);
-      endDate = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+      startDate = now.startOf("year").toDate();
+      endDate = now.endOf("year").toDate();
     } else if (period === "lastYear") {
-      const lastYear = new Date().getFullYear() - 1;
-      startDate = new Date(lastYear, 0, 1, 0, 0, 0, 0);
-      endDate = new Date(lastYear, 11, 31, 23, 59, 59, 999);
+      const lastYear = now.subtract(1, "year");
+      startDate = lastYear.startOf("year").toDate();
+      endDate = lastYear.endOf("year").toDate();
     } else if (period === "custom" && customStartDate && customEndDate) {
-      startDate = new Date(customStartDate);
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date(customEndDate);
-      endDate.setHours(23, 59, 59, 999);
+      startDate = dayjs.tz(customStartDate, tz).startOf("day").toDate();
+      endDate = dayjs.tz(customEndDate, tz).endOf("day").toDate();
     } else {
       throw new Error("Invalid period specified");
     }
@@ -429,7 +437,7 @@ exports.getTrendsAnalysis = async (req, res, next) => {
     const trendsData = [];
 
     // Генерируем периоды (месяцы/кварталы/недели)
-    const periods = generatePeriods(startDate, endDate, grouping);
+    const periods = generatePeriods(startDate, endDate, grouping, tz);
 
     for (let company of companies) {
       const companyTrends = {
@@ -574,97 +582,92 @@ exports.getTrendsAnalysis = async (req, res, next) => {
   }
 };
 
-// Вспомогательная функция для генерации периодов
-function generatePeriods(startDate, endDate, grouping) {
+// Вспомогательная функция для генерации периодов. Границы и подписи — по
+// настенным часам бизнес-таймзоны `tz` (dayjs.tz), а не серверного UTC.
+function generatePeriods(startDate, endDate, grouping, tz) {
   const periods = [];
+  const rangeStart = dayjs.tz(startDate, tz);
+  const rangeEnd = dayjs.tz(endDate, tz);
+
+  const clampEnd = (periodEnd) =>
+    periodEnd.isAfter(rangeEnd) ? rangeEnd.toDate() : periodEnd.toDate();
+  const labelDate = (instant, options) =>
+    instant.toLocaleDateString("ru-RU", { timeZone: tz, ...options });
 
   if (grouping === "month") {
-    const start = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-    while (start < endDate) {
-      const periodStart = new Date(start);
-      const periodEnd = new Date(
-        start.getFullYear(),
-        start.getMonth() + 1,
-        0,
-        23,
-        59,
-        59,
-        999,
-      );
-
-      const label = start.toLocaleDateString("ru-RU", {
-        year: "numeric",
-        month: "long",
-      });
+    let cursor = rangeStart.startOf("month");
+    while (cursor.toDate() < endDate) {
+      const periodEnd = cursor.endOf("month");
 
       periods.push({
-        start: periodStart,
-        end: periodEnd > endDate ? new Date(endDate) : periodEnd,
-        label: label,
-        key: periodStart.toISOString().slice(0, 10),
+        start: cursor.toDate(),
+        end: clampEnd(periodEnd),
+        label: labelDate(cursor.toDate(), {
+          year: "numeric",
+          month: "long",
+        }),
+        key: cursor.format("YYYY-MM-DD"),
       });
 
-      start.setMonth(start.getMonth() + 1);
+      cursor = cursor.add(1, "month").startOf("month");
     }
   } else if (grouping === "quarter") {
-    const startYear = startDate.getFullYear();
-    const endYear = endDate.getFullYear();
-    const startQuarter = Math.floor(startDate.getMonth() / 3);
+    const startYear = rangeStart.year();
+    const endYear = rangeEnd.year();
+    const startQuarter = Math.floor(rangeStart.month() / 3);
 
     for (let year = startYear; year <= endYear; year++) {
       const firstQuarter = year === startYear ? startQuarter : 0;
       const lastQuarter =
-        year === endYear ? Math.floor(endDate.getMonth() / 3) : 3;
+        year === endYear ? Math.floor(rangeEnd.month() / 3) : 3;
 
       for (let quarter = firstQuarter; quarter <= lastQuarter; quarter++) {
-        const periodStart = new Date(year, quarter * 3, 1, 0, 0, 0, 0);
-        const periodEnd = new Date(year, quarter * 3 + 3, 0, 23, 59, 59, 999);
+        const periodStart = rangeStart
+          .year(year)
+          .month(quarter * 3)
+          .startOf("month");
+        const periodEnd = periodStart.add(2, "month").endOf("month");
 
         // Проверяем, что период пересекается с запрашиваемым диапазоном
-        if (periodStart > endDate || periodEnd < startDate) {
+        if (periodStart.toDate() > endDate || periodEnd.toDate() < startDate) {
           continue;
         }
 
-        const label = `${quarter + 1} квартал ${year}`;
-
         periods.push({
-          start: periodStart < startDate ? new Date(startDate) : periodStart,
-          end: periodEnd > endDate ? new Date(endDate) : periodEnd,
-          label: label,
-          key: periodStart.toISOString().slice(0, 10),
+          start:
+            periodStart.toDate() < startDate
+              ? new Date(startDate)
+              : periodStart.toDate(),
+          end: clampEnd(periodEnd),
+          label: `${quarter + 1} квартал ${year}`,
+          key: periodStart.format("YYYY-MM-DD"),
         });
       }
     }
   } else if (grouping === "week") {
-    const current = new Date(startDate);
-    current.setHours(0, 0, 0, 0);
+    let cursor = rangeStart.startOf("day");
 
-    while (current < endDate) {
-      const periodStart = new Date(current);
-      const periodEnd = new Date(current);
-      periodEnd.setDate(periodEnd.getDate() + 6);
-      periodEnd.setHours(23, 59, 59, 999);
+    while (cursor.toDate() < endDate) {
+      const periodEnd = cursor.add(6, "day").endOf("day");
+      const periodEndClamped = clampEnd(periodEnd);
 
-      const weekStart = periodStart.toLocaleDateString("ru-RU", {
+      const weekStart = labelDate(cursor.toDate(), {
         day: "2-digit",
         month: "2-digit",
       });
-      const weekEndFormatted =
-        periodEnd > endDate ? new Date(endDate) : periodEnd;
-      const weekEndStr = weekEndFormatted.toLocaleDateString("ru-RU", {
+      const weekEndStr = labelDate(periodEndClamped, {
         day: "2-digit",
         month: "2-digit",
       });
-      const label = `${weekStart} - ${weekEndStr}`;
 
       periods.push({
-        start: periodStart,
-        end: periodEnd > endDate ? new Date(endDate) : periodEnd,
-        label: label,
-        key: periodStart.toISOString().slice(0, 10),
+        start: cursor.toDate(),
+        end: periodEndClamped,
+        label: `${weekStart} - ${weekEndStr}`,
+        key: cursor.format("YYYY-MM-DD"),
       });
 
-      current.setDate(current.getDate() + 7);
+      cursor = cursor.add(7, "day").startOf("day");
     }
   }
 

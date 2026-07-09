@@ -8,6 +8,7 @@ import {
 } from "../../util/finances";
 
 import { formatPrice } from "../../util/format-string";
+import { formatMonth } from "../../util/format-date";
 
 import useSummaryReportFilterStore from "../../store/finances/report";
 
@@ -96,11 +97,8 @@ const PreviewTable = () => {
 
   const splitData = splitDataByMonth(preview);
 
-  const getMonthName = (UtcDate) => {
-    return new Date(UtcDate)
-      .toLocaleDateString("ru-Ru", { month: "long" })
-      .toUpperCase();
-  };
+  // Единый формат месяца (бизнес-таймзона; заодно чинит опечатку локали "ru-Ru").
+  const getMonthName = (UtcDate) => formatMonth(UtcDate).toUpperCase();
 
   // Вынесенная функция для расчета workingTime
   const calculateWorkingTime = (plan, relatedWorks, schedule) => {

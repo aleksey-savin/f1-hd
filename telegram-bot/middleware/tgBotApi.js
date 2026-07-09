@@ -22,9 +22,13 @@ function sleep(milliseconds) {
   } while (currentDate - date < milliseconds);
 }
 
+// Единый дефолт бизнес-таймзоны — тот же, что у backend/utils/datetime.js и
+// схемы Preferences (у telegram-bot нет date-fns-tz, поэтому Intl + константа).
+const DEFAULT_TIMEZONE = "Europe/Moscow";
+
 const formatDate = (date, timezone) => {
   return new Date(date).toLocaleDateString("ru", {
-    timeZone: timezone || "Asia/Vladivostok",
+    timeZone: timezone || DEFAULT_TIMEZONE,
     weekday: "short",
     year: "numeric",
     month: "numeric",
@@ -33,6 +37,14 @@ const formatDate = (date, timezone) => {
     minute: "2-digit",
   });
 };
+
+// Календарный день инстанта в бизнес-таймзоне ("YYYY-MM-DD"). «Сегодня» для
+// дедлайнов считается по нему — серверные getDate()/getMonth() дают UTC-день,
+// который расходится с местным до смены суток по UTC.
+const dayKey = (date, timezone) =>
+  new Date(date).toLocaleDateString("en-CA", {
+    timeZone: timezone || DEFAULT_TIMEZONE,
+  });
 
 // Inline-кнопка со ссылкой на заявку. Telegram отклоняет кнопки с localhost/невалидным
 // URL (BUTTON_URL_INVALID) и роняет всю отправку — в dev (ADDRESS=localhost) не добавляем.
@@ -330,14 +342,10 @@ exports.launchTgBot = async () => {
                 .map((resp) => resp._id.toString())
                 .includes(user._id.toString());
 
-              const isToday = (date) => {
-                const today = new Date();
-                return (
-                  date.getDate() === today.getDate() &&
-                  date.getMonth() === today.getMonth() &&
-                  date.getFullYear() === today.getFullYear()
-                );
-              };
+              // «Сегодня» — в бизнес-таймзоне, не в UTC сервера.
+              const isToday = (date) =>
+                dayKey(date, prefs.timezone) ===
+                dayKey(new Date(), prefs.timezone);
 
               const forToday = isToday(new Date(ticket.deadline));
 

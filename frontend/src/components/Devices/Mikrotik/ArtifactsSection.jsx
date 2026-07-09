@@ -353,7 +353,7 @@ const ArtifactsSection = ({ recordId, type, initialSchedule, canManage }) => {
       </Card>
 
       {canManage && (
-        <div className="d-grid mb-3">
+        <div className="d-flex justify-content-end mb-3">
           <Button variant="primary" onClick={handleCreate} disabled={creating}>
             {creating ? <Spinner animation="border" size="sm" /> : <RiAddLine />}{" "}
             {createLabel}

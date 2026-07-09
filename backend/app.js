@@ -43,6 +43,7 @@ const {
   runServiceExpiryScan,
 } = require("./services/serviceExpiryScanRun");
 const Preferences = require("./models/preferences");
+const { DEFAULT_TIMEZONE } = require("./utils/datetime");
 
 const PORT = process.env.PORT || 8080;
 const app = express();
@@ -237,11 +238,6 @@ cron.schedule("*/10 * * * * *", async () => {
   }
 });
 
-// Cleanup old company logs every day at 2:00 AM
-cron.schedule("0 2 * * *", () => {
-  scheduleLogsCleanup();
-});
-
 // Refresh connectivity status of monitored Mikrotik devices every 5 minutes
 let isCheckingMikrotik = false;
 cron.schedule("*/5 * * * *", async () => {
@@ -314,30 +310,6 @@ cron.schedule("*/5 * * * *", async () => {
   }
 });
 
-// Knowledge base: revert approvals whose approval period has expired (daily 3:00)
-let isExpiringApprovals = false;
-cron.schedule("0 3 * * *", async () => {
-  if (isExpiringApprovals) {
-    return;
-  }
-
-  if (mongoose.connection.readyState !== 1) {
-    return;
-  }
-
-  isExpiringApprovals = true;
-
-  try {
-    await runKnowledgeApprovalExpiry();
-  } catch (error) {
-    logger.log("error", "Knowledge approval expiry run failed", {
-      error: error.message,
-    });
-  } finally {
-    isExpiringApprovals = false;
-  }
-});
-
 // Knowledge base: scan notes for exposed secrets every hour
 let isScanningSecrets = false;
 cron.schedule("0 * * * *", async () => {
@@ -362,29 +334,91 @@ cron.schedule("0 * * * *", async () => {
   }
 });
 
-// Knowledge base: parse service-renewal tables daily (3:30)
-let isScanningServices = false;
-cron.schedule("30 3 * * *", async () => {
-  if (isScanningServices) {
-    return;
-  }
-
-  if (mongoose.connection.readyState !== 1) {
-    return;
-  }
-
-  isScanningServices = true;
-
+// Ночные обслуживающие задания — по настенным часам БИЗНЕС-таймзоны: без
+// опции node-cron исполнял бы «2:00»/«3:00» по UTC контейнера, т.е. днём для
+// восточных поясов. Таймзона читается из настроек один раз при старте
+// (Preferences.findOne буферизуется mongoose до подключения к БД); смена зоны
+// в настройках подхватится после рестарта — как у задач checkRoutineTasks.
+const registerMaintenanceCrons = async () => {
+  let timezone = DEFAULT_TIMEZONE;
   try {
-    await runServiceExpiryScan();
+    const prefs = await Preferences.findOne({});
+    if (prefs?.timezone) {
+      timezone = prefs.timezone;
+    }
   } catch (error) {
-    logger.log("error", "Knowledge base service-expiry scan run failed", {
+    logger.log("error", "Failed to read timezone for maintenance crons", {
       error: error.message,
     });
-  } finally {
-    isScanningServices = false;
   }
-});
+
+  // Cleanup old company logs every day at 2:00 AM
+  cron.schedule(
+    "0 2 * * *",
+    () => {
+      scheduleLogsCleanup();
+    },
+    { timezone },
+  );
+
+  // Knowledge base: revert approvals whose approval period has expired (daily 3:00)
+  let isExpiringApprovals = false;
+  cron.schedule(
+    "0 3 * * *",
+    async () => {
+      if (isExpiringApprovals) {
+        return;
+      }
+
+      if (mongoose.connection.readyState !== 1) {
+        return;
+      }
+
+      isExpiringApprovals = true;
+
+      try {
+        await runKnowledgeApprovalExpiry();
+      } catch (error) {
+        logger.log("error", "Knowledge approval expiry run failed", {
+          error: error.message,
+        });
+      } finally {
+        isExpiringApprovals = false;
+      }
+    },
+    { timezone },
+  );
+
+  // Knowledge base: parse service-renewal tables daily (3:30)
+  let isScanningServices = false;
+  cron.schedule(
+    "30 3 * * *",
+    async () => {
+      if (isScanningServices) {
+        return;
+      }
+
+      if (mongoose.connection.readyState !== 1) {
+        return;
+      }
+
+      isScanningServices = true;
+
+      try {
+        await runServiceExpiryScan();
+      } catch (error) {
+        logger.log("error", "Knowledge base service-expiry scan run failed", {
+          error: error.message,
+        });
+      } finally {
+        isScanningServices = false;
+      }
+    },
+    { timezone },
+  );
+};
+
+registerMaintenanceCrons();
 
 // Initialize monitoring first
 setTimeout(() => {

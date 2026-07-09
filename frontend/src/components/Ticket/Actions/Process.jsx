@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useContext } from "react";
 
 import useTicketAction from "../../../hooks/use-ticket-action";
 import useHttp from "../../../hooks/use-http";
-import { utcToLocalForm } from "../../../util/format-date";
+import { utcToLocalForm, localToUtc } from "../../../util/format-date";
 
 import Select from "../../../UI/Select";
 import Button from "react-bootstrap/Button";
@@ -116,7 +116,14 @@ const ProcessTicket = ({ ticket }) => {
     formData.append("categoryId", category._id);
     formData.append("applicantId", applicant._id);
     formData.append("responsibles", JSON.stringify(responsibles));
-    formData.append("deadline", deadlineInputRef.current.value);
+    // Настенное время в бизнес-таймзоне; сырая строка без зоны парсилась бы
+    // сервером (UTC) как UTC.
+    formData.append(
+      "deadline",
+      deadlineInputRef.current.value
+        ? localToUtc(deadlineInputRef.current.value)
+        : "",
+    );
     formData.append("expectedVersion", ticket.version);
 
     fetcher.submit(formData, {

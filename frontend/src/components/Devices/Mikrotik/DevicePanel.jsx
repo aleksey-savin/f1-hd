@@ -3,6 +3,8 @@ import { Link } from "react-router";
 import Offcanvas from "react-bootstrap/Offcanvas";
 import Button from "react-bootstrap/Button";
 import Badge from "react-bootstrap/Badge";
+import Nav from "react-bootstrap/Nav";
+import Tab from "react-bootstrap/Tab";
 
 import {
   RiRouterLine,
@@ -14,12 +16,21 @@ import {
 
 import DeviceOverview, { STATUS_BADGE } from "./DeviceOverview";
 import AvailabilityStrip from "./AvailabilityStrip";
+import ArtifactsSection from "./ArtifactsSection";
 
-// Right-side PREVIEW of a managed Mikrotik device: key facts + a 30-day uptime
-// strip. The full picture (availability report, addresses, config exports) lives
-// on the device page — the primary button below leads there. Connection actions
-// stay in the footer (they run through the parent's modals).
-const DevicePanel = ({ device, onClose, canManage, onEditParams, onDetach }) => {
+// Right-side PREVIEW of a managed Mikrotik device. Обзор: key facts + a 30-day
+// uptime strip + a link to the full device page; Конфигурации: the stored `.rsc`
+// exports (gated by the config permission) — так резервные копии доступны прямо
+// из списка, без перехода на страницу. Connection actions stay in the footer
+// (they run through the parent's modals).
+const DevicePanel = ({
+  device,
+  onClose,
+  canManage,
+  canManageConfigs,
+  onEditParams,
+  onDetach,
+}) => {
   const isStandalone = device?.source === "standalone";
   const status = device
     ? STATUS_BADGE[device.status] || STATUS_BADGE.offline
@@ -51,8 +62,7 @@ const DevicePanel = ({ device, onClose, canManage, onEditParams, onDetach }) => 
               {device?.displayName}
             </Offcanvas.Title>
             <div className="small text-muted text-truncate">
-              {device?.company?.name ||
-                (isStandalone ? "Cloud Hosted Router" : "")}
+              {device?.company?.name || device?.type || ""}
               {status && (
                 <Badge bg={status.bg} className="ms-2">
                   {status.label}
@@ -65,21 +75,44 @@ const DevicePanel = ({ device, onClose, canManage, onEditParams, onDetach }) => 
 
       <Offcanvas.Body className="d-flex flex-column p-0 overflow-hidden">
         {device && (
-          <>
-            <div className="flex-grow-1 overflow-auto px-3 pt-2">
+          <Tab.Container defaultActiveKey="overview">
+            <Nav variant="tabs" className="px-3 pt-1 flex-nowrap">
+              <Nav.Item>
+                <Nav.Link eventKey="overview">Обзор</Nav.Link>
+              </Nav.Item>
+              {canManageConfigs && device.recordId && (
+                <Nav.Item>
+                  <Nav.Link eventKey="export">Конфигурации</Nav.Link>
+                </Nav.Item>
+              )}
               <Link
                 to={pageUrl}
-                className="btn btn-primary w-100 mb-3 d-inline-flex align-items-center justify-content-center gap-2"
+                className="btn btn-outline-primary btn-sm ms-auto align-self-center d-inline-flex align-items-center gap-1 text-nowrap"
               >
-                <RiExternalLinkLine /> Открыть страницу устройства
+                <RiExternalLinkLine /> Страница устройства
               </Link>
+            </Nav>
 
-              <DeviceOverview device={device} />
+            <Tab.Content className="flex-grow-1 overflow-auto px-3">
+              <Tab.Pane eventKey="overview" className="pt-2">
+                <DeviceOverview device={device} />
 
-              {device.recordId && device.monitoringEnabled && (
-                <AvailabilityStrip recordId={device.recordId} />
+                {device.recordId && device.monitoringEnabled && (
+                  <AvailabilityStrip recordId={device.recordId} />
+                )}
+              </Tab.Pane>
+
+              {canManageConfigs && device.recordId && (
+                <Tab.Pane eventKey="export" className="pt-2">
+                  <ArtifactsSection
+                    recordId={device.recordId}
+                    type="export"
+                    initialSchedule={device.schedules?.export}
+                    canManage={canManageConfigs}
+                  />
+                </Tab.Pane>
               )}
-            </div>
+            </Tab.Content>
 
             {canManage && (
               <div className="border-top p-3 d-flex flex-wrap justify-content-center gap-2">
@@ -105,7 +138,7 @@ const DevicePanel = ({ device, onClose, canManage, onEditParams, onDetach }) => 
                 </Button>
               </div>
             )}
-          </>
+          </Tab.Container>
         )}
       </Offcanvas.Body>
     </Offcanvas>

@@ -80,10 +80,15 @@ const DeviceOverview = ({ device, showIdentity = true }) => {
           <span className="text-body-secondary">Выключен</span>
         )}
       </InfoRow>
-      <InfoRow icon={<RiTimeLine />} label="Последнее подключение">
-        {device.lastSuccessfulConnectionAt &&
-          formatDate(device.lastSuccessfulConnectionAt)}
-      </InfoRow>
+      {/* Пока устройство в сети, «последнее подключение» и «последняя проверка»
+          совпадают (успешный опрос = и то и другое) — показываем одну строку.
+          Отдельное «последнее подключение» осмысленно только в офлайне: когда
+          устройство в последний раз было живо. */}
+      {device.status !== "online" && device.lastSuccessfulConnectionAt && (
+        <InfoRow icon={<RiTimeLine />} label="Последнее подключение">
+          {formatDate(device.lastSuccessfulConnectionAt)}
+        </InfoRow>
+      )}
       <InfoRow icon={<RiRefreshLine />} label="Последняя проверка">
         {device.lastCheckedAt && formatDate(device.lastCheckedAt)}
       </InfoRow>

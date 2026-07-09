@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const pad = require("pad");
 
 const logger = require("../utils/logger");
+const { resolveTimezone } = require("../utils/datetime");
 
 const Notification = require("../models//notification");
 const { Ticket } = require("../models//ticket");
@@ -1664,10 +1665,10 @@ exports.createScheduledWorkNotifications = async () => {
     return;
   }
 
+  // Единый дефолт таймзоны — из utils/datetime (совпадает со схемой Preferences).
   const formatDateTime = (date) => {
-    const timezone = prefs.timezone;
     return new Date(date).toLocaleDateString("ru", {
-      timeZone: timezone || "Asia/Vladivostok",
+      timeZone: resolveTimezone(prefs),
       month: "long",
       day: "numeric",
       hour: "2-digit",

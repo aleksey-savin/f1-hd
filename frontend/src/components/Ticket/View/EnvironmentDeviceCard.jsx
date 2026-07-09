@@ -88,29 +88,14 @@ const EnvironmentDeviceCard = ({
             />
           )}
         </div>
-        {isTarget && (
-          <div className="env-device__target-chip">устройство заявки</div>
-        )}
-        {device.vendorName && (
-          <div className="env-device__vendor">{device.vendorName}</div>
+        {(device.typeName || device.vendorName) && (
+          <div className="env-device__vendor">
+            {[device.typeName, device.vendorName].filter(Boolean).join(" · ")}
+          </div>
         )}
         {showLocation && device.locationName && (
           <div className="env-device__loc">
             <RiMapPin2Line /> {device.locationName}
-          </div>
-        )}
-        {(device.inventoryNumber || device.serialNumber) && (
-          <div className="env-device__ids">
-            {device.inventoryNumber && (
-              <span className="env-id" title="Инвентарный номер">
-                {device.inventoryNumber}
-              </span>
-            )}
-            {device.serialNumber && (
-              <span className="env-id" title="Серийный номер">
-                SN {device.serialNumber}
-              </span>
-            )}
           </div>
         )}
         {status && (

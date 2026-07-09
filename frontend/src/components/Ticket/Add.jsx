@@ -14,6 +14,7 @@ import { BrowserView, MobileView } from "react-device-detect";
 import Select from "../../UI/Select";
 
 import useHttp from "../../hooks/use-http";
+import { localToUtc } from "../../util/format-date";
 
 import Container from "react-bootstrap/Container";
 import Button from "react-bootstrap/Button";
@@ -280,10 +281,12 @@ const AddTicket = () => {
     formData.append("responsibles", JSON.stringify(responsibles));
     formData.append("applicantId", isEndUser ? "" : applicant._id);
     if (!isEndUser) {
+      // Значение datetime-local — настенное время в бизнес-таймзоне (симметрично
+      // загрузке через utcToLocalForm); new Date() трактовал его как браузерное.
       formData.append(
         "deadline",
         deadlineInputRef.current.value
-          ? new Date(deadlineInputRef.current?.value)
+          ? localToUtc(deadlineInputRef.current.value)
           : "",
       );
     }

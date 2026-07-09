@@ -11,7 +11,6 @@ const {
   financesModuleIsActive,
   canUseFinancesModule,
   canSeeGlobalFinancialReport,
-  canSeePersonalFinancialReport,
   canSeePersonalOrGlobalFinancialReport,
   canConfirmReportActions,
 } = require("@/middleware/permissions");
@@ -44,27 +43,6 @@ router.get(
   isAuth,
   canSeeGlobalFinancialReport,
   personalReportController.getReportEmployees,
-);
-
-router.get(
-  "/personal-report/:date",
-  isAuth,
-  canSeePersonalFinancialReport,
-  reportController.getPersonalReport,
-);
-
-router.get(
-  "/personal-report",
-  isAuth,
-  canSeePersonalFinancialReport,
-  reportController.getPersonalReportByRange,
-);
-
-router.get(
-  "/personal-preview",
-  isAuth,
-  canSeePersonalFinancialReport,
-  reportController.getPersonalPreviewWorks,
 );
 
 router.post(

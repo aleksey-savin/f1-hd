@@ -101,7 +101,10 @@ const stepError = (index, deviceKind, form) => {
   return null;
 };
 
-// ISO date -> "yyyy-MM-dd" для <input type="date">.
+// ISO date -> "yyyy-MM-dd" для <input type="date">. Эти поля хранятся в БД
+// UTC-полночью, поэтому здесь toISOString КОРРЕКТЕН (читаем UTC-день обратно);
+// toDateInputValue из format-date тут НЕ подходит — он даёт локальный день
+// инстанта и сдвинул бы дату в поясах с отрицательным смещением.
 const toDateInput = (date) => {
   if (!date) return "";
   return new Date(date).toISOString().split("T")[0];

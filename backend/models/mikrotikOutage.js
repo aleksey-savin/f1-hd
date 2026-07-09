@@ -9,11 +9,12 @@ const Schema = mongoose.Schema;
 // kept — they are the source for the availability report.
 const mikrotikOutageSchema = new Schema(
   {
+    // Отдельный index:true не нужен — составной {mikrotik, startedAt} ниже
+    // покрывает поиск по устройству своим префиксом.
     mikrotik: {
       type: Schema.Types.ObjectId,
       ref: "Mikrotik",
       required: true,
-      index: true,
     },
     startedAt: { type: Date, required: true },
     // null/absent while the outage is ongoing.

@@ -12,7 +12,11 @@ import CheckIfWithinPlan from "../../Work/CheckIfWithinPlan";
 
 import { AuthedUserContext } from "../../../store/authed-user-context";
 import { getLocalStorageData } from "../../../util/auth";
-import { timeDateInputFormat } from "../../../util/format-date";
+import {
+  timeDateInputFormat,
+  toDateTimeLocal,
+  localToUtc,
+} from "../../../util/format-date";
 import { msToHMS } from "../../../util/time-helpers";
 
 const emptyPlan = {
@@ -92,8 +96,9 @@ const AddWorksModal = ({ show, onHide, selectedItems, onConfirm }) => {
       ? msToHMS(new Date(finishedAt) - new Date(startedAt))
       : "00:00 ч.";
 
-  const startedNow = () => setStartedAt(timeDateInputFormat(new Date()));
-  const finishedNow = () => setFinishedAt(timeDateInputFormat(new Date()));
+  // «Сейчас» — настенное время бизнес-таймзоны (сохранение через localToUtc).
+  const startedNow = () => setStartedAt(toDateTimeLocal());
+  const finishedNow = () => setFinishedAt(toDateTimeLocal());
 
   const addMinutes = (minutes) => {
     const base = finishedAt
@@ -141,8 +146,10 @@ const AddWorksModal = ({ show, onHide, selectedItems, onConfirm }) => {
     onConfirm({
       description,
       visitRequired,
-      startedAt: new Date(startedAt).toISOString(),
-      finishedAt: new Date(finishedAt).toISOString(),
+      // Настенное время из инпутов — бизнес-таймзона (единая конвенция форм
+      // работ; браузерный new Date().toISOString() сдвигал бы при другом поясе).
+      startedAt: localToUtc(startedAt),
+      finishedAt: localToUtc(finishedAt),
       finishedBy: finishedBy?._id,
       withinPlan,
     });

@@ -6,7 +6,7 @@ import {
   useNavigate,
 } from "react-router";
 
-import { utcToLocalForm } from "../../util/format-date";
+import { utcToLocalForm, localToUtc } from "../../util/format-date";
 
 import Select from "../../UI/Select";
 
@@ -167,7 +167,14 @@ const UpdateTicket = () => {
     formData.append("company", JSON.stringify(company));
     formData.append("responsibles", JSON.stringify(responsibles));
     formData.append("applicantId", applicant._id);
-    formData.append("deadline", new Date(deadlineInputRef.current?.value));
+    // Настенное время из datetime-local — в бизнес-таймзоне (пара к
+    // utcToLocalForm при загрузке).
+    formData.append(
+      "deadline",
+      deadlineInputRef.current?.value
+        ? localToUtc(deadlineInputRef.current.value)
+        : "",
+    );
     formData.append("state", state);
 
     const validCustomFields = customFields.filter(

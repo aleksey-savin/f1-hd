@@ -1,6 +1,10 @@
 import { useState, useContext, useEffect } from "react";
 
-import { timeDateInputFormat } from "../../util/format-date";
+import {
+  timeDateInputFormat,
+  utcToLocalForm,
+  toDateTimeLocal,
+} from "../../util/format-date";
 import { msToHMS } from "../../util/time-helpers";
 
 import Select from "../../UI/Select";
@@ -33,10 +37,13 @@ const FormScheduled = ({ title }) => {
   );
 
   const [planningToStart, setPlanningToStart] = useState(
-    work?.planningToStart ? timeDateInputFormat(work.planningToStart) : "",
+    // Загрузка в бизнес-таймзоне — симметрично сохранению через localToUtc
+    // (timeDateInputFormat давал браузерное время: пересохранение без правок
+    // сдвигало план при другом поясе).
+    work?.planningToStart ? utcToLocalForm(work.planningToStart) : "",
   );
   const [planningToFinish, setPlanningToFinish] = useState(
-    work?.planningToFinish ? timeDateInputFormat(work.planningToFinish) : "",
+    work?.planningToFinish ? utcToLocalForm(work.planningToFinish) : "",
   );
   // См. Work/Form.jsx: значение берём из work.linkedTickets (все связи работы),
   // а otherCompanyTickets оставляем как список опций для добавления новых.
@@ -114,12 +121,12 @@ const FormScheduled = ({ title }) => {
   }, [planningToStart, planningToFinish]);
 
   const startedNowHandler = () => {
-    setPlanningToStart(timeDateInputFormat(new Date()));
+    setPlanningToStart(toDateTimeLocal());
     workDurationHandler();
   };
 
   const finishedNowHandler = () => {
-    setPlanningToFinish(timeDateInputFormat(new Date()));
+    setPlanningToFinish(toDateTimeLocal());
     workDurationHandler();
   };
 

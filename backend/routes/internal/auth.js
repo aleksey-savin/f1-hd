@@ -1,6 +1,8 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
-const { formatInTimeZone } = require("date-fns-tz");
+const { formatInTimeZone, getTimezoneOffset } = require("date-fns-tz");
+
+const { DEFAULT_TIMEZONE } = require("@/utils/datetime");
 
 const authController = require("@/controllers/auth");
 const isTelegramBot = require("@/middleware/isTelegramBot");
@@ -14,48 +16,21 @@ const Preferences = require("@/models/preferences");
 const router = express.Router();
 
 async function formatResetTime(resetTimeMs) {
-  // Try to get timezone from preferences or default to Moscow time
-  let timezone = "Europe/Moscow"; // Default timezone
+  // Таймзона приложения; смещение от Москвы считаем через date-fns-tz (вместо
+  // рукописной таблицы и хрупкого toLocaleString-раунд-трипа).
+  let timezone = DEFAULT_TIMEZONE;
   let mskOffset = 0; // Default offset from Moscow
 
   try {
     const preferences = await Preferences.findOne({});
     if (preferences?.timezone) {
       timezone = preferences.timezone;
-
-      // Predefined offsets for common Russian timezones from Moscow
-      const timezoneOffsets = {
-        "Europe/Kaliningrad": -1,
-        "Europe/Moscow": 0,
-        "Europe/Samara": 1,
-        "Asia/Yekaterinburg": 2,
-        "Asia/Omsk": 3,
-        "Asia/Krasnoyarsk": 4,
-        "Asia/Irkutsk": 5,
-        "Asia/Yakutsk": 6,
-        "Asia/Vladivostok": 7,
-        "Asia/Magadan": 8,
-        "Asia/Kamchatka": 9,
-      };
-
-      // Use predefined offset if available, otherwise calculate it
-      if (Object.hasOwn(timezoneOffsets, timezone)) {
-        mskOffset = timezoneOffsets[timezone];
-      } else {
-        // Fallback to calculation if timezone is not in our predefined list
-        const date = new Date();
-
-        // Get current time in milliseconds in both timezones
-        const mskTime = new Date(
-          date.toLocaleString("en-US", { timeZone: "Europe/Moscow" }),
-        ).getTime();
-        const tzTime = new Date(
-          date.toLocaleString("en-US", { timeZone: timezone }),
-        ).getTime();
-
-        // Calculate difference in hours
-        mskOffset = Math.round((tzTime - mskTime) / (1000 * 60 * 60));
-      }
+      const now = new Date();
+      mskOffset = Math.round(
+        (getTimezoneOffset(timezone, now) -
+          getTimezoneOffset("Europe/Moscow", now)) /
+          (1000 * 60 * 60),
+      );
     }
   } catch (err) {
     logger.logDirect("warn", "Failed to fetch timezone from preferences", {

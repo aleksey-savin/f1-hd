@@ -351,15 +351,6 @@
     animation: none;
   }
 }
-.env-device__target-chip {
-  display: inline-block;
-  margin-top: 0.15rem;
-  padding: 0.05rem 0.45rem;
-  font-size: 0.68rem;
-  border-radius: 999px;
-  background: rgba(var(--env-accent-rgb), 0.12);
-  color: var(--env-accent);
-}
 .env-device__icon {
   width: 2.2rem;
   height: 2.2rem;
@@ -399,24 +390,6 @@
   display: flex;
   align-items: center;
   gap: 0.2rem;
-}
-.env-device__ids {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin: 0.25rem 0;
-}
-.env-id {
-  font-family: var(--bs-font-monospace, monospace);
-  font-size: 0.68rem;
-  /* Корпусный текст на тинте emphasis-цвета — читаемо в обеих темах.
-     var(--bs-tertiary-bg) в тёмной теме давал светлый фон → текст сливался. */
-  color: var(--bs-body-color);
-  background: rgba(var(--bs-emphasis-color-rgb), 0.1);
-  border: 1px solid rgba(var(--bs-emphasis-color-rgb), 0.14);
-  padding: 0.02rem 0.32rem;
-  border-radius: 0.3rem;
-  white-space: nowrap;
 }
 .env-device__status {
   font-weight: 500;

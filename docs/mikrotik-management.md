@@ -208,10 +208,13 @@ Vendor.find({ isMikrotikManagementEnabled: true }).distinct("_id")
   ⊕ standalone: Mikrotik.find({ clientDevice: { $exists: false } }).populate(companyId)
 ```
 Each row: `{ source: "inventory"|"standalone", clientDeviceId, recordId,
-displayName, serialNumber, company{name}, model{name,vendor},
+displayName, serialNumber, company{name}, type, model{name,vendor},
 location{name,address}, status, monitoringEnabled, host, boardName,
 currentFirmware, addresses[], lastSuccessfulConnectionAt, lastCheckedAt,
-lastError }`. Inventory `displayName` = RouterOS identity if configured, else
+lastError, uptime30d }`. `type` = device type via the model (standalone → "Cloud
+Hosted Router"); `uptime30d` = 30-day availability % from `computeUptimeMap`
+(one `MikrotikOutage` query for the whole list; null = недостаточно данных).
+Inventory `displayName` = RouterOS identity if configured, else
 `<model name> · SN <serial>`; standalone `displayName` = `label` || identity ||
 host. `company.name` = `alias || fullTitle` (from the ClientDevice for inventory
 rows; from the record's `companyId` for standalone).
@@ -267,8 +270,18 @@ the inventory module is on) and authored by **`Preferences.defaultApplicant`** (
 is no system user) with `source: "Мониторинг устройств"`, company resolved from the
 device, deadline from `Preferences.deadline`, and `notifications.pending` so the
 mailer delivers them. Ticket text is human-readable (device name, host, last-seen,
-error) and links to `/devices/mikrotik?recordId=…`. The shared factory is
-`backend/services/mikrotik/tickets.js` → `createMikrotikTicket` (never throws).
+error). The description is **HTML** (the web card renders it via DOMPurify and the
+mailer embeds it into HTML bodies; telegram texts don't include descriptions):
+line breaks are `<br/>`, times are formatted in **`Preferences.timezone`** (the
+server runs UTC — raw `toLocaleString` diverged from the UI times; default
+Europe/Moscow, `fmtTime` over the shared `backend/utils/datetime.js` — the
+app-wide conventions live in `docs/datetime-conventions.md`), and it ends with
+a clickable **«Открыть страницу
+устройства»** anchor (`deviceLinkHtml`: inventory-backed →
+`/inventory/client-devices/:id?tab=monitoring`, standalone →
+`/devices/mikrotik/records/:recordId`; absolute via `process.env.ADDRESS` when
+set). The shared factory is `backend/services/mikrotik/tickets.js` →
+`createMikrotikTicket` (never throws).
 
 - **Offline alert** (`offlineTicket`: `isActive`, `thresholdMinutes`, `categoryId`) —
   a dedicated cron `backend/services/mikrotik/alerts.js` → `runMikrotikOfflineAlerts()`
@@ -424,25 +437,38 @@ requests a code → opens an entry modal (`ArtifactsSection`) → POSTs the code
 - **Table** — `frontend/src/components/Devices/Mikrotik/List.jsx`. Shows **only
   added devices** (inventory-configured + all standalone; `notConfigured` are
   filtered out in the store). Columns: Имя (with **company** as a subtitle) ·
-  Статус · **Защита** · Расположение · Модель · Хост · Прошивка · Последнее
-  подключение. The **Защита** column shows a green badge with the last config-export
-  date (a calendar icon when scheduled) or a red **«Нет копий»** (with a
-  «запланировано» hint if a schedule exists but no export yet). The **row is
-  clickable** and opens the device panel (a chevron hints at it); the former Адреса
-  column and inline action buttons were removed.
-- **Device panel = slim preview** — `Devices/Mikrotik/DevicePanel.jsx`, a
+  Статус · **Доступность** (30-day uptime %, colored by the report thresholds;
+  `uptime30d` computed backend-side for the whole list in one query —
+  `computeUptimeMap` in `services/mikrotik/outages.js`; «—» = недостаточно
+  данных) · **Тип** (the inventory `DeviceType` first — the user's own
+  router/switch taxonomy; when the row has no card type — standalone or an
+  untyped card — the class is **derived from the device itself**:
+  `deriveDeviceKind(record)` maps the polled `board-name` through MikroTik's
+  series nomenclature — CRS/CSS→Коммутатор, CCR/hAP/hEX/RB→Маршрутизатор,
+  wAP/cAP/SXT/…→Точка доступа, CHR→Cloud Hosted Router; unknown series → «—»)
+  · Расположение · Модель · Хост · Прошивка · Последнее подключение.
+  The former **Защита** column (last-export badge) was dropped — backups are one
+  click away in the panel's Конфигурации tab; `lastExportAt`/`schedules` still
+  ride on the row payload. The **row is clickable** and opens the device panel
+  (a chevron hints at it).
+- **Device panel = preview with tabs** — `Devices/Mikrotik/DevicePanel.jsx`, a
   right-side `Offcanvas` (`placement="end"`, width via `.mikrotik-panel`), opened
-  by clicking a row. One scroll column: a primary **«Открыть страницу
-  устройства»** link (inventory → `/inventory/client-devices/:id?tab=monitoring`;
-  standalone → `/devices/mikrotik/records/:recordId`), the key facts
-  (`DeviceOverview`), and a 30-day mini uptime strip (`AvailabilityStrip`).
-  Configs and the addresses table moved to the pages. Footer actions (gated by
-  `canManageMikrotikDevices`): **Параметры** (inventory → `ParametersModal`;
-  standalone → `StandaloneModal`) and **Отключить**/**Удалить** — opening either
-  closes the panel; the modals + confirm live in `List.jsx`.
+  by clicking a row. Tabs: **Обзор** (key facts via `DeviceOverview` + a 30-day
+  mini uptime strip) and **Конфигурации** (`ArtifactsSection` — the stored `.rsc`
+  exports, gated by `canManageMikrotikConfigs`), plus a compact
+  **«Страница устройства»** outline button in the tab row (inventory →
+  `/inventory/client-devices/:id?tab=monitoring`; standalone →
+  `/devices/mikrotik/records/:recordId`). The addresses table lives on the pages
+  only. Buttons are natural-width (no full-width stretching). Footer actions
+  (gated by `canManageMikrotikDevices`): **Параметры** (inventory →
+  `ParametersModal`; standalone → `StandaloneModal`) and
+  **Отключить**/**Удалить** — opening either closes the panel; the modals +
+  confirm live in `List.jsx`.
 - **Shared sections** (`Devices/Mikrotik/`): `DeviceOverview.jsx` (facts rows +
   `InfoRow`/`STATUS_BADGE`; `showIdentity=false` on pages whose hero already
-  shows company/model/location), `AddressesTable.jsx`, `AvailabilityReport.jsx`
+  shows company/model/location; while the device is **online** it shows a single
+  «Последняя проверка» row — «Последнее подключение» appears only offline, when
+  the two timestamps actually diverge), `AddressesTable.jsx`, `AvailabilityReport.jsx`
   (period switcher 24ч/7дн/30дн/90дн, KPI tiles, proportional green/red timeline
   strip with tooltips + pulsing ongoing segment, outage table with
   `/tickets/:num` links, «точность до 5 минут» footnote; strip colors via
@@ -519,14 +545,17 @@ The module is woven into the everyday ticket / inventory flow:
   (`getDeviceEnvironment`: device → its `locationId` → the shared
   `buildLocationChain` walk → `buildEnvNode(node, null)`; `isPersonal` is
   meaningless without a user). The device card is ring-highlighted
-  (`.env-device.is-target`, pulse ×3, `prefers-reduced-motion`-safe) with an
-  «устройство заявки» chip; the detail offcanvas marks it too. Edge states: no
+  (`.env-device.is-target`, pulse ×3, `prefers-reduced-motion`-safe); the detail
+  offcanvas marks it with «Устройство, о котором создана заявка». Environment
+  device cards show name + type · vendor + status/Mikrotik badges (no
+  inventory/serial numbers — those live in the detail offcanvas). Edge states: no
   `locationId` → alert + the lone device card; soft-deleted device → «удалено из
   учёта» note (old tickets keep working). Dive-in (`/locations/:id/node`) omits
   `userId` in device mode. User mode is untouched.
 - **Deep-link into the Mikrotik page** — `components/Devices/Mikrotik/List.jsx`
   auto-opens a device's panel once (via `useSearchParams`) from `?clientDeviceId=`
-  (ticket environment) or `?recordId=` (offline-alert ticket link).
+  (ticket environment) or `?recordId=` (legacy links in old monitoring tickets;
+  new tickets link straight to the device pages via `deviceLinkHtml`).
 - **Mikrotik panel → inventory** — the panel's **Обзор** tab has an **«Открыть в
   инвентаре»** link (`/inventory/client-devices/:id`) for inventory-backed devices
   (hidden for standalone), visible regardless of edit rights.

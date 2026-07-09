@@ -102,15 +102,17 @@ const postRecoveryComment = async (record, { startedAt, endedAt }) => {
     return;
   }
 
+  // Времена — в таймзоне приложения (как и в описании исходной заявки).
+  const timeZone = prefs?.timezone;
   const downtime = startedAt
     ? `\nПродолжительность простоя: ${formatDurationRu(
         endedAt - new Date(startedAt),
-      )} (с ${fmtTime(startedAt)}).`
+      )} (с ${fmtTime(startedAt, timeZone)}).`
     : "";
   const comment = new Comment({
     content:
       `🟢 Связь с устройством «${deviceLabel(record)}» восстановлена ` +
-      `${fmtTime(endedAt)}.${downtime}`,
+      `${fmtTime(endedAt, timeZone)}.${downtime}`,
     ticketId: ticket._id,
     notifications: { lastAction: "new comment", pending: true },
     createdBy: authorId,
@@ -211,6 +213,32 @@ const deleteOutages = async (recordId) => {
   }
 };
 
+// Clamp outage docs to a [from, to] window (ms) and merge overlaps. Returns the
+// merged [start, end] pairs — shared by the full report and the list-wide map.
+const clampAndMergeIntervals = (docs, fromMs, toMs) => {
+  const clamped = [];
+  for (const doc of docs) {
+    const start = Math.max(new Date(doc.startedAt).getTime(), fromMs);
+    const end = Math.min(
+      doc.endedAt ? new Date(doc.endedAt).getTime() : toMs,
+      toMs,
+    );
+    if (end > start) clamped.push([start, end]);
+  }
+  clamped.sort((a, b) => a[0] - b[0]);
+
+  const merged = [];
+  for (const [start, end] of clamped) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1]) {
+      last[1] = Math.max(last[1], end);
+    } else {
+      merged.push([start, end]);
+    }
+  }
+  return merged;
+};
+
 // Availability over the trailing `days` window, clamped to when the device was
 // enrolled (record.createdAt — there is no monitoring-toggle history). KPIs are
 // computed on window-clamped, overlap-merged intervals so glitched data can never
@@ -233,43 +261,18 @@ const computeAvailability = async (record, { days }) => {
     .populate("ticketId", "num")
     .lean();
 
-  // Clamp to the window, then merge overlaps before summing.
-  const clamped = [];
-  for (const doc of docs) {
-    const start = Math.max(
-      new Date(doc.startedAt).getTime(),
-      effectiveFrom.getTime(),
-    );
-    const end = Math.min(
-      doc.endedAt ? new Date(doc.endedAt).getTime() : to.getTime(),
-      to.getTime(),
-    );
-    if (end > start) clamped.push([start, end]);
-  }
-  clamped.sort((a, b) => a[0] - b[0]);
-
+  const merged = clampAndMergeIntervals(
+    docs,
+    effectiveFrom.getTime(),
+    to.getTime(),
+  );
   let downtimeMs = 0;
   let longestMs = 0;
-  let outageCount = 0;
-  let currentStart = null;
-  let currentEnd = null;
-  const flush = () => {
-    if (currentStart === null) return;
-    const length = currentEnd - currentStart;
-    downtimeMs += length;
-    longestMs = Math.max(longestMs, length);
-    outageCount += 1;
-  };
-  for (const [start, end] of clamped) {
-    if (currentEnd === null || start > currentEnd) {
-      flush();
-      currentStart = start;
-      currentEnd = end;
-    } else {
-      currentEnd = Math.max(currentEnd, end);
-    }
+  const outageCount = merged.length;
+  for (const [start, end] of merged) {
+    downtimeMs += end - start;
+    longestMs = Math.max(longestMs, end - start);
   }
-  flush();
 
   const uptimePct =
     windowMs > 0
@@ -310,6 +313,57 @@ const computeAvailability = async (record, { days }) => {
   };
 };
 
+// 30-дневный рейтинг доступности для СПИСКА записей одним запросом (колонка
+// таблицы управления). Возвращает Map(String(recordId) → pct | null), где null =
+// «недостаточно данных» (запись только что создана). Математика та же, что в
+// computeAvailability: окно клампится к monitoredSince, перекрытия сливаются.
+const computeUptimeMap = async (records, { days = 30 } = {}) => {
+  const map = new Map();
+  if (!records.length) return map;
+
+  const to = new Date();
+  const from = new Date(to.getTime() - days * MS_PER_DAY);
+
+  const docs = await MikrotikOutage.find({
+    mikrotik: { $in: records.map((record) => record._id) },
+    startedAt: { $lte: to },
+    $or: [{ endedAt: null }, { endedAt: { $gte: from } }],
+  })
+    .select("mikrotik startedAt endedAt")
+    .lean();
+
+  const byRecord = new Map();
+  for (const doc of docs) {
+    const key = String(doc.mikrotik);
+    if (!byRecord.has(key)) byRecord.set(key, []);
+    byRecord.get(key).push(doc);
+  }
+
+  for (const record of records) {
+    const key = String(record._id);
+    const monitoredSince = record.createdAt || from;
+    const effectiveFrom = monitoredSince > from ? monitoredSince : from;
+    const windowMs = to.getTime() - effectiveFrom.getTime();
+    if (windowMs <= 0) {
+      map.set(key, null);
+      continue;
+    }
+
+    const merged = clampAndMergeIntervals(
+      byRecord.get(key) || [],
+      effectiveFrom.getTime(),
+      to.getTime(),
+    );
+    let downtimeMs = 0;
+    for (const [start, end] of merged) {
+      downtimeMs += end - start;
+    }
+    map.set(key, Math.round((1 - downtimeMs / windowMs) * 10000) / 100);
+  }
+
+  return map;
+};
+
 module.exports = {
   ensureOpenOutage,
   attachTicket,
@@ -317,5 +371,6 @@ module.exports = {
   closeOpenOutage,
   deleteOutages,
   computeAvailability,
+  computeUptimeMap,
   formatDurationRu,
 };

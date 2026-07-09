@@ -14,6 +14,7 @@ import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 
 import Transitions from "../animations/Transition";
+import { formatMonth } from "../util/format-date";
 
 import { IoIosStats } from "react-icons/io";
 import { FaTasks } from "react-icons/fa";
@@ -67,7 +68,9 @@ const Dashboard = () => {
   };
 
   const now = new Date();
-  const month = now.toLocaleString("default", { month: "long" });
+  // Русское название месяца в бизнес-таймзоне (browser-default locale давал
+  // "July" у пользователей с английской системой).
+  const month = formatMonth(now);
   const isToday = (date) => {
     const today = new Date();
     return (

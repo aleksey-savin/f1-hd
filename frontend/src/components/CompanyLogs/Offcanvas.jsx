@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useFetcher } from "react-router";
 
+import { formatDate } from "../../util/format-date";
+
 import Offcanvas from "react-bootstrap/Offcanvas";
 import Button from "react-bootstrap/Button";
 import Table from "react-bootstrap/Table";
@@ -121,10 +123,8 @@ const CompanyLogsOffcanvas = ({
     setCurrentPage(page);
   };
 
-  const formatDateTime = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleString("ru-RU");
-  };
+  // Единый формат приложения (бизнес-таймзона) — util/format-date.
+  const formatDateTime = (dateString) => formatDate(dateString);
 
   const getActionBadge = (action) => {
     switch (action) {

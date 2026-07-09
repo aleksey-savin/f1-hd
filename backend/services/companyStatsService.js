@@ -7,6 +7,7 @@ const User = require("@/models/user");
 const Preferences = require("@/models/preferences");
 
 const { AppError } = require("@/middleware/errorHandling");
+const { resolveTimezone } = require("@/utils/datetime");
 
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
@@ -59,7 +60,7 @@ const getCompanyStats = async (companyId) => {
   const companyObjectId = new mongoose.Types.ObjectId(companyId);
 
   const preferences = await Preferences.findOne({});
-  const tz = preferences?.timezone || "Asia/Vladivostok";
+  const tz = resolveTimezone(preferences);
 
   const now = dayjs.tz(new Date(), tz);
   const dayOfMonth = now.date(); // N — сколько дней месяца уже прошло

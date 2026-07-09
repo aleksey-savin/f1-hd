@@ -4,7 +4,7 @@ import pad from "pad";
 
 import useHttp from "../../hooks/use-http";
 
-import { changeTimezone } from "../../util/format-date";
+import { timeDateInputFormat, localToUtc } from "../../util/format-date";
 
 import Select from "../../UI/Select";
 
@@ -93,8 +93,9 @@ const ScheduleWorkDashboard = ({
       tickets: linkedTickets,
       company: company._id,
       visitRequired: visitRequired,
-      planningToStart: new Date(planningToStartInputRef.current.value),
-      planningToFinish: new Date(planningToFinishInputRef.current.value),
+      // Настенное время инпутов — бизнес-таймзона (единая конвенция форм работ).
+      planningToStart: localToUtc(planningToStartInputRef.current.value),
+      planningToFinish: localToUtc(planningToFinishInputRef.current.value),
       executor: isAdmin ? executor : userId,
     };
 
@@ -152,7 +153,9 @@ const ScheduleWorkDashboard = ({
         ? new Date(planningToStartInputRef.current.value)
         : null;
     if (date) {
-      planningToFinishInputRef.current.value = changeTimezone(
+      // Настенная арифметика над значением инпута: локальный round-trip, без
+      // конверсии таймзон (changeTimezone сдвигал время при поясе ≠ бизнес).
+      planningToFinishInputRef.current.value = timeDateInputFormat(
         new Date(date.getTime() + minutes * 60000),
       );
     } else {

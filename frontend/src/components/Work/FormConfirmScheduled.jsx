@@ -1,6 +1,10 @@
 import { useState, useContext, useEffect } from "react";
 
-import { utcToLocalForm, timeDateInputFormat } from "../../util/format-date";
+import {
+  utcToLocalForm,
+  timeDateInputFormat,
+  toDateTimeLocal,
+} from "../../util/format-date";
 import { msToHMS } from "../../util/time-helpers";
 
 import Select from "../../UI/Select";
@@ -113,12 +117,12 @@ const ConfirmScheduledWork = ({ title }) => {
   }, [startedAt, finishedAt]);
 
   const startedNowHandler = () => {
-    setStartedAt(timeDateInputFormat(new Date()));
+    setStartedAt(toDateTimeLocal());
     workDurationHandler();
   };
 
   const finishedNowHandler = () => {
-    setFinishedAt(timeDateInputFormat(new Date()));
+    setFinishedAt(toDateTimeLocal());
     workDurationHandler();
   };
 

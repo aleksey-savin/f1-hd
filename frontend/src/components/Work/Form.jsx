@@ -1,6 +1,10 @@
 import { useState, useContext, useEffect } from "react";
 
-import { utcToLocalForm, timeDateInputFormat } from "../../util/format-date";
+import {
+  utcToLocalForm,
+  timeDateInputFormat,
+  toDateTimeLocal,
+} from "../../util/format-date";
 import { msToHMS } from "../../util/time-helpers";
 
 import Select from "../../UI/Select";
@@ -128,12 +132,14 @@ const WorkForm = ({ title }) => {
   }, [startedAt, finishedAt]);
 
   const startedNowHandler = () => {
-    setStartedAt(timeDateInputFormat(new Date()));
+    // «Сейчас» — текущее настенное время в бизнес-таймзоне (сохранение идёт
+    // через localToUtc, браузерное время дало бы сдвиг при другом поясе).
+    setStartedAt(toDateTimeLocal());
     workDurationHandler();
   };
 
   const finishedNowHandler = () => {
-    setFinishedAt(timeDateInputFormat(new Date()));
+    setFinishedAt(toDateTimeLocal());
     workDurationHandler();
   };
 
@@ -179,7 +185,7 @@ const WorkForm = ({ title }) => {
             required
             min={
               limitWorksDateFrom
-                ? timeDateInputFormat(new Date(limitWorksDateFrom))
+                ? toDateTimeLocal(limitWorksDateFrom)
                 : ""
             }
             type="datetime-local"

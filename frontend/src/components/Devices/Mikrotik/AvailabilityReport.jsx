@@ -9,6 +9,11 @@ import Spinner from "react-bootstrap/Spinner";
 import Table from "react-bootstrap/Table";
 
 import useMikrotikDeviceFilterStore from "../../../store/lists/mikrotik-devices";
+import {
+  formatDate,
+  formatShortDate,
+  formatDayMonthTime,
+} from "../../../util/format-date";
 
 export const PERIODS = [
   { days: 1, label: "24 ч" },
@@ -30,23 +35,6 @@ export const durationRu = (ms) => {
   if (minutes) parts.push(`${minutes} мин`);
   return parts.join(" ");
 };
-
-const fmtDateTime = (value) =>
-  new Date(value).toLocaleString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-const fmtShort = (value) =>
-  new Date(value).toLocaleString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 
 // Порог «хорошо/терпимо/плохо» для процента доступности.
 export const uptimeToneClass = (pct) => {
@@ -114,8 +102,8 @@ export const buildStripSegments = (report) => {
 
 const segmentTitle = (segment) => {
   if (segment.type === "idle") return "До подключения к мониторингу";
-  const range = `${fmtShort(segment.from)} — ${
-    segment.ongoing ? "сейчас" : fmtShort(segment.to)
+  const range = `${formatDayMonthTime(segment.from)} — ${
+    segment.ongoing ? "сейчас" : formatDayMonthTime(segment.to)
   }`;
   return segment.type === "down"
     ? `Не в сети · ${range} · ${durationRu(segment.ms)}`
@@ -242,7 +230,7 @@ const AvailabilityReport = ({ recordId, defaultDays = 30 }) => {
 
           <UptimeStrip segments={segments} />
           <div className="d-flex justify-content-between small text-body-secondary mt-1 mb-3">
-            <span>{fmtShort(report.effectiveFrom)}</span>
+            <span>{formatDayMonthTime(report.effectiveFrom)}</span>
             <span>сейчас</span>
           </div>
 
@@ -264,7 +252,7 @@ const AvailabilityReport = ({ recordId, defaultDays = 30 }) => {
                 {report.outages.map((outage) => (
                   <tr key={outage.id}>
                     <td className="text-nowrap">
-                      {fmtDateTime(outage.startedAt)}
+                      {formatDate(outage.startedAt)}
                     </td>
                     <td className="text-nowrap">
                       {outage.ongoing ? (
@@ -272,7 +260,7 @@ const AvailabilityReport = ({ recordId, defaultDays = 30 }) => {
                           продолжается
                         </Badge>
                       ) : (
-                        fmtDateTime(outage.endedAt)
+                        formatDate(outage.endedAt)
                       )}
                     </td>
                     <td className="text-nowrap">
@@ -296,7 +284,7 @@ const AvailabilityReport = ({ recordId, defaultDays = 30 }) => {
           <div className="small text-body-secondary">
             Точность границ — до 5 минут (интервал опроса). Данные с момента
             подключения к управлению:{" "}
-            {new Date(report.monitoredSince).toLocaleDateString("ru-RU")}.
+            {formatShortDate(report.monitoredSince)}.
           </div>
         </>
       )}

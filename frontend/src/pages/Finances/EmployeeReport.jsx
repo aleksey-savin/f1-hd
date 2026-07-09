@@ -17,7 +17,7 @@ import Badge from "react-bootstrap/Badge";
 import Accordion from "react-bootstrap/Accordion";
 import ButtonGroup from "react-bootstrap/ButtonGroup";
 
-import { formatShortDate } from "../../util/format-date";
+import { formatShortDate, toDateInputValue } from "../../util/format-date";
 import {
   calcSingleWorkOvertime,
   formatOvertimeMinutes,
@@ -185,8 +185,10 @@ const EmployeeReport = () => {
       default:
         return;
     }
-    fromInputRef.current.value = fromDate.toISOString().split("T")[0];
-    toInputRef.current.value = toDate.toISOString().split("T")[0];
+    // Локальный календарный день (toISOString дал бы UTC-день: пресет
+    // «Этот год» заполнял 31.12 прошлого года для поясов восточнее UTC).
+    fromInputRef.current.value = toDateInputValue(fromDate);
+    toInputRef.current.value = toDateInputValue(toDate);
     setSelectedPeriod(periodType);
   };
 

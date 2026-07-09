@@ -4,6 +4,8 @@ import pad from "pad";
 import * as XLSX from "xlsx";
 import "jspdf-autotable";
 
+import { toDateInputValue } from "../../util/format-date";
+
 import Offcanvas from "react-bootstrap/Offcanvas";
 import Table from "react-bootstrap/Table";
 import Container from "react-bootstrap/Container";
@@ -165,7 +167,7 @@ const UnrelatedWorksOffcanvas = ({ unrelatedWorks }) => {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Несвязанные работы");
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = toDateInputValue(); // локальный день для имени файла
       const fileName = `Nesvyazannye_raboty_${today}.xlsx`;
       console.log("Saving file as:", fileName);
 

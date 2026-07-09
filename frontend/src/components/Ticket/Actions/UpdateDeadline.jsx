@@ -9,7 +9,7 @@ import Dropdown from "react-bootstrap/Dropdown";
 
 import { RiTimeLine } from "react-icons/ri";
 
-import { utcToLocalForm } from "../../../util/format-date";
+import { utcToLocalForm, localToUtc } from "../../../util/format-date";
 
 const UpdateDeadline = ({ ticket, isOverdue }) => {
   const fetcher = useTicketAction();
@@ -33,7 +33,10 @@ const UpdateDeadline = ({ ticket, isOverdue }) => {
       {
         intent: "updateDeadline",
         _id: ticket._id,
-        deadline: new Date(deadlineInputRef.current.value),
+        // Настенное время в бизнес-таймзоне (пара к utcToLocalForm ниже).
+        deadline: deadlineInputRef.current.value
+          ? localToUtc(deadlineInputRef.current.value)
+          : null,
         expectedVersion: ticket.version,
       },
       {

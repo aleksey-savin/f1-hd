@@ -1,4 +1,8 @@
 import pad from "pad";
+import { toZonedTime, fromZonedTime } from "date-fns-tz";
+
+import { getLocalStorageData } from "./auth";
+import { DEFAULT_TIMEZONE } from "./format-date";
 
 export const msToHMS = (ms) => {
   // 1- Convert to seconds:
@@ -20,11 +24,19 @@ export const msToHMS = (ms) => {
 };
 
 export const getNextCronDate = (cronExpression, currentDate = new Date()) => {
+  // Cron на сервере исполняется по настенным часам БИЗНЕС-таймзоны (node-cron
+  // получает Preferences.timezone) — считаем так же, иначе отображаемое «след.
+  // выполнение» и сортировка расходятся с реальным планировщиком. Приём:
+  // переводим «сейчас» в зонированное представление (локальные поля = настенное
+  // время зоны), гоняем алгоритм по локальным геттерам, результат возвращаем
+  // как реальный инстант.
+  const tz = getLocalStorageData().timezone || DEFAULT_TIMEZONE;
+
   // Разбираем cron выражение
   const [minute, hour, dayOfMonth, month, dayOfWeek] =
     cronExpression.split(" ");
 
-  let nextDate = new Date(currentDate);
+  let nextDate = toZonedTime(new Date(currentDate), tz);
 
   // Округляем до следующей минуты
   nextDate.setSeconds(0);
@@ -40,7 +52,7 @@ export const getNextCronDate = (cronExpression, currentDate = new Date()) => {
       checkCronPart(month, nextDate.getMonth() + 1) &&
       checkCronPart(dayOfWeek, nextDate.getDay())
     ) {
-      return nextDate;
+      return fromZonedTime(nextDate, tz);
     }
 
     // Если не соответствует, переходим к следующей минуте

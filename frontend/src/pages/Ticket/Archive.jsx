@@ -6,6 +6,7 @@ import "react-datepicker/dist/react-datepicker.css";
 
 import Select from "../../UI/Select";
 import Transitions from "../../animations/Transition";
+import { toDateInputValue } from "../../util/format-date";
 import Spinner from "../../animations/Spinner";
 
 import Row from "react-bootstrap/Row";
@@ -63,8 +64,10 @@ const TicketsArchive = () => {
     event.preventDefault();
 
     const filterData = {
-      from: startDate.toISOString().split("T")[0],
-      to: endDate.toISOString().split("T")[0],
+      // Календарный день из датапикера — НЕ через toISOString (это UTC-день:
+      // для восточных поясов диапазон уезжал на день назад).
+      from: toDateInputValue(startDate),
+      to: toDateInputValue(endDate),
       companies: JSON.stringify(
         selectedCompanies.map((company) => company._id),
       ),

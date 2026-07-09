@@ -31,6 +31,7 @@ const {
   closeOpenOutage,
   deleteOutages,
   computeAvailability,
+  computeUptimeMap,
 } = require("../../services/mikrotik/outages");
 const {
   computeReconciliation,
@@ -74,6 +75,31 @@ const scheduleSummary = (record) => {
   };
 };
 
+// Класс устройства по данным С САМОГО устройства (board-name из /system/resource,
+// который мы уже опрашиваем): RouterOS не отдаёт «тип» отдельным полем, но
+// MikroTik кодирует класс в номенклатуре серий. Используется как фолбэк, когда
+// у устройства нет типа в инвентаре (standalone / карточка без типа); для
+// неизвестной серии честно возвращаем null («—»), а не гадаем.
+const DEVICE_KIND_PATTERNS = [
+  [/^(crs|css|netpower)/, "Коммутатор"],
+  [/^chr/, "Cloud Hosted Router"],
+  [/^ccr/, "Маршрутизатор"],
+  [
+    /^(cap|wap|mantbox|basebox|netmetal|omnitik|groove|sxt|lhg|ldf|disc|wire|cube)/,
+    "Точка доступа",
+  ],
+  [/^(hap|hex|rb|l0\d|e\d{2}|powerbox|map|audience|chateau)/, "Маршрутизатор"],
+];
+
+const deriveDeviceKind = (record) => {
+  const board = String(record?.boardName || "")
+    .trim()
+    .toLowerCase();
+  if (!board) return null;
+  const match = DEVICE_KIND_PATTERNS.find(([pattern]) => pattern.test(board));
+  return match ? match[1] : null;
+};
+
 // Builds the display name: RouterOS identity when configured, otherwise the
 // device model name + inventory serial number.
 const buildDisplayName = (record, device) => {
@@ -100,6 +126,13 @@ const buildRow = (device, record, protection) => {
     company: device.companyId
       ? { name: device.companyId.alias || device.companyId.fullTitle }
       : null,
+    // Тип устройства: приоритет — тип из карточки инвентаря (таксономия
+    // пользователя: маршрутизатор/коммутатор/…), фолбэк — класс по данным с
+    // самого устройства (board-name).
+    type:
+      model?.deviceTypeId?.name ||
+      device.deviceTypeId?.name ||
+      deriveDeviceKind(record),
     model: model ? { name: model.name, vendor: model.vendorId?.name } : null,
     location: device.locationId
       ? { name: device.locationId.name, address: device.locationId.address }
@@ -130,6 +163,8 @@ const buildStandaloneRow = (record, protection) => ({
   company: record.companyId
     ? { name: record.companyId.alias || record.companyId.fullTitle }
     : null,
+  // У standalone нет карточки инвентаря — класс определяем по самому устройству.
+  type: deriveDeviceKind(record),
   model: null,
   location: null,
   status: record.status || "offline",
@@ -347,7 +382,10 @@ exports.getManagedDevices = async (req, res, next) => {
       .populate({
         path: "deviceModelId",
         select: "name vendorId deviceTypeId",
-        populate: { path: "vendorId", select: "name" },
+        populate: [
+          { path: "vendorId", select: "name" },
+          { path: "deviceTypeId", select: "name" },
+        ],
       })
       .populate("locationId", "name address")
       .populate("companyId", "alias fullTitle")
@@ -374,22 +412,28 @@ exports.getManagedDevices = async (req, res, next) => {
       ...standaloneRecords.map((record) => record._id),
     ]);
 
+    // 30-дневный рейтинг доступности — колонка таблицы (один запрос на всех).
+    const uptimeMap = await computeUptimeMap([
+      ...records,
+      ...standaloneRecords,
+    ]);
+
     const recordByDevice = new Map(
       records.map((record) => [String(record.clientDevice), record]),
     );
 
     const inventoryRows = devices.map((device) => {
       const record = recordByDevice.get(String(device._id));
-      return buildRow(
-        device,
-        record,
-        protectionFor(artifactSummary, record?._id),
-      );
+      return {
+        ...buildRow(device, record, protectionFor(artifactSummary, record?._id)),
+        uptime30d: record ? (uptimeMap.get(String(record._id)) ?? null) : null,
+      };
     });
 
-    const standaloneRows = standaloneRecords.map((record) =>
-      buildStandaloneRow(record, protectionFor(artifactSummary, record._id)),
-    );
+    const standaloneRows = standaloneRecords.map((record) => ({
+      ...buildStandaloneRow(record, protectionFor(artifactSummary, record._id)),
+      uptime30d: uptimeMap.get(String(record._id)) ?? null,
+    }));
 
     res.status(200).json([...standaloneRows, ...inventoryRows]);
   } catch (error) {

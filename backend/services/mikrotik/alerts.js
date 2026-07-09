@@ -2,7 +2,12 @@ const mongoose = require("mongoose");
 
 const Mikrotik = require("../../models/mikrotik");
 const Preferences = require("../../models/preferences");
-const { createMikrotikTicket, deviceLabel, fmtTime } = require("./tickets");
+const {
+  createMikrotikTicket,
+  deviceLabel,
+  fmtTime,
+  deviceLinkHtml,
+} = require("./tickets");
 const { attachTicket } = require("./outages");
 const logger = require("../../utils/logger");
 
@@ -36,11 +41,13 @@ const runMikrotikOfflineAlerts = async () => {
     const minutes = Math.round(
       (Date.now() - record.offlineSince.getTime()) / 60000,
     );
+    // Описание рендерится как HTML (веб-карточка заявки + письма): переносы —
+    // <br/>, ссылка — кликабельный якорь на страницу устройства.
     const description =
-      `Устройство «${name}» (${host}) недоступно с ${fmtTime(record.offlineSince)} ` +
-      `(более ${minutes} мин).\n` +
-      (record.lastError ? `Последняя ошибка: ${record.lastError}\n` : "") +
-      `Открыть в управлении Mikrotik: /devices/mikrotik?recordId=${record._id}`;
+      `Устройство «${name}» (${host}) недоступно с ` +
+      `${fmtTime(record.offlineSince, prefs?.timezone)} (более ${minutes} мин).<br/>` +
+      (record.lastError ? `Последняя ошибка: ${record.lastError}<br/>` : "") +
+      deviceLinkHtml(record);
 
     const ticket = await createMikrotikTicket(record, {
       title: `Mikrotik недоступен: ${name}`,

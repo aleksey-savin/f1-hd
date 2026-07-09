@@ -8,10 +8,8 @@ import { RiPriceTag3Line } from "react-icons/ri";
 import ItemCard from "../../UI/ItemCard";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
-
-// Дату храним как UTC-полночь — форматируем в UTC, чтобы день не «съезжал»
-const formatDate = (value) =>
-  new Date(value).toLocaleDateString("ru-RU", { timeZone: "UTC" });
+// Дата хранится UTC-полночью — общий календарный форматтер (UTC-пиннинг).
+import { formatCalendarDate as formatDate } from "../../util/format-date";
 
 // Карточка «Продление услуг» на странице заявок: услуги, у которых до продления
 // остался месяц или меньше (включая просроченные). Видна всем с

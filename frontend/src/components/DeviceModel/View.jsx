@@ -27,12 +27,14 @@ import {
 import Transitions from "../../animations/Transition";
 import AlertMessage from "../../UI/AlertMessage";
 import DeleteItem from "../DeleteItem";
+import { formatShortDate } from "../../util/format-date";
 import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { AuthedUserContext } from "../../store/authed-user-context";
 
 const dash = <span className="text-body-secondary">—</span>;
-const formatDate = (d) => (d ? new Date(d).toLocaleDateString("ru-RU") : null);
+// createdAt/updatedAt — инстанты: единый формат в бизнес-таймзоне.
+const formatDate = (d) => (d ? formatShortDate(d) : null);
 const userName = (u) =>
   u ? [u.firstName, u.lastName].filter(Boolean).join(" ") : null;
 

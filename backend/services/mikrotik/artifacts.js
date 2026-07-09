@@ -7,7 +7,8 @@ const { decryptSecret, withSshSession, exportConfig } = require("./connector");
 const { encryptArtifact } = require("../crypto/artifactBox");
 const storage = require("../storage");
 const Preferences = require("../../models/preferences");
-const { createMikrotikTicket } = require("./tickets");
+const { createMikrotikTicket, deviceLinkHtml } = require("./tickets");
+const { formatInAppTimezone } = require("../../utils/datetime");
 const logger = require("../../utils/logger");
 
 // Normalize an export for change-detection: drop comment/header lines (the volatile
@@ -93,14 +94,11 @@ const sanitizeBaseName = (value) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 40) || "mikrotik";
 
-// Compact local timestamp for a filename ("YYYY-MM-DD-HHmm").
-const timestampForName = (date) => {
-  const p = (n) => String(n).padStart(2, "0");
-  return (
-    `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}` +
-    `-${p(date.getHours())}${p(date.getMinutes())}`
-  );
-};
+// Compact timestamp for a filename ("YYYY-MM-DD-HHmm") in the app timezone —
+// the server runs UTC, and a UTC-stamped name would not match the times the
+// operator sees in the UI.
+const timestampForName = (date, timeZone) =>
+  formatInAppTimezone(date, timeZone, "yyyy-MM-dd-HHmm");
 
 // Retention: keep only the newest `keepLast` artifacts of a type; delete the
 // rest from storage and the DB. Runs after every successful create.
@@ -132,6 +130,9 @@ const createArtifact = async (
   { trigger = "manual", userId = null } = {},
 ) => {
   await assertPublicHost(record.credentials.host);
+
+  // Настройки нужны дважды: таймзона для имени файла и опция config-change ниже.
+  const prefs = await Preferences.findOne({});
 
   const storageKey = `${crypto.randomUUID()}.rsc`;
 
@@ -167,7 +168,7 @@ const createArtifact = async (
 
   const fileName = `${sanitizeBaseName(
     record.name || record.credentials.host,
-  )}-${timestampForName(new Date())}.rsc`;
+  )}-${timestampForName(new Date(), prefs?.timezone)}.rsc`;
 
   const artifact = await MikrotikArtifact.create({
     mikrotik: record._id,
@@ -188,7 +189,6 @@ const createArtifact = async (
   // an already-stored export, so it's wrapped and logged.
   if (previous?.contentHash && previous.contentHash !== contentHash) {
     try {
-      const prefs = await Preferences.findOne({});
       const cfg = prefs?.mikrotik?.configChangeTicket;
       if (cfg?.isActive) {
         const name =
@@ -198,10 +198,11 @@ const createArtifact = async (
           "устройство Mikrotik";
         await createMikrotikTicket(record, {
           title: `Изменилась конфигурация Mikrotik: ${name}`,
+          // Описание — HTML (веб-карточка + письма): якорь кликабелен.
           description:
             `Конфигурация устройства «${name}» (${record.credentials?.host || "—"}) ` +
-            `изменилась по сравнению с предыдущим экспортом.\n` +
-            `Открыть в управлении Mikrotik: /devices/mikrotik?recordId=${record._id}`,
+            `изменилась по сравнению с предыдущим экспортом.<br/>` +
+            deviceLinkHtml(record),
           categoryId: cfg.categoryId || null,
         });
       }

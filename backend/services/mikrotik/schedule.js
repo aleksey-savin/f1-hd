@@ -4,11 +4,12 @@ const {
   toZonedTime,
 } = require("date-fns-tz");
 
+const { DEFAULT_TIMEZONE } = require("../../utils/datetime");
+
 // Backups/exports use friendly presets (off / daily / weekly / monthly) with a
 // wall-clock time in the operator's timezone. We store a cached nextRunAt (a UTC
 // Date) that the scheduler tick compares against, recomputed after each run and
 // whenever the schedule is edited.
-const DEFAULT_TIMEZONE = "Europe/Moscow";
 
 const pad2 = (value) => String(value).padStart(2, "0");
 

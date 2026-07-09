@@ -5,16 +5,13 @@ import Table from "react-bootstrap/Table";
 import Badge from "react-bootstrap/Badge";
 import Alert from "react-bootstrap/Alert";
 
-import {
-  RiShieldCheckLine,
-  RiCalendarScheduleLine,
-  RiArrowRightSLine,
-} from "react-icons/ri";
+import { RiArrowRightSLine } from "react-icons/ri";
 
 import DevicePanel from "./DevicePanel";
 import ParametersModal from "./ParametersModal";
 import StandaloneModal from "./StandaloneModal";
 import ConfirmActionModal from "../../../UI/ConfirmActionModal";
+import { uptimeToneClass } from "./AvailabilityReport";
 
 import { formatDate } from "../../../util/format-date";
 import { AuthedUserContext } from "../../../store/authed-user-context";
@@ -25,47 +22,29 @@ const STATUS_BADGE = {
   offline: { bg: "danger", label: "Не в сети" },
 };
 
-const shortDate = (value) => new Date(value).toLocaleDateString("ru-RU");
-
-const isScheduled = (schedule) =>
-  schedule?.frequency && schedule.frequency !== "off";
-
-// Protection badge for the config export (.rsc): green with the last-export date
-// when a copy exists (+ a calendar mark if a schedule is active), or a red
-// "Нет копий" when the device has never been exported.
-const ProtectionCell = ({ device }) => {
-  const scheduled = isScheduled(device.schedules?.export);
-
-  if (device.lastExportAt) {
+// Рейтинг доступности за 30 дней: цветной процент (пороги как в отчёте).
+const UptimeCell = ({ value }) => {
+  if (value == null) {
     return (
-      <Badge
-        bg="success"
-        className="d-inline-flex align-items-center gap-1"
-        title={scheduled ? "Есть копия · по расписанию" : "Последняя копия"}
-      >
-        <RiShieldCheckLine /> {shortDate(device.lastExportAt)}
-        {scheduled && <RiCalendarScheduleLine title="По расписанию" />}
-      </Badge>
+      <span className="text-body-secondary" title="Недостаточно данных">
+        —
+      </span>
     );
   }
-
   return (
-    <div className="d-flex flex-column gap-1 align-items-start">
-      <Badge bg="danger" title="Конфигурация ни разу не экспортирована">
-        Нет копий
-      </Badge>
-      {scheduled && (
-        <span className="small text-muted d-inline-flex align-items-center gap-1">
-          <RiCalendarScheduleLine /> запланировано
-        </span>
-      )}
-    </div>
+    <span
+      className={`fw-semibold ${uptimeToneClass(value)}`}
+      title="Доступность за последние 30 дней"
+    >
+      {value} %
+    </span>
   );
 };
 
 const MikrotikDevicesList = ({ items = [] }) => {
   const { permissions } = useContext(AuthedUserContext);
   const canManage = permissions.canManageMikrotikDevices;
+  const canManageConfigs = permissions.canManageMikrotikConfigs;
 
   const detach = useMikrotikDeviceFilterStore((state) => state.detach);
   const detachStandalone = useMikrotikDeviceFilterStore(
@@ -155,7 +134,8 @@ const MikrotikDevicesList = ({ items = [] }) => {
           <tr>
             <th>Имя</th>
             <th>Статус</th>
-            <th>Защита</th>
+            <th title="За последние 30 дней">Доступность</th>
+            <th>Тип</th>
             <th>Расположение</th>
             <th>Модель</th>
             <th>Хост</th>
@@ -187,9 +167,10 @@ const MikrotikDevicesList = ({ items = [] }) => {
                 <td data-cell="Статус">
                   <Badge bg={badge.bg}>{badge.label}</Badge>
                 </td>
-                <td data-cell="Защита">
-                  <ProtectionCell device={device} />
+                <td data-cell="Доступность">
+                  <UptimeCell value={device.uptime30d} />
                 </td>
+                <td data-cell="Тип">{device.type || "—"}</td>
                 <td data-cell="Расположение">
                   {device.location?.name || "—"}
                 </td>
@@ -223,6 +204,7 @@ const MikrotikDevicesList = ({ items = [] }) => {
         device={panelDevice}
         onClose={() => setPanelDevice(null)}
         canManage={canManage}
+        canManageConfigs={canManageConfigs}
         onEditParams={handleEditParams}
         onDetach={handleDetachRequest}
       />

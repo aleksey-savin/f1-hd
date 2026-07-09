@@ -64,11 +64,14 @@ import ArtifactsSection from "../Devices/Mikrotik/ArtifactsSection";
 import ParametersModal from "../Devices/Mikrotik/ParametersModal";
 import ConfirmActionModal from "../../UI/ConfirmActionModal";
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
+import { formatCalendarDate } from "../../util/format-date";
 import { STATUS_LABELS, STATUS_VARIANTS } from "./constants";
 
 const refName = (ref) => ref?.name || ref?.alias || ref?.fullTitle || "";
 const dash = <span className="text-body-secondary">—</span>;
-const formatDate = (d) => (d ? new Date(d).toLocaleDateString("ru-RU") : null);
+// Даты карточки (покупка/гарантия/обслуживание) — календарные, в БД лежат
+// UTC-полночью: форматируем общим календарным хелпером (UTC-пиннинг).
+const formatDate = (d) => formatCalendarDate(d);
 const formatMoney = (n) =>
   n || n === 0 ? `${Number(n).toLocaleString("ru-RU")} ₽` : null;
 

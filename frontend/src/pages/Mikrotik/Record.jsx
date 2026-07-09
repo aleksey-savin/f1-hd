@@ -79,7 +79,7 @@ const MikrotikRecordPage = () => {
           <h2 className="mb-1 text-break">{row.displayName}</h2>
           <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
             <Badge bg="secondary" className="fw-normal">
-              Cloud Hosted Router
+              {row.type || "Устройство Mikrotik"}
             </Badge>
             {row.company?.name && (
               <span className="text-body-secondary small">

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useFetcher } from "react-router";
 
+import { formatDate } from "../../../util/format-date";
+
 import Button from "react-bootstrap/Button";
 import Table from "react-bootstrap/Table";
 import Modal from "react-bootstrap/Modal";
@@ -60,10 +62,8 @@ const CompanyLogsSection = ({ company, permissions }) => {
     );
   };
 
-  const formatDateTime = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleString("ru-RU");
-  };
+  // Единый формат приложения (бизнес-таймзона) — util/format-date.
+  const formatDateTime = (dateString) => formatDate(dateString);
 
   const getActionBadge = (action) => {
     switch (action) {

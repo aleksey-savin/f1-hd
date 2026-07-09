@@ -3,6 +3,7 @@ const Preferences = require("../../models/preferences");
 const User = require("../../models/user");
 const Company = require("../../models/company");
 const ClientDevice = require("../../models/inventory/clientDevice");
+const { formatInAppTimezone } = require("../../utils/datetime");
 const logger = require("../../utils/logger");
 
 // Human-readable device name for ticket/comment text (RouterOS identity /
@@ -13,8 +14,24 @@ const deviceLabel = (record) =>
   record.credentials?.host ||
   "устройство Mikrotik";
 
-const fmtTime = (date) =>
-  date ? new Date(date).toLocaleString("ru-RU") : "неизвестно";
+// Времена в текстах заявок/комментариев — в таймзоне приложения (общий утиль
+// utils/datetime; сервер живёт в UTC, «сырое» toLocaleString расходится с
+// временем создания заявки, которое фронт показывает в локальной зоне).
+const fmtTime = (date, timeZone) =>
+  date ? formatInAppTimezone(date, timeZone, "dd.MM.yyyy, HH:mm") : "неизвестно";
+
+// Кликабельная ссылка на страницу устройства для описаний заявок: описание
+// рендерится в вебе как sanitized-HTML и вставляется в HTML-письма, поэтому
+// якорь работает в обоих местах (telegram-уведомления описание не включают).
+// ADDRESS даёт абсолютный URL для писем; без него ссылка остаётся относительной
+// и работает в вебе.
+const deviceLinkHtml = (record) => {
+  const base = process.env.ADDRESS || "";
+  const path = record.clientDevice
+    ? `/inventory/client-devices/${record.clientDevice}?tab=monitoring`
+    : `/devices/mikrotik/records/${record._id}`;
+  return `<a href="${base}${path}">Открыть страницу устройства</a>`;
+};
 
 // Resolve the embedded { _id, alias } company for a Mikrotik record. Standalone
 // records carry companyId directly; inventory-backed records inherit it from the
@@ -97,4 +114,4 @@ const createMikrotikTicket = async (
   }
 };
 
-module.exports = { createMikrotikTicket, deviceLabel, fmtTime };
+module.exports = { createMikrotikTicket, deviceLabel, fmtTime, deviceLinkHtml };

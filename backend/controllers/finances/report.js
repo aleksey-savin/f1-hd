@@ -8,6 +8,26 @@ const ServicePlanReport = require("../../models/finances/servicePlanReport");
 const { AppError } = require("../../middleware/errorHandling");
 
 const getAuthData = require("../../middleware/getAuthData");
+const Preferences = require("../../models/preferences");
+const { resolveTimezone } = require("../../utils/datetime");
+
+const dayjs = require("dayjs");
+const dayjsUtc = require("dayjs/plugin/utc");
+const dayjsTimezone = require("dayjs/plugin/timezone");
+dayjs.extend(dayjsUtc);
+dayjs.extend(dayjsTimezone);
+
+// Границы календарного месяца в бизнес-таймзоне (сервер живёт в UTC:
+// «серверные» границы прихватывали чужие первые часы месяца и теряли почти
+// весь последний день — new Date(y, m+1, 0) это 00:00 последнего дня).
+const monthBoundsInAppTz = async (date) => {
+  const prefs = await Preferences.findOne({});
+  const anchor = dayjs.tz(new Date(date), resolveTimezone(prefs));
+  return {
+    periodFrom: anchor.startOf("month").toDate(),
+    periodTo: anchor.endOf("month").toDate(),
+  };
+};
 
 exports.getAllActive = async (req, res, next) => {
   try {
@@ -140,89 +160,6 @@ exports.summaryReportPreview = async (req, res) => {
   }
 };
 
-exports.getPersonalReport = async (req, res) => {
-  const { userId } = await getAuthData(req);
-
-  const date = req.params.date;
-
-  const periodFrom = new Date(
-    new Date(date).getFullYear(),
-    new Date(date).getMonth(),
-    1,
-  );
-
-  const periodTo = new Date(
-    new Date(date).getFullYear(),
-    new Date(date).getMonth() + 1,
-    0,
-  );
-
-  const works = await Work.find({
-    "finishedBy._id": userId,
-    finishedAt: {
-      $gte: periodFrom,
-      $lte: periodTo,
-    },
-  });
-
-  let worksData = [];
-
-  for (let work of works) {
-    const tickets = await Ticket.find({ _id: { $in: work.tickets } })
-      .populate("applicantId")
-      .populate("categoryId");
-
-    if (!tickets || tickets.length === 0) {
-      console.warn(`No tickets found for work ${work._id}, skipping...`);
-      continue;
-    }
-
-    const company = await Company.findById(tickets[0].company._id);
-
-    if (!company) {
-      console.warn(`Company not found for work ${work._id}, skipping...`);
-      continue;
-    }
-
-    let servicePlans = [];
-    const servicePlansIds = company?.servicePlans || [];
-    for (let planId of servicePlansIds) {
-      const servicePlan = await ServicePlan.findById(planId);
-      if (servicePlan) {
-        servicePlans.push(servicePlan);
-      }
-    }
-
-    const ticketsNums = tickets?.map((ticket) => ticket.num);
-    const ticketsApplicants = tickets?.map(
-      (ticket) =>
-        `${ticket.applicantId.lastName} ${ticket.applicantId.firstName}`,
-    );
-    const ticketsCategories = tickets?.map((ticket) => ({
-      _id: ticket.categoryId?._id.toString(),
-      title: ticket.categoryId?.title,
-    }));
-
-    worksData.push({
-      _id: work._id,
-      company: company,
-      servicePlan: servicePlans[0],
-      finances: work.finances,
-      tickets: work.tickets,
-      ticketsNums: ticketsNums || [],
-      ticketsApplicants: ticketsApplicants || [],
-      ticketsCategories: ticketsCategories || [],
-      description: work.description,
-      withinPlan: work.withinPlan,
-      finishedBy: `${work.finishedBy?.lastName} ${work.finishedBy?.firstName}`,
-      startedAt: work.startedAt,
-      finishedAt: work.finishedAt,
-    });
-  }
-
-  res.status(200).json({ works: worksData });
-};
-
 exports.confirmWorksByContractor = async (req, res, next) => {
   try {
     const {
@@ -262,16 +199,7 @@ exports.confirmWorksByContractor = async (req, res, next) => {
         : "approved",
       price: +price,
       additionalPrice: +additionalPrice,
-      periodFrom: new Date(
-        new Date(relatedWorks[0].finishedAt).getFullYear(),
-        new Date(relatedWorks[0].finishedAt).getMonth(),
-        1,
-      ),
-      periodTo: new Date(
-        new Date(relatedWorks[0].finishedAt).getFullYear(),
-        new Date(relatedWorks[0].finishedAt).getMonth() + 1,
-        0,
-      ),
+      ...(await monthBoundsInAppTz(relatedWorks[0].finishedAt)),
       createdBy: authedUser,
       updatedBy: authedUser,
     });
@@ -573,156 +501,6 @@ exports.delete = async (req, res, next) => {
         true,
         error,
       ),
-    );
-  }
-};
-
-exports.getPersonalReportByRange = async (req, res, next) => {
-  try {
-    const { userId } = await getAuthData(req);
-    const { from, to } = req.query;
-
-    if (!from || !to) {
-      return next(new AppError("From and to dates are required", 400));
-    }
-
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
-    toDate.setHours(23, 59, 59, 999); // End of day
-
-    const works = await Work.find({
-      "finishedBy._id": userId,
-      finishedAt: {
-        $gte: fromDate,
-        $lte: toDate,
-      },
-    })
-      .populate({
-        path: "tickets",
-        select: "num company applicantId categoryId description",
-        populate: [
-          { path: "categoryId", select: "title alwaysWithinPlan" },
-          { path: "applicantId", select: "lastName firstName" },
-        ],
-      })
-      .lean();
-
-    let worksData = [];
-
-    for (let work of works) {
-      if (!work.tickets || work.tickets.length === 0) {
-        continue;
-      }
-
-      const companyId = work.tickets[0].company._id;
-      const company = await Company.findById(companyId).lean();
-
-      if (!company) {
-        continue;
-      }
-
-      let servicePlan = null;
-      if (company.servicePlans && company.servicePlans.length > 0) {
-        servicePlan = await ServicePlan.findById(
-          company.servicePlans[0],
-        ).lean();
-      }
-
-      worksData.push({
-        _id: work._id,
-        company: company,
-        servicePlan: servicePlan,
-        finances: work.finances,
-        tickets: work.tickets,
-        description: work.description,
-        withinPlan: work.withinPlan,
-        startedAt: work.startedAt,
-        finishedAt: work.finishedAt,
-        createdAt: work.createdAt,
-        status: work.finances?.status || "completed",
-      });
-    }
-
-    res.status(200).json({ works: worksData });
-  } catch (error) {
-    next(new AppError("Failed to fetch personal report", 500, true, error));
-  }
-};
-
-exports.getPersonalPreviewWorks = async (req, res, next) => {
-  try {
-    const { userId } = await getAuthData(req);
-    const { from, to } = req.query;
-
-    if (!from || !to) {
-      return next(new AppError("From and to dates are required", 400));
-    }
-
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
-    toDate.setHours(23, 59, 59, 999); // End of day
-
-    const works = await Work.find({
-      "finishedBy._id": userId,
-      createdAt: {
-        $gte: fromDate,
-        $lte: toDate,
-      },
-      $or: [
-        { "finances.status": { $exists: false } },
-        { "finances.status": "preview" },
-      ],
-    })
-      .populate({
-        path: "tickets",
-        select: "num company applicantId categoryId description",
-        populate: [
-          { path: "categoryId", select: "title alwaysWithinPlan" },
-          { path: "applicantId", select: "lastName firstName" },
-        ],
-      })
-      .lean();
-
-    let worksData = [];
-
-    for (let work of works) {
-      if (!work.tickets || work.tickets.length === 0) {
-        continue;
-      }
-
-      const companyId = work.tickets[0].company._id;
-      const company = await Company.findById(companyId).lean();
-
-      if (!company) {
-        continue;
-      }
-
-      let servicePlan = null;
-      if (company.servicePlans && company.servicePlans.length > 0) {
-        servicePlan = await ServicePlan.findById(
-          company.servicePlans[0],
-        ).lean();
-      }
-
-      worksData.push({
-        _id: work._id,
-        company: company,
-        servicePlan: servicePlan,
-        finances: work.finances,
-        tickets: work.tickets,
-        description: work.description,
-        withinPlan: work.withinPlan,
-        startedAt: work.startedAt,
-        finishedAt: work.finishedAt,
-        createdAt: work.createdAt,
-        status: work.finances?.status || "preview",
-      });
-    }
-
-    res.status(200).json({ works: worksData });
-  } catch (error) {
-    next(
-      new AppError("Failed to fetch personal preview works", 500, true, error),
     );
   }
 };

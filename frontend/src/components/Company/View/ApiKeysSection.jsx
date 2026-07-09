@@ -9,6 +9,7 @@ import Alert from "react-bootstrap/Alert";
 import Badge from "react-bootstrap/Badge";
 
 import AlertMessage from "../../../UI/AlertMessage";
+import { formatShortDate } from "../../../util/format-date";
 
 import {
   RiAddLine,
@@ -177,7 +178,7 @@ const ApiKeysSection = ({ company, permissions }) => {
                     <small className="text-success">Скопировано!</small>
                   )}
                 </td>
-                <td>{new Date(apiKey.createdAt).toLocaleDateString()}</td>
+                <td>{formatShortDate(apiKey.createdAt)}</td>
                 <td>
                   <Badge bg={apiKey.isActive ? "success" : "danger"}>
                     {apiKey.isActive ? "Активен" : "Неактивен"}

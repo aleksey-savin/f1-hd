@@ -9,6 +9,7 @@ import Badge from "react-bootstrap/Badge";
 import ListGroup from "react-bootstrap/ListGroup";
 import Select from "../../UI/Select";
 import { getLocalStorageData } from "../../util/auth";
+import { toDateInputValue, formatCalendarDate } from "../../util/format-date";
 import { RiUserLine, RiHistoryLine, RiEditLine } from "react-icons/ri";
 
 const ResponsibilityManager = ({
@@ -29,7 +30,7 @@ const ResponsibilityManager = ({
   const [transferData, setTransferData] = useState({
     newResponsibleUser: "",
     transferReason: "",
-    effectiveDate: new Date().toISOString().split("T")[0],
+    effectiveDate: toDateInputValue(), // локальный день, не UTC (иначе утром — «вчера»)
     notes: "",
   });
 
@@ -132,7 +133,7 @@ const ResponsibilityManager = ({
       setTransferData({
         newResponsibleUser: "",
         transferReason: "",
-        effectiveDate: new Date().toISOString().split("T")[0],
+        effectiveDate: toDateInputValue(), // локальный день, не UTC (иначе утром — «вчера»)
         notes: "",
       });
       setShowTransferModal(false);
@@ -159,9 +160,9 @@ const ResponsibilityManager = ({
     }));
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("ru-RU");
-  };
+  // Календарные даты (передача ответственности) — UTC-пиннинг, чтобы день не
+  // съезжал (см. util/format-date).
+  const formatDate = (dateString) => formatCalendarDate(dateString);
 
   const getResponsibilityTypeLabel = (type) => {
     const typeObj = responsibilityTypes.find((t) => t.value === type);

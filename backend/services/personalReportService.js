@@ -4,6 +4,7 @@ const ServicePlan = require("@/models/finances/servicePlan");
 const TicketCategory = require("@/models/ticketCategory");
 
 const { DEFAULT_OVERTIME_SETTINGS } = require("@/utils/overtimeDefaults");
+const { resolveTimezone } = require("@/utils/datetime");
 
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
@@ -288,7 +289,7 @@ const buildPersonalReport = async ({
   user,
   includeDetails = true,
 }) => {
-  const tz = preferences?.timezone || "Europe/Moscow";
+  const tz = resolveTimezone(preferences);
 
   const prefOvertime = preferences?.overtime || {};
   const overtimeSettings = { ...DEFAULT_OVERTIME_SETTINGS };

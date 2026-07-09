@@ -11,6 +11,7 @@ const rowSearchFields = (item) => [
   item.currentFirmware,
   item.boardName,
   item.status,
+  item.type,
   item.model?.name,
   item.model?.vendor,
   item.location?.name,
