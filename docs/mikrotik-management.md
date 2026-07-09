@@ -45,11 +45,14 @@ per-vendor:
    the ticket's «Окружение» tab renders the **device's** location chain (the
    author is the service applicant with no workplace).
 9. **Unified device page** — the inventory device page hosts «Мониторинг» and
-   «Конфигурации» tabs; the management-list offcanvas is now a slim **preview**.
-   Standalone records get their own page (`/devices/mikrotik/records/:recordId`).
-   The creation wizard offers to enrol devices of Mikrotik-enabled vendors right
-   after saving, and a successful parameters save runs a card-vs-device
-   **reconciliation** dialog.
+   «Конфигурации» tabs; the management-list offcanvas is a **preview with tabs**
+   (Обзор + Конфигурации, so backups are reachable without leaving the list) and
+   links to the full page. Standalone records get their own page
+   (`/devices/mikrotik/records/:recordId`). The creation wizard offers to enrol
+   devices of Mikrotik-enabled vendors right after saving, and a successful
+   parameters save runs a card-vs-device **reconciliation** dialog. The
+   management table shows each device's **Тип** (inventory DeviceType, else a
+   class derived from the device itself) and a **30-day availability rating**.
 
 The `Mikrotik` collection previously required a `clientDevice`; supporting
 standalone devices relaxes that (see _Index migration_ below).
@@ -211,10 +214,15 @@ Each row: `{ source: "inventory"|"standalone", clientDeviceId, recordId,
 displayName, serialNumber, company{name}, type, model{name,vendor},
 location{name,address}, status, monitoringEnabled, host, boardName,
 currentFirmware, addresses[], lastSuccessfulConnectionAt, lastCheckedAt,
-lastError, uptime30d }`. `type` = device type via the model (standalone → "Cloud
-Hosted Router"); `uptime30d` = 30-day availability % from `computeUptimeMap`
-(one `MikrotikOutage` query for the whole list; null = недостаточно данных).
-Inventory `displayName` = RouterOS identity if configured, else
+lastError, uptime30d }`. `type` = the inventory **DeviceType** (via the model,
+falling back to the device's direct `deviceTypeId`); when the card has no type —
+or the record is standalone — it falls back to **`deriveDeviceKind(record)`**:
+the polled `board-name` mapped through MikroTik's series nomenclature
+(CRS/CSS/netPower → Коммутатор; CCR/hAP/hEX/RB/L0xx/Exx/Chateau/Audience →
+Маршрутизатор; wAP/cAP/SXT/LHG/mANTBox/Groove/… → Точка доступа; CHR → Cloud
+Hosted Router; unknown → null). `uptime30d` = 30-day availability % from
+`computeUptimeMap` (one `MikrotikOutage` query for the whole list; null =
+недостаточно данных). Inventory `displayName` = RouterOS identity if configured, else
 `<model name> · SN <serial>`; standalone `displayName` = `label` || identity ||
 host. `company.name` = `alias || fullTitle` (from the ClientDevice for inventory
 rows; from the record's `companyId` for standalone).
@@ -407,7 +415,8 @@ without the right to edit device connection params. Live creates are rate-limite
 | `PUT .../records/:recordId/schedules` | `updateSchedules` |
 
 Each managed-device row also carries `schedules` + `lastExportAt` (aggregated from
-`MikrotikArtifact`) for the table badge.
+`MikrotikArtifact`) — they prefill the schedule card of the panel's/pages'
+Конфигурации tab (the former table «Защита» badge was dropped).
 
 ### Two-factor download (email OTP)
 
@@ -490,7 +499,8 @@ requests a code → opens an entry modal (`ArtifactsSection`) → POSTs the code
   form, strips itself from the URL).
 - **Standalone device page** — `pages/Mikrotik/Record.jsx`
   (`/devices/mikrotik/records/:recordId`, loader = `getStandaloneOne`): mini
-  `.account-hero` (label, company, status, host) + Мониторинг / Конфигурации tabs
+  `.account-hero` (label, a type badge from `deriveDeviceKind` — falls back to
+  «Устройство Mikrotik», company, status, host) + Мониторинг / Конфигурации tabs
   from the same shared sections; edit via `StandaloneModal`, delete navigates
   back to the list.
 - **Reconciliation UX** — after a successful verify-on-save, `ParametersModal`
@@ -556,9 +566,11 @@ The module is woven into the everyday ticket / inventory flow:
   auto-opens a device's panel once (via `useSearchParams`) from `?clientDeviceId=`
   (ticket environment) or `?recordId=` (legacy links in old monitoring tickets;
   new tickets link straight to the device pages via `deviceLinkHtml`).
-- **Mikrotik panel → inventory** — the panel's **Обзор** tab has an **«Открыть в
-  инвентаре»** link (`/inventory/client-devices/:id`) for inventory-backed devices
-  (hidden for standalone), visible regardless of edit rights.
+- **Mikrotik panel → device pages** — the panel's tab row carries a compact
+  **«Страница устройства»** outline button, visible regardless of edit rights:
+  inventory-backed → `/inventory/client-devices/:id?tab=monitoring`, standalone →
+  `/devices/mikrotik/records/:recordId` (replaced the former «Открыть в
+  инвентаре» link).
 - **Inventory device page** — `ClientDevice/View.jsx` shows a Mikrotik status badge
   + last-seen and a **«Управление Mikrotik»** link; `clientDevice.getOne` returns a
   `mikrotik: { recordId, status, monitoringEnabled, lastSuccessfulConnectionAt }`
@@ -759,13 +771,13 @@ MikroTik or a CHR VM); otherwise temporarily stub `pollDevice`.
 6. Confirm `credentials.password` is absent from every `/mikrotik-devices`
    response.
 7. **Config export:** ensure the device user has the **`ssh`** policy and SSH is
-   reachable (knock-gated). Open the device page → **Конфигурации** →
-   **Экспортировать сейчас**: a `.rsc` appears in the list, **download** returns the
-   config text, **delete** removes it. Set a schedule (e.g. daily 03:00) → the row's
-   **Защита** badge turns green with the date and a calendar icon; the `*/5` cron
-   runs it when `nextRunAt` is due and prunes to `keepLast`. A user missing `ssh`,
-   an unreachable SSH port, or a host-key change (after pinning) is rejected with a
-   clear message.
+   reachable (knock-gated). Open the device page → **Конфигурации** (or the row
+   panel's Конфигурации tab — same section) → **Экспортировать сейчас**: a `.rsc`
+   appears in the list, **download** returns the config text, **delete** removes
+   it. Set a schedule (e.g. daily 03:00) → the schedule card shows next/last runs;
+   the `*/5` cron runs it when `nextRunAt` is due and prunes to `keepLast`. A user
+   missing `ssh`, an unreachable SSH port, or a host-key change (after pinning) is
+   rejected with a clear message.
 8. **Outages / recovery comment:** black-hole the device's host (firewall / power
    off) → within a poll tick an open `MikrotikOutage` appears
    (`db.mikrotikoutages`) with `startedAt = offlineSince`; after the threshold the
@@ -779,7 +791,9 @@ MikroTik or a CHR VM); otherwise temporarily stub `pollDevice`.
    tiles + timeline strip + outage table with `№<num>` ticket links; switch
    24ч/7дн/30дн/90дн; durations follow `offlineSince` (loss edge), not the ticket
    time; a freshly enrolled device shows «Недостаточно данных». The list panel
-   shows the 30-day mini strip.
+   shows the 30-day mini strip, and the table's **Доступность** column shows the
+   colored 30-day % (freshly enrolled → «—»). The **Тип** column shows the
+   inventory type (or the board-derived class for standalone/untyped devices).
 10. **Unified page / wizard / reconciliation:** create a device with a
     Mikrotik-flagged vendor → step 4 shows only «Имя устройства (hostname)» →
     save → the «Подключить к мониторингу?» modal → «Подключить» lands on the
