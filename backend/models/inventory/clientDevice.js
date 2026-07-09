@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 
+const devicePhotoSchema = require("./devicePhoto");
+
 const Schema = mongoose.Schema;
 
 const clientDeviceSchema = new Schema(
@@ -132,6 +134,9 @@ const clientDeviceSchema = new Schema(
       type: String,
       trim: true,
     },
+    // Снимки конкретного экземпляра (наклейка с серийником, скол, разъёмы).
+    // Пока их нет, интерфейс показывает фотографии модели устройства.
+    photos: [devicePhotoSchema],
     installedSoftware: [
       {
         name: String,

@@ -13,6 +13,7 @@ const Notification = require("../../models/notification");
 const {
   encryptSecret,
   decryptSecret,
+  decodeKnockSequence,
   assertUserNotFullGroup,
   pollDevice,
   mapPollToFields,
@@ -23,7 +24,6 @@ const { decryptArtifact } = require("../../services/crypto/artifactBox");
 const { computeNextRun } = require("../../services/mikrotik/schedule");
 const {
   assertPublicHost,
-  decodeKnockSequence,
   createArtifact,
 } = require("../../services/mikrotik/artifacts");
 const {
@@ -255,6 +255,9 @@ const verifyAndBuild = async (body, existing) => {
     lastSuccessfulConnectionAt: now,
     lastCheckedAt: now,
     lastError: null,
+    // A live poll just succeeded — reset the anti-flap counter. (firstFailureAt is
+    // cleared with $unset by the callers: a stored null would freeze its $min.)
+    failedPolls: 0,
   };
 };
 
@@ -522,16 +525,17 @@ exports.updateParameters = async (req, res, next) => {
     // The verified save proves the device is reachable again — close the outage
     // episode (+ recovery comment) and clear the stale offline-alert state, which
     // a bare upsert would otherwise leave behind until the next cron tick.
+    const unset = { firstFailureAt: "" };
     if (existing?.offlineSince) {
       await markRecovered(existing);
-      update.offlineSince = null;
-      update.offlineAlertedAt = null;
-      update.alertTicketId = null;
+      unset.offlineSince = "";
+      unset.offlineAlertedAt = "";
+      unset.alertTicketId = "";
     }
 
     const record = await Mikrotik.findOneAndUpdate(
       { clientDevice: clientDeviceId },
-      { clientDevice: clientDeviceId, ...update },
+      { $set: { clientDevice: clientDeviceId, ...update }, $unset: unset },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     ).select("-credentials.password -credentials.knockSequence");
 
@@ -696,6 +700,8 @@ exports.connect = async (req, res, next) => {
       record.lastSuccessfulConnectionAt = now;
       record.lastCheckedAt = now;
       record.lastError = null;
+      record.failedPolls = 0;
+      record.firstFailureAt = undefined;
       // A successful poll is a recovery: close the outage episode (+ ticket
       // comment) and clear the offline-alert state.
       if (record.offlineSince) {
@@ -737,13 +743,15 @@ exports.disconnect = async (req, res, next) => {
     const record = await Mikrotik.findOneAndUpdate(
       { clientDevice: req.params.clientDeviceId },
       {
-        monitoringEnabled: false,
-        status: "offline",
+        $set: { monitoringEnabled: false, status: "offline", failedPolls: 0 },
         // Monitoring off means no poll will ever end the outage — drop the alert
         // state and close the episode silently (connectivity was not restored).
-        offlineSince: null,
-        offlineAlertedAt: null,
-        alertTicketId: null,
+        $unset: {
+          offlineSince: "",
+          offlineAlertedAt: "",
+          alertTicketId: "",
+          firstFailureAt: "",
+        },
       },
       { new: true },
     ).select("-credentials.password -credentials.knockSequence");
@@ -889,11 +897,12 @@ exports.updateStandaloneParameters = async (req, res, next) => {
     }
 
     // Verified save = recovery (see updateParameters).
+    const unset = { firstFailureAt: "" };
     if (existing.offlineSince) {
       await markRecovered(existing);
-      update.offlineSince = null;
-      update.offlineAlertedAt = null;
-      update.alertTicketId = null;
+      unset.offlineSince = "";
+      unset.offlineAlertedAt = "";
+      unset.alertTicketId = "";
     }
 
     if (req.body.companyId !== undefined) {
@@ -903,9 +912,11 @@ exports.updateStandaloneParameters = async (req, res, next) => {
       update.label = req.body.label || null;
     }
 
-    const record = await Mikrotik.findByIdAndUpdate(req.params.recordId, update, {
-      new: true,
-    }).select("-credentials.password -credentials.knockSequence");
+    const record = await Mikrotik.findByIdAndUpdate(
+      req.params.recordId,
+      { $set: update, $unset: unset },
+      { new: true },
+    ).select("-credentials.password -credentials.knockSequence");
 
     logger.log("info", "Standalone mikrotik parameters saved", {
       actor: req.userId,

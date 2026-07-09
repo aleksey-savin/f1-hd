@@ -98,22 +98,26 @@ const EnvironmentDeviceCard = ({
             <RiMapPin2Line /> {device.locationName}
           </div>
         )}
-        {status && (
-          <Badge
-            bg={status.bg}
-            text={status.text}
-            className="env-device__status"
-          >
-            {status.label}
-          </Badge>
-        )}
-        {mikro && (
-          <Badge
-            bg={mikro.bg}
-            className="env-device__status d-inline-flex align-items-center gap-1"
-          >
-            <RiRouterLine /> {mikro.label}
-          </Badge>
+        {(status || mikro) && (
+          <div className="env-device__badges">
+            {status && (
+              <Badge
+                bg={status.bg}
+                text={status.text}
+                className="env-device__status d-inline-flex align-items-center"
+              >
+                {status.label}
+              </Badge>
+            )}
+            {mikro && (
+              <Badge
+                bg={mikro.bg}
+                className="env-device__status d-inline-flex align-items-center gap-1"
+              >
+                <RiRouterLine /> {mikro.label}
+              </Badge>
+            )}
+          </div>
         )}
       </div>
     </button>

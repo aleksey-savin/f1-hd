@@ -2,6 +2,7 @@ const Router = require("express");
 const router = new Router();
 const deviceController = require("@/controllers/inventory/clientDevice");
 const isAuth = require("@/middleware/isAuth");
+const { uploadPhotos } = require("@/middleware/imageUpload");
 const { canManageClientDevices } = require("@/middleware/permissions");
 const {
   clientDeviceValidation,
@@ -46,6 +47,19 @@ router.delete(
   isAuth,
   canManageClientDevices,
   deviceController.detachComponent,
+);
+router.post(
+  "/client-devices/:id/photos",
+  isAuth,
+  canManageClientDevices,
+  uploadPhotos,
+  deviceController.addPhotos,
+);
+router.delete(
+  "/client-devices/:id/photos/:photoId",
+  isAuth,
+  canManageClientDevices,
+  deviceController.deletePhoto,
 );
 router.delete(
   "/client-devices/delete/:id",

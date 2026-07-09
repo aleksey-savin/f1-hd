@@ -91,13 +91,21 @@ const mikrotikSchema = new Schema(
     lastSuccessfulConnectionAt: Date,
     lastCheckedAt: Date,
     lastError: String,
-    // Offline-alert state — one auto-ticket per outage episode. offlineSince is set
-    // on the online→offline edge (measured against the Preferences threshold);
+    // Offline-alert state — one auto-ticket per outage episode. offlineSince is the
+    // CONFIRMED online→offline edge (measured against the Preferences threshold);
     // offlineAlertedAt + alertTicketId are set once a ticket is raised; all three
     // are cleared on recovery (the ticket itself is left open for a human).
     offlineSince: Date,
     offlineAlertedAt: Date,
     alertTicketId: { type: Schema.Types.ObjectId, ref: "Ticket" },
+    // Anti-flap. A single failed poll no longer means "offline": the outage is
+    // confirmed only after CONFIRM_POLLS consecutive failed cycles. failedPolls
+    // counts them; firstFailureAt is the *candidate* loss edge, advanced with $min
+    // and cleared with $unset only — a stored null sorts before any date and would
+    // freeze $min forever. On confirmation firstFailureAt becomes offlineSince, so
+    // downtime is still measured from the moment connectivity actually died.
+    failedPolls: { type: Number, default: 0 },
+    firstFailureAt: Date,
     // Automated backup / config-export schedules with retention (keep last N).
     // A cron tick runs any whose nextRunAt is due; frequency "off" = disabled.
     schedules: {

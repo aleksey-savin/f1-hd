@@ -6,25 +6,46 @@ const { Client } = require("ssh2");
 const { encryptSecret, decryptSecret } = require("../crypto/secretBox");
 const logger = require("../../utils/logger");
 
-// Live-connection timeout (seconds). routeros-node multiplies by 1000 and applies
-// it via socket.setTimeout, so an unreachable host fails fast.
-const CONNECT_TIMEOUT_SECONDS = 8;
-// Overall wall-clock bound for one API poll (connect + reads), independent of the
-// library's per-socket inactivity timeout. socket.setTimeout can't abort a hanging
-// TCP connect to a filtered port, so without this a failed knock / offline device
-// blocks for the OS TCP timeout (~127s) and trips nginx's 60s gateway (504).
-const POLL_DEADLINE_MS = 20000;
+// Reads a positive-integer tunable from the environment, falling back to a default.
+const envInt = (name, fallback) => {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+};
+
+// Live-connection timeout (seconds). routeros-node applies it as a single
+// socket.setTimeout, i.e. an INACTIVITY timer that is armed during the TCP/TLS
+// connect too. It is the only place the library turns silence into an error:
+// on "timeout" it destroys the socket with `new Error("Socket timeout")`, which
+// rejects the pending connect() promise. So `lastError: "Socket timeout"` always
+// means "N seconds of total silence while connecting/logging in" — never a slow
+// read (a stalled read hangs instead and is caught by POLL_DEADLINE_MS below).
+// 8s was too tight for a low-powered board doing an RSA-2048 handshake over WAN.
+const CONNECT_TIMEOUT_SECONDS = envInt("MIKROTIK_CONNECT_TIMEOUT_SECONDS", 15);
+// Overall wall-clock bound for one API poll (knock + connect + reads), independent
+// of the library's per-socket inactivity timeout, which can't bound a read that
+// never gets an answer.
+const POLL_DEADLINE_MS = envInt("MIKROTIK_POLL_DEADLINE_MS", 35000);
 // Per-read bound for /user/print. It needs the `policy` privilege; a least-privilege
 // managed user (api,read,test,ssh,ftp — the recommended setup) lacks it, so RouterOS
 // sends no reply and the read hangs. Cap it and skip the full-group check rather than
-// stalling the whole poll (this was the real 504).
-const USER_READ_TIMEOUT_MS = 4000;
+// stalling the whole poll (this was the real 504). The health-check skips the read
+// altogether (verifyFullGroup: false) — for a least-privilege user it can never say
+// anything anyway.
+const USER_READ_TIMEOUT_MS = envInt("MIKROTIK_USER_READ_TIMEOUT_MS", 4000);
 // /system/routerboard/print is best-effort too: CHR (Cloud Hosted Router) has no
 // routerboard at all, and some builds don't answer the command — never let it
 // stall or fail the poll.
-const ROUTERBOARD_READ_TIMEOUT_MS = 4000;
-const KNOCK_TOUCH_TIMEOUT_MS = 1500; // per knock-port touch
-const KNOCK_INTER_DELAY_MS = 250; // gap between knocks so the sequence is ordered
+const ROUTERBOARD_READ_TIMEOUT_MS = envInt(
+  "MIKROTIK_ROUTERBOARD_READ_TIMEOUT_MS",
+  4000,
+);
+// Per knock-port touch. We only need the SYN to reach the firewall, so waiting out
+// a long timeout on a (deliberately) unanswered port is pure latency.
+const KNOCK_TOUCH_TIMEOUT_MS = envInt("MIKROTIK_KNOCK_TOUCH_TIMEOUT_MS", 800);
+// Gap between knocks so the sequence is ordered.
+const KNOCK_INTER_DELAY_MS = envInt("MIKROTIK_KNOCK_INTER_DELAY_MS", 150);
+// Pause before the single retry of a transient poll failure (see pollWithRetry).
+const POLL_RETRY_DELAY_MS = envInt("MIKROTIK_POLL_RETRY_DELAY_MS", 2000);
 
 // SSH transport (backups + config export). A handshake bound plus a watchdog for
 // the whole open+operation+close cycle so a hung backup can't stall the scheduler.
@@ -81,12 +102,26 @@ const touch = (host, port) =>
   });
 
 // Port knock: touch each port in order so the device opens the API for our IP.
-// No-op when the device has no configured sequence.
+// No-op when the device has no configured sequence. The gap goes *between* the
+// touches — sleeping after the last one only delays the connect that follows.
 const knockDevice = async (host, sequence) => {
   if (!Array.isArray(sequence) || sequence.length === 0) return;
-  for (const port of sequence) {
+  for (const [index, port] of sequence.entries()) {
+    if (index > 0) await sleep(KNOCK_INTER_DELAY_MS);
     await touch(host, port);
-    await sleep(KNOCK_INTER_DELAY_MS);
+  }
+};
+
+// Decrypts a stored knock sequence ("v1:…" of a JSON port array) to numbers. Lives
+// here next to knockDevice so the health-check, the alert cron, the controller and
+// the SSH artifact code all share one decoder.
+const decodeKnockSequence = (blob) => {
+  if (!blob) return undefined;
+  try {
+    const ports = JSON.parse(decryptSecret(blob));
+    return Array.isArray(ports) ? ports : undefined;
+  } catch {
+    return undefined;
   }
 };
 
@@ -131,32 +166,24 @@ const buildTlsOptions = (pinnedCertPem) => {
 // API-SSL (TLS) is MANDATORY — plaintext API is never used, so device
 // credentials and polled data never travel in the clear. A device without
 // api-ssl configured simply fails to connect (and shows a clear error).
-const pollDevice = async ({
-  host,
-  port,
-  user,
-  password,
-  tlsCert,
-  knockSequence,
-}) => {
-  await knockDevice(host, knockSequence);
-
-  const routeros = new Routeros({
-    host,
-    port,
-    user,
-    password,
-    timeout: CONNECT_TIMEOUT_SECONDS,
-    tlsOptions: buildTlsOptions(tlsCert),
-  });
-
-  // Watchdog: the library's `timeout` guards inactivity on an ESTABLISHED socket
-  // but can't abort a hanging TCP connect to a filtered port (RouterOS drops the
-  // SYN until the knock opens the API). Bound the whole connect+read cycle so a
-  // failed verify fails fast instead of blocking ~127s and returning a 504. On
-  // timeout the finally destroys the socket, which unblocks the pending connect;
+//
+// The two optional reads are opt-out because they are pure overhead on the
+// 5-minute health-check: /user/print never answers for a least-privilege user
+// (it burns USER_READ_TIMEOUT_MS every tick), and the serial number can't change
+// between polls. Verify-on-save keeps both (defaults) — it needs the full-group
+// guard and a fresh serial for the inventory reconciliation.
+const pollDevice = async (
+  { host, port, user, password, tlsCert, knockSequence },
+  { verifyFullGroup = true, readRouterboard = true } = {},
+) => {
+  // Watchdog: the library's `timeout` guards inactivity on the socket but can't
+  // abort a knock touch or bound a read that RouterOS never answers. Arm it first
+  // so it covers the WHOLE cycle (knock + connect + reads) — otherwise the knock
+  // runs outside the deadline and the real budget is knock + POLL_DEADLINE_MS.
+  // On timeout the finally destroys the socket, which unblocks a pending connect;
   // the "ETIMEDOUT" text routes through describeConnectionError to a clear 502.
   let watchdogTimer;
+  let routeros;
   const watchdog = new Promise((_, reject) => {
     watchdogTimer = setTimeout(
       () =>
@@ -168,6 +195,17 @@ const pollDevice = async ({
   });
 
   const run = (async () => {
+    await knockDevice(host, knockSequence);
+
+    routeros = new Routeros({
+      host,
+      port,
+      user,
+      password,
+      timeout: CONNECT_TIMEOUT_SECONDS,
+      tlsOptions: buildTlsOptions(tlsCert),
+    });
+
     const conn = await routeros.connect();
 
     const observedCert = peerCertPem(routeros);
@@ -183,33 +221,37 @@ const pollDevice = async ({
     // unknown" so the poll still succeeds; the full-group guard just no-ops when the
     // list couldn't be read.
     let users = null;
-    try {
-      users = await withReadTimeout(
-        conn.write(["/user/print"]),
-        USER_READ_TIMEOUT_MS,
-      );
-    } catch (error) {
-      logger.log(
-        "warn",
-        "Mikrotik /user/print unavailable — skipping full-group check",
-        { host, error: error.message },
-      );
+    if (verifyFullGroup) {
+      try {
+        users = await withReadTimeout(
+          conn.write(["/user/print"]),
+          USER_READ_TIMEOUT_MS,
+        );
+      } catch (error) {
+        logger.log(
+          "warn",
+          "Mikrotik /user/print unavailable — skipping full-group check",
+          { host, error: error.message },
+        );
+      }
     }
 
     // Serial number lives in /system/routerboard (absent on CHR) — best-effort,
     // used for reconciling the inventory card with the live device.
     let routerboard = null;
-    try {
-      routerboard = await withReadTimeout(
-        conn.write(["/system/routerboard/print"]),
-        ROUTERBOARD_READ_TIMEOUT_MS,
-      );
-    } catch (error) {
-      logger.log(
-        "warn",
-        "Mikrotik /system/routerboard unavailable — skipping serial number",
-        { host, error: error.message },
-      );
+    if (readRouterboard) {
+      try {
+        routerboard = await withReadTimeout(
+          conn.write(["/system/routerboard/print"]),
+          ROUTERBOARD_READ_TIMEOUT_MS,
+        );
+      } catch (error) {
+        logger.log(
+          "warn",
+          "Mikrotik /system/routerboard unavailable — skipping serial number",
+          { host, error: error.message },
+        );
+      }
     }
 
     return {
@@ -226,7 +268,70 @@ const pollDevice = async ({
     return await Promise.race([run, watchdog]);
   } finally {
     clearTimeout(watchdogTimer);
-    routeros.destroy();
+    if (routeros) routeros.destroy();
+  }
+};
+
+// Is a failed poll worth retrying right away? Timeouts and reset connections are
+// weather — a lost SYN, a busy CPU mid-handshake, a jittery WAN link. A rejected
+// certificate, a refused login or a `full`-group account are verdicts: they will
+// answer exactly the same on the second attempt, so retrying only doubles the
+// tick. Unknown errors are treated as verdicts (no retry) to stay conservative.
+const isTransientPollError = (error) => {
+  if (error?.code === "MIKROTIK_FULL_GROUP_USER") return false;
+  const raw = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+
+  const deterministic = [
+    "cert",
+    "self-signed",
+    "self signed",
+    "unable to verify",
+    "handshake failure",
+    "alert number 40",
+    "sslv3 alert",
+    "tlsv1 alert",
+    "wrong version number",
+    "no protocols available",
+    "eproto",
+    "cannot log in",
+    "invalid user",
+    "login failure",
+    "access denied",
+    "authentication",
+  ];
+  if (deterministic.some((marker) => raw.includes(marker))) return false;
+
+  const transient = [
+    "socket timeout",
+    "read timeout",
+    "poll deadline",
+    "timeout",
+    "timed out",
+    "etimedout",
+    "econnreset",
+    "econnrefused",
+    "ehostunreach",
+    "enetunreach",
+    "epipe",
+  ];
+  return transient.some((marker) => raw.includes(marker));
+};
+
+// One poll, plus a single immediate retry when the failure looks transient. This
+// is what stops a lone lost packet from flipping a healthy device to "offline".
+// `retry: false` (a device already in a confirmed outage) skips it — re-polling a
+// device that is known to be down just doubles the tick during a mass outage.
+const pollWithRetry = async (params, { retry = true, ...opts } = {}) => {
+  try {
+    return await pollDevice(params, opts);
+  } catch (error) {
+    if (!retry || !isTransientPollError(error)) throw error;
+    logger.log("debug", "Mikrotik poll failed — retrying once", {
+      host: params.host,
+      error: error.message,
+    });
+    await sleep(POLL_RETRY_DELAY_MS);
+    return pollDevice(params, opts);
   }
 };
 
@@ -405,8 +510,20 @@ const describeConnectionError = (error) => {
     };
   }
 
-  // TCP never established: knock didn't open the API port, wrong host/port, or
-  // the device is unreachable/offline.
+  // The whole poll ran out of time although the session was reachable: a slow or
+  // loaded device, or a read RouterOS never answered.
+  if (raw.includes("poll deadline") || raw.includes("read timeout")) {
+    return {
+      status: 502,
+      message:
+        "Устройство не ответило за отведённое время. Возможно, оно перегружено " +
+        "или канал до него слишком медленный — попробуйте повторить.",
+    };
+  }
+
+  // Nothing came back while connecting: knock didn't open the API port, wrong
+  // host/port, or the device is unreachable/offline. "Socket timeout" is
+  // routeros-node's wording for exactly this (silence during connect/login).
   if (
     raw.includes("timeout") ||
     raw.includes("timed out") ||
@@ -449,9 +566,12 @@ const describeConnectionError = (error) => {
 module.exports = {
   encryptSecret,
   decryptSecret,
+  decodeKnockSequence,
   assertUserNotFullGroup,
   knockDevice,
   pollDevice,
+  pollWithRetry,
+  isTransientPollError,
   mapPollToFields,
   describeConnectionError,
   withSshSession,

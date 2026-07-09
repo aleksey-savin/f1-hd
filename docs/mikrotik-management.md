@@ -23,7 +23,8 @@ per-vendor:
 4. **Monitoring** — saving verified parameters **enrols** the device in a
    background cron health-check that re-polls it every 5 minutes; **detaching**
    (deleting the record) removes it. The former manual Connect/Disconnect toggle
-   was dropped from the UI.
+   was dropped from the UI. A device goes «Не в сети» only after **two consecutive
+   failed poll cycles** (each with its own immediate retry) — see _Anti-flap_.
 5. **Standalone devices** — a managed device need not be in the inventory. A
    **Cloud Hosted Router** (or any Mikrotik you don't want to fake as a
    `ClientDevice`) is added manually with a **company** + optional **label**; its
@@ -38,12 +39,13 @@ per-vendor:
    (uptime %, total downtime, outage log with ticket links, timeline strip).
    Downtime counts from the **connectivity-loss edge** (`offlineSince`), not from
    the alert threshold. See _Outage episodes & availability_ below.
-8. **Ticket lifecycle** — an offline alert still raises one ticket per outage;
-   on **recovery** a system **comment** («связь восстановлена, простой N мин») is
-   posted to that ticket (the ticket stays open, notifications go out through the
-   standard pipeline). Monitoring tickets carry **`relatedClientDeviceId`**, so
-   the ticket's «Окружение» tab renders the **device's** location chain (the
-   author is the service applicant with no workplace).
+8. **Ticket lifecycle** — an offline alert raises one ticket per outage, but only
+   after **re-polling the device** to confirm it is really down; on **recovery** a
+   system **comment** («связь восстановлена, простой N мин») is posted to that
+   ticket (the ticket stays open, notifications go out through the standard
+   pipeline). Monitoring tickets carry **`relatedClientDeviceId`**, so the ticket's
+   «Окружение» tab renders the **device's** location chain (the author is the
+   service applicant with no workplace).
 9. **Unified device page** — the inventory device page hosts «Мониторинг» and
    «Конфигурации» tabs; the management-list offcanvas is a **preview with tabs**
    (Обзор + Конфигурации, so backups are reachable without leaving the list) and
@@ -80,8 +82,9 @@ Mikrotik  (management/connection record) ─────────┘
   outage episode: `mikrotik` (ref), `startedAt`, `endedAt` (null = ongoing),
   `open` (present only while ongoing; a **partial unique index** `{mikrotik:1}`
   where `{open:true}` makes «one open episode per device» race-safe), `ticketId`
-  (the alert ticket), `lastError`. Opened on the offline edge, closed on
-  recovery (or silently on `disconnect`), deleted on detach. Unlike the mutable
+  (the alert ticket), `lastError`. Opened when an outage is **confirmed** (but
+  `startedAt` = the first failed poll, so no downtime is lost), closed on recovery
+  (or silently on `disconnect`), deleted on detach. Unlike the mutable
   offline-alert state on the record, episodes survive recovery — they power the
   availability report. TS mirror `IMikrotikOutage` in `backend/types/mikrotik.ts`.
 - **`Ticket.relatedClientDeviceId`** (ref ClientDevice) — monitoring tickets
@@ -92,8 +95,11 @@ Mikrotik  (management/connection record) ─────────┘
 
 | Field | Meaning | Set by |
 | --- | --- | --- |
-| `status` (`online` / `offline`) | connectivity from the **last poll** | parameter-save, cron |
+| `status` (`online` / `offline`) | connectivity, **confirmed** over several polls | parameter-save, cron |
 | `monitoringEnabled` (bool) | whether the cron polls it | **parameter-save** ⇒ true; cleared only by **deleting** the record (detach) |
+
+`status` is deliberately *not* «the result of the last poll»: a single failed poll only
+bumps `failedPolls` and stamps `firstFailureAt`. See _Anti-flap_ below.
 
 A device with **no record** is reported as `notConfigured` (derived in the list,
 not stored) and is **hidden from the management table** — it appears instead in
@@ -120,10 +126,11 @@ credentials { host, port, user, password, useTls, tlsCert, knockSequence }
              // password + knockSequence are AES-256-GCM blobs; tlsCert = pinned PEM
 name, boardName, serialNumber, currentFirmware               // polled
 addresses[] { address, network, interface, invalid, dynamic, disabled, comment }
-status                       → "online" | "offline"
+status                       → "online" | "offline"   // CONFIRMED connectivity
 monitoringEnabled            → Boolean, default false
 lastSuccessfulConnectionAt, lastCheckedAt, lastError
 offlineSince, offlineAlertedAt, alertTicketId   // offline-alert state (one ticket per outage)
+failedPolls, firstFailureAt                     // anti-flap (see below)
 timestamps
 ```
 TS interface kept in sync in `backend/types/mikrotik.ts`.
@@ -138,40 +145,77 @@ idempotent `backend/scripts/migrateMikrotikIndexes.js` (drops the old index →
 scripts/migrateMikrotikIndexes.js`. Without it, adding a **second** standalone
 device fails with a duplicate-key error.
 
+### Anti-flap (`failedPolls` / `firstFailureAt`)
+
+One failed poll is not an outage — a lost SYN or a busy CPU used to be enough to flip a
+healthy device to «Не в сети», open an outage episode and start the clock towards a
+ticket. Now every failed **cycle** (a poll plus one immediate retry) increments
+`failedPolls` and `$min`s `firstFailureAt`; only `CONFIRM_POLLS` (default **2**,
+`MIKROTIK_OFFLINE_CONFIRM_POLLS`) consecutive failures flip `status` to `offline`. On
+confirmation `offlineSince` is **backdated to `firstFailureAt`**, so downtime and the
+alert threshold still run from the moment connectivity actually died — hysteresis costs
+no alerting latency, it only filters out blips. Any success resets both fields.
+
+> `firstFailureAt` is advanced with `$min` and cleared with **`$unset` only, never
+> `null`**: a stored `null` sorts before every date and would freeze `$min` forever.
+> Beware the mirror-image trap when querying: `{ firstFailureAt: null }` also matches
+> documents where the field is **absent** — use `{ $type: "null" }` to find real nulls.
+
+Consequence to know: alerts can never fire sooner than `CONFIRM_POLLS × 5 min`,
+whatever `thresholdMinutes` says.
+
 ### Connector service — `backend/services/mikrotik/connector.js`
 The live-connection logic was extracted here so the controller **and** the cron
 share it. Uses `routeros-node` (`new Routeros(...)` → `connect()` →
 `conn.write([...])` → `destroy()`).
 
 - `knockDevice(host, sequence)` — port-knocks the device (touches each port in
-  order) so its firewall opens the API for our IP; no-op when unset.
-- `pollDevice({host, port, user, password, tlsCert, knockSequence})` — knocks,
-  opens an **API-SSL** session (8 s connect timeout; TLS cert pinned via `tlsCert`,
-  captured TOFU on first connect), reads `/ip/address/print`,
-  `/system/identity/print`, `/system/resource/print` and — **best-effort** —
-  `/user/print` and `/system/routerboard/print`, always closes the socket, and
-  throws on any failure (interpreted as "offline"). Two guards stop an
-  unresponsive device from stalling the request past nginx's 60 s gateway (→ 504):
-  an overall **watchdog** (`POLL_DEADLINE_MS`, 20 s) bounds the whole connect+read
-  cycle — the library's `timeout` only guards an *established* socket, not a
-  hanging TCP connect to a filtered port — and the best-effort reads have their
-  own short bounds: `/user/print` (`USER_READ_TIMEOUT_MS`, 4 s) needs the `policy`
-  privilege, which the recommended least-privilege user lacks, so RouterOS never
-  replies and the read would otherwise hang forever; `/system/routerboard/print`
-  (`ROUTERBOARD_READ_TIMEOUT_MS`, 4 s) is absent on CHR. On timeout each is
-  skipped without failing the poll.
+  order) so its firewall opens the API for our IP; no-op when unset. Each touch waits
+  at most `KNOCK_TOUCH_TIMEOUT_MS` (800 ms — only the SYN has to arrive; the knock
+  ports never answer) and the `KNOCK_INTER_DELAY_MS` gap goes *between* touches, not
+  after the last one. A 3-port knock therefore costs ~2.9 s, not ~5.3 s.
+- `decodeKnockSequence(blob)` — decrypts a stored sequence to numbers. Lives here so
+  the health-check, the alert cron, the controller and the SSH code share one decoder.
+- `pollDevice({host, …}, {verifyFullGroup = true, readRouterboard = true})` — knocks,
+  opens an **API-SSL** session (TLS cert pinned via `tlsCert`, captured TOFU on first
+  connect), reads `/ip/address/print`, `/system/identity/print`,
+  `/system/resource/print` and — **best-effort, opt-out** — `/user/print` and
+  `/system/routerboard/print`, always closes the socket, and throws on any failure
+  (interpreted as "offline"). The health-check turns both optional reads off: for a
+  least-privilege user `/user/print` never answers (so the full-group guard there was
+  a permanent no-op that just burned its timeout), and the serial number can't change
+  between polls. Verify-on-save keeps them — it needs the guard and a fresh serial.
+  An overall **watchdog** (`POLL_DEADLINE_MS`, 35 s) bounds the whole
+  **knock+connect+read** cycle, so nothing can stall the request past nginx's 60 s
+  gateway (→ 504); the optional reads have their own short bounds
+  (`USER_READ_TIMEOUT_MS` / `ROUTERBOARD_READ_TIMEOUT_MS`, 4 s each) and are skipped
+  without failing the poll.
+- **What `"Socket timeout"` means.** `CONNECT_TIMEOUT_SECONDS` (15 s) reaches
+  routeros-node as a single `socket.setTimeout`, i.e. an *inactivity* timer armed
+  during the TCP/TLS connect too. It is the only place the library turns silence into
+  an error, and its handlers live inside `connect()` — so `lastError: "Socket timeout"`
+  always means «N seconds of total silence while connecting/logging in», never a slow
+  read (a stalled read hangs and is caught by the watchdog as `…poll deadline`). It was
+  8 s, too tight for a low-powered board doing an RSA-2048 handshake over WAN.
+- `isTransientPollError(error)` / `pollWithRetry(params, opts)` — timeouts and reset
+  connections are weather (retry once, immediately); a rejected certificate, a refused
+  login or a `full`-group account are verdicts (don't retry — they answer the same).
+  Unknown errors count as verdicts. `retry: false` skips the retry for a device already
+  in a confirmed outage, so a mass outage doesn't double the tick.
 - `mapPollToFields(poll)` — `name` (identity), `boardName`, `currentFirmware`,
   `addresses`, and `serialNumber` (from routerboard) — the serial key is emitted
-  **only when the read succeeded**, so a CHR / timed-out read never erases a
-  previously captured value via the health-check's `Object.assign`.
+  **only when the read succeeded**, so a CHR / skipped / timed-out read never erases a
+  previously captured value when the result is `$set` onto the record.
 - `assertUserNotFullGroup(users, user)` — rejects RouterOS accounts in the `full`
   group. **Best-effort**: when `/user/print` was unreadable (least-privilege user,
   see `pollDevice`) `users` is null and the check is skipped.
 - `encryptSecret` / `decryptSecret` — AES-256-GCM helpers re-exported from
   `services/crypto/secretBox.js` (see _Security model_).
-- `describeConnectionError(error)` — classifies a failed poll (TLS handshake /
-  cert mismatch / timeout / login) into a clear operator message + HTTP status;
-  the controller's `mapVerifyError` uses it. The raw error is still logged.
+- `describeConnectionError(error)` — classifies a failed poll (TLS handshake / cert
+  mismatch / login, plus **two distinct timeouts**: «no answer while connecting» →
+  check host/port/knock, vs «poll deadline» → the device is reachable but too slow)
+  into a clear operator message + HTTP status; the controller's `mapVerifyError` uses
+  it. The raw error is still logged.
 
 ### Endpoints — `backend/routes/internal/inventory/mikrotik.js`
 Mounted under `/api/inventory` (so they inherit `inventoryModuleIsActive` +
@@ -184,7 +228,7 @@ to the client**, and the verify-on-save endpoint is **rate-limited** per user.
 | `GET /mikrotik-devices` | `getManagedDevices` | Vendor-flag-filtered `ClientDevice`s left-joined to records. |
 | `GET /mikrotik-devices/report/networks` | `networksReport` | IP/network aggregation + duplicate-network flagging. |
 | `GET /mikrotik-devices/:clientDeviceId` | `getOne` | One row + record (credentials without password) for prefill. |
-| `POST /mikrotik-devices/:clientDeviceId/parameters` | `updateParameters` | **Verify-on-save**: SSRF host check → port-knock → live TLS poll + Full-group guard, then upsert record (`status: online`, `monitoringEnabled: true`). A verified save also acts as **recovery** (closes the outage episode, posts the ticket comment, clears alert state). Response carries `reconciliation` (card-vs-device mismatches). Rejects invalid creds / unreachable host (`502`). Rate-limited. |
+| `POST /mikrotik-devices/:clientDeviceId/parameters` | `updateParameters` | **Verify-on-save**: SSRF host check → port-knock → live TLS poll + Full-group guard, then upsert record (`status: online`, `monitoringEnabled: true`, anti-flap counters reset). A verified save also acts as **recovery** (closes the outage episode, posts the ticket comment, clears alert state). Response carries `reconciliation` (card-vs-device mismatches). Rejects invalid creds / unreachable host (`502`). Rate-limited. |
 | `POST /mikrotik-devices/:clientDeviceId/sync-inventory` | `syncInventory` | Apply device-derived values (`hostname`/`serialNumber`/`operatingSystem`/`ipAddress`) to the ClientDevice card. Strict whitelist; values derived **server-side** from the stored record (client sends field names only); dup checks (serial globally, hostname per company) → 409. `canManageMikrotikDevices`. |
 | `GET /mikrotik-devices/records/:recordId/availability?days=1\|7\|30\|90` | `getAvailability` | Availability report: uptime % / downtime / outage episodes over the window (clamped to `monitoredSince` = record.createdAt; overlap-merged), `ticketNum` resolved server-side. isAuth. |
 | `DELETE /mikrotik-devices/:clientDeviceId` | `detach` | Deletes the management record (encrypted credentials, pinned cert, polled data); the `ClientDevice` returns to the `notConfigured` pool. Requires `canManageMikrotikDevices`. |
@@ -227,35 +271,76 @@ Hosted Router; unknown → null). `uptime30d` = 30-day availability % from
 host. `company.name` = `alias || fullTitle` (from the ClientDevice for inventory
 rows; from the record's `companyId` for standalone).
 
+### Cron scheduling — `backend/app.js`
+
+The three Mikrotik crons used to share `*/5 * * * *` and fired in the same second. That
+was a correctness bug, not just contention: the alert cron read `status` while the
+health-check was still polling. They are now staggered by `guardedCron(name, expr, fn,
+timeoutMs)`, which pairs the in-flight lock with a **watchdog** (a hung run used to hold
+the lock forever — health-check dead, alerts still ticketing off a frozen `offline`).
+
+| Cron | Minutes | Watchdog |
+| --- | --- | --- |
+| health-check | `*/5` (:00) | 240 s |
+| config-export scheduler | :02 (explicit list) | 270 s |
+| offline alerts | :04 (explicit list) | 120 s |
+
+Alerts get four minutes of head start, and the SSH `/export` no longer loads a weak
+device's CPU during the health-check's TLS handshake.
+
+> node-cron reads `2-59/5` as «every 5th minute counted from zero, within 2..59» —
+> i.e. `5,10,…,55`, essentially `*/5` again. `cron.validate()` accepts it, so the
+> mistake would be silent. **Offsets must be explicit minute lists.**
+
 ### Health-check cron — `backend/middleware/mikrotikHealthCheck.js`
-`runMikrotikHealthCheck()` finds `monitoringEnabled` records, polls them in
-batches of 5 (`Promise.allSettled`), and writes back `status` +
-`lastSuccessfulConnectionAt` / `lastCheckedAt` / `lastError`. Registered in
-`backend/app.js` next to the other crons: `cron.schedule("*/5 * * * *", …)` with
-an in-flight lock and a `mongoose.connection.readyState` guard. It also tracks the
-**online↔offline edge**: on going offline it stamps `offlineSince` (once, kept until
-recovery) and calls `ensureOpenOutage` (opens/refreshes the episode; self-heals
-devices that were offline before episode tracking existed); on recovery it calls
-`markRecovered` (closes the episode + posts the recovery comment on the alert
-ticket) and then clears the offline-alert state (`offlineSince`,
-`offlineAlertedAt`, `alertTicketId`) — the alert ticket itself is left open.
+`runMikrotikHealthCheck()` finds `monitoringEnabled` records and polls them in batches
+of 5 (`Promise.allSettled`) with `pollWithRetry`. It is deliberately thin: every state
+transition lives in **`backend/services/mikrotik/monitorState.js`**, which the alert
+cron reuses for its re-poll.
+
+- `recordFailure(record, error)` — `$inc failedPolls`, `$min firstFailureAt`, refresh
+  `lastCheckedAt`/`lastError`. On reaching `CONFIRM_POLLS` it flips `status` to
+  `offline` under a compare-and-set (`status: {$ne: "offline"}`), backdates
+  `offlineSince` to `firstFailureAt`, and opens the outage episode exactly once.
+- `recoverToOnline(record, poll)` — **one** atomic `findOneAndUpdate` that sets
+  `online` + the polled fields and `$unset`s the whole offline/alert state, returning
+  the **pre-update** document (`new: false`). That single call fixes three old races:
+  the DB reads `online` *before* the slow `markRecovered` bookkeeping runs (the window
+  in which the alert cron saw a stale `offline`); `prev.alertTicketId` still holds a
+  value a concurrent alert cron wrote a moment ago, so the recovery comment lands on
+  the right ticket instead of being erased; and `prev.offlineSince` is truthy for
+  exactly one of two concurrent recoveries, so the comment is posted once. Gating on
+  `offlineSince` (not `status`) also means an unconfirmed blip never fabricates a
+  retroactive episode.
+
+The previous code loaded a document at the top of a tick and `save()`d it at the
+bottom, so health-check and alerts held two copies and overwrote each other's fields.
 
 ### Outage episodes & availability — `backend/services/mikrotik/outages.js`
 All bookkeeping is **never-throw** (a report must not break the crons/saves):
 - `ensureOpenOutage(record)` — upsert of the open episode (`startedAt =
-  offlineSince`); called on every failed poll (cheap, keeps `lastError` fresh).
-  The partial unique index makes concurrent upserts race-safe (E11000 swallowed).
+  offlineSince`, i.e. the first failed poll); called only once the outage is
+  **confirmed**, then on each further failed poll (cheap, keeps `lastError` fresh).
+  An unconfirmed blip never reaches it, so a single lost packet no longer dents the
+  availability report. The partial unique index makes concurrent upserts race-safe
+  (E11000 swallowed).
 - `attachTicket(record, ticketId)` — the alert cron stamps the ticket onto the
-  episode after raising it.
+  episode after raising it. Deliberately **not** an upsert: `open: true` would be
+  seeded from the filter, so a recovery that closed the episode a moment earlier made
+  it insert a brand-new open episode that nothing ever closed — and the availability
+  report then showed an eternal «идёт простой». No open episode ⇒ nothing to stamp
+  (logged, never created).
 - `markRecovered(record)` — closes the open episode (self-heals a missing one
   from `offlineSince`), and if `alertTicketId` is set posts the system comment:
   author = `Preferences.defaultApplicant` (email-pipeline pattern), pushed into
   `ticket.comments` via atomic `$push` (**no `version` bump** — comments never
   trip the optimistic lock), `notifications.pending: true` → delivered by the
-  notifications cron, plus a `TicketLog` entry. The caller clears the alert
-  state and saves the record. Runs from the health-check **and** from verified
-  parameter saves / legacy `connect` (previously a successful re-save left stale
-  `offlineSince` until the next tick).
+  notifications cron, plus a `TicketLog` entry. It is always handed the
+  **pre-update** record (see `recoverToOnline`), which is what makes it see an
+  `alertTicketId` a concurrent alert cron wrote a moment earlier. Runs from the
+  health-check, from the alert cron's re-poll, **and** from verified parameter saves /
+  legacy `connect` (previously a successful re-save left stale `offlineSince` until
+  the next tick).
 - `closeOpenOutage(record)` — silent close for `disconnect` (monitoring off ≠
   recovery; without it the episode would stay open forever). `disconnect` also
   clears the offline-alert state, so re-enabling on a still-down device restarts
@@ -293,11 +378,23 @@ set). The shared factory is `backend/services/mikrotik/tickets.js` →
 
 - **Offline alert** (`offlineTicket`: `isActive`, `thresholdMinutes`, `categoryId`) —
   a dedicated cron `backend/services/mikrotik/alerts.js` → `runMikrotikOfflineAlerts()`
-  (own `*/5 * * * *` schedule + in-flight lock in `app.js`) raises **one ticket per
-  outage episode** for devices offline past the threshold. `offlineAlertedAt` +
-  `alertTicketId` on the `Mikrotik` record guarantee no duplicates; the health-check
-  clears them on recovery so the next outage can alert again. The cron also stamps
-  the ticket onto the `MikrotikOutage` episode (`attachTicket`).
+  raises **one ticket per outage episode** for devices offline past the threshold.
+  Two rules keep it honest:
+  - **It asks the device before it files.** Every candidate is **re-polled**
+    (`pollWithRetry`, up/down only). A device that answers is recovered on the spot
+    (`recoverToOnline`) and never ticketed — logged as «offline alert suppressed». The
+    `status` field alone is a snapshot up to five minutes old, and a ticket is too
+    expensive to be wrong about.
+  - **Claim first, create second.** `offlineAlertedAt` is taken with a compare-and-set
+    (`{status: "offline", offlineAlertedAt: null}`) *before* the ticket exists; the
+    ticket is only created if the claim succeeded, and a failed create releases the
+    claim for the next tick. The reverse order left an orphan ticket behind whenever
+    the device recovered in between. Stamping `alertTicketId` is likewise guarded, so a
+    recovery landing mid-flight can't leave `offlineAlertedAt` on an online device —
+    which used to silently block **every future alert** for it.
+
+  Correctness here relies on a single backend process (in-flight locks + staggered
+  cron minutes); replicas would need a distributed lock.
 - **Recovery comment** — when connectivity returns (health-check tick or a
   verified parameter save), `markRecovered` posts a system comment on the alert
   ticket with the recovery time and the outage duration (measured from
@@ -391,9 +488,9 @@ Each `Mikrotik` record carries `schedules.export` (and a dormant `schedules.back
 `lastRunAt`/`lastSuccessAt`/`lastError`/`nextRunAt`).
 `backend/services/mikrotik/schedule.js` `computeNextRun()` compiles a preset into the
 next UTC fire time in the Preferences timezone. `backend/middleware/mikrotikScheduler.js`
-(`runMikrotikScheduler`, registered as a `*/5 * * * *` cron in `app.js`, same
-lock/guard shape as the health-check) runs every record whose **export** `nextRunAt`
-is due, records the outcome, prunes retention, and advances `nextRunAt`.
+(`runMikrotikScheduler`, registered as a staggered cron in `app.js`, same lock/guard
+shape as the health-check) runs every record whose **export** `nextRunAt` is due,
+records the outcome, prunes retention, and advances `nextRunAt`.
 
 ### Endpoints (record-scoped, under `/api/inventory`)
 
@@ -649,8 +746,9 @@ device, so the module is hardened in depth:
   (`.select("-credentials.password -credentials.knockSequence")`).
 
 **Residual risk / notes:** TOFU trusts the cert on the *first* connect (like SSH
-known-hosts); status is a cached value from the last poll, not real-time; key
-rotation re-encrypts records via the `v1` version prefix.
+known-hosts); `status` is a cached value confirmed over the last few polls, not
+real-time (the alert cron re-polls before it acts on it); key rotation re-encrypts
+records via the `v1` version prefix.
 
 ## Device-side hardening runbook (apply on every managed device)
 
@@ -685,9 +783,10 @@ rotation re-encrypts records via the `v1` version prefix.
 2. **Least-privilege user:** a custom group with `policy=api,read,test,ssh`
    (`ssh` lets the poller run `/export`; no `ftp` needed — nothing is transferred;
    add only the writes you use — never `full`/`policy`/`sensitive`), unique
-   generated password per device. Without `policy` this user **cannot read `/user`**,
-   so the poll's full-group guard is skipped for it — by design (the poll bounds and
-   skips that read; see `pollDevice`), and it's why the guard is best-effort.
+   generated password per device. Without `policy` this user **cannot read `/user`**:
+   RouterOS simply never replies. That is why the full-group guard is best-effort —
+   verify-on-save bounds the read and skips the check, and the health-check doesn't
+   even attempt it (`verifyFullGroup: false`).
 3. **Port knocking** (illustrative 3-stage — choose your own secret ports).
    Rules must be inserted at the **top** of `input` (`place-before`), not appended,
    or they land below the admin-block rule and never match. The knock allow-path
@@ -745,6 +844,26 @@ rotation re-encrypts records via the `v1` version prefix.
   exports use the new key, old ones need the old key to read).
 - **`ssh2`** dependency (backend) provides the SSH transport for the `/export`
   config capture.
+- **Monitoring tunables** — all optional, sane defaults compiled in
+  (`services/mikrotik/connector.js`, `services/mikrotik/monitorState.js`):
+  `MIKROTIK_OFFLINE_CONFIRM_POLLS` (2), `MIKROTIK_CONNECT_TIMEOUT_SECONDS` (15),
+  `MIKROTIK_POLL_DEADLINE_MS` (35000), `MIKROTIK_POLL_RETRY_DELAY_MS` (2000),
+  `MIKROTIK_KNOCK_TOUCH_TIMEOUT_MS` (800), `MIKROTIK_KNOCK_INTER_DELAY_MS` (150),
+  `MIKROTIK_USER_READ_TIMEOUT_MS` (4000), `MIKROTIK_ROUTERBOARD_READ_TIMEOUT_MS` (4000).
+
+## Monitoring-state repair (one-off)
+
+The pre-atomic health-check/alert races left two kinds of durable damage: **phantom**
+outage episodes stuck `open: true` forever (old `attachTicket` upsert), and **stale**
+`offlineAlertedAt`/`alertTicketId` on devices that are back online — which blocks their
+next real alert for good. `backend/scripts/repairMikrotikMonitoringState.js` finds and
+fixes both, plus normalizes `firstFailureAt`. It is idempotent and defaults to a **dry
+run**. Deploy the code first, then:
+
+```
+docker exec hd-backend-prod node scripts/repairMikrotikMonitoringState.js          # отчёт
+docker exec hd-backend-prod node scripts/repairMikrotikMonitoringState.js --apply  # починка
+```
 
 ## How to test end-to-end
 
@@ -752,8 +871,9 @@ Live testing needs the running stack and a reachable RouterOS API (a real
 MikroTik or a CHR VM); otherwise temporarily stub `pollDevice`.
 
 1. Set `MIKROTIK_ENC_KEY` (see _Required configuration_) and start the stack
-   (`docker compose -f compose.dev.yml up`); confirm the health-check cron
-   registers at startup.
+   (`docker compose -f compose.dev.yml up`); confirm the health-check cron registers
+   at startup and that the three Mikrotik crons fire on their own minutes (:00 / :02 /
+   :04), not together.
 2. Vendor → enable the switch. Create a `DeviceModel` under that vendor, then a
    `ClientDevice` with that model.
 3. Open the Mikrotik management page — the new device is **not** in the table
@@ -765,9 +885,18 @@ MikroTik or a CHR VM); otherwise temporarily stub `pollDevice`.
    joins the table as **В сети** with identity/model/host/firmware/last-connection
    populated and `monitoringEnabled: true`. A `full`-group user, or an
    internal/loopback host, is rejected.
-5. After a cron tick `lastCheckedAt` advances. Power the device off → the next
-   tick flips it to **Не в сети**. **Отключить** → confirm → the record is
-   deleted; the device leaves the table and returns to the picker.
+5. After a cron tick `lastCheckedAt` advances. Power the device off → the **second**
+   consecutive failed tick flips it to **Не в сети** (anti-flap; a single blip only
+   bumps `failedPolls` and leaves the status alone), and `offlineSince` is backdated to
+   the first failure. **Отключить** → confirm → the record is deleted; the device
+   leaves the table and returns to the picker. Two things to check explicitly:
+   - **Anti-flap:** block the API port for exactly one tick → `failedPolls: 1`,
+     `status` stays `online`, no episode in `db.mikrotikoutages`; unblock → everything
+     resets. Two blocked ticks → `status: "offline"` and `offlineSince ===
+     firstFailureAt` (the loss edge, not the confirmation time).
+   - **False-alarm suppression:** seed a device with `status: "offline"` and an
+     `offlineSince` past the threshold, but leave it reachable → the alert cron
+     re-polls it, recovers it and logs «offline alert suppressed», **no ticket**.
 6. Confirm `credentials.password` is absent from every `/mikrotik-devices`
    response.
 7. **Config export:** ensure the device user has the **`ssh`** policy and SSH is
@@ -775,18 +904,19 @@ MikroTik or a CHR VM); otherwise temporarily stub `pollDevice`.
    panel's Конфигурации tab — same section) → **Экспортировать сейчас**: a `.rsc`
    appears in the list, **download** returns the config text, **delete** removes
    it. Set a schedule (e.g. daily 03:00) → the schedule card shows next/last runs;
-   the `*/5` cron runs it when `nextRunAt` is due and prunes to `keepLast`. A user
-   missing `ssh`, an unreachable SSH port, or a host-key change (after pinning) is
-   rejected with a clear message.
+   the scheduler cron (:02, :07, …) runs it when `nextRunAt` is due and prunes to
+   `keepLast`. A user missing `ssh`, an unreachable SSH port, or a host-key change
+   (after pinning) is rejected with a clear message.
 8. **Outages / recovery comment:** black-hole the device's host (firewall / power
-   off) → within a poll tick an open `MikrotikOutage` appears
-   (`db.mikrotikoutages`) with `startedAt = offlineSince`; after the threshold the
-   alert ticket is raised and stamped onto the episode. Restore connectivity →
-   the episode closes and the still-open ticket gets the «🟢 Связь…
-   восстановлена… Продолжительность простоя…» comment (TG notification goes out).
-   Repeat, but recover by re-saving **Параметры** during the outage — the comment
-   posts immediately. `Отключить мониторинг` (legacy disconnect) closes the
-   episode silently, detach deletes the episodes.
+   off) → once the outage is **confirmed** an open `MikrotikOutage` appears
+   (`db.mikrotikoutages`) with `startedAt = offlineSince` = the first failed poll;
+   after the threshold the alert cron re-polls, fails, and raises the ticket, stamping
+   it onto the episode. Restore connectivity → the episode closes and the still-open
+   ticket gets the «🟢 Связь… восстановлена… Продолжительность простоя…» comment (TG
+   notification goes out) — exactly once, even if the health-check and the alert cron
+   recover it concurrently. Repeat, but recover by re-saving **Параметры** during the
+   outage — the comment posts immediately. `Отключить мониторинг` (legacy disconnect)
+   closes the episode silently, detach deletes the episodes.
 9. **Availability report:** device page → **Мониторинг** → «Доступность»: KPI
    tiles + timeline strip + outage table with `№<num>` ticket links; switch
    24ч/7дн/30дн/90дн; durations follow `offlineSince` (loss edge), not the ticket

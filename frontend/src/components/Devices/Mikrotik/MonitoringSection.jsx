@@ -17,13 +17,17 @@ import AddressesTable from "./AddressesTable";
 import AvailabilityReport from "./AvailabilityReport";
 import ReconciliationAlert from "./ReconciliationAlert";
 
-// Карточка-секция (общий паттерн детальных страниц).
-const SectionCard = ({ icon, title, children }) => (
+// Карточка-секция (общий паттерн детальных страниц); actions — кнопки в
+// заголовке справа.
+const SectionCard = ({ icon, title, actions, children }) => (
   <Card className="border-0 shadow-sm h-100">
     <Card.Body>
-      <div className="cap-card-title mb-3">
-        {icon}
-        <span>{title}</span>
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div className="cap-card-title">
+          {icon}
+          <span>{title}</span>
+        </div>
+        {actions}
       </div>
       {children}
     </Card.Body>
@@ -64,7 +68,34 @@ const MonitoringSection = ({
       )}
       <Row className="g-3">
         <Col xs={12} lg={6}>
-          <SectionCard icon={<RiRouterLine />} title="Подключение">
+          <SectionCard
+            icon={<RiRouterLine />}
+            title="Подключение"
+            actions={
+              canManage && (
+                <div className="d-flex flex-wrap gap-2">
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
+                    onClick={onEditParams}
+                  >
+                    <RiSettings3Line /> Параметры
+                  </Button>
+                  <Button variant="outline-danger" size="sm" onClick={onDetach}>
+                    {isStandalone ? (
+                      <>
+                        <RiDeleteBinLine /> Удалить
+                      </>
+                    ) : (
+                      <>
+                        <RiLinkUnlink /> Отключить
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )
+            }
+          >
             <DeviceOverview device={device} showIdentity={false} />
           </SectionCard>
         </Col>
@@ -82,25 +113,6 @@ const MonitoringSection = ({
           </SectionCard>
         </Col>
       </Row>
-
-      {canManage && (
-        <div className="d-flex flex-wrap justify-content-end gap-2 mt-3">
-          <Button variant="outline-primary" onClick={onEditParams}>
-            <RiSettings3Line /> Параметры подключения
-          </Button>
-          <Button variant="outline-danger" onClick={onDetach}>
-            {isStandalone ? (
-              <>
-                <RiDeleteBinLine /> Удалить
-              </>
-            ) : (
-              <>
-                <RiLinkUnlink /> Отключить
-              </>
-            )}
-          </Button>
-        </div>
-      )}
     </>
   );
 };

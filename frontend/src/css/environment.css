@@ -391,6 +391,15 @@
   align-items: center;
   gap: 0.2rem;
 }
+/* Ряд бейджей: без обёртки они слипаются и разъезжаются по baseline
+   (inline-block против inline-flex с иконкой). */
+.env-device__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+}
 .env-device__status {
   font-weight: 500;
   font-size: 0.64rem;

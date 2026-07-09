@@ -238,77 +238,83 @@ cron.schedule("*/10 * * * * *", async () => {
   }
 });
 
-// Refresh connectivity status of monitored Mikrotik devices every 5 minutes
-let isCheckingMikrotik = false;
-cron.schedule("*/5 * * * *", async () => {
-  if (isCheckingMikrotik) {
-    return;
-  }
+// The three Mikrotik crons used to share `*/5 * * * *` and therefore fired in the
+// same second. That was a correctness bug, not just contention: the alert cron read
+// `status` while the health-check was still polling, so it ticketed devices by a
+// five-minute-old snapshot. They are now staggered — health-check at :00, the config
+// exporter at :02 (its SSH /export no longer loads a weak device's CPU during the
+// health-check's TLS handshake), alerts at :04, giving the health-check four minutes
+// of head start. Beware: node-cron reads `2-59/5` as "every 5th minute from zero
+// within 2..59", i.e. 5,10,…,55 — an offset must be an explicit minute list.
+const EVERY_5_MIN = "*/5 * * * *";
+const EVERY_5_MIN_AT_2 = "2,7,12,17,22,27,32,37,42,47,52,57 * * * *";
+const EVERY_5_MIN_AT_4 = "4,9,14,19,24,29,34,39,44,49,54,59 * * * *";
 
-  if (mongoose.connection.readyState !== 1) {
-    return;
-  }
+// Guard a cron body with an in-flight lock AND a watchdog. Without the watchdog a
+// single hung run (a stalled DB op, a wedged poll) would hold the lock forever: the
+// health-check would stop updating statuses while the alert cron kept ticketing them
+// from the frozen `status: "offline"`.
+const guardedCron = (name, expression, run, timeoutMs) => {
+  let inFlight = false;
 
-  isCheckingMikrotik = true;
+  cron.schedule(expression, () => {
+    if (inFlight) {
+      logger.log("warn", `Skipping ${name}: previous run is still active`);
+      return;
+    }
+    if (mongoose.connection.readyState !== 1) {
+      return;
+    }
 
-  try {
-    await runMikrotikHealthCheck();
-  } catch (error) {
-    logger.log("error", "Mikrotik health-check run failed", {
-      error: error.message,
+    inFlight = true;
+
+    let watchdogTimer;
+    const watchdog = new Promise((_, reject) => {
+      watchdogTimer = setTimeout(
+        () => reject(new Error(`${name} watchdog timeout`)),
+        timeoutMs,
+      );
     });
-  } finally {
-    isCheckingMikrotik = false;
-  }
-});
 
-// Run due Mikrotik backup / config-export schedules every 5 minutes
-let isRunningMikrotikScheduler = false;
-cron.schedule("*/5 * * * *", async () => {
-  if (isRunningMikrotikScheduler) {
-    return;
-  }
+    Promise.race([run(), watchdog])
+      .catch((error) =>
+        logger.log("error", `${name} run failed or timed out`, {
+          error: error.message,
+        }),
+      )
+      .finally(() => {
+        clearTimeout(watchdogTimer);
+        inFlight = false;
+      });
+  });
+};
 
-  if (mongoose.connection.readyState !== 1) {
-    return;
-  }
+// Refresh connectivity status of monitored Mikrotik devices every 5 minutes.
+guardedCron(
+  "Mikrotik health-check",
+  EVERY_5_MIN,
+  runMikrotikHealthCheck,
+  240000,
+);
 
-  isRunningMikrotikScheduler = true;
+// Run due Mikrotik config-export schedules (an export may hold SSH for up to 60s).
+guardedCron(
+  "Mikrotik scheduler",
+  EVERY_5_MIN_AT_2,
+  runMikrotikScheduler,
+  270000,
+);
 
-  try {
-    await runMikrotikScheduler();
-  } catch (error) {
-    logger.log("error", "Mikrotik scheduler run failed", {
-      error: error.message,
-    });
-  } finally {
-    isRunningMikrotikScheduler = false;
-  }
-});
-
-// Raise a ticket for Mikrotik devices offline past the configured threshold (5 min)
-let isAlertingMikrotik = false;
-cron.schedule("*/5 * * * *", async () => {
-  if (isAlertingMikrotik) {
-    return;
-  }
-
-  if (mongoose.connection.readyState !== 1) {
-    return;
-  }
-
-  isAlertingMikrotik = true;
-
-  try {
-    await runMikrotikOfflineAlerts();
-  } catch (error) {
-    logger.log("error", "Mikrotik offline-alert run failed", {
-      error: error.message,
-    });
-  } finally {
-    isAlertingMikrotik = false;
-  }
-});
+// Raise a ticket for Mikrotik devices offline past the configured threshold
+// (Preferences.mikrotik.offlineTicket.thresholdMinutes, 15 min by default). Each
+// candidate is re-polled first, so a device that has since recovered is never
+// ticketed.
+guardedCron(
+  "Mikrotik offline-alert",
+  EVERY_5_MIN_AT_4,
+  runMikrotikOfflineAlerts,
+  120000,
+);
 
 // Knowledge base: scan notes for exposed secrets every hour
 let isScanningSecrets = false;

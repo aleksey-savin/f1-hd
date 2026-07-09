@@ -20,6 +20,8 @@ import {
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { ThemeContext } from "../../store/theme-context";
 
+import BulkActionBarMobile from "./BulkActionBarMobile";
+
 import TakeToWorkModal from "./BulkActions/TakeToWorkModal";
 import CommentModal from "./BulkActions/CommentModal";
 import CloseModal from "./BulkActions/CloseModal";
@@ -81,6 +83,48 @@ const BulkActionBar = ({
   const ctx = { userId, permissions };
 
   const closeModal = () => setOpenModal(null);
+
+  // Единый источник правды для десктопной панели и мобильной: подпись, иконка,
+  // модалка и причина блокировки описаны по одному разу. key совпадает с ключом
+  // openModal.
+  const actions = [
+    permissions.canPerformTickets && {
+      key: "takeToWork",
+      icon: RiPlayCircleLine,
+      label: "В работу",
+      variant: "success",
+      reason: takeToWorkReason(selectedItems, ctx),
+    },
+    permissions.canPerformTickets && {
+      key: "comment",
+      icon: RiChat3Line,
+      label: "Комментарий",
+      variant: "primary",
+      reason: commentReason(selectedItems),
+    },
+    permissions.canPerformTickets && {
+      key: "works",
+      icon: RiToolsLine,
+      label: "Работы",
+      variant: "primary",
+      reason: addWorksReason(selectedItems),
+    },
+    permissions.canPerformTickets && {
+      key: "close",
+      icon: RiCheckboxCircleLine,
+      label: "Закрыть",
+      variant: "success",
+      reason: closeReason(selectedItems, ctx),
+    },
+    permissions.canDeleteTickets && {
+      key: "delete",
+      icon: RiDeleteBinLine,
+      label: "Удалить",
+      variant: "danger",
+      reason: null,
+      danger: true,
+    },
+  ].filter(Boolean);
 
   // Тема Darkly не выставляет data-bs-theme, а у панели свой инлайновый фон —
   // поэтому подстраиваем поверхность под тему вручную (как UI/Select).
@@ -148,105 +192,80 @@ const BulkActionBar = ({
         </Modal.Footer>
       </Modal>
 
-      <AnimatePresence>
-        {count > 0 && (
-          <motion.div
-            initial={{ y: 100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 100, opacity: 0 }}
-            transition={{ type: "spring", duration: 0.3 }}
-            style={{
-              position: "fixed",
-              bottom: isMobile ? "6rem" : "1rem",
-              left: 0,
-              right: 0,
-              padding: "0.5rem 1rem",
-              zIndex: 1100,
-              borderRadius: "8px",
-              width: "fit-content",
-              maxWidth: "95%",
-              margin: "0 auto",
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.25rem",
-              ...surface,
-            }}
-          >
-            <span className="me-2 fw-semibold text-nowrap">
-              Выбрано: {count}
-              {isLoading && (
-                <Spinner
-                  animation="border"
-                  size="sm"
-                  className="ms-2"
-                  role="status"
-                  aria-label="Обновление данных"
-                />
-              )}
-            </span>
-
-            {permissions.canPerformTickets && (
-              <>
-                <ActionButton
-                  variant="success"
-                  busy={isLoading}
-                  reason={takeToWorkReason(selectedItems, ctx)}
-                  onClick={() => setOpenModal("takeToWork")}
-                  icon={<RiPlayCircleLine />}
-                  label="В работу"
-                />
-                <ActionButton
-                  variant="primary"
-                  busy={isLoading}
-                  reason={commentReason(selectedItems)}
-                  onClick={() => setOpenModal("comment")}
-                  icon={<RiChat3Line />}
-                  label="Комментарий"
-                />
-                <ActionButton
-                  variant="primary"
-                  busy={isLoading}
-                  reason={addWorksReason(selectedItems)}
-                  onClick={() => setOpenModal("works")}
-                  icon={<RiToolsLine />}
-                  label="Работы"
-                />
-                <ActionButton
-                  variant="success"
-                  busy={isLoading}
-                  reason={closeReason(selectedItems, ctx)}
-                  onClick={() => setOpenModal("close")}
-                  icon={<RiCheckboxCircleLine />}
-                  label="Закрыть"
-                />
-              </>
-            )}
-
-            {permissions.canDeleteTickets && (
-              <ActionButton
-                variant="danger"
-                busy={isLoading}
-                reason={null}
-                onClick={() => setOpenModal("delete")}
-                icon={<RiDeleteBinLine />}
-                label="Удалить"
-              />
-            )}
-
-            <Button
-              size="sm"
-              variant="secondary"
-              className="mx-1"
-              onClick={onReset}
-              disabled={isLoading}
+      {isMobile ? (
+        <BulkActionBarMobile
+          count={count}
+          actions={actions}
+          isLoading={isLoading}
+          onPick={setOpenModal}
+          onReset={onReset}
+        />
+      ) : (
+        <AnimatePresence>
+          {count > 0 && (
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.3 }}
+              style={{
+                position: "fixed",
+                bottom: "1rem",
+                left: 0,
+                right: 0,
+                padding: "0.5rem 1rem",
+                zIndex: 1100,
+                borderRadius: "8px",
+                width: "fit-content",
+                maxWidth: "95%",
+                margin: "0 auto",
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.25rem",
+                ...surface,
+              }}
             >
-              <RiCloseLine /> <span className="d-none d-sm-inline">Сбросить</span>
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <span className="me-2 fw-semibold text-nowrap">
+                Выбрано: {count}
+                {isLoading && (
+                  <Spinner
+                    animation="border"
+                    size="sm"
+                    className="ms-2"
+                    role="status"
+                    aria-label="Обновление данных"
+                  />
+                )}
+              </span>
+
+              {actions.map(({ key, icon: Icon, label, variant, reason }) => (
+                <ActionButton
+                  key={key}
+                  variant={variant}
+                  busy={isLoading}
+                  reason={reason}
+                  onClick={() => setOpenModal(key)}
+                  icon={<Icon />}
+                  label={label}
+                />
+              ))}
+
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mx-1"
+                onClick={onReset}
+                disabled={isLoading}
+              >
+                <RiCloseLine />{" "}
+                <span className="d-none d-sm-inline">Сбросить</span>
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
     </>
   );
 };

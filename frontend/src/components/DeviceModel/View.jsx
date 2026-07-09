@@ -1,5 +1,11 @@
 import { forwardRef, useContext, useEffect } from "react";
-import { Link, Outlet, useActionData, useNavigate } from "react-router";
+import {
+  Link,
+  Outlet,
+  useActionData,
+  useNavigate,
+  useRevalidator,
+} from "react-router";
 
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
@@ -15,6 +21,7 @@ import {
   RiPriceTag3Line,
   RiInformationLine,
   RiCalendarLine,
+  RiImage2Line,
   RiStackLine,
   RiLinksLine,
   RiAddLine,
@@ -26,6 +33,7 @@ import {
 
 import Transitions from "../../animations/Transition";
 import AlertMessage from "../../UI/AlertMessage";
+import DevicePhotos, { PhotoThumb } from "../Devices/Photos";
 import DeleteItem from "../DeleteItem";
 import { formatShortDate } from "../../util/format-date";
 import useOffcanvasStore from "../../store/offcanvas";
@@ -101,11 +109,14 @@ const ViewDeviceModel = ({
   attributes = [],
 }) => {
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const offcanvas = useOffcanvasStore();
   const { showToast } = useToastStore();
   const actionData = useActionData();
   const { permissions } = useContext(AuthedUserContext);
   const canManage = permissions.canManageClientDevices;
+
+  const photos = deviceModel.photos || [];
 
   // Тост после удаления конфигурации (action страницы вернул { deleted: true }).
   useEffect(() => {
@@ -117,7 +128,8 @@ const ViewDeviceModel = ({
   const vendorName = deviceModel.vendorId?.name;
   const typeName = deviceModel.deviceTypeId?.name;
   const title =
-    [vendorName, deviceModel.name].filter(Boolean).join(" ") || "(Без названия)";
+    [vendorName, deviceModel.name].filter(Boolean).join(" ") ||
+    "(Без названия)";
   const compatible = deviceModel.compatibleWithModelIds || [];
 
   // Атрибуты типа в заданном порядке — канонический каркас «спецификации».
@@ -176,12 +188,7 @@ const ViewDeviceModel = ({
     <Transitions>
       {/* ── Шапка ── */}
       <div className="account-hero mb-4">
-        <div
-          className="d-flex align-items-center justify-content-center rounded-3 border flex-shrink-0 text-body-secondary"
-          style={{ width: 72, height: 72, fontSize: "2rem" }}
-        >
-          <RiComputerLine />
-        </div>
+        <PhotoThumb photos={photos} icon={<RiComputerLine />} />
 
         <div className="flex-grow-1" style={{ minWidth: 0 }}>
           <h2 className="mb-1 text-break">{title}</h2>
@@ -242,6 +249,31 @@ const ViewDeviceModel = ({
             </Line>
           </SectionCard>
         </Col>
+
+        {(canManage || photos.length > 0) && (
+          <Col xs={12}>
+            <SectionCard
+              icon={<RiImage2Line />}
+              title={
+                photos.length ? `Фотографии · ${photos.length}` : "Фотографии"
+              }
+            >
+              {canManage && (
+                <p className="text-body-secondary small mb-3">
+                  Каталожные снимки модели. Их показывают все устройства этой
+                  модели, у которых нет собственных фотографий.
+                </p>
+              )}
+              <DevicePhotos
+                key={deviceModel._id}
+                endpoint={`${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models/${deviceModel._id}/photos`}
+                photos={photos}
+                canManage={canManage}
+                onChange={() => revalidator.revalidate()}
+              />
+            </SectionCard>
+          </Col>
+        )}
       </Row>
 
       {/* ── Конфигурации ── */}
@@ -288,9 +320,7 @@ const ViewDeviceModel = ({
                     <div className="d-flex justify-content-between align-items-start mb-3">
                       <div className="cap-card-title mb-0">
                         <RiCpuLine />
-                        <span className="text-break text-body">
-                          {label}
-                        </span>
+                        <span className="text-break text-body">{label}</span>
                       </div>
                       {canManage && (
                         <Dropdown align="end">

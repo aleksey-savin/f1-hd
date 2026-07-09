@@ -320,6 +320,24 @@ h1 svg {
   }
 }
 
+/* Кнопка-действие внутри цветного алерта. Стандартные варианты кнопок не
+   гарантируют контраст на фоне алерта (светлая тема — бледный фон с тёмным
+   текстом, тёмная — сплошной цвет с белым), поэтому рисуем кнопку цветом
+   текста самого алерта — она контрастна ровно настолько же, насколько текст. */
+.alert .alert-action-btn,
+.alert .alert-action-btn:hover,
+.alert .alert-action-btn:active {
+  color: inherit;
+  border-color: currentColor;
+}
+.alert .alert-action-btn {
+  background-color: transparent;
+}
+.alert .alert-action-btn:hover,
+.alert .alert-action-btn:active {
+  background-color: rgba(var(--bs-emphasis-color-rgb), 0.15);
+}
+
 /* ===== Панель управления устройством Mikrotik (правый Offcanvas) ===== */
 /* Шире дефолтных 400px — чтобы 3-колоночная таблица адресов и список копий
    помещались без горизонтального скролла. Задаём через bootstrap-переменную
@@ -373,6 +391,232 @@ h1 svg {
 @media (prefers-reduced-motion: reduce) {
   .mikrotik-uptime__seg--ongoing {
     animation: none;
+  }
+}
+
+/* ===== Фотографии устройства ===== */
+/* Снимок в шапке — пара к QR-коду на той же странице: тот же внешний бокс
+   (размер задаётся инлайном) и тот же радиус, что у обёртки QR (.rounded). */
+.photo-thumb {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background: none;
+}
+
+button.photo-thumb {
+  cursor: zoom-in;
+}
+
+/* !important перебивает глобальное img{width:auto!important;height:auto!important}
+   выше — без этого снимок не заполняет квадрат (см. коммент у .account-avatar). */
+.photo-thumb img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+
+/* Сколько снимков всего — иначе не видно, что за первым есть ещё. */
+.photo-thumb__count {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.25rem;
+  padding: 0 0.3rem;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: var(--bs-border-radius-sm);
+}
+
+/* Контактный лист: равные квадраты, ни одно фото не главнее остальных — это
+   документация актива (наклейка с серийником, скол, разъём), а не галерея. */
+.device-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: 0.75rem;
+}
+
+.device-photo {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+  background: rgba(var(--bs-emphasis-color-rgb), 0.06);
+}
+
+.device-photo__open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.device-photo__img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.device-photo__open:hover .device-photo__img,
+.device-photo__open:focus-visible .device-photo__img {
+  transform: scale(1.05);
+}
+
+/* Кнопка удаления появляется по наведению, но всегда доступна с клавиатуры. */
+.device-photo__remove {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.device-photo:hover .device-photo__remove,
+.device-photo__remove:focus-visible {
+  opacity: 1;
+}
+
+.device-photo__remove:hover {
+  background: var(--bs-danger);
+}
+
+/* Пунктирная рамка рифмуется с «биркой» инвентарного номера в шапке: пунктир на
+   этой странице означает физическую метку актива. */
+.device-photo-drop {
+  aspect-ratio: 1;
+  border: 1px dashed var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.device-photo-drop.is-dragging {
+  border-color: var(--bs-primary);
+  background: rgba(var(--bs-primary-rgb), 0.08);
+}
+
+.device-photo-drop__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  width: 100%;
+  height: 100%;
+  padding: 0.5rem;
+  border: 0;
+  background: none;
+  color: var(--bs-secondary-color);
+}
+
+.device-photo-drop__btn:hover:not(:disabled) {
+  color: var(--bs-primary);
+}
+
+.device-photo-drop__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.device-photo-drop__hint {
+  font-size: 0.7rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+/* Просмотр в полном размере: снимок на тёмном фоне, хром сведён к минимуму. */
+.photo-viewer__content {
+  background: #0b0b0d;
+  border: 0;
+}
+
+.photo-viewer__frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: min(78vh, 780px);
+}
+
+/* Снимок вписывается в кадр целиком: пропорции важнее заполнения. */
+.photo-viewer__img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+}
+
+.photo-viewer__close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.photo-viewer__close:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.photo-viewer__caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Стрелки карусели поверх тёмного фона читаются и без градиентной подложки. */
+.photo-viewer .carousel-control-prev,
+.photo-viewer .carousel-control-next {
+  width: 12%;
+  opacity: 0.6;
+}
+
+.photo-viewer .carousel-control-prev:hover,
+.photo-viewer .carousel-control-next:hover {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .device-photo__img,
+  .device-photo-drop {
+    transition: none;
+  }
+  .device-photo__open:hover .device-photo__img,
+  .device-photo__open:focus-visible .device-photo__img {
+    transform: none;
   }
 }
 
@@ -663,7 +907,8 @@ h1 svg {
   margin-bottom: 1.25rem;
   border-radius: var(--bs-border-radius-lg);
   background-color: var(--bs-card-bg);
-  background-image: radial-gradient(
+  background-image:
+    radial-gradient(
       120% 140% at 0% 0%,
       rgba(var(--ai-accent-rgb), 0.16),
       transparent 55%
@@ -934,9 +1179,9 @@ body:has(.mobile-shell),
   border: 1px solid var(--tabbar-border);
   border-radius: 22px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  transition: opacity 0.15s ease;
 }
-@supports (backdrop-filter: blur(16px)) or
-  (-webkit-backdrop-filter: blur(16px)) {
+@supports (backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px)) {
   .mobile-tabbar {
     -webkit-backdrop-filter: blur(16px) saturate(1.4);
     backdrop-filter: blur(16px) saturate(1.4);
@@ -991,6 +1236,160 @@ body:has(.mobile-shell),
   outline: 2px solid var(--tab-active);
   outline-offset: -2px;
   border-radius: 14px;
+}
+
+/* --- Контекстная панель массовых действий ---------------------------
+   Пока выделены заявки, панель занимает место острова навигации: тот же
+   бокс, поверхность и скругление. На экране всегда ровно один плавающий
+   объект, поэтому «бутерброд» из двух плашек невозможен структурно. */
+.mobile-actionbar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 4; /* над островом, который уходит в visibility: hidden */
+  padding: 0 0.35rem 0.35rem;
+  background: var(--tabbar-surface);
+  border: 1px solid var(--tabbar-border);
+  border-radius: 22px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+@supports (backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px)) {
+  .mobile-actionbar {
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+  }
+}
+
+/* Пока панель в DOM — остров уступает ей место. visibility убирает ссылки
+   из tab-order и от скринридера, поэтому inert/aria-hidden не нужны.
+   :has() перестаёт совпадать только после exit-анимации панели, так что
+   остров возвращается уже вслед за ней, а не поверх. */
+.mobile-shell:has(.mobile-actionbar) .mobile-tabbar {
+  visibility: hidden;
+  opacity: 0;
+}
+/* Панель выше острова — без запаса она накроет последнюю карточку списка,
+   по которой пользователь как раз и тапает. */
+.mobile-shell:has(.mobile-actionbar) .mobile-shell__scroll {
+  padding-bottom: calc(132px + env(safe-area-inset-bottom));
+}
+
+/* Строка статуса: счётчик выделения, а по тапу в заблокированное действие —
+   причина блокировки (на тач-экране hover-тултипа нет). */
+.mobile-actionbar__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.25rem 0 0.65rem;
+  border-bottom: 1px solid var(--tabbar-border);
+}
+.mobile-actionbar__count {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
+}
+.mobile-actionbar__hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.5rem 0;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  color: var(--bs-body-color);
+}
+.mobile-actionbar__hint svg {
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+  font-size: 1rem;
+  color: var(--bs-warning);
+}
+.mobile-actionbar__cancel {
+  flex: 0 0 auto;
+  align-self: stretch;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 0.5rem;
+  border: 0;
+  background: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--tab-active);
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-actionbar__cancel:focus-visible {
+  outline: 2px solid var(--tab-active);
+  outline-offset: -2px;
+  border-radius: 14px;
+}
+
+/* Ряд действий повторяет геометрию вкладок острова: тач-таргет ≥44px и
+   подпись под иконкой — смысл несёт подпись, а не цвет. Поэтому цветом
+   выделено ровно одно действие — «Удалить». */
+.mobile-actionbar__actions {
+  display: flex;
+  align-items: stretch;
+}
+.mobile-actionbar__action {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 56px;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  color: var(--bs-body-color);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease;
+}
+.mobile-actionbar__action:active {
+  background: rgba(var(--tab-active-rgb), 0.16);
+}
+.mobile-actionbar__action.is-danger {
+  color: var(--bs-danger);
+}
+/* Заблокированное действие приглушено, но остаётся нажимаемым: тап должен
+   показать причину, а не молчать. */
+.mobile-actionbar__action.is-blocked {
+  opacity: 0.35;
+}
+.mobile-actionbar__action:focus-visible {
+  outline: 2px solid var(--tab-active);
+  outline-offset: -2px;
+}
+.mobile-actionbar__icon {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+.mobile-actionbar__label {
+  max-width: 100%;
+  font-size: 0.64rem;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-tabbar,
+  .mobile-actionbar__action {
+    transition: none;
+  }
 }
 
 /* --- Бургер-меню (offcanvas) на мобайле: современный вид ------------

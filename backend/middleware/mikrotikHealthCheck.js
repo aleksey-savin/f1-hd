@@ -1,77 +1,37 @@
 const mongoose = require("mongoose");
 
 const Mikrotik = require("../models/mikrotik");
+const { pollWithRetry } = require("../services/mikrotik/connector");
 const {
-  decryptSecret,
-  pollDevice,
-  mapPollToFields,
-} = require("../services/mikrotik/connector");
-const {
-  markRecovered,
-  ensureOpenOutage,
-} = require("../services/mikrotik/outages");
+  pollParams,
+  recoverToOnline,
+  recordFailure,
+} = require("../services/mikrotik/monitorState");
 const logger = require("../utils/logger");
 
-// How many devices to poll concurrently per batch.
+// How many devices to poll concurrently per batch. Polling is IO-bound, so this can
+// grow with the fleet — a mass outage costs ~one poll deadline per batch.
 const BATCH_SIZE = 5;
 
-// Decrypts a stored knock sequence ("v1:…" of a JSON port array) to numbers.
-const decodeKnockSequence = (blob) => {
-  if (!blob) return undefined;
-  try {
-    const arr = JSON.parse(decryptSecret(blob));
-    return Array.isArray(arr) ? arr : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
-// Polls one monitored device and persists its connectivity status.
+// Polls one monitored device and persists its connectivity status. All state
+// transitions (and the anti-flap counters) live in services/mikrotik/monitorState.
 const checkDevice = async (device) => {
   const now = new Date();
 
   try {
-    const result = await pollDevice({
-      host: device.credentials.host,
-      port: device.credentials.port,
-      user: device.credentials.user,
-      password: decryptSecret(device.credentials.password),
-      tlsCert: device.credentials.tlsCert,
-      knockSequence: decodeKnockSequence(device.credentials.knockSequence),
+    const poll = await pollWithRetry(pollParams(device), {
+      // The full-group guard belongs to verify-on-save: a least-privilege user can't
+      // read /user at all, so here the read only ever burns its timeout.
+      verifyFullGroup: false,
+      // The serial number can't change between polls — read it once.
+      readRouterboard: !device.serialNumber,
+      // A device already in a confirmed outage doesn't need a second opinion.
+      retry: device.status !== "offline",
     });
-
-    Object.assign(device, mapPollToFields(result));
-    if (result.tlsCert && !device.credentials.tlsCert) {
-      device.credentials.tlsCert = result.tlsCert; // pin trust-on-first-use cert
-    }
-    device.status = "online";
-    device.lastSuccessfulConnectionAt = now;
-    device.lastCheckedAt = now;
-    device.lastError = undefined;
-    // Recovery: close the outage episode + comment on the alert ticket (if any),
-    // then clear the offline-alert state so the next outage can alert again. The
-    // alert ticket itself is intentionally left open for a human to close.
-    if (device.offlineSince) {
-      await markRecovered(device);
-      device.offlineSince = undefined;
-      device.offlineAlertedAt = undefined;
-      device.alertTicketId = undefined;
-    }
+    await recoverToOnline(device, poll, now);
   } catch (error) {
-    device.status = "offline";
-    device.lastCheckedAt = now;
-    device.lastError = error.message;
-    // Mark the start of the outage on the online→offline edge; kept (not
-    // overwritten) across subsequent failed polls until recovery. The separate
-    // offline-alert cron measures duration against this.
-    if (!device.offlineSince) {
-      device.offlineSince = now;
-    }
-    // Keep the outage episode open/fresh (self-heals a missing one).
-    await ensureOpenOutage(device);
+    await recordFailure(device, error, now);
   }
-
-  await device.save();
 };
 
 // Background job: refresh the status of every device with monitoring enabled.

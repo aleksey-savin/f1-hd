@@ -62,9 +62,13 @@ export interface IMikrotik {
   lastSuccessfulConnectionAt?: Date;
   lastCheckedAt?: Date;
   lastError?: string;
+  // Confirmed loss edge (set once CONFIRM_POLLS consecutive polls have failed).
   offlineSince?: Date;
   offlineAlertedAt?: Date;
   alertTicketId?: Types.ObjectId;
+  // Anti-flap: consecutive failed poll cycles and the candidate loss edge.
+  failedPolls: number;
+  firstFailureAt?: Date;
   schedules?: {
     backup?: IMikrotikSchedule;
     export?: IMikrotikSchedule;

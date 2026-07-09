@@ -59,12 +59,13 @@ const ReconciliationAlert = ({
   };
 
   return (
-    <Alert variant="warning" className="mb-3">
+    // Не растягиваем на всю ширину контейнера — на широких экранах алерт
+    // во весь экран выглядит как баннер, а не как предупреждение по месту.
+    <Alert variant="warning" className="mb-3" style={{ maxWidth: 720 }}>
       <div className="d-flex flex-wrap align-items-center gap-2">
         <RiErrorWarningLine className="flex-shrink-0" />
         <span className="flex-grow-1">
-          Данные карточки расходятся с устройством (
-          {mismatches.length}{" "}
+          Данные карточки расходятся с устройством ({mismatches.length}{" "}
           {mismatches.length === 1
             ? "поле"
             : mismatches.length < 5
@@ -75,6 +76,7 @@ const ReconciliationAlert = ({
         <Button
           size="sm"
           variant="outline-secondary"
+          className="alert-action-btn"
           onClick={() => setOpen((prev) => !prev)}
         >
           {open ? "Скрыть" : "Показать"}

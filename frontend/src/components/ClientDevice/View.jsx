@@ -37,13 +37,13 @@ import {
   RiFingerprintLine,
   RiStackLine,
   RiFileList2Line,
+  RiImage2Line,
   RiArrowGoBackFill,
   RiEdit2Line,
   RiUserAddLine,
   RiLinksLine,
   RiLinkUnlink,
   RiRouterLine,
-  RiExternalLinkLine,
   RiProfileLine,
   RiPulseLine,
 } from "react-icons/ri";
@@ -57,6 +57,7 @@ import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
 import DeleteItem from "../DeleteItem";
 import DeviceQr from "./DeviceQr";
+import DevicePhotos, { PhotoThumb } from "../Devices/Photos";
 import AssignUserModal from "./AssignUserModal";
 import AttachComponentModal from "./AttachComponentModal";
 import MonitoringSection from "../Devices/Mikrotik/MonitoringSection";
@@ -65,7 +66,7 @@ import ParametersModal from "../Devices/Mikrotik/ParametersModal";
 import ConfirmActionModal from "../../UI/ConfirmActionModal";
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 import { formatCalendarDate } from "../../util/format-date";
-import { STATUS_LABELS, STATUS_VARIANTS } from "./constants";
+import { STATUS_LABELS } from "./constants";
 
 const refName = (ref) => ref?.name || ref?.alias || ref?.fullTitle || "";
 const dash = <span className="text-body-secondary">—</span>;
@@ -81,8 +82,7 @@ const warrantyState = (dateStr) => {
   const days = Math.ceil((new Date(dateStr) - new Date()) / 86400000);
   const date = formatDate(dateStr);
   if (days < 0) return { variant: "danger", text: `истекла ${date}` };
-  if (days <= 30)
-    return { variant: "warning", text: `${date} · ${days} дн.` };
+  if (days <= 30) return { variant: "warning", text: `${date} · ${days} дн.` };
   return { variant: "success", text: `до ${date}` };
 };
 
@@ -160,9 +160,11 @@ const ViewClientDevice = ({ device = {} }) => {
   const vendorName = model?.vendorId?.name;
   const isCustom = !model;
 
+  // Тип не входит в заголовок — он показан строкой ниже (для сборки типом и
+  // называем устройство, т.к. модели нет).
   const title =
-    [typeName, vendorName, model?.name].filter(Boolean).join(" ") ||
-    [typeName, device.inventoryNumber].filter(Boolean).join(" ") ||
+    [vendorName, model?.name].filter(Boolean).join(" ") ||
+    typeName ||
     "Устройство";
 
   const assignee = device.userId
@@ -184,6 +186,13 @@ const ViewClientDevice = ({ device = {} }) => {
   const components = device.components || [];
   const warranty = warrantyState(device.warrantyExpirationDate);
 
+  // Снимки экземпляра важнее каталожных: пока своих нет, устройство показывает
+  // фотографии своей модели.
+  const photos = device.photos || [];
+  const modelPhotos = model?.photos || [];
+  const effectivePhotos = photos.length > 0 ? photos : modelPhotos;
+  const modelTitle = [vendorName, model?.name].filter(Boolean).join(" ");
+
   // Человекочитаемое название для модалки удаления.
   const deleteItem = { _id: device._id, title };
 
@@ -193,10 +202,10 @@ const ViewClientDevice = ({ device = {} }) => {
   const mikroBadge = !mikro
     ? null
     : !mikro.monitoringEnabled
-      ? { variant: "secondary", label: "Mikrotik: мониторинг выкл" }
+      ? { variant: "secondary", label: "Мониторинг выкл" }
       : mikro.status === "online"
-        ? { variant: "success", label: "Mikrotik: в сети" }
-        : { variant: "danger", label: "Mikrotik: не в сети" };
+        ? { variant: "success", label: "Online" }
+        : { variant: "danger", label: "Offline" };
 
   // ── Mikrotik: вкладки «Мониторинг» и «Конфигурации» ──
   const canManageMikrotik = permissions.canManageMikrotikDevices;
@@ -306,48 +315,27 @@ const ViewClientDevice = ({ device = {} }) => {
     <Transitions>
       {/* ── Шапка ── */}
       <div className="account-hero mb-4">
-        <div
-          className="d-flex align-items-center justify-content-center rounded-3 border flex-shrink-0 text-body-secondary"
-          style={{ width: 72, height: 72, fontSize: "2rem" }}
-        >
-          {isCustom ? <RiCpuLine /> : <RiComputerLine />}
-        </div>
+        <PhotoThumb
+          photos={effectivePhotos}
+          icon={isCustom ? <RiCpuLine /> : <RiComputerLine />}
+        />
 
         <div className="flex-grow-1" style={{ minWidth: 0 }}>
           <h2 className="mb-1 text-break">{title}</h2>
-          <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-            <Badge
-              bg={isCustom ? "secondary" : "primary"}
-              className="fw-normal"
-            >
-              {isCustom ? "Собственная сборка" : "Брендовое устройство"}
-            </Badge>
-            {typeName && (
-              <span className="text-body-secondary small">{typeName}</span>
-            )}
-          </div>
+          {(isCustom || typeName) && (
+            <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+              {isCustom ? (
+                <Badge bg="secondary" className="fw-normal">
+                  Собственная сборка
+                </Badge>
+              ) : (
+                <span className="text-body-secondary small">{typeName}</span>
+              )}
+            </div>
+          )}
           <div className="d-flex flex-wrap align-items-center gap-2">
-            <span
-              className="font-monospace fw-semibold px-2 py-1 rounded border"
-              style={{ borderStyle: "dashed", letterSpacing: "0.04em" }}
-              title="Инвентарный номер"
-            >
-              {device.inventoryNumber || "без инв. №"}
-            </span>
-            {device.serialNumber && (
-              <span className="text-body-secondary small font-monospace">
-                SN {device.serialNumber}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="ms-sm-auto d-flex align-items-start gap-3">
-          <div className="d-flex flex-column align-items-end gap-2">
-            <Badge
-              bg={STATUS_VARIANTS[device.status] || "secondary"}
-              className="fs-6 fw-normal"
-            >
+            {/* Статус — нейтральный: жизненный цикл актива не «успех/провал». */}
+            <Badge bg="secondary" className="fw-normal">
               {STATUS_LABELS[device.status] || device.status || "—"}
             </Badge>
             {warranty && (
@@ -378,16 +366,19 @@ const ViewClientDevice = ({ device = {} }) => {
                 <RiRouterLine /> {mikroBadge.label}
               </Badge>
             )}
-            {mikro && (
-              <Link
-                to={`/devices/mikrotik?clientDeviceId=${device._id}`}
-                className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1"
-              >
-                <RiExternalLinkLine /> Управление Mikrotik
-              </Link>
-            )}
           </div>
+        </div>
+
+        {/* Верх QR на одной линии с верхом снимка слева (оба align-self-sm-start). */}
+        <div className="ms-sm-auto d-flex flex-column align-items-center gap-2 align-self-sm-start">
           <DeviceQr id={device._id} size={128} />
+          <span
+            className="font-monospace fw-semibold px-2 py-1 rounded border small"
+            style={{ borderStyle: "dashed", letterSpacing: "0.04em" }}
+            title="Инвентарный номер"
+          >
+            {device.inventoryNumber || "без инв. №"}
+          </span>
         </div>
       </div>
 
@@ -407,188 +398,247 @@ const ViewClientDevice = ({ device = {} }) => {
             }
           >
             <div className="pt-1">
-      <Row className="g-3">
-        <Col xs={12} lg={6}>
-          <SectionCard icon={<RiBuilding2Line />} title="Назначение">
-            <Line icon={<RiBuilding2Line />} label="Компания">
-              {refName(device.companyId)}
-            </Line>
-            <Line icon={<RiMapPin2Line />} label="Расположение">
-              {refName(device.locationId)}
-            </Line>
-            <Line icon={<RiUser3Line />} label="Пользователь">
-              {assignee}
-            </Line>
-          </SectionCard>
-        </Col>
+              <Row className="g-3">
+                <Col xs={12} lg={6}>
+                  <SectionCard icon={<RiBuilding2Line />} title="Назначение">
+                    <Line icon={<RiBuilding2Line />} label="Компания">
+                      {refName(device.companyId)}
+                    </Line>
+                    <Line icon={<RiMapPin2Line />} label="Расположение">
+                      {refName(device.locationId)}
+                    </Line>
+                    <Line icon={<RiUser3Line />} label="Пользователь">
+                      {assignee}
+                    </Line>
+                  </SectionCard>
+                </Col>
 
-        <Col xs={12} lg={6}>
-          <SectionCard icon={<RiInformationLine />} title="Идентификация">
-            <Line icon={<RiPriceTag3Line />} label="Тип">
-              {typeName}
-            </Line>
-            {!isCustom && (
-              <Line icon={<RiPriceTag3Line />} label="Вендор / модель">
-                {[vendorName, model?.name].filter(Boolean).join(" ")}
-              </Line>
-            )}
-            {configLabel && (
-              <Line icon={<RiCpuLine />} label="Конфигурация">
-                {configLabel}
-              </Line>
-            )}
-            <Line icon={<RiBarcodeLine />} label="Инвентарный номер" mono>
-              {device.inventoryNumber}
-            </Line>
-            <Line icon={<RiBarcodeLine />} label="Серийный номер" mono>
-              {device.serialNumber}
-            </Line>
-          </SectionCard>
-        </Col>
-
-        <Col xs={12} lg={6}>
-          <SectionCard icon={<RiShoppingCart2Line />} title="Закупка">
-            <Line icon={<RiCalendarLine />} label="Дата приобретения">
-              {formatDate(device.purchasedAt)}
-            </Line>
-            <Line icon={<RiPriceTag3Line />} label="Стоимость">
-              {formatMoney(device.price)}
-            </Line>
-            <Line icon={<RiFileList2Line />} label="Документ">
-              {device.purchaseDocument}
-            </Line>
-            <Line icon={<RiBuilding2Line />} label="Поставщик">
-              {refName(device.supplierId)}
-            </Line>
-            <Line icon={<RiShieldCheckLine />} label="Гарантия до">
-              {formatDate(device.warrantyExpirationDate)}
-            </Line>
-          </SectionCard>
-        </Col>
-
-        <Col xs={12} lg={6}>
-          <SectionCard icon={<RiToolsLine />} title="Техническая информация">
-            <Line icon={<RiComputerLine />} label="Имя устройства" mono>
-              {device.hostname}
-            </Line>
-            {device.machineId && (
-              <Line icon={<RiFingerprintLine />} label="ID машины (агент)" mono>
-                {device.machineId}
-              </Line>
-            )}
-            <Line icon={<RiGlobalLine />} label="IP-адрес" mono>
-              {device.ipAddress}
-            </Line>
-            <Line icon={<RiGlobalLine />} label="MAC-адрес" mono>
-              {device.macAddress}
-            </Line>
-            <Line icon={<RiHardDrive2Line />} label="ОС">
-              {device.operatingSystem}
-            </Line>
-            <Line icon={<RiCalendarLine />} label="Последнее обслуживание">
-              {formatDate(device.lastMaintenanceDate)}
-            </Line>
-            {device.notes && (
-              <Line icon={<RiInformationLine />} label="Заметки">
-                {device.notes}
-              </Line>
-            )}
-          </SectionCard>
-        </Col>
-
-        {(canManage || components.length > 0) && (
-          <Col xs={12}>
-            <SectionCard
-              icon={<RiStackLine />}
-              title={`Состав сборки · ${components.length}`}
-            >
-              {detachError && (
-                <AlertMessage variant="danger" message={detachError} />
-              )}
-              {canManage && (
-                <div className="d-flex justify-content-end mb-2">
-                  <Button
-                    variant="outline-primary"
-                    size="sm"
-                    onClick={() => setShowAttach(true)}
+                <Col xs={12} lg={6}>
+                  <SectionCard
+                    icon={<RiInformationLine />}
+                    title="Идентификация"
                   >
-                    <RiLinksLine /> Прикрепить
-                  </Button>
-                </div>
-              )}
-              {components.length === 0 ? (
-                <p className="text-body-secondary small mb-0">
-                  Комплектующие не прикреплены. Нажмите «Прикрепить», чтобы
-                  добавить устройство в сборку.
-                </p>
-              ) : (
-                <Table responsive hover size="sm" className="mb-0 align-middle">
-                  <thead>
-                    <tr className="text-body-secondary">
-                      <th>Тип</th>
-                      <th>Производитель / модель</th>
-                      <th>Серийный номер</th>
-                      <th className="text-center">Кол-во</th>
-                      <th>Гарантия</th>
-                      {canManage && <th className="text-end">Действия</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {components.map((c) => {
-                      const cType =
-                        c.deviceModelId?.deviceTypeId?.name ||
-                        c.deviceTypeId?.name;
-                      const cName = [
-                        c.deviceModelId?.vendorId?.name,
-                        c.deviceModelId?.name,
-                      ]
-                        .filter(Boolean)
-                        .join(" ");
-                      const cWar = warrantyState(c.warrantyExpirationDate);
-                      return (
-                        <tr key={c._id}>
-                          <td>{cType || dash}</td>
-                          <td>{cName || dash}</td>
-                          <td className="font-monospace">
-                            {c.serialNumber || dash}
-                          </td>
-                          <td className="text-center">{c.quantity ?? 1}</td>
-                          <td>
-                            {cWar ? (
-                              <Badge bg={cWar.variant} className="fw-normal">
-                                {cWar.text}
-                              </Badge>
-                            ) : (
-                              dash
-                            )}
-                          </td>
-                          {canManage && (
-                            <td className="text-end">
-                              <Button
-                                variant="outline-danger"
-                                size="sm"
-                                disabled={detachingId === c._id}
-                                onClick={() => detachComponent(c._id)}
-                                title="Открепить от сборки"
-                              >
-                                {detachingId === c._id ? (
-                                  <Spinner animation="border" size="sm" />
-                                ) : (
-                                  <RiLinkUnlink />
-                                )}
-                              </Button>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </Table>
-              )}
-            </SectionCard>
-          </Col>
-        )}
-      </Row>
+                    <Line icon={<RiPriceTag3Line />} label="Тип">
+                      {typeName}
+                    </Line>
+                    {!isCustom && (
+                      <Line icon={<RiPriceTag3Line />} label="Вендор / модель">
+                        {[vendorName, model?.name].filter(Boolean).join(" ")}
+                      </Line>
+                    )}
+                    {configLabel && (
+                      <Line icon={<RiCpuLine />} label="Конфигурация">
+                        {configLabel}
+                      </Line>
+                    )}
+                    <Line
+                      icon={<RiBarcodeLine />}
+                      label="Инвентарный номер"
+                      mono
+                    >
+                      {device.inventoryNumber}
+                    </Line>
+                    <Line icon={<RiBarcodeLine />} label="Серийный номер" mono>
+                      {device.serialNumber}
+                    </Line>
+                  </SectionCard>
+                </Col>
+
+                <Col xs={12} lg={6}>
+                  <SectionCard icon={<RiShoppingCart2Line />} title="Закупка">
+                    <Line icon={<RiCalendarLine />} label="Дата приобретения">
+                      {formatDate(device.purchasedAt)}
+                    </Line>
+                    <Line icon={<RiPriceTag3Line />} label="Стоимость">
+                      {formatMoney(device.price)}
+                    </Line>
+                    <Line icon={<RiFileList2Line />} label="Документ">
+                      {device.purchaseDocument}
+                    </Line>
+                    <Line icon={<RiBuilding2Line />} label="Поставщик">
+                      {refName(device.supplierId)}
+                    </Line>
+                    <Line icon={<RiShieldCheckLine />} label="Гарантия до">
+                      {formatDate(device.warrantyExpirationDate)}
+                    </Line>
+                  </SectionCard>
+                </Col>
+
+                <Col xs={12} lg={6}>
+                  <SectionCard
+                    icon={<RiToolsLine />}
+                    title="Техническая информация"
+                  >
+                    <Line icon={<RiComputerLine />} label="Имя устройства" mono>
+                      {device.hostname}
+                    </Line>
+                    {device.machineId && (
+                      <Line
+                        icon={<RiFingerprintLine />}
+                        label="ID машины (агент)"
+                        mono
+                      >
+                        {device.machineId}
+                      </Line>
+                    )}
+                    <Line icon={<RiGlobalLine />} label="IP-адрес" mono>
+                      {device.ipAddress}
+                    </Line>
+                    <Line icon={<RiGlobalLine />} label="MAC-адрес" mono>
+                      {device.macAddress}
+                    </Line>
+                    <Line icon={<RiHardDrive2Line />} label="ОС">
+                      {device.operatingSystem}
+                    </Line>
+                    <Line
+                      icon={<RiCalendarLine />}
+                      label="Последнее обслуживание"
+                    >
+                      {formatDate(device.lastMaintenanceDate)}
+                    </Line>
+                    {device.notes && (
+                      <Line icon={<RiInformationLine />} label="Заметки">
+                        {device.notes}
+                      </Line>
+                    )}
+                  </SectionCard>
+                </Col>
+
+                {(canManage || effectivePhotos.length > 0) && (
+                  <Col xs={12}>
+                    <SectionCard
+                      icon={<RiImage2Line />}
+                      title={
+                        effectivePhotos.length
+                          ? `Фотографии · ${effectivePhotos.length}`
+                          : "Фотографии"
+                      }
+                    >
+                      <DevicePhotos
+                        key={device._id}
+                        endpoint={`${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${device._id}/photos`}
+                        photos={photos}
+                        canManage={canManage}
+                        inherited={{
+                          photos: modelPhotos,
+                          title: modelTitle,
+                        }}
+                        onChange={() => revalidator.revalidate()}
+                      />
+                    </SectionCard>
+                  </Col>
+                )}
+
+                {(canManage || components.length > 0) && (
+                  <Col xs={12}>
+                    <SectionCard
+                      icon={<RiStackLine />}
+                      title={`Состав сборки · ${components.length}`}
+                    >
+                      {detachError && (
+                        <AlertMessage variant="danger" message={detachError} />
+                      )}
+                      {canManage && (
+                        <div className="d-flex justify-content-end mb-2">
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
+                            onClick={() => setShowAttach(true)}
+                          >
+                            <RiLinksLine /> Прикрепить
+                          </Button>
+                        </div>
+                      )}
+                      {components.length === 0 ? (
+                        <p className="text-body-secondary small mb-0">
+                          Комплектующие не прикреплены. Нажмите «Прикрепить»,
+                          чтобы добавить устройство в сборку.
+                        </p>
+                      ) : (
+                        <Table
+                          responsive
+                          hover
+                          size="sm"
+                          className="mb-0 align-middle"
+                        >
+                          <thead>
+                            <tr className="text-body-secondary">
+                              <th>Тип</th>
+                              <th>Производитель / модель</th>
+                              <th>Серийный номер</th>
+                              <th className="text-center">Кол-во</th>
+                              <th>Гарантия</th>
+                              {canManage && (
+                                <th className="text-end">Действия</th>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {components.map((c) => {
+                              const cType =
+                                c.deviceModelId?.deviceTypeId?.name ||
+                                c.deviceTypeId?.name;
+                              const cName = [
+                                c.deviceModelId?.vendorId?.name,
+                                c.deviceModelId?.name,
+                              ]
+                                .filter(Boolean)
+                                .join(" ");
+                              const cWar = warrantyState(
+                                c.warrantyExpirationDate,
+                              );
+                              return (
+                                <tr key={c._id}>
+                                  <td>{cType || dash}</td>
+                                  <td>{cName || dash}</td>
+                                  <td className="font-monospace">
+                                    {c.serialNumber || dash}
+                                  </td>
+                                  <td className="text-center">
+                                    {c.quantity ?? 1}
+                                  </td>
+                                  <td>
+                                    {cWar ? (
+                                      <Badge
+                                        bg={cWar.variant}
+                                        className="fw-normal"
+                                      >
+                                        {cWar.text}
+                                      </Badge>
+                                    ) : (
+                                      dash
+                                    )}
+                                  </td>
+                                  {canManage && (
+                                    <td className="text-end">
+                                      <Button
+                                        variant="outline-danger"
+                                        size="sm"
+                                        disabled={detachingId === c._id}
+                                        onClick={() => detachComponent(c._id)}
+                                        title="Открепить от сборки"
+                                      >
+                                        {detachingId === c._id ? (
+                                          <Spinner
+                                            animation="border"
+                                            size="sm"
+                                          />
+                                        ) : (
+                                          <RiLinkUnlink />
+                                        )}
+                                      </Button>
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </Table>
+                      )}
+                    </SectionCard>
+                  </Col>
+                )}
+              </Row>
             </div>
           </Tab>
 

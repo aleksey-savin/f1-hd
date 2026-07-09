@@ -2,6 +2,7 @@ const Router = require("express");
 const router = new Router();
 const deviceModelController = require("@/controllers/inventory/deviceModel");
 const isAuth = require("@/middleware/isAuth");
+const { uploadPhotos } = require("@/middleware/imageUpload");
 const {
   canManageDeviceModels,
   canManageClientDevices,
@@ -33,6 +34,21 @@ router.put(
   deviceModelValidation,
   checkValidationResult,
   deviceModelController.update,
+);
+
+router.post(
+  "/device-models/:id/photos",
+  isAuth,
+  canManageClientDevices,
+  uploadPhotos,
+  deviceModelController.addPhotos,
+);
+
+router.delete(
+  "/device-models/:id/photos/:photoId",
+  isAuth,
+  canManageClientDevices,
+  deviceModelController.deletePhoto,
 );
 
 router.post(

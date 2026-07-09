@@ -1,6 +1,16 @@
 const DeviceModel = require("@/models/inventory/deviceModel");
 const ClientDevice = require("@/models/inventory/clientDevice");
+const { createPhotoHandlers } = require("./photoHandlers");
 const { AppError } = require("@/middleware/errorHandling");
+
+// Каталожные снимки модели. Удаление модели мягкое, поэтому объекты в S3 при
+// нём остаются: восстановленная модель должна вернуться со своими фото.
+const modelPhotos = createPhotoHandlers({
+  Model: DeviceModel,
+  notFoundMessage: (id) => `Device model with id ${id} not found`,
+});
+exports.addPhotos = modelPhotos.addPhotos;
+exports.deletePhoto = modelPhotos.deletePhoto;
 
 exports.getAll = async (req, res, next) => {
   try {

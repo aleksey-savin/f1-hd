@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 
+const devicePhotoSchema = require("./devicePhoto");
+
 const Schema = mongoose.Schema;
 
 const deviceModelSchema = new Schema(
@@ -29,6 +31,8 @@ const deviceModelSchema = new Schema(
       type: String,
       trim: true,
     },
+    // Каталожные снимки модели: их наследуют все экземпляры без собственных фото.
+    photos: [devicePhotoSchema],
 
     createdBy: {
       type: Schema.Types.ObjectId,

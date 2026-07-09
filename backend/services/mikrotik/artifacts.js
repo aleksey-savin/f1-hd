@@ -3,7 +3,12 @@ const dns = require("dns").promises;
 const crypto = require("crypto");
 
 const MikrotikArtifact = require("../../models/mikrotikArtifact");
-const { decryptSecret, withSshSession, exportConfig } = require("./connector");
+const {
+  decodeKnockSequence,
+  decryptSecret,
+  withSshSession,
+  exportConfig,
+} = require("./connector");
 const { encryptArtifact } = require("../crypto/artifactBox");
 const storage = require("../storage");
 const Preferences = require("../../models/preferences");
@@ -62,17 +67,6 @@ const assertPublicHost = async (host) => {
     );
     error.code = "MIKROTIK_BLOCKED_HOST";
     throw error;
-  }
-};
-
-// Decrypts a stored knock sequence ("v1:…" of a JSON port array) to numbers.
-const decodeKnockSequence = (blob) => {
-  if (!blob) return undefined;
-  try {
-    const arr = JSON.parse(decryptSecret(blob));
-    return Array.isArray(arr) ? arr : undefined;
-  } catch {
-    return undefined;
   }
 };
 
@@ -219,7 +213,6 @@ const createArtifact = async (
 
 module.exports = {
   assertPublicHost,
-  decodeKnockSequence,
   createArtifact,
   pruneArtifacts,
 };

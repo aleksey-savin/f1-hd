@@ -55,20 +55,24 @@ const ensureOpenOutage = async (record) => {
   }
 };
 
-// Stamp the offline-alert ticket onto the current episode (self-heals a missing
-// episode the same way as ensureOpenOutage).
+// Stamp the offline-alert ticket onto the current episode. Deliberately NOT an
+// upsert: `open: true` would be seeded from the filter, so a recovery that closed
+// the episode a moment earlier would make this insert a brand-new open episode
+// that nothing ever closes — the availability report would then show an eternal
+// "ongoing outage". No open episode simply means there is nothing to stamp.
 const attachTicket = async (record, ticketId) => {
   try {
-    await MikrotikOutage.findOneAndUpdate(
+    const result = await MikrotikOutage.updateOne(
       { mikrotik: record._id, open: true },
-      {
-        $set: { ticketId },
-        $setOnInsert: { startedAt: record.offlineSince || new Date() },
-      },
-      { upsert: true },
+      { $set: { ticketId } },
     );
+    if (result.matchedCount === 0) {
+      logger.log("warn", "Mikrotik outage ticket stamp skipped: no open episode", {
+        recordId: record._id,
+        ticketId,
+      });
+    }
   } catch (error) {
-    if (error?.code === 11000) return;
     logger.log("error", "Mikrotik outage ticket stamp failed", {
       recordId: record._id,
       ticketId,

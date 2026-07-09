@@ -9,11 +9,7 @@ import Spinner from "react-bootstrap/Spinner";
 import Table from "react-bootstrap/Table";
 
 import useMikrotikDeviceFilterStore from "../../../store/lists/mikrotik-devices";
-import {
-  formatDate,
-  formatShortDate,
-  formatDayMonthTime,
-} from "../../../util/format-date";
+import { formatDate, formatDayMonthTime } from "../../../util/format-date";
 
 export const PERIODS = [
   { days: 1, label: "24 ч" },
@@ -61,10 +57,7 @@ export const buildStripSegments = (report) => {
   const intervals = (report.outages || [])
     .map((outage) => [
       Math.max(new Date(outage.startedAt).getTime(), effectiveFrom),
-      Math.min(
-        outage.endedAt ? new Date(outage.endedAt).getTime() : to,
-        to,
-      ),
+      Math.min(outage.endedAt ? new Date(outage.endedAt).getTime() : to, to),
     ])
     .filter(([start, end]) => end > start)
     .sort((a, b) => a[0] - b[0]);
@@ -83,7 +76,12 @@ export const buildStripSegments = (report) => {
   let cursor = effectiveFrom;
   for (const [start, end] of merged) {
     if (start > cursor) {
-      segments.push({ type: "up", ms: start - cursor, from: cursor, to: start });
+      segments.push({
+        type: "up",
+        ms: start - cursor,
+        from: cursor,
+        to: start,
+      });
     }
     segments.push({
       type: "down",
@@ -219,7 +217,9 @@ const AvailabilityReport = ({ recordId, defaultDays = 30 }) => {
             />
             <StatTile
               label="Простой суммарно"
-              value={report.downtimeMs > 0 ? durationRu(report.downtimeMs) : "0 мин"}
+              value={
+                report.downtimeMs > 0 ? durationRu(report.downtimeMs) : "0 мин"
+              }
             />
             <StatTile label="Инцидентов" value={report.outageCount} />
             <StatTile
@@ -269,7 +269,7 @@ const AvailabilityReport = ({ recordId, defaultDays = 30 }) => {
                     <td>
                       {outage.ticketNum ? (
                         <Link to={`/tickets/${outage.ticketNum}`}>
-                          №{outage.ticketNum}
+                          {outage.ticketNum}
                         </Link>
                       ) : (
                         <span className="text-body-secondary">—</span>
@@ -282,9 +282,7 @@ const AvailabilityReport = ({ recordId, defaultDays = 30 }) => {
           )}
 
           <div className="small text-body-secondary">
-            Точность границ — до 5 минут (интервал опроса). Данные с момента
-            подключения к управлению:{" "}
-            {formatShortDate(report.monitoredSince)}.
+            Точность границ — до 5 минут (интервал опроса).
           </div>
         </>
       )}

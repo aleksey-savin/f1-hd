@@ -6,13 +6,16 @@ const DeviceType = require("../../models/inventory/deviceType");
 const Counter = require("../../models/inventory/counter");
 const Mikrotik = require("../../models/mikrotik");
 
+const { createPhotoHandlers, deleteAllPhotos } = require("./photoHandlers");
 const { AppError } = require("../../middleware/errorHandling");
 
 // Shared populate graph: model (+ its vendor & type), company, location, user.
-const DEVICE_POPULATE = [
+// Снимки модели тянем только там, где они действительно нужны (карточка
+// устройства): в списке это лишний вес на каждой строке.
+const devicePopulate = ({ withModelPhotos = false } = {}) => [
   {
     path: "deviceModelId",
-    select: "name vendorId deviceTypeId",
+    select: `name vendorId deviceTypeId${withModelPhotos ? " photos" : ""}`,
     populate: [
       // Флаг вендора нужен странице устройства: показывать ли вкладку
       // «Мониторинг» (устройство управляемо, даже если ещё не подключено).
@@ -35,6 +38,8 @@ const DEVICE_POPULATE = [
   { path: "createdBy", select: "firstName lastName" },
   { path: "updatedBy", select: "firstName lastName" },
 ];
+
+const DEVICE_POPULATE = devicePopulate();
 
 // Mongoose can't cast "" to ObjectId / Number / Date — turn blanks into
 // undefined so empty optional fields are stored as unset rather than throwing.
@@ -113,6 +118,8 @@ exports.getAll = async (req, res, next) => {
       deletedAt: null,
       parentDeviceId: null,
     })
+      // Фото нужны только на карточке устройства — в списке это лишний вес.
+      .select("-photos")
       .populate(DEVICE_POPULATE)
       .sort({ _id: -1 });
 
@@ -137,7 +144,7 @@ exports.getAll = async (req, res, next) => {
 exports.getOne = async (req, res, next) => {
   try {
     const device = await ClientDevice.findById(req.params.id).populate(
-      DEVICE_POPULATE,
+      devicePopulate({ withModelPhotos: true }),
     );
 
     if (!device) {
@@ -627,11 +634,21 @@ exports.detachComponent = async (req, res, next) => {
   }
 };
 
+// Фотографии конкретного экземпляра. Та же логика, что у модели устройства.
+const devicePhotos = createPhotoHandlers({
+  Model: ClientDevice,
+  notFoundMessage: (id) => `Device with id ${id} not found`,
+});
+exports.addPhotos = devicePhotos.addPhotos;
+exports.deletePhoto = devicePhotos.deletePhoto;
+
 exports.delete = async (req, res, next) => {
   try {
     const device = await ClientDevice.findById(req.params.id);
     if (device) {
       await ClientDevice.deleteOne({ _id: req.params.id });
+      // Снимки живут только вместе с устройством — чистим бакет.
+      await deleteAllPhotos(device);
       res.status(204).end();
     } else {
       return next(
