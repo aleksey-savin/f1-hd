@@ -426,7 +426,7 @@ const EnvironmentViewer = ({ userId, deviceId }) => {
                   to={`/devices/mikrotik?clientDeviceId=${selectedDevice._id}`}
                   className="btn btn-outline-primary w-100 mt-2 d-inline-flex align-items-center justify-content-center gap-2"
                 >
-                  <RiExternalLinkLine /> Открыть в управлении Mikrotik
+                  <RiExternalLinkLine /> Открыть в мониторинге Mikrotik
                 </Link>
               )}
             </>

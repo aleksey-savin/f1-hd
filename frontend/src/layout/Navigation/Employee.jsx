@@ -25,9 +25,10 @@ import {
   RiMapPinLine,
   RiListSettingsLine,
   RiBookOpenLine,
+  RiPulseLine,
+  RiRouterLine,
 } from "react-icons/ri";
 import { GoProjectTemplate } from "react-icons/go";
-import { FaNetworkWired } from "react-icons/fa";
 import { IoHardwareChipOutline } from "react-icons/io5";
 import { TbCheckbox } from "react-icons/tb";
 import { BiCategory } from "react-icons/bi";
@@ -208,6 +209,28 @@ const EmployeeNavs = ({ setShowOffcanvas }) => {
         </NavDropdown>
       )}
 
+      {/* Мониторинг: доступен сотрудникам с правами на Mikrotik (устройства или
+          конфигурации). Не рендерим заголовок раздела без видимых пунктов; в
+          клиентскую навигацию (EndUser.jsx) раздел не попадает вовсе. */}
+      {modules.inventory.isActive &&
+        (canManageMikrotikDevices || canManageMikrotikConfigs) && (
+          <NavDropdown
+            title={
+              <span>
+                <RiPulseLine /> Мониторинг
+              </span>
+            }
+          >
+            <NavDropdown.Item
+              as={NavLink}
+              to="/devices/mikrotik"
+              onClick={handleClose}
+            >
+              <RiRouterLine /> Mikrotik
+            </NavDropdown.Item>
+          </NavDropdown>
+        )}
+
       {/* Admin Settings */}
       {isAdmin && (
         <NavDropdown
@@ -268,17 +291,6 @@ const EmployeeNavs = ({ setShowOffcanvas }) => {
           >
             <RiServiceLine /> Услуги
           </NavDropdown.Item>
-          <NavDropdown.Divider />
-
-          <NavDropdown.Item
-            as={NavLink}
-            hidden={!(canManageMikrotikDevices || canManageMikrotikConfigs)}
-            to="/devices/mikrotik"
-            onClick={handleClose}
-          >
-            <FaNetworkWired /> Управление Mikrotik
-          </NavDropdown.Item>
-
           <NavDropdown.Divider />
 
           <NavDropdown.Item

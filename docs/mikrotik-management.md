@@ -15,7 +15,7 @@ per-vendor:
 
 1. **Vendor flag** — a vendor can be flagged "управление устройствами Mikrotik"
    (`isMikrotikManagementEnabled`) via a Switch in the vendor add/update form.
-2. **Managed list** — the Mikrotik page ("Управление устройствами Mikrotik")
+2. **Managed list** — the Mikrotik page ("Мониторинг Mikrotik")
    lists **only the `ClientDevice`s whose model's vendor has that flag**. The
    link is indirect: `ClientDevice.deviceModelId → DeviceModel.vendorId → Vendor`.
 3. **Per-device connection** — each managed device can have Mikrotik connection
@@ -685,10 +685,21 @@ requests a code → opens an entry modal (`ArtifactsSection`) → POSTs the code
 
 ## Frontend
 
-- **Page / nav** — `frontend/src/pages/Mikrotik/List.jsx` (title "Управление
-  устройствами Mikrotik"); `frontend/src/layout/Navbar.jsx` label "Управление
-  Mikrotik". The header **+** button (`ListWrapper` `onAddClick`, shown only when
-  `canManageMikrotikDevices`) opens a two-step add flow.
+- **Page / nav** — `frontend/src/pages/Mikrotik/List.jsx` (title "Мониторинг
+  Mikrotik"). Nav: a dedicated **«Мониторинг» dropdown** in
+  `layout/Navigation/Employee.jsx` with the «Mikrotik» item — rendered only when
+  the inventory module is on AND the user has `canManageMikrotikDevices` OR
+  `canManageMikrotikConfigs` (no empty section headers). It is NOT in the admin
+  dropdown anymore, so non-admin employees with a Mikrotik right can reach the
+  page. End-user clients use a separate nav (`Navigation/EndUser.jsx`) with no
+  Mikrotik entries, and the list API itself sits behind
+  `canUseInventoryModule`, so a direct URL shows them nothing. The header **+**
+  button (`ListWrapper` `onAddClick`, shown only when
+  `canManageMikrotikDevices`) opens a two-step add flow. The manual refresh
+  button is hidden (`showRefreshButton={false}`) — the list self-refreshes via
+  `usePolling` → `silentRefresh()` every 15 s (the tickets-page pattern:
+  no isLoading spinner, atomic filter/sort recompute, `silentUpdate` guard on
+  the page effect).
 - **Add flow** — `frontend/src/components/Devices/Mikrotik/AddDeviceModal.jsx`.
   Two paths. **Из инвентаря**: pick a manageable `ClientDevice` **not yet added**
   (`status === "notConfigured"`; already-added excluded) from a searchable list
@@ -798,7 +809,7 @@ The module is woven into the everyday ticket / inventory flow:
 
 - **Ticket → Окружение** — device cards and the detail offcanvas show a Mikrotik
   online/offline badge (`Ticket/View/EnvironmentDeviceCard.jsx` `mikrotikBadge`;
-  "мониторинг выкл" when monitoring is off) and an **«Открыть в управлении
+  "мониторинг выкл" when monitoring is off) and an **«Открыть в мониторинге
   Mikrotik»** link. No extra fetch: the environment DTO is enriched server-side in
   `controllers/inventory/location.js` (join `Mikrotik` by `clientDevice`), so the
   fields ride on the device object (`mikrotikManaged`, `mikrotikStatus`,
@@ -827,7 +838,8 @@ The module is woven into the everyday ticket / inventory flow:
   `/devices/mikrotik/records/:recordId` (replaced the former «Открыть в
   инвентаре» link).
 - **Inventory device page** — `ClientDevice/View.jsx` shows a Mikrotik status badge
-  + last-seen and a **«Управление Mikrotik»** link; `clientDevice.getOne` returns a
+  + last-seen (the former «Управление Mikrotik» link was superseded by the
+  «Мониторинг» tab); `clientDevice.getOne` returns a
   `mikrotik: { recordId, status, monitoringEnabled, lastSuccessfulConnectionAt }`
   overlay when the device is managed.
 

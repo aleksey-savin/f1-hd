@@ -52,7 +52,7 @@ const MikrotikDevices = () => {
   const title = () => {
     return (
       <>
-        <RiRouterLine /> Управление устройствами Mikrotik
+        <RiRouterLine /> Мониторинг Mikrotik
       </>
     );
   };
@@ -80,7 +80,7 @@ const MikrotikDevices = () => {
 export default MikrotikDevices;
 
 export async function loader() {
-  document.title = "УПРАВЛЕНИЕ MIKROTIK";
+  document.title = "МОНИТОРИНГ MIKROTIK";
 
   return null;
 }
