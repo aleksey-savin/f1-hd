@@ -35,6 +35,12 @@ router.get(
   isAuth,
   mikrotikController.networksReport,
 );
+// Кэш релизов RouterOS (+чейнджлоги) и свежесть CVE-синка — плашка над таблицей.
+router.get(
+  "/mikrotik-devices/firmware/releases",
+  isAuth,
+  mikrotikController.getFirmwareReleases,
+);
 // --- Standalone devices (no inventory ClientDevice, e.g. Cloud Hosted Router).
 // Declared before the ":clientDeviceId" routes so the literal "standalone"
 // segment isn't captured as a device id. ---

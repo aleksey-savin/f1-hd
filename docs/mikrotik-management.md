@@ -1,6 +1,8 @@
 # Mikrotik Device Management — Implementation Notes
 
-_Last updated: 2026-07-09. This document describes the Mikrotik management module
+_Last updated: 2026-07-11 (firmware & vulnerability monitoring: RouterOS release
+strip, NVD CVE indicators, security-update auto-ticket; the management table got
+a mobile card layout). This document describes the Mikrotik management module
 as currently implemented, so the code can be reviewed and optimized later. It is
 a snapshot, not a spec — verify against the code before relying on any detail._
 
@@ -227,6 +229,7 @@ to the client**, and the verify-on-save endpoint is **rate-limited** per user.
 | --- | --- | --- |
 | `GET /mikrotik-devices` | `getManagedDevices` | Vendor-flag-filtered `ClientDevice`s left-joined to records. |
 | `GET /mikrotik-devices/report/networks` | `networksReport` | IP/network aggregation + duplicate-network flagging. |
+| `GET /mikrotik-devices/firmware/releases` | `getFirmwareReleases` | Cached RouterOS releases per branch (+changelogs) and CVE-sync freshness — feeds the strip above the table. isAuth. |
 | `GET /mikrotik-devices/:clientDeviceId` | `getOne` | One row + record (credentials without password) for prefill. |
 | `POST /mikrotik-devices/:clientDeviceId/parameters` | `updateParameters` | **Verify-on-save**: SSRF host check → port-knock → live TLS poll + Full-group guard, then upsert record (`status: online`, `monitoringEnabled: true`, anti-flap counters reset). A verified save also acts as **recovery** (closes the outage episode, posts the ticket comment, clears alert state). Response carries `reconciliation` (card-vs-device mismatches). Rejects invalid creds / unreachable host (`502`). Rate-limited. |
 | `POST /mikrotik-devices/:clientDeviceId/sync-inventory` | `syncInventory` | Apply device-derived values (`hostname`/`serialNumber`/`operatingSystem`/`ipAddress`) to the ClientDevice card. Strict whitelist; values derived **server-side** from the stored record (client sends field names only); dup checks (serial globally, hostname per company) → 409. `canManageMikrotikDevices`. |
@@ -357,10 +360,12 @@ Comment text: `🟢 Связь с устройством «…» восстан�
 `Продолжительность простоя: X ч Y мин (с DD.MM.YYYY, HH:mm).`
 
 ### Auto-tickets (monitoring → helpdesk)
-Two opt-in automations turn monitoring events into helpdesk tickets. Both are
-configured under **`Preferences.mikrotik`** (Настройки → Mikrotik; the tab shows when
-the inventory module is on) and authored by **`Preferences.defaultApplicant`** (there
-is no system user) with `source: "Мониторинг устройств"`, company resolved from the
+Three opt-in automations turn monitoring events into helpdesk tickets (the third —
+the security-update ticket — is described in _Firmware & vulnerability monitoring_
+below). All are configured under **`Preferences.mikrotik`** (Настройки → Mikrotik;
+the tab shows when the inventory module is on) and authored by
+**`Preferences.defaultApplicant`** (there is no system user) with
+`source: "Мониторинг устройств"`, company resolved from the
 device, deadline from `Preferences.deadline`, and `notifications.pending` so the
 mailer delivers them. Ticket text is human-readable (device name, host, last-seen,
 error). The description is **HTML** (the web card renders it via DOMPurify and the
@@ -410,6 +415,156 @@ set). The shared factory is `backend/services/mikrotik/tickets.js` →
   is compared to the previous export's; a difference raises a ticket. Works for both
   manual and scheduled exports (no extra cron). Normalization strips the volatile
   RouterOS header so a mere re-export doesn't false-positive.
+
+## Firmware & vulnerability monitoring
+
+The module tracks the latest RouterOS releases per branch and the known RouterOS
+CVEs, shows per-device indicators («доступно обновление» / «уязвимая прошивка»)
+next to the firmware version, renders a release strip above the management table,
+and (opt-in) maintains **one** security-update ticket with a device checklist.
+
+### External sources (verified live)
+
+- **Latest versions** — `https://upgrade.mikrotik.com/routeros/NEWESTa7.stable`
+  / `NEWESTa7.long-term` / `NEWEST6.stable` / `NEWEST6.long-term`: plain text
+  `"7.23.2 1783069688"` (version + release unix time). This is the same file
+  RouterOS itself reads on `check-for-updates`.
+- **Changelog** — `https://cdn.mikrotik.com/routeros/<version>/CHANGELOG` (text).
+- **CVE** — NVD API 2.0:
+  `https://services.nvd.nist.gov/rest/json/cves/2.0?virtualMatchString=cpe:2.3:o:mikrotik:routeros&resultsPerPage=2000`
+  (~81 CVEs, one page; paginated by `startIndex` anyway). Unauthenticated limit
+  is 5 req/30 s — one run per day needs no key; optional **`NVD_API_KEY`** env var
+  is sent as the `apiKey` header. Each CVE carries CVSS metrics (v3.1 → v3.0 → v2
+  fallback) and `configurations[].nodes[].cpeMatch[]` version ranges. The CPE
+  `sw_edition` field distinguishes branches: `ltr` = long-term, `-` = stable
+  (the analyst split editions), `*` = either.
+
+### Data layer — `backend/models/mikrotikFirmware.js` (TS mirror in `types/`)
+
+- **`RouterOsRelease`** — one doc per branch, `_id` ∈ {`7.stable`, `7.long-term`,
+  `6.stable`, `6.long-term`}: `version`, `releasedAt`, `changelog` (fetched once
+  per new version), `fetchedAt` (last SUCCESS), `lastError`/`lastErrorAt`. On a
+  failed fetch the stale doc is kept and only the error fields are stamped.
+- **`RouterOsCve`** — compact CVE cache: `cveId` (unique), `baseScore`,
+  `baseSeverity`, `description` (en), `matchers[{ edition: stable|ltr|any,
+  exactVersion?, versionStart/EndIncluding/Excluding? }]`. Only `vulnerable: true`
+  `cpeMatch` entries of `cpe:2.3:o:mikrotik:routeros` become matchers; CVEs with
+  none (e.g. "app X on RouterOS") are skipped. The cache is replaced only after a
+  fully successful NVD fetch (bulk upsert + prune of vanished ids); zero results
+  are treated as an NVD failure (stale cache kept).
+- **`MikrotikFirmwareState`** — keyed singletons: `"cve-sync"` (last NVD sync
+  status: `lastSuccessAt`, `lastError`, `cveCount`) and `"security-ticket"`
+  (`claimedAt` + `ticketId` + `items[{recordId, description, safe}]` +
+  `allSafeCommentedAt` — the auto-ticket state, see below). Runtime state lives
+  here and NOT in `Preferences`: the admin page POSTs the whole prefs doc
+  wholesale and would wipe it.
+
+### Service — `backend/services/mikrotik/firmware.js`
+
+Pure helpers + never-throw refreshers (all outbound `fetch`es use
+`AbortSignal.timeout(20s)` — the guardedCron watchdog only logs, it can't cancel
+a hung promise):
+
+- `parseFirmware("7.15.3 (stable)")` → `{version, major, channel}` — the raw
+  `/system/resource/print` `version` string is stored verbatim on the record;
+  the channel token rides in the parentheses. Unparseable → `null` → no
+  indicators, no crash.
+- `compareVersions` — numeric per-segment (2- and 3-segment versions; semver
+  doesn't fit), missing segments = 0, a letter tail on an equal numeric prefix is
+  a pre-release (`6.45beta54 < 6.45`).
+- `branchKeyFor` — major ≤ 6 → `6.*`, else `7.*`; `long-term` → `.long-term`,
+  everything else (stable/testing/development/unknown) → `.stable` (a testing
+  build can't be recommended; the stable upgrade path is always valid).
+- `editionMatches` — device channel vs matcher edition: stable → `stable|any`,
+  long-term → `ltr|any`, testing/development/unknown → any matcher (conservative).
+- `evaluateFirmware(record, ctx)` → `firmwareStatus`:
+  `{channel, branchKey, installedVersion, latestVersion, updateAvailable,
+  vulnerable, cves[{id, score, severity, description}]}`. **The red-icon rule:**
+  a device is `vulnerable` iff some CVE with `baseScore ≥ threshold` matches the
+  installed version+channel AND does **not** match the branch's latest version —
+  i.e. updating actually fixes it (otherwise an unfixed CVE would show a
+  permanent red icon with no action). Empty release cache ⇒ `latestVersion:
+  null` ⇒ `vulnerable: false`.
+- `loadFirmwareContext()` — one DB read (releases + CVEs + threshold from
+  `Preferences.mikrotik.securityUpdateTicket.minSeverity`: `high` ⇒ 7.0,
+  `critical` ⇒ 9.0; default `high` — **strictly-CRITICAL RouterOS CVEs are rare
+  (~5), the famous exploited ones like CVE-2023-30799 are HIGH 7.2**). The
+  threshold drives both the table indicators and the auto-ticket.
+- `runMikrotikFirmwareRefresh()` — releases → CVEs → `syncSecurityTicket`
+  (lazy-required to avoid a CommonJS cycle);
+  `runMikrotikFirmwareRefreshIfStale()` — boot path, no-op when both caches are
+  fresher than 24 h.
+
+**Cron** (`app.js`): `guardedCron("Mikrotik firmware refresh", "23 3 * * *",
+runMikrotikFirmwareRefresh, 120000)` — daily, UTC, minute 23 keeps clear of the
+*/5 mikrotik lattice; plus a boot `setTimeout(runMikrotikFirmwareRefreshIfStale,
+30s)` so a first deploy doesn't wait a day.
+
+### Security-update ticket — `backend/services/mikrotik/securityTicket.js`
+
+Opt-in via **`Preferences.mikrotik.securityUpdateTicket`** `{isActive,
+categoryId, minSeverity: "high"|"critical"}` (Настройки → Mikrotik →
+«Уязвимости прошивки»). One global ticket for ALL endangered devices; the ticket
+factory is `createMikrotikSystemTicket` (`tickets.js`) — like
+`createMikrotikTicket` but with **no company and no `relatedClientDeviceId`**
+(the ref is singular; the device list lives in the HTML description and the
+**checklist**, one item per device: `«<label>» (<host>): RouterOS <installed> →
+<latest>`).
+
+Lifecycle (state machine on `MikrotikFirmwareState("security-ticket")`, runs
+after each daily refresh; endangered set = ALL records with a known
+`currentFirmware`, monitored or not — stale data beats silence):
+
+- **No ticket + endangered** → claim-first-create-second CAS (the offline-alert
+  pattern, but on the singleton): claim `{ticketId: null, claimedAt: null}` →
+  create → guarded stamp of `ticketId` + `items`; a failed create rolls the
+  claim back (retried next run).
+- **Open** → sync: devices that left the endangered set (updated OR detached)
+  get their checklist item auto-checked (targeted `updateOne` +
+  `arrayFilters` on the **stored item description** — the whole-list replace
+  endpoint regenerates item `_id`s, so ids can't be trusted; a human-edited
+  description makes the auto-check a tolerated no-op). `checkedBy` =
+  `defaultApplicant`. New endangered devices are `$push`ed into the checklist +
+  state (+ a «⚠️ Обнаружены новые устройства…» system comment,
+  `allSafeCommentedAt` reset). When the endangered set is empty → one
+  «✅ Все устройства из заявки обновлены…» comment (guarded by
+  `allSafeCommentedAt`); the ticket stays open for a human, house style.
+- **Deleted** (`findById → null`; ticket deletion is a hard `deleteOne`, so this
+  is reliable) → state reset → recreated in the same run.
+- **Closed while still endangered** → state reset → recreated in the same
+  (daily) run. The alternative policy — recreate only when NEW threats appear —
+  was deliberately not chosen: closing the ticket «в никуда» must not silence
+  the system while devices stay vulnerable.
+
+Checklist mutations deliberately do NOT bump `ticket.version` (comments/checklist
+are outside the optimistic lock, by design of the ticket model), and system
+comments follow the `postSystemTicketComment` helper (Comment + `$push` into
+`ticket.comments` + `notifications.pending` + TicketLog — the
+`outages.js`/email-pipeline pattern).
+
+### API & frontend
+
+- Rows of `GET /mikrotik-devices` (and `getOne` / `getStandaloneOne` responses)
+  carry **`firmwareStatus`** (one `loadFirmwareContext()` per request, like
+  `computeUptimeMap`). `GET /mikrotik-devices/firmware/releases` (isAuth,
+  declared before `:clientDeviceId`) returns `{channels[], cveSync}` for the
+  strip.
+- **`FirmwareIndicator.jsx`** — right of the firmware version in the table,
+  the mobile card and `DeviceOverview` (panel + device pages): red
+  `RiAlarmWarningFill` button (vulnerable; tooltip + click → **`CveModal`** with
+  NVD links; `stopPropagation` — the row itself opens the panel) or green
+  `RiArrowUpCircleFill` (update available; tooltip only). Red supersedes green.
+- **`RouterOsReleasesStrip.jsx`** — `topContent` of the list page: chips
+  `stable 7.23.2` / `long-term 7.21.5` (v6 chips only when the fleet has v6
+  devices), «данные от …» caption, a warning icon on fetch errors
+  (stale-cache messaging), chip click → right offcanvas with release date,
+  behind-count for the branch and the changelog `<pre>`.
+- **The management table got a mobile layout**: `BrowserView` keeps the dense
+  table (tooltips via `OverlayTrigger` now, dead `data-cell` attrs dropped),
+  `MobileView` renders **`DeviceCard.jsx`** rows (bespoke light card — no
+  `ItemCard` actions menu; tap opens the same `DevicePanel`). The in-component
+  empty state suggests an action («добавьте устройство…» / «измените запрос»);
+  `ListWrapper`'s own «Список пуст» fires only when even `originalList` is empty.
 
 ## Config export (`.rsc`)
 
@@ -542,17 +697,20 @@ requests a code → opens an entry modal (`ArtifactsSection`) → POSTs the code
   the device joins the table.
 - **Table** — `frontend/src/components/Devices/Mikrotik/List.jsx`. Shows **only
   added devices** (inventory-configured + all standalone; `notConfigured` are
-  filtered out in the store). Columns: Имя (with **company** as a subtitle) ·
-  Статус · **Доступность** (30-day uptime %, colored by the report thresholds;
-  `uptime30d` computed backend-side for the whole list in one query —
-  `computeUptimeMap` in `services/mikrotik/outages.js`; «—» = недостаточно
-  данных) · **Тип** (the inventory `DeviceType` first — the user's own
-  router/switch taxonomy; when the row has no card type — standalone or an
-  untyped card — the class is **derived from the device itself**:
+  filtered out in the store). Desktop (`BrowserView`) columns: Имя (with
+  **company** as a subtitle) · **Тип** (the inventory `DeviceType` first — the
+  user's own router/switch taxonomy; when the row has no card type — standalone
+  or an untyped card — the class is **derived from the device itself**:
   `deriveDeviceKind(record)` maps the polled `board-name` through MikroTik's
   series nomenclature — CRS/CSS→Коммутатор, CCR/hAP/hEX/RB→Маршрутизатор,
   wAP/cAP/SXT/…→Точка доступа, CHR→Cloud Hosted Router; unknown series → «—»)
-  · Расположение · Модель · Хост · Прошивка · Последнее подключение.
+  · Расположение · Модель · Хост · Прошивка (+ `FirmwareIndicator`, see
+  _Firmware & vulnerability monitoring_) · **Доступность** (30-day uptime %,
+  colored by the report thresholds; `uptime30d` computed backend-side for the
+  whole list in one query — `computeUptimeMap` in
+  `services/mikrotik/outages.js`; «—» = недостаточно данных) · Статус ·
+  Подключение (last successful connection). On mobile (`MobileView`) the table
+  is replaced by `DeviceCard` rows.
   The former **Защита** column (last-export badge) was dropped — backups are one
   click away in the panel's Конфигурации tab; `lastExportAt`/`schedules` still
   ride on the row payload. The **row is clickable** and opens the device panel
@@ -844,6 +1002,9 @@ records via the `v1` version prefix.
   exports use the new key, old ones need the old key to read).
 - **`ssh2`** dependency (backend) provides the SSH transport for the `/export`
   config capture.
+- **`NVD_API_KEY`** — optional; sent as the `apiKey` header to NVD. The keyless
+  limit (5 req/30 s) is already ample for the single daily CVE fetch — set the
+  key only if the environment shares its egress IP with other NVD consumers.
 - **Monitoring tunables** — all optional, sane defaults compiled in
   (`services/mikrotik/connector.js`, `services/mikrotik/monitorState.js`):
   `MIKROTIK_OFFLINE_CONFIRM_POLLS` (2), `MIKROTIK_CONNECT_TIMEOUT_SECONDS` (15),

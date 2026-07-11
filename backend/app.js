@@ -36,6 +36,10 @@ const {
 } = require("./middleware/mikrotikScheduler");
 const { runMikrotikOfflineAlerts } = require("./services/mikrotik/alerts");
 const {
+  runMikrotikFirmwareRefresh,
+  runMikrotikFirmwareRefreshIfStale,
+} = require("./services/mikrotik/firmware");
+const {
   runKnowledgeApprovalExpiry,
 } = require("./services/knowledgeApprovalExpiry");
 const { runSecretsScan } = require("./services/secretsScanRun");
@@ -316,6 +320,16 @@ guardedCron(
   120000,
 );
 
+// Кэш релизов RouterOS + CVE из NVD + авто-заявка «уязвимая прошивка». Суточного
+// прогона достаточно (релизы выходят реже раза в неделю, лимит NVD — 5 req/30s);
+// UTC, как и остальные guardedCron; минута 23 — вне решётки */5 микротик-кронов.
+guardedCron(
+  "Mikrotik firmware refresh",
+  "23 3 * * *",
+  runMikrotikFirmwareRefresh,
+  120000,
+);
+
 // Knowledge base: scan notes for exposed secrets every hour
 let isScanningSecrets = false;
 cron.schedule("0 * * * *", async () => {
@@ -430,3 +444,9 @@ registerMaintenanceCrons();
 setTimeout(() => {
   checkRoutineTasks();
 }, 1000);
+
+// Первый деплой / долгий простой: не ждать суточного крона, если кэш релизов/CVE
+// пуст или старше суток (свежий кэш — no-op).
+setTimeout(() => {
+  runMikrotikFirmwareRefreshIfStale();
+}, 30000);

@@ -9,6 +9,10 @@ const Vendor = require("../../models/inventory/vendor");
 const Preferences = require("../../models/preferences");
 const User = require("../../models/user");
 const Notification = require("../../models/notification");
+const {
+  RouterOsRelease,
+  MikrotikFirmwareState,
+} = require("../../models/mikrotikFirmware");
 
 const {
   encryptSecret,
@@ -37,6 +41,10 @@ const {
   computeReconciliation,
   deriveSyncValues,
 } = require("../../services/mikrotik/reconciliation");
+const {
+  loadFirmwareContext,
+  evaluateFirmware,
+} = require("../../services/mikrotik/firmware");
 
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
@@ -421,6 +429,11 @@ exports.getManagedDevices = async (req, res, next) => {
       ...standaloneRecords,
     ]);
 
+    // Кэш релизов/CVE читается один раз на запрос (как uptimeMap); оценка каждой
+    // строки — чистое вычисление. Питает индикаторы «доступно обновление» /
+    // «опасная уязвимость» справа от прошивки.
+    const firmware = await loadFirmwareContext();
+
     const recordByDevice = new Map(
       records.map((record) => [String(record.clientDevice), record]),
     );
@@ -430,12 +443,14 @@ exports.getManagedDevices = async (req, res, next) => {
       return {
         ...buildRow(device, record, protectionFor(artifactSummary, record?._id)),
         uptime30d: record ? (uptimeMap.get(String(record._id)) ?? null) : null,
+        firmwareStatus: record ? evaluateFirmware(record, firmware) : null,
       };
     });
 
     const standaloneRows = standaloneRecords.map((record) => ({
       ...buildStandaloneRow(record, protectionFor(artifactSummary, record._id)),
       uptime30d: uptimeMap.get(String(record._id)) ?? null,
+      firmwareStatus: evaluateFirmware(record, firmware),
     }));
 
     res.status(200).json([...standaloneRows, ...inventoryRows]);
@@ -448,6 +463,38 @@ exports.getManagedDevices = async (req, res, next) => {
         error,
       ),
     );
+  }
+};
+
+// Плашка версий над таблицей: последние релизы RouterOS по веткам (+чейнджлоги)
+// и свежесть CVE-синхронизации. Кэш ведёт суточный крон; пустой кэш (первый
+// деплой до boot-рефреша) — фронт просто не рендерит плашку.
+exports.getFirmwareReleases = async (req, res, next) => {
+  try {
+    const [releases, cveSync] = await Promise.all([
+      RouterOsRelease.find().lean(),
+      MikrotikFirmwareState.findById("cve-sync").lean(),
+    ]);
+
+    res.status(200).json({
+      channels: releases.map((release) => ({
+        key: release._id,
+        version: release.version || null,
+        releasedAt: release.releasedAt || null,
+        changelog: release.changelog || "",
+        fetchedAt: release.fetchedAt || null,
+        lastError: release.lastError || null,
+      })),
+      cveSync: cveSync
+        ? {
+            lastSuccessAt: cveSync.lastSuccessAt || null,
+            lastError: cveSync.lastError || null,
+            cveCount: cveSync.cveCount ?? null,
+          }
+        : null,
+    });
+  } catch (error) {
+    next(new AppError("Failed to fetch RouterOS releases", 500, true, error));
   }
 };
 
@@ -478,8 +525,11 @@ exports.getOne = async (req, res, next) => {
       .select("-credentials.password -credentials.knockSequence")
       .lean();
 
+    const firmware = await loadFirmwareContext();
+
     res.status(200).json({
       ...buildRow(device, record),
+      firmwareStatus: record ? evaluateFirmware(record, firmware) : null,
       record: record || null,
       // Стоячее предупреждение о расхождениях карточки с устройством.
       reconciliation: computeReconciliation(device, record),
@@ -865,7 +915,13 @@ exports.getStandaloneOne = async (req, res, next) => {
       return next(new AppError("Устройство не найдено", 404));
     }
 
-    res.status(200).json({ ...buildStandaloneRow(record), record });
+    const firmware = await loadFirmwareContext();
+
+    res.status(200).json({
+      ...buildStandaloneRow(record),
+      firmwareStatus: evaluateFirmware(record, firmware),
+      record,
+    });
   } catch (error) {
     next(
       new AppError(

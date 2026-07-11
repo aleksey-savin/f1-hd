@@ -14,6 +14,7 @@ import {
 } from "react-icons/ri";
 
 import { formatDate } from "../../../util/format-date";
+import FirmwareIndicator from "./FirmwareIndicator";
 
 export const STATUS_BADGE = {
   online: { bg: "success", label: "В сети" },
@@ -65,7 +66,15 @@ const DeviceOverview = ({ device, showIdentity = true }) => {
         {device.host}
       </InfoRow>
       <InfoRow icon={<RiInstallLine />} label="Прошивка" mono>
-        {device.currentFirmware}
+        {device.currentFirmware && (
+          <>
+            {device.currentFirmware}
+            <FirmwareIndicator
+              status={device.firmwareStatus}
+              displayName={device.displayName || device.name}
+            />
+          </>
+        )}
       </InfoRow>
       <InfoRow icon={<RiCpuLine />} label="Плата">
         {device.boardName}

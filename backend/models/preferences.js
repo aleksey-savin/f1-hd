@@ -109,6 +109,22 @@ const preferencesSchema = new Schema({
         default: null,
       },
     },
+    // В прошивке найдена опасная CVE, исправляемая обновлением → одна заявка с
+    // чек-листом на все устройства (services/mikrotik/securityTicket.js).
+    // minSeverity — единый порог и для индикаторов в таблице, и для заявки.
+    securityUpdateTicket: {
+      isActive: { type: Boolean, default: false },
+      categoryId: {
+        type: Schema.Types.ObjectId,
+        ref: "TicketCategory",
+        default: null,
+      },
+      minSeverity: {
+        type: String,
+        enum: ["high", "critical"],
+        default: "high",
+      },
+    },
   },
   knowledgeBase: {
     moderators: [

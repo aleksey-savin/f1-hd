@@ -3,6 +3,8 @@ const Preferences = require("../../models/preferences");
 const User = require("../../models/user");
 const Company = require("../../models/company");
 const ClientDevice = require("../../models/inventory/clientDevice");
+const Comment = require("../../models/comment");
+const TicketLog = require("../../models/ticketLog");
 const { formatInAppTimezone } = require("../../utils/datetime");
 const logger = require("../../utils/logger");
 
@@ -52,10 +54,30 @@ const resolveCompany = async (record) => {
   return { _id: company._id, alias: company.alias };
 };
 
+// Load Preferences and validate the machine author. There is no system/bot user,
+// so the author of machine-created tickets/comments is the configured
+// `Preferences.defaultApplicant`. Returns { prefs, applicant } or null (logged).
+const resolveTicketBasics = async (context) => {
+  const prefs = await Preferences.findOne({});
+  const applicantId = prefs?.defaultApplicant?._id;
+  if (!applicantId) {
+    logger.warn(
+      `Mikrotik ${context} skipped: Preferences.defaultApplicant is not set`,
+    );
+    return null;
+  }
+
+  const applicant = await User.findById(applicantId).select("_id");
+  if (!applicant) {
+    logger.warn(`Mikrotik ${context} skipped: defaultApplicant user not found`);
+    return null;
+  }
+
+  return { prefs, applicant };
+};
+
 // Create a helpdesk ticket authored by the Mikrotik module (offline alert / config
-// change). There is no system/bot user, so the author is the configured
-// `Preferences.defaultApplicant` (the established convention for machine-created
-// tickets). Deadline follows the global `Preferences.deadline` (hours). Setting
+// change). Deadline follows the global `Preferences.deadline` (hours). Setting
 // `notifications.pending` lets the notifications cron deliver it.
 //
 // Never throws — a failed alert must not break the poll/cron loop; it logs and
@@ -65,22 +87,9 @@ const createMikrotikTicket = async (
   { title, description, categoryId = null },
 ) => {
   try {
-    const prefs = await Preferences.findOne({});
-    const applicantId = prefs?.defaultApplicant?._id;
-    if (!applicantId) {
-      logger.warn(
-        "Mikrotik ticket skipped: Preferences.defaultApplicant is not set",
-      );
-      return null;
-    }
-
-    const applicant = await User.findById(applicantId).select("_id");
-    if (!applicant) {
-      logger.warn(
-        "Mikrotik ticket skipped: defaultApplicant user not found",
-      );
-      return null;
-    }
+    const basics = await resolveTicketBasics("ticket");
+    if (!basics) return null;
+    const { prefs, applicant } = basics;
 
     const company = await resolveCompany(record);
     const deadlineHours = prefs?.deadline || 10;
@@ -114,4 +123,116 @@ const createMikrotikTicket = async (
   }
 };
 
-module.exports = { createMikrotikTicket, deviceLabel, fmtTime, deviceLinkHtml };
+// Глобальная системная заявка (не по одному устройству) — например, сводная по
+// уязвимостям прошивок. Без company и без relatedClientDeviceId: ref одиночный,
+// N устройств им не выразить — их список живёт в описании и чек-листе. Пункты
+// чек-листа не mandatory, чтобы человек мог убрать неактуальный. Never throws.
+const createMikrotikSystemTicket = async ({
+  title,
+  description,
+  categoryId = null,
+  checklist = [],
+}) => {
+  try {
+    const basics = await resolveTicketBasics("system ticket");
+    if (!basics) return null;
+    const { prefs, applicant } = basics;
+
+    const deadlineHours = prefs?.deadline || 10;
+    const now = new Date();
+
+    const ticket = new Ticket({
+      title,
+      description: description || "",
+      categoryId: categoryId || null,
+      applicantId: applicant._id,
+      deadline: new Date(now.getTime() + deadlineHours * 60 * 60 * 1000),
+      isClosed: false,
+      state: "Новая",
+      source: "Мониторинг устройств",
+      createdBy: applicant._id,
+      updatedBy: applicant._id,
+      notifications: { lastAction: "new ticket", pending: true },
+      checklist: checklist.map((item) => ({
+        description: item.description,
+        mandatory: false,
+        checked: false,
+      })),
+    });
+    await ticket.save();
+    return ticket;
+  } catch (error) {
+    logger.log("error", "Failed to create Mikrotik system ticket", {
+      error: error.message,
+    });
+    return null;
+  }
+};
+
+// Системный комментарий на заявку (паттерн postRecoveryComment из outages.js):
+// Comment + пуш _id в ticket.comments (UI показывает только их) +
+// notifications.pending для крона доставки + TicketLog. `ticket.version` НЕ
+// бампается — комментарии не участвуют в optimistic lock. Never throws;
+// возвращает true при успехе (по нему вызывающий штампует «уже сказано»).
+const postSystemTicketComment = async (ticketId, content) => {
+  try {
+    const prefs = await Preferences.findOne({});
+    const authorId = prefs?.defaultApplicant?._id;
+    if (!authorId) {
+      logger.warn(
+        "Mikrotik system comment skipped: Preferences.defaultApplicant is not set",
+      );
+      return false;
+    }
+
+    const ticket = await Ticket.findById(ticketId).select("num");
+    if (!ticket) {
+      logger.log("warn", "Mikrotik system comment skipped: ticket not found", {
+        ticketId,
+      });
+      return false;
+    }
+
+    const comment = new Comment({
+      content,
+      ticketId: ticket._id,
+      notifications: { lastAction: "new comment", pending: true },
+      createdBy: authorId,
+      updatedBy: authorId,
+    });
+    await comment.save();
+
+    await Ticket.updateOne(
+      { _id: ticket._id },
+      { $push: { comments: comment._id } },
+    );
+
+    const logEntry = new TicketLog({
+      ticket: ticket.num,
+      ticketId: ticket._id,
+      user: {
+        firstName: prefs.defaultApplicant?.firstName,
+        lastName: prefs.defaultApplicant?.lastName,
+      },
+      severity: "info",
+      event: "добавлен комментарий",
+    });
+    await logEntry.save();
+    return true;
+  } catch (error) {
+    logger.log("error", "Mikrotik system comment failed", {
+      ticketId,
+      error: error.message,
+    });
+    return false;
+  }
+};
+
+module.exports = {
+  createMikrotikTicket,
+  createMikrotikSystemTicket,
+  postSystemTicketComment,
+  deviceLabel,
+  fmtTime,
+  deviceLinkHtml,
+};

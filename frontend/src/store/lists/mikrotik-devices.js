@@ -138,6 +138,61 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
       isLoading: false,
     });
   },
+  // Признак «список только что обновлён тихо» (фоновым опросом): по нему
+  // страница пропускает повторный пересчёт фильтра/сортировки, чтобы не дёргать
+  // спиннер и fade-анимацию (паттерн страницы заявок).
+  silentUpdate: false,
+  clearSilentUpdate: () => set({ silentUpdate: false }),
+  // Фоновое обновление без isLoading: свежие строки + пересчёт отфильтрованного/
+  // отсортированного списка одним set-вызовом. Статусы, доступность и индикаторы
+  // прошивки обновляются на месте; открытая панель устройства не закрывается
+  // (её закрывает именно isLoading-спиннер ListWrapper, см. patchRow ниже).
+  silentRefresh: async () => {
+    const { token } = getLocalStorageData();
+    let data;
+    try {
+      const response = await fetch(API, {
+        headers: { Authorization: "Bearer " + token },
+      });
+      if (!response.ok) throw new Error(`mikrotik-devices ${response.status}`);
+      data = await response.json();
+    } catch (error) {
+      // Транзиентный сетевой сбой на фоновом опросе ожидаем (сон вкладки,
+      // обрыв связи) — тихо пропускаем цикл, следующий подтянет данные.
+      console.warn("Фоновое обновление устройств Mikrotik пропущено:", error);
+      return;
+    }
+
+    set((state) => {
+      const nextState = {
+        ...state,
+        originalList: Array.isArray(data) ? data : [],
+      };
+      const filteredList = clientDeviceFilter(nextState);
+      const sortedList = handleSorting(state.sortBy, filteredList);
+      return {
+        originalList: nextState.originalList,
+        filteredList: sortedList || filteredList,
+        silentUpdate: true,
+      };
+    });
+  },
+  // Кэш последних релизов RouterOS (+ свежесть CVE-синка) для плашки над
+  // таблицей. Ошибка сети не затирает прежнее значение — плашка живёт на
+  // stale-данных, как и бэкенд-кэш.
+  releases: null,
+  fetchReleases: async () => {
+    try {
+      const { token } = getLocalStorageData();
+      const response = await fetch(`${API}/firmware/releases`, {
+        headers: { Authorization: "Bearer " + token },
+      });
+      if (!response.ok) return;
+      set({ releases: await response.json() });
+    } catch {
+      // фоновая загрузка плашки: сбой сети молча переживаем
+    }
+  },
   // Patch one already-loaded row in place (no network) so the table badge reflects
   // a panel action without a full refetch. A refetch toggles isLoading / isSorting,
   // and ListWrapper swaps its children (incl. the device Offcanvas) for a spinner —

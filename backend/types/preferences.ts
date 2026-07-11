@@ -88,5 +88,10 @@ export interface IPreferences {
       isActive: boolean;
       categoryId: Types.ObjectId | null;
     };
+    securityUpdateTicket: {
+      isActive: boolean;
+      categoryId: Types.ObjectId | null;
+      minSeverity: "high" | "critical";
+    };
   };
 }

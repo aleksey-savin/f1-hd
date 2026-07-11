@@ -17,6 +17,12 @@ const ensureDefaults = (prefs) => {
     };
   if (!prefs.mikrotik.configChangeTicket)
     prefs.mikrotik.configChangeTicket = { isActive: false, categoryId: null };
+  if (!prefs.mikrotik.securityUpdateTicket)
+    prefs.mikrotik.securityUpdateTicket = {
+      isActive: false,
+      categoryId: null,
+      minSeverity: "high",
+    };
 };
 
 // Global Mikrotik settings: auto-tickets for monitoring events. Follows the
@@ -41,6 +47,16 @@ const PrefsMikrotik = ({ prefs }) => {
   );
   const [configCategory, setConfigCategory] = useState(
     prefs.mikrotik.configChangeTicket.categoryId || null,
+  );
+
+  const [securityActive, setSecurityActive] = useState(
+    prefs.mikrotik.securityUpdateTicket.isActive,
+  );
+  const [securitySeverity, setSecuritySeverity] = useState(
+    prefs.mikrotik.securityUpdateTicket.minSeverity || "high",
+  );
+  const [securityCategory, setSecurityCategory] = useState(
+    prefs.mikrotik.securityUpdateTicket.categoryId || null,
   );
 
   const [categories, setCategories] = useState([]);
@@ -85,6 +101,21 @@ const PrefsMikrotik = ({ prefs }) => {
   const selectConfigCategory = (option) => {
     setConfigCategory(option ? option.value : null);
     prefs.mikrotik.configChangeTicket.categoryId = option ? option.value : null;
+  };
+
+  const toggleSecurity = (event) => {
+    setSecurityActive(event.target.checked);
+    prefs.mikrotik.securityUpdateTicket.isActive = event.target.checked;
+  };
+  const changeSecuritySeverity = (event) => {
+    setSecuritySeverity(event.target.value);
+    prefs.mikrotik.securityUpdateTicket.minSeverity = event.target.value;
+  };
+  const selectSecurityCategory = (option) => {
+    setSecurityCategory(option ? option.value : null);
+    prefs.mikrotik.securityUpdateTicket.categoryId = option
+      ? option.value
+      : null;
   };
 
   return (
@@ -156,6 +187,50 @@ const PrefsMikrotik = ({ prefs }) => {
           Сравниваются последовательные .rsc-экспорты — настройте расписание
           экспорта у устройства.
         </Form.Text>
+      </Form.Group>
+
+      <h5 className="mt-4">Уязвимости прошивки</h5>
+      <Form.Group className="mb-3">
+        <Form.Check
+          type="switch"
+          id="mikrotik-security-active"
+          label="Создавать заявку при критических уязвимостях прошивки"
+          checked={securityActive}
+          onChange={toggleSecurity}
+        />
+        <Form.Text className="text-muted">
+          Одна заявка на все устройства в опасности, с чек-листом по устройству.
+          Пункты отмечаются автоматически по мере обновления устройств; если
+          заявку удалить или закрыть при сохраняющейся угрозе — она будет
+          создана заново при следующей ежедневной проверке. Источник данных —
+          NVD (nvd.nist.gov).
+        </Form.Text>
+      </Form.Group>
+      <Form.Group className="mb-3">
+        <Form.Label>Минимальная опасность</Form.Label>
+        <Form.Select
+          value={securitySeverity}
+          onChange={changeSecuritySeverity}
+          disabled={!securityActive}
+        >
+          <option value="high">Высокие и критические (CVSS ≥ 7)</option>
+          <option value="critical">Только критические (CVSS ≥ 9)</option>
+        </Form.Select>
+        <Form.Text className="text-muted">
+          Порог общий: он же управляет красным индикатором уязвимости в таблице
+          устройств.
+        </Form.Text>
+      </Form.Group>
+      <Form.Group className="mb-3">
+        <Form.Label>Категория заявки (необязательно)</Form.Label>
+        <Select
+          isClearable
+          placeholder="Без категории"
+          options={categories}
+          value={findOption(securityCategory)}
+          onChange={selectSecurityCategory}
+          isDisabled={!securityActive}
+        />
       </Form.Group>
     </>
   );

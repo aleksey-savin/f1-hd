@@ -1,43 +1,48 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
+import { BrowserView, MobileView } from "react-device-detect";
 
 import Table from "react-bootstrap/Table";
 import Badge from "react-bootstrap/Badge";
 import Alert from "react-bootstrap/Alert";
+import OverlayTrigger from "react-bootstrap/OverlayTrigger";
+import Tooltip from "react-bootstrap/Tooltip";
 
 import { RiArrowRightSLine } from "react-icons/ri";
 
 import DevicePanel from "./DevicePanel";
 import ParametersModal from "./ParametersModal";
 import StandaloneModal from "./StandaloneModal";
+import DeviceCard from "./DeviceCard";
+import FirmwareIndicator from "./FirmwareIndicator";
 import ConfirmActionModal from "../../../UI/ConfirmActionModal";
+import AlertMessage from "../../../UI/AlertMessage";
 import { uptimeToneClass } from "./AvailabilityReport";
+import { STATUS_BADGE } from "./DeviceOverview";
 
 import { formatDate } from "../../../util/format-date";
 import { AuthedUserContext } from "../../../store/authed-user-context";
 import useMikrotikDeviceFilterStore from "../../../store/lists/mikrotik-devices";
 
-const STATUS_BADGE = {
-  online: { bg: "success", label: "В сети" },
-  offline: { bg: "danger", label: "Не в сети" },
-};
-
 // Рейтинг доступности за 30 дней: цветной процент (пороги как в отчёте).
 const UptimeCell = ({ value }) => {
   if (value == null) {
     return (
-      <span className="text-body-secondary" title="Недостаточно данных">
-        —
-      </span>
+      <OverlayTrigger
+        placement="top"
+        overlay={<Tooltip>Недостаточно данных</Tooltip>}
+      >
+        <span className="text-body-secondary">—</span>
+      </OverlayTrigger>
     );
   }
   return (
-    <span
-      className={`fw-semibold ${uptimeToneClass(value)}`}
-      title="Доступность за последние 30 дней"
+    <OverlayTrigger
+      placement="top"
+      overlay={<Tooltip>Доступность за последние 30 дней</Tooltip>}
     >
-      {value} %
-    </span>
+      <span className={`fw-semibold ${uptimeToneClass(value)}`}>{value} %</span>
+    </OverlayTrigger>
   );
 };
 
@@ -50,6 +55,7 @@ const MikrotikDevicesList = ({ items = [] }) => {
   const detachStandalone = useMikrotikDeviceFilterStore(
     (state) => state.detachStandalone,
   );
+  const searchTerm = useMikrotikDeviceFilterStore((state) => state.searchTerm);
 
   const [panelDevice, setPanelDevice] = useState(null);
   const [paramsDevice, setParamsDevice] = useState(null);
@@ -127,78 +133,117 @@ const MikrotikDevicesList = ({ items = [] }) => {
 
   const isStandaloneDetach = detachDevice?.source === "standalone";
 
+  const firmwareCell = (device) =>
+    device.currentFirmware ? (
+      <>
+        {device.currentFirmware}
+        <FirmwareIndicator
+          status={device.firmwareStatus}
+          displayName={device.displayName}
+        />
+      </>
+    ) : (
+      <span className="text-muted">—</span>
+    );
+
   return (
     <>
-      <Table responsive striped hover className="align-middle">
-        <thead>
-          <tr>
-            <th>Имя</th>
-            <th>Статус</th>
-            <th title="За последние 30 дней">Доступность</th>
-            <th>Тип</th>
-            <th>Расположение</th>
-            <th>Модель</th>
-            <th>Хост</th>
-            <th>Прошивка</th>
-            <th>Последнее подключение</th>
-            <th aria-hidden />
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((device) => {
-            const badge = STATUS_BADGE[device.status] || STATUS_BADGE.offline;
+      {items.length === 0 ? (
+        // ListWrapper показывает свой «Список пуст» только когда пуст и
+        // originalList; здесь — случаи «все устройства не настроены» и «промах
+        // поиска», и пустое состояние должно подсказывать действие.
+        <AlertMessage
+          variant="light"
+          message={
+            searchTerm
+              ? "Ничего не нашлось. Измените поисковый запрос."
+              : "Устройства ещё не добавлены. Нажмите «+», чтобы подключить первое устройство к мониторингу."
+          }
+        />
+      ) : (
+        <>
+          <BrowserView>
+            <Table responsive striped hover className="align-middle">
+              <thead>
+                <tr>
+                  <th>Имя</th>
+                  <th>Тип</th>
+                  <th>Расположение</th>
+                  <th>Модель</th>
+                  <th>Хост</th>
+                  <th>Прошивка</th>
+                  <th>
+                    <OverlayTrigger
+                      placement="top"
+                      overlay={<Tooltip>За последние 30 дней</Tooltip>}
+                    >
+                      <span>Доступность</span>
+                    </OverlayTrigger>
+                  </th>
+                  <th>Статус</th>
+                  <th>Подключение</th>
+                  <th aria-hidden />
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((device) => {
+                  const badge =
+                    STATUS_BADGE[device.status] || STATUS_BADGE.offline;
 
-            return (
-              <tr
+                  return (
+                    <tr
+                      key={device.recordId || device.clientDeviceId}
+                      onClick={() => setPanelDevice(device)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") setPanelDevice(device);
+                      }}
+                      tabIndex={0}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <td>
+                        <div className="fw-semibold">{device.displayName}</div>
+                        {device.company?.name && (
+                          <div className="small text-muted">
+                            {device.company.name}
+                          </div>
+                        )}
+                      </td>
+                      <td>{device.type || "—"}</td>
+                      <td>{device.location?.name || "—"}</td>
+                      <td>{device.model?.name || "—"}</td>
+                      <td className="font-monospace">{device.host || "—"}</td>
+                      <td className="font-monospace">{firmwareCell(device)}</td>
+                      <td>
+                        <UptimeCell value={device.uptime30d} />
+                      </td>
+                      <td>
+                        <Badge bg={badge.bg}>{badge.label}</Badge>
+                      </td>
+                      <td className="text-nowrap text-muted">
+                        {device.lastSuccessfulConnectionAt
+                          ? formatDate(device.lastSuccessfulConnectionAt)
+                          : "—"}
+                      </td>
+                      <td className="text-end text-muted">
+                        <RiArrowRightSLine />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </BrowserView>
+          <MobileView>
+            {items.map((device) => (
+              <DeviceCard
                 key={device.recordId || device.clientDeviceId}
-                onClick={() => setPanelDevice(device)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") setPanelDevice(device);
-                }}
-                tabIndex={0}
-                style={{ cursor: "pointer" }}
-              >
-                <td data-cell="Имя">
-                  <div className="fw-semibold">{device.displayName}</div>
-                  {device.company?.name && (
-                    <div className="small text-muted">{device.company.name}</div>
-                  )}
-                </td>
-                <td data-cell="Статус">
-                  <Badge bg={badge.bg}>{badge.label}</Badge>
-                </td>
-                <td data-cell="Доступность">
-                  <UptimeCell value={device.uptime30d} />
-                </td>
-                <td data-cell="Тип">{device.type || "—"}</td>
-                <td data-cell="Расположение">
-                  {device.location?.name || "—"}
-                </td>
-                <td data-cell="Модель">{device.model?.name || "—"}</td>
-                <td data-cell="Хост" className="font-monospace">
-                  {device.host || "—"}
-                </td>
-                <td data-cell="Прошивка" className="font-monospace">
-                  {device.currentFirmware || (
-                    <span className="text-muted">—</span>
-                  )}
-                </td>
-                <td
-                  data-cell="Последнее подключение"
-                  className="text-nowrap text-muted"
-                >
-                  {device.lastSuccessfulConnectionAt
-                    ? formatDate(device.lastSuccessfulConnectionAt)
-                    : "—"}
-                </td>
-                <td className="text-end text-muted">
-                  <RiArrowRightSLine />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </Table>
+                device={device}
+                onOpen={setPanelDevice}
+              />
+            ))}
+          </MobileView>
+        </>
+      )}
 
       <DevicePanel
         device={panelDevice}

@@ -1,13 +1,15 @@
 import { useContext, useEffect, useState } from "react";
 import { useLocation } from "react-router";
 
-import { FaNetworkWired } from "react-icons/fa";
+import { RiRouterLine } from "react-icons/ri";
 
 import MikrotikDevicesList from "../../components/Devices/Mikrotik/List";
 import AddDeviceModal from "../../components/Devices/Mikrotik/AddDeviceModal";
+import RouterOsReleasesStrip from "../../components/Devices/Mikrotik/RouterOsReleasesStrip";
 
 import ListWrapper from "../../UI/ListWrapper";
 
+import usePolling from "../../hooks/use-polling";
 import useSidebarStore from "../../store/sidebar";
 import { AuthedUserContext } from "../../store/authed-user-context";
 
@@ -24,6 +26,12 @@ const MikrotikDevices = () => {
   const [showAdd, setShowAdd] = useState(false);
 
   useEffect(() => {
+    // Тихое фоновое обновление уже пересчитало фильтр/сортировку атомарно —
+    // не пересчитываем повторно, иначе мелькнёт спиннер и fade-анимация.
+    if (filterStore.silentUpdate) {
+      filterStore.clearSilentUpdate();
+      return;
+    }
     filterStore.applyFilter();
     filterStore.handleSorting(filterStore.sortBy);
   }, [filterStore.originalList]);
@@ -32,6 +40,11 @@ const MikrotikDevices = () => {
     filterStore.fetch();
   }, [location]);
 
+  // Постоянное фоновое автообновление (как на странице заявок): статусы,
+  // доступность и индикаторы прошивки подтягиваются без спиннера и fade;
+  // опрос на паузе, пока вкладка скрыта, при возврате фокуса — сразу.
+  usePolling(() => filterStore.silentRefresh(), { intervalMs: 15000 });
+
   useEffect(() => {
     setLeftSidebarContent(<BrowserView></BrowserView>);
   }, [setLeftSidebarContent]);
@@ -39,7 +52,7 @@ const MikrotikDevices = () => {
   const title = () => {
     return (
       <>
-        <FaNetworkWired /> Управление устройствами Mikrotik
+        <RiRouterLine /> Управление устройствами Mikrotik
       </>
     );
   };
@@ -51,6 +64,9 @@ const MikrotikDevices = () => {
         filterStore={filterStore}
         showAddButton={canManage}
         onAddClick={() => setShowAdd(true)}
+        // Список сам обновляется фоновым опросом каждые 15 с — ручная кнопка не нужна.
+        showRefreshButton={false}
+        topContent={<RouterOsReleasesStrip />}
       >
         <MikrotikDevicesList
           items={filterStore.filteredList}
