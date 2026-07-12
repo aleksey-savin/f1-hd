@@ -13,6 +13,7 @@ import { RiSaveLine, RiRefreshLine, RiCheckLine } from "react-icons/ri";
 import MikrotikConnectionFields, {
   EMPTY,
   parseKnock,
+  JumpBridgeField,
 } from "./MikrotikConnectionFields";
 import ReconciliationTable from "./ReconciliationTable";
 
@@ -34,11 +35,14 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
     (state) => state.syncInventory,
   );
   const rows = useMikrotikDeviceFilterStore((state) => state.originalList);
+  const fetchRows = useMikrotikDeviceFilterStore((state) => state.fetch);
 
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Свитч «Подключение через устройство»: селект «Мост» спрятан за ним.
+  const [jumpEnabled, setJumpEnabled] = useState(false);
 
   const [step, setStep] = useState("form");
   const [mismatches, setMismatches] = useState([]);
@@ -57,7 +61,12 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
     setMismatches([]);
     setSelected(new Set());
     setSyncError(null);
+    setJumpEnabled(false);
     setForm({ ...EMPTY, host: device.host || "" });
+
+    // Кандидаты в «Мост» берутся из списка управления — на странице устройства
+    // (in-page модалка) он может быть ещё не загружен.
+    if (!Array.isArray(rows) || rows.length === 0) fetchRows();
 
     const controller = new AbortController();
     (async () => {
@@ -83,6 +92,7 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
             sshPort: creds.sshPort != null ? String(creds.sshPort) : prev.sshPort,
             jumpRecordId: data.record?.jumpRecordId || "",
           }));
+          setJumpEnabled(Boolean(data.record?.jumpRecordId));
         }
       } catch {
         // aborted or network error — keep defaults
@@ -94,6 +104,12 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
 
   const changeHandler = (event) =>
     setForm({ ...form, [event.target.name]: event.target.value });
+
+  // Выключение свитча = прямое подключение: выбранный мост сбрасывается.
+  const toggleJump = (checked) => {
+    setJumpEnabled(checked);
+    if (!checked) setForm((prev) => ({ ...prev, jumpRecordId: "" }));
+  };
 
   const submitHandler = async (event) => {
     event.preventDefault();
@@ -169,17 +185,24 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
 
   if (!device) return null;
 
-  // Доступные транзиты: уже настроенные записи (кроме самого устройства и
-  // записей, которые сами подключены через транзит — один уровень).
-  const jumpOptions = (Array.isArray(rows) ? rows : [])
-    .filter(
-      (row) =>
-        row.recordId && !row.jump && row.recordId !== (device.recordId || null),
-    )
-    .map((row) => ({
-      value: row.recordId,
-      label: row.host ? `${row.displayName} (${row.host})` : row.displayName,
-    }));
+  // Кандидаты в «Мост»: настроенные записи ТОЙ ЖЕ компании (кроме самого
+  // устройства и записей, которые сами подключены через мост — один уровень).
+  // Без компании у устройства список пуст.
+  const companyId = device.company?.id || null;
+  const jumpOptions = companyId
+    ? (Array.isArray(rows) ? rows : [])
+        .filter(
+          (row) =>
+            row.recordId &&
+            !row.jump &&
+            row.recordId !== (device.recordId || null) &&
+            row.company?.id === companyId,
+        )
+        .map((row) => ({
+          value: row.recordId,
+          label: row.host ? `${row.displayName} (${row.host})` : row.displayName,
+        }))
+    : [];
 
   const syncableCount = mismatches.filter((item) => item.syncable).length;
 
@@ -260,12 +283,25 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
             <Form onSubmit={submitHandler}>
               {error && <Alert variant="danger">{error}</Alert>}
 
+              <JumpBridgeField
+                idPrefix="params"
+                enabled={jumpEnabled}
+                onToggle={toggleJump}
+                value={form.jumpRecordId}
+                onChange={changeHandler}
+                options={jumpOptions}
+                placeholder={
+                  jumpOptions.length
+                    ? "Выберите устройство"
+                    : "Нет доступных устройств в компании"
+                }
+              />
+
               <MikrotikConnectionFields
                 form={form}
                 onChange={changeHandler}
                 showPassword={showPassword}
                 onToggleShowPassword={() => setShowPassword((prev) => !prev)}
-                jumpOptions={jumpOptions}
               />
 
               <div className="d-flex justify-content-end gap-2 pt-3 mt-3 border-top">

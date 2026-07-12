@@ -89,9 +89,9 @@ const syncOpenTicket = async (ticket, state, endangered, prefs) => {
     endangered.map((e) => String(e.record._id)),
   );
   const checker = {
-    _id: prefs?.defaultApplicant?._id,
-    firstName: prefs?.defaultApplicant?.firstName,
-    lastName: prefs?.defaultApplicant?.lastName,
+    _id: prefs?.mikrotik?.applicant?._id,
+    firstName: prefs?.mikrotik?.applicant?.firstName,
+    lastName: prefs?.mikrotik?.applicant?.lastName,
   };
 
   // Устройство исчезло из опасного множества (обновили или отвязали) → пункт
@@ -237,9 +237,7 @@ const claimAndCreate = async (endangered, cfg, ctx) => {
 // throws — сбой синхронизации не должен ломать рефреш релизов/CVE.
 const syncSecurityTicket = async (ctx) => {
   try {
-    const prefs = await Preferences.findOne({})
-      .select("mikrotik.securityUpdateTicket defaultApplicant")
-      .lean();
+    const prefs = await Preferences.findOne({}).select("mikrotik").lean();
     const cfg = prefs?.mikrotik?.securityUpdateTicket;
     if (!cfg?.isActive) return;
 

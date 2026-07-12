@@ -15,6 +15,7 @@ import MikrotikConnectionFields, {
   EMPTY,
   parseKnock,
   SectionLabel,
+  JumpBridgeField,
 } from "./MikrotikConnectionFields";
 
 import { getLocalStorageData } from "../../../util/auth";
@@ -36,12 +37,15 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
     (state) => state.saveStandaloneParameters,
   );
   const rows = useMikrotikDeviceFilterStore((state) => state.originalList);
+  const fetchRows = useMikrotikDeviceFilterStore((state) => state.fetch);
 
   const [form, setForm] = useState(EMPTY_STANDALONE);
   const [companies, setCompanies] = useState([]);
   const [error, setError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Свитч «Подключение через устройство»: селект «Мост» спрятан за ним.
+  const [jumpEnabled, setJumpEnabled] = useState(false);
 
   const isEdit = !!recordId;
 
@@ -76,7 +80,12 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
 
     setError(null);
     setShowPassword(false);
+    setJumpEnabled(false);
     setForm(EMPTY_STANDALONE);
+
+    // Кандидаты в «Мост» берутся из списка управления — на standalone-странице
+    // устройства он может быть ещё не загружен.
+    if (!Array.isArray(rows) || rows.length === 0) fetchRows();
 
     if (!recordId) return;
 
@@ -106,6 +115,7 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
           sshPort: creds?.sshPort != null ? String(creds.sshPort) : prev.sshPort,
           jumpRecordId: record?.jumpRecordId || "",
         }));
+        setJumpEnabled(Boolean(record?.jumpRecordId));
       } catch {
         // aborted or network error — keep defaults
       }
@@ -117,21 +127,34 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
   const changeHandler = (event) =>
     setForm({ ...form, [event.target.name]: event.target.value });
 
+  // Выключение свитча = прямое подключение: выбранный мост сбрасывается.
+  const toggleJump = (checked) => {
+    setJumpEnabled(checked);
+    if (!checked) setForm((prev) => ({ ...prev, jumpRecordId: "" }));
+  };
+
   const companyOptions = companies.map((company) => ({
     value: company._id,
     label: company.alias || company.fullTitle,
   }));
 
-  // Доступные транзиты: уже настроенные записи (кроме редактируемой и записей,
-  // которые сами подключены через транзит — один уровень).
-  const jumpOptions = (Array.isArray(rows) ? rows : [])
-    .filter(
-      (row) => row.recordId && !row.jump && row.recordId !== (recordId || null),
-    )
-    .map((row) => ({
-      value: row.recordId,
-      label: row.host ? `${row.displayName} (${row.host})` : row.displayName,
-    }));
+  // Кандидаты в «Мост»: настроенные записи ВЫБРАННОЙ компании (кроме
+  // редактируемой и записей, которые сами подключены через мост — один
+  // уровень). Компания не выбрана → список пуст.
+  const jumpOptions = form.companyId
+    ? (Array.isArray(rows) ? rows : [])
+        .filter(
+          (row) =>
+            row.recordId &&
+            !row.jump &&
+            row.recordId !== (recordId || null) &&
+            row.company?.id === form.companyId,
+        )
+        .map((row) => ({
+          value: row.recordId,
+          label: row.host ? `${row.displayName} (${row.host})` : row.displayName,
+        }))
+    : [];
 
   const submitHandler = async (event) => {
     event.preventDefault();
@@ -200,15 +223,34 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
                 options={companyOptions}
                 value={findOption(companyOptions, form.companyId)}
                 onChange={(option) =>
+                  // Смена компании сбрасывает мост: кандидаты фильтруются по
+                  // компании, чужой мост не должен уехать в сабмит.
                   setForm((prev) => ({
                     ...prev,
                     companyId: option ? option.value : "",
+                    jumpRecordId: "",
                   }))
                 }
                 placeholder="Выберите компанию"
                 isClearable
               />
             </Form.Group>
+
+            <JumpBridgeField
+              idPrefix="standalone"
+              enabled={jumpEnabled}
+              onToggle={toggleJump}
+              value={form.jumpRecordId}
+              onChange={changeHandler}
+              options={jumpOptions}
+              placeholder={
+                form.companyId
+                  ? jumpOptions.length
+                    ? "Выберите устройство"
+                    : "Нет доступных устройств в компании"
+                  : "Сначала выберите компанию"
+              }
+            />
 
             <Form.Group className="mb-3">
               <Form.Label htmlFor="label" className="small mb-1">
@@ -233,7 +275,6 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
               showPassword={showPassword}
               onToggleShowPassword={() => setShowPassword((prev) => !prev)}
               autoFocusHost={false}
-              jumpOptions={jumpOptions}
             />
 
             <div className="d-flex justify-content-end gap-2 pt-3 mt-3 border-top">

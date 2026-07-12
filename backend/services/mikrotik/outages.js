@@ -82,17 +82,18 @@ const attachTicket = async (record, ticketId) => {
 };
 
 // Post the "connectivity restored" comment on the outage's alert ticket. Follows
-// the system-comment pattern of the email pipeline: the author is
-// Preferences.defaultApplicant, the comment id is pushed into ticket.comments
-// (the UI only shows populated ticket.comments), notifications.pending lets the
-// notifications cron deliver it, and ticket.version is NOT bumped (comments never
-// trip the optimistic lock). The ticket itself stays open for a human.
+// the system-comment pattern of the email pipeline: the author is the module's
+// service account (Preferences.mikrotik.applicant), the comment id is pushed into
+// ticket.comments (the UI only shows populated ticket.comments),
+// notifications.pending lets the notifications cron deliver it, and
+// ticket.version is NOT bumped (comments never trip the optimistic lock). The
+// ticket itself stays open for a human.
 const postRecoveryComment = async (record, { startedAt, endedAt }) => {
   const prefs = await Preferences.findOne({});
-  const authorId = prefs?.defaultApplicant?._id;
+  const authorId = prefs?.mikrotik?.applicant?._id;
   if (!authorId) {
     logger.warn(
-      "Mikrotik recovery comment skipped: Preferences.defaultApplicant is not set",
+      "Mikrotik recovery comment skipped: Preferences.mikrotik.applicant is not set (Настройки → Mikrotik)",
     );
     return;
   }
@@ -133,8 +134,8 @@ const postRecoveryComment = async (record, { startedAt, endedAt }) => {
     ticket: ticket.num,
     ticketId: ticket._id,
     user: {
-      firstName: prefs.defaultApplicant?.firstName,
-      lastName: prefs.defaultApplicant?.lastName,
+      firstName: prefs.mikrotik?.applicant?.firstName,
+      lastName: prefs.mikrotik?.applicant?.lastName,
     },
     severity: "info",
     event: "добавлен комментарий",

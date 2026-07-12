@@ -90,6 +90,19 @@ const preferencesSchema = new Schema({
   },
   // Управление устройствами Mikrotik: авто-заявки на события мониторинга.
   mikrotik: {
+    // Сервисный аккаунт-автор всех машинных заявок и комментариев модуля
+    // (недоступность, изменение конфигурации, уязвимости прошивки). Компания
+    // сводной заявки об уязвимостях — компания этого аккаунта. Не задан →
+    // авто-заявки модуля не создаются (warn в логах).
+    applicant: {
+      _id: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: false,
+      },
+      firstName: String,
+      lastName: String,
+    },
     // Устройство офлайн дольше порога → создать заявку (одну на эпизод).
     offlineTicket: {
       isActive: { type: Boolean, default: false },

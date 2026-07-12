@@ -38,7 +38,7 @@ const deviceLinkHtml = (record) => {
 // Resolve the embedded { _id, alias } company for a Mikrotik record. Standalone
 // records carry companyId directly; inventory-backed records inherit it from the
 // linked ClientDevice. Returns undefined when it can't be resolved — the caller
-// then falls back to the default company (see resolveDefaultCompany).
+// then falls back to the author's company (see applicantCompany).
 const resolveCompany = async (record) => {
   let companyId = record.companyId;
   if (!companyId && record.clientDevice) {
@@ -54,35 +54,37 @@ const resolveCompany = async (record) => {
   return { _id: company._id, alias: company.alias };
 };
 
-// Компания по умолчанию из Preferences — паттерн почтового пайплайна для
-// «сиротских» заявок. Заявка без company ломает сквозной инвариант приложения:
-// уведомления, работы и проверки прав разыменовывают ticket.company без
-// проверок (после toObject() mongoose вырезает пустой объект — 500 на карточке
-// заявки), поэтому машинные заявки всегда получают хотя бы её.
-const resolveDefaultCompany = async (prefs) => {
-  const companyId = prefs?.defaultCompany?._id;
-  if (!companyId) return undefined;
-  const company = await Company.findById(companyId).select("alias");
-  if (!company) return undefined;
-  return { _id: company._id, alias: company.alias };
-};
+// Компания машинной заявки, когда «своей» у неё нет: компания сервисного
+// аккаунта-автора (Preferences.mikrotik.applicant — в настройках выбираются
+// только сервисные аккаунты). Схема «аккаунт → его компания» работает во всём
+// приложении, а заявка без company ломает сквозной инвариант: уведомления,
+// работы и проверки прав разыменовывают ticket.company без проверок (после
+// toObject() mongoose вырезает пустой объект — 500 на карточке заявки).
+const applicantCompany = (applicant) =>
+  applicant?.company?._id
+    ? { _id: applicant.company._id, alias: applicant.company.alias }
+    : undefined;
 
-// Load Preferences and validate the machine author. There is no system/bot user,
-// so the author of machine-created tickets/comments is the configured
-// `Preferences.defaultApplicant`. Returns { prefs, applicant } or null (logged).
+// Load Preferences and validate the machine author. There is no system/bot user:
+// ALL of the module's tickets and comments are authored by the service account
+// chosen in Настройки → Mikrotik (`Preferences.mikrotik.applicant`). Not
+// configured → machine tickets are skipped (logged), no fallback to
+// defaultApplicant by design. Returns { prefs, applicant } or null.
 const resolveTicketBasics = async (context) => {
   const prefs = await Preferences.findOne({});
-  const applicantId = prefs?.defaultApplicant?._id;
+  const applicantId = prefs?.mikrotik?.applicant?._id;
   if (!applicantId) {
     logger.warn(
-      `Mikrotik ${context} skipped: Preferences.defaultApplicant is not set`,
+      `Mikrotik ${context} skipped: Preferences.mikrotik.applicant is not set (Настройки → Mikrotik)`,
     );
     return null;
   }
 
-  const applicant = await User.findById(applicantId).select("_id");
+  const applicant = await User.findById(applicantId).select("_id company");
   if (!applicant) {
-    logger.warn(`Mikrotik ${context} skipped: defaultApplicant user not found`);
+    logger.warn(
+      `Mikrotik ${context} skipped: mikrotik applicant user not found`,
+    );
     return null;
   }
 
@@ -105,10 +107,10 @@ const createMikrotikTicket = async (
     const { prefs, applicant } = basics;
 
     const company =
-      (await resolveCompany(record)) ?? (await resolveDefaultCompany(prefs));
+      (await resolveCompany(record)) ?? applicantCompany(applicant);
     if (!company) {
       logger.warn(
-        "Mikrotik ticket created without company: neither the device company nor Preferences.defaultCompany resolved",
+        "Mikrotik ticket created without company: neither the device company nor the mikrotik applicant's company resolved",
       );
     }
     const deadlineHours = prefs?.deadline || 10;
@@ -143,11 +145,12 @@ const createMikrotikTicket = async (
 };
 
 // Глобальная системная заявка (не по одному устройству) — например, сводная по
-// уязвимостям прошивок. Company — из Preferences.defaultCompany (устройств
-// много, «своей» компании у заявки нет, а без company падают карточка заявки,
-// уведомления и работы). Без relatedClientDeviceId: ref одиночный, N устройств
-// им не выразить — их список живёт в описании и чек-листе. Пункты чек-листа
-// не mandatory, чтобы человек мог убрать неактуальный. Never throws.
+// уязвимостям прошивок. Company — компания сервисного аккаунта-автора
+// (устройств много, «своей» компании у заявки нет, а без company падают
+// карточка заявки, уведомления и работы). Без relatedClientDeviceId: ref
+// одиночный, N устройств им не выразить — их список живёт в описании и
+// чек-листе. Пункты чек-листа не mandatory, чтобы человек мог убрать
+// неактуальный. Never throws.
 const createMikrotikSystemTicket = async ({
   title,
   description,
@@ -159,10 +162,10 @@ const createMikrotikSystemTicket = async ({
     if (!basics) return null;
     const { prefs, applicant } = basics;
 
-    const company = await resolveDefaultCompany(prefs);
+    const company = applicantCompany(applicant);
     if (!company) {
       logger.warn(
-        "Mikrotik system ticket created without company: Preferences.defaultCompany is not set",
+        "Mikrotik system ticket created without company: the mikrotik applicant account has no company",
       );
     }
     const deadlineHours = prefs?.deadline || 10;
@@ -205,10 +208,10 @@ const createMikrotikSystemTicket = async ({
 const postSystemTicketComment = async (ticketId, content) => {
   try {
     const prefs = await Preferences.findOne({});
-    const authorId = prefs?.defaultApplicant?._id;
+    const authorId = prefs?.mikrotik?.applicant?._id;
     if (!authorId) {
       logger.warn(
-        "Mikrotik system comment skipped: Preferences.defaultApplicant is not set",
+        "Mikrotik system comment skipped: Preferences.mikrotik.applicant is not set (Настройки → Mikrotik)",
       );
       return false;
     }
@@ -239,8 +242,8 @@ const postSystemTicketComment = async (ticketId, content) => {
       ticket: ticket.num,
       ticketId: ticket._id,
       user: {
-        firstName: prefs.defaultApplicant?.firstName,
-        lastName: prefs.defaultApplicant?.lastName,
+        firstName: prefs.mikrotik?.applicant?.firstName,
+        lastName: prefs.mikrotik?.applicant?.lastName,
       },
       severity: "info",
       event: "добавлен комментарий",

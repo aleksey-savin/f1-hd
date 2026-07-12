@@ -38,6 +38,61 @@ export const EMPTY = {
 const findOption = (options, value) =>
   options.find((option) => option.value === value) || null;
 
+// «Подключение через устройство»: свитч, за которым прячется селект «Мост» —
+// транзитный роутер, через SSH которого туннелируются API и SSH цели.
+// Контролируемый: модалка владеет и состоянием свитча (сброс/префилл при
+// открытии), и значением формы. `idPrefix` разводит id между модалками —
+// обе смонтированы одновременно.
+export const JumpBridgeField = ({
+  idPrefix,
+  enabled,
+  onToggle,
+  value,
+  onChange,
+  options,
+  placeholder,
+}) => (
+  <Form.Group className="mb-3">
+    <Form.Check
+      type="switch"
+      id={`${idPrefix}-jump-enabled`}
+      label="Подключение через устройство"
+      checked={enabled}
+      onChange={(event) => onToggle(event.target.checked)}
+    />
+    {enabled && (
+      <div className="mt-2">
+        <Form.Label
+          htmlFor={`${idPrefix}-jumpRecordId`}
+          className="small mb-1"
+        >
+          Мост
+        </Form.Label>
+        <Select
+          inputId={`${idPrefix}-jumpRecordId`}
+          options={options}
+          value={findOption(options, value)}
+          onChange={(option) =>
+            onChange({
+              target: {
+                name: "jumpRecordId",
+                value: option ? option.value : "",
+              },
+            })
+          }
+          placeholder={placeholder}
+          isClearable
+        />
+        <Form.Text className="text-muted">
+          SSH-туннель через уже подключённый роутер MikroTik — для устройств в
+          LAN без проброса портов. На роутере выполните:{" "}
+          <code>/ip ssh set forwarding-enabled=local</code>
+        </Form.Text>
+      </div>
+    )}
+  </Form.Group>
+);
+
 // "22000 22111, 22222" -> [22000, 22111, 22222]
 export const parseKnock = (value) =>
   value
@@ -353,15 +408,15 @@ const SetupHelp = ({
 
 // Shared host/port/user/password + port-knock fields for the Mikrotik connection
 // forms (inventory ParametersModal and standalone StandaloneModal). The parent
-// owns the form state and passes the handlers. `jumpOptions` — доступные
-// транзитные роутеры для «подключения через устройство» ({value, label}).
+// owns the form state and passes the handlers. Селект «Мост» живёт отдельно
+// (JumpBridgeField — модалки размещают его после выбора компании); здесь по
+// form.jumpRecordId лишь прячутся knock-поля и его пресеты в инструкции.
 const MikrotikConnectionFields = ({
   form,
   onChange,
   showPassword,
   onToggleShowPassword,
   autoFocusHost = true,
-  jumpOptions = [],
 }) => {
   const jumpSelected = Boolean(form.jumpRecordId);
 
@@ -417,29 +472,6 @@ const MikrotikConnectionFields = ({
         />
       </Col>
     </Row>
-
-    <Form.Group className="mb-3">
-      <Form.Label htmlFor="jumpRecordId" className="small mb-1">
-        Подключение через устройство
-      </Form.Label>
-      <Select
-        inputId="jumpRecordId"
-        options={jumpOptions}
-        value={findOption(jumpOptions, form.jumpRecordId)}
-        onChange={(option) =>
-          onChange({
-            target: { name: "jumpRecordId", value: option ? option.value : "" },
-          })
-        }
-        placeholder="Напрямую (по умолчанию)"
-        isClearable
-      />
-      <Form.Text className="text-muted">
-        SSH-туннель через уже подключённый роутер MikroTik — для устройств в
-        LAN без проброса портов. На роутере выполните:{" "}
-        <code>/ip ssh set forwarding-enabled=local</code>
-      </Form.Text>
-    </Form.Group>
 
     <Row className="g-3 mb-3">
       <Col sm={6}>

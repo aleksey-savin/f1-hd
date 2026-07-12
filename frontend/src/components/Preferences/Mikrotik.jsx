@@ -9,6 +9,9 @@ import { getLocalStorageData } from "../../util/auth";
 // section is always submitted back (the page POSTs the whole prefs object).
 const ensureDefaults = (prefs) => {
   if (!prefs.mikrotik) prefs.mikrotik = {};
+  // Пустой объект (minimize вырезал поля) нормализуем в null — react-select
+  // тогда показывает плейсхолдер, а не пустую строку.
+  if (!prefs.mikrotik.applicant?._id) prefs.mikrotik.applicant = null;
   if (!prefs.mikrotik.offlineTicket)
     prefs.mikrotik.offlineTicket = {
       isActive: false,
@@ -31,6 +34,8 @@ const ensureDefaults = (prefs) => {
 // with everything else by the parent's single "Сохранить" button.
 const PrefsMikrotik = ({ prefs }) => {
   ensureDefaults(prefs);
+
+  const [applicant, setApplicant] = useState(prefs.mikrotik.applicant);
 
   const [offlineActive, setOfflineActive] = useState(
     prefs.mikrotik.offlineTicket.isActive,
@@ -60,6 +65,7 @@ const PrefsMikrotik = ({ prefs }) => {
   );
 
   const [categories, setCategories] = useState([]);
+  const [serviceAccounts, setServiceAccounts] = useState([]);
 
   useEffect(() => {
     const { token } = getLocalStorageData();
@@ -76,10 +82,22 @@ const PrefsMikrotik = ({ prefs }) => {
         ),
       )
       .catch(() => setCategories([]));
+
+    fetch(`${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`, {
+      headers: { Authorization: "Bearer " + token },
+    })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setServiceAccounts(Array.isArray(data) ? data : []))
+      .catch(() => setServiceAccounts([]));
   }, []);
 
   const findOption = (value) =>
     categories.find((option) => option.value === value) || null;
+
+  const selectApplicant = (option) => {
+    setApplicant(option);
+    prefs.mikrotik.applicant = option;
+  };
 
   const toggleOffline = (event) => {
     setOfflineActive(event.target.checked);
@@ -123,9 +141,29 @@ const PrefsMikrotik = ({ prefs }) => {
       <h4>Устройства Mikrotik</h4>
       <p className="text-muted small mb-4">
         Автоматические заявки по событиям мониторинга управляемых устройств.
-        Автор заявки — пользователь по умолчанию (раздел «Основные»), компания
-        берётся из устройства.
+        Все заявки и комментарии модуля создаются от выбранного сервисного
+        аккаунта; компания заявки берётся из устройства, а для сводной заявки
+        об уязвимостях — из привязки аккаунта.
       </p>
+
+      <Form.Group className="mb-4">
+        <Form.Label>Сервисный аккаунт</Form.Label>
+        <Select
+          isClearable
+          isSearchable
+          placeholder="Выберите сервисный аккаунт"
+          options={serviceAccounts}
+          value={applicant}
+          getOptionLabel={(option) =>
+            `${option.lastName} ${option.firstName}`.trim()
+          }
+          getOptionValue={(option) => option._id}
+          onChange={selectApplicant}
+        />
+        <Form.Text className="text-muted">
+          Без выбранного аккаунта автоматические заявки модуля не создаются.
+        </Form.Text>
+      </Form.Group>
 
       <h5>Устройство недоступно</h5>
       <Form.Group className="mb-3">

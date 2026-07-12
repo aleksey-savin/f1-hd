@@ -137,8 +137,12 @@ const buildRow = (device, record, protection, jump) => {
     jump: jump || null,
     displayName: buildDisplayName(record, device),
     serialNumber: device.serialNumber,
+    // id нужен фронту: селект «Мост» фильтрует кандидатов по компании строки.
     company: device.companyId
-      ? { name: device.companyId.alias || device.companyId.fullTitle }
+      ? {
+          id: device.companyId._id,
+          name: device.companyId.alias || device.companyId.fullTitle,
+        }
       : null,
     // Тип устройства: приоритет — тип из карточки инвентаря (таксономия
     // пользователя: маршрутизатор/коммутатор/…), фолбэк — класс по данным с
@@ -175,8 +179,12 @@ const buildStandaloneRow = (record, protection, jump) => ({
   displayName:
     record.label || record.name || record.credentials?.host || "Cloud Hosted Router",
   serialNumber: record.serialNumber || null,
+  // id нужен фронту: селект «Мост» фильтрует кандидатов по компании строки.
   company: record.companyId
-    ? { name: record.companyId.alias || record.companyId.fullTitle }
+    ? {
+        id: record.companyId._id,
+        name: record.companyId.alias || record.companyId.fullTitle,
+      }
     : null,
   // У standalone нет карточки инвентаря — класс определяем по самому устройству.
   type: deriveDeviceKind(record),
