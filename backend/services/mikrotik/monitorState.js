@@ -2,6 +2,7 @@ const Mikrotik = require("../../models/mikrotik");
 const {
   decodeKnockSequence,
   decryptSecret,
+  buildSshParams,
   mapPollToFields,
 } = require("./connector");
 const { ensureOpenOutage, markRecovered } = require("./outages");
@@ -37,6 +38,8 @@ const definedOnly = (fields) =>
   );
 
 // Build the poll parameters for a stored record (secrets decrypted here, once).
+// Транзит (jump) сюда не входит: его контекст резолвится отдельно (см. ниже) и
+// передаётся вызывателем — один роутер обслуживает многих зависимых за тик.
 const pollParams = (record) => ({
   host: record.credentials.host,
   port: record.credentials.port,
@@ -45,6 +48,58 @@ const pollParams = (record) => ({
   tlsCert: record.credentials.tlsCert,
   knockSequence: decodeKnockSequence(record.credentials.knockSequence),
 });
+
+// Висячая ссылка на транзит (роутер удалён мимо guard'а или гонка с detach).
+// Код маппится describeConnectionError → 422; сообщение попадает в lastError.
+const jumpRecordMissingError = () => {
+  const error = new Error(
+    "Транзитное устройство не найдено — ссылка на удалённую запись. " +
+      "Пересохраните параметры подключения",
+  );
+  error.code = "MIKROTIK_JUMP_RECORD_MISSING";
+  return error;
+};
+
+// «Подключение через устройство»: разрешает транзит одной записи. null —
+// прямое подключение; бросает MIKROTIK_JUMP_RECORD_MISSING для висячей ссылки.
+const resolveJumpContext = async (record) => {
+  if (!record.jumpRecordId) return null;
+  const doc = await Mikrotik.findById(record.jumpRecordId);
+  if (!doc?.credentials?.host) throw jumpRecordMissingError();
+  return { doc, params: buildSshParams(doc) };
+};
+
+// Один запрос на тик: контексты уникальных транзитов списка устройств (секреты
+// каждого роутера расшифровываются один раз). Непригодный транзит (нет записи,
+// битые креды) в Map не попадает — вызыватель отличает «нет jumpRecordId» от
+// «висячей ссылки» сам.
+const loadJumpContexts = async (devices) => {
+  const contexts = new Map();
+  const ids = [
+    ...new Set(
+      devices
+        .filter((device) => device.jumpRecordId)
+        .map((device) => String(device.jumpRecordId)),
+    ),
+  ];
+  if (ids.length === 0) return contexts;
+
+  const docs = await Mikrotik.find({ _id: { $in: ids } });
+  for (const doc of docs) {
+    if (!doc.credentials?.host) continue;
+    try {
+      contexts.set(String(doc._id), { doc, params: buildSshParams(doc) });
+    } catch (error) {
+      // Секреты роутера не расшифровались — как транзит он непригоден;
+      // зависимые в этот тик получат «транзит не найден», а причина — в логе.
+      logger.log("error", "Mikrotik jump context unavailable", {
+        jumpRecordId: String(doc._id),
+        error: error.message,
+      });
+    }
+  }
+  return contexts;
+};
 
 // A successful poll. One atomic update flips the record to online, clears the whole
 // offline/alert state and returns the PRE-update document, which is what makes the
@@ -158,6 +213,9 @@ const recordFailure = async (record, error, now = new Date()) => {
 module.exports = {
   CONFIRM_POLLS,
   pollParams,
+  jumpRecordMissingError,
+  resolveJumpContext,
+  loadJumpContexts,
   recoverToOnline,
   recordFailure,
 };

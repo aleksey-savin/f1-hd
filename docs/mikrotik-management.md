@@ -1,10 +1,11 @@
 # Mikrotik Device Management — Implementation Notes
 
-_Last updated: 2026-07-11 (firmware & vulnerability monitoring: RouterOS release
-strip, NVD CVE indicators, security-update auto-ticket; the management table got
-a mobile card layout). This document describes the Mikrotik management module
-as currently implemented, so the code can be reviewed and optimized later. It is
-a snapshot, not a spec — verify against the code before relying on any detail._
+_Last updated: 2026-07-12 (SSH jump host: «подключение через устройство» —
+мониторинг и экспорт конфига устройств в LAN за NAT через SSH-туннель уже
+управляемого роутера, без проброса портов). This document describes the
+Mikrotik management module as currently implemented, so the code can be
+reviewed and optimized later. It is a snapshot, not a spec — verify against
+the code before relying on any detail._
 
 ## Overview
 
@@ -124,6 +125,10 @@ their row action is **Удалить** (deletes the record). The legacy
 clientDevice                 → ObjectId ref ClientDevice, OPTIONAL; unique among
                                records that have it (partial index). Unset ⇒ standalone.
 companyId, label             → standalone identity (used when there's no clientDevice)
+jumpRecordId                 → ObjectId ref Mikrotik, OPTIONAL — транзит («подключение
+                               через устройство»): API и SSH туннелируются через SSH этого
+                               роутера. Один уровень, без цепочек; sparse-индекс для
+                               поиска зависимых. См. раздел _SSH jump host_.
 credentials { host, port, user, password, useTls, tlsCert, knockSequence }
              // password + knockSequence are AES-256-GCM blobs; tlsCert = pinned PEM
 name, boardName, serialNumber, currentFirmware               // polled
@@ -217,7 +222,94 @@ share it. Uses `routeros-node` (`new Routeros(...)` → `connect()` →
   mismatch / login, plus **two distinct timeouts**: «no answer while connecting» →
   check host/port/knock, vs «poll deadline» → the device is reachable but too slow)
   into a clear operator message + HTTP status; the controller's `mapVerifyError` uses
-  it. The raw error is still logged.
+  it. The raw error is still logged. Jump-коды (`MIKROTIK_JUMP_*`, см. ниже)
+  маппятся первыми — по коду, не по маркерам (их сообщения русские).
+
+### Подключение через устройство (SSH jump host)
+
+Устройства в LAN за уже управляемым роутером мониторятся **без проброса
+портов**: соединения с целью (API-SSL-полл и SSH `/export`) туннелируются через
+SSH самого роутера (`direct-tcpip`-каналы). На роутере достаточно одной
+команды: `/ip ssh set forwarding-enabled=local`. Работает только для целей на
+RouterOS (см. _SwOS вне охвата_ ниже).
+
+- **Модель** — `jumpRecordId` (ref Mikrotik) на записи цели; транзитом может
+  быть любая управляемая запись (inventory или standalone). **Один уровень**:
+  запись с транзитом сама транзитом быть не может — валидация при сохранении
+  (`resolveJumpForSave`: не self, у транзита нет своего транзита, у записи нет
+  зависимых) плюс guard на удаление: **detach роутера с зависимыми → 409** со
+  списком имён (`dependentsConflict`).
+- **API-полл через транзит** (`pollDevice({…, jump})`, `connector.js`): SSH к
+  роутеру (его собственный knock + host-key TOFU) → `forwardOut(host, port)` →
+  **одноразовый локальный TCP-релей** `127.0.0.1:0` → `Routeros` подключается к
+  релею. Релей обязателен: routeros-node взводит login на событии `"connect"`
+  TLSSocket'а, которое для переданного сокета Node не эмитит (проверено
+  экспериментально — см. `scratchpad`-тест в PR). TLS при этом идёт
+  **end-to-end до цели** сквозь туннель, cert-pinning не меняется: пин через
+  `ca` + отключённая hostname-проверка, так что endpoint `127.0.0.1` ничего не
+  ломает (тоже проверено). Релей loopback-only, single-accept; закрывается в
+  `finally` вместе с SSH-ногой, включая watchdog-путь и «поздно доехавший» run
+  (у SSH, в отличие от RouterOS-сокета, нет inactivity-таймера — без явной
+  уборки туннель жил бы вечно).
+- **SSH `/export` через транзит**: второй ssh2-клиент поверх forwardOut-канала
+  (`connect({ sock })`); host-key-пиннинг цели не меняется. `withSshSession`
+  закрывает обе ноги (`close()` вместо голого `conn.end()`).
+- **Ошибки транзитной ноги** — коды `MIKROTIK_JUMP_*` с готовыми русскими
+  сообщениями (идут в `lastError` как есть): `_FORWARD_PROHIBITED` (ssh2
+  `err.reason === 1` — «выполните /ip ssh set forwarding-enabled=local»),
+  `_CONNECT_FAILED` (`reason === 2` — роутер не дотянулся до цели: LAN-адрес /
+  порт / файрвол; **девайс-специфичная**), `_AUTH_FAILED`, `_HOSTKEY_MISMATCH`
+  (409, зеркало cert-mismatch), `_UNREACHABLE`, `_RECORD_MISSING` (висячая
+  ссылка, 422). Ретраи: `_CONNECT_FAILED`/`_UNREACHABLE` — transient, остальные
+  — вердикты.
+- **Knock цели неприменим** (бэкенд её не достигает, а с роутера источником был
+  бы его же LAN-адрес): комбинация knock+транзит отклоняется 422, и смена
+  режима на транзит **явно сбрасывает** сохранённый knock-блоб (пустой ввод
+  обычно его сохраняет). Вместо knock — **файрвол на самом устройстве**:
+  разрешить 8729/22 только с LAN-адреса роутера.
+- **SSRF**: для транзитных целей — мягкий guard `assertJumpTargetHost`
+  (RFC1918/ULA разрешены — это и есть кейс; блокируются loopback, link-local,
+  0.0.0.0, литерал `localhost`; DNS не резолвится — имя резолвит роутер). Оба
+  SSRF-сайта (verify-on-save и `createArtifact`) ветвятся по наличию транзита.
+- **Health-check**: зависимые одного роутера опрашиваются **одним юнитом
+  последовательно** (на роутер ≤ 1 SSH одновременно — пять туннельных
+  рукопожатий разом положили бы слабую плату); gateway-scoped ошибка
+  (unreachable / auth / hostkey / prohibited / record-missing) short-circuit'ит
+  остаток юнита — каждому устройству всё равно пишется `recordFailure`
+  (анти-флап и эпизоды простоя честные), но мёртвый роутер стоит тику ~один
+  дедлайн, а не N. `_CONNECT_FAILED` юнит не рубит (девайс-специфичная).
+  Дедлайн транзитного полла = `POLL_DEADLINE_MS + MIKROTIK_JUMP_POLL_EXTRA_MS`
+  (15 с по умолчанию: knock роутера + SSH handshake до старта TLS цели).
+- **Алерты**: пока транзитный роутер сам offline, заявки по зависимым
+  **подавляются** (лог «offline alert suppressed: jump device offline») —
+  инцидент покрывает заявка роутера. Подавление срабатывает **до** re-poll и до
+  claim-CAS: `offlineAlertedAt` остаётся null, следующий тик пере-оценивает
+  (роутер ожил, свитч — нет → заявка создаётся). Эпизоды простоя зависимых
+  продолжают записываться — отчёт доступности честный. Гейт по
+  `monitoringEnabled` роутера обязателен (legacy disconnect замораживает
+  `status: "offline"` навсегда) — держите мониторинг транзитного роутера
+  включённым. Watchdog алерт-крона поднят до 240 с (туннельный re-poll
+  добавляет SSH handshake на попытку).
+- **Опортунистический пиннинг роутера**: транзитный полл возвращает наблюдённый
+  SSH-ключ роутера (`jumpHostKey`), и verify-on-save зависимого guarded-пинит
+  его, если у роутера ещё нет `credentials.sshHostKey` (существующий пин
+  никогда не перезаписывается).
+- **Безопасность**: `forwarding-enabled` — настройка **всего роутера**:
+  TCP-forwarding получает каждый его ssh-пользователь, не только наш
+  least-privilege аккаунт. Компенсация: SSH роутера и так за knock'ом/файрволом,
+  а на устройствах за ним доступ сужен до LAN-адреса роутера. E2E-пиннинг (TLS
+  цели, host-key цели и роутера) сохраняется на всех ногах.
+- **UI**: селект «Подключение через устройство» в форме параметров (общая
+  `MikrotikConnectionFields`; список — уже настроенные записи без своего
+  транзита, кроме самой записи; при выбранном транзите knock-поля скрыты, а
+  генератор инструкции не предлагает knock-пресеты), строка «через <имя>» в
+  таблице/мобильной карточке/`DeviceOverview`, поиск по имени транзита.
+- **SwOS вне охвата**: у SwOS-свитчей (CSS / CRS в режиме SwOS) нет ни RouterOS
+  API, ни SSH — модуль не может управлять ими ни при какой сетевой доступности
+  (у SwOS только веб-интерфейс + read-only SNMP; SNMP — UDP, через SSH-туннель
+  не пробрасывается). Идеи на будущее: MNDP-видимость соседей через
+  `/ip/neighbor` роутера и `.swb`-бэкап по HTTP (TCP — туннелится тем же
+  механизмом).
 
 ### Endpoints — `backend/routes/internal/inventory/mikrotik.js`
 Mounted under `/api/inventory` (so they inherit `inventoryModuleIsActive` +
@@ -247,6 +339,13 @@ the router so the literal `standalone` segment isn't captured as a device id. Th
 verify-on-save body (SSRF → knock → TLS poll → Full-group guard → build record)
 is factored into a shared `verifyAndBuild()` helper; connection failures are
 turned into clear messages by `mapVerifyError()` → `describeConnectionError()`.
+
+Все три save-эндпоинта принимают опциональный **`jumpRecordId`** («подключение
+через устройство», см. раздел _SSH jump host_): verify-on-save тогда идёт живьём
+через туннель, а очищенный селект `$unset`-ит поле. Оба detach-эндпоинта
+отвечают **409**, если запись — транзит для других (сначала переключить/отвязать
+зависимых). Строки списка и `getOne`/`getStandaloneOne` несут
+`jump: { recordId, name } | null` для «через <имя>» и префилла селекта.
 
 `getManagedDevices` query (`backend/controllers/inventory/mikrotik.js`):
 ```
@@ -286,7 +385,11 @@ the lock forever — health-check dead, alerts still ticketing off a frozen `off
 | --- | --- | --- |
 | health-check | `*/5` (:00) | 240 s |
 | config-export scheduler | :02 (explicit list) | 270 s |
-| offline alerts | :04 (explicit list) | 120 s |
+| offline alerts | :04 (explicit list) | 240 s |
+
+> Watchdog алертов поднят со 120 с: один батч re-poll и раньше мог занимать
+> ~72 с (deadline + retry), а туннельные re-poll'ы добавляют SSH handshake на
+> каждую попытку.
 
 Alerts get four minutes of head start, and the SSH `/export` no longer loads a weak
 device's CPU during the health-check's TLS handshake.
@@ -506,10 +609,15 @@ Opt-in via **`Preferences.mikrotik.securityUpdateTicket`** `{isActive,
 categoryId, minSeverity: "high"|"critical"}` (Настройки → Mikrotik →
 «Уязвимости прошивки»). One global ticket for ALL endangered devices; the ticket
 factory is `createMikrotikSystemTicket` (`tickets.js`) — like
-`createMikrotikTicket` but with **no company and no `relatedClientDeviceId`**
-(the ref is singular; the device list lives in the HTML description and the
-**checklist**, one item per device: `«<label>» (<host>): RouterOS <installed> →
-<latest>`).
+`createMikrotikTicket` but with **company = `Preferences.defaultCompany`** (the
+email-pipeline pattern for orphan tickets: the devices span many companies, and
+a ticket with **no** company at all breaks an app-wide invariant — the ticket
+page, notifications and works dereference `ticket.company` unguarded, and
+mongoose `toObject()` minimizes the empty object away → 500) and **no
+`relatedClientDeviceId`** (the ref is singular; the device list lives in the
+HTML description and the **checklist**, one item per device: `«<label>»
+(<host>): RouterOS <installed> → <latest>`). `createMikrotikTicket` falls back
+to the same default company when the device company can't be resolved.
 
 Lifecycle (state machine on `MikrotikFirmwareState("security-ticket")`, runs
 after each daily refresh; endangered set = ALL records with a known
@@ -909,7 +1017,13 @@ device, so the module is hardened in depth:
   per device.
 - **SSRF guard + rate limit** — `updateParameters` rejects hosts resolving to
   loopback/private/link-local (incl. `169.254.169.254`) and is rate-limited per
-  user.
+  user. Для целей за транзитом действует мягкий guard (RFC1918 разрешён,
+  loopback/link-local — нет; DNS не резолвится) — см. _SSH jump host_.
+- **Транзит («подключение через устройство»)** — e2e-пиннинг сохраняется на
+  всех ногах (TLS цели, SSH-ключи цели и роутера), релей loopback-only и
+  одноразовый; `forwarding-enabled` на роутере **глобален** для всех его
+  ssh-пользователей — компенсируется knock'ом/файрволом на самом роутере и
+  файрволом «только с LAN-IP роутера» на устройствах за ним.
 - **Least privilege** — the RouterOS account must be a dedicated, non-`full`
   user (the connector rejects `full`).
 - Responses never expose the password or knock sequence
@@ -1022,7 +1136,8 @@ records via the `v1` version prefix.
   `MIKROTIK_OFFLINE_CONFIRM_POLLS` (2), `MIKROTIK_CONNECT_TIMEOUT_SECONDS` (15),
   `MIKROTIK_POLL_DEADLINE_MS` (35000), `MIKROTIK_POLL_RETRY_DELAY_MS` (2000),
   `MIKROTIK_KNOCK_TOUCH_TIMEOUT_MS` (800), `MIKROTIK_KNOCK_INTER_DELAY_MS` (150),
-  `MIKROTIK_USER_READ_TIMEOUT_MS` (4000), `MIKROTIK_ROUTERBOARD_READ_TIMEOUT_MS` (4000).
+  `MIKROTIK_USER_READ_TIMEOUT_MS` (4000), `MIKROTIK_ROUTERBOARD_READ_TIMEOUT_MS` (4000),
+  `MIKROTIK_JUMP_POLL_EXTRA_MS` (15000 — надбавка к дедлайну туннельного полла).
 
 ## Monitoring-state repair (one-off)
 
@@ -1111,3 +1226,18 @@ MikroTik or a CHR VM); otherwise temporarily stub `pollDevice`.
     ring-highlighted («устройство заявки»); zoom/dive-in works; click-through
     opens the device page. A ticket for a standalone record (no card) falls back
     to the old empty state; ordinary user tickets are unchanged.
+12. **Подключение через устройство (jump):** на роутере `/ip ssh set
+    forwarding-enabled=local`; на свитче — api-ssl + least-privilege user +
+    файрвол «8729/22 только с LAN-IP роутера». Добавить свитч с «Подключение
+    через устройство» = роутер → verify-on-save ок, в таблице «через <роутер>»,
+    TLS-cert и SSH-ключ свитча запинены (+ ключ роутера, если ещё не был).
+    Негативные сейвы: forwarding=no → сообщение про `/ip ssh set
+    forwarding-enabled=local`; неверный LAN-IP → «роутер не смог открыть
+    соединение»; knock + транзит → 422. Крон поллит через туннель
+    (`lastCheckedAt` двигается). Выключить свитч → анти-флап → offline →
+    заявка. Выключить роутер → оба offline; в логе «suppressed: jump device
+    offline», заявка только по роутеру, эпизоды в `db.mikrotikoutages` у обоих;
+    вернуть роутер (свитч всё ещё лежит) → следующий алерт-тик создаёт заявку
+    по свитчу. Экспорт конфига через туннель (ручной + по расписанию). Detach
+    роутера → 409 со списком зависимых; после переключения свитча на прямое
+    подключение (или его удаления) — ок.

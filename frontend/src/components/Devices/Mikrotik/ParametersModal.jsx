@@ -33,6 +33,7 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
   const syncInventory = useMikrotikDeviceFilterStore(
     (state) => state.syncInventory,
   );
+  const rows = useMikrotikDeviceFilterStore((state) => state.originalList);
 
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState(null);
@@ -80,6 +81,7 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
             user: creds.user ?? "",
             useTls: creds.useTls !== false,
             sshPort: creds.sshPort != null ? String(creds.sshPort) : prev.sshPort,
+            jumpRecordId: data.record?.jumpRecordId || "",
           }));
         }
       } catch {
@@ -104,8 +106,11 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
         user: form.user,
         password: form.password,
         useTls: form.useTls,
-        knockSequence: parseKnock(form.knockSequence),
+        // Через транзит knock не используется — поле скрыто, шлём пустой список
+        // (бэкенд валидирует комбинацию и сбрасывает сохранённый knock).
+        knockSequence: form.jumpRecordId ? [] : parseKnock(form.knockSequence),
         sshPort: Number(form.sshPort),
+        jumpRecordId: form.jumpRecordId || null,
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -163,6 +168,18 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
   };
 
   if (!device) return null;
+
+  // Доступные транзиты: уже настроенные записи (кроме самого устройства и
+  // записей, которые сами подключены через транзит — один уровень).
+  const jumpOptions = (Array.isArray(rows) ? rows : [])
+    .filter(
+      (row) =>
+        row.recordId && !row.jump && row.recordId !== (device.recordId || null),
+    )
+    .map((row) => ({
+      value: row.recordId,
+      label: row.host ? `${row.displayName} (${row.host})` : row.displayName,
+    }));
 
   const syncableCount = mismatches.filter((item) => item.syncable).length;
 
@@ -248,6 +265,7 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
                 onChange={changeHandler}
                 showPassword={showPassword}
                 onToggleShowPassword={() => setShowPassword((prev) => !prev)}
+                jumpOptions={jumpOptions}
               />
 
               <div className="d-flex justify-content-end gap-2 pt-3 mt-3 border-top">

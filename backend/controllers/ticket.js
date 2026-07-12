@@ -78,7 +78,7 @@ exports.getAllOpened = async (req, res, next) => {
     } else if (permissions.canSeeAllCompanyTickets) {
       // Пользователи с разрешением на просмотр всех заявок Компании
       filteredTickets = allTickets.filter((ticket) => {
-        return ticket.company._id.toString() === company._id.toString();
+        return ticket.company?._id?.toString() === company._id.toString();
       });
     } else {
       // Остальные пользователи
@@ -500,7 +500,9 @@ exports.getOne = async (req, res, next) => {
         return doc;
       });
 
-    const company = await Company.findById(ticket.company._id).populate({
+    // У заявки может не быть компании (легаси-данные): toObject() с minimize
+    // вырезает пустой объект company — без ?. карточка падала бы в 500.
+    const company = await Company.findById(ticket.company?._id).populate({
       path: "employees",
       select: "firstName lastName email phone position isActive",
     });

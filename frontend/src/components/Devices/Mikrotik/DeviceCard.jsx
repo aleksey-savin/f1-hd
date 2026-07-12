@@ -45,7 +45,15 @@ const DeviceCard = ({ device, onOpen }) => {
           {meta && <div className="text-body-secondary">{meta}</div>}
           <div className="d-flex flex-wrap column-gap-3 row-gap-1 mt-1">
             {device.host && (
-              <span className="font-monospace">{device.host}</span>
+              <span>
+                <span className="font-monospace">{device.host}</span>
+                {device.jump && (
+                  <span className="text-muted">
+                    {" "}
+                    через {device.jump.name || "устройство"}
+                  </span>
+                )}
+              </span>
             )}
             {device.currentFirmware && (
               <span className="font-monospace">

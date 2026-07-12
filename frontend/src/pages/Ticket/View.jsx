@@ -781,9 +781,13 @@ export async function loader({ params }) {
         const ticketCategory = ticket.categoryId
           ? ticket.categoryId.toString()
           : null;
+        // У заявки может не быть компании (легаси системных заявок) — такие в
+        // «другие заявки компании» не попадают, и сравнение undefined ===
+        // undefined не должно склеивать две заявки без компании.
+        const currentCompanyId = ticketData.ticket?.company?._id;
         return (
-          ticket?.company._id.toString() ===
-            ticketData.ticket?.company._id.toString() &&
+          currentCompanyId &&
+          ticket?.company?._id?.toString() === currentCompanyId.toString() &&
           ticket.num !== ticketData.ticket.num &&
           ticket.responsibles
             .map((user) => user._id.toString())

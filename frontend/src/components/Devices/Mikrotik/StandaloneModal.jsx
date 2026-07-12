@@ -35,6 +35,7 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
   const saveStandaloneParameters = useMikrotikDeviceFilterStore(
     (state) => state.saveStandaloneParameters,
   );
+  const rows = useMikrotikDeviceFilterStore((state) => state.originalList);
 
   const [form, setForm] = useState(EMPTY_STANDALONE);
   const [companies, setCompanies] = useState([]);
@@ -103,6 +104,7 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
           user: creds?.user ?? "",
           useTls: creds?.useTls !== false,
           sshPort: creds?.sshPort != null ? String(creds.sshPort) : prev.sshPort,
+          jumpRecordId: record?.jumpRecordId || "",
         }));
       } catch {
         // aborted or network error — keep defaults
@@ -120,6 +122,17 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
     label: company.alias || company.fullTitle,
   }));
 
+  // Доступные транзиты: уже настроенные записи (кроме редактируемой и записей,
+  // которые сами подключены через транзит — один уровень).
+  const jumpOptions = (Array.isArray(rows) ? rows : [])
+    .filter(
+      (row) => row.recordId && !row.jump && row.recordId !== (recordId || null),
+    )
+    .map((row) => ({
+      value: row.recordId,
+      label: row.host ? `${row.displayName} (${row.host})` : row.displayName,
+    }));
+
   const submitHandler = async (event) => {
     event.preventDefault();
     setIsSaving(true);
@@ -133,8 +146,11 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
         user: form.user,
         password: form.password,
         useTls: form.useTls,
-        knockSequence: parseKnock(form.knockSequence),
+        // Через транзит knock не используется — поле скрыто, шлём пустой список
+        // (бэкенд валидирует комбинацию и сбрасывает сохранённый knock).
+        knockSequence: form.jumpRecordId ? [] : parseKnock(form.knockSequence),
         sshPort: Number(form.sshPort),
+        jumpRecordId: form.jumpRecordId || null,
       };
       const response = isEdit
         ? await saveStandaloneParameters(recordId, body)
@@ -217,6 +233,7 @@ const StandaloneModal = ({ show, recordId, onClose, onSaved }) => {
               showPassword={showPassword}
               onToggleShowPassword={() => setShowPassword((prev) => !prev)}
               autoFocusHost={false}
+              jumpOptions={jumpOptions}
             />
 
             <div className="d-flex justify-content-end gap-2 pt-3 mt-3 border-top">

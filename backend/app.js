@@ -312,12 +312,14 @@ guardedCron(
 // Raise a ticket for Mikrotik devices offline past the configured threshold
 // (Preferences.mikrotik.offlineTicket.thresholdMinutes, 15 min by default). Each
 // candidate is re-polled first, so a device that has since recovered is never
-// ticketed.
+// ticketed. 240s: one re-poll batch can take ~72s worst case (deadline + retry),
+// and tunneled («через устройство») re-polls add an SSH handshake per attempt —
+// the old 120s bound was already brushable at two batches.
 guardedCron(
   "Mikrotik offline-alert",
   EVERY_5_MIN_AT_4,
   runMikrotikOfflineAlerts,
-  120000,
+  240000,
 );
 
 // Кэш релизов RouterOS + CVE из NVD + авто-заявка «уязвимая прошивка». Суточного

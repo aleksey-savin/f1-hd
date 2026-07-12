@@ -65,6 +65,11 @@ const DeviceOverview = ({ device, showIdentity = true }) => {
       <InfoRow icon={<RiGlobalLine />} label="Хост" mono>
         {device.host}
       </InfoRow>
+      {device.jump && (
+        <InfoRow icon={<RiGlobalLine />} label="Подключение">
+          через {device.jump.name || "устройство"} (SSH-туннель)
+        </InfoRow>
+      )}
       <InfoRow icon={<RiInstallLine />} label="Прошивка" mono>
         {device.currentFirmware && (
           <>

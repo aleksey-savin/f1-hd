@@ -211,7 +211,16 @@ const MikrotikDevicesList = ({ items = [] }) => {
                       <td>{device.type || "—"}</td>
                       <td>{device.location?.name || "—"}</td>
                       <td>{device.model?.name || "—"}</td>
-                      <td className="font-monospace">{device.host || "—"}</td>
+                      <td>
+                        <span className="font-monospace">
+                          {device.host || "—"}
+                        </span>
+                        {device.jump && (
+                          <div className="small text-muted">
+                            через {device.jump.name || "устройство"}
+                          </div>
+                        )}
+                      </td>
                       <td className="font-monospace">{firmwareCell(device)}</td>
                       <td>
                         <UptimeCell value={device.uptime30d} />

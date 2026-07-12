@@ -52,6 +52,11 @@ const POLL_RETRY_DELAY_MS = envInt("MIKROTIK_POLL_RETRY_DELAY_MS", 2000);
 const SSH_READY_TIMEOUT_MS = 10000;
 const SSH_OP_TIMEOUT_MS = 60000;
 
+// Extra poll-deadline allowance for tunneled («через устройство») polls: the
+// transit leg pays for the router's knock (~3 s worst case) plus an SSH
+// handshake (SSH_READY_TIMEOUT_MS) before the target's own TLS connect starts.
+const JUMP_POLL_EXTRA_MS = envInt("MIKROTIK_JUMP_POLL_EXTRA_MS", 15000);
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Bound a single API read so one unanswered command can't stall the whole poll.
@@ -125,6 +130,18 @@ const decodeKnockSequence = (blob) => {
   }
 };
 
+// SSH parameters for a record (same host/account/knock as the API poll). Also
+// the exact shape of the `jump` param for tunneled connections: the transit
+// router is just another managed record whose SSH we ride through.
+const buildSshParams = (record) => ({
+  host: record.credentials.host,
+  sshPort: record.credentials.sshPort || 22,
+  user: record.credentials.user,
+  password: decryptSecret(record.credentials.password),
+  knockSequence: decodeKnockSequence(record.credentials.knockSequence),
+  sshHostKey: record.credentials.sshHostKey,
+});
+
 // DER (Buffer) -> PEM string.
 const derToPem = (der) => {
   const b64 = der.toString("base64").match(/.{1,64}/g).join("\n");
@@ -173,36 +190,82 @@ const buildTlsOptions = (pinnedCertPem) => {
 // between polls. Verify-on-save keeps both (defaults) — it needs the full-group
 // guard and a fresh serial for the inventory reconciliation.
 const pollDevice = async (
-  { host, port, user, password, tlsCert, knockSequence },
+  { host, port, user, password, tlsCert, knockSequence, jump },
   { verifyFullGroup = true, readRouterboard = true } = {},
 ) => {
   // Watchdog: the library's `timeout` guards inactivity on the socket but can't
   // abort a knock touch or bound a read that RouterOS never answers. Arm it first
-  // so it covers the WHOLE cycle (knock + connect + reads) — otherwise the knock
-  // runs outside the deadline and the real budget is knock + POLL_DEADLINE_MS.
-  // On timeout the finally destroys the socket, which unblocks a pending connect;
+  // so it covers the WHOLE cycle (jump + knock + connect + reads) — otherwise the
+  // knock runs outside the deadline and the real budget is knock + POLL_DEADLINE_MS.
+  // On timeout the cleanup destroys the sockets, which unblocks a pending connect;
   // the "ETIMEDOUT" text routes through describeConnectionError to a clear 502.
   let watchdogTimer;
   let routeros;
+  let jumpConn = null;
+  let relay = null;
+  let settled = false;
+
+  // Idempotent: closes whatever the run has opened so far. Called from the outer
+  // finally AND from the run's own late-settling handlers — a run that outlives
+  // the watchdog (say, the SSH handshake resolves just past the deadline) must
+  // release its resources itself: unlike the RouterOS socket (inactivity timer),
+  // an idle SSH connection would otherwise live forever.
+  const cleanup = () => {
+    if (routeros) {
+      routeros.destroy();
+      routeros = null;
+    }
+    if (relay) {
+      relay.close();
+      relay = null;
+    }
+    if (jumpConn) {
+      jumpConn.end();
+      jumpConn = null;
+    }
+  };
+
   const watchdog = new Promise((_, reject) => {
     watchdogTimer = setTimeout(
       () =>
         reject(
           new Error("ETIMEDOUT: device did not respond within poll deadline"),
         ),
-      POLL_DEADLINE_MS,
+      // A tunneled poll pays for the transit leg before the target's TLS
+      // connect even starts — give it the extra allowance.
+      POLL_DEADLINE_MS + (jump ? JUMP_POLL_EXTRA_MS : 0),
     );
   });
 
   const run = (async () => {
-    await knockDevice(host, knockSequence);
+    let jumpHostKey = null;
+    let connectHost = host;
+    let connectPort = port;
+
+    if (jump) {
+      // Транзит: цель недостижима с бэкенда напрямую, её knock не выполняется
+      // (и запрещён валидацией) — путь прокладывает роутер. Ошибки этой ноги
+      // приходят уже классифицированными (MIKROTIK_JUMP_*).
+      const session = await openJumpConnection(jump);
+      jumpConn = session.conn;
+      jumpHostKey = session.hostKey;
+      const channel = await openForwardChannel(jumpConn, host, port);
+      relay = await createChannelRelay(channel);
+      connectHost = "127.0.0.1";
+      connectPort = relay.port;
+    } else {
+      await knockDevice(host, knockSequence);
+    }
 
     routeros = new Routeros({
-      host,
-      port,
+      host: connectHost,
+      port: connectPort,
       user,
       password,
       timeout: CONNECT_TIMEOUT_SECONDS,
+      // TLS runs end-to-end to the device even through the relay: the pin
+      // validates the device's cert, not the TCP endpoint (hostname checks are
+      // disabled in buildTlsOptions, so 127.0.0.1 changes nothing).
       tlsOptions: buildTlsOptions(tlsCert),
     });
 
@@ -261,14 +324,27 @@ const pollDevice = async (
       users,
       routerboard,
       tlsCert: observedCert,
+      // Наблюдённый SSH-ключ транзитного роутера — для опортунистического
+      // пиннинга при verify-on-save (см. контроллер).
+      ...(jumpHostKey ? { jumpHostKey } : {}),
     };
   })();
+
+  // The race consumes both promises, but a run that settles AFTER the race has
+  // already returned must release its own resources (see cleanup above).
+  run.then(
+    () => {
+      if (settled) cleanup();
+    },
+    () => cleanup(),
+  );
 
   try {
     return await Promise.race([run, watchdog]);
   } finally {
+    settled = true;
     clearTimeout(watchdogTimer);
-    if (routeros) routeros.destroy();
+    cleanup();
   }
 };
 
@@ -279,6 +355,19 @@ const pollDevice = async (
 // tick. Unknown errors are treated as verdicts (no retry) to stay conservative.
 const isTransientPollError = (error) => {
   if (error?.code === "MIKROTIK_FULL_GROUP_USER") return false;
+
+  // Транзитные (jump) ошибки несут русские сообщения — классифицируем по коду,
+  // не по маркерам: недоступность роутера или цели — погода (ретраим), всё
+  // остальное (auth, hostkey, запрещённый forwarding, висячая ссылка) — вердикт.
+  const code = String(error?.code || "");
+  if (
+    code === "MIKROTIK_JUMP_CONNECT_FAILED" ||
+    code === "MIKROTIK_JUMP_UNREACHABLE"
+  ) {
+    return true;
+  }
+  if (code.startsWith("MIKROTIK_JUMP_")) return false;
+
   const raw = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
 
   const deterministic = [
@@ -361,59 +450,237 @@ const mapPollToFields = ({ addresses, identity, resource, routerboard }) => {
 const hostKeyFingerprint = (key) =>
   crypto.createHash("sha256").update(key).digest("base64");
 
-// Opens a port-knocked SSH session with host-key TOFU pinning:
+// One ssh2 Client connection with host-key TOFU pinning, over a fresh TCP
+// socket (host/sshPort) or a supplied duplex stream (`sock` — a forwarded
+// channel through the transit router):
 //   - pinned fingerprint known -> a different key is rejected before any command;
 //   - first contact            -> accept and return the fingerprint to pin.
-// Resolves { conn, hostKey }. The caller must conn.end() (see withSshSession).
-const openSshSession = ({
+// Resolves { conn, hostKey }.
+const connectSshClient = ({
   host,
   sshPort = 22,
   user,
   password,
-  knockSequence,
   sshHostKey,
+  sock,
 }) =>
-  knockDevice(host, knockSequence).then(
-    () =>
-      new Promise((resolve, reject) => {
-        const conn = new Client();
-        let observedHostKey = null;
-        let mismatch = false;
+  new Promise((resolve, reject) => {
+    const conn = new Client();
+    let observedHostKey = null;
+    let mismatch = false;
 
-        conn
-          .on("ready", () => resolve({ conn, hostKey: observedHostKey }))
-          .on("error", (error) => {
-            if (mismatch) {
-              const mismatchError = new Error(
-                "Отпечаток SSH-ключа устройства не совпадает с ранее закреплённым",
-              );
-              mismatchError.code = "MIKROTIK_SSH_HOSTKEY_MISMATCH";
-              return reject(mismatchError);
-            }
-            reject(error);
-          })
-          .connect({
-            host,
-            port: sshPort,
-            username: user,
-            password,
-            readyTimeout: SSH_READY_TIMEOUT_MS,
-            hostVerifier: (key) => {
-              observedHostKey = hostKeyFingerprint(key);
-              if (sshHostKey && observedHostKey !== sshHostKey) {
-                mismatch = true;
-                return false;
-              }
-              return true;
-            },
-          });
-      }),
+    conn
+      .on("ready", () => resolve({ conn, hostKey: observedHostKey }))
+      .on("error", (error) => {
+        if (mismatch) {
+          const mismatchError = new Error(
+            "Отпечаток SSH-ключа устройства не совпадает с ранее закреплённым",
+          );
+          mismatchError.code = "MIKROTIK_SSH_HOSTKEY_MISMATCH";
+          return reject(mismatchError);
+        }
+        reject(error);
+      })
+      .connect({
+        ...(sock ? { sock } : { host, port: sshPort }),
+        username: user,
+        password,
+        readyTimeout: SSH_READY_TIMEOUT_MS,
+        hostVerifier: (key) => {
+          observedHostKey = hostKeyFingerprint(key);
+          if (sshHostKey && observedHostKey !== sshHostKey) {
+            mismatch = true;
+            return false;
+          }
+          return true;
+        },
+      });
+  });
+
+// --- Jump host (транзит) -------------------------------------------------------
+// «Подключение через устройство»: соединения с целью (API-SSL и SSH) идут
+// сквозь SSH уже управляемого роутера (RouterOS: /ip ssh set
+// forwarding-enabled=local, direct-tcpip каналы). Ошибки транзитной ноги
+// оборачиваются в коды MIKROTIK_JUMP_* с готовыми операторскими сообщениями —
+// они попадают в lastError как есть и различимы для ретраев и алертов.
+
+// Rewraps a transit-leg failure into a coded error. err.reason is ssh2's
+// numeric channel-open failure code: 1 = administratively prohibited
+// (forwarding disabled on the router), 2 = connect failed (the router could
+// not reach the target). Already-classified errors pass through untouched.
+const classifyJumpError = (error) => {
+  const code = String(error?.code || "");
+  if (code.startsWith("MIKROTIK_JUMP_")) return error;
+
+  const wrap = (jumpCode, message) => {
+    const wrapped = new Error(message);
+    wrapped.code = jumpCode;
+    wrapped.cause = error;
+    return wrapped;
+  };
+
+  const raw = `${code} ${error?.message || ""}`.toLowerCase();
+
+  if (error?.reason === 1 || raw.includes("administratively prohibited")) {
+    return wrap(
+      "MIKROTIK_JUMP_FORWARD_PROHIBITED",
+      "На транзитном роутере выключен проброс TCP по SSH. Выполните на нём: " +
+        "/ip ssh set forwarding-enabled=local",
+    );
+  }
+  if (error?.reason === 2 || raw.includes("connect failed")) {
+    return wrap(
+      "MIKROTIK_JUMP_CONNECT_FAILED",
+      "Транзитный роутер не смог открыть соединение с устройством. Проверьте " +
+        "LAN-адрес и порт устройства и правила файрвола на нём",
+    );
+  }
+  if (code === "MIKROTIK_SSH_HOSTKEY_MISMATCH") {
+    return wrap(
+      "MIKROTIK_JUMP_HOSTKEY_MISMATCH",
+      "Отпечаток SSH-ключа транзитного роутера не совпадает с ранее " +
+        "закреплённым. Если его меняли намеренно — отключите и заново добавьте " +
+        "роутер; иначе это может быть попыткой подмены соединения",
+    );
+  }
+  if (
+    raw.includes("authentication") ||
+    raw.includes("access denied") ||
+    raw.includes("keyboard-interactive")
+  ) {
+    return wrap(
+      "MIKROTIK_JUMP_AUTH_FAILED",
+      "Транзитный роутер отклонил вход по SSH — проверьте его учётные данные " +
+        "(пересохраните параметры роутера)",
+    );
+  }
+  return wrap(
+    "MIKROTIK_JUMP_UNREACHABLE",
+    `Транзитный роутер недоступен: ${error?.message || "нет ответа"}`,
   );
+};
 
-// Opens a session, runs fn(conn), always closes it, bounded by a watchdog.
+// SSH leg to the transit router: its own knock, its own host-key TOFU pin.
+// Failures come back classified (MIKROTIK_JUMP_*).
+const openJumpConnection = async (jump) => {
+  try {
+    await knockDevice(jump.host, jump.knockSequence);
+    return await connectSshClient(jump);
+  } catch (error) {
+    throw classifyJumpError(error);
+  }
+};
+
+// direct-tcpip channel through the transit router to the target host:port.
+// RouterOS answers a channel-open request promptly (grant or refuse); the timer
+// only guards a wedged connection so the caller can't hang unbounded.
+const openForwardChannel = (jumpConn, dstHost, dstPort) =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(
+        classifyJumpError(
+          new Error(
+            "ETIMEDOUT: transit router did not answer the channel-open request",
+          ),
+        ),
+      );
+    }, SSH_READY_TIMEOUT_MS);
+    jumpConn.forwardOut("127.0.0.1", 0, dstHost, dstPort, (error, channel) => {
+      clearTimeout(timer);
+      if (error) return reject(classifyJumpError(error));
+      resolve(channel);
+    });
+  });
+
+// One-shot local TCP relay bridging routeros-node into a forwarded SSH channel.
+// The library can only dial a host:port itself — its login is armed on the
+// TLSSocket "connect" event, which Node never emits for a supplied socket — so
+// we give it 127.0.0.1:<port> and pipe the accepted connection into the channel.
+// TLS still runs end-to-end to the device (the relay moves opaque bytes), so
+// the cert pin keeps protecting the tunneled session. Loopback-only,
+// single-accept, torn down with the poll.
+const createChannelRelay = (channel) =>
+  new Promise((resolve, reject) => {
+    let accepted = null;
+
+    const server = net.createServer((socket) => {
+      const remote = socket.remoteAddress || "";
+      if (
+        remote !== "127.0.0.1" &&
+        remote !== "::ffff:127.0.0.1" &&
+        remote !== "::1"
+      ) {
+        socket.destroy();
+        return;
+      }
+      accepted = socket;
+      server.close(); // stop listening; the accepted socket lives on
+      socket.pipe(channel).pipe(socket);
+      const teardown = () => {
+        socket.destroy();
+        channel.destroy();
+      };
+      socket.on("error", teardown);
+      socket.on("close", teardown);
+      channel.on("error", teardown);
+      channel.on("close", teardown);
+    });
+
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      resolve({
+        port: server.address().port,
+        // Idempotent: safe whether or not the dial ever happened.
+        close: () => {
+          server.close();
+          if (accepted) accepted.destroy();
+          channel.destroy();
+        },
+      });
+    });
+  });
+
+// Opens a port-knocked SSH session to a device, directly or through its transit
+// router. Resolves { conn, hostKey, close } — close() tears down the target
+// session AND the transit leg; always call it (withSshSession does).
+const openSshSession = async (params) => {
+  if (params.jump) {
+    // Транзит: knock цели неприменим (см. pollDevice) — путь открывает роутер.
+    const jump = await openJumpConnection(params.jump);
+    try {
+      const channel = await openForwardChannel(
+        jump.conn,
+        params.host,
+        params.sshPort || 22,
+      );
+      const { conn, hostKey } = await connectSshClient({
+        ...params,
+        sock: channel,
+      });
+      return {
+        conn,
+        hostKey,
+        close: () => {
+          conn.end();
+          jump.conn.end();
+        },
+      };
+    } catch (error) {
+      jump.conn.end();
+      throw error;
+    }
+  }
+
+  await knockDevice(params.host, params.knockSequence);
+  const { conn, hostKey } = await connectSshClient(params);
+  return { conn, hostKey, close: () => conn.end() };
+};
+
+// Opens a session, runs fn(conn), always closes it (both legs for a tunneled
+// session), bounded by a watchdog.
 // Returns { result, hostKey } (hostKey is for TOFU pinning by the caller).
 const withSshSession = async (params, fn) => {
-  const { conn, hostKey } = await openSshSession(params);
+  const { conn, hostKey, close } = await openSshSession(params);
   let watchdogTimer;
   try {
     const watchdog = new Promise((_, reject) => {
@@ -426,7 +693,7 @@ const withSshSession = async (params, fn) => {
     return { result, hostKey };
   } finally {
     clearTimeout(watchdogTimer);
-    conn.end();
+    close();
   }
 };
 
@@ -468,7 +735,22 @@ const exportConfig = async (conn) => {
 // (+ HTTP status). The raw error is still logged server-side — this only
 // improves what the UI shows. Returns null for unrecognised errors so the caller
 // can fall back to its generic message.
+// Транзитные (jump) ошибки уже несут готовое операторское сообщение — маппится
+// только HTTP-статус: 409 для несовпадения ключа (зеркало cert-mismatch), 422
+// для висячей ссылки на транзит, 502 для остальных.
+const JUMP_ERROR_STATUS = {
+  MIKROTIK_JUMP_FORWARD_PROHIBITED: 502,
+  MIKROTIK_JUMP_CONNECT_FAILED: 502,
+  MIKROTIK_JUMP_AUTH_FAILED: 502,
+  MIKROTIK_JUMP_UNREACHABLE: 502,
+  MIKROTIK_JUMP_HOSTKEY_MISMATCH: 409,
+  MIKROTIK_JUMP_RECORD_MISSING: 422,
+};
+
 const describeConnectionError = (error) => {
+  const jumpStatus = JUMP_ERROR_STATUS[String(error?.code || "")];
+  if (jumpStatus) return { status: jumpStatus, message: error.message };
+
   const raw = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
 
   // The device (RouterOS) aborted the TLS handshake — we read back its alert.
@@ -567,6 +849,7 @@ module.exports = {
   encryptSecret,
   decryptSecret,
   decodeKnockSequence,
+  buildSshParams,
   assertUserNotFullGroup,
   knockDevice,
   pollDevice,

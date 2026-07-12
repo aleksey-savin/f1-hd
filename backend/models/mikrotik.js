@@ -44,6 +44,14 @@ const mikrotikSchema = new Schema(
       type: String,
       trim: true,
     },
+    // Транзит («подключение через устройство»): все соединения с этим
+    // устройством (API-SSL и SSH) туннелируются через SSH уже управляемого
+    // роутера. Один уровень: запись с jumpRecordId сама транзитом быть не может
+    // (валидируется при сохранении), поэтому резолв никогда не рекурсивен.
+    jumpRecordId: {
+      type: Schema.Types.ObjectId,
+      ref: "Mikrotik",
+    },
     credentials: {
       host: String,
       port: Number,
@@ -126,5 +134,9 @@ mikrotikSchema.index(
     partialFilterExpression: { clientDevice: { $exists: true } },
   },
 );
+
+// Dependent lookups: "which records connect through this one" (detach guard,
+// eligible-jump filtering). Sparse — most records have no jump.
+mikrotikSchema.index({ jumpRecordId: 1 }, { sparse: true });
 
 module.exports = mongoose.model("Mikrotik", mikrotikSchema);

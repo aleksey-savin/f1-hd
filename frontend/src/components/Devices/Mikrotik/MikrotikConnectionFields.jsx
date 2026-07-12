@@ -20,6 +20,8 @@ import {
   RiRefreshLine,
 } from "react-icons/ri";
 
+import Select from "../../../UI/Select";
+
 // Connection-form defaults shared by the Mikrotik parameter forms.
 export const EMPTY = {
   host: "",
@@ -29,7 +31,12 @@ export const EMPTY = {
   useTls: true,
   knockSequence: "",
   sshPort: "22",
+  // «Подключение через устройство»: recordId транзитного роутера ("" = напрямую).
+  jumpRecordId: "",
 };
+
+const findOption = (options, value) =>
+  options.find((option) => option.value === value) || null;
 
 // "22000 22111, 22222" -> [22000, 22111, 22222]
 export const parseKnock = (value) =>
@@ -144,6 +151,7 @@ const SetupHelp = ({
   sshPort,
   knockSequence,
   onChange,
+  jumpSelected = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState(null);
@@ -156,6 +164,12 @@ const SetupHelp = ({
 
   const knockPorts = parseKnock(knockSequence || "").slice(0, 3);
 
+  // Через транзит knock не используется — его пресеты выключаются и не
+  // предлагаются в скрипте (доступ ограничивается файрволом устройства).
+  const effectivePresets = jumpSelected
+    ? { ...presets, knock: false, drop: false }
+    : presets;
+
   // Generate random knock ports and push them into the form field.
   const generatePorts = () => {
     onChange?.({
@@ -166,14 +180,19 @@ const SetupHelp = ({
   // Auto-fill knock ports when opening the block with knocking enabled and no
   // usable sequence yet — never clobbers a complete one the user already typed.
   useEffect(() => {
-    if (open && presets.knock && parseKnock(knockSequence || "").length < 3) {
+    if (
+      open &&
+      presets.knock &&
+      !jumpSelected &&
+      parseKnock(knockSequence || "").length < 3
+    ) {
       generatePorts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, presets.knock]);
+  }, [open, presets.knock, jumpSelected]);
 
   const commands = buildSetupCommands({
-    presets,
+    presets: effectivePresets,
     host,
     user,
     password,
@@ -236,15 +255,16 @@ const SetupHelp = ({
               type="checkbox"
               id="preset-knock"
               label="Port knocking"
-              checked={presets.knock}
+              checked={effectivePresets.knock}
+              disabled={jumpSelected}
               onChange={() => togglePreset("knock")}
             />
             <Form.Check
               type="checkbox"
               id="preset-drop"
               label="Закрыть admin-порты из WAN"
-              checked={presets.drop}
-              disabled={!presets.knock}
+              checked={effectivePresets.drop}
+              disabled={!effectivePresets.knock || jumpSelected}
               onChange={() => togglePreset("drop")}
             />
           </div>
@@ -252,7 +272,7 @@ const SetupHelp = ({
           <div className="d-flex justify-content-between align-items-center mb-1">
             <span className="small text-muted">RouterOS</span>
             <div className="d-flex gap-2">
-              {presets.knock && (
+              {effectivePresets.knock && (
                 <Button
                   variant="outline-secondary"
                   size="sm"
@@ -333,14 +353,19 @@ const SetupHelp = ({
 
 // Shared host/port/user/password + port-knock fields for the Mikrotik connection
 // forms (inventory ParametersModal and standalone StandaloneModal). The parent
-// owns the form state and passes the handlers.
+// owns the form state and passes the handlers. `jumpOptions` — доступные
+// транзитные роутеры для «подключения через устройство» ({value, label}).
 const MikrotikConnectionFields = ({
   form,
   onChange,
   showPassword,
   onToggleShowPassword,
   autoFocusHost = true,
-}) => (
+  jumpOptions = [],
+}) => {
+  const jumpSelected = Boolean(form.jumpRecordId);
+
+  return (
   <>
     <SectionLabel>Подключение</SectionLabel>
 
@@ -392,6 +417,29 @@ const MikrotikConnectionFields = ({
         />
       </Col>
     </Row>
+
+    <Form.Group className="mb-3">
+      <Form.Label htmlFor="jumpRecordId" className="small mb-1">
+        Подключение через устройство
+      </Form.Label>
+      <Select
+        inputId="jumpRecordId"
+        options={jumpOptions}
+        value={findOption(jumpOptions, form.jumpRecordId)}
+        onChange={(option) =>
+          onChange({
+            target: { name: "jumpRecordId", value: option ? option.value : "" },
+          })
+        }
+        placeholder="Напрямую (по умолчанию)"
+        isClearable
+      />
+      <Form.Text className="text-muted">
+        SSH-туннель через уже подключённый роутер MikroTik — для устройств в
+        LAN без проброса портов. На роутере выполните:{" "}
+        <code>/ip ssh set forwarding-enabled=local</code>
+      </Form.Text>
+    </Form.Group>
 
     <Row className="g-3 mb-3">
       <Col sm={6}>
@@ -454,29 +502,37 @@ const MikrotikConnectionFields = ({
       </Col>
     </Row>
 
-    <Form.Group className="mb-3">
-      <Form.Label htmlFor="knockSequence" className="small mb-1">
-        Port knocking
-      </Form.Label>
-      <InputGroup>
-        <InputGroup.Text>
-          <RiKey2Line />
-        </InputGroup.Text>
-        <Form.Control
-          id="knockSequence"
-          name="knockSequence"
-          type="text"
-          className="font-monospace"
-          placeholder="напр. 22000 22111 22222"
-          value={form.knockSequence}
-          onChange={onChange}
-        />
-      </InputGroup>
-      <Form.Text className="text-muted">
-        Порты через пробел или запятую. Заполняются автоматически из инструкции
-        ниже.
-      </Form.Text>
-    </Form.Group>
+    {jumpSelected ? (
+      <div className="text-muted small mb-3">
+        <RiKey2Line className="me-1" aria-hidden />
+        Port knocking через туннель не используется — ограничьте доступ к
+        API/SSH на устройстве файрволом по LAN-адресу роутера.
+      </div>
+    ) : (
+      <Form.Group className="mb-3">
+        <Form.Label htmlFor="knockSequence" className="small mb-1">
+          Port knocking
+        </Form.Label>
+        <InputGroup>
+          <InputGroup.Text>
+            <RiKey2Line />
+          </InputGroup.Text>
+          <Form.Control
+            id="knockSequence"
+            name="knockSequence"
+            type="text"
+            className="font-monospace"
+            placeholder="напр. 22000 22111 22222"
+            value={form.knockSequence}
+            onChange={onChange}
+          />
+        </InputGroup>
+        <Form.Text className="text-muted">
+          Порты через пробел или запятую. Заполняются автоматически из
+          инструкции ниже.
+        </Form.Text>
+      </Form.Group>
+    )}
 
     <SetupHelp
       host={form.host}
@@ -486,8 +542,10 @@ const MikrotikConnectionFields = ({
       sshPort={form.sshPort}
       knockSequence={form.knockSequence}
       onChange={onChange}
+      jumpSelected={jumpSelected}
     />
   </>
-);
+  );
+};
 
 export default MikrotikConnectionFields;

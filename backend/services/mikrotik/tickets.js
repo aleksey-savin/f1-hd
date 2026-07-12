@@ -37,8 +37,8 @@ const deviceLinkHtml = (record) => {
 
 // Resolve the embedded { _id, alias } company for a Mikrotik record. Standalone
 // records carry companyId directly; inventory-backed records inherit it from the
-// linked ClientDevice. Returns undefined when it can't be resolved (the ticket is
-// still worth creating without a company).
+// linked ClientDevice. Returns undefined when it can't be resolved — the caller
+// then falls back to the default company (see resolveDefaultCompany).
 const resolveCompany = async (record) => {
   let companyId = record.companyId;
   if (!companyId && record.clientDevice) {
@@ -49,6 +49,19 @@ const resolveCompany = async (record) => {
   }
   if (!companyId) return undefined;
 
+  const company = await Company.findById(companyId).select("alias");
+  if (!company) return undefined;
+  return { _id: company._id, alias: company.alias };
+};
+
+// Компания по умолчанию из Preferences — паттерн почтового пайплайна для
+// «сиротских» заявок. Заявка без company ломает сквозной инвариант приложения:
+// уведомления, работы и проверки прав разыменовывают ticket.company без
+// проверок (после toObject() mongoose вырезает пустой объект — 500 на карточке
+// заявки), поэтому машинные заявки всегда получают хотя бы её.
+const resolveDefaultCompany = async (prefs) => {
+  const companyId = prefs?.defaultCompany?._id;
+  if (!companyId) return undefined;
   const company = await Company.findById(companyId).select("alias");
   if (!company) return undefined;
   return { _id: company._id, alias: company.alias };
@@ -91,7 +104,13 @@ const createMikrotikTicket = async (
     if (!basics) return null;
     const { prefs, applicant } = basics;
 
-    const company = await resolveCompany(record);
+    const company =
+      (await resolveCompany(record)) ?? (await resolveDefaultCompany(prefs));
+    if (!company) {
+      logger.warn(
+        "Mikrotik ticket created without company: neither the device company nor Preferences.defaultCompany resolved",
+      );
+    }
     const deadlineHours = prefs?.deadline || 10;
     const now = new Date();
 
@@ -124,9 +143,11 @@ const createMikrotikTicket = async (
 };
 
 // Глобальная системная заявка (не по одному устройству) — например, сводная по
-// уязвимостям прошивок. Без company и без relatedClientDeviceId: ref одиночный,
-// N устройств им не выразить — их список живёт в описании и чек-листе. Пункты
-// чек-листа не mandatory, чтобы человек мог убрать неактуальный. Never throws.
+// уязвимостям прошивок. Company — из Preferences.defaultCompany (устройств
+// много, «своей» компании у заявки нет, а без company падают карточка заявки,
+// уведомления и работы). Без relatedClientDeviceId: ref одиночный, N устройств
+// им не выразить — их список живёт в описании и чек-листе. Пункты чек-листа
+// не mandatory, чтобы человек мог убрать неактуальный. Never throws.
 const createMikrotikSystemTicket = async ({
   title,
   description,
@@ -138,6 +159,12 @@ const createMikrotikSystemTicket = async ({
     if (!basics) return null;
     const { prefs, applicant } = basics;
 
+    const company = await resolveDefaultCompany(prefs);
+    if (!company) {
+      logger.warn(
+        "Mikrotik system ticket created without company: Preferences.defaultCompany is not set",
+      );
+    }
     const deadlineHours = prefs?.deadline || 10;
     const now = new Date();
 
@@ -146,6 +173,7 @@ const createMikrotikSystemTicket = async ({
       description: description || "",
       categoryId: categoryId || null,
       applicantId: applicant._id,
+      company,
       deadline: new Date(now.getTime() + deadlineHours * 60 * 60 * 1000),
       isClosed: false,
       state: "Новая",

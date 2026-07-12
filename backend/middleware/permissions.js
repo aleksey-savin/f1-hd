@@ -79,7 +79,7 @@ module.exports.allowedToViewTicket = async (req, res, next) => {
 
   const canSeeAllCompanyTickets =
     permissions?.canSeeAllCompanyTickets &&
-    authedUser.company._id.toString() === ticket.company._id.toString();
+    authedUser.company._id.toString() === ticket.company?._id?.toString();
 
   const canSeeAllTickets = authedUser.permissions.canSeeAllTickets;
 

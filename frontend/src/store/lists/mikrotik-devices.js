@@ -16,6 +16,7 @@ const rowSearchFields = (item) => [
   item.model?.vendor,
   item.location?.name,
   item.company?.name,
+  item.jump?.name,
 ];
 
 // последовательно отсеивает устройства согласно активному поиску

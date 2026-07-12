@@ -10,7 +10,11 @@ const {
 } = require("./tickets");
 const { attachTicket } = require("./outages");
 const { pollWithRetry } = require("./connector");
-const { pollParams, recoverToOnline } = require("./monitorState");
+const {
+  pollParams,
+  loadJumpContexts,
+  recoverToOnline,
+} = require("./monitorState");
 const logger = require("../../utils/logger");
 
 // How many candidates to re-poll concurrently.
@@ -20,13 +24,20 @@ const BATCH_SIZE = 5;
 // few minutes old, and a ticket is expensive to be wrong about — so before raising
 // one, poll. A device that answers here is recovered on the spot and never ticketed.
 // Returns true when the device is confirmed unreachable.
-const stillOffline = async (record) => {
+const stillOffline = async (record, jumpCtx) => {
+  // Транзит задан, но контекст не загрузился (висячая ссылка / битые креды
+  // роутера) — устройство недостижимо по построению; health-check держит
+  // lastError объясняющим, а заявка здесь уместна.
+  if (record.jumpRecordId && !jumpCtx) return true;
   try {
     // Up/down only: no full-group guard, no serial — keep the check cheap.
-    const poll = await pollWithRetry(pollParams(record), {
-      verifyFullGroup: false,
-      readRouterboard: false,
-    });
+    const poll = await pollWithRetry(
+      { ...pollParams(record), jump: jumpCtx?.params },
+      {
+        verifyFullGroup: false,
+        readRouterboard: false,
+      },
+    );
     await recoverToOnline(record, poll);
     logger.log("warn", "Mikrotik offline alert suppressed: device answered", {
       recordId: record._id,
@@ -125,8 +136,33 @@ const runMikrotikOfflineAlerts = async () => {
   });
   if (devices.length === 0) return;
 
+  // Один запрос: контексты транзитов кандидатов (для подавления и re-poll).
+  const jumpContexts = await loadJumpContexts(devices);
+
   const alertIfDown = async (record) => {
-    if (!(await stillOffline(record))) return;
+    const jumpCtx = record.jumpRecordId
+      ? jumpContexts.get(String(record.jumpRecordId))
+      : null;
+    // Подавление ДО re-poll и ДО claim-CAS: пока транзитный роутер сам лежит,
+    // заявки по зависимым не создаются — инцидент покрывает заявка роутера, а
+    // offlineAlertedAt остаётся null, так что следующий тик пере-оценит (роутер
+    // ожил, свитч — нет → заявка будет создана). Эпизоды простоя зависимых при
+    // этом продолжают записываться health-check'ом — доступность честная. Гейт
+    // по monitoringEnabled обязателен: legacy disconnect замораживает
+    // status:"offline" навсегда, и без гейта зависимые не алертились бы никогда.
+    if (jumpCtx?.doc?.monitoringEnabled && jumpCtx.doc.status === "offline") {
+      logger.log(
+        "warn",
+        "Mikrotik offline alert suppressed: jump device offline",
+        {
+          recordId: record._id,
+          jumpRecordId: String(record.jumpRecordId),
+          jumpHost: jumpCtx.doc.credentials?.host,
+        },
+      );
+      return;
+    }
+    if (!(await stillOffline(record, jumpCtx))) return;
     await raiseTicket(record, cfg, prefs);
   };
 

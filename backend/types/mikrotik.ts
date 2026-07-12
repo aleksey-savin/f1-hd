@@ -41,6 +41,9 @@ export interface IMikrotik {
   // Standalone identity, used when there is no clientDevice.
   companyId?: Types.ObjectId;
   label?: string;
+  // Транзит: соединения туннелируются через SSH этого управляемого роутера.
+  // Один уровень — запись с транзитом сама транзитом быть не может.
+  jumpRecordId?: Types.ObjectId;
   credentials?: {
     host?: string;
     port?: number;

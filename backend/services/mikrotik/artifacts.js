@@ -4,11 +4,11 @@ const crypto = require("crypto");
 
 const MikrotikArtifact = require("../../models/mikrotikArtifact");
 const {
-  decodeKnockSequence,
-  decryptSecret,
+  buildSshParams,
   withSshSession,
   exportConfig,
 } = require("./connector");
+const { resolveJumpContext } = require("./monitorState");
 const { encryptArtifact } = require("../crypto/artifactBox");
 const storage = require("../storage");
 const Preferences = require("../../models/preferences");
@@ -70,15 +70,31 @@ const assertPublicHost = async (host) => {
   }
 };
 
-// SSH parameters for a record (same host/account/knock as the API poll).
-const buildSshParams = (record) => ({
-  host: record.credentials.host,
-  sshPort: record.credentials.sshPort || 22,
-  user: record.credentials.user,
-  password: decryptSecret(record.credentials.password),
-  knockSequence: decodeKnockSequence(record.credentials.knockSequence),
-  sshHostKey: record.credentials.sshHostKey,
-});
+// Мягкий SSRF-guard для целей за транзитом («подключение через устройство»):
+// адрес за роутером — LAN, поэтому RFC1918/ULA легитимны; блокируются только
+// loopback/link-local/0.0.0.0 и литерал localhost (незачем указывать роутеру
+// на самого себя или в облачную метадату). Имена НЕ резолвятся: их резолвит
+// роутер в своей сети, взгляд бэкенда на DNS нерелевантен.
+const assertJumpTargetHost = (host) => {
+  const blocked = (() => {
+    if (net.isIPv4(host)) {
+      const [a, b] = host.split(".").map(Number);
+      return a === 127 || a === 0 || (a === 169 && b === 254);
+    }
+    if (net.isIPv6(host)) {
+      const low = host.toLowerCase();
+      return low === "::1" || low === "::" || low.startsWith("fe80");
+    }
+    return String(host).trim().toLowerCase() === "localhost";
+  })();
+  if (blocked) {
+    const error = new Error(
+      `Хост ${host} недопустим для подключения через транзитное устройство`,
+    );
+    error.code = "MIKROTIK_BLOCKED_HOST";
+    throw error;
+  }
+};
 
 // Filesystem-safe base for a human download name.
 const sanitizeBaseName = (value) =>
@@ -123,7 +139,11 @@ const createArtifact = async (
   record,
   { trigger = "manual", userId = null } = {},
 ) => {
-  await assertPublicHost(record.credentials.host);
+  // Транзитная цель — LAN-адрес за роутером: мягкий guard; прямая — как раньше.
+  // Висячая ссылка на транзит даёт MIKROTIK_JUMP_RECORD_MISSING (422 / lastError).
+  const jumpCtx = await resolveJumpContext(record);
+  if (record.jumpRecordId) assertJumpTargetHost(record.credentials.host);
+  else await assertPublicHost(record.credentials.host);
 
   // Настройки нужны дважды: таймзона для имени файла и опция config-change ниже.
   const prefs = await Preferences.findOne({});
@@ -131,7 +151,7 @@ const createArtifact = async (
   const storageKey = `${crypto.randomUUID()}.rsc`;
 
   const { result: buffer, hostKey } = await withSshSession(
-    buildSshParams(record),
+    { ...buildSshParams(record), jump: jumpCtx?.params },
     (conn) => exportConfig(conn),
   );
 
@@ -213,6 +233,7 @@ const createArtifact = async (
 
 module.exports = {
   assertPublicHost,
+  assertJumpTargetHost,
   createArtifact,
   pruneArtifacts,
 };

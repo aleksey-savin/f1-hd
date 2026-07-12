@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 
 const Mikrotik = require("../../models/mikrotik");
 const MikrotikArtifact = require("../../models/mikrotikArtifact");
@@ -18,6 +19,7 @@ const {
   encryptSecret,
   decryptSecret,
   decodeKnockSequence,
+  buildSshParams,
   assertUserNotFullGroup,
   pollDevice,
   mapPollToFields,
@@ -28,8 +30,10 @@ const { decryptArtifact } = require("../../services/crypto/artifactBox");
 const { computeNextRun } = require("../../services/mikrotik/schedule");
 const {
   assertPublicHost,
+  assertJumpTargetHost,
   createArtifact,
 } = require("../../services/mikrotik/artifacts");
+const { resolveJumpContext } = require("../../services/mikrotik/monitorState");
 const {
   markRecovered,
   closeOpenOutage,
@@ -121,14 +125,16 @@ const buildDisplayName = (record, device) => {
 };
 
 // Shapes one merged row for the management table. Never exposes the password.
-// `protection` carries the latest backup/export artifact dates for the badges.
-const buildRow = (device, record, protection) => {
+// `protection` carries the latest backup/export artifact dates for the badges;
+// `jump` — {recordId, name} транзитного роутера («подключение через устройство»).
+const buildRow = (device, record, protection, jump) => {
   const model = device.deviceModelId;
 
   return {
     source: "inventory",
     clientDeviceId: device._id,
     recordId: record?._id || null,
+    jump: jump || null,
     displayName: buildDisplayName(record, device),
     serialNumber: device.serialNumber,
     company: device.companyId
@@ -161,10 +167,11 @@ const buildRow = (device, record, protection) => {
 };
 
 // Shapes a standalone row (no inventory ClientDevice, e.g. Cloud Hosted Router).
-const buildStandaloneRow = (record, protection) => ({
+const buildStandaloneRow = (record, protection, jump) => ({
   source: "standalone",
   clientDeviceId: null,
   recordId: record._id,
+  jump: jump || null,
   displayName:
     record.label || record.name || record.credentials?.host || "Cloud Hosted Router",
   serialNumber: record.serialNumber || null,
@@ -188,6 +195,83 @@ const buildStandaloneRow = (record, protection) => ({
   lastBackupAt: protection?.lastBackupAt || null,
   lastExportAt: protection?.lastExportAt || null,
 });
+
+// Валидирует «подключение через устройство» из тела запроса; null — прямое
+// подключение. Один уровень транзита: у транзита не может быть своего
+// транзита, а записи с зависимыми нельзя задать транзит (иначе резолв стал бы
+// рекурсивным). Все отказы — операторские 422.
+const resolveJumpForSave = async (body, existing) => {
+  const raw = body.jumpRecordId;
+  if (raw === undefined || raw === null || raw === "") return null;
+
+  if (!mongoose.isValidObjectId(raw)) {
+    throw new AppError(
+      "Некорректный идентификатор транзитного устройства",
+      422,
+    );
+  }
+  if (existing && String(existing._id) === String(raw)) {
+    throw new AppError("Устройство не может подключаться через само себя", 422);
+  }
+  const jumpDoc = await Mikrotik.findById(raw);
+  if (!jumpDoc || !jumpDoc.credentials?.host) {
+    throw new AppError("Транзитное устройство не найдено", 422);
+  }
+  if (jumpDoc.jumpRecordId) {
+    throw new AppError(
+      "Нельзя подключаться через устройство, которое само подключено через " +
+        "другое устройство",
+      422,
+    );
+  }
+  if (existing) {
+    const hasDependents = await Mikrotik.exists({ jumpRecordId: existing._id });
+    if (hasDependents) {
+      throw new AppError(
+        "Через это устройство уже подключены другие — ему нельзя задать транзит",
+        422,
+      );
+    }
+  }
+  return jumpDoc;
+};
+
+// Блокирует удаление записи, через которую подключены другие устройства: их
+// мониторинг молча осиротел бы (висячая ссылка). Возвращает AppError 409 с
+// именами зависимых или null.
+const dependentsConflict = async (record) => {
+  const dependents = await Mikrotik.find({ jumpRecordId: record._id })
+    .select("name label credentials.host")
+    .lean();
+  if (!dependents.length) return null;
+  const names = dependents
+    .slice(0, 5)
+    .map(
+      (dep) => `«${dep.name || dep.label || dep.credentials?.host || dep._id}»`,
+    )
+    .join(", ");
+  const tail = dependents.length > 5 ? ` и ещё ${dependents.length - 5}` : "";
+  return new AppError(
+    `Через это устройство подключены: ${names}${tail}. Сначала переключите ` +
+      "их на прямое подключение или отвяжите",
+    409,
+  );
+};
+
+// Транзит одной записи для getOne/getStandaloneOne: имя роутера для строки
+// «через <имя>» и префилла селекта в форме параметров.
+const jumpInfoFor = async (record) => {
+  if (!record?.jumpRecordId) return null;
+  const jumpDoc = await Mikrotik.findById(record.jumpRecordId)
+    .select("name label credentials.host")
+    .lean();
+  return {
+    recordId: record.jumpRecordId,
+    name: jumpDoc
+      ? jumpDoc.name || jumpDoc.label || jumpDoc.credentials?.host || null
+      : null,
+  };
+};
 
 // Validates connection params, opens a verified live session (SSRF-guarded,
 // port-knock + TLS poll + Full-group guard) and returns the record fields to
@@ -221,8 +305,24 @@ const verifyAndBuild = async (body, existing) => {
     throw new AppError("host, port, user и password обязательны", 422);
   }
 
+  const jumpDoc = await resolveJumpForSave(body, existing);
+
+  // Через транзит цель недостижима с бэкенда — knock туда физически не дойдёт
+  // (а с роутера он бессмыслен: источником был бы LAN-адрес самого роутера).
+  // Вместо него доступ ограничивается файрволом на устройстве.
+  if (jumpDoc && knockPorts.length) {
+    throw new AppError(
+      "Port knocking недоступен при подключении через устройство — " +
+        "ограничьте доступ к API/SSH файрволом на самом устройстве",
+      422,
+    );
+  }
+
   try {
-    await assertPublicHost(host);
+    // Транзитная цель — LAN-адрес за роутером: мягкий guard (RFC1918 разрешён);
+    // прямая — как раньше (публичный адрес обязателен).
+    if (jumpDoc) assertJumpTargetHost(host);
+    else await assertPublicHost(host);
   } catch (error) {
     throw new AppError(error.message, 422, true, error);
   }
@@ -235,11 +335,31 @@ const verifyAndBuild = async (body, existing) => {
     // Pin to the device's already-trusted cert (if any) while verifying.
     tlsCert: existing?.credentials?.tlsCert,
     knockSequence: knockPorts,
+    jump: jumpDoc ? buildSshParams(jumpDoc) : undefined,
   });
   assertUserNotFullGroup(poll.users, user);
 
+  // Опортунистический TOFU-пиннинг SSH-ключа роутера: транзитный полл мог
+  // увидеть ключ раньше первой SSH-операции самого роутера. Guarded — уже
+  // закреплённый отпечаток никогда не перезаписывается.
+  if (jumpDoc && poll.jumpHostKey && !jumpDoc.credentials?.sshHostKey) {
+    await Mikrotik.updateOne(
+      {
+        _id: jumpDoc._id,
+        $or: [
+          { "credentials.sshHostKey": { $exists: false } },
+          { "credentials.sshHostKey": null },
+        ],
+      },
+      { $set: { "credentials.sshHostKey": poll.jumpHostKey } },
+    );
+  }
+
   const now = new Date();
   return {
+    // Present only when set; the save paths $unset it otherwise, so clearing
+    // the select in the form really detaches the record from its transit.
+    ...(jumpDoc ? { jumpRecordId: jumpDoc._id } : {}),
     credentials: {
       host,
       port,
@@ -248,9 +368,14 @@ const verifyAndBuild = async (body, existing) => {
       useTls,
       // Pin the observed cert (TOFU) or keep the previously pinned one.
       tlsCert: poll.tlsCert || existing?.credentials?.tlsCert,
-      knockSequence: knockPorts.length
-        ? encryptSecret(JSON.stringify(knockPorts))
-        : existing?.credentials?.knockSequence,
+      // Смена режима на транзит явно сбрасывает сохранённый knock (пустой ввод
+      // обычно СОХРАНЯЕТ старый шифрблоб — для транзита он стал бы «протухшим»
+      // секретом, который никогда не используется).
+      knockSequence: jumpDoc
+        ? undefined
+        : knockPorts.length
+          ? encryptSecret(JSON.stringify(knockPorts))
+          : existing?.credentials?.knockSequence,
       // Preserve SSH settings across param re-saves (this object replaces the
       // whole credentials sub-doc). Drop the pinned host key if the host changed.
       sshPort,
@@ -438,17 +563,56 @@ exports.getManagedDevices = async (req, res, next) => {
       records.map((record) => [String(record.clientDevice), record]),
     );
 
+    // Имена транзитов для «через <имя>» — по уже загруженным записям, без
+    // дополнительных запросов. Роутер, выпавший из выборки (например, у его
+    // вендора сняли флаг), даёт name: null — фронт показывает нейтральный текст.
+    const deviceById = new Map(
+      devices.map((device) => [String(device._id), device]),
+    );
+    const jumpNames = new Map();
+    for (const record of records) {
+      const device = deviceById.get(String(record.clientDevice));
+      jumpNames.set(
+        String(record._id),
+        device
+          ? buildDisplayName(record, device)
+          : record.name || record.credentials?.host || null,
+      );
+    }
+    for (const record of standaloneRecords) {
+      jumpNames.set(
+        String(record._id),
+        record.label || record.name || record.credentials?.host || null,
+      );
+    }
+    const jumpFor = (record) =>
+      record?.jumpRecordId
+        ? {
+            recordId: record.jumpRecordId,
+            name: jumpNames.get(String(record.jumpRecordId)) || null,
+          }
+        : null;
+
     const inventoryRows = devices.map((device) => {
       const record = recordByDevice.get(String(device._id));
       return {
-        ...buildRow(device, record, protectionFor(artifactSummary, record?._id)),
+        ...buildRow(
+          device,
+          record,
+          protectionFor(artifactSummary, record?._id),
+          jumpFor(record),
+        ),
         uptime30d: record ? (uptimeMap.get(String(record._id)) ?? null) : null,
         firmwareStatus: record ? evaluateFirmware(record, firmware) : null,
       };
     });
 
     const standaloneRows = standaloneRecords.map((record) => ({
-      ...buildStandaloneRow(record, protectionFor(artifactSummary, record._id)),
+      ...buildStandaloneRow(
+        record,
+        protectionFor(artifactSummary, record._id),
+        jumpFor(record),
+      ),
       uptime30d: uptimeMap.get(String(record._id)) ?? null,
       firmwareStatus: evaluateFirmware(record, firmware),
     }));
@@ -526,9 +690,10 @@ exports.getOne = async (req, res, next) => {
       .lean();
 
     const firmware = await loadFirmwareContext();
+    const jump = await jumpInfoFor(record);
 
     res.status(200).json({
-      ...buildRow(device, record),
+      ...buildRow(device, record, undefined, jump),
       firmwareStatus: record ? evaluateFirmware(record, firmware) : null,
       record: record || null,
       // Стоячее предупреждение о расхождениях карточки с устройством.
@@ -576,6 +741,8 @@ exports.updateParameters = async (req, res, next) => {
     // episode (+ recovery comment) and clear the stale offline-alert state, which
     // a bare upsert would otherwise leave behind until the next cron tick.
     const unset = { firstFailureAt: "" };
+    // Очищенный селект транзита должен реально отвязать запись от роутера.
+    if (!update.jumpRecordId) unset.jumpRecordId = "";
     if (existing?.offlineSince) {
       await markRecovered(existing);
       unset.offlineSince = "";
@@ -734,6 +901,9 @@ exports.connect = async (req, res, next) => {
 
     const now = new Date();
     try {
+      // Висячая ссылка на транзит бросит здесь и попадёт в общий catch —
+      // статус offline с понятным (русским) lastError.
+      const jumpCtx = await resolveJumpContext(record);
       const poll = await pollDevice({
         host: record.credentials.host,
         port: record.credentials.port,
@@ -741,6 +911,7 @@ exports.connect = async (req, res, next) => {
         password: decryptSecret(record.credentials.password),
         tlsCert: record.credentials.tlsCert,
         knockSequence: decodeKnockSequence(record.credentials.knockSequence),
+        jump: jumpCtx?.params,
       });
       Object.assign(record, mapPollToFields(poll));
       if (poll.tlsCert && !record.credentials.tlsCert) {
@@ -831,7 +1002,7 @@ exports.disconnect = async (req, res, next) => {
 // untouched and returns to the "not configured" pool, so it can be re-added.
 exports.detach = async (req, res, next) => {
   try {
-    const record = await Mikrotik.findOneAndDelete({
+    const record = await Mikrotik.findOne({
       clientDevice: req.params.clientDeviceId,
     });
 
@@ -839,6 +1010,12 @@ exports.detach = async (req, res, next) => {
       return next(new AppError("Устройство не настроено", 404));
     }
 
+    // Запись может быть транзитом для других — удалять её нельзя, пока они
+    // подключены через неё (иначе их мониторинг молча осиротеет).
+    const conflict = await dependentsConflict(record);
+    if (conflict) return next(conflict);
+
+    await Mikrotik.deleteOne({ _id: record._id });
     await deleteOutages(record._id);
 
     logger.log("info", "Mikrotik device detached", {
@@ -916,9 +1093,10 @@ exports.getStandaloneOne = async (req, res, next) => {
     }
 
     const firmware = await loadFirmwareContext();
+    const jump = await jumpInfoFor(record);
 
     res.status(200).json({
-      ...buildStandaloneRow(record),
+      ...buildStandaloneRow(record, undefined, jump),
       firmwareStatus: evaluateFirmware(record, firmware),
       record,
     });
@@ -954,6 +1132,8 @@ exports.updateStandaloneParameters = async (req, res, next) => {
 
     // Verified save = recovery (see updateParameters).
     const unset = { firstFailureAt: "" };
+    // Очищенный селект транзита должен реально отвязать запись от роутера.
+    if (!update.jumpRecordId) unset.jumpRecordId = "";
     if (existing.offlineSince) {
       await markRecovered(existing);
       unset.offlineSince = "";
@@ -997,7 +1177,7 @@ exports.updateStandaloneParameters = async (req, res, next) => {
 // Delete a standalone record entirely (no inventory device to fall back to).
 exports.detachStandalone = async (req, res, next) => {
   try {
-    const record = await Mikrotik.findOneAndDelete({
+    const record = await Mikrotik.findOne({
       _id: req.params.recordId,
       clientDevice: { $exists: false },
     });
@@ -1005,6 +1185,11 @@ exports.detachStandalone = async (req, res, next) => {
       return next(new AppError("Устройство не найдено", 404));
     }
 
+    // Как в detach: транзит с зависимыми удалять нельзя.
+    const conflict = await dependentsConflict(record);
+    if (conflict) return next(conflict);
+
+    await Mikrotik.deleteOne({ _id: record._id });
     await deleteOutages(record._id);
 
     logger.log("info", "Standalone mikrotik device deleted", {
