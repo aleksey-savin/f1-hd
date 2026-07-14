@@ -222,6 +222,22 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
   }
 };
 
+// Закрыть IMAP-соединение, не роняя процесс: end() по уже мёртвому сокету
+// может бросить синхронно — глотаем и логируем.
+const endImapConnection = (connection, context) => {
+  if (!connection) {
+    return;
+  }
+  try {
+    connection.end();
+  } catch (endError) {
+    logger.log("warn", "IMAP connection end failed (ignored)", {
+      ...context,
+      error: endError.message,
+    });
+  }
+};
+
 exports.handleNewEmails = async () => {
   const context = {
     module: "emailHandling",
@@ -267,6 +283,19 @@ exports.handleNewEmails = async () => {
     // logger.log("info", "Starting email processing", emailContext);
 
     connection = await imaps.connect(config);
+
+    // ImapSimple — EventEmitter: сокетные ошибки (read ETIMEDOUT, ECONNRESET)
+    // он эмитит АСИНХРОННО — между командами, в keepalive или уже после end().
+    // Без слушателя 'error' Node роняет весь процесс ("Emitted 'error' event
+    // on ImapSimple instance"), а try/catch вокруг await такое не ловит.
+    // Логируем и продолжаем: недочитанная почта догонится следующим краном.
+    connection.on("error", (imapError) => {
+      logger.log("warn", "IMAP connection error (ignored)", {
+        ...context,
+        error: imapError.message,
+      });
+    });
+
     await connection.openBox("INBOX");
     const searchCriteria = ["UNSEEN"];
     const fetchOptions = {
@@ -742,7 +771,7 @@ exports.handleNewEmails = async () => {
         });
       }
     }
-    connection.end();
+    endImapConnection(connection, context);
     connection = null;
 
     if (emailArray.length > 0) {
@@ -758,8 +787,6 @@ exports.handleNewEmails = async () => {
       stack: error.stack,
     });
   } finally {
-    if (connection) {
-      connection.end();
-    }
+    endImapConnection(connection, context);
   }
 };
