@@ -167,6 +167,7 @@ exports.update = async (req, res, next) => {
       knowledgeBase,
       mikrotik,
       overtime,
+      statusBoard,
     } = req.body;
 
     // Переход флага «выкл→вкл» — повод просканировать сразу, не дожидаясь крона.
@@ -196,6 +197,7 @@ exports.update = async (req, res, next) => {
         knowledgeBase,
         mikrotik,
         overtime,
+        statusBoard,
       });
       secretsJustEnabled = !!knowledgeBase?.scanForSecrets;
       serviceJustEnabled = !!knowledgeBase?.trackServiceExpiry;
@@ -243,6 +245,24 @@ exports.update = async (req, res, next) => {
       }
       if (mikrotik) {
         preferences.mikrotik = mikrotik;
+      }
+      // Табло статусов: из веба принимаем только конфигурацию; служебные поля
+      // (messageId, lastText) принадлежат боту и берутся из хранимых значений.
+      // Смена группы/ветки инвалидирует сообщение — бот пересоздаст табло.
+      if (statusBoard) {
+        const prev = preferences.statusBoard || {};
+        const chatId = statusBoard.chatId || "";
+        const messageThreadId = statusBoard.messageThreadId || "";
+        const targetChanged =
+          chatId !== (prev.chatId || "") ||
+          messageThreadId !== (prev.messageThreadId || "");
+        preferences.statusBoard = {
+          isActive: !!statusBoard.isActive,
+          chatId,
+          messageThreadId,
+          messageId: targetChanged ? null : (prev.messageId ?? null),
+          lastText: targetChanged ? "" : prev.lastText || "",
+        };
       }
       // Защищаемся от затирания настроек переработок при частичном POST
       if (overtime) {

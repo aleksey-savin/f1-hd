@@ -2,6 +2,7 @@ import ItemCard from "../../UI/ItemCard";
 import ToggleActive from "./ToggleActive";
 
 import { formatDate } from "../../util/format-date";
+import { getWorkStatusMeta } from "../../util/work-statuses";
 
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
@@ -34,9 +35,22 @@ function UserItem({ item }) {
     isServiceAccount,
     isAdmin,
     isCloudTelephony,
+    isEndUser,
     isActive,
     lastActivity,
+    workStatus,
+    hideWorkStatus,
   } = item;
+
+  // Статус присутствия показываем только сотрудникам — у клиентов, сервисных
+  // аккаунтов, телефонии и скрытых из статусов (сторонних) его нет
+  const showWorkStatus =
+    !isEndUser &&
+    !isServiceAccount &&
+    !isCloudTelephony &&
+    !hideWorkStatus &&
+    isActive;
+  const workStatusMeta = getWorkStatusMeta(workStatus?.code);
 
   const avatarSrc = profileImagePath
     ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${profileImagePath}`
@@ -110,6 +124,19 @@ function UserItem({ item }) {
         </Col>
 
         <Col xs={12} md={4} className="d-flex flex-column gap-1">
+          {showWorkStatus && (
+            <Field icon={<span aria-hidden="true">{workStatusMeta.emoji}</span>}>
+              <span style={{ color: workStatusMeta.color }}>
+                {workStatusMeta.label}
+                {workStatus?.note && (
+                  <span className="text-body-secondary">
+                    {" "}
+                    ({workStatus.note})
+                  </span>
+                )}
+              </span>
+            </Field>
+          )}
           <Field icon={<RiTimeLine />}>
             <span className="text-body-secondary">
               Активность:{" "}

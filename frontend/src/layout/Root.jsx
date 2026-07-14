@@ -11,6 +11,7 @@ import useSidebarStore from "../store/sidebar";
 
 import NavigationBar from "./Navbar";
 import Footer from "./Footer";
+import WorkStatusBar from "../components/User/WorkStatusBar";
 import AlertToast from "../UI/AlertToast";
 // import Pro32Connect from "../components/Integrations/Pro32Connect/Pro32Connect";
 
@@ -135,6 +136,11 @@ const RootLayout = () => {
       {isLoggedIn && (
         <BrowserView>
           <NavigationBar />
+          {/* Бар статусов: фиксирован к правому краю окна. Рендерим вне
+              Transitions — transform у предка ломает position: fixed */}
+          {!userData?.isEndUser && !userData?.hideWorkStatus && (
+            <WorkStatusBar variant="rail" />
+          )}
         </BrowserView>
       )}
       <Transitions>
@@ -151,7 +157,11 @@ const RootLayout = () => {
           <Container
             fluid
             style={{ maxWidth: "1920px", paddingTop: "100px" }}
-            className="px-5 pb-5"
+            className={`px-5 pb-5${
+              isLoggedIn && !userData?.isEndUser && !userData?.hideWorkStatus
+                ? " has-ws-rail"
+                : ""
+            }`}
           >
             {appVersion !== import.meta.env.VITE_VERSION && (
               <Alert variant="warning" className="mb-4" dismissible>
@@ -191,6 +201,10 @@ const RootLayout = () => {
         {isLoggedIn ? (
           <div className="mobile-shell">
             <NavigationBar embedded />
+            {/* Лента статусов сотрудников: flex-элемент шелла, не fixed */}
+            {!userData?.isEndUser && !userData?.hideWorkStatus && (
+              <WorkStatusBar variant="strip" />
+            )}
             <main className="mobile-shell__scroll" ref={mobileScrollRef}>
               <Container className="pt-3">
                 <Outlet />

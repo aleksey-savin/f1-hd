@@ -142,6 +142,7 @@ exports.getAll = async (req, res, next) => {
       const companies = await Company.find();
       const specialists = await User.find({
         "permissions.canPerformTickets": true,
+        isActive: true,
       });
 
       let clientsWorksReport = [];

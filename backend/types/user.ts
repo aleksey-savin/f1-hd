@@ -66,6 +66,15 @@ export interface IUserEmailNotify {
   scheduledWorks: boolean;
 }
 
+export type WorkStatusCode =
+  | "office"
+  | "remote"
+  | "trip"
+  | "lunch"
+  | "vacation"
+  | "sick"
+  | "unset";
+
 export interface IUser {
   email: string;
   phone: string;
@@ -84,6 +93,7 @@ export interface IUser {
   isEndUser: boolean;
   isServiceAccount: boolean;
   isCloudTelephony: boolean;
+  hideWorkStatus?: boolean;
   permissions: IUserPermissions;
   dashboard: IUserDashboard;
   finances?: {
@@ -99,6 +109,11 @@ export interface IUser {
   resetToken?: string;
   resetTokenExpiration?: Date;
   telegramBot: { isActive: boolean; chatId: string };
+  workStatus?: {
+    code: WorkStatusCode;
+    note: string;
+    updatedAt: Date | null;
+  };
   getScreen: { api: string };
   notifications?: {
     lastAction?: string;

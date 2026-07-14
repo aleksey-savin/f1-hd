@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const cron = require("node-cron");
 const { checkTgNotifications } = require("./controllers/telegramController");
 const { checkEmailNotifications } = require("./controllers/emailController");
+const { checkStatusBoard } = require("./controllers/statusBoardController");
 const { launchTgBot } = require("./middleware/tgBotApi");
 
 const logger = require("./utils/logger");
@@ -50,4 +51,5 @@ launchTgBot();
 cron.schedule("*/20 * * * * *", () => {
   checkTgNotifications();
   checkEmailNotifications();
+  checkStatusBoard();
 });

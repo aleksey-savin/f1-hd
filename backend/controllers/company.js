@@ -71,8 +71,16 @@ exports.getOne = async (req, res, next) => {
     // which broke deeply nested structures. JS assembly has no depth limit.
     const subdivisionDocs = await Subdivision.find({ company: company._id })
       .select("name email phone address linkToMap manager users parent")
-      .populate("manager", "firstName lastName email position role isActive")
-      .populate("users", "firstName lastName email position role isActive")
+      .populate({
+        path: "manager",
+        select: "firstName lastName email position role isActive",
+        match: { isActive: true },
+      })
+      .populate({
+        path: "users",
+        select: "firstName lastName email position role isActive",
+        match: { isActive: true },
+      })
       .lean();
 
     const subdivisionById = new Map();
@@ -561,10 +569,12 @@ exports.addSubdivision = async (req, res, next) => {
       {
         path: "users",
         select: "firstName lastName email position role isActive",
+        match: { isActive: true },
       },
       {
         path: "manager",
         select: "firstName lastName email position role isActive",
+        match: { isActive: true },
       },
       {
         path: "subdivisions",
@@ -668,10 +678,12 @@ exports.updateSubdivision = async (req, res, next) => {
       {
         path: "users",
         select: "firstName lastName email position role isActive",
+        match: { isActive: true },
       },
       {
         path: "manager",
         select: "firstName lastName email position role isActive",
+        match: { isActive: true },
       },
       {
         path: "subdivisions",
@@ -853,10 +865,12 @@ exports.updateSubdivisionUsers = async (req, res, next) => {
         {
           path: "users",
           select: "firstName lastName email position role isActive",
+          match: { isActive: true },
         },
         {
           path: "manager",
           select: "firstName lastName email position role isActive",
+          match: { isActive: true },
         },
       ]);
 

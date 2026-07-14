@@ -100,6 +100,8 @@ export async function action({ request, params }) {
     isEndUser: data.get("isEndUser") === "true",
     isServiceAccount: data.get("isServiceAccount") === "true",
     isCloudTelephony: data.get("isCloudTelephony") === "true",
+    // Свитч «Статусы присутствия»: выключен (поле не отправляется) → скрыть
+    hideWorkStatus: data.get("workStatusEnabled") !== "true",
     permissions: {
       // ticket workflow
       canPerformTickets: data.get("canPerformTickets") === "true",

@@ -274,4 +274,24 @@ export async function action({ request }) {
 
     return response;
   }
+
+  // Смена статуса присутствия из навбара (WorkStatusSwitcher). Ошибку не
+  // бросаем: падение фонового переключателя не должно ронять страницу в
+  // errorElement — статус просто не изменится после ревалидации.
+  if (intent === "status-update") {
+    return await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/users/set-status`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({
+          code: data.get("code"),
+          note: data.get("note") ?? "",
+        }),
+      },
+    );
+  }
 }

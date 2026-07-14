@@ -43,6 +43,7 @@ const {
   runKnowledgeApprovalExpiry,
 } = require("./services/knowledgeApprovalExpiry");
 const { runSecretsScan } = require("./services/secretsScanRun");
+const { runWorkStatusReset } = require("./services/workStatusReset");
 const {
   runServiceExpiryScan,
 } = require("./services/serviceExpiryScanRun");
@@ -379,6 +380,34 @@ const registerMaintenanceCrons = async () => {
     "0 2 * * *",
     () => {
       scheduleLogsCleanup();
+    },
+    { timezone },
+  );
+
+  // Статусы присутствия: ночной сброс, кроме долгих (отпуск/болею) — daily 2:30
+  let isResettingWorkStatuses = false;
+  cron.schedule(
+    "30 2 * * *",
+    async () => {
+      if (isResettingWorkStatuses) {
+        return;
+      }
+
+      if (mongoose.connection.readyState !== 1) {
+        return;
+      }
+
+      isResettingWorkStatuses = true;
+
+      try {
+        await runWorkStatusReset();
+      } catch (error) {
+        logger.log("error", "Work status nightly reset failed", {
+          error: error.message,
+        });
+      } finally {
+        isResettingWorkStatuses = false;
+      }
     },
     { timezone },
   );

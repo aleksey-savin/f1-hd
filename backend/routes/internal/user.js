@@ -10,6 +10,7 @@ const {
 } = require("@/middleware/permissions");
 
 const fileUpload = require("@/middleware/fileUpload");
+const isTelegramBot = require("@/middleware/isTelegramBot");
 
 router.get("/users", isAuth, isNotClient, userController.getAll);
 router.get("/auth-data", isAuth, userController.getAuthed);
@@ -34,6 +35,26 @@ router.post(
   isAuth,
   canManageUsers,
   userController.createWorkplacesForExistingUsers,
+);
+
+// Статусы присутствия: лёгкий список для бара + смена своего статуса
+router.get(
+  "/users/work-statuses",
+  isAuth,
+  isNotClient,
+  userController.getWorkStatuses,
+);
+router.post(
+  "/users/set-status",
+  isAuth,
+  isNotClient,
+  userController.setWorkStatus,
+);
+// Для telegram-бота (прецедент /tg/auth): тап по кнопке под табло статусов
+router.post(
+  "/tg/set-work-status",
+  isTelegramBot,
+  userController.setWorkStatusFromTelegram,
 );
 
 router.post("/users/add", isAuth, canManageUsers, userController.add);

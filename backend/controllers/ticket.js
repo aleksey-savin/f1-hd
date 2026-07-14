@@ -505,6 +505,7 @@ exports.getOne = async (req, res, next) => {
     const company = await Company.findById(ticket.company?._id).populate({
       path: "employees",
       select: "firstName lastName email phone position isActive",
+      match: { isActive: true },
     });
 
     // Если инициатор связан с Active Directory, подтягиваем его последний ПК
@@ -717,9 +718,6 @@ exports.add = async (req, res, next) => {
         lastAction: "new ticket",
         pending: true,
       },
-      aiGuide: {
-        status: prefs?.ai?.isActive ? "pending" : "idle",
-      },
       // Если категория не выбрана и ИИ включён — помечаем заявку ожидающей
       // автоопределения категории (бейдж статуса появится сразу).
       ...(prefs?.ai?.isActive && !categoryId
@@ -746,16 +744,11 @@ exports.add = async (req, res, next) => {
       ticket: ticket,
     });
 
-    // В фоне (ответ 201 уже отправлен): сначала определяем категорию, если она не
-    // выбрана, затем строим AI-руководство — чтобы оно уже учитывало категорию.
-    // Создание заявки не блокируется и не падает из-за этого.
-    if (prefs?.ai?.isActive) {
-      (async () => {
-        if (!categoryId) {
-          await detectTicketCategory(ticket._id);
-        }
-        await generateTicketAiGuide(ticket._id);
-      })().catch((error) =>
+    // В фоне (ответ 201 уже отправлен): определяем категорию, если она не выбрана.
+    // AI-руководство при создании не генерируется — только вручную со страницы
+    // заявки (regenerateAiGuide). Создание заявки не блокируется и не падает.
+    if (prefs?.ai?.isActive && !categoryId) {
+      detectTicketCategory(ticket._id).catch((error) =>
         logger.log("error", "Background AI ticket processing failed", {
           ticketId: ticket._id.toString(),
           error: error.message,

@@ -4,6 +4,8 @@ import { AuthedUserContext } from "../store/authed-user-context";
 
 import { getLocalStorageData } from "../util/auth";
 import Logout from "../components/Auth/Logout";
+import WorkStatusSwitcher from "../components/User/WorkStatusSwitcher";
+import WorkStatusAvatar from "../components/User/WorkStatusAvatar";
 
 // Bootstrap Components
 import Container from "react-bootstrap/Container";
@@ -22,9 +24,22 @@ import EmployeeNavs from "./Navigation/Employee";
 
 // Dropdown Title Components
 const DropdownTitles = {
-  User: ({ firstName, lastName }) => (
-    <span>
-      <RiUserLine /> {`${firstName} ${lastName}`}
+  // Для сотрудников титул — кругляш с кольцом текущего статуса; клиентам
+  // статусы недоступны, у них прежняя иконка.
+  User: ({ firstName, lastName, profileImagePath, workStatus, showStatus }) => (
+    <span className="d-inline-flex align-items-center gap-2">
+      {showStatus ? (
+        <WorkStatusAvatar
+          size={30}
+          firstName={firstName}
+          lastName={lastName}
+          profileImagePath={profileImagePath}
+          workStatus={workStatus}
+        />
+      ) : (
+        <RiUserLine />
+      )}
+      <span>{`${firstName} ${lastName}`}</span>
     </span>
   ),
 };
@@ -99,8 +114,18 @@ const NavigationBar = ({ handleShowAuthModal, embedded = false }) => {
     localStorage.getItem("darkMode") === "true",
   );
 
-  const { firstName, lastName, isEndUser, isAdmin } =
-    useContext(AuthedUserContext);
+  const {
+    firstName,
+    lastName,
+    isEndUser,
+    isAdmin,
+    profileImagePath,
+    workStatus,
+    hideWorkStatus,
+  } = useContext(AuthedUserContext);
+
+  // Статусы присутствия недоступны клиентам и скрытым из статусов (сторонним)
+  const workStatusAvailable = !isEndUser && !hideWorkStatus;
   const isLoggedIn = !!token;
 
   // Event Handlers
@@ -177,6 +202,26 @@ const NavigationBar = ({ handleShowAuthModal, embedded = false }) => {
           />
         </Navbar.Brand>
 
+        {/* Мобильная шапка: кругляш своего статуса, тап открывает смену */}
+        {embedded && isLoggedIn && workStatusAvailable && (
+          <Nav className="ms-auto flex-row ws-nav-chip">
+            <NavDropdown
+              title={
+                <WorkStatusAvatar
+                  size={32}
+                  firstName={firstName}
+                  lastName={lastName}
+                  profileImagePath={profileImagePath}
+                  workStatus={workStatus}
+                />
+              }
+              align="end"
+            >
+              <WorkStatusSwitcher />
+            </NavDropdown>
+          </Nav>
+        )}
+
         <Navbar.Offcanvas
           show={showOffcanvas}
           onHide={handleClose}
@@ -197,7 +242,17 @@ const NavigationBar = ({ handleShowAuthModal, embedded = false }) => {
               {isLoggedIn && (
                 <>
                   <div className="drawer-user">
-                    <span className="drawer-user__avatar">{initials}</span>
+                    {!workStatusAvailable ? (
+                      <span className="drawer-user__avatar">{initials}</span>
+                    ) : (
+                      <WorkStatusAvatar
+                        size={44}
+                        firstName={firstName}
+                        lastName={lastName}
+                        profileImagePath={profileImagePath}
+                        workStatus={workStatus}
+                      />
+                    )}
                     <div style={{ minWidth: 0 }}>
                       <div className="drawer-user__name text-truncate">
                         {firstName} {lastName}
@@ -268,10 +323,19 @@ const NavigationBar = ({ handleShowAuthModal, embedded = false }) => {
                         <DropdownTitles.User
                           firstName={firstName}
                           lastName={lastName}
+                          profileImagePath={profileImagePath}
+                          workStatus={workStatus}
+                          showStatus={workStatusAvailable}
                         />
                       }
                       align="end"
                     >
+                      {workStatusAvailable && (
+                        <>
+                          <WorkStatusSwitcher />
+                          <NavDropdown.Divider />
+                        </>
+                      )}
                       <NavDropdown.Item
                         as={NavLink}
                         to="/my-account"

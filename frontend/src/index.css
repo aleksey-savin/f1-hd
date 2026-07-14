@@ -1753,3 +1753,348 @@ body:has(.mobile-shell),
   border-radius: 50%;
   background: var(--pr-chart-ot);
 }
+
+/* ==================== Статусы присутствия сотрудников ====================
+   Темизация — СОБСТВЕННЫМИ токенами: light-дефолты здесь, тёмные
+   переопределения в src/css/dark-theme.css (паттерн .mobile-shell/--org-*).
+   Переменные Bootstrap 5.3 (--bs-secondary-bg, --bs-border-color, …) НЕ
+   используем: тёмная сборка не выставляет data-bs-theme, и на :root они
+   остаются светлыми (см. заметку про text-body-emphasis). */
+:root {
+  --ws-surface: #fff;
+  --ws-avatar-bg: #e3e7ea;
+  --ws-avatar-fg: #495057;
+  --ws-line: rgba(0, 0, 0, 0.12);
+  --ws-muted: #6c757d;
+  --ws-hover: rgba(0, 0, 0, 0.05);
+}
+
+/* Кругляш с кольцом цвета статуса (--ws-color задаётся инлайном из каталога)
+   и эмодзи-бейджем. Фото — фоном, в обход глобального img{auto!important}.
+   Бейдж масштабируется от размера кругляша, но не мельче читаемого минимума. */
+.ws-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: 50%;
+  background-color: var(--ws-avatar-bg);
+  background-size: cover;
+  background-position: center;
+  color: var(--ws-avatar-fg);
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--ws-color);
+  margin: 2px;
+}
+.ws-avatar__badge {
+  position: absolute;
+  right: -6px;
+  bottom: -5px;
+  width: max(19px, 1.55em);
+  height: max(19px, 1.55em);
+  border-radius: 50%;
+  background-color: var(--ws-surface);
+  border: 1px solid var(--ws-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: max(11.5px, 0.8em);
+  line-height: 1;
+}
+
+/* Пульсирующая зелёная точка «живых» данных (как LiveUpdateIndicator) */
+.ws-live {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bs-success);
+  flex: none;
+}
+.ws-live::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--bs-success);
+  opacity: 0;
+  animation: ws-pulse 2.4s ease-out infinite;
+}
+@keyframes ws-pulse {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Меню «Мой статус» в навбаре */
+.ws-menu-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.ws-menu-item__label {
+  flex: 1;
+  text-align: left;
+}
+.ws-menu-item__check {
+  font-weight: 700;
+}
+.ws-menu-note {
+  padding: 6px 16px 8px;
+  min-width: 260px;
+}
+
+/* Чип своего статуса в мобильной шапке: дропдаун без каретки */
+.ws-nav-chip .dropdown-toggle::after {
+  display: none;
+}
+.ws-nav-chip .dropdown-toggle {
+  display: flex;
+  align-items: center;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+/* ---- Десктоп: правая панель (rail), приклеена к правому краю окна ----
+   position: fixed → при скролле страницы панель остаётся на месте. Верхний
+   срез уходит под fixed-навбар (z-index ниже), а контенту панели даём отступ
+   ~высоты навбара — точное значение высоты навбара тогда не критично.
+   Контейнер страницы (.has-ws-rail) резервирует место только под свёрнутые
+   68px; раскрытая панель накрывает контент оверлеем с тенью. */
+.ws-rail {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1020; /* ниже навбара (1030) и модалок, выше контента */
+  display: flex;
+  flex-direction: column;
+  width: 68px;
+  padding-top: 74px; /* высота десктопного навбара */
+  border-radius: 0;
+  border-left: 1px solid var(--ws-line);
+  background-color: var(--ws-surface);
+  overflow: hidden;
+  transition: width 0.25s ease;
+}
+.ws-rail--open {
+  width: 320px;
+  box-shadow: -10px 0 26px rgba(0, 0, 0, 0.22);
+}
+
+/* Контент не заезжает под свёрнутую панель (68px + воздух) */
+@media (min-width: 992px) {
+  .has-ws-rail {
+    padding-right: 92px !important;
+  }
+}
+.ws-rail__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  background: none;
+  color: var(--ws-muted);
+  padding: 8px 6px;
+  cursor: pointer;
+}
+.ws-rail__head:hover {
+  color: inherit;
+}
+.ws-rail--open .ws-rail__head {
+  justify-content: flex-start;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ws-line);
+}
+.ws-rail__chev {
+  flex: none;
+  transition: transform 0.25s ease;
+}
+.ws-rail--open .ws-rail__chev {
+  transform: rotate(180deg);
+}
+.ws-rail__title {
+  min-width: 0;
+  text-align: left;
+}
+.ws-rail__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ws-rail__summary {
+  display: block;
+  font-size: 12px;
+  color: var(--ws-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-rail__body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 0 8px;
+  scrollbar-width: thin;
+}
+.ws-rail__group + .ws-rail__group {
+  border-top: 1px solid var(--ws-line);
+  margin-top: 6px;
+  padding-top: 8px;
+}
+.ws-group-h {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 2px 0 4px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+.ws-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 12px;
+}
+.ws-rail:not(.ws-rail--open) .ws-person {
+  justify-content: center;
+  padding: 5px 4px;
+}
+.ws-rail--open .ws-person:hover {
+  background: var(--ws-hover);
+}
+.ws-person__text {
+  min-width: 0;
+  line-height: 1.35;
+}
+.ws-person__name {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-person__status {
+  display: block;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.ws-person__time {
+  color: var(--ws-muted);
+}
+.ws-person__note {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ws-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Мобильный: лента сверху ---- */
+.ws-strip {
+  flex: none;
+  border-bottom: 1px solid var(--ws-line);
+  background: var(--ws-surface);
+}
+.ws-strip__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+}
+.ws-strip__scrollwrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+/* Градиент-подсказка: лента продолжается вправо */
+.ws-strip__scrollwrap::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  background: linear-gradient(90deg, transparent, var(--ws-surface));
+  pointer-events: none;
+}
+/* Горизонтальный скролл, скролл-бар скрыт */
+.ws-strip__scroll {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 3px 26px 3px 0;
+}
+.ws-strip__scroll::-webkit-scrollbar {
+  display: none;
+}
+.ws-strip__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.ws-strip__group + .ws-strip__group {
+  border-left: 1px solid var(--ws-line);
+  padding-left: 8px;
+}
+.ws-strip__chev {
+  flex: none;
+  color: var(--ws-muted);
+  transition: transform 0.25s ease;
+}
+.ws-strip--open .ws-strip__chev {
+  transform: rotate(180deg);
+}
+.ws-strip__panel {
+  max-height: 45dvh;
+  overflow-y: auto;
+  padding: 2px 12px 10px;
+  border-top: 1px solid var(--ws-line);
+}
+.ws-strip__panel .ws-group-h {
+  padding: 6px 0 2px;
+}
+.ws-strip__panel .ws-person {
+  padding: 5px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-live::after {
+    animation: none;
+  }
+  .ws-rail,
+  .ws-rail__chev,
+  .ws-strip__chev {
+    transition: none;
+  }
+}

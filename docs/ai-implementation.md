@@ -1,6 +1,6 @@
 # AI Integration — Implementation Notes
 
-_Last updated: 2026-06-04. This document describes the AI features as currently
+_Last updated: 2026-07-14. This document describes the AI features as currently
 implemented, so the code can be reviewed and optimized later. It is a snapshot,
 not a spec — verify against the code before relying on any detail._
 
@@ -13,8 +13,10 @@ Four AI capabilities have been added:
    has its own provider switch under the same AI preferences tab: **OpenAI**
    (API key + model) or **Yandex SpeechKit** (API key + folder ID + `general`
    model).
-2. **AI ticket solution guide (experimental)** — on ticket creation, the
-   configured provider generates either a step-by-step solution guide or a
+2. **AI ticket solution guide (experimental)** — generated **manually only**, via
+   the button on the ticket page (auto-generation on ticket creation is disabled
+   at the current stage). The configured provider generates either a step-by-step
+   solution guide or a
    checklist of clarifying questions, using the ticket + comments + applicant +
    company context, its image/document attachments, **and the most relevant
    knowledge-base notes** (matched by company/category/applicant, used as a
@@ -174,8 +176,10 @@ aiGuide: {
 module aliases and deps `pdf-parse`, `mammoth`, `xlsx`.
 
 ### Controller / routes — `backend/controllers/ticket.js`, `routes/internal/ticket.js`
-- `add` — sets `aiGuide.status` to `pending` (if AI on) and, **after** sending the
-  201, fires `generateTicketAiGuide(...)` **without awaiting** (create stays fast).
+- `add` — does **not** touch `aiGuide` (stays `idle`) and does **not** fire
+  `generateTicketAiGuide`: guide generation is manual-only at the current stage
+  (the on-creation auto-trigger was removed 2026-07-14). Only category detection
+  runs in the background after the 201.
 - `getOne` — `delete doc.aiGuide` when `isEndUser` (internal aid only).
 - `regenerateAiGuide` — `POST /tickets/ai-guide/generate { _id }`, **synchronous**,
   returns the refreshed guide.
@@ -447,9 +451,9 @@ are logged):
 
 ### Triggers
 - **Web form** — `controllers/ticket.js` `add`: sets `aiCategory.status = "pending"` at
-  creation (when no `categoryId` and `ai.isActive`); after the 201 a background chain runs
-  `detectTicketCategory` **then** `generateTicketAiGuide`, so the guide already sees the
-  detected category. Never blocks/fails ticket creation.
+  creation (when no `categoryId` and `ai.isActive`); after the 201 it runs
+  `detectTicketCategory` in the background (the AI guide is **not** auto-generated —
+  manual-only, see §2). Never blocks/fails ticket creation.
 - **Email (no transcription)** — `middleware/emailHandling.js` new-ticket branch: when the
   ticket will **not** be transcribed and `ai.isActive`, sets `aiCategory.status = "pending"`
   and fires `detectTicketCategory` in the background from the email subject/body.

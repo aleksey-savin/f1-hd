@@ -242,6 +242,27 @@ const useUserFilterStore = create((set, get) => ({
       isLoading: false,
     });
   },
+  // Фоновое обновление без спиннера (поллинг статусов сотрудников):
+  // обновляем только originalList — useEffect страницы на originalList сам
+  // пересчитает фильтр и сортировку. Сетевые сбои глотаем: пропущенный цикл
+  // некритичен, следующий опрос через 15 с подтянет данные.
+  silentRefresh: async () => {
+    const { token } = getLocalStorageData();
+    try {
+      const url = new URL(`${import.meta.env.VITE_API_ADDRESS}/api/users`);
+      if (get().isActive) {
+        url.searchParams.set("activeOnly", "true");
+      }
+      const response = await fetch(url, {
+        headers: { Authorization: "Bearer " + token },
+      });
+      if (!response.ok) throw new Error(`users ${response.status}`);
+      const data = await response.json();
+      set({ originalList: data.users });
+    } catch (error) {
+      console.warn("Фоновое обновление пользователей пропущено:", error);
+    }
+  },
   updateFilter: (data) =>
     set(() => ({
       isActive: data.isActive,

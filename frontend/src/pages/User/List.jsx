@@ -4,6 +4,7 @@ import { BrowserView } from "react-device-detect";
 
 import useSidebarStore from "../../store/sidebar";
 import useUserFilterStore from "../../store/lists/users";
+import usePolling from "../../hooks/use-polling";
 
 import { RiAccountBoxLine } from "react-icons/ri";
 
@@ -27,6 +28,10 @@ const Users = () => {
   useEffect(() => {
     filterStore.fetch();
   }, [location]);
+
+  // Живые статусы присутствия коллег: фоновый опрос без спиннера,
+  // как на списках заявок и Mikrotik
+  usePolling(() => filterStore.silentRefresh(), { intervalMs: 15000 });
 
   useEffect(() => {
     setLeftSidebarContent(

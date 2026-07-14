@@ -119,3 +119,14 @@ table {
 :root {
   --pr-chart-ot: #d17a10;
 }
+
+/* Статусы присутствия: тёмные значения токенов (light-дефолты в index.css).
+   Поверхность — как у карточек (--bs-card-bg #303030). */
+:root {
+  --ws-surface: #303030;
+  --ws-avatar-bg: #3d444b;
+  --ws-avatar-fg: #dee2e6;
+  --ws-line: rgba(255, 255, 255, 0.12);
+  --ws-muted: rgba(222, 226, 230, 0.75);
+  --ws-hover: rgba(255, 255, 255, 0.07);
+}

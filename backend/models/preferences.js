@@ -61,6 +61,17 @@ const preferencesSchema = new Schema({
       chatId: { type: String, default: "" },
     },
   },
+  // Табло статусов сотрудников в Telegram-группе: одно закреплённое сообщение,
+  // которое бот редактирует. isActive/chatId/messageThreadId — конфигурация
+  // (веб-настройки или команда /status_board в нужной ветке); messageId/lastText —
+  // служебные поля бота (кэш последнего рендера для no-op сравнения).
+  statusBoard: {
+    isActive: { type: Boolean, default: false },
+    chatId: { type: String, default: "" }, // "" → группа уведомлений notify.byTelegram.chatId
+    messageThreadId: { type: String, default: "" }, // "" → General-топик или не форум
+    messageId: { type: Number, default: null },
+    lastText: { type: String, default: "" },
+  },
   contacts: {
     tel: { type: String, default: "" },
     email: { type: String, default: "" },

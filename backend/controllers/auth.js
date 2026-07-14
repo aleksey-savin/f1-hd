@@ -96,6 +96,20 @@ exports.login = async (req, res, next) => {
       );
     }
 
+    // Статус 401, а не 403: форма логина показывает инлайн только сообщения
+    // со статусами из своего списка (Authentication.jsx), 403 уронит error boundary.
+    if (!user.isActive) {
+      return next(
+        new AppError(
+          "Учётная запись отключена. Обратитесь к администратору.",
+          401,
+          true,
+          null,
+          { attemptedEmail: email },
+        ),
+      );
+    }
+
     user.lastLogin = new Date();
     await user.save();
 

@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 
+const { WORK_STATUS_CODES } = require("../utils/workStatuses");
+
 const Schema = mongoose.Schema;
 
 const userSchema = new Schema(
@@ -83,6 +85,9 @@ const userSchema = new Schema(
       default: false,
     },
     isCloudTelephony: { type: Boolean, default: false },
+    // Статусы присутствия отключены (сторонние сотрудники): скрыт из бара,
+    // списка «Люди» и Telegram-табло, переключатель статуса недоступен
+    hideWorkStatus: { type: Boolean, default: false },
     permissions: {
       // tickets workflow
       canPerformTickets: { type: Boolean, default: false },
@@ -171,6 +176,13 @@ const userSchema = new Schema(
     telegramBot: {
       isActive: { type: Boolean, default: false },
       chatId: { type: String, default: "" },
+    },
+    // Статус присутствия («в офисе», «на выезде»…). updatedAt ставится вручную
+    // при смене статуса — от него считается футер «Обновлено» Telegram-табло.
+    workStatus: {
+      code: { type: String, enum: WORK_STATUS_CODES, default: "unset" },
+      note: { type: String, default: "", maxlength: 100 },
+      updatedAt: { type: Date, default: null },
     },
     getScreen: {
       api: { type: String, default: "" },

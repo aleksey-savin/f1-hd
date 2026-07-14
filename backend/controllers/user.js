@@ -8,6 +8,10 @@ const { AppError } = require("../middleware/errorHandling");
 const { concatIdsArray } = require("../helpers/concatIdsArray");
 
 const User = require("../models/user");
+const {
+  WORK_STATUS_CODES,
+  WORK_STATUS_BY_CODE,
+} = require("../utils/workStatuses");
 const Company = require("../models/company");
 const Subdivision = require("../models/subdivision");
 const TicketCategory = require("../models/ticketCategory");
@@ -96,6 +100,8 @@ exports.getAll = async (req, res, next) => {
         isEndUser: user.isEndUser,
         isCloudTelephony: user.isCloudTelephony,
         isActive: user.isActive,
+        workStatus: user.workStatus,
+        hideWorkStatus: user.hideWorkStatus,
         permissions: user.permissions,
         createdAt: user.createdAt,
         lastActivity: lastTicket
@@ -321,6 +327,7 @@ exports.add = async (req, res, next) => {
       isEndUser,
       isServiceAccount,
       isCloudTelephony,
+      hideWorkStatus,
       permissions,
       dashboard,
       finances,
@@ -367,6 +374,7 @@ exports.add = async (req, res, next) => {
       isEndUser: isEndUser,
       isServiceAccount: isServiceAccount,
       isCloudTelephony: isCloudTelephony,
+      hideWorkStatus: !!hideWorkStatus,
       password: hashedPassword,
       isActive: isActive,
       getScreen: {
@@ -467,6 +475,7 @@ exports.update = async (req, res, next) => {
       isEndUser,
       isServiceAccount,
       isCloudTelephony,
+      hideWorkStatus,
       categories,
       permissions,
       dashboard,
@@ -520,6 +529,7 @@ exports.update = async (req, res, next) => {
     user.isEndUser = isEndUser;
     user.isServiceAccount = isServiceAccount;
     user.isCloudTelephony = isCloudTelephony;
+    user.hideWorkStatus = !!hideWorkStatus;
     user.permissions = permissions;
     user.dashboard = dashboard;
 
@@ -941,6 +951,120 @@ exports.updateMyAccount = async (req, res, next) => {
         error,
       ),
     );
+  }
+};
+
+// Смена собственного статуса присутствия (веб). Identity строго из токена.
+exports.setWorkStatus = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new AppError(`User ${userId} not found`, 404));
+    }
+
+    if (user.hideWorkStatus) {
+      return next(
+        new AppError(
+          "Статусы присутствия отключены для вашей учётной записи",
+          403,
+          true,
+        ),
+      );
+    }
+
+    const { code } = req.body;
+    if (!WORK_STATUS_CODES.includes(code)) {
+      return next(new AppError(`Некорректный статус "${code}"`, 400, true));
+    }
+
+    const note = String(req.body.note ?? "")
+      .replace(/[\r\n]+/g, " ")
+      .trim()
+      .slice(0, 100);
+
+    user.workStatus = { code, note, updatedAt: new Date() };
+    await user.save();
+
+    res.status(200).json({
+      message: "Статус обновлён",
+      workStatus: user.workStatus,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to set work status`, 500, true, error));
+  }
+};
+
+// Смена статуса тапом по инлайн-кнопке под Telegram-табло. Сотрудник
+// определяется по личному chat id (равен telegram user id в приватном чате).
+// Заметка при этом очищается — она описывала предыдущий статус.
+exports.setWorkStatusFromTelegram = async (req, res, next) => {
+  try {
+    const { tgUserId, code } = req.query;
+
+    const user = await User.findOne({
+      "telegramBot.chatId": String(tgUserId || ""),
+      "telegramBot.isActive": true,
+    });
+    if (!user) {
+      return next(
+        new AppError(
+          "Telegram не привязан к учётной записи. Привяжите его в «Мой аккаунт»",
+          404,
+          true,
+        ),
+      );
+    }
+    if (user.isEndUser || user.isServiceAccount) {
+      return next(
+        new AppError("Статусы доступны только сотрудникам", 403, true),
+      );
+    }
+    if (user.hideWorkStatus) {
+      return next(
+        new AppError(
+          "Статусы присутствия отключены для вашей учётной записи",
+          403,
+          true,
+        ),
+      );
+    }
+    if (!WORK_STATUS_CODES.includes(code)) {
+      return next(new AppError(`Некорректный статус "${code}"`, 400, true));
+    }
+
+    user.workStatus = { code, note: "", updatedAt: new Date() };
+    await user.save();
+
+    const meta = WORK_STATUS_BY_CODE[code];
+    res.status(200).json({
+      message: `Статус обновлён: ${meta.emoji} ${meta.label}`,
+      workStatus: user.workStatus,
+    });
+  } catch (error) {
+    next(
+      new AppError(`Failed to set work status from telegram`, 500, true, error),
+    );
+  }
+};
+
+// Лёгкий список статусов сотрудников для бара (поллинг раз в 15 секунд)
+exports.getWorkStatuses = async (req, res, next) => {
+  try {
+    const users = await User.find({
+      isActive: true,
+      isEndUser: false,
+      isServiceAccount: false,
+      isCloudTelephony: false,
+      hideWorkStatus: { $ne: true },
+    })
+      .select("_id firstName lastName profileImagePath workStatus")
+      .sort({ lastName: 1 })
+      .lean();
+
+    res.status(200).json({ message: "Work statuses fetched", users });
+  } catch (error) {
+    next(new AppError(`Failed to fetch work statuses`, 500, true, error));
   }
 };
 

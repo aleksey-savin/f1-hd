@@ -134,6 +134,46 @@ const PrefsNotifications = (props) => {
         }
     };
 
+    // Табло статусов сотрудников: закреплённое сообщение, которое бот
+    // редактирует. messageId/lastText — служебные поля бота, backend их
+    // из этого POST игнорирует.
+    const statusBoard = props.prefs.statusBoard ?? {};
+    const [statusBoardIsActive, setStatusBoardIsActive] = useState(
+        !!statusBoard.isActive
+    );
+    const [statusBoardChatId, setStatusBoardChatId] = useState(
+        statusBoard.chatId ?? ''
+    );
+    const [statusBoardThreadId, setStatusBoardThreadId] = useState(
+        statusBoard.messageThreadId ?? ''
+    );
+
+    const ensureStatusBoard = () => {
+        if (!props.prefs.statusBoard) {
+            props.prefs.statusBoard = {
+                isActive: false,
+                chatId: '',
+                messageThreadId: '',
+            };
+        }
+        return props.prefs.statusBoard;
+    };
+
+    const statusBoardIsActiveHandler = () => {
+        setStatusBoardIsActive(!statusBoardIsActive);
+        ensureStatusBoard().isActive = !statusBoardIsActive;
+    };
+
+    const statusBoardChatIdHandler = (event) => {
+        setStatusBoardChatId(event.target.value);
+        ensureStatusBoard().chatId = event.target.value;
+    };
+
+    const statusBoardThreadIdHandler = (event) => {
+        setStatusBoardThreadId(event.target.value);
+        ensureStatusBoard().messageThreadId = event.target.value;
+    };
+
     return (
         <>
             <Row className='border-bottom mb-3'>
@@ -366,6 +406,49 @@ const PrefsNotifications = (props) => {
                             </a>
                             , запустите его и скопируйте полученный ID чата в
                             поле выше.
+                        </Alert>
+                    </Form.Group>
+                    <h4 className='mb-3'>Табло статусов сотрудников</h4>
+                    <Form.Group className='mb-3 w-100'>
+                        <Form.Check
+                            type='switch'
+                            label='Публиковать закреплённое табло статусов'
+                            checked={statusBoardIsActive}
+                            value={statusBoardIsActive}
+                            onChange={statusBoardIsActiveHandler}
+                        />
+                    </Form.Group>
+                    <Form.Group className='mb-3 w-100'>
+                        <Form.Label>Chat ID группы табло</Form.Label>
+                        <Form.Control
+                            disabled={!statusBoardIsActive}
+                            type='text'
+                            value={statusBoardChatId}
+                            placeholder='Пусто — группа уведомлений выше'
+                            onChange={statusBoardChatIdHandler}
+                        />
+                    </Form.Group>
+                    <Form.Group className='mb-3 w-100'>
+                        <Form.Label>ID ветки (топика)</Form.Label>
+                        <Form.Control
+                            disabled={!statusBoardIsActive}
+                            type='text'
+                            value={statusBoardThreadId}
+                            placeholder='Пусто — General или группа без веток'
+                            onChange={statusBoardThreadIdHandler}
+                        />
+                    </Form.Group>
+                    <Form.Group>
+                        <Alert variant='light'>
+                            Проще всего: добавьте бота в группу с правами
+                            администратора (включая «Закрепление сообщений») и
+                            отправьте команду <code>/status_board</code> в
+                            нужной ветке — ID чата и ветки заполнятся
+                            автоматически, табло появится и закрепится там же.
+                            Если вы только что выполнили команду, обновите эту
+                            страницу перед сохранением настроек. Ночью статусы,
+                            кроме «отпуск» и «болею», сбрасываются на «не
+                            указан».
                         </Alert>
                     </Form.Group>
                 </Col>

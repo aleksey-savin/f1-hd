@@ -70,6 +70,12 @@ bot.on("polling_error", (error) =>
   }),
 );
 
+// Прямой доступ к инстансу бота и форматтеру дат — для statusBoardController
+// (editMessageText/pinChatMessage; tgSendMessage с его блокирующим sleep(2000)
+// для точечных правок табло не годится).
+exports.getBot = () => bot;
+exports.formatDate = formatDate;
+
 let commands = [];
 let keyboard = [];
 
@@ -222,22 +228,84 @@ exports.launchTgBot = async () => {
       "text",
       async (msg) => {
         try {
+          // Настройка табло статусов: команда выполняется в целевой группе
+          // (и именно в той ветке, где должно жить табло) — бот сам забирает
+          // chat.id и message_thread_id. Доступна только привязанному админу.
+          if (msg.text.startsWith("/status_board")) {
+            if (msg.chat.type === "private") {
+              await bot.sendMessage(
+                msg.chat.id,
+                "Команда работает только в группе: отправьте её в той ветке, где должно жить табло статусов",
+              );
+              return;
+            }
+
+            const sender = await User.findOne({
+              "telegramBot.chatId": msg.from.id.toString(),
+              "telegramBot.isActive": true,
+            });
+
+            const threadOptions =
+              msg.is_topic_message && msg.message_thread_id
+                ? { message_thread_id: msg.message_thread_id }
+                : {};
+
+            if (!sender || !sender.isActive || !sender.isAdmin) {
+              await bot.sendMessage(
+                msg.chat.id,
+                "Настраивать табло может только администратор с привязанным Telegram",
+                threadOptions,
+              );
+              return;
+            }
+
+            // Точечный $set, а не save() всего документа — чтобы не затереть
+            // параллельное сохранение настроек из веба
+            await Preferences.updateOne(
+              {},
+              {
+                $set: {
+                  "statusBoard.chatId": String(msg.chat.id),
+                  "statusBoard.messageThreadId":
+                    msg.is_topic_message && msg.message_thread_id
+                      ? String(msg.message_thread_id)
+                      : "",
+                  "statusBoard.isActive": true,
+                  "statusBoard.messageId": null,
+                  "statusBoard.lastText": "",
+                },
+              },
+            );
+
+            await bot.sendMessage(
+              msg.chat.id,
+              "Готово👌 Табло статусов появится здесь в течение 20 секунд и будет закреплено",
+              threadOptions,
+            );
+            return;
+          }
+
           // проверяем, что чат привязан к учётке пользователя
           const user = await User.findOne({
             "telegramBot.chatId": msg.chat.id.toString(),
           });
 
-          if (
-            !user &&
-            !msg.text.startsWith("/start") &&
-            msg.chat.id != globalChat
-          ) {
-            bot.sendMessage(
-              msg.chat.id,
-              "Похоже, что бот не привязан к вашей учётной записи😔",
-              { parse_mode: "MarkdownV2" },
-            );
-            return;
+          if (!user && !msg.text.startsWith("/start")) {
+            // Личному чату без привязки подсказываем, как раньше. Группы не
+            // спамим: обсуждение в группе с табло — не повод отвечать ботом;
+            // из группового чата пропускаем дальше только /id и глобальную
+            // группу уведомлений (её поведение не меняется).
+            if (msg.chat.type === "private") {
+              bot.sendMessage(
+                msg.chat.id,
+                "Похоже, что бот не привязан к вашей учётной записи😔",
+                { parse_mode: "MarkdownV2" },
+              );
+              return;
+            }
+            if (!msg.text.startsWith("/id") && msg.chat.id != globalChat) {
+              return;
+            }
           }
 
           if (msg.text.startsWith("/start")) {
@@ -472,6 +540,48 @@ exports.launchTgBot = async () => {
     //-------------------- PROCESSING CALLBACK QUERIES -------------------
     bot.on("callback_query", async (ctx) => {
       try {
+        // Тап по кнопке статуса под табло. Обрабатываем до getCompanies/
+        // getTickets, чтобы не тратить два запроса к backend на каждый тап.
+        // Сотрудник определяется по from.id — в личном чате он равен chatId.
+        if (typeof ctx.data === "string" && ctx.data.startsWith("ws:")) {
+          const code = ctx.data.slice(3);
+          let ok = false;
+          let message = "Не удалось обновить статус";
+
+          try {
+            const response = await fetch(
+              `http://backend:8080/api/tg/set-work-status?api_token=${process.env.TG_API_TOKEN}&tgUserId=${ctx.from.id}&code=${encodeURIComponent(code)}`,
+              { method: "POST" },
+            );
+            const data = await response.json().catch(() => ({}));
+            ok = response.ok;
+            if (data.message) {
+              message = data.message;
+            } else if (ok) {
+              message = "Статус обновлён";
+            }
+          } catch (error) {
+            logger.log("error", "Failed to set work status from board button", {
+              error: error.message,
+            });
+          }
+
+          // Отвечаем всегда — иначе на кнопке зависает спиннер
+          await bot.answerCallbackQuery(ctx.id, {
+            text: message,
+            show_alert: !ok,
+          });
+
+          if (ok) {
+            // Мгновенная перерисовка табло; lazy require разрывает CJS-цикл
+            // tgBotApi ↔ statusBoardController
+            require("../controllers/statusBoardController")
+              .checkStatusBoard()
+              .catch(() => {});
+          }
+          return;
+        }
+
         const companies = await getCompanies(ctx.message);
         const tickets = await getTickets(ctx.message);
 

@@ -58,6 +58,12 @@ const UserForm = ({ title }) => {
   const [isCloudTelephony, setIsCloudTelephony] = useState(
     user ? user.isCloudTelephony : false,
   );
+
+  // Участие в статусах присутствия (бар, «Люди», Telegram-табло). Сторонним
+  // сотрудникам функционал отключают: в модели это флаг hideWorkStatus.
+  const [workStatusEnabled, setWorkStatusEnabled] = useState(
+    user ? !user.hideWorkStatus : true,
+  );
   const [subdivision, setSubdivision] = useState(
     user ? user.subdivision : null,
   );
@@ -344,6 +350,10 @@ const UserForm = ({ title }) => {
     setSendPassword(!sendPassword);
   };
 
+  const workStatusEnabledChangeHandler = () => {
+    setWorkStatusEnabled(!workStatusEnabled);
+  };
+
   const isCloudTelephonyChangeHandler = () => {
     setIsCloudTelephony(!isCloudTelephony);
   };
@@ -457,6 +467,21 @@ const UserForm = ({ title }) => {
                   />
                 </Form.Group>
               </Col>
+              {!isServiceAccount && (
+                <Col lg="auto">
+                  <Form.Group className="mb-3">
+                    <Form.Check
+                      checked={workStatusEnabled}
+                      type="switch"
+                      id="workStatusEnabled"
+                      name="workStatusEnabled"
+                      label="Статусы присутствия (бар и Telegram-табло)"
+                      value={workStatusEnabled}
+                      onChange={workStatusEnabledChangeHandler}
+                    />
+                  </Form.Group>
+                </Col>
+              )}
             </Row>
             {isServiceAccount && (
               <>

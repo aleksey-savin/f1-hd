@@ -44,6 +44,13 @@ export interface IPreferences {
       chatId: string;
     };
   };
+  statusBoard: {
+    isActive: boolean;
+    chatId: string;
+    messageThreadId: string;
+    messageId: number | null;
+    lastText: string;
+  };
   contacts: { tel: string; email: string; address: string };
   getScreen: { isActive: boolean };
   modules: {
