@@ -1178,6 +1178,117 @@ exports.createTicketNotifications = async () => {
 
         break;
 
+      case "update deadline": {
+        // Изменён срок заявки: уведомляем заявителя и ответственных
+        // (категория ticketDeadlineUpdate). Без гейта isNotified — каждое
+        // изменение срока должно уведомлять заново.
+        if (ticket.isClosed) {
+          ticket.notifications.pending = false;
+          await ticket.save();
+          break;
+        }
+
+        const deadlineText = ticket.deadline
+          ? new Date(ticket.deadline).toLocaleDateString("ru", {
+              timeZone: resolveTimezone(prefs),
+              month: "long",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "не задан";
+
+        // Получатели без дублей: заявитель + ответственные
+        const deadlineRecipients = new Map([
+          [applicant._id.toString(), applicant],
+        ]);
+        for (const responsible of ticket.responsibles) {
+          const responsibleId = responsible._id?.toString();
+          if (!responsibleId || deadlineRecipients.has(responsibleId)) {
+            continue;
+          }
+          const user = await User.findById(responsibleId);
+          if (user) {
+            deadlineRecipients.set(responsibleId, user);
+          }
+        }
+
+        //--------------------------------------------------
+        //-------------------- TELEGRAM --------------------
+        //--------------------------------------------------
+        try {
+          for (const user of deadlineRecipients.values()) {
+            if (notifyTg(user, "ticketDeadlineUpdate")) {
+              const newTicketNotification = new Notification({
+                instrument: "telegram",
+                ticketId: ticket._id,
+                to: {
+                  chatId: user.telegramBot.chatId,
+                  responsible: `${user.lastName} ${user.firstName}`,
+                },
+                text: `⏰ <b>Изменён срок заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\n<b>Новый срок: ${deadlineText}</b>\n#ticket_${ticket.num}`,
+                replyMarkup: ticketButton(ticket.num),
+              });
+              await newTicketNotification.save();
+            }
+          }
+        } catch (error) {
+          logger.log(
+            "notification",
+            "Failed to create deadline update notification to telegram",
+            {
+              error: error.message,
+              stack: error.stack,
+            },
+          );
+        }
+
+        //-----------------------------------------------
+        //-------------------- EMAIL --------------------
+        //-----------------------------------------------
+        try {
+          for (const user of deadlineRecipients.values()) {
+            if (notifyEmail(user, "ticketDeadlineUpdate")) {
+              const newTicketNotification = new Notification({
+                instrument: "email",
+                ticketId: ticket._id,
+                to: {
+                  email: user.email,
+                  responsible: `${user.lastName} ${user.firstName}`,
+                },
+                title: `[F1-HD-${ticket.num}] Изменён срок заявки ${ticket.num}`,
+                text: `
+                            <div>
+                                <h3>Изменён срок заявки №${ticket.num}.</h3>
+                                <ul>
+                                    <li>Компания: ${ticket.company.alias}</li>
+                                    <li>Тема: ${ticket.title}</li>
+                                    <li>Новый срок: ${deadlineText}</li>
+                                    <li>Ссылка: ${process.env.ADDRESS}/tickets/${ticket.num}</li>
+                                </ul>
+                            </div>
+                        `,
+              });
+              await newTicketNotification.save();
+            }
+          }
+        } catch (error) {
+          logger.log(
+            "notification",
+            "Failed to create deadline update notification to email",
+            {
+              error: error.message,
+              stack: error.stack,
+            },
+          );
+        }
+
+        ticket.notifications.pending = false;
+        await ticket.save();
+
+        break;
+      }
+
       default:
         // Снимаем pending даже для lastAction без ветки уведомлений,
         // чтобы заявки не копились в очереди бесконечно.

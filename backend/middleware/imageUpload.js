@@ -1,6 +1,7 @@
 const multer = require("multer");
 const multerS3 = require("multer-s3");
 const crypto = require("crypto");
+const fs = require("fs");
 
 const storage = require("@/services/storage");
 const { AppError } = require("@/middleware/errorHandling");
@@ -51,6 +52,63 @@ const imageUpload = multer({
   },
 });
 
+// Статика, читаемая на каждой загрузке приложения (фон рабочего стола, лого
+// компании) — ЛОКАЛЬНОЕ хранение (uploads/), не S3: с S3 каждый вход
+// оплачивался бы presigned-чтением. Локальный файл резолвер /uploads отдаёт
+// напрямую с immutable-кэшем. Имя — UUID, как у остальных аплоадов
+// (deleteObject удаляет local-first и из S3 — файлы S3-периода тоже удалятся).
+const LOCAL_UPLOADS_DIR = "uploads";
+fs.mkdirSync(LOCAL_UPLOADS_DIR, { recursive: true });
+
+const makeLocalImageUpload = ({ field, maxSize }) => {
+  const upload = multer({
+    limits: { fileSize: maxSize, files: 1 },
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => cb(null, LOCAL_UPLOADS_DIR),
+      // Имя файла == значение в Mongo, поэтому /uploads/<name> резолвится 1:1
+      // (как key у S3-аплоадов).
+      filename: (req, file, cb) => {
+        const ext = IMAGE_EXTENSIONS[file.mimetype];
+        if (!ext) return cb(new Error("Неподдерживаемый тип файла"), false);
+        cb(null, `${crypto.randomUUID()}.${ext}`);
+      },
+    }),
+    fileFilter: (req, file, cb) => {
+      if (!IMAGE_EXTENSIONS[file.mimetype]) {
+        return cb(
+          new Error(`Недопустимый тип изображения: ${file.mimetype}`),
+          false,
+        );
+      }
+      cb(null, true);
+    },
+  });
+
+  return (req, res, next) =>
+    upload.single(field)(req, res, (error) => {
+      if (!error) return next();
+      if (error.code === "LIMIT_FILE_SIZE") {
+        return next(
+          new AppError(
+            `Файл больше ${maxSize / 1024 / 1024} МБ — сожмите изображение`,
+            400,
+          ),
+        );
+      }
+      next(new AppError(error.message, 400));
+    });
+};
+
+const uploadBackgroundImage = makeLocalImageUpload({
+  field: "backgroundImage",
+  maxSize: 5 * 1024 * 1024, // синхронно с подсказкой в UI
+});
+
+const uploadCompanyLogo = makeLocalImageUpload({
+  field: "companyLogo",
+  maxSize: 2 * 1024 * 1024,
+});
+
 // Приём поля `photos` с человекочитаемыми ошибками. Отказ multer (тип, размер,
 // количество) — это ошибка запроса, а не сервера: переводим в 400 с текстом,
 // который можно показать пользователю как есть.
@@ -73,4 +131,11 @@ const uploadPhotos = (req, res, next) =>
     next(new AppError(error.message, 400));
   });
 
-module.exports = { imageUpload, uploadPhotos, MAX_FILES, MAX_FILE_SIZE };
+module.exports = {
+  imageUpload,
+  uploadPhotos,
+  uploadBackgroundImage,
+  uploadCompanyLogo,
+  MAX_FILES,
+  MAX_FILE_SIZE,
+};

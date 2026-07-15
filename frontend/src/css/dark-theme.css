@@ -107,14 +107,9 @@ table {
    (базовые light-значения — в index.css; файл грузится только в dark).
    --tab-active/-rgb ссылаются на --bs-success, который во Flatly/Darkly
    уже бирюзовый и флипается сам — хардкодить hex не нужно. */
-.mobile-shell {
-  --nav-border: rgba(255, 255, 255, 0.1);
-  --tabbar-surface: rgba(28, 32, 38, 0.8);
-  --tabbar-border: rgba(255, 255, 255, 0.1);
-  --tab-active: var(--bs-success); /* Darkly #00bc8c (авто из бандла) */
-  --tab-active-rgb: var(--bs-success-rgb);
-  --tab-inactive: var(--bs-secondary-color);
-}
+/* Токены навигации теперь наследуются из styles/tailwind.css через
+   var(--border)/var(--card)/… в index.css — тёмные значения даёт класс .dark,
+   переопределения здесь больше не нужны (Фаза 2 миграции). */
 
 /* Персональный отчёт: на тёмной поверхности стандартный --bs-warning
    (#f39c12) выходит за полосу светлоты для меток данных — используем

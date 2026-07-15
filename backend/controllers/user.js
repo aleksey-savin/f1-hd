@@ -857,7 +857,8 @@ exports.addBackgroundImage = async (req, res, next) => {
       await storage.deleteObject(user.backgroundImagePath);
     }
 
-    user.backgroundImagePath = req.file.key;
+    // diskStorage кладёт локально (filename); key оставлен на случай отката к S3
+    user.backgroundImagePath = req.file.filename || req.file.key;
 
     await user.save();
 
@@ -923,7 +924,21 @@ exports.updateMyAccount = async (req, res, next) => {
     user.lastName = lastName ? lastName : user.lastName;
     user.position = position ? position : user.position;
     user.categories = categories ? categories : user.categories;
-    user.notify = notify ? notify : user.notify;
+    // notify мержим по путям, а не заменяем объектом: замена пересоздаёт
+    // поддерево, и категории, отсутствующие в присланной форме, молча
+    // получали бы дефолты вместо сохранённых значений. user.set со strict
+    // mode сам отбрасывает неизвестные схеме ключи.
+    if (notify) {
+      for (const channel of ["byTelegram", "byEmail"]) {
+        for (const [key, value] of Object.entries(notify[channel] ?? {})) {
+          if (typeof value === "boolean") {
+            user.set(`notify.${channel}.${key}`, value);
+          }
+        }
+      }
+    }
+    // telegramBot приходит только целым объектом из «Интеграций» (отключение
+    // бота); при прочих intent'ах поле не присылается и привязка не трогается.
     user.telegramBot = telegramBot ? telegramBot : user.telegramBot;
 
     await user.save();

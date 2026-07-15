@@ -10,6 +10,7 @@ const {
 } = require("@/middleware/permissions");
 
 const fileUpload = require("@/middleware/fileUpload");
+const { uploadBackgroundImage } = require("@/middleware/imageUpload");
 const isTelegramBot = require("@/middleware/isTelegramBot");
 
 router.get("/users", isAuth, isNotClient, userController.getAll);
@@ -77,7 +78,8 @@ router.post(
 router.post(
   "/users/add-background-image",
   isAuth,
-  fileUpload.single("backgroundImage"),
+  // Локальный diskStorage, не S3: фон читается при каждой загрузке приложения
+  uploadBackgroundImage,
   userController.addBackgroundImage,
 );
 

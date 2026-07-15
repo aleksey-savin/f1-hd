@@ -1,19 +1,20 @@
 import { useContext, useEffect, useState } from "react";
 import { useFetcher } from "react-router";
 
-import NavDropdown from "react-bootstrap/NavDropdown";
-import Form from "react-bootstrap/Form";
-import Button from "react-bootstrap/Button";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { WORK_STATUSES } from "../../util/work-statuses";
 
-// Секция «Мой статус» внутри пользовательского меню навбара: пункты каталога
-// + необязательная заметка (видна коллегам и на Telegram-табло). Смена статуса
-// уходит в action /my-account (intent=status-update); корневой лоадер
-// ревалидируется самим fetcher'ом — вручную revalidate() не зовём (гонка
-// «Did not find corresponding fetcher result»).
-// Выбор нового статуса очищает заметку: она описывала предыдущий статус.
+// Секция «Мой статус» внутри меню пользователя (PopoverContent навбара —
+// НЕ radix-DropdownMenu: его typeahead/фокус-ловушка ломают инпут заметки).
+// Пункты каталога + необязательная заметка (видна коллегам и на
+// Telegram-табло). Смена статуса уходит в action /my-account
+// (intent=status-update); корневой лоадер ревалидируется самим fetcher'ом —
+// вручную revalidate() не зовём (гонка «Did not find corresponding fetcher
+// result»). Выбор нового статуса очищает заметку: она описывала предыдущий.
 const WorkStatusSwitcher = () => {
   const { workStatus } = useContext(AuthedUserContext);
   const fetcher = useFetcher();
@@ -37,41 +38,47 @@ const WorkStatusSwitcher = () => {
 
   return (
     <>
-      <NavDropdown.Header>Мой статус</NavDropdown.Header>
+      <div className="tw:px-2.5 tw:pt-1.5 tw:pb-1 tw:text-xs tw:font-semibold tw:tracking-wider tw:text-faint tw:uppercase">
+        Мой статус
+      </div>
       {WORK_STATUSES.map((status) => (
-        <NavDropdown.Item
+        <button
           key={status.code}
-          as="button"
           type="button"
           disabled={busy}
-          active={status.code === currentCode}
+          // appearance/border/bg — браузерные дефолты кнопки (preflight выключен)
+          className={cn(
+            "tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2.5 tw:rounded-md tw:border-0 tw:bg-transparent tw:px-2.5 tw:py-1.5 tw:text-left tw:text-sm tw:text-foreground tw:outline-none tw:hover:bg-accent tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:disabled:opacity-60",
+            status.code === currentCode && "tw:bg-primary/10",
+          )}
           onClick={() => {
             setNote("");
             submitStatus(status.code, "");
           }}
         >
-          <span className="ws-menu-item">
-            <span aria-hidden="true">{status.emoji}</span>
-            <span className="ws-menu-item__label">{status.label}</span>
-            {status.code === currentCode && (
-              <span
-                className="ws-menu-item__check"
-                style={{ color: status.color }}
-              >
-                ✓
-              </span>
-            )}
+          <span aria-hidden className="tw:w-5 tw:text-center">
+            {status.emoji}
           </span>
-        </NavDropdown.Item>
+          <span className="tw:min-w-0 tw:flex-1">{status.label}</span>
+          {status.code === currentCode && (
+            <span
+              aria-hidden
+              className="tw:font-semibold"
+              style={{ color: status.color }}
+            >
+              ✓
+            </span>
+          )}
+        </button>
       ))}
-      <div className="ws-menu-note">
-        <Form.Control
-          size="sm"
+      <div className="tw:px-2.5 tw:pt-1.5 tw:pb-1">
+        <Input
           value={note}
           maxLength={100}
           placeholder="Например: за товаром у поставщика"
           aria-label="Заметка к статусу"
           disabled={busy}
+          className="tw:h-8 tw:text-sm"
           onChange={(event) => setNote(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -81,9 +88,10 @@ const WorkStatusSwitcher = () => {
           }}
         />
         <Button
-          size="sm"
-          variant="outline-secondary"
-          className="mt-1 w-100"
+          type="button"
+          variant="outline"
+          size="xs"
+          className="tw:mt-1.5 tw:w-full"
           disabled={busy}
           onClick={() => submitStatus(currentCode, note)}
         >

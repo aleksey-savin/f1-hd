@@ -28,10 +28,10 @@ body {
 
 .background-container {
   position: fixed;
-  top: 70px;
+  top: 56px; /* высота бара оболочки (tw:h-14, Фаза 2) — без зазора-полосы */
   left: 0;
   width: 100%;
-  height: 100vh;
+  height: calc(100vh - 56px);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -1123,19 +1123,20 @@ button.photo-thumb {
   flex-direction: column;
   overflow: hidden; /* сам shell не скроллится */
 
-  /* light-дефолты токенов навигации (dark — в dark-theme.css) */
-  --nav-border: rgba(0, 0, 0, 0.08);
-  --tabbar-surface: rgba(255, 255, 255, 0.86);
-  --tabbar-border: rgba(0, 0, 0, 0.06);
-  --tab-active: var(--bs-success);
-  --tab-active-rgb: var(--bs-success-rgb);
-  --tab-inactive: var(--bs-secondary-color);
+  /* Токены навигации — от токенов новой системы (styles/tailwind.css):
+     они сами переключаются классом .dark, dark-переопределения не нужны
+     (в dark-theme.css блок удалён при переезде Фазы 2). */
+  --nav-border: var(--border);
+  --tabbar-surface: color-mix(in srgb, var(--card) 88%, transparent);
+  --tabbar-border: var(--border);
+  --tab-active: var(--primary);
+  --tab-active-rgb: 0, 188, 140;
+  --tab-inactive: var(--muted-foreground);
 }
 
-/* Встроенный верхний бар (NavigationBar embedded) — в потоке, не fixed. */
-/* Специфичность .navbar.mobile-shell__header (0,2,0) перебивает падинги
-   .navbar (0,1,0). py-2 на embedded не вешаем — это утилита с !important. */
-.navbar.mobile-shell__header {
+/* Встроенный верхний бар (NavigationBar embedded) — в потоке, не fixed.
+   Safe-area-паддинги здесь (env() в tw-утилитах — произвольное значение). */
+.mobile-shell__header {
   flex: 0 0 auto;
   padding-top: calc(0.5rem + env(safe-area-inset-top));
   padding-bottom: 0.5rem;
@@ -1395,169 +1396,8 @@ body:has(.mobile-shell),
   }
 }
 
-/* --- Бургер-меню (offcanvas) на мобайле: современный вид ------------
-   Классы .drawer-* добавляются только в мобильной (embedded) ветке
-   Navbar.jsx, поэтому десктопного бара (в т.ч. инлайн-режима xxl+) не
-   касаются. */
-.offcanvas-body.drawer-body {
-  display: flex;
-  flex-direction: column;
-  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
-}
-
-/* Шапка пользователя: аватар-инициалы + имя + роль */
-.drawer-user {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.25rem 0.25rem 1rem;
-  margin-bottom: 0.5rem;
-  border-bottom: 1px solid var(--bs-border-color);
-}
-.drawer-user__avatar {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(var(--bs-success-rgb), 0.16);
-  color: var(--bs-success);
-  font-size: 1rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-.drawer-user__name {
-  font-weight: 600;
-  line-height: 1.2;
-}
-.drawer-user__role {
-  font-size: 0.78rem;
-  color: var(--bs-secondary-color);
-}
-
-/* Заголовок-eyebrow группы (как .ai-section__label) */
-.drawer-section__label {
-  padding: 0.75rem 0.75rem 0.3rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--bs-secondary-color);
-}
-
-/* Основная навигация в меню: крупные скруглённые строки, активная — бирюза.
-   Навбар — navbar-dark (светлый текст), но фон офканваса = --bs-body-bg
-   (в Flatly белый), поэтому явно возвращаем читаемый цвет тела. */
-.drawer-nav {
-  flex: 1 1 auto;
-  gap: 0.1rem;
-}
-.drawer-nav .nav-link {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.65rem 0.75rem;
-  border-radius: 0.6rem;
-  color: var(--bs-body-color) !important; /* перебиваем navbar-dark .nav-link */
-  font-weight: 500;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-.drawer-nav .nav-link svg {
-  flex: 0 0 auto;
-  margin-top: 0; /* гасим глобальный хак .nav-link svg{margin-top:-0.2rem} */
-  font-size: 1.2rem;
-}
-.drawer-nav .nav-link:hover {
-  background: rgba(var(--bs-emphasis-color-rgb), 0.06);
-  color: var(--bs-body-color) !important;
-}
-.drawer-nav .nav-link.active {
-  background: rgba(var(--bs-success-rgb), 0.14);
-  color: var(--bs-success) !important;
-}
-/* Вложенные выпадающие (Отчёты / Администрирование) внутри меню */
-.drawer-nav .dropdown-item.active,
-.drawer-nav .dropdown-item:active {
-  background: rgba(var(--bs-success-rgb), 0.14);
-  color: var(--bs-success);
-}
-
-/* Футер меню: тема + аккаунт + выход, прижат книзу */
-.drawer-footer {
-  flex: 0 0 auto;
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--bs-border-color);
-}
-.drawer-theme {
-  display: flex;
-  gap: 0.4rem;
-  margin-bottom: 0.6rem;
-}
-.drawer-theme__btn {
-  flex: 1 1 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.55rem;
-  border: 1px solid var(--bs-border-color);
-  border-radius: 0.6rem;
-  background: transparent;
-  color: var(--bs-body-color);
-  font-size: 1.2rem;
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease;
-}
-.drawer-theme__btn.is-active {
-  background: rgba(var(--bs-success-rgb), 0.14);
-  border-color: rgba(var(--bs-success-rgb), 0.5);
-  color: var(--bs-success);
-}
-.drawer-theme__btn svg {
-  margin-top: 0;
-}
-
-/* Строка-действие в футере меню (аккаунт / выход) */
-.drawer-action {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  width: 100%;
-  padding: 0.65rem 0.75rem;
-  border: 0;
-  border-radius: 0.6rem;
-  background: transparent;
-  color: var(--bs-body-color);
-  font-weight: 500;
-  text-align: left;
-  text-decoration: none;
-  transition: background-color 0.15s ease;
-}
-.drawer-action:hover {
-  background: rgba(var(--bs-emphasis-color-rgb), 0.06);
-  color: var(--bs-body-color);
-}
-.drawer-action svg {
-  flex: 0 0 auto;
-  margin-top: 0;
-  font-size: 1.2rem;
-}
-.drawer-action--danger {
-  color: var(--bs-danger);
-}
-.drawer-action--danger:hover {
-  background: rgba(var(--bs-danger-rgb), 0.1);
-  color: var(--bs-danger);
-}
-.drawer-footer form {
-  margin: 0;
-}
+/* Легаси-бургер (.drawer-*) удалён: мобильное меню — Sheet (NavDrawer.jsx),
+   Фаза 2 миграции. */
 
 /* ============================================================
    Персональный отчёт (/finances/personal-report)
@@ -1854,21 +1694,8 @@ body:has(.mobile-shell),
 .ws-menu-item__check {
   font-weight: 700;
 }
-.ws-menu-note {
-  padding: 6px 16px 8px;
-  min-width: 260px;
-}
-
-/* Чип своего статуса в мобильной шапке: дропдаун без каретки */
-.ws-nav-chip .dropdown-toggle::after {
-  display: none;
-}
-.ws-nav-chip .dropdown-toggle {
-  display: flex;
-  align-items: center;
-  padding-top: 2px;
-  padding-bottom: 2px;
-}
+/* .ws-menu-note / .ws-nav-chip удалены: меню статусов — Popover навбара
+   (WorkStatusSwitcher на tw), Фаза 2 миграции. */
 
 /* ---- Десктоп: правая панель (rail), приклеена к правому краю окна ----
    position: fixed → при скролле страницы панель остаётся на месте. Верхний
@@ -1885,7 +1712,7 @@ body:has(.mobile-shell),
   display: flex;
   flex-direction: column;
   width: 68px;
-  padding-top: 74px; /* высота десктопного навбара */
+  padding-top: 64px; /* высота десктопного навбара (56px, Фаза 2) + зазор */
   border-radius: 0;
   border-left: 1px solid var(--ws-line);
   background-color: var(--ws-surface);
@@ -2100,4 +1927,16 @@ body:has(.mobile-shell),
   .ws-strip__chev {
     transition: none;
   }
+}
+
+/* --- Компенсация radix-скролл-лока для фиксед-элементов оболочки ---------
+   react-remove-scroll (внутри radix Dialog/AlertDialog/Sheet) компенсирует
+   исчезнувший скроллбар только на body (padding-right); фиксед-бар и рейл
+   статусов без этого «прыгают» на его ширину. Меню (DropdownMenu) уже
+   non-modal и лок не вызывают (см. ui/dropdown-menu.tsx). */
+body[data-scroll-locked] .app-topbar {
+  padding-right: var(--removed-body-scroll-bar-size, 0px);
+}
+body[data-scroll-locked] .ws-rail {
+  right: var(--removed-body-scroll-bar-size, 0px);
 }

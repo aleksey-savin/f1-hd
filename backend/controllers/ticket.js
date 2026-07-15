@@ -1266,6 +1266,13 @@ exports.updateDeadline = async (req, res, next) => {
     ticket.deadline = req.body.deadline;
     ticket.version = (ticket.version ?? 0) + 1;
 
+    // Рассылка «изменён срок заявки» (категория ticketDeadlineUpdate):
+    // фоновый цикл createTicketNotifications уведомит заявителя и ответственных.
+    // "update deadline" — значение из enum схемы Ticket (заложено, но до сих
+    // пор нигде не присваивалось).
+    ticket.notifications.lastAction = "update deadline";
+    ticket.notifications.pending = true;
+
     await ticket.save();
 
     // добавляем запись в лог заявки

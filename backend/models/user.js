@@ -153,7 +153,10 @@ const userSchema = new Schema(
         newTicket: { type: Boolean, default: true },
         respStateUpdate: { type: Boolean, default: true },
         ticketStateUpdate: { type: Boolean, default: true },
-        updatedDeadline: { type: Boolean, default: true },
+        // Ключ категории един для prefs.notify.personal / byTelegram / byEmail
+        // (см. notifyTg/notifyEmail в middleware/notifications.js); прежнее имя
+        // updatedDeadline было рассинхронено и нигде не читалось.
+        ticketDeadlineUpdate: { type: Boolean, default: true },
         ticketNewComment: { type: Boolean, default: true },
         scheduledWorks: { type: Boolean, default: true },
       },

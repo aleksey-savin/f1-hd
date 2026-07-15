@@ -42,6 +42,7 @@ const preferencesSchema = new Schema({
       newTicket: { type: Boolean, default: false },
       respStateUpdate: { type: Boolean, default: false },
       ticketStateUpdate: { type: Boolean, default: false },
+      ticketDeadlineUpdate: { type: Boolean, default: false },
       ticketNewComment: { type: Boolean, default: false },
       scheduledWorks: { type: Boolean, default: false },
     },
@@ -76,6 +77,9 @@ const preferencesSchema = new Schema({
     tel: { type: String, default: "" },
     email: { type: String, default: "" },
     address: { type: String, default: "" },
+    // Лого компании для навбара; пусто — в баре текстовый бренд «HelpDesk».
+    // Имя файла в uploads/ (локальное хранение — читается на каждой странице)
+    logo: { type: String, default: "" },
   },
   getScreen: {
     isActive: { type: Boolean, default: false },

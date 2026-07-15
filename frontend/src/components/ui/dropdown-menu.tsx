@@ -5,9 +5,19 @@ import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 function DropdownMenu({
+  // Точечное отличие от стока shadcn: меню non-modal по умолчанию — модальный
+  // режим лочит скролл body, и фиксед-бар/рейл «прыгают» на ширину скроллбара.
+  // Для выпадающих меню лок не нужен (закрытие по клику снаружи работает).
+  modal = false,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+  return (
+    <DropdownMenuPrimitive.Root
+      data-slot="dropdown-menu"
+      modal={modal}
+      {...props}
+    />
+  )
 }
 
 function DropdownMenuPortal({

@@ -1,34 +1,248 @@
-import { useState, useEffect, useContext } from "react";
-import { NavLink, Form } from "react-router";
-import { AuthedUserContext } from "../store/authed-user-context";
+import { useContext, useMemo, useState } from "react";
+import { Form, NavLink } from "react-router";
 
-import { getLocalStorageData } from "../util/auth";
-import Logout from "../components/Auth/Logout";
-import WorkStatusSwitcher from "../components/User/WorkStatusSwitcher";
+import {
+  RiArrowDownSLine,
+  RiLogoutBoxRLine,
+  RiMenuLine,
+  RiUserSettingsLine,
+} from "react-icons/ri";
+
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { THEME_OPTIONS } from "@/components/app/ThemeSegment";
+import { cn } from "@/lib/utils";
+
 import WorkStatusAvatar from "../components/User/WorkStatusAvatar";
+import WorkStatusSwitcher from "../components/User/WorkStatusSwitcher";
+import { AuthedUserContext } from "../store/authed-user-context";
+import { ThemeContext } from "../store/theme-context";
+import useInitialPrefs from "../store/prefs";
+import { getLocalStorageData } from "../util/auth";
+import NavDrawer from "./NavDrawer";
+import { buildMenu } from "./Navigation/menu";
 
-// Bootstrap Components
-import Container from "react-bootstrap/Container";
-import Navbar from "react-bootstrap/Navbar";
-import Nav from "react-bootstrap/Nav";
-import NavDropdown from "react-bootstrap/NavDropdown";
-import Offcanvas from "react-bootstrap/Offcanvas";
+// Навбар оболочки (Фаза 2 миграции): панель поверхности с тонкой нижней
+// границей в обеих темах. Бренд — лого компании из настроек (contacts.logo),
+// без него — текст «HelpDesk». Пункты и разделы — из конфига
+// Navigation/menu.js; на < xl меню сворачивается в бургер-Sheet (NavDrawer,
+// общий с мобильным шеллом). Меню пользователя — Popover (не DropdownMenu:
+// внутри инпут заметки статуса, radix-меню ломает его typeahead'ом).
 
-// Icons
-import { RiUserLine, RiUserSettingsLine, RiDoorOpenLine } from "react-icons/ri";
+// Классы пункта бара; активный — корпусный цвет + полужирный, иконка бирюзой
+const navItemClass = (isActive = false) =>
+  cn(
+    "tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2 tw:rounded-lg tw:border-0 tw:bg-transparent tw:px-2.5 tw:py-1.5 tw:text-sm tw:font-medium tw:whitespace-nowrap tw:text-muted-foreground tw:no-underline tw:transition-colors tw:outline-none",
+    "tw:hover:bg-accent tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+    isActive && "tw:font-semibold tw:text-foreground",
+  );
 
-import { MdOutlineDarkMode, MdLightMode, MdComputer } from "react-icons/md";
+const Brand = ({ size = "default" }) => {
+  const { contacts } = useInitialPrefs();
 
-import EndUserNavs from "./Navigation/EndUser";
-import EmployeeNavs from "./Navigation/Employee";
+  return (
+    <NavLink
+      to="/"
+      aria-label="HelpDesk — на главную"
+      className="tw:inline-flex tw:flex-none tw:items-center tw:no-underline"
+    >
+      {contacts?.logo ? (
+        // width:auto задаёт глобальный img-автоскейл, max-height — инлайном
+        // (глобальное правило ограничивает только width/height, не max-height)
+        <img
+          src={`${import.meta.env.VITE_API_ADDRESS}/uploads/${contacts.logo}`}
+          alt="Логотип компании"
+          style={{ maxHeight: size === "sm" ? "28px" : "32px" }}
+        />
+      ) : (
+        <span
+          className={cn(
+            "tw:font-bold tw:tracking-tight tw:text-foreground",
+            size === "sm" ? "tw:text-base" : "tw:text-lg",
+          )}
+        >
+          Help<span className="tw:text-primary">Desk</span>
+        </span>
+      )}
+    </NavLink>
+  );
+};
 
-// Dropdown Title Components
-const DropdownTitles = {
-  // Для сотрудников титул — кругляш с кольцом текущего статуса; клиентам
-  // статусы недоступны, у них прежняя иконка.
-  User: ({ firstName, lastName, profileImagePath, workStatus, showStatus }) => (
-    <span className="d-inline-flex align-items-center gap-2">
-      {showStatus ? (
+// Дропдаун раздела бара: группы пунктов с разделителями
+const SectionDropdown = ({ item }) => {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className={navItemClass()}>
+          <item.icon size={16} aria-hidden className="tw:opacity-85" />
+          {item.label}
+          <RiArrowDownSLine size={14} aria-hidden className="tw:opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="tw:min-w-56">
+        {item.groups.map((group, groupIndex) => (
+          <div key={groupIndex}>
+            {groupIndex > 0 && <DropdownMenuSeparator />}
+            {group.map((child) => (
+              <DropdownMenuItem key={child.key} asChild>
+                <NavLink to={child.to} className="tw:no-underline">
+                  <child.icon size={16} aria-hidden />
+                  {child.label}
+                </NavLink>
+              </DropdownMenuItem>
+            ))}
+          </div>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+const ThemeDropdown = () => {
+  const { theme, setTheme } = useContext(ThemeContext);
+  const current =
+    THEME_OPTIONS.find((option) => option.value === theme) ?? THEME_OPTIONS[2];
+
+  const changeTheme = (value) => {
+    if (value === theme) return;
+    setTheme(value);
+    // Легаси-CSS до эндшпиля подхватывает тему только с перезагрузкой
+    window.location.reload();
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Тема оформления: ${current.label}`}
+          title="Тема оформления"
+        >
+          <current.Icon size={17} aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuRadioGroup value={theme} onValueChange={changeTheme}>
+          {THEME_OPTIONS.map(({ value, label, Icon }) => (
+            <DropdownMenuRadioItem key={value} value={value}>
+              <Icon size={16} aria-hidden className="tw:me-1" />
+              {label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+// Меню пользователя: статусы присутствия + «Мой аккаунт» + «Выйти»
+const UserMenu = ({ trigger, align = "end" }) => {
+  const [open, setOpen] = useState(false);
+  const { isEndUser, hideWorkStatus } = useContext(AuthedUserContext);
+  const workStatusAvailable = !isEndUser && !hideWorkStatus;
+
+  const menuItemClass =
+    "tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2.5 tw:rounded-md tw:border-0 tw:bg-transparent tw:px-2.5 tw:py-1.5 tw:text-left tw:text-sm tw:text-foreground tw:no-underline tw:outline-none tw:hover:bg-accent tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50";
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent align={align} className="tw:w-64 tw:p-1.5">
+        {workStatusAvailable && (
+          <>
+            <WorkStatusSwitcher />
+            <div className="tw:mx-2 tw:my-1.5 tw:h-px tw:bg-border-soft" />
+          </>
+        )}
+        <NavLink
+          to="/my-account"
+          onClick={() => setOpen(false)}
+          className={menuItemClass}
+        >
+          <RiUserSettingsLine
+            size={16}
+            aria-hidden
+            className="tw:text-muted-foreground"
+          />
+          Мой аккаунт
+        </NavLink>
+        <div className="tw:mx-2 tw:my-1.5 tw:h-px tw:bg-border-soft" />
+        <Form action="/logout" method="POST">
+          <button
+            type="submit"
+            className={cn(
+              menuItemClass,
+              "tw:text-destructive tw:hover:bg-destructive/10",
+            )}
+          >
+            <RiLogoutBoxRLine size={16} aria-hidden />
+            Выйти
+          </button>
+        </Form>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+const NavigationBar = ({ embedded = false }) => {
+  const { token } = getLocalStorageData();
+  const isLoggedIn = !!token;
+
+  const authedUser = useContext(AuthedUserContext);
+  const { modules } = useInitialPrefs();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const {
+    firstName,
+    lastName,
+    isAdmin,
+    isEndUser,
+    profileImagePath,
+    workStatus,
+    hideWorkStatus,
+    dashboard,
+    permissions,
+  } = authedUser;
+
+  const workStatusAvailable = !isEndUser && !hideWorkStatus;
+  const initials =
+    `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.trim() || "?";
+
+  const menuItems = useMemo(
+    () =>
+      isLoggedIn
+        ? buildMenu({
+            isEndUser,
+            isAdmin,
+            permissions,
+            modules,
+            dashboardActive: !!dashboard?.isActive,
+          })
+        : [],
+    [isLoggedIn, isEndUser, isAdmin, permissions, modules, dashboard],
+  );
+
+  const userTrigger = (
+    <button
+      type="button"
+      aria-label="Меню пользователя"
+      className="tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2 tw:rounded-full tw:border-0 tw:bg-transparent tw:py-1 tw:ps-1 tw:pe-2 tw:text-sm tw:font-medium tw:whitespace-nowrap tw:text-foreground tw:outline-none tw:hover:bg-accent tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+    >
+      {workStatusAvailable ? (
         <WorkStatusAvatar
           size={30}
           firstName={firstName}
@@ -37,323 +251,143 @@ const DropdownTitles = {
           workStatus={workStatus}
         />
       ) : (
-        <RiUserLine />
-      )}
-      <span>{`${firstName} ${lastName}`}</span>
-    </span>
-  ),
-};
-
-const ThemeSelector = ({ theme, isDark, handleThemeChange }) => (
-  <NavDropdown
-    title={
-      theme === "system" ? (
-        <MdComputer />
-      ) : isDark ? (
-        <MdOutlineDarkMode />
-      ) : (
-        <MdLightMode />
-      )
-    }
-    align="end"
-  >
-    <NavDropdown.Item
-      active={theme === "light"}
-      onClick={() => handleThemeChange("light")}
-    >
-      <MdLightMode /> Светлая
-    </NavDropdown.Item>
-    <NavDropdown.Item
-      active={theme === "dark"}
-      onClick={() => handleThemeChange("dark")}
-    >
-      <MdOutlineDarkMode /> Тёмная
-    </NavDropdown.Item>
-    <NavDropdown.Item
-      active={theme === "system"}
-      onClick={() => handleThemeChange("system")}
-    >
-      <MdComputer /> Системная
-    </NavDropdown.Item>
-  </NavDropdown>
-);
-
-// Сегментированный переключатель темы для мобильного бургер-меню
-const DrawerThemeSwitch = ({ theme, handleThemeChange }) => {
-  const options = [
-    { value: "light", label: "Светлая", Icon: MdLightMode },
-    { value: "dark", label: "Тёмная", Icon: MdOutlineDarkMode },
-    { value: "system", label: "Системная", Icon: MdComputer },
-  ];
-
-  return (
-    <div className="drawer-theme" role="group" aria-label="Тема оформления">
-      {options.map(({ value, label, Icon }) => (
-        <button
-          key={value}
-          type="button"
-          aria-label={label}
-          aria-pressed={theme === value}
-          className={`drawer-theme__btn${theme === value ? " is-active" : ""}`}
-          onClick={() => handleThemeChange(value)}
+        <span
+          aria-hidden
+          className="tw:grid tw:size-7.5 tw:flex-none tw:place-items-center tw:rounded-full tw:bg-accent tw:text-xs tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
         >
-          <Icon />
-        </button>
-      ))}
-    </div>
-  );
-};
-
-const NavigationBar = ({ handleShowAuthModal, embedded = false }) => {
-  const { token } = getLocalStorageData();
-
-  // State and Context
-  const [showOffcanvas, setShowOffcanvas] = useState(false);
-  const [theme, setTheme] = useState(localStorage.getItem("theme") || "system");
-  const [isDark, setIsDark] = useState(
-    localStorage.getItem("darkMode") === "true",
+          {initials}
+        </span>
+      )}
+      <span className="tw:max-lg:hidden">
+        {firstName} {lastName}
+      </span>
+      <RiArrowDownSLine size={14} aria-hidden className="tw:opacity-60" />
+    </button>
   );
 
-  const {
-    firstName,
-    lastName,
-    isEndUser,
-    isAdmin,
-    profileImagePath,
-    workStatus,
-    hideWorkStatus,
-  } = useContext(AuthedUserContext);
-
-  // Статусы присутствия недоступны клиентам и скрытым из статусов (сторонним)
-  const workStatusAvailable = !isEndUser && !hideWorkStatus;
-  const isLoggedIn = !!token;
-
-  // Event Handlers
-  const handleClose = () => setShowOffcanvas(false);
-  const handleShow = () => setShowOffcanvas(true);
-
-  const handleThemeChange = (newTheme) => {
-    setTheme(newTheme);
-    let newIsDark;
-
-    switch (newTheme) {
-      case "dark":
-        newIsDark = true;
-        break;
-      case "light":
-        newIsDark = false;
-        break;
-      case "system":
-        newIsDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        break;
-      default:
-        newIsDark = false;
-    }
-
-    setIsDark(newIsDark);
-    localStorage.setItem("theme", newTheme);
-    localStorage.setItem("darkMode", newIsDark);
-    window.location.reload();
-  };
-
-  // System Theme Effect
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
-    const handleSystemThemeChange = () => {
-      if (theme === "system") {
-        const newIsDark = mediaQuery.matches;
-        setIsDark(newIsDark);
-        localStorage.setItem("darkMode", newIsDark);
-        window.location.reload();
-      }
-    };
-
-    mediaQuery.addEventListener("change", handleSystemThemeChange);
-    return () =>
-      mediaQuery.removeEventListener("change", handleSystemThemeChange);
-  }, [theme]);
-
-  const roleLabel = isAdmin
-    ? "Администратор"
-    : isEndUser
-      ? "Пользователь"
-      : "Сотрудник";
-  const initials =
-    `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.trim() || "?";
-
-  return (
-    <Navbar
-      expand="xxl"
-      bg={isDark ? "dark" : "primary"}
-      className={`navbar-dark ${embedded ? "mobile-shell__header" : "fixed-top py-2"}`}
-    >
-      <Container fluid>
-        <Navbar.Toggle
-          aria-controls={`offcanvasNavbar-expand-lg`}
-          onClick={handleShow}
-        />
-        <Navbar.Brand as={NavLink} to="/" id="logo" className="p-0">
-          <img
-            alt=""
-            src="/logo.png"
-            className="my-1"
-            style={{ maxHeight: "50px" }}
-          />
-        </Navbar.Brand>
-
-        {/* Мобильная шапка: кругляш своего статуса, тап открывает смену */}
-        {embedded && isLoggedIn && workStatusAvailable && (
-          <Nav className="ms-auto flex-row ws-nav-chip">
-            <NavDropdown
-              title={
-                <WorkStatusAvatar
-                  size={32}
-                  firstName={firstName}
-                  lastName={lastName}
-                  profileImagePath={profileImagePath}
-                  workStatus={workStatus}
-                />
+  // --- Мобильный shell: статичный флекс-ребёнок, а не fixed (см. гайд) ---
+  if (embedded) {
+    return (
+      <header className="mobile-shell__header tw:flex tw:items-center tw:gap-1.5 tw:bg-card tw:px-2.5">
+        {isLoggedIn && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Меню"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <RiMenuLine size={19} />
+          </Button>
+        )}
+        <Brand size="sm" />
+        {isLoggedIn && workStatusAvailable && (
+          <div className="tw:ms-auto">
+            <UserMenu
+              trigger={
+                <button
+                  type="button"
+                  aria-label="Мой статус и аккаунт"
+                  className="tw:inline-grid tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-full tw:border-0 tw:bg-transparent tw:p-0.5 tw:outline-none tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+                >
+                  <WorkStatusAvatar
+                    size={32}
+                    firstName={firstName}
+                    lastName={lastName}
+                    profileImagePath={profileImagePath}
+                    workStatus={workStatus}
+                  />
+                </button>
               }
-              align="end"
-            >
-              <WorkStatusSwitcher />
-            </NavDropdown>
-          </Nav>
+            />
+          </div>
+        )}
+        {isLoggedIn && (
+          <NavDrawer
+            open={drawerOpen}
+            onOpenChange={setDrawerOpen}
+            items={menuItems}
+          />
+        )}
+      </header>
+    );
+  }
+
+  // --- Десктоп: фиксированный бар ---
+  // z-index — легаси-шкала: 1030 (как bootstrap fixed-top), выше рейла
+  // статусов (1020), ниже модалок (1045+). Класс app-topbar — для
+  // компенсации radix-скролл-лока (см. index.css).
+  return (
+    <header
+      className="app-topbar tw:fixed tw:inset-x-0 tw:top-0 tw:border-b tw:border-border tw:bg-card"
+      style={{ zIndex: 1030 }}
+    >
+      <div
+        className="tw:mx-auto tw:flex tw:h-14 tw:items-center tw:gap-1.5 tw:px-6"
+        style={{ maxWidth: "1920px" }}
+      >
+        {isLoggedIn && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Меню"
+            className="tw:xl:hidden"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <RiMenuLine size={19} />
+          </Button>
+        )}
+        <div className="tw:me-3">
+          <Brand />
+        </div>
+
+        {isLoggedIn && (
+          <nav
+            aria-label="Основная навигация"
+            className="tw:flex tw:min-w-0 tw:items-center tw:gap-0.5 tw:max-xl:hidden"
+          >
+            {menuItems.map((item) =>
+              item.groups ? (
+                <SectionDropdown key={item.key} item={item} />
+              ) : (
+                <NavLink
+                  key={item.key}
+                  to={item.to}
+                  className={({ isActive }) => navItemClass(isActive)}
+                >
+                  {({ isActive }) => (
+                    <>
+                      <item.icon
+                        size={16}
+                        aria-hidden
+                        className={cn(
+                          "tw:opacity-85",
+                          isActive && "tw:text-accent-text tw:opacity-100",
+                        )}
+                      />
+                      {item.shortLabel ?? item.label}
+                    </>
+                  )}
+                </NavLink>
+              ),
+            )}
+          </nav>
         )}
 
-        <Navbar.Offcanvas
-          show={showOffcanvas}
-          onHide={handleClose}
-          id={`offcanvasNavbar-expand-lg`}
-          aria-labelledby={`offcanvasNavbarLabel-expand-lg`}
-          placement="start"
-        >
-          <Offcanvas.Header closeButton>
-            <Offcanvas.Title id={`offcanvasNavbarLabel-expand-lg`}>
-              Меню
-            </Offcanvas.Title>
-          </Offcanvas.Header>
-
-          {embedded ? (
-            // Мобильное бургер-меню: шапка пользователя + навигация + футер.
-            // Классы .drawer-* стилизуют его независимо от десктопного бара.
-            <Offcanvas.Body className="drawer-body">
-              {isLoggedIn && (
-                <>
-                  <div className="drawer-user">
-                    {!workStatusAvailable ? (
-                      <span className="drawer-user__avatar">{initials}</span>
-                    ) : (
-                      <WorkStatusAvatar
-                        size={44}
-                        firstName={firstName}
-                        lastName={lastName}
-                        profileImagePath={profileImagePath}
-                        workStatus={workStatus}
-                      />
-                    )}
-                    <div style={{ minWidth: 0 }}>
-                      <div className="drawer-user__name text-truncate">
-                        {firstName} {lastName}
-                      </div>
-                      <div className="drawer-user__role">{roleLabel}</div>
-                    </div>
-                  </div>
-
-                  <div className="drawer-section__label">Навигация</div>
-                  <Nav className="drawer-nav flex-column">
-                    {isEndUser ? (
-                      <EndUserNavs setShowOffcanvas={setShowOffcanvas} />
-                    ) : (
-                      <EmployeeNavs setShowOffcanvas={setShowOffcanvas} />
-                    )}
-                  </Nav>
-
-                  <div className="drawer-footer">
-                    <div className="drawer-section__label">Тема</div>
-                    <DrawerThemeSwitch
-                      theme={theme}
-                      handleThemeChange={handleThemeChange}
-                    />
-                    <NavLink
-                      to="/my-account"
-                      onClick={handleClose}
-                      className="drawer-action"
-                    >
-                      <RiUserSettingsLine /> Мой аккаунт
-                    </NavLink>
-                    <Form action="/logout" method="POST">
-                      <button
-                        type="submit"
-                        className="drawer-action drawer-action--danger"
-                      >
-                        <RiDoorOpenLine /> Выйти
-                      </button>
-                    </Form>
-                  </div>
-                </>
-              )}
-            </Offcanvas.Body>
-          ) : (
-            <Offcanvas.Body>
-              <Nav className="justify-content-start flex-grow-1 pe-3">
-                {isLoggedIn && (
-                  <>
-                    {isEndUser && (
-                      <EndUserNavs setShowOffcanvas={setShowOffcanvas} />
-                    )}
-                    {!isEndUser && (
-                      <EmployeeNavs setShowOffcanvas={setShowOffcanvas} />
-                    )}
-                  </>
-                )}
-              </Nav>
-
-              <Nav>
-                {isLoggedIn && (
-                  <>
-                    <ThemeSelector
-                      theme={theme}
-                      isDark={isDark}
-                      handleThemeChange={handleThemeChange}
-                    />
-                    <NavDropdown
-                      title={
-                        <DropdownTitles.User
-                          firstName={firstName}
-                          lastName={lastName}
-                          profileImagePath={profileImagePath}
-                          workStatus={workStatus}
-                          showStatus={workStatusAvailable}
-                        />
-                      }
-                      align="end"
-                    >
-                      {workStatusAvailable && (
-                        <>
-                          <WorkStatusSwitcher />
-                          <NavDropdown.Divider />
-                        </>
-                      )}
-                      <NavDropdown.Item
-                        as={NavLink}
-                        to="/my-account"
-                        onClick={handleClose}
-                      >
-                        <RiUserSettingsLine /> Мой аккаунт
-                      </NavDropdown.Item>
-                      <NavDropdown.Divider />
-                      <Logout handleShowAuthModal={handleShowAuthModal} />
-                    </NavDropdown>
-                  </>
-                )}
-              </Nav>
-            </Offcanvas.Body>
-          )}
-        </Navbar.Offcanvas>
-      </Container>
-    </Navbar>
+        {isLoggedIn && (
+          <div className="tw:ms-auto tw:flex tw:flex-none tw:items-center tw:gap-1">
+            <ThemeDropdown />
+            <UserMenu trigger={userTrigger} />
+          </div>
+        )}
+      </div>
+      {isLoggedIn && (
+        <NavDrawer
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          items={menuItems}
+        />
+      )}
+    </header>
   );
 };
 

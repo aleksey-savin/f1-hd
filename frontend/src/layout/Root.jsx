@@ -12,12 +12,11 @@ import useSidebarStore from "../store/sidebar";
 import NavigationBar from "./Navbar";
 import Footer from "./Footer";
 import WorkStatusBar from "../components/User/WorkStatusBar";
-import AlertToast from "../UI/AlertToast";
+import { Toaster } from "@/components/ui/sonner";
 // import Pro32Connect from "../components/Integrations/Pro32Connect/Pro32Connect";
 
 import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
-import ToastContainer from "react-bootstrap/ToastContainer";
 import Alert from "react-bootstrap/Alert";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
@@ -185,19 +184,47 @@ const RootLayout = () => {
                     канве, без bootstrap-Card: заголовок страницы — на канве,
                     панель — у самого списка (согласованный макет, см.
                     docs/ux-ui-guide.md → раздел миграции). Список путей
-                    пополняется по фазам. */}
-                {["/inventory/vendors"].some((p) =>
-                  location.pathname.startsWith(p),
-                ) ? (
-                  <div
-                    /* position-relative — паритет с легаси-Card: контент
-                       рисуется поверх fixed-слоя фоновой картинки */
-                    className="mb-3 position-relative"
-                    style={{ minHeight: "calc(100svh - 124px)" }}
-                  >
-                    <Outlet />
-                  </div>
-                ) : (
+                    пополняется по фазам; maxWidth — контентная ширина
+                    страницы (её tw:max-w-*) + горизонтальный p-4 листа. */}
+                {(() => {
+                  const MIGRATED_ROUTES = [
+                    // ListWrapper: tw:max-w-7xl (1280) + 2×24
+                    { path: "/inventory/vendors", maxWidth: 1328 },
+                    // страница: tw:max-w-4xl (896) + 2×24
+                    { path: "/my-account", maxWidth: 944 },
+                  ];
+                  const migrated = MIGRATED_ROUTES.find((r) =>
+                    location.pathname.startsWith(r.path),
+                  );
+                  if (!migrated) return null;
+                  return (
+                    <div
+                      /* position-relative — паритет с легаси-Card: контент
+                         рисуется поверх fixed-слоя фоновой картинки.
+                         При заданной фоновой картинке контент лежит на «листе»
+                         цвета канвы (content sheet on wallpaper), и лист
+                         обнимает контент по его maxWidth, а не тянется на всю
+                         ширину: пустых полей-«карточек» нет, обои видны по
+                         бокам. Без картинки лист не рисуется вовсе. */
+                      className={`mb-3 position-relative${
+                        userData.backgroundImagePath
+                          ? " rounded-4 border p-4 mx-auto w-100"
+                          : ""
+                      }`}
+                      style={{
+                        minHeight: "calc(100svh - 124px)",
+                        ...(userData.backgroundImagePath
+                          ? {
+                              background: "var(--bs-body-bg)",
+                              maxWidth: migrated.maxWidth,
+                            }
+                          : {}),
+                      }}
+                    >
+                      <Outlet />
+                    </div>
+                  );
+                })() || (
                   <Card
                     className="mb-3 shadow"
                     style={{
@@ -237,9 +264,7 @@ const RootLayout = () => {
           </Container>
         )}
       </MobileView>
-      <ToastContainer className="p-3" position="bottom-end">
-        <AlertToast />
-      </ToastContainer>
+      <Toaster />
     </AuthedUserContext.Provider>
   );
 };

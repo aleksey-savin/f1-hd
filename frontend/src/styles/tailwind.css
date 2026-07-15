@@ -178,6 +178,21 @@
 }
 
 /*
+ * Ловушка preflight №4: сгенерированные shadcn-компоненты пишут голый
+ * `tw:border` и полагаются на preflight-правило `* { border-color: … }`.
+ * Preflight выключен → цвет границы падал в currentColor (светлые рамки у
+ * меню/поповеров в тёмной теме). Восстанавливаем ТОЛЬКО цвет; width/style
+ * не трогаем — их задаёт bootstrap reboot и легаси-код.
+ */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+}
+
+/*
  * На период сосуществования: radix-оверлеи и порталы shadcn должны быть выше
  * bootstrap-модалок/offcanvas (z-index 1045–1055) и легаси-тостов. Правило
  * без @layer, поэтому побеждает утилиту tw:z-50 из layer(utilities).

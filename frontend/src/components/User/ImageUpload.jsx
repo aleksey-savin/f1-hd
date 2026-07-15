@@ -1,21 +1,34 @@
-import React, { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import ReactCrop, { centerCrop, makeAspectCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import AlertMessage from "@/components/app/AlertMessage";
+import useToastStore from "../../store/toast-store";
+
 import { getLocalStorageData } from "../../util/auth";
 
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-
-import Modal from "react-bootstrap/Modal";
-import Button from "react-bootstrap/Button";
-
+// Смена фото профиля (мигрированная страница «Мой аккаунт»): кнопка открывает
+// выбор файла, дальше — диалог с круглой обрезкой (ReactCrop) и загрузкой.
+// Механика легаси сохранена: canvas-кроп → POST add-profile-image.
 function ImageUpload({ userId, setProfileImage }) {
+  const { showToast } = useToastStore();
+
   const [imgSrc, setImgSrc] = useState("");
   const [crop, setCrop] = useState();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [open, setOpen] = useState(false);
 
   const imgRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   function centerAspectCrop(mediaWidth, mediaHeight, aspect) {
     const width = Math.min(mediaWidth, mediaHeight);
@@ -36,33 +49,36 @@ function ImageUpload({ userId, setProfileImage }) {
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
+    // сбрасываем value, чтобы повторный выбор того же файла снова сработал
+    e.target.value = "";
     if (!file) return;
 
-    // Validate file type
     const validTypes = ["image/jpeg", "image/png", "image/gif"];
     if (!validTypes.includes(file.type)) {
-      setError("Пожалуйста, выберите файл с изображением (jpg, png, gif)");
+      showToast(
+        "danger",
+        "Пожалуйста, выберите файл с изображением (jpg, png, gif)",
+      );
       return;
     }
 
-    // Validate file size
     if (file.size > 5 * 1024 * 1024) {
-      setError("Размер файла не должен превышать 5Мб");
+      showToast("danger", "Размер файла не должен превышать 5Мб");
       return;
     }
 
     const reader = new FileReader();
     reader.addEventListener("load", () => {
       setImgSrc(reader.result?.toString() || "");
-      handleShow();
+      setError(null);
+      setOpen(true);
     });
     reader.readAsDataURL(file);
   };
 
   const onImageLoad = (e) => {
     const { width, height } = e.currentTarget;
-    const crop = centerAspectCrop(width, height, 1);
-    setCrop(crop);
+    setCrop(centerAspectCrop(width, height, 1));
   };
 
   const createCroppedImage = async (crop) => {
@@ -73,24 +89,22 @@ function ImageUpload({ userId, setProfileImage }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
-    // Get the scale of the image shown vs its natural size
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
 
-    // Set the canvas size to match the desired crop size
     canvas.width = crop.width * scaleX;
     canvas.height = crop.height * scaleY;
 
     ctx.drawImage(
       image,
-      crop.x * scaleX, // source x
-      crop.y * scaleY, // source y
-      crop.width * scaleX, // source width
-      crop.height * scaleY, // source height
-      0, // dest x
-      0, // dest y
-      canvas.width, // dest width
-      canvas.height, // dest height
+      crop.x * scaleX,
+      crop.y * scaleY,
+      crop.width * scaleX,
+      crop.height * scaleY,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
     );
 
     return new Promise((resolve) => {
@@ -110,7 +124,7 @@ function ImageUpload({ userId, setProfileImage }) {
 
   const handleUpload = async () => {
     if (!imgRef.current || !crop) {
-      setError("Please select and crop an image first!");
+      setError("Сначала выберите область изображения");
       return;
     }
 
@@ -152,7 +166,8 @@ function ImageUpload({ userId, setProfileImage }) {
         `${import.meta.env.VITE_API_ADDRESS}/uploads/${data.profileImagePath}`,
       );
 
-      handleClose();
+      setOpen(false);
+      showToast("success", "Фото профиля обновлено");
     } catch (error) {
       console.error("Error:", error);
       setError(error.message || "Что-то пошло не так, попробуйте ещё раз");
@@ -161,72 +176,66 @@ function ImageUpload({ userId, setProfileImage }) {
     }
   };
 
-  const [show, setShow] = useState(false);
-
-  const handleClose = () => setShow(false);
-  const handleShow = () => setShow(true);
-
   return (
     <>
-      <Row>
-        <Col sm="auto">
-          <input
-            type="file"
-            className="form-control mb-1"
-            accept="image/*"
-            onChange={handleFileSelect}
-          />
-          <small className="text-muted">Максимальный размер файла: 5Мб</small>
-          <br />
-          <small className="text-muted">
-            Поддерживаемые форматы: JPG, PNG, GIF
-          </small>
-        </Col>
-        <Col sm="auto" className="pt-2">
-          {error && <p className="text-danger">{error}</p>}
-        </Col>
-      </Row>
-      <Modal show={show} onHide={handleClose} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Выберите область для загрузки</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <ReactCrop
-            crop={crop}
-            onChange={(pixelCrop) => setCrop(pixelCrop)}
-            aspect={1}
-            circularCrop
-            unit="px" // Changed to px instead of percentage
-          >
-            <img
-              ref={imgRef}
-              alt="Crop me"
-              src={imgSrc}
-              onLoad={onImageLoad}
-              style={{ maxWidth: "100%" }}
-            />
-          </ReactCrop>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={handleClose}>
-            Закрыть
-          </Button>
-          <Button onClick={handleUpload} disabled={!imgSrc || !crop || loading}>
-            {loading ? (
-              <>
-                <span
-                  className="spinner-border spinner-border-sm me-2"
-                  role="status"
-                  aria-hidden="true"
-                ></span>
-                Загружаю...
-              </>
-            ) : (
-              "Загрузить"
-            )}
-          </Button>
-        </Modal.Footer>
-      </Modal>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={handleFileSelect}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => fileInputRef.current?.click()}
+      >
+        Сменить фото
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Выберите область для загрузки</DialogTitle>
+          </DialogHeader>
+          {error && (
+            <AlertMessage variant="danger" message={error} className="tw:my-0" />
+          )}
+          <div className="tw:flex tw:justify-center tw:overflow-hidden">
+            <ReactCrop
+              crop={crop}
+              onChange={(pixelCrop) => setCrop(pixelCrop)}
+              aspect={1}
+              circularCrop
+              unit="px"
+            >
+              <img
+                ref={imgRef}
+                alt="Область обрезки"
+                src={imgSrc}
+                onLoad={onImageLoad}
+                className="tw:max-h-96 tw:max-w-full"
+              />
+            </ReactCrop>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setOpen(false)}
+            >
+              Закрыть
+            </Button>
+            <Button
+              type="button"
+              onClick={handleUpload}
+              disabled={!imgSrc || !crop || loading}
+            >
+              {loading ? "Загружаю…" : "Загрузить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

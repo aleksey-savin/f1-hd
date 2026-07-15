@@ -1,243 +1,220 @@
-import { useState } from 'react';
-import { useFetcher } from 'react-router';
+import { Fragment, useEffect, useState } from "react";
+import { useFetcher } from "react-router";
 
-import Form from 'react-bootstrap/Form';
-import Button from 'react-bootstrap/Button';
-import Alert from 'react-bootstrap/Alert';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
+import { RiMailLine, RiTelegramLine } from "react-icons/ri";
 
-import AlertToast from '../../../UI/AlertToast';
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import AlertMessage from "@/components/app/AlertMessage";
+import { cn } from "@/lib/utils";
+import useToastStore from "../../../store/toast-store";
 
-import { RiSaveLine } from 'react-icons/ri';
+// Категории личных уведомлений. Матрица «событие × канал» — вместо двух
+// легаси-списков свитчей. Имена полей формы (tg*/email*) — контракт
+// router-экшена my-account (см. pages/User/MyAccount.jsx).
+//
+// Скрытые глобальными настройками категории всё равно уходят в FormData
+// текущими значениями, иначе каждое сохранение молча сбрасывало бы их в
+// false (баг легаси).
+const CATEGORIES = [
+  {
+    name: "NewTicket",
+    label: "Новая заявка",
+    visibilityKey: "newTicket",
+    getTg: (notify) => notify.byTelegram?.newTicket,
+    getEmail: (notify) => notify.byEmail?.newTicket,
+  },
+  {
+    name: "RespStateUpdate",
+    label: "Изменение статуса ответственного за заявку",
+    visibilityKey: "respStateUpdate",
+    getTg: (notify) => notify.byTelegram?.respStateUpdate,
+    getEmail: (notify) => notify.byEmail?.respStateUpdate,
+  },
+  {
+    name: "TicketStateUpdate",
+    label: "Изменение статуса заявки",
+    visibilityKey: "ticketStateUpdate",
+    getTg: (notify) => notify.byTelegram?.ticketStateUpdate,
+    getEmail: (notify) => notify.byEmail?.ticketStateUpdate,
+  },
+  {
+    name: "TicketDeadlineUpdate",
+    label: "Изменение срока заявки",
+    visibilityKey: "ticketDeadlineUpdate",
+    getTg: (notify) => notify.byTelegram?.ticketDeadlineUpdate,
+    getEmail: (notify) => notify.byEmail?.ticketDeadlineUpdate,
+  },
+  {
+    name: "TicketNewComment",
+    label: "Новые комментарии",
+    visibilityKey: "ticketNewComment",
+    getTg: (notify) => notify.byTelegram?.ticketNewComment,
+    getEmail: (notify) => notify.byEmail?.ticketNewComment,
+  },
+  {
+    name: "ScheduledWorks",
+    label: "Запланированные работы",
+    visibilityKey: "scheduledWorks",
+    getTg: (notify) => notify.byTelegram?.scheduledWorks,
+    getEmail: (notify) => notify.byEmail?.scheduledWorks,
+  },
+];
 
-const Notifications = (props) => {
-    const fetcher = useFetcher();
-    const { user, initialPrefs } = props;
-    const { byTelegram, byEmail } = user.notify;
+const channelHeader = (Icon, full, short) => (
+  <span className="tw:flex tw:w-20 tw:flex-none tw:items-center tw:justify-center tw:gap-1.5 tw:text-xs tw:font-semibold tw:tracking-wider tw:text-muted-foreground tw:uppercase tw:max-md:w-14">
+    <Icon size={14} aria-hidden />
+    <span className="tw:max-md:hidden">{full}</span>
+    <span className="tw:md:hidden">{short}</span>
+  </span>
+);
 
-    const [showMessage, setShowMessage] = useState(false);
+const Notifications = ({ user, initialPrefs }) => {
+  const fetcher = useFetcher();
+  const { showToast } = useToastStore();
 
-    const enabledPersonalNotifications = Object.values(
-        initialPrefs.personalNotifications
-    ).filter((item) => item);
+  const [values, setValues] = useState(() => {
+    const notify = user.notify ?? {};
+    const initial = {};
+    for (const category of CATEGORIES) {
+      initial[`tg${category.name}`] = !!category.getTg(notify);
+      initial[`email${category.name}`] = !!category.getEmail(notify);
+    }
+    return initial;
+  });
 
-    const [tgSwitch, setTgSwitch] = useState({
-        tgNewTicket: {
-            label: 'Новая заявка',
-            isActive: byTelegram?.newTicket,
-            isVisible: initialPrefs.personalNotifications.newTicket,
-        },
-        tgRespStateUpdate: {
-            label: 'Изменение статуса ответственного за заявку',
-            isActive: byTelegram?.respStateUpdate,
-            isVisible: initialPrefs.personalNotifications.respStateUpdate,
-        },
-        tgTicketStateUpdate: {
-            label: 'Изменение статуса заявки',
-            isActive: byTelegram?.ticketStateUpdate,
-            isVisible: initialPrefs.personalNotifications.ticketStateUpdate,
-        },
-        tgTicketNewComment: {
-            label: 'Новые комментарии',
-            isActive: byTelegram?.ticketNewComment,
-            isVisible: initialPrefs.personalNotifications.ticketNewComment,
-        },
-        tgScheduledWorks: {
-            label: 'Запланированные работы',
-            isActive: byTelegram?.scheduledWorks,
-            isVisible: initialPrefs.personalNotifications.scheduledWorks,
-        },
-    });
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.message) {
+      showToast(
+        fetcher.data.error ? "danger" : "success",
+        fetcher.data.message,
+      );
+    }
+  }, [fetcher.state, fetcher.data]);
 
-    const [emailSwitch, setEmailSwitch] = useState({
-        emailNewTicket: {
-            label: 'Новая заявка',
-            isActive: byEmail?.newTicket,
-            isVisible: initialPrefs.personalNotifications.newTicket,
-        },
-        emailRespStateUpdate: {
-            label: 'Изменение статуса ответственного за заявку',
-            isActive: byEmail?.respStateUpdate,
-            isVisible: initialPrefs.personalNotifications.respStateUpdate,
-        },
-        emailTicketStateUpdate: {
-            label: 'Изменение статуса заявки',
-            isActive: byEmail?.ticketStateUpdate,
-            isVisible: initialPrefs.personalNotifications.ticketStateUpdate,
-        },
-        emailTicketNewComment: {
-            label: 'Новые комментарии',
-            isActive: byEmail?.ticketNewComment,
-            isVisible: initialPrefs.personalNotifications.ticketNewComment,
-        },
-        emailScheduledWorks: {
-            label: 'Запланированные работы',
-            isActive: byEmail?.scheduledWorks,
-            isVisible: initialPrefs.personalNotifications.scheduledWorks,
-        },
-    });
+  const visibleCategories = CATEGORIES.filter(
+    (category) => initialPrefs.personalNotifications?.[category.visibilityKey],
+  );
 
-    const tgSwitchHandler = (event) => {
-        setTgSwitch({
-            ...tgSwitch,
-            [event.target.name]: {
-                name: tgSwitch[event.target.name].name,
-                label: tgSwitch[event.target.name].label,
-                isActive: !tgSwitch[event.target.name].isActive,
-                isVisible: tgSwitch[event.target.name].isVisible,
-            },
-        });
-    };
+  const tgDisabled =
+    !user.telegramBot?.isActive || !initialPrefs.telegramNotifications;
+  const emailDisabled = !initialPrefs.emailNotifications;
 
-    const emailSwitchHandler = (event) => {
-        setEmailSwitch({
-            ...emailSwitch,
-            [event.target.name]: {
-                name: emailSwitch[event.target.name].name,
-                label: emailSwitch[event.target.name].label,
-                isActive: !emailSwitch[event.target.name].isActive,
-                isVisible: emailSwitch[event.target.name].isVisible,
-            },
-        });
-    };
+  const toggle = (key) =>
+    setValues((prev) => ({ ...prev, [key]: !prev[key] }));
 
-    const submitHandler = () => {
-        fetcher.submit(fetcher.formData, {
-            method: 'post',
-            action: '/my-account',
-        });
-        setShowMessage(true);
-    };
-
+  if (visibleCategories.length === 0) {
     return (
-        <>
-            <fetcher.Form method='post' onSubmit={submitHandler}>
-                <Form.Control
-                    hidden={true}
-                    name='id'
-                    defaultValue={props.user._id}
-                />
-                {enabledPersonalNotifications.length === 0 && (
-                    <Form.Group>
-                        <Alert variant='warning'>
-                            Уведомления отключены в глобальных настройках
-                            приложения. Для их активации обратитесь к
-                            администратору.
-                        </Alert>
-                    </Form.Group>
-                )}
-                {enabledPersonalNotifications.length > 0 && (
-                    <>
-                        <Row className='border-bottom mb-3'>
-                            <Col>
-                                <h1 className='display-6 mb-3'>Telegram</h1>
-                                {initialPrefs.telegramNotifications &&
-                                    !user.telegramBot?.isActive && (
-                                        <Form.Group>
-                                            <Alert variant='warning'>
-                                                Для отправки уведомлений
-                                                подключите Telegram-бот в
-                                                разделе Интеграции
-                                            </Alert>
-                                        </Form.Group>
-                                    )}
-                                {!initialPrefs.telegramNotifications && (
-                                    <Form.Group>
-                                        <Alert variant='warning'>
-                                            Telegram-уведомления отключены в
-                                            глобальных настройках приложения.
-                                            Для их активации обратитесь к
-                                            администратору.
-                                        </Alert>
-                                    </Form.Group>
-                                )}
-                                {Object.entries(tgSwitch)
-                                    .filter((item) => item[1].isVisible)
-                                    .map((item) => (
-                                        <Form.Group
-                                            className='mb-3 w-100'
-                                            key={item[0]}
-                                        >
-                                            <Form.Check
-                                                type='switch'
-                                                label={item[1].label}
-                                                name={item[0]}
-                                                checked={item[1].isActive}
-                                                value={item[1].isActive}
-                                                disabled={
-                                                    !user.telegramBot
-                                                        ?.isActive ||
-                                                    !initialPrefs.telegramNotifications
-                                                }
-                                                onChange={tgSwitchHandler}
-                                            />
-                                        </Form.Group>
-                                    ))}
-                            </Col>
-                        </Row>
-                        <Row className='border-bottom mb-3'>
-                            <Col xs='auto'>
-                                <h1 className='display-6 mb-3'>E-mail</h1>
-                                {!initialPrefs.emailNotifications && (
-                                    <Form.Group>
-                                        <Alert variant='warning'>
-                                            Email-уведомления отключены в
-                                            глобальных настройках приложения.
-                                            Для их активации обратитесь к
-                                            администратору.
-                                        </Alert>
-                                    </Form.Group>
-                                )}
-                                {Object.entries(emailSwitch)
-                                    .filter((item) => item[1].isVisible)
-                                    .map((item) => (
-                                        <Form.Group
-                                            className='mb-3 w-100'
-                                            key={item[0]}
-                                        >
-                                            <Form.Check
-                                                type='switch'
-                                                label={item[1].label}
-                                                name={item[0]}
-                                                checked={item[1].isActive}
-                                                value={item[1].isActive}
-                                                disabled={
-                                                    !initialPrefs.emailNotifications
-                                                }
-                                                onChange={emailSwitchHandler}
-                                            />
-                                        </Form.Group>
-                                    ))}
-                            </Col>
-                        </Row>
-                        <Row>
-                            <Col>
-                                <Button
-                                    variant='primary'
-                                    type='submit'
-                                    name='intent'
-                                    value='notifications-update'
-                                >
-                                    <RiSaveLine /> Сохранить
-                                </Button>
-                            </Col>
-                        </Row>
-                    </>
-                )}
-            </fetcher.Form>
-            {fetcher.data?.message && (
-                <>
-                    <AlertToast
-                        show={showMessage}
-                        setShow={setShowMessage}
-                        variant={fetcher.data.error ? 'danger' : 'success'}
-                        message={fetcher.data.message}
-                    />
-                </>
-            )}
-        </>
+      <AlertMessage
+        variant="warning"
+        message="Уведомления отключены в глобальных настройках приложения. Для их активации обратитесь к администратору."
+        className="tw:m-5"
+      />
     );
+  }
+
+  return (
+    <fetcher.Form method="post">
+      <input type="hidden" name="id" value={user._id} />
+      {/* Скрытые поля — все категории, включая невидимые: контракт экшена */}
+      {CATEGORIES.map((category) => (
+        <Fragment key={category.name}>
+          <input
+            type="hidden"
+            name={`tg${category.name}`}
+            value={values[`tg${category.name}`] ? "true" : "false"}
+          />
+          <input
+            type="hidden"
+            name={`email${category.name}`}
+            value={values[`email${category.name}`] ? "true" : "false"}
+          />
+        </Fragment>
+      ))}
+
+      <div className="tw:px-5 tw:pt-4">
+        {!initialPrefs.telegramNotifications && (
+          <AlertMessage
+            variant="warning"
+            message="Telegram-уведомления отключены в глобальных настройках приложения. Для их активации обратитесь к администратору."
+            className="tw:my-0 tw:mb-3"
+          />
+        )}
+        {initialPrefs.telegramNotifications && !user.telegramBot?.isActive && (
+          <AlertMessage
+            variant="warning"
+            message={
+              <>
+                Для отправки Telegram-уведомлений подключите бота в разделе{" "}
+                <a
+                  href="#integrations"
+                  className="tw:font-medium tw:text-accent-text tw:underline"
+                >
+                  Интеграции
+                </a>
+                .
+              </>
+            }
+            className="tw:my-0 tw:mb-3"
+          />
+        )}
+        {!initialPrefs.emailNotifications && (
+          <AlertMessage
+            variant="warning"
+            message="Email-уведомления отключены в глобальных настройках приложения. Для их активации обратитесь к администратору."
+            className="tw:my-0 tw:mb-3"
+          />
+        )}
+      </div>
+
+      <div className="tw:flex tw:items-center tw:px-5 tw:pt-1 tw:pb-2.5">
+        <span className="tw:flex-1" />
+        {channelHeader(RiTelegramLine, "Telegram", "TG")}
+        {channelHeader(RiMailLine, "E-mail", "Mail")}
+      </div>
+      {visibleCategories.map((category) => (
+        <div
+          key={category.name}
+          className="tw:flex tw:items-center tw:border-t tw:border-border-soft tw:px-5 tw:py-3.5"
+        >
+          <span className="tw:min-w-0 tw:flex-1 tw:pe-2 tw:text-base">
+            {category.label}
+          </span>
+          {["tg", "email"].map((channel) => {
+            const key = `${channel}${category.name}`;
+            const disabled = channel === "tg" ? tgDisabled : emailDisabled;
+            return (
+              <span
+                key={channel}
+                className="tw:grid tw:w-20 tw:flex-none tw:place-items-center tw:max-md:w-14"
+              >
+                <Checkbox
+                  className={cn("tw:size-5", disabled && "tw:opacity-40")}
+                  checked={values[key]}
+                  disabled={disabled}
+                  onCheckedChange={() => toggle(key)}
+                  aria-label={`${category.label} — ${
+                    channel === "tg" ? "Telegram" : "e-mail"
+                  }`}
+                />
+              </span>
+            );
+          })}
+        </div>
+      ))}
+
+      <div className="tw:flex tw:justify-end tw:border-t tw:border-border-soft tw:px-5 tw:py-3">
+        <Button
+          type="submit"
+          name="intent"
+          value="notifications-update"
+          disabled={fetcher.state !== "idle"}
+        >
+          Сохранить
+        </Button>
+      </div>
+    </fetcher.Form>
+  );
 };
 
 export default Notifications;

@@ -1,51 +1,72 @@
 import { Link } from "react-router";
 
-import Card from "react-bootstrap/Card";
-
+import useInitialPrefs from "../store/prefs";
 import { getLocalStorageData } from "../util/auth";
-import { getInitialPrefsData } from "../util/prefs";
 
+// Футер оболочки: контакты компании и служебная строка. Лёгкий текст на канве
+// (без легаси-карточек) — живёт и под мигрированными экранами, и под Card
+// легаси-страниц.
 const Footer = () => {
   const { token } = getLocalStorageData();
-  const { contacts } = getInitialPrefsData();
-  const isLoggedIn = !!token;
+  const { contacts } = useInitialPrefs();
+
+  if (!token) return null;
+
+  const contactItems = [
+    contacts?.tel && (
+      <a
+        key="tel"
+        href={`tel:${contacts.tel}`}
+        className="tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+      >
+        {contacts.tel}
+      </a>
+    ),
+    contacts?.email && (
+      <a
+        key="email"
+        href={`mailto:${contacts.email}`}
+        className="tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+      >
+        {contacts.email}
+      </a>
+    ),
+    contacts?.address && <span key="address">{contacts.address}</span>,
+  ].filter(Boolean);
 
   return (
-    <>
-      {isLoggedIn && (
-        <>
-          {(contacts.tel || contacts.email || contacts.address) && (
-            <Card className="text-center mb-3 shadow">
-              <Card.Body>
-                <h5>Наши контакты</h5>
-                <hr></hr>
-                <p>
-                  Телефон: <a href={`tel:${contacts.tel}`}>{contacts.tel}</a>
-                </p>
-                <p>
-                  Email: <a href="mailto:">{contacts.email}</a>
-                </p>
-                <p>Адрес: {contacts.address}</p>
-              </Card.Body>
-            </Card>
-          )}
-
-          <Card className="text-center shadow">
-            <Card.Body>
-              <div className="text-center">
-                <Link to="/changelog">Changelog</Link>
-              </div>
-              <div className="footer-copyright text-center pt-3">
-                © {new Date().getFullYear()} F1Lab Helpdesk
-              </div>
-              <div className="text-center pb-3">
-                Версия {import.meta.env.VITE_VERSION}
-              </div>
-            </Card.Body>
-          </Card>
-        </>
+    <footer className="tw:mt-10 tw:border-t tw:border-border-soft tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground">
+      {contactItems.length > 0 && (
+        <div className="tw:mb-2 tw:flex tw:flex-wrap tw:items-center tw:justify-center tw:gap-x-2.5 tw:gap-y-1">
+          {contactItems.map((item, index) => (
+            <span
+              key={index}
+              className="tw:inline-flex tw:items-center tw:gap-2.5"
+            >
+              {index > 0 && (
+                <span aria-hidden className="tw:text-faint">
+                  ·
+                </span>
+              )}
+              {item}
+            </span>
+          ))}
+        </div>
       )}
-    </>
+      <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-center tw:gap-x-2.5 tw:gap-y-1 tw:text-faint">
+        <Link
+          to="/changelog"
+          className="tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        >
+          Changelog
+        </Link>
+        <span aria-hidden>·</span>
+        <span>© {new Date().getFullYear()} F1Lab Helpdesk</span>
+        <span aria-hidden>·</span>
+        <span>Версия {import.meta.env.VITE_VERSION}</span>
+      </div>
+    </footer>
   );
 };
+
 export default Footer;

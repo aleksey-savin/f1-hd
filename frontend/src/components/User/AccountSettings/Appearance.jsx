@@ -1,37 +1,44 @@
-import { useState, useEffect } from "react";
-import Form from "react-bootstrap/Form";
-import { getLocalStorageData } from "../../../util/auth";
-import BackgroundUpload from "./BackgroundImageUpload";
+import { useContext } from "react";
 
+import SettingRow from "@/components/app/SettingRow";
+import ThemeSegment from "@/components/app/ThemeSegment";
+import { ThemeContext } from "../../../store/theme-context";
+import BackgroundImageUpload from "./BackgroundImageUpload";
+
+// Секция «Внешний вид»: сегмент темы на три состояния (как в бургер-меню) и
+// фоновое изображение. Кнопки «Сохранить» нет — тема применяется сразу, у
+// фона своя загрузка.
 const Appearance = ({ user }) => {
-  const [darkMode, setDarkMode] = useState(getLocalStorageData()?.darkMode);
+  const { theme, setTheme } = useContext(ThemeContext);
 
-  const darkModeHandler = () => {
-    setDarkMode(!darkMode);
+  const changeTheme = (value) => {
+    if (value === theme) return;
+    setTheme(value);
+    // Легаси-CSS (bootstrap-темы) до эндшпиля миграции подхватывает
+    // тему только с перезагрузкой — как при смене темы из навбара.
     window.location.reload();
   };
 
-  useEffect(() => {
-    if (darkMode) {
-      localStorage.setItem("darkMode", true);
-    } else {
-      localStorage.setItem("darkMode", false);
-    }
-  }, [darkMode]);
   return (
     <>
-      <Form.Group className="mb-3">
-        <Form.Check
-          type="switch"
-          label="Тёмная тема"
-          checked={darkMode}
-          onChange={darkModeHandler}
+      <SettingRow
+        title="Тема"
+        hint="Применяется сразу на этом устройстве."
+      >
+        <ThemeSegment
+          theme={theme}
+          onChange={changeTheme}
+          className="tw:max-md:flex"
         />
-      </Form.Group>
-      <Form.Group>
-        <Form.Label>Фоновое изображение</Form.Label>
-        <BackgroundUpload user={user} />
-      </Form.Group>
+      </SettingRow>
+      <SettingRow
+        divider
+        title="Фоновое изображение"
+        hint="Показывается за панелями главного экрана. JPG, PNG или GIF, до 5 МБ."
+        className="tw:items-start"
+      >
+        <BackgroundImageUpload user={user} />
+      </SettingRow>
     </>
   );
 };

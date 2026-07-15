@@ -1,67 +1,49 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import useToastStore from "../../../store/toast-store";
+
 import { getLocalStorageData } from "../../../util/auth";
 
-import Image from "react-bootstrap/Image";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Button from "react-bootstrap/esm/Button";
-
+// Фоновое изображение рабочего стола: превью + «Загрузить»/«Удалить».
+// Выбранный файл загружается сразу (валидация типа и размера — до запроса);
+// превью после загрузки — серверный путь из ответа.
 function BackgroundImageUpload({ user }) {
   const { token } = getLocalStorageData();
+  const { showToast } = useToastStore();
 
-  const [selectedFile, setSelectedFile] = useState(null);
+  const fileInputRef = useRef(null);
   const [previewUrl, setPreviewUrl] = useState(
     user.backgroundImagePath
       ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${user.backgroundImagePath}`
       : null,
   );
-  const [hasBackground, setHasBackground] = useState(
-    !!user.backgroundImagePath,
-  );
-
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
-  const handleFileSelect = (event) => {
-    const file = event.target.files[0];
+  const handleFileSelect = async (event) => {
+    const file = event.target.files?.[0];
+    // сбрасываем value, чтобы повторный выбор того же файла снова сработал
+    event.target.value = "";
+    if (!file) return;
 
-    // Validate file type
     const validTypes = ["image/jpeg", "image/png", "image/gif"];
-    if (file && !validTypes.includes(file.type)) {
-      setError("Пожалуйста, выберите файл с изображением (jpg, png, gif)");
+    if (!validTypes.includes(file.type)) {
+      showToast(
+        "danger",
+        "Пожалуйста, выберите файл с изображением (jpg, png, gif)",
+      );
       return;
     }
 
-    // Validate file size
-    if (file && file.size > 5 * 1024 * 1024) {
-      setError("Размер файла не должен превышать 5Мб");
-      return;
-    }
-
-    setError(null);
-    setSelectedFile(file);
-
-    // Create preview
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      setError("Пожалуйста, сначала выберите изображение для загрузки");
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("danger", "Размер файла не должен превышать 5Мб");
       return;
     }
 
     const formData = new FormData();
-    formData.append("backgroundImage", selectedFile);
+    formData.append("backgroundImage", file);
 
     setLoading(true);
-    setError(null);
 
     try {
       const response = await fetch(
@@ -79,16 +61,23 @@ function BackgroundImageUpload({ user }) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Загрузка не удалась");
       }
-      setHasBackground(true);
+
+      const data = await response.json();
+      setPreviewUrl(
+        `${import.meta.env.VITE_API_ADDRESS}/uploads/${data.backgroundImagePath}`,
+      );
+      showToast("success", "Фоновое изображение обновлено");
     } catch (error) {
       console.error("Error:", error);
-      setError(error.message);
+      showToast("danger", error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async () => {
+    setLoading(true);
+
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/users/delete-background-image`,
@@ -105,86 +94,64 @@ function BackgroundImageUpload({ user }) {
         throw new Error(errorData.error || "Не удалось удалить изображение");
       }
 
-      setPreviewUrl("");
-      setHasBackground(false);
+      setPreviewUrl(null);
+      showToast("success", "Фоновое изображение удалено");
     } catch (error) {
       console.error("Error:", error);
-      setError(error.message);
+      showToast("danger", error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <>
-      {error && (
-        <div className="alert alert-danger" role="alert">
-          {error}
+    <div className="tw:grid tw:justify-items-start tw:gap-2.5 tw:max-md:justify-items-stretch">
+      {previewUrl ? (
+        // div с background-image, а не <img>: глобальный автоскейл картинок
+        // тикетов (index.css: img { width/height: auto !important }) ломает
+        // фиксированные размеры любых <img>
+        <div
+          role="img"
+          aria-label="Превью фонового изображения"
+          style={{ backgroundImage: `url("${previewUrl}")` }}
+          className="tw:h-32 tw:w-56 tw:rounded-lg tw:border tw:border-border tw:bg-cover tw:bg-center tw:max-md:h-40 tw:max-md:w-full"
+        />
+      ) : (
+        <div className="tw:grid tw:h-32 tw:w-56 tw:place-items-center tw:rounded-lg tw:border tw:border-dashed tw:border-input tw:text-sm tw:text-faint tw:max-md:h-40 tw:max-md:w-full">
+          Не задано
         </div>
       )}
-      <Row className="mb-3">
-        <Col sm="auto">
-          <input
-            type="file"
-            className="form-control mb-1"
-            accept="image/*"
-            onChange={handleFileSelect}
-          />
-          <small className="text-muted">Максимальный размер файла: 5Мб</small>
-          <br />
-          <small className="text-muted">
-            Поддерживаемые форматы: JPG, PNG, GIF
-          </small>
-        </Col>
-        <Col sm="auto">
-          <Button onClick={handleUpload} disabled={!selectedFile || loading}>
-            {loading ? (
-              <>
-                <span
-                  className="spinner-border spinner-border-sm me-2"
-                  role="status"
-                  aria-hidden="true"
-                ></span>
-                Загружаю...
-              </>
-            ) : (
-              "Загрузить"
-            )}
+      <div className="tw:flex tw:gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={handleFileSelect}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={loading}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {loading ? "Загружаю…" : "Загрузить"}
+        </Button>
+        {previewUrl && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={loading}
+            className="tw:text-destructive tw:hover:bg-destructive/10 tw:hover:text-destructive"
+            onClick={handleDelete}
+          >
+            Удалить
           </Button>
-        </Col>
-        <Col>
-          {!!previewUrl && hasBackground && (
-            <Button variant="danger" onClick={handleDelete} disabled={loading}>
-              {loading ? (
-                <>
-                  <span
-                    className="spinner-border spinner-border-sm me-2"
-                    role="status"
-                    aria-hidden="true"
-                  ></span>
-                  Удаляю...
-                </>
-              ) : (
-                "Удалить"
-              )}
-            </Button>
-          )}
-        </Col>
-      </Row>
-      {previewUrl && (
-        <Row>
-          <Col>
-            <Image
-              src={previewUrl}
-              alt="Превью"
-              thumbnail
-              className="mb-3"
-              style={{ maxWidth: "350px" }}
-            />
-          </Col>
-        </Row>
-      )}
-    </>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -1,104 +1,137 @@
+import { useEffect, useState } from "react";
 import { redirect, useLoaderData } from "react-router";
+import { BrowserView, MobileView, isBrowser } from "react-device-detect";
 
-import Transitions from "../../animations/Transition";
+import SettingsSection from "@/components/app/SettingsSection";
+import { cn } from "@/lib/utils";
 
-import ResetPassword from "../../components/User/ResetPassword";
-
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Nav from "react-bootstrap/Nav";
-import Tab from "react-bootstrap/Tab";
-import Card from "react-bootstrap/Card";
-
-import { RiUserSettingsLine } from "react-icons/ri";
-
-import { getLocalStorageData } from "../../util/auth";
-import Appearance from "../../components/User/AccountSettings/Appearance";
 import Profile from "../../components/User/AccountSettings/Profile";
+import Appearance from "../../components/User/AccountSettings/Appearance";
 import Notifications from "../../components/User/AccountSettings/Notifications";
 import Integrations from "../../components/User/AccountSettings/Integrations";
+import Security from "../../components/User/AccountSettings/Security";
+
+import { getLocalStorageData } from "../../util/auth";
+
+const SECTIONS = [
+  { id: "profile", label: "Профиль" },
+  { id: "appearance", label: "Внешний вид" },
+  { id: "notifications", label: "Уведомления" },
+  { id: "integrations", label: "Интеграции" },
+  { id: "security", label: "Безопасность" },
+];
+
+// Порог scrollspy: fixed-навбар (~100px) + запас до метки секции.
+const SPY_OFFSET = 140;
+
+// Липкий рейл-якорь (десктоп): все разделы — на одной странице, рейл ведёт по
+// ним и подсвечивает текущий. Слушатель на window — только BrowserView
+// (на мобайле window не скроллится, см. docs/ux-ui-guide.md).
+const AccountNav = () => {
+  const [active, setActive] = useState(SECTIONS[0].id);
+
+  useEffect(() => {
+    if (!isBrowser) return;
+
+    const onScroll = () => {
+      // У дна страницы последние секции не доезжают до верха — активна последняя
+      if (
+        window.innerHeight + window.scrollY >=
+        document.documentElement.scrollHeight - 4
+      ) {
+        setActive(SECTIONS[SECTIONS.length - 1].id);
+        return;
+      }
+      let current = SECTIONS[0].id;
+      for (const section of SECTIONS) {
+        const el = document.getElementById(section.id);
+        if (el && el.getBoundingClientRect().top <= SPY_OFFSET) {
+          current = section.id;
+        }
+      }
+      setActive(current);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const go = (event, id) => {
+    event.preventDefault();
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    document.getElementById(id)?.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "start",
+    });
+    setActive(id);
+  };
+
+  return (
+    <nav
+      aria-label="Разделы настроек"
+      className="tw:sticky tw:top-28 tw:flex tw:w-48 tw:flex-none tw:flex-col tw:gap-0.5"
+    >
+      {SECTIONS.map((section) => (
+        <a
+          key={section.id}
+          href={`#${section.id}`}
+          onClick={(event) => go(event, section.id)}
+          aria-current={active === section.id ? "true" : undefined}
+          className={cn(
+            "tw:rounded-lg tw:px-3 tw:py-1.5 tw:text-base tw:font-medium tw:no-underline tw:transition-colors",
+            active === section.id
+              ? "tw:bg-primary/15 tw:text-accent-text tw:hover:text-accent-text"
+              : "tw:text-muted-foreground tw:hover:bg-accent tw:hover:text-foreground",
+          )}
+        >
+          {section.label}
+        </a>
+      ))}
+    </nav>
+  );
+};
 
 const MyAccount = () => {
   const { user, initialPrefs } = useLoaderData();
 
+  const sections = (
+    <div className="tw:max-w-2xl tw:space-y-8">
+      <SettingsSection id="profile" label="Профиль">
+        <Profile user={user} />
+      </SettingsSection>
+      <SettingsSection id="appearance" label="Внешний вид">
+        <Appearance user={user} />
+      </SettingsSection>
+      <SettingsSection id="notifications" label="Уведомления">
+        <Notifications user={user} initialPrefs={initialPrefs} />
+      </SettingsSection>
+      <SettingsSection id="integrations" label="Интеграции">
+        <Integrations user={user} />
+      </SettingsSection>
+      <SettingsSection id="security" label="Безопасность">
+        <Security user={user} />
+      </SettingsSection>
+    </div>
+  );
+
   return (
-    <>
-      <Transitions>
-        <>
-          <Card.Title>
-            <h1 className="display-4">
-              <RiUserSettingsLine /> Мой аккаунт
-            </h1>
-          </Card.Title>
-          <hr></hr>
-          <Tab.Container defaultActiveKey="appearance">
-            <Row>
-              <Col sm={3} className="mb-3">
-                <Nav variant="pills" className="flex-column">
-                  <Nav.Item>
-                    <Nav.Link eventKey="appearance">Внешний вид</Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="profile">Профиль</Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="security">Безопасность</Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="notifications">Уведомления</Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="integrations">Интеграции</Nav.Link>
-                  </Nav.Item>
-                </Nav>
-              </Col>
-              <Col sm={9}>
-                <Tab.Content>
-                  <Tab.Pane eventKey="profile">
-                    <Row className="mb-2">
-                      <Col sm="auto">
-                        <Profile user={user} />
-                      </Col>
-                    </Row>
-                  </Tab.Pane>
-                  <Tab.Pane eventKey="appearance">
-                    <Row className="mb-2">
-                      <Col sm="auto">
-                        <Appearance user={user} />
-                      </Col>
-                    </Row>
-                  </Tab.Pane>
-                  <Tab.Pane eventKey="notifications">
-                    <Row className="mb-2">
-                      <Col sm="auto">
-                        <Notifications
-                          user={user}
-                          initialPrefs={initialPrefs}
-                        />
-                      </Col>
-                    </Row>
-                  </Tab.Pane>
-                  <Tab.Pane eventKey="security">
-                    <Row className="mb-2">
-                      <Col sm="auto">
-                        <ResetPassword user={user} />
-                      </Col>
-                    </Row>
-                  </Tab.Pane>
-                  <Tab.Pane eventKey="integrations">
-                    <Row className="mb-2">
-                      <Col sm="auto">
-                        <Integrations user={user} />
-                      </Col>
-                    </Row>
-                  </Tab.Pane>
-                </Tab.Content>
-              </Col>
-            </Row>
-          </Tab.Container>
-        </>
-      </Transitions>
-    </>
+    // max-w-4xl (896px) = рейл 192px + зазор 28px + колонка панелей 672px:
+    // блок настроек целиком центрируется, поля слева и справа равные
+    <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
+      <h1 className="tw:my-0 tw:mb-5 tw:text-4xl tw:leading-none tw:font-semibold tw:tracking-tight">
+        Мой аккаунт
+      </h1>
+      <BrowserView>
+        <div className="tw:flex tw:items-start tw:gap-7">
+          <AccountNav />
+          <div className="tw:min-w-0 tw:flex-1">{sections}</div>
+        </div>
+      </BrowserView>
+      <MobileView>{sections}</MobileView>
+    </div>
   );
 };
 

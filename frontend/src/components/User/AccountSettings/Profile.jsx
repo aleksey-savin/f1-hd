@@ -1,145 +1,140 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFetcher } from "react-router";
 
-import Form from "react-bootstrap/Form";
-import Button from "react-bootstrap/Button";
-
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Image from "react-bootstrap/Image";
-
-import { RiSaveLine } from "react-icons/ri";
-
-import AlertToast from "../../../UI/AlertToast";
-
-import PhoneInput from "../../../UI/PhoneInput";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import Field from "@/components/app/Field";
+import PhoneInput from "@/components/app/PhoneInput";
 import ImageUpload from "../ImageUpload";
+import useToastStore from "../../../store/toast-store";
 
+// Секция «Профиль»: hero (аватар · имя · роль + компания · «Сменить фото»)
+// и поля учётной записи. Роль и компанию меняет администратор — в hero они
+// только отображаются (словарь ролей — как в бургер-меню Navbar).
 const Profile = ({ user }) => {
   const fetcher = useFetcher();
-  const [showMessage, setShowMessage] = useState(false);
+  const { showToast } = useToastStore();
 
   const [phoneNumber, setPhoneNumber] = useState(user.phone);
-
-  const submitHandler = () => {
-    fetcher.submit(fetcher.formData, {
-      method: "post",
-      action: "/my-account",
-    });
-
-    setShowMessage(true);
-  };
-
-  const [lastName, setLastname] = useState(user.lastName || "");
-
-  const lastNameChangeHandler = (event) => {
-    setLastname(event.target.value);
-  };
-
-  const [email, setEmail] = useState(user.email || "");
-
-  const emailChangeHandler = (event) => {
-    setEmail(event.target.value);
-  };
-
   const [profileImage, setProfileImage] = useState(
     user.profileImagePath
       ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${user.profileImagePath}`
-      : "/profilepic-placeholder.jpg",
+      : null,
   );
 
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.message) {
+      showToast(
+        fetcher.data.error ? "danger" : "success",
+        fetcher.data.message,
+      );
+    }
+  }, [fetcher.state, fetcher.data]);
+
+  const roleLabel = user.isAdmin
+    ? "Администратор"
+    : user.isEndUser
+      ? "Пользователь"
+      : "Сотрудник";
+  const initials =
+    `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.trim() || "?";
+
   return (
-    <>
-      <Row className="mb-3">
-        <Col xs="5" sm="auto" className="mb-3 flex-shrink-1">
-          <Image
-            src={profileImage}
-            style={{ maxHeight: "15rem" }}
-            roundedCircle
-          />
-        </Col>
-      </Row>
-      <Row className="mb-3">
-        <Col>
-          <ImageUpload
-            userId={user._id.toString()}
-            setProfileImage={setProfileImage}
-          />
-        </Col>
-      </Row>
-      <fetcher.Form method="post" onSubmit={submitHandler}>
-        <Form.Group className="mb-3">
-          <Form.Control hidden={true} name="id" defaultValue={user._id} />
-          <Form.Label htmlFor="firstName">Имя</Form.Label>
-          <Form.Control
-            required
-            autoFocus
-            id="firstName"
-            name="firstName"
-            type="text"
-            defaultValue={user.firstName}
-          />
-        </Form.Group>
-        <Form.Group className="mb-3">
-          <Form.Label htmlFor="lastName">Фамилия</Form.Label>
-          <Form.Control
-            required
-            id="lastName"
-            name="lastName"
-            type="text"
-            value={lastName}
-            onChange={lastNameChangeHandler}
-          />
-        </Form.Group>
-        <Form.Group className="mb-3">
-          <Form.Label htmlFor="email">Email</Form.Label>
-          <Form.Control
-            required
-            id="email"
-            name="email"
-            type="email"
-            value={email}
-            onChange={emailChangeHandler}
-          />
-        </Form.Group>
-        <Form.Group className="mb-3">
-          <Form.Label htmlFor="phone">Телефон</Form.Label>
-          <PhoneInput
-            id="phone"
-            name="phone"
-            setValue={setPhoneNumber}
-            value={phoneNumber}
-          />
-        </Form.Group>
-        <Form.Group className="mb-3">
-          <Form.Label htmlFor="position">Должность</Form.Label>
-          <Form.Control
+    <fetcher.Form method="post">
+      <div className="tw:p-5">
+        <div className="tw:mb-5 tw:flex tw:flex-wrap tw:items-center tw:gap-4">
+          {profileImage ? (
+            // span с background-image, а не <img>: глобальный автоскейл
+            // картинок тикетов (index.css) перебивает размеры <img>
+            <span
+              role="img"
+              aria-label="Фото профиля"
+              style={{ backgroundImage: `url("${profileImage}")` }}
+              className="tw:size-16 tw:flex-none tw:rounded-full tw:bg-cover tw:bg-center"
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="tw:grid tw:size-16 tw:flex-none tw:place-items-center tw:rounded-full tw:bg-accent tw:text-xl tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+            >
+              {initials}
+            </span>
+          )}
+          <div className="tw:min-w-0">
+            <div className="tw:text-xl tw:leading-snug tw:font-semibold tw:tracking-tight">
+              {user.firstName} {user.lastName}
+            </div>
+            <div className="tw:text-sm tw:text-muted-foreground">
+              {roleLabel}
+              {user.company?.alias ? ` · ${user.company.alias}` : ""}
+            </div>
+          </div>
+          <div className="tw:ms-auto tw:max-md:ms-0 tw:max-md:w-full">
+            <ImageUpload
+              userId={user._id.toString()}
+              setProfileImage={setProfileImage}
+            />
+          </div>
+        </div>
+
+        <input type="hidden" name="id" value={user._id} />
+        <div className="tw:grid tw:gap-x-4 tw:md:grid-cols-2">
+          <Field label="Имя" htmlFor="firstName" required>
+            <Input
+              required
+              id="firstName"
+              name="firstName"
+              type="text"
+              defaultValue={user.firstName}
+            />
+          </Field>
+          <Field label="Фамилия" htmlFor="lastName" required>
+            <Input
+              required
+              id="lastName"
+              name="lastName"
+              type="text"
+              defaultValue={user.lastName}
+            />
+          </Field>
+          <Field label="Email" htmlFor="email" required>
+            <Input
+              required
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={user.email}
+            />
+          </Field>
+          <Field label="Телефон" htmlFor="phone">
+            <PhoneInput
+              id="phone"
+              name="phone"
+              value={phoneNumber}
+              setValue={setPhoneNumber}
+            />
+          </Field>
+        </div>
+        <Field label="Должность" htmlFor="position" className="tw:mb-1">
+          <Input
             id="position"
             name="position"
             type="text"
             defaultValue={user.position}
           />
-        </Form.Group>
+        </Field>
+      </div>
+      <div className="tw:flex tw:justify-end tw:border-t tw:border-border-soft tw:px-5 tw:py-3">
         <Button
-          variant="primary"
           type="submit"
           name="intent"
           value="profile-update"
+          disabled={fetcher.state !== "idle"}
         >
-          <RiSaveLine /> Сохранить
+          Сохранить
         </Button>
-      </fetcher.Form>
-      {fetcher.data?.message && (
-        <>
-          <AlertToast
-            show={showMessage}
-            setShow={setShowMessage}
-            variant={fetcher.data.error ? "danger" : "success"}
-            message={fetcher.data.message}
-          />
-        </>
-      )}
-    </>
+      </div>
+    </fetcher.Form>
   );
 };
 

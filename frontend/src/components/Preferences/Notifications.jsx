@@ -91,6 +91,7 @@ const PrefsNotifications = (props) => {
         newTicket: personal?.newTicket,
         respStateUpdate: personal?.respStateUpdate,
         ticketStateUpdate: personal?.ticketStateUpdate,
+        ticketDeadlineUpdate: personal?.ticketDeadlineUpdate,
         ticketNewComment: personal?.ticketNewComment,
         scheduledWorks: personal?.scheduledWorks,
     });
@@ -221,6 +222,19 @@ const PrefsNotifications = (props) => {
                             name='ticketStateUpdate'
                             checked={personalNotifications.ticketStateUpdate}
                             value={personalNotifications.ticketStateUpdate}
+                            onChange={personalNotificationsHandler}
+                            disabled={
+                                !telegramNotifyIsActive && !emailNotifyIsActive
+                            }
+                        />
+                    </Form.Group>
+                    <Form.Group className='mb-3 w-100'>
+                        <Form.Check
+                            type='switch'
+                            label='Изменение срока заявки'
+                            name='ticketDeadlineUpdate'
+                            checked={personalNotifications.ticketDeadlineUpdate}
+                            value={personalNotifications.ticketDeadlineUpdate}
                             onChange={personalNotificationsHandler}
                             disabled={
                                 !telegramNotifyIsActive && !emailNotifyIsActive

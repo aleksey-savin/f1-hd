@@ -7,6 +7,7 @@ const KnowledgeNote = require("../models/knowledgeNote");
 
 const { AppError } = require("../middleware/errorHandling");
 const getAuthData = require("../middleware/getAuthData");
+const storage = require("../services/storage");
 const { isModerator } = require("../helpers/knowledgeNoteVisibility");
 const { runSecretsScan } = require("../services/secretsScanRun");
 const { runServiceExpiryScan } = require("../services/serviceExpiryScanRun");
@@ -215,7 +216,12 @@ exports.update = async (req, res, next) => {
       preferences.checkPhoneNumber = checkPhoneNumber;
       preferences.deadline = deadline;
       preferences.notify = notify;
-      preferences.contacts = contacts;
+      // contacts.logo управляется отдельными эндпоинтами (/preferences/logo):
+      // замена объекта целиком затирала бы лого при сохранении общих настроек
+      preferences.contacts = {
+        logo: preferences.contacts?.logo ?? "",
+        ...contacts,
+      };
       preferences.getScreen = getScreen;
       preferences.modules = {
         timeTracking: {
@@ -293,6 +299,53 @@ exports.update = async (req, res, next) => {
     });
   } catch (error) {
     next(new AppError(`Failed to update preferences`, 500, true, error));
+  }
+};
+
+// Лого компании для навбара (contacts.logo). Файл лежит локально в uploads/
+// (multer diskStorage — см. middleware/imageUpload.js); при замене и удалении
+// старый файл прибирается deleteObject (толерантен к local/S3).
+exports.uploadLogo = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return next(new AppError(`File not uploaded`, 400));
+    }
+
+    const preferences = await Preferences.findOne({});
+
+    if (preferences.contacts?.logo) {
+      await storage.deleteObject(preferences.contacts.logo);
+    }
+
+    preferences.contacts.logo = req.file.filename;
+    await preferences.save();
+
+    res.status(201).json({
+      message: "Лого компании обновлено",
+      logo: preferences.contacts.logo,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to upload company logo`, 500, true, error));
+  }
+};
+
+exports.deleteLogo = async (req, res, next) => {
+  try {
+    const preferences = await Preferences.findOne({});
+
+    if (preferences.contacts?.logo) {
+      await storage.deleteObject(preferences.contacts.logo);
+    }
+
+    preferences.contacts.logo = "";
+    await preferences.save();
+
+    res.status(201).json({
+      message: "Лого компании удалено",
+      logo: "",
+    });
+  } catch (error) {
+    next(new AppError(`Failed to delete company logo`, 500, true, error));
   }
 };
 
