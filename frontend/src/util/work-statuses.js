@@ -1,16 +1,18 @@
 // Каталог статусов присутствия сотрудников.
 // Держать в синхронизации три копии: backend/utils/workStatuses.js,
-// telegram-bot/utils/workStatuses.js, frontend/src/util/work-statuses.js.
+// telegram-bot/utils/workStatuses.js, frontend/src/util/work-statuses.js —
+// синхронизация касается кодов, подписей, порядка и longLived.
 // Порядок массива задаёт порядок групп в баре статусов и на Telegram-табло.
-// color подобран читаемым и на тёмной, и на светлой теме.
+// color здесь — css-переменные (--ws-st-* в styles/tailwind.css): светлая
+// тема приглушённее, тёмная ярче; копии бота/бэкенда остаются на hex.
 export const WORK_STATUSES = [
-  { code: "office", label: "в офисе", emoji: "🏢", color: "#00bc8c", longLived: false },
-  { code: "remote", label: "на удалёнке", emoji: "🏠", color: "#4d94e8", longLived: false },
-  { code: "trip", label: "на выезде", emoji: "🚗", color: "#eb9c14", longLived: false },
-  { code: "lunch", label: "обед", emoji: "🍜", color: "#f07030", longLived: false },
-  { code: "vacation", label: "отпуск", emoji: "🌴", color: "#a58ae0", longLived: true },
-  { code: "sick", label: "болею", emoji: "🤒", color: "#f05252", longLived: true },
-  { code: "unset", label: "не указан", emoji: "▫️", color: "#82898f", longLived: false },
+  { code: "office", label: "в офисе", emoji: "🏢", color: "var(--ws-st-office)", longLived: false },
+  { code: "remote", label: "на удалёнке", emoji: "🏠", color: "var(--ws-st-remote)", longLived: false },
+  { code: "trip", label: "на выезде", emoji: "🚗", color: "var(--ws-st-trip)", longLived: false },
+  { code: "lunch", label: "обед", emoji: "🍜", color: "var(--ws-st-lunch)", longLived: false },
+  { code: "vacation", label: "отпуск", emoji: "🌴", color: "var(--ws-st-vacation)", longLived: true },
+  { code: "sick", label: "болею", emoji: "🤒", color: "var(--ws-st-sick)", longLived: true },
+  { code: "unset", label: "не указан", emoji: "▫️", color: "var(--ws-st-unset)", longLived: false },
 ];
 
 export const DEFAULT_WORK_STATUS = "unset";

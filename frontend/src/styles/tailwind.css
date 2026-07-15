@@ -63,6 +63,17 @@
   --chart-3: #eb9c14;
   --chart-4: #d63c3c;
   --chart-5: #a58ae0;
+  /* Статусы присутствия (согласованный мокап бара статусов): в светлой теме
+     приглушённее, в тёмной ярче. Каталог util/work-statuses.js ссылается на
+     эти переменные; копии каталога у бота/бэкенда остаются на своих hex —
+     синхронизация касается кодов/подписей/порядка/longLived. */
+  --ws-st-office: #009070;
+  --ws-st-remote: #2f7fd6;
+  --ws-st-trip: #d97a06;
+  --ws-st-lunch: #d95f12;
+  --ws-st-vacation: #7d5bc0;
+  --ws-st-sick: #d62c3a;
+  --ws-st-unset: #868e96;
 }
 
 .dark {
@@ -95,6 +106,13 @@
   --input: #2b2f35;
   --ring: #00bc8c;
   --chart-4: #f05252;
+  --ws-st-office: #00bc8c;
+  --ws-st-remote: #58a6ff;
+  --ws-st-trip: #f5a524;
+  --ws-st-lunch: #ff8a4c;
+  --ws-st-vacation: #b197fc;
+  --ws-st-sick: #ff6b6b;
+  --ws-st-unset: #7d8790;
 }
 
 @theme inline {
