@@ -4,7 +4,7 @@ import { useLocation, redirect } from "react-router";
 import useVendorFilterStore from "../../store/lists/vendors";
 
 import List from "../../components/Vendor/List";
-import VendorActiveChip from "../../components/Vendor/Filter";
+import VendorFilter from "../../components/Vendor/Filter";
 
 import ListWrapper from "@/components/app/ListWrapper";
 
@@ -29,13 +29,28 @@ const VendorListPage = () => {
     }
   }, [location.key]);
 
+  const removeIsActive = () => {
+    filterStore.updateFilter({ ...filterStore, isActive: false });
+    filterStore.applyFilter();
+  };
+
+  const activeFilters = [
+    filterStore.isActive === true && {
+      key: "isActive",
+      label: "Только активные",
+      onRemove: removeIsActive,
+    },
+  ].filter(Boolean);
+
   return (
     <ListWrapper
       title={() => "Вендоры"}
       filterStore={filterStore}
       addRoute="/inventory/vendors/add"
       addLabel="Добавить вендора"
-      toolbar={<VendorActiveChip />}
+      filter={<VendorFilter />}
+      filterActive={filterStore.isActive === true}
+      activeFilters={activeFilters}
     >
       <List items={filterStore.filteredList} />
     </ListWrapper>

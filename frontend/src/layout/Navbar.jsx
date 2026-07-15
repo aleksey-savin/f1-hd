@@ -314,11 +314,10 @@ const NavigationBar = ({ embedded = false }) => {
 
   // --- Десктоп: фиксированный бар ---
   // z-index — легаси-шкала: 1030 (как bootstrap fixed-top), выше рейла
-  // статусов (1020), ниже модалок (1045+). Класс app-topbar — для
-  // компенсации radix-скролл-лока (см. index.css).
+  // статусов (1020), ниже модалок (1045+).
   return (
     <header
-      className="app-topbar tw:fixed tw:inset-x-0 tw:top-0 tw:border-b tw:border-border tw:bg-card"
+      className="tw:fixed tw:inset-x-0 tw:top-0 tw:border-b tw:border-border tw:bg-card"
       style={{ zIndex: 1030 }}
     >
       <div

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { isMobile } from "react-device-detect";
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { InsideOverlayContext } from "@/components/app/overlay-context";
 import { cn } from "@/lib/utils";
 
 // Нижняя шторка для форм (согласованный макет): на десктопе — колонка 672px
@@ -34,7 +35,10 @@ const FormSheet = ({
         )}
       >
         <SheetTitle className="tw:sr-only">{title}</SheetTitle>
-        <div className="tw:px-6 tw:pt-5 tw:pb-6">{children}</div>
+        {/* UI/Select внутри шторки переключается на инлайн-меню */}
+        <InsideOverlayContext.Provider value={true}>
+          <div className="tw:px-6 tw:pt-5 tw:pb-6">{children}</div>
+        </InsideOverlayContext.Provider>
       </SheetContent>
     </Sheet>
   );

@@ -1,22 +1,39 @@
 import { useState, useEffect } from "react";
-import Form from "react-bootstrap/Form";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Button from "react-bootstrap/Button";
+
 import {
   RiAddFill,
-  RiCloseFill,
-  RiArrowUpLine,
   RiArrowDownLine,
+  RiArrowUpLine,
+  RiDeleteBinLine,
 } from "react-icons/ri";
+
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import Field from "@/components/app/Field";
+import SwitchField from "@/components/app/SwitchField";
 
 import Select from "../../UI/Select";
 import AddDeviceAttributeModal from "./AddDeviceAttributeModal";
 
+// Чекбокс-строки атрибута: radix Checkbox в FormData не попадает — при
+// включении рендерим скрытый input с value="on" (контракт router-action:
+// `=== "on"`, как у нативного чекбокса)
+const AttributeFlag = ({ id, name, label, checked, onCheckedChange }) => (
+  <span className="tw:inline-flex tw:items-center tw:gap-2">
+    <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} />
+    <Label htmlFor={id} className="tw:text-sm tw:font-normal">
+      {label}
+    </Label>
+    {checked && <input type="hidden" name={name} value="on" />}
+  </span>
+);
+
 // Поля типа устройства. Рендерят `name`-атрибуты для сабмита со страницы
 // (react-router action) и сообщают агрегированное состояние через onChange для
 // инлайн-модалки. Справочники (availableDeviceTypes/availableAttributes)
-// приходят пропсами; новые атрибуты создаются во вложенной модалке.
+// приходят пропсами; новые атрибуты создаются во вложенном диалоге.
 const DeviceTypeFormFields = ({
   deviceType,
   availableDeviceTypes = [],
@@ -43,8 +60,9 @@ const DeviceTypeFormFields = ({
     deviceType?.attachableToTypeIds || [],
   );
   const [attributes, setAttributes] = useState(
+    // attributeId может прийти populated-объектом или голым id — нормализуем
     deviceType?.attributes?.map((attr) => ({
-      attributeId: attr.attributeId._id,
+      attributeId: String(attr.attributeId?._id ?? attr.attributeId ?? ""),
       required: attr.required || false,
       extendable: attr.extendable || false,
     })) || [],
@@ -132,25 +150,17 @@ const DeviceTypeFormFields = ({
   return (
     <>
       {deviceType && (
-        <Form.Group>
-          <Form.Check
-            checked={isActive}
-            type="switch"
-            id="isActive"
-            name="isActive"
-            label="Активен"
-            className="py-2"
-            value={isActive}
-            onChange={() => setIsActive(!isActive)}
-          />
-        </Form.Group>
+        <SwitchField
+          id="isActive"
+          name="isActive"
+          checked={isActive}
+          onCheckedChange={() => setIsActive(!isActive)}
+          label="Активен"
+          hint="Тип предлагается при добавлении устройств."
+        />
       )}
-      <Form.Group className="py-3">
-        <Form.Label htmlFor="name">
-          Название типа устройства
-          <span style={{ color: "red" }}>*</span>
-        </Form.Label>
-        <Form.Control
+      <Field label="Название типа устройства" htmlFor="name" required>
+        <Input
           required
           autoFocus
           id="name"
@@ -160,13 +170,14 @@ const DeviceTypeFormFields = ({
           onChange={(event) => setName(event.target.value)}
           placeholder="Введите название типа устройства"
         />
-      </Form.Group>
+      </Field>
 
-      <Form.Group className="pb-2">
-        <Form.Label htmlFor="inventoryPrefix">
-          Префикс инвентарного номера
-        </Form.Label>
-        <Form.Control
+      <Field
+        label="Префикс инвентарного номера"
+        htmlFor="inventoryPrefix"
+        hint="Используется для автогенерации инвентарных номеров устройств этого типа. Пусто — префикс по умолчанию."
+      >
+        <Input
           id="inventoryPrefix"
           name="inventoryPrefix"
           type="text"
@@ -176,53 +187,40 @@ const DeviceTypeFormFields = ({
           }
           placeholder="Напр. СБ — номера вида СБ-000001"
         />
-        <Form.Text className="text-muted">
-          Используется для автогенерации инвентарных номеров устройств этого
-          типа. Пусто — префикс по умолчанию.
-        </Form.Text>
-      </Form.Group>
+      </Field>
 
-      <Form.Group>
-        <Form.Check
-          checked={isComponent}
-          type="switch"
-          id="isComponent"
-          name="isComponent"
-          label="Комплектующие"
-          className="py-2"
-          value={isComponent}
-          onChange={() => setIsComponent(!isComponent)}
-        />
-      </Form.Group>
-      <Form.Group>
-        <Form.Check
-          checked={isConsumable}
-          type="switch"
-          id="isConsumable"
-          name="isConsumable"
-          label="Расходники"
-          className="py-2"
-          value={isConsumable}
-          onChange={() => setIsConsumable(!isConsumable)}
-        />
-      </Form.Group>
-      <Form.Group>
-        <Form.Check
-          checked={isPeripheral}
-          type="switch"
-          id="isPeripheral"
-          name="isPeripheral"
-          label="Периферия"
-          className="py-2"
-          value={isPeripheral}
-          onChange={() => setIsPeripheral(!isPeripheral)}
-        />
-      </Form.Group>
+      <SwitchField
+        id="isComponent"
+        name="isComponent"
+        checked={isComponent}
+        onCheckedChange={() => setIsComponent(!isComponent)}
+        label="Комплектующие"
+      />
+      <SwitchField
+        id="isConsumable"
+        name="isConsumable"
+        checked={isConsumable}
+        onCheckedChange={() => setIsConsumable(!isConsumable)}
+        label="Расходники"
+        divider
+      />
+      <SwitchField
+        id="isPeripheral"
+        name="isPeripheral"
+        checked={isPeripheral}
+        onCheckedChange={() => setIsPeripheral(!isPeripheral)}
+        label="Периферия"
+        divider
+      />
+
       {(isComponent || isConsumable || isPeripheral) && (
-        <Form.Group className="py-3">
-          <Form.Label htmlFor="attachableToTypeIds">
-            К каким типам устройств можно прикреплять
-          </Form.Label>
+        <Field
+          label="К каким типам устройств можно прикреплять"
+          htmlFor="attachableToTypeIds"
+          required
+          hint="Можно выбрать несколько типов устройств"
+          className="tw:mt-3"
+        >
           <Select
             id="attachableToTypeIds"
             name="attachableToTypeIds"
@@ -240,14 +238,13 @@ const DeviceTypeFormFields = ({
             getOptionLabel={(option) => `${option.name}`}
             getOptionValue={(option) => option._id}
           />
-          <Form.Text className="text-muted">
-            Можно выбрать несколько типов устройств
-          </Form.Text>
-        </Form.Group>
+        </Field>
       )}
 
-      <Form.Group className="py-3">
-        <Form.Label>Атрибуты устройства</Form.Label>
+      <div className="tw:mt-4">
+        <div className="tw:mb-1.5 tw:text-sm tw:font-semibold tw:text-muted-foreground">
+          Атрибуты устройства
+        </div>
         {attributes.map((attr, index) => {
           // Уже выбранные в других строках атрибуты убираем из списка (своё
           // значение оставляем, чтобы оно отображалось).
@@ -262,15 +259,20 @@ const DeviceTypeFormFields = ({
           );
 
           return (
-            <div key={index}>
-              <Row className="mb-2 align-items-center">
-                <Col md={5}>
+            <div
+              key={index}
+              className="tw:mb-2.5 tw:rounded-lg tw:border tw:border-border-soft tw:p-3"
+            >
+              <div className="tw:flex tw:items-center tw:gap-1.5">
+                <div className="tw:min-w-0 tw:flex-1">
                   <Select
                     id={`attribute-${index}`}
                     name={`attributes[${index}].attributeId`}
-                    value={availableAttributes.find(
-                      (a) => a._id === attr.attributeId,
-                    )}
+                    value={
+                      availableAttributes.find(
+                        (a) => a._id === attr.attributeId,
+                      ) || null
+                    }
                     onChange={(selected) =>
                       attributeChangeHandler(
                         index,
@@ -287,92 +289,90 @@ const DeviceTypeFormFields = ({
                     }
                     getOptionValue={(option) => option._id}
                   />
-                </Col>
-
-                <Col md={7} className="d-flex align-items-center gap-2">
-                  <div className="btn-group" role="group">
-                    <Button
-                      variant="outline-secondary"
-                      size="sm"
-                      onClick={() => moveAttribute(index, -1)}
-                      disabled={index === 0}
-                      title="Переместить выше"
-                    >
-                      <RiArrowUpLine />
-                    </Button>
-                    <Button
-                      variant="outline-secondary"
-                      size="sm"
-                      onClick={() => moveAttribute(index, 1)}
-                      disabled={index === attributes.length - 1}
-                      title="Переместить ниже"
-                    >
-                      <RiArrowDownLine />
-                    </Button>
-                  </div>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => removeAttributeHandler(index)}
-                  >
-                    <RiCloseFill /> Удалить
-                  </Button>
-                  {!availableAttributes.find(
-                    (a) => a._id === attr.attributeId,
-                  ) && (
-                    <Button
-                      variant="success"
-                      size="sm"
-                      onClick={() => openAttributeModal(index)}
-                      title="Создать новый атрибут"
-                    >
-                      <RiAddFill /> Создать новый
-                    </Button>
-                  )}
-                </Col>
-              </Row>
-              <Row className="my-2">
-              <Col sm="auto">
-                <Form.Check
-                  type="checkbox"
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-xs"
+                  onClick={() => moveAttribute(index, -1)}
+                  disabled={index === 0}
+                  title="Переместить выше"
+                  aria-label="Переместить выше"
+                >
+                  <RiArrowUpLine />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-xs"
+                  onClick={() => moveAttribute(index, 1)}
+                  disabled={index === attributes.length - 1}
+                  title="Переместить ниже"
+                  aria-label="Переместить ниже"
+                >
+                  <RiArrowDownLine />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="tw:text-destructive tw:hover:bg-destructive/10 tw:hover:text-destructive"
+                  onClick={() => removeAttributeHandler(index)}
+                  title="Убрать атрибут"
+                  aria-label="Убрать атрибут"
+                >
+                  <RiDeleteBinLine />
+                </Button>
+              </div>
+              <div className="tw:mt-2.5 tw:flex tw:flex-wrap tw:items-center tw:gap-x-5 tw:gap-y-1.5">
+                <AttributeFlag
                   id={`required-${index}`}
                   name={`attributes[${index}].required`}
                   label="Обязательный"
                   checked={attr.required}
-                  onChange={(e) =>
-                    attributeChangeHandler(index, "required", e.target.checked)
+                  onCheckedChange={(checked) =>
+                    attributeChangeHandler(index, "required", checked === true)
                   }
                 />
-              </Col>
-              <Col sm="auto">
-                <Form.Check
-                  type="checkbox"
+                <AttributeFlag
                   id={`extendable-${index}`}
                   name={`attributes[${index}].extendable`}
                   label="Расширяемый"
                   checked={attr.extendable}
-                  onChange={(e) =>
+                  onCheckedChange={(checked) =>
                     attributeChangeHandler(
                       index,
                       "extendable",
-                      e.target.checked,
+                      checked === true,
                     )
                   }
                 />
-              </Col>
-              </Row>
-              <Row className="mb-2"></Row>
+                {!availableAttributes.find(
+                  (a) => a._id === attr.attributeId,
+                ) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    className="tw:ms-auto"
+                    onClick={() => openAttributeModal(index)}
+                  >
+                    <RiAddFill /> Создать новый
+                  </Button>
+                )}
+              </div>
             </div>
           );
         })}
-        <Row>
-          <Col>
-            <Button variant="secondary" size="sm" onClick={addAttributeHandler}>
-              Добавить атрибут
-            </Button>
-          </Col>
-        </Row>
-      </Form.Group>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addAttributeHandler}
+        >
+          <RiAddFill /> Добавить атрибут
+        </Button>
+      </div>
 
       <AddDeviceAttributeModal
         show={showAttributeModal}

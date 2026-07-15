@@ -14,15 +14,21 @@ const deviceAttributeFilter = (state) => {
       }
     })
     .filter((item) => {
-      if (state.dataType && state.dataType !== "all") {
-        return item.dataType === state.dataType;
+      if (state.deviceType && Array.isArray(state.deviceType.attributeIds)) {
+        return state.deviceType.attributeIds.includes(String(item._id));
+      }
+      return true;
+    })
+    .filter((item) => {
+      if (state.valueType && state.valueType !== "all") {
+        return item.valueType === state.valueType;
       } else {
         return true;
       }
     })
     .filter((item) => {
       if (state.searchTerm.length > 0) {
-        return [item.name, item.label]
+        return [item.name, item.code]
           .join(" ")
           .toLowerCase()
           .includes(state.searchTerm);
@@ -38,7 +44,7 @@ const searchItems = (query, items) => {
   const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
 
   return items.filter((item) => {
-    const fieldsToSearch = [item.name, item.label, item.description];
+    const fieldsToSearch = [item.name, item.code, item.unit];
 
     return queryTerms.every((term) =>
       fieldsToSearch.some(
@@ -57,7 +63,7 @@ const handleSorting = (selected, list) => {
 
   switch (selected.label) {
     case "По алфавиту":
-      sortedList.sort((a, b) => a.label.localeCompare(b.label));
+      sortedList.sort((a, b) => a.name.localeCompare(b.name));
       break;
 
     case "Сначала новые":
@@ -77,7 +83,8 @@ const handleSorting = (selected, list) => {
 
 const useDeviceAttributeFilterStore = create((set) => ({
   isActive: false,
-  dataType: "all",
+  valueType: "all",
+  deviceType: null,
   searchTerm: "",
   sortingOptions: [
     { label: "По алфавиту" },
@@ -131,7 +138,8 @@ const useDeviceAttributeFilterStore = create((set) => ({
   updateFilter: (data) =>
     set(() => ({
       isActive: data.isActive,
-      dataType: data.dataType !== undefined ? data.dataType : "all",
+      valueType: data.valueType !== undefined ? data.valueType : "all",
+      deviceType: data.deviceType ?? null,
       originalList: Array.isArray(data.originalList) ? data.originalList : [],
       isLoading: false,
     })),
@@ -139,8 +147,9 @@ const useDeviceAttributeFilterStore = create((set) => ({
     set((state) => ({ filteredList: deviceAttributeFilter(state) })),
   resetFilter: () => {
     set(() => ({
-      isActive: "any",
-      dataType: "all",
+      isActive: false,
+      valueType: "all",
+      deviceType: null,
       searchTerm: "",
     }));
     set((state) => ({

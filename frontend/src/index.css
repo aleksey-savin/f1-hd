@@ -1723,14 +1723,18 @@ body:has(.mobile-shell),
   }
 }
 
-/* --- Компенсация radix-скролл-лока для фиксед-элементов оболочки ---------
-   react-remove-scroll (внутри radix Dialog/AlertDialog/Sheet) компенсирует
-   исчезнувший скроллбар только на body (padding-right); фиксед-бар и рейл
-   статусов без этого «прыгают» на его ширину. Меню (DropdownMenu) уже
-   non-modal и лок не вызывают (см. ui/dropdown-menu.tsx). */
-body[data-scroll-locked] .app-topbar {
-  padding-right: var(--removed-body-scroll-bar-size, 0px);
+/* --- Скролл-лок radix без «прыжков» лэйаута -------------------------------
+   Вместо пиксельных компенсаций фиксед-элементов: желоб скроллбара на
+   десктопе есть ВСЕГДА (html overflow-y: scroll), поэтому при локе
+   (Dialog/AlertDialog/Sheet) ширина ничего не меняет. Компенсирующий
+   padding-right от react-remove-scroll при этом сам стал бы источником
+   сдвига — гасим его (!important перебивает инлайн-стиль без important).
+   Мобильный shell не задет: html:has(.mobile-shell) ставит overflow: hidden
+   с большей специфичностью. Меню (DropdownMenu) лок не вызывают вовсе —
+   они non-modal (см. ui/dropdown-menu.tsx). */
+html {
+  overflow-y: scroll;
 }
-body[data-scroll-locked] .ws-rail-fixed {
-  right: var(--removed-body-scroll-bar-size, 0px);
+body[data-scroll-locked] {
+  padding-right: 0 !important;
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
 
 import { Input } from "@/components/ui/input";
 
@@ -42,7 +42,7 @@ const PhoneInput = ({
 }) => {
   const [phone, setPhone] = useState(value);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const formattedInput = formatPhoneNumber(e.target.value);
     setPhone(formattedInput);
     setValue?.(formattedInput);

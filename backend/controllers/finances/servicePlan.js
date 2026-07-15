@@ -18,7 +18,11 @@ exports.getAll = async (req, res, next) => {
 
 exports.getOne = async (req, res, next) => {
   try {
-    const servicePlan = await ServicePlan.findById(req.params.id);
+    // Карточка (View) показывает «создано …» и «обновлено … кем» — имена
+    // авторов, а не ObjectId (гайд: пользователю показываем имена)
+    const servicePlan = await ServicePlan.findById(req.params.id)
+      .populate("createdBy", "firstName lastName")
+      .populate("updatedBy", "firstName lastName");
     if (!servicePlan) {
       return next(
         new AppError(`Service plan with id ${req.params.id} not found`, 404),

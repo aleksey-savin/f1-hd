@@ -5,6 +5,17 @@ import { cn } from "@/lib/utils";
 
 // tw-двойник UI/AlertMessage.jsx: тот же API (variant в терминах bootstrap),
 // внутри — shadcn Alert с маппингом вариантов на токены.
+// Валидные варианты shadcn Alert (см. components/ui/alert.tsx). `satisfies`
+// проверяет, что каждое значение карты — реальный вариант, сохраняя при этом
+// узкие литеральные ключи для BootstrapVariant.
+type AlertVariant =
+  | "default"
+  | "destructive"
+  | "success"
+  | "warning"
+  | "info"
+  | "light";
+
 const VARIANT_MAP = {
   danger: "destructive",
   success: "success",
@@ -14,7 +25,7 @@ const VARIANT_MAP = {
   primary: "default",
   secondary: "light",
   dark: "default",
-} as const;
+} as const satisfies Record<string, AlertVariant>;
 
 type BootstrapVariant = keyof typeof VARIANT_MAP;
 

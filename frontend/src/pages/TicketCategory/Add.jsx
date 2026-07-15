@@ -1,17 +1,8 @@
-import { useLoaderData } from "react-router";
-
 import Form from "../../components/TicketCategory/Form";
 import { getLocalStorageData } from "../../util/auth";
 
 const AddTicketCategoryPage = () => {
-  const { servicePlansList, usersList } = useLoaderData();
-  return (
-    <Form
-      title="Новая категория"
-      servicePlansList={servicePlansList}
-      usersList={usersList}
-    />
-  );
+  return <Form title="Новая категория заявок" />;
 };
 
 export default AddTicketCategoryPage;

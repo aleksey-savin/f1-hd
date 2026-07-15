@@ -1,55 +1,78 @@
 import { useEffect } from "react";
 import { redirect, useLocation } from "react-router";
 
+import ListWrapper from "@/components/app/ListWrapper";
+
 import { getLocalStorageData } from "../../util/auth";
 
 import useTicketCategoryFilterStore from "../../store/lists/ticket-categories";
 
-import { RiServerLine } from "react-icons/ri";
-
 import List from "../../components/TicketCategory/List";
-
-import ListWrapper from "../../UI/ListWrapper";
-import { BrowserView } from "react-device-detect";
 import TicketCategoryFilter from "../../components/TicketCategory/Filter";
-import useSidebarStore from "../../store/sidebar";
 
 const TicketCategories = () => {
   const location = useLocation();
-  const { setLeftSidebarContent } = useSidebarStore();
   const filterStore = useTicketCategoryFilterStore();
 
   useEffect(() => {
     filterStore.applyFilter();
   }, [filterStore.originalList]);
 
+  // Фетчим только на самом списке: открытие/закрытие шторки add/update — тоже
+  // навигация, и рефетч в этот момент дёргал бы список под шторкой (см. Vendors)
   useEffect(() => {
-    filterStore.fetch();
-  }, [location]);
+    if (location.pathname === "/ticket-categories") {
+      filterStore.fetch();
+    }
+  }, [location.key]);
 
-  useEffect(() => {
-    setLeftSidebarContent(
-      <BrowserView>
-        <TicketCategoryFilter />
-      </BrowserView>,
-    );
-  }, [setLeftSidebarContent, filterStore.originalList]);
-
-  const title = () => {
-    return (
-      <>
-        <RiServerLine /> Категории заявок
-      </>
-    );
+  const removeFilter = (patch) => {
+    filterStore.updateFilter({ ...filterStore, ...patch });
+    filterStore.applyFilter();
   };
+
+  const selectedUsers = filterStore.users || [];
+  const selectedPlans = filterStore.servicePlans || [];
+  const activeFilters = [
+    filterStore.isActive === true && {
+      key: "isActive",
+      label: "Только активные",
+      onRemove: () => removeFilter({ isActive: false }),
+    },
+    filterStore.alwaysWithinPlan === true && {
+      key: "alwaysWithinPlan",
+      label: "Всегда в рамках тарифа",
+      onRemove: () => removeFilter({ alwaysWithinPlan: false }),
+    },
+    ...selectedUsers.map((user) => ({
+      key: `user-${user._id}`,
+      label: `Пользователь: ${user.name}`,
+      onRemove: () =>
+        removeFilter({
+          users: selectedUsers.filter((item) => item._id !== user._id),
+        }),
+    })),
+    ...selectedPlans.map((plan) => ({
+      key: `plan-${plan._id}`,
+      label: `Услуга: ${plan.title}`,
+      onRemove: () =>
+        removeFilter({
+          servicePlans: selectedPlans.filter((item) => item._id !== plan._id),
+        }),
+    })),
+  ].filter(Boolean);
 
   return (
     <ListWrapper
-      title={title}
+      title={() => "Категории заявок"}
       filterStore={filterStore}
       addRoute="/ticket-categories/add"
+      addLabel="Добавить категорию"
+      filter={<TicketCategoryFilter />}
+      filterActive={activeFilters.length > 0}
+      activeFilters={activeFilters}
     >
-      <List items={filterStore.filteredList}></List>
+      <List items={filterStore.filteredList} />
     </ListWrapper>
   );
 };

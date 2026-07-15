@@ -1,10 +1,23 @@
 import { useState } from "react";
-import Modal from "react-bootstrap/Modal";
-import Button from "react-bootstrap/Button";
-import Form from "react-bootstrap/Form";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import AlertMessage from "@/components/app/AlertMessage";
+import { InsideOverlayContext } from "@/components/app/overlay-context";
+
 import DeviceAttributeFormFields from "../DeviceAttribute/FormFields";
 import { getLocalStorageData } from "../../util/auth";
 
+// Инлайн-создание атрибута из формы типа устройства: общий
+// DeviceAttributeFormFields (onChange-контракт), fetch напрямую —
+// router-action шторки не задействуется. Radix-Dialog поверх radix-Sheet —
+// допустимо (в отличие от смешения с bootstrap-модалками).
 const AddDeviceAttributeModal = ({ show, onHide, onAttributeCreated }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -104,32 +117,42 @@ const AddDeviceAttributeModal = ({ show, onHide, onAttributeCreated }) => {
   };
 
   return (
-    <Modal show={show} onHide={handleClose} centered size="lg">
-      <Modal.Header closeButton>
-        <Modal.Title>Новый атрибут устройства</Modal.Title>
-      </Modal.Header>
-      <Form onSubmit={handleSubmit}>
-        <Modal.Body>
+    <Dialog
+      open={show}
+      onOpenChange={(open) => {
+        if (!open) handleClose();
+      }}
+    >
+      <DialogContent className="tw:sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Новый атрибут устройства</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
           {error && (
-            <div className="alert alert-danger" role="alert">
-              {error}
-            </div>
+            <AlertMessage
+              variant="danger"
+              message={error}
+              className="tw:mt-0"
+            />
           )}
-          <DeviceAttributeFormFields
-            attribute={null}
-            onChange={handleFormChange}
-          />
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={handleClose}>
-            Отмена
-          </Button>
-          <Button variant="primary" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Создание..." : "Создать"}
-          </Button>
-        </Modal.Footer>
-      </Form>
-    </Modal>
+          {/* UI/Select внутри диалога — инлайн-меню без портала */}
+          <InsideOverlayContext.Provider value={true}>
+            <DeviceAttributeFormFields
+              attribute={null}
+              onChange={handleFormChange}
+            />
+          </InsideOverlayContext.Provider>
+          <DialogFooter className="tw:mt-4">
+            <Button type="button" variant="ghost" onClick={handleClose}>
+              Отмена
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Создание…" : "Создать"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };
 

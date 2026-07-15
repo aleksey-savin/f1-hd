@@ -1,18 +1,8 @@
-import { useLoaderData } from "react-router";
-
 import Form from "../../components/TicketCategory/Form";
 import { getLocalStorageData } from "../../util/auth";
 
 const UpdateTicketCategoryPage = () => {
-  const { ticketCategory, usersList, servicePlansList } = useLoaderData();
-  return (
-    <Form
-      title="Изменить категорию заявок"
-      servicePlansList={servicePlansList}
-      usersList={usersList}
-      ticketCategory={ticketCategory}
-    />
-  );
+  return <Form title="Изменить категорию заявок" />;
 };
 
 export default UpdateTicketCategoryPage;

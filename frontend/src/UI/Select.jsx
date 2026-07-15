@@ -1,5 +1,7 @@
+import { useContext } from "react";
 import BaseSelect from "react-select";
 import FixRequiredSelect from "../util/fix-required-select";
+import { InsideOverlayContext } from "@/components/app/overlay-context";
 
 // Стили целиком на css-переменных новой темы (src/styles/tailwind.css):
 // светлая/тёмная переключаются классом .dark на <html> сами, без чтения темы
@@ -99,14 +101,20 @@ const isTouchDevice =
   window.matchMedia("(pointer: coarse)").matches;
 
 const Select = (props) => {
+  // Внутри модального radix-оверлея (FormSheet/фильтр-Sheet/Dialog) портал в
+  // body некликабелен (pointer-events: none) и pointerdown по нему закрывает
+  // шторку — там меню рендерим инлайн, как на тач-устройствах.
+  const insideOverlay = useContext(InsideOverlayContext);
+  const inlineMenu = isTouchDevice || insideOverlay;
+
   return (
     <FixRequiredSelect
       menuPlacement="auto"
-      {...(isTouchDevice ? {} : { menuPosition: "fixed" })}
+      {...(inlineMenu ? {} : { menuPosition: "fixed" })}
       {...props}
       SelectComponent={BaseSelect}
       menuPortalTarget={
-        !isTouchDevice && typeof document !== "undefined"
+        !inlineMenu && typeof document !== "undefined"
           ? document.body
           : undefined
       }

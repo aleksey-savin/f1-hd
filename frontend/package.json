@@ -63,6 +63,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" --max-warnings=0",
+    "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,scss,html}\""
   },
   "browserslist": {
@@ -91,9 +92,15 @@
     "globals": "^16.1.0",
     "playwright": "^1.61.1",
     "prettier": "^3.5.3",
-    "typescript": "^5.8.3",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.32.0",
     "vite": "^6.3.5"
+  },
+  "pnpm": {
+    "//": "React 19 требует один @types/react в дереве: radix-ui собран против 19.1.6, а без override верх дерева тянул 19.1.5 — рассинхрон ref-типов в components/ui. Держим одну версию.",
+    "overrides": {
+      "@types/react": "19.1.6"
+    }
   },
   "packageManager": "pnpm@10.10.0+sha512.d615db246fe70f25dcfea6d8d73dee782ce23e2245e3c4f6f888249fb568149318637dca73c2c5c8ef2a4ca0d5657fb9567188bfab47f566d1ee6ce987815c39"
 }

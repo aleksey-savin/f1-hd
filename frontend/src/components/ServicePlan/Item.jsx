@@ -1,62 +1,29 @@
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
+import { RiFileList2Line } from "react-icons/ri";
 
-import Badge from "react-bootstrap/Badge";
+import ListRow from "@/components/app/ListRow";
 
-import ItemCard from "../../UI/ItemCard";
+import { tariffTypeName } from "./tariff-types";
 
-function ServicePlanItem({ item }) {
-  const tariffingTypes = [
-    { name: "Фиксированная оплата", value: "fixedPrice" },
-    { name: "Почасовая оплата", value: "hourly" },
-    { name: "Пакеты часов", value: "hourPackage" },
-  ];
+const ServicePlanItem = ({ item }) => {
+  const { title, type, companies = [] } = item;
 
-  const Title = () => {
-    return <>{item.title}</>;
-  };
-
-  const badges = [];
+  const aliases = companies
+    .map((company) => company.alias)
+    .filter(Boolean)
+    .join(", ");
+  const metaParts = [tariffTypeName(type), aliases].filter(Boolean);
 
   return (
-    <ItemCard
+    <ListRow
       item={item}
       itemTitle="servicePlan"
-      detailsButton
-      title={<Title />}
-      badges={badges}
-    >
-      <Row>
-        <Col sm={9}>
-          <Row className="py-2">
-            <Col>
-              {
-                tariffingTypes.filter(
-                  (tariff) => item.tariffing?.type === tariff.value,
-                )[0]?.name
-              }
-            </Col>
-          </Row>
-          {item.companies.length > 0 && (
-            <Row className="py-2">
-              <Col>
-                Компании:{" "}
-                {item.companies.map((company) => (
-                  <Badge
-                    bg="secondary"
-                    key={company._id.toString()}
-                    className="mx-2"
-                  >
-                    {company.alias}
-                  </Badge>
-                ))}
-              </Col>
-            </Row>
-          )}
-        </Col>
-      </Row>
-    </ItemCard>
+      // Клик по услуге открывает карточку (View), а не шторку правки
+      detailTo={item._id}
+      monogram={<RiFileList2Line />}
+      title={title}
+      meta={metaParts.join(" · ")}
+    />
   );
-}
+};
 
 export default ServicePlanItem;

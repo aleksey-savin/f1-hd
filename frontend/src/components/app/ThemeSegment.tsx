@@ -1,3 +1,4 @@
+import type { IconType } from "react-icons";
 import { RiComputerLine, RiMoonLine, RiSunLine } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";
@@ -5,11 +6,19 @@ import { cn } from "@/lib/utils";
 // Сегмент темы на три состояния (light/dark/system) — общий для страницы
 // «Мой аккаунт» и футера мобильного бургер-меню. Смену темы выполняет
 // вызывающий (обычно setTheme из ThemeContext + reload до эндшпиля миграции).
+// satisfies проверяет форму опций (value — реальная тема, Icon — иконка),
+// сохраняя литеральные value для потребителей.
+type ThemeValue = "light" | "dark" | "system";
+
 export const THEME_OPTIONS = [
   { value: "light", label: "Светлая", Icon: RiSunLine },
   { value: "dark", label: "Тёмная", Icon: RiMoonLine },
   { value: "system", label: "Системная", Icon: RiComputerLine },
-] as const;
+] as const satisfies readonly {
+  value: ThemeValue;
+  label: string;
+  Icon: IconType;
+}[];
 
 const ThemeSegment = ({
   theme,

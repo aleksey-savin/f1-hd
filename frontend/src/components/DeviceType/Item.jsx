@@ -1,38 +1,58 @@
-import ItemCard from "../../UI/ItemCard";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
+import ListRow from "@/components/app/ListRow";
+import { monogramFor } from "@/components/app/monogram";
+
+import { plural } from "../../util/plural";
 
 const DeviceTypeItem = ({ item }) => {
-  const { name, description, isActive } = item;
+  const {
+    name,
+    isActive,
+    isComponent,
+    isConsumable,
+    isPeripheral,
+    inventoryPrefix,
+    attributes,
+  } = item;
 
-  const Title = () => {
-    return <>{name}</>;
-  };
+  const attributeCount = attributes?.length || 0;
+  // Назначение — «включённая способность» типа: показываем акцентом
+  const kindFlags = [
+    isComponent && "комплектующие",
+    isConsumable && "расходники",
+    isPeripheral && "периферия",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
-  const badges = [
-    { title: "активен", isActive: isActive, bg: "success" },
-    { title: "отключен", isActive: !isActive, bg: "danger" },
-  ];
+  const metaParts = [
+    attributeCount > 0 &&
+      `${attributeCount} ${plural(attributeCount, "атрибут", "атрибута", "атрибутов")}`,
+    kindFlags && (
+      <span key="kind" className="tw:text-accent-text">
+        {kindFlags}
+      </span>
+    ),
+    inventoryPrefix && `префикс ${inventoryPrefix}`,
+  ].filter(Boolean);
 
   return (
-    <ItemCard
+    <ListRow
       item={item}
       itemTitle="deviceType"
-      badges={badges}
-      title={<Title />}
-    >
-      <Row>
-        <Col>
-          <div className="py-1">
-            {description ? (
-              <em>{description}</em>
-            ) : (
-              <span className="text-secondary">Описание не указано</span>
-            )}
-          </div>
-        </Col>
-      </Row>
-    </ItemCard>
+      monogram={monogramFor(name)}
+      title={name}
+      dimmed={!isActive}
+      meta={
+        metaParts.length > 0
+          ? metaParts.map((part, index) => (
+              <span key={index}>
+                {index > 0 && " · "}
+                {part}
+              </span>
+            ))
+          : undefined
+      }
+    />
   );
 };
 

@@ -14,6 +14,26 @@ const deviceTypeFilter = (state) => {
       }
     })
     .filter((item) => {
+      if (state.kind === "component") return item.isComponent;
+      if (state.kind === "consumable") return item.isConsumable;
+      if (state.kind === "peripheral") return item.isPeripheral;
+      // Основные устройства — типы без спец-флагов
+      if (state.kind === "primary")
+        return !item.isComponent && !item.isConsumable && !item.isPeripheral;
+      return true;
+    })
+    .filter((item) => {
+      if (Array.isArray(state.attributes) && state.attributes.length > 0) {
+        const itemAttributeIds = (item.attributes || []).map((attr) =>
+          String(attr.attributeId?._id ?? attr.attributeId),
+        );
+        return state.attributes.every((selected) =>
+          itemAttributeIds.includes(String(selected._id)),
+        );
+      }
+      return true;
+    })
+    .filter((item) => {
       if (state.searchTerm.length > 0) {
         return [item.name].join(" ").toLowerCase().includes(state.searchTerm);
       } else {
@@ -67,6 +87,8 @@ const handleSorting = (selected, list) => {
 
 const useDeviceTypeFilterStore = create((set) => ({
   isActive: false,
+  kind: null,
+  attributes: [],
   searchTerm: "",
   sortingOptions: [
     { label: "По алфавиту" },
@@ -120,6 +142,8 @@ const useDeviceTypeFilterStore = create((set) => ({
   updateFilter: (data) =>
     set(() => ({
       isActive: data.isActive,
+      kind: data.kind ?? null,
+      attributes: Array.isArray(data.attributes) ? data.attributes : [],
       originalList: Array.isArray(data.originalList) ? data.originalList : [],
       isLoading: false,
     })),
@@ -127,7 +151,9 @@ const useDeviceTypeFilterStore = create((set) => ({
     set((state) => ({ filteredList: deviceTypeFilter(state) })),
   resetFilter: () => {
     set(() => ({
-      isActive: "any",
+      isActive: false,
+      kind: null,
+      attributes: [],
       searchTerm: "",
     }));
     set((state) => ({

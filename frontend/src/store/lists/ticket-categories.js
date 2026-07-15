@@ -2,61 +2,44 @@ import { create } from "zustand";
 import { getLocalStorageData } from "../../util/auth";
 
 const ticketCategoryFilter = (state) => {
-  const originalList = state.originalList ? state.originalList : [];
+  const originalList = Array.isArray(state.originalList)
+    ? state.originalList
+    : [];
+  // Фасеты храним объектами (бейджам нужны имена) — сравниваем по _id
+  const userIds = (state.users || []).map((user) => String(user._id));
+  const planIds = (state.servicePlans || []).map((plan) => String(plan._id));
   return originalList
     .filter((category) => {
-      if (state.users?.length > 0) {
-        const isEqual = (a, b) => a === b;
-        return category.users
-          .map((user) => user._id.toString())
-          .some((item2) => state.users.some((item1) => isEqual(item1, item2)));
-      } else {
-        return true;
-      }
+      if (userIds.length === 0) return true;
+      return (category.users || []).some((user) =>
+        userIds.includes(String(user._id)),
+      );
     })
     .filter((category) => {
-      if (state.servcePlans?.length > 0) {
-        const isEqual = (a, b) => a === b;
-        return category.servicePlans
-          .map((plan) => plan._id.toString())
-          .some((item2) =>
-            state.servicePlans.some((item1) => isEqual(item1, item2)),
-          );
-      } else {
-        return true;
-      }
+      if (planIds.length === 0) return true;
+      return (category.servicePlans || []).some((plan) =>
+        planIds.includes(String(plan._id)),
+      );
     })
-    .filter((category) => {
-      if (state.isActive) {
-        return category.isActive;
-      } else {
-        return true;
-      }
-    })
-    .filter((category) => {
-      if (state.alwaysWithinPlan) {
-        return category.alwaysWithinPlan;
-      } else {
-        return true;
-      }
-    })
+    .filter((category) => (state.isActive ? category.isActive : true))
+    .filter((category) =>
+      state.alwaysWithinPlan ? category.alwaysWithinPlan : true,
+    )
     .filter((item) => {
       if (state.searchTerm.length > 0) {
         return [item.title].join(" ").toLowerCase().includes(state.searchTerm);
-      } else {
-        return true;
       }
+      return true;
     });
 };
 
 const searchItems = (query, items) => {
   if (!query) return items;
 
-  // Split the query into individual terms (e.g., "Ольга Вознюк" becomes ["Ольга", "Вознюк"])
   const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
 
   return items.filter((item) => {
-    const fieldsToSearch = [item.title];
+    const fieldsToSearch = [item.title, item.description];
 
     return queryTerms.every((term) =>
       fieldsToSearch.some(
@@ -101,9 +84,7 @@ const useTicketCategoryFilterStore = create((set) => ({
   searchTerm: "",
   sortingOptions: [
     { label: "По алфавиту" },
-    {
-      label: "Сначала новые",
-    },
+    { label: "Сначала новые" },
     { label: "Сначала старые" },
   ],
   sortBy: {
@@ -113,10 +94,8 @@ const useTicketCategoryFilterStore = create((set) => ({
   handleSorting: async (data) => {
     set({ isSorting: true });
 
-    // Set new sort option immediately
     set({ sortBy: data });
 
-    // Use Promise and setTimeout to make sorting async
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     set((state) => {
@@ -148,7 +127,7 @@ const useTicketCategoryFilterStore = create((set) => ({
     );
     const data = await response.json();
     set({
-      originalList: data,
+      originalList: Array.isArray(data) ? data : [],
       isLoading: false,
     });
   },
@@ -156,17 +135,17 @@ const useTicketCategoryFilterStore = create((set) => ({
     set(() => ({
       isActive: data.isActive,
       alwaysWithinPlan: data.alwaysWithinPlan,
-      users: data.users,
-      servicePlans: data.servicePlans,
-      originalList: data.originalList,
+      users: Array.isArray(data.users) ? data.users : [],
+      servicePlans: Array.isArray(data.servicePlans) ? data.servicePlans : [],
+      originalList: Array.isArray(data.originalList) ? data.originalList : [],
       isLoading: false,
     })),
   applyFilter: () =>
     set((state) => ({ filteredList: ticketCategoryFilter(state) })),
   resetFilter: () => {
     set(() => ({
-      isActive: "any",
-      alwaysWithinPlan: "any",
+      isActive: false,
+      alwaysWithinPlan: false,
       users: [],
       servicePlans: [],
       searchTerm: "",

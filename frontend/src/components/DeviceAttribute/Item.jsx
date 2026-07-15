@@ -1,38 +1,27 @@
-import ItemCard from "../../UI/ItemCard";
+import ListRow from "@/components/app/ListRow";
+import { monogramFor } from "@/components/app/monogram";
+
+import { valueTypeLabel } from "./value-types";
 
 const DeviceAttributeItem = ({ item }) => {
   const { code, name, valueType, unit, isActive } = item;
 
-  const Title = () => {
-    return <>{name}</>;
-  };
-
-  const Description = () => {
-    return (
-      <div className="text-muted small">
-        <div>
-          <strong>Код:</strong> {code}
-        </div>
-        <div>
-          <strong>Тип данных:</strong> {valueType}
-          {unit && <> ({unit})</>}
-        </div>
-      </div>
-    );
-  };
-
-  const badges = [
-    { title: "активен", isActive: isActive, bg: "success" },
-    { title: "отключен", isActive: !isActive, bg: "danger" },
-  ];
-
   return (
-    <ItemCard
+    <ListRow
       item={item}
       itemTitle="deviceAttribute"
-      title={<Title />}
-      badges={badges}
-    ></ItemCard>
+      monogram={monogramFor(name)}
+      title={name}
+      dimmed={!isActive}
+      meta={
+        <>
+          <span className="tw:font-mono tw:text-base">{code}</span>
+          {" · "}
+          {valueTypeLabel(valueType)}
+          {unit && ` (${unit})`}
+        </>
+      }
+    />
   );
 };
 

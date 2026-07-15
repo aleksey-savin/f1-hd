@@ -1,12 +1,14 @@
 import Item from "./Item";
 
-const List = ({ items }) => {
+// Плоский список: у услуги нет оси активна/отключена (как у справочников),
+// а тип тарификации уже виден в мете строки и доступен фасетом
+const List = ({ items = [] }) => {
   return (
-    <>
+    <div>
       {items.map((item) => (
         <Item key={item._id} item={item} />
       ))}
-    </>
+    </div>
   );
 };
 

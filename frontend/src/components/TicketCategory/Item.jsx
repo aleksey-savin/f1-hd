@@ -1,93 +1,47 @@
-import ItemCard from "../../UI/ItemCard";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Badge from "react-bootstrap/Badge";
+import { useContext } from "react";
+
+import ListRow from "@/components/app/ListRow";
+import { monogramFor } from "@/components/app/monogram";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { useContext } from "react";
+import { plural } from "../../util/plural";
 
 const TicketCategoryItem = ({ item }) => {
   const { title, isActive, alwaysWithinPlan, users, servicePlans } = item;
-
   const { permissions } = useContext(AuthedUserContext);
 
-  const Title = () => {
-    return <>{title}</>;
-  };
+  const userCount = users?.length || 0;
+  const planCount = servicePlans?.length || 0;
+  const showPlans = permissions.canUseFinancesModule;
 
-  const badges = [
-    { title: "активна", isActive: isActive, bg: "success" },
-    { title: "отключена", isActive: !isActive, bg: "danger" },
-    {
-      title: "всегда в рамках тарифа",
-      isActive: alwaysWithinPlan,
-      bg: "secondary",
-    },
-  ];
+  const metaParts = [
+    userCount > 0
+      ? `${userCount} ${plural(userCount, "пользователь", "пользователя", "пользователей")}`
+      : "без пользователей",
+    showPlans &&
+      planCount > 0 &&
+      `${planCount} ${plural(planCount, "услуга", "услуги", "услуг")}`,
+    alwaysWithinPlan && (
+      <span key="plan" className="tw:text-accent-text">
+        всегда в рамках тарифа
+      </span>
+    ),
+  ].filter(Boolean);
 
   return (
-    <ItemCard
+    <ListRow
       item={item}
       itemTitle="ticketCategory"
-      badges={badges}
-      title={<Title />}
-    >
-      <Row>
-        <Col sm="auto">
-          <Row className="pb-1">
-            <Col>
-              <em>{item.description}</em>
-            </Col>
-          </Row>
-          {users.length > 0 && (
-            <Row>
-              <Col>
-                Пользователи:
-                {users.map((user) => (
-                  <Badge
-                    key={user._id}
-                    className="bg-secondary m-1"
-                  >{`${user.lastName} ${user.firstName}`}</Badge>
-                ))}
-              </Col>
-            </Row>
-          )}
-          {users.length === 0 && (
-            <Row className="pb-1">
-              <Col>
-                Пользователи:{" "}
-                <span className="text-secondary">
-                  не привязана ни к одному пользователю
-                </span>
-              </Col>
-            </Row>
-          )}
-          {permissions.canUseFinancesModule && servicePlans.length > 0 && (
-            <Row className="py-1">
-              <Col>
-                Услуги:
-                {servicePlans.map((plan) => (
-                  <Badge
-                    key={plan._id}
-                    className="bg-secondary m-1"
-                  >{`${plan.title}`}</Badge>
-                ))}
-              </Col>
-            </Row>
-          )}
-          {permissions.canUseFinancesModule && servicePlans.length === 0 && (
-            <Row className="mb-3">
-              <Col>
-                Услуги:{" "}
-                <span className="text-secondary">
-                  не привязана ни к одной услуге
-                </span>
-              </Col>
-            </Row>
-          )}
-        </Col>
-      </Row>
-    </ItemCard>
+      monogram={monogramFor(title)}
+      title={title}
+      dimmed={!isActive}
+      meta={metaParts.map((part, index) => (
+        <span key={index}>
+          {index > 0 && " · "}
+          {part}
+        </span>
+      ))}
+    />
   );
 };
 

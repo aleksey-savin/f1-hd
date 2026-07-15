@@ -9,7 +9,33 @@ exports.getAll = async (req, res, next) => {
       .populate("updatedBy", "firstName lastName")
       .sort({ name: 1 });
 
-    res.status(200).json(deviceTypes);
+    // Актуальные связи тип↔атрибут живут в коллекции DeviceTypeAttribute
+    // (как в getOne) — прикладываем их к каждому типу одним запросом.
+    // Иначе в ответ утекает легаси-поле attributes из старых документов
+    // (формат isRequired/displayOrder), и счётчик в списке врёт.
+    const links = await DeviceTypeAttribute.find({}).select(
+      "deviceTypeId attributeId required extendable order",
+    );
+    const linksByType = new Map();
+    for (const link of links) {
+      const key = String(link.deviceTypeId);
+      if (!linksByType.has(key)) {
+        linksByType.set(key, []);
+      }
+      linksByType.get(key).push({
+        attributeId: link.attributeId,
+        required: link.required,
+        extendable: link.extendable,
+        order: link.order,
+      });
+    }
+
+    res.status(200).json(
+      deviceTypes.map((deviceType) => ({
+        ...deviceType.toObject(),
+        attributes: linksByType.get(String(deviceType._id)) ?? [],
+      })),
+    );
   } catch (error) {
     next(new AppError("Failed to fetch device types", 500, true, error));
   }

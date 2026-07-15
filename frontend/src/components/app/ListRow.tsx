@@ -1,4 +1,4 @@
-import { useContext, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { Link, useNavigate } from "react-router";
 import { RiDeleteBinLine, RiEdit2Line, RiMoreLine } from "react-icons/ri";
@@ -14,7 +14,7 @@ import { DeleteDialog } from "@/components/app/DeleteItem";
 import { canManageEntity } from "@/components/app/entity-permissions";
 import { cn } from "@/lib/utils";
 import useOffcanvasStore from "@/store/offcanvas";
-import { AuthedUserContext } from "@/store/authed-user-context";
+import { useAuthedUser } from "@/store/authed-user";
 
 // Строка списка из согласованного макета: монограмма-плитка · имя + мета ·
 // «⋯»-меню (по наведению; на тач-экране видно всегда). Разделители — тонкая
@@ -39,6 +39,9 @@ type ListRowProps = {
   meta?: ReactNode;
   dimmed?: boolean;
   openUpdateOnClick?: boolean;
+  /** Переход на страницу сущности по клику (напр. услуга открывается во
+   *  View, а не в шторке правки). Доступно всем, кто видит список. */
+  detailTo?: string;
   extraActions?: ReactNode;
   customDeleteMessage?: ReactNode;
 };
@@ -51,6 +54,7 @@ const ListRow = ({
   meta,
   dimmed = false,
   openUpdateOnClick = true,
+  detailTo,
   extraActions,
   customDeleteMessage,
 }: ListRowProps) => {
@@ -58,7 +62,7 @@ const ListRow = ({
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const { _id: userId, permissions } = useContext(AuthedUserContext);
+  const { _id: userId, permissions } = useAuthedUser();
   const canManage = canManageEntity(itemTitle, permissions, item, userId);
 
   const updateTo = `update/${item._id}`;
@@ -77,7 +81,8 @@ const ListRow = ({
     navigate(updateTo);
   };
 
-  const clickable = canManage && openUpdateOnClick;
+  const clickable = detailTo ? true : canManage && openUpdateOnClick;
+  const handleRowClick = detailTo ? () => navigate(detailTo) : openUpdate;
 
   return (
     <div
@@ -89,7 +94,7 @@ const ListRow = ({
         justCreated && "tw:row-appear",
         justUpdated && "tw:row-flash",
       )}
-      onClick={clickable ? openUpdate : undefined}
+      onClick={clickable ? handleRowClick : undefined}
     >
       <span
         aria-hidden

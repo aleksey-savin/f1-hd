@@ -1,54 +1,71 @@
 import { useEffect } from "react";
 import { useLocation, redirect } from "react-router";
 
+import ListWrapper from "@/components/app/ListWrapper";
+
 import useDeviceTypeFilterStore from "../../store/lists/deviceTypes";
-
 import List from "../../components/DeviceType/List";
-
-import ListWrapper from "../../UI/ListWrapper";
-import { BrowserView } from "react-device-detect";
 import DeviceTypeFilter from "../../components/DeviceType/Filter";
-import useSidebarStore from "../../store/sidebar";
-
-import { BiCategory } from "react-icons/bi";
+import { kindLabel } from "../../components/DeviceType/kinds";
 
 import { getLocalStorageData } from "../../util/auth";
 
 const DeviceTypeListPage = () => {
   const location = useLocation();
-  const { setLeftSidebarContent } = useSidebarStore();
   const filterStore = useDeviceTypeFilterStore();
 
   useEffect(() => {
     filterStore.applyFilter();
   }, [filterStore.originalList]);
 
+  // Фетчим только на самом списке: открытие/закрытие шторки add/update — тоже
+  // навигация, и рефетч в этот момент дёргал бы список под шторкой (см. Vendors)
   useEffect(() => {
-    filterStore.fetch();
-  }, [location]);
+    if (location.pathname === "/inventory/device-types") {
+      filterStore.fetch();
+    }
+  }, [location.key]);
 
-  useEffect(() => {
-    setLeftSidebarContent(
-      <BrowserView>
-        <DeviceTypeFilter />
-      </BrowserView>,
-    );
-  }, [setLeftSidebarContent, filterStore.originalList]);
-
-  const title = () => {
-    return (
-      <>
-        <BiCategory /> Типы устройств
-      </>
-    );
+  const removeFilter = (patch) => {
+    filterStore.updateFilter({ ...filterStore, ...patch });
+    filterStore.applyFilter();
   };
+
+  const selectedAttributes = filterStore.attributes || [];
+  const activeFilters = [
+    filterStore.isActive === true && {
+      key: "isActive",
+      label: "Только активные",
+      onRemove: () => removeFilter({ isActive: false }),
+    },
+    filterStore.kind && {
+      key: "kind",
+      label: kindLabel(filterStore.kind),
+      onRemove: () => removeFilter({ kind: null }),
+    },
+    ...selectedAttributes.map((attribute) => ({
+      key: `attribute-${attribute._id}`,
+      label: `Атрибут: ${attribute.name}`,
+      onRemove: () =>
+        removeFilter({
+          attributes: selectedAttributes.filter(
+            (selected) => selected._id !== attribute._id,
+          ),
+        }),
+    })),
+  ].filter(Boolean);
+
   return (
     <ListWrapper
-      title={title}
+      title={() => "Типы устройств"}
       filterStore={filterStore}
       addRoute="/inventory/device-types/add"
+      addLabel="Добавить тип"
+      filter={<DeviceTypeFilter />}
+      filterActive={activeFilters.length > 0}
+      activeFilters={activeFilters}
     >
-      <List items={filterStore.filteredList}></List>
+      <List items={filterStore.filteredList} />
     </ListWrapper>
   );
 };

@@ -1,8 +1,17 @@
 import { useState } from "react";
-import Form from "react-bootstrap/Form";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
 
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import Field from "@/components/app/Field";
+import SwitchField from "@/components/app/SwitchField";
+
+import Select from "../../UI/Select";
+import { VALUE_TYPES } from "./value-types";
+
+// Поля атрибута устройства. Рендерят `name`-атрибуты (для сабмита со страницы
+// через router action) и одновременно сообщают агрегированное состояние через
+// onChange (для инлайн-модалки в форме типа устройства, которая шлёт fetch
+// напрямую) — общий компонент, мини-форм-двойников не заводим.
 const DeviceAttributeFormFields = ({ attribute, onChange }) => {
   const [code, setCode] = useState(attribute?.code || "");
   const [name, setName] = useState(attribute?.name || "");
@@ -14,6 +23,12 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
   const [isActive, setIsActive] = useState(
     attribute ? attribute.isActive : true,
   );
+
+  const notifyChange = (data) => {
+    if (onChange) {
+      onChange(data);
+    }
+  };
 
   const codeChangeHandler = (event) => {
     const newCode = event.target.value;
@@ -27,8 +42,8 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
     notifyChange({ code, name: newName, valueType, unit, options, isActive });
   };
 
-  const valueTypeChangeHandler = (event) => {
-    const newValueType = event.target.value;
+  const valueTypeChangeHandler = (option) => {
+    const newValueType = option?.value ?? "string";
     setValueType(newValueType);
     notifyChange({
       code,
@@ -49,19 +64,27 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
   const optionsChangeHandler = (event) => {
     const newOptions = event.target.value;
     setOptions(newOptions);
-    notifyChange({ code, name, valueType, unit, options: newOptions, isActive });
+    notifyChange({
+      code,
+      name,
+      valueType,
+      unit,
+      options: newOptions,
+      isActive,
+    });
   };
 
   const isActiveChangeHandler = () => {
     const newIsActive = !isActive;
     setIsActive(newIsActive);
-    notifyChange({ code, name, valueType, unit, options, isActive: newIsActive });
-  };
-
-  const notifyChange = (data) => {
-    if (onChange) {
-      onChange(data);
-    }
+    notifyChange({
+      code,
+      name,
+      valueType,
+      unit,
+      options,
+      isActive: newIsActive,
+    });
   };
 
   const showOptionsField =
@@ -69,128 +92,95 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
 
   return (
     <>
-      <Row>
-        <Col md={6}>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="code">
-              Код
-              <span style={{ color: "red" }}>*</span>
-            </Form.Label>
-            <Form.Control
-              required
-              autoFocus
-              id="code"
-              name="code"
-              type="text"
-              value={code}
-              onChange={codeChangeHandler}
-              placeholder="ram, processor, screenSize"
-            />
-            <Form.Text className="text-muted">
-              Латиница, без пробелов, camelCase
-            </Form.Text>
-          </Form.Group>
-        </Col>
-
-        <Col md={6}>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="name">
-              Наименование
-              <span style={{ color: "red" }}>*</span>
-            </Form.Label>
-            <Form.Control
-              required
-              id="name"
-              name="name"
-              type="text"
-              value={name}
-              onChange={nameChangeHandler}
-              placeholder="Оперативная память"
-            />
-            <Form.Text className="text-muted">
-              Отображаемое название на русском
-            </Form.Text>
-          </Form.Group>
-        </Col>
-      </Row>
-
-      <Row>
-        <Col md={6}>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="valueType">
-              Тип данных
-              <span style={{ color: "red" }}>*</span>
-            </Form.Label>
-            <Form.Select
-              required
-              id="valueType"
-              name="valueType"
-              value={valueType}
-              onChange={valueTypeChangeHandler}
-            >
-              <option value="string">Строка (string)</option>
-              <option value="number">Число (number)</option>
-              <option value="boolean">Да/Нет (boolean)</option>
-              <option value="select">Выбор (select)</option>
-              <option value="multiselect">
-                Множественный выбор (multiselect)
-              </option>
-              <option value="text">Текст (text)</option>
-            </Form.Select>
-          </Form.Group>
-        </Col>
-
-        <Col md={6}>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="unit">Единица измерения</Form.Label>
-            <Form.Control
-              id="unit"
-              name="unit"
-              type="text"
-              value={unit}
-              onChange={unitChangeHandler}
-              placeholder="ГБ, дюймов, Вт"
-            />
-            <Form.Text className="text-muted">
-              Опционально (ГБ, MHz, дюймов)
-            </Form.Text>
-          </Form.Group>
-        </Col>
-      </Row>
+      <div className="tw:grid tw:gap-x-4 tw:md:grid-cols-2">
+        <Field
+          label="Код"
+          htmlFor="code"
+          required
+          hint="Латиница, без пробелов, camelCase"
+        >
+          <Input
+            required
+            autoFocus
+            id="code"
+            name="code"
+            type="text"
+            value={code}
+            onChange={codeChangeHandler}
+            placeholder="ram, processor, screenSize"
+          />
+        </Field>
+        <Field
+          label="Наименование"
+          htmlFor="name"
+          required
+          hint="Отображаемое название на русском"
+        >
+          <Input
+            required
+            id="name"
+            name="name"
+            type="text"
+            value={name}
+            onChange={nameChangeHandler}
+            placeholder="Оперативная память"
+          />
+        </Field>
+        <Field label="Тип данных" htmlFor="valueType" required>
+          <Select
+            id="valueType"
+            closeMenuOnSelect
+            value={VALUE_TYPES.filter((type) => type.value === valueType)}
+            options={VALUE_TYPES}
+            getOptionLabel={(type) => type.label}
+            getOptionValue={(type) => type.value}
+            onChange={valueTypeChangeHandler}
+          />
+          <input type="hidden" name="valueType" value={valueType} />
+        </Field>
+        <Field
+          label="Единица измерения"
+          htmlFor="unit"
+          hint="Опционально (ГБ, MHz, дюймов)"
+        >
+          <Input
+            id="unit"
+            name="unit"
+            type="text"
+            value={unit}
+            onChange={unitChangeHandler}
+            placeholder="ГБ, дюймов, Вт"
+          />
+        </Field>
+      </div>
 
       {showOptionsField && (
-        <Form.Group className="mb-3">
-          <Form.Label htmlFor="options">
-            Варианты выбора
-            <span style={{ color: "red" }}>*</span>
-          </Form.Label>
-          <Form.Control
+        <Field
+          label="Варианты выбора"
+          htmlFor="options"
+          required
+          hint="Каждый вариант с новой строки"
+        >
+          <Textarea
             required={showOptionsField}
             id="options"
             name="options"
-            as="textarea"
             rows={5}
             value={options}
             onChange={optionsChangeHandler}
-            placeholder="4&#10;8&#10;16&#10;32&#10;64"
+            placeholder={"4\n8\n16\n32\n64"}
           />
-          <Form.Text className="text-muted">
-            Каждый вариант с новой строки
-          </Form.Text>
-        </Form.Group>
+        </Field>
       )}
 
-      <Form.Group>
-        <Form.Check
-          checked={isActive}
-          type="switch"
-          id="isActive"
-          name="isActive"
-          label="Активен"
-          value={isActive}
-          onChange={isActiveChangeHandler}
-        />
-      </Form.Group>
+      <SwitchField
+        id="isActive"
+        name="isActive"
+        checked={isActive}
+        onCheckedChange={isActiveChangeHandler}
+        label="Активен"
+        hint="Атрибут предлагается при настройке типов устройств."
+      />
     </>
   );
 };

@@ -1,14 +1,24 @@
+import { useContext } from "react";
 import { Link } from "react-router";
+import { isBrowser } from "react-device-detect";
 
+import { cn } from "@/lib/utils";
 import useInitialPrefs from "../store/prefs";
+import { AuthedUserContext } from "../store/authed-user-context";
 import { getLocalStorageData } from "../util/auth";
 
 // Футер оболочки: контакты компании и служебная строка. Лёгкий текст на канве
-// (без легаси-карточек) — живёт и под мигрированными экранами, и под Card
-// легаси-страниц.
+// (без легаси-карточек). ОБЯЗАТЕЛЬНО tw:relative: фоновая картинка (fixed
+// .background-container) рисуется поверх статического контента — без
+// позиционирования футер под ней исчезает. При заданной картинке текст канвы
+// нечитаем — футер получает подложку-«лист» цвета канвы (как контент в Root).
 const Footer = () => {
   const { token } = getLocalStorageData();
   const { contacts } = useInitialPrefs();
+  const { backgroundImagePath } = useContext(AuthedUserContext);
+
+  // Фон рендерится только на десктопе (Root.jsx)
+  const sheet = isBrowser && !!backgroundImagePath;
 
   if (!token) return null;
 
@@ -35,7 +45,15 @@ const Footer = () => {
   ].filter(Boolean);
 
   return (
-    <footer className="tw:mt-10 tw:border-t tw:border-border-soft tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground">
+    <footer
+      className={cn(
+        "tw:relative tw:mt-10 tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground",
+        sheet
+          ? "tw:mx-auto tw:w-fit tw:max-w-full tw:rounded-2xl tw:border tw:border-border tw:px-8"
+          : "tw:border-t tw:border-border-soft",
+      )}
+      style={sheet ? { background: "var(--bs-body-bg)" } : undefined}
+    >
       {contactItems.length > 0 && (
         <div className="tw:mb-2 tw:flex tw:flex-wrap tw:items-center tw:justify-center tw:gap-x-2.5 tw:gap-y-1">
           {contactItems.map((item, index) => (

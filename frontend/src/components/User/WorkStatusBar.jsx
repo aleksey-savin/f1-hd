@@ -249,8 +249,7 @@ const WorkStatusBar = ({ variant = "rail" }) => {
   return (
     <aside
       className={cn(
-        // ws-rail-fixed — компенсация radix-скролл-лока (index.css)
-        "ws-rail-fixed tw:fixed tw:inset-y-0 tw:right-0 tw:flex tw:flex-col tw:overflow-hidden tw:border-l tw:border-border tw:bg-card tw:pt-16 tw:transition-[width] tw:duration-300 tw:max-lg:hidden",
+        "tw:fixed tw:inset-y-0 tw:right-0 tw:flex tw:flex-col tw:overflow-hidden tw:border-l tw:border-border tw:bg-card tw:pt-16 tw:transition-[width] tw:duration-300 tw:max-lg:hidden",
         open ? "tw:w-84 tw:shadow-2xl" : "tw:w-18",
       )}
       style={{ zIndex: 1020 }}

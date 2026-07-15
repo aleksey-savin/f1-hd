@@ -73,9 +73,9 @@ const RootLayout = () => {
         "/companies",
         "/users",
         "/ticket-templates",
-        "/ticket-categories",
         "/finances/summary-report",
-        "/inventory/device-types",
+        // мигрированные экраны (device-types, vendors, …) сайдбар не
+        // используют — фильтры живут в Sheet самого списка
         "/inventory/locations",
         "/inventory/client-devices",
       ].includes(location.pathname) ||
@@ -190,6 +190,13 @@ const RootLayout = () => {
                   const MIGRATED_ROUTES = [
                     // ListWrapper: tw:max-w-7xl (1280) + 2×24
                     { path: "/inventory/vendors", maxWidth: 1328 },
+                    { path: "/inventory/device-attributes", maxWidth: 1328 },
+                    { path: "/inventory/device-types", maxWidth: 1328 },
+                    { path: "/ticket-categories", maxWidth: 1328 },
+                    // Услуги: карточка/формы (max-w-4xl, со слэшем) матчатся
+                    // раньше списка (max-w-7xl) — порядок в .find важен
+                    { path: "/finances/service-plans/", maxWidth: 944 },
+                    { path: "/finances/service-plans", maxWidth: 1328 },
                     // страница: tw:max-w-4xl (896) + 2×24
                     { path: "/my-account", maxWidth: 944 },
                   ];

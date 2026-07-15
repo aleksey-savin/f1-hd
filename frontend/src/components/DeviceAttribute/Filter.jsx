@@ -1,15 +1,16 @@
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Form from "react-bootstrap/Form";
+import FilterContainer from "@/components/app/FilterContainer";
+import Field from "@/components/app/Field";
+import SwitchField from "@/components/app/SwitchField";
 
-import FilterContainer from "../../UI/FilterContainer";
+import Select from "../../UI/Select";
 import useDeviceAttributeFilterStore from "../../store/lists/deviceAttributes";
+import { VALUE_TYPES } from "./value-types";
 
-const DeviceAttributeFilter = ({
-  setShowOffcanvas = () => {
-    return null;
-  },
-}) => {
+const TYPE_OPTIONS = [{ value: "all", label: "Все типы" }, ...VALUE_TYPES];
+
+// Sheet-фильтр справочника (кнопка «Фильтр» в строке инструментов).
+// Применённые значения показывает липкая плашка бейджей ListWrapper.
+const DeviceAttributeFilter = () => {
   const filterStore = useDeviceAttributeFilterStore();
 
   const isActiveToggleHandler = () => {
@@ -20,55 +21,36 @@ const DeviceAttributeFilter = ({
     filterStore.applyFilter();
   };
 
-  const valueTypeChangeHandler = (event) => {
+  const valueTypeChangeHandler = (option) => {
     filterStore.updateFilter({
       ...filterStore,
-      valueType: event.target.value,
+      valueType: option?.value ?? "all",
     });
     filterStore.applyFilter();
   };
 
-  const resetFilterHandler = () => {
-    filterStore.resetFilter();
-  };
-
   return (
-    <FilterContainer
-      setShowOffcanvas={setShowOffcanvas}
-      resetFilterHandler={resetFilterHandler}
-    >
-      <Row className="py-2">
-        <Col>
-          <Form.Check
-            type="switch"
-            id="is-active"
-            label="Только активные"
-            value={filterStore.isActive}
-            checked={filterStore.isActive}
-            onChange={isActiveToggleHandler}
-          />
-        </Col>
-      </Row>
-      <Row className="py-2">
-        <Col>
-          <Form.Label htmlFor="valueType">Тип данных</Form.Label>
-          <Form.Select
-            id="valueType"
-            value={filterStore.valueType}
-            onChange={valueTypeChangeHandler}
-          >
-            <option value="all">Все типы</option>
-            <option value="string">Строка (string)</option>
-            <option value="number">Число (number)</option>
-            <option value="boolean">Да/Нет (boolean)</option>
-            <option value="select">Выбор (select)</option>
-            <option value="multiselect">
-              Множественный выбор (multiselect)
-            </option>
-            <option value="text">Текст (text)</option>
-          </Form.Select>
-        </Col>
-      </Row>
+    <FilterContainer resetFilterHandler={filterStore.resetFilter}>
+      <SwitchField
+        id="filter-is-active"
+        checked={!!filterStore.isActive}
+        onCheckedChange={isActiveToggleHandler}
+        label="Только активные"
+      />
+      <Field label="Тип данных" htmlFor="filter-value-type" className="tw:mt-2">
+        <Select
+          id="filter-value-type"
+          placeholder="Все типы"
+          closeMenuOnSelect
+          value={TYPE_OPTIONS.filter(
+            (option) => option.value === (filterStore.valueType || "all"),
+          )}
+          options={TYPE_OPTIONS}
+          getOptionLabel={(option) => option.label}
+          getOptionValue={(option) => option.value}
+          onChange={valueTypeChangeHandler}
+        />
+      </Field>
     </FilterContainer>
   );
 };

@@ -1,59 +1,78 @@
 import { useEffect } from "react";
 import { redirect, useLocation } from "react-router";
 
-import { BrowserView } from "react-device-detect";
+import ListWrapper from "@/components/app/ListWrapper";
 
 import { getLocalStorageData } from "../../util/auth";
 
-import { RiServiceLine } from "react-icons/ri";
-
 import List from "../../components/ServicePlan/List";
 import ServicePlanFilter from "../../components/ServicePlan/Filter";
-
-import ListWrapper from "../../UI/ListWrapper";
+import { tariffTypeName } from "../../components/ServicePlan/tariff-types";
 
 import useServicePlanFilterStore from "../../store/lists/service-plans";
-import useSidebarStore from "../../store/sidebar";
 
 const ServicePlans = () => {
   const location = useLocation();
-  const { setLeftSidebarContent } = useSidebarStore();
   const filterStore = useServicePlanFilterStore();
 
   useEffect(() => {
-    if (Array.isArray(filterStore.originalList)) {
-      filterStore.applyFilter();
-    }
+    filterStore.applyFilter();
   }, [filterStore.originalList]);
 
+  // Фетчим только на самом списке: открытие карточки/шторки — тоже навигация
   useEffect(() => {
-    filterStore.fetch();
-  }, [location]);
+    if (location.pathname === "/finances/service-plans") {
+      filterStore.fetch();
+    }
+  }, [location.key]);
 
-  useEffect(() => {
-    setLeftSidebarContent(
-      <BrowserView>
-        <ServicePlanFilter />
-      </BrowserView>,
-    );
-  }, [setLeftSidebarContent, filterStore.originalList]);
-
-  const title = () => {
-    return (
-      <>
-        <RiServiceLine /> Услуги
-      </>
-    );
+  const removeFilter = (patch) => {
+    filterStore.updateFilter({ ...filterStore, ...patch });
+    filterStore.applyFilter();
   };
+
+  const selectedCompanies = filterStore.companies || [];
+  const selectedCategories = filterStore.ticketCategories || [];
+  const activeFilters = [
+    filterStore.type &&
+      filterStore.type !== "any" && {
+        key: "type",
+        label: `Тип: ${tariffTypeName(filterStore.type)}`,
+        onRemove: () => removeFilter({ type: "any" }),
+      },
+    ...selectedCompanies.map((company) => ({
+      key: `company-${company._id}`,
+      label: `Компания: ${company.alias}`,
+      onRemove: () =>
+        removeFilter({
+          companies: selectedCompanies.filter(
+            (item) => item._id !== company._id,
+          ),
+        }),
+    })),
+    ...selectedCategories.map((category) => ({
+      key: `category-${category._id}`,
+      label: `Категория: ${category.title}`,
+      onRemove: () =>
+        removeFilter({
+          ticketCategories: selectedCategories.filter(
+            (item) => item._id !== category._id,
+          ),
+        }),
+    })),
+  ].filter(Boolean);
 
   return (
     <ListWrapper
-      title={title}
-      filter={<ServicePlanFilter />}
+      title={() => "Услуги"}
       filterStore={filterStore}
       addRoute="/finances/service-plans/add"
+      addLabel="Добавить услугу"
+      filter={<ServicePlanFilter />}
+      filterActive={activeFilters.length > 0}
+      activeFilters={activeFilters}
     >
-      <List items={filterStore.filteredList}></List>
+      <List items={filterStore.filteredList} />
     </ListWrapper>
   );
 };

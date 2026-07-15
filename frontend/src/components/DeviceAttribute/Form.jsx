@@ -1,5 +1,7 @@
 import { useLoaderData } from "react-router";
-import FormWrapper from "../../UI/FormWrapper";
+
+import FormWrapper from "@/components/app/FormWrapper";
+
 import DeviceAttributeFormFields from "./FormFields";
 
 const DeviceAttributeForm = ({ title }) => {

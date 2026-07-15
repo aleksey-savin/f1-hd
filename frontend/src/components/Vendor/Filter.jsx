@@ -1,27 +1,31 @@
-import FilterChip from "@/components/app/FilterChip";
+import FilterContainer from "@/components/app/FilterContainer";
+import SwitchField from "@/components/app/SwitchField";
 
 import useVendorFilterStore from "../../store/lists/vendors";
 
-// Чип «Только активные» для строки инструментов списка (согласованный макет
-// заменил им сайдбар-фильтр, который для /inventory/vendors и так не
-// показывался — путь не входит в белый список сайдбара Root).
-const VendorActiveChip = () => {
+// Sheet-фильтр справочника (кнопка «Фильтр» в строке инструментов).
+// Применённые значения показывает липкая плашка бейджей ListWrapper.
+const VendorFilter = () => {
   const filterStore = useVendorFilterStore();
-  const active = filterStore.isActive === true;
 
-  const toggle = () => {
+  const isActiveToggleHandler = () => {
     filterStore.updateFilter({
       ...filterStore,
-      isActive: !active,
+      isActive: !filterStore.isActive,
     });
     filterStore.applyFilter();
   };
 
   return (
-    <FilterChip active={active} onClick={toggle}>
-      Только активные
-    </FilterChip>
+    <FilterContainer resetFilterHandler={filterStore.resetFilter}>
+      <SwitchField
+        id="filter-is-active"
+        checked={!!filterStore.isActive}
+        onCheckedChange={isActiveToggleHandler}
+        label="Только активные"
+      />
+    </FilterContainer>
   );
 };
 
-export default VendorActiveChip;
+export default VendorFilter;

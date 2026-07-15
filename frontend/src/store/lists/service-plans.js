@@ -3,49 +3,58 @@ import { create } from "zustand";
 import { getLocalStorageData } from "../../util/auth";
 
 const servicePlanFilter = (state) => {
-  const originalList = state.originalList || [];
+  const originalList = Array.isArray(state.originalList)
+    ? state.originalList
+    : [];
+  // Фасеты храним объектами (бейджам нужны имена) — сравниваем по _id
+  const companyIds = (state.companies || []).map((company) =>
+    String(company._id),
+  );
+  const categoryIds = (state.ticketCategories || []).map((category) =>
+    String(category._id),
+  );
 
-  // Add type checking to ensure originalList is an array
-  if (!Array.isArray(originalList)) {
-    console.warn(
-      "servicePlanFilter: originalList is not an array:",
-      originalList,
-    );
-    return [];
-  }
-
-  return originalList.filter((item) => {
-    if (state.searchTerm.length > 0) {
-      const searchText = [
-        item.title,
-        ...(Array.isArray(item.ticketCategories)
-          ? item.ticketCategories.map((category) => category.title)
-          : []),
-        ...(Array.isArray(item.companies)
-          ? item.companies.map((company) => company.alias)
-          : []),
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return searchText.includes(state.searchTerm.toLowerCase());
-    }
-
-    return true;
-  });
+  return originalList
+    .filter((plan) =>
+      state.type && state.type !== "any" ? plan.type === state.type : true,
+    )
+    .filter((plan) => {
+      if (companyIds.length === 0) return true;
+      return (plan.companies || []).some((company) =>
+        companyIds.includes(String(company._id)),
+      );
+    })
+    .filter((plan) => {
+      if (categoryIds.length === 0) return true;
+      return (plan.ticketCategories || []).some((category) =>
+        categoryIds.includes(String(category._id)),
+      );
+    })
+    .filter((plan) => {
+      if (state.searchTerm.length > 0) {
+        const haystack = [
+          plan.title,
+          ...(plan.companies || []).map((company) => company.alias),
+          ...(plan.ticketCategories || []).map((category) => category.title),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(state.searchTerm);
+      }
+      return true;
+    });
 };
 
 const searchItems = (query, items) => {
   if (!query) return items;
 
-  // Split the query into individual terms (e.g., "Ольга Вознюк" becomes ["Ольга", "Вознюк"])
   const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
 
   return items.filter((item) => {
     const fieldsToSearch = [
       item.title,
-      JSON.stringify(item.companies),
-      JSON.stringify(item.categories),
+      ...(item.companies || []).map((company) => company.alias),
+      ...(item.ticketCategories || []).map((category) => category.title),
     ];
 
     return queryTerms.every((term) =>
@@ -56,12 +65,60 @@ const searchItems = (query, items) => {
   });
 };
 
+const handleSorting = (selected, list) => {
+  if (!selected || !list.length) {
+    return;
+  }
+
+  const sortedList = [...list];
+
+  switch (selected.label) {
+    case "По алфавиту":
+      sortedList.sort((a, b) => a.title.localeCompare(b.title));
+      break;
+
+    case "Сначала новые":
+      sortedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      break;
+
+    case "Сначала старые":
+      sortedList.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      break;
+
+    default:
+      break;
+  }
+
+  return sortedList;
+};
+
 const useServicePlanFilterStore = create((set) => ({
-  provisionSchedule: "any",
-  ticketCategories: [],
+  type: "any",
   companies: [],
-  tariffPlan: "any",
+  ticketCategories: [],
   searchTerm: "",
+  sortingOptions: [
+    { label: "По алфавиту" },
+    { label: "Сначала новые" },
+    { label: "Сначала старые" },
+  ],
+  sortBy: {
+    label: "По алфавиту",
+  },
+  isSorting: false,
+  handleSorting: async (data) => {
+    set({ isSorting: true });
+    set({ sortBy: data });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    set((state) => {
+      const sortedList = handleSorting(data, state.filteredList);
+      return {
+        sortBy: data,
+        filteredList: sortedList,
+        isSorting: false,
+      };
+    });
+  },
   originalList: [],
   filteredList: [],
   fullTextSearch: (query) =>
@@ -81,26 +138,28 @@ const useServicePlanFilterStore = create((set) => ({
       },
     );
     const data = await response.json();
-
-    // Ensure data is an array
-    const originalList = Array.isArray(data) ? data : [];
-    if (!Array.isArray(data)) {
-      console.warn("API response is not an array:", data);
-    }
-
     set({
-      originalList: originalList,
+      originalList: Array.isArray(data) ? data : [],
       isLoading: false,
     });
   },
+  updateFilter: (data) =>
+    set(() => ({
+      type: data.type ?? "any",
+      companies: Array.isArray(data.companies) ? data.companies : [],
+      ticketCategories: Array.isArray(data.ticketCategories)
+        ? data.ticketCategories
+        : [],
+      originalList: Array.isArray(data.originalList) ? data.originalList : [],
+      isLoading: false,
+    })),
   applyFilter: () =>
     set((state) => ({ filteredList: servicePlanFilter(state) })),
   resetFilter: () => {
     set(() => ({
-      provisionSchedule: "any",
-      ticketCategories: [],
+      type: "any",
       companies: [],
-      tariff: "any",
+      ticketCategories: [],
       searchTerm: "",
     }));
     set((state) => ({
