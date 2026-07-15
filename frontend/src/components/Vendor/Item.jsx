@@ -1,24 +1,32 @@
-import ItemCard from "../../UI/ItemCard";
+import ListRow from "@/components/app/ListRow";
+import { monogramFor } from "@/components/app/monogram";
+
+import { plural } from "../../util/plural";
 
 const VendorItem = ({ item }) => {
-  const { name, isActive } = item;
-
-  const Title = () => {
-    return <>{name}</>;
-  };
-
-  const badges = [
-    { title: "активен", isActive: isActive, bg: "success" },
-    { title: "отключен", isActive: !isActive, bg: "danger" },
-  ];
+  const { name, isActive, isMikrotikManagementEnabled, deviceCount = 0 } = item;
 
   return (
-    <ItemCard
+    <ListRow
       item={item}
       itemTitle="vendor"
-      badges={badges}
-      title={<Title />}
-    ></ItemCard>
+      monogram={monogramFor(name)}
+      title={name}
+      dimmed={!isActive}
+      meta={
+        <>
+          {deviceCount > 0
+            ? `${deviceCount} ${plural(deviceCount, "устройство", "устройства", "устройств")}`
+            : "нет устройств"}
+          {isMikrotikManagementEnabled && (
+            <>
+              {" · "}
+              <span className="tw:text-accent-text">управление прошивками</span>
+            </>
+          )}
+        </>
+      }
+    />
   );
 };
 

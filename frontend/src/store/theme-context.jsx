@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect } from "react";
+import { createContext, useState, useEffect, useLayoutEffect } from "react";
 import { getSystemTheme } from "../util/theme";
 
 export const ThemeContext = createContext({
@@ -26,6 +26,13 @@ export const ThemeProvider = ({ children }) => {
     localStorage.setItem("theme", newTheme);
     localStorage.setItem("darkMode", newIsDark);
   };
+
+  // Класс .dark на <html> — источник тёмной темы для tailwind/shadcn-токенов
+  // (см. @custom-variant dark в styles/tailwind.css). Держим синхронно с
+  // isDark; до эндшпиля миграции параллельно живёт подмена bootstrap-css.
+  useLayoutEffect(() => {
+    document.documentElement.classList.toggle("dark", isDark);
+  }, [isDark]);
 
   // Listen for system theme changes
   useEffect(() => {

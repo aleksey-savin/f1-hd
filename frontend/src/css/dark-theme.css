@@ -1,4 +1,7 @@
-@import url("dark/bootstrap.css");
+/* Вендоренный bootstrap — в нижнем css-слое (см. комментарий в light-theme.css
+   и порядок слоёв в styles/tailwind.css). dark-mode.css и table.css остаются
+   вне слоя: они переопределяют bootstrap и должны быть сильнее. */
+@import "dark/bootstrap.css" layer(bootstrap);
 @import url("dark/dark-mode.css");
 @import url("./table.css");
 
@@ -129,4 +132,33 @@ table {
   --ws-line: rgba(255, 255, 255, 0.12);
   --ws-muted: rgba(222, 226, 230, 0.75);
   --ws-hover: rgba(255, 255, 255, 0.07);
+}
+
+/* ============================================================
+   Навстречу согласованному макету миграции (Tailwind/shadcn): канва,
+   карточки и тёмный навбар легаси-оболочки — в тонах новых токенов
+   (src/styles/tailwind.css), чтобы мигрированные и легаси-экраны жили
+   на одной поверхности. Значения дублируют .dark-токены. Блок уходит
+   вместе с оболочкой (Фаза 2) либо с bootstrap в эндшпиле. */
+:root {
+  --bs-body-bg: #16181c;
+  --bs-body-color: #eceef0;
+  --bs-border-color: #2b2f35;
+  /* статус-борд — та же поверхность, что у перекрашенных карточек */
+  --ws-surface: #1d2024;
+  --ws-avatar-bg: #2a2f35;
+}
+
+.card {
+  --bs-card-bg: #1d2024;
+  --bs-card-border-color: #2b2f35;
+}
+
+table {
+  background: #1d2024;
+}
+
+.navbar.bg-dark {
+  background-color: #1d2024 !important;
+  border-bottom: 1px solid #2b2f35;
 }

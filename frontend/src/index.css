@@ -35,6 +35,9 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  /* Декоративный слой: fixed рисуется поверх СТАТИЧЕСКОГО контента и без
+     этого свойства съедает клики (легаси спасала position:relative у Card). */
+  pointer-events: none;
 }
 
 .rdw-editor-wrapper {

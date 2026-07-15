@@ -4,51 +4,40 @@ import { useLocation, redirect } from "react-router";
 import useVendorFilterStore from "../../store/lists/vendors";
 
 import List from "../../components/Vendor/List";
+import VendorActiveChip from "../../components/Vendor/Filter";
 
-import ListWrapper from "../../UI/ListWrapper";
-import { BrowserView } from "react-device-detect";
-import VendorFilter from "../../components/Vendor/Filter";
-import useSidebarStore from "../../store/sidebar";
-
-import { HiOutlineBuildingOffice2 } from "react-icons/hi2";
+import ListWrapper from "@/components/app/ListWrapper";
 
 import { getLocalStorageData } from "../../util/auth";
 
 const VendorListPage = () => {
   const location = useLocation();
-  const { setLeftSidebarContent } = useSidebarStore();
   const filterStore = useVendorFilterStore();
 
   useEffect(() => {
     filterStore.applyFilter();
   }, [filterStore.originalList]);
 
+  // Фетчим только на самом списке: открытие/закрытие шторки add/update — тоже
+  // навигация, и рефетч в этот момент дёргал список под выезжающей шторкой.
+  // Зависимость — location.key (меняется при КАЖДОЙ навигации): redirect после
+  // удаления ведёт на тот же pathname, и по одному pathname рефетч не сработал
+  // бы. Обновление фоновое (см. ListWrapper: спиннер только без данных).
   useEffect(() => {
-    filterStore.fetch();
-  }, [location]);
+    if (location.pathname === "/inventory/vendors") {
+      filterStore.fetch();
+    }
+  }, [location.key]);
 
-  useEffect(() => {
-    setLeftSidebarContent(
-      <BrowserView>
-        <VendorFilter />
-      </BrowserView>,
-    );
-  }, [setLeftSidebarContent, filterStore.originalList]);
-
-  const title = () => {
-    return (
-      <>
-        <HiOutlineBuildingOffice2 /> Вендоры
-      </>
-    );
-  };
   return (
     <ListWrapper
-      title={title}
+      title={() => "Вендоры"}
       filterStore={filterStore}
       addRoute="/inventory/vendors/add"
+      addLabel="Добавить вендора"
+      toolbar={<VendorActiveChip />}
     >
-      <List items={filterStore.filteredList}></List>
+      <List items={filterStore.filteredList} />
     </ListWrapper>
   );
 };

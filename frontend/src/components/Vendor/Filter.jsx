@@ -1,48 +1,27 @@
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Form from "react-bootstrap/Form";
+import FilterChip from "@/components/app/FilterChip";
 
-import FilterContainer from "../../UI/FilterContainer";
 import useVendorFilterStore from "../../store/lists/vendors";
 
-const VendorFilter = ({
-  setShowOffcanvas = () => {
-    return null;
-  },
-}) => {
+// Чип «Только активные» для строки инструментов списка (согласованный макет
+// заменил им сайдбар-фильтр, который для /inventory/vendors и так не
+// показывался — путь не входит в белый список сайдбара Root).
+const VendorActiveChip = () => {
   const filterStore = useVendorFilterStore();
+  const active = filterStore.isActive === true;
 
-  const isActiveToggleHandler = () => {
+  const toggle = () => {
     filterStore.updateFilter({
       ...filterStore,
-      isActive: !filterStore.isActive,
+      isActive: !active,
     });
     filterStore.applyFilter();
   };
 
-  const resetFilterHandler = () => {
-    filterStore.resetFilter();
-  };
-
   return (
-    <FilterContainer
-      setShowOffcanvas={setShowOffcanvas}
-      resetFilterHandler={resetFilterHandler}
-    >
-      <Row className="py-2">
-        <Col>
-          <Form.Check
-            type="switch"
-            id="is-active"
-            label="Только активные"
-            value={filterStore.isActive}
-            checked={filterStore.isActive}
-            onChange={isActiveToggleHandler}
-          />
-        </Col>
-      </Row>
-    </FilterContainer>
+    <FilterChip active={active} onClick={toggle}>
+      Только активные
+    </FilterChip>
   );
 };
 
-export default VendorFilter;
+export default VendorActiveChip;

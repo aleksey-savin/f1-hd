@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
-import Form from "react-bootstrap/Form";
+
+import { Input } from "@/components/ui/input";
+import Field from "@/components/app/Field";
+import SwitchField from "@/components/app/SwitchField";
 
 // Поля вендора. Рендерят `name`-атрибуты (для сабмита со страницы через
 // react-router action) и одновременно сообщают агрегированное состояние через
@@ -39,12 +42,8 @@ const VendorFormFields = ({ vendor, onChange }) => {
 
   return (
     <>
-      <Form.Group className="py-3">
-        <Form.Label htmlFor="name">
-          Название вендора
-          <span style={{ color: "red" }}>*</span>
-        </Form.Label>
-        <Form.Control
+      <Field label="Название" htmlFor="name" required>
+        <Input
           required
           autoFocus
           id="name"
@@ -52,35 +51,28 @@ const VendorFormFields = ({ vendor, onChange }) => {
           type="text"
           value={name}
           onChange={nameChangeHandler}
-          placeholder="Введите название вендора"
+          placeholder="Например, MikroTik"
         />
-      </Form.Group>
+      </Field>
 
-      <Form.Group>
-        <Form.Check
-          checked={isActive}
-          type="switch"
-          id="isActive"
-          name="isActive"
-          label="Активен"
-          className="py-2"
-          value={isActive}
-          onChange={isActiveChangeHandler}
-        />
-      </Form.Group>
+      <SwitchField
+        id="isActive"
+        name="isActive"
+        checked={isActive}
+        onCheckedChange={isActiveChangeHandler}
+        label="Активен"
+        hint="Вендор предлагается при добавлении устройств."
+      />
 
-      <Form.Group>
-        <Form.Check
-          checked={isMikrotikManagementEnabled}
-          type="switch"
-          id="isMikrotikManagementEnabled"
-          name="isMikrotikManagementEnabled"
-          label="Включить управление устройствами Mikrotik"
-          className="py-2"
-          value={isMikrotikManagementEnabled}
-          onChange={isMikrotikManagementEnabledChangeHandler}
-        />
-      </Form.Group>
+      <SwitchField
+        id="isMikrotikManagementEnabled"
+        name="isMikrotikManagementEnabled"
+        checked={isMikrotikManagementEnabled}
+        onCheckedChange={isMikrotikManagementEnabledChangeHandler}
+        label="Управление MikroTik"
+        hint="Мониторинг устройств и обновление прошивок RouterOS."
+        divider
+      />
     </>
   );
 };

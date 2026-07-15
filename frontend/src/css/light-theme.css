@@ -1,4 +1,9 @@
-@import url("light/bootstrap.css");
+/* Вендоренный bootstrap лежит в самом нижнем css-слое (порядок слоёв объявлен
+   в styles/tailwind.css): его правила вне слоя (reboot: отступы заголовков и
+   абзацев) иначе перебивали бы tw-утилиты мигрированных экранов — по
+   спецификации каскада нслоёный CSS сильнее слоёного. Наши оверрайды ниже и
+   table.css остаются вне слоя и потому по-прежнему сильнее bootstrap. */
+@import "light/bootstrap.css" layer(bootstrap);
 @import url("./table.css");
 
 /* Явно объявляем светлую схему: нативные контролы (<select>, скроллбары) остаются
@@ -8,8 +13,9 @@
   color-scheme: light;
 }
 
+/* Канва в тон согласованного макета миграции (было #ecf0f1). */
 #root {
-    background-color: #ecf0f1;
+    background-color: #f4f5f6;
 }
 
 table {

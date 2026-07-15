@@ -1,24 +1,91 @@
 import BaseSelect from "react-select";
 import FixRequiredSelect from "../util/fix-required-select";
-import { getLocalStorageData } from "../util/auth";
-import useSystemTheme from "../hooks/useSystemTheme";
 
-const darkThemeStyles = {
+// Стили целиком на css-переменных новой темы (src/styles/tailwind.css):
+// светлая/тёмная переключаются классом .dark на <html> сами, без чтения темы
+// в JS. Заодно починено нечитаемое светлое меню в тёмной теме.
+const styles = {
+  control: (provided, state) => ({
+    ...provided,
+    backgroundColor: "var(--card)",
+    borderColor: state.isFocused ? "var(--ring)" : "var(--input)",
+    boxShadow: state.isFocused
+      ? "0 0 0 3px color-mix(in srgb, var(--ring) 30%, transparent)"
+      : "none",
+    "&:hover": {
+      borderColor: "var(--ring)",
+    },
+  }),
+  valueContainer: (provided) => ({
+    ...provided,
+    color: "var(--foreground)",
+  }),
+  singleValue: (provided) => ({
+    ...provided,
+    color: "var(--foreground)",
+  }),
+  input: (provided) => ({
+    ...provided,
+    color: "var(--foreground)",
+  }),
+  placeholder: (provided) => ({
+    ...provided,
+    color: "var(--muted-foreground)",
+  }),
+  // Меню в портале на <body> с высоким z-index, иначе соседние элементы со
+  // своим stacking context (напр. Markdown-редактор) перекрывают список. Для
+  // инлайн-меню ту же проблему решает z-index больше, чем у Toast UI (max 40).
+  menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
+  menu: (provided) => ({
+    ...provided,
+    zIndex: 100,
+    backgroundColor: "var(--popover)",
+    border: "1px solid var(--border)",
+    boxShadow: "0 8px 24px rgb(0 0 0 / 0.12)",
+  }),
   option: (provided, state) => ({
     ...provided,
     backgroundColor: state.isSelected
-      ? "rgb(52, 152, 219)"
+      ? "var(--primary)"
       : state.isFocused
-        ? "#ced4da"
-        : "white",
-    color: state.isSelected ? "rgb(34, 34, 34)" : "rgb(34, 34, 34)",
-    "&:hover": {
-      backgroundColor: "#ced4da",
+        ? "var(--accent)"
+        : "transparent",
+    color: state.isSelected
+      ? "var(--primary-foreground)"
+      : "var(--popover-foreground)",
+    "&:active": {
+      backgroundColor: "var(--accent)",
     },
   }),
-  control: (provided) => ({
+  multiValue: (provided) => ({
     ...provided,
-    borderColor: "rgb(235, 235, 235)",
+    backgroundColor: "var(--accent)",
+  }),
+  multiValueLabel: (provided) => ({
+    ...provided,
+    color: "var(--accent-foreground)",
+  }),
+  multiValueRemove: (provided) => ({
+    ...provided,
+    color: "var(--muted-foreground)",
+    "&:hover": {
+      backgroundColor: "var(--destructive)",
+      color: "var(--destructive-foreground)",
+    },
+  }),
+  indicatorSeparator: (provided) => ({
+    ...provided,
+    backgroundColor: "var(--border)",
+  }),
+  dropdownIndicator: (provided) => ({
+    ...provided,
+    color: "var(--muted-foreground)",
+    "&:hover": { color: "var(--foreground)" },
+  }),
+  clearIndicator: (provided) => ({
+    ...provided,
+    color: "var(--muted-foreground)",
+    "&:hover": { color: "var(--destructive)" },
   }),
 };
 
@@ -32,22 +99,6 @@ const isTouchDevice =
   window.matchMedia("(pointer: coarse)").matches;
 
 const Select = (props) => {
-  const { theme } = getLocalStorageData();
-  const isSystemDark = useSystemTheme();
-
-  let darkMode =
-    theme === "dark" ? true : theme === "system" ? isSystemDark : false;
-
-  // На десктопе меню рендерим в портал на <body> с высоким z-index, иначе
-  // соседние элементы со своим stacking context (напр. Markdown-редактор)
-  // перекрывают выпадающий список. Для инлайн-меню ту же проблему решает
-  // z-index больше, чем у Toast UI (у него максимум 40).
-  const styles = {
-    ...(darkMode ? darkThemeStyles : {}),
-    menuPortal: (provided) => ({ ...provided, zIndex: 9999 }),
-    menu: (provided) => ({ ...provided, zIndex: 100 }),
-  };
-
   return (
     <FixRequiredSelect
       menuPlacement="auto"
@@ -61,25 +112,6 @@ const Select = (props) => {
       }
       styles={styles}
       options={props.options}
-      theme={(theme) =>
-        darkMode
-          ? {
-              ...theme,
-              colors: {
-                ...theme.colors,
-                primary25: "rgb(235, 235, 235)",
-                primary: "rgb(235, 235, 235)",
-              },
-            }
-          : {
-              ...theme,
-              colors: {
-                ...theme.colors,
-                primary: "#2c3e50",
-                primary25: "#ced4da",
-              },
-            }
-      }
     />
   );
 };

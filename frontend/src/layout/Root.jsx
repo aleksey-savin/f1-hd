@@ -181,16 +181,34 @@ const RootLayout = () => {
                 </Col>
               )}
               <Col>
-                <Card
-                  className="mb-3 shadow"
-                  style={{
-                    minHeight: "calc(100svh - 124px)",
-                  }}
-                >
-                  <Card.Body>
+                {/* Мигрированные на tailwind/shadcn маршруты живут прямо на
+                    канве, без bootstrap-Card: заголовок страницы — на канве,
+                    панель — у самого списка (согласованный макет, см.
+                    docs/ux-ui-guide.md → раздел миграции). Список путей
+                    пополняется по фазам. */}
+                {["/inventory/vendors"].some((p) =>
+                  location.pathname.startsWith(p),
+                ) ? (
+                  <div
+                    /* position-relative — паритет с легаси-Card: контент
+                       рисуется поверх fixed-слоя фоновой картинки */
+                    className="mb-3 position-relative"
+                    style={{ minHeight: "calc(100svh - 124px)" }}
+                  >
                     <Outlet />
-                  </Card.Body>
-                </Card>
+                  </div>
+                ) : (
+                  <Card
+                    className="mb-3 shadow"
+                    style={{
+                      minHeight: "calc(100svh - 124px)",
+                    }}
+                  >
+                    <Card.Body>
+                      <Outlet />
+                    </Card.Body>
+                  </Card>
+                )}
               </Col>
             </Row>
             <Footer />

@@ -1,14 +1,43 @@
 const Vendor = require("../../models/inventory/vendor");
+const ClientDevice = require("../../models/inventory/clientDevice");
 const { AppError } = require("../../middleware/errorHandling");
 
 exports.getAll = async (req, res, next) => {
   try {
-    const vendors = await Vendor.find({})
-      .populate("createdBy", "firstName lastName")
-      .populate("updatedBy", "firstName lastName")
-      .sort({ name: 1 });
+    const [vendors, deviceCounts] = await Promise.all([
+      Vendor.find({})
+        .populate("createdBy", "firstName lastName")
+        .populate("updatedBy", "firstName lastName")
+        .sort({ name: 1 })
+        .lean(),
+      // Число устройств вендора для списка. Прямой ссылки на вендора у
+      // устройства нет — связь через модель: ClientDevice.deviceModelId →
+      // DeviceModel.vendorId. Удалённые устройства не считаем.
+      ClientDevice.aggregate([
+        { $match: { deletedAt: null } },
+        {
+          $lookup: {
+            from: "devicemodels",
+            localField: "deviceModelId",
+            foreignField: "_id",
+            as: "model",
+          },
+        },
+        { $unwind: "$model" },
+        { $group: { _id: "$model.vendorId", count: { $sum: 1 } } },
+      ]),
+    ]);
 
-    res.status(200).json(vendors);
+    const countByVendor = new Map(
+      deviceCounts.map(({ _id, count }) => [String(_id), count]),
+    );
+
+    res.status(200).json(
+      vendors.map((vendor) => ({
+        ...vendor,
+        deviceCount: countByVendor.get(String(vendor._id)) ?? 0,
+      })),
+    );
   } catch (error) {
     next(new AppError("Failed to fetch vendors", 500, true, error));
   }

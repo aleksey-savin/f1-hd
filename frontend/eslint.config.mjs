@@ -8,7 +8,7 @@ export default [
   js.configs.recommended,
 
   {
-    files: ["**/*.{js,jsx}"],
+    files: ["**/*.{js,jsx,ts,tsx}"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -45,6 +45,16 @@ export default [
       react: {
         version: "detect",
       },
+    },
+  },
+
+  // В ts/tsx неопределённые имена проверяет сам TypeScript; no-undef из
+  // js.configs.recommended не понимает type-позиции (React.ComponentProps
+  // без импорта React в shadcn-компонентах) и даёт ложные ошибки.
+  {
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      "no-undef": "off",
     },
   },
 ];

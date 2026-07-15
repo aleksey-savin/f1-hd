@@ -37,16 +37,18 @@ const searchItems = (query, items) => {
   });
 };
 
-const handleSorting = (selected, list) => {
-  if (!selected || !list.length) {
-    return;
-  }
+// Применяется КО ВСЕМ пересборкам filteredList (фильтр, поиск, рефетч), а не
+// только при смене сортировки: сервер отдаёт «бинарный» порядок mongo
+// (кириллица и строчные — в конец), и без этого новый/обновлённый элемент
+// вставал не на своё место.
+const sortList = (selected, list) => {
+  if (!list?.length) return list;
 
   const sortedList = [...list];
 
-  switch (selected.label) {
+  switch (selected?.label) {
     case "По алфавиту":
-      sortedList.sort((a, b) => a.name.localeCompare(b.title));
+      sortedList.sort((a, b) => a.name.localeCompare(b.name));
       break;
 
     case "Сначала новые":
@@ -88,7 +90,7 @@ const useVendorFilterStore = create((set) => ({
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     set((state) => {
-      const sortedList = handleSorting(data, state.filteredList);
+      const sortedList = sortList(data, state.filteredList);
       return {
         sortBy: data,
         filteredList: sortedList,
@@ -100,7 +102,7 @@ const useVendorFilterStore = create((set) => ({
   filteredList: [],
   fullTextSearch: (query) =>
     set((state) => ({
-      filteredList: searchItems(query, vendorFilter(state)),
+      filteredList: sortList(state.sortBy, searchItems(query, vendorFilter(state))),
     })),
   isLoading: false,
   fetch: async () => {
@@ -126,14 +128,17 @@ const useVendorFilterStore = create((set) => ({
       originalList: data.originalList,
       isLoading: false,
     })),
-  applyFilter: () => set((state) => ({ filteredList: vendorFilter(state) })),
+  applyFilter: () =>
+    set((state) => ({
+      filteredList: sortList(state.sortBy, vendorFilter(state)),
+    })),
   resetFilter: () => {
     set(() => ({
       isActive: "any",
       searchTerm: "",
     }));
     set((state) => ({
-      filteredList: vendorFilter(state),
+      filteredList: sortList(state.sortBy, vendorFilter(state)),
     }));
   },
 }));

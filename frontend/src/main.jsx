@@ -6,6 +6,8 @@ import * as Sentry from "@sentry/react";
 import App from "./App";
 import BackToTop from "./UI/BackToTop";
 
+import "@fontsource-variable/inter";
+import "./styles/tailwind.css";
 import "sortable-tablesort/dist/sortable.min.css";
 import "sortable-tablesort/dist/sortable.min.js";
 
