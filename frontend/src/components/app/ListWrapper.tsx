@@ -116,6 +116,8 @@ type ListWrapperProps = {
   defaultSearchValue?: string;
   showSortAndCount?: boolean;
   renderOutlet?: boolean;
+  /** Широкая шторка формы (max-w-4xl) — например, мастер услуги со сводкой. */
+  formWide?: boolean;
   children?: ReactNode;
 };
 
@@ -142,6 +144,7 @@ const ListWrapper = ({
   // <Outlet/> сами (база знаний), передают false — иначе маршрут
   // смонтируется дважды.
   renderOutlet = true,
+  formWide = false,
   children,
 }: ListWrapperProps) => {
   const navigate = useNavigate();
@@ -470,6 +473,7 @@ const ListWrapper = ({
       {renderOutlet && (
         <FormSheet
           open={offcanvas.isActive}
+          wide={formWide}
           onOpenChange={(open) => {
             if (!open) {
               navigate(-1);

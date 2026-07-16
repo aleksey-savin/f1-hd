@@ -30,43 +30,12 @@ export async function loader() {
   };
 }
 
+// Мастер услуги шлёт готовый JSON (encType: application/json) — форма уже
+// собрала типы (числа/булевы), график-объект и пакеты. Пробрасываем на бэкенд.
 export async function action({ request }) {
   const { token } = getLocalStorageData();
 
-  const data = await request.formData();
-
-  const schedule = {};
-
-  // Process form data
-  for (const [key, value] of data.entries()) {
-    const [day, field] = key.split(".");
-    if (!schedule[day]) {
-      schedule[day] = { isWorking: false, start: "09:00", end: "18:00" };
-    }
-    if (field === "isWorking") {
-      schedule[day].isWorking = value === "on";
-    } else {
-      schedule[day][field] = value;
-    }
-  }
-
-  const packagesData = JSON.parse(data.get("hourPackages"));
-
-  const servicePlanData = {
-    title: data.get("title"),
-    companyWorkSchedule: data.get("companyWorkSchedule"),
-    customProvisionSchedule: schedule,
-    ticketCategories: data.getAll("ticketCategories"),
-    type: data.get("tariffingType"),
-    hourPackages: packagesData,
-    fixedPrice: data.get("fixedPrice"),
-    pricePerHour: data.get("hourlyPrice"),
-    pricePerHourNonWorking: data.get("pricePerHourNonWorking"),
-    packagesNonWorkingCalcMethod:
-      data.get("packagesNonWorkingCalcMethod") || "separatePayment",
-    packagesNonWorkingCoefficient: data.get("packagesNonWorkingCoefficient"),
-    tariffingPeriod: data.get("tariffingPeriod"),
-  };
+  const body = await request.json();
 
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/add`,
@@ -76,15 +45,20 @@ export async function action({ request }) {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
       },
-      body: JSON.stringify(servicePlanData),
+      body: JSON.stringify(body),
     },
   );
 
   if (!response.ok) {
-    throw response;
+    let message = "Не удалось сохранить услугу";
+    try {
+      const data = await response.json();
+      message = data.message || message;
+    } catch {
+      // тело ответа пустое — оставляем дефолтное сообщение
+    }
+    return { error: true, message };
   }
 
-  const result = await response.json();
-
-  return result;
+  return await response.json();
 }

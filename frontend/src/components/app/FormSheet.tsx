@@ -14,24 +14,39 @@ const FormSheet = ({
   open,
   onOpenChange,
   title = "Форма",
+  wide = false,
   children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Невидимый заголовок для скринридеров (radix требует Title). */
   title?: string;
+  /** Широкая колонка (max-w-4xl) — для форм с боковой панелью (мастер услуги). */
+  wide?: boolean;
   children: ReactNode;
 }) => {
+  // Защита от потери данных: на десктопе форму нельзя закрыть случайным
+  // кликом по затемнению или Escape — только сабмитом или крестиком (оба идут
+  // через onOpenChange). На мобильных поведение по умолчанию не трогаем.
+  const guardDesktopClose = isMobile
+    ? undefined
+    : (event: Event) => event.preventDefault();
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
         aria-describedby={undefined}
+        onInteractOutside={guardDesktopClose}
+        onEscapeKeyDown={guardDesktopClose}
         className={cn(
           "tw:rounded-t-2xl tw:border tw:border-b-0 tw:border-border",
           isMobile
             ? "tw:top-3.5 tw:h-auto tw:overflow-y-auto"
-            : "tw:inset-x-auto tw:left-1/2 tw:w-full tw:max-w-2xl tw:-translate-x-1/2 tw:overflow-y-auto tw:max-h-[92dvh]",
+            : cn(
+                "tw:inset-x-auto tw:left-1/2 tw:w-full tw:-translate-x-1/2 tw:overflow-y-auto tw:max-h-[92dvh]",
+                wide ? "tw:max-w-4xl" : "tw:max-w-2xl",
+              ),
         )}
       >
         <SheetTitle className="tw:sr-only">{title}</SheetTitle>
