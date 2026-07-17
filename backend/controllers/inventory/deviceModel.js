@@ -1,5 +1,6 @@
 const DeviceModel = require("@/models/inventory/deviceModel");
 const ClientDevice = require("@/models/inventory/clientDevice");
+const DeviceConfiguration = require("@/models/inventory/deviceConfiguration");
 const { createPhotoHandlers } = require("./photoHandlers");
 const { AppError } = require("@/middleware/errorHandling");
 
@@ -15,11 +16,27 @@ exports.deletePhoto = modelPhotos.deletePhoto;
 exports.getAll = async (req, res, next) => {
   try {
     const deviceModels = await DeviceModel.find({ deletedAt: null })
-      .populate("deviceTypeId", "name")
-      .populate("vendorId", "name")      .populate("compatibleWithModelIds", "name")
+      .populate("deviceTypeId", "name isConsumable")
+      .populate("vendorId", "name")
+      .populate("compatibleWithModelIds", "name")
       .populate("createdBy", "firstName lastName")
       .populate("updatedBy", "firstName lastName")
-      .sort({ name: 1 });
+      .sort({ name: 1 })
+      .lean();
+
+    // Счётчик конфигураций по каждой модели — одним запросом (мета списка:
+    // «Тип · N конфигураций»). Считаем только неудалённые.
+    const configCounts = await DeviceConfiguration.aggregate([
+      { $match: { deletedAt: null } },
+      { $group: { _id: "$deviceModelId", count: { $sum: 1 } } },
+    ]);
+    const countByModel = new Map(
+      configCounts.map((row) => [String(row._id), row.count]),
+    );
+    for (const deviceModel of deviceModels) {
+      deviceModel.configurationsCount =
+        countByModel.get(String(deviceModel._id)) || 0;
+    }
 
     res.status(200).json(deviceModels);
   } catch (error) {
@@ -179,7 +196,7 @@ exports.delete = async (req, res, next) => {
 
     // Check if device model is being used
     const clientDevices = await ClientDevice.find({
-      deviceModel: req.params.id,
+      deviceModelId: req.params.id,
       deletedAt: null,
     });
 

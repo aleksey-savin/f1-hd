@@ -4,15 +4,14 @@ import FormWrapper from "@/components/app/FormWrapper";
 
 import DeviceTypeFormFields from "./FormFields";
 
-const DeviceTypeForm = ({ title }) => {
+const DeviceTypeForm = ({ title, successTo }) => {
   const loaderData = useLoaderData();
 
   return (
-    <FormWrapper title={title}>
+    <FormWrapper title={title} successTo={successTo}>
       <DeviceTypeFormFields
         deviceType={loaderData?.deviceType}
         availableDeviceTypes={loaderData?.availableDeviceTypes || []}
-        availableAttributes={loaderData?.availableAttributes || []}
       />
     </FormWrapper>
   );

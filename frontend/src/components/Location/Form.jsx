@@ -1,9 +1,5 @@
-import { useParams } from "react-router";
-import Container from "react-bootstrap/Container";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
+import FormWrapper from "@/components/app/FormWrapper";
 
-import FormWrapper from "../../UI/FormWrapper";
 import LocationFormFields from "./FormFields";
 
 const LocationForm = ({
@@ -14,30 +10,26 @@ const LocationForm = ({
   subdivisions = [],
   preselectedCompany = null,
   preselectedParent = null,
+  successTo,
 }) => {
-  const params = useParams();
-  const isEdit = Boolean(params.id);
-  const pageTitle = isEdit
-    ? "Редактировать расположение"
-    : "Добавить расположение";
+  // Режим определяет загруженное расположение, а не params.id: на вложенном
+  // маршруте карточки (/inventory/locations/:id/add) params.id — это родитель.
+  const isEdit = Boolean(initialLocation);
 
   return (
-    <FormWrapper title={pageTitle}>
-      <Container fluid>
-        <Row>
-          <Col lg={8}>
-            <LocationFormFields
-              location={initialLocation}
-              companies={companies}
-              users={users}
-              parentLocations={parentLocations}
-              subdivisions={subdivisions}
-              preselectedCompany={preselectedCompany}
-              preselectedParent={preselectedParent}
-            />
-          </Col>
-        </Row>
-      </Container>
+    <FormWrapper
+      title={isEdit ? "Изменить расположение" : "Новое расположение"}
+      successTo={successTo}
+    >
+      <LocationFormFields
+        location={initialLocation}
+        companies={companies}
+        users={users}
+        parentLocations={parentLocations}
+        subdivisions={subdivisions}
+        preselectedCompany={preselectedCompany}
+        preselectedParent={preselectedParent}
+      />
     </FormWrapper>
   );
 };

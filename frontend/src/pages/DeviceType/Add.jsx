@@ -2,7 +2,17 @@ import Form from "../../components/DeviceType/Form";
 import { getLocalStorageData } from "../../util/auth";
 
 const AddDeviceTypePage = () => {
-  return <Form title="Новый тип устройства" />;
+  return (
+    <Form
+      title="Новый тип устройства"
+      // Создание → карточка созданного типа (навигация после сабмита, гайд)
+      successTo={(data) =>
+        data?.deviceType?._id
+          ? `/inventory/device-types/${data.deviceType._id}`
+          : undefined
+      }
+    />
+  );
 };
 
 export default AddDeviceTypePage;
@@ -23,44 +33,14 @@ export async function loader() {
   );
   const availableDeviceTypes = await deviceTypesResponse.json();
 
-  // Fetch all device attributes
-  const attributesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-attributes`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
-  const availableAttributes = await attributesResponse.json();
-
-  return {
-    availableDeviceTypes,
-    availableAttributes: availableAttributes.map((attribute) => ({
-      _id: attribute._id,
-      name: attribute.name,
-      code: attribute.code,
-    })),
-  };
+  // Атрибуты в форму типа больше не входят — их добавляют с карточки типа.
+  return { availableDeviceTypes };
 }
 
 export async function action({ request }) {
   const { token } = getLocalStorageData();
 
   const data = await request.formData();
-
-  // Collect attributes
-  const attributes = [];
-  let index = 0;
-  while (data.get(`attributes[${index}].attributeId`)) {
-    const attributeId = data.get(`attributes[${index}].attributeId`);
-    const required = data.get(`attributes[${index}].required`) === "on";
-    const extendable = data.get(`attributes[${index}].extendable`) === "on";
-    if (attributeId) {
-      attributes.push({ attributeId, required, extendable });
-    }
-    index++;
-  }
 
   const deviceTypeData = {
     name: data.get("name"),
@@ -70,7 +50,6 @@ export async function action({ request }) {
     isPeripheral: data.get("isPeripheral") === "true",
     inventoryPrefix: data.get("inventoryPrefix"),
     attachableToTypeIds: data.getAll("attachableToTypeIds"),
-    attributes,
   };
 
   const response = await fetch(

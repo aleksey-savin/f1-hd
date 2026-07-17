@@ -1,8 +1,28 @@
+import { useParams } from "react-router";
+
 import Form from "../../components/DeviceModel/Form";
 import { getLocalStorageData } from "../../util/auth";
 
-const AddDeviceModelPage = () => {
-  return <Form title="Новая модель устройства" />;
+const AddDeviceModelPage = ({ presetFrom }) => {
+  // Вложенные маршруты карточек (device-types/:id/models/add,
+  // vendors/:id/models/add) — родитель известен заранее, подставим; о том,
+  // кто родитель, говорит проп маршрута. На списке (device-models/add)
+  // params пуст, пресета нет.
+  const { id } = useParams();
+
+  return (
+    <Form
+      title="Новая модель устройства"
+      presetDeviceTypeId={presetFrom === "deviceType" ? id : undefined}
+      presetVendorId={presetFrom === "vendor" ? id : undefined}
+      // Создание → карточка созданной модели (навигация после сабмита, гайд)
+      successTo={(data) =>
+        data?.deviceModel?._id
+          ? `/inventory/device-models/${data.deviceModel._id}`
+          : undefined
+      }
+    />
+  );
 };
 
 export default AddDeviceModelPage;
@@ -21,21 +41,9 @@ export async function loader() {
       },
     },
   );
-  let deviceTypes = await deviceTypesResponse.json();
-
-  // Fetch attributes for each device type
-  for (let dt of deviceTypes) {
-    const dtResponse = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types/${dt._id}`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
-    const fullDeviceType = await dtResponse.json();
-    dt.attributes = fullDeviceType.attributes || [];
-  }
+  // Тип содержит флаг isConsumable (для поля «Совместимые модели»); атрибуты
+  // здесь больше не нужны — конфигурации создаются отдельной формой с карточки.
+  const deviceTypes = await deviceTypesResponse.json();
 
   // Fetch vendors
   const vendorsResponse = await fetch(
@@ -71,11 +79,6 @@ export async function action({ request }) {
 
   const data = await request.formData();
 
-  const configurationsJson = data.get("configurations");
-  const configurations = configurationsJson
-    ? JSON.parse(configurationsJson)
-    : [];
-
   const deviceModelData = {
     deviceTypeId: data.get("deviceTypeId"),
     vendorId: data.get("vendorId"),
@@ -104,28 +107,5 @@ export async function action({ request }) {
     throw response;
   }
 
-  const result = await response.json();
-  const deviceModelId = result.deviceModel._id;
-
-  // Create configurations if provided
-  if (configurations.length > 0) {
-    for (const config of configurations) {
-      await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-configurations/add`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
-          },
-          body: JSON.stringify({
-            deviceModelId: deviceModelId,
-            values: config.values,
-          }),
-        },
-      );
-    }
-  }
-
-  return result;
+  return await response.json();
 }

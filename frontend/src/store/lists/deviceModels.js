@@ -5,16 +5,33 @@ const deviceModelFilter = (state) => {
   const originalList = Array.isArray(state.originalList)
     ? state.originalList
     : [];
-  return originalList.filter((item) => {
-    if (state.searchTerm.length > 0) {
-      return [item.name, item.deviceTypeId?.name, item.vendorId?.name]
-        .join(" ")
-        .toLowerCase()
-        .includes(state.searchTerm);
-    } else {
+  return originalList
+    .filter((item) => {
+      // Фасет «Тип устройства» — объект {_id, name}
+      if (state.deviceType) {
+        return (
+          String(item.deviceTypeId?._id) === String(state.deviceType._id)
+        );
+      }
       return true;
-    }
-  });
+    })
+    .filter((item) => {
+      // Фасет «Производитель» — объект {_id, name}
+      if (state.vendor) {
+        return String(item.vendorId?._id) === String(state.vendor._id);
+      }
+      return true;
+    })
+    .filter((item) => {
+      if (state.searchTerm.length > 0) {
+        return [item.name, item.deviceTypeId?.name, item.vendorId?.name]
+          .join(" ")
+          .toLowerCase()
+          .includes(state.searchTerm);
+      } else {
+        return true;
+      }
+    });
 };
 
 const searchItems = (query, items) => {
@@ -66,6 +83,8 @@ const handleSorting = (selected, list) => {
 };
 
 const useDeviceModelFilterStore = create((set) => ({
+  deviceType: null,
+  vendor: null,
   searchTerm: "",
   sortingOptions: [
     { label: "По алфавиту" },
@@ -118,6 +137,8 @@ const useDeviceModelFilterStore = create((set) => ({
   },
   updateFilter: (data) =>
     set(() => ({
+      deviceType: data.deviceType ?? null,
+      vendor: data.vendor ?? null,
       originalList: Array.isArray(data.originalList) ? data.originalList : [],
       isLoading: false,
     })),
@@ -125,6 +146,8 @@ const useDeviceModelFilterStore = create((set) => ({
     set((state) => ({ filteredList: deviceModelFilter(state) })),
   resetFilter: () => {
     set(() => ({
+      deviceType: null,
+      vendor: null,
       searchTerm: "",
     }));
     set((state) => ({

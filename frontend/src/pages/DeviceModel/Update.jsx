@@ -56,21 +56,9 @@ export async function loader({ params }) {
       },
     },
   );
-  let deviceTypes = await deviceTypesResponse.json();
-
-  // Fetch attributes for each device type
-  for (let dt of deviceTypes) {
-    const dtResponse = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types/${dt._id}`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
-    const fullDeviceType = await dtResponse.json();
-    dt.attributes = fullDeviceType.attributes || [];
-  }
+  // Атрибуты типа форме модели больше не нужны (конфигурации — отдельная
+  // форма с карточки); тип по-прежнему несёт isConsumable для совместимости.
+  const deviceTypes = await deviceTypesResponse.json();
 
   // Fetch vendors
   const vendorsResponse = await fetch(
@@ -95,26 +83,11 @@ export async function loader({ params }) {
   const allDeviceModels = await deviceModelsResponse.json();
   const deviceModels = allDeviceModels.filter((dm) => dm._id !== params.id);
 
-  // Fetch configurations for this model
-  const configurationsResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-configurations/model/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
-
-  const configurations = configurationsResponse.ok
-    ? await configurationsResponse.json()
-    : [];
-
   return {
     deviceModel,
     deviceTypes,
     vendors,
     deviceModels,
-    configurations,
   };
 }
 
@@ -122,11 +95,6 @@ export async function action({ request, params }) {
   const { token } = getLocalStorageData();
 
   const data = await request.formData();
-
-  const configurationsJson = data.get("configurations");
-  const configurations = configurationsJson
-    ? JSON.parse(configurationsJson)
-    : [];
 
   const deviceModelData = {
     deviceTypeId: data.get("deviceTypeId"),
@@ -156,46 +124,5 @@ export async function action({ request, params }) {
     throw response;
   }
 
-  const result = await response.json();
-
-  // Handle configuration updates/additions
-  if (configurations.length > 0) {
-    for (const config of configurations) {
-      if (config._id) {
-        // Update existing configuration
-        await fetch(
-          `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-configurations/update/${config._id}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: "Bearer " + token,
-            },
-            body: JSON.stringify({
-              deviceModelId: params.id,
-              values: config.values,
-            }),
-          },
-        );
-      } else {
-        // Create new configuration
-        await fetch(
-          `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-configurations/add`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: "Bearer " + token,
-            },
-            body: JSON.stringify({
-              deviceModelId: params.id,
-              values: config.values,
-            }),
-          },
-        );
-      }
-    }
-  }
-
-  return result;
+  return await response.json();
 }

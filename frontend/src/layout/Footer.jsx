@@ -47,7 +47,7 @@ const Footer = () => {
   return (
     <footer
       className={cn(
-        "tw:relative tw:mt-10 tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground",
+        "tw:relative tw:mt-6 tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground",
         sheet
           ? "tw:mx-auto tw:w-fit tw:max-w-full tw:rounded-2xl tw:border tw:border-border tw:px-8"
           : "tw:border-t tw:border-border-soft",

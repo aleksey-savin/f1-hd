@@ -190,7 +190,28 @@ exports.getAllCompanies = async (req, res, next) => {
       .populate("assignedUser", "firstName lastName email")
       .populate("defaultResponsible", "firstName lastName email")
       .populate("parent", "name type")
-      .sort({ type: 1, name: 1 });
+      .sort({ type: 1, name: 1 })
+      .lean();
+
+    // Число устройств в каждом расположении — одним агрегатом (мета строк
+    // дерева «Тип · N устройств»; считаем прямые, как на карточке).
+    const ids = locations.map((l) => l._id);
+    const counts = ids.length
+      ? await ClientDevice.aggregate([
+          {
+            $match: {
+              locationId: { $in: ids },
+              deletedAt: null,
+              parentDeviceId: null,
+            },
+          },
+          { $group: { _id: "$locationId", count: { $sum: 1 } } },
+        ])
+      : [];
+    const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
+    for (const location of locations) {
+      location.deviceCount = countMap.get(String(location._id)) || 0;
+    }
 
     res.status(200).json(locations);
   } catch (error) {
@@ -211,7 +232,8 @@ exports.getHierarchy = async (req, res, next) => {
   }
 };
 
-// Get one location by ID
+// Get one location by ID — питает карточку расположения: сама локация,
+// цепочка предков (крошки), вложенные с числом устройств и устройства «здесь».
 exports.getOne = async (req, res, next) => {
   try {
     const location = await Location.findById(req.params.id)
@@ -227,7 +249,9 @@ exports.getOne = async (req, res, next) => {
       .populate("assignedUser", "firstName lastName email")
       .populate("defaultResponsible", "firstName lastName email")
       .populate("parent", "name type")
-      .populate("children", "name type");
+      .populate("children", "name type")
+      .populate("createdBy", "firstName lastName")
+      .populate("updatedBy", "firstName lastName");
 
     if (!location) {
       return next(
@@ -235,17 +259,96 @@ exports.getOne = async (req, res, next) => {
       );
     }
 
-    // Get devices in this location
-    const devices = await ClientDevice.find({
-      location: req.params.id,
-      isDeleted: { $ne: true },
+    // Устройства непосредственно в этом расположении. Живые поля —
+    // locationId/deletedAt/parentDeviceId (ср. buildEnvNode): старый запрос по
+    // location/isDeleted всегда возвращал пусто.
+    const devicesRaw = await ClientDevice.find({
+      locationId: req.params.id,
+      deletedAt: null,
+      parentDeviceId: null,
     })
-      .populate("deviceType", "name")
-      .populate("vendor", "name")
-      .select("model serialNumber status");
+      .populate({
+        path: "deviceModelId",
+        select: "name vendorId deviceTypeId",
+        populate: [
+          { path: "vendorId", select: "name" },
+          { path: "deviceTypeId", select: "name" },
+        ],
+      })
+      .populate("deviceTypeId", "name")
+      .populate("userId", "firstName lastName")
+      .select(
+        "deviceModelId deviceTypeId userId serialNumber inventoryNumber status",
+      )
+      .sort({ inventoryNumber: 1 });
+
+    // Тонкий DTO для секции «Устройства здесь»: имя, тип (id — чип-фасет),
+    // номера, статус, кому выдано. Тип — из модели или прямой (самосборные).
+    const devices = devicesRaw.map((d) => {
+      const model = d.deviceModelId;
+      const type = model?.deviceTypeId || d.deviceTypeId || null;
+      return {
+        _id: d._id,
+        name:
+          [model?.vendorId?.name, model?.name].filter(Boolean).join(" ") ||
+          type?.name ||
+          "Устройство",
+        typeId: type?._id || null,
+        typeName: type?.name || null,
+        serialNumber: d.serialNumber || null,
+        inventoryNumber: d.inventoryNumber || null,
+        status: d.status || null,
+        userName: d.userId
+          ? [d.userId.firstName, d.userId.lastName].filter(Boolean).join(" ")
+          : null,
+      };
+    });
+
+    // Вложенные расположения с числом устройств (ср. buildEnvNode).
+    const childIds = (location.children || []).map((child) => child._id);
+    const countAgg = childIds.length
+      ? await ClientDevice.aggregate([
+          {
+            $match: {
+              locationId: { $in: childIds },
+              deletedAt: null,
+              parentDeviceId: null,
+            },
+          },
+          { $group: { _id: "$locationId", count: { $sum: 1 } } },
+        ])
+      : [];
+    const countMap = new Map(countAgg.map((c) => [String(c._id), c.count]));
+    const TYPE_ORDER = {
+      building: 0,
+      floor: 1,
+      room: 2,
+      workplace: 3,
+      storage: 4,
+    };
+    const children = (location.children || [])
+      .map((child) => ({
+        _id: child._id,
+        name: child.name,
+        type: child.type,
+        deviceCount: countMap.get(String(child._id)) || 0,
+      }))
+      .sort(
+        (a, b) =>
+          (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9) ||
+          (a.name || "").localeCompare(b.name || "", "ru"),
+      );
+
+    // Предки root→родитель для крошек (без самого расположения).
+    const chainDocs = await buildLocationChain(location);
+    const ancestors = chainDocs
+      .slice(0, -1)
+      .map((node) => ({ _id: node._id, name: node.name, type: node.type }));
 
     res.status(200).json({
       location,
+      ancestors,
+      children,
       devices,
       deviceCount: devices.length,
     });
@@ -647,16 +750,18 @@ exports.delete = async (req, res, next) => {
       );
     }
 
-    // Check if location has devices
+    // Расположение с устройствами не удаляем (живые поля locationId/deletedAt —
+    // старая проверка по location/isDeleted всегда пропускала). Сообщение
+    // уходит в тост как есть.
     const deviceCount = await ClientDevice.countDocuments({
-      location: req.params.id,
-      isDeleted: { $ne: true },
+      locationId: req.params.id,
+      deletedAt: null,
     });
 
     if (deviceCount > 0) {
       return next(
         new AppError(
-          `Cannot delete location with ${deviceCount} devices. Please move devices first.`,
+          `В расположении есть устройства (${deviceCount}) — сначала переместите их`,
           400,
         ),
       );
@@ -666,7 +771,7 @@ exports.delete = async (req, res, next) => {
     if (location.children && location.children.length > 0) {
       return next(
         new AppError(
-          "Cannot delete location with child locations. Please delete or move child locations first.",
+          "У расположения есть вложенные расположения — сначала удалите или перенесите их",
           400,
         ),
       );

@@ -21,6 +21,7 @@ type ChipSelectOption = {
 const ChipSelect = ({
   placeholder,
   allLabel = "Все",
+  clearable = true,
   value,
   options,
   onChange,
@@ -30,6 +31,9 @@ const ChipSelect = ({
   placeholder: string;
   /** Пункт сброса в меню. */
   allLabel?: string;
+  /** false — обязательный контекст без пункта сброса (например, компания
+   *  у дерева расположений: одна выбрана всегда). */
+  clearable?: boolean;
   value: string | null;
   options: ChipSelectOption[];
   onChange: (value: string | null) => void;
@@ -65,7 +69,9 @@ const ChipSelect = ({
           value={value ?? ""}
           onValueChange={(next) => onChange(next === "" ? null : next)}
         >
-          <DropdownMenuRadioItem value="">{allLabel}</DropdownMenuRadioItem>
+          {clearable && (
+            <DropdownMenuRadioItem value="">{allLabel}</DropdownMenuRadioItem>
+          )}
           {options.map((option) => (
             <DropdownMenuRadioItem key={option.value} value={option.value}>
               {option.label}

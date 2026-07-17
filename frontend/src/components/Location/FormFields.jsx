@@ -1,18 +1,29 @@
 import { useState, useEffect, useMemo } from "react";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Form from "react-bootstrap/Form";
 
-import { getLocalStorageData } from "../../util/auth";
+import { RiUser3Line } from "react-icons/ri";
+
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import Field from "@/components/app/Field";
+import SwitchField from "@/components/app/SwitchField";
+import Segmented from "@/components/app/Segmented";
+
 import Select from "../../UI/Select";
+import { getLocalStorageData } from "../../util/auth";
+import { TYPE_LABEL, TYPE_ICON } from "./type-meta";
 
-const LOCATION_TYPE_OPTIONS = [
-  { value: "building", label: "Здание" },
-  { value: "floor", label: "Этаж" },
-  { value: "room", label: "Помещение" },
-  { value: "workplace", label: "Рабочее место" },
-  { value: "storage", label: "Склад" },
-];
+// Тип расположения — сегментами с иконками (из общего type-meta, тот же язык,
+// что дерево/карточка). Порядок = иерархия сверху вниз.
+const TYPE_OPTIONS = ["building", "floor", "room", "workplace", "storage"].map(
+  (value) => {
+    const Icon = TYPE_ICON[value];
+    return {
+      value,
+      label: TYPE_LABEL[value],
+      icon: <Icon size={18} aria-hidden />,
+    };
+  },
+);
 
 // Допустимые типы родителя для каждого типа локации. Списки «ослаблены» (можно
 // пропускать уровни — помещение прямо в здании), т.к. реальные данные не всегда
@@ -24,10 +35,6 @@ const ALLOWED_PARENT_TYPES = {
   workplace: ["room", "floor", "building"],
   storage: ["building", "floor", "room"],
 };
-
-const TYPE_LABEL = Object.fromEntries(
-  LOCATION_TYPE_OPTIONS.map((o) => [o.value, o.label]),
-);
 
 // Крошка из цепочки parent (virtual fullPath на бэке асинхронный и непригоден
 // для сериализации — строим путь сами по плоскому списку).
@@ -93,9 +100,14 @@ const LocationFormFields = ({
       initialLocation?.company ||
       preselectedCompany ||
       "",
+    // subdivisions в модели — массив; в форме выбираем одно (как раньше),
+    // но храним/шлём массивом, иначе бэкенд его не сохраняет.
     subdivision:
-      initialLocation?.subdivision?._id || initialLocation?.subdivision || "",
+      initialLocation?.subdivisions?.[0]?._id ||
+      initialLocation?.subdivisions?.[0] ||
+      "",
     description: initialLocation?.description || "",
+    address: initialLocation?.address || "",
     isPublic: initialLocation?.isPublic || false,
     type: initialLocation?.type || "",
     assignedUser:
@@ -141,10 +153,11 @@ const LocationFormFields = ({
       name: location.name,
       type: location.type,
       company: location.company,
-      subdivision: location.subdivision || undefined,
+      subdivisions: location.subdivision ? [location.subdivision] : [],
       parent: location.parent || undefined,
       assignedUser: location.assignedUser || undefined,
       description: location.description,
+      address: location.address,
       isPublic: location.isPublic,
     });
   }, [location]);
@@ -238,161 +251,162 @@ const LocationFormFields = ({
   const findOption = (options, value) =>
     options.find((o) => o.value === value) || null;
 
+  const isBuilding = location.type === "building";
+  const isWorkplace = location.type === "workplace";
+
   return (
     <>
-      <Row>
-        <Col md={6}>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="company">
-              Компания
-              <span style={{ color: "red" }}>*</span>
-            </Form.Label>
-            <Select
-              id="company"
-              name="company"
-              placeholder="Выберите компанию"
-              options={companyOptions}
-              value={findOption(companyOptions, location.company)}
-              onChange={(o) => {
-                setField("company", o ? o.value : "");
-                setField("parent", "");
-              }}
-              isDisabled={lockCompany}
-              required
-            />
-          </Form.Group>
-        </Col>
-        <Col md={6}>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="subdivision">Подразделение</Form.Label>
-            <Select
-              id="subdivision"
-              name="subdivision"
-              placeholder="Выберите подразделение"
-              options={subdivisionOptions}
-              value={findOption(subdivisionOptions, location.subdivision)}
-              onChange={(o) => setField("subdivision", o ? o.value : "")}
-              isDisabled={!location.company}
-              isClearable
-            />
-          </Form.Group>
-        </Col>
-      </Row>
-
-      <Row>
-        <Col md={12}>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="name">
-              Название
-              <span style={{ color: "red" }}>*</span>
-            </Form.Label>
-            <Form.Control
-              id="name"
-              name="name"
-              type="text"
-              placeholder="Введите название"
-              value={location.name}
-              onChange={(e) => setField("name", e.target.value)}
-              required
-            />
-          </Form.Group>
-        </Col>
-      </Row>
-
-      <Row>
-        <Col md={12}>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="type">
-              Тип расположения
-              <span style={{ color: "red" }}>*</span>
-            </Form.Label>
-            <Select
-              id="type"
-              name="type"
-              placeholder="Выберите тип расположения"
-              options={LOCATION_TYPE_OPTIONS}
-              value={findOption(LOCATION_TYPE_OPTIONS, location.type)}
-              onChange={(o) => setField("type", o ? o.value : "")}
-              required
-            />
-          </Form.Group>
-        </Col>
-      </Row>
-
-      <Row>
-        <Col md={12}>
-          <Form.Group className="mb-3">
-            <Form.Label htmlFor="parent">Родительское расположение</Form.Label>
-            <Select
-              id="parent"
-              name="parentLocation"
-              placeholder={
-                location.type === "building"
-                  ? "Здание — верхний уровень иерархии"
-                  : "Выберите родительское расположение"
-              }
-              options={parentOptions}
-              value={findOption(parentOptions, location.parent)}
-              onChange={(o) => setField("parent", o ? o.value : "")}
-              isDisabled={!location.company || location.type === "building"}
-              isClearable
-            />
-            <Form.Text className="text-muted">
-              Где это расположение находится в иерархии: здание → этаж →
-              помещение → рабочее место
-            </Form.Text>
-          </Form.Group>
-        </Col>
-      </Row>
-
-      {location.type === "workplace" && (
-        <Row>
-          <Col md={12}>
-            <Form.Group className="mb-3">
-              <Form.Label htmlFor="assignedUser">
-                Назначенный пользователь
-                <span style={{ color: "red" }}>*</span>
-              </Form.Label>
-              <Select
-                id="assignedUser"
-                name="assignedUser"
-                placeholder="Выберите пользователя"
-                options={userOptions}
-                value={findOption(userOptions, location.assignedUser)}
-                onChange={(o) => setField("assignedUser", o ? o.value : "")}
-                isClearable
-              />
-            </Form.Group>
-          </Col>
-        </Row>
+      {/* Скрытые поля для сабмита со страницы (react-router action) */}
+      <input type="hidden" name="type" value={location.type} />
+      <input type="hidden" name="company" value={location.company} />
+      {location.subdivision && (
+        <input type="hidden" name="subdivisions" value={location.subdivision} />
+      )}
+      <input
+        type="hidden"
+        name="parentLocation"
+        value={isBuilding ? "" : location.parent}
+      />
+      {isWorkplace && (
+        <input
+          type="hidden"
+          name="assignedUser"
+          value={location.assignedUser}
+        />
       )}
 
-      <Form.Group className="mb-4">
-        <Form.Label htmlFor="description">Описание</Form.Label>
-        <Form.Control
+      <div className="tw:grid tw:gap-x-4 tw:sm:grid-cols-2">
+        <Field label="Компания" htmlFor="company" required>
+          <Select
+            id="company"
+            placeholder="Выберите компанию"
+            options={companyOptions}
+            value={findOption(companyOptions, location.company)}
+            onChange={(o) => {
+              setField("company", o ? o.value : "");
+              setField("subdivision", "");
+              setField("parent", "");
+            }}
+            isDisabled={lockCompany}
+          />
+        </Field>
+
+        <Field label="Подразделение" htmlFor="subdivision">
+          <Select
+            id="subdivision"
+            placeholder="Выберите подразделение"
+            options={subdivisionOptions}
+            value={findOption(subdivisionOptions, location.subdivision)}
+            onChange={(o) => setField("subdivision", o ? o.value : "")}
+            isDisabled={!location.company}
+            isClearable
+          />
+        </Field>
+      </div>
+
+      <Field label="Название" htmlFor="name" required>
+        <Input
+          id="name"
+          name="name"
+          type="text"
+          placeholder="Введите название"
+          value={location.name}
+          onChange={(e) => setField("name", e.target.value)}
+          required
+        />
+      </Field>
+
+      <Field label="Тип расположения" required>
+        <Segmented
+          ariaLabel="Тип расположения"
+          stacked
+          options={TYPE_OPTIONS}
+          value={location.type}
+          onChange={(value) => {
+            setField("type", value);
+            // Здание — корень: сбрасываем родителя при переключении на него
+            if (value === "building") setField("parent", "");
+          }}
+        />
+      </Field>
+
+      <Field
+        label="Родительское расположение"
+        htmlFor="parent"
+        hint="Где это расположение находится в иерархии: здание → этаж → помещение → рабочее место."
+      >
+        <Select
+          id="parent"
+          placeholder={
+            isBuilding
+              ? "Здание — верхний уровень иерархии"
+              : "Выберите родительское расположение"
+          }
+          options={parentOptions}
+          value={findOption(parentOptions, location.parent)}
+          onChange={(o) => setField("parent", o ? o.value : "")}
+          isDisabled={!location.company || isBuilding}
+          isClearable
+        />
+      </Field>
+
+      {/* Условное поле: только для рабочего места (за ним закрепляется
+          сотрудник — ответственный за технику на этом месте) */}
+      {isWorkplace && (
+        <div className="tw:mb-4 tw:rounded-xl tw:bg-primary/5 tw:p-3 tw:inset-ring tw:inset-ring-border-soft">
+          <div className="tw:mb-2 tw:inline-flex tw:items-center tw:gap-1.5 tw:text-[11px] tw:font-bold tw:tracking-wider tw:text-accent-text tw:uppercase">
+            <RiUser3Line size={13} aria-hidden /> Для рабочего места
+          </div>
+          <Field
+            label="Назначенный сотрудник"
+            htmlFor="assignedUser"
+            required
+            hint="Кабинет закрепляется за сотрудником — он ответственный за технику на этом месте."
+            className="tw:mb-0"
+          >
+            <Select
+              id="assignedUser"
+              placeholder="Выберите сотрудника"
+              options={userOptions}
+              value={findOption(userOptions, location.assignedUser)}
+              onChange={(o) => setField("assignedUser", o ? o.value : "")}
+              isClearable
+            />
+          </Field>
+        </div>
+      )}
+
+      <Field label="Адрес" htmlFor="address">
+        <Input
+          id="address"
+          name="address"
+          type="text"
+          placeholder="Например, г. Москва, ул. Ленина, 10"
+          value={location.address}
+          onChange={(e) => setField("address", e.target.value)}
+        />
+      </Field>
+
+      <Field label="Описание" htmlFor="description">
+        <Textarea
           id="description"
           name="description"
-          as="textarea"
           rows={3}
           placeholder="Введите описание (опционально)"
           value={location.description}
           onChange={(e) => setField("description", e.target.value)}
         />
-      </Form.Group>
+      </Field>
 
-      <Form.Group className="mb-3">
-        <Form.Check
-          type="switch"
-          id="isPublic"
-          name="isPublic"
-          label="Общедоступное расположение"
-          checked={location.isPublic}
-          onChange={(e) => setField("isPublic", e.target.checked)}
-        />
-        <Form.Text className="text-muted">
-          Техника может перемещаться в это расположение даже из других компаний
-        </Form.Text>
-      </Form.Group>
+      <SwitchField
+        id="isPublic"
+        name="isPublic"
+        checked={location.isPublic}
+        onCheckedChange={(checked) => setField("isPublic", checked)}
+        label="Общедоступное расположение"
+        hint="Технику можно перемещать сюда даже из других компаний."
+        divider
+      />
     </>
   );
 };

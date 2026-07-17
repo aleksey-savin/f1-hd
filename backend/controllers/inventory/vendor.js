@@ -1,5 +1,6 @@
 const Vendor = require("../../models/inventory/vendor");
 const ClientDevice = require("../../models/inventory/clientDevice");
+const DeviceModel = require("../../models/inventory/deviceModel");
 const { AppError } = require("../../middleware/errorHandling");
 
 exports.getAll = async (req, res, next) => {
@@ -47,14 +48,29 @@ exports.getOne = async (req, res, next) => {
   try {
     const vendor = await Vendor.findById(req.params.id)
       .populate("createdBy", "firstName lastName")
-      .populate("updatedBy", "firstName lastName");
+      .populate("updatedBy", "firstName lastName")
+      .lean();
 
     if (!vendor) {
       return next(
         new AppError(`Vendor with id ${req.params.id} not found`, 404),
       );
     }
-    res.status(200).json(vendor);
+
+    // Число устройств вендора для карточки (как в getAll, но точечно):
+    // прямой ссылки на вендора у устройства нет — считаем по его моделям.
+    const models = await DeviceModel.find(
+      { vendorId: vendor._id, deletedAt: null },
+      { _id: 1 },
+    ).lean();
+    const deviceCount = models.length
+      ? await ClientDevice.countDocuments({
+          deviceModelId: { $in: models.map((model) => model._id) },
+          deletedAt: null,
+        })
+      : 0;
+
+    res.status(200).json({ ...vendor, deviceCount });
   } catch (error) {
     next(
       new AppError(`Failed to fetch vendor ${req.params.id}`, 500, true, error),
@@ -140,6 +156,20 @@ exports.delete = async (req, res, next) => {
   try {
     const vendor = await Vendor.findById(req.params.id);
     if (vendor) {
+      // Вендора с моделями не удаляем — модели остались бы с битой ссылкой
+      // (ср. deviceType.delete). Сообщение уходит в тост как есть.
+      const modelsCount = await DeviceModel.countDocuments({
+        vendorId: req.params.id,
+        deletedAt: null,
+      });
+      if (modelsCount > 0) {
+        return next(
+          new AppError(
+            `Вендор используется ${modelsCount} модел${modelsCount === 1 ? "ью" : "ями"} устройств — сначала удалите или перенесите их`,
+            409,
+          ),
+        );
+      }
       await Vendor.deleteOne({ _id: req.params.id });
       res.status(204).end();
     } else {

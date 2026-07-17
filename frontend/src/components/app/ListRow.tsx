@@ -34,6 +34,9 @@ type ListRowProps = {
     updatedAt?: string;
   };
   itemTitle?: string;
+  /** URL превью (фото из каталога): заполняет плитку целиком (object-cover)
+   *  вместо монограммы. Есть фото — фото, иначе показывается `monogram`. */
+  thumbSrc?: string;
   monogram?: ReactNode;
   title: ReactNode;
   meta?: ReactNode;
@@ -49,6 +52,7 @@ type ListRowProps = {
 const ListRow = ({
   item,
   itemTitle,
+  thumbSrc,
   monogram,
   title,
   meta,
@@ -99,13 +103,24 @@ const ListRow = ({
       <span
         aria-hidden
         className={cn(
-          "tw:grid tw:size-15 tw:flex-none tw:place-items-center tw:rounded-xl tw:text-xl tw:font-semibold",
+          "tw:grid tw:size-15 tw:flex-none tw:place-items-center tw:overflow-hidden tw:rounded-xl tw:text-xl tw:font-semibold",
           dimmed
             ? "tw:text-faint"
             : "tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border",
         )}
       >
-        {monogram}
+        {thumbSrc ? (
+          <img
+            src={thumbSrc}
+            alt=""
+            loading="lazy"
+            // listrow-thumb: заполняет плитку (перебивает глобальный
+            // img{width/height:auto!important} специфичностью класса)
+            className="listrow-thumb"
+          />
+        ) : (
+          monogram
+        )}
       </span>
       <div className="tw:min-w-0 tw:flex-1">
         <div

@@ -30,7 +30,12 @@ const FormWrapper = ({ title, action, successTo, children }) => {
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
       offcanvas.setClose();
-      navigate(successTo ?? "..");
+      // successTo-функция строит адрес из ответа action (создание → карточка
+      // созданной сущности); replace — «назад» ведёт туда, где форму открыли,
+      // а не в форму (ср. app/FormWrapper, «Навигация после сабмита» в гайде)
+      const to =
+        typeof successTo === "function" ? successTo(fetcher.data) : successTo;
+      navigate(to ?? "..", { replace: true });
     }
   }, [fetcher.state, fetcher.data]);
 

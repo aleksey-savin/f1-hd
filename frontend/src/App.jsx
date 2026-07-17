@@ -192,6 +192,10 @@ import UpdateLocationPage, {
   loader as updateLocationLoader,
   action as updateLocationAction,
 } from "./pages/Location/Update.jsx";
+import ViewLocationPage, {
+  loader as viewLocationLoader,
+  action as viewLocationAction,
+} from "./pages/Location/View.jsx";
 
 // Device Types
 import DeviceTypeListPage, {
@@ -205,6 +209,18 @@ import UpdateDeviceTypePage, {
   loader as updateDeviceTypeLoader,
   action as updateDeviceTypeAction,
 } from "./pages/DeviceType/Update.jsx";
+import ViewDeviceTypePage, {
+  loader as viewDeviceTypeLoader,
+  action as viewDeviceTypeAction,
+} from "./pages/DeviceType/View.jsx";
+import AttributeAddPage, {
+  loader as attributeAddLoader,
+  action as attributeAddAction,
+} from "./pages/DeviceType/AttributeAdd.jsx";
+import AttributeUpdatePage, {
+  loader as attributeUpdateLoader,
+  action as attributeUpdateAction,
+} from "./pages/DeviceType/AttributeUpdate.jsx";
 
 // Vendors
 import VendorListPage, {
@@ -218,6 +234,10 @@ import UpdateVendorPage, {
   loader as updateVendorLoader,
   action as updateVendorAction,
 } from "./pages/Vendor/Update.jsx";
+import ViewVendorPage, {
+  loader as viewVendorLoader,
+  action as viewVendorAction,
+} from "./pages/Vendor/View.jsx";
 
 // Device Attributes
 import DeviceAttributeListPage, {
@@ -716,6 +736,31 @@ function App() {
             },
           ],
         },
+        {
+          path: "inventory/locations/:id",
+          element: <ViewLocationPage />,
+          loader: viewLocationLoader,
+          action: viewLocationAction,
+          children: [
+            // Правка расположения — в нижней шторке карточки: после сабмита
+            // остаёмся на карточке
+            {
+              path: "update",
+              loader: updateLocationLoader,
+              action: updateLocationAction,
+              element: <UpdateLocationPage />,
+            },
+            // Вложенное расположение — шторка здесь же; loader читает
+            // query-пресеты ?company=&parent=; после сабмита форма уводит на
+            // карточку созданного расположения
+            {
+              path: "add",
+              loader: addLocationLoader,
+              action: addLocationAction,
+              element: <AddLocationPage />,
+            },
+          ],
+        },
 
         // Device Types
         {
@@ -737,6 +782,43 @@ function App() {
             },
           ],
         },
+        {
+          path: "inventory/device-types/:id",
+          element: <ViewDeviceTypePage />,
+          loader: viewDeviceTypeLoader,
+          action: viewDeviceTypeAction,
+          children: [
+            // Правка типа — в нижней шторке карточки: после сабмита остаёмся
+            // на карточке (правило «редактирование не меняет страницу»)
+            {
+              path: "update",
+              element: <UpdateDeviceTypePage />,
+              loader: updateDeviceTypeLoader,
+              action: updateDeviceTypeAction,
+            },
+            // Новая модель с карточки типа — шторка здесь же; после сабмита
+            // форма сама уводит на карточку созданной модели
+            {
+              path: "models/add",
+              element: <AddDeviceModelPage presetFrom="deviceType" />,
+              loader: addDeviceModelLoader,
+              action: addDeviceModelAction,
+            },
+            // Атрибуты типа — формы add/update в нижней шторке карточки
+            {
+              path: "attributes/add",
+              element: <AttributeAddPage />,
+              loader: attributeAddLoader,
+              action: attributeAddAction,
+            },
+            {
+              path: "attributes/update/:attrId",
+              element: <AttributeUpdatePage />,
+              loader: attributeUpdateLoader,
+              action: attributeUpdateAction,
+            },
+          ],
+        },
 
         // Vendors
         {
@@ -755,6 +837,31 @@ function App() {
               element: <UpdateVendorPage />,
               loader: updateVendorLoader,
               action: updateVendorAction,
+            },
+          ],
+        },
+        {
+          path: "inventory/vendors/:id",
+          element: <ViewVendorPage />,
+          loader: viewVendorLoader,
+          action: viewVendorAction,
+          children: [
+            // Правка вендора — в нижней шторке карточки: после сабмита
+            // остаёмся на карточке (правило «редактирование не меняет
+            // страницу»)
+            {
+              path: "update",
+              element: <UpdateVendorPage />,
+              loader: updateVendorLoader,
+              action: updateVendorAction,
+            },
+            // Новая модель с карточки вендора — шторка здесь же; после
+            // сабмита форма сама уводит на карточку созданной модели
+            {
+              path: "models/add",
+              element: <AddDeviceModelPage presetFrom="vendor" />,
+              loader: addDeviceModelLoader,
+              action: addDeviceModelAction,
             },
           ],
         },
@@ -806,6 +913,15 @@ function App() {
           loader: viewDeviceModelLoader,
           action: viewDeviceModelAction,
           children: [
+            // Правка модели — в нижней шторке карточки: после сабмита
+            // остаёмся на карточке (статический "update" матчится раньше
+            // "update/:configId" конфигураций)
+            {
+              path: "update",
+              element: <UpdateDeviceModelPage />,
+              loader: updateDeviceModelLoader,
+              action: updateDeviceModelAction,
+            },
             // Конфигурации модели открываются в нижнем Offcanvas страницы просмотра.
             {
               path: "add",

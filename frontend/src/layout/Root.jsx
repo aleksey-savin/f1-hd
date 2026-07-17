@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useRevalidator } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 import { Outlet, useLoaderData, useSubmit } from "react-router";
@@ -13,11 +13,13 @@ import NavigationBar from "./Navbar";
 import Footer from "./Footer";
 import WorkStatusBar from "../components/User/WorkStatusBar";
 import { Toaster } from "@/components/ui/sonner";
+import { RiRefreshLine } from "react-icons/ri";
+import { Button } from "@/components/ui/button";
+import AppBanner from "@/components/app/AppBanner";
 // import Pro32Connect from "../components/Integrations/Pro32Connect/Pro32Connect";
 
 import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
-import Alert from "react-bootstrap/Alert";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 
@@ -50,6 +52,9 @@ const RootLayout = () => {
   const location = useLocation();
   const revalidator = useRevalidator();
 
+  // Баннер о новой версии можно скрыть до следующей перезагрузки
+  const [versionDismissed, setVersionDismissed] = useState(false);
+
   // Мобильный app-shell: <main> — свой скролл-контейнер (не window), поэтому
   // сбрасываем прокрутку вверх при смене маршрута вручную.
   const mobileScrollRef = useRef(null);
@@ -74,9 +79,8 @@ const RootLayout = () => {
         "/users",
         "/ticket-templates",
         "/finances/summary-report",
-        // мигрированные экраны (device-types, vendors, …) сайдбар не
-        // используют — фильтры живут в Sheet самого списка
-        "/inventory/locations",
+        // мигрированные экраны (device-types, vendors, locations, …) сайдбар
+        // не используют — фильтры живут в чипах/Sheet самого списка
         "/inventory/client-devices",
       ].includes(location.pathname) ||
       location.pathname.startsWith("/knowledge-base")
@@ -155,19 +159,35 @@ const RootLayout = () => {
           )}
           <Container
             fluid
-            style={{ maxWidth: "1920px", paddingTop: "100px" }}
+            style={{ maxWidth: "1920px", paddingTop: "80px" }}
             className={`px-5 pb-5${
               isLoggedIn && !userData?.isEndUser && !userData?.hideWorkStatus
                 ? " has-ws-rail"
                 : ""
             }`}
           >
-            {appVersion !== import.meta.env.VITE_VERSION && (
-              <Alert variant="warning" className="mb-4" dismissible>
-                Версия приложения в браузере не совпадает с версией на сервере.
-                Пожалуйста, обновите кэш страницы нажатием клавиш CTRL+SHIFT+R
-              </Alert>
-            )}
+            {appVersion !== import.meta.env.VITE_VERSION &&
+              !versionDismissed && (
+                <AppBanner
+                  tone="warning"
+                  icon={<RiRefreshLine />}
+                  title="Доступна новая версия"
+                  onDismiss={() => setVersionDismissed(true)}
+                  className="tw:mb-6"
+                  action={
+                    <Button
+                      size="sm"
+                      onClick={() => window.location.reload()}
+                      className="tw:max-md:w-full"
+                    >
+                      <RiRefreshLine /> Обновить
+                    </Button>
+                  }
+                >
+                  Обновите страницу, чтобы загрузить последнюю версию. Не
+                  помогло — Ctrl&nbsp;+&nbsp;Shift&nbsp;+&nbsp;R.
+                </AppBanner>
+              )}
 
             <Row>
               {leftSidebarIsActive && (
@@ -188,10 +208,24 @@ const RootLayout = () => {
                     страницы (её tw:max-w-*) + горизонтальный p-4 листа. */}
                 {(() => {
                   const MIGRATED_ROUTES = [
+                    // Расположения: карточка (max-w-4xl, со слэшем) матчится
+                    // раньше списка (max-w-7xl) — порядок в .find важен
+                    { path: "/inventory/locations/", maxWidth: 944 },
+                    { path: "/inventory/locations", maxWidth: 1328 },
+                    // Вендоры: карточка (max-w-4xl, со слэшем) матчится
+                    // раньше списка (max-w-7xl) — порядок в .find важен
+                    { path: "/inventory/vendors/", maxWidth: 944 },
                     // ListWrapper: tw:max-w-7xl (1280) + 2×24
                     { path: "/inventory/vendors", maxWidth: 1328 },
                     { path: "/inventory/device-attributes", maxWidth: 1328 },
+                    // Типы: карточка (max-w-4xl, со слэшем) матчится раньше
+                    // списка (max-w-7xl) — порядок в .find важен
+                    { path: "/inventory/device-types/", maxWidth: 944 },
                     { path: "/inventory/device-types", maxWidth: 1328 },
+                    // Модели: карточка/формы (max-w-4xl, со слэшем) матчатся
+                    // раньше списка (max-w-7xl) — порядок в .find важен
+                    { path: "/inventory/device-models/", maxWidth: 944 },
+                    { path: "/inventory/device-models", maxWidth: 1328 },
                     { path: "/ticket-categories", maxWidth: 1328 },
                     // Услуги: карточка/формы (max-w-4xl, со слэшем) матчатся
                     // раньше списка (max-w-7xl) — порядок в .find важен
@@ -213,13 +247,13 @@ const RootLayout = () => {
                          обнимает контент по его maxWidth, а не тянется на всю
                          ширину: пустых полей-«карточек» нет, обои видны по
                          бокам. Без картинки лист не рисуется вовсе. */
-                      className={`mb-3 position-relative${
+                      className={`position-relative${
                         userData.backgroundImagePath
                           ? " rounded-4 border p-4 mx-auto w-100"
                           : ""
                       }`}
                       style={{
-                        minHeight: "calc(100svh - 124px)",
+                        minHeight: "calc(100svh - 104px)",
                         ...(userData.backgroundImagePath
                           ? {
                               background: "var(--bs-body-bg)",
@@ -233,9 +267,9 @@ const RootLayout = () => {
                   );
                 })() || (
                   <Card
-                    className="mb-3 shadow"
+                    className="shadow"
                     style={{
-                      minHeight: "calc(100svh - 124px)",
+                      minHeight: "calc(100svh - 104px)",
                     }}
                   >
                     <Card.Body>

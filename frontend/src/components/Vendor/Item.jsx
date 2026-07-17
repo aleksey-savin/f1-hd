@@ -13,6 +13,7 @@ const VendorItem = ({ item }) => {
       monogram={monogramFor(name)}
       title={name}
       dimmed={!isActive}
+      detailTo={`/inventory/vendors/${item._id}`}
       meta={
         <>
           {deviceCount > 0

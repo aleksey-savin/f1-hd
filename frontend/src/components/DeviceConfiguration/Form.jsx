@@ -1,10 +1,18 @@
 import { useState } from "react";
-import Form from "react-bootstrap/Form";
 import { useLoaderData } from "react-router";
-import FormWrapper from "../../UI/FormWrapper";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
 
+import FormWrapper from "@/components/app/FormWrapper";
+import Field from "@/components/app/Field";
+import AlertMessage from "@/components/app/AlertMessage";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+
+import Select from "../../UI/Select";
+
+// Форма конфигурации модели: динамические поля по атрибутам типа устройства.
+// Сабмит идёт скрытым `values` (JSON), поэтому контролы неуправляемы через
+// `name`, а пишут в состояние. Открывается в нижней шторке карточки модели.
 const DeviceConfigurationForm = ({ title }) => {
   const loaderData = useLoaderData();
   const configuration = loaderData?.configuration;
@@ -33,38 +41,34 @@ const DeviceConfigurationForm = ({ title }) => {
 
   const getValue = (attributeId) => {
     const val = values.find((v) => v.attributeId === attributeId);
-    return val?.value || "";
+    return val?.value ?? "";
   };
 
-  const renderAttributeInput = (attr) => {
-    const attrId =
-      typeof attr.attributeId === "object"
-        ? attr.attributeId._id
-        : attr.attributeId;
-    const attrData =
-      typeof attr.attributeId === "object"
-        ? attr.attributeId
-        : attributes.find((a) => a._id === attrId);
-
-    if (!attrData) return null;
-
+  const renderAttributeInput = (attrId, attrData) => {
     const value = getValue(attrId);
+    const inputId = `attr-${attrId}`;
 
     switch (attrData.valueType) {
       case "boolean":
         return (
-          <Form.Check
-            type="checkbox"
-            id={`attr-${attrId}`}
-            checked={value === true || value === "true"}
-            onChange={(e) => handleValueChange(attrId, e.target.checked)}
-          />
+          <div className="tw:flex tw:h-10 tw:items-center tw:gap-2.5">
+            <Switch
+              id={inputId}
+              checked={value === true || value === "true"}
+              onCheckedChange={(checked) =>
+                handleValueChange(attrId, checked)
+              }
+            />
+            <span className="tw:text-sm tw:text-muted-foreground">
+              {value === true || value === "true" ? "Да" : "Нет"}
+            </span>
+          </div>
         );
 
       case "number":
         return (
-          <Form.Control
-            id={`attr-${attrId}`}
+          <Input
+            id={inputId}
             type="number"
             value={value}
             onChange={(e) => handleValueChange(attrId, e.target.value)}
@@ -74,25 +78,26 @@ const DeviceConfigurationForm = ({ title }) => {
 
       case "select":
         return (
-          <Form.Select
-            id={`attr-${attrId}`}
-            value={value}
-            onChange={(e) => handleValueChange(attrId, e.target.value)}
-          >
-            <option value="">Выберите...</option>
-            {attrData.options?.map((option, index) => (
-              <option key={index} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Form.Select>
+          <Select
+            id={inputId}
+            value={
+              (attrData.options || []).find((o) => o.value === value) || null
+            }
+            onChange={(option) =>
+              handleValueChange(attrId, option?.value || "")
+            }
+            options={attrData.options || []}
+            placeholder="Выберите…"
+            isClearable
+            getOptionLabel={(option) => option.label}
+            getOptionValue={(option) => option.value}
+          />
         );
 
       case "text":
         return (
-          <Form.Control
-            id={`attr-${attrId}`}
-            as="textarea"
+          <Textarea
+            id={inputId}
             rows={2}
             value={value}
             onChange={(e) => handleValueChange(attrId, e.target.value)}
@@ -102,8 +107,8 @@ const DeviceConfigurationForm = ({ title }) => {
 
       default:
         return (
-          <Form.Control
-            id={`attr-${attrId}`}
+          <Input
+            id={inputId}
             type="text"
             value={value}
             onChange={(e) => handleValueChange(attrId, e.target.value)}
@@ -113,67 +118,66 @@ const DeviceConfigurationForm = ({ title }) => {
     }
   };
 
+  const subtitle =
+    [deviceModel?.vendorId?.name, deviceModel?.name]
+      .filter(Boolean)
+      .join(" ") || "(Без названия)";
+  const typeName = deviceModel?.deviceTypeId?.name;
+
   return (
     <FormWrapper
       title={title}
       successTo={`/inventory/device-models/${deviceModel?._id}`}
     >
-      {/* Hidden fields */}
-      <input
-        type="hidden"
-        name="deviceModelId"
-        value={deviceModel?._id || ""}
-      />
+      <input type="hidden" name="deviceModelId" value={deviceModel?._id || ""} />
       <input
         type="hidden"
         name="values"
         value={JSON.stringify(
-          values.filter((v) => v.value && v.value.toString().trim()),
+          values.filter((v) => v.value !== "" && v.value != null),
         )}
       />
 
-      <p className="text-muted mb-4">
-        {[deviceModel?.vendorId?.name, deviceModel?.name]
-          .filter(Boolean)
-          .join(" ") || "(Без названия)"}
-        {deviceModel?.deviceTypeId?.name
-          ? ` · ${deviceModel.deviceTypeId.name}`
-          : ""}
+      <p className="tw:-mt-2 tw:mb-5 tw:text-sm tw:text-muted-foreground">
+        {subtitle}
+        {typeName ? ` · ${typeName}` : ""}
       </p>
 
       {attributes.length === 0 ? (
-        <div className="alert alert-warning">
-          У данного типа устройства нет атрибутов. Сначала добавьте атрибуты к
-          типу устройства.
-        </div>
+        <AlertMessage
+          variant="warning"
+          message="У типа устройства нет характеристик. Сначала добавьте атрибуты к типу устройства, затем создавайте конфигурации."
+        />
       ) : (
-        <Row>
+        <div className="tw:grid tw:gap-x-4 tw:sm:grid-cols-2">
           {attributes.map((attr) => {
-            const attrId =
-              typeof attr.attributeId === "object"
-                ? attr.attributeId._id
-                : attr.attributeId;
             const attrData =
-              typeof attr.attributeId === "object"
-                ? attr.attributeId
-                : attributes.find((a) => a._id === attrId);
+              typeof attr.attributeId === "object" ? attr.attributeId : null;
+            const attrId = attrData?._id || attr.attributeId;
+            if (!attrData) return null;
 
             return (
-              <Col md={6} key={attrId}>
-                <Form.Group className="mb-3">
-                  <Form.Label htmlFor={`attr-${attrId}`}>
-                    {attrData?.name || "Атрибут"}
-                    {attr.required && <span style={{ color: "red" }}>*</span>}
-                    {attrData?.unit && (
-                      <span className="text-muted"> ({attrData.unit})</span>
+              <Field
+                key={attrId}
+                htmlFor={`attr-${attrId}`}
+                required={attr.required}
+                label={
+                  <>
+                    {attrData.name || "Атрибут"}
+                    {attrData.unit && (
+                      <span className="tw:font-normal tw:text-faint">
+                        {" "}
+                        ({attrData.unit})
+                      </span>
                     )}
-                  </Form.Label>
-                  {renderAttributeInput(attr)}
-                </Form.Group>
-              </Col>
+                  </>
+                }
+              >
+                {renderAttributeInput(attrId, attrData)}
+              </Field>
             );
           })}
-        </Row>
+        </div>
       )}
     </FormWrapper>
   );

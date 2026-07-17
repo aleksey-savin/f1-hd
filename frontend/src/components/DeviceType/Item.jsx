@@ -39,6 +39,7 @@ const DeviceTypeItem = ({ item }) => {
     <ListRow
       item={item}
       itemTitle="deviceType"
+      detailTo={`/inventory/device-types/${item._id}`}
       monogram={monogramFor(name)}
       title={name}
       dimmed={!isActive}

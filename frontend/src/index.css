@@ -421,6 +421,15 @@ button.photo-thumb {
   object-fit: cover;
 }
 
+/* Превью-фото в плитке ListRow (thumbSrc): тот же приём, что и .photo-thumb img
+   — глобальное img{width/height:auto!important} выше иначе не даёт снимку
+   заполнить плитку. Специфичность класса перебивает селектор элемента. */
+.listrow-thumb {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+
 /* Сколько снимков всего — иначе не видно, что за первым есть ещё. */
 .photo-thumb__count {
   position: absolute;
@@ -1702,9 +1711,16 @@ body:has(.mobile-shell),
 /* ---- Бар статусов: разметка и стили — tw в WorkStatusBar.jsx (перенос
    согласованного мокапа, Фаза 2+). Здесь остаются только вещи вне tw-сетки:
    резерв места под свёрнутый рейл и тонкие/скрытые скроллбары. */
-@media (min-width: 992px) {
-  .has-ws-rail {
-    padding-right: 92px !important; /* свёрнутый рейл 72px + воздух */
+/* Резерв места под свёрнутый рейл статусов. КЛАДЁМ В СЛОЙ bootstrap: для
+   important-деклараций слои перебивают unlayered, а .px-5 контейнера — тоже
+   important и живёт в layer(bootstrap) (см. css/*-theme.css). Только в том же
+   слое спецификация в два класса берёт верх над .px-5 (один класс). Вне слоя
+   правило проигрывало по каскаду — контент легаси лез вправо под рейл. */
+@layer bootstrap {
+  @media (min-width: 992px) {
+    .container-fluid.has-ws-rail {
+      padding-right: 92px !important; /* свёрнутый рейл 72px + воздух */
+    }
   }
 }
 .ws-rail-scroll {
@@ -1734,6 +1750,16 @@ body:has(.mobile-shell),
    они non-modal (см. ui/dropdown-menu.tsx). */
 html {
   overflow-y: scroll;
+}
+
+/* ВРЕМЕННО (до миграции легаси): гасим горизонтальный вылет за правый край.
+   На немигрированных страницах вёрстка местами шире вьюпорта и «уезжает»
+   вправо (заметно с обычным, не оверлейным скроллбаром). `clip` (не `hidden`)
+   не создаёт скролл-контейнер — не ломает `position: sticky`, порталы
+   (Sheet/Dialog fixed) и внутренние `overflow-x: auto` области новых страниц.
+   Убрать, когда легаси-раскладки уедут на tw. */
+body {
+  overflow-x: clip;
 }
 body[data-scroll-locked] {
   padding-right: 0 !important;

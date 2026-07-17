@@ -9,7 +9,10 @@ import useOffcanvasStore from "@/store/offcanvas";
 // Форма из согласованного макета: заголовок 16/650 (кнопка «закрыть» —
 // встроенный крестик шторки), поля, снизу справа «Отмена» и «Сохранить».
 // Механика легаси сохранена: fetcher.Form на router-action, по успешному
-// сабмиту закрываем шторку и уходим на successTo ?? "..".
+// сабмиту закрываем шторку и уходим на successTo ?? "..". successTo-функция
+// строит адрес из ответа action (создание → карточка созданной сущности,
+// см. «Навигация после сабмита» в ux-ui-guide). Переход — replace: запись
+// формы не остаётся в истории, «назад» ведёт туда, где форму открыли.
 const FormWrapper = ({
   title,
   action,
@@ -18,7 +21,7 @@ const FormWrapper = ({
 }: {
   title: ReactNode;
   action?: string;
-  successTo?: string;
+  successTo?: string | ((data: unknown) => string | undefined);
   children: ReactNode;
 }) => {
   const data = useActionData() as
@@ -32,7 +35,9 @@ const FormWrapper = ({
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
       offcanvas.setClose();
-      navigate(successTo ?? "..");
+      const to =
+        typeof successTo === "function" ? successTo(fetcher.data) : successTo;
+      navigate(to ?? "..", { replace: true });
     }
   }, [fetcher.state, fetcher.data]);
 

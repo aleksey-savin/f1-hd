@@ -1,5 +1,6 @@
 const DeviceType = require("@/models/inventory/deviceType");
 const DeviceTypeAttribute = require("@/models/inventory/deviceTypeAttribute");
+const DeviceModel = require("@/models/inventory/deviceModel");
 const { AppError } = require("@/middleware/errorHandling");
 
 exports.getAll = async (req, res, next) => {
@@ -89,7 +90,6 @@ exports.add = async (req, res, next) => {
       isPeripheral,
       inventoryPrefix,
       attachableToTypeIds,
-      attributes,
     } = req.body;
 
     const deviceTypeExists = await DeviceType.findOne({ name });
@@ -112,19 +112,8 @@ exports.add = async (req, res, next) => {
 
     await deviceType.save();
 
-    // Save device type attributes if provided
-    if (attributes && attributes.length > 0) {
-      const attributeDocs = attributes.map((attr, index) => ({
-        deviceTypeId: deviceType._id,
-        attributeId: attr.attributeId,
-        required: attr.required || false,
-        extendable: attr.extendable || false,
-        order: index,
-        createdBy: req.userId,
-      }));
-
-      await DeviceTypeAttribute.insertMany(attributeDocs);
-    }
+    // Атрибуты типа добавляются отдельно, с карточки типа (см.
+    // controllers/inventory/deviceTypeAttribute.js) — здесь их не трогаем.
 
     res.status(201).json({
       message: "Тип устройства успешно добавлен",
@@ -145,7 +134,6 @@ exports.update = async (req, res, next) => {
       isPeripheral,
       inventoryPrefix,
       attachableToTypeIds,
-      attributes,
     } = req.body;
 
     const deviceType = await DeviceType.findById(req.params.id);
@@ -179,25 +167,9 @@ exports.update = async (req, res, next) => {
 
     await deviceType.save();
 
-    // Update device type attributes
-    if (attributes) {
-      // Delete existing attributes
-      await DeviceTypeAttribute.deleteMany({ deviceTypeId: req.params.id });
-
-      // Add new attributes
-      if (attributes.length > 0) {
-        const attributeDocs = attributes.map((attr, index) => ({
-          deviceTypeId: req.params.id,
-          attributeId: attr.attributeId,
-          required: attr.required || false,
-          extendable: attr.extendable || false,
-          order: index,
-          createdBy: req.userId,
-        }));
-
-        await DeviceTypeAttribute.insertMany(attributeDocs);
-      }
-    }
+    // Атрибуты типа правятся отдельными формами с карточки (см.
+    // controllers/inventory/deviceTypeAttribute.js) — основной update их не
+    // трогает, иначе форма без атрибутов затирала бы их.
 
     res.status(200).json({
       message: "Тип устройства успешно обновлен",
@@ -219,6 +191,20 @@ exports.delete = async (req, res, next) => {
   try {
     const deviceType = await DeviceType.findById(req.params.id);
     if (deviceType) {
+      // Не осиротить модели: тип нельзя удалить, пока на него ссылаются модели
+      const models = await DeviceModel.find({
+        deviceTypeId: req.params.id,
+        deletedAt: null,
+      });
+      if (models.length > 0) {
+        return next(
+          new AppError(
+            `Тип используется ${models.length} модел${models.length === 1 ? "ью" : "ями"} — сначала удалите или перенесите их`,
+            409,
+          ),
+        );
+      }
+
       // Delete associated device type attributes
       await DeviceTypeAttribute.deleteMany({ deviceTypeId: req.params.id });
 

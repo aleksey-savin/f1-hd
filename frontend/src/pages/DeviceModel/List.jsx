@@ -1,54 +1,94 @@
 import { useEffect } from "react";
 import { useLocation, redirect } from "react-router";
 
+import ChipSelect from "@/components/app/ChipSelect";
+import ListWrapper from "@/components/app/ListWrapper";
+
 import useDeviceModelFilterStore from "../../store/lists/deviceModels";
-
 import List from "../../components/DeviceModel/List";
-
-import ListWrapper from "../../UI/ListWrapper";
-import { BrowserView } from "react-device-detect";
 import DeviceModelFilter from "../../components/DeviceModel/Filter";
-import useSidebarStore from "../../store/sidebar";
-
-import { RiComputerLine } from "react-icons/ri";
 
 import { getLocalStorageData } from "../../util/auth";
 
 const DeviceModelListPage = () => {
   const location = useLocation();
-  const { setLeftSidebarContent } = useSidebarStore();
   const filterStore = useDeviceModelFilterStore();
 
   useEffect(() => {
     filterStore.applyFilter();
   }, [filterStore.originalList]);
 
+  // Фетчим только на самом списке: открытие/закрытие шторки add/update — тоже
+  // навигация, и рефетч в этот момент дёргал бы список под шторкой
   useEffect(() => {
-    filterStore.fetch();
-  }, [location]);
+    if (location.pathname === "/inventory/device-models") {
+      filterStore.fetch();
+    }
+  }, [location.key]);
 
-  useEffect(() => {
-    setLeftSidebarContent(
-      <BrowserView>
-        <DeviceModelFilter />
-      </BrowserView>,
-    );
-  }, [setLeftSidebarContent, filterStore.originalList]);
+  // Быстрый фасет «Тип устройства» в панели инструментов (ChipSelect). Опции —
+  // из самого каталога (типы, у которых есть модели); тот же facet, что и в
+  // Sheet-фильтре, поэтому чип и Sheet синхронны.
+  const deviceTypeOptions = [
+    ...new Map(
+      (filterStore.originalList || [])
+        .map((model) => model.deviceTypeId)
+        .filter(Boolean)
+        .map((type) => [String(type._id), { value: type._id, label: type.name }]),
+    ).values(),
+  ].sort((a, b) => (a.label || "").localeCompare(b.label || ""));
 
-  const title = () => {
-    return (
-      <>
-        <RiComputerLine /> Модели устройств
-      </>
-    );
+  const selectDeviceType = (deviceTypeId) => {
+    const type = deviceTypeId
+      ? (filterStore.originalList || [])
+          .map((model) => model.deviceTypeId)
+          .find((item) => item && String(item._id) === String(deviceTypeId))
+      : null;
+    filterStore.updateFilter({
+      ...filterStore,
+      deviceType: type ? { _id: type._id, name: type.name } : null,
+    });
+    filterStore.applyFilter();
   };
+
+  const removeFilter = (patch) => {
+    filterStore.updateFilter({ ...filterStore, ...patch });
+    filterStore.applyFilter();
+  };
+
+  const activeFilters = [
+    filterStore.deviceType && {
+      key: "deviceType",
+      label: `Тип: ${filterStore.deviceType.name}`,
+      onRemove: () => removeFilter({ deviceType: null }),
+    },
+    filterStore.vendor && {
+      key: "vendor",
+      label: `Производитель: ${filterStore.vendor.name}`,
+      onRemove: () => removeFilter({ vendor: null }),
+    },
+  ].filter(Boolean);
+
   return (
     <ListWrapper
-      title={title}
+      title={() => "Модели устройств"}
       filterStore={filterStore}
       addRoute="/inventory/device-models/add"
+      addLabel="Добавить модель"
+      toolbar={
+        <ChipSelect
+          placeholder="Тип устройства"
+          allLabel="Все типы"
+          value={filterStore.deviceType?._id ?? null}
+          options={deviceTypeOptions}
+          onChange={selectDeviceType}
+        />
+      }
+      filter={<DeviceModelFilter />}
+      filterActive={activeFilters.length > 0}
+      activeFilters={activeFilters}
     >
-      <List items={filterStore.filteredList}></List>
+      <List items={filterStore.filteredList} />
     </ListWrapper>
   );
 };

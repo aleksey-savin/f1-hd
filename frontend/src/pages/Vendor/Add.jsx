@@ -2,7 +2,15 @@ import Form from "../../components/Vendor/Form";
 import { getLocalStorageData } from "../../util/auth";
 
 const AddVendorPage = () => {
-  return <Form title="Новый вендор" />;
+  return (
+    <Form
+      title="Новый вендор"
+      // Создание → карточка созданного вендора (навигация после сабмита, гайд)
+      successTo={(data) =>
+        data?.vendor?._id ? `/inventory/vendors/${data.vendor._id}` : undefined
+      }
+    />
+  );
 };
 
 export default AddVendorPage;

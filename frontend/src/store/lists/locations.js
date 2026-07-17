@@ -2,22 +2,39 @@ import { create } from "zustand";
 
 import { getLocalStorageData } from "../../util/auth";
 
+// Фасеты фильтра дерева расположений. Компания — обязательный контекст (чип на
+// панели, задаётся отдельно); showWorkplaces — чип «Рабочие места» (РМ скрыты
+// по умолчанию, их много). Остальное — Sheet-фильтр: тип, статус,
+// общедоступность, подразделение.
 const locationFilter = (state) => {
   const originalList = state.originalList ? state.originalList : [];
   return originalList
     .filter(
-      // Рабочие места по умолчанию скрыты — их обычно много; показываем по свитчу.
+      // Рабочие места по умолчанию скрыты — их обычно много; показываем по чипу.
       (location) => state.showWorkplaces || location.type !== "workplace",
     )
     .filter((location) => {
-      // Filter by type
-      if (state.filterType && state.filterType !== "all") {
-        return location.type === state.filterType;
-      }
-      return true;
+      // Тип расположения (мультивыбор; пусто = любой). Рабочие места здесь не
+      // участвуют — ими управляет отдельный чип.
+      const types = state.typeFilters || [];
+      return types.length === 0 || types.includes(location.type);
     })
     .filter((location) => {
-      // Filter by companies (multiple selection)
+      // Статус активности (isActive по умолчанию true у старых данных)
+      if (state.status === "active") return location.isActive !== false;
+      if (state.status === "inactive") return location.isActive === false;
+      return true;
+    })
+    .filter((location) => !state.publicOnly || location.isPublic === true)
+    .filter((location) => {
+      // Подразделение (расположение относится к нему)
+      if (!state.subdivision?._id) return true;
+      return (location.subdivisions || []).some(
+        (sub) => String(sub?._id || sub) === String(state.subdivision._id),
+      );
+    })
+    .filter((location) => {
+      // Компания (обязательный контекст)
       if (state.selectedCompanyIds && state.selectedCompanyIds.length > 0) {
         return state.selectedCompanyIds.includes(location.company?._id);
       }
@@ -27,44 +44,19 @@ const locationFilter = (state) => {
       if (state.searchTerm.length > 0) {
         return [
           item.name,
-          item.fullPath,
           item.description,
           item.address,
           item.company?.alias,
           item.company?.fullTitle,
-          item.subdivision?.name,
+          ...(item.subdivisions || []).map((s) => s?.name),
         ]
+          .filter(Boolean)
           .join(" ")
           .toLowerCase()
           .includes(state.searchTerm);
-      } else {
-        return true;
       }
+      return true;
     });
-};
-
-const searchItems = (query, items) => {
-  if (!query) return items;
-
-  const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
-
-  return items.filter((item) => {
-    const fieldsToSearch = [
-      item.name,
-      item.fullPath,
-      item.description,
-      item.address,
-      item.company?.alias,
-      item.company?.fullTitle,
-      item.subdivision?.name,
-    ];
-
-    return queryTerms.every((term) =>
-      fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term),
-      ),
-    );
-  });
 };
 
 const handleSorting = (selected, list) => {
@@ -101,11 +93,19 @@ const handleSorting = (selected, list) => {
   return sortedList;
 };
 
-const useLocationFilterStore = create((set) => ({
-  filterType: "all",
+// Дефолты фасетов Sheet-фильтра (для сброса — компанию и данные не трогаем).
+const FACET_DEFAULTS = {
   showWorkplaces: false,
-  selectedCompanyIds: [],
+  typeFilters: [],
+  status: "all",
+  publicOnly: false,
+  subdivision: null,
   searchTerm: "",
+};
+
+const useLocationFilterStore = create((set) => ({
+  selectedCompanyIds: [],
+  ...FACET_DEFAULTS,
   sortingOptions: [
     { label: "По названию" },
     { label: "По типу" },
@@ -118,11 +118,8 @@ const useLocationFilterStore = create((set) => ({
   isSorting: false,
   handleSorting: async (data) => {
     set({ isSorting: true });
-
     set({ sortBy: data });
-
     await new Promise((resolve) => setTimeout(resolve, 0));
-
     set((state) => {
       const sortedList = handleSorting(data, state.filteredList);
       return {
@@ -135,9 +132,13 @@ const useLocationFilterStore = create((set) => ({
   originalList: [],
   filteredList: [],
   fullTextSearch: (query) =>
-    set((state) => ({
-      filteredList: searchItems(query, locationFilter(state)),
-    })),
+    set((state) => {
+      const next = { ...state, searchTerm: query };
+      return {
+        searchTerm: query,
+        filteredList: locationFilter(next),
+      };
+    }),
   isLoading: false,
   fetch: async (companyParam = null) => {
     set({ isLoading: true });
@@ -167,14 +168,6 @@ const useLocationFilterStore = create((set) => ({
       isLoading: false,
     });
   },
-  setFilterType: (filterType) =>
-    set((state) => {
-      const newState = { ...state, filterType };
-      return {
-        filterType,
-        filteredList: locationFilter(newState),
-      };
-    }),
   setShowWorkplaces: (value) =>
     set((state) => ({
       showWorkplaces: value,
@@ -188,46 +181,26 @@ const useLocationFilterStore = create((set) => ({
         filteredList: locationFilter(newState),
       };
     }),
-  toggleCompany: (companyId) =>
-    set((state) => {
-      const newCompanyIds = state.selectedCompanyIds.includes(companyId)
-        ? state.selectedCompanyIds.filter((id) => id !== companyId)
-        : [...state.selectedCompanyIds, companyId];
-      const newState = { ...state, selectedCompanyIds: newCompanyIds };
-      return {
-        selectedCompanyIds: newCompanyIds,
-        filteredList: locationFilter(newState),
-      };
-    }),
 
-  updateFilter: (data) =>
+  // Универсальный патч фасетов + пересчёт списка с сортировкой.
+  updateFilter: (patch) =>
     set((state) => {
-      const newState = {
-        filterType: data.filterType || "all",
-        selectedCompanyIds: data.selectedCompanyIds || [],
-        searchTerm: data.searchTerm || "",
-        originalList: data.originalList || [],
-        isLoading: false,
-      };
-
-      const filteredList = locationFilter({ ...state, ...newState });
-      console.log(filteredList);
-      const sortedList = handleSorting(state.sortBy, filteredList);
-      return {
-        ...newState,
-        filteredList: sortedList || filteredList,
-      };
+      const next = { ...state, ...patch };
+      const filtered = locationFilter(next);
+      const sorted = handleSorting(state.sortBy, filtered);
+      return { ...patch, filteredList: sorted || filtered };
     }),
   applyFilter: () => set((state) => ({ filteredList: locationFilter(state) })),
-  resetFilter: () => {
-    set(() => ({
-      filterType: "all",
-      showWorkplaces: false,
-      selectedCompanyIds: [],
-      originalList: [],
-      filteredList: [],
-    }));
-  },
+  // Сброс — только фасеты Sheet + поиск; компания и загруженные данные остаются
+  // (иначе список без обязательного контекста опустеет).
+  resetFilter: () =>
+    set((state) => ({
+      ...FACET_DEFAULTS,
+      filteredList: locationFilter({
+        ...state,
+        ...FACET_DEFAULTS,
+      }),
+    })),
 }));
 
 export default useLocationFilterStore;

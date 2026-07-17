@@ -146,14 +146,14 @@ export const action = async ({ request, params }) => {
     name: formData.get("name"),
     type: formData.get("type"),
     company: formData.get("company"),
-    subdivision: formData.get("subdivision") || undefined,
+    // subdivisions в модели — массив; форма выбирает одно (hidden input) →
+    // getAll даёт [] или [id]
+    subdivisions: formData.getAll("subdivisions").filter(Boolean),
     parent: formData.get("parentLocation") || undefined,
     assignedUser: formData.get("assignedUser") || undefined,
     description: formData.get("description"),
     address: formData.get("address"),
-    floor: formData.get("floor") ? parseInt(formData.get("floor")) : null,
-    coordinates: formData.get("coordinates") || null,
-    isPublic: formData.get("isPublic") === "on",
+    isPublic: formData.get("isPublic") === "true",
   };
 
   const response = await fetch(
