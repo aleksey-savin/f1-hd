@@ -147,7 +147,7 @@ const AddDeviceAttributeModal = ({ show, onHide, onAttributeCreated }) => {
               Отмена
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Создание…" : "Создать"}
+              {isSubmitting ? "Сохранение…" : "Сохранить"}
             </Button>
           </DialogFooter>
         </form>

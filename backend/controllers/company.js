@@ -7,6 +7,8 @@ const ServicePlan = require("../models/finances/servicePlan");
 const Subdivision = require("../models/subdivision");
 const { Ticket } = require("../models/ticket");
 
+const Preferences = require("../models/preferences");
+
 const { AppError } = require("../middleware/errorHandling");
 const { generateApiKey } = require("../utils/apiKeyGenerator");
 const CompanyLog = require("../models/companyLog");
@@ -18,9 +20,17 @@ exports.getAll = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
 
-    const allCompanies = await Company.find({})
+    // По умолчанию — только активные компании: этим же эндпоинтом кормятся
+    // выпадашки форм (пользователь, локация, устройство), им отключённые не
+    // нужны. Страница «Компании» шлёт ?includeInactive=true и фасетит
+    // клиентски свитчем «Только активные».
+    const scope =
+      req.query.includeInactive === "true" ? {} : { isActive: { $ne: false } };
+
+    const allCompanies = await Company.find(scope)
       .populate({ path: "subdivisions", select: "name _id" })
-      .sort({ alias: 1 });
+      .sort({ alias: 1 })
+      .lean();
 
     const filteredCompanies = allCompanies.filter((company) => {
       if (
@@ -34,7 +44,24 @@ exports.getAll = async (req, res, next) => {
       }
     });
 
-    res.status(200).json(filteredCompanies);
+    // Списку не нужны тяжёлые вложенные массивы (users/employees/apiKeys…) —
+    // отдаём компактную проекцию со счётчиками; полные данные — в getOne.
+    const companies = filteredCompanies.map(
+      ({
+        users,
+        employees,
+        apiKeys,
+        clientsSideResponsibles,
+        servicePlans,
+        ...company
+      }) => ({
+        ...company,
+        usersCount: users?.length ?? 0,
+        servicePlansCount: servicePlans?.length ?? 0,
+      }),
+    );
+
+    res.status(200).json(companies);
   } catch (error) {
     next(new AppError("Failed to fetch all companies", 500, true, error));
   }
@@ -44,15 +71,19 @@ exports.getOne = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
 
-    const company = await Company.findById(req.params.id).populate({
-      path: "employees",
-      match: { isActive: true },
-      select: "_id firstName lastName email phone position role isActive",
-      populate: {
-        path: "subdivision",
-        select: "name",
-      },
-    });
+    const company = await Company.findById(req.params.id)
+      .populate({
+        path: "employees",
+        match: { isActive: true },
+        select: "_id firstName lastName email phone position role isActive",
+        populate: {
+          path: "subdivision",
+          select: "name",
+        },
+      })
+      // Имя актора для подвала карточки «Обновлено …, кем» — фразу собирает
+      // фронт, бэкенд отдаёт имена, а не ObjectId (см. ux-ui-guide).
+      .populate({ path: "updatedBy", select: "firstName lastName" });
 
     if (!company) {
       return next(new AppError(`Company ${req.params.id} not found`, 404));
@@ -169,6 +200,7 @@ exports.getOne = async (req, res, next) => {
           servicePlans.push({
             ...servicePlan,
             isActiveSince: plan.isActiveSince,
+            customerApprovalRequired: plan.customerApprovalRequired,
           });
         }
       }
@@ -191,7 +223,11 @@ exports.getStats = async (req, res, next) => {
   try {
     await getAuthData(req);
 
-    const stats = await companyStatsService.getCompanyStats(req.params.id);
+    // ?month=YYYY-MM — переключатель месяцев на карточке (прошлые месяцы)
+    const stats = await companyStatsService.getCompanyStats(
+      req.params.id,
+      req.query.month,
+    );
 
     res.status(200).json(stats);
   } catch (error) {
@@ -236,8 +272,13 @@ exports.add = async (req, res, next) => {
     const company = new Company({
       alias: alias,
       fullTitle: fullTitle,
-      emailDomains: emailDomains.replace(/\s/g, "").split(","),
-      phones: [phones],
+      emailDomains: (emailDomains || "")
+        .replace(/\s/g, "")
+        .split(",")
+        .filter(Boolean),
+      // Телефонов может быть несколько (tw-форма шлёт массив); одиночное
+      // значение легаси-формы тоже принимается
+      phones: (Array.isArray(phones) ? phones : [phones]).filter(Boolean),
       address: address,
       linkToMap: linkToMap,
       users: users,
@@ -268,15 +309,21 @@ exports.update = async (req, res, next) => {
       linkToMap,
       workSchedule,
       responsibles: respIds,
-      clientsSideResponsibles: clientsSideRespIds,
+      clientsSideResponsibles: clientsSideRespIds = [],
     } = req.body;
 
     const company = await Company.findById(req.params.id);
 
     company.alias = alias;
     company.fullTitle = fullTitle;
-    company.emailDomains = emailDomains.replace(/\s/g, "").split(",");
-    company.phones = [phones];
+    company.emailDomains = (emailDomains || "")
+      .replace(/\s/g, "")
+      .split(",")
+      .filter(Boolean);
+    // Массив телефонов (tw-форма); одиночное значение легаси тоже принимается
+    company.phones = (Array.isArray(phones) ? phones : [phones]).filter(
+      Boolean,
+    );
     company.address = address;
     company.linkToMap = linkToMap;
     company.workSchedule = workSchedule;
@@ -366,6 +413,60 @@ exports.delete = async (req, res, next) => {
     next(
       new AppError(
         `Failed to delete company ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Переключатель активности компании (по образцу user.toggleActive).
+// Отключение каскадит статус в денормализованные снапшоты user.company —
+// на нём держатся гейты isAuth/login и фильтры выдач пользователей.
+exports.toggleActive = async (req, res, next) => {
+  try {
+    const company = await Company.findById(req.params.id);
+    if (!company) {
+      return next(new AppError(`Company ${req.params.id} not found`, 404));
+    }
+
+    // isActive === false → включаем; true/отсутствует (старые доки) → выключаем
+    const nextActive = company.isActive === false;
+
+    // Компанию по умолчанию для входящих заявок отключать нельзя — на неё
+    // падают неопознанные письма/звонки (машинный фолбэк должен жить всегда)
+    if (!nextActive) {
+      const prefs = await Preferences.findOne({});
+      if (
+        prefs?.defaultCompany?._id &&
+        prefs.defaultCompany._id.toString() === company._id.toString()
+      ) {
+        return res.status(409).json({
+          error: true,
+          message:
+            "Компания назначена компанией по умолчанию для входящих заявок " +
+            "(Настройки → Сбор заявок). Сначала выберите другую компанию по умолчанию.",
+        });
+      }
+    }
+
+    company.isActive = nextActive;
+    await company.save();
+
+    await User.updateMany(
+      { "company._id": company._id },
+      { $set: { "company.isActive": nextActive } },
+    );
+
+    res.status(200).json({
+      message: "Company active status toggled",
+      isActive: company.isActive,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to toggle company ${req.params.id} active status`,
         500,
         true,
         error,
@@ -980,106 +1081,134 @@ exports.deleteApiKey = async (req, res, next) => {
   }
 };
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 exports.getCompanyLogs = async (req, res, next) => {
   try {
     const companyId = req.params.id;
-    const { page = 1, limit = 50, search } = req.query;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    // Терм экранируем и ограничиваем — сырой RegExp из ввода либо падал на
+    // спецсимволах, либо превращал запрос в скан коллекции
+    const search = String(req.query.search || "")
+      .trim()
+      .slice(0, 100);
 
-    const company = await Company.findById(companyId);
-    if (!company) {
+    const exists = await Company.exists({ _id: companyId });
+    if (!exists) {
       return next(new AppError("Компания не найдена", 404));
     }
 
-    const skip = (page - 1) * limit;
+    // Раньше поиск шёл ПОСЛЕ $lookup всех логов компании к users (и весь
+    // пайплайн выполнялся второй раз ради count) — на больших журналах это
+    // и было «долго ищет». Теперь: match по собственным полям лога + имя/почта
+    // связанного пользователя предзапросом id (у логов индекс userId), затем
+    // сортировка по индексу {companyId, createdAt} и populate только страницы.
+    const match = { companyId: new mongoose.Types.ObjectId(companyId) };
 
-    // Используем aggregation pipeline для поиска
-    const pipeline = [
-      {
-        $match: { companyId: new mongoose.Types.ObjectId(companyId) },
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "userId",
-          foreignField: "_id",
-          as: "userId",
-        },
-      },
-      {
-        $unwind: {
-          path: "$userId",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-    ];
-
-    // Добавляем поиск если указан параметр search
-    if (search && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), "i");
-      pipeline.push({
-        $match: {
-          $or: [
-            { activeDirectoryLogin: searchRegex },
-            { computerName: searchRegex },
-            { "userId.firstName": searchRegex },
-            { "userId.lastName": searchRegex },
-            { "userId.email": searchRegex },
-          ],
-        },
-      });
+    if (search) {
+      const searchRegex = new RegExp(escapeRegex(search), "i");
+      const or = [
+        { activeDirectoryLogin: searchRegex },
+        { computerName: searchRegex },
+      ];
+      const matchedUserIds = await User.find({
+        "company._id": companyId,
+        $or: [
+          { firstName: searchRegex },
+          { lastName: searchRegex },
+          { email: searchRegex },
+        ],
+      }).distinct("_id");
+      if (matchedUserIds.length > 0) {
+        or.push({ userId: { $in: matchedUserIds } });
+      }
+      match.$or = or;
     }
 
-    // Добавляем проекцию для выбора нужных полей
-    pipeline.push({
-      $project: {
-        companyId: 1,
-        activeDirectoryObjectGUID: 1,
-        activeDirectoryLogin: 1,
-        computerName: 1,
-        action: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        userId: {
-          $cond: {
-            if: { $eq: ["$userId", null] },
-            then: null,
-            else: {
-              _id: "$userId._id",
-              firstName: "$userId.firstName",
-              lastName: "$userId.lastName",
-              email: "$userId.email",
-            },
-          },
-        },
-      },
-    });
-
-    // Сортировка
-    pipeline.push({ $sort: { createdAt: -1 } });
-
-    // Для подсчета общего количества записей
-    const countPipeline = [...pipeline, { $count: "total" }];
-
-    // Добавляем пагинацию
-    pipeline.push({ $skip: skip }, { $limit: parseInt(limit) });
-
-    const [logs, countResult] = await Promise.all([
-      CompanyLog.aggregate(pipeline),
-      CompanyLog.aggregate(countPipeline),
+    const [logs, totalLogs] = await Promise.all([
+      CompanyLog.find(match)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate("userId", "firstName lastName email")
+        .lean(),
+      CompanyLog.countDocuments(match),
     ]);
-
-    const totalLogs = countResult.length > 0 ? countResult[0].total : 0;
 
     res.status(200).json({
       logs,
       pagination: {
-        current: parseInt(page),
-        total: Math.ceil(totalLogs / limit),
+        current: page,
+        total: Math.max(1, Math.ceil(totalLogs / limit)),
         count: totalLogs,
       },
     });
   } catch (error) {
     next(new AppError("Ошибка получения логов компании", 500, true, error));
+  }
+};
+
+// Панель «AD-учётки» лога активности: уникальные учётки компании (свежие имя
+// и логин, последний вход, число входов) со связанным пользователем. Отдельный
+// лёгкий агрегат — журнал ради списка учёток не листается.
+exports.getCompanyLogAccounts = async (req, res, next) => {
+  try {
+    const companyId = req.params.id;
+
+    const exists = await Company.exists({ _id: companyId });
+    if (!exists) {
+      return next(new AppError("Компания не найдена", 404));
+    }
+
+    // Сортировка до группировки идёт по индексу {companyId, createdAt};
+    // $first после неё отдаёт значения самой свежей записи учётки.
+    const accounts = await CompanyLog.aggregate([
+      { $match: { companyId: new mongoose.Types.ObjectId(companyId) } },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: "$activeDirectoryObjectGUID",
+          activeDirectoryLogin: { $first: "$activeDirectoryLogin" },
+          firstName: { $first: "$firstName" },
+          lastName: { $first: "$lastName" },
+          userId: { $first: "$userId" },
+          // Компьютер последнего входа — карта «кто за каким компьютером»
+          computerName: { $first: "$computerName" },
+          lastSeenAt: { $first: "$createdAt" },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { lastSeenAt: -1 } },
+    ]);
+
+    // Имена связанных пользователей — одним запросом (учёток немного)
+    const userIds = accounts
+      .map((account) => account.userId)
+      .filter(Boolean);
+    const users = await User.find({ _id: { $in: userIds } })
+      .select("firstName lastName email")
+      .lean();
+    const userById = new Map(users.map((user) => [user._id.toString(), user]));
+
+    res.status(200).json({
+      accounts: accounts.map((account) => ({
+        activeDirectoryObjectGUID: account._id,
+        activeDirectoryLogin: account.activeDirectoryLogin,
+        firstName: account.firstName || null,
+        lastName: account.lastName || null,
+        computerName: account.computerName || null,
+        lastSeenAt: account.lastSeenAt,
+        count: account.count,
+        user: account.userId
+          ? userById.get(account.userId.toString()) || null
+          : null,
+      })),
+    });
+  } catch (error) {
+    next(
+      new AppError("Ошибка получения AD-учёток компании", 500, true, error),
+    );
   }
 };
 

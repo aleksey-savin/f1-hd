@@ -2,78 +2,54 @@ import Form from "../../components/RoutineTask/Form";
 import { getLocalStorageData } from "../../util/auth";
 
 const AddRoutineTaskPage = () => {
-  return <Form title="Новое регламентное задание" />;
+  return <Form />;
 };
 
 export default AddRoutineTaskPage;
 
-export async function loader() {
-  document.title = "ДОБАВИТЬ РЕГЛАМЕНТНОЕ ЗАДАНИЕ";
+const authGet = (path, token) =>
+  fetch(`${import.meta.env.VITE_API_ADDRESS}/api/${path}`, {
+    headers: { Authorization: "Bearer " + token },
+  }).then((response) => {
+    if (!response.ok) throw response;
+    return response.json();
+  });
+
+export async function loader({ request }) {
+  document.title = "Новый регламент";
 
   const { token } = getLocalStorageData();
+  const fromTemplate = new URL(request.url).searchParams.get("fromTemplate");
 
-  const companiesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/companies`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
-
-  if (!companiesResponse.ok) {
-    throw companiesResponse;
-  }
-
-  const serviceAccountsResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
-
-  if (!serviceAccountsResponse.ok) {
-    throw serviceAccountsResponse;
-  }
-
-  const categoriesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
-
-  if (!categoriesResponse.ok) {
-    throw categoriesResponse;
-  }
+  const [companies, serviceAccounts, categories, templates, ticketFormData, prefillTemplate] =
+    await Promise.all([
+      authGet("companies", token),
+      authGet("form-data/service-accounts", token),
+      authGet("ticket-categories", token),
+      authGet("ticket-templates", token),
+      authGet("tickets/form-data", token),
+      fromTemplate
+        ? authGet(`ticket-templates/${fromTemplate}`, token)
+        : Promise.resolve(null),
+    ]);
 
   return {
     task: {},
-    companiesList: await companiesResponse.json(),
-    serviceAccounts: await serviceAccountsResponse.json(),
-    categoriesList: await categoriesResponse.json(),
+    formData: {
+      companies,
+      serviceAccounts,
+      categories,
+      templates,
+      responsibles: ticketFormData?.responsibles || [],
+    },
+    prefillTemplate,
   };
 }
 
 export async function action({ request }) {
   const { token } = getLocalStorageData();
 
-  const data = await request.formData();
-
-  const routineData = {
-    title: data.get("title"),
-    description: data.get("description"),
-    cronSchedule: data.get("cronSchedule"),
-    applicantId: data.get("applicant"),
-    companyId: data.get("company"),
-    categoryId: data.get("category"),
-    isActive: data.get("isActive") === "true",
-    checklist: data.getAll("checklist"),
-  };
+  const payload = await request.json();
 
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/routine-tasks/add`,
@@ -83,14 +59,17 @@ export async function action({ request }) {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
       },
-      body: JSON.stringify(routineData),
+      body: JSON.stringify(payload),
     },
   );
 
-  if ([400, 409].includes(response.status)) {
-    return response;
+  if (response.status === 400) {
+    const body = await response.json().catch(() => ({}));
+    return { error: true, message: body.message || "Проверьте расписание" };
   }
-
+  if (response.status === 409) {
+    return { error: true, message: "Конфликт версий — обновите страницу" };
+  }
   if (!response.ok) {
     throw response;
   }

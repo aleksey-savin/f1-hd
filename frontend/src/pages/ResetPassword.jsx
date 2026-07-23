@@ -61,7 +61,7 @@ export async function action({ request, params }) {
 
   if (password.length < 6) {
     return Response.json(
-      { error: true, message: "Минимальная длина пароля - 6 символов" },
+      { error: true, message: "Минимальная длина пароля — 6 символов" },
       { status: 400 },
     );
   }

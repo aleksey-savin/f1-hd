@@ -114,7 +114,7 @@ const ResetPasswordForm = () => {
                   }}
                 />
                 <Form.Control.Feedback type="invalid">
-                  Минимальная длина пароля - 6 символов
+                  Минимальная длина пароля — 6 символов
                 </Form.Control.Feedback>
               </FloatingLabel>
               <div style={{ alignSelf: "flex-start" }}>

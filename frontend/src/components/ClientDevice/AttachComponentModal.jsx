@@ -91,7 +91,7 @@ const AttachComponentModal = ({ show, onHide, device, onAttached }) => {
   return (
     <Modal show={show} onHide={onHide} centered>
       <Modal.Header closeButton>
-        <Modal.Title>Прикрепить комплектующее</Modal.Title>
+        <Modal.Title>Прикрепить комплектующую</Modal.Title>
       </Modal.Header>
       <Modal.Body>
         {error && <AlertMessage variant="danger" message={error} />}

@@ -1,227 +1,101 @@
-import { useState, useEffect, useMemo } from "react";
+import FilterContainer from "@/components/app/FilterContainer";
+import Field from "@/components/app/Field";
+import SwitchField from "@/components/app/SwitchField";
 
+import Select from "../../UI/Select";
 import useUserFilterStore from "../../store/lists/users";
 
-import FilterContainer from "../../UI/FilterContainer";
-
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Accordion from "react-bootstrap/Accordion";
-import AccordionHeader from "react-bootstrap/AccordionHeader";
-import Form from "react-bootstrap/Form";
-
-const lastActivityOptions = [
+// Sheet-фильтр адресной книги. Набор (Все/Сотрудники/Клиенты) — сегментом над
+// списком; здесь — компания (ключевой фасет), присутствие, активность и
+// параметры аккаунта. UI/Select внутри шторки работает через InsideOverlayContext.
+const ACTIVITY_OPTIONS = [
   { value: "any", label: "Любая" },
-  { value: "currentMonth", label: "Текущий месяц" },
-  { value: "currentYear", label: "Текущий год" },
-  { value: "inactive6m", label: "Не активны более 6 месяцев" },
+  { value: "currentMonth", label: "В этом месяце" },
+  { value: "currentYear", label: "В этом году" },
+  { value: "inactive6m", label: "Не обращались больше 6 месяцев" },
 ];
 
-const UserFilter = ({
-  setShowOffcanvas = () => {
-    return null;
-  },
-}) => {
-  const filterStore = useUserFilterStore();
-
-  const isActiveToggleHandler = () => {
-    filterStore.updateFilter({
-      ...filterStore,
-      isActive: !filterStore.isActive,
-    });
-    // Re-fetch from the backend: turning the toggle off loads inactive users,
-    // turning it on drops them again.
-    filterStore.fetch();
-  };
-
-  const companyToggleHandler = (event) => {
-    const value = event.target.value;
-    filterStore.updateFilter({
-      ...filterStore,
-      companies: !filterStore.companies?.includes(value)
-        ? [...filterStore.companies, value]
-        : filterStore.companies?.filter((company) => company !== value),
-    });
-    filterStore.applyFilter();
-  };
-
-  const lastActivityToggleHandler = (value) => {
-    filterStore.updateFilter({
-      ...filterStore,
-      lastActivityRange: value,
-    });
-    filterStore.applyFilter();
-  };
-
-  const timeTrackingToggleHandler = (event) => {
-    const value = event.target.value;
-    filterStore.updateFilter({
-      ...filterStore,
-      timeTrackingModule: !filterStore.timeTrackingModule.includes(value)
-        ? [...filterStore.timeTrackingModule, value]
-        : filterStore.timeTrackingModule.filter((item) => item !== value),
-    });
-    filterStore.applyFilter();
-  };
-
-  const resetFilterHandler = () => {
-    filterStore.resetFilter();
-  };
-
-  // Количество пользователей по компании в текущей выборке
-  const getCompanyCount = (companyId) =>
-    filterStore.filteredList?.filter(
-      (user) => user.company?._id?.toString() === companyId,
-    ).length;
-
-  // Список компаний из всего списка пользователей без дублей
-  const [companies, setCompanies] = useState([]);
-
-  useEffect(() => {
-    const array = [];
-    filterStore.originalList?.forEach((item) => {
-      const id = item.company?._id?.toString();
-      if (id && !array.some((company) => company._id === id)) {
-        array.push({ _id: id, alias: item.company?.alias });
-      }
-    });
-    setCompanies(array.sort((a, b) => a.alias?.localeCompare(b.alias)));
-  }, [filterStore.originalList]);
-
-  const sortedCompanies = useMemo(() => {
-    return [...companies].sort((a, b) => {
-      const aChecked = filterStore.companies?.includes(a._id);
-      const bChecked = filterStore.companies?.includes(b._id);
-      if (aChecked === bChecked) return 0;
-      return aChecked ? -1 : 1;
-    });
-  }, [companies, filterStore.companies]);
-
-  const timeTrackingModulePermissionsFilter = [
-    {
-      value: "canUseTimeTrackingModule",
-      label: "Разрешено использование модуля",
-      className: `py-2 ${filterStore.timeTrackingModule?.includes("canUseTimeTrackingModule") ? "text-info" : ""}`,
-    },
-    {
-      value: "canAvoidWorks",
-      label: "Можно не указывать работы",
-      className: `py-2 ${filterStore.timeTrackingModule?.includes("canAvoidWorks") ? "text-info" : ""}`,
-    },
-    {
-      value: "canSeeWorksReport",
-      label: "Формирование и просмотр отчёта по работам",
-      className: `py-2 ${filterStore.timeTrackingModule?.includes("canSeeWorksReport") ? "text-info" : ""}`,
-    },
-    {
-      value: "canSeeAnalytics",
-      label: "Просмотр аналитики и трендов",
-      className: `py-2 ${filterStore.timeTrackingModule?.includes("canSeeAnalytics") ? "text-info" : ""}`,
-    },
-  ];
+const UserFilter = () => {
+  const s = useUserFilterStore();
+  // присутствие есть только у сотрудников — в наборе «Клиенты» фасет прячем
+  const presenceRelevant = s.audience !== "clients";
+  const companyOption =
+    s.companyOptions.find((option) => option.value === s.company) ?? null;
 
   return (
-    <FilterContainer
-      setShowOffcanvas={setShowOffcanvas}
-      resetFilterHandler={resetFilterHandler}
-    >
-      <Row className="py-2">
-        <Col>
-          <Form.Check
-            type="switch"
-            id="is-active"
-            label="Только активные"
-            value={filterStore.isActive}
-            checked={filterStore.isActive}
-            onChange={isActiveToggleHandler}
-          />
-        </Col>
-      </Row>
-      <Accordion className="py-2" defaultActiveKey="0">
-        <Accordion.Item eventKey="0">
-          <AccordionHeader>
-            <span
-              className={`${filterStore.companies?.length > 0 ? "text-info" : ""}`}
-            >
-              Компании{" "}
-              {filterStore.companies?.length > 0 &&
-                `(${filterStore.companies.length})`}
-            </span>
-          </AccordionHeader>
-          <Accordion.Body style={{ maxHeight: "300px", overflowY: "auto" }}>
-            {sortedCompanies.map((company) => (
-              <Form.Check
-                key={company._id}
-                className={`
-                  ${filterStore.companies?.includes(company._id) ? "text-info" : ""}
-                  ${getCompanyCount(company._id) === 0 ? "text-secondary" : ""} py-2`}
-                label={`${company.alias} (${getCompanyCount(company._id)})`}
-                value={company._id}
-                id={`company-${company._id}`}
-                checked={filterStore.companies?.includes(company._id)}
-                type="checkbox"
-                name="filter-group-companies"
-                onChange={companyToggleHandler}
-              />
-            ))}
-          </Accordion.Body>
-        </Accordion.Item>
-      </Accordion>
-      <Accordion className="py-2">
-        <Accordion.Item eventKey="0">
-          <AccordionHeader>
-            <span
-              className={`${filterStore.lastActivityRange !== "any" ? "text-info" : ""}`}
-            >
-              Последняя активность
-            </span>
-          </AccordionHeader>
-          <Accordion.Body>
-            {lastActivityOptions.map((item) => (
-              <Form.Check
-                key={item.value}
-                className={`py-2 ${filterStore.lastActivityRange === item.value ? "text-info" : ""}`}
-                label={item.label}
-                value={item.value}
-                id={`last-activity-${item.value}`}
-                checked={filterStore.lastActivityRange === item.value}
-                type="radio"
-                name="filter-group-last-activity"
-                onChange={() => lastActivityToggleHandler(item.value)}
-              />
-            ))}
-          </Accordion.Body>
-        </Accordion.Item>
-      </Accordion>
-      <Accordion className="py-2">
-        <Accordion.Item eventKey="0">
-          <Accordion.Header>
-            <span
-              className={`${filterStore.timeTrackingModule?.length > 0 ? "text-info" : ""}`}
-            >
-              Модуль учёта времени
-            </span>
-          </Accordion.Header>
-          <Accordion.Body style={{ maxHeight: "100svh", overflowY: "auto" }}>
-            {timeTrackingModulePermissionsFilter.map((item) => {
-              return (
-                <Form.Check
-                  key={item.value}
-                  className={item.className}
-                  label={`${item.label}`}
-                  value={item.value}
-                  id={`time-tracking-${item.value}`}
-                  checked={filterStore.timeTrackingModule?.includes(item.value)}
-                  type="checkbox"
-                  name="filter-group-responsibles"
-                  onChange={timeTrackingToggleHandler}
-                />
-              );
-            })}
-          </Accordion.Body>
-        </Accordion.Item>
-      </Accordion>
+    <FilterContainer resetFilterHandler={s.resetFilter}>
+      <Field label="Компания" htmlFor="filter-company">
+        <Select
+          id="filter-company"
+          placeholder="Все компании"
+          isClearable
+          closeMenuOnSelect
+          value={companyOption}
+          options={s.companyOptions}
+          getOptionLabel={(option) => option.label}
+          getOptionValue={(option) => option.value}
+          onChange={(option) => s.setCompany(option?.value ?? null)}
+        />
+      </Field>
+
+      {s.company && (
+        <SwitchField
+          id="filter-group-subdivision"
+          checked={!!s.groupBySubdivision}
+          onCheckedChange={() => s.toggleGroupBySubdivision()}
+          label="Группировать по подразделению"
+          hint="Разбить людей выбранной компании на подразделения."
+        />
+      )}
+
+      {presenceRelevant && (
+        <SwitchField
+          id="filter-online"
+          checked={!!s.online}
+          onCheckedChange={(value) => s.updateFilter({ online: value })}
+          label="Только на связи"
+          hint="В офисе, на удалёнке или на выезде. Только сотрудники."
+          divider
+        />
+      )}
+
+      <Field
+        label="Последняя активность"
+        htmlFor="filter-activity"
+        className="tw:mt-2"
+      >
+        <Select
+          id="filter-activity"
+          placeholder="Любая"
+          closeMenuOnSelect
+          value={ACTIVITY_OPTIONS.filter(
+            (option) => option.value === (s.activity || "any"),
+          )}
+          options={ACTIVITY_OPTIONS}
+          getOptionLabel={(option) => option.label}
+          getOptionValue={(option) => option.value}
+          onChange={(option) =>
+            s.updateFilter({ activity: option?.value ?? "any" })
+          }
+        />
+      </Field>
+
+      <SwitchField
+        id="filter-active"
+        checked={!!s.activeOnly}
+        onCheckedChange={(value) => s.updateFilter({ activeOnly: value })}
+        label="Только активные"
+        divider
+      />
+      <SwitchField
+        id="filter-service"
+        checked={!!s.includeService}
+        onCheckedChange={(value) => s.updateFilter({ includeService: value })}
+        label="Показывать служебные"
+        hint="Сервисные аккаунты и телефония."
+      />
     </FilterContainer>
   );
 };
+
 export default UserFilter;

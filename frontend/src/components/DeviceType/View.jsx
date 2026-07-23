@@ -618,7 +618,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
         {canManage && (
           <Button asChild size="sm">
             <Link to={addModelTo} onClick={offcanvas.setShow}>
-              <RiAddFill /> Добавить модель
+              <RiAddFill /> Новая модель
             </Link>
           </Button>
         )}
@@ -642,7 +642,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
             {canManage && (
               <Button asChild className="tw:mt-2">
                 <Link to={addModelTo} onClick={offcanvas.setShow}>
-                  <RiAddFill /> Добавить модель
+                  <RiAddFill /> Новая модель
                 </Link>
               </Button>
             )}

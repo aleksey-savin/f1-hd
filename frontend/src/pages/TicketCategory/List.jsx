@@ -67,7 +67,7 @@ const TicketCategories = () => {
       title={() => "Категории заявок"}
       filterStore={filterStore}
       addRoute="/ticket-categories/add"
-      addLabel="Добавить категорию"
+      addLabel="Новая категория"
       filter={<TicketCategoryFilter />}
       filterActive={activeFilters.length > 0}
       activeFilters={activeFilters}
@@ -80,7 +80,7 @@ const TicketCategories = () => {
 export default TicketCategories;
 
 export async function loader() {
-  document.title = "КАТЕГОРИИ ЗАЯВОК";
+  document.title = "Категории заявок";
 
   return null;
 }

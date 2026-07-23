@@ -306,7 +306,7 @@ const ParametersModal = ({ device, show, onClose, onSaved }) => {
 
               <div className="d-flex justify-content-end gap-2 pt-3 mt-3 border-top">
                 <Button variant="secondary" onClick={onClose}>
-                  Закрыть
+                  Отмена
                 </Button>
                 <Button variant="primary" type="submit" disabled={isSaving}>
                   {isSaving ? (

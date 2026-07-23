@@ -14,6 +14,14 @@ const companySchema = new Schema(
       type: String,
       required: true,
     },
+    // Активность компании: false — обслуживание прекращено (вход её
+    // пользователей, машинные каналы и выдачи гасятся). У документов до
+    // фичи поля нет, поэтому в запросах фильтруем `isActive: { $ne: false }`
+    // (отсутствие = активна, бэкфил не нужен).
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
     profileImagePath: String,
     emailDomains: [
       {

@@ -1,368 +1,134 @@
-import { useState, useContext, useEffect } from "react";
-import { useLoaderData, useFetcher } from "react-router";
-import { RiArchiveLine } from "react-icons/ri";
-import DateRangePicker from "../../UI/DateRangePicker/DateRangePicker";
-import "react-datepicker/dist/react-datepicker.css";
+import { useEffect } from "react";
+import { useLoaderData } from "react-router";
 
-import Select from "../../UI/Select";
-import Transitions from "../../animations/Transition";
-import { toDateInputValue } from "../../util/format-date";
-import Spinner from "../../animations/Spinner";
+import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
+import ListWrapper from "@/components/app/ListWrapper";
+import Pager from "@/components/app/Pager";
 
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Form from "react-bootstrap/Form";
-import Button from "react-bootstrap/Button";
-import Table from "react-bootstrap/Table";
-import Card from "react-bootstrap/Card";
-
-import { formatShortDate } from "../../util/format-date";
+import useClosedTicketsStore from "../../store/lists/closed-tickets";
 import { getLocalStorageData } from "../../util/auth";
-import { AuthedUserContext } from "../../store/authed-user-context";
+
+import ArchiveFilter from "../../components/Ticket/ArchiveFilter";
+import ArchiveItem from "../../components/Ticket/ArchiveItem";
+
+// «Архив заявок» — список на серверной выборке: открывается сразу (без
+// обязательных фильтров), «Сначала недавние» по 50 на страницу; серверный
+// поиск по номеру/теме/инициатору/описанию; фильтры — Sheet + чип «Компании».
+// Клик по строке открывает заявку в новой вкладке (выдача остаётся на месте).
+
+// yyyy-MM-dd (значение нативного поля даты) → dd.MM.yyyy для бейджа
+const formatBadgeDate = (isoDay) => isoDay.split("-").reverse().join(".");
 
 const TicketsArchive = () => {
-  const { isEndUser } = useContext(AuthedUserContext);
-  const { token } = getLocalStorageData();
-  const fetcher = useFetcher();
+  const s = useClosedTicketsStore();
+  const formData = useLoaderData();
 
-  const data = useLoaderData();
-  const formData = data || {};
-
-  const [dateRange, setDateRange] = useState([null, null]);
-  const [startDate, endDate] = dateRange;
-
-  const [tickets, setTickets] = useState([]);
-  const [selectedCompanies, setSelectedCompanies] = useState(
-    formData.companies?.length === 1 ? [formData.companies[0]] : [],
-  );
-  const [selectedResponsibles, setSelectedResponsibles] = useState(
-    formData.responsibles?.length === 1 ? [formData.responsibles[0]] : [],
-  );
-  const [allApplicants, setAllApplicants] = useState([]);
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [selectedApplicants, setSelectedApplicants] = useState([]);
-
-  const isLoading =
-    fetcher.state === "submitting" || fetcher.state === "loading";
-
+  // Опции фасетов из loader (form-data, включая отключённые компании)
   useEffect(() => {
-    if (selectedCompanies.length === 0) {
-      return;
-    }
+    s.setOptions(formData);
+  }, [formData]);
 
-    const companyIds = selectedCompanies.map((company) => company._id);
+  // Первичная загрузка; фильтры/сортировка/страницы делают запросы сами
+  useEffect(() => {
+    s.fetch();
+  }, []);
 
-    setAllApplicants([
-      ...formData.applicants.filter((applicant) =>
-        companyIds.includes(applicant.company._id.toString()),
-      ),
-      ...formData.responsibles,
-    ]);
-  }, [formData.applicants, selectedCompanies, token]);
+  const optionLabel = (key, id) =>
+    s.options[key].find((option) => option.value === id)?.label ?? "выбрано";
 
-  const submitHandler = (event) => {
-    event.preventDefault();
-
-    const filterData = {
-      // Календарный день из датапикера — НЕ через toISOString (это UTC-день:
-      // для восточных поясов диапазон уезжал на день назад).
-      from: toDateInputValue(startDate),
-      to: toDateInputValue(endDate),
-      companies: JSON.stringify(
-        selectedCompanies.map((company) => company._id),
-      ),
-      responsibles: JSON.stringify(
-        selectedResponsibles.map((resp) => resp._id),
-      ),
-      categories: JSON.stringify(selectedCategories.map((cat) => cat._id)),
-      applicants: JSON.stringify(selectedApplicants.map((app) => app._id)),
-      token,
-    };
-
-    fetcher.submit(filterData, {
-      method: "post",
-      action: "/closed-tickets",
+  // Применённые фильтры → липкий остров снимаемых бейджей
+  const activeFilters = [];
+  if (s.from || s.to)
+    activeFilters.push({
+      key: "period",
+      label:
+        s.from && s.to
+          ? `Закрыта: ${formatBadgeDate(s.from)} – ${formatBadgeDate(s.to)}`
+          : s.from
+            ? `Закрыта с ${formatBadgeDate(s.from)}`
+            : `Закрыта по ${formatBadgeDate(s.to)}`,
+      onRemove: () => s.updateFilter({ from: "", to: "" }),
+    });
+  const facetBadge = (key, one, many) => {
+    if (!s[key].length) return;
+    activeFilters.push({
+      key,
+      label:
+        s[key].length === 1
+          ? `${one}: ${optionLabel(key, s[key][0])}`
+          : `${many}: ${s[key].length}`,
+      onRemove: () => s.updateFilter({ [key]: [] }),
     });
   };
+  facetBadge("companies", "Компания", "Компании");
+  facetBadge("applicants", "Инициатор", "Инициаторы");
+  facetBadge("responsibles", "Ответственный", "Ответственные");
+  facetBadge("categories", "Категория", "Категории");
 
-  // Update tickets when fetch completes
-  useEffect(() => {
-    if (fetcher.data && fetcher.data.tickets && !isLoading) {
-      setTickets(
-        fetcher.data.tickets.map((ticket) => ({
-          _id: ticket._id,
-          num: ticket.num,
-          title: ticket.title,
-          applicant: ticket.applicant || {
-            lastName: "Пользователь не найден",
-            firstName: "",
-          },
-          category: ticket.category || { title: "Не указана" },
-          responsibles: ticket.responsibles,
-          createdAt: ticket.createdAt,
-          finishedAt: ticket.finishedAt,
-        })),
-      );
-    }
-  }, [fetcher.data, isLoading]);
+  const hasActiveQuery = activeFilters.length > 0 || !!s.searchTerm;
+
+  // Быстрый фасет «Компании» — только десктоп; на мобайле живёт в шторке
+  const toolbar = (
+    <span className="tw:hidden tw:md:contents">
+      <ChipMultiCombobox
+        placeholder="Компании"
+        searchPlaceholder="Найти компанию…"
+        countLabel={(count) => `Компании: ${count}`}
+        value={s.companies}
+        options={s.options.companies}
+        onChange={(value) => s.updateFilter({ companies: value })}
+      />
+    </span>
+  );
 
   return (
-    <Transitions>
-      <h1 className="display-4">
-        <RiArchiveLine /> Архив заявок
-      </h1>
-      <hr />
-
-      <Card className="mb-4 shadow-sm">
-        <Card.Body>
-          <Form onSubmit={submitHandler}>
-            <Row>
-              <Col md={6} lg={4}>
-                <DateRangePicker
-                  label="Период"
-                  startDate={startDate}
-                  endDate={endDate}
-                  onChange={(update) => setDateRange(update)}
-                  required
-                  className="mb-3"
-                />
-              </Col>
-            </Row>
-            <Row>
-              {formData.companies?.length > 1 && (
-                <Col md={6} lg={4}>
-                  <Form.Group className="mb-3">
-                    <Form.Label htmlFor="companies">Компании</Form.Label>
-                    <Select
-                      id="companies"
-                      placeholder="Выберите компании"
-                      required
-                      isMulti
-                      isClearable
-                      isSearchable
-                      defaultValue={
-                        formData.companies?.length === 1
-                          ? [formData.companies[0]]
-                          : []
-                      }
-                      options={formData.companies}
-                      getOptionLabel={(option) => `${option.alias}`}
-                      getOptionValue={(option) => option._id}
-                      onChange={(selected) =>
-                        setSelectedCompanies(selected || [])
-                      }
-                    />
-                  </Form.Group>
-                </Col>
-              )}
-              {formData.applicants?.length > 1 && (
-                <Col md={6} lg={4}>
-                  <Form.Group className="mb-3">
-                    <Form.Label htmlFor="applicants">Инициаторы</Form.Label>
-                    <Select
-                      id="applicants"
-                      placeholder="Выберите инициаторов"
-                      isMulti
-                      isClearable
-                      isSearchable
-                      options={allApplicants}
-                      getOptionLabel={(option) =>
-                        `${option.lastName} ${option.firstName}`
-                      }
-                      getOptionValue={(option) => option._id}
-                      onChange={(selected) =>
-                        setSelectedApplicants(selected || [])
-                      }
-                    />
-                  </Form.Group>
-                </Col>
-              )}
-              {!isEndUser && (
-                <>
-                  {formData.responsibles.length > 1 && (
-                    <Col md={6} lg={4}>
-                      <Form.Group className="mb-3">
-                        <Form.Label htmlFor="responsibles">
-                          Ответственные за выполнение
-                        </Form.Label>
-                        <Select
-                          id="responsibles"
-                          placeholder="Выберите ответственных"
-                          isMulti
-                          isClearable
-                          isSearchable
-                          options={formData.responsibles}
-                          defaultValue={
-                            formData.responsibles?.length === 1
-                              ? [formData.responsibles[0]]
-                              : []
-                          }
-                          getOptionLabel={(option) =>
-                            `${option.lastName} ${option.firstName}`
-                          }
-                          getOptionValue={(option) => option._id}
-                          onChange={(selected) =>
-                            setSelectedResponsibles(selected || [])
-                          }
-                        />
-                      </Form.Group>
-                    </Col>
-                  )}
-                  {formData.categories?.length > 1 && (
-                    <Col md={6} lg={4}>
-                      <Form.Group className="mb-3">
-                        <Form.Label htmlFor="categories">Категории</Form.Label>
-                        <Select
-                          id="categories"
-                          placeholder="Выберите категории"
-                          isMulti
-                          isClearable
-                          isSearchable
-                          options={formData.categories}
-                          getOptionLabel={(option) => option.title}
-                          getOptionValue={(option) => option._id}
-                          onChange={(selected) =>
-                            setSelectedCategories(selected || [])
-                          }
-                        />
-                      </Form.Group>
-                    </Col>
-                  )}
-                </>
-              )}
-            </Row>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Загрузка..." : "Применить фильтр"}
-            </Button>
-          </Form>
-        </Card.Body>
-      </Card>
-
-      {isLoading && (
-        <div className="text-center py-5">
-          <Spinner />
-        </div>
-      )}
-
-      {!isLoading && tickets.length > 0 && (
-        <Transitions>
-          <Card className="shadow-sm">
-            <Card.Body>
-              <div className="table-responsive">
-                <Table striped hover className="mb-0 sortable">
-                  <thead className="table-light">
-                    <tr>
-                      <th>№</th>
-                      <th>Тема</th>
-                      <th>Категория</th>
-                      <th>Инициатор</th>
-                      <th>Ответственные</th>
-                      <th>Создана</th>
-                      <th>Закрыта</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tickets.map((ticket) => (
-                      <tr key={ticket._id}>
-                        <td>
-                          <a
-                            href={`/tickets/${ticket.num}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="fw-bold"
-                          >
-                            {ticket.num}
-                          </a>
-                        </td>
-                        <td>{ticket.title}</td>
-                        <td>{ticket.category?.title}</td>
-                        <td>
-                          {`${ticket.applicant?.lastName} ${ticket.applicant?.firstName}`}
-                        </td>
-                        <td>
-                          {ticket.responsibles?.map((user, index, array) =>
-                            index === array.length - 1
-                              ? `${user.lastName} ${user.firstName}`
-                              : `${user.lastName} ${user.firstName}, `,
-                          )}
-                        </td>
-                        <td>{formatShortDate(ticket.createdAt)}</td>
-                        <td>{formatShortDate(ticket.finishedAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="table-light">
-                    <tr>
-                      <td colSpan={6}>
-                        <strong>Всего:</strong>
-                      </td>
-                      <td data-cell="всего">
-                        <strong>{tickets.length}</strong>
-                      </td>
-                    </tr>
-                  </tfoot>
-                </Table>
-              </div>
-            </Card.Body>
-          </Card>
-        </Transitions>
-      )}
-
-      {!isLoading && tickets.length === 0 && fetcher.data && (
-        <div className="text-center py-5">
-          <p className="text-muted">Заявки не найдены</p>
-        </div>
-      )}
-    </Transitions>
+    <ListWrapper
+      title={() => "Архив заявок"}
+      count={s.total}
+      hasActiveQuery={hasActiveQuery}
+      filterStore={s}
+      filter={<ArchiveFilter />}
+      filterActive={activeFilters.length > 0}
+      activeFilters={activeFilters}
+      toolbar={toolbar}
+      searchPlaceholder="Найти в архиве…"
+      showAddButton={false}
+      renderOutlet={false}
+      belowList={
+        <Pager
+          page={s.page}
+          pageSize={s.pageSize}
+          total={s.total}
+          loaded={s.items.length}
+          onPage={(page) => s.setPage(page)}
+          onLoadMore={() => s.loadMore()}
+        />
+      }
+    >
+      <div>
+        {s.items.map((ticket) => (
+          <ArchiveItem key={ticket._id} ticket={ticket} />
+        ))}
+      </div>
+    </ListWrapper>
   );
 };
 
 export default TicketsArchive;
 
 export async function loader() {
-  document.title = "АРХИВ ЗАЯВОК";
+  document.title = "Архив заявок";
 
   const { token } = getLocalStorageData();
 
+  // Архив — исключение: отключённые компании и их заявители нужны в фильтрах,
+  // чтобы искать по истории (обычные формы получают только активные)
   const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/form-data`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/form-data?includeInactive=true`,
     {
       headers: {
         Authorization: "Bearer " + token,
       },
-    },
-  );
-
-  if (!response.ok) {
-    throw response;
-  }
-
-  return response;
-}
-
-export async function action({ request }) {
-  const formData = await request.formData();
-  const token = formData.get("token");
-
-  // Create an object with the filter data
-  const filterData = {
-    from: formData.get("from"),
-    to: formData.get("to"),
-    companies: JSON.parse(formData.get("companies") || "[]"),
-    responsibles: JSON.parse(formData.get("responsibles") || "[]"),
-    categories: JSON.parse(formData.get("categories") || "[]"),
-    applicants: JSON.parse(formData.get("applicants") || "[]"),
-  };
-
-  const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/closed`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
-      body: JSON.stringify(filterData),
     },
   );
 

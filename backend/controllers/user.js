@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
@@ -18,7 +19,6 @@ const TicketCategory = require("../models/ticketCategory");
 const Prefs = require("../models/preferences");
 const Location = require("../models/inventory/location");
 const CompanyLog = require("../models/companyLog");
-const { Ticket } = require("../models/ticket");
 
 // Финансовые поля пользователя (оклад, ставка переработок)
 const toNonNegativeOrNull = (value) => {
@@ -32,94 +32,281 @@ const toNonNegativeOrNull = (value) => {
 const canManageFinances = (caller) =>
   Boolean(caller.isAdmin || caller.permissions?.canSeeGlobalFinancialReport);
 
+// Список «Пользователи» как адресная книга: серверный поиск/скоуп/фасеты/
+// сортировка/пагинация. Поля, по которым ищем (каждый терм должен встретиться
+// в одном из них); статусы присутствия, считающиеся «на связи».
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const PRESENCE_ONLINE = ["office", "remote", "trip"];
+const USER_SEARCH_FIELDS = [
+  "firstName",
+  "lastName",
+  "email",
+  "phone",
+  "position",
+  "company.alias",
+  "role",
+];
+const USERS_PAGE_LIMIT_DEFAULT = 30;
+const USERS_PAGE_LIMIT_MAX = 100;
+
 exports.getAll = async (req, res, next) => {
   try {
     const { userId } = await getAuthData(req);
-    const authedUser = await User.findById(userId);
+    // lean: responsibleForCompanies[].id — реальное поле (ref компании). На
+    // Mongoose-документе его затеняет виртуальный геттер id (= _id субдока),
+    // из-за чего старый скоуп сравнивал по auto-_id субдока и не совпадал;
+    // на plain-объекте читаем сохранённый id компании.
+    const authedUser = await User.findById(userId).lean();
+    if (!authedUser) {
+      return next(new AppError("Unauthorized", 401));
+    }
 
-    // When the "only active" toggle is on, the frontend asks for active users
-    // only — inactive accounts are not loaded until the toggle is turned off.
-    const query = req.query.activeOnly === "true" ? { isActive: true } : {};
-    const allUsers = await User.find(query).sort({ lastName: 1 });
+    const q = req.query;
+    const match = {};
+    const and = [];
 
-    const filteredUsers = allUsers.filter((user) => {
-      if (
-        authedUser.responsibleForCompanies
-          .map((company) => company._id.toString())
-          .includes(user.company._id.toString()) ||
-        authedUser.permissions.canAdministrateTickets ||
-        authedUser.isAdmin
-      ) {
-        return user;
+    // 1) Скоуп по правам — в самом запросе (раньше выбирались все и фильтровались
+    // в JS). Админ и обладатель canAdministrateTickets видят всех; остальные —
+    // только пользователей компаний, за которые отвечают (company._id встроен,
+    // индексируемое совпадение без $lookup).
+    const canSeeAll = Boolean(
+      authedUser.isAdmin || authedUser.permissions?.canAdministrateTickets,
+    );
+    const scopedCompanyIds = canSeeAll
+      ? null
+      : (authedUser.responsibleForCompanies || [])
+          .map((company) => company.id)
+          .filter(Boolean);
+
+    // 2) Компания-фасет (одиночный выбор) — с учётом скоупа.
+    const companyFilterId =
+      q.company && mongoose.isValidObjectId(q.company)
+        ? new mongoose.Types.ObjectId(q.company)
+        : null;
+    if (companyFilterId) {
+      const withinScope =
+        canSeeAll ||
+        scopedCompanyIds.some((id) => id.equals(companyFilterId));
+      match["company._id"] = withinScope ? companyFilterId : { $in: [] };
+    } else if (scopedCompanyIds) {
+      match["company._id"] = { $in: scopedCompanyIds };
+    }
+
+    // 3) Набор: сотрудники / клиенты / все
+    if (q.audience === "staff") match.isEndUser = false;
+    else if (q.audience === "clients") match.isEndUser = true;
+
+    // 4) Служебные аккаунты и телефония по умолчанию скрыты (не «люди»).
+    if (q.includeService !== "true") {
+      match.isServiceAccount = { $ne: true };
+      match.isCloudTelephony = { $ne: true };
+    }
+
+    // 5) Только активные (по умолчанию тумблер на клиенте включён):
+    // активен сам пользователь И его компания (денорм. снапшот; $ne — у
+    // сотрудников без компании поля нет). Снятый тумблер показывает и
+    // отключённых людей, и людей отключённых компаний.
+    if (q.activeOnly === "true") {
+      match.isActive = true;
+      match["company.isActive"] = { $ne: false };
+    }
+
+    // 6) «Сейчас на связи» — только сотрудники со статусом присутствия.
+    if (q.online === "true") {
+      match.isEndUser = false;
+      match["workStatus.code"] = { $in: PRESENCE_ONLINE };
+    }
+
+    // 7) Последняя активность (по денормализованному lastActivityAt).
+    const now = new Date();
+    if (q.activity === "currentMonth") {
+      match.lastActivityAt = {
+        $gte: new Date(now.getFullYear(), now.getMonth(), 1),
+      };
+    } else if (q.activity === "currentYear") {
+      match.lastActivityAt = { $gte: new Date(now.getFullYear(), 0, 1) };
+    } else if (q.activity === "inactive6m") {
+      const sixMonthsAgo = new Date(now);
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      // «никогда не обращались» (нет lastActivityAt) тоже считаются неактивными
+      and.push({
+        $or: [{ lastActivityAt: { $lt: sixMonthsAgo } }, { lastActivityAt: null }],
+      });
+    }
+
+    // 8) Поиск: каждый терм должен встретиться хотя бы в одном поле (терм
+    // экранируется и ограничивается по длине/количеству — иначе «.*» в запросе
+    // превращается в скан).
+    if (typeof q.search === "string" && q.search.trim()) {
+      const terms = q.search.trim().split(/\s+/).filter(Boolean).slice(0, 6);
+      for (const term of terms) {
+        const rx = new RegExp(escapeRegex(term.slice(0, 64)), "i");
+        and.push({ $or: USER_SEARCH_FIELDS.map((field) => ({ [field]: rx })) });
       }
-    });
+    }
 
-    // Last activity = latest ticket created by each user. One aggregation finds
-    // the newest ticket per applicant instead of querying per user (same pattern
-    // as company.js employee lastActivity).
-    const userIds = filteredUsers.map((user) => user._id);
+    if (and.length) match.$and = and;
 
-    const latestTickets = await Ticket.aggregate([
+    // Сортировка
+    const sortKey = ["name", "recent", "created", "online"].includes(q.sort)
+      ? q.sort
+      : "name";
+    const sortSpec =
       {
-        $match: {
-          $or: [
-            { applicantId: { $in: userIds } },
-            { "applicant._id": { $in: userIds } },
-          ],
+        name: { lastName: 1, firstName: 1, _id: 1 },
+        recent: { lastActivityAt: -1, _id: 1 },
+        created: { createdAt: -1, _id: 1 },
+        online: { _presenceRank: 1, lastName: 1, _id: 1 },
+      }[sortKey] || { lastName: 1, firstName: 1, _id: 1 };
+
+    // Пагинация (в режиме группировки по подразделению одна компания отдаётся
+    // целиком — all=true, без skip/limit).
+    const grouped = q.all === "true";
+    const limit = Math.min(
+      Number(q.limit) || USERS_PAGE_LIMIT_DEFAULT,
+      USERS_PAGE_LIMIT_MAX,
+    );
+    const page = Math.max(Number(q.page) || 1, 1);
+
+    const pipeline = [{ $match: match }];
+    if (sortKey === "online") {
+      // Ранг присутствия: на связи → отошёл → не указан → недоступен.
+      pipeline.push({
+        $addFields: {
+          _presenceRank: {
+            $switch: {
+              branches: [
+                { case: { $in: ["$workStatus.code", PRESENCE_ONLINE] }, then: 0 },
+                { case: { $eq: ["$workStatus.code", "lunch"] }, then: 1 },
+                {
+                  case: { $in: ["$workStatus.code", ["vacation", "sick"]] },
+                  then: 3,
+                },
+              ],
+              default: 2,
+            },
+          },
+        },
+      });
+    }
+
+    const dataStages = [{ $sort: sortSpec }];
+    if (!grouped) {
+      dataStages.push({ $skip: (page - 1) * limit }, { $limit: limit });
+    }
+    // Имя подразделения — точечным $lookup уже после skip/limit (только для
+    // страницы), чтобы не джойнить весь набор.
+    dataStages.push(
+      {
+        $lookup: {
+          from: "subdivisions",
+          localField: "subdivision",
+          foreignField: "_id",
+          as: "_subdivision",
         },
       },
-      { $sort: { createdAt: -1 } },
+      // Адрес «где найти человека»: подразделение приоритетнее компании
       {
-        $group: {
-          _id: { $ifNull: ["$applicantId", "$applicant._id"] },
-          createdAt: { $first: "$createdAt" },
-          num: { $first: "$num" },
-          title: { $first: "$title" },
+        $lookup: {
+          from: "companies",
+          localField: "company._id",
+          foreignField: "_id",
+          as: "_company",
         },
       },
-    ]);
-
-    const lastActivityByUser = new Map(
-      latestTickets.map((ticket) => [ticket._id.toString(), ticket]),
+      {
+        $project: {
+          lastName: 1,
+          firstName: 1,
+          profileImagePath: 1,
+          company: 1,
+          role: 1,
+          position: 1,
+          email: 1,
+          phone: 1,
+          isServiceAccount: 1,
+          isAdmin: 1,
+          isEndUser: 1,
+          isCloudTelephony: 1,
+          isActive: 1,
+          workStatus: 1,
+          hideWorkStatus: 1,
+          subdivision: 1,
+          subdivisionName: {
+            $ifNull: [{ $arrayElemAt: ["$_subdivision.name", 0] }, null],
+          },
+          subdivisionAddress: {
+            $ifNull: [{ $arrayElemAt: ["$_subdivision.address", 0] }, null],
+          },
+          subdivisionMapLink: {
+            $ifNull: [{ $arrayElemAt: ["$_subdivision.linkToMap", 0] }, null],
+          },
+          companyAddress: {
+            $ifNull: [{ $arrayElemAt: ["$_company.address", 0] }, null],
+          },
+          companyMapLink: {
+            $ifNull: [{ $arrayElemAt: ["$_company.linkToMap", 0] }, null],
+          },
+          lastActivityAt: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      },
     );
 
-    const reducedUsers = filteredUsers.map((user) => {
-      const lastTicket = lastActivityByUser.get(user._id.toString());
-      return {
-        _id: user._id,
-        lastName: user.lastName,
-        firstName: user.firstName,
-        profileImagePath: user.profileImagePath,
-        company: { _id: user.company._id, alias: user.company.alias },
-        role: user.role,
-        position: user.position,
-        email: user.email,
-        phone: user.phone,
-        isServiceAccount: user.isServiceAccount,
-        isAdmin: user.isAdmin,
-        isEndUser: user.isEndUser,
-        isCloudTelephony: user.isCloudTelephony,
-        isActive: user.isActive,
-        workStatus: user.workStatus,
-        hideWorkStatus: user.hideWorkStatus,
-        permissions: user.permissions,
-        createdAt: user.createdAt,
-        lastActivity: lastTicket
-          ? {
-              date: lastTicket.createdAt,
-              ticketNum: lastTicket.num,
-              ticketTitle: lastTicket.title,
-            }
-          : null,
-      };
-    });
+    const [result] = await User.aggregate([
+      ...pipeline,
+      { $facet: { data: dataStages, meta: [{ $count: "total" }] } },
+    ]);
+
+    const users = result?.data ?? [];
+    const total = result?.meta?.[0]?.total ?? 0;
 
     res.status(200).json({
       message: "Users fetched",
-      users: reducedUsers,
+      users,
+      total,
+      page,
+      limit,
+      grouped,
     });
   } catch (error) {
     next(new AppError(`Failed to fetch users`, 500, true, error));
+  }
+};
+
+// Компании для фасета списка «Пользователи». Повторяет скоуп getAll: админ и
+// canAdministrateTickets — все компании; остальные — только те, за которые
+// отвечают (responsibleForCompanies уже несёт id+alias, без запроса). Отдельно
+// от /form-data/companies: тот заточен под форму заявки (сотруднику — только
+// его компания) и здесь дал бы одну компанию.
+exports.getScopeCompanies = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+    const authedUser = await User.findById(userId).lean();
+    if (!authedUser) {
+      return next(new AppError("Unauthorized", 401));
+    }
+
+    const canSeeAll = Boolean(
+      authedUser.isAdmin || authedUser.permissions?.canAdministrateTickets,
+    );
+
+    let companies;
+    if (canSeeAll) {
+      companies = await Company.find({}, "_id alias").sort({ alias: 1 }).lean();
+    } else {
+      companies = (authedUser.responsibleForCompanies || [])
+        .map((company) => ({ _id: company.id, alias: company.alias }))
+        .filter((company) => company._id)
+        .sort((a, b) => (a.alias || "").localeCompare(b.alias || ""));
+    }
+
+    res.status(200).json(
+      companies.map((company) => ({ _id: company._id, alias: company.alias })),
+    );
+  } catch (error) {
+    next(new AppError(`Failed to fetch scope companies`, 500, true, error));
   }
 };
 
@@ -231,8 +418,12 @@ exports.getUsersWithWorkplaces = async (req, res, next) => {
     const { userId } = await getAuthData(req);
     const authedUser = await User.findById(userId);
 
-    // Получаем всех активных пользователей (отключённые в выборку не попадают)
-    const allUsers = await User.find({ isActive: true }).sort({ lastName: 1 });
+    // Получаем всех активных пользователей (отключённые — сами или вместе с
+    // компанией — в выборку не попадают)
+    const allUsers = await User.find({
+      isActive: true,
+      "company.isActive": { $ne: false },
+    }).sort({ lastName: 1 });
 
     // Фильтруем пользователей по правам доступа
     const filteredUsers = allUsers.filter((user) => {
@@ -332,6 +523,7 @@ exports.add = async (req, res, next) => {
       dashboard,
       finances,
       getScreenApi,
+      responsibleForCompanies,
     } = req.body;
 
     if (await User.findOne({ email: email })) {
@@ -383,6 +575,10 @@ exports.add = async (req, res, next) => {
       permissions: permissions,
       dashboard: dashboard,
       notify: notify,
+      responsibleForCompanies: (responsibleForCompanies || []).map((item) => ({
+        id: item.id,
+        alias: item.alias,
+      })),
       notifications: {
         lastAction: "new user",
         password: jwt.sign(password, process.env.JWT_SECRET),
@@ -480,7 +676,9 @@ exports.update = async (req, res, next) => {
       permissions,
       dashboard,
       finances,
-      getScreen,
+      getScreenApi,
+      notify,
+      responsibleForCompanies,
     } = req.body;
 
     if (prevSubdivision) {
@@ -523,7 +721,9 @@ exports.update = async (req, res, next) => {
     user.position = position;
     user.categories = categoriesList.filter(Boolean);
     user.company = newCompany;
-    user.role = role ?? role;
+    // Формой role не управляется — сохраняем прежнее значение. Было
+    // `role ?? role`: при каждом сохранении роль затиралась в null.
+    user.role = role ?? user.role;
     user.isActive = isActive;
     user.isAdmin = isAdmin;
     user.isEndUser = isEndUser;
@@ -532,6 +732,13 @@ exports.update = async (req, res, next) => {
     user.hideWorkStatus = !!hideWorkStatus;
     user.permissions = permissions;
     user.dashboard = dashboard;
+    // Ответственность за компании теперь правится из формы пользователя
+    // (раньше — только через карточку компании)
+    if (responsibleForCompanies !== undefined) {
+      user.responsibleForCompanies = (responsibleForCompanies || []).map(
+        (item) => ({ id: item.id, alias: item.alias }),
+      );
+    }
 
     // Финансовые поля меняют только админ или обладатель глобального фин.
     // права; без права или без поля в запросе — не трогаем, чтобы не затереть
@@ -543,8 +750,21 @@ exports.update = async (req, res, next) => {
       };
     }
 
-    if (prefs.getScreen.isActive) {
-      user.getScreen.api = getScreen ? getScreen.api : user.getScreen.api;
+    // Форма шлёт getScreenApi; раньше контроллер ждал getScreen.api, поэтому
+    // ключ интеграции при правке молча не сохранялся.
+    if (getScreenApi !== undefined) {
+      user.getScreen = { ...(user.getScreen || {}), api: getScreenApi || "" };
+    }
+
+    // notify правит админ из формы, но это личные настройки пользователя:
+    // мержим по путям (как updateMyAccount), чтобы частичный объект не сбросил
+    // остальные категории.
+    if (notify) {
+      for (const channel of ["byTelegram", "byEmail"]) {
+        for (const [key, value] of Object.entries(notify[channel] ?? {})) {
+          user.set(`notify.${channel}.${key}`, !!value);
+        }
+      }
     }
 
     await user.save();

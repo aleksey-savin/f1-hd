@@ -412,7 +412,7 @@ const ViewDeviceModel = ({
         {canManage && !noTypeAttributes && (
           <Button asChild size="sm">
             <Link to="add" onClick={offcanvas.setShow}>
-              <RiAddFill /> Добавить конфигурацию
+              <RiAddFill /> Новая конфигурация
             </Link>
           </Button>
         )}
@@ -440,7 +440,7 @@ const ViewDeviceModel = ({
           {canManage && (
             <Button asChild>
               <Link to="add" onClick={offcanvas.setShow}>
-                <RiAddFill /> Добавить конфигурацию
+                <RiAddFill /> Новая конфигурация
               </Link>
             </Button>
           )}

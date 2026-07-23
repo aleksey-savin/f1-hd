@@ -1,26 +1,41 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFetcher } from "react-router";
-import Button from "react-bootstrap/Button";
-import Modal from "react-bootstrap/Modal";
-import Form from "react-bootstrap/Form";
-import Alert from "react-bootstrap/Alert";
-import InputGroup from "react-bootstrap/InputGroup";
-import Select from "../../../UI/Select";
-import SubdivisionUsersModal from "./SubdivisionUsersModal";
-import SubdivisionTree from "./SubdivisionTree";
-import SubdivisionOffcanvas from "./SubdivisionOffcanvas";
-
 import {
-  RiNodeTree,
+  RiArrowDownSLine,
+  RiArrowRightSLine,
   RiAddLine,
-  RiSearchLine,
-  RiExpandVerticalLine,
   RiCollapseVerticalLine,
+  RiExpandVerticalLine,
+  RiNodeTree,
 } from "react-icons/ri";
 
-// Locate a node in the tree by id, collecting its ancestor chain (root → parent)
-// for the offcanvas breadcrumb. Returns null when the id is no longer present
-// (e.g. after a delete), which lets the offcanvas close itself.
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Eyebrow, Panel } from "@/components/app/Panel";
+import SearchBar from "@/components/app/SearchBar";
+import { cn } from "@/lib/utils";
+
+import SubdivisionPreviewSheet from "./SubdivisionPreviewSheet";
+import SubdivisionFormDialog from "./SubdivisionFormDialog";
+import SubdivisionUsersDialog from "./SubdivisionUsersDialog";
+
+// Структура компании: дерево подразделений в панели карточки. Клик по узлу —
+// шторка-справка (как предпросмотр в «Расположениях»), правка/состав/удаление —
+// диалоги поверх. Данные мутируют fetcher-интенты прежнего action
+// (/companies/:id), loader ревалидируется сам — шторка живёт по live-дереву.
+const byName = (a, b) =>
+  (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase(), "ru");
+
+// Поиск узла по id с цепочкой предков (для крошек шторки). null — узла больше
+// нет (удалили) — шторка закроется сама.
 const findNodeWithPath = (nodes, id, path = []) => {
   for (const node of nodes || []) {
     if (node._id === id) return { node, ancestors: path };
@@ -30,7 +45,6 @@ const findNodeWithPath = (nodes, id, path = []) => {
   return null;
 };
 
-// Ids of every node that has children — used by «Свернуть всё».
 const collectParentIds = (nodes, acc = []) => {
   (nodes || []).forEach((node) => {
     if (node.subdivisions?.length) {
@@ -41,9 +55,8 @@ const collectParentIds = (nodes, acc = []) => {
   return acc;
 };
 
-// Keep branches whose name matches the query or that contain a match. A node
-// that matches itself keeps its full subtree; otherwise only the path to the
-// matching descendants is kept.
+// Ветки, чьё имя совпало с запросом или содержащие совпадение: узел-совпадение
+// сохраняет всё поддерево, иначе остаётся только путь к совпавшим потомкам.
 const filterTree = (nodes, query) => {
   const out = [];
   (nodes || []).forEach((node) => {
@@ -59,462 +72,320 @@ const filterTree = (nodes, query) => {
   return out;
 };
 
-const SubdivisionsSection = ({ company, permissions }) => {
+const flattenTree = (nodes, acc = []) => {
+  (nodes || []).forEach((node) => {
+    acc.push(node);
+    flattenTree(node.subdivisions, acc);
+  });
+  return acc;
+};
+
+const descendantIds = (node, acc = new Set()) => {
+  (node?.subdivisions || []).forEach((child) => {
+    acc.add(child._id);
+    descendantIds(child, acc);
+  });
+  return acc;
+};
+
+// Узел дерева: вложенность — контейнерами с направляющей линией (линейный
+// отступ на любой глубине), а не множителем уровня.
+const TreeNode = ({ node, isExpanded, onToggle, onOpen, forceExpand }) => {
+  const children = [...(node.subdivisions || [])].sort(byName);
+  const hasChildren = children.length > 0;
+  const expanded = forceExpand || isExpanded(node._id);
+  const employeeCount = node.users?.length || 0;
+
+  return (
+    <div>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onOpen(node)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onOpen(node);
+          }
+        }}
+        className="tw:group tw:flex tw:cursor-pointer tw:items-center tw:gap-1.5 tw:rounded-lg tw:px-1.5 tw:py-1.5 tw:transition-colors tw:hover:bg-accent"
+      >
+        {hasChildren ? (
+          <button
+            type="button"
+            aria-label={expanded ? "Свернуть" : "Развернуть"}
+            aria-expanded={expanded}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggle(node._id);
+            }}
+            className="tw:grid tw:size-6 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-md tw:border-0 tw:bg-transparent tw:p-0 tw:text-faint tw:hover:bg-border-soft tw:hover:text-foreground"
+          >
+            {expanded ? <RiArrowDownSLine size={16} /> : <RiArrowRightSLine size={16} />}
+          </button>
+        ) : (
+          <span className="tw:size-6 tw:flex-none" aria-hidden />
+        )}
+        <span
+          className={cn(
+            "tw:min-w-0 tw:truncate tw:text-sm tw:font-medium",
+            !node.name?.trim() && "tw:text-muted-foreground tw:italic",
+          )}
+        >
+          {node.name?.trim() || "Без названия"}
+        </span>
+        {employeeCount > 0 && (
+          <span
+            className="tw:flex-none tw:text-xs tw:text-faint tw:tabular-nums"
+            title="Сотрудников в подразделении"
+          >
+            · {employeeCount}
+          </span>
+        )}
+        <RiArrowRightSLine
+          aria-hidden
+          className="tw:ml-auto tw:flex-none tw:text-faint tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100"
+        />
+      </div>
+
+      {hasChildren && expanded && (
+        <div className="tw:ml-4 tw:border-l tw:border-border-soft tw:pl-2.5">
+          {children.map((child) => (
+            <TreeNode
+              key={child._id}
+              node={child}
+              isExpanded={isExpanded}
+              onToggle={onToggle}
+              onOpen={onOpen}
+              forceExpand={forceExpand}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SubdivisionsSection = ({ company, canManage, id }) => {
   const fetcher = useFetcher();
-  const [showModal, setShowModal] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [selectedSubdivision, setSelectedSubdivision] = useState(null);
-  const [parentSubdivision, setParentSubdivision] = useState(undefined);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [subdivisionToDelete, setSubdivisionToDelete] = useState(null);
-  const [error, setError] = useState(null);
 
-  // Detail/actions offcanvas (right) — driven by the selected node id, resolved
-  // against the live tree so edits show immediately and deletes auto-close it.
-  const [selectedSubdivisionId, setSelectedSubdivisionId] = useState(null);
-
-  // Tree view controls: a set of *collapsed* ids (empty = everything expanded)
-  // and a free-text filter.
   const [collapsedIds, setCollapsedIds] = useState(() => new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
 
-  const handleClose = () => {
-    setShowModal(false);
-    setEditMode(false);
-    setSelectedSubdivision(null);
-    setParentSubdivision(undefined);
-  };
+  // Форма (диалог): editNode=null — создание; parentPreset — предзаполненный
+  // родитель («Вложенное» из шторки).
+  const [formOpen, setFormOpen] = useState(false);
+  const [editNode, setEditNode] = useState(null);
+  const [parentPreset, setParentPreset] = useState(null);
 
-  // Reset form when opening the root-level «add» modal.
-  const handleShow = () => {
-    setSelectedSubdivision(null);
-    setParentSubdivision(undefined);
-    setEditMode(false);
-    setError(null);
-    setShowModal(true);
-  };
+  const [usersNode, setUsersNode] = useState(null);
+  const [deleteNode, setDeleteNode] = useState(null);
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    setError(null);
-    const formData = new FormData(event.target);
-
-    if (editMode) {
-      formData.append("intent", "updateSubdivision");
-      formData.append("subdivisionId", selectedSubdivision._id);
-    } else {
-      formData.append("intent", "addSubdivision");
-    }
-
-    formData.append("companyId", company._id);
-    formData.append("parentId", parentSubdivision?._id || "");
-
-    fetcher.submit(formData, {
-      method: "PUT",
-      action: `/companies/${company._id}`,
-    });
-  };
-
-  const handleDeleteClick = (subdivisionId) => {
-    setSubdivisionToDelete(subdivisionId);
-    setShowDeleteModal(true);
-  };
-
-  const handleDeleteConfirm = () => {
-    fetcher.submit(
-      {
-        intent: "deleteSubdivision",
-        subdivisionId: subdivisionToDelete,
-        companyId: company._id,
-      },
-      {
-        method: "DELETE",
-        action: `/companies/${company._id}`,
-      },
-    );
-    setShowDeleteModal(false);
-    setSubdivisionToDelete(null);
-  };
-
-  // Flatten subdivisions for select options
-  const getFlatSubdivisions = (subdivisions, result = []) => {
-    subdivisions?.forEach((sub) => {
-      result.push(sub);
-      if (sub.subdivisions?.length) {
-        getFlatSubdivisions(sub.subdivisions, result);
-      }
-    });
-    return result;
-  };
-
-  // Effect to set parent subdivision when editing
-  useEffect(() => {
-    if (editMode && selectedSubdivision) {
-      const allSubdivisions = getFlatSubdivisions(company.subdivisions);
-      const parent = allSubdivisions.find(
-        (sub) => sub._id === selectedSubdivision.parent,
-      );
-      setParentSubdivision(parent || undefined);
-    }
-  }, [editMode, selectedSubdivision, company.subdivisions]);
-
-  const wouldCreateCircularReference = (
-    subdivisionId,
-    targetParentId,
-    allSubdivisions,
-  ) => {
-    if (!targetParentId || !subdivisionId) return false;
-
-    const checkParents = (currentId) => {
-      const current = allSubdivisions.find((s) => s._id === currentId);
-      if (!current) return false;
-      if (current._id === subdivisionId) return true;
-      if (current.parent) {
-        return checkParents(current.parent);
-      }
-      return false;
-    };
-
-    return checkParents(targetParentId);
-  };
-
-  // All descendant ids of a subdivision. Children in the assembled tree are
-  // full node objects (not raw ids), so read `child._id`.
-  const getDescendantIds = (subdivisionId, allSubdivisions) => {
-    const descendants = new Set();
-
-    const addDescendants = (id) => {
-      const subdivision = allSubdivisions.find((s) => s._id === id);
-      if (!subdivision) return;
-
-      subdivision.subdivisions?.forEach((child) => {
-        const childId = child._id ?? child;
-        descendants.add(childId.toString());
-        addDescendants(childId);
-      });
-    };
-
-    addDescendants(subdivisionId);
-    return Array.from(descendants);
-  };
-
-  const getAvailableParentOptions = () => {
-    const allSubdivisions = getFlatSubdivisions(company.subdivisions) || [];
-
-    if (!selectedSubdivision) {
-      return allSubdivisions;
-    }
-
-    // Get all descendant IDs of the current subdivision
-    const descendantIds = getDescendantIds(
-      selectedSubdivision._id,
-      allSubdivisions,
-    );
-
-    // Filter out the subdivision itself and all its descendants
-    return allSubdivisions.filter(
-      (sub) =>
-        sub._id !== selectedSubdivision._id && !descendantIds.includes(sub._id),
-    );
-  };
-
-  // Update parent change handler
-  const handleParentChange = (newParent) => {
-    const allSubdivisions = getFlatSubdivisions(company.subdivisions) || [];
-
-    if (newParent && selectedSubdivision) {
-      if (
-        wouldCreateCircularReference(
-          selectedSubdivision._id,
-          newParent._id,
-          allSubdivisions,
-        )
-      ) {
-        setError(
-          "Невозможно создать циклическую зависимость в структуре подразделений",
-        );
-        return;
-      }
-    }
-
-    setParentSubdivision(newParent || undefined);
-  };
-
-  const [showUsersModal, setShowUsersModal] = useState(false);
-  const [selectedSubdivisionForUsers, setSelectedSubdivisionForUsers] =
-    useState(null);
-
-  const handleManageUsers = (subdivision) => {
-    setSelectedSubdivisionForUsers(subdivision);
-    setShowUsersModal(true);
-  };
-
-  const handleSaveUsers = (data) => {
-    fetcher.submit(
-      {
-        intent: "updateSubdivisionUsers",
-        ...data,
-      },
-      {
-        method: "PATCH",
-        action: `/companies/${company._id}`,
-      },
-    );
-  };
-
-  // --- Offcanvas actions ---------------------------------------------------
-
-  const handleEditFromPanel = (subdivision) => {
-    setSelectedSubdivision(subdivision);
-    setEditMode(true);
-    setError(null);
-    setShowModal(true);
-  };
-
-  // Add a child under the given subdivision (parent preset, add mode).
-  const handleAddChild = (subdivision) => {
-    setSelectedSubdivision(null);
-    setEditMode(false);
-    setParentSubdivision(subdivision);
-    setError(null);
-    setShowModal(true);
-  };
-
-  // --- Tree expand/collapse + search ---------------------------------------
-
-  const isExpanded = (id) => !collapsedIds.has(id);
-
-  const handleToggle = (id) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const expandAll = () => setCollapsedIds(new Set());
-  const collapseAll = () =>
-    setCollapsedIds(new Set(collectParentIds(company.subdivisions)));
-
-  const hasCollapsed = collapsedIds.size > 0;
+  const subdivisions = company.subdivisions || [];
+  const total = useMemo(() => flattenTree(subdivisions).length, [subdivisions]);
 
   const query = searchQuery.trim().toLowerCase();
-  const displayTree = query
-    ? filterTree(company.subdivisions, query)
-    : company.subdivisions;
+  const displayTree = query ? filterTree(subdivisions, query) : subdivisions;
+  const roots = [...displayTree].sort(byName);
 
-  // Resolve the open node (and its path) from the live tree.
-  const found = selectedSubdivisionId
-    ? findNodeWithPath(company.subdivisions, selectedSubdivisionId)
-    : null;
+  const isExpanded = (nodeId) => !collapsedIds.has(nodeId);
+  const handleToggle = (nodeId) =>
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  const hasCollapsed = collapsedIds.size > 0;
+  const expandAll = () => setCollapsedIds(new Set());
+  const collapseAll = () =>
+    setCollapsedIds(new Set(collectParentIds(subdivisions)));
+
+  // Открытый узел резолвим по live-дереву: правки видны сразу, удаление
+  // закрывает шторку.
+  const found = selectedId ? findNodeWithPath(subdivisions, selectedId) : null;
   const selectedNode = found?.node || null;
   const selectedAncestors = found?.ancestors || [];
 
+  const openCreate = (parent = null) => {
+    setEditNode(null);
+    setParentPreset(parent);
+    setFormOpen(true);
+  };
+  const openEdit = (node) => {
+    const flat = flattenTree(subdivisions);
+    setEditNode(node);
+    setParentPreset(flat.find((sub) => sub._id === node.parent) || null);
+    setFormOpen(true);
+  };
+
+  // Кандидаты в родители: без самого узла и его потомков — цикл невозможен.
+  const parentOptions = useMemo(() => {
+    const flat = flattenTree(subdivisions);
+    if (!editNode) return flat;
+    const excluded = descendantIds(editNode);
+    excluded.add(editNode._id);
+    return flat.filter((sub) => !excluded.has(sub._id));
+  }, [subdivisions, editNode]);
+
+  const confirmDelete = () => {
+    fetcher.submit(
+      {
+        intent: "deleteSubdivision",
+        subdivisionId: deleteNode._id,
+        companyId: company._id,
+      },
+      { method: "DELETE", action: `/companies/${company._id}` },
+    );
+    setDeleteNode(null);
+  };
+
+  // Успешная мутация закрывает открытые диалоги (ошибки показывают они сами).
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
-      // If submission was successful (no errors)
-      handleClose();
+      setFormOpen(false);
+      setUsersNode(null);
     }
   }, [fetcher.state, fetcher.data]);
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center gap-2 mb-3">
-        <div className="cap-card-title">
-          <RiNodeTree />
-          <span>Структура компании</span>
-        </div>
-        {permissions.canManageCompanies && (
-          <Button size="sm" onClick={handleShow}>
-            <RiAddLine /> Добавить
-          </Button>
-        )}
-      </div>
-
-      {company.subdivisions.length > 0 ? (
-        <div className="org-structure">
-          <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
-            <InputGroup style={{ maxWidth: 300 }}>
-              <InputGroup.Text>
-                <RiSearchLine />
-              </InputGroup.Text>
-              <Form.Control
-                type="search"
-                placeholder="Поиск подразделения…"
+      <Eyebrow
+        id={id}
+        count={total}
+        action={
+          canManage && (
+            <Button size="sm" variant="outline" onClick={() => openCreate()}>
+              <RiAddLine /> Новое подразделение
+            </Button>
+          )
+        }
+      >
+        Структура
+      </Eyebrow>
+      <Panel>
+        {total === 0 ? (
+          <div className="tw:mx-auto tw:flex tw:max-w-md tw:flex-col tw:items-center tw:gap-2 tw:py-6 tw:text-center">
+            <RiNodeTree size={36} aria-hidden className="tw:text-faint" />
+            <div className="tw:font-semibold">Подразделений пока нет</div>
+            <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+              Структура помогает раскладывать сотрудников по отделам и филиалам
+              — от неё живут фильтры и шторка-справка.
+            </p>
+            {canManage && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="tw:mt-1"
+                onClick={() => openCreate()}
+              >
+                <RiAddLine /> Новое подразделение
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+              <SearchBar
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
+                className="tw:w-64 tw:max-md:w-full"
               />
-            </InputGroup>
-            <Button
-              variant="secondary"
-              onClick={hasCollapsed ? expandAll : collapseAll}
-            >
-              {hasCollapsed ? (
-                <>
-                  <RiExpandVerticalLine /> Развернуть всё
-                </>
-              ) : (
-                <>
-                  <RiCollapseVerticalLine /> Свернуть всё
-                </>
-              )}
-            </Button>
-          </div>
-
-          {displayTree.length > 0 ? (
-            <div className="org-tree-wrap">
-              <SubdivisionTree
-                nodes={displayTree}
-                selectedId={selectedSubdivisionId}
-                onSelect={(node) => setSelectedSubdivisionId(node._id)}
-                isExpanded={isExpanded}
-                onToggle={handleToggle}
-                forceExpand={Boolean(query)}
-              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={hasCollapsed ? expandAll : collapseAll}
+              >
+                {hasCollapsed ? (
+                  <>
+                    <RiExpandVerticalLine /> Развернуть всё
+                  </>
+                ) : (
+                  <>
+                    <RiCollapseVerticalLine /> Свернуть всё
+                  </>
+                )}
+              </Button>
             </div>
-          ) : (
-            <Alert variant="light" className="mb-0">
-              Подразделения не найдены
-            </Alert>
-          )}
-        </div>
-      ) : (
-        <Alert variant="light" className="mb-0">
-          Нет подразделений
-        </Alert>
-      )}
 
-      <SubdivisionOffcanvas
-        show={Boolean(selectedNode)}
+            {roots.length > 0 ? (
+              <div className="tw:-mx-1.5">
+                {roots.map((node) => (
+                  <TreeNode
+                    key={node._id}
+                    node={node}
+                    isExpanded={isExpanded}
+                    onToggle={handleToggle}
+                    onOpen={(opened) => setSelectedId(opened._id)}
+                    forceExpand={Boolean(query)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="tw:py-2 tw:text-sm tw:text-muted-foreground">
+                Ничего не нашлось. Измените запрос.
+              </div>
+            )}
+          </>
+        )}
+      </Panel>
+
+      <SubdivisionPreviewSheet
         node={selectedNode}
         ancestors={selectedAncestors}
-        onHide={() => setSelectedSubdivisionId(null)}
-        canManage={permissions.canManageCompanies}
-        onNavigate={(node) => setSelectedSubdivisionId(node._id)}
-        onManageUsers={handleManageUsers}
-        onAddChild={handleAddChild}
-        onEdit={handleEditFromPanel}
-        onDelete={handleDeleteClick}
+        canManage={canManage}
+        onClose={() => setSelectedId(null)}
+        onNavigate={(node) => setSelectedId(node._id)}
+        onEdit={openEdit}
+        onAddChild={(node) => openCreate(node)}
+        onManageUsers={(node) => setUsersNode(node)}
+        onDelete={(node) => setDeleteNode(node)}
       />
 
-      <SubdivisionUsersModal
-        show={showUsersModal}
-        onHide={() => {
-          setShowUsersModal(false);
-          setSelectedSubdivisionForUsers(null);
-        }}
-        subdivision={selectedSubdivisionForUsers}
-        companyUsers={company.employees}
+      <SubdivisionFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
         company={company}
-        onSave={handleSaveUsers}
+        node={editNode}
+        parentPreset={parentPreset}
+        parentOptions={parentOptions}
         fetcher={fetcher}
       />
 
-      <Modal show={showModal} onHide={handleClose} centered>
-        <Form onSubmit={handleSubmit}>
-          <Modal.Header closeButton>
-            <Modal.Title>
-              {editMode ? "Изменить подразделение" : "Новое подразделение"}
-            </Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            {(fetcher.data?.error || error) && (
-              <Alert
-                variant="danger"
-                onClose={() => setError(null)}
-                dismissible
-              >
-                {fetcher.data?.error || error}
-              </Alert>
-            )}
-            <Form.Group className="mb-3">
-              <Form.Label>Название</Form.Label>
-              <Form.Control
-                name="name"
-                required
-                defaultValue={selectedSubdivision?.name || ""}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Email</Form.Label>
-              <Form.Control
-                type="email"
-                name="email"
-                defaultValue={selectedSubdivision?.email || ""}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Телефон</Form.Label>
-              <Form.Control
-                name="phone"
-                defaultValue={selectedSubdivision?.phone || ""}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Адрес</Form.Label>
-              <Form.Control
-                name="address"
-                defaultValue={selectedSubdivision?.address || ""}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Ссылка на карту</Form.Label>
-              <Form.Control
-                name="linkToMap"
-                defaultValue={selectedSubdivision?.linkToMap || ""}
-              />
-            </Form.Group>
-            <Form.Group>
-              <Form.Label>Родительское подразделение</Form.Label>
-              <Select
-                isClearable
-                placeholder="Выберите родительское подразделение"
-                options={getAvailableParentOptions()}
-                value={parentSubdivision}
-                onChange={handleParentChange}
-                getOptionLabel={(option) => option.name}
-                getOptionValue={(option) => option._id}
-                isDisabled={!company.subdivisions?.length}
-              />
-            </Form.Group>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={handleClose}>
-              Закрыть
-            </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              disabled={fetcher.state !== "idle"}
-            >
-              Сохранить
-            </Button>
-          </Modal.Footer>
-        </Form>
-      </Modal>
+      <SubdivisionUsersDialog
+        open={Boolean(usersNode)}
+        onOpenChange={(open) => {
+          if (!open) setUsersNode(null);
+        }}
+        node={usersNode}
+        company={company}
+        fetcher={fetcher}
+      />
 
-      <Modal
-        show={showDeleteModal}
-        onHide={() => setShowDeleteModal(false)}
-        centered
+      <AlertDialog
+        open={Boolean(deleteNode)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteNode(null);
+        }}
       >
-        <Modal.Header closeButton>
-          <Modal.Title>Подтверждение удаления</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>Удалить подразделение?</Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
-            Отмена
-          </Button>
-          <Button variant="danger" onClick={handleDeleteConfirm}>
-            Удалить
-          </Button>
-        </Modal.Footer>
-      </Modal>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteNode?.name?.trim() || "Без названия"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены? Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="tw:mt-4">
+            <AlertDialogCancel type="button">Отмена</AlertDialogCancel>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Удалить
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

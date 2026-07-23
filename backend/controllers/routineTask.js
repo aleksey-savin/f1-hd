@@ -1,27 +1,22 @@
 const RoutineTask = require("../models/routineTask");
 const { AppError } = require("../middleware/errorHandling");
 const cronScheduler = require("../middleware/cronTasks");
-const { validateRoutineTask } = require("../middleware/routineTasks");
+const {
+  validateRoutineTask,
+  runRoutineTask,
+  scheduleRoutineTask,
+} = require("../middleware/routineTasks");
 
 const Company = require("../models/company");
 const User = require("../models/user");
-const { Ticket } = require("../models/ticket");
 const TicketCategory = require("../models/ticketCategory");
-const Preferences = require("../models/preferences");
 
 const getAuthData = require("../middleware/getAuthData");
 
 exports.getAll = async (req, res, next) => {
   try {
     const routineTasks = await RoutineTask.find({}).sort({ _id: -1 });
-    if (!routineTasks) {
-      return res.status(404).json({
-        error: 404,
-        message: "Регламентные задания не найдены",
-      });
-    }
-
-    res.status(200).json(routineTasks);
+    res.status(200).json(routineTasks || []);
   } catch (error) {
     next(new AppError(`Failed to fetch routine tasks`, 500, true, error));
   }
@@ -29,14 +24,15 @@ exports.getAll = async (req, res, next) => {
 
 exports.getOne = async (req, res, next) => {
   try {
-    const routineTask = await RoutineTask.findById(req.params.id);
+    const routineTask = await RoutineTask.findById(req.params.id)
+      .populate("createdBy", "_id firstName lastName")
+      .populate("updatedBy", "_id firstName lastName");
     if (!routineTask) {
       return res.status(404).json({
         error: 404,
         message: "Регламентное задание не найдено",
       });
     }
-
     res.status(200).json(routineTask);
   } catch (error) {
     next(
@@ -50,8 +46,10 @@ exports.getOne = async (req, res, next) => {
   }
 };
 
-exports.add = async (req, res, next) => {
-  const authedUser = await getAuthData(req);
+// Единообразно собираем данные задания из тела запроса (add + update): компания/
+// инициатор/категория — по id, ответственные и чек-лист чистим, ссылку на
+// шаблон-источник сохраняем снимком.
+const buildRoutineData = async (body) => {
   const {
     title,
     description,
@@ -61,41 +59,64 @@ exports.add = async (req, res, next) => {
     companyId,
     applicantId,
     categoryId,
-  } = req.body;
-
-  const isValid = await validateRoutineTask(cronSchedule);
-
-  if (!isValid) {
-    return res.status(400).json({
-      error: 400,
-      message: 'Ошибка в значении "Расписание cron".',
-    });
-  }
-
-  const prefs = await Preferences.findOne({});
+    responsibles,
+    sourceTemplate,
+  } = body;
 
   const company = await Company.findById(companyId);
   const applicant = await User.findById(applicantId);
   const category = await TicketCategory.findById(categoryId);
 
-  let checklistItems = [];
-  if (checklist) {
-    checklistItems = checklist.map((item) => ({
-      description: item,
-      checked: false,
-    }));
-  }
+  return {
+    title,
+    description,
+    cronSchedule,
+    isActive: !!isActive,
+    company,
+    applicant,
+    category,
+    responsibles: Array.isArray(responsibles)
+      ? responsibles.map((r) => ({
+          _id: r._id,
+          firstName: r.firstName,
+          lastName: r.lastName,
+          email: r.email,
+          phone: r.phone,
+          position: r.position,
+          role: r.role,
+          isActive: r.isActive,
+        }))
+      : [],
+    sourceTemplate:
+      sourceTemplate && sourceTemplate._id
+        ? { _id: sourceTemplate._id, title: sourceTemplate.title }
+        : null,
+    checklist: Array.isArray(checklist)
+      ? checklist
+          .filter((item) => item && item.description && item.description.trim())
+          .map((item) => ({
+            description: item.description,
+            mandatory: !!item.mandatory,
+            checked: false,
+          }))
+      : [],
+  };
+};
 
+exports.add = async (req, res, next) => {
   try {
+    const authedUser = await getAuthData(req);
+
+    if (!(await validateRoutineTask(req.body.cronSchedule))) {
+      return res.status(400).json({
+        error: 400,
+        message: 'Ошибка в значении "Расписание cron".',
+      });
+    }
+
+    const data = await buildRoutineData(req.body);
     const routineTask = new RoutineTask({
-      title: title,
-      description: description,
-      company: company,
-      applicant: applicant,
-      category: category,
-      cronSchedule: cronSchedule,
-      isActive: isActive,
-      checklist: checklistItems,
+      ...data,
       createdBy: authedUser,
       updatedBy: authedUser,
     });
@@ -103,45 +124,12 @@ exports.add = async (req, res, next) => {
     await routineTask.save();
 
     if (routineTask.isActive) {
-      cronScheduler.addCronTask(
-        routineTask._id.toString(),
-        routineTask.cronSchedule,
-        async () => {
-          const now = new Date();
-          const ticket = new Ticket({
-            title: routineTask.title,
-            description: routineTask.description,
-            isClosed: false,
-            deadline: now.setTime(
-              now.getTime() + prefs.deadline * 60 * 60 * 1000,
-            ),
-            applicantId: routineTask.applicant._id,
-            company: routineTask.company,
-            categoryId: routineTask.category._id,
-            state: "Новая",
-            source: "Регламентное задание",
-            routineTask: routineTask._id,
-            checklist: routineTask.checklist?.map((item) => ({
-              description: item.description,
-              checked: false,
-              mandatory: true,
-            })),
-            createdBy: routineTask.applicant,
-            updatedBy: routineTask.applicant,
-            notifications: {
-              lastAction: "new ticket",
-              pending: true,
-            },
-          });
-
-          await ticket.save();
-        },
-      );
+      await scheduleRoutineTask(routineTask);
     }
 
     res.status(201).json({
       message: "Новое регламентное задание успешно добавлено",
-      routineTask: routineTask,
+      routineTask,
     });
   } catch (error) {
     next(new AppError(`Failed to create routine task`, 500, true, error));
@@ -152,101 +140,124 @@ exports.update = async (req, res, next) => {
   try {
     const { userId } = await getAuthData(req);
 
-    const {
-      title,
-      description,
-      cronSchedule,
-      isActive,
-      checklist,
-      companyId,
-      applicantId,
-      categoryId,
-    } = req.body;
-
-    const isValid = await validateRoutineTask(cronSchedule);
-
-    if (!isValid) {
-      return next(new AppError(`Ошибка в значении "Расписание cron".`, 500));
+    if (!(await validateRoutineTask(req.body.cronSchedule))) {
+      return res.status(400).json({
+        error: 400,
+        message: 'Ошибка в значении "Расписание cron".',
+      });
     }
-
-    const prefs = await Preferences.findOne({});
-
-    const company = await Company.findById(companyId);
-    const applicant = await User.findById(applicantId);
-    const authedUser = await User.findById(userId);
-    const category = await TicketCategory.findById(categoryId);
 
     const routineTask = await RoutineTask.findById(req.params.id);
-
-    let checklistItems = [];
-    if (checklist) {
-      checklistItems = checklist.map((item) => ({
-        description: item,
-        checked: false,
-      }));
+    if (!routineTask) {
+      return res.status(404).json({
+        error: 404,
+        message: "Регламентное задание не найдено",
+      });
     }
 
-    routineTask.title = title;
-    routineTask.description = description;
-    routineTask.company = company;
-    routineTask.applicant = applicant;
-    routineTask.category = category;
-    routineTask.cronSchedule = cronSchedule;
-    routineTask.isActive = isActive;
-    routineTask.checklist = checklistItems;
-    routineTask.updatedBy = authedUser;
+    const data = await buildRoutineData(req.body);
+    Object.assign(routineTask, data);
+    routineTask.updatedBy = userId;
 
     await routineTask.save();
 
     if (routineTask.isActive) {
-      cronScheduler.updateCronTask(
-        routineTask._id.toString(),
-        routineTask.cronSchedule,
-        async () => {
-          const now = new Date();
-          const ticket = new Ticket({
-            title: routineTask.title,
-            description: routineTask.description,
-            isClosed: false,
-            applicantId: routineTask.applicant._id,
-            company: routineTask.company,
-            categoryId: routineTask.category._id,
-            deadline: now.setTime(
-              now.getTime() + prefs.deadline * 60 * 60 * 1000,
-            ),
-            state: "Новая",
-            source: "Регламентное задание",
-            routineTask: routineTask._id,
-            checklist: routineTask.checklist?.map((item) => {
-              return {
-                description: item.description,
-                checked: false,
-                mandatory: true,
-              };
-            }),
-            createdBy: routineTask.applicant,
-            updatedBy: routineTask.applicant,
-            notifications: {
-              lastAction: "new ticket",
-              pending: true,
-            },
-          });
-
-          await ticket.save();
-        },
-      );
+      await scheduleRoutineTask(routineTask);
     } else {
       cronScheduler.removeCronTask(req.params.id);
     }
 
     res.status(201).json({
       message: "Регламентное задание обновлено",
-      routineTask: routineTask,
+      routineTask,
     });
   } catch (error) {
     next(
       new AppError(
         `Failed to update routine task ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Правка только чек-листа с карточки. Планировщик перерегистрировать НЕ нужно:
+// runRoutineTask читает свежую задачу из БД при каждом срабатывании.
+exports.updateChecklist = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+
+    const routineTask = await RoutineTask.findById(req.params.id);
+    if (!routineTask) {
+      return res.status(404).json({
+        error: 404,
+        message: "Регламентное задание не найдено",
+      });
+    }
+
+    const checklist = Array.isArray(req.body.checklist)
+      ? req.body.checklist
+      : [];
+    routineTask.checklist = checklist
+      .filter((item) => item && item.description && item.description.trim())
+      .map((item) => ({
+        description: item.description,
+        mandatory: !!item.mandatory,
+        checked: false,
+      }));
+    routineTask.updatedBy = userId;
+
+    await routineTask.save();
+
+    res.status(201).json(routineTask);
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to update routine task checklist`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Ручной запуск: немедленно создаёт заявку из полей регламента. Опция skipNext —
+// пропустить одно ближайшее плановое срабатывание, чтобы не задвоить заявку.
+exports.run = async (req, res, next) => {
+  try {
+    const routineTask = await RoutineTask.findById(req.params.id);
+    if (!routineTask) {
+      return res.status(404).json({
+        error: 404,
+        message: "Регламентное задание не найдено",
+      });
+    }
+
+    const ticket = await runRoutineTask(req.params.id, { force: true });
+    if (!ticket) {
+      return res.status(500).json({
+        error: 500,
+        message: "Не удалось создать заявку",
+      });
+    }
+
+    if (req.body.skipNext) {
+      routineTask.skipNextRun = true;
+      await routineTask.save();
+    }
+
+    res.status(201).json({
+      message: "Заявка создана",
+      ticketNum: ticket.num,
+      skipNext: !!req.body.skipNext,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to run routine task ${req.params.id}`,
         500,
         true,
         error,

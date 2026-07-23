@@ -1,0 +1,125 @@
+// Каталог прав пользователя — ОДИН источник для формы (редактирование) и
+// карточки (показ выданных). Раньше список жил в двух местах и расходился:
+// в форме не было canManageDeviceModels/Types/Attributes, из-за чего
+// `user.permissions = permissions` при каждом сохранении их сбрасывал.
+//
+// master — ключ «рубильника» модуля: выключен, значит группа неактивна.
+
+export const PERMISSION_MODULES = [
+  {
+    key: "tickets",
+    label: "Заявки",
+    caps: [
+      { key: "canSeeAllCompanyTickets", label: "Все заявки своей компании" },
+      { key: "canSeeAllTickets", label: "Все заявки в системе" },
+      { key: "canPerformTickets", label: "Выполнение заявок" },
+      { key: "canAdministrateTickets", label: "Администрирование заявок" },
+      { key: "canEditTickets", label: "Полное редактирование" },
+      { key: "canDeleteTickets", label: "Удаление заявок" },
+    ],
+  },
+  {
+    key: "portal",
+    label: "Администрирование портала",
+    caps: [
+      { key: "canManageCompanies", label: "Управление компаниями" },
+      { key: "canManageUsers", label: "Управление пользователями" },
+      { key: "canManageTicketCategories", label: "Категории заявок" },
+      { key: "canManageRoutineTasks", label: "Регламенты" },
+      { key: "canManageTicketTemplates", label: "Шаблоны заявок" },
+      { key: "canUpdateChangelog", label: "Записи в changelog" },
+    ],
+  },
+  {
+    key: "knowledge",
+    label: "База знаний",
+    caps: [
+      { key: "canSeeKnowledgeBase", label: "Просмотр базы знаний" },
+      { key: "canManageKnowledgeBase", label: "Управление базой знаний" },
+    ],
+  },
+  {
+    key: "time",
+    label: "Учёт времени",
+    master: "canUseTimeTrackingModule",
+    caps: [
+      { key: "canAvoidWorks", label: "Можно не указывать работы" },
+      { key: "canSeeWorksReport", label: "Отчёты по работам" },
+      { key: "canSeeAnalytics", label: "Аналитика и тренды" },
+    ],
+  },
+  {
+    key: "inventory",
+    label: "Учёт техники",
+    master: "canUseInventoryModule",
+    caps: [
+      { key: "canManageClientDevices", label: "Управление устройствами" },
+      { key: "canManageDeviceModels", label: "Модели устройств" },
+      { key: "canManageDeviceTypes", label: "Типы устройств" },
+      { key: "canManageDeviceAttributes", label: "Атрибуты устройств" },
+      { key: "canManageMikrotikDevices", label: "Устройства Mikrotik" },
+      { key: "canManageMikrotikConfigs", label: "Резервные копии Mikrotik" },
+    ],
+  },
+  {
+    key: "finances",
+    label: "Финансы",
+    master: "canUseFinancesModule",
+    caps: [
+      { key: "canManageServicePlans", label: "Управление услугами" },
+      { key: "canSeeGlobalFinancialReport", label: "Отчёты по оказанным услугам" },
+      { key: "canConfirmReportActions", label: "Утверждение отчётов" },
+      { key: "canSeePersonalFinancialReport", label: "Персональный отчёт" },
+    ],
+  },
+];
+
+// Dashboard живёт отдельным поддокументом (dashboard.*), не в permissions.
+export const DASHBOARD_MODULE = {
+  key: "dashboard",
+  label: "Dashboard",
+  master: "isActive",
+  caps: [
+    { key: "personalActions", label: "Персональные действия" },
+    { key: "personalTasks", label: "Персональные задачи" },
+    { key: "personalStats", label: "Персональная статистика" },
+    { key: "globalActions", label: "Глобальные действия" },
+    { key: "globalTasks", label: "Глобальные задачи" },
+    { key: "globalStats", label: "Глобальная статистика" },
+  ],
+};
+
+// Категории уведомлений — имя ключа едино для notify.byTelegram / notify.byEmail
+// и prefs.notify.personal (см. middleware/notifications.js).
+export const NOTIFY_EVENTS = [
+  { key: "newTicket", label: "Новая заявка" },
+  { key: "respStateUpdate", label: "Статус ответственного" },
+  { key: "ticketStateUpdate", label: "Изменение статуса заявки" },
+  { key: "ticketDeadlineUpdate", label: "Изменение срока" },
+  { key: "ticketNewComment", label: "Новые комментарии" },
+  { key: "scheduledWorks", label: "Запланированные работы" },
+];
+
+// Все ключи permissions, которыми управляет форма — чтобы собрать полный объект
+// и не потерять права, которых нет ни в одной группе.
+export const ALL_PERMISSION_KEYS = PERMISSION_MODULES.flatMap((module) => [
+  ...(module.master ? [module.master] : []),
+  ...module.caps.map((cap) => cap.key),
+]);
+
+// Тип аккаунта — один сегмент вместо трёх независимых флагов.
+export const ACCOUNT_KINDS = [
+  { value: "staff", label: "Сотрудник" },
+  { value: "client", label: "Клиент" },
+  { value: "service", label: "Служебный" },
+];
+
+export const kindOfUser = (user) =>
+  user?.isServiceAccount ? "service" : (user?.isEndUser ?? true) ? "client" : "staff";
+
+// Обратное преобразование сегмента в флаги модели.
+export const kindToFlags = (kind, { isCloudTelephony = false } = {}) => ({
+  isEndUser: kind === "client",
+  isServiceAccount: kind === "service",
+  isCloudTelephony: kind === "service" ? !!isCloudTelephony : false,
+});

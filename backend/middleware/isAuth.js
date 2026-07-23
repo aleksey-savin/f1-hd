@@ -25,10 +25,14 @@ module.exports = async (req, res, next) => {
   }
 
   // JWT живёт 14 дней, поэтому деактивация пользователя должна гасить и уже
-  // выданные токены — статус учётки проверяется на каждом запросе.
+  // выданные токены — статус учётки проверяется на каждом запросе. Отключение
+  // КОМПАНИИ гасит сеансы её пользователей так же (company.isActive — денорм.
+  // снапшот; отсутствие поля у сотрудников без компании = активна).
   try {
-    const user = await User.findById(decodedToken.userId).select("isActive");
-    if (!user || !user.isActive) {
+    const user = await User.findById(decodedToken.userId).select(
+      "isActive company.isActive",
+    );
+    if (!user || !user.isActive || user.company?.isActive === false) {
       req.isAuth = false;
       return next(new AppError(`Учётная запись отключена.`, 401));
     }

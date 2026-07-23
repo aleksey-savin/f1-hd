@@ -15,6 +15,8 @@ const MarkdownEditor = ({
   onChange,
   onReady,
   height = "500px",
+  // Скрыть вкладки Markdown/WYSIWYG снизу — редактор остаётся только WYSIWYG.
+  hideModeSwitch = false,
 }) => {
   const elRef = useRef(null);
   const editorRef = useRef(null);
@@ -33,6 +35,7 @@ const MarkdownEditor = ({
       theme: isDark ? "dark" : "default",
       initialEditType: "wysiwyg",
       previewStyle: "vertical",
+      hideModeSwitch,
       usageStatistics: false,
       autofocus: false,
       initialValue: initialValue || "",

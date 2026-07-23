@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
 import { redirect, useLoaderData } from "react-router";
-import { BrowserView, MobileView, isBrowser } from "react-device-detect";
+import { BrowserView, MobileView } from "react-device-detect";
 
 import SettingsSection from "@/components/app/SettingsSection";
-import { cn } from "@/lib/utils";
+import AnchorRail from "@/components/app/AnchorRail";
 
 import Profile from "../../components/User/AccountSettings/Profile";
 import Appearance from "../../components/User/AccountSettings/Appearance";
@@ -20,79 +19,6 @@ const SECTIONS = [
   { id: "integrations", label: "Интеграции" },
   { id: "security", label: "Безопасность" },
 ];
-
-// Порог scrollspy: fixed-навбар (~100px) + запас до метки секции.
-const SPY_OFFSET = 140;
-
-// Липкий рейл-якорь (десктоп): все разделы — на одной странице, рейл ведёт по
-// ним и подсвечивает текущий. Слушатель на window — только BrowserView
-// (на мобайле window не скроллится, см. docs/ux-ui-guide.md).
-const AccountNav = () => {
-  const [active, setActive] = useState(SECTIONS[0].id);
-
-  useEffect(() => {
-    if (!isBrowser) return;
-
-    const onScroll = () => {
-      // У дна страницы последние секции не доезжают до верха — активна последняя
-      if (
-        window.innerHeight + window.scrollY >=
-        document.documentElement.scrollHeight - 4
-      ) {
-        setActive(SECTIONS[SECTIONS.length - 1].id);
-        return;
-      }
-      let current = SECTIONS[0].id;
-      for (const section of SECTIONS) {
-        const el = document.getElementById(section.id);
-        if (el && el.getBoundingClientRect().top <= SPY_OFFSET) {
-          current = section.id;
-        }
-      }
-      setActive(current);
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const go = (event, id) => {
-    event.preventDefault();
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    document.getElementById(id)?.scrollIntoView({
-      behavior: reduceMotion ? "auto" : "smooth",
-      block: "start",
-    });
-    setActive(id);
-  };
-
-  return (
-    <nav
-      aria-label="Разделы настроек"
-      className="tw:sticky tw:top-28 tw:flex tw:w-48 tw:flex-none tw:flex-col tw:gap-0.5"
-    >
-      {SECTIONS.map((section) => (
-        <a
-          key={section.id}
-          href={`#${section.id}`}
-          onClick={(event) => go(event, section.id)}
-          aria-current={active === section.id ? "true" : undefined}
-          className={cn(
-            "tw:rounded-lg tw:px-3 tw:py-1.5 tw:text-base tw:font-medium tw:no-underline tw:transition-colors",
-            active === section.id
-              ? "tw:bg-primary/15 tw:text-accent-text tw:hover:text-accent-text"
-              : "tw:text-muted-foreground tw:hover:bg-accent tw:hover:text-foreground",
-          )}
-        >
-          {section.label}
-        </a>
-      ))}
-    </nav>
-  );
-};
 
 const MyAccount = () => {
   const { user, initialPrefs } = useLoaderData();
@@ -126,7 +52,7 @@ const MyAccount = () => {
       </h1>
       <BrowserView>
         <div className="tw:flex tw:items-start tw:gap-7">
-          <AccountNav />
+          <AnchorRail sections={SECTIONS} ariaLabel="Разделы настроек" />
           <div className="tw:min-w-0 tw:flex-1">{sections}</div>
         </div>
       </BrowserView>

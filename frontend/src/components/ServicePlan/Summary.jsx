@@ -60,9 +60,14 @@ const Row = ({ label, value, muted }) => (
   </div>
 );
 
+const fmtDate = (value) =>
+  value ? new Date(value).toLocaleDateString("ru-RU") : null;
+
 // Живая сводка мастера: наполняется по мере прохождения шагов (reached —
-// максимально достигнутый шаг). Незаданное показывает «—».
-const Summary = ({ form, packages, reached }) => {
+// максимально достигнутый шаг). Незаданное показывает «—». attach — контекст
+// «Новой услуги» с карточки компании: для кого создаём и с какими параметрами
+// подключения (виден на всех шагах).
+const Summary = ({ form, packages, reached, attach = null }) => {
   const categoryCount = form.ticketCategories.length;
   const showTariff = reached >= 1;
   const showSchedule = reached >= 2;
@@ -115,6 +120,24 @@ const Summary = ({ form, packages, reached }) => {
           muted={!showSchedule}
         />
       </dl>
+      {attach && (
+        <div
+          className="tw:mt-3 tw:pt-2.5"
+          style={{ borderTop: "1px dashed var(--border)" }}
+        >
+          <div className="tw:mb-1 tw:flex tw:items-center tw:gap-1.5 tw:text-xs tw:font-bold tw:tracking-wider tw:text-accent-text tw:uppercase">
+            <span className="tw:size-1.5 tw:rounded-full tw:bg-primary" />
+            Подключение
+          </div>
+          <div className="tw:text-sm tw:font-semibold">{attach.companyAlias}</div>
+          <div className="tw:mt-0.5 tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+            с {fmtDate(attach.isActiveSince) || "сегодня"} ·{" "}
+            {attach.customerApprovalRequired
+              ? "согласование с клиентом"
+              : "без согласования"}
+          </div>
+        </div>
+      )}
     </aside>
   );
 };

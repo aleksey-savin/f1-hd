@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import DeviceAttributeForm from "../../components/DeviceAttribute/Form";
-import Forbidden from "../../components/Error/403";
+import InlineForbidden from "../../components/Error/InlineForbidden";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
 
@@ -11,9 +11,11 @@ const UpdateDeviceAttributePage = () => {
   return (
     <>
       {canUseInventoryModule && canManageClientDevices && (
-        <DeviceAttributeForm title="Редактировать атрибут устройства" />
+        <DeviceAttributeForm title="Изменить атрибут устройства" />
       )}
-      {(!canUseInventoryModule || !canManageClientDevices) && <Forbidden />}
+      {(!canUseInventoryModule || !canManageClientDevices) && (
+        <InlineForbidden right="Управление устройствами" />
+      )}
     </>
   );
 };
@@ -21,7 +23,7 @@ const UpdateDeviceAttributePage = () => {
 export default UpdateDeviceAttributePage;
 
 export async function loader({ params }) {
-  document.title = "Редактировать атрибут устройства";
+  document.title = "Изменить атрибут устройства";
 
   const { token } = getLocalStorageData();
 

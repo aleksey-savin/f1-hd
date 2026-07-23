@@ -1764,3 +1764,34 @@ body {
 body[data-scroll-locked] {
   padding-right: 0 !important;
 }
+
+/* Toast UI редактор описания шаблона (форма) и вьюер (карточка) под tw-макет.
+   Скоуплено на .tpl-editor/.tpl-doc — knowledgeBase.css с этими правилами на
+   странице шаблонов не загружается. Рамку и радиус даёт tw-обёртка, поэтому
+   собственный бордер редактора снимаем; тулбар компактный (как в БЗ). */
+.tpl-editor .toastui-editor-defaultUI {
+  border: 0;
+  border-radius: 0;
+}
+.tpl-editor .toastui-editor-defaultUI-toolbar {
+  height: 34px;
+  padding: 0 8px;
+}
+.tpl-editor .toastui-editor-defaultUI-toolbar button {
+  width: 28px;
+  height: 28px;
+  margin: 3px 2px;
+}
+.tpl-editor .toastui-editor-toolbar-divider {
+  height: 16px;
+  margin: 9px 6px;
+}
+.tpl-doc .toastui-editor-contents {
+  font-size: 1rem;
+}
+.tpl-doc .toastui-editor-contents > *:first-child {
+  margin-top: 0;
+}
+.tpl-doc .toastui-editor-contents > *:last-child {
+  margin-bottom: 0;
+}

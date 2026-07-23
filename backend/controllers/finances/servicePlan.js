@@ -59,6 +59,10 @@ exports.add = async (req, res, next) => {
       packagesNonWorkingCalcMethod = "",
       packagesNonWorkingCoefficient = 1,
       tariffingPeriod = 10,
+      // «Новая услуга» с карточки компании: создать и сразу подключить
+      // компании ({ companyId, isActiveSince, customerApprovalRequired }) —
+      // одним запросом, чтобы при конфликте не оставалась услуга-сирота.
+      attachCompany = null,
     } = req.body;
 
     let categoriesList = [];
@@ -73,6 +77,42 @@ exports.add = async (req, res, next) => {
       }
     }
 
+    // Компанию и конфликт категорий проверяем ДО создания услуги: категории
+    // новой услуги не должны пересекаться с уже подключёнными компании
+    // (та же проверка, что в company.addServicePlan).
+    let attachToCompany = null;
+    if (attachCompany?.companyId) {
+      attachToCompany = await Company.findById(attachCompany.companyId);
+      if (!attachToCompany) {
+        return next(
+          new AppError(`Company ${attachCompany.companyId} not found`, 404),
+        );
+      }
+
+      const existingCategories = [];
+      for (const attached of attachToCompany.servicePlans) {
+        const existingPlan = await ServicePlan.findById(attached._id);
+        if (existingPlan) {
+          existingCategories.push(...existingPlan.ticketCategories);
+        }
+      }
+
+      const duplicates = categoriesList.filter((category) =>
+        existingCategories.some(
+          (existing) => existing._id.toString() === category._id.toString(),
+        ),
+      );
+
+      if (duplicates.length > 0) {
+        return res.status(409).json({
+          message:
+            "Категории новой услуги уже покрыты услугами компании: " +
+            duplicates.map((category) => category.title).join(", "),
+          duplicates,
+        });
+      }
+    }
+
     const servicePlan = new ServicePlan({
       title: title,
       companyWorkSchedule: companyWorkSchedule,
@@ -80,7 +120,9 @@ exports.add = async (req, res, next) => {
         ? customProvisionSchedule
         : {},
       ticketCategories: categoriesList,
-      companies: companies,
+      companies: attachToCompany
+        ? [{ _id: attachToCompany._id, alias: attachToCompany.alias }]
+        : companies,
       type: type,
       hourPackages: hourPackages,
       fixedPrice: fixedPrice,
@@ -94,6 +136,17 @@ exports.add = async (req, res, next) => {
     });
 
     await servicePlan.save();
+
+    if (attachToCompany) {
+      attachToCompany.servicePlans.push({
+        _id: servicePlan._id,
+        isActiveSince: attachCompany.isActiveSince || new Date(),
+        customerApprovalRequired: Boolean(
+          attachCompany.customerApprovalRequired,
+        ),
+      });
+      await attachToCompany.save();
+    }
 
     res.status(201).json({
       message: "Service plan added successfully!",

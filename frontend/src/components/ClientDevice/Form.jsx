@@ -696,7 +696,7 @@ const ClientDeviceForm = ({ title }) => {
                   onChange={(o) => setField("locationId", o ? o.value : "")}
                   isDisabled={!form.companyId}
                   isClearable
-                  addTitle="Добавить расположение"
+                  addTitle="Новое расположение"
                   onAdd={() => setInlineKind("location")}
                   addDisabled={!form.companyId}
                 />
@@ -806,7 +806,7 @@ const ClientDeviceForm = ({ title }) => {
                       onChange={(o) => handleTypeChange(o ? o.value : "")}
                       isClearable
                       autoFocus
-                      addTitle="Добавить тип"
+                      addTitle="Новый тип"
                       onAdd={() => setInlineKind("deviceType")}
                     />
                   </Form.Group>
@@ -1024,7 +1024,7 @@ const ClientDeviceForm = ({ title }) => {
       <hr />
       <Stack direction="horizontal" gap={2}>
         <Button variant="secondary" onClick={handleClose} disabled={saving}>
-          <RiArrowGoBackFill /> Закрыть
+          <RiArrowGoBackFill /> Отмена
         </Button>
 
         <div className="ms-auto d-flex gap-2">

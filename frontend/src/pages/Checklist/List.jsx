@@ -31,7 +31,7 @@ const Checklists = () => {
   const title = () => {
     return (
       <>
-        <RiServerLine /> Чеклисты
+        <RiServerLine /> Чек-листы
       </>
     );
   };
@@ -39,6 +39,7 @@ const Checklists = () => {
   return (
     <ListWrapper
       title={title}
+      addLabel="Новый чек-лист"
       filteredList={filteredChecklists}
       setSearchTerm={setSearchTerm}
     >
@@ -50,7 +51,7 @@ const Checklists = () => {
 export default Checklists;
 
 export async function loader() {
-  document.title = "ЧЕКЛИСТЫ";
+  document.title = "Чек-листы";
 
   const { token } = getLocalStorageData();
 

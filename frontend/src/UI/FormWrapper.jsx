@@ -64,7 +64,7 @@ const FormWrapper = ({ title, action, successTo, children }) => {
                 onClick={offcanvas.setClose}
                 variant="secondary"
               >
-                <RiArrowGoBackFill /> Закрыть
+                <RiArrowGoBackFill /> Отмена
               </Button>
             </div>
             <div className="">

@@ -15,6 +15,7 @@ const SearchBar = ({
   value,
   autoFocus,
   className,
+  placeholder = "Поиск…",
 }: {
   onChange?: ChangeEventHandler<HTMLInputElement>;
   size?: "lg" | "md";
@@ -22,6 +23,7 @@ const SearchBar = ({
   value?: string;
   autoFocus?: boolean;
   className?: string;
+  placeholder?: string;
 }) => {
   const controlled = value !== undefined;
 
@@ -38,7 +40,7 @@ const SearchBar = ({
       <Input
         id="search-bar"
         type="search"
-        placeholder="Поиск…"
+        placeholder={placeholder}
         className={cn(
           // Поиск живёт в шапке на канве — фон панели, иначе сливается
           "tw:bg-card tw:pl-9 tw:text-sm",

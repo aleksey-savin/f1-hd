@@ -42,6 +42,28 @@ router.get(
   locationController.getDeviceEnvironment,
 );
 
+// Get environment overview for a COMPANY (root locations + subtree counts).
+// Питает виджет «Окружение» на карточке компании. Тоже до "/locations/:id".
+router.get(
+  "/locations/company/:companyId/environment",
+  isAuth,
+  locationController.getCompanyEnvironment,
+);
+
+// Flat tech list for a COMPANY card (вид «Список» секции «Техника»)
+router.get(
+  "/locations/company/:companyId/tech",
+  isAuth,
+  locationController.getCompanyTech,
+);
+
+// Tech list for a USER card (личная + РМ + помещение уровнем выше)
+router.get(
+  "/locations/user/:userId/tech",
+  isAuth,
+  locationController.getUserTech,
+);
+
 // Get devices in a location
 router.get(
   "/locations/:id/devices",

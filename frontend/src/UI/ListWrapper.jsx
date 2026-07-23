@@ -39,6 +39,7 @@ const ListWrapper = ({
   onAddClick,
   hiddenAddButton,
   showAddButton = true,
+  addLabel = "Добавить",
   showBackButton = false,
   showRefreshButton = true,
   backRoute,
@@ -115,8 +116,8 @@ const ListWrapper = ({
               <Button
                 onClick={onAddClick}
                 size="lg"
-                title="Добавить"
-                aria-label="Добавить"
+                title={addLabel}
+                aria-label={addLabel}
               >
                 <RiAddFill />
               </Button>
@@ -126,8 +127,8 @@ const ListWrapper = ({
                 to={addRoute ? addRoute : "add"}
                 onClick={offcanvas.setShow}
                 size="lg"
-                title="Добавить"
-                aria-label="Добавить"
+                title={addLabel}
+                aria-label={addLabel}
               >
                 <RiAddFill />
               </Button>

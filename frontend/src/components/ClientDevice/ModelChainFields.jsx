@@ -90,7 +90,7 @@ const ModelChainFields = ({
               }
               isClearable
               autoFocus={autoFocusType}
-              addTitle="Добавить тип"
+              addTitle="Новый тип"
               onAdd={() => setInlineKind("deviceType")}
             />
           </Form.Group>
@@ -109,7 +109,7 @@ const ModelChainFields = ({
                 onChange({ vendorId: o ? o.value : "", deviceModelId: "" })
               }
               isClearable
-              addTitle="Добавить вендора"
+              addTitle="Новый вендор"
               onAdd={() => setInlineKind("vendor")}
             />
           </Form.Group>
@@ -132,7 +132,7 @@ const ModelChainFields = ({
           isDisabled={modelDisabled}
           isClearable
           noOptionsMessage={() => "Нет моделей — добавьте кнопкой рядом"}
-          addTitle="Добавить модель"
+          addTitle="Новая модель"
           onAdd={() => setInlineKind("deviceModel")}
           addDisabled={modelDisabled}
         />

@@ -43,6 +43,11 @@ const clientDeviceFilter = (state) => {
         !state.locations?.length ||
         state.locations.includes(item.locationId?._id?.toString()),
     )
+    .filter(
+      (item) =>
+        !state.users?.length ||
+        state.users.includes(item.userId?._id?.toString()),
+    )
     .filter((item) => {
       if (!state.vendors?.length) return true;
       const vendorId = item.deviceModelId?.vendorId?._id?.toString();
@@ -95,6 +100,7 @@ const useClientDeviceFilterStore = create((set) => ({
   // Мульти-селект фильтры (массивы выбранных id / значений)
   companies: [],
   locations: [],
+  users: [],
   vendors: [],
   deviceTypes: [],
   statuses: [],
@@ -127,6 +133,7 @@ const useClientDeviceFilterStore = create((set) => ({
       originalList: data.originalList,
       companies: data.companies ?? [],
       locations: data.locations ?? [],
+      users: data.users ?? [],
       vendors: data.vendors ?? [],
       deviceTypes: data.deviceTypes ?? [],
       statuses: data.statuses ?? [],
@@ -146,6 +153,7 @@ const useClientDeviceFilterStore = create((set) => ({
       searchTerm: "",
       companies: [],
       locations: [],
+      users: [],
       vendors: [],
       deviceTypes: [],
       statuses: [],

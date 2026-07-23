@@ -11,7 +11,7 @@ const AddTicketPage = () => {
 export default AddTicketPage;
 
 export async function loader() {
-  document.title = "НОВАЯ ЗАЯВКА";
+  document.title = "Новая заявка";
 
   const { token } = getLocalStorageData();
 

@@ -18,7 +18,7 @@ const AddDeviceTypePage = () => {
 export default AddDeviceTypePage;
 
 export async function loader() {
-  document.title = "Добавить тип устройства";
+  document.title = "Новый тип устройства";
 
   const { token } = getLocalStorageData();
 

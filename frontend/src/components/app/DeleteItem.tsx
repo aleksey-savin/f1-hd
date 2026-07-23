@@ -54,7 +54,7 @@ export function DeleteDialog({
           </AlertDialogHeader>
           <input type="hidden" name="id" value={item._id} readOnly />
           <AlertDialogFooter className="tw:mt-4">
-            <AlertDialogCancel type="button">Закрыть</AlertDialogCancel>
+            <AlertDialogCancel type="button">Отмена</AlertDialogCancel>
             <Button
               variant="destructive"
               type="submit"

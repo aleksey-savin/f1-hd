@@ -1,16 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFetcher } from "react-router";
-
-import Button from "react-bootstrap/Button";
-import Table from "react-bootstrap/Table";
-import Modal from "react-bootstrap/Modal";
-import Form from "react-bootstrap/Form";
-import Alert from "react-bootstrap/Alert";
-import Badge from "react-bootstrap/Badge";
-
-import AlertMessage from "../../../UI/AlertMessage";
-import { formatShortDate } from "../../../util/format-date";
-
 import {
   RiAddLine,
   RiDeleteBinLine,
@@ -20,259 +9,271 @@ import {
   RiKey2Line,
 } from "react-icons/ri";
 
-const ApiKeysSection = ({ company, permissions }) => {
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Eyebrow, Panel } from "@/components/app/Panel";
+import Field from "@/components/app/Field";
+import AlertMessage from "@/components/app/AlertMessage";
+import useToastStore from "@/store/toast-store";
+import { cn } from "@/lib/utils";
+
+// API-ключи компании (только для управляющих компаниями): строки с маской
+// ключа, показом/копированием и статусом текстом с точкой. «Создать ключ» —
+// генерация (исключение словаря действий), удаление — с подтверждением.
+const fmtDate = (value) =>
+  value ? new Date(value).toLocaleDateString("ru-RU") : "—";
+
+const maskKey = (key) =>
+  key.length <= 8 ? key : `${key.slice(0, 4)}••••${key.slice(-4)}`;
+
+const iconBtnClass =
+  "tw:grid tw:size-8 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:transition-colors tw:hover:bg-border-soft tw:hover:text-foreground";
+
+const ApiKeysSection = ({ company, id }) => {
   const fetcher = useFetcher();
 
-  const [showModal, setShowModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [keyToDelete, setKeyToDelete] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [keyName, setKeyName] = useState("");
   const [visibleKeys, setVisibleKeys] = useState({});
-  const [copiedKey, setCopiedKey] = useState("");
+  const [deleteKey, setDeleteKey] = useState(null);
 
-  const handleClose = () => {
-    setShowModal(false);
-    setKeyName("");
-  };
+  const keys = company.apiKeys || [];
+  const busy = fetcher.state !== "idle";
 
-  const handleCloseDelete = () => {
-    setShowDeleteModal(false);
-    setKeyToDelete(null);
-  };
+  const toggleVisibility = (keyId) =>
+    setVisibleKeys((prev) => ({ ...prev, [keyId]: !prev[keyId] }));
 
-  const handleShow = () => setShowModal(true);
-
-  const handleSubmit = (event) => {
-    event.preventDefault();
-
-    fetcher.submit(
-      {
-        intent: "createApiKey",
-        companyId: company._id,
-        keyName: keyName,
-      },
-      {
-        method: "POST",
-        action: `/companies/${company._id}`,
-      },
+  const copyKey = (key) => {
+    if (!navigator?.clipboard) return;
+    navigator.clipboard.writeText(key).then(
+      () => useToastStore.getState().showToast("success", "Ключ скопирован"),
+      () =>
+        useToastStore.getState().showToast("danger", "Не удалось скопировать"),
     );
   };
 
-  const handleDeleteKey = (keyId, keyName) => {
-    setKeyToDelete({ id: keyId, name: keyName });
-    setShowDeleteModal(true);
+  const openCreate = () => {
+    setKeyName("");
+    setCreateOpen(true);
   };
 
-  const confirmDeleteKey = () => {
-    if (keyToDelete) {
-      fetcher.submit(
-        {
-          intent: "deleteApiKey",
-          companyId: company._id,
-          keyId: keyToDelete.id,
-        },
-        {
-          method: "POST",
-          action: `/companies/${company._id}`,
-        },
-      );
-      handleCloseDelete();
+  const submitCreate = (event) => {
+    event.preventDefault();
+    fetcher.submit(
+      { intent: "createApiKey", companyId: company._id, keyName },
+      { method: "POST", action: `/companies/${company._id}` },
+    );
+  };
+
+  const confirmDelete = () => {
+    fetcher.submit(
+      { intent: "deleteApiKey", companyId: company._id, keyId: deleteKey._id },
+      { method: "POST", action: `/companies/${company._id}` },
+    );
+    setDeleteKey(null);
+  };
+
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
+      setCreateOpen(false);
     }
-  };
-
-  const toggleKeyVisibility = (keyId) => {
-    setVisibleKeys((prev) => ({
-      ...prev,
-      [keyId]: !prev[keyId],
-    }));
-  };
-
-  const copyToClipboard = async (key, keyId) => {
-    try {
-      await navigator.clipboard.writeText(key);
-      setCopiedKey(keyId);
-      setTimeout(() => setCopiedKey(""), 2000);
-    } catch (err) {
-      console.error("Ошибка при копировании:", err);
-    }
-  };
-
-  const maskKey = (key) => {
-    if (key.length <= 8) return key;
-    return key.substring(0, 4) + "****" + key.substring(key.length - 4);
-  };
-
-  // Закрыть модальные окна после успешных операций
-  if (
-    fetcher.state === "idle" &&
-    fetcher.data &&
-    !fetcher.data.error &&
-    showModal
-  ) {
-    handleClose();
-  }
-
-  if (
-    fetcher.state === "idle" &&
-    fetcher.data &&
-    !fetcher.data.error &&
-    showDeleteModal
-  ) {
-    handleCloseDelete();
-  }
+  }, [fetcher.state, fetcher.data]);
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center gap-2 mb-3">
-        <div className="cap-card-title">
-          <RiKey2Line />
-          <span>API-ключи</span>
-        </div>
-        {permissions.canManageCompanies && (
-          <Button variant="primary" size="sm" onClick={handleShow}>
+      <Eyebrow
+        id={id}
+        count={keys.length}
+        action={
+          <Button size="sm" variant="outline" onClick={openCreate}>
             <RiAddLine /> Создать ключ
           </Button>
-        )}
-      </div>
-
-      {company.apiKeys && company.apiKeys.length > 0 ? (
-        <Table responsive>
-          <thead>
-            <tr>
-              <th>Название</th>
-              <th>Ключ</th>
-              <th>Создан</th>
-              <th>Статус</th>
-              {permissions.canManageCompanies && <th>Действия</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {company.apiKeys.map((apiKey) => (
-              <tr key={apiKey._id}>
-                <td>{apiKey.name}</td>
-                <td className="d-flex align-items-center gap-2">
-                  <span className="font-monospace">
-                    {visibleKeys[apiKey._id] ? apiKey.key : maskKey(apiKey.key)}
-                  </span>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="p-0"
-                    onClick={() => toggleKeyVisibility(apiKey._id)}
-                    title={
-                      visibleKeys[apiKey._id] ? "Скрыть ключ" : "Показать ключ"
-                    }
-                  >
-                    {visibleKeys[apiKey._id] ? <RiEyeOffLine /> : <RiEyeLine />}
-                  </Button>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="p-0"
-                    onClick={() => copyToClipboard(apiKey.key, apiKey._id)}
-                    title="Копировать ключ"
-                  >
-                    <RiFileCopyLine />
-                  </Button>
-                  {copiedKey === apiKey._id && (
-                    <small className="text-success">Скопировано!</small>
-                  )}
-                </td>
-                <td>{formatShortDate(apiKey.createdAt)}</td>
-                <td>
-                  <Badge bg={apiKey.isActive ? "success" : "danger"}>
-                    {apiKey.isActive ? "Активен" : "Неактивен"}
-                  </Badge>
-                </td>
-                {permissions.canManageCompanies && (
-                  <td>
-                    <Button
-                      variant="outline-danger"
-                      size="sm"
-                      onClick={() => handleDeleteKey(apiKey._id, apiKey.name)}
-                    >
-                      <RiDeleteBinLine />
-                    </Button>
-                  </td>
+        }
+      >
+        API-ключи
+      </Eyebrow>
+      <Panel>
+        {keys.length === 0 ? (
+          <div className="tw:mx-auto tw:flex tw:max-w-md tw:flex-col tw:items-center tw:gap-2 tw:py-6 tw:text-center">
+            <RiKey2Line size={36} aria-hidden className="tw:text-faint" />
+            <div className="tw:font-semibold">Ключей пока нет</div>
+            <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+              API-ключ нужен внешним интеграциям (1С, мониторинг), чтобы
+              создавать заявки от имени компании.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="tw:mt-1"
+              onClick={openCreate}
+            >
+              <RiAddLine /> Создать ключ
+            </Button>
+          </div>
+        ) : (
+          keys.map((apiKey) => (
+            <div
+              key={apiKey._id}
+              className={cn(
+                "tw:group tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5 tw:border-t tw:border-border-soft tw:py-2.5 tw:first:border-t-0 tw:first:pt-0 tw:last:pb-0",
+              )}
+            >
+              <span
+                className={cn(
+                  "tw:min-w-0 tw:flex-1 tw:truncate tw:text-[15px] tw:font-medium tw:md:min-w-40 tw:md:flex-none tw:md:basis-48",
+                  !apiKey.isActive && "tw:text-muted-foreground",
                 )}
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      ) : (
-        <AlertMessage variant="light" message="API-ключи не созданы" />
-      )}
+              >
+                {apiKey.name}
+              </span>
+              <span className="tw:flex tw:min-w-0 tw:items-center tw:gap-0.5 tw:max-md:order-3 tw:max-md:w-full">
+                <code
+                  className={cn(
+                    "tw:min-w-0 tw:truncate tw:rounded-md tw:bg-accent tw:px-2 tw:py-0.5 tw:font-mono tw:text-xs tw:text-muted-foreground",
+                    !apiKey.isActive && "tw:text-faint",
+                  )}
+                >
+                  {visibleKeys[apiKey._id] ? apiKey.key : maskKey(apiKey.key)}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => toggleVisibility(apiKey._id)}
+                  title={visibleKeys[apiKey._id] ? "Скрыть ключ" : "Показать ключ"}
+                  aria-label={
+                    visibleKeys[apiKey._id] ? "Скрыть ключ" : "Показать ключ"
+                  }
+                  className={iconBtnClass}
+                >
+                  {visibleKeys[apiKey._id] ? (
+                    <RiEyeOffLine size={15} />
+                  ) : (
+                    <RiEyeLine size={15} />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => copyKey(apiKey.key)}
+                  title="Скопировать"
+                  aria-label="Скопировать ключ"
+                  className={iconBtnClass}
+                >
+                  <RiFileCopyLine size={15} />
+                </button>
+              </span>
+              <span className="tw:ms-auto tw:flex-none tw:text-xs tw:text-faint tw:tabular-nums tw:max-md:hidden">
+                создан {fmtDate(apiKey.createdAt)}
+              </span>
+              <span
+                className={cn(
+                  "tw:inline-flex tw:w-22 tw:flex-none tw:items-center tw:gap-1.5 tw:text-[13px] tw:font-semibold",
+                  apiKey.isActive ? "tw:text-accent-text" : "tw:text-faint",
+                )}
+              >
+                <span
+                  className={cn(
+                    "tw:size-1.5 tw:rounded-full",
+                    apiKey.isActive
+                      ? "tw:bg-primary"
+                      : "tw:bg-transparent tw:inset-ring tw:inset-ring-faint",
+                  )}
+                />
+                {apiKey.isActive ? "Активен" : "Отключён"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setDeleteKey(apiKey)}
+                title="Удалить"
+                aria-label={`Удалить ключ ${apiKey.name}`}
+                className={cn(
+                  iconBtnClass,
+                  "tw:opacity-0 tw:group-hover:opacity-100 tw:hover:text-destructive tw:focus-visible:opacity-100 tw:max-md:opacity-100",
+                )}
+              >
+                <RiDeleteBinLine size={15} />
+              </button>
+            </div>
+          ))
+        )}
+      </Panel>
 
-      <Modal show={showModal} onHide={handleClose} centered>
-        <Form onSubmit={handleSubmit}>
-          <Modal.Header closeButton>
-            <Modal.Title>Создать API-ключ</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            {fetcher.data?.error && (
-              <Alert variant="danger">{fetcher.data.error}</Alert>
-            )}
-            <Form.Group className="mb-3">
-              <Form.Label htmlFor="keyName">Название ключа</Form.Label>
-              <Form.Control
-                type="text"
-                id="keyName"
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="tw:max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Создать API-ключ</DialogTitle>
+          </DialogHeader>
+
+          {fetcher.data?.error && (
+            <AlertMessage variant="danger" message={fetcher.data.error} />
+          )}
+
+          <form onSubmit={submitCreate}>
+            <Field
+              label="Название ключа"
+              required
+              hint="Например: «Мобильное приложение», «Интеграция с CRM»."
+            >
+              <Input
                 value={keyName}
-                onChange={(e) => setKeyName(e.target.value)}
-                placeholder="Введите название для API-ключа"
+                onChange={(event) => setKeyName(event.target.value)}
+                placeholder="Для чего этот ключ"
                 required
               />
-              <Form.Text className="text-muted">
-                Например: "Мобильное приложение", "Интеграция с CRM" и т.д.
-              </Form.Text>
-            </Form.Group>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={handleClose}>
-              Отмена
-            </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              disabled={fetcher.state !== "idle" || !keyName.trim()}
-            >
-              {fetcher.state !== "idle" ? "Создание..." : "Создать"}
-            </Button>
-          </Modal.Footer>
-        </Form>
-      </Modal>
+            </Field>
 
-      {/* Modal для подтверждения удаления */}
-      <Modal show={showDeleteModal} onHide={handleCloseDelete} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Удалить API-ключ</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {keyToDelete && (
-            <>
-              Вы уверены, что хотите удалить API-ключ "
-              <strong>{keyToDelete.name}</strong>"?
-              <br />
-              <small className="text-muted">
-                Это действие нельзя отменить.
-              </small>
-            </>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={handleCloseDelete}>
-            Отмена
-          </Button>
-          <Button
-            variant="danger"
-            onClick={confirmDeleteKey}
-            disabled={fetcher.state !== "idle"}
-          >
-            <RiDeleteBinLine />{" "}
-            {fetcher.state !== "idle" ? "Удаление..." : "Удалить"}
-          </Button>
-        </Modal.Footer>
-      </Modal>
+            <DialogFooter className="tw:mt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setCreateOpen(false)}
+              >
+                Отмена
+              </Button>
+              <Button type="submit" disabled={busy || !keyName.trim()}>
+                {busy ? "Создание…" : "Создать"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={Boolean(deleteKey)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteKey(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{deleteKey?.name}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Интеграции с этим ключом перестанут работать. Это действие нельзя
+              отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="tw:mt-4">
+            <AlertDialogCancel type="button">Отмена</AlertDialogCancel>
+            <Button variant="destructive" onClick={confirmDelete}>
+              <RiDeleteBinLine /> Удалить
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

@@ -59,7 +59,7 @@ const UpdateDeadline = ({ ticket, isOverdue }) => {
       <Dropdown.Divider />
       <Modal show={show} onHide={closeModal} centered>
         <Modal.Header closeButton>
-          <Modal.Title>Изменение дедлайна</Modal.Title>
+          <Modal.Title>Изменить дедлайн</Modal.Title>
         </Modal.Header>
         <Form onSubmit={updateDeadlineHandler}>
           <Modal.Body>
@@ -78,7 +78,7 @@ const UpdateDeadline = ({ ticket, isOverdue }) => {
               onClick={closeModal}
               disabled={fetcher.state !== "idle"}
             >
-              Закрыть
+              Отмена
             </Button>
             <Button
               type="submit"

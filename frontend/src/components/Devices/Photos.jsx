@@ -307,7 +307,7 @@ const DevicePhotos = ({
                 <>
                   <RiAddLine className="fs-4" />
                   <span className="device-photo-drop__label">
-                    Добавить фото
+                    Новое фото
                   </span>
                   <span className="device-photo-drop__hint">
                     или перетащите сюда

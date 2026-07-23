@@ -1,141 +1,114 @@
 import { create } from "zustand";
 import { getLocalStorageData } from "../../util/auth";
 
-const ticketTemplateFilter = (state) => {
-  const originalList = state.originalList ? state.originalList : [];
+// Фильтр списка шаблонов заявок. Компания — одиночный фасет (чип-combobox в
+// строке инструментов); категория / пользователи / автор — множественные (в
+// шторке фильтра). Данные — из getAll (categoryId популирован, createdBy,
+// sharedCompanies/sharedUsers, customFields, timestamps).
+const templateFilter = (state) => {
+  const originalList = state.originalList ?? [];
 
   return originalList
     .filter((item) => {
-      if (state.sharedCompanies?.length > 0) {
-        const isEqual = (a, b) => a === b;
-        return item.sharedCompanies
-          .map((company) => company._id.toString())
-          .some((item2) =>
-            state.sharedCompanies.some((item1) => isEqual(item1, item2)),
-          );
-      } else {
-        return true;
-      }
+      if (!state.companies?.length) return true;
+      return (item.sharedCompanies ?? []).some((company) =>
+        state.companies.includes(company._id?.toString()),
+      );
     })
     .filter((item) => {
-      if (state.categories?.length > 0) {
-        return state.categories.includes(item.category._id.toString());
-      } else {
-        return true;
-      }
+      // Доступ: сотрудникам — allowAllStaff; клиентам — есть шеринг компаниям/
+      // пользователям; личные — ничего из этого.
+      if (state.access === "all") return true;
+      const clients =
+        (item.sharedCompanies?.length ?? 0) + (item.sharedUsers?.length ?? 0) >
+        0;
+      if (state.access === "staff") return !!item.allowAllStaff;
+      if (state.access === "clients") return clients;
+      if (state.access === "private") return !item.allowAllStaff && !clients;
+      return true;
     })
     .filter((item) => {
-      if (state.sharedUsers?.length > 0) {
-        const isEqual = (a, b) => a === b;
-        return item.sharedUsers
-          .map((user) => user._id.toString())
-          .some((item2) =>
-            state.sharedUsers.some((item1) => isEqual(item1, item2)),
-          );
-      } else {
-        return true;
-      }
+      if (!state.categories?.length) return true;
+      return state.categories.includes(item.categoryId?._id?.toString());
     })
     .filter((item) => {
-      if (state.searchTerm.length > 0) {
-        return [item.title].join(" ").toLowerCase().includes(state.searchTerm);
-      } else {
-        return true;
-      }
+      if (!state.sharedUsers?.length) return true;
+      return (item.sharedUsers ?? []).some((user) =>
+        state.sharedUsers.includes(user._id?.toString()),
+      );
+    })
+    .filter((item) => {
+      if (!state.authors?.length) return true;
+      return state.authors.includes(item.createdBy?._id?.toString());
+    })
+    .filter((item) => {
+      if (!state.searchTerm) return true;
+      const haystack = [item.title, item.description, item.categoryId?.title]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return state.searchTerm
+        .toLowerCase()
+        .split(" ")
+        .filter(Boolean)
+        .every((term) => haystack.includes(term));
     });
 };
 
-const searchItems = (query, items) => {
-  if (!query) return items;
-
-  // Split the query into individual terms (e.g., "Ольга Вознюк" becomes ["Ольга", "Вознюк"])
-  const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
-
-  return items.filter((item) => {
-    const fieldsToSearch = [
-      item.title,
-      item.description,
-      JSON.stringify(item.category),
-      JSON.stringify(item.company),
-      JSON.stringify(item.customFields),
-      JSON.stringify(item.sharedCompanies),
-      JSON.stringify(item.sharedUsers),
-    ];
-
-    return queryTerms.every((term) =>
-      fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term),
-      ),
-    );
-  });
-};
-
-const handleSorting = (selected, list) => {
-  if (!selected || !list.length) {
-    return;
-  }
-
-  const sortedList = [...list];
-
-  switch (selected.label) {
-    case "По алфавиту":
-      sortedList.sort((a, b) => a.title.localeCompare(b.title));
+// Сортировка применяется ко всем пересборкам filteredList: сервер отдаёт
+// бинарный порядок mongo, без явной сортировки новый/изменённый шаблон встаёт
+// не на место.
+const sortList = (selected, list) => {
+  if (!list?.length) return list;
+  const sorted = [...list];
+  switch (selected?.label) {
+    case "По названию":
+      sorted.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
       break;
-
     case "Сначала новые":
-      sortedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       break;
-
     case "Сначала старые":
-      sortedList.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
       break;
-
     default:
       break;
   }
-
-  return sortedList;
+  return sorted;
 };
 
 const useTicketTemplateFilterStore = create((set) => ({
-  sharedCompanies: [],
-  sharedUsers: [],
+  companies: [],
+  access: "all",
   categories: [],
+  sharedUsers: [],
+  authors: [],
   searchTerm: "",
   sortingOptions: [
-    {
-      label: "Сначала новые",
-    },
+    { label: "По названию" },
+    { label: "Сначала новые" },
     { label: "Сначала старые" },
-    { label: "По алфавиту" },
   ],
-  sortBy: {
-    label: "Сначала новые",
-  },
+  sortBy: { label: "По названию" },
   isSorting: false,
   handleSorting: async (data) => {
-    set({ isSorting: true });
-
-    // Set new sort option immediately
-    set({ sortBy: data });
-
-    // Use Promise and setTimeout to make sorting async
+    set({ isSorting: true, sortBy: data });
     await new Promise((resolve) => setTimeout(resolve, 0));
-
-    set((state) => {
-      const sortedList = handleSorting(data, state.filteredList);
-      return {
-        sortBy: data,
-        filteredList: sortedList,
-        isSorting: false,
-      };
-    });
+    set((state) => ({
+      sortBy: data,
+      filteredList: sortList(data, state.filteredList),
+      isSorting: false,
+    }));
   },
   originalList: [],
   filteredList: [],
   fullTextSearch: (query) =>
     set((state) => ({
-      filteredList: searchItems(query, ticketTemplateFilter(state)),
+      searchTerm: query,
+      filteredList: sortList(
+        state.sortBy,
+        templateFilter({ ...state, searchTerm: query }),
+      ),
     })),
   isLoading: false,
   fetch: async () => {
@@ -143,38 +116,37 @@ const useTicketTemplateFilterStore = create((set) => ({
     const { token } = getLocalStorageData();
     const response = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
+      { headers: { Authorization: "Bearer " + token } },
     );
     const data = await response.json();
-    set({
-      originalList: data,
-      isLoading: false,
-    });
+    set({ originalList: data, isLoading: false });
   },
   updateFilter: (data) =>
     set(() => ({
-      sharedCompanies: data.sharedCompanies,
-      sharedUsers: data.sharedUsers,
+      companies: data.companies,
+      access: data.access,
       categories: data.categories,
+      sharedUsers: data.sharedUsers,
+      authors: data.authors,
       searchTerm: data.searchTerm,
       originalList: data.originalList,
       isLoading: false,
     })),
   applyFilter: () =>
-    set((state) => ({ filteredList: ticketTemplateFilter(state) })),
+    set((state) => ({
+      filteredList: sortList(state.sortBy, templateFilter(state)),
+    })),
   resetFilter: () => {
     set(() => ({
-      sharedCompanies: [],
-      sharedUsers: [],
+      companies: [],
+      access: "all",
       categories: [],
+      sharedUsers: [],
+      authors: [],
       searchTerm: "",
     }));
     set((state) => ({
-      filteredList: ticketTemplateFilter(state),
+      filteredList: sortList(state.sortBy, templateFilter(state)),
     }));
   },
 }));

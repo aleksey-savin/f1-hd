@@ -12,6 +12,16 @@ router.post(
   ticketTemplateController.update,
 );
 router.post(
+  "/ticket-templates/:id/checklist",
+  isAuth,
+  ticketTemplateController.updateChecklist,
+);
+router.post(
+  "/ticket-templates/:id/sync-routines",
+  isAuth,
+  ticketTemplateController.syncRoutines,
+);
+router.post(
   "/ticket-templates/delete/:id",
   isAuth,
   ticketTemplateController.delete,

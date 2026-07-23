@@ -109,7 +109,7 @@ const AttributeForm = ({ title }) => {
         onClick={() => setShowModal(true)}
         className="tw:-mt-1.5 tw:mb-2 tw:inline-flex tw:cursor-pointer tw:items-center tw:gap-1 tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:font-semibold tw:text-accent-text tw:hover:underline"
       >
-        <RiAddLine size={15} /> Создать новый атрибут
+        <RiAddLine size={15} /> Новый атрибут
       </button>
 
       <SwitchField

@@ -30,6 +30,7 @@ import MobileBottomNavbar from "./MobileBottomNavbar";
 import { getLocalStorageData, getTokenDuration } from "../util/auth";
 import useOffcanvasStore from "../store/offcanvas";
 import useInitialPrefsStore from "../store/prefs";
+import useRouteErrorStore from "../store/route-error";
 
 const RootLayout = () => {
   const { token } = getLocalStorageData();
@@ -43,6 +44,10 @@ const RootLayout = () => {
   } = useSidebarStore();
 
   const initialPrefs = useInitialPrefsStore();
+
+  // В Outlet отрисован errorElement (флаг ставит pages/Error.jsx): контент —
+  // на канву независимо от MIGRATED_ROUTES, сайдбар не показываем.
+  const routeErrorActive = useRouteErrorStore((s) => s.active);
 
   useEffect(() => {
     initialPrefs.set(prefs);
@@ -74,12 +79,8 @@ const RootLayout = () => {
     if (
       [
         "/tickets",
-        "/routine-tasks",
-        "/companies",
-        "/users",
-        "/ticket-templates",
         "/finances/summary-report",
-        // мигрированные экраны (device-types, vendors, locations, …) сайдбар
+        // мигрированные экраны (companies, device-types, vendors, …) сайдбар
         // не используют — фильтры живут в чипах/Sheet самого списка
         "/inventory/client-devices",
       ].includes(location.pathname) ||
@@ -173,7 +174,7 @@ const RootLayout = () => {
                   icon={<RiRefreshLine />}
                   title="Доступна новая версия"
                   onDismiss={() => setVersionDismissed(true)}
-                  className="tw:mb-6"
+                  className="tw:mx-auto tw:w-full tw:max-w-7xl tw:mb-6"
                   action={
                     <Button
                       size="sm"
@@ -190,7 +191,7 @@ const RootLayout = () => {
               )}
 
             <Row>
-              {leftSidebarIsActive && (
+              {leftSidebarIsActive && !routeErrorActive && (
                 <Col hidden={!leftSidebarIsActive} className="col-4 col-xl-3">
                   <Card className="shadow">
                     <Card.Body className="h-100 p-3">
@@ -227,16 +228,50 @@ const RootLayout = () => {
                     { path: "/inventory/device-models/", maxWidth: 944 },
                     { path: "/inventory/device-models", maxWidth: 1328 },
                     { path: "/ticket-categories", maxWidth: 1328 },
+                    // Компании: формы add/update — в шторке списка (та же
+                    // ширина); карточка /companies/:id — с рейлом-якорем
+                    // (tw:max-w-5xl, со слэшем) — идёт ПОСЛЕ форм списка,
+                    // но ДО точного «/companies»
+                    { path: "/companies/add", maxWidth: 1328 },
+                    { path: "/companies/update", maxWidth: 1328 },
+                    { path: "/companies/", maxWidth: 1072 },
+                    { path: "/companies", maxWidth: 1328, exact: true },
+                    // Шаблоны: карточка (max-w-4xl, со слэшем) матчится раньше
+                    // списка (max-w-7xl) — порядок в .find важен
+                    { path: "/ticket-templates/", maxWidth: 944 },
+                    // ListWrapper: tw:max-w-7xl (1280) + 2×24
+                    { path: "/ticket-templates", maxWidth: 1328 },
+                    // Регламенты: карточка (со слэшем) матчится раньше списка
+                    { path: "/routine-tasks/", maxWidth: 944 },
+                    { path: "/routine-tasks", maxWidth: 1328 },
                     // Услуги: карточка/формы (max-w-4xl, со слэшем) матчатся
                     // раньше списка (max-w-7xl) — порядок в .find важен
                     { path: "/finances/service-plans/", maxWidth: 944 },
                     { path: "/finances/service-plans", maxWidth: 1328 },
+                    // Пользователи: список на канве (max-w-7xl), формы add/update
+                    // списка — в его шторке (та же ширина). Карточка /users/:id —
+                    // max-w-4xl, поэтому «/users/» (со слэшем) идёт ПОСЛЕ форм
+                    // списка, но ДО точного «/users», иначе перехватила бы их.
+                    { path: "/users/add", maxWidth: 1328 },
+                    { path: "/users/update", maxWidth: 1328 },
+                    // карточка с рейлом-якорем: tw:max-w-5xl (1024) + 2×24
+                    { path: "/users/", maxWidth: 1072 },
+                    { path: "/users", maxWidth: 1328, exact: true },
                     // страница: tw:max-w-4xl (896) + 2×24
                     { path: "/my-account", maxWidth: 944 },
+                    // Архив заявок: список ListWrapper (max-w-7xl), вложенных
+                    // маршрутов нет
+                    { path: "/closed-tickets", maxWidth: 1328, exact: true },
                   ];
-                  const migrated = MIGRATED_ROUTES.find((r) =>
-                    location.pathname.startsWith(r.path),
-                  );
+                  // Страница ошибок живёт на канве при любом pathname —
+                  // ширина как у карточки (944)
+                  const migrated = routeErrorActive
+                    ? { maxWidth: 944 }
+                    : MIGRATED_ROUTES.find((r) =>
+                        r.exact
+                          ? location.pathname === r.path
+                          : location.pathname.startsWith(r.path),
+                      );
                   if (!migrated) return null;
                   return (
                     <div

@@ -1,0 +1,259 @@
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
+import { isMobile } from "react-device-detect";
+import {
+  RiArrowRightSLine,
+  RiGroupLine,
+  RiMailLine,
+  RiPhoneLine,
+} from "react-icons/ri";
+
+import { Eyebrow, Panel } from "@/components/app/Panel";
+import SearchBar from "@/components/app/SearchBar";
+import ChipSelect from "@/components/app/ChipSelect";
+import { cn } from "@/lib/utils";
+
+import useUserFilterStore from "../../../store/lists/users";
+import UserAvatar from "../../User/UserAvatar";
+import UserContactSheet from "../../User/ContactSheet";
+import { relativeDay } from "../../../util/relative-time";
+
+// Сотрудники компании — адресная книга, а не таблица: поиск, чип-фасет по
+// подразделению, строки-люди. Свёрнута до COLLAPSED_ROWS строк (при активном
+// поиске/фасете показывается всё найденное); «Все сотрудники (N) →» уводит в
+// раздел «Пользователи» с предустановленным фильтром компании. Бэкенд отдаёт
+// только активных — состояния «отключён» здесь не бывает.
+const COLLAPSED_ROWS = 7;
+const NO_SUBDIVISION = "__none__";
+
+const iconLinkClass =
+  "tw:grid tw:size-8 tw:flex-none tw:cursor-pointer tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:no-underline tw:transition-colors tw:hover:bg-border-soft tw:hover:text-foreground";
+
+const EmployeesSection = ({ company, id }) => {
+  const navigate = useNavigate();
+  const employees = company.employees || [];
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [subdivisionFilter, setSubdivisionFilter] = useState(null);
+  const [contactUser, setContactUser] = useState(null);
+
+  const subdivisionOptions = useMemo(() => {
+    const names = new Set();
+    employees.forEach((user) => {
+      if (user.subdivision?.name) names.add(user.subdivision.name);
+    });
+    const options = [...names]
+      .sort((a, b) => a.localeCompare(b, "ru"))
+      .map((name) => ({ value: name, label: name }));
+    if (employees.some((user) => !user.subdivision?.name)) {
+      options.push({ value: NO_SUBDIVISION, label: "Без подразделения" });
+    }
+    return options;
+  }, [employees]);
+
+  const query = searchQuery.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    let list = [...employees].sort((a, b) =>
+      `${a.lastName} ${a.firstName}`.localeCompare(
+        `${b.lastName} ${b.firstName}`,
+        "ru",
+      ),
+    );
+    if (subdivisionFilter === NO_SUBDIVISION) {
+      list = list.filter((user) => !user.subdivision?.name);
+    } else if (subdivisionFilter) {
+      list = list.filter((user) => user.subdivision?.name === subdivisionFilter);
+    }
+    if (query) {
+      list = list.filter((user) =>
+        [
+          `${user.lastName} ${user.firstName}`,
+          user.position,
+          user.email,
+          user.phone,
+          user.subdivision?.name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query),
+      );
+    }
+    return list;
+  }, [employees, subdivisionFilter, query]);
+
+  // Свёрнутый хвост — только в «чистом» состоянии: активный запрос/фасет
+  // показывает всё найденное, иначе поиск по свёрнутому списку бессмыслен.
+  const hasActiveQuery = Boolean(query || subdivisionFilter);
+  const visible = hasActiveQuery ? filtered : filtered.slice(0, COLLAPSED_ROWS);
+
+  // «Все сотрудники →» — раздел «Пользователи», выборка уже сужена до этой
+  // компании (стор списка), сам fetch сделает монтирование страницы.
+  const openAllUsers = () => {
+    useUserFilterStore.setState({
+      audience: "clients",
+      company: company._id,
+      searchTerm: "",
+      page: 1,
+    });
+    navigate("/users");
+  };
+
+  const openRow = (user) => {
+    if (isMobile) {
+      setContactUser({
+        ...user,
+        isEndUser: true,
+        company: { alias: company.alias },
+        subdivisionName: user.subdivision?.name,
+        companyAddress: company.address,
+        companyMapLink: company.linkToMap,
+        lastActivityAt: user.lastActivity?.date,
+      });
+    } else {
+      navigate(`/users/${user._id}`);
+    }
+  };
+
+  return (
+    <>
+      <Eyebrow id={id} count={employees.length}>
+        Сотрудники
+      </Eyebrow>
+      <Panel>
+        {employees.length === 0 ? (
+          <div className="tw:mx-auto tw:flex tw:max-w-md tw:flex-col tw:items-center tw:gap-2 tw:py-6 tw:text-center">
+            <RiGroupLine size={36} aria-hidden className="tw:text-faint" />
+            <div className="tw:font-semibold">Сотрудников пока нет</div>
+            <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+              Пользователи компании заводятся в разделе «Пользователи» — там же
+              они привязываются к компании и подразделению.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+              <SearchBar
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="tw:w-72 tw:max-md:w-full"
+              />
+              {subdivisionOptions.length > 1 && (
+                <ChipSelect
+                  placeholder="Подразделение"
+                  allLabel="Все подразделения"
+                  value={subdivisionFilter}
+                  options={subdivisionOptions}
+                  onChange={setSubdivisionFilter}
+                />
+              )}
+            </div>
+
+            {visible.length > 0 ? (
+              <div>
+                {visible.map((user) => {
+                  const lastSeen = relativeDay(user.lastActivity?.date);
+                  return (
+                    <div
+                      key={user._id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openRow(user)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openRow(user);
+                        }
+                      }}
+                      className="tw:group tw:flex tw:cursor-pointer tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:py-2.5 tw:transition-colors tw:first:border-t-0 tw:hover:bg-accent/60"
+                    >
+                      <UserAvatar
+                        user={user}
+                        sizeClass="tw:size-9"
+                        textClass="tw:text-xs"
+                      />
+                      <div className="tw:min-w-0 tw:flex-1">
+                        <div className="tw:truncate tw:text-[15px] tw:leading-tight tw:font-medium">
+                          {user.lastName} {user.firstName}
+                        </div>
+                        <div className="tw:truncate tw:text-[13px] tw:text-muted-foreground">
+                          {[user.position, user.subdivision?.name]
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
+                        </div>
+                      </div>
+                      <div
+                        className="tw:hidden tw:flex-none tw:items-center tw:gap-0.5 tw:md:flex"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {user.email && (
+                          <a
+                            href={`mailto:${user.email}`}
+                            title={user.email}
+                            aria-label={`Написать — ${user.lastName} ${user.firstName}`}
+                            className={iconLinkClass}
+                          >
+                            <RiMailLine size={16} />
+                          </a>
+                        )}
+                        {user.phone && (
+                          <a
+                            href={`tel:${user.phone}`}
+                            title={user.phone}
+                            aria-label={`Позвонить — ${user.lastName} ${user.firstName}`}
+                            className={iconLinkClass}
+                          >
+                            <RiPhoneLine size={16} />
+                          </a>
+                        )}
+                      </div>
+                      <span
+                        title={
+                          user.lastActivity?.ticketNum
+                            ? `Последняя заявка №${user.lastActivity.ticketNum}`
+                            : "Обращений не было"
+                        }
+                        className={cn(
+                          "tw:hidden tw:w-24 tw:flex-none tw:text-right tw:text-xs tw:text-faint tw:tabular-nums tw:md:block",
+                        )}
+                      >
+                        {lastSeen || "—"}
+                      </span>
+                      <RiArrowRightSLine
+                        size={18}
+                        aria-hidden
+                        className="tw:flex-none tw:text-faint tw:md:hidden"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="tw:py-2 tw:text-sm tw:text-muted-foreground">
+                Ничего не нашлось. Измените запрос или сбросьте фильтр.
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={openAllUsers}
+              className="tw:mt-3.5 tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1 tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:font-semibold tw:text-accent-text tw:outline-none tw:hover:underline"
+            >
+              Все сотрудники ({employees.length}) →
+            </button>
+          </>
+        )}
+      </Panel>
+
+      <UserContactSheet
+        item={contactUser}
+        open={Boolean(contactUser)}
+        onOpenChange={(open) => {
+          if (!open) setContactUser(null);
+        }}
+      />
+    </>
+  );
+};
+
+export default EmployeesSection;

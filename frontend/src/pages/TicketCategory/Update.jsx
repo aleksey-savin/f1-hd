@@ -8,7 +8,7 @@ const UpdateTicketCategoryPage = () => {
 export default UpdateTicketCategoryPage;
 
 export async function loader({ params }) {
-  document.title = "ИЗМЕНИТЬ КАТЕГОРИЮ ЗАЯВОК";
+  document.title = "Изменить категорию заявок";
 
   const { token } = getLocalStorageData();
 

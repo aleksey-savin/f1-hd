@@ -57,7 +57,7 @@ const ToggleActive = ({ item, isButton = false }) => {
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={handleClose}>
-              Закрыть
+              Отмена
             </Button>
             <Button
               variant={isActive ? "warning" : "success"}

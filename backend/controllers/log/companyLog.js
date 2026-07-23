@@ -8,6 +8,8 @@ exports.addUserActivity = async (req, res, next) => {
     const {
       activeDirectoryObjectGUID,
       activeDirectoryLogin,
+      firstName,
+      lastName,
       computerName,
       email,
       action = "userLogin",
@@ -39,6 +41,8 @@ exports.addUserActivity = async (req, res, next) => {
       userId: linkedUser ? linkedUser._id : null,
       activeDirectoryObjectGUID: activeDirectoryObjectGUID.trim(),
       activeDirectoryLogin: activeDirectoryLogin.trim(),
+      firstName: firstName ? String(firstName).trim() : undefined,
+      lastName: lastName ? String(lastName).trim() : undefined,
       computerName: computerName ? computerName.trim() : undefined,
       action,
     });

@@ -372,92 +372,149 @@ exports.getUsersTickets = async (req, res, next) => {
   }
 };
 
+// ── Архив закрытых заявок: серверная выборка ────────────────────────────────
+// Поиск, фасеты, сортировка и постраничность считает БД (канон «Список на
+// серверной выборке»; эталон пагинации — user.getAll).
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const OBJECT_ID_RX = /^[0-9a-fA-F]{24}$/;
+const parseIdList = (value) =>
+  String(value || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => OBJECT_ID_RX.test(id));
+
+const CLOSED_PAGE_LIMIT_DEFAULT = 50;
+const CLOSED_PAGE_LIMIT_MAX = 100;
+const CLOSED_SORT = {
+  finished_desc: { finishedAt: -1, _id: -1 },
+  finished_asc: { finishedAt: 1, _id: 1 },
+  created_desc: { createdAt: -1, _id: -1 },
+};
+
 exports.getClosed = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
-    const { isAdmin, permissions } = authedUser;
+    const {
+      _id: userId,
+      isAdmin,
+      permissions,
+      company,
+    } = await getAuthData(req);
+    const q = req.query;
 
-    const { companies, responsibles, categories, applicants, from, to } =
-      req.body;
+    const query = { isClosed: true };
+    const and = [];
 
-    const fromDate = new Date(from);
-    let toDate = new Date(to);
-    toDate = toDate.setDate(toDate.getDate() + 1); // Include the end date
+    // Период по дате закрытия: календарные дни yyyy-MM-dd, обе границы
+    // необязательны; конец — эксклюзивно следующим днём, чтобы включить весь
+    // день `to`
+    const fromDate = q.from ? new Date(q.from) : null;
+    if (fromDate && !isNaN(fromDate)) {
+      query.finishedAt = { ...(query.finishedAt || {}), $gte: fromDate };
+    }
+    const toDate = q.to ? new Date(q.to) : null;
+    if (toDate && !isNaN(toDate)) {
+      toDate.setDate(toDate.getDate() + 1);
+      query.finishedAt = { ...(query.finishedAt || {}), $lt: toDate };
+    }
 
-    let query = {
-      isClosed: true,
-      finishedAt: { $gte: fromDate, $lte: toDate },
-    };
+    const companies = parseIdList(q.companies);
+    if (companies.length) query["company._id"] = { $in: companies };
+    const responsibles = parseIdList(q.responsibles);
+    if (responsibles.length) query["responsibles._id"] = { $in: responsibles };
+    const categories = parseIdList(q.categories);
+    if (categories.length) query.categoryId = { $in: categories };
+    const applicants = parseIdList(q.applicants);
+    if (applicants.length) query.applicantId = { $in: applicants };
 
-    // Add company filter
-    if (companies && companies.length > 0) {
-      query["company._id"] = { $in: companies };
+    // Скоуп прав — те же ярусы, что у getAllOpened/getRecentlyClosed: админ и
+    // canSeeAll* видят всё; canSeeAllCompanyTickets — только своя компания
+    // (жёстче фильтра компаний из запроса); остальные — заявки, в которых
+    // участвовали (ответственный, автор или заявитель)
+    if (
+      isAdmin ||
+      permissions.canAdministrateTickets ||
+      permissions.canSeeAllTickets
+    ) {
+      // без ограничений
+    } else if (permissions.canSeeAllCompanyTickets) {
+      query["company._id"] = company._id;
     } else {
-      // Default to user's company if no companies selected
-      query["company._id"] = authedUser.company._id;
+      and.push({
+        $or: [
+          { "responsibles._id": userId },
+          { createdBy: userId },
+          { applicantId: userId },
+        ],
+      });
     }
 
-    // Add optional filters if provided
-    if (responsibles && responsibles.length > 0) {
-      query["responsibles._id"] = { $in: responsibles };
-    }
-
-    if (categories && categories.length > 0) {
-      query["categoryId"] = { $in: categories };
-    }
-
-    if (applicants && applicants.length > 0) {
-      query["applicantId"] = { $in: applicants };
-    }
-
-    // Apply permission-based restrictions
-    if (!isAdmin) {
-      if (permissions.canSeeAllCompanyTickets) {
-      } else if (permissions.canSeeAllTickets) {
-        // No additional restrictions
-      } else if (permissions.canPerformTickets) {
-        // Can only see tickets they're responsible for
-        if (!query["responsibles._id"]) {
-          query["responsibles._id"] = authedUser._id;
-        }
-      } else {
-        // End users can only see tickets they created
-        query["applicantId"] = authedUser._id;
+    // Поиск: AND по термам (до 6, терм ≤ 64 символов); терм ищется по номеру
+    // (целиком цифры — точное совпадение), теме, описанию и ФИО инициатора.
+    // Имена — предзапросом в User: у старых заявок embedded applicant пуст,
+    // надёжен только ref applicantId
+    const searchTerms = String(q.search || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 6);
+    for (const term of searchTerms) {
+      const rx = new RegExp(escapeRegex(term.slice(0, 64)), "i");
+      const or = [{ title: rx }, { description: rx }];
+      if (/^\d+$/.test(term)) or.push({ num: Number(term) });
+      const namesakes = await User.find({
+        $or: [{ firstName: rx }, { lastName: rx }],
+      })
+        .select("_id")
+        .lean();
+      if (namesakes.length) {
+        or.push({ applicantId: { $in: namesakes.map((user) => user._id) } });
       }
+      and.push({ $or: or });
     }
 
-    // Fetch tickets with populate for better data
-    const tickets = await Ticket.find(query)
-      .populate({
-        path: "categoryId",
-        select: "title",
-      })
-      .populate({
-        path: "applicantId",
-        select: "firstName lastName email",
-      })
-      .sort({ finishedAt: -1 });
+    if (and.length) query.$and = and;
 
-    // Transform tickets to match the structure expected by the frontend
-    const transformedTickets = tickets.map((ticket) => {
-      return {
-        _id: ticket._id,
-        num: ticket.num,
-        title: ticket.title,
-        applicant: ticket.applicantId || ticket.applicant,
-        category: ticket.categoryId || ticket.category,
-        responsibles: ticket.responsibles,
-        createdAt: ticket.createdAt,
-        finishedAt: ticket.finishedAt,
-        state: ticket.state,
-        isClosed: ticket.isClosed,
-      };
-    });
+    const limit = Math.min(
+      Math.max(Number(q.limit) || CLOSED_PAGE_LIMIT_DEFAULT, 1),
+      CLOSED_PAGE_LIMIT_MAX,
+    );
+    const page = Math.max(Number(q.page) || 1, 1);
+    const sort = CLOSED_SORT[q.sort] || CLOSED_SORT.finished_desc;
 
-    res.status(200).json({
-      total: transformedTickets.length,
-      tickets: transformedTickets,
-    });
+    const [tickets, total] = await Promise.all([
+      Ticket.find(query)
+        .select(
+          "num title company categoryId applicantId applicant responsibles createdAt finishedAt routineTask",
+        )
+        .populate({ path: "categoryId", select: "title" })
+        .populate({ path: "applicantId", select: "firstName lastName" })
+        .sort(sort)
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Ticket.countDocuments(query),
+    ]);
+
+    const transformedTickets = tickets.map((ticket) => ({
+      _id: ticket._id,
+      num: ticket.num,
+      title: ticket.title,
+      company: ticket.company,
+      category: ticket.categoryId,
+      applicant: ticket.applicantId || ticket.applicant || null,
+      responsibles: (ticket.responsibles || []).map((responsible) => ({
+        _id: responsible._id,
+        firstName: responsible.firstName,
+        lastName: responsible.lastName,
+      })),
+      createdAt: ticket.createdAt,
+      finishedAt: ticket.finishedAt,
+      isRoutine: Boolean(ticket.routineTask),
+    }));
+
+    res.status(200).json({ tickets: transformedTickets, total, page, limit });
   } catch (error) {
     next(new AppError("Failed to fetch closed tickets", 500, true, error));
   }
@@ -582,6 +639,14 @@ exports.getFormData = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
 
+    // По умолчанию отключённые компании (и их заявители) в форму не попадают;
+    // Архив заявок шлёт ?includeInactive=true — там фильтруют по истории.
+    const includeInactive = req.query.includeInactive === "true";
+    const companyActive = includeInactive ? {} : { isActive: { $ne: false } };
+    const applicantCompanyActive = includeInactive
+      ? {}
+      : { "company.isActive": { $ne: false } };
+
     let companies = [];
     let applicants = [];
     let categories = [];
@@ -611,10 +676,12 @@ exports.getFormData = async (req, res, next) => {
     ) {
       companies = await Company.find({
         "responsibles._id": authedUser._id,
+        ...companyActive,
       }).sort({ alias: 1 });
 
       applicants = await User.find({
         $and: [{ isActive: true }, { isServiceAccount: false }],
+        ...applicantCompanyActive,
       }).sort({ lastName: 1 });
 
       categories = await Category.find({ isActive: true }).sort({
@@ -627,8 +694,10 @@ exports.getFormData = async (req, res, next) => {
     } else {
       companies = await Company.find({
         "responsibles._id": authedUser._id,
+        ...companyActive,
       }).sort({ alias: 1 });
 
+      // applicants наследуют фильтр активности от уже отфильтрованных companies
       applicants = await User.find({
         "company._id": { $in: companies },
         isActive: true,
@@ -695,10 +764,21 @@ exports.add = async (req, res, next) => {
       (field) => field && field.name,
     );
 
+    const parsedTemplate = req.body.template
+      ? JSON.parse(req.body.template)
+      : null;
+    // Чек-лист-заготовка шаблона копируется в заявку (обязательность сохраняется).
+    const templateChecklist = (parsedTemplate?.checklist || []).map((item) => ({
+      description: item.description,
+      checked: false,
+      mandatory: !!item.mandatory,
+    }));
+
     const ticket = new Ticket({
       title: req.body.title,
       description: req.body.description,
-      template: req.body.template ? JSON.parse(req.body.template) : null,
+      template: parsedTemplate,
+      checklist: templateChecklist,
       customFields: validCustomFields,
       attachments: attachments,
       isClosed: false,
@@ -2216,8 +2296,11 @@ exports.updateChecklistItem = async (req, res, next) => {
       (item) => item._id.toString() === checklistItem._id.toString(),
     );
 
-    updatedItem[0].checked = checklistItem.checked;
-    updatedItem[0].checkedBy = checklistItem.checkedBy;
+    const isChecked =
+      checklistItem.checked === true || checklistItem.checked === "true";
+    updatedItem[0].checked = isChecked;
+    updatedItem[0].checkedBy = isChecked ? checklistItem.checkedBy : undefined;
+    updatedItem[0].checkedAt = isChecked ? new Date() : null;
 
     await ticket.save();
 
@@ -2253,6 +2336,7 @@ exports.updateChecklist = async (req, res, next) => {
         checked: jsonItem.checked,
         mandatory: jsonItem.mandatory,
         checkedBy: jsonItem.checkedBy,
+        checkedAt: jsonItem.checkedAt,
       };
     });
 

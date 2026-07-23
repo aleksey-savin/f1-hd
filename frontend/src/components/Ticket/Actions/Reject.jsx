@@ -82,7 +82,7 @@ const RejectTicket = ({ ticket, type }) => {
               onClick={closeModal}
               disabled={fetcher.state !== "idle"}
             >
-              Закрыть
+              Отмена
             </Button>
             <Button type="submit" disabled={fetcher.state !== "idle"}>
               Подтвердить

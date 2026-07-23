@@ -14,10 +14,12 @@ module.exports = async (req, res, next) => {
       return next(new AppError("API-ключ не предоставлен", 401));
     }
 
-    // Ищем компанию с данным API-ключом
+    // Ищем компанию с данным API-ключом; ключи отключённой компании не
+    // работают (isActive: $ne false — у старых документов поля нет)
     const company = await Company.findOne({
       "apiKeys.key": apiKey,
       "apiKeys.isActive": true,
+      isActive: { $ne: false },
     });
 
     if (!company) {

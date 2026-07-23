@@ -3,6 +3,7 @@ import { Link, Outlet, useActionData, useNavigate } from "react-router";
 
 import {
   RiAddFill,
+  RiArrowDownSLine,
   RiArrowLeftSLine,
   RiArrowRightSLine,
   RiComputerLine,
@@ -19,7 +20,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Panel } from "@/components/app/Panel";
-import ChipSelect from "@/components/app/ChipSelect";
 import SearchBar from "@/components/app/SearchBar";
 import FormSheet from "@/components/app/FormSheet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
@@ -37,26 +37,30 @@ const fmtDate = (value) => (value ? formatShortDate(value) : null);
 const userName = (u) =>
   u ? [u.firstName, u.lastName].filter(Boolean).join(" ") : null;
 
-// Облегчённая строка модели вендора (плитка · название · тип + конфигурации ·
-// переход) — как ModelRow карточки типа, но мета ведёт с типа устройства.
-const ModelRow = ({ model }) => {
-  const title =
-    [model.vendorId?.name, model.name].filter(Boolean).join(" ") ||
-    "Без названия";
+// ≤ столько моделей у вендора — не сворачиваем, группы раскрыты сразу
+const SMALL_CATALOG = 12;
+// столько моделей в группе показываем до «Показать все …»
+const GROUP_PREVIEW = 8;
+
+const typeIdOf = (model) =>
+  model.deviceTypeId?._id ? String(model.deviceTypeId._id) : "__none";
+
+// Плитка модели в сетке группы: превью · название · конфигурации · переход.
+// Внутри карточки вендора и группы типа префикс вендора и тип не дублируем —
+// остаётся имя модели и число конфигураций.
+const ModelTile = ({ model }) => {
+  const title = model.name || "Без названия";
   const thumb = model.photos?.[0] ? photoUrl(model.photos[0]) : null;
   const count = model.configurationsCount || 0;
-  const configsLabel =
+  const meta =
     count > 0
       ? `${count} ${plural(count, "конфигурация", "конфигурации", "конфигураций")}`
       : "без конфигураций";
-  const meta = [model.deviceTypeId?.name, configsLabel]
-    .filter(Boolean)
-    .join(" · ");
 
   return (
     <Link
       to={`/inventory/device-models/${model._id}`}
-      className="tw:group tw:relative tw:flex tw:items-center tw:gap-3.5 tw:px-4 tw:py-2.5 tw:text-inherit tw:no-underline tw:transition-colors tw:hover:bg-accent tw:before:absolute tw:before:top-0 tw:before:right-4 tw:before:left-16 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden"
+      className="tw:group tw:flex tw:items-center tw:gap-3 tw:rounded-lg tw:px-3 tw:py-2 tw:text-inherit tw:no-underline tw:transition-colors tw:hover:bg-accent"
     >
       <span className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:overflow-hidden tw:rounded-lg tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border">
         {thumb ? (
@@ -66,8 +70,8 @@ const ModelRow = ({ model }) => {
         )}
       </span>
       <div className="tw:min-w-0 tw:flex-1">
-        <div className="tw:truncate tw:text-base tw:font-medium">{title}</div>
-        <div className="tw:truncate tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+        <div className="tw:truncate tw:text-sm tw:font-medium">{title}</div>
+        <div className="tw:truncate tw:text-xs tw:text-muted-foreground tw:tabular-nums">
           {meta}
         </div>
       </div>
@@ -84,8 +88,14 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
   const { permissions } = useContext(AuthedUserContext);
   const canManage = permissions.canManageClientDevices;
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [typeFilter, setTypeFilter] = useState(null);
   const [search, setSearch] = useState("");
+  // Свёрнутый/раскрытый набор групп (по id типа). Малый каталог — всё раскрыто.
+  const [openIds, setOpenIds] = useState(() => {
+    if (models.length > SMALL_CATALOG) return new Set();
+    return new Set(models.map(typeIdOf));
+  });
+  // Группы, в которых нажали «Показать все …» (сняли лимит превью).
+  const [fullIds, setFullIds] = useState(() => new Set());
 
   // Карточку открываем от начала (Root сбрасывает лишь мобильный контейнер)
   useEffect(() => {
@@ -104,34 +114,63 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
     deviceCount = 0,
   } = vendor;
 
-  // Опции чипа «Тип устройства» — уникальные типы среди моделей вендора
-  const typeOptions = useMemo(() => {
-    const byId = new Map();
+  // Модели, сгруппированные по типу устройства; крупнейший тип — сверху
+  // (композиция вендора «с первого взгляда»). Внутри группы — по алфавиту.
+  const groups = useMemo(() => {
+    const byType = new Map();
     for (const model of models) {
-      const type = model.deviceTypeId;
-      if (type?._id && !byId.has(String(type._id))) {
-        byId.set(String(type._id), { value: type._id, label: type.name });
+      const id = typeIdOf(model);
+      if (!byType.has(id)) {
+        byType.set(id, {
+          id,
+          name: model.deviceTypeId?.name || "Без типа",
+          models: [],
+        });
       }
+      byType.get(id).models.push(model);
     }
-    return [...byId.values()].sort((a, b) =>
-      (a.label || "").localeCompare(b.label || ""),
+    const arr = [...byType.values()];
+    for (const group of arr) {
+      group.models.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    }
+    arr.sort(
+      (a, b) =>
+        b.models.length - a.models.length || a.name.localeCompare(b.name),
     );
+    return arr;
   }, [models]);
 
-  const filteredModels = models.filter((model) => {
-    if (typeFilter && String(model.deviceTypeId?._id) !== String(typeFilter)) {
-      return false;
-    }
-    if (search.trim()) {
-      // Вендор у всех строк один — ищем по названию модели и типу
-      const haystack = [model.name, model.deviceTypeId?.name]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      if (!haystack.includes(search.trim().toLowerCase())) return false;
-    }
-    return true;
-  });
+  const query = search.trim().toLowerCase();
+  const searching = query.length > 0;
+  const matchModel = (model) =>
+    [model.name, model.deviceTypeId?.name]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+
+  // Группы к показу: при поиске — только с совпадениями, и в них — совпавшие
+  const viewGroups = groups
+    .map((group) => ({
+      ...group,
+      shown: searching ? group.models.filter(matchModel) : group.models,
+    }))
+    .filter((group) => !searching || group.shown.length > 0);
+
+  const grouped = groups.length > 1;
+  const allOpen =
+    viewGroups.length > 0 && viewGroups.every((group) => openIds.has(group.id));
+
+  const toggleGroup = (id) =>
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleAll = () =>
+    setOpenIds(allOpen ? new Set() : new Set(viewGroups.map((g) => g.id)));
+  const showAllInGroup = (id) => setFullIds((prev) => new Set(prev).add(id));
 
   const updaterName = userName(vendor.updatedBy);
   const metaBits = [
@@ -153,7 +192,35 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
   const addModelTo = "models/add";
   const editVendorTo = "update";
   const modelsEmpty = models.length === 0;
-  const filteredEmpty = !modelsEmpty && filteredModels.length === 0;
+  const filteredEmpty = !modelsEmpty && viewGroups.length === 0;
+  const typeCount = groups.length;
+
+  // Плитки группы: сетка (2 колонки) + «Показать все …» сверх лимита превью
+  const renderTiles = (group) => {
+    const full = searching || fullIds.has(group.id);
+    const shown = full ? group.shown : group.shown.slice(0, GROUP_PREVIEW);
+    const capped = !full && group.shown.length > GROUP_PREVIEW;
+    return (
+      <>
+        <div className="tw:grid tw:grid-cols-1 tw:gap-1 tw:sm:grid-cols-2">
+          {shown.map((model) => (
+            <ModelTile key={model._id} model={model} />
+          ))}
+        </div>
+        {capped && (
+          <button
+            type="button"
+            onClick={() => showAllInGroup(group.id)}
+            className="tw:mt-1 tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1.5 tw:border-0 tw:bg-transparent tw:px-3 tw:py-1.5 tw:text-sm tw:font-semibold tw:text-accent-text tw:outline-none tw:hover:underline tw:focus-visible:underline"
+          >
+            Показать все {group.shown.length}{" "}
+            {plural(group.shown.length, "модель", "модели", "моделей")}
+            <RiArrowDownSLine size={15} aria-hidden />
+          </button>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
@@ -213,8 +280,14 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
                 </>
               )}
               {sep} {bold(models.length)}{" "}
-              {plural(models.length, "модель", "модели", "моделей")} {sep}{" "}
-              {bold(deviceCount)}{" "}
+              {plural(models.length, "модель", "модели", "моделей")}{" "}
+              {models.length > 0 && (
+                <>
+                  {sep} {bold(typeCount)}{" "}
+                  {plural(typeCount, "тип", "типа", "типов")}{" "}
+                </>
+              )}
+              {sep} {bold(deviceCount)}{" "}
               {plural(deviceCount, "устройство", "устройства", "устройств")}
             </span>
           </div>
@@ -263,7 +336,7 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
         {canManage && (
           <Button asChild size="sm">
             <Link to={addModelTo} onClick={offcanvas.setShow}>
-              <RiAddFill /> Добавить модель
+              <RiAddFill /> Новая модель
             </Link>
           </Button>
         )}
@@ -287,7 +360,7 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
             {canManage && (
               <Button asChild className="tw:mt-2">
                 <Link to={addModelTo} onClick={offcanvas.setShow}>
-                  <RiAddFill /> Добавить модель
+                  <RiAddFill /> Новая модель
                 </Link>
               </Button>
             )}
@@ -301,27 +374,92 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
               onChange={(event) => setSearch(event.target.value)}
               className="tw:w-full tw:sm:w-64"
             />
-            {typeOptions.length > 0 && (
-              <ChipSelect
-                placeholder="Тип устройства"
-                allLabel="Все типы"
-                value={typeFilter}
-                options={typeOptions}
-                onChange={setTypeFilter}
-              />
+            {grouped && !searching && (
+              <button
+                type="button"
+                onClick={toggleAll}
+                className="tw:ml-auto tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1.5 tw:border-0 tw:bg-transparent tw:px-1 tw:py-1.5 tw:text-sm tw:font-semibold tw:text-muted-foreground tw:outline-none tw:hover:text-accent-text tw:focus-visible:text-accent-text"
+              >
+                {allOpen ? "Свернуть все" : "Развернуть все"}
+              </button>
             )}
           </div>
+
           {filteredEmpty ? (
             <Panel>
               <div className="tw:px-2 tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground">
-                Ничего не нашлось. Измените запрос или фильтр.
+                Ничего не нашлось. Измените запрос.
               </div>
             </Panel>
+          ) : grouped ? (
+            <div className="tw:flex tw:flex-col tw:gap-2">
+              {viewGroups.map((group) => {
+                const open = searching || openIds.has(group.id);
+                const examples = group.models
+                  .map((model) => model.name)
+                  .filter(Boolean)
+                  .slice(0, 3)
+                  .join(" · ");
+                const countN = searching
+                  ? group.shown.length
+                  : group.models.length;
+                return (
+                  <section
+                    key={group.id}
+                    className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group.id)}
+                      aria-expanded={open}
+                      className="tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-3 tw:border-0 tw:bg-transparent tw:px-3.5 tw:py-3 tw:text-left tw:text-inherit tw:transition-colors tw:outline-none tw:hover:bg-accent tw:focus-visible:bg-accent"
+                    >
+                      <span className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-sm tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border">
+                        {monogramFor(group.name)}
+                      </span>
+                      <span className="tw:min-w-0 tw:flex-1">
+                        <span className="tw:block tw:truncate tw:text-base tw:font-medium">
+                          {group.name}
+                        </span>
+                        {!open && examples && (
+                          <span className="tw:block tw:truncate tw:text-xs tw:text-muted-foreground">
+                            {examples}
+                            {group.models.length > 3 ? " …" : ""}
+                          </span>
+                        )}
+                      </span>
+                      <span className="tw:flex-none tw:text-muted-foreground tw:tabular-nums">
+                        <b className="tw:text-base tw:font-bold tw:text-foreground">
+                          {countN}
+                        </b>{" "}
+                        <span className="tw:text-xs">
+                          {searching
+                            ? plural(countN, "найдена", "найдено", "найдено")
+                            : plural(countN, "модель", "модели", "моделей")}
+                        </span>
+                      </span>
+                      <RiArrowDownSLine
+                        size={20}
+                        aria-hidden
+                        className={cn(
+                          "tw:flex-none tw:text-faint tw:transition-transform",
+                          open && "tw:rotate-180",
+                        )}
+                      />
+                    </button>
+                    {open && (
+                      <div className="tw:border-t tw:border-border-soft tw:p-2">
+                        {renderTiles(group)}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
           ) : (
-            <div className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:py-1.5">
-              {filteredModels.map((model) => (
-                <ModelRow key={model._id} model={model} />
-              ))}
+            // Один тип — группировка не нужна: плитки сеткой напрямую
+            <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-2">
+              {renderTiles(viewGroups[0])}
             </div>
           )}
         </>

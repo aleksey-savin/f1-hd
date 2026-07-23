@@ -30,6 +30,18 @@ router.post(
   routineTaskController.update,
 );
 router.post(
+  "/routine-tasks/:id/checklist",
+  isAuth,
+  canManageRoutineTasks,
+  routineTaskController.updateChecklist,
+);
+router.post(
+  "/routine-tasks/:id/run",
+  isAuth,
+  canManageRoutineTasks,
+  routineTaskController.run,
+);
+router.post(
   "/routine-tasks/delete/:id",
   isAuth,
   canManageRoutineTasks,

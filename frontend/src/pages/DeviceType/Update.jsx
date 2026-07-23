@@ -2,13 +2,13 @@ import Form from "../../components/DeviceType/Form";
 import { getLocalStorageData } from "../../util/auth";
 
 const UpdateDeviceTypePage = () => {
-  return <Form title="Изменение типа устройства" />;
+  return <Form title="Изменить тип устройства" />;
 };
 
 export default UpdateDeviceTypePage;
 
 export async function loader({ params }) {
-  document.title = "Редактировать тип устройства";
+  document.title = "Изменить тип устройства";
 
   const { token } = getLocalStorageData();
 

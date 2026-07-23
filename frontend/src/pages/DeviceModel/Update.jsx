@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import DeviceModelForm from "../../components/DeviceModel/Form";
-import Forbidden from "../../components/Error/403";
+import InlineForbidden from "../../components/Error/InlineForbidden";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
 import { useSearchParams } from "react-router";
@@ -15,11 +15,13 @@ const UpdateDeviceModelPage = () => {
     <>
       {canUseInventoryModule && canManageClientDevices && (
         <DeviceModelForm
-          title="Редактировать модель устройства"
+          title="Изменить модель устройства"
           editConfigId={configId}
         />
       )}
-      {(!canUseInventoryModule || !canManageClientDevices) && <Forbidden />}
+      {(!canUseInventoryModule || !canManageClientDevices) && (
+        <InlineForbidden right="Управление устройствами" />
+      )}
     </>
   );
 };
@@ -27,7 +29,7 @@ const UpdateDeviceModelPage = () => {
 export default UpdateDeviceModelPage;
 
 export async function loader({ params }) {
-  document.title = "Редактировать модель устройства";
+  document.title = "Изменить модель устройства";
 
   const { token } = getLocalStorageData();
 

@@ -10,8 +10,11 @@ const Preferences = require("../models/preferences");
 
 exports.signup = async (req, res, next) => {
   const emailDomain = req.body.email.replace(/.*@/, "");
+  // Отключённая компания не опознаётся — саморегистрация не привяжет к ней
+  // нового пользователя (уйдёт в ветку «не можем понять из какой Вы компании»)
   const company = await Company.findOne({
     emailDomains: { $in: [emailDomain] },
+    isActive: { $ne: false },
   });
   const userExists = await User.findOne({ email: req.body.email });
 
@@ -98,7 +101,9 @@ exports.login = async (req, res, next) => {
 
     // Статус 401, а не 403: форма логина показывает инлайн только сообщения
     // со статусами из своего списка (Authentication.jsx), 403 уронит error boundary.
-    if (!user.isActive) {
+    // Отключение компании блокирует вход её пользователей тем же текстом —
+    // статус компании наружу не раскрываем.
+    if (!user.isActive || user.company?.isActive === false) {
       return next(
         new AppError(
           "Учётная запись отключена. Обратитесь к администратору.",

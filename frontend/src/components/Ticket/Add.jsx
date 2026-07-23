@@ -79,6 +79,14 @@ const AddTicket = () => {
 
   useEffect(() => {
     fetchTemplates();
+    // Точка входа «Создать заявку» с карточки/списка шаблонов: ?template=<id>
+    // предвыбирает шаблон и заполняет поля (сам Select остаётся легаси).
+    const presetTemplate = new URLSearchParams(window.location.search).get(
+      "template",
+    );
+    if (presetTemplate) {
+      handleTemplateSelect(presetTemplate);
+    }
   }, []);
 
   const fetchTemplates = async () => {
@@ -611,7 +619,7 @@ const AddTicket = () => {
               onClick={offcanvas.setClose}
               variant="secondary"
             >
-              <RiArrowGoBackFill /> Закрыть
+              <RiArrowGoBackFill /> Отмена
             </Button>
           </div>
           <BrowserView>

@@ -119,6 +119,8 @@ exports.getInitial = async (req, res, next) => {
       htmlTicketDesc: preferences.htmlTicketDesc,
       getScreen: preferences.getScreen,
       timezone: preferences.timezone,
+      // Оператор такси нужен каждому: действие «такси» в справочнике компаний
+      taxi: { operator: preferences.taxi?.operator || "" },
       emailNotifications: preferences.notify?.byEmail?.isActive,
       telegramNotifications: preferences.notify?.byTelegram?.isActive,
       personalNotifications: preferences.notify.personal,
@@ -169,6 +171,7 @@ exports.update = async (req, res, next) => {
       mikrotik,
       overtime,
       statusBoard,
+      taxi,
     } = req.body;
 
     // Переход флага «выкл→вкл» — повод просканировать сразу, не дожидаясь крона.
@@ -199,6 +202,7 @@ exports.update = async (req, res, next) => {
         mikrotik,
         overtime,
         statusBoard,
+        taxi,
       });
       secretsJustEnabled = !!knowledgeBase?.scanForSecrets;
       serviceJustEnabled = !!knowledgeBase?.trackServiceExpiry;
@@ -273,6 +277,10 @@ exports.update = async (req, res, next) => {
       // Защищаемся от затирания настроек переработок при частичном POST
       if (overtime) {
         preferences.overtime = overtime;
+      }
+      // Оператор такси — защита от затирания при частичном POST
+      if (taxi) {
+        preferences.taxi = { operator: taxi.operator || "" };
       }
     }
 

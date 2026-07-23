@@ -37,7 +37,7 @@ const ConfirmPayment = ({ reportId }) => {
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={handleCloseInvoiceModal}>
-              Закрыть
+              Отмена
             </Button>
             <Button
               variant="primary"

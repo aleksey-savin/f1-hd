@@ -34,13 +34,21 @@ exports.createTicket = async (req, res, next) => {
       return next(new AppError("Настройки системы не найдены", 500));
     }
 
-    // Поиск пользователя по ID или email
+    // Поиск пользователя по ID или email. Заявители отключённых компаний не
+    // опознаются (денорм. company.isActive) — заявка уйдёт от defaultApplicant
     let applicant = null;
 
     if (userId) {
       applicant = await User.findById(userId);
+      if (applicant?.company?.isActive === false) {
+        applicant = null;
+      }
     } else if (userEmail) {
-      applicant = await User.findOne({ email: userEmail, isActive: true });
+      applicant = await User.findOne({
+        email: userEmail,
+        isActive: true,
+        "company.isActive": { $ne: false },
+      });
     }
 
     // Если пользователь не найден, используем пользователя по умолчанию из настроек
@@ -65,11 +73,15 @@ exports.createTicket = async (req, res, next) => {
       }
     }
 
-    // Определяем компанию пользователя
+    // Определяем компанию пользователя (отключённую не подставляем — сработает
+    // фолбэк на компанию API-ключа ниже, она заведомо активна)
     let ticketCompany;
     if (applicant.company && applicant.company._id) {
       // Используем компанию пользователя
-      const userCompany = await Company.findById(applicant.company._id);
+      const userCompany = await Company.findOne({
+        _id: applicant.company._id,
+        isActive: { $ne: false },
+      });
       if (userCompany) {
         ticketCompany = {
           _id: userCompany._id,

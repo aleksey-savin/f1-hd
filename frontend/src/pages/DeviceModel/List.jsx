@@ -74,7 +74,7 @@ const DeviceModelListPage = () => {
       title={() => "Модели устройств"}
       filterStore={filterStore}
       addRoute="/inventory/device-models/add"
-      addLabel="Добавить модель"
+      addLabel="Новая модель"
       toolbar={
         <ChipSelect
           placeholder="Тип устройства"

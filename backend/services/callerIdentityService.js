@@ -64,7 +64,12 @@ const findApplicantByPhone = async (rawPhone) => {
   const suffixRegex = buildPhoneSuffixRegex(normalized);
   if (!suffixRegex) return null;
 
-  const applicant = await MongoUser.findOne({ phone: suffixRegex });
+  // Клиенты отключённых компаний не опознаются (денорм. company.isActive) —
+  // звонок уйдёт на дефолтную компанию/заявителя как неопознанный
+  const applicant = await MongoUser.findOne({
+    phone: suffixRegex,
+    "company.isActive": { $ne: false },
+  });
   if (!applicant) return null;
 
   const company = applicant.company?._id
@@ -74,7 +79,7 @@ const findApplicantByPhone = async (rawPhone) => {
   return { applicant, company };
 };
 
-// Ищем компанию по одному из её номеров.
+// Ищем компанию по одному из её номеров (отключённые не опознаются).
 const findCompanyByPhone = async (rawPhone) => {
   const normalized = normalizeRuPhone(rawPhone);
   if (!normalized) return null;
@@ -82,7 +87,10 @@ const findCompanyByPhone = async (rawPhone) => {
   const suffixRegex = buildPhoneSuffixRegex(normalized);
   if (!suffixRegex) return null;
 
-  return MongoCompany.findOne({ phones: suffixRegex });
+  return MongoCompany.findOne({
+    phones: suffixRegex,
+    isActive: { $ne: false },
+  });
 };
 
 // Первый email из строки отправителя ("Имя <a@b.ru>" или "a@b.ru").

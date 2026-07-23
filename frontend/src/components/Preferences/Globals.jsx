@@ -9,6 +9,14 @@ import timezones from "../../store/timezones";
 import Select from "../../UI/Select";
 import useToastStore from "../../store/toast-store";
 import { getLocalStorageData } from "../../util/auth";
+import { TAXI_OPERATORS } from "../../util/taxi-operators";
+
+// Оператор такси: каталог общий с действием «такси» в справочнике компаний;
+// опции маппим в чистые {value, label} (react-select).
+const TAXI_OPTIONS = [
+  { value: "", label: "Не использовать" },
+  ...TAXI_OPERATORS.map(({ value, label }) => ({ value, label })),
+];
 
 const PrefsGlobals = ({ prefs }) => {
   const [selectedTimezone, setSelectedTimezone] = useState(
@@ -25,6 +33,17 @@ const PrefsGlobals = ({ prefs }) => {
   const timezoneSelectHandler = (event) => {
     setSelectedTimezone(event);
     prefs.timezone = event.value;
+  };
+
+  const [taxiOperator, setTaxiOperator] = useState(
+    TAXI_OPTIONS.find(
+      (option) => option.value === (prefs.taxi?.operator || ""),
+    ) || TAXI_OPTIONS[0],
+  );
+
+  const taxiOperatorHandler = (option) => {
+    setTaxiOperator(option);
+    prefs.taxi = { ...prefs.taxi, operator: option.value };
   };
 
   const [tel, setTel] = useState(prefs.contacts?.tel || "");
@@ -90,7 +109,7 @@ const PrefsGlobals = ({ prefs }) => {
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      showToast("danger", "Размер файла не должен превышать 2Мб");
+      showToast("danger", "Размер файла не должен превышать 2 МБ");
       return;
     }
 
@@ -118,7 +137,7 @@ const PrefsGlobals = ({ prefs }) => {
           onChange={timezoneSelectHandler}
         />
       </Form.Group>
-      <h4>Сроки по-умолчанию</h4>
+      <h4>Сроки по умолчанию</h4>
       <Form.Group className="mb-3">
         <Form.Label>Дедлайн, часы</Form.Label>
         <Form.Control
@@ -186,6 +205,24 @@ const PrefsGlobals = ({ prefs }) => {
         )}
         <Form.Text className="text-muted d-block">
           PNG, JPG или GIF до 2 МБ; показывается в шапке высотой 32px.
+        </Form.Text>
+      </Form.Group>
+      <h4>Такси</h4>
+      <Form.Group className="mb-3">
+        <Form.Label>Оператор заказа такси</Form.Label>
+        <Select
+          id="taxiOperator"
+          name="taxiOperator"
+          closeMenuOnSelect
+          value={taxiOperator}
+          options={TAXI_OPTIONS}
+          onChange={taxiOperatorHandler}
+        />
+        <Form.Text className="text-muted d-block">
+          При выбранном операторе в списке компаний и мобильной шторке-справке
+          появляется ссылка на заказ такси. Маршрут до офиса умеет только
+          Яндекс Go — по координатам компании или метке из ссылки на Яндекс
+          Карты; без них ссылка открывает просто заказ.
         </Form.Text>
       </Form.Group>
     </>

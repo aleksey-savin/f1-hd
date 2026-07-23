@@ -48,9 +48,41 @@ const routineTaskSchema = new Schema(
             default: false,
         },
         cronSchedule: String,
+        // Опционально: кого назначить на создаваемую заявку (сотрудники поддержки).
+        responsibles: [
+            {
+                _id: {
+                    type: Schema.Types.ObjectId,
+                    ref: 'User',
+                },
+                firstName: String,
+                lastName: String,
+                email: String,
+                phone: String,
+                position: String,
+                role: String,
+                isActive: Boolean,
+            },
+        ],
+        // Ссылка на шаблон-источник (регламент создан «на основе» шаблона).
+        // Снимок: поля скопированы, но связь хранится для показа и синхронизации.
+        sourceTemplate: {
+            _id: {
+                type: Schema.Types.ObjectId,
+                ref: 'TicketTemplate',
+            },
+            title: String,
+        },
+        // Пропустить одно ближайшее плановое срабатывание (ставится при ручном
+        // «создать заявку сейчас»); планировщик сбрасывает флаг на следующем запуске.
+        skipNextRun: {
+            type: Boolean,
+            default: false,
+        },
         checklist: [
             {
                 description: String,
+                mandatory: Boolean,
                 checked: Boolean,
             },
         ],

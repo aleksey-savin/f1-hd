@@ -98,7 +98,7 @@ const DeviceAttributeListPage = () => {
       title={() => "Атрибуты устройств"}
       filterStore={filterStore}
       addRoute="/inventory/device-attributes/add"
-      addLabel="Добавить атрибут"
+      addLabel="Новый атрибут"
       toolbar={
         <ChipSelect
           placeholder="Тип устройства"

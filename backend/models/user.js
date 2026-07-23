@@ -45,6 +45,11 @@ const userSchema = new Schema(
         ref: "Company",
       },
       alias: String,
+      // Денормализованный статус компании (каскадится из company.toggleActive;
+      // при записи целого дока Company кастуется сам). В фильтрах — только
+      // `{ $ne: false }`: у сотрудников без компании и старых снапшотов поля
+      // нет, и это означает «активна».
+      isActive: Boolean,
     },
     subdivision: {
       type: Schema.Types.ObjectId,
@@ -170,6 +175,13 @@ const userSchema = new Schema(
       required: true,
     },
     lastLogin: {
+      type: Date,
+    },
+    // Денормализованная «последняя активность» = дата последней созданной
+    // пользователем заявки. Обновляется хуком модели ticket при создании
+    // заявки; питает сортировку/фильтр «активности» в списке «Пользователи»
+    // без агрегата по коллекции tickets на каждый запрос.
+    lastActivityAt: {
       type: Date,
     },
     verifyToken: String,

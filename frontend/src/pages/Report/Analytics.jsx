@@ -358,7 +358,7 @@ const Analytics = () => {
             <Row className="mb-4">
               <Col>
                 <h4>
-                  Период: {reportData.period.from} - {reportData.period.to}
+                  Период: {reportData.period.from} — {reportData.period.to}
                 </h4>
               </Col>
             </Row>
@@ -554,7 +554,7 @@ const Analytics = () => {
 export default Analytics;
 
 export async function loader() {
-  document.title = "АНАЛИТИКА";
+  document.title = "Аналитика";
 
   // Возвращаем пустой объект, так как форм-данные нам не нужны
   return {};

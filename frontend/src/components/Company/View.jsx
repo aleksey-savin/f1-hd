@@ -1,95 +1,89 @@
-import { useState, useRef, useEffect, useContext } from "react";
-import { Link, useNavigate, Outlet, useFetcher } from "react-router";
-
-import { motion } from "framer-motion";
-
-import { AuthedUserContext } from "../../store/authed-user-context";
-import useInitialPrefsStore from "../../store/prefs";
-
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Button from "react-bootstrap/Button";
-import Badge from "react-bootstrap/Badge";
-import Alert from "react-bootstrap/Alert";
-import Offcanvas from "react-bootstrap/Offcanvas";
-import Modal from "react-bootstrap/Modal";
-import Card from "react-bootstrap/Card";
-import Form from "react-bootstrap/Form";
-import Tabs from "react-bootstrap/Tabs";
-import Tab from "react-bootstrap/Tab";
-
-import Transitions from "../../animations/Transition";
-
+import { useEffect, useState } from "react";
 import {
-  RiEdit2Line,
-  RiArrowGoBackFill,
-  RiHistoryLine,
-  RiBuilding2Line,
-  RiProfileLine,
-  RiInformationLine,
-  RiMapPin2Line,
-  RiPhoneLine,
+  Link,
+  Outlet,
+  useActionData,
+  useLocation,
+  useNavigate,
+} from "react-router";
+import { BrowserView } from "react-device-detect";
+import {
+  RiArrowLeftSLine,
   RiAtLine,
-  RiTimeLine,
-  RiNodeTree,
-  RiContractLine,
-  RiContactsBook2Line,
-  RiKey2Line,
-  RiGroupLine,
+  RiBuilding2Line,
+  RiCheckboxCircleLine,
+  RiDeleteBinLine,
+  RiEdit2Line,
+  RiForbid2Line,
+  RiHistoryLine,
+  RiMapPin2Line,
+  RiMoreLine,
+  RiPhoneLine,
+  RiTaxiLine,
 } from "react-icons/ri";
 
-import useOffcanvasStore from "../../store/offcanvas";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { DeleteDialog } from "@/components/app/DeleteItem";
+import FormSheet from "@/components/app/FormSheet";
+import { Eyebrow, Panel } from "@/components/app/Panel";
+import AnchorRail from "@/components/app/AnchorRail";
+import PropRow from "@/components/app/PropRow";
+import TechSection from "@/components/app/TechSection";
+import { useAuthedUser } from "@/store/authed-user";
+import useInitialPrefs from "@/store/prefs";
+import useOffcanvasStore from "@/store/offcanvas";
+import useToastStore from "@/store/toast-store";
+
+import { plural } from "../../util/plural";
 import { getWorkingStatus } from "../../util/get-working-status";
-
-import Select from "../../UI/Select";
-import AvatarUpload from "../../UI/AvatarUpload";
-
-import DeleteItem from "../DeleteItem";
-
-import WorkSchedule from "./View/WorkSchedule";
-import CompanyStats from "./View/CompanyStats";
-import UserSection from "./View/UsersSection";
-import ResponsiblesSection from "./View/ResponsiblesSection";
-import ServicePlansSection from "./View/ServicePlansSection";
-import SubdivisionsSection from "./View/SubdivisionsSection";
-import ApiKeysSection from "./View/ApiKeysSection";
-import WorkingStatusIndicator from "./WorkingStatusIndicator";
+import { getTaxiAction } from "./company-links";
+import WorkStatusText from "./WorkStatusText";
+import ToggleActiveDialog from "./ToggleActiveDialog";
 import CompanyLogsOffcanvas from "../CompanyLogs/Offcanvas";
 
-// Лёгкий каскад появления шапки — тот же приём, что на странице пользователя
-const heroContainer = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
-};
-const heroItem = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
-};
-const heroAvatar = {
-  hidden: { opacity: 0, scale: 0.85 },
-  show: {
-    opacity: 1,
-    scale: 1,
-    transition: { duration: 0.4, ease: "easeOut" },
-  },
-};
+import HeroLogo from "./View/HeroLogo";
+import ActivityTiles from "./View/ActivityTiles";
+import ScheduleSection from "./View/ScheduleSection";
+import SubdivisionsSection from "./View/SubdivisionsSection";
+import EmployeesSection from "./View/EmployeesSection";
+import ServicePlansSection from "./View/ServicePlansSection";
+import ResponsiblesSection from "./View/ResponsiblesSection";
+import ApiKeysSection from "./View/ApiKeysSection";
 
-// Карточка-секция вкладки (как на странице пользователя): border-0 shadow-sm
-const SectionCard = ({ children }) => (
-  <Card className="border-0 shadow-sm h-100">
-    <Card.Body>{children}</Card.Body>
-  </Card>
-);
+// Карточка компании: hero (логотип · название · живой статус графика ·
+// счётчики охвата) → секции одним скроллом с липким рейлом-якорем (десктоп) →
+// подвал «Обновлено …». Правка — вложенный маршрут update в FormSheet,
+// «Лог активности» — в «⋯»-меню.
+const DELETE_MESSAGE =
+  "Вы уверены? Все пользователи компании также будут удалены. Это действие нельзя отменить.";
 
-// Строка реквизита: иконка-плашка + подпись/значение
-const ContactRow = ({ icon, label, children }) => (
-  <div className="contact-row">
-    <span className="contact-row__icon">{icon}</span>
-    <div style={{ minWidth: 0 }}>
-      <div className="contact-row__label">{label}</div>
-      <div className="contact-row__value">{children}</div>
-    </div>
-  </div>
+const fmtDate = (value) =>
+  value ? new Date(value).toLocaleDateString("ru-RU") : null;
+
+const personName = (person) =>
+  person && (person.firstName || person.lastName)
+    ? `${person.lastName || ""} ${person.firstName || ""}`.trim()
+    : null;
+
+const countTree = (nodes) =>
+  (nodes || []).reduce(
+    (sum, node) => sum + 1 + countTree(node.subdivisions),
+    0,
+  );
+
+const dash = <span className="tw:font-normal tw:text-faint">—</span>;
+
+const Pill = ({ children }) => (
+  <span className="tw:inline-flex tw:items-center tw:rounded-full tw:border tw:border-border-soft tw:bg-accent tw:px-2.5 tw:py-0.5 tw:text-sm tw:font-medium">
+    {children}
+  </span>
 );
 
 const ViewCompany = ({
@@ -98,485 +92,353 @@ const ViewCompany = ({
   servicePlansList = [],
   stats = null,
 }) => {
-  const { permissions } = useContext(AuthedUserContext);
-  const { modules } = useInitialPrefsStore();
-
-  const fetcher = useFetcher();
-  const navigate = useNavigate();
+  const { permissions } = useAuthedUser();
+  const { modules, taxi } = useInitialPrefs();
   const offcanvas = useOffcanvasStore();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const actionData = useActionData();
 
-  const [newServicePlan, setNewServicePlan] = useState({});
-  const isActiveSinceInputRef = useRef();
-  const [customerApprovalRequired, setCustomerApprovalRequired] =
-    useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [toggleOpen, setToggleOpen] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
 
-  // Состояние для Offcanvas с логами
-  const [showLogsOffcanvas, setShowLogsOffcanvas] = useState(false);
-  const [logsSearchQuery, setLogsSearchQuery] = useState("");
-
-  // Логотип компании в шапке — обновляется «вживую» после загрузки
-  const [logoImage, setLogoImage] = useState(
-    company.profileImagePath
-      ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${company.profileImagePath}`
-      : "/companypic-placeholder.png",
-  );
-
-  const customerApprovalRequiredHandler = () => {
-    setCustomerApprovalRequired(!customerApprovalRequired);
-  };
-
-  const servicePlanChangeHandler = (selectedItem) => {
-    setNewServicePlan(selectedItem);
-  };
-
-  const [show, setShow] = useState(false);
-
-  const handleClose = () => setShow(false);
-  const handleShow = () => setShow(true);
-
-  const handleShowLogs = (searchQuery = "") => {
-    setLogsSearchQuery(searchQuery);
-    setShowLogsOffcanvas(true);
-  };
-
-  const handleCloseLogs = () => {
-    setShowLogsOffcanvas(false);
-    setLogsSearchQuery("");
-  };
-
-  const addServicePlanHandler = async (event) => {
-    event.preventDefault();
-
-    fetcher.submit(
-      {
-        intent: "addServicePlan",
-        id: company._id,
-        servicePlan: newServicePlan._id,
-        isActiveSince: new Date(isActiveSinceInputRef.current.value),
-        customerApprovalRequired: customerApprovalRequired,
-      },
-      {
-        method: "POST",
-        action: `/companies/${company._id}`,
-      },
-    );
-
-    setCustomerApprovalRequired(false);
-  };
-
+  // 409-гард toggle'а (компания по умолчанию для входящих заявок) — тостом
   useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data) {
-      if (!fetcher.data.error) {
-        handleClose();
-      }
+    if (actionData?.error && actionData.message) {
+      useToastStore.getState().showToast("danger", actionData.message);
     }
-  }, [fetcher.state, fetcher.data]);
+  }, [actionData]);
+
+  // Оба вложенных маршрута живут в FormSheet: мастер «Новой услуги» — wide
+  // (сводка справа), правка компании — обычная колонка
+  const isPlanWizard = location.pathname.endsWith("/service-plans/add");
+
+  // Карточку всегда открываем от начала: Root сбрасывает только мобильный
+  // контейнер, а window-скролл при навигации сохраняется (см. карточку услуги).
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const canManage = permissions.canManageCompanies;
   const showFinances =
-    modules.finances.isActive && permissions.canUseFinancesModule;
+    modules?.finances?.isActive && permissions.canUseFinancesModule;
+  const showTech =
+    modules?.inventory?.isActive && permissions.canUseInventoryModule;
+  const isActive = company.isActive !== false;
 
-  const workingStatus = getWorkingStatus(company.workSchedule);
-  const noSchedule = workingStatus.verbose === "расписание не указано";
+  const employeesCount = company.employees?.length || 0;
+  const subdivisionsCount = countTree(company.subdivisions);
+  const noSchedule = Boolean(getWorkingStatus(company.workSchedule).unknown);
+  const taxiAction = getTaxiAction(company, taxi?.operator);
+
+  const updaterName = personName(company.updatedBy);
+  const metaBits = [
+    company.updatedAt &&
+      `Обновлено ${fmtDate(company.updatedAt)}${updaterName ? `, ${updaterName}` : ""}`,
+    company.createdAt && `создано ${fmtDate(company.createdAt)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  // Рейл ведёт только по реально отрисованным секциям
+  const railSections = [
+    ...(stats ? [{ id: "company-activity", label: "Активность" }] : []),
+    { id: "company-requisites", label: "Реквизиты" },
+    { id: "company-schedule", label: "График работы" },
+    { id: "company-structure", label: "Структура" },
+    ...(showTech ? [{ id: "company-tech", label: "Техника" }] : []),
+    { id: "company-people", label: "Сотрудники" },
+    ...(showFinances ? [{ id: "company-plans", label: "Услуги" }] : []),
+    { id: "company-responsibles", label: "Ответственные" },
+    ...(canManage ? [{ id: "company-keys", label: "API-ключи" }] : []),
+  ];
 
   return (
-    <Transitions>
-      {/* Шапка-«личность» компании: логотип, название, реквизиты, статус работы */}
-      <motion.div
-        className="account-hero mb-4"
-        variants={heroContainer}
-        initial="hidden"
-        animate="show"
+    <div className="tw:mx-auto tw:w-full tw:max-w-5xl">
+      <Link
+        to="/companies"
+        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
       >
-        <motion.div variants={heroAvatar}>
-          <AvatarUpload
-            image={logoImage}
-            onChange={setLogoImage}
-            uploadUrl={`${import.meta.env.VITE_API_ADDRESS}/api/companies/${company._id}/add-profile-image`}
-            method="PATCH"
-            canEdit={canManage}
-            alt={company.alias}
-            placeholder="/companypic-placeholder.png"
-          />
-        </motion.div>
+        <RiArrowLeftSLine /> Компании
+      </Link>
 
-        <motion.div variants={heroItem} className="flex-grow-1">
-          <h2 className="mb-1">{company.alias}</h2>
-          {company.fullTitle && (
-            <div className="text-body-secondary mb-2">{company.fullTitle}</div>
-          )}
-          <div className="d-flex flex-wrap gap-3 small">
-            {company.address && (
-              <a
-                href={company.linkToMap}
-                target="_blank"
-                rel="noreferrer"
-                className="d-inline-flex align-items-center gap-1 text-decoration-none"
-              >
-                <RiMapPin2Line /> {company.address}
-              </a>
+      {/* HERO */}
+      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-x-5 tw:gap-y-4">
+        <HeroLogo company={company} canEdit={canManage} />
+        <div className="tw:min-w-0 tw:flex-1">
+          <h1 className="tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:break-words">
+            {company.alias || "—"}
+          </h1>
+          {/* Юрлицо в hero не дублируем — полное наименование есть в
+              «Реквизитах» (согласовано при живом прогоне) */}
+          <div className="tw:mt-2.5 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5 tw:text-sm">
+            {isActive ? (
+              <WorkStatusText
+                workSchedule={company.workSchedule}
+                halo
+                className="tw:font-semibold"
+              />
+            ) : (
+              /* Живой график у отключённой — шум; статус как у пользователя */
+              <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:font-semibold tw:text-destructive">
+                <span className="tw:size-2 tw:rounded-full tw:bg-destructive" />
+                Отключена
+              </span>
             )}
-            {company.phones?.[0] && (
-              <a
-                href={`tel:${company.phones[0]}`}
-                className="d-inline-flex align-items-center gap-1 text-decoration-none"
-              >
-                <RiPhoneLine /> {company.phones[0]}
-              </a>
-            )}
-          </div>
-        </motion.div>
-
-        <motion.div
-          variants={heroItem}
-          className="ms-sm-auto d-flex flex-column align-items-sm-end gap-1"
-        >
-          <Badge
-            bg={workingStatus.isOpened ? "success" : "secondary"}
-            className="fs-6 fw-normal d-inline-flex align-items-center gap-1"
-          >
-            <RiTimeLine />{" "}
-            {noSchedule
-              ? "График не указан"
-              : workingStatus.isOpened
-                ? "Открыта"
-                : "Закрыта"}
-          </Badge>
-          {!noSchedule && (
-            <small>
-              <WorkingStatusIndicator workSchedule={company.workSchedule} />
-            </small>
-          )}
-        </motion.div>
-      </motion.div>
-
-      {/* Сводка по компании: KPI-карточки над вкладками */}
-      <CompanyStats stats={stats} />
-
-      <div className="company-view-tabs">
-        <Tabs defaultActiveKey="details" className="mb-3 scrollable-tabs">
-          {/* ---- Реквизиты + график работы ---- */}
-          <Tab
-            eventKey="details"
-            title={
-              <>
-                <RiProfileLine /> Реквизиты
-              </>
-            }
-          >
-            <div className="pt-3">
-              <Row className="g-3">
-                <Col xs={12}>
-                  <SectionCard>
-                    <div className="cap-card-title mb-3">
-                      <RiInformationLine />
-                      <span>Реквизиты</span>
-                    </div>
-                    <ContactRow
-                      icon={<RiBuilding2Line />}
-                      label="Полное наименование"
-                    >
-                      {company.fullTitle || (
-                        <span className="text-body-secondary">—</span>
-                      )}
-                    </ContactRow>
-                    <ContactRow icon={<RiPhoneLine />} label="Телефоны">
-                      {company.phones?.length ? (
-                        <span className="d-inline-flex flex-wrap gap-2">
-                          {company.phones.map((phone) => (
-                            <a key={phone} href={`tel:${phone}`}>
-                              {phone}
-                            </a>
-                          ))}
-                        </span>
-                      ) : (
-                        <span className="text-body-secondary">—</span>
-                      )}
-                    </ContactRow>
-                    <ContactRow icon={<RiMapPin2Line />} label="Адрес">
-                      {company.address ? (
-                        <a
-                          href={company.linkToMap}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {company.address}
-                        </a>
-                      ) : (
-                        <span className="text-body-secondary">—</span>
-                      )}
-                    </ContactRow>
-                    {canManage && (
-                      <ContactRow icon={<RiAtLine />} label="Почтовые домены">
-                        {company.emailDomains?.length ? (
-                          <span className="d-inline-flex flex-wrap gap-2">
-                            {company.emailDomains.map((domain) => (
-                              <Badge
-                                key={domain}
-                                bg="secondary"
-                                className="fw-normal"
-                              >
-                                {domain}
-                              </Badge>
-                            ))}
-                          </span>
-                        ) : (
-                          <span className="text-body-secondary">—</span>
-                        )}
-                      </ContactRow>
-                    )}
-                  </SectionCard>
-                </Col>
-              </Row>
-            </div>
-          </Tab>
-
-          {/* ---- График работы ---- */}
-          <Tab
-            eventKey="schedule"
-            title={
-              <>
-                <RiTimeLine /> График работы
-              </>
-            }
-          >
-            <div className="pt-3">
-              <SectionCard>
-                <WorkSchedule />
-              </SectionCard>
-            </div>
-          </Tab>
-
-          {/* ---- Структура компании ---- */}
-          <Tab
-            eventKey="structure"
-            title={
-              <>
-                <RiNodeTree /> Структура
-              </>
-            }
-          >
-            <div className="pt-3">
-              <SectionCard>
-                <SubdivisionsSection
-                  company={company}
-                  permissions={permissions}
-                />
-              </SectionCard>
-            </div>
-          </Tab>
-
-          {/* ---- Сотрудники ---- */}
-          <Tab
-            eventKey="employees"
-            title={
-              <>
-                <RiGroupLine /> Сотрудники{" "}
-                <Badge bg="secondary" pill>
-                  {company.employees?.length ?? 0}
-                </Badge>
-              </>
-            }
-          >
-            <div className="pt-3">
-              <SectionCard>
-                <UserSection />
-              </SectionCard>
-            </div>
-          </Tab>
-
-          {/* ---- Услуги (модуль финансов) ---- */}
-          {showFinances && (
-            <Tab
-              eventKey="services"
-              title={
+            <span className="tw:text-muted-foreground tw:tabular-nums">
+              <span className="tw:text-faint">·</span>{" "}
+              <b className="tw:font-semibold tw:text-foreground">
+                {employeesCount}
+              </b>{" "}
+              {plural(employeesCount, "сотрудник", "сотрудника", "сотрудников")}
+              {showFinances && (
                 <>
-                  <RiContractLine /> Услуги{" "}
-                  <Badge bg="secondary" pill>
+                  {" "}
+                  <span className="tw:text-faint">·</span>{" "}
+                  <b className="tw:font-semibold tw:text-foreground">
                     {servicePlans.length}
-                  </Badge>
+                  </b>{" "}
+                  {plural(servicePlans.length, "услуга", "услуги", "услуг")}
                 </>
-              }
-            >
-              <div className="pt-3">
-                <SectionCard>
-                  <ServicePlansSection
-                    servicePlans={servicePlans}
-                    company={company}
-                    permissions={permissions}
-                    handleShow={handleShow}
-                  />
-                </SectionCard>
-              </div>
-            </Tab>
-          )}
-
-          {/* ---- Ответственные лица ---- */}
-          <Tab
-            eventKey="responsibles"
-            title={
-              <>
-                <RiContactsBook2Line /> Ответственные
-              </>
-            }
-          >
-            <div className="pt-3">
-              <SectionCard>
-                <ResponsiblesSection company={company} />
-              </SectionCard>
-            </div>
-          </Tab>
-
-          {/* ---- API-ключи ---- */}
-          <Tab
-            eventKey="apikeys"
-            title={
-              <>
-                <RiKey2Line /> API-ключи
-              </>
-            }
-          >
-            <div className="pt-3">
-              <SectionCard>
-                <ApiKeysSection company={company} permissions={permissions} />
-              </SectionCard>
-            </div>
-          </Tab>
-        </Tabs>
+              )}
+              {subdivisionsCount > 0 && (
+                <>
+                  {" "}
+                  <span className="tw:text-faint">·</span>{" "}
+                  <b className="tw:font-semibold tw:text-foreground">
+                    {subdivisionsCount}
+                  </b>{" "}
+                  {plural(
+                    subdivisionsCount,
+                    "подразделение",
+                    "подразделения",
+                    "подразделений",
+                  )}
+                </>
+              )}
+            </span>
+          </div>
+        </div>
+        {canManage && (
+          /* На мобильном блок действий занимает свою строку во всю ширину */
+          <div className="tw:flex tw:w-full tw:items-center tw:gap-2 tw:sm:w-auto tw:sm:flex-none">
+            <Button asChild className="tw:flex-1 tw:sm:flex-none">
+              <Link to="update" onClick={offcanvas.setShow}>
+                <RiEdit2Line /> Изменить
+              </Link>
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Действия"
+                  title="Действия"
+                >
+                  <RiMoreLine />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setLogsOpen(true)}>
+                  <RiHistoryLine /> Лог активности
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setToggleOpen(true)}>
+                  {isActive ? <RiForbid2Line /> : <RiCheckboxCircleLine />}
+                  {isActive ? "Отключить" : "Включить"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => setDeleteOpen(true)}
+                >
+                  <RiDeleteBinLine /> Удалить
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
       </div>
 
-      {/* Действия */}
-      <Row className="py-3 border-top justify-content-end gap-2">
-        <Col sm="auto">
-          <Button
-            onClick={() => navigate("/companies")}
-            className="w-100"
-            variant="secondary"
-          >
-            <RiArrowGoBackFill /> К списку
-          </Button>
-        </Col>
-        {canManage && (
-          <Col sm="auto">
-            <Button
-              onClick={() => handleShowLogs()}
-              className="w-100"
-              variant="info"
+      {/* Разделы одним скроллом; слева — липкий рейл-якорь (только десктоп:
+          на мобайле window не скроллится, рейл не рендерится) */}
+      <div className="tw:flex tw:items-start tw:gap-7">
+        <BrowserView className="tw:contents">
+          <AnchorRail
+            sections={railSections}
+            ariaLabel="Разделы карточки"
+            className="tw:mt-6"
+          />
+        </BrowserView>
+        <div className="tw:min-w-0 tw:flex-1">
+          <ActivityTiles stats={stats} company={company} id="company-activity" />
+
+          {/* Реквизиты */}
+          <Eyebrow id="company-requisites">Реквизиты</Eyebrow>
+          <Panel>
+            <PropRow
+              icon={<RiBuilding2Line size={17} />}
+              label="Полное наименование"
+              copy={
+                company.fullTitle
+                  ? { value: company.fullTitle, label: "Реквизит" }
+                  : undefined
+              }
             >
-              <RiHistoryLine /> Лог активности
-            </Button>
-          </Col>
-        )}
-        {canManage && (
-          <>
-            <Col sm="auto">
-              <Button
-                as={Link}
-                to={`update`}
-                className="w-100"
-                onClick={offcanvas.show}
-              >
-                <RiEdit2Line /> Изменить
-              </Button>
-            </Col>
-            <Col sm="auto">
-              <DeleteItem isButton item={company} />
-            </Col>
-          </>
-        )}
-      </Row>
-
-      <Offcanvas
-        show={offcanvas.isActive}
-        onHide={() => {
-          navigate(-1);
-          offcanvas.setClose();
-        }}
-        keyboard
-        placement="bottom"
-        className="h-100"
-      >
-        <Offcanvas.Header closeButton>
-          <Offcanvas.Title></Offcanvas.Title>
-        </Offcanvas.Header>
-        <Offcanvas.Body>
-          <Outlet />
-        </Offcanvas.Body>
-      </Offcanvas>
-
-      <Modal show={show} centered onHide={handleClose}>
-        <Form onSubmit={addServicePlanHandler}>
-          <Modal.Header closeButton>
-            <Modal.Title>Новая услуга</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            {fetcher.data?.error && fetcher.data && (
-              <Alert variant="danger">
-                <div>{fetcher.data.error}</div>
-                <ul>
-                  {fetcher.data.duplicates &&
-                    fetcher.data.duplicates.map((duplicate) => (
-                      <li key={duplicate._id.toString()}>{duplicate.title}</li>
+              {company.fullTitle || dash}
+            </PropRow>
+            <PropRow icon={<RiPhoneLine size={17} />} label="Телефоны">
+              {company.phones?.length ? (
+                <span className="tw:tabular-nums">
+                  {company.phones.map((phone, index) => (
+                    <span key={phone}>
+                      {index > 0 && <span className="tw:text-faint"> · </span>}
+                      <a
+                        href={`tel:${phone}`}
+                        className="tw:text-accent-text tw:no-underline tw:hover:underline"
+                      >
+                        {phone}
+                      </a>
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                dash
+              )}
+            </PropRow>
+            <PropRow
+              icon={<RiMapPin2Line size={17} />}
+              label="Адрес"
+              action={
+                taxiAction && (
+                  <a
+                    href={taxiAction.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={taxiAction.title}
+                    aria-label={`${taxiAction.orderText} · ${taxiAction.label}`}
+                    className="tw:grid tw:size-8 tw:flex-none tw:place-items-center tw:rounded-lg tw:text-faint tw:no-underline tw:transition-colors tw:hover:bg-accent tw:hover:text-warning"
+                  >
+                    <RiTaxiLine size={16} />
+                  </a>
+                )
+              }
+              copy={
+                company.address
+                  ? { value: company.address, label: "Адрес" }
+                  : undefined
+              }
+            >
+              {company.address ? (
+                company.linkToMap ? (
+                  <a
+                    href={company.linkToMap}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Открыть на карте"
+                    className="tw:text-accent-text tw:no-underline tw:hover:underline"
+                  >
+                    {company.address}
+                  </a>
+                ) : (
+                  company.address
+                )
+              ) : (
+                dash
+              )}
+            </PropRow>
+            {canManage && (
+              <PropRow icon={<RiAtLine size={17} />} label="Почтовые домены">
+                {company.emailDomains?.length ? (
+                  <span className="tw:flex tw:flex-wrap tw:gap-1.5 tw:pt-0.5">
+                    {company.emailDomains.map((domain) => (
+                      <Pill key={domain}>{domain}</Pill>
                     ))}
-                </ul>
-              </Alert>
-            )}
-            <Form.Group className="mb-3">
-              <Form.Label htmlFor="servicePlan">Услуга</Form.Label>
-              <Select
-                id="servicePlan"
-                placeholder="Выберите услугу"
-                required
-                isClearable
-                isSearchable
-                options={servicePlansList.filter(
-                  (plan) =>
-                    !company.servicePlans.some((sp) => sp._id === plan._id),
+                  </span>
+                ) : (
+                  dash
                 )}
-                getOptionLabel={(option) => `${option.title}`}
-                getOptionValue={(option) => option._id}
-                onChange={servicePlanChangeHandler}
-              />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Действует с</Form.Label>
-              <Form.Control type="date" required ref={isActiveSinceInputRef} />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Check
-                type="switch"
-                label="Требуется согласование c Клиентом"
-                value={isActiveSinceInputRef}
-                onChange={customerApprovalRequiredHandler}
-              />
-            </Form.Group>
-          </Modal.Body>
-          <Modal.Footer>
-            <Button variant="secondary" onClick={handleClose}>
-              Закрыть
-            </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              name="intent"
-              value="addServicePlan"
-              disabled={fetcher.state !== "idle"}
-            >
-              Сохранить
-            </Button>
-          </Modal.Footer>
-        </Form>
-      </Modal>
+              </PropRow>
+            )}
+          </Panel>
 
-      <CompanyLogsOffcanvas
-        show={showLogsOffcanvas}
-        onHide={handleCloseLogs}
-        companyId={company._id}
-        company={company}
-        permissions={permissions}
-        initialSearchQuery={logsSearchQuery}
+          <ScheduleSection
+            workSchedule={company.workSchedule}
+            hasSchedule={!noSchedule}
+            id="company-schedule"
+          />
+
+          <SubdivisionsSection
+            company={company}
+            canManage={canManage}
+            id="company-structure"
+          />
+
+          {/* Техника: список с фасетами + окружение (общая шторка устройства) */}
+          {showTech && <TechSection id="company-tech" companyId={company._id} />}
+
+          <EmployeesSection company={company} id="company-people" />
+
+          {showFinances && (
+            <ServicePlansSection
+              company={company}
+              plans={servicePlans}
+              servicePlansList={servicePlansList}
+              canManage={permissions.canManageServicePlans}
+              id="company-plans"
+            />
+          )}
+
+          <ResponsiblesSection company={company} id="company-responsibles" />
+
+          {canManage && <ApiKeysSection company={company} id="company-keys" />}
+
+          {metaBits && (
+            <div className="tw:mt-5 tw:border-t tw:border-border-soft tw:pt-3.5 tw:text-xs tw:text-faint tw:tabular-nums">
+              {metaBits}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <DeleteDialog
+        item={{ ...company, title: company.alias }}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        customDeleteMessage={DELETE_MESSAGE}
       />
-    </Transitions>
+
+      <ToggleActiveDialog
+        company={company}
+        open={toggleOpen}
+        onOpenChange={setToggleOpen}
+      />
+
+      {/* Правка компании и мастер «Новой услуги» — вложенные маршруты в шторке */}
+      <FormSheet
+        open={offcanvas.isActive}
+        wide={isPlanWizard}
+        onOpenChange={(open) => {
+          if (!open) {
+            navigate(-1);
+            offcanvas.setClose();
+          }
+        }}
+      >
+        <Outlet />
+      </FormSheet>
+
+      {canManage && (
+        <CompanyLogsOffcanvas
+          show={logsOpen}
+          onHide={() => setLogsOpen(false)}
+          companyId={company._id}
+          company={company}
+          permissions={permissions}
+          initialSearchQuery=""
+        />
+      )}
+    </div>
   );
 };
 

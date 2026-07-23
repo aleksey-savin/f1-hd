@@ -2,296 +2,208 @@ import { create } from "zustand";
 
 import { getLocalStorageData } from "../../util/auth";
 
-// Returns true when the user's last activity (date of their latest ticket)
-// falls into the requested range. "inactive6m" also matches users with no
-// activity at all (they have never created a ticket).
-const matchesLastActivityRange = (item, range) => {
-  if (!range || range === "any") return true;
+// Список «Пользователи» — адресная книга на серверной выборке: поиск, фасеты,
+// сортировка и постраничность считает бэкенд (клиентский поиск несовместим с
+// пагинацией). Стор держит текущую порцию (items), общий счётчик (total) и
+// состояние фильтров; каждое изменение фильтра/сортировки/страницы делает
+// запрос само (страница только монтирует первичную загрузку). Контракт
+// app/ListWrapper сохранён (fullTextSearch / handleSorting / sortBy /
+// sortingOptions / isLoading / isSorting / resetFilter).
+const API = import.meta.env.VITE_API_ADDRESS;
+const PAGE_SIZE = 30;
 
-  const last = item.lastActivity?.date
-    ? new Date(item.lastActivity.date)
-    : null;
-  const now = new Date();
-
-  switch (range) {
-    case "currentMonth": {
-      if (!last) return false;
-      return last >= new Date(now.getFullYear(), now.getMonth(), 1);
-    }
-    case "currentYear": {
-      if (!last) return false;
-      return last >= new Date(now.getFullYear(), 0, 1);
-    }
-    case "inactive6m": {
-      if (!last) return true; // never active
-      const sixMonthsAgo = new Date(now);
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      return last < sixMonthsAgo;
-    }
-    default:
-      return true;
-  }
+// Наборы сортировок по label (их показывает дропдаун ListWrapper) → серверный
+// ключ. «Сначала на связи» есть только у сотрудников (у клиентов присутствия
+// нет).
+const SORT = {
+  name: { label: "По имени" },
+  online: { label: "Сначала на связи" },
+  recent: { label: "Недавно активные" },
+  created: { label: "Сначала новые" },
+};
+const SORT_KEY_BY_LABEL = Object.fromEntries(
+  Object.entries(SORT).map(([key, option]) => [option.label, key]),
+);
+const sortingFor = (audience) =>
+  audience === "staff"
+    ? [SORT.online, SORT.name, SORT.recent, SORT.created]
+    : [SORT.name, SORT.recent, SORT.created];
+const DEFAULT_SORT = {
+  clients: SORT.name,
+  staff: SORT.online,
+  all: SORT.name,
 };
 
-const userFilter = (state) => {
-  const originalList = state.originalList || [];
+let searchDebounce;
 
-  return originalList
-    .filter((item) => (state.isActive ? item.isActive : true))
-    .filter((item) =>
-      Array.isArray(state.companies) && state.companies.length > 0
-        ? state.companies.includes(item.company?._id?.toString())
-        : true,
-    )
-    .filter((item) => matchesLastActivityRange(item, state.lastActivityRange))
-    .filter((item) => {
-      if (
-        Array.isArray(state.timeTrackingModule) &&
-        state.timeTrackingModule.length > 0
-      ) {
-        return (
-          state.timeTrackingModule.filter(
-            (permission) => item.permissions?.[permission] === true,
-          ).length > 0
-        );
-      } else {
-        return true;
-      }
-    })
-    .filter((item) => {
-      if (state.searchTerm.length > 0) {
-        const searchText = [
-          item.email,
-          item.phone,
-          `${item.firstName} ${item.lastName}`,
-          item.firstName,
-          item.lastName,
-          item.position,
-          item.role,
-          ...(Array.isArray(item.categories)
-            ? item.categories.map((category) => category.title)
-            : []),
-          ...(Array.isArray(item.responsibleForCompanies)
-            ? item.responsibleForCompanies.map((company) => company.alias)
-            : []),
-          item.company?.alias,
-        ]
-          .join(" ")
-          .toLowerCase();
+const buildParams = (s) => {
+  const p = new URLSearchParams();
+  p.set("audience", s.audience);
+  if (s.activeOnly) p.set("activeOnly", "true");
+  if (s.includeService) p.set("includeService", "true");
+  if (s.company) p.set("company", s.company);
+  if (s.online) p.set("online", "true");
+  if (s.activity && s.activity !== "any") p.set("activity", s.activity);
+  if (s.searchTerm) p.set("search", s.searchTerm);
+  p.set("sort", SORT_KEY_BY_LABEL[s.sortBy?.label] || "name");
+  if (s.groupBySubdivision && s.company) {
+    // группировка по подразделению — одна компания целиком, без пагинации
+    p.set("all", "true");
+  } else {
+    p.set("page", String(s.page));
+    p.set("limit", String(PAGE_SIZE));
+  }
+  return p;
+};
 
-        return searchText.includes(state.searchTerm.toLowerCase());
-      } else {
-        return true;
-      }
+const doFetch = async (get, set, { silent = false, append = false } = {}) => {
+  const { token } = getLocalStorageData();
+  if (!silent) set({ isLoading: true });
+  try {
+    const url = new URL(`${API}/api/users`);
+    url.search = buildParams(get()).toString();
+    const response = await fetch(url, {
+      headers: { Authorization: "Bearer " + token },
     });
-};
-
-const searchItems = (query, items) => {
-  if (!query) return items;
-
-  // Split the query into individual terms (e.g., "Ольга Вознюк" becomes ["Ольга", "Вознюк"])
-  const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
-
-  return items.filter((item) => {
-    const fieldsToSearch = [
-      item.email,
-      item.phone,
-      `${item.firstName} ${item.lastName}`,
-      item.firstName,
-      item.lastName,
-      item.position,
-      item.role,
-      JSON.stringify(item.categories),
-      JSON.stringify(item.responsibleForCompanies),
-      item.company?.alias,
-    ];
-
-    return queryTerms.every((term) =>
-      fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term),
-      ),
-    );
-  });
-};
-
-// Sort by last-activity timestamp. Users without activity always sink to the
-// bottom, regardless of direction.
-const activitySort = (a, b, direction) => {
-  const aTime = a.lastActivity?.date
-    ? new Date(a.lastActivity.date).getTime()
-    : null;
-  const bTime = b.lastActivity?.date
-    ? new Date(b.lastActivity.date).getTime()
-    : null;
-
-  if (aTime === null && bTime === null) return 0;
-  if (aTime === null) return 1;
-  if (bTime === null) return -1;
-
-  return direction === "asc" ? aTime - bTime : bTime - aTime;
-};
-
-const handleSorting = (selected, list) => {
-  if (!selected || !list.length) {
-    return;
+    if (!response.ok) throw new Error(`users ${response.status}`);
+    const data = await response.json();
+    set((state) => ({
+      items: append ? [...state.items, ...data.users] : data.users,
+      total: typeof data.total === "number" ? data.total : data.users.length,
+      isLoading: false,
+      isSorting: false,
+    }));
+  } catch (error) {
+    if (!silent) set({ isLoading: false, isSorting: false });
+    console.warn("Загрузка пользователей пропущена:", error);
   }
-
-  const sortedList = [...list];
-
-  switch (selected.label) {
-    case "По алфавиту":
-      sortedList.sort((a, b) => {
-        const aValue =
-          a.lastName.trim() === "" ? a.firstName.trim() : a.lastName.trim();
-        const bValue =
-          b.lastName.trim() === "" ? b.firstName.trim() : b.lastName.trim();
-        return aValue.localeCompare(bValue);
-      });
-      break;
-
-    case "Сначала новые":
-      sortedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      break;
-
-    case "Сначала старые":
-      sortedList.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-      break;
-
-    case "Активность: сначала недавние":
-      sortedList.sort((a, b) => activitySort(a, b, "desc"));
-      break;
-
-    case "Активность: сначала давние":
-      sortedList.sort((a, b) => activitySort(a, b, "asc"));
-      break;
-
-    default:
-      break;
-  }
-
-  return sortedList;
 };
 
 const useUserFilterStore = create((set, get) => ({
-  isAdmin: false,
-  isServiceAccount: false,
-  isCloudTelephony: false,
-  permissions: [],
-  tgBot: "any",
-  isActive: true,
-  roles: [],
-  categories: [],
-  companies: [],
-  lastActivityRange: "any",
-  respForCompanies: [],
-  timeTrackingModule: [],
-  searchTerm: "",
-  sortingOptions: [
-    { label: "По алфавиту" },
-    {
-      label: "Сначала новые",
-    },
-    { label: "Сначала старые" },
-    { label: "Активность: сначала недавние" },
-    { label: "Активность: сначала давние" },
-  ],
-  sortBy: {
-    label: "По алфавиту",
-  },
-  isSorting: false,
-  handleSorting: async (data) => {
-    set({ isSorting: true });
-
-    // Set new sort option immediately
-    set({ sortBy: data });
-
-    // Use Promise and setTimeout to make sorting async
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    set((state) => {
-      const sortedList = handleSorting(data, state.filteredList);
-      return {
-        sortBy: data,
-        filteredList: sortedList,
-        isSorting: false,
-      };
-    });
-  },
-  originalList: [],
-  filteredList: [],
-  fullTextSearch: (query) =>
-    set((state) => ({ filteredList: searchItems(query, userFilter(state)) })),
+  // данные
+  items: [],
+  total: 0,
+  page: 1,
+  pageSize: PAGE_SIZE,
   isLoading: false,
-  fetch: async () => {
-    set({ isLoading: true });
-    const { token } = getLocalStorageData();
-    // When the "only active" toggle is on, request active users only — inactive
-    // accounts are fetched from the backend only after the toggle is disabled.
-    const url = new URL(`${import.meta.env.VITE_API_ADDRESS}/api/users`);
-    if (get().isActive) {
-      url.searchParams.set("activeOnly", "true");
-    }
-    const response = await fetch(url, {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    });
-    const data = await response.json();
-    set({
-      originalList: data.users,
-      isLoading: false,
-    });
-  },
-  // Фоновое обновление без спиннера (поллинг статусов сотрудников):
-  // обновляем только originalList — useEffect страницы на originalList сам
-  // пересчитает фильтр и сортировку. Сетевые сбои глотаем: пропущенный цикл
-  // некритичен, следующий опрос через 15 с подтянет данные.
+  isSorting: false,
+
+  // фильтры (дефолт — «Клиенты», сортировка по имени, только активные)
+  audience: "clients",
+  company: null,
+  companyOptions: [],
+  online: false,
+  activity: "any",
+  activeOnly: true,
+  includeService: false,
+  groupBySubdivision: false,
+  searchTerm: "",
+
+  sortingOptions: sortingFor("clients"),
+  sortBy: DEFAULT_SORT.clients,
+
+  fetch: () => doFetch(get, set),
+
+  // Живые статусы присутствия без перезагрузки списка: тянем лёгкое табло
+  // достижимых сотрудников и мёржим workStatus в показанные строки (пагинация
+  // не рвётся). Сбой глотаем — следующий опрос подтянет.
   silentRefresh: async () => {
     const { token } = getLocalStorageData();
     try {
-      const url = new URL(`${import.meta.env.VITE_API_ADDRESS}/api/users`);
-      if (get().isActive) {
-        url.searchParams.set("activeOnly", "true");
-      }
-      const response = await fetch(url, {
+      const response = await fetch(`${API}/api/users/work-statuses`, {
         headers: { Authorization: "Bearer " + token },
       });
-      if (!response.ok) throw new Error(`users ${response.status}`);
-      const data = await response.json();
-      set({ originalList: data.users });
+      if (!response.ok) throw new Error(`work-statuses ${response.status}`);
+      const raw = await response.json();
+      const list = Array.isArray(raw) ? raw : raw?.users || [];
+      const byId = new Map(list.map((u) => [String(u._id), u.workStatus]));
+      set((state) => ({
+        items: state.items.map((item) =>
+          byId.has(String(item._id))
+            ? { ...item, workStatus: byId.get(String(item._id)) }
+            : item,
+        ),
+      }));
     } catch (error) {
-      console.warn("Фоновое обновление пользователей пропущено:", error);
+      console.warn("Обновление статусов пропущено:", error);
     }
   },
-  updateFilter: (data) =>
-    set(() => ({
-      isActive: data.isActive,
-      companies: data.companies,
-      lastActivityRange: data.lastActivityRange,
-      timeTrackingModule: data.timeTrackingModule,
-      searchTerm: data.searchTerm,
-      originalList: data.originalList,
-      isLoading: false,
-    })),
-  applyFilter: () => set((state) => ({ filteredList: userFilter(state) })),
+
+  // пагинация: setPage — десктоп (замена порции), loadMore — мобайл (докрутка)
+  setPage: (page) => {
+    set({ page });
+    doFetch(get, set);
+  },
+  loadMore: () => {
+    set((state) => ({ page: state.page + 1 }));
+    doFetch(get, set, { append: true });
+  },
+
+  // набор (сотрудники/клиенты/все): пересобираем сортировки и сбрасываем
+  // несовместимые фасеты
+  setAudience: (audience) => {
+    set({
+      audience,
+      page: 1,
+      sortingOptions: sortingFor(audience),
+      sortBy: DEFAULT_SORT[audience] || SORT.name,
+      online: audience === "staff" ? get().online : false,
+      groupBySubdivision: get().company ? get().groupBySubdivision : false,
+    });
+    doFetch(get, set);
+  },
+
+  setCompany: (company) => {
+    set({
+      company,
+      page: 1,
+      groupBySubdivision: company ? get().groupBySubdivision : false,
+    });
+    doFetch(get, set);
+  },
+
+  toggleGroupBySubdivision: () => {
+    set((state) => ({ groupBySubdivision: !state.groupBySubdivision, page: 1 }));
+    doFetch(get, set);
+  },
+
+  setCompanyOptions: (companyOptions) => set({ companyOptions }),
+
+  handleSorting: async (data) => {
+    set({ sortBy: data, isSorting: true, page: 1 });
+    await doFetch(get, set);
+  },
+
+  fullTextSearch: (query) => {
+    set({ searchTerm: query });
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      set({ page: 1 });
+      doFetch(get, set);
+    }, 300);
+  },
+
+  // патч из фильтр-шторки (online / activity / activeOnly / includeService)
+  updateFilter: (patch) => {
+    set({ ...patch, page: 1 });
+    doFetch(get, set);
+  },
+
   resetFilter: () => {
-    set(() => ({
-      isAdmin: false,
-      isServiceAccount: false,
-      isCloudTelephony: false,
-      permissions: [],
-      tgBot: "any",
-      isActive: true,
-      roles: [],
-      categories: [],
-      companies: [],
-      lastActivityRange: "any",
-      respForCompanies: [],
+    set({
+      audience: "clients",
+      company: null,
+      online: false,
+      activity: "any",
+      activeOnly: true,
+      includeService: false,
+      groupBySubdivision: false,
       searchTerm: "",
-    }));
-    set((state) => ({
-      filteredList: userFilter(state),
-    }));
+      page: 1,
+      sortingOptions: sortingFor("clients"),
+      sortBy: DEFAULT_SORT.clients,
+    });
+    doFetch(get, set);
   },
 }));
 

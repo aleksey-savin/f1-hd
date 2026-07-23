@@ -102,6 +102,7 @@ const KnowledgeBaseList = () => {
             // Offcanvas: <Outlet/> рендерит сама эта страница.
             renderOutlet={false}
             onAddClick={() => navigate("/knowledge-base/add")}
+            addLabel="Новая заметка"
           >
             {useDrillDown ? <CompanyFolders /> : <NoteList flat />}
           </ListWrapper>

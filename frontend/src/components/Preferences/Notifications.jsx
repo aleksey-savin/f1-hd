@@ -184,7 +184,7 @@ const PrefsNotifications = (props) => {
                     {!telegramNotifyIsActive && !emailNotifyIsActive && (
                         <Form.Group>
                             <Alert variant='warning'>
-                                Для отправки уведомлений, активируйте отправку
+                                Для отправки уведомлений активируйте отправку
                                 через e-mail или Telegram
                             </Alert>
                         </Form.Group>
@@ -412,7 +412,7 @@ const PrefsNotifications = (props) => {
                     </Form.Group>
                     <Form.Group>
                         <Alert variant='light'>
-                            Добавьте в группу бот{' '}
+                            Добавьте в группу бота{' '}
                             <a
                                 href={`https://t.me/${import.meta.env.VITE_TG_BOT_NAME}`}
                             >

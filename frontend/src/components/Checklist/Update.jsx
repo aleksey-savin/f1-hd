@@ -44,7 +44,7 @@ const UpdateChecklist = ({ checklist: initialChecklist, updateChecklist }) => {
 
   return (
     <>
-      <h2>Чеклист</h2>
+      <h2>Чек-лист</h2>
       <ul className="list-group list-group-flush">
         {checklist.length > 0 &&
           checklist.map((item) => {

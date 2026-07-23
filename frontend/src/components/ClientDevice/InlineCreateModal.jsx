@@ -362,7 +362,7 @@ const InlineCreateModal = ({
               <Spinner animation="border" size="sm" />
             ) : (
               <>
-                <RiAddLine /> Создать
+                <RiAddLine /> Сохранить
               </>
             )}
           </Button>

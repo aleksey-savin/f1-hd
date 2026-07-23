@@ -49,12 +49,10 @@ import UpdateScheduledWorkPage, {
 
 import UpdateTicketPage, {
   loader as updateTicketLoader,
-  action as updateTicketAction,
 } from "./pages/Ticket/Update.jsx";
 
 import TicketsArchive, {
   loader as ticketsArchiveLoader,
-  action as ticketsArchiveAction,
 } from "./pages/Ticket/Archive.jsx";
 
 // Companies
@@ -70,6 +68,10 @@ import UpdateCompanyPage, {
   action as updateCompanyrAction,
 } from "./pages/Company/Update.jsx";
 
+import AddCompanyServicePlanPage, {
+  loader as addCompanyServicePlanLoader,
+  action as addCompanyServicePlanAction,
+} from "./pages/Company/AddServicePlan.jsx";
 import ViewCompanyPage, {
   loader as viewCompanyLoader,
   action as viewCompanyAction,
@@ -120,6 +122,11 @@ import UpdateTicketTemplatePage, {
   loader as updateTicketTemplateLoader,
 } from "./pages/TicketTemplate/Update.jsx";
 
+import ViewTicketTemplatePage, {
+  loader as viewTicketTemplateLoader,
+  action as viewTicketTemplateAction,
+} from "./pages/TicketTemplate/View.jsx";
+
 // Routine tasks
 import RoutineTask, {
   loader as routineTaskLoader,
@@ -135,6 +142,11 @@ import UpdateRoutineTaskPage, {
   action as updateRoutineTaskAction,
   loader as updateRoutineTaskLoader,
 } from "./pages/RoutineTask/Update.jsx";
+
+import ViewRoutineTaskPage, {
+  loader as viewRoutineTaskLoader,
+  action as viewRoutineTaskAction,
+} from "./pages/RoutineTask/View.jsx";
 
 // ServicePlans
 import ServicePlans, {
@@ -380,6 +392,13 @@ function App() {
       id: "root",
       loader: authDataLoader,
       children: [
+        {
+          // Ошибки загрузчиков детей ловим НИЖЕ корня: оболочка (навбар,
+          // таб-бар, тема) остаётся живой, страница ошибки рендерится в
+          // контентной области. errorElement на корне выше — фолбэк на
+          // случай падения самого authDataLoader.
+          errorElement: <Error />,
+          children: [
         // Index
         {
           index: true,
@@ -427,7 +446,6 @@ function App() {
               path: "update",
               element: <UpdateTicketPage />,
               loader: updateTicketLoader,
-              action: updateTicketAction,
             },
             {
               path: "work/add",
@@ -465,7 +483,6 @@ function App() {
           path: "closed-tickets",
           element: <TicketsArchive />,
           loader: ticketsArchiveLoader,
-          action: ticketsArchiveAction,
         },
         // Knowledge Base
         {
@@ -529,6 +546,7 @@ function App() {
         },
         {
           path: "companies/:id",
+          id: "company-view",
           loader: viewCompanyLoader,
           action: viewCompanyAction,
           element: <ViewCompanyPage />,
@@ -538,6 +556,14 @@ function App() {
               loader: updateCompanyLoader,
               action: updateCompanyrAction,
               element: <UpdateCompanyPage />,
+            },
+            {
+              // «Новая услуга» из диалога «Добавить услугу»: мастер услуги в
+              // wide-шторке карточки, создание + подключение одним запросом
+              path: "service-plans/add",
+              loader: addCompanyServicePlanLoader,
+              action: addCompanyServicePlanAction,
+              element: <AddCompanyServicePlanPage />,
             },
           ],
         },
@@ -630,6 +656,23 @@ function App() {
             },
           ],
         },
+        {
+          path: "ticket-templates/:id",
+          loader: viewTicketTemplateLoader,
+          action: viewTicketTemplateAction,
+          element: <ViewTicketTemplatePage />,
+          children: [
+            {
+              path: "update",
+              loader: updateTicketTemplateLoader,
+              action: updateTicketTemplateAction,
+              element: <UpdateTicketTemplatePage />,
+            },
+            {
+              path: "delete",
+            },
+          ],
+        },
         // Routine tasks
         {
           path: "routine-tasks",
@@ -651,6 +694,23 @@ function App() {
             },
             {
               path: "delete/:id",
+            },
+          ],
+        },
+        {
+          path: "routine-tasks/:id",
+          loader: viewRoutineTaskLoader,
+          action: viewRoutineTaskAction,
+          element: <ViewRoutineTaskPage />,
+          children: [
+            {
+              path: "update",
+              loader: updateRoutineTaskLoader,
+              action: updateRoutineTaskAction,
+              element: <UpdateRoutineTaskPage />,
+            },
+            {
+              path: "delete",
             },
           ],
         },
@@ -1007,6 +1067,8 @@ function App() {
           element: <Preferences />,
           loader: prefsLoader,
           action: prefsAction,
+        },
+          ],
         },
       ],
     },

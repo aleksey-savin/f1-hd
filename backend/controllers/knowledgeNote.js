@@ -1059,9 +1059,15 @@ exports.ignoreSecretFinding = async (req, res, next) => {
 // canManageKnowledgeBase / админам, которые видят все сущности.
 exports.getFormData = async (req, res, next) => {
   try {
+    // Отключённые компании (и их люди) в форме привязки не предлагаются;
+    // существующие привязки заметок остаются в документах как есть.
     const [companies, users, categories] = await Promise.all([
-      Company.find({}).sort({ alias: 1 }),
-      User.find({ isActive: true, isServiceAccount: false }).sort({
+      Company.find({ isActive: { $ne: false } }).sort({ alias: 1 }),
+      User.find({
+        isActive: true,
+        isServiceAccount: false,
+        "company.isActive": { $ne: false },
+      }).sort({
         lastName: 1,
       }),
       TicketCategory.find({ isActive: true }).sort({ title: 1 }),

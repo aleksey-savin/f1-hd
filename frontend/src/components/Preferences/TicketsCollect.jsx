@@ -134,7 +134,7 @@ const PrefsTicketsCollect = (props) => {
         />
       </Form.Group>
       <Form.Group className="mb-3">
-        <Form.Label>Инициатор по-умолчанию</Form.Label>
+        <Form.Label>Инициатор по умолчанию</Form.Label>
         <Select
           isDisabled={!useEmail}
           placeholder="Выберите пользователя"

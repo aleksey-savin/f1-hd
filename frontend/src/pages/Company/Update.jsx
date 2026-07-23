@@ -3,13 +3,13 @@ import { getLocalStorageData } from "../../util/auth";
 import CompanyForm from "../../components/Company/Form";
 
 const UpdateCompanyPage = () => {
-  return <CompanyForm title="Изменение компании" />;
+  return <CompanyForm />;
 };
 
 export default UpdateCompanyPage;
 
 export async function loader({ params }) {
-  document.title = "ИЗМЕНИТЬ КОМПАНИЮ";
+  document.title = "Изменить компанию";
 
   const { token } = getLocalStorageData();
 
@@ -47,46 +47,12 @@ export async function loader({ params }) {
   };
 }
 
+// Форма шлёт готовый JSON (encType: application/json) — телефоны-массив,
+// оба списка ответственных и объект графика уже собраны. Пробрасываем на бэкенд.
 export async function action({ request, params }) {
   const { token } = getLocalStorageData();
 
-  const data = await request.formData();
-
-  const schedule = {};
-
-  // Process form data
-  for (const [key, value] of data.entries()) {
-    const [day, field] = key.split(".");
-    if (!schedule[day]) {
-      schedule[day] = {
-        isWorking: false,
-        is24hours: false,
-        start: "",
-        end: "",
-      };
-    }
-    if (field === "isWorking") {
-      schedule[day].isWorking = value === "on";
-    } else if (field === "is24hours") {
-      schedule[day].is24hours = value === "on";
-    } else {
-      schedule[day][field] = value;
-    }
-  }
-
-  const clientsSideRespIds = data.getAll("clientsSideResponsibles");
-
-  const companyData = {
-    alias: data.get("alias"),
-    fullTitle: data.get("fullTitle"),
-    emailDomains: data.get("emailDomains"),
-    phones: data.get("phones"),
-    address: data.get("address"),
-    linkToMap: data.get("linkToMap"),
-    responsibles: data.getAll("responsibles"),
-    clientsSideResponsibles: clientsSideRespIds[0] ? clientsSideRespIds : [],
-    workSchedule: schedule,
-  };
+  const body = await request.json();
 
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/companies/update/${params.id}`,
@@ -96,12 +62,19 @@ export async function action({ request, params }) {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
       },
-      body: JSON.stringify(companyData),
+      body: JSON.stringify(body),
     },
   );
 
   if (!response.ok) {
-    throw response;
+    let message = "Не удалось сохранить компанию";
+    try {
+      const data = await response.json();
+      message = data.message || message;
+    } catch {
+      // тело ответа пустое — оставляем дефолтное сообщение
+    }
+    return { error: true, message };
   }
 
   return await response.json();

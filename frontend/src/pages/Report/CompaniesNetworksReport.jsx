@@ -92,7 +92,7 @@ const CompaniesNetworksReport = () => {
 export default CompaniesNetworksReport;
 
 export async function loader() {
-  document.title = "ДИАПАЗОНЫ СЕТЕЙ";
+  document.title = "Диапазоны сетей";
 
   const { token } = getLocalStorageData();
 

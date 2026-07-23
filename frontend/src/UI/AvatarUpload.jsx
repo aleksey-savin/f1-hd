@@ -84,7 +84,7 @@ function AvatarUpload({
       return;
     }
     if (file.size > MAX_FILE_SIZE) {
-      setError("Размер файла не должен превышать 5Мб");
+      setError("Размер файла не должен превышать 5 МБ");
       setShow(true);
       return;
     }
@@ -234,7 +234,7 @@ function AvatarUpload({
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={handleClose}>
-            Закрыть
+            Отмена
           </Button>
           <Button onClick={handleUpload} disabled={!imgSrc || !crop || loading}>
             {loading ? (

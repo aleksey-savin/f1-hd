@@ -350,7 +350,7 @@ const ScheduleWorkDashboard = ({
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={handleCloseAddModal}>
-              Закрыть
+              Отмена
             </Button>
             <Button type="submit" variant="primary">
               Добавить

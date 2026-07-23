@@ -2,8 +2,6 @@ const { body, param } = require("express-validator");
 
 const mongoose = require("mongoose");
 
-exports.getOne = [param("id").isMongoId().withMessage("Invalid company ID")];
-
 exports.add = [
   body("alias").trim().not().isEmpty().withMessage("Company alias is required"),
   body("fullTitle")
@@ -81,6 +79,10 @@ exports.update = [
 ];
 
 exports.delete = [param("id").isMongoId().withMessage("Invalid company ID")];
+
+exports.toggleActive = [
+  param("id").isMongoId().withMessage("Invalid company ID"),
+];
 
 exports.addSubdivision = [
   body("name").trim().notEmpty().withMessage("Subdivision name is required"),

@@ -1,59 +1,57 @@
-import { useRouteError, useNavigation, useNavigate } from "react-router";
+import { useEffect, useLayoutEffect } from "react";
+import { useNavigate, useRouteError } from "react-router";
+
+import useRouteErrorStore from "../store/route-error";
 
 import NotFound from "../components/Error/404";
 import Forbidden from "../components/Error/403";
 import InternalServerError from "../components/Error/500";
+import ServiceUnavailable from "../components/Error/503";
+import NetworkError from "../components/Error/NetworkError";
 
-import AlertToast from "../UI/AlertToast";
+// Сетевой сбой fetch — TypeError с браузер-специфичным сообщением («Failed to
+// fetch» / «NetworkError…» / «Load failed»); рендерные TypeError («Cannot read
+// properties of…») под шаблон не подходят и честно уходят в 500.
+const isNetworkFailure = (error) =>
+  error instanceof TypeError &&
+  /fetch|network|load failed/i.test(error.message ?? "");
 
-import Container from "react-bootstrap/Container";
-import Card from "react-bootstrap/Card";
-import ToastContainer from "react-bootstrap/ToastContainer";
-
-import Transitions from "../animations/Transition";
-import { useEffect } from "react";
-
-const Error = (props) => {
-  const error = useRouteError() || props.error;
-  const navigation = useNavigation();
+const Error = () => {
+  const error = useRouteError();
   const navigate = useNavigate();
+  const setRouteError = useRouteErrorStore((s) => s.setActive);
+  const status = error?.status;
 
+  // Root по флагу кладёт страницу ошибки на канву (как мигрированный маршрут)
+  // и прячет сайдбар. Layout-эффект — чтобы легаси-Card не мигнул до канвы.
+  useLayoutEffect(() => {
+    setRouteError(true);
+    return () => setRouteError(false);
+  }, [setRouteError]);
+
+  // Недействительный или протухший токен — не страница, а вход заново.
   useEffect(() => {
-    if ([401, 402].includes(error.status)) {
+    if (status === 401) {
       navigate("/auth");
     }
-  }, [error, navigate]);
+  }, [status, navigate]);
 
-  return (
-    <>
-      <Container
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-        }}
-      >
-        <Transitions>
-          <Card className="mb-3">
-            <Card.Body>
-              {navigation.state === "idle" && (
-                <>
-                  {error.status === 404 && <NotFound />}
-                  {error.status === 403 && <Forbidden />}
-                  {(![401, 402, 403, 404].includes(error.status) ||
-                    !error.status) && <InternalServerError />}
-                </>
-              )}
-            </Card.Body>
-          </Card>
-        </Transitions>
-      </Container>
-      <ToastContainer className="p-3" position="bottom-end">
-        <AlertToast />
-      </ToastContainer>
-    </>
-  );
+  if (status === 401) {
+    return null;
+  }
+  if (status === 403) {
+    return <Forbidden />;
+  }
+  if (status === 404) {
+    return <NotFound />;
+  }
+  if ([502, 503, 504].includes(status)) {
+    return <ServiceUnavailable status={status} />;
+  }
+  if (!status && isNetworkFailure(error)) {
+    return <NetworkError />;
+  }
+  return <InternalServerError status={status} />;
 };
 
 export default Error;

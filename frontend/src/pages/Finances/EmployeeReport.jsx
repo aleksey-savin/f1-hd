@@ -780,7 +780,7 @@ const EmployeeReport = () => {
                           </h6>
                           <ul className="text-muted small mb-0">
                             <li>
-                              <strong>Переработки</strong> - работы, выполненные
+                              <strong>Переработки</strong> — работы, выполненные
                               вне рабочего времени (будни 9:00-18:00)
                             </li>
 
@@ -807,6 +807,6 @@ const EmployeeReport = () => {
 export default EmployeeReport;
 
 export async function loader() {
-  document.title = "ОТЧЁТ ПО СОТРУДНИКАМ";
+  document.title = "Отчёт по сотрудникам";
   return null;
 }

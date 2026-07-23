@@ -1,115 +1,116 @@
-import { Row, Col, Card, Badge, Button } from "react-bootstrap";
 import { Link } from "react-router";
+import { RiMailLine, RiPhoneLine } from "react-icons/ri";
 
-import AlertMessage from "../../../UI/AlertMessage";
+import { Eyebrow, Panel, SubLabel } from "@/components/app/Panel";
+import { monogramFor } from "@/components/app/monogram";
+import { cn } from "@/lib/utils";
 
-import { HiOutlineMagnifyingGlass } from "react-icons/hi2";
-import {
-  RiContactsBook2Line,
-  RiUser3Line,
-  RiMailLine,
-  RiPhoneLine,
-} from "react-icons/ri";
-
+// Ответственные лица — две группы строками-людьми в одной панели. Данные —
+// снапшоты на компании (могут иметь только fullName), поэтому аватар — простая
+// монограмма, а профиль открывается по имени, если снапшот хранит id.
 const getFullName = (person) =>
   person.fullName ||
   [person.lastName, person.firstName].filter(Boolean).join(" ") ||
   "Без имени";
 
-// Развёрнутая карточка ответственного: должность, роль, контакты и ссылка на профиль
-const ResponsibleCard = ({ person }) => (
-  <Card className="border shadow-none h-100">
-    <Card.Body className="d-flex align-items-start gap-3">
-      <span className="contact-row__icon">
-        <RiUser3Line />
-      </span>
-      <div className="flex-grow-1" style={{ minWidth: 0 }}>
-        <div className="d-flex align-items-center gap-2 flex-wrap mb-1">
-          <span className="fw-semibold">{getFullName(person)}</span>
-          {person.role && (
-            <Badge bg="secondary" className="fw-normal">
-              {person.role}
-            </Badge>
-          )}
-          {person.isActive === false && (
-            <Badge bg="danger" className="fw-normal">
-              отключён
-            </Badge>
-          )}
-        </div>
-        {person.position && (
-          <div className="text-body-secondary small mb-2">
-            {person.position}
-          </div>
-        )}
-        <div className="d-flex flex-column gap-1 small">
-          {person.email && (
-            <a href={`mailto:${person.email}`} className="user-item-field">
-              <RiMailLine />
-              <span>{person.email}</span>
-            </a>
-          )}
-          {person.phone && (
-            <a href={`tel:${person.phone}`} className="user-item-field">
-              <RiPhoneLine />
-              <span>{person.phone}</span>
-            </a>
-          )}
-          {!person.email && !person.phone && (
-            <span className="text-body-secondary">Контакты не указаны</span>
-          )}
-        </div>
-      </div>
-      {person.id && (
-        <Button
-          as={Link}
-          to={`/users/${person.id}`}
-          target="_blank"
-          size="sm"
-          variant="outline-secondary"
-          className="flex-shrink-0"
-          title="Открыть профиль"
-        >
-          <HiOutlineMagnifyingGlass />
-        </Button>
-      )}
-    </Card.Body>
-  </Card>
-);
+const iconLinkClass =
+  "tw:grid tw:size-8 tw:flex-none tw:cursor-pointer tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:no-underline tw:transition-colors tw:hover:bg-border-soft tw:hover:text-foreground";
 
-const ResponsibleGroup = ({ title, people }) => (
-  <div className="mb-4">
-    <h6 className="text-body-secondary text-uppercase small mb-2">{title}</h6>
-    {people && people.length > 0 ? (
-      <Row className="row-cols-1 row-cols-md-2 g-3">
-        {people.map((person) => (
-          <Col key={person._id || person.id}>
-            <ResponsibleCard person={person} />
-          </Col>
-        ))}
-      </Row>
-    ) : (
-      <AlertMessage variant="light" message="Не указаны" />
-    )}
-  </div>
-);
-
-const ResponsiblesSection = ({ company }) => {
-  const { clientsSideResponsibles, responsibles } = company;
+const PersonRow = ({ person }) => {
+  const name = getFullName(person);
+  const inactive = person.isActive === false;
+  const profileId = person.id?._id || person.id;
 
   return (
-    <>
-      <div className="cap-card-title mb-3">
-        <RiContactsBook2Line />
-        <span>Ответственные лица</span>
+    <div className="tw:flex tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:py-2.5 tw:first:border-t-0">
+      <span
+        aria-hidden
+        className={cn(
+          "tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-full tw:bg-accent tw:text-xs tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border",
+          inactive && "tw:opacity-60",
+        )}
+      >
+        {monogramFor(name)}
+      </span>
+      <div className="tw:min-w-0 tw:flex-1">
+        <div
+          className={cn(
+            "tw:truncate tw:text-[15px] tw:leading-tight tw:font-medium",
+            inactive && "tw:text-muted-foreground",
+          )}
+        >
+          {profileId ? (
+            <Link
+              to={`/users/${profileId}`}
+              className="tw:text-inherit tw:no-underline tw:hover:underline"
+            >
+              {name}
+            </Link>
+          ) : (
+            name
+          )}
+        </div>
+        <div className="tw:truncate tw:text-[13px] tw:text-muted-foreground">
+          {person.position || "—"}
+          {inactive && <span className="tw:text-faint"> · отключён</span>}
+        </div>
       </div>
-      <ResponsibleGroup
-        title="Со стороны клиента"
-        people={clientsSideResponsibles}
-      />
-      <ResponsibleGroup title="Со стороны исполнителя" people={responsibles} />
-    </>
+      <div className="tw:flex tw:flex-none tw:items-center tw:gap-0.5">
+        {person.email && (
+          <a
+            href={`mailto:${person.email}`}
+            title={person.email}
+            aria-label={`Написать — ${name}`}
+            className={iconLinkClass}
+          >
+            <RiMailLine size={16} />
+          </a>
+        )}
+        {person.phone && (
+          <a
+            href={`tel:${person.phone}`}
+            title={person.phone}
+            aria-label={`Позвонить — ${name}`}
+            className={iconLinkClass}
+          >
+            <RiPhoneLine size={16} />
+          </a>
+        )}
+      </div>
+    </div>
   );
 };
+
+const Group = ({ title, people }) => (
+  <>
+    <SubLabel count={people?.length || undefined}>{title}</SubLabel>
+    {people && people.length > 0 ? (
+      <div className="tw:mb-1">
+        {people.map((person) => (
+          <PersonRow key={person._id || person.id} person={person} />
+        ))}
+      </div>
+    ) : (
+      <div className="tw:mb-1 tw:pb-1 tw:text-sm tw:text-muted-foreground">
+        Не указаны
+      </div>
+    )}
+  </>
+);
+
+const ResponsiblesSection = ({ company, id }) => (
+  <>
+    <Eyebrow id={id}>Ответственные</Eyebrow>
+    <Panel>
+      <Group
+        title="Со стороны клиента"
+        people={company.clientsSideResponsibles}
+      />
+      <div className="tw:mt-4">
+        <Group title="Со стороны исполнителя" people={company.responsibles} />
+      </div>
+    </Panel>
+  </>
+);
 
 export default ResponsiblesSection;

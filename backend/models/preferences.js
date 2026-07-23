@@ -73,6 +73,18 @@ const preferencesSchema = new Schema({
     messageId: { type: Number, default: null },
     lastText: { type: String, default: "" },
   },
+  // Оператор такси для действия «такси» в справочнике компаний (строка списка,
+  // мобильная шторка-справка). "" — действие скрыто. Каталог значений и
+  // построение ссылок — frontend/src/util/taxi-operators.js (enum менять
+  // синхронно): маршрут до офиса умеет только Яндекс Go, остальные операторы
+  // открывают свою страницу заказа.
+  taxi: {
+    operator: {
+      type: String,
+      enum: ["", "yandexgo", "maxim", "citymobil"],
+      default: "",
+    },
+  },
   contacts: {
     tel: { type: String, default: "" },
     email: { type: String, default: "" },

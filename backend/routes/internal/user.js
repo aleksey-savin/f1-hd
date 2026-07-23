@@ -31,6 +31,13 @@ router.get(
   isAdmin,
   userController.getKnowledgeBaseModerators,
 );
+// Компании для фасета списка «Пользователи» (скоуп как у getAll)
+router.get(
+  "/users/companies",
+  isAuth,
+  isNotClient,
+  userController.getScopeCompanies,
+);
 router.post(
   "/users/create-workplaces",
   isAuth,

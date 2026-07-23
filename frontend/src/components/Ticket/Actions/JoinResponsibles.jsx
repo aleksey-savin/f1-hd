@@ -81,7 +81,7 @@ const JoinResponsibles = ({ ticket }) => {
               onClick={closeModal}
               disabled={fetcher.state !== "idle"}
             >
-              Закрыть
+              Отмена
             </Button>
             <Button
               type="submit"

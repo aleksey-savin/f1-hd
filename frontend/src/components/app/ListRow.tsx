@@ -47,6 +47,8 @@ type ListRowProps = {
   detailTo?: string;
   extraActions?: ReactNode;
   customDeleteMessage?: ReactNode;
+  /** Постоянный контент справа перед «⋯» (напр. статус доступа). */
+  trailing?: ReactNode;
 };
 
 const ListRow = ({
@@ -61,6 +63,7 @@ const ListRow = ({
   detailTo,
   extraActions,
   customDeleteMessage,
+  trailing,
 }: ListRowProps) => {
   const offcanvas = useOffcanvasStore();
   const navigate = useNavigate();
@@ -137,12 +140,17 @@ const ListRow = ({
           </div>
         )}
       </div>
-      {canManage && (
-        <div
-          className="tw:ml-auto tw:flex tw:flex-none tw:items-center"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <DropdownMenu>
+      {(trailing || canManage) && (
+        <div className="tw:ml-auto tw:flex tw:flex-none tw:items-center tw:gap-2">
+          {trailing && (
+            <span onClick={(e) => e.stopPropagation()}>{trailing}</span>
+          )}
+          {canManage && (
+            <div
+              className="tw:flex tw:flex-none tw:items-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
@@ -169,12 +177,14 @@ const ListRow = ({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <DeleteDialog
-            item={item}
-            open={deleteOpen}
-            onOpenChange={setDeleteOpen}
-            customDeleteMessage={customDeleteMessage}
-          />
+              <DeleteDialog
+                item={item}
+                open={deleteOpen}
+                onOpenChange={setDeleteOpen}
+                customDeleteMessage={customDeleteMessage}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

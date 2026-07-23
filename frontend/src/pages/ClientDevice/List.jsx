@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { redirect, useLocation } from "react-router";
+import { useEffect, useRef } from "react";
+import { redirect, useLocation, useSearchParams } from "react-router";
 
 import { BrowserView } from "react-device-detect";
 
@@ -18,10 +18,30 @@ const ClientDevices = () => {
   const location = useLocation();
   const filterStore = useClientDeviceFilterStore();
   const { setLeftSidebarContent } = useSidebarStore();
+  const [searchParams] = useSearchParams();
+  const appliedQueryRef = useRef(false);
 
   useEffect(() => {
     filterStore.applyFilter();
   }, [filterStore.originalList]);
+
+  // Префильтр из query (?company= | ?user=) — ссылки «Вся техника в
+  // „Устройствах“» с карточек компании и пользователя. Применяется один раз
+  // после загрузки списка; галочки видны в фильтре («Компании» /
+  // «Закреплено за») и снимаются как обычно.
+  useEffect(() => {
+    if (appliedQueryRef.current || !filterStore.originalList.length) return;
+    appliedQueryRef.current = true;
+    const companyId = searchParams.get("company");
+    const userId = searchParams.get("user");
+    if (!companyId && !userId) return;
+    filterStore.updateFilter({
+      ...filterStore,
+      companies: companyId ? [companyId] : [],
+      users: userId ? [userId] : [],
+    });
+    filterStore.applyFilter();
+  }, [filterStore, searchParams]);
 
   useEffect(() => {
     filterStore.fetch();
@@ -51,6 +71,7 @@ const ClientDevices = () => {
         filter={<ClientDeviceFilter />}
         filterStore={filterStore}
         addRoute="/inventory/client-devices/add"
+        addLabel="Новое устройство"
       >
         <List items={filterStore.filteredList}></List>
       </ListWrapper>

@@ -1,35 +1,21 @@
-import { NavLink } from 'react-router';
+import { Link } from "react-router";
 
-import useDocTitle from '../../hooks/use-doc-title';
+import { Button } from "@/components/ui/button";
 
-import Transitions from '../../animations/Transition';
+import ErrorScreen from "./ErrorScreen";
 
-import '../../css/error.css';
-
-import Button from 'react-bootstrap/Button';
-
-const Forbidden = () => {
-    useDocTitle('F1 HD | ДОСТУП ЗАПРЕЩЁН');
-    return (
-        <Transitions>
-            <div id='error'>
-                <div className='error'>
-                    <div className='error-code'>
-                        <h1>
-                            4<span></span>3
-                        </h1>
-                    </div>
-                    <h2>Упс! Вам сюда нельзя</h2>
-                    <p>
-                        К сожалению, у вас нет доступа к запрашиваемой странице.
-                    </p>
-                    <Button as={NavLink} to='/' variant='primary' size='lg'>
-                        НА ГЛАВНУЮ
-                    </Button>
-                </div>
-            </div>
-        </Transitions>
-    );
-};
+const Forbidden = () => (
+  <ErrorScreen
+    code={["4", "3"]}
+    title="Сюда нужен доступ"
+    body="У вашей учётной записи нет прав на этот раздел. Если он нужен для работы — попросите администратора выдать доступ."
+    actions={
+      <Button asChild>
+        <Link to="/">На главную</Link>
+      </Button>
+    }
+    tech={{ tone: "warning", text: "403 · доступ ограничен правами" }}
+  />
+);
 
 export default Forbidden;

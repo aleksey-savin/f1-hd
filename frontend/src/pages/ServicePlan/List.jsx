@@ -67,7 +67,7 @@ const ServicePlans = () => {
       title={() => "Услуги"}
       filterStore={filterStore}
       addRoute="/finances/service-plans/add"
-      addLabel="Добавить услугу"
+      addLabel="Новая услуга"
       filter={<ServicePlanFilter />}
       filterActive={activeFilters.length > 0}
       activeFilters={activeFilters}
@@ -81,7 +81,7 @@ const ServicePlans = () => {
 export default ServicePlans;
 
 export async function loader() {
-  document.title = "УСЛУГИ";
+  document.title = "Услуги";
 
   return null;
 }

@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "echo \"No tests yet\" && exit 0",
     "init:inventory": "node scripts/initializeInventoryData.js",
+    "seed:mikrotik-models": "node scripts/seedMikrotikModels.js",
     "migrate:device-indexes": "node scripts/migrateClientDeviceIndexes.js",
     "repair:mikrotik-state": "node scripts/repairMikrotikMonitoringState.js",
     "test:workplace": "node test-workplace-system.js",

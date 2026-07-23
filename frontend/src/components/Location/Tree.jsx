@@ -162,8 +162,8 @@ const TreeNode = ({ node, depth, isExpanded, onToggle, onSelect, selectedId, can
             asChild
             variant="outline"
             size="icon-sm"
-            title="Добавить вложенное расположение"
-            aria-label="Добавить вложенное расположение"
+            title="Новое вложенное расположение"
+            aria-label="Новое вложенное расположение"
             className="tw:flex-none tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100"
             onClick={(event) => event.stopPropagation()}
           >

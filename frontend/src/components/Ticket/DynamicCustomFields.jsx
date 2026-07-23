@@ -77,7 +77,7 @@ const DynamicCustomFields = ({ customFields, setCustomFields }) => {
   return (
     <div>
       <Button variant="primary" onClick={addCustomField} className="mb-3">
-        Добавить поле
+        Новое поле
       </Button>
       {customFields.map((field, fieldIndex) => (
         <div key={fieldIndex}>
@@ -205,7 +205,7 @@ const DynamicCustomFields = ({ customFields, setCustomFields }) => {
                     variant="secondary"
                     onClick={() => addOption(fieldIndex)}
                   >
-                    Добавить опцию
+                    Новая опция
                   </Button>
                 </div>
               </Col>
@@ -255,7 +255,7 @@ const DynamicCustomFields = ({ customFields, setCustomFields }) => {
                     variant="secondary"
                     onClick={() => addOption(fieldIndex)}
                   >
-                    Добавить опцию
+                    Новая опция
                   </Button>
                 </div>
               </Col>

@@ -182,6 +182,7 @@ const Tickets = () => {
       filterStore={filterStore}
       filterActive={filterActive}
       addRoute="/tickets/add"
+      addLabel="Новая заявка"
       showRefreshButton={false}
       customData={customData}
       topContent={

@@ -103,6 +103,14 @@ type ListWrapperProps = {
   /** Применённые фильтры — липкая полоса бейджей над списком (видна при
    *  скролле; каждый бейдж снимается крестиком). */
   activeFilters?: ActiveFilter[];
+  /** Серверный счётчик (total) — переопределяет число у заголовка. Включает
+   *  серверный режим пустых состояний (см. hasActiveQuery). */
+  count?: number;
+  /** Узел под списком (напр. пагинатор) — рендерится, когда есть данные. */
+  belowList?: ReactNode;
+  /** Серверный режим: активны ли поиск/фильтры. При count===0 решает, что
+   *  показать — «ничего не нашлось» (есть запрос) или «список пуст». */
+  hasActiveQuery?: boolean;
   filterStore: FilterStore;
   filterActive?: boolean;
   addRoute?: string;
@@ -114,6 +122,8 @@ type ListWrapperProps = {
   showRefreshButton?: boolean;
   backRoute?: string;
   defaultSearchValue?: string;
+  /** Плейсхолдер поиска — подсказывает охват («Найти в архиве…»). */
+  searchPlaceholder?: string;
   showSortAndCount?: boolean;
   renderOutlet?: boolean;
   /** Широкая шторка формы (max-w-4xl) — например, мастер услуги со сводкой. */
@@ -128,6 +138,9 @@ const ListWrapper = ({
   topContent,
   toolbar,
   activeFilters = [],
+  count,
+  belowList,
+  hasActiveQuery = false,
   filterStore,
   filterActive = false,
   addRoute,
@@ -139,6 +152,7 @@ const ListWrapper = ({
   showRefreshButton = false,
   backRoute,
   defaultSearchValue = "",
+  searchPlaceholder,
   showSortAndCount = true,
   // Нижняя шторка с <Outlet/> для форм add/update. Экраны, рендерящие
   // <Outlet/> сами (база знаний), передают false — иначе маршрут
@@ -156,11 +170,18 @@ const ListWrapper = ({
   const [searchResetKey, setSearchResetKey] = useState(0);
 
   const isLoading = filterStore.isLoading || filterStore.isSorting;
+  const serverMode = typeof count === "number";
   const filteredCount = Number(filterStore.filteredList?.length) || 0;
   const originalCount = Number(filterStore.originalList?.length) || 0;
-  const noData = originalCount === 0 && filteredCount === 0;
+  // Серверный режим: пустоту решает total (count) + признак активного запроса;
+  // легаси-режим — длины списков.
+  const noData = serverMode
+    ? count === 0 && !hasActiveQuery
+    : originalCount === 0 && filteredCount === 0;
   // Данные есть, но запрос/фильтры скрыли всё
-  const filteredEmpty = !noData && filteredCount === 0;
+  const filteredEmpty = serverMode
+    ? count === 0 && hasActiveQuery
+    : !noData && filteredCount === 0;
 
   const searchHandler = (e: ChangeEvent<HTMLInputElement>) => {
     filterStore.fullTextSearch(e.target.value);
@@ -195,7 +216,9 @@ const ListWrapper = ({
     return () => observer.disconnect();
   }, [hasActiveFilters]);
 
-  const count = filterStore.filteredList?.length || 0;
+  const headerCount = serverMode
+    ? count
+    : filterStore.filteredList?.length || 0;
 
   const titleBlock = (
     // items-baseline: при разных кеглях заголовка и счётчика центрирование
@@ -206,7 +229,7 @@ const ListWrapper = ({
       </h1>
       {showSortAndCount && (
         <span className="tw:text-2xl tw:leading-none tw:font-medium tw:text-faint tw:tabular-nums">
-          {count}
+          {headerCount}
         </span>
       )}
     </div>
@@ -325,6 +348,7 @@ const ListWrapper = ({
               key={searchResetKey}
               onChange={searchHandler}
               defaultValue={defaultSearchValue}
+              placeholder={searchPlaceholder}
               className="tw:w-80"
             />
             {sortDropdown}
@@ -345,11 +369,12 @@ const ListWrapper = ({
             key={searchResetKey}
             onChange={searchHandler}
             defaultValue={defaultSearchValue}
+            placeholder={searchPlaceholder}
             size="lg"
           />
         </div>
         {(toolbar || filter || showSortAndCount) && (
-          <div className="tw:mb-3 tw:flex tw:items-center tw:gap-2">
+          <div className="tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-2">
             {toolbar}
             {filterButton}
             <div className="tw:ms-auto">{sortDropdown}</div>
@@ -454,6 +479,7 @@ const ListWrapper = ({
           )}
         </div>
       )}
+      {!noData && !filteredEmpty && belowList}
       {noData && isLoading && <Spinner />}
       {noData && !isLoading && (
         <div className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:pb-1.5">

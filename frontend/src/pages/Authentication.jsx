@@ -59,7 +59,7 @@ export async function action({ request }) {
     throw Response.json(
       {
         message:
-          "Неподдерживаемый тип запроса, допустимы только login,signup или forgot-password",
+          "Неподдерживаемый тип запроса, допустимы только login, signup или forgot-password",
       },
       { status: 422 },
     );

@@ -18,6 +18,8 @@ const useInitialPrefsStore = create((set) => ({
   contacts: "",
   getScreen: "",
   timezone: "",
+  // Оператор такси («Основные → Такси»): "" — действие «такси» скрыто
+  taxi: { operator: "" },
   emailNotifications: "",
   telegramNotifications: "",
   personalNotifications: "",
@@ -34,6 +36,7 @@ const useInitialPrefsStore = create((set) => ({
       contacts: data.contacts,
       getScreen: data.getScreen,
       timezone: data.timezone,
+      taxi: data.taxi || { operator: "" },
       emailNotifications: data.emailNotifications,
       telegramNotifications: data.telegramNotifications,
       personalNotifications: data.personalNotifications,

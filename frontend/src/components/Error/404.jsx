@@ -1,32 +1,46 @@
-import useDocTitle from '../../hooks/use-doc-title';
+import { Link, useLocation, useNavigate } from "react-router";
 
-import Transitions from '../../animations/Transition';
-import '../../css/error.css';
+import { Button } from "@/components/ui/button";
 
-import { NavLink } from 'react-router';
-
-import Button from 'react-bootstrap/Button';
+import ErrorScreen from "./ErrorScreen";
+import { resolveEntityContext } from "./entity-context";
 
 const NotFound = () => {
-  useDocTitle('F1 HD | СТРАНИЦА НЕ НАЙДЕНА');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const entity = resolveEntityContext(location.pathname);
 
   return (
-    <Transitions>
-      <div id='error'>
-        <div className='error'>
-          <div className='error-code'>
-            <h1>
-              4<span></span>4
-            </h1>
-          </div>
-          <h2>Упс! Мы ничего не нашли</h2>
-          <p>К сожалению, запрашиваемой страницы не существует.</p>
-          <Button as={NavLink} to='/' variant='primary' size='lg'>
-            НА ГЛАВНУЮ
-          </Button>
-        </div>
-      </div>
-    </Transitions>
+    <ErrorScreen
+      code={["4", "4"]}
+      title={entity?.title ?? "Здесь ничего нет"}
+      body={
+        entity?.body ??
+        "Похоже, ссылка устарела или в адресе опечатка. Начните с главной — там всё на месте."
+      }
+      actions={
+        entity ? (
+          <>
+            <Button asChild>
+              <Link to={entity.listTo}>{entity.listLabel}</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/">На главную</Link>
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button asChild>
+              <Link to="/">На главную</Link>
+            </Button>
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              Назад
+            </Button>
+          </>
+        )
+      }
+      tech={{ tone: "muted", text: `404 · ${location.pathname}` }}
+    />
   );
 };
 

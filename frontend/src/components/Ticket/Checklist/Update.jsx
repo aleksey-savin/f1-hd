@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useFetcher } from "react-router";
 
-import UpdateChecklist from "../../Checklist/Update";
+import Checklist from "../../app/Checklist";
 
 import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
@@ -53,18 +53,21 @@ const UpdateTicketChecklist = (props) => {
     <>
       <Dropdown.Item onClick={showModal}>
         <MdChecklist style={{ marginRight: "0.5rem" }} />
-        {ticket.checklist.length > 0 ? "Изменить чеклист" : "Добавить чеклист"}
+        {ticket.checklist.length > 0 ? "Изменить чек-лист" : "Новый чек-лист"}
       </Dropdown.Item>
       <Modal show={show} onHide={closeModal} centered size="lg">
         <Modal.Body>
-          <UpdateChecklist
-            checklist={checklist}
-            updateChecklist={updateChecklistHandler}
+          <Checklist
+            mode="edit"
+            framed={false}
+            title="Чек-лист заявки"
+            items={checklist}
+            onChange={updateChecklistHandler}
           />
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={closeModal}>
-            Закрыть
+            Отмена
           </Button>
           <Button onClick={updateChecklist}>Сохранить</Button>
         </Modal.Footer>

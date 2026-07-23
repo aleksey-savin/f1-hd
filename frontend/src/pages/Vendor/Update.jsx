@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import VendorForm from "../../components/Vendor/Form";
-import Forbidden from "../../components/Error/403";
+import InlineForbidden from "../../components/Error/InlineForbidden";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
 
@@ -11,9 +11,11 @@ const UpdateVendorPage = () => {
   return (
     <>
       {canUseInventoryModule && canManageClientDevices && (
-        <VendorForm title="Редактировать вендора" />
+        <VendorForm title="Изменить вендора" />
       )}
-      {(!canUseInventoryModule || !canManageClientDevices) && <Forbidden />}
+      {(!canUseInventoryModule || !canManageClientDevices) && (
+        <InlineForbidden right="Управление устройствами" />
+      )}
     </>
   );
 };
@@ -21,7 +23,7 @@ const UpdateVendorPage = () => {
 export default UpdateVendorPage;
 
 export async function loader({ params }) {
-  document.title = "Редактировать вендора";
+  document.title = "Изменить вендора";
 
   const { token } = getLocalStorageData();
 

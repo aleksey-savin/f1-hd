@@ -16,7 +16,7 @@ const AddVendorPage = () => {
 export default AddVendorPage;
 
 export async function loader() {
-  document.title = "Добавить вендор";
+  document.title = "Новый вендор";
   return null;
 }
 

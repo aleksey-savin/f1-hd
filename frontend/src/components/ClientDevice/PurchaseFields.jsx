@@ -94,7 +94,7 @@ const PurchaseFields = ({ values, onChange, suppliers, onSupplierCreated }) => {
               </div>
               <Button
                 variant="outline-secondary"
-                title="Добавить поставщика"
+                title="Новый поставщик"
                 onClick={() => setShowSupplierModal(true)}
               >
                 <RiAddLine />

@@ -24,6 +24,8 @@ type PillPanelProps = {
   emptyText?: ReactNode;
   /** Высота свёрнутого «облака», px; при переполнении — «Показать все». */
   collapsedMaxHeight?: number;
+  /** Якорь секции для рейла-навигации (app/AnchorRail). */
+  id?: string;
 };
 
 const defaultKey = (item: PillItem, index: number) =>
@@ -53,6 +55,7 @@ const PillPanel = ({
   getLabel = defaultLabel,
   emptyText,
   collapsedMaxHeight = COLLAPSED_MAX_HEIGHT,
+  id,
 }: PillPanelProps) => {
   const count = items.length;
   const cloudRef = useRef<HTMLDivElement | null>(null);
@@ -101,7 +104,9 @@ const PillPanel = ({
 
   return (
     <>
-      <Eyebrow count={count}>{label}</Eyebrow>
+      <Eyebrow id={id} count={count}>
+        {label}
+      </Eyebrow>
       <Panel>
         {count === 0 ? (
           <div className="tw:text-sm tw:text-muted-foreground">{emptyText}</div>

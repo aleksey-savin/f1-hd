@@ -486,7 +486,7 @@ const ResponsibilityManager = ({
             variant="secondary"
             onClick={() => setShowHistoryModal(false)}
           >
-            Закрыть
+            Отмена
           </Button>
         </Modal.Footer>
       </Modal>

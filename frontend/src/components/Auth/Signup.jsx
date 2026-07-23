@@ -157,7 +157,7 @@ const Signup = ({ data }) => {
                       type="invalid"
                       style={{ marginRight: "40px" }}
                     >
-                      Минимальная длина пароля - 6 символов
+                      Минимальная длина пароля — 6 символов
                     </Form.Control.Feedback>
                   </FloatingLabel>
                   <div style={{ alignSelf: "flex-start" }}>

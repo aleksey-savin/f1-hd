@@ -126,7 +126,7 @@ const Security = ({ user }) => {
                 variant="ghost"
                 onClick={() => setOpen(false)}
               >
-                Закрыть
+                Отмена
               </Button>
               <Button type="submit" disabled={fetcher.state !== "idle"}>
                 Сменить

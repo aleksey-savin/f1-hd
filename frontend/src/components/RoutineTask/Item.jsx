@@ -1,45 +1,64 @@
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Badge from "react-bootstrap/Badge";
+import { RiCalendarScheduleLine } from "react-icons/ri";
 
-import ItemCard from "../../UI/ItemCard";
+import ListRow from "@/components/app/ListRow";
+import { cn } from "@/lib/utils";
+import {
+  describeCron,
+  formatCronRun,
+  isValidCron,
+  nextCronRuns,
+} from "@/util/cron";
 
-import { formatDate } from "../../util/format-date";
-import { getNextCronDate } from "../../util/time-helpers";
+const RoutineTaskItem = ({ item }) => {
+  const { title, cronSchedule, isActive, checklist = [] } = item;
 
-function RoutineTaskItem({ item }) {
-  const Title = () => {
-    return <>{`${item.title}`}</>;
-  };
+  const runs =
+    isActive && isValidCron(cronSchedule) ? nextCronRuns(cronSchedule, 1) : [];
+  const nextRun = runs[0];
 
-  const badges = [
-    { title: "активно", isActive: item.isActive, bg: "success" },
-    { title: "отключено", isActive: !item.isActive, bg: "danger" },
-  ];
+  const meta = [
+    describeCron(cronSchedule),
+    checklist.length ? `чек-лист ${checklist.length}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const trailing = (
+    <span className="tw:flex tw:flex-col tw:items-end tw:gap-0.5 tw:max-md:hidden">
+      <span
+        className={cn(
+          "tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-medium",
+          isActive ? "tw:text-accent-text" : "tw:text-faint",
+        )}
+      >
+        <span
+          aria-hidden
+          className={cn(
+            "tw:size-1.5 tw:rounded-full",
+            isActive ? "tw:bg-primary" : "tw:bg-faint",
+          )}
+        />
+        {isActive ? "Активно" : "На паузе"}
+      </span>
+      {isActive && nextRun && (
+        <span className="tw:text-xs tw:text-faint tw:tabular-nums">
+          след. {formatCronRun(nextRun)}
+        </span>
+      )}
+    </span>
+  );
 
   return (
-    <ItemCard
+    <ListRow
       item={item}
       itemTitle="routineTask"
-      badges={badges}
-      title={<Title />}
-    >
-      <Row>
-        <Col>
-          <Badge className="my-1" bg="secondary">
-            {item.company?.alias}
-          </Badge>
-          <div className="py-1">Категория: {item.category.title}</div>
-          <div className="pt-1">Расписание cron: {item.cronSchedule}</div>
-          {item.isActive && (
-            <div className="pt-1 text-success">
-              {`Следующая заявка ${formatDate(getNextCronDate(item.cronSchedule))}`}
-            </div>
-          )}
-        </Col>
-      </Row>
-    </ItemCard>
+      monogram={<RiCalendarScheduleLine className="tw:size-6" />}
+      title={title}
+      meta={meta}
+      trailing={trailing}
+      detailTo={`/routine-tasks/${item._id}`}
+    />
   );
-}
+};
 
 export default RoutineTaskItem;

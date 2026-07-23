@@ -20,7 +20,7 @@ router.get(
   ticketController.getRecentlyClosed,
 );
 router.get("/tickets/user/:id", isAuth, ticketController.getUsersTickets);
-router.post("/tickets/closed", isAuth, ticketController.getClosed);
+router.get("/tickets/closed", isAuth, ticketController.getClosed);
 router.get("/tickets/form-data", isAuth, ticketController.getFormData);
 
 router.post(

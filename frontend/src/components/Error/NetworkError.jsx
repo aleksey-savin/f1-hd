@@ -1,34 +1,33 @@
-import useDocTitle from "../../hooks/use-doc-title";
+import { useEffect } from "react";
 
-import Transitions from "../../animations/Transition";
-import "../../css/error.css";
+import { Button } from "@/components/ui/button";
 
-import { NavLink } from "react-router";
+import ErrorScreen from "./ErrorScreen";
+import { useAvailabilityProbe } from "./use-availability-probe";
 
-import Button from "react-bootstrap/Button";
-
+// Запрос не дошёл до сервера (Wi-Fi, VPN, сеть): HTTP-кода нет — кот соло.
+// Как только браузер сообщит о возвращении сети, пробуем сами.
 const NetworkError = () => {
-  useDocTitle("F1 HD | ПРОБЛЕМЫ С СЕТЬЮ");
+  const { probe, probing } = useAvailabilityProbe();
+
+  useEffect(() => {
+    window.addEventListener("online", probe);
+    return () => window.removeEventListener("online", probe);
+  }, [probe]);
+
   return (
-    <Transitions>
-      <div id="error">
-        <div className="error">
-          <div className="error-code">
-            <h1>
-              <span></span>
-            </h1>
-          </div>
-          <h2>Упс! Похоже на проблемы с сетью</h2>
-          <p>
-            К сожалению, мы не смогли запросить с сервера необходимые данные
-            из-за проблем с сетью. Проверьте Ваше интернет-подключение
-          </p>
-          <Button as={NavLink} to="/" variant="primary" size="lg">
-            ПОПРОБОВАТЬ СНОВА
-          </Button>
-        </div>
-      </div>
-    </Transitions>
+    <ErrorScreen
+      code={null}
+      title="Нет соединения"
+      body="Не получилось связаться с сервером. Проверьте интернет — продолжим сами, как только связь вернётся."
+      actions={
+        <Button onClick={probe} disabled={probing}>
+          Повторить
+        </Button>
+      }
+      auto="повторим, когда сеть появится"
+      tech={{ tone: "muted", text: "сеть · запрос не дошёл до сервера" }}
+    />
   );
 };
 

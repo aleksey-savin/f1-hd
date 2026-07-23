@@ -8,7 +8,7 @@ const AddDeviceAttributePage = () => {
 export default AddDeviceAttributePage;
 
 export async function loader() {
-  document.title = "Добавить атрибут устройства";
+  document.title = "Новый атрибут устройства";
   return null;
 }
 

@@ -1,39 +1,10 @@
-import { getWorkingStatus } from "../../util/get-working-status";
+import useWorkingStatus from "./useWorkingStatus";
 
-import { useState, useEffect } from "react";
-
+// Легаси-представление живого статуса (bootstrap-классы) — осталось на
+// немигрированных экранах (карточка компании, заявка). Мигрированные экраны
+// используют tw-двойник WorkStatusText; расчёт общий — useWorkingStatus.
 const WorkingStatusIndicator = ({ workSchedule }) => {
-  const useLiveWorkingStatus = (workSchedule) => {
-    const [workingStatus, setWorkingStatus] = useState(() =>
-      getWorkingStatus(workSchedule),
-    );
-
-    useEffect(() => {
-      if (workSchedule) {
-        const updateStatus = () =>
-          setWorkingStatus(getWorkingStatus(workSchedule));
-
-        // Initial update
-        updateStatus();
-
-        // Sync with minute mark
-        const now = new Date();
-        const delay = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
-
-        const initialTimeout = setTimeout(() => {
-          updateStatus();
-          const interval = setInterval(updateStatus, 60000);
-          return () => clearInterval(interval);
-        }, delay);
-
-        return () => clearTimeout(initialTimeout);
-      }
-    }, [workSchedule]);
-
-    return workingStatus;
-  };
-
-  const workingStatus = useLiveWorkingStatus(workSchedule);
+  const workingStatus = useWorkingStatus(workSchedule);
 
   return (
     <span

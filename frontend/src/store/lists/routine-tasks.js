@@ -1,206 +1,141 @@
 import { create } from "zustand";
 
 import { getLocalStorageData } from "../../util/auth";
-import { getNextCronDate } from "../../util/time-helpers";
+import { nextCronRuns } from "../../util/cron";
 
-// функция последовательно отсеивает заявки согласно активным фильтрам
-const taskFilter = (state) => {
-  const originalList = state.originalList ? state.originalList : [];
-  return originalList
-    .filter((task) => {
-      if (state.companies?.length > 0) {
-        return state.companies.includes(task.company._id.toString());
-      } else {
-        return true;
-      }
-    })
-    .filter((task) => {
-      if (state.categories?.length > 0) {
-        return state.categories.includes(task.category._id.toString());
-      } else {
-        return true;
-      }
-    })
-    .filter((task) => {
-      if (state.isActive) {
-        return task.isActive;
-      } else {
-        return true;
-      }
-    })
-    .filter((task) => {
-      switch (state.checklist) {
-        case "present":
-          return task.checklist?.length > 0;
-        case "abcent":
-          return !task.checklist || task.checklist.length === 0;
-        default:
-          return true;
-      }
+// Фильтр списка регламентов. Статус — сегмент (все/активные/пауза); категория и
+// компания — множественные фасеты. Данные — из getAll (company/applicant/
+// category денормализованы, cronSchedule, isActive, checklist, timestamps).
+const routineFilter = (state) => {
+  const list = state.originalList ?? [];
+
+  return list
+    .filter((item) => {
+      if (!state.companies?.length) return true;
+      return state.companies.includes(item.company?._id?.toString());
     })
     .filter((item) => {
-      if (state.searchTerm.length > 0) {
-        return [
-          item.title,
-          item.description,
-          item.company?.alias,
-          item.category?.title,
-          ...item.checklist.flatMap((checklistItem) => [
-            checklistItem.description,
-          ]),
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(state.searchTerm);
-      } else {
-        return true;
-      }
+      if (state.status === "active") return item.isActive;
+      if (state.status === "paused") return !item.isActive;
+      return true;
+    })
+    .filter((item) => {
+      if (!state.categories?.length) return true;
+      return state.categories.includes(item.category?._id?.toString());
+    })
+    .filter((item) => {
+      if (!state.searchTerm) return true;
+      const haystack = [
+        item.title,
+        item.description,
+        item.company?.alias,
+        item.category?.title,
+        ...(item.checklist ?? []).map((c) => c.description),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return state.searchTerm
+        .toLowerCase()
+        .split(" ")
+        .filter(Boolean)
+        .every((term) => haystack.includes(term));
     });
 };
 
-const searchItems = (query, items) => {
-  if (!query) return items;
-
-  // Split the query into individual terms (e.g., "Ольга Вознюк" becomes ["Ольга", "Вознюк"])
-  const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
-
-  return items.filter((item) => {
-    const fieldsToSearch = [
-      item.title,
-      item.description,
-      item.company?.alias,
-      item.category?.title,
-      ...item.checklist.flatMap((checklistItem) => [checklistItem.description]),
-    ];
-
-    return queryTerms.every((term) =>
-      fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term),
-      ),
-    );
-  });
+const nextRunMs = (task) => {
+  if (!task.isActive) return Infinity;
+  const run = nextCronRuns(task.cronSchedule, 1)[0];
+  return run ? run.getTime() : Infinity;
 };
 
-const handleSorting = (selected, list) => {
-  if (!selected || !list.length) {
-    return;
-  }
-
-  const sortedList = [...list];
-
-  switch (selected.label) {
-    case "По алфавиту":
-      sortedList.sort((a, b) => a.title.localeCompare(b.title));
+const sortList = (selected, list) => {
+  if (!list?.length) return list;
+  const sorted = [...list];
+  switch (selected?.label) {
+    case "По названию":
+      sorted.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
       break;
-
     case "Сначала новые":
-      sortedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       break;
-
     case "Сначала старые":
-      sortedList.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
       break;
-
-    case "Следующая заявка":
-      sortedList.sort(
-        (a, b) =>
-          new Date(getNextCronDate(a.cronSchedule)) -
-          new Date(getNextCronDate(b.cronSchedule)),
-      );
+    case "Ближайший запуск":
+      sorted.sort((a, b) => nextRunMs(a) - nextRunMs(b));
       break;
-
     default:
       break;
   }
-
-  return sortedList;
+  return sorted;
 };
 
 const useRoutineTaskFilterStore = create((set) => ({
-  isActive: false,
-  checklist: "any",
-  companies: [],
+  status: "all",
   categories: [],
+  companies: [],
   searchTerm: "",
   sortingOptions: [
-    {
-      label: "Сначала новые",
-    },
+    { label: "Ближайший запуск" },
+    { label: "По названию" },
+    { label: "Сначала новые" },
     { label: "Сначала старые" },
-    { label: "По алфавиту" },
-    { label: "Следующая заявка" },
   ],
-  sortBy: {
-    label: "Сначала новые",
-  },
+  sortBy: { label: "Ближайший запуск" },
   isSorting: false,
   handleSorting: async (data) => {
-    set({ isSorting: true });
-
-    // Set new sort option immediately
-    set({ sortBy: data });
-
-    // Use Promise and setTimeout to make sorting async
+    set({ isSorting: true, sortBy: data });
     await new Promise((resolve) => setTimeout(resolve, 0));
-
-    set((state) => {
-      const sortedList = handleSorting(data, state.filteredList);
-      return {
-        sortBy: data,
-        filteredList: sortedList,
-        isSorting: false,
-      };
-    });
+    set((state) => ({
+      sortBy: data,
+      filteredList: sortList(data, state.filteredList),
+      isSorting: false,
+    }));
   },
   originalList: [],
   filteredList: [],
   fullTextSearch: (query) =>
-    set((state) => ({ filteredList: searchItems(query, taskFilter(state)) })),
+    set((state) => ({
+      searchTerm: query,
+      filteredList: sortList(
+        state.sortBy,
+        routineFilter({ ...state, searchTerm: query }),
+      ),
+    })),
   isLoading: false,
   fetch: async () => {
     set({ isLoading: true });
     const { token } = getLocalStorageData();
     const response = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/routine-tasks`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
+      { headers: { Authorization: "Bearer " + token } },
     );
     const data = await response.json();
-    set({
-      originalList: data,
-      isLoading: false,
-    });
+    set({ originalList: Array.isArray(data) ? data : [], isLoading: false });
   },
   updateFilter: (data) =>
-    set(() => {
-      return {
-        isActive: data.isActive,
-        checklist: data.checklist,
-        companies: data.companies,
-        categories: data.categories,
-        searchTerm: data.searchTerm,
-        originalList: data.originalList,
-        isLoading: false,
-      };
-    }),
-
-  applyFilter: () => {
-    set((state) => ({ filteredList: taskFilter(state) }));
-  },
+    set(() => ({
+      status: data.status,
+      categories: data.categories,
+      companies: data.companies,
+      searchTerm: data.searchTerm,
+      originalList: data.originalList,
+      isLoading: false,
+    })),
+  applyFilter: () =>
+    set((state) => ({
+      filteredList: sortList(state.sortBy, routineFilter(state)),
+    })),
   resetFilter: () => {
     set(() => ({
-      responsibles: [],
-      isActive: false,
-      checklist: "any",
-      companies: [],
+      status: "all",
       categories: [],
+      companies: [],
       searchTerm: "",
     }));
     set((state) => ({
-      filteredList: taskFilter(state),
+      filteredList: sortList(state.sortBy, routineFilter(state)),
     }));
   },
 }));

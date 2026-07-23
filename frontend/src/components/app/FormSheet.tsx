@@ -26,8 +26,9 @@ const FormSheet = ({
   children: ReactNode;
 }) => {
   // Защита от потери данных: на десктопе форму нельзя закрыть случайным
-  // кликом по затемнению или Escape — только сабмитом или крестиком (оба идут
-  // через onOpenChange). На мобильных поведение по умолчанию не трогаем.
+  // кликом по затемнению — только сабмитом, крестиком или Escape (все идут
+  // через onOpenChange; Escape закрывает ВСЕ шторки приложения одинаково).
+  // На мобильных поведение по умолчанию не трогаем.
   const guardDesktopClose = isMobile
     ? undefined
     : (event: Event) => event.preventDefault();
@@ -38,7 +39,6 @@ const FormSheet = ({
         side="bottom"
         aria-describedby={undefined}
         onInteractOutside={guardDesktopClose}
-        onEscapeKeyDown={guardDesktopClose}
         className={cn(
           "tw:rounded-t-2xl tw:border tw:border-b-0 tw:border-border",
           isMobile

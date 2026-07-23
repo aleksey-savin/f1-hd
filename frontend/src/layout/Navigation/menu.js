@@ -185,7 +185,7 @@ export function buildMenu({
           canManageRoutineTasks &&
             link(
               "adm-routine-tasks",
-              "Регламентные задания",
+              "Регламенты",
               RiCalendar2Line,
               "/routine-tasks",
             ),

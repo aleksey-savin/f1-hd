@@ -429,7 +429,7 @@ const ViewLocation = ({
         {canManage && canHaveChildren && (
           <Button asChild size="sm">
             <Link to={addChildTo} onClick={offcanvas.setShow}>
-              <RiAddFill /> Добавить расположение
+              <RiAddFill /> Новое расположение
             </Link>
           </Button>
         )}

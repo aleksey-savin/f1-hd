@@ -42,6 +42,8 @@ export async function loader({ params }) {
     );
   }
 
+  document.title = "Просмотр пользователя";
+
   return {
     user: await userResponse.json(),
     tickets: await ticketsResponse.json(),
@@ -100,7 +102,9 @@ export async function action({ request }) {
       );
     }
 
-    return redirect("/users");
+    // Остаёмся на карточке — редирект на неё же перечитывает loader и
+    // обновляет состояние (раньше уводило в список).
+    return redirect(`/users/${id}`);
   }
 
   if (intent === "reset-password") {

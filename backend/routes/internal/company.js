@@ -15,20 +15,13 @@ const {
 } = require("@/middleware/permissions");
 
 router.get("/companies", isAuth, isNotClient, companyController.getAll);
-router.get(
-  "/companies/:id",
-  isAuth,
-  isNotClient,
-  companyValidation.getOne,
-  runValidation,
-  companyController.getOne,
-);
+// Формат id здесь не валидируем: битый ObjectId переводится в 404 глобально
+// (CastError в middleware/errorHandling.js), как у остальных сущностей.
+router.get("/companies/:id", isAuth, isNotClient, companyController.getOne);
 router.get(
   "/companies/:id/stats",
   isAuth,
   isNotClient,
-  companyValidation.getOne,
-  runValidation,
   companyController.getStats,
 );
 
@@ -55,6 +48,15 @@ router.delete(
   companyValidation.delete,
   runValidation,
   companyController.delete,
+);
+
+router.post(
+  "/companies/toggle-active/:id",
+  isAuth,
+  canManageCompanies,
+  companyValidation.toggleActive,
+  runValidation,
+  companyController.toggleActive,
 );
 
 router.post(
@@ -140,6 +142,14 @@ router.get(
   companyValidation.getCompanyLogs,
   runValidation,
   companyController.getCompanyLogs,
+);
+
+router.get(
+  "/companies/:id/logs/accounts",
+  isAuth,
+  companyValidation.getCompanyLogs,
+  runValidation,
+  companyController.getCompanyLogAccounts,
 );
 
 router.patch(

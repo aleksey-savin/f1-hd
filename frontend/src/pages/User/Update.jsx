@@ -2,10 +2,10 @@ import { redirect } from "react-router";
 
 import { getLocalStorageData } from "../../util/auth";
 
-import Form from "../../components/User/Form";
+import UserForm from "../../components/User/UserForm";
 
 const UpdateUserPage = () => {
-  return <Form title="Изменение пользователя" />;
+  return <UserForm />;
 };
 
 export default UpdateUserPage;
@@ -18,33 +18,23 @@ export async function loader({ params }) {
 
   const userResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
+    { headers: { Authorization: "Bearer " + token } },
   );
 
   const user = await userResponse.json();
 
+  // includeInactive: у пользователя отключённой компании селект «Компания»
+  // обязан находить её опцию — иначе сохранение молча затрёт связь
   const companiesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/companies`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
+    `${import.meta.env.VITE_API_ADDRESS}/api/companies?includeInactive=true`,
+    { headers: { Authorization: "Bearer " + token } },
   );
 
   const companies = await companiesResponse.json();
 
   const categoriesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
+    { headers: { Authorization: "Bearer " + token } },
   );
 
   const categories = await categoriesResponse.json();
@@ -55,119 +45,28 @@ export async function loader({ params }) {
     }
     throw Response.json(
       { message: companiesResponse.message },
-      {
-        status: companiesResponse.status,
-      },
+      { status: companiesResponse.status },
     );
-  } else if (!categoriesResponse.ok) {
-    if (
-      categoriesResponse.status === 401 ||
-      categoriesResponse.status === 402
-    ) {
+  }
+  if (!categoriesResponse.ok) {
+    if (categoriesResponse.status === 401 || categoriesResponse.status === 402) {
       return redirect("/auth");
     }
     throw Response.json(
       { message: categoriesResponse.message },
-      {
-        status: categoriesResponse.status,
-      },
+      { status: categoriesResponse.status },
     );
-  } else {
-    return {
-      user: user,
-      companiesList: companies,
-      categoriesList: categories,
-    };
   }
+
+  return { user, companiesList: companies, categoriesList: categories };
 }
 
+// Форма присылает готовый payload (JSON) — пересылаем как есть. `role` не
+// отправляем вовсе: поля в форме нет, а прежний `role: null` затирал сохранённое
+// значение при каждом сохранении (бэкенд теперь оставляет прежнее).
 export async function action({ request, params }) {
   const { token } = getLocalStorageData();
-
-  const data = await request.formData();
-
-  const userData = {
-    email: data.get("email"),
-    phone: data.get("phone"),
-    firstName: data.get("firstName"),
-    lastName: data.get("lastName"),
-    position: data.get("position"),
-    password: data.get("password"),
-    sendPassword: data.get("sendPassword") === "true",
-    isActive: data.get("isActive") === "true",
-    getScreenApi: data.get("getScreenApi"),
-    isAdmin: data.get("isAdmin") === "true",
-    isEndUser: data.get("isEndUser") === "true",
-    isServiceAccount: data.get("isServiceAccount") === "true",
-    isCloudTelephony: data.get("isCloudTelephony") === "true",
-    // Свитч «Статусы присутствия»: выключен (поле не отправляется) → скрыть
-    hideWorkStatus: data.get("workStatusEnabled") !== "true",
-    permissions: {
-      // ticket workflow
-      canPerformTickets: data.get("canPerformTickets") === "true",
-      canAdministrateTickets: data.get("canAdministrateTickets") === "true",
-      canSeeAllCompanyTickets: data.get("canSeeAllCompanyTickets") === "true",
-      canSeeAllTickets: data.get("canSeeAllTickets") === "true",
-      canEditTickets: data.get("canEditTickets") === "true",
-      canDeleteTickets: data.get("canDeleteTickets") === "true",
-      // portal administration
-      canManageCompanies: data.get("canManageCompanies") === "true",
-      canManageUsers: data.get("canManageUsers") === "true",
-      canManageTicketCategories:
-        data.get("canManageTicketCategories") === "true",
-      canSeeKnowledgeBase: data.get("canSeeKnowledgeBase") === "true",
-      canManageKnowledgeBase: data.get("canManageKnowledgeBase") === "true",
-      canManageRoutineTasks: data.get("canManageRoutineTasks") === "true",
-      canUpdateChangelog: data.get("canUpdateChangelog") === "true",
-      canManageTicketTemplates: data.get("canManageTicketTemplates") === "true",
-      // time tracking module
-      canUseTimeTrackingModule: data.get("canUseTimeTrackingModule"),
-      canAvoidWorks: data.get("canAvoidWorks") === "true",
-      canSeeWorksReport: data.get("canSeeWorksReport") === "true",
-      canSeeAnalytics: data.get("canSeeAnalytics") === "true",
-      // inventory module
-      canUseInventoryModule: data.get("canUseInventoryModule"),
-      canManageClientDevices: data.get("canManageClientDevices"),
-      canManageMikrotikDevices: data.get("canManageMikrotikDevices"),
-      canManageMikrotikConfigs:
-        data.get("canManageMikrotikConfigs") === "true",
-      // finance module
-      canUseFinancesModule: data.get("canUseFinancesModule"),
-      canManageServicePlans: data.get("canManageServicePlans"),
-      canSeeGlobalFinancialReport: data.get("canSeeGlobalFinancialReport"),
-      canConfirmReportActions: data.get("canConfirmReportActions"),
-      canSeePersonalFinancialReport: data.get("canSeePersonalFinancialReport"),
-    },
-    dashboard: {
-      isActive: data.get("dashboardIsActive") === "true",
-      personalActions: data.get("dashboardPersonalActions") === "true",
-      personalTasks: data.get("dashboardPersonalTasks") === "true",
-      personalStats: data.get("dashboardPersonalStats") === "true",
-      globalActions: data.get("dashboardGlobalActions") === "true",
-      globalTasks: data.get("dashboardGlobalTasks") === "true",
-      globalStats: data.get("dashboardGlobalStats") === "true",
-    },
-    company: data.get("company"),
-    subdivision: data.get("subdivision"),
-    role: data.get("role"),
-    categories: data.getAll("categories"),
-  };
-
-  // Поля есть в форме только у админа/фин. менеджера; без них ключ не шлём,
-  // чтобы бэкенд не трогал сохранённые значения
-  if (
-    data.get("financesSalary") !== null ||
-    data.get("financesOvertimeRate") !== null
-  ) {
-    userData.finances = {
-      salary: data.get("financesSalary")
-        ? Number(data.get("financesSalary"))
-        : null,
-      overtimeHourlyRate: data.get("financesOvertimeRate")
-        ? Number(data.get("financesOvertimeRate"))
-        : null,
-    };
-  }
+  const userData = await request.json();
 
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/update/${params.id}`,
@@ -182,7 +81,11 @@ export async function action({ request, params }) {
   );
 
   if (response.status === 409) {
-    return response.json();
+    const body = await response.json().catch(() => ({}));
+    return {
+      error: true,
+      message: body.message || "Пользователь с такой почтой уже есть",
+    };
   }
 
   if (!response.ok) {

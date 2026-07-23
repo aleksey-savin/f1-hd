@@ -1,219 +1,496 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import {
+  RiArrowLeftLine,
+  RiArrowRightLine,
+  RiCheckLine,
+  RiCloseLine,
+  RiFileList3Line,
+} from "react-icons/ri";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import Field from "@/components/app/Field";
+import SwitchField from "@/components/app/SwitchField";
+import WizardStepper from "@/components/app/WizardStepper";
+import AlertMessage from "@/components/app/AlertMessage";
+import Checklist from "@/components/app/Checklist";
+import ScheduleBuilder from "@/components/app/ScheduleBuilder";
+import { isValidCron } from "@/util/cron";
+import { cn } from "@/lib/utils";
 
 import Select from "../../UI/Select";
-import Editor from "../../UI/Editor";
+import MarkdownEditor from "../../UI/MarkdownEditor";
+import useOffcanvasStore from "../../store/offcanvas";
+import { getLocalStorageData } from "../../util/auth";
+import Summary from "./Summary";
 
-import UpdateChecklist from "../Checklist/Update";
+const STEPS = [{ label: "Основное" }, { label: "Расписание" }, { label: "Чек-лист" }];
+const LAST = STEPS.length - 1;
+const CHECKLIST_STEP = 2;
 
-import Form from "react-bootstrap/Form";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
+const stepMeta = [
+  { title: "Основное", desc: "Тема, описание, куда пойдёт заявка и кто отвечает" },
+  { title: "Расписание", desc: "Когда автоматически создавать заявку" },
+  {
+    title: "Чек-лист",
+    desc: "Шаги попадут в каждую созданную заявку. Необязательно — можно пропустить и добавить позже.",
+  },
+];
 
-import FormWrapper from "../../UI/FormWrapper";
-import { useLoaderData } from "react-router";
+const fullName = (person) =>
+  `${person?.lastName || ""} ${person?.firstName || ""}`.trim();
 
-const RoutineTaskForm = (props) => {
-  const { task, companiesList, serviceAccounts, categoriesList } =
-    useLoaderData();
+const RoutineTaskForm = () => {
+  const { task = {}, formData = {}, prefillTemplate = null } = useLoaderData();
+  const isEdit = !!task._id;
+  // При создании из шаблона — сид для предзаполнения (копия-снимок).
+  const seed = !isEdit && prefillTemplate ? prefillTemplate : null;
 
-  const [formData, setFormData] = useState({
-    title: task?.title || "",
-    description: task?.description || "",
-    company: task?.company || "",
-    applicant: task?.applicant || "",
-    category: task?.category || "",
-    cronSchedule: task?.cronSchedule || "",
-    isActive: task?.isActive || true,
-    checklist: task?.checklist || [],
+  const fetcher = useFetcher();
+  const navigate = useNavigate();
+  const offcanvas = useOffcanvasStore();
+
+  const [form, setForm] = useState({
+    title: task.title || seed?.title || "",
+    description: task.description || seed?.description || "",
+    company: task.company?._id
+      ? task.company
+      : seed?.company?._id
+        ? seed.company
+        : null,
+    applicant: task.applicant?._id ? task.applicant : null,
+    category: task.category?._id ? task.category : seed?.categoryId || null,
+    isActive: isEdit ? !!task.isActive : true,
   });
+  const [responsibles, setResponsibles] = useState(task.responsibles || []);
+  const [checklist, setChecklist] = useState(
+    task.checklist || seed?.checklist || [],
+  );
+  const [cronSchedule, setCronSchedule] = useState(task.cronSchedule || "");
+  const [sourceTemplate, setSourceTemplate] = useState(
+    task.sourceTemplate?._id
+      ? task.sourceTemplate
+      : seed
+        ? { _id: seed._id, title: seed.title }
+        : null,
+  );
 
-  const strFormDataHandler = (event) => {
-    setFormData({
-      ...formData,
-      [event.target.name]: event.target.value,
-    });
+  const [step, setStep] = useState(0);
+  const [maxReached, setMaxReached] = useState(isEdit ? LAST : 0);
+  const [attempted, setAttempted] = useState(false);
+
+  const setField = (name, value) =>
+    setForm((prev) => ({ ...prev, [name]: value }));
+
+  // Выбор шаблона-основы (только при создании): тянем поля снимком.
+  const applyTemplate = async (tpl) => {
+    if (!tpl?._id) {
+      setSourceTemplate(null);
+      return;
+    }
+    try {
+      const { token } = getLocalStorageData();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates/${tpl._id}`,
+        { headers: { Authorization: "Bearer " + token } },
+      );
+      if (!response.ok) throw response;
+      const full = await response.json();
+      setForm((prev) => ({
+        ...prev,
+        title: full.title || "",
+        description: full.description || "",
+        category: full.categoryId || null,
+        company: full.company?._id ? full.company : prev.company,
+      }));
+      setChecklist(full.checklist || []);
+      setSourceTemplate({ _id: full._id, title: full.title });
+    } catch {
+      // при сбое просто не заполняем — пользователь введёт вручную
+    }
   };
 
-  const descriptionHandler = (state) => {
-    setFormData({
-      ...formData,
-      description: state,
-    });
+  const stepValid = (index) => {
+    if (index === 0)
+      return (
+        form.title.trim() !== "" &&
+        !!form.company &&
+        !!form.applicant &&
+        !!form.category
+      );
+    if (index === 1) return isValidCron(cronSchedule);
+    return true;
+  };
+  const stepError = (index) => {
+    if (index === 0 && !stepValid(0))
+      return "Заполните тему, категорию, компанию и инициатора";
+    if (index === 1 && !stepValid(1)) return "Проверьте расписание";
+    return null;
   };
 
-  const switchFormDataHandler = () => {
-    setFormData({
-      ...formData,
-      isActive: !formData.isActive,
-    });
+  const handleNext = () => {
+    if (!stepValid(step)) {
+      setAttempted(true);
+      return;
+    }
+    const next = Math.min(step + 1, LAST);
+    setAttempted(false);
+    setStep(next);
+    setMaxReached((prev) => Math.max(prev, next));
+  };
+  const handleBack = () => {
+    setAttempted(false);
+    setStep((current) => Math.max(0, current - 1));
+  };
+  const handleStepClick = (index) => {
+    if (isEdit || index <= maxReached) {
+      setAttempted(false);
+      setStep(index);
+    }
+  };
+  const handleClose = () => {
+    offcanvas.setClose();
+    navigate(-1);
   };
 
-  const companyHandler = (selectedItem) => {
-    setFormData({
-      ...formData,
-      company: selectedItem,
-    });
+  const saving = fetcher.state !== "idle";
+
+  const handleSubmit = () => {
+    if (!stepValid(0)) {
+      setStep(0);
+      setAttempted(true);
+      return;
+    }
+    if (!stepValid(1)) {
+      setStep(1);
+      setAttempted(true);
+      return;
+    }
+    const payload = {
+      title: form.title.trim(),
+      description: form.description,
+      cronSchedule,
+      isActive: form.isActive,
+      companyId: form.company?._id || null,
+      applicantId: form.applicant?._id || null,
+      categoryId: form.category?._id || null,
+      responsibles: responsibles.map((r) => ({
+        _id: r._id,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        email: r.email,
+        phone: r.phone,
+        position: r.position,
+        role: r.role,
+        isActive: r.isActive,
+      })),
+      sourceTemplate: sourceTemplate
+        ? { _id: sourceTemplate._id, title: sourceTemplate.title }
+        : null,
+      checklist: checklist
+        .filter((item) => (item.description || "").trim() !== "")
+        .map((item) => ({
+          description: item.description,
+          mandatory: !!item.mandatory,
+        })),
+    };
+    fetcher.submit(payload, { method: "post", encType: "application/json" });
   };
 
-  const applicantHandler = (selectedItem) => {
-    setFormData({
-      ...formData,
-      applicant: selectedItem,
-    });
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
+      offcanvas.setClose();
+      navigate("..");
+    }
+  }, [fetcher.state, fetcher.data]);
+
+  /* ---------- «Основа» (шаблон-источник) ---------- */
+  const sourceBlock = sourceTemplate ? (
+    <div className="tw:mb-5 tw:flex tw:items-center tw:gap-3 tw:rounded-xl tw:border tw:border-primary/25 tw:bg-primary/6 tw:p-3 tw:pl-3.5">
+      <span className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-primary/15 tw:text-accent-text tw:[&_svg]:size-5">
+        <RiFileList3Line />
+      </span>
+      <div className="tw:min-w-0 tw:flex-1">
+        <div className="tw:text-sm tw:font-semibold">
+          Основа: шаблон «{sourceTemplate.title}»
+        </div>
+        <div className="tw:text-xs tw:text-muted-foreground">
+          Поля скопированы из шаблона; связь сохранится для синхронизации
+        </div>
+      </div>
+      {!isEdit && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setSourceTemplate(null)}
+        >
+          <RiCloseLine /> Убрать
+        </Button>
+      )}
+    </div>
+  ) : (
+    !isEdit && (
+      <div className="tw:mb-5">
+        <Field
+          label="Основа (необязательно)"
+          htmlFor="rt-source"
+          hint="Выберите шаблон — тема, описание, категория и чек-лист заполнятся автоматически"
+        >
+          <Select
+            id="rt-source"
+            placeholder="Взять за основу шаблон…"
+            isClearable
+            isSearchable
+            value={null}
+            options={formData.templates || []}
+            getOptionLabel={(option) => option.title}
+            getOptionValue={(option) => option._id}
+            onChange={applyTemplate}
+          />
+        </Field>
+      </div>
+    )
+  );
+
+  /* ---------- содержимое шагов ---------- */
+  const basicFields = (
+    <>
+      <Field label="Тема" htmlFor="rt-title" required>
+        <Input
+          id="rt-title"
+          autoFocus
+          value={form.title}
+          onChange={(event) => setField("title", event.target.value)}
+        />
+      </Field>
+      <Field label="Описание">
+        <div className="tpl-editor tw:overflow-hidden tw:rounded-lg tw:border tw:border-input">
+          <MarkdownEditor
+            key={sourceTemplate?._id || "rt-blank"}
+            initialValue={form.description}
+            onChange={(markdown) => setField("description", markdown)}
+            height="220px"
+            hideModeSwitch
+          />
+        </div>
+      </Field>
+      <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+        <Field label="Категория" htmlFor="rt-category" required>
+          <Select
+            id="rt-category"
+            placeholder="Выберите категорию"
+            isClearable
+            isSearchable
+            value={form.category}
+            options={formData.categories || []}
+            getOptionLabel={(option) => option.title}
+            getOptionValue={(option) => option._id}
+            onChange={(selected) => setField("category", selected)}
+          />
+        </Field>
+        <Field label="Компания" htmlFor="rt-company" required>
+          <Select
+            id="rt-company"
+            placeholder="Выберите компанию"
+            isClearable
+            isSearchable
+            value={form.company}
+            options={formData.companies || []}
+            getOptionLabel={(option) => option.alias}
+            getOptionValue={(option) => option._id}
+            onChange={(selected) => setField("company", selected)}
+          />
+        </Field>
+      </div>
+      <Field
+        label="Инициатор"
+        htmlFor="rt-applicant"
+        required
+        hint="Заявки создаются от имени сервисного аккаунта"
+      >
+        <Select
+          id="rt-applicant"
+          placeholder="Выберите инициатора"
+          isClearable
+          isSearchable
+          value={form.applicant}
+          options={formData.serviceAccounts || []}
+          getOptionLabel={(option) => option.firstName}
+          getOptionValue={(option) => option._id}
+          onChange={(selected) => setField("applicant", selected)}
+        />
+      </Field>
+      <Field
+        label="Ответственные"
+        htmlFor="rt-responsibles"
+        hint="Необязательно. Указанные сотрудники сразу назначаются на создаваемую заявку."
+      >
+        <Select
+          id="rt-responsibles"
+          placeholder="Не назначать — или выберите сотрудников"
+          isMulti
+          isClearable
+          isSearchable
+          closeMenuOnSelect={false}
+          value={responsibles}
+          options={formData.responsibles || []}
+          getOptionLabel={(option) => fullName(option) || "Без имени"}
+          getOptionValue={(option) => option._id}
+          onChange={(selected) => setResponsibles(selected || [])}
+        />
+      </Field>
+    </>
+  );
+
+  const scheduleFields = (
+    <>
+      <ScheduleBuilder value={cronSchedule} onChange={setCronSchedule} />
+      <div className="tw:mt-2 tw:border-t tw:border-border-soft tw:pt-2">
+        <SwitchField
+          id="rt-active"
+          checked={form.isActive}
+          onCheckedChange={(checked) => setField("isActive", checked)}
+          label="Активно"
+          hint="Пока выключено — заявки по расписанию не создаются"
+        />
+      </div>
+    </>
+  );
+
+  const stepBody = (index) => {
+    if (index === 0) return basicFields;
+    if (index === 1) return scheduleFields;
+    return (
+      <Checklist
+        mode="edit"
+        framed
+        title="Чек-лист"
+        items={checklist}
+        onChange={setChecklist}
+      />
+    );
   };
 
-  const categoryHandler = (selectedItem) => {
-    setFormData({
-      ...formData,
-      category: selectedItem,
-    });
-  };
-
-  const updateChecklist = (checklist) => {
-    setFormData({ ...formData, checklist: checklist });
-  };
+  const summaryForm = { ...form, responsibles };
 
   return (
-    <>
-      <FormWrapper title={props.title} navigateTo="/routine-tasks">
-        <Row>
-          <Col xl="6">
-            <Form.Group className="w-100 mb-3">
-              <Form.Label htmlFor="title">Тема</Form.Label>
-              <Form.Control
-                autoFocus
-                required
-                id="title"
-                name="title"
-                type="text"
-                value={formData.title}
-                onChange={strFormDataHandler}
+    <div>
+      <h1 className="tw:my-0 tw:mb-4 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
+        {isEdit ? "Изменить регламент" : "Новый регламент"}
+      </h1>
+
+      {sourceBlock}
+
+      {isEdit ? (
+        <div className="tw:space-y-1">
+          {STEPS.map((meta, index) => (
+            <section
+              key={meta.label}
+              className="tw:border-t tw:border-border-soft tw:py-5 tw:first:border-t-0 tw:first:pt-1"
+            >
+              <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
+                {stepMeta[index].title}
+              </h3>
+              <p className="tw:mt-0.5 tw:mb-4 tw:text-sm tw:text-muted-foreground">
+                {stepMeta[index].desc}
+              </p>
+              {stepBody(index)}
+            </section>
+          ))}
+        </div>
+      ) : (
+        <>
+          <WizardStepper
+            steps={STEPS}
+            current={step}
+            maxReached={maxReached}
+            onStepClick={handleStepClick}
+          />
+          <div className="tw:mt-6 tw:flex tw:flex-col tw:gap-6 tw:md:flex-row">
+            <div className="tw:min-w-0 tw:flex-1">
+              <div className="tw:mb-4">
+                <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
+                  {stepMeta[step].title}
+                </h3>
+                <p className="tw:mt-0.5 tw:mb-0 tw:text-sm tw:text-muted-foreground">
+                  {stepMeta[step].desc}
+                </p>
+              </div>
+              {stepBody(step)}
+              {attempted && stepError(step) && (
+                <p className="tw:mt-2 tw:mb-0 tw:text-sm tw:text-destructive">
+                  {stepError(step)}
+                </p>
+              )}
+            </div>
+            <div className="tw:md:w-72 tw:md:flex-none">
+              <Summary
+                form={summaryForm}
+                cronSchedule={cronSchedule}
+                checklistCount={
+                  checklist.filter((i) => (i.description || "").trim() !== "")
+                    .length
+                }
+                reached={maxReached}
               />
-            </Form.Group>
-          </Col>
-        </Row>
-        <Row>
-          <Col xl="6">
-            <Form.Group className="mb-3">
-              <Form.Label htmlFor="description">Описание</Form.Label>
-              <Editor
-                id="description"
-                required
-                changeHandler={descriptionHandler}
-                description={formData.description}
-              />
-              <input
-                type="text"
-                name="description"
-                value={formData.description}
-                onChange={() => {
-                  return;
-                }}
-                hidden
-              />
-            </Form.Group>
-          </Col>
-        </Row>
-        <Row>
-          <Col xl="6">
-            <Form.Group className="w-100 mb-3">
-              <Form.Label htmlFor="company">Компания</Form.Label>
-              <Select
-                id="company"
-                name="company"
-                placeholder="Выберите компанию"
-                required
-                isClearable
-                isSearchable
-                value={formData.company}
-                options={companiesList}
-                getOptionLabel={(option) => `${option.alias}`}
-                getOptionValue={(option) => option._id}
-                onChange={companyHandler}
-              />
-            </Form.Group>
-          </Col>
-        </Row>
-        <Row>
-          <Col xl="6">
-            <Form.Group className="w-100 mb-3">
-              <Form.Label htmlFor="applicant">
-                Инициатор (только сервисные аккаунты)
-              </Form.Label>
-              <Select
-                id="applicant"
-                name="applicant"
-                placeholder="Выберите инициатора"
-                required
-                isClearable
-                isSearchable
-                value={formData.applicant}
-                options={serviceAccounts}
-                getOptionLabel={(option) => `${option.firstName}`}
-                getOptionValue={(option) => option._id}
-                onChange={applicantHandler}
-              />
-            </Form.Group>
-          </Col>
-        </Row>
-        <Row>
-          <Col xl="6">
-            <Form.Group className="w-100 mb-3">
-              <Form.Label htmlFor="category">Категория</Form.Label>
-              <Select
-                id="category"
-                name="category"
-                placeholder="Выберите категорию"
-                required
-                isClearable
-                isSearchable
-                value={formData.category}
-                options={categoriesList}
-                getOptionLabel={(option) => `${option.title}`}
-                getOptionValue={(option) => option._id}
-                onChange={categoryHandler}
-              />
-            </Form.Group>
-          </Col>
-        </Row>
-        <Row>
-          <Col xl="6">
-            <Form.Group className="mb-3">
-              <Form.Label htmlFor="cronSchedule">Расписание cron</Form.Label>
-              <Form.Control
-                id="cronSchedule"
-                name="cronSchedule"
-                type="text"
-                required
-                value={formData.cronSchedule}
-                onChange={strFormDataHandler}
-              />
-            </Form.Group>
-          </Col>
-        </Row>
-        <Row>
-          <Col xl="6">
-            <Form.Check
-              checked={formData.isActive}
-              type="switch"
-              id="isActive"
-              name="isActive"
-              label="Активно"
-              value={formData.isActive}
-              onChange={switchFormDataHandler}
-            />
-          </Col>
-        </Row>
-        <Row className="mt-3">
-          <Col xl="6">
-            <UpdateChecklist
-              checklist={formData.checklist}
-              updateChecklist={updateChecklist}
-            />
-          </Col>
-        </Row>
-      </FormWrapper>
-    </>
+            </div>
+          </div>
+        </>
+      )}
+
+      {fetcher.data && fetcher.data.error && (
+        <div className="tw:mt-4">
+          <AlertMessage variant="danger" message={fetcher.data.message} />
+        </div>
+      )}
+
+      <div
+        className={cn(
+          "tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:gap-2.5 tw:border-t tw:border-border-soft tw:bg-background tw:px-6 tw:py-3",
+        )}
+      >
+        <Button type="button" variant="ghost" onClick={handleClose} disabled={saving}>
+          Отмена
+        </Button>
+        <div className="tw:ml-auto tw:flex tw:items-center tw:gap-2.5">
+          {isEdit ? (
+            <Button type="button" onClick={handleSubmit} disabled={saving}>
+              <RiCheckLine /> Сохранить
+            </Button>
+          ) : (
+            <>
+              {step > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleBack}
+                  disabled={saving}
+                >
+                  <RiArrowLeftLine /> Назад
+                </Button>
+              )}
+              {step === CHECKLIST_STEP && step < LAST && (
+                <Button type="button" variant="ghost" onClick={handleNext}>
+                  Пропустить
+                </Button>
+              )}
+              {step < LAST && (
+                <Button type="button" onClick={handleNext}>
+                  Далее <RiArrowRightLine />
+                </Button>
+              )}
+              {step === LAST && (
+                <Button type="button" onClick={handleSubmit} disabled={saving}>
+                  <RiCheckLine /> Сохранить
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 

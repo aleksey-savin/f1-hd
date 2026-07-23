@@ -8,7 +8,7 @@ const UpdateServicePlanPage = () => {
 export default UpdateServicePlanPage;
 
 export async function loader({ params }) {
-  document.title = "ИЗМЕНЕНИЕ УСЛУГИ";
+  document.title = "Изменить услугу";
 
   const { token } = getLocalStorageData();
 

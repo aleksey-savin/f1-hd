@@ -63,7 +63,7 @@ function ImageUpload({ userId, setProfileImage }) {
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      showToast("danger", "Размер файла не должен превышать 5Мб");
+      showToast("danger", "Размер файла не должен превышать 5 МБ");
       return;
     }
 
@@ -224,7 +224,7 @@ function ImageUpload({ userId, setProfileImage }) {
               variant="ghost"
               onClick={() => setOpen(false)}
             >
-              Закрыть
+              Отмена
             </Button>
             <Button
               type="button"

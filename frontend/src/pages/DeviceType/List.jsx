@@ -60,7 +60,7 @@ const DeviceTypeListPage = () => {
       title={() => "Типы устройств"}
       filterStore={filterStore}
       addRoute="/inventory/device-types/add"
-      addLabel="Добавить тип"
+      addLabel="Новый тип"
       filter={<DeviceTypeFilter />}
       filterActive={activeFilters.length > 0}
       activeFilters={activeFilters}

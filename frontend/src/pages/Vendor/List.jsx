@@ -47,7 +47,7 @@ const VendorListPage = () => {
       title={() => "Вендоры"}
       filterStore={filterStore}
       addRoute="/inventory/vendors/add"
-      addLabel="Добавить вендора"
+      addLabel="Новый вендор"
       filter={<VendorFilter />}
       filterActive={filterStore.isActive === true}
       activeFilters={activeFilters}

@@ -455,7 +455,7 @@ const UpdateTicket = () => {
                   onClick={offcanvas.setClose}
                   variant="secondary"
                 >
-                  <RiArrowGoBackFill /> Закрыть
+                  <RiArrowGoBackFill /> Отмена
                 </Button>
               </div>
               <div className="">

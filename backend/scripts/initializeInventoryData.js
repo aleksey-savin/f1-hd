@@ -2,15 +2,33 @@ const mongoose = require("mongoose");
 const DeviceType = require("../models/inventory/deviceType");
 const Vendor = require("../models/inventory/vendor");
 const DeviceAttribute = require("../models/inventory/deviceAttribute");
+const DeviceTypeAttribute = require("../models/inventory/deviceTypeAttribute");
 
-// Initial device attributes
+// Каноничное имя вендора MikroTik. Его же использует seedMikrotikModels.js,
+// поэтому вынесено в экспортируемую константу — чтобы имя не разъехалось.
+const MIKROTIK_VENDOR_NAME = "MikroTik";
+
+// Код обязательного атрибута «Год выпуска». Добавляется ко ВСЕМ типам устройств
+// (required: true) — нужен для учёта амортизации и морального устаревания техники.
+const MANUFACTURE_YEAR_CODE = "manufactureyear";
+
+// «Год выпуска» показываем В КОНЦЕ списка атрибутов типа. Большой order гарантирует
+// последнюю позицию независимо от числа type-specific атрибутов (у них order 1..N).
+const YEAR_DISPLAY_ORDER = 999;
+
+// Справочник атрибутов (глобальный). Схема: { code, name, valueType, unit?, options? }.
+// code — машинный ключ (lowercase, unique), name — отображаемое имя.
 const initialDeviceAttributes = [
-  // Common attributes
   {
-    name: "ram",
-    label: "Оперативная память",
-    description: "Объем оперативной памяти",
-    dataType: "select",
+    code: MANUFACTURE_YEAR_CODE,
+    name: "Год выпуска",
+    valueType: "number",
+  },
+  // Общие
+  {
+    code: "ram",
+    name: "Оперативная память",
+    valueType: "select",
     unit: "ГБ",
     options: [
       { value: "4", label: "4 ГБ" },
@@ -22,10 +40,9 @@ const initialDeviceAttributes = [
     ],
   },
   {
-    name: "storage",
-    label: "Накопитель",
-    description: "Объем накопителя",
-    dataType: "select",
+    code: "storage",
+    name: "Накопитель",
+    valueType: "select",
     unit: "ГБ",
     options: [
       { value: "128", label: "128 ГБ SSD" },
@@ -36,22 +53,19 @@ const initialDeviceAttributes = [
     ],
   },
   {
-    name: "processor",
-    label: "Процессор",
-    description: "Модель процессора",
-    dataType: "string",
+    code: "processor",
+    name: "Процессор",
+    valueType: "string",
   },
   {
-    name: "graphics",
-    label: "Видеокарта",
-    description: "Модель видеокарты",
-    dataType: "string",
+    code: "graphics",
+    name: "Видеокарта",
+    valueType: "string",
   },
   {
-    name: "screenSize",
-    label: "Диагональ экрана",
-    description: "Размер экрана",
-    dataType: "select",
+    code: "screensize",
+    name: "Диагональ экрана",
+    valueType: "select",
     unit: "дюймов",
     options: [
       { value: "13.3", label: '13.3"' },
@@ -65,10 +79,9 @@ const initialDeviceAttributes = [
     ],
   },
   {
-    name: "resolution",
-    label: "Разрешение экрана",
-    description: "Разрешение дисплея",
-    dataType: "select",
+    code: "resolution",
+    name: "Разрешение экрана",
+    valueType: "select",
     options: [
       { value: "1920x1080", label: "Full HD (1920x1080)" },
       { value: "2560x1440", label: "QHD (2560x1440)" },
@@ -76,24 +89,21 @@ const initialDeviceAttributes = [
     ],
   },
   {
-    name: "ports",
-    label: "Порты",
-    description: "Доступные порты и разъемы",
-    dataType: "text",
+    code: "ports",
+    name: "Порты",
+    valueType: "text",
   },
   {
-    name: "powerSupply",
-    label: "Блок питания",
-    description: "Мощность блока питания",
-    dataType: "string",
+    code: "powersupply",
+    name: "Блок питания",
+    valueType: "string",
     unit: "Вт",
   },
-  // Server specific
+  // Серверные
   {
-    name: "rackUnits",
-    label: "Высота в юнитах",
-    description: "Высота серверной стойки",
-    dataType: "select",
+    code: "rackunits",
+    name: "Высота в юнитах",
+    valueType: "select",
     unit: "U",
     options: [
       { value: "1", label: "1U" },
@@ -102,22 +112,20 @@ const initialDeviceAttributes = [
     ],
   },
   {
-    name: "cpuSockets",
-    label: "Количество сокетов ЦП",
-    description: "Число процессорных сокетов",
-    dataType: "select",
+    code: "cpusockets",
+    name: "Количество сокетов ЦП",
+    valueType: "select",
     options: [
       { value: "1", label: "1 сокет" },
       { value: "2", label: "2 сокета" },
       { value: "4", label: "4 сокета" },
     ],
   },
-  // Printer specific
+  // Принтеры
   {
-    name: "printTechnology",
-    label: "Технология печати",
-    description: "Тип технологии печати",
-    dataType: "select",
+    code: "printtechnology",
+    name: "Технология печати",
+    valueType: "select",
     options: [
       { value: "laser", label: "Лазерная" },
       { value: "inkjet", label: "Струйная" },
@@ -125,33 +133,30 @@ const initialDeviceAttributes = [
     ],
   },
   {
-    name: "printSpeed",
-    label: "Скорость печати",
-    description: "Страниц в минуту",
-    dataType: "number",
+    code: "printspeed",
+    name: "Скорость печати",
+    valueType: "number",
     unit: "стр/мин",
   },
   {
-    name: "colorPrinting",
-    label: "Цветная печать",
-    description: "Поддержка цветной печати",
-    dataType: "boolean",
+    code: "colorprinting",
+    name: "Цветная печать",
+    valueType: "boolean",
   },
-  // Network equipment
+  // Сетевое оборудование
   {
-    name: "portCount",
-    label: "Количество портов",
-    description: "Число сетевых портов",
-    dataType: "number",
+    code: "portcount",
+    name: "Количество портов",
+    valueType: "number",
   },
   {
-    name: "portSpeed",
-    label: "Скорость портов",
-    description: "Максимальная скорость портов",
-    dataType: "select",
+    code: "portspeed",
+    name: "Скорость портов",
+    valueType: "select",
     unit: "Гбит/с",
     options: [
       { value: "1", label: "1 Гбит/с" },
+      { value: "2.5", label: "2.5 Гбит/с" },
       { value: "10", label: "10 Гбит/с" },
       { value: "25", label: "25 Гбит/с" },
       { value: "40", label: "40 Гбит/с" },
@@ -159,277 +164,188 @@ const initialDeviceAttributes = [
     ],
   },
   {
-    name: "poeSupport",
-    label: "Поддержка PoE",
-    description: "Питание по Ethernet",
-    dataType: "boolean",
+    code: "poesupport",
+    name: "Поддержка PoE",
+    valueType: "boolean",
   },
-  // UPS specific
+  // ИБП
   {
-    name: "upsPower",
-    label: "Мощность ИБП",
-    description: "Номинальная мощность",
-    dataType: "number",
+    code: "upspower",
+    name: "Мощность ИБП",
+    valueType: "number",
     unit: "ВА",
   },
   {
-    name: "batteryRuntime",
-    label: "Время автономной работы",
-    description: "Время работы от батареи",
-    dataType: "number",
+    code: "batteryruntime",
+    name: "Время автономной работы",
+    valueType: "number",
     unit: "мин",
   },
-  // Mobile devices
+  // Мобильные устройства
   {
-    name: "operatingSystem",
-    label: "Операционная система",
-    description: "ОС устройства",
-    dataType: "select",
+    code: "operatingsystem",
+    name: "Операционная система",
+    valueType: "select",
     options: [
       { value: "ios", label: "iOS" },
       { value: "android", label: "Android" },
       { value: "windows", label: "Windows" },
       { value: "macos", label: "macOS" },
       { value: "linux", label: "Linux" },
+      { value: "routeros", label: "RouterOS" },
     ],
   },
   {
-    name: "batteryCapacity",
-    label: "Емкость батареи",
-    description: "Емкость аккумулятора",
-    dataType: "number",
+    code: "batterycapacity",
+    name: "Емкость батареи",
+    valueType: "number",
     unit: "мАч",
+  },
+  {
+    code: "simcount",
+    name: "Количество SIM",
+    valueType: "number",
   },
 ];
 
-// Device type to attribute mapping
+// Карта тип → атрибуты (type-specific). Порядок order начинается с 1;
+// «Год выпуска» (order 0, required) добавляется ко всем типам автоматически ниже.
 const deviceTypeAttributes = {
   Ноутбук: [
-    { name: "processor", isRequired: true, displayOrder: 1 },
-    { name: "ram", isRequired: true, displayOrder: 2 },
-    { name: "storage", isRequired: true, displayOrder: 3 },
-    { name: "graphics", isRequired: false, displayOrder: 4 },
-    { name: "screenSize", isRequired: false, displayOrder: 5 },
-    { name: "resolution", isRequired: false, displayOrder: 6 },
-    { name: "operatingSystem", isRequired: false, displayOrder: 7 },
-    { name: "batteryCapacity", isRequired: false, displayOrder: 8 },
+    { code: "processor", required: true, order: 1 },
+    { code: "ram", required: true, order: 2 },
+    { code: "storage", required: true, order: 3 },
+    { code: "graphics", required: false, order: 4 },
+    { code: "screensize", required: false, order: 5 },
+    { code: "resolution", required: false, order: 6 },
+    { code: "operatingsystem", required: false, order: 7 },
+    { code: "batterycapacity", required: false, order: 8 },
   ],
   "Настольный компьютер": [
-    { name: "processor", isRequired: true, displayOrder: 1 },
-    { name: "ram", isRequired: true, displayOrder: 2 },
-    { name: "storage", isRequired: true, displayOrder: 3 },
-    { name: "graphics", isRequired: false, displayOrder: 4 },
-    { name: "powerSupply", isRequired: false, displayOrder: 5 },
-    { name: "operatingSystem", isRequired: false, displayOrder: 6 },
+    { code: "processor", required: true, order: 1 },
+    { code: "ram", required: true, order: 2 },
+    { code: "storage", required: true, order: 3 },
+    { code: "graphics", required: false, order: 4 },
+    { code: "powersupply", required: false, order: 5 },
+    { code: "operatingsystem", required: false, order: 6 },
   ],
   Монитор: [
-    { name: "screenSize", isRequired: true, displayOrder: 1 },
-    { name: "resolution", isRequired: true, displayOrder: 2 },
-    { name: "ports", isRequired: false, displayOrder: 3 },
+    { code: "screensize", required: true, order: 1 },
+    { code: "resolution", required: true, order: 2 },
+    { code: "ports", required: false, order: 3 },
   ],
   Принтер: [
-    { name: "printTechnology", isRequired: true, displayOrder: 1 },
-    { name: "colorPrinting", isRequired: false, displayOrder: 2 },
-    { name: "printSpeed", isRequired: false, displayOrder: 3 },
+    { code: "printtechnology", required: true, order: 1 },
+    { code: "colorprinting", required: false, order: 2 },
+    { code: "printspeed", required: false, order: 3 },
   ],
-  Сканер: [{ name: "resolution", isRequired: false, displayOrder: 1 }],
+  Сканер: [{ code: "resolution", required: false, order: 1 }],
   "Мобильный телефон": [
-    { name: "operatingSystem", isRequired: true, displayOrder: 1 },
-    { name: "ram", isRequired: false, displayOrder: 2 },
-    { name: "storage", isRequired: false, displayOrder: 3 },
-    { name: "batteryCapacity", isRequired: false, displayOrder: 4 },
-    { name: "simCount", isRequired: false, displayOrder: 5 },
+    { code: "operatingsystem", required: true, order: 1 },
+    { code: "ram", required: false, order: 2 },
+    { code: "storage", required: false, order: 3 },
+    { code: "batterycapacity", required: false, order: 4 },
+    { code: "simcount", required: false, order: 5 },
   ],
   Планшет: [
-    { name: "operatingSystem", isRequired: true, displayOrder: 1 },
-    { name: "ram", isRequired: false, displayOrder: 2 },
-    { name: "storage", isRequired: false, displayOrder: 3 },
-    { name: "screenSize", isRequired: false, displayOrder: 4 },
-    { name: "batteryCapacity", isRequired: false, displayOrder: 5 },
+    { code: "operatingsystem", required: true, order: 1 },
+    { code: "ram", required: false, order: 2 },
+    { code: "storage", required: false, order: 3 },
+    { code: "screensize", required: false, order: 4 },
+    { code: "batterycapacity", required: false, order: 5 },
   ],
   Сервер: [
-    { name: "processor", isRequired: true, displayOrder: 1 },
-    { name: "cpuSockets", isRequired: false, displayOrder: 2 },
-    { name: "ram", isRequired: true, displayOrder: 3 },
-    { name: "storage", isRequired: true, displayOrder: 4 },
-    { name: "rackUnits", isRequired: false, displayOrder: 5 },
-    { name: "powerSupply", isRequired: false, displayOrder: 6 },
+    { code: "processor", required: true, order: 1 },
+    { code: "cpusockets", required: false, order: 2 },
+    { code: "ram", required: true, order: 3 },
+    { code: "storage", required: true, order: 4 },
+    { code: "rackunits", required: false, order: 5 },
+    { code: "powersupply", required: false, order: 6 },
   ],
   "Сетевое оборудование": [
-    { name: "portCount", isRequired: false, displayOrder: 1 },
-    { name: "portSpeed", isRequired: false, displayOrder: 2 },
-    { name: "poeSupport", isRequired: false, displayOrder: 3 },
-    { name: "powerSupply", isRequired: false, displayOrder: 4 },
+    { code: "portcount", required: false, order: 1 },
+    { code: "portspeed", required: false, order: 2 },
+    { code: "poesupport", required: false, order: 3 },
+    { code: "powersupply", required: false, order: 4 },
   ],
   ИБП: [
-    { name: "upsPower", isRequired: true, displayOrder: 1 },
-    { name: "batteryRuntime", isRequired: false, displayOrder: 2 },
+    { code: "upspower", required: true, order: 1 },
+    { code: "batteryruntime", required: false, order: 2 },
   ],
   Моноблок: [
-    { name: "processor", isRequired: true, displayOrder: 1 },
-    { name: "ram", isRequired: true, displayOrder: 2 },
-    { name: "storage", isRequired: true, displayOrder: 3 },
-    { name: "graphics", isRequired: false, displayOrder: 4 },
-    { name: "screenSize", isRequired: false, displayOrder: 5 },
-    { name: "resolution", isRequired: false, displayOrder: 6 },
-    { name: "operatingSystem", isRequired: false, displayOrder: 7 },
+    { code: "processor", required: true, order: 1 },
+    { code: "ram", required: true, order: 2 },
+    { code: "storage", required: true, order: 3 },
+    { code: "graphics", required: false, order: 4 },
+    { code: "screensize", required: false, order: 5 },
+    { code: "resolution", required: false, order: 6 },
+    { code: "operatingsystem", required: false, order: 7 },
   ],
   "SIP-телефон": [
-    { name: "portCount", isRequired: false, displayOrder: 1 },
-    { name: "poeSupport", isRequired: false, displayOrder: 2 },
+    { code: "portcount", required: false, order: 1 },
+    { code: "poesupport", required: false, order: 2 },
+  ],
+  // Гранулярные сетевые типы. Имена совпадают строкой с DEVICE_KIND_PATTERNS
+  // в models/mikrotik.js — иначе авто-классификация MikroTik не сойдётся.
+  Маршрутизатор: [
+    { code: "portcount", required: false, order: 1 },
+    { code: "portspeed", required: false, order: 2 },
+    { code: "poesupport", required: false, order: 3 },
+    { code: "powersupply", required: false, order: 4 },
+  ],
+  Коммутатор: [
+    { code: "portcount", required: false, order: 1 },
+    { code: "portspeed", required: false, order: 2 },
+    { code: "poesupport", required: false, order: 3 },
+    { code: "powersupply", required: false, order: 4 },
+  ],
+  "Точка доступа": [
+    { code: "portcount", required: false, order: 1 },
+    { code: "portspeed", required: false, order: 2 },
+    { code: "poesupport", required: false, order: 3 },
+  ],
+  "Cloud Hosted Router": [
+    { code: "operatingsystem", required: false, order: 1 },
   ],
 };
 
-// Initial device types
+// Типы устройств (глобальные). Поля description в схеме нет — не задаём.
 const initialDeviceTypes = [
-  {
-    name: "Ноутбук",
-    description: "Портативные компьютеры для работы сотрудников",
-    isActive: true,
-  },
-  {
-    name: "Настольный компьютер",
-    description: "Стационарные рабочие станции",
-    isActive: true,
-  },
-  {
-    name: "Монитор",
-    description: "Внешние дисплеи для компьютеров",
-    isActive: true,
-  },
-  {
-    name: "Принтер",
-    description: "Устройства для печати документов",
-    isActive: true,
-  },
-  {
-    name: "Сканер",
-    description: "Устройства для сканирования документов",
-    isActive: true,
-  },
-  {
-    name: "Мобильный телефон",
-    description: "Корпоративные мобильные устройства",
-    isActive: true,
-  },
-  {
-    name: "Планшет",
-    description: "Планшетные компьютеры",
-    isActive: true,
-  },
-  {
-    name: "Сервер",
-    description: "Серверное оборудование",
-    isActive: true,
-  },
-  {
-    name: "Сетевое оборудование",
-    description: "Роутеры, коммутаторы, точки доступа",
-    isActive: true,
-  },
-  {
-    name: "ИБП",
-    description: "Источники бесперебойного питания",
-    isActive: true,
-  },
-  {
-    name: "Моноблок",
-    description: "Компьютеры со встроенным монитором",
-    isActive: true,
-  },
-  {
-    name: "SIP-телефон",
-    description: "IP-телефоны для VoIP связи",
-    isActive: true,
-  },
+  { name: "Ноутбук", isActive: true },
+  { name: "Настольный компьютер", isActive: true },
+  { name: "Монитор", isActive: true },
+  { name: "Принтер", isActive: true },
+  { name: "Сканер", isActive: true },
+  { name: "Мобильный телефон", isActive: true },
+  { name: "Планшет", isActive: true },
+  { name: "Сервер", isActive: true },
+  { name: "Сетевое оборудование", isActive: true },
+  { name: "ИБП", isActive: true },
+  { name: "Моноблок", isActive: true },
+  { name: "SIP-телефон", isActive: true },
+  // Сетевые типы для гранулярной классификации (в т.ч. модуль управления MikroTik).
+  { name: "Маршрутизатор", isActive: true },
+  { name: "Коммутатор", isActive: true },
+  { name: "Точка доступа", isActive: true },
+  { name: "Cloud Hosted Router", isActive: true },
 ];
 
-// Initial vendors (English)
+// Вендоры (глобальные). Полей description/website в схеме нет — не задаём.
 const initialVendors = [
-  {
-    name: "Apple",
-    description: "Computer, tablet and smartphone manufacturer",
-    website: "https://www.apple.com",
-    isActive: true,
-  },
-  {
-    name: "Dell",
-    description: "Computer and server manufacturer",
-    website: "https://www.dell.com",
-    isActive: true,
-  },
-  {
-    name: "HP",
-    description: "Computer, printer and server manufacturer",
-    website: "https://www.hp.com",
-    isActive: true,
-  },
-  {
-    name: "Lenovo",
-    description: "Computer and mobile device manufacturer",
-    website: "https://www.lenovo.com",
-    isActive: true,
-  },
-  {
-    name: "ASUS",
-    description: "Computer and component manufacturer",
-    website: "https://www.asus.com",
-    isActive: true,
-  },
-  {
-    name: "Samsung",
-    description: "Monitor, printer and mobile device manufacturer",
-    website: "https://www.samsung.com",
-    isActive: true,
-  },
-  {
-    name: "Canon",
-    description: "Printer and scanner manufacturer",
-    website: "https://www.canon.com",
-    isActive: true,
-  },
-  {
-    name: "Epson",
-    description: "Printer and scanner manufacturer",
-    website: "https://www.epson.com",
-    isActive: true,
-  },
-  {
-    name: "Cisco",
-    description: "Network equipment manufacturer",
-    website: "https://www.cisco.com",
-    isActive: true,
-  },
-  {
-    name: "Mikrotik",
-    description: "Network equipment manufacturer",
-    website: "https://mikrotik.com",
-    isActive: true,
-  },
-  {
-    name: "APC",
-    description: "UPS manufacturer",
-    website: "https://www.apc.com",
-    isActive: true,
-  },
-  {
-    name: "Microsoft",
-    description: "Surface computer and software manufacturer",
-    website: "https://www.microsoft.com",
-    isActive: true,
-  },
-  {
-    name: "Acer",
-    description: "Computer and monitor manufacturer",
-    website: "https://www.acer.com",
-    isActive: true,
-  },
-  {
-    name: "MSI",
-    description: "Computer and component manufacturer",
-    website: "https://www.msi.com",
-    isActive: true,
-  },
+  { name: "Apple", isActive: true },
+  { name: "Dell", isActive: true },
+  { name: "HP", isActive: true },
+  { name: "Lenovo", isActive: true },
+  { name: "ASUS", isActive: true },
+  { name: "Samsung", isActive: true },
+  { name: "Canon", isActive: true },
+  { name: "Epson", isActive: true },
+  { name: "Cisco", isActive: true },
+  { name: MIKROTIK_VENDOR_NAME, isActive: true, isMikrotikManagementEnabled: true },
+  { name: "APC", isActive: true },
+  { name: "Microsoft", isActive: true },
+  { name: "Acer", isActive: true },
+  { name: "MSI", isActive: true },
 ];
 
 async function initializeInventoryData() {
@@ -440,81 +356,157 @@ async function initializeInventoryData() {
     );
     console.log("Connected to MongoDB");
 
-    // Step 1: Initialize device attributes
-    console.log("\n=== Initializing device attributes ===");
+    // Шаг 1: атрибуты (справочник) → карта code → _id
+    console.log("\n=== Инициализация атрибутов ===");
     const attributeMap = new Map();
     for (const attributeData of initialDeviceAttributes) {
-      const existingAttribute = await DeviceAttribute.findOne({
-        name: attributeData.name,
+      // Ищем по code ИЛИ name: на существующих БД у deviceattributes есть
+      // устаревший unique-индекс name_1, а каталог уже частично наполнен
+      // (через UI) — совпадение по коду не поймает запись с тем же именем,
+      // и insert упал бы на дубликате name. Записи не модифицируем.
+      let attribute = await DeviceAttribute.findOne({
+        $or: [{ code: attributeData.code }, { name: attributeData.name }],
       });
-      if (!existingAttribute) {
-        const attribute = new DeviceAttribute(attributeData);
-        await attribute.save();
-        attributeMap.set(attribute.name, attribute._id);
-        console.log(`✓ Created attribute: ${attributeData.label}`);
+      if (!attribute) {
+        attribute = await new DeviceAttribute(attributeData).save();
+        console.log(`✓ Создан атрибут: ${attributeData.name} (${attributeData.code})`);
       } else {
-        attributeMap.set(existingAttribute.name, existingAttribute._id);
-        console.log(`- Attribute already exists: ${attributeData.label}`);
+        console.log(`- Атрибут уже существует: ${attributeData.name} (${attribute.code})`);
       }
+      // Ключ карты — НАШ канонический code, чтобы привязки типов резолвились
+      // независимо от кода существующей записи.
+      attributeMap.set(attributeData.code, attribute._id);
     }
 
-    // Step 2: Initialize device types with attributes
-    console.log("\n=== Initializing device types ===");
+    // Шаг 2: типы устройств → карта name → _id. Запоминаем, какие типы СОЗДАНЫ
+    // сейчас — только им навесим type-specific атрибуты (шаг 3a).
+    console.log("\n=== Инициализация типов устройств ===");
+    const typeMap = new Map();
+    const createdTypeNames = new Set();
     for (const deviceTypeData of initialDeviceTypes) {
-      const existingDeviceType = await DeviceType.findOne({
-        name: deviceTypeData.name,
-      });
-
-      if (!existingDeviceType) {
-        // Get attributes for this device type
-        const attributesConfig =
-          deviceTypeAttributes[deviceTypeData.name] || [];
-        const attributes = attributesConfig
-          .map((attrConfig) => ({
-            attributeId: attributeMap.get(attrConfig.name),
-            isRequired: attrConfig.isRequired,
-            displayOrder: attrConfig.displayOrder,
-          }))
-          .filter((attr) => attr.attributeId); // Filter out undefined attributeIds
-
-        const deviceType = new DeviceType({
-          ...deviceTypeData,
-          attributes,
-        });
-        await deviceType.save();
-        console.log(
-          `✓ Created device type: ${deviceTypeData.name} (${attributes.length} attributes)`,
-        );
+      let deviceType = await DeviceType.findOne({ name: deviceTypeData.name });
+      if (!deviceType) {
+        deviceType = await new DeviceType(deviceTypeData).save();
+        createdTypeNames.add(deviceType.name);
+        console.log(`✓ Создан тип: ${deviceTypeData.name}`);
       } else {
-        console.log(`- Device type already exists: ${deviceTypeData.name}`);
+        console.log(`- Тип уже существует: ${deviceTypeData.name}`);
       }
+      typeMap.set(deviceType.name, deviceType._id);
     }
 
-    // Step 3: Initialize vendors
-    console.log("\n=== Initializing vendors ===");
+    // Шаг 3a: type-specific атрибуты — только для ТОЛЬКО ЧТО созданных типов.
+    // Уже существовавшие типы не трогаем: у них может быть свой настроенный
+    // набор, и навязывание нашего дало бы дубли на наполненной БД.
+    console.log("\n=== Привязка type-specific атрибутов (только для новых типов) ===");
+    for (const deviceTypeData of initialDeviceTypes) {
+      if (!createdTypeNames.has(deviceTypeData.name)) continue;
+      const deviceTypeId = typeMap.get(deviceTypeData.name);
+      const typeSpecific = deviceTypeAttributes[deviceTypeData.name] || [];
+      for (const attrConfig of typeSpecific) {
+        const attributeId = attributeMap.get(attrConfig.code);
+        if (!attributeId) {
+          console.log(`  ! Пропущен неизвестный атрибут: ${attrConfig.code}`);
+          continue;
+        }
+        const existingLink = await DeviceTypeAttribute.findOne({
+          deviceTypeId,
+          attributeId,
+        });
+        if (!existingLink) {
+          await new DeviceTypeAttribute({
+            deviceTypeId,
+            attributeId,
+            required: attrConfig.required,
+            order: attrConfig.order,
+          }).save();
+        }
+      }
+      console.log(`✓ ${deviceTypeData.name}: type-specific привязаны`);
+    }
+
+    // Шаг 3b: «Год выпуска» — обязателен для КАЖДОГО типа в БД (не только для
+    // определённых сидом). Это выполняет требование «год производства везде»,
+    // включая уже существующие в базе типы. Показываем В КОНЦЕ списка
+    // (order = YEAR_DISPLAY_ORDER). Существующие связи апгрейдим (required + order).
+    console.log("\n=== «Год выпуска» — обязателен и в конце списка для ВСЕХ типов ===");
+    const yearAttrId = attributeMap.get(MANUFACTURE_YEAR_CODE);
+    const allTypes = await DeviceType.find({});
+    let yearAdded = 0;
+    let yearFixed = 0;
+    for (const t of allTypes) {
+      const link = await DeviceTypeAttribute.findOne({
+        deviceTypeId: t._id,
+        attributeId: yearAttrId,
+      });
+      if (!link) {
+        await new DeviceTypeAttribute({
+          deviceTypeId: t._id,
+          attributeId: yearAttrId,
+          required: true,
+          order: YEAR_DISPLAY_ORDER,
+        }).save();
+        yearAdded += 1;
+      } else {
+        let changed = false;
+        if (!link.required) {
+          link.required = true;
+          changed = true;
+        }
+        if (link.order !== YEAR_DISPLAY_ORDER) {
+          link.order = YEAR_DISPLAY_ORDER;
+          changed = true;
+        }
+        if (changed) {
+          await link.save();
+          yearFixed += 1;
+        }
+      }
+    }
+    console.log(
+      `✓ Типов всего: ${allTypes.length}; «Год выпуска» добавлен: ${yearAdded}, обновлено (required/order): ${yearFixed}`,
+    );
+
+    // Шаг 4: вендоры. Перед созданием — нормализация старого написания "Mikrotik".
+    console.log("\n=== Инициализация вендоров ===");
+    const legacyMikrotik = await Vendor.findOne({ name: "Mikrotik" });
+    const canonicalMikrotik = await Vendor.findOne({
+      name: MIKROTIK_VENDOR_NAME,
+    });
+    if (legacyMikrotik && !canonicalMikrotik) {
+      legacyMikrotik.name = MIKROTIK_VENDOR_NAME;
+      legacyMikrotik.isMikrotikManagementEnabled = true;
+      await legacyMikrotik.save();
+      console.log(`✓ Вендор "Mikrotik" переименован в "${MIKROTIK_VENDOR_NAME}" и включён в управление`);
+    }
+
     for (const vendorData of initialVendors) {
       const existingVendor = await Vendor.findOne({ name: vendorData.name });
       if (!existingVendor) {
-        const vendor = new Vendor(vendorData);
-        await vendor.save();
-        console.log(`✓ Created vendor: ${vendorData.name}`);
+        await new Vendor(vendorData).save();
+        console.log(`✓ Создан вендор: ${vendorData.name}`);
       } else {
-        console.log(`- Vendor already exists: ${vendorData.name}`);
+        console.log(`- Вендор уже существует: ${vendorData.name}`);
       }
     }
 
-    console.log("\n✅ Inventory data initialization completed successfully!");
+    console.log("\n✅ Инициализация справочников инвентаря завершена!");
   } catch (error) {
-    console.error("❌ Error initializing inventory data:", error);
+    console.error("❌ Ошибка инициализации данных инвентаря:", error);
   } finally {
     await mongoose.disconnect();
     console.log("Disconnected from MongoDB");
   }
 }
 
-// Run the script if called directly
+// Запуск при прямом вызове скрипта
 if (require.main === module) {
   initializeInventoryData();
 }
 
-module.exports = { initializeInventoryData };
+module.exports = {
+  initializeInventoryData,
+  initialDeviceAttributes,
+  MIKROTIK_VENDOR_NAME,
+  MANUFACTURE_YEAR_CODE,
+};

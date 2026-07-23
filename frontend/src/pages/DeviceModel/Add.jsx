@@ -28,7 +28,7 @@ const AddDeviceModelPage = ({ presetFrom }) => {
 export default AddDeviceModelPage;
 
 export async function loader() {
-  document.title = "Добавить модель устройства";
+  document.title = "Новая модель устройства";
 
   const { token } = getLocalStorageData();
 

@@ -63,8 +63,9 @@ const CloseTicket = ({ scheduledWorks }) => {
     closeModal();
   };
 
-  const uncheckedChecklistItems =
-    ticket.checklist?.filter((item) => item.checked === false).length > 0;
+  const uncheckedMandatoryItems =
+    ticket.checklist?.filter((item) => item.mandatory && !item.checked).length >
+    0;
 
   return (
     <>
@@ -107,13 +108,12 @@ const CloseTicket = ({ scheduledWorks }) => {
                 <Modal.Title>Закрыть заявку</Modal.Title>
               </Modal.Header>
               <Form onSubmit={submitHandler}>
-                {uncheckedChecklistItems && (
+                {uncheckedMandatoryItems && (
                   <>
                     <Modal.Body>
                       <Alert variant="warning">
-                        В чеклисте есть неотмеченные пункты. Убедитесь, что по
-                        данной заявке выполнены все задачи, прежде чем закрыть
-                        её.
+                        В чек-листе есть невыполненные обязательные пункты.
+                        Отметьте их, прежде чем закрыть заявку.
                       </Alert>
                     </Modal.Body>
                     <Modal.Footer>
@@ -122,12 +122,12 @@ const CloseTicket = ({ scheduledWorks }) => {
                         disabled={fetcher.state !== "idle"}
                         onClick={closeModal}
                       >
-                        Закрыть
+                        Отмена
                       </Button>
                     </Modal.Footer>
                   </>
                 )}
-                {!uncheckedChecklistItems && (
+                {!uncheckedMandatoryItems && (
                   <>
                     <Modal.Body>
                       <Form.Group className="mb-3">
@@ -163,7 +163,7 @@ const CloseTicket = ({ scheduledWorks }) => {
                         disabled={fetcher.state !== "idle"}
                         onClick={closeModal}
                       >
-                        Закрыть
+                        Отмена
                       </Button>
                       <Button type="submit" disabled={fetcher.state !== "idle"}>
                         Подтвердить

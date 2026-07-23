@@ -1,7 +1,7 @@
 import { useContext } from "react";
 
 import AttributeForm from "../../components/DeviceType/AttributeForm";
-import Forbidden from "../../components/Error/403";
+import InlineForbidden from "../../components/Error/InlineForbidden";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
 
@@ -10,7 +10,7 @@ const AttributeAddPage = () => {
   const { canUseInventoryModule, canManageClientDevices } = permissions;
 
   if (!canUseInventoryModule || !canManageClientDevices) {
-    return <Forbidden />;
+    return <InlineForbidden right="Управление устройствами" />;
   }
   return <AttributeForm title="Добавить атрибут" />;
 };

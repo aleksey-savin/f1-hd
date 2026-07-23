@@ -47,7 +47,7 @@ function ImageUpload({ companyId, setProfileImage }) {
 
     // Validate file size
     if (file.size > 5 * 1024 * 1024) {
-      setError("Размер файла не должен превышать 5Мб");
+      setError("Размер файла не должен превышать 5 МБ");
       return;
     }
 
@@ -176,7 +176,7 @@ function ImageUpload({ companyId, setProfileImage }) {
             accept="image/*"
             onChange={handleFileSelect}
           />
-          <small className="text-muted">Максимальный размер файла: 5Мб</small>
+          <small className="text-muted">Максимальный размер файла: 5 МБ</small>
           <br />
           <small className="text-muted">
             Поддерживаемые форматы: JPG, PNG, GIF
@@ -209,7 +209,7 @@ function ImageUpload({ companyId, setProfileImage }) {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={handleClose}>
-            Закрыть
+            Отмена
           </Button>
           <Button onClick={handleUpload} disabled={!imgSrc || !crop || loading}>
             {loading ? (

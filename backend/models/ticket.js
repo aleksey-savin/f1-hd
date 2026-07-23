@@ -276,6 +276,7 @@ const ticketSchema = new Schema(
         description: String,
         mandatory: Boolean,
         checked: Boolean,
+        checkedAt: Date,
         checkedBy: {
           _id: {
             type: Schema.Types.ObjectId,
@@ -430,7 +431,37 @@ ticketSchema.index({ isClosed: 1, deadline: 1 }); // For open tickets with deadl
 ticketSchema.index({ state: 1, createdAt: -1 }); // For state-based date sorting
 ticketSchema.index({ "company._id": 1, isClosed: 1, createdAt: -1 }); // For company tickets
 ticketSchema.index({ "responsibles._id": 1, isClosed: 1, createdAt: -1 }); // For user's tickets
+ticketSchema.index({ isClosed: 1, finishedAt: -1, _id: -1 }); // Архив: листинг закрытых по дате закрытия (_id — тай-брейкер сортировки, чтобы sort шёл по индексу)
 ticketSchema.index({ "applicant._id": 1, createdAt: -1 }); // For latest-ticket-per-applicant (legacy embedded applicant)
+
+// «Последняя активность» пользователя = дата его последней созданной заявки.
+// Денормализуем её на User.lastActivityAt при СОЗДАНИИ заявки, чтобы список
+// «Пользователи» сортировал/фильтровал по активности без агрегата по коллекции
+// tickets. Хук централизует обновление по всем путям создания заявки (форма,
+// e-mail, регламент, Mikrotik). Пометку «новая» ставим в pre-save (в post-save
+// isNew уже сброшен), а обновление User делаем fire-and-forget: его сбой не
+// должен ронять создание заявки.
+ticketSchema.pre("save", function markTicketAsNew(next) {
+  this.$locals.wasNew = this.isNew;
+  next();
+});
+ticketSchema.post("save", function touchApplicantActivity(doc) {
+  if (!doc.$locals || !doc.$locals.wasNew) return;
+  const applicantId = doc.applicantId || (doc.applicant && doc.applicant._id);
+  if (!applicantId) return;
+  mongoose
+    .model("User")
+    .updateOne(
+      { _id: applicantId },
+      { $set: { lastActivityAt: doc.createdAt || new Date() } },
+    )
+    .catch((error) =>
+      console.warn(
+        "lastActivityAt пользователя не обновлён:",
+        error?.message || error,
+      ),
+    );
+});
 
 const Ticket = mongoose.model("Ticket", ticketSchema);
 

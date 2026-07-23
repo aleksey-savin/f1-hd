@@ -265,10 +265,10 @@ const LocationList = () => {
           >
             <RiFilter3Line />
           </Button>
-          <Button asChild title="Добавить расположение">
+          <Button asChild title="Новое расположение">
             <Link to={addTo} onClick={offcanvas.setShow}>
               <RiAddFill />
-              <span className="tw:max-sm:hidden">Добавить расположение</span>
+              <span className="tw:max-sm:hidden">Новое расположение</span>
             </Link>
           </Button>
         </div>
@@ -322,7 +322,7 @@ const LocationList = () => {
             </p>
             <Button asChild className="tw:mt-3">
               <Link to={addTo} onClick={offcanvas.setShow}>
-                <RiAddFill /> Добавить расположение
+                <RiAddFill /> Новое расположение
               </Link>
             </Button>
           </div>

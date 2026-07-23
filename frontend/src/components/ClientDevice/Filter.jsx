@@ -60,6 +60,24 @@ const ClientDeviceFilter = () => {
       ),
     [items],
   );
+  // Пользователи, за которыми закреплена техника (имя — не entity.name)
+  const owners = useMemo(() => {
+    const map = new Map();
+    items.forEach((item) => {
+      const user = item.userId;
+      const id = user?._id?.toString();
+      if (id && !map.has(id)) {
+        map.set(id, {
+          _id: id,
+          name:
+            `${user.lastName || ""} ${user.firstName || ""}`.trim() ||
+            user.email ||
+            "—",
+        });
+      }
+    });
+    return [...map.values()];
+  }, [items]);
   // Статусы — фиксированный справочник, нормализуем к виду {_id, name}
   const statuses = useMemo(
     () => STATUS_OPTIONS.map((s) => ({ _id: s.value, name: s.label })),
@@ -85,6 +103,7 @@ const ClientDeviceFilter = () => {
           )?.toString() === id,
       ).length,
     status: (id) => list.filter((d) => d.status === id).length,
+    user: (id) => list.filter((d) => d.userId?._id?.toString() === id).length,
   };
 
   // Сортировка: отмеченные сверху, далее по алфавиту
@@ -113,6 +132,10 @@ const ClientDeviceFilter = () => {
   const sortedLocations = useMemo(
     () => sortByChecked(filterStore.locationOptions ?? [], filterStore.locations),
     [filterStore.locationOptions, filterStore.locations],
+  );
+  const sortedOwners = useMemo(
+    () => sortByChecked(owners, filterStore.users),
+    [owners, filterStore.users],
   );
 
   // Простые клиентские фильтры (vendors / deviceTypes / statuses / locations)
@@ -240,6 +263,25 @@ const ClientDeviceFilter = () => {
               ) : (
                 <span className="text-secondary">Нет локаций</span>
               )}
+            </Accordion.Body>
+          </Accordion.Item>
+        </Accordion>
+      )}
+
+      {/* Закреплено за пользователем (ссылки с карточек: ?user=) */}
+      {owners.length > 0 && (
+        <Accordion className="py-2" defaultActiveKey="0">
+          <Accordion.Item eventKey="0">
+            <AccordionHeader>
+              {sectionTitle("Закреплено за", filterStore.users?.length)}
+            </AccordionHeader>
+            <Accordion.Body style={bodyStyle}>
+              {renderChecks(sortedOwners, {
+                selected: filterStore.users,
+                onChange: (id) => simpleToggle("users", id),
+                countFn: countBy.user,
+                idPrefix: "device-owner",
+              })}
             </Accordion.Body>
           </Accordion.Item>
         </Accordion>

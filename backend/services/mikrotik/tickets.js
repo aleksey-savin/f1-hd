@@ -49,7 +49,12 @@ const resolveCompany = async (record) => {
   }
   if (!companyId) return undefined;
 
-  const company = await Company.findById(companyId).select("alias");
+  // Отключённую компанию не подставляем — сработает фолбэк на компанию
+  // сервисного аккаунта-автора (applicantCompany)
+  const company = await Company.findOne({
+    _id: companyId,
+    isActive: { $ne: false },
+  }).select("alias");
   if (!company) return undefined;
   return { _id: company._id, alias: company.alias };
 };

@@ -98,7 +98,7 @@ const BackToWork = ({ ticket }) => {
                     onClick={closeModal}
                     disabled={fetcher.state !== "idle"}
                   >
-                    Закрыть
+                    Отмена
                   </Button>
                   <Button type="submit" disabled={fetcher.state !== "idle"}>
                     Подтвердить

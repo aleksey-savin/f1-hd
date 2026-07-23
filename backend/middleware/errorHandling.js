@@ -22,6 +22,26 @@ class AppError extends Error {
 
 const errorResponse = (error, req, res, next) => {
   try {
+    // Кривой ObjectId в URL (CastError по пути "_id") — это «не найдено», а не
+    // сбой сервера: страницы сущностей по битым/усечённым ссылкам должны
+    // получать 404, как и по несуществующим. Cast-ошибка любого другого поля
+    // (id в теле или фильтре) — некорректный запрос, 400. Контроллеры
+    // оборачивают исходную ошибку в AppError(…, 500, true, error) — поэтому
+    // CastError ищем и в originalError.
+    const castError = [error, error?.originalError].find(
+      (candidate) => candidate?.name === "CastError",
+    );
+    if (castError) {
+      const isBrokenIdInUrl =
+        castError.path === "_id" && castError.kind === "ObjectId";
+      error = new AppError(
+        isBrokenIdInUrl ? "Not found" : "Invalid request parameter",
+        isBrokenIdInUrl ? 404 : 400,
+        true,
+        castError,
+      );
+    }
+
     // Create a standardized error
     const standardError =
       error instanceof AppError

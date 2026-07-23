@@ -11,11 +11,16 @@ const DAYS_OF_WEEK = [
   "Sunday",
 ];
 
+// Возвращает isOpened/unknown и две формы фразы: `detail` — короткая, для
+// tw-строк (WorkStatusText: слово «открыто» рисует компонент, здесь только
+// остаток); `verbose` — полная, для легаси-индикатора (WorkingStatusIndicator).
 export const getWorkingStatus = (schedule) => {
   if (hasOnlyId(schedule) || schedule === undefined || schedule === null) {
     return {
       isOpened: false,
-      verbose: "расписание не указано",
+      unknown: true,
+      detail: "график не указан",
+      verbose: "график не указан",
     };
   }
 
@@ -35,6 +40,7 @@ export const getWorkingStatus = (schedule) => {
   if (todaySchedule.is24hours) {
     return {
       isOpened: true,
+      detail: "круглосуточно",
       verbose: "работает круглосуточно",
     };
   }
@@ -66,6 +72,7 @@ function getCurrentStatus(
     const minutesUntilOpen = startTime - currentTime;
     return {
       isOpened: false,
+      detail: `откроется через ${formatDuration(minutesUntilOpen)}`,
       verbose: `откроется через ${formatDuration(minutesUntilOpen)}`,
     };
   }
@@ -74,6 +81,7 @@ function getCurrentStatus(
     const minutesUntilClose = endTime - currentTime;
     return {
       isOpened: true,
+      detail: `ещё ${formatDuration(minutesUntilClose)}`,
       verbose: `до закрытия ${formatDuration(minutesUntilClose)}`,
     };
   }
@@ -100,6 +108,7 @@ function getNextOpeningTime(schedule, currentDay, now, timezone) {
 
       return {
         isOpened: false,
+        detail: `откроется через ${formatDuration(minutesUntilOpen)}`,
         verbose: `откроется через ${formatDuration(minutesUntilOpen)}`,
       };
     }
@@ -109,6 +118,7 @@ function getNextOpeningTime(schedule, currentDay, now, timezone) {
 
   return {
     isOpened: false,
+    detail: "ближайшее открытие не найдено",
     verbose: "информация о следующем рабочем дне не найдена",
   };
 }

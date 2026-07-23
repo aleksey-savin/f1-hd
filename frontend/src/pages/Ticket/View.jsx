@@ -6,6 +6,7 @@ import {
   useNavigation,
   Outlet,
   useNavigate,
+  useFetcher,
   useFetchers,
   useRevalidator,
 } from "react-router";
@@ -46,7 +47,7 @@ import ApplicantModal from "../../components/Ticket/View/ApplicantModal";
 import CompanyModal from "../../components/Ticket/View/CompanyModal";
 import DescriptionCard from "../../components/Ticket/View/DescriptionCard";
 import AiAssistant from "../../components/Ticket/View/AiAssistant";
-import EnvironmentViewer from "../../components/Ticket/View/EnvironmentViewer";
+import Environment from "../../components/app/Environment";
 import AiSpeechBadge from "../../UI/AiSpeechBadge";
 import AiCategoryBadge from "../../UI/AiCategoryBadge";
 import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
@@ -59,9 +60,8 @@ import BackToWork from "../../components/Ticket/Actions/BackToWork";
 import JoinResponsibles from "../../components/Ticket/Actions/JoinResponsibles";
 import Pro32Connect from "../../components/Integrations/Pro32Connect";
 
-import Error from "../Error";
 
-import ChecklistItem from "../../components/Ticket/View/ChecklistItem";
+import Checklist from "../../components/app/Checklist";
 import ActionDropdown from "../../components/Ticket/View/ActionsDropDown";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
@@ -113,6 +113,7 @@ const ViewTicket = () => {
 
   const { _id: userId, permissions, isEndUser } = useContext(AuthedUserContext);
   const { canAvoidWorks, canUseTimeTrackingModule } = permissions;
+  const checklistFetcher = useFetcher();
 
   const isOverdue =
     !!ticket?.deadline &&
@@ -482,14 +483,30 @@ const ViewTicket = () => {
                       </h6>
                       <Row className="mb-3">
                         <Col>
-                          {ticket.checklist.map((item) => (
-                            <ChecklistItem
-                              key={item._id}
-                              item={item}
-                              ticketResponsibles={ticket.responsibles}
-                              ticketNum={ticket.num}
-                            />
-                          ))}
+                          <Checklist
+                            mode="run"
+                            items={ticket.checklist ?? []}
+                            canCheck={ticket.responsibles
+                              ?.map((user) => user._id.toString())
+                              .includes(userId)}
+                            onToggle={(item, checked) =>
+                              checklistFetcher.submit(
+                                {
+                                  intent: "updateChecklistItem",
+                                  itemId: item._id,
+                                  itemDescription: item.description,
+                                  itemChecked: checked,
+                                  ticketNum: ticket.num,
+                                },
+                                {
+                                  method: "POST",
+                                  action: `/tickets/${ticket.num}`,
+                                },
+                              )
+                            }
+                            mandatoryGuard
+                          />
+
                         </Col>
                       </Row>
                     </Tab>
@@ -497,7 +514,7 @@ const ViewTicket = () => {
                       modules.inventory?.isActive &&
                       permissions.canUseInventoryModule && (
                         <Tab eventKey="environment" title="Окружение">
-                          <EnvironmentViewer
+                          <Environment
                             userId={ticket.applicant?._id}
                             deviceId={ticket.relatedClientDeviceId}
                           />
@@ -670,7 +687,6 @@ const ViewTicket = () => {
           </Row>
         </Transitions>
       )}
-      {data.error && <Error error={data} />}
       {routerState === "loading" && (
         <Transitions>
           <Spinner />
@@ -710,95 +726,91 @@ const ViewTicket = () => {
 export default ViewTicket;
 
 export async function loader({ params }) {
-  try {
-    document.title = `ЗАЯВКА ${params.ticketNum}`;
+  document.title = `Заявка ${params.ticketNum}`;
 
-    const { token, userId } = getLocalStorageData();
+  const { token, userId } = getLocalStorageData();
 
-    const ticketResponse = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${params.ticketNum}`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
+  const ticketResponse = await fetch(
+    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${params.ticketNum}`,
+    {
+      headers: {
+        Authorization: "Bearer " + token,
       },
-    );
+    },
+  );
 
-    if (!ticketResponse.ok) {
-      throw ticketResponse;
-    }
-
-    const ticketData = await ticketResponse.json();
-
-    const responsiblesResponse = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
-
-    if (!responsiblesResponse.ok) {
-      throw responsiblesResponse;
-    }
-
-    const openedTicketsResponse = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
-
-    if (!openedTicketsResponse.ok) {
-      throw openedTicketsResponse;
-    }
-
-    const openedTickets = await openedTicketsResponse.json();
-
-    const additionalDataResponse = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/works/additional-data/${params.ticketNum}`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
-
-    if (!additionalDataResponse.ok) {
-      throw additionalDataResponse;
-    }
-
-    const additionalData = await additionalDataResponse.json();
-
-    return {
-      ...additionalData,
-      ticketData: ticketData,
-      responsiblesData: await responsiblesResponse.json(),
-      otherCompanyTickets: openedTickets.tickets.filter((ticket) => {
-        const ticketCategory = ticket.categoryId
-          ? ticket.categoryId.toString()
-          : null;
-        // У заявки может не быть компании (легаси системных заявок) — такие в
-        // «другие заявки компании» не попадают, и сравнение undefined ===
-        // undefined не должно склеивать две заявки без компании.
-        const currentCompanyId = ticketData.ticket?.company?._id;
-        return (
-          currentCompanyId &&
-          ticket?.company?._id?.toString() === currentCompanyId.toString() &&
-          ticket.num !== ticketData.ticket.num &&
-          ticket.responsibles
-            .map((user) => user._id.toString())
-            .includes(userId) &&
-          ticketCategory === ticketData.ticket.categoryId?.toString()
-        );
-      }),
-    };
-  } catch (error) {
-    console.log(error);
+  if (!ticketResponse.ok) {
+    throw ticketResponse;
   }
+
+  const ticketData = await ticketResponse.json();
+
+  const responsiblesResponse = await fetch(
+    `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
+    {
+      headers: {
+        Authorization: "Bearer " + token,
+      },
+    },
+  );
+
+  if (!responsiblesResponse.ok) {
+    throw responsiblesResponse;
+  }
+
+  const openedTicketsResponse = await fetch(
+    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
+    {
+      headers: {
+        Authorization: "Bearer " + token,
+      },
+    },
+  );
+
+  if (!openedTicketsResponse.ok) {
+    throw openedTicketsResponse;
+  }
+
+  const openedTickets = await openedTicketsResponse.json();
+
+  const additionalDataResponse = await fetch(
+    `${import.meta.env.VITE_API_ADDRESS}/api/works/additional-data/${params.ticketNum}`,
+    {
+      headers: {
+        Authorization: "Bearer " + token,
+      },
+    },
+  );
+
+  if (!additionalDataResponse.ok) {
+    throw additionalDataResponse;
+  }
+
+  const additionalData = await additionalDataResponse.json();
+
+  return {
+    ...additionalData,
+    ticketData: ticketData,
+    responsiblesData: await responsiblesResponse.json(),
+    otherCompanyTickets: openedTickets.tickets.filter((ticket) => {
+      const ticketCategory = ticket.categoryId
+        ? ticket.categoryId.toString()
+        : null;
+      // У заявки может не быть компании (легаси системных заявок) — такие в
+      // «другие заявки компании» не попадают, и сравнение undefined ===
+      // undefined не должно склеивать две заявки без компании.
+      const currentCompanyId = ticketData.ticket?.company?._id;
+      return (
+        currentCompanyId &&
+        ticket?.company?._id?.toString() === currentCompanyId.toString() &&
+        ticket.num !== ticketData.ticket.num &&
+        ticket.responsibles
+          .map((user) => user._id.toString())
+          .includes(userId) &&
+        ticketCategory === ticketData.ticket.categoryId?.toString()
+      );
+    }),
+  };
 }
 
 export async function action({ request }) {

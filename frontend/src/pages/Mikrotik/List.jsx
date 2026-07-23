@@ -80,7 +80,7 @@ const MikrotikDevices = () => {
 export default MikrotikDevices;
 
 export async function loader() {
-  document.title = "МОНИТОРИНГ MIKROTIK";
+  document.title = "Мониторинг Mikrotik";
 
   return null;
 }

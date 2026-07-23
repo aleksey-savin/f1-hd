@@ -46,12 +46,17 @@ const computeDelta = (current, baseline) => {
 /**
  * Статистика компании для карточек на странице компании.
  *
- * Сравнения «этот месяц vs среднее за год» считаются по одинаковому отрезку
- * месяца: берём первые N дней (N = сегодняшнее число) текущего месяца и
- * сравниваем со средним за первые N дней каждого из 12 предыдущих месяцев —
- * иначе неполный текущий месяц всегда выглядел бы хуже полных.
+ * Сравнения «месяц vs среднее за год» считаются по одинаковому отрезку месяца:
+ * берём первые N дней выбранного месяца и сравниваем со средним за первые N
+ * дней каждого из 12 предыдущих месяцев — иначе неполный текущий месяц всегда
+ * выглядел бы хуже полных. Для текущего месяца N = сегодняшнее число, для
+ * прошлого (переключатель месяцев на карточке) — вся его длина.
+ *
+ * monthParam ("YYYY-MM", опционально) — прошлый месяц: считаются только
+ * tickets/time/period (пользователи и каналы от месяца не зависят и остаются
+ * от первичной загрузки).
  */
-const getCompanyStats = async (companyId) => {
+const getCompanyStats = async (companyId, monthParam = null) => {
   const exists = await Company.exists({ _id: companyId });
   if (!exists) {
     throw new AppError(`Company ${companyId} not found`, 404);
@@ -63,10 +68,25 @@ const getCompanyStats = async (companyId) => {
   const tz = resolveTimezone(preferences);
 
   const now = dayjs.tz(new Date(), tz);
-  const dayOfMonth = now.date(); // N — сколько дней месяца уже прошло
-  const monthStart = now.startOf("month");
-  const currentMonthKey = monthStart.format("YYYY-MM");
-  const rangeStart = monthStart.subtract(12, "month").toDate(); // 12 полных + текущий
+  const currentKey = now.format("YYYY-MM");
+  // Невалидный или будущий месяц молча заменяем текущим ("YYYY-MM"
+  // сравнивается лексикографически корректно).
+  const requestedKey =
+    typeof monthParam === "string" &&
+    /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) &&
+    monthParam <= currentKey
+      ? monthParam
+      : currentKey;
+  const isCurrent = requestedKey === currentKey;
+
+  const monthStart = isCurrent
+    ? now.startOf("month")
+    : dayjs.tz(`${requestedKey}-01`, tz).startOf("month");
+  const selectedKey = monthStart.format("YYYY-MM");
+  // N дней окна: у текущего месяца — прошедшие, у прошлого — весь месяц
+  const dayOfMonth = isCurrent ? now.date() : monthStart.daysInMonth();
+  const rangeStart = monthStart.subtract(12, "month").toDate(); // 12 полных + выбранный
+  const rangeEnd = monthStart.add(1, "month").toDate(); // месяцы после выбранного не в счёт
   const ninetyDaysAgo = now.subtract(90, "day").toDate();
   const twelveMonthsAgo = now.subtract(12, "month").toDate();
 
@@ -76,7 +96,7 @@ const getCompanyStats = async (companyId) => {
     let current = 0;
     let baselineSum = 0;
     for (const bucket of buckets) {
-      if (bucket._id === currentMonthKey) {
+      if (bucket._id === selectedKey) {
         current = bucket[valueKey];
       } else {
         baselineSum += bucket[valueKey];
@@ -93,7 +113,7 @@ const getCompanyStats = async (companyId) => {
         {
           $match: {
             "company._id": companyObjectId,
-            createdAt: { $gte: rangeStart },
+            createdAt: { $gte: rangeStart, $lt: rangeEnd },
           },
         },
         {
@@ -119,7 +139,7 @@ const getCompanyStats = async (companyId) => {
           $match: {
             company: companyObjectId,
             startedAt: { $ne: null },
-            finishedAt: { $ne: null, $gte: rangeStart },
+            finishedAt: { $ne: null, $gte: rangeStart, $lt: rangeEnd },
           },
         },
         {
@@ -154,41 +174,66 @@ const getCompanyStats = async (companyId) => {
         },
       ]),
 
-      // Каналы связи (Ticket.source) за последние 12 месяцев.
-      Ticket.aggregate([
-        {
-          $match: {
-            "company._id": companyObjectId,
-            createdAt: { $gte: twelveMonthsAgo },
-          },
-        },
-        { $group: { _id: "$source", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]),
+      // Каналы связи (Ticket.source) за последние 12 месяцев — от месяца не
+      // зависят, при листании в прошлое не пересчитываются.
+      isCurrent
+        ? Ticket.aggregate([
+            {
+              $match: {
+                "company._id": companyObjectId,
+                createdAt: { $gte: twelveMonthsAgo },
+              },
+            },
+            { $group: { _id: "$source", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+          ])
+        : Promise.resolve(null),
 
       // Все пользователи компании.
-      User.find({ "company._id": companyObjectId }).distinct("_id"),
+      isCurrent
+        ? User.find({ "company._id": companyObjectId }).distinct("_id")
+        : Promise.resolve(null),
 
       // Уникальные авторы заявок компании за 90 дней (modern + legacy applicant).
-      Ticket.aggregate([
-        {
-          $match: {
-            "company._id": companyObjectId,
-            createdAt: { $gte: ninetyDaysAgo },
-          },
-        },
-        { $group: { _id: { $ifNull: ["$applicantId", "$applicant._id"] } } },
-      ]),
+      isCurrent
+        ? Ticket.aggregate([
+            {
+              $match: {
+                "company._id": companyObjectId,
+                createdAt: { $gte: ninetyDaysAgo },
+              },
+            },
+            { $group: { _id: { $ifNull: ["$applicantId", "$applicant._id"] } } },
+          ])
+        : Promise.resolve(null),
     ]);
 
   const tickets = splitCurrentVsBaseline(ticketBuckets, "count");
 
-  const workCurrent = workBuckets.find((b) => b._id === currentMonthKey);
+  const workCurrent = workBuckets.find((b) => b._id === selectedKey);
   const time = {
     ...splitCurrentVsBaseline(workBuckets, "time"),
     onSite: { current: workCurrent?.onSiteTime || 0 },
     remote: { current: workCurrent?.remoteTime || 0 },
   };
+
+  const base = {
+    period: {
+      monthLabel: `${MONTHS_RU[monthStart.month()]} ${monthStart.year()}`,
+      monthKey: selectedKey,
+      isCurrent,
+      daysElapsed: dayOfMonth,
+      daysInMonth: monthStart.daysInMonth(),
+    },
+    tickets,
+    time,
+  };
+
+  // Прошлый месяц — только помесячная часть; пользователи/каналы остаются
+  // от первичной загрузки.
+  if (!isCurrent) {
+    return base;
+  }
 
   // Активные = есть заявка за 90 дней; пересекаем с пользователями компании.
   const companyUserIdSet = new Set(companyUserIds.map((id) => id.toString()));
@@ -212,17 +257,7 @@ const getCompanyStats = async (companyId) => {
     breakdown,
   };
 
-  return {
-    period: {
-      monthLabel: `${MONTHS_RU[now.month()]} ${now.year()}`,
-      daysElapsed: dayOfMonth,
-      daysInMonth: now.daysInMonth(),
-    },
-    tickets,
-    time,
-    users,
-    channels,
-  };
+  return { ...base, users, channels };
 };
 
 module.exports = { getCompanyStats };

@@ -685,6 +685,7 @@ exports.getAssignableUsers = async (req, res, next) => {
       const subIds = subs.map((s) => s._id);
       const employees = await User.find({
         isActive: true,
+        "company.isActive": { $ne: false },
         $or: [
           { subdivision: { $in: subIds } },
           { _id: { $in: Array.from(extraIds) } },
@@ -719,6 +720,7 @@ exports.getAssignableUsers = async (req, res, next) => {
     // 3) Без подразделения → все активные пользователи компании.
     const companyUsers = await User.find({
       isActive: true,
+      "company.isActive": { $ne: false },
       "company._id": location.company,
     }).select("firstName lastName email");
 
@@ -965,6 +967,275 @@ exports.getDeviceEnvironment = async (req, res, next) => {
     next(
       new AppError(
         `Failed to fetch environment for device ${req.params.deviceId}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Окружение КОМПАНИИ — вход виджета на её карточке: корневые расположения
+// (здания/склады) со счётчиками по всему поддереву. Дальше навигация идёт
+// обычным getLocationNode. Счёт поддеревьев — в памяти по одному запросу
+// локаций и одной агрегации устройств (без $graphLookup на каждый корень).
+exports.getCompanyEnvironment = async (req, res, next) => {
+  try {
+    const { companyId } = req.params;
+
+    const company = await Company.findById(companyId).select("alias");
+    if (!company) {
+      return next(new AppError(`Company with id ${companyId} not found`, 404));
+    }
+
+    const locations = await Location.find({
+      company: companyId,
+      isActive: true,
+    }).select("name type parent");
+
+    const countAgg = locations.length
+      ? await ClientDevice.aggregate([
+          {
+            $match: {
+              locationId: { $in: locations.map((l) => l._id) },
+              deletedAt: null,
+              parentDeviceId: null,
+            },
+          },
+          { $group: { _id: "$locationId", count: { $sum: 1 } } },
+        ])
+      : [];
+    const countMap = new Map(countAgg.map((c) => [String(c._id), c.count]));
+
+    const childrenMap = new Map();
+    locations.forEach((l) => {
+      if (!l.parent) return;
+      const key = String(l.parent);
+      if (!childrenMap.has(key)) childrenMap.set(key, []);
+      childrenMap.get(key).push(l);
+    });
+
+    // Корень = узел без родителя в наборе компании (повисшие ветки не теряем)
+    const ids = new Set(locations.map((l) => String(l._id)));
+    const roots = locations.filter(
+      (l) => !l.parent || !ids.has(String(l.parent)),
+    );
+
+    const TYPE_ORDER = { building: 0, storage: 1, floor: 2, room: 3, workplace: 4 };
+    const buildings = roots
+      .map((root) => {
+        let deviceTotal = 0;
+        const stack = [root];
+        while (stack.length) {
+          const node = stack.pop();
+          deviceTotal += countMap.get(String(node._id)) || 0;
+          (childrenMap.get(String(node._id)) || []).forEach((child) =>
+            stack.push(child),
+          );
+        }
+        return {
+          _id: root._id,
+          name: root.name,
+          type: root.type,
+          childCount: (childrenMap.get(String(root._id)) || []).length,
+          deviceTotal,
+        };
+      })
+      .sort(
+        (a, b) =>
+          (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9) ||
+          (a.name || "").localeCompare(b.name || "", "ru"),
+      );
+
+    res.status(200).json({
+      company: { _id: company._id, name: company.alias },
+      buildings,
+      deviceTotal: buildings.reduce((sum, b) => sum + b.deviceTotal, 0),
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch environment for company ${req.params.companyId}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+const TECH_TYPE_ORDER = {
+  building: 0,
+  floor: 1,
+  room: 2,
+  workplace: 3,
+  storage: 4,
+};
+
+// Плоский список техники КОМПАНИИ — вид «Список» секции «Техника» на её
+// карточке: устройства всех расположений компании + закреплённые лично за её
+// пользователями. Порядок — обходом иерархии расположений (здание → этаж →
+// помещение → РМ), техника читается «сверху вниз»; личная без расположения — в
+// конце. DTO строки = toEnvDevice, чтобы шторка устройства работала без
+// дозапроса.
+exports.getCompanyTech = async (req, res, next) => {
+  try {
+    const { companyId } = req.params;
+
+    const company = await Company.findById(companyId).select("alias");
+    if (!company) {
+      return next(new AppError(`Company with id ${companyId} not found`, 404));
+    }
+
+    const locations = await Location.find({
+      company: companyId,
+      isActive: true,
+    }).select("name type parent");
+    const companyUsers = await User.find({ company: companyId }).select("_id");
+
+    const devicesRaw = await ClientDevice.find({
+      deletedAt: null,
+      parentDeviceId: null,
+      $or: [
+        { locationId: { $in: locations.map((l) => l._id) } },
+        { userId: { $in: companyUsers.map((u) => u._id) } },
+      ],
+    }).populate(ENV_DEVICE_POPULATE);
+
+    const mikroMap = await buildMikrotikStatusMap(devicesRaw.map((d) => d._id));
+    const devices = devicesRaw.map((d) => toEnvDevice(d, null, mikroMap));
+
+    // Порядковый номер каждой локации при DFS-обходе леса компании
+    const childrenMap = new Map();
+    const ids = new Set(locations.map((l) => String(l._id)));
+    const roots = [];
+    locations.forEach((l) => {
+      const pid = l.parent ? String(l.parent) : null;
+      if (pid && ids.has(pid)) {
+        if (!childrenMap.has(pid)) childrenMap.set(pid, []);
+        childrenMap.get(pid).push(l);
+      } else {
+        roots.push(l);
+      }
+    });
+    const byTypeName = (a, b) =>
+      (TECH_TYPE_ORDER[a.type] ?? 9) - (TECH_TYPE_ORDER[b.type] ?? 9) ||
+      (a.name || "").localeCompare(b.name || "", "ru");
+    const locOrder = new Map();
+    const walk = (nodes) => {
+      [...nodes].sort(byTypeName).forEach((node) => {
+        locOrder.set(String(node._id), locOrder.size);
+        walk(childrenMap.get(String(node._id)) || []);
+      });
+    };
+    walk(roots);
+
+    devices.sort(
+      (a, b) =>
+        (locOrder.get(String(a.locationId)) ?? Infinity) -
+          (locOrder.get(String(b.locationId)) ?? Infinity) ||
+        (a.name || "").localeCompare(b.name || "", "ru"),
+    );
+
+    res.status(200).json({
+      company: { _id: company._id, name: company.alias },
+      devices,
+      total: devices.length,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch tech for company ${req.params.companyId}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Метка группы техники «уровнем выше» по типу родителя рабочего места.
+const PARENT_GROUP_LABEL = {
+  room: "В помещении",
+  floor: "На этаже",
+  building: "В здании",
+  storage: "На складе",
+};
+
+// Техника ПОЛЬЗОВАТЕЛЯ для секции «Техника» его карточки, тремя источниками:
+// закреплённая лично (★), техника его рабочего места и — уровнем выше — прямая
+// техника родителя РМ (общие принтеры/МФУ помещения). Группы собирает бэкенд:
+// «Личная и рабочее место» и «В помещении — X»; дубли (личное, стоящее на РМ)
+// не повторяются.
+exports.getUserTech = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId).select("firstName lastName");
+    if (!user) {
+      return next(new AppError(`User with id ${userId} not found`, 404));
+    }
+
+    const deviceFilter = { deletedAt: null, parentDeviceId: null };
+    const workplaces = await Location.getUserWorkplaces(userId);
+    const workplace = workplaces[0] || null;
+    const parent = workplace?.parent || null;
+
+    const ownRaw = await ClientDevice.find({
+      ...deviceFilter,
+      $or: [
+        { userId },
+        ...(workplace ? [{ locationId: workplace._id }] : []),
+      ],
+    }).populate(ENV_DEVICE_POPULATE);
+
+    const ownIds = new Set(ownRaw.map((d) => String(d._id)));
+    const parentRaw = parent
+      ? (
+          await ClientDevice.find({
+            ...deviceFilter,
+            locationId: parent._id,
+          }).populate(ENV_DEVICE_POPULATE)
+        ).filter((d) => !ownIds.has(String(d._id)))
+      : [];
+
+    const mikroMap = await buildMikrotikStatusMap(
+      [...ownRaw, ...parentRaw].map((d) => d._id),
+    );
+    const byName = (a, b) => (a.name || "").localeCompare(b.name || "", "ru");
+    const own = ownRaw.map((d) => toEnvDevice(d, userId, mikroMap)).sort(byName);
+    const nearby = parentRaw
+      .map((d) => toEnvDevice(d, userId, mikroMap))
+      .sort(byName);
+
+    const groups = [];
+    if (own.length) {
+      groups.push({
+        key: "own",
+        label: workplace ? "Личная и рабочее место" : "Закреплено лично",
+        devices: own,
+      });
+    }
+    if (nearby.length) {
+      groups.push({
+        key: "nearby",
+        label: `${PARENT_GROUP_LABEL[parent.type] || "Рядом"} — ${parent.name}`,
+        devices: nearby,
+      });
+    }
+
+    res.status(200).json({
+      user: { _id: user._id, firstName: user.firstName, lastName: user.lastName },
+      workplace: workplace
+        ? { _id: workplace._id, name: workplace.name }
+        : null,
+      groups,
+      total: own.length + nearby.length,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch tech for user ${req.params.userId}`,
         500,
         true,
         error,

@@ -46,7 +46,7 @@ const DeleteItem = ({ item, isButton = false, customDeleteMessage = "" }) => {
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={handleClose}>
-              Закрыть
+              Отмена
             </Button>
             <Button variant="danger" type="submit" name="intent" value="delete">
               <RiDeleteBinLine /> Удалить

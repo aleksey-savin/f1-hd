@@ -46,7 +46,7 @@ const SummaryReport = () => {
 export default SummaryReport;
 
 export async function loader() {
-  document.title = "ОТЧЁТ ПО РАБОТАМ";
+  document.title = "Отчёт по работам";
 
   const { token } = getLocalStorageData();
 

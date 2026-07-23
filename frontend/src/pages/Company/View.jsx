@@ -122,7 +122,7 @@ export async function loader({ params }) {
     servicePlansData = await servicePlansResponse.json();
   }
 
-  document.title = `${companyData?.company.alias}`;
+  document.title = `Просмотр ${companyData?.company.alias}`;
 
   return {
     company: companyData.company,
@@ -219,6 +219,34 @@ export async function action({ request }) {
     }
 
     return redirect("/companies");
+  }
+
+  if (intent === "toggle-active") {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/toggle-active/${id}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+      },
+    );
+
+    // 409 — гард «компании по умолчанию»: тело с message показывает тост карточки
+    if (response.status === 409) {
+      return response;
+    }
+
+    if (!response.ok) {
+      throw Response.json(
+        { message: "Не удалось изменить статус компании" },
+        { status: 500 },
+      );
+    }
+
+    // Остаёмся на карточке — loader перечитает свежий статус
+    return redirect(`/companies/${id}`);
   }
 
   if (intent === "addSubdivision") {

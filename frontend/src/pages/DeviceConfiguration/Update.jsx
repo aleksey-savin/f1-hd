@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import Form from "../../components/DeviceConfiguration/Form";
-import Forbidden from "../../components/Error/403";
+import InlineForbidden from "../../components/Error/InlineForbidden";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
 
@@ -11,9 +11,11 @@ const UpdateDeviceConfigurationPage = () => {
   return (
     <>
       {canUseInventoryModule && canManageClientDevices && (
-        <Form title="Редактировать конфигурацию" />
+        <Form title="Изменить конфигурацию" />
       )}
-      {(!canUseInventoryModule || !canManageClientDevices) && <Forbidden />}
+      {(!canUseInventoryModule || !canManageClientDevices) && (
+        <InlineForbidden right="Управление устройствами" />
+      )}
     </>
   );
 };
@@ -21,7 +23,7 @@ const UpdateDeviceConfigurationPage = () => {
 export default UpdateDeviceConfigurationPage;
 
 export async function loader({ params }) {
-  document.title = "Редактировать конфигурацию";
+  document.title = "Изменить конфигурацию";
 
   const { token } = getLocalStorageData();
 

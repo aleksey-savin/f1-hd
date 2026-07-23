@@ -27,6 +27,18 @@ const ticketTemplateSchema = new Schema(
         lastName: String,
       },
     ],
+    // Доступен всем сотрудникам (внутренним), помимо явного шеринга компаниям/юзерам.
+    allowAllStaff: {
+      type: Boolean,
+      default: false,
+    },
+    // Чек-лист-заготовка: копируется в чек-лист заявки при создании по шаблону.
+    checklist: [
+      {
+        description: String,
+        mandatory: Boolean,
+      },
+    ],
     createdBy: {
       _id: {
         type: Schema.Types.ObjectId,

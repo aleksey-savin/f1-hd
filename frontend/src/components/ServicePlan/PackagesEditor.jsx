@@ -24,7 +24,7 @@ const PackagesEditor = ({ packages, onChange }) => {
           Пакеты часов
         </span>
         <Button type="button" variant="outline" size="sm" onClick={add}>
-          <RiAddLine /> Добавить пакет
+          <RiAddLine /> Новый пакет
         </Button>
       </div>
       <div className="tw:grid tw:gap-2">

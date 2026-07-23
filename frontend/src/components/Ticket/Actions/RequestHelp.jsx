@@ -98,7 +98,7 @@ const RequestHelp = ({ ticket, responsibles }) => {
               onClick={closeRequestHelp}
               disabled={fetcher.state !== "idle"}
             >
-              Закрыть
+              Отмена
             </Button>
             <Button
               variant="primary"

@@ -86,7 +86,7 @@ const DeleteWork = ({ work }) => {
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={handleClose}>
-              Закрыть
+              Отмена
             </Button>
             <Button variant="danger" onClick={submitHandler}>
               <RiDeleteBinLine /> Удалить

@@ -10,7 +10,7 @@ export default AddTicketCategoryPage;
 export async function loader() {
   const { token } = getLocalStorageData();
 
-  document.title = "ДОБАВИТЬ КАТЕГОРИЮ ЗАЯВОК";
+  document.title = "Новая категория заявок";
 
   const initialPrefsResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,

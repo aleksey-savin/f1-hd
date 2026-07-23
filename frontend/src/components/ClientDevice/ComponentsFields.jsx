@@ -240,7 +240,7 @@ const ComponentsFields = ({
                     size="sm"
                     onClick={() => removeRow(index)}
                   >
-                    <RiDeleteBinLine /> Удалить комплектующее
+                    <RiDeleteBinLine /> Удалить комплектующую
                   </Button>
                 </div>
               </Accordion.Body>
@@ -250,7 +250,7 @@ const ComponentsFields = ({
       </Accordion>
 
       <Button variant="outline-secondary" size="sm" onClick={addRow}>
-        <RiAddLine /> Добавить комплектующее
+        <RiAddLine /> Новая комплектующая
       </Button>
     </div>
   );

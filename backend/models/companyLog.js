@@ -23,6 +23,16 @@ const companyLogSchema = new Schema(
       type: String,
       required: true,
     },
+    // Имя из Active Directory (шлёт AD-агент вместе с событием) — показывается
+    // в журнале и у несвязанных учёток, где системного пользователя ещё нет
+    firstName: {
+      type: String,
+      required: false,
+    },
+    lastName: {
+      type: String,
+      required: false,
+    },
     computerName: {
       type: String,
       required: false,

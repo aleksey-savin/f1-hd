@@ -8,7 +8,7 @@ const AddServicePlanPage = () => {
 export default AddServicePlanPage;
 
 export async function loader() {
-  document.title = "НОВАЯ УСЛУГА";
+  document.title = "Новая услуга";
 
   const { token } = getLocalStorageData();
 

@@ -2,141 +2,129 @@ import { create } from "zustand";
 
 import { getLocalStorageData } from "../../util/auth";
 
-const companyFilter = (state) => {
-  const originalList = state.originalList ? state.originalList : [];
-  return originalList
-    .filter((company) => {
-      if (state.responsibles?.length > 0) {
-        const isEqual = (a, b) => a === b;
-        return company.responsibles
-          .map((resp) => resp._id.toString())
-          .some((item2) =>
-            state.responsibles.some((item1) => isEqual(item1, item2)),
-          );
-      } else {
-        return true;
-      }
-    })
-    .filter((item) => {
-      if (state.searchTerm.length > 0) {
-        return [
-          item.alias,
-          item.fullTitle,
-          JSON.stringify(item.emailDomains),
-          JSON.stringify(item.phones),
-          JSON.stringify(item.responsibles),
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(state.searchTerm);
-      } else {
-        return true;
-      }
-    });
+// Стор списка компаний. Выборка клиентская (компаний десятки, страниц нет):
+// бэкенд отдаёт компактную проекцию со счётчиками (usersCount,
+// servicePlansCount), а фильтр, поиск и сортировка считаются здесь единым
+// пайплайном recompute() — иначе фильтрация теряла применённую сортировку.
+//
+// Ответственные в поддокументах исторически несут id пользователя в _id
+// (контроллер кладёт документы User целиком, и переданный _id становится
+// _id поддокумента) — берём любой заполненный вариант.
+export const getResponsibleId = (resp) => {
+  const value = resp?.id?._id ?? resp?.id ?? resp?._id;
+  return value ? String(value) : null;
 };
+
+const matchesResponsibles = (state, company) => {
+  const ids = (company.responsibles ?? [])
+    .map(getResponsibleId)
+    .filter(Boolean);
+
+  // «Мои» — сегмент-срез, работает поверх фасета ответственных
+  if (state.mineOnly && state.myId && !ids.includes(String(state.myId))) {
+    return false;
+  }
+
+  const selected = state.responsibles ?? [];
+  if (!selected.length && !state.noResponsible) return true;
+
+  const matchesSelected =
+    selected.length > 0 && ids.some((id) => selected.includes(id));
+  const matchesEmpty = state.noResponsible && ids.length === 0;
+  return matchesSelected || matchesEmpty;
+};
+
+const companyFilter = (state) =>
+  (state.originalList ?? []).filter(
+    (company) =>
+      matchesResponsibles(state, company) &&
+      (!state.onlyWithServices || (company.servicePlansCount ?? 0) > 0) &&
+      // «Только активные» (дефолт): отключённые видны лишь со снятым свитчем
+      (!state.activeOnly || company.isActive !== false),
+  );
 
 const searchItems = (query, items) => {
   if (!query) return items;
 
-  // Split the query into individual terms (e.g., "Ольга Вознюк" becomes ["Ольга", "Вознюк"])
   const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
 
   return items.filter((item) => {
     const fieldsToSearch = [
       item.alias,
       item.fullTitle,
-      ...item.emailDomains.flatMap((domain) => [domain]),
-      ...item.phones.flatMap((phone) => [phone]),
-      ...item.responsibles.flatMap((responsible) => [
+      item.address,
+      ...(item.emailDomains ?? []),
+      ...(item.phones ?? []),
+      ...(item.responsibles ?? []).flatMap((responsible) => [
         `${responsible?.firstName} ${responsible?.lastName}`,
         responsible?.firstName,
         responsible?.lastName,
         responsible?.email,
         responsible?.phone,
         responsible?.position,
-        responsible?.role,
       ]),
     ];
 
     return queryTerms.every((term) =>
       fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term),
+        (field) => field && String(field).toLowerCase().includes(term),
       ),
     );
   });
 };
 
-const handleSorting = (selected, list) => {
-  if (!selected || !list.length) {
-    return;
-  }
+const sortItems = (selected, list) => {
+  const sorted = [...list];
 
-  const sortedList = [...list];
-
-  switch (selected.label) {
-    case "По алфавиту":
-      sortedList.sort((a, b) => a.alias.localeCompare(b.alias));
+  switch (selected?.label) {
+    case "По числу пользователей":
+      sorted.sort(
+        (a, b) =>
+          (b.usersCount ?? 0) - (a.usersCount ?? 0) ||
+          (a.alias ?? "").localeCompare(b.alias ?? ""),
+      );
       break;
 
-    case "Сначала новые":
-      sortedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      break;
-
-    case "Сначала старые":
-      sortedList.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-      break;
-
+    case "По названию":
     default:
+      sorted.sort((a, b) => (a.alias ?? "").localeCompare(b.alias ?? ""));
       break;
   }
 
-  return sortedList;
+  return sorted;
 };
+
+const recompute = (state) => ({
+  filteredList: sortItems(
+    state.sortBy,
+    searchItems(state.searchTerm, companyFilter(state)),
+  ),
+});
 
 const useCompanyFilterStore = create((set) => ({
   responsibles: [],
+  noResponsible: false,
+  onlyWithServices: false,
+  activeOnly: true,
+  mineOnly: false,
+  myId: null,
   searchTerm: "",
   sortingOptions: [
-    { label: "По алфавиту" },
-    {
-      label: "Сначала новые",
-    },
-    { label: "Сначала старые" },
+    { label: "По названию" },
+    { label: "По числу пользователей" },
   ],
-  sortBy: {
-    label: "По алфавиту",
-  },
-  isSorting: false,
-  handleSorting: async (data) => {
-    set({ isSorting: true });
-
-    // Set new sort option immediately
-    set({ sortBy: data });
-
-    // Use Promise and setTimeout to make sorting async
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    set((state) => {
-      const sortedList = handleSorting(data, state.filteredList);
-      return {
-        sortBy: data,
-        filteredList: sortedList,
-        isSorting: false,
-      };
-    });
-  },
+  sortBy: { label: "По названию" },
   originalList: [],
   filteredList: [],
-  fullTextSearch: (query) =>
-    set((state) => ({
-      filteredList: searchItems(query, companyFilter(state)),
-    })),
   isLoading: false,
+
   fetch: async () => {
     set({ isLoading: true });
     const { token } = getLocalStorageData();
+    // Страница компаний — единственный потребитель с отключёнными: бэкенд по
+    // умолчанию отдаёт только активные (выпадашки форм), фасетим клиентски
     const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/companies`,
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies?includeInactive=true`,
       {
         headers: {
           Authorization: "Bearer " + token,
@@ -144,29 +132,74 @@ const useCompanyFilterStore = create((set) => ({
       },
     );
     const data = await response.json();
-    set({
+    set((state) => ({
       originalList: data,
       isLoading: false,
-    });
-  },
-  updateFilter: (data) =>
-    set(() => {
-      return {
-        responsibles: data.responsibles,
-        searchTerm: data.searchTerm,
-        originalList: data.originalList,
-        isLoading: false,
-      };
-    }),
-  applyFilter: () => set((state) => ({ filteredList: companyFilter(state) })),
-  resetFilter: () => {
-    set(() => ({
-      responsibles: [],
+      ...recompute({ ...state, originalList: data }),
     }));
+  },
+
+  fullTextSearch: (query) =>
     set((state) => ({
-      filteredList: companyFilter(state),
-    }));
-  },
+      searchTerm: query,
+      ...recompute({ ...state, searchTerm: query }),
+    })),
+
+  handleSorting: (option) =>
+    set((state) => ({
+      sortBy: option,
+      ...recompute({ ...state, sortBy: option }),
+    })),
+
+  toggleResponsible: (id) =>
+    set((state) => {
+      const responsibles = state.responsibles.includes(id)
+        ? state.responsibles.filter((selected) => selected !== id)
+        : [...state.responsibles, id];
+      return { responsibles, ...recompute({ ...state, responsibles }) };
+    }),
+
+  toggleNoResponsible: () =>
+    set((state) => {
+      const noResponsible = !state.noResponsible;
+      return { noResponsible, ...recompute({ ...state, noResponsible }) };
+    }),
+
+  setOnlyWithServices: (onlyWithServices) =>
+    set((state) => ({
+      onlyWithServices,
+      ...recompute({ ...state, onlyWithServices }),
+    })),
+
+  setActiveOnly: (activeOnly) =>
+    set((state) => ({
+      activeOnly,
+      ...recompute({ ...state, activeOnly }),
+    })),
+
+  setMineOnly: (mineOnly, myId) =>
+    set((state) => {
+      const next = { mineOnly, myId: myId ?? state.myId };
+      return { ...next, ...recompute({ ...state, ...next }) };
+    }),
+
+  applyFilter: () => set((state) => recompute(state)),
+
+  updateFilter: (data) =>
+    set((state) => ({ ...data, ...recompute({ ...state, ...data }) })),
+
+  resetFilter: () =>
+    set((state) => {
+      const cleared = {
+        responsibles: [],
+        noResponsible: false,
+        onlyWithServices: false,
+        activeOnly: true,
+        mineOnly: false,
+        searchTerm: "",
+      };
+      return { ...cleared, ...recompute({ ...state, ...cleared }) };
+    }),
 }));
 
 export default useCompanyFilterStore;

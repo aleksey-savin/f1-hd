@@ -566,15 +566,21 @@ exports.handleNewEmails = async () => {
         if (prefs.identifyCompany) {
           const emailDomain = email.from.replace(/.*@/, "").replace(">", "");
 
+          // Отключённые компании не опознаются (isActive: $ne false) —
+          // письмо/звонок падает на defaultCompany как неопознанное.
+          // Сам defaultCompany выше намеренно без фильтра: машинный фолбэк
+          // должен жить всегда (его отключение закрыто 409-гардом в UI).
           if (prefs.checkPhoneNumber && phoneNumber) {
             company =
               (await MongoCompany.findOne({
                 emailDomains: { $in: [emailDomain] },
+                isActive: { $ne: false },
               })) || (await findCompanyByPhone(phoneNumber));
             if (company && isIncomingCall) ticketTitle = "Входящий звонок";
           } else {
             company = await MongoCompany.findOne({
               emailDomains: { $in: [emailDomain] },
+              isActive: { $ne: false },
             });
           }
 
@@ -592,24 +598,36 @@ exports.handleNewEmails = async () => {
         }
 
         if (prefs.identifyApplicant) {
+          // Заявители отключённых компаний не опознаются (снапшот
+          // company.isActive) — заявка уйдёт от defaultApplicant, чтобы через
+          // applicant.company не притащить отключённую компанию.
           if (prefs.checkPhoneNumber && phoneNumber) {
             // По номеру находим клиента и привязанную к нему компанию
             const identity = await findApplicantByPhone(phoneNumber);
             applicant =
               identity?.applicant ||
-              (await MongoUser.findOne({ email: emailAddress }));
+              (await MongoUser.findOne({
+                email: emailAddress,
+                "company.isActive": { $ne: false },
+              }));
 
             if (applicant) {
               if (isIncomingCall) ticketTitle = "Входящий звонок";
+              // Неуспех разыменования компании заявителя НЕ затирает ранее
+              // вычисленную company (страховка от рассинхрона снапшота)
               company =
                 identity?.company ||
                 (applicant.company?._id
-                  ? await MongoCompany.findOne({ _id: applicant.company._id })
+                  ? (await MongoCompany.findOne({
+                      _id: applicant.company._id,
+                      isActive: { $ne: false },
+                    })) || company
                   : company);
             }
           } else {
             applicant = await MongoUser.findOne({
               email: emailAddress,
+              "company.isActive": { $ne: false },
             });
           }
 
@@ -622,6 +640,9 @@ exports.handleNewEmails = async () => {
         const match = regex.exec(ticketTitle);
 
         if (match !== null && !isNaN(+match[1])) {
+          // Ответ на существующую заявку: отправителя ищем БЕЗ фильтра
+          // активности компании — атрибуция комментария в старой заявке
+          // не «выдача» и не опознание компании
           const sender = await MongoUser.findOne({
             email: emailAddress,
           });
