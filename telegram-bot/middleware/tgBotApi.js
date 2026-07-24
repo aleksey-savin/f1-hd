@@ -228,9 +228,11 @@ exports.launchTgBot = async () => {
       "text",
       async (msg) => {
         try {
-          // Настройка табло статусов: команда выполняется в целевой группе
-          // (и именно в той ветке, где должно жить табло) — бот сам забирает
-          // chat.id и message_thread_id. Доступна только привязанному админу.
+          // Настройка табло статусов: команда выполняется в ГРУППЕ КОМАНДЫ
+          // (notify.byTelegram.chatId) и в той ветке, где должно жить табло и
+          // групповые уведомления, — ветка у них общая. Доступна только
+          // привязанному админу; в постороннем чате отказывает — утащить
+          // уведомления командой нельзя.
           if (msg.text.startsWith("/status_board")) {
             if (msg.chat.type === "private") {
               await bot.sendMessage(
@@ -259,14 +261,27 @@ exports.launchTgBot = async () => {
               return;
             }
 
+            // Сверяемся со свежими настройками, а не с globalChat, прочитанным
+            // на старте бота, — группу могли только что сменить в вебе
+            const freshPrefs = await Preferences.findOne({});
+            const groupChatId = freshPrefs?.notify?.byTelegram?.chatId || "";
+            if (String(msg.chat.id) !== groupChatId) {
+              await bot.sendMessage(
+                msg.chat.id,
+                "Табло живёт в группе команды. Сменить группу можно в настройках системы: Уведомления → Канал: Telegram",
+                threadOptions,
+              );
+              return;
+            }
+
             // Точечный $set, а не save() всего документа — чтобы не затереть
-            // параллельное сохранение настроек из веба
+            // параллельное сохранение настроек из веба. Ветка общая — задаёт
+            // топик и для табло, и для групповых уведомлений
             await Preferences.updateOne(
               {},
               {
                 $set: {
-                  "statusBoard.chatId": String(msg.chat.id),
-                  "statusBoard.messageThreadId":
+                  "notify.byTelegram.messageThreadId":
                     msg.is_topic_message && msg.message_thread_id
                       ? String(msg.message_thread_id)
                       : "",
@@ -279,7 +294,7 @@ exports.launchTgBot = async () => {
 
             await bot.sendMessage(
               msg.chat.id,
-              "Готово👌 Табло статусов появится здесь в течение 20 секунд и будет закреплено",
+              "Готово👌 Табло статусов появится здесь в течение 20 секунд и будет закреплено. Групповые уведомления теперь тоже идут в эту ветку",
               threadOptions,
             );
             return;
@@ -695,7 +710,7 @@ exports.launchTgBot = async () => {
 
 //-------------------- SENDING NOTIFICATIONS --------------------
 
-exports.tgSendMessage = async (channelId, msg, replyMarkup) => {
+exports.tgSendMessage = async (channelId, msg, replyMarkup, messageThreadId) => {
   try {
     sleep(2000);
     const options = {
@@ -703,6 +718,8 @@ exports.tgSendMessage = async (channelId, msg, replyMarkup) => {
       parse_mode: "HTML",
     };
     if (replyMarkup) options.reply_markup = replyMarkup;
+    // Ветка форум-группы (групповые уведомления идут в общий топик команды)
+    if (messageThreadId) options.message_thread_id = Number(messageThreadId);
     const message = await bot.sendMessage(channelId, msg, options);
     logger.log("info", `Message sent to Telegram`);
     return message;

@@ -5,6 +5,7 @@ const isAuth = require("@/middleware/isAuth");
 const {
   canManageMikrotikDevices,
   canManageMikrotikConfigs,
+  canManageClientDevices,
 } = require("@/middleware/permissions");
 const rateLimit = require("express-rate-limit");
 
@@ -68,6 +69,55 @@ router.delete(
   isAuth,
   canManageMikrotikDevices,
   mikrotikController.detachStandalone,
+);
+
+// --- Record-centric operations (страница записи и новая форма). Запись — общий
+// адрес для инвентарных и standalone устройств; связь с карточкой инвентаря —
+// отдельный шаг после проверки (link-inventory / create-inventory). ---
+router.get(
+  "/mikrotik-devices/records/:recordId",
+  isAuth,
+  mikrotikController.getRecordOne,
+);
+router.post(
+  "/mikrotik-devices/records/:recordId/parameters",
+  isAuth,
+  canManageMikrotikDevices,
+  parametersLimiter,
+  mikrotikController.updateRecordParameters,
+);
+router.post(
+  "/mikrotik-devices/records/:recordId/connect",
+  isAuth,
+  canManageMikrotikDevices,
+  mikrotikController.connectRecord,
+);
+router.post(
+  "/mikrotik-devices/records/:recordId/disconnect",
+  isAuth,
+  canManageMikrotikDevices,
+  mikrotikController.disconnectRecord,
+);
+router.delete(
+  "/mikrotik-devices/records/:recordId",
+  isAuth,
+  canManageMikrotikDevices,
+  mikrotikController.deleteRecord,
+);
+// Авто-связь с инвентарём (шаг после проверки). Создание карточки требует ещё и
+// права на устройства инвентаря — она пишет в ClientDevice.
+router.post(
+  "/mikrotik-devices/records/:recordId/link-inventory",
+  isAuth,
+  canManageMikrotikDevices,
+  mikrotikController.linkInventory,
+);
+router.post(
+  "/mikrotik-devices/records/:recordId/create-inventory",
+  isAuth,
+  canManageMikrotikDevices,
+  canManageClientDevices,
+  mikrotikController.createInventoryCard,
 );
 
 // --- Config exports (.rsc). Keyed by the Mikrotik record id, so the same routes

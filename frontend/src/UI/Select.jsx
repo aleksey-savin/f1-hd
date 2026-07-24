@@ -107,11 +107,17 @@ const Select = (props) => {
   const insideOverlay = useContext(InsideOverlayContext);
   const inlineMenu = isTouchDevice || insideOverlay;
 
+  // id вешаем на ВНУТРЕННИЙ input (inputId), а не на контейнер-div: только так
+  // работает связь <label htmlFor> — клик по подписи фокусирует/открывает
+  // селект (правило «Подпись контрола» в ux-ui-guide)
+  const { id, ...rest } = props;
+
   return (
     <FixRequiredSelect
       menuPlacement="auto"
       {...(inlineMenu ? {} : { menuPosition: "fixed" })}
-      {...props}
+      {...rest}
+      inputId={props.inputId ?? id}
       SelectComponent={BaseSelect}
       menuPortalTarget={
         !inlineMenu && typeof document !== "undefined"

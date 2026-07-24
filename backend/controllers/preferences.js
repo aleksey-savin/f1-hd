@@ -1,8 +1,5 @@
 const Preferences = require("../models/preferences");
 const User = require("../models/user");
-const { Ticket } = require("../models/ticket");
-const Company = require("../models/company");
-const Comment = require("../models/comment");
 const KnowledgeNote = require("../models/knowledgeNote");
 
 const { AppError } = require("../middleware/errorHandling");
@@ -125,6 +122,9 @@ exports.getInitial = async (req, res, next) => {
       telegramNotifications: preferences.notify?.byTelegram?.isActive,
       personalNotifications: preferences.notify.personal,
       modules: preferences.modules,
+      // Рубильник интеграции Mikrotik — для меню («Мониторинг», «Диапазоны
+      // сетей»); отсутствие поля в старых документах = включено
+      mikrotik: { isActive: preferences.mikrotik?.isActive !== false },
       ai: {
         isActive: preferences.ai?.isActive || false,
         speechToText: {
@@ -147,142 +147,127 @@ exports.getInitial = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    let preferences = await Preferences.findOne({});
+    // Частичное обновление: страница настроек сохраняет ПО СЕКЦИЯМ — меняются
+    // только присланные группы, отсутствие ключа в теле = «не трогать».
+    // Первый запуск обрабатывается тем же путём: пустой документ получает
+    // дефолты схемы, присланные группы ложатся поверх.
+    const body = req.body;
+    const has = (key) => Object.prototype.hasOwnProperty.call(body, key);
 
-    const {
-      timezone,
-      htmlTicketDesc,
-      useEmail,
-      emailAddress,
-      emailPassword,
-      imapServer,
-      defaultApplicant,
-      defaultCompany,
-      identifyCompany,
-      identifyApplicant,
-      checkPhoneNumber,
-      deadline,
-      notify,
-      contacts,
-      getScreen,
-      modules,
-      ai,
-      knowledgeBase,
-      mikrotik,
-      overtime,
-      statusBoard,
-      taxi,
-    } = req.body;
+    let preferences = await Preferences.findOne({});
+    if (!preferences) {
+      preferences = new Preferences({});
+    }
 
     // Переход флага «выкл→вкл» — повод просканировать сразу, не дожидаясь крона.
     // Старое значение читаем до перезаписи preferences.knowledgeBase.
     let secretsJustEnabled = false;
     let serviceJustEnabled = false;
 
-    if (!preferences) {
-      preferences = new Preferences({
-        timezone,
-        htmlTicketDesc,
-        useEmail,
-        emailAddress,
-        emailPassword,
-        imapServer,
-        defaultApplicant,
-        defaultCompany,
-        identifyCompany,
-        identifyApplicant,
-        checkPhoneNumber,
-        deadline,
-        notify,
-        contacts,
-        getScreen,
-        modules,
-        ai,
-        knowledgeBase,
-        mikrotik,
-        overtime,
-        statusBoard,
-        taxi,
-      });
-      secretsJustEnabled = !!knowledgeBase?.scanForSecrets;
-      serviceJustEnabled = !!knowledgeBase?.trackServiceExpiry;
-    } else {
-      preferences.timezone = timezone;
-      preferences.htmlTicketDesc = htmlTicketDesc;
-      preferences.useEmail = useEmail;
-      preferences.emailAddress = emailAddress;
-      preferences.emailPassword = emailPassword;
-      preferences.imapServer = imapServer;
-      preferences.defaultApplicant = defaultApplicant;
-      preferences.defaultCompany = defaultCompany;
-      preferences.identifyCompany = identifyCompany;
-      preferences.identifyApplicant = identifyApplicant;
-      preferences.checkPhoneNumber = checkPhoneNumber;
-      preferences.deadline = deadline;
-      preferences.notify = notify;
+    // «Основные»
+    if (has("timezone")) preferences.timezone = body.timezone;
+    if (has("htmlTicketDesc")) preferences.htmlTicketDesc = body.htmlTicketDesc;
+    if (has("deadline")) preferences.deadline = body.deadline;
+    if (has("contacts")) {
       // contacts.logo управляется отдельными эндпоинтами (/preferences/logo):
       // замена объекта целиком затирала бы лого при сохранении общих настроек
       preferences.contacts = {
+        tel: body.contacts?.tel ?? "",
+        email: body.contacts?.email ?? "",
+        address: body.contacts?.address ?? "",
         logo: preferences.contacts?.logo ?? "",
-        ...contacts,
       };
-      preferences.getScreen = getScreen;
-      preferences.modules = {
-        timeTracking: {
-          isActive: modules.timeTracking.isActive,
-        },
-        finances: {
-          isActive: modules.timeTracking.isActive
-            ? modules.finances.isActive
-            : false,
-        },
-        inventory: {
-          isActive: modules.inventory.isActive,
-        },
-        knowledgeBase: {
-          isActive: modules.knowledgeBase.isActive,
-        },
+    }
+    if (has("taxi")) {
+      preferences.taxi = { operator: body.taxi?.operator || "" };
+    }
+
+    // «Сбор заявок»
+    if (has("useEmail")) preferences.useEmail = body.useEmail;
+    if (has("emailAddress")) preferences.emailAddress = body.emailAddress;
+    if (has("emailPassword")) preferences.emailPassword = body.emailPassword;
+    if (has("imapServer")) preferences.imapServer = body.imapServer;
+    if (has("defaultApplicant"))
+      preferences.defaultApplicant = body.defaultApplicant;
+    if (has("defaultCompany")) preferences.defaultCompany = body.defaultCompany;
+    if (has("identifyCompany"))
+      preferences.identifyCompany = body.identifyCompany;
+    if (has("identifyApplicant"))
+      preferences.identifyApplicant = body.identifyApplicant;
+    if (has("checkPhoneNumber"))
+      preferences.checkPhoneNumber = body.checkPhoneNumber;
+
+    // «Уведомления»: подгруппы notify заменяются присланными, byTelegram
+    // мержится по полям (канон «мерж по путям»). Группа byTelegram — единая:
+    // в ней и групповые уведомления, и табло статусов; смена chatId или ветки
+    // инвалидирует закреп табло — бот пересоздаст его в новом месте
+    if (has("notify")) {
+      const notify = body.notify || {};
+      const prev = preferences.notify?.toObject?.() ?? preferences.notify ?? {};
+      const mergedTelegram = notify.byTelegram
+        ? { ...(prev.byTelegram || {}), ...notify.byTelegram }
+        : prev.byTelegram;
+      preferences.notify = {
+        personal: notify.personal ?? prev.personal,
+        byEmail: notify.byEmail ?? prev.byEmail,
+        byTelegram: mergedTelegram,
       };
-      preferences.ai = ai;
-      // Защищаемся от затирания конфигурации модерации при частичном POST
-      if (knowledgeBase) {
-        const prevKb = preferences.knowledgeBase || {};
-        secretsJustEnabled =
-          !prevKb.scanForSecrets && !!knowledgeBase.scanForSecrets;
-        serviceJustEnabled =
-          !prevKb.trackServiceExpiry && !!knowledgeBase.trackServiceExpiry;
-        preferences.knowledgeBase = knowledgeBase;
-      }
-      if (mikrotik) {
-        preferences.mikrotik = mikrotik;
-      }
-      // Табло статусов: из веба принимаем только конфигурацию; служебные поля
-      // (messageId, lastText) принадлежат боту и берутся из хранимых значений.
-      // Смена группы/ветки инвалидирует сообщение — бот пересоздаст табло.
-      if (statusBoard) {
-        const prev = preferences.statusBoard || {};
-        const chatId = statusBoard.chatId || "";
-        const messageThreadId = statusBoard.messageThreadId || "";
-        const targetChanged =
-          chatId !== (prev.chatId || "") ||
-          messageThreadId !== (prev.messageThreadId || "");
+      const boardTargetChanged =
+        (mergedTelegram?.chatId || "") !== (prev.byTelegram?.chatId || "") ||
+        (mergedTelegram?.messageThreadId || "") !==
+          (prev.byTelegram?.messageThreadId || "");
+      if (boardTargetChanged) {
         preferences.statusBoard = {
-          isActive: !!statusBoard.isActive,
-          chatId,
-          messageThreadId,
-          messageId: targetChanged ? null : (prev.messageId ?? null),
-          lastText: targetChanged ? "" : prev.lastText || "",
+          isActive: !!preferences.statusBoard?.isActive,
+          messageId: null,
+          lastText: "",
         };
       }
-      // Защищаемся от затирания настроек переработок при частичном POST
-      if (overtime) {
-        preferences.overtime = overtime;
-      }
-      // Оператор такси — защита от затирания при частичном POST
-      if (taxi) {
-        preferences.taxi = { operator: taxi.operator || "" };
-      }
     }
+
+    // «Интеграции»
+    if (has("getScreen")) preferences.getScreen = body.getScreen;
+
+    // «Модули»: финансы работают поверх учёта времени
+    if (has("modules")) {
+      const modules = body.modules || {};
+      preferences.modules = {
+        timeTracking: { isActive: !!modules.timeTracking?.isActive },
+        finances: {
+          isActive: modules.timeTracking?.isActive
+            ? !!modules.finances?.isActive
+            : false,
+        },
+        inventory: { isActive: !!modules.inventory?.isActive },
+        knowledgeBase: { isActive: !!modules.knowledgeBase?.isActive },
+      };
+    }
+
+    if (has("ai")) preferences.ai = body.ai;
+
+    if (has("knowledgeBase")) {
+      const prevKb = preferences.knowledgeBase || {};
+      secretsJustEnabled =
+        !prevKb.scanForSecrets && !!body.knowledgeBase?.scanForSecrets;
+      serviceJustEnabled =
+        !prevKb.trackServiceExpiry && !!body.knowledgeBase?.trackServiceExpiry;
+      preferences.knowledgeBase = body.knowledgeBase;
+    }
+
+    if (has("mikrotik")) preferences.mikrotik = body.mikrotik;
+
+    // Табло статусов: из веба приходит только isActive; служебные поля
+    // (messageId, lastText) принадлежат боту и сохраняются. Группа и ветка
+    // табло — notify.byTelegram (блок выше), их смена уже сбросила закреп
+    if (has("statusBoard")) {
+      preferences.statusBoard = {
+        isActive: !!body.statusBoard?.isActive,
+        messageId: preferences.statusBoard?.messageId ?? null,
+        lastText: preferences.statusBoard?.lastText || "",
+      };
+    }
+
+    if (has("overtime")) preferences.overtime = body.overtime;
 
     await preferences.save();
 
@@ -302,7 +287,7 @@ exports.update = async (req, res, next) => {
     }
 
     res.status(200).json({
-      message: "Preferences updated successfully!",
+      message: "Настройки сохранены",
       preferences: preferences,
     });
   } catch (error) {
@@ -481,51 +466,3 @@ exports.getAiModels = async (req, res, next) => {
   }
 };
 
-exports.updateDbConf = async (req, res, next) => {
-  try {
-    const companies = await Company.find();
-    const tickets = await Ticket.find();
-    const comments = await Comment.find();
-
-    for (let company of companies) {
-      if (company.employees.length === 0 || !company.employees) {
-        company.employees = company.users.map((user) => user._id);
-        await company.save();
-      }
-    }
-
-    for (let ticket of tickets) {
-      if (!ticket.applicantId) {
-        ticket.applicantId = ticket.applicant._id;
-      }
-
-      if (!ticket.categoryId) {
-        ticket.categoryId = ticket.category._id;
-      }
-
-      await ticket.save();
-    }
-
-    for (let comment of comments) {
-      if (!comment.ticketId) {
-        const ticket = await Ticket.findOne({ num: comment.ticket });
-
-        if (ticket) {
-          comment.ticketId = ticket._id;
-          await comment.save();
-
-          ticket.comments
-            ? ticket.comments.push(comment._id)
-            : (ticket.comments = [comment._id]);
-          await ticket.save();
-        }
-      }
-    }
-
-    res.status(200).json({
-      message: "Конфигурация базы данных успешно обновлена",
-    });
-  } catch (error) {
-    next(new AppError(`Failed to update db configuration`, 500, true, error));
-  }
-};

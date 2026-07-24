@@ -31,6 +31,20 @@ router.get(
   isAdmin,
   userController.getKnowledgeBaseModerators,
 );
+// PRO32 Connect: подключённые пользователи и отзыв доступа (глобальные
+// настройки → «Интеграции»). Объявлены ДО wildcard /users/:id
+router.get(
+  "/users/pro32-connected",
+  isAuth,
+  isAdmin,
+  userController.getPro32Connected,
+);
+router.post(
+  "/users/pro32-revoke/:id",
+  isAuth,
+  isAdmin,
+  userController.revokePro32,
+);
 // Компании для фасета списка «Пользователи» (скоуп как у getAll)
 router.get(
   "/users/companies",

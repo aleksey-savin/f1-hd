@@ -7,6 +7,7 @@ const storage = require("../services/storage");
 const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
 const { concatIdsArray } = require("../helpers/concatIdsArray");
+const { encryptSecret, isEncrypted } = require("../services/crypto/secretBox");
 
 const User = require("../models/user");
 const {
@@ -109,6 +110,11 @@ exports.getAll = async (req, res, next) => {
     if (q.activeOnly === "true") {
       match.isActive = true;
       match["company.isActive"] = { $ne: false };
+    }
+
+    // 5б) Подключён PRO32 Connect — задан персональный API-ключ
+    if (q.pro32 === "true") {
+      match["getScreen.api"] = { $nin: [null, ""] };
     }
 
     // 6) «Сейчас на связи» — только сотрудники со статусом присутствия.
@@ -331,23 +337,66 @@ exports.getOne = async (req, res, next) => {
       return next(new AppError(`Failed to fetch user ${req.params.id}`, 404));
     }
 
+    // Ключ PRO32 Connect наружу не отдаём (хранится шифртекстом, форме он не
+    // нужен) — маскируем в признак hasApi; пустое поле формы = «не менять»
+    const maskSecrets = (doc) => {
+      const payload = doc.toObject ? doc.toObject() : { ...doc };
+      payload.getScreen = { hasApi: Boolean(payload.getScreen?.api) };
+      return payload;
+    };
+
     if (!authedUser.isEndUser) {
       const isSelf = authedUser._id.toString() === user._id.toString();
       if (canManageFinances(authedUser) || isSelf) {
-        res.status(200).json(user);
+        res.status(200).json(maskSecrets(user));
       } else {
         // Оклад и ставка видны только самому сотруднику и фин. менеджерам
-        const payload = user.toObject();
+        const payload = maskSecrets(user);
         delete payload.finances;
         res.status(200).json(payload);
       }
     } else {
-      res.status(200).json(authedUser);
+      res.status(200).json(maskSecrets(authedUser));
     }
   } catch (error) {
     next(
       new AppError(`Failed to fetch user ${req.params.id}`, 500, true, error),
     );
+  }
+};
+
+// PRO32 Connect: у кого задан персональный API-ключ — список для глобальных
+// настроек («Интеграции»). Сам ключ не отдаём
+exports.getPro32Connected = async (req, res, next) => {
+  try {
+    const users = await User.find({ "getScreen.api": { $nin: [null, ""] } })
+      .select("firstName lastName company.alias isActive isEndUser")
+      .sort({ lastName: 1, firstName: 1 })
+      .lean();
+    res.status(200).json({ users });
+  } catch (error) {
+    next(
+      new AppError("Failed to fetch PRO32 Connect users", 500, true, error),
+    );
+  }
+};
+
+// Отозвать доступ PRO32 Connect: ключ стирается, повторное подключение
+// потребует нового ключа в форме пользователя
+exports.revokePro32 = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return next(new AppError("User not found", 404));
+    }
+    user.getScreen = { api: "" };
+    await user.save();
+    res.status(200).json({
+      message:
+        `PRO32 Connect отключён у ${user.lastName || ""} ${user.firstName || ""}`.trim(),
+    });
+  } catch (error) {
+    next(new AppError("Failed to revoke PRO32 Connect", 500, true, error));
   }
 };
 
@@ -569,8 +618,9 @@ exports.add = async (req, res, next) => {
       hideWorkStatus: !!hideWorkStatus,
       password: hashedPassword,
       isActive: isActive,
+      // Ключ PRO32 Connect храним только шифртекстом (secretBox)
       getScreen: {
-        api: getScreenApi || "",
+        api: getScreenApi ? encryptSecret(getScreenApi) : "",
       },
       permissions: permissions,
       dashboard: dashboard,
@@ -750,10 +800,17 @@ exports.update = async (req, res, next) => {
       };
     }
 
-    // Форма шлёт getScreenApi; раньше контроллер ждал getScreen.api, поэтому
+    // Ключ PRO32 Connect: форма его не получает (getOne маскирует), поэтому
+    // пустое значение = «не менять»; непустое — новый ключ (шифруем).
+    // Очистка — отдельным revokePro32 из глобальных настроек.
+    // Легаси-заметка: форма шлёт getScreenApi; раньше контроллер ждал getScreen.api, поэтому
     // ключ интеграции при правке молча не сохранялся.
-    if (getScreenApi !== undefined) {
-      user.getScreen = { ...(user.getScreen || {}), api: getScreenApi || "" };
+    if (getScreenApi) {
+      user.getScreen = {
+        api: isEncrypted(getScreenApi)
+          ? getScreenApi
+          : encryptSecret(getScreenApi),
+      };
     }
 
     // notify правит админ из формы, но это личные настройки пользователя:

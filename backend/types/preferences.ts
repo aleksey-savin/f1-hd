@@ -20,7 +20,6 @@ export interface IPreferences {
   checkPhoneNumber: boolean;
   deadline: number;
   notify: {
-    global: { attemptsInterval: number; attempts: number };
     personal: {
       newTicket: boolean;
       respStateUpdate: boolean;
@@ -42,12 +41,11 @@ export interface IPreferences {
       isActive: boolean;
       sendToGroup: boolean;
       chatId: string;
+      messageThreadId: string;
     };
   };
   statusBoard: {
     isActive: boolean;
-    chatId: string;
-    messageThreadId: string;
     messageId: number | null;
     lastText: string;
   };
@@ -86,6 +84,7 @@ export interface IPreferences {
     serviceExpiryDays: number;
   };
   mikrotik: {
+    isActive: boolean;
     offlineTicket: {
       isActive: boolean;
       thresholdMinutes: number;

@@ -8,6 +8,7 @@ const Preferences = require("../models//preferences");
 
 const { Ticket } = require("../models/ticket");
 const { isStaleVersion, sendConflict } = require("../helpers/ticketVersion");
+const { resolveGetScreenApiKey } = require("../helpers/getScreenKey");
 const User = require("../models//user");
 const Company = require("../models/company");
 const Category = require("../models/ticketCategory");
@@ -1516,7 +1517,7 @@ exports.close = async (req, res, next) => {
       if (connection) {
         if (prefs.getScreen?.isActive) {
           await fetch(
-            `https://api.pro32connect.ru/v1/support/close?apikey=${authedUser.getScreen.api}&connection_id=${connection.getScreenId}`,
+            `https://api.pro32connect.ru/v1/support/close?apikey=${resolveGetScreenApiKey(authedUser)}&connection_id=${connection.getScreenId}`,
             {
               method: "POST",
             },
@@ -1649,7 +1650,7 @@ exports.delete = async (req, res, next) => {
       if (connection) {
         if (prefs.getScreen?.isActive) {
           await fetch(
-            `https://api.pro32connect.ru/v1/support/close?apikey=${authedUser.getScreen.api}&connection_id=${connection.getScreenId}`,
+            `https://api.pro32connect.ru/v1/support/close?apikey=${resolveGetScreenApiKey(authedUser)}&connection_id=${connection.getScreenId}`,
             {
               method: "POST",
             },
@@ -1717,7 +1718,7 @@ exports.deleteMultiple = async (req, res, next) => {
         if (connection) {
           if (prefs.getScreen?.isActive) {
             await fetch(
-              `https://api.pro32connect.ru/v1/support/close?apikey=${authedUser.getScreen.api}&connection_id=${connection.getScreenId}`,
+              `https://api.pro32connect.ru/v1/support/close?apikey=${resolveGetScreenApiKey(authedUser)}&connection_id=${connection.getScreenId}`,
               {
                 method: "POST",
               },
@@ -1901,7 +1902,7 @@ exports.closeMultiple = async (req, res, next) => {
         if (connection) {
           if (prefs.getScreen?.isActive) {
             await fetch(
-              `https://api.pro32connect.ru/v1/support/close?apikey=${authedUser.getScreen.api}&connection_id=${connection.getScreenId}`,
+              `https://api.pro32connect.ru/v1/support/close?apikey=${resolveGetScreenApiKey(authedUser)}&connection_id=${connection.getScreenId}`,
               {
                 method: "POST",
               },
@@ -2101,7 +2102,7 @@ exports.update = async (req, res, next) => {
       if (connection) {
         if (prefs.getScreen?.isActive) {
           await fetch(
-            `https://api.pro32connect.ru/v1/support/close?apikey=${authedUser.getScreen.api}&connection_id=${connection.getScreenId}`,
+            `https://api.pro32connect.ru/v1/support/close?apikey=${resolveGetScreenApiKey(authedUser)}&connection_id=${connection.getScreenId}`,
             {
               method: "POST",
             },

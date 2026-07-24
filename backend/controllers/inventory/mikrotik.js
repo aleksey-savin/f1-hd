@@ -39,7 +39,7 @@ const {
   closeOpenOutage,
   deleteOutages,
   computeAvailability,
-  computeUptimeMap,
+  computeUptimeStats,
 } = require("../../services/mikrotik/outages");
 const {
   computeReconciliation,
@@ -158,12 +158,21 @@ const buildRow = (device, record, protection, jump) => {
     status: record ? record.status || "offline" : "notConfigured",
     monitoringEnabled: record?.monitoringEnabled || false,
     host: record?.credentials?.host || null,
+    port: record?.credentials?.port || null,
     boardName: record?.boardName || null,
     currentFirmware: record?.currentFirmware || null,
     addresses: record?.addresses || [],
     lastSuccessfulConnectionAt: record?.lastSuccessfulConnectionAt || null,
     lastCheckedAt: record?.lastCheckedAt || null,
     lastError: record?.lastError || null,
+    // Край текущего эпизода офлайна (для «Не в сети · 3 ч 12 мин») и авто-заявка
+    // эпизода (alertTicketId приходит populated полем num).
+    offlineSince: record?.offlineSince || null,
+    offlineAlertedAt: record?.offlineAlertedAt || null,
+    alertTicket: record?.alertTicketId?.num
+      ? { id: record.alertTicketId._id, num: record.alertTicketId.num }
+      : null,
+    monitoredSince: record?.createdAt || null,
     schedules: scheduleSummary(record),
     lastBackupAt: protection?.lastBackupAt || null,
     lastExportAt: protection?.lastExportAt || null,
@@ -193,12 +202,19 @@ const buildStandaloneRow = (record, protection, jump) => ({
   status: record.status || "offline",
   monitoringEnabled: record.monitoringEnabled || false,
   host: record.credentials?.host || null,
+  port: record.credentials?.port || null,
   boardName: record.boardName || null,
   currentFirmware: record.currentFirmware || null,
   addresses: record.addresses || [],
   lastSuccessfulConnectionAt: record.lastSuccessfulConnectionAt || null,
   lastCheckedAt: record.lastCheckedAt || null,
   lastError: record.lastError || null,
+  offlineSince: record.offlineSince || null,
+  offlineAlertedAt: record.offlineAlertedAt || null,
+  alertTicket: record.alertTicketId?.num
+    ? { id: record.alertTicketId._id, num: record.alertTicketId.num }
+    : null,
+  monitoredSince: record.createdAt || null,
   schedules: scheduleSummary(record),
   lastBackupAt: protection?.lastBackupAt || null,
   lastExportAt: protection?.lastExportAt || null,
@@ -508,89 +524,71 @@ const publicSchedules = (record) => ({
   export: publicSchedule(record.schedules?.export),
 });
 
-// Returns the ClientDevices whose model's vendor has Mikrotik management enabled
-// (each left-joined with its optional record) plus all standalone records.
+// Populate-опции карточки инвентаря для строки списка/страницы записи.
+const DEVICE_ROW_POPULATE = [
+  {
+    path: "deviceModelId",
+    select: "name vendorId deviceTypeId",
+    populate: [
+      { path: "vendorId", select: "name" },
+      { path: "deviceTypeId", select: "name" },
+    ],
+  },
+  { path: "deviceTypeId", select: "name" },
+  { path: "locationId", select: "name address" },
+  { path: "companyId", select: "alias fullTitle" },
+];
+
+// Все записи мониторинга одним списком — строка идёт от ЗАПИСИ. Инвентарные
+// устройства «без записи» на странице больше не показываются: добавление всегда
+// создаёт новую запись, а связь с карточкой инвентаря — отдельный шаг после
+// проверки (см. linkInventory / createInventoryCard).
 exports.getManagedDevices = async (req, res, next) => {
   try {
-    const vendorIds = await Vendor.find({
-      isMikrotikManagementEnabled: true,
-    }).distinct("_id");
-
-    const modelIds = await DeviceModel.find({
-      vendorId: { $in: vendorIds },
-    }).distinct("_id");
-
-    const devices = await ClientDevice.find({
-      deviceModelId: { $in: modelIds },
-    })
-      .populate({
-        path: "deviceModelId",
-        select: "name vendorId deviceTypeId",
-        populate: [
-          { path: "vendorId", select: "name" },
-          { path: "deviceTypeId", select: "name" },
-        ],
-      })
-      .populate("locationId", "name address")
+    const records = await Mikrotik.find({})
       .populate("companyId", "alias fullTitle")
-      .sort({ _id: -1 })
-      .lean();
-
-    const records = await Mikrotik.find({
-      clientDevice: { $in: devices.map((device) => device._id) },
-    })
+      .populate("alertTicketId", "num")
       .select("-credentials.password -credentials.knockSequence")
       .lean();
 
-    // Standalone devices (no ClientDevice, e.g. Cloud Hosted Router).
-    const standaloneRecords = await Mikrotik.find({
-      clientDevice: { $exists: false },
-    })
-      .populate("companyId", "alias fullTitle")
-      .select("-credentials.password -credentials.knockSequence")
+    const deviceIds = records
+      .map((record) => record.clientDevice)
+      .filter(Boolean);
+    const devices = await ClientDevice.find({ _id: { $in: deviceIds } })
+      .populate(DEVICE_ROW_POPULATE)
       .lean();
-
-    // Latest backup/export dates per record, for the table protection badges.
-    const artifactSummary = await summarizeArtifacts([
-      ...records.map((record) => record._id),
-      ...standaloneRecords.map((record) => record._id),
-    ]);
-
-    // 30-дневный рейтинг доступности — колонка таблицы (один запрос на всех).
-    const uptimeMap = await computeUptimeMap([
-      ...records,
-      ...standaloneRecords,
-    ]);
-
-    // Кэш релизов/CVE читается один раз на запрос (как uptimeMap); оценка каждой
-    // строки — чистое вычисление. Питает индикаторы «доступно обновление» /
-    // «опасная уязвимость» справа от прошивки.
-    const firmware = await loadFirmwareContext();
-
-    const recordByDevice = new Map(
-      records.map((record) => [String(record.clientDevice), record]),
-    );
-
-    // Имена транзитов для «через <имя>» — по уже загруженным записям, без
-    // дополнительных запросов. Роутер, выпавший из выборки (например, у его
-    // вендора сняли флаг), даёт name: null — фронт показывает нейтральный текст.
     const deviceById = new Map(
       devices.map((device) => [String(device._id), device]),
     );
+    const deviceFor = (record) =>
+      record.clientDevice
+        ? deviceById.get(String(record.clientDevice)) || null
+        : null;
+
+    // Latest backup/export dates per record, for the table protection badges.
+    const artifactSummary = await summarizeArtifacts(
+      records.map((record) => record._id),
+    );
+
+    // Доступность за 30 дней (суммарный % + лента по дням) — один запрос на всех.
+    const uptimeStats = await computeUptimeStats(records);
+
+    // Кэш релизов/CVE читается один раз на запрос (как uptimeStats); оценка
+    // каждой строки — чистое вычисление. Питает индикаторы «доступно обновление»
+    // / «опасная уязвимость» у прошивки.
+    const firmware = await loadFirmwareContext();
+
+    // Имена транзитов для «через <имя>» — по уже загруженным записям, без
+    // дополнительных запросов. Карточка, выпавшая из выборки (устройство
+    // удалено), даёт фолбэк на identity/host.
     const jumpNames = new Map();
     for (const record of records) {
-      const device = deviceById.get(String(record.clientDevice));
+      const device = deviceFor(record);
       jumpNames.set(
         String(record._id),
         device
           ? buildDisplayName(record, device)
-          : record.name || record.credentials?.host || null,
-      );
-    }
-    for (const record of standaloneRecords) {
-      jumpNames.set(
-        String(record._id),
-        record.label || record.name || record.credentials?.host || null,
+          : record.label || record.name || record.credentials?.host || null,
       );
     }
     const jumpFor = (record) =>
@@ -601,35 +599,85 @@ exports.getManagedDevices = async (req, res, next) => {
           }
         : null;
 
-    const inventoryRows = devices.map((device) => {
-      const record = recordByDevice.get(String(device._id));
+    const rows = records.map((record) => {
+      const device = deviceFor(record);
+      const protection = protectionFor(artifactSummary, record._id);
+      const stats = uptimeStats.get(String(record._id));
+      const base = device
+        ? buildRow(device, record, protection, jumpFor(record))
+        : buildStandaloneRow(record, protection, jumpFor(record));
       return {
-        ...buildRow(
-          device,
-          record,
-          protectionFor(artifactSummary, record?._id),
-          jumpFor(record),
-        ),
-        uptime30d: record ? (uptimeMap.get(String(record._id)) ?? null) : null,
-        firmwareStatus: record ? evaluateFirmware(record, firmware) : null,
+        ...base,
+        uptime30d: stats?.pct ?? null,
+        uptimeDays: stats?.days ?? null,
+        firmwareStatus: evaluateFirmware(record, firmware),
       };
     });
 
-    const standaloneRows = standaloneRecords.map((record) => ({
-      ...buildStandaloneRow(
-        record,
-        protectionFor(artifactSummary, record._id),
-        jumpFor(record),
-      ),
-      uptime30d: uptimeMap.get(String(record._id)) ?? null,
-      firmwareStatus: evaluateFirmware(record, firmware),
-    }));
-
-    res.status(200).json([...standaloneRows, ...inventoryRows]);
+    res.status(200).json(rows);
   } catch (error) {
     next(
       new AppError(
         "Failed to fetch managed mikrotik devices",
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Одна запись мониторинга (инвентарная или standalone) — страница записи и
+// префилл формы «Изменить»: строка списка + запись без секретов + сверка с
+// карточкой инвентаря (для связанных).
+exports.getRecordOne = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findById(req.params.recordId)
+      .populate("companyId", "alias fullTitle")
+      .populate("alertTicketId", "num")
+      .select("-credentials.password -credentials.knockSequence")
+      .lean();
+    if (!record) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+
+    const device = record.clientDevice
+      ? await ClientDevice.findById(record.clientDevice)
+          .populate(DEVICE_ROW_POPULATE)
+          .lean()
+      : null;
+
+    const artifactSummary = await summarizeArtifacts([record._id]);
+    const uptimeStats = await computeUptimeStats([record]);
+    const firmware = await loadFirmwareContext();
+    const jump = await jumpInfoFor(record);
+
+    const protection = protectionFor(artifactSummary, record._id);
+    const stats = uptimeStats.get(String(record._id));
+    const base = device
+      ? buildRow(device, record, protection, jump)
+      : buildStandaloneRow(record, protection, jump);
+
+    res.status(200).json({
+      ...base,
+      uptime30d: stats?.pct ?? null,
+      uptimeDays: stats?.days ?? null,
+      firmwareStatus: evaluateFirmware(record, firmware),
+      record,
+      // Стоячее предупреждение о расхождениях карточки с устройством.
+      reconciliation: device ? computeReconciliation(device, record) : null,
+      inventory: device
+        ? {
+            clientDeviceId: device._id,
+            modelName: device.deviceModelId?.name || null,
+            inventoryNumber: device.inventoryNumber || null,
+          }
+        : null,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch mikrotik record ${req.params.recordId}`,
         500,
         true,
         error,
@@ -892,12 +940,11 @@ exports.syncInventory = async (req, res, next) => {
 };
 
 // Enable background monitoring and do an immediate poll. Monitoring stays on
-// even if this first poll fails (the cron will retry).
-exports.connect = async (req, res, next) => {
+// even if this first poll fails (the cron will retry). Общее тело для обеих
+// адресаций: по карточке инвентаря (легаси-вкладка) и по id записи.
+const connectByFilter = async (filter, req, res, next) => {
   try {
-    const record = await Mikrotik.findOne({
-      clientDevice: req.params.clientDeviceId,
-    });
+    const record = await Mikrotik.findOne(filter);
 
     if (!record || !record.credentials?.host) {
       return next(
@@ -949,7 +996,7 @@ exports.connect = async (req, res, next) => {
 
     logger.log("info", "Mikrotik monitoring enabled", {
       actor: req.userId,
-      clientDeviceId: req.params.clientDeviceId,
+      recordId: record._id,
       status: record.status,
       ip: req.ip,
     });
@@ -966,11 +1013,17 @@ exports.connect = async (req, res, next) => {
   }
 };
 
-// Disable background monitoring and mark the device offline.
-exports.disconnect = async (req, res, next) => {
+exports.connect = (req, res, next) =>
+  connectByFilter({ clientDevice: req.params.clientDeviceId }, req, res, next);
+exports.connectRecord = (req, res, next) =>
+  connectByFilter({ _id: req.params.recordId }, req, res, next);
+
+// Disable background monitoring and mark the device offline. Общее тело для
+// обеих адресаций (по карточке инвентаря и по id записи).
+const disconnectByFilter = async (filter, req, res, next) => {
   try {
     const record = await Mikrotik.findOneAndUpdate(
-      { clientDevice: req.params.clientDeviceId },
+      filter,
       {
         $set: { monitoringEnabled: false, status: "offline", failedPolls: 0 },
         // Monitoring off means no poll will ever end the outage — drop the alert
@@ -993,7 +1046,7 @@ exports.disconnect = async (req, res, next) => {
 
     logger.log("info", "Mikrotik monitoring disabled", {
       actor: req.userId,
-      clientDeviceId: req.params.clientDeviceId,
+      recordId: record._id,
       ip: req.ip,
     });
 
@@ -1004,6 +1057,16 @@ exports.disconnect = async (req, res, next) => {
     );
   }
 };
+
+exports.disconnect = (req, res, next) =>
+  disconnectByFilter(
+    { clientDevice: req.params.clientDeviceId },
+    req,
+    res,
+    next,
+  );
+exports.disconnectRecord = (req, res, next) =>
+  disconnectByFilter({ _id: req.params.recordId }, req, res, next);
 
 // Detach a device from Mikrotik management: delete its record (encrypted
 // credentials, pinned TLS cert, polled metadata). The ClientDevice itself is
@@ -1038,10 +1101,254 @@ exports.detach = async (req, res, next) => {
   }
 };
 
+// --- Связь записи мониторинга с инвентарём -------------------------------------
+
+// Кандидат на авто-связь: карточка инвентаря с тем же серийным номером, ещё не
+// связанная с другой записью. null — предлагать нечего.
+const findInventoryCandidate = async (record) => {
+  const serial = String(record?.serialNumber || "").trim();
+  if (!serial) return null;
+
+  const device = await ClientDevice.findOne({ serialNumber: serial })
+    .populate({
+      path: "deviceModelId",
+      select: "name vendorId",
+      populate: { path: "vendorId", select: "name" },
+    })
+    .populate("companyId", "alias fullTitle")
+    .lean();
+  if (!device) return null;
+
+  const alreadyManaged = await Mikrotik.exists({ clientDevice: device._id });
+  if (alreadyManaged) return null;
+
+  return {
+    clientDeviceId: device._id,
+    hostname: device.hostname || null,
+    modelName: device.deviceModelId?.name || null,
+    vendorName: device.deviceModelId?.vendorId?.name || null,
+    inventoryNumber: device.inventoryNumber || null,
+    serialNumber: device.serialNumber,
+    company: device.companyId
+      ? {
+          id: device.companyId._id,
+          name: device.companyId.alias || device.companyId.fullTitle,
+        }
+      : null,
+  };
+};
+
+// Блок «Инвентарь» шага после проверки: кандидат на связь по серийнику и может
+// ли пользователь создать карточку. null — модуль «Учёт техники» выключен,
+// блок не показывается вовсе.
+const inventoryLinkContext = async (record, userId) => {
+  const [prefs, user] = await Promise.all([
+    Preferences.findOne({}).select("modules.inventory").lean(),
+    User.findById(userId).select("permissions isAdmin").lean(),
+  ]);
+  if (prefs?.modules?.inventory?.isActive === false) return null;
+
+  const candidate = await findInventoryCandidate(record);
+  const canCreateCard = Boolean(
+    user?.isAdmin || user?.permissions?.canManageClientDevices,
+  );
+  return { candidate, canCreateCard };
+};
+
+// Записать связь запись → карточка: связь есть только у «живой» пары, поэтому
+// standalone-идентичность (companyId/label) очищается — её место занимает карта.
+const attachRecordToDevice = async (record, deviceId) => {
+  record.clientDevice = deviceId;
+  record.companyId = undefined;
+  record.label = undefined;
+  await record.save();
+};
+
+// Связать запись мониторинга с существующей карточкой инвентаря (шаг после
+// проверки: «Найдена карточка с этим серийным номером — Связать»).
+exports.linkInventory = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findById(req.params.recordId);
+    if (!record) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+    if (record.clientDevice) {
+      return next(
+        new AppError("Запись уже связана с карточкой инвентаря", 409),
+      );
+    }
+
+    const { clientDeviceId } = req.body || {};
+    if (!mongoose.isValidObjectId(clientDeviceId)) {
+      return next(new AppError("Некорректный идентификатор карточки", 422));
+    }
+    const device = await ClientDevice.findById(clientDeviceId).populate(
+      "deviceModelId",
+      "name",
+    );
+    if (!device) {
+      return next(new AppError("Карточка инвентаря не найдена", 404));
+    }
+    const taken = await Mikrotik.exists({ clientDevice: device._id });
+    if (taken) {
+      return next(
+        new AppError("Карточка уже связана с другой записью мониторинга", 409),
+      );
+    }
+    // Связь предлагается по серийнику — расхождение означает не ту карточку.
+    const cardSerial = String(device.serialNumber || "").trim();
+    const recordSerial = String(record.serialNumber || "").trim();
+    if (cardSerial && recordSerial && cardSerial !== recordSerial) {
+      return next(
+        new AppError("Серийные номера записи и карточки не совпадают", 409),
+      );
+    }
+
+    try {
+      await attachRecordToDevice(record, device._id);
+    } catch (error) {
+      if (error?.code === 11000) {
+        return next(
+          new AppError(
+            "Карточка уже связана с другой записью мониторинга",
+            409,
+          ),
+        );
+      }
+      throw error;
+    }
+
+    logger.log("info", "Mikrotik record linked to inventory", {
+      actor: req.userId,
+      recordId: record._id,
+      clientDeviceId: device._id,
+      ip: req.ip,
+    });
+
+    res.status(200).json({
+      message: "Карточка связана",
+      clientDeviceId: device._id,
+      reconciliation: computeReconciliation(device, record),
+    });
+  } catch (error) {
+    next(
+      new AppError("Failed to link mikrotik record to inventory", 500, true, error),
+    );
+  }
+};
+
+// Создать карточку инвентаря из данных записи и связать (шаг после проверки:
+// карточки с таким серийником нет). Модель подбирается по плате среди вендоров
+// с включённым управлением Mikrotik; не нашлась — карточка без модели.
+exports.createInventoryCard = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findById(req.params.recordId);
+    if (!record) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+    if (record.clientDevice) {
+      return next(
+        new AppError("Запись уже связана с карточкой инвентаря", 409),
+      );
+    }
+
+    const prefs = await Preferences.findOne({})
+      .select("modules.inventory")
+      .lean();
+    if (prefs?.modules?.inventory?.isActive === false) {
+      return next(new AppError("Модуль «Учёт техники» отключён", 409));
+    }
+
+    const serial = String(record.serialNumber || "").trim();
+    if (serial) {
+      const exists = await ClientDevice.findOne({ serialNumber: serial })
+        .select("_id")
+        .lean();
+      if (exists) {
+        return next(
+          new AppError(
+            "Карточка с таким серийным номером уже есть — свяжите запись с ней",
+            409,
+          ),
+        );
+      }
+    }
+
+    // Модель по плате: точное совпадение имени, иначе вхождение (анти-шум как
+    // в сверке: "RB4011iGS+" ⊂ "RouterBOARD RB4011iGS+5HacQ2HnD").
+    let model = null;
+    const board = String(record.boardName || "").trim();
+    if (board) {
+      const vendorIds = await Vendor.find({
+        isMikrotikManagementEnabled: true,
+      }).distinct("_id");
+      const models = await DeviceModel.find({ vendorId: { $in: vendorIds } })
+        .select("name")
+        .lean();
+      const boardNorm = board.toLowerCase();
+      model =
+        models.find((m) => m.name.trim().toLowerCase() === boardNorm) ||
+        models.find((m) => {
+          const name = m.name.trim().toLowerCase();
+          return name.includes(boardNorm) || boardNorm.includes(name);
+        }) ||
+        null;
+    }
+
+    const values = deriveSyncValues(record);
+    const device = new ClientDevice({
+      ...(model ? { deviceModelId: model._id } : {}),
+      companyId: record.companyId || undefined,
+      ...(values.hostname ? { hostname: values.hostname } : {}),
+      ...(serial ? { serialNumber: serial } : {}),
+      ...(values.operatingSystem
+        ? { operatingSystem: values.operatingSystem }
+        : {}),
+      ...(values.ipAddress ? { ipAddress: values.ipAddress } : {}),
+      status: "deployed",
+      createdBy: req.userId,
+      updatedBy: req.userId,
+    });
+    try {
+      await device.save();
+    } catch (error) {
+      if (error?.code === 11000) {
+        return next(
+          new AppError(
+            "Значение уже используется другой карточкой (серийный номер или имя)",
+            409,
+          ),
+        );
+      }
+      throw error;
+    }
+
+    await attachRecordToDevice(record, device._id);
+
+    logger.log("info", "Mikrotik inventory card created and linked", {
+      actor: req.userId,
+      recordId: record._id,
+      clientDeviceId: device._id,
+      modelMatched: Boolean(model),
+      ip: req.ip,
+    });
+
+    res.status(201).json({
+      message: "Карточка создана и связана",
+      clientDeviceId: device._id,
+    });
+  } catch (error) {
+    next(
+      new AppError("Failed to create inventory card from mikrotik", 500, true, error),
+    );
+  }
+};
+
 // --- Standalone devices (no inventory ClientDevice, e.g. Cloud Hosted Router) ---
 
 // Create a standalone managed device: verify-on-save, then persist a record with
-// no clientDevice (identified by companyId + optional label).
+// no clientDevice (identified by companyId + optional label). Ответ несёт блок
+// «Инвентарь» (кандидат на связь по серийнику) для шага после проверки.
 exports.createStandalone = async (req, res, next) => {
   try {
     let update;
@@ -1070,9 +1377,11 @@ exports.createStandalone = async (req, res, next) => {
       ip: req.ip,
     });
 
-    res
-      .status(201)
-      .json({ message: "Устройство добавлено и проверено", record: safe });
+    res.status(201).json({
+      message: "Устройство добавлено и проверено",
+      record: safe,
+      inventory: await inventoryLinkContext(record, req.userId),
+    });
   } catch (error) {
     next(
       new AppError(
@@ -1082,6 +1391,102 @@ exports.createStandalone = async (req, res, next) => {
         error,
       ),
     );
+  }
+};
+
+// Пересохранить параметры ЛЮБОЙ записи (verify-on-save) по её id. Для
+// несвязанной записи принимает также companyId/label; у связанной идентичность
+// даёт карточка инвентаря, поэтому эти поля игнорируются.
+exports.updateRecordParameters = async (req, res, next) => {
+  try {
+    const existing = await Mikrotik.findById(req.params.recordId);
+    if (!existing) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+
+    let update;
+    try {
+      update = await verifyAndBuild(req.body, existing);
+    } catch (error) {
+      return next(mapVerifyError(error, req.body.host));
+    }
+
+    // Verified save = recovery (see updateParameters).
+    const unset = { firstFailureAt: "" };
+    // Очищенный селект транзита должен реально отвязать запись от роутера.
+    if (!update.jumpRecordId) unset.jumpRecordId = "";
+    if (existing.offlineSince) {
+      await markRecovered(existing);
+      unset.offlineSince = "";
+      unset.offlineAlertedAt = "";
+      unset.alertTicketId = "";
+    }
+
+    if (!existing.clientDevice) {
+      if (req.body.companyId !== undefined) {
+        update.companyId = req.body.companyId || null;
+      }
+      if (req.body.label !== undefined) {
+        update.label = req.body.label || null;
+      }
+    }
+
+    const record = await Mikrotik.findByIdAndUpdate(
+      req.params.recordId,
+      { $set: update, $unset: unset },
+      { new: true },
+    ).select("-credentials.password -credentials.knockSequence");
+
+    logger.log("info", "Mikrotik record parameters saved", {
+      actor: req.userId,
+      recordId: req.params.recordId,
+      host: update.credentials.host,
+      ip: req.ip,
+    });
+
+    res.status(200).json({
+      message: "Параметры сохранены и проверены",
+      record,
+      // Несвязанной записи после проверки снова предлагается связь (серийник
+      // мог появиться только сейчас); у связанной блока нет.
+      inventory: record.clientDevice
+        ? null
+        : await inventoryLinkContext(record, req.userId),
+    });
+  } catch (error) {
+    next(
+      new AppError("Failed to save mikrotik record parameters", 500, true, error),
+    );
+  }
+};
+
+// Удалить запись мониторинга по её id (креды, закреплённый серт, снятые данные,
+// эпизоды). Связанная карточка инвентаря остаётся нетронутой.
+exports.deleteRecord = async (req, res, next) => {
+  try {
+    const record = await Mikrotik.findById(req.params.recordId);
+    if (!record) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+
+    // Запись может быть транзитом для других — удалять её нельзя, пока они
+    // подключены через неё (иначе их мониторинг молча осиротеет).
+    const conflict = await dependentsConflict(record);
+    if (conflict) return next(conflict);
+
+    await Mikrotik.deleteOne({ _id: record._id });
+    await deleteOutages(record._id);
+
+    logger.log("info", "Mikrotik record deleted", {
+      actor: req.userId,
+      recordId: req.params.recordId,
+      hadClientDevice: Boolean(record.clientDevice),
+      ip: req.ip,
+    });
+
+    res.status(200).json({ message: "Устройство удалено из мониторинга" });
+  } catch (error) {
+    next(new AppError("Failed to delete mikrotik record", 500, true, error));
   }
 };
 

@@ -1,186 +1,162 @@
 import { useEffect, useState } from "react";
 
-import Form from "react-bootstrap/Form";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import SettingRow from "@/components/app/SettingRow";
 
 import Select from "../../UI/Select";
 import { getLocalStorageData } from "../../util/auth";
+import SectionForm from "./SectionForm";
 
-const defaultKnowledgeBase = {
-  moderators: [],
-  hideNotApproved: false,
-  approvalPeriodDays: 0,
-  scanForSecrets: false,
-  trackServiceExpiry: false,
-  serviceExpiryDays: 30,
-};
-
+// «База знаний» (видна при включённом модуле): модерация, поиск секретов и
+// отслеживание продления услуг. Включение сканов запускает их сразу (бэкенд).
 const PrefsKnowledgeBase = ({ prefs }) => {
-  const { token } = getLocalStorageData();
-
-  // Гарантируем наличие объекта настроек (на случай старого документа prefs)
-  if (!prefs.knowledgeBase) {
-    prefs.knowledgeBase = { ...defaultKnowledgeBase };
-  }
-
   const [moderators, setModerators] = useState(
-    prefs.knowledgeBase.moderators || [],
+    prefs.knowledgeBase?.moderators || [],
   );
   const [hideNotApproved, setHideNotApproved] = useState(
-    prefs.knowledgeBase.hideNotApproved || false,
+    !!prefs.knowledgeBase?.hideNotApproved,
   );
   const [approvalPeriodDays, setApprovalPeriodDays] = useState(
-    prefs.knowledgeBase.approvalPeriodDays || 0,
+    prefs.knowledgeBase?.approvalPeriodDays ?? 0,
   );
   const [scanForSecrets, setScanForSecrets] = useState(
-    prefs.knowledgeBase.scanForSecrets || false,
+    !!prefs.knowledgeBase?.scanForSecrets,
   );
   const [trackServiceExpiry, setTrackServiceExpiry] = useState(
-    prefs.knowledgeBase.trackServiceExpiry || false,
+    !!prefs.knowledgeBase?.trackServiceExpiry,
   );
   const [serviceExpiryDays, setServiceExpiryDays] = useState(
-    prefs.knowledgeBase.serviceExpiryDays || 30,
+    prefs.knowledgeBase?.serviceExpiryDays ?? 30,
   );
-  const [candidates, setCandidates] = useState([]);
 
   // Кандидаты в модераторы — сотрудники с правами «видеть» и «управлять» базой
+  const [candidates, setCandidates] = useState([]);
   useEffect(() => {
-    const fetchCandidates = async () => {
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_ADDRESS}/api/users/knowledge-base-moderators`,
-          { headers: { Authorization: "Bearer " + token } },
-        );
-        if (response.ok) {
-          setCandidates(await response.json());
-        }
-      } catch {
-        // молча игнорируем — селект останется без опций
-      }
-    };
-    fetchCandidates();
-  }, [token]);
-
-  const moderatorsChangeHandler = (selected) => {
-    const next = (selected || []).map((user) => ({
-      _id: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-    }));
-    setModerators(next);
-    prefs.knowledgeBase.moderators = next;
-  };
-
-  const hideNotApprovedChangeHandler = () => {
-    const next = !hideNotApproved;
-    setHideNotApproved(next);
-    prefs.knowledgeBase.hideNotApproved = next;
-  };
-
-  const scanForSecretsChangeHandler = () => {
-    const next = !scanForSecrets;
-    setScanForSecrets(next);
-    prefs.knowledgeBase.scanForSecrets = next;
-  };
-
-  const approvalPeriodChangeHandler = (event) => {
-    const value = Math.max(0, parseInt(event.target.value, 10) || 0);
-    setApprovalPeriodDays(value);
-    prefs.knowledgeBase.approvalPeriodDays = value;
-  };
-
-  const trackServiceExpiryChangeHandler = () => {
-    const next = !trackServiceExpiry;
-    setTrackServiceExpiry(next);
-    prefs.knowledgeBase.trackServiceExpiry = next;
-  };
-
-  const serviceExpiryDaysChangeHandler = (event) => {
-    const value = Math.max(1, parseInt(event.target.value, 10) || 1);
-    setServiceExpiryDays(value);
-    prefs.knowledgeBase.serviceExpiryDays = value;
-  };
+    const { token } = getLocalStorageData();
+    fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/users/knowledge-base-moderators`,
+      { headers: { Authorization: "Bearer " + token } },
+    )
+      .then((response) => (response.ok ? response.json() : []))
+      .then((data) => setCandidates(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
   return (
-    <>
-      <Form.Group className="mb-3">
-        <Form.Label>Модераторы базы знаний</Form.Label>
-        <Select
-          isMulti
-          closeMenuOnSelect={false}
-          isClearable
-          isSearchable
-          placeholder="Выберите модераторов"
-          value={moderators}
-          options={candidates}
-          getOptionLabel={(option) => `${option.lastName} ${option.firstName}`}
-          getOptionValue={(option) => option._id}
-          onChange={moderatorsChangeHandler}
-        />
-        <Form.Text muted>
-          Доступны только сотрудники с правами «Видеть базу знаний» и «Управлять
-          базой знаний».
-        </Form.Text>
-      </Form.Group>
-
-      <Form.Group className="mb-3">
-        <Form.Check
-          type="switch"
-          label="Скрывать непроверенные заметки от обычных пользователей"
+    <SectionForm
+      buildPayload={() => ({
+        knowledgeBase: {
+          moderators,
+          hideNotApproved,
+          approvalPeriodDays: Number(approvalPeriodDays) || 0,
+          scanForSecrets,
+          trackServiceExpiry,
+          serviceExpiryDays: Number(serviceExpiryDays) || 30,
+        },
+      })}
+    >
+      <SettingRow
+        title="Модераторы"
+        hint="Проверяют и одобряют заметки; разбирают очереди модерации."
+        htmlFor="prefs-kb-moderators"
+      >
+        <div className="tw:w-80 tw:max-md:w-full">
+          <Select
+            id="prefs-kb-moderators"
+            placeholder="Выберите модераторов"
+            isMulti
+            isClearable
+            isSearchable
+            value={moderators}
+            options={candidates}
+            getOptionLabel={(option) =>
+              `${option.lastName || ""} ${option.firstName || ""}`.trim()
+            }
+            getOptionValue={(option) => option._id}
+            onChange={(selected) =>
+              setModerators(
+                (selected || []).map((user) => ({
+                  _id: user._id,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                })),
+              )
+            }
+          />
+        </div>
+      </SettingRow>
+      <SettingRow
+        divider
+        title="Скрывать непроверенные заметки"
+        hint="Обычные пользователи видят только проверенное."
+        htmlFor="prefs-kb-hide"
+      >
+        <Switch
+          id="prefs-kb-hide"
           checked={hideNotApproved}
-          value={hideNotApproved}
-          onChange={hideNotApprovedChangeHandler}
+          onCheckedChange={setHideNotApproved}
         />
-      </Form.Group>
-
-      <Form.Group className="mb-3">
-        <Form.Label>Срок действия проверки, дней</Form.Label>
-        <Form.Control
-          type="number"
-          min={0}
-          value={approvalPeriodDays}
-          onChange={approvalPeriodChangeHandler}
-        />
-        <Form.Text muted>
-          Через столько дней проверенная заметка снова станет непроверенной. 0 —
-          не сбрасывать.
-        </Form.Text>
-      </Form.Group>
-
-      <Form.Group className="mb-3">
-        <Form.Check
-          type="switch"
-          label="Искать в заметках пароли, ключи шифрования, API-ключи и прочие чувствительные данные"
+      </SettingRow>
+      <SettingRow
+        title="Срок действия проверки"
+        hint="0 — проверка бессрочна."
+        htmlFor="prefs-kb-approval-days"
+      >
+        <div className="tw:flex tw:items-center tw:gap-2">
+          <Input
+            id="prefs-kb-approval-days"
+            type="number"
+            min="0"
+            value={approvalPeriodDays}
+            onChange={(event) => setApprovalPeriodDays(event.target.value)}
+            className="tw:w-24 tw:text-right"
+          />
+          <span className="tw:text-sm tw:text-muted-foreground">дней</span>
+        </div>
+      </SettingRow>
+      <SettingRow
+        divider
+        title="Искать секреты в заметках"
+        hint="Пароли, ключи шифрования, API-ключи и другие чувствительные данные."
+        htmlFor="prefs-kb-secrets"
+      >
+        <Switch
+          id="prefs-kb-secrets"
           checked={scanForSecrets}
-          value={scanForSecrets}
-          onChange={scanForSecretsChangeHandler}
+          onCheckedChange={setScanForSecrets}
         />
-      </Form.Group>
-
-      <Form.Group className="mb-3">
-        <Form.Check
-          type="switch"
-          label="Отслеживать продление услуг (домены, хостинг и т. п. — по таблицам в заметках)"
+      </SettingRow>
+      <SettingRow
+        title="Отслеживать продление услуг"
+        hint="Домены, хостинг и т. п. — по таблицам в заметках."
+        htmlFor="prefs-kb-expiry"
+      >
+        <Switch
+          id="prefs-kb-expiry"
           checked={trackServiceExpiry}
-          value={trackServiceExpiry}
-          onChange={trackServiceExpiryChangeHandler}
+          onCheckedChange={setTrackServiceExpiry}
         />
-      </Form.Group>
-
-      <Form.Group className="mb-3">
-        <Form.Label>За сколько дней предупреждать о продлении услуги</Form.Label>
-        <Form.Control
-          type="number"
-          min={1}
-          value={serviceExpiryDays}
-          disabled={!trackServiceExpiry}
-          onChange={serviceExpiryDaysChangeHandler}
-        />
-        <Form.Text muted>
-          Услуга попадёт в карточку на странице заявок, если до даты продления
-          осталось столько дней или меньше. Просроченные показываются всегда.
-        </Form.Text>
-      </Form.Group>
-    </>
+      </SettingRow>
+      <SettingRow
+        title="Предупреждать о продлении за"
+        htmlFor="prefs-kb-expiry-days"
+        className={trackServiceExpiry ? "" : "tw:opacity-60"}
+      >
+        <div className="tw:flex tw:items-center tw:gap-2">
+          <Input
+            id="prefs-kb-expiry-days"
+            type="number"
+            min="1"
+            disabled={!trackServiceExpiry}
+            value={serviceExpiryDays}
+            onChange={(event) => setServiceExpiryDays(event.target.value)}
+            className="tw:w-24 tw:text-right"
+          />
+          <span className="tw:text-sm tw:text-muted-foreground">дней</span>
+        </div>
+      </SettingRow>
+    </SectionForm>
   );
 };
 

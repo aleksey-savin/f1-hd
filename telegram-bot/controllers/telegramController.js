@@ -1,10 +1,13 @@
 const { tgSendMessage } = require("../middleware/tgBotApi");
 const Notification = require("../models/notification");
-const Preferences = require("../models/preferences");
 const TicketLog = require("../models/ticketLog");
 const { Ticket } = require("../models/ticket");
 
 const logger = require("../utils/logger");
+const {
+  NOTIFY_MAX_ATTEMPTS,
+  NOTIFY_RETRY_INTERVAL_MINUTES,
+} = require("../utils/retryPolicy");
 
 exports.checkTgNotifications = async () => {
   try {
@@ -16,8 +19,6 @@ exports.checkTgNotifications = async () => {
     if (notifications.length === 0) {
       return;
     }
-
-    const prefs = await Preferences.findOne({});
 
     // отправка уведомлений в глобальный канал
     for (let notification of notifications) {
@@ -31,10 +32,10 @@ exports.checkTgNotifications = async () => {
         }
         // проверяем, что не превышено число попыток отправки и соблюдён интервал между ними
         const okToSend =
-          prefs.notify.global.attempts > notification.attemptsCounter &&
+          NOTIFY_MAX_ATTEMPTS > notification.attemptsCounter &&
           (new Date(
             notification.updatedAt.getTime() +
-              prefs.notify.global.attemptsInterval * 60000,
+              NOTIFY_RETRY_INTERVAL_MINUTES * 60000,
           ) < new Date() ||
             notification.attemptsCounter === 0);
 
@@ -43,6 +44,7 @@ exports.checkTgNotifications = async () => {
             notification.to.chatId,
             notification.text,
             notification.replyMarkup,
+            notification.to.messageThreadId,
           );
           if (message?.message_id) {
             notification.attemptsCounter += 1;
@@ -92,7 +94,7 @@ exports.checkTgNotifications = async () => {
             }
           }
         } else if (
-          prefs.notify.global.attempts === notification.attemptsCounter
+          NOTIFY_MAX_ATTEMPTS === notification.attemptsCounter
         ) {
           notification.failed = true;
           await notification.save();

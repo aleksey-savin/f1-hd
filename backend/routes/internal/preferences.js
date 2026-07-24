@@ -29,11 +29,4 @@ router.post(
   isAdmin,
   preferencesController.getAiModels,
 );
-router.post(
-  "/preferences/update-db-conf",
-  isAuth,
-  isAdmin,
-  preferencesController.updateDbConf,
-);
-
 module.exports = router;

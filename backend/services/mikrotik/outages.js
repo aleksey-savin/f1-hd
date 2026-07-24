@@ -318,16 +318,21 @@ const computeAvailability = async (record, { days }) => {
   };
 };
 
-// 30-дневный рейтинг доступности для СПИСКА записей одним запросом (колонка
-// таблицы управления). Возвращает Map(String(recordId) → pct | null), где null =
-// «недостаточно данных» (запись только что создана). Математика та же, что в
-// computeAvailability: окно клампится к monitoredSince, перекрытия сливаются.
-const computeUptimeMap = async (records, { days = 30 } = {}) => {
+// Доступность для СПИСКА записей одним запросом (колонка таблицы управления):
+// суммарный % за окно + лента по «дням» — окнам по 24 часа от «сейчас», от
+// старого к новому. Элемент ленты: null — запись ещё не мониторилась в это
+// окно, иначе суммарный простой за окно (мс) — классы сегментов красит фронт.
+// Возвращает Map(String(recordId) → { pct: number|null, days: (number|null)[] }),
+// pct: null = «недостаточно данных» (запись только что создана). Математика та
+// же, что в computeAvailability: окно клампится к monitoredSince, перекрытия
+// сливаются.
+const computeUptimeStats = async (records, { days = 30 } = {}) => {
   const map = new Map();
   if (!records.length) return map;
 
   const to = new Date();
-  const from = new Date(to.getTime() - days * MS_PER_DAY);
+  const toMs = to.getTime();
+  const from = new Date(toMs - days * MS_PER_DAY);
 
   const docs = await MikrotikOutage.find({
     mikrotik: { $in: records.map((record) => record._id) },
@@ -346,24 +351,43 @@ const computeUptimeMap = async (records, { days = 30 } = {}) => {
 
   for (const record of records) {
     const key = String(record._id);
-    const monitoredSince = record.createdAt || from;
-    const effectiveFrom = monitoredSince > from ? monitoredSince : from;
-    const windowMs = to.getTime() - effectiveFrom.getTime();
-    if (windowMs <= 0) {
-      map.set(key, null);
-      continue;
-    }
+    const sinceMs = new Date(record.createdAt || from).getTime();
+    const effectiveFromMs = Math.max(sinceMs, from.getTime());
+    const windowMs = toMs - effectiveFromMs;
 
     const merged = clampAndMergeIntervals(
       byRecord.get(key) || [],
-      effectiveFrom.getTime(),
-      to.getTime(),
+      effectiveFromMs,
+      toMs,
     );
     let downtimeMs = 0;
     for (const [start, end] of merged) {
       downtimeMs += end - start;
     }
-    map.set(key, Math.round((1 - downtimeMs / windowMs) * 10000) / 100);
+
+    const dayBuckets = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const winEnd = toMs - i * MS_PER_DAY;
+      if (winEnd <= sinceMs) {
+        dayBuckets.push(null); // окно целиком до подключения
+        continue;
+      }
+      const winStart = Math.max(winEnd - MS_PER_DAY, sinceMs);
+      let dayDowntime = 0;
+      for (const [start, end] of merged) {
+        const overlap = Math.min(end, winEnd) - Math.max(start, winStart);
+        if (overlap > 0) dayDowntime += overlap;
+      }
+      dayBuckets.push(dayDowntime);
+    }
+
+    map.set(key, {
+      pct:
+        windowMs > 0
+          ? Math.round((1 - downtimeMs / windowMs) * 10000) / 100
+          : null,
+      days: dayBuckets,
+    });
   }
 
   return map;
@@ -376,6 +400,6 @@ module.exports = {
   closeOpenOutage,
   deleteOutages,
   computeAvailability,
-  computeUptimeMap,
+  computeUptimeStats,
   formatDurationRu,
 };

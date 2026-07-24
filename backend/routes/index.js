@@ -5,6 +5,7 @@ const {
   inventoryModuleIsActive,
   financesModuleIsActive,
   canUseFinancesModule,
+  mikrotikIsActive,
 } = require("@/middleware/permissions");
 
 // Internal routes
@@ -131,12 +132,10 @@ internalRoutes.use(
   canUseInventoryModule,
   locationRoutes,
 );
-internalRoutes.use(
-  "/inventory",
-  inventoryModuleIsActive,
-  canUseInventoryModule,
-  mikrotikRoutes,
-);
+// Mikrotik — самостоятельная интеграция (не зависит от модуля «Учёт техники»):
+// гейт — только собственный рубильник; права проверяют сами роуты. Путь
+// /inventory сохранён — его знает фронтенд
+internalRoutes.use("/inventory", mikrotikIsActive, mikrotikRoutes);
 internalRoutes.use(
   "/inventory",
   inventoryModuleIsActive,

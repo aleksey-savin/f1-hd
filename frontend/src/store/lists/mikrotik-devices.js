@@ -3,6 +3,11 @@ import { getLocalStorageData } from "../../util/auth";
 
 const API = `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices`;
 
+// Статус строки с учётом рубильника мониторинга: выключенный мониторинг — своя
+// группа/фасет, а не «не в сети». Общий для страницы, шторки и фильтра.
+export const rowStatus = (row) =>
+  row?.monitoringEnabled ? row?.status || "offline" : "disabled";
+
 // Searchable text fields of a managed-device row.
 const rowSearchFields = (item) => [
   item.displayName,
@@ -10,7 +15,6 @@ const rowSearchFields = (item) => [
   item.serialNumber,
   item.currentFirmware,
   item.boardName,
-  item.status,
   item.type,
   item.model?.name,
   item.model?.vendor,
@@ -18,28 +22,6 @@ const rowSearchFields = (item) => [
   item.company?.name,
   item.jump?.name,
 ];
-
-// последовательно отсеивает устройства согласно активному поиску
-const clientDeviceFilter = (state) => {
-  const originalList = Array.isArray(state.originalList)
-    ? state.originalList
-    : [];
-  // В таблице показываем только привязанные (настроенные) устройства. Не
-  // привязанные (status === "notConfigured") остаются в originalList — из них
-  // формируется список доступных для добавления через «+».
-  return originalList
-    .filter((item) => item.status !== "notConfigured")
-    .filter((item) => {
-      if (state.searchTerm.length > 0) {
-        return rowSearchFields(item)
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(state.searchTerm);
-      }
-      return true;
-    });
-};
 
 const searchItems = (query, items) => {
   if (!query) return items;
@@ -56,105 +38,122 @@ const searchItems = (query, items) => {
   });
 };
 
+// Фасеты Sheet-фильтра/чипа компаний. status: online|offline|disabled;
+// firmware: vulnerable (CVE ≥ порога) | outdated (есть обновление) | current.
+const EMPTY_FACETS = {
+  status: null,
+  companies: [],
+  type: null,
+  firmware: null,
+};
+
+const matchesFacets = (item, facets) => {
+  if (facets.status && rowStatus(item) !== facets.status) return false;
+  if (
+    facets.companies.length > 0 &&
+    !facets.companies.includes(String(item.company?.id))
+  ) {
+    return false;
+  }
+  if (facets.type && item.type !== facets.type) return false;
+  if (facets.firmware) {
+    const firmware = item.firmwareStatus;
+    if (facets.firmware === "vulnerable" && !firmware?.vulnerable) return false;
+    if (facets.firmware === "outdated" && !firmware?.updateAvailable) {
+      return false;
+    }
+    if (
+      facets.firmware === "current" &&
+      (!firmware || firmware.updateAvailable)
+    ) {
+      return false;
+    }
+  }
+  return true;
+};
+
 const getTime = (value) => (value ? new Date(value).getTime() : 0);
 
-const handleSorting = (selected, list) => {
-  if (!selected || !list.length) {
-    return;
-  }
-
-  const sortedList = [...list];
-
-  switch (selected.label) {
+const sortList = (selected, list) => {
+  const sorted = [...list];
+  switch (selected?.label) {
     case "По алфавиту":
-      sortedList.sort((a, b) =>
+      sorted.sort((a, b) =>
         (a.displayName || "").localeCompare(b.displayName || "", "ru"),
       );
       break;
-
-    case "Сначала новые":
-      sortedList.sort(
-        (a, b) =>
-          getTime(b.lastSuccessfulConnectionAt) -
-          getTime(a.lastSuccessfulConnectionAt),
+    // Худшая доступность сверху; «мало данных» (null) — в конец.
+    case "По доступности":
+      sorted.sort((a, b) => (a.uptime30d ?? 101) - (b.uptime30d ?? 101));
+      break;
+    case "Сначала недавние":
+      sorted.sort(
+        (a, b) => getTime(b.monitoredSince) - getTime(a.monitoredSince),
       );
       break;
-
-    case "Сначала старые":
-      sortedList.sort(
-        (a, b) =>
-          getTime(a.lastSuccessfulConnectionAt) -
-          getTime(b.lastSuccessfulConnectionAt),
-      );
-      break;
-
     default:
       break;
   }
-
-  return sortedList;
+  return sorted;
 };
+
+// Единственное место пересчёта: фасеты → поиск → сортировка. Все мутаторы стора
+// зовут его в том же set-вызове — страница больше не пересчитывает эффектами.
+const recompute = (state) => {
+  const base = (
+    Array.isArray(state.originalList) ? state.originalList : []
+  ).filter((item) => matchesFacets(item, state.facets));
+  return sortList(state.sortBy, searchItems(state.searchTerm, base));
+};
+
+const authHeaders = () => ({
+  Authorization: "Bearer " + getLocalStorageData().token,
+});
+
+const jsonHeaders = () => ({
+  "Content-Type": "application/json",
+  ...authHeaders(),
+});
 
 const useMikrotikDeviceFilterStore = create((set, get) => ({
   searchTerm: "",
+  facets: { ...EMPTY_FACETS },
   sortingOptions: [
     { label: "По алфавиту" },
-    { label: "Сначала новые" },
-    { label: "Сначала старые" },
+    { label: "По доступности" },
+    { label: "Сначала недавние" },
   ],
   sortBy: {
     label: "По алфавиту",
   },
   isSorting: false,
-  handleSorting: async (data) => {
-    set({ isSorting: true });
-    set({ sortBy: data });
-
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    set((state) => {
-      const sortedList = handleSorting(data, state.filteredList);
-      return {
-        sortBy: data,
-        filteredList: sortedList,
-        isSorting: false,
-      };
-    });
-  },
+  handleSorting: (data) =>
+    set((state) => ({
+      sortBy: data,
+      filteredList: recompute({ ...state, sortBy: data }),
+    })),
   originalList: [],
   filteredList: [],
   isLoading: false,
   fetch: async () => {
     set({ isLoading: true });
-    const { token } = getLocalStorageData();
-    const response = await fetch(API, {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    });
+    const response = await fetch(API, { headers: authHeaders() });
     const data = await response.json();
+    const originalList = Array.isArray(data) ? data : [];
 
-    set({
-      originalList: Array.isArray(data) ? data : [],
+    set((state) => ({
+      originalList,
       isLoading: false,
-    });
+      filteredList: recompute({ ...state, originalList }),
+    }));
   },
-  // Признак «список только что обновлён тихо» (фоновым опросом): по нему
-  // страница пропускает повторный пересчёт фильтра/сортировки, чтобы не дёргать
-  // спиннер и fade-анимацию (паттерн страницы заявок).
-  silentUpdate: false,
-  clearSilentUpdate: () => set({ silentUpdate: false }),
-  // Фоновое обновление без isLoading: свежие строки + пересчёт отфильтрованного/
-  // отсортированного списка одним set-вызовом. Статусы, доступность и индикаторы
-  // прошивки обновляются на месте; открытая панель устройства не закрывается
-  // (её закрывает именно isLoading-спиннер ListWrapper, см. patchRow ниже).
+  // Фоновое обновление без isLoading: свежие строки + пересчёт одним set-вызовом.
+  // Статусы, доступность и индикаторы прошивки обновляются на месте; открытая
+  // шторка устройства живёт на строке из originalList и не закрывается.
   silentRefresh: async () => {
-    const { token } = getLocalStorageData();
     let data;
     try {
-      const response = await fetch(API, {
-        headers: { Authorization: "Bearer " + token },
-      });
+      const response = await fetch(API, { headers: authHeaders() });
       if (!response.ok) throw new Error(`mikrotik-devices ${response.status}`);
       data = await response.json();
     } catch (error) {
@@ -164,99 +163,140 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
       return;
     }
 
-    set((state) => {
-      const nextState = {
-        ...state,
-        originalList: Array.isArray(data) ? data : [],
-      };
-      const filteredList = clientDeviceFilter(nextState);
-      const sortedList = handleSorting(state.sortBy, filteredList);
-      return {
-        originalList: nextState.originalList,
-        filteredList: sortedList || filteredList,
-        silentUpdate: true,
-      };
-    });
+    const originalList = Array.isArray(data) ? data : [];
+    set((state) => ({
+      originalList,
+      filteredList: recompute({ ...state, originalList }),
+    }));
   },
-  // Кэш последних релизов RouterOS (+ свежесть CVE-синка) для плашки над
-  // таблицей. Ошибка сети не затирает прежнее значение — плашка живёт на
-  // stale-данных, как и бэкенд-кэш.
+  // Кэш последних релизов RouterOS (+ свежесть CVE-синка) для полосы над
+  // списком и страницы записи. Ошибка сети не затирает прежнее значение —
+  // полоса живёт на stale-данных, как и бэкенд-кэш.
   releases: null,
   fetchReleases: async () => {
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(`${API}/firmware/releases`, {
-        headers: { Authorization: "Bearer " + token },
+        headers: authHeaders(),
       });
       if (!response.ok) return;
       set({ releases: await response.json() });
     } catch {
-      // фоновая загрузка плашки: сбой сети молча переживаем
+      // фоновая загрузка полосы: сбой сети молча переживаем
     }
   },
-  // Patch one already-loaded row in place (no network) so the table badge reflects
-  // a panel action without a full refetch. A refetch toggles isLoading / isSorting,
-  // and ListWrapper swaps its children (incl. the device Offcanvas) for a spinner —
-  // which would close the panel. Touches only filteredList (what the table renders);
-  // originalList reconciles on the next full fetch.
+  fullTextSearch: (query) =>
+    set((state) => {
+      const searchTerm = String(query || "").toLowerCase();
+      return {
+        searchTerm,
+        filteredList: recompute({ ...state, searchTerm }),
+      };
+    }),
+  setFacet: (key, value) =>
+    set((state) => {
+      const facets = { ...state.facets, [key]: value };
+      return { facets, filteredList: recompute({ ...state, facets }) };
+    }),
+  resetFilter: () =>
+    set((state) => {
+      const next = {
+        ...state,
+        searchTerm: "",
+        facets: { ...EMPTY_FACETS },
+      };
+      return {
+        searchTerm: "",
+        facets: next.facets,
+        filteredList: recompute(next),
+      };
+    }),
+  // Совместимость с легаси-потребителями (вкладка карточки инвентаря).
+  applyFilter: () =>
+    set((state) => ({ filteredList: recompute(state) })),
+  // Patch one already-loaded row in place (no network) so the table reflects a
+  // panel action without a full refetch (полный refetch дёргает isLoading).
   patchRow: (recordId, patch) =>
     set((state) => ({
       filteredList: (state.filteredList || []).map((row) =>
         row.recordId === recordId ? { ...row, ...patch } : row,
       ),
     })),
+
+  // --- Record-центричные операции (новый раздел) --------------------------------
+  // Одна запись (строка + record без секретов + сверка) — страница записи и
+  // префилл формы «Изменить».
+  fetchRecord: async (recordId) => {
+    const response = await fetch(`${API}/records/${recordId}`, {
+      headers: authHeaders(),
+    });
+    if (!response.ok) return null;
+    return response.json().catch(() => null);
+  },
+  // Создать запись (verify-on-save). Ответ несёт блок «Инвентарь» (кандидат на
+  // связь по серийнику) — список обновляет вызывающая форма после закрытия.
+  createStandalone: async (body) => {
+    return fetch(`${API}/standalone/parameters`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify(body),
+    });
+  },
+  // Пересохранить параметры любой записи (verify-on-save) по её id.
+  saveRecordParameters: async (recordId, body) => {
+    return fetch(`${API}/records/${recordId}/parameters`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify(body),
+    });
+  },
+  // Связать запись с карточкой инвентаря (шаг после проверки).
+  linkInventory: async (recordId, clientDeviceId) => {
+    return fetch(`${API}/records/${recordId}/link-inventory`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ clientDeviceId }),
+    });
+  },
+  // Создать карточку инвентаря из данных записи и связать.
+  createInventoryCard: async (recordId) => {
+    return fetch(`${API}/records/${recordId}/create-inventory`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+  },
+  connectRecord: async (recordId) => {
+    const response = await fetch(`${API}/records/${recordId}/connect`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    if (response.ok) await get().fetch();
+    return response;
+  },
+  disconnectRecord: async (recordId) => {
+    const response = await fetch(`${API}/records/${recordId}/disconnect`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    if (response.ok) await get().fetch();
+    return response;
+  },
+  // Удалить запись мониторинга (карточка инвентаря, если была, остаётся).
+  deleteRecord: async (recordId) => {
+    const response = await fetch(`${API}/records/${recordId}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    if (response.ok) await get().fetch();
+    return response;
+  },
+
+  // --- Легаси-операции по карточке инвентаря (вкладка «Мониторинг» карточки) ----
   // Detach an inventory-backed device from management (delete its record), then
   // refresh. The ClientDevice returns to the "available" pool for re-adding.
   detach: async (clientDeviceId) => {
-    const { token } = getLocalStorageData();
     const response = await fetch(`${API}/${clientDeviceId}`, {
       method: "DELETE",
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (response.ok) {
-      await get().fetch();
-    }
-    return response;
-  },
-  // Create a standalone device (no inventory ClientDevice, e.g. Cloud Hosted
-  // Router): verify-on-save, then refresh.
-  createStandalone: async (body) => {
-    const { token } = getLocalStorageData();
-    const response = await fetch(`${API}/standalone/parameters`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
-      body: JSON.stringify(body),
-    });
-    if (response.ok) {
-      await get().fetch();
-    }
-    return response;
-  },
-  // Verify-on-save parameters (and company/label) of a standalone record.
-  saveStandaloneParameters: async (recordId, body) => {
-    const { token } = getLocalStorageData();
-    const response = await fetch(`${API}/standalone/${recordId}/parameters`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
-      body: JSON.stringify(body),
-    });
-    if (response.ok) {
-      await get().fetch();
-    }
-    return response;
-  },
-  // Delete a standalone record entirely, then refresh.
-  detachStandalone: async (recordId) => {
-    const { token } = getLocalStorageData();
-    const response = await fetch(`${API}/standalone/${recordId}`, {
-      method: "DELETE",
-      headers: { Authorization: "Bearer " + token },
+      headers: authHeaders(),
     });
     if (response.ok) {
       await get().fetch();
@@ -265,13 +305,9 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
   },
   // Verify-on-save connection parameters, then refresh the list.
   saveParameters: async (clientDeviceId, body) => {
-    const { token } = getLocalStorageData();
     const response = await fetch(`${API}/${clientDeviceId}/parameters`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
+      headers: jsonHeaders(),
       body: JSON.stringify(body),
     });
     if (response.ok) {
@@ -282,93 +318,74 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
   // Apply device-derived values to the inventory card (reconciliation step).
   // The backend derives the values itself — only field NAMES are sent.
   syncInventory: async (clientDeviceId, fields) => {
-    const { token } = getLocalStorageData();
     return fetch(`${API}/${clientDeviceId}/sync-inventory`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
+      headers: jsonHeaders(),
       body: JSON.stringify({ fields }),
     });
   },
+
+  // --- Отчёты и конфигурации (по id записи) --------------------------------------
   // Availability report (uptime / outage episodes) for one record. Returns the
   // report object for component-local state, or null on failure.
   fetchAvailability: async (recordId, days = 30) => {
-    const { token } = getLocalStorageData();
     const response = await fetch(
       `${API}/records/${recordId}/availability?days=${days}`,
-      { headers: { Authorization: "Bearer " + token } },
+      { headers: authHeaders() },
     );
     if (!response.ok) return null;
     return response.json().catch(() => null);
   },
-  // --- Backups & config exports (keyed by the Mikrotik record id) ---
   // Fetch a device's stored artifacts (optionally filtered by type). Returns the
-  // array for panel-local state; not kept in the global store.
+  // array for section-local state; not kept in the global store.
   fetchArtifacts: async (recordId, type) => {
-    const { token } = getLocalStorageData();
     const suffix = type ? `?type=${type}` : "";
     const response = await fetch(
       `${API}/records/${recordId}/artifacts${suffix}`,
-      { headers: { Authorization: "Bearer " + token } },
+      { headers: authHeaders() },
     );
     if (!response.ok) return [];
     const data = await response.json();
     return Array.isArray(data.artifacts) ? data.artifacts : [];
   },
   // Export the running config now (live SSH). The caller patches the row badge via
-  // `patchRow` — a full refetch would close the device panel (see `patchRow`).
+  // `patchRow` — a full refetch would toggle the list spinner.
   createExport: async (recordId) => {
-    const { token } = getLocalStorageData();
-    const response = await fetch(`${API}/records/${recordId}/exports`, {
+    return fetch(`${API}/records/${recordId}/exports`, {
       method: "POST",
-      headers: { Authorization: "Bearer " + token },
+      headers: authHeaders(),
     });
-    return response;
   },
   // Delete a stored artifact. The caller patches the row badge via `patchRow`.
   deleteArtifact: async (recordId, artifactId) => {
-    const { token } = getLocalStorageData();
-    const response = await fetch(
-      `${API}/records/${recordId}/artifacts/${artifactId}`,
-      { method: "DELETE", headers: { Authorization: "Bearer " + token } },
-    );
-    return response;
+    return fetch(`${API}/records/${recordId}/artifacts/${artifactId}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
   },
   // Save the config-export schedule + retention. The caller patches the row badge
   // via `patchRow`.
   saveSchedules: async (recordId, body) => {
-    const { token } = getLocalStorageData();
-    const response = await fetch(`${API}/records/${recordId}/schedules`, {
+    return fetch(`${API}/records/${recordId}/schedules`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
-      },
+      headers: jsonHeaders(),
       body: JSON.stringify(body),
     });
-    return response;
   },
   // 2FA step 1: ask the backend to email a one-time download code.
   requestDownloadCode: async (recordId, artifactId) => {
-    const { token } = getLocalStorageData();
     return fetch(
       `${API}/records/${recordId}/artifacts/${artifactId}/download-code`,
-      { method: "POST", headers: { Authorization: "Bearer " + token } },
+      { method: "POST", headers: authHeaders() },
     );
   },
   // 2FA step 2: submit the emailed code; on success stream the file as a blob.
   downloadArtifact: async (recordId, artifactId, fileName, code) => {
-    const { token } = getLocalStorageData();
     const response = await fetch(
       `${API}/records/${recordId}/artifacts/${artifactId}/download`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
+        headers: jsonHeaders(),
         body: JSON.stringify({ code }),
       },
     );
@@ -383,28 +400,6 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     return response;
-  },
-  updateFilter: (data) =>
-    set(() => ({
-      searchTerm: data.searchTerm,
-      originalList: data.originalList,
-      isLoading: false,
-    })),
-  fullTextSearch: (query) =>
-    set((state) => ({
-      filteredList: searchItems(query, clientDeviceFilter(state)),
-    })),
-  applyFilter: () =>
-    set((state) => {
-      return { filteredList: clientDeviceFilter(state) };
-    }),
-  resetFilter: () => {
-    set(() => ({
-      searchTerm: "",
-    }));
-    set((state) => ({
-      filteredList: clientDeviceFilter(state),
-    }));
   },
 }));
 

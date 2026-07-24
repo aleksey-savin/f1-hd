@@ -203,7 +203,7 @@ const NavigationBar = ({ embedded = false }) => {
   const isLoggedIn = !!token;
 
   const authedUser = useContext(AuthedUserContext);
-  const { modules } = useInitialPrefs();
+  const { modules, mikrotik } = useInitialPrefs();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const {
@@ -230,10 +230,11 @@ const NavigationBar = ({ embedded = false }) => {
             isAdmin,
             permissions,
             modules,
+            mikrotikActive: !!mikrotik?.isActive,
             dashboardActive: !!dashboard?.isActive,
           })
         : [],
-    [isLoggedIn, isEndUser, isAdmin, permissions, modules, dashboard],
+    [isLoggedIn, isEndUser, isAdmin, permissions, modules, mikrotik, dashboard],
   );
 
   const userTrigger = (

@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const Mikrotik = require("../models/mikrotik");
+const { mikrotikEnabled } = require("../services/mikrotik/enabled");
 const { pollWithRetry } = require("../services/mikrotik/connector");
 const {
   pollParams,
@@ -90,6 +91,9 @@ const runUnit = async (unit, jumpContexts) => {
 // Registered as a cron in app.js. Safe to call when idle (no monitored devices).
 const runMikrotikHealthCheck = async () => {
   if (mongoose.connection.readyState !== 1) {
+    return;
+  }
+  if (!(await mikrotikEnabled())) {
     return;
   }
 

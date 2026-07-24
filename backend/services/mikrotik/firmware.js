@@ -6,6 +6,7 @@ const {
   MikrotikFirmwareState,
 } = require("../../models/mikrotikFirmware");
 const Preferences = require("../../models/preferences");
+const { mikrotikEnabled } = require("./enabled");
 const logger = require("../../utils/logger");
 
 // Отслеживание релизов RouterOS и известных CVE. Источники:
@@ -385,6 +386,9 @@ const evaluateFirmware = (record, ctx) => {
 // securityTicket подключается лениво: он требует этот модуль (evaluateFirmware),
 // верхнеуровневый require здесь замкнул бы цикл CommonJS.
 const runMikrotikFirmwareRefresh = async () => {
+  if (!(await mikrotikEnabled())) {
+    return;
+  }
   await refreshReleases();
   await refreshCves();
   try {

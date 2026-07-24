@@ -43,6 +43,7 @@ const buildParams = (s) => {
   if (s.includeService) p.set("includeService", "true");
   if (s.company) p.set("company", s.company);
   if (s.online) p.set("online", "true");
+  if (s.pro32) p.set("pro32", "true");
   if (s.activity && s.activity !== "any") p.set("activity", s.activity);
   if (s.searchTerm) p.set("search", s.searchTerm);
   p.set("sort", SORT_KEY_BY_LABEL[s.sortBy?.label] || "name");
@@ -96,6 +97,8 @@ const useUserFilterStore = create((set, get) => ({
   activity: "any",
   activeOnly: true,
   includeService: false,
+  // Подключён PRO32 Connect (задан персональный API-ключ)
+  pro32: false,
   groupBySubdivision: false,
   searchTerm: "",
 
@@ -197,6 +200,7 @@ const useUserFilterStore = create((set, get) => ({
       activity: "any",
       activeOnly: true,
       includeService: false,
+      pro32: false,
       groupBySubdivision: false,
       searchTerm: "",
       page: 1,

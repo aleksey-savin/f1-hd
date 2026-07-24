@@ -38,6 +38,17 @@ const withMongoRetry = async (operation, context) => {
 const notificationsEnabled = (prefs) =>
   prefs?.notify?.byEmail?.isActive || prefs?.notify?.byTelegram?.isActive;
 
+// Адресат «группа команды»: chatId + ветка форум-группы (общая для групповых
+// уведомлений и табло статусов; пустая — General/не форум)
+const groupChatTo = (prefs) => {
+  const { chatId, messageThreadId } = prefs?.notify?.byTelegram || {};
+  return {
+    chatId,
+    globalChat: true,
+    ...(messageThreadId ? { messageThreadId } : {}),
+  };
+};
+
 // Inline-кнопка Telegram со ссылкой на заявку (заменяет текстовые <a href> в уведомлениях).
 // Telegram отклоняет inline-кнопки с невалидным URL (localhost/127.* и пустой ADDRESS)
 // ошибкой BUTTON_URL_INVALID, что роняет всю отправку. В таких случаях (например, в dev)
@@ -135,10 +146,7 @@ exports.createTicketNotifications = async () => {
             const newTicketNotification = new Notification({
               instrument: "telegram",
               ticketId: ticket._id,
-              to: {
-                chatId: prefs.notify.byTelegram.chatId,
-                globalChat: true,
-              },
+              to: groupChatTo(prefs),
               text: `⭐️ <b>Новая заявка ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
               replyMarkup: ticketButton(ticket.num),
             });
@@ -614,10 +622,7 @@ exports.createTicketNotifications = async () => {
             const newTicketNotification = new Notification({
               instrument: "telegram",
               ticketId: ticket._id,
-              to: {
-                chatId: prefs.notify.byTelegram.chatId,
-                globalChat: true,
-              },
+              to: groupChatTo(prefs),
               text: `‼️ <b>Заявка ${ticket.num} возвращена в статус "Новая"</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n#ticket_${ticket.num}`,
               replyMarkup: ticketButton(ticket.num),
             });
@@ -823,10 +828,7 @@ exports.createTicketNotifications = async () => {
             const newTicketNotification = new Notification({
               instrument: "telegram",
               ticketId: ticket._id,
-              to: {
-                chatId: prefs.notify.byTelegram?.chatId,
-                globalChat: true,
-              },
+              to: groupChatTo(prefs),
               text: `✅ <b>Закрыта заявка ${ticket.num}</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.closingComment}</b>\n#ticket_${ticket.num}`,
               replyMarkup: ticketButton(ticket.num),
             });
@@ -1006,10 +1008,7 @@ exports.createTicketNotifications = async () => {
             const newTicketNotification = new Notification({
               instrument: "telegram",
               ticketId: ticket._id,
-              to: {
-                chatId: prefs.notify.byTelegram?.chatId,
-                globalChat: true,
-              },
+              to: groupChatTo(prefs),
               text: `‼️ <b>Заявка ${ticket.num} возвращена в статус "В работе"</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.returningComment}</b>\n#ticket_${ticket.num}`,
               replyMarkup: ticketButton(ticket.num),
             });
@@ -1400,10 +1399,7 @@ exports.createCommentNotifications = async () => {
               instrument: "telegram",
               commentId: comment._id,
               ticketId: ticket._id,
-              to: {
-                chatId: prefs.notify.byTelegram.chatId,
-                globalChat: true,
-              },
+              to: groupChatTo(prefs),
               text: `💬 <b>Комментарий к заявке ${ticket.num}</b>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
               replyMarkup: ticketButton(ticket.num),
             });
@@ -1918,9 +1914,12 @@ exports.createScheduledWorkNotifications = async () => {
           const scheduledWorksNotification = new Notification({
             instrument: "telegram",
             workId: work._id,
-            to: {
-              chatId: recepient,
-            },
+            // группа лежит в общем списке получателей — ей отдаём адресата
+            // с веткой, личным чатам — голый chatId
+            to:
+              recepient === prefs.notify?.byTelegram?.chatId
+                ? groupChatTo(prefs)
+                : { chatId: recepient },
             text: `<b>Запланированы работы по ${
               tickets.length === 1 ? "заявке" : "заявкам"
             } ${tickets.map(
@@ -2030,9 +2029,10 @@ exports.createScheduledWorkNotifications = async () => {
           const scheduledWorksNotification = new Notification({
             instrument: "telegram",
             workId: work._id,
-            to: {
-              chatId: recepient,
-            },
+            to:
+              recepient === prefs.notify?.byTelegram?.chatId
+                ? groupChatTo(prefs)
+                : { chatId: recepient },
             text: `<b>Обновлены данные запланированных работ по ${
               tickets.length === 1 ? "заявке" : "заявкам"
             } ${tickets.map(

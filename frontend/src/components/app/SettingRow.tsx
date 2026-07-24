@@ -5,10 +5,14 @@ import { cn } from "@/lib/utils";
 // Строка настройки в панели: (опц. плитка-иконка) · название + подсказка ·
 // контрол справа. На узких экранах складывается в столбец, контрол занимает
 // всю ширину. Разделитель между соседними строками — prop divider.
+// htmlFor связывает название с контролом (`<label>`): клик по подписи
+// переключает свитч/чекбокс или фокусирует поле — для строк с одним контролом
+// проп обязателен (см. правило «Подпись контрола» в ux-ui-guide).
 const SettingRow = ({
   title,
   hint,
   leading,
+  htmlFor,
   divider = false,
   className,
   children,
@@ -17,6 +21,8 @@ const SettingRow = ({
   hint?: ReactNode;
   /** Плитка-иконка слева (например, логотип интеграции). */
   leading?: ReactNode;
+  /** id контрола строки — название становится `<label htmlFor>`. */
+  htmlFor?: string;
   /** Тонкая линия сверху — между соседними строками. */
   divider?: boolean;
   className?: string;
@@ -40,7 +46,16 @@ const SettingRow = ({
         </span>
       )}
       <div className="tw:min-w-0">
-        <div className="tw:text-base tw:font-medium">{title}</div>
+        {htmlFor ? (
+          <label
+            htmlFor={htmlFor}
+            className="tw:block tw:cursor-pointer tw:text-base tw:font-medium"
+          >
+            {title}
+          </label>
+        ) : (
+          <div className="tw:text-base tw:font-medium">{title}</div>
+        )}
         {hint && (
           <div className="tw:mt-0.5 tw:text-sm tw:text-muted-foreground">
             {hint}

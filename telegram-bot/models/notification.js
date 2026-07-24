@@ -19,6 +19,8 @@ const notificationSchema = new Schema(
     to: {
       chatId: String,
       globalChat: Boolean,
+      // Ветка форум-группы для групповых уведомлений (notify.byTelegram.messageThreadId)
+      messageThreadId: String,
       companyChat: String,
       applicant: String,
       responsible: String,

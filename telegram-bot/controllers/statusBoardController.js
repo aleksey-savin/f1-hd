@@ -140,13 +140,14 @@ const handleTelegramError = async (error, text) => {
   }
 
   if (migrateTo) {
-    // Группа стала супергруппой — переезжаем на новый chat id и пересоздаёмся
+    // Группа стала супергруппой — переезжаем на новый chat id и пересоздаёмся.
+    // Группа общая (уведомления + табло), поэтому обновляем notify.byTelegram
     await persistBoard({
-      "statusBoard.chatId": String(migrateTo),
+      "notify.byTelegram.chatId": String(migrateTo),
       "statusBoard.messageId": null,
       "statusBoard.lastText": "",
     });
-    logger.log("info", "Status board chat migrated to supergroup", {
+    logger.log("info", "Team group chat migrated to supergroup", {
       migrateTo,
     });
     return;
@@ -166,8 +167,9 @@ const handleTelegramError = async (error, text) => {
   }
 
   if (description.includes("message thread not found")) {
-    // Ветку удалили. messageThreadId сохраняем: это явный выбор админа —
-    // пусть переназначит /status_board, а не получит табло молча в General.
+    // Ветку удалили. messageThreadId сохраняем: он общий с групповыми
+    // уведомлениями и это явный выбор админа — пусть переназначит
+    // /status_board или веб-настройки, а не получит табло молча в General.
     await persistBoard({
       "statusBoard.messageId": null,
       "statusBoard.lastText": "",
@@ -211,11 +213,12 @@ exports.checkStatusBoard = async () => {
       return;
     }
 
-    // Пустой chatId — фолбэк на группу уведомлений
-    const chatId = board.chatId || prefs.notify?.byTelegram?.chatId || "";
+    // Группа и ветка — общие с групповыми уведомлениями (notify.byTelegram)
+    const chatId = prefs.notify?.byTelegram?.chatId || "";
     if (!chatId) {
       return;
     }
+    const messageThreadId = prefs.notify?.byTelegram?.messageThreadId || "";
 
     const staff = await User.find({
       isActive: true,
@@ -239,8 +242,8 @@ exports.checkStatusBoard = async () => {
           disable_web_page_preview: true,
           reply_markup: replyMarkup,
         };
-        if (board.messageThreadId) {
-          sendOptions.message_thread_id = Number(board.messageThreadId);
+        if (messageThreadId) {
+          sendOptions.message_thread_id = Number(messageThreadId);
         }
 
         const message = await bot.sendMessage(chatId, text, sendOptions);

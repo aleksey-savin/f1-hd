@@ -4,6 +4,7 @@ import SwitchField from "@/components/app/SwitchField";
 
 import Select from "../../UI/Select";
 import useUserFilterStore from "../../store/lists/users";
+import useInitialPrefs from "../../store/prefs";
 
 // Sheet-фильтр адресной книги. Набор (Все/Сотрудники/Клиенты) — сегментом над
 // списком; здесь — компания (ключевой фасет), присутствие, активность и
@@ -17,6 +18,8 @@ const ACTIVITY_OPTIONS = [
 
 const UserFilter = () => {
   const s = useUserFilterStore();
+  // Фасет PRO32 показываем только при включённой глобальной интеграции
+  const pro32Relevant = !!useInitialPrefs().getScreen?.isActive;
   // присутствие есть только у сотрудников — в наборе «Клиенты» фасет прячем
   const presenceRelevant = s.audience !== "clients";
   const companyOption =
@@ -79,6 +82,17 @@ const UserFilter = () => {
           }
         />
       </Field>
+
+      {pro32Relevant && (
+        <SwitchField
+          id="filter-pro32"
+          checked={!!s.pro32}
+          onCheckedChange={(value) => s.updateFilter({ pro32: value })}
+          label="Подключён PRO32 Connect"
+          hint="Задан персональный API-ключ удалённого подключения."
+          divider
+        />
+      )}
 
       <SwitchField
         id="filter-active"

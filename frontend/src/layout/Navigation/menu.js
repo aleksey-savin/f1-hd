@@ -45,6 +45,8 @@ export function buildMenu({
   isAdmin,
   permissions = {},
   modules,
+  // Интеграция Mikrotik — свой рубильник, от модулей не зависит
+  mikrotikActive = false,
   dashboardActive,
 }) {
   const {
@@ -136,8 +138,7 @@ export function buildMenu({
           RiBuilding2Line,
           "/report/analytics",
         ),
-      inventory &&
-        canUseInventoryModule &&
+      mikrotikActive &&
         canManageMikrotikDevices &&
         link(
           "report-networks",
@@ -294,7 +295,7 @@ export function buildMenu({
       icon: RiDraftLine,
       groups: reportGroups,
     },
-    inventory &&
+    mikrotikActive &&
       (canManageMikrotikDevices || canManageMikrotikConfigs) && {
         key: "monitoring",
         label: "Мониторинг",

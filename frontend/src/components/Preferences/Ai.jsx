@@ -1,721 +1,453 @@
-import { useState, useEffect, useCallback } from "react";
-
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Form from "react-bootstrap/Form";
-import Alert from "react-bootstrap/Alert";
-import Button from "react-bootstrap/Button";
-import Spinner from "react-bootstrap/Spinner";
+import { useEffect, useState } from "react";
 
 import { RiRefreshLine } from "react-icons/ri";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import SettingRow from "@/components/app/SettingRow";
+import { SubLabel } from "@/components/app/Panel";
+
+import Select from "../../UI/Select";
 import { getLocalStorageData } from "../../util/auth";
+import SectionForm from "./SectionForm";
 
-const PrefsAi = (props) => {
-  if (!props.prefs.ai) {
-    props.prefs.ai = {
-      isActive: false,
-      provider: "openai",
-      openai: { apiKey: "", model: "" },
-      anthropic: { apiKey: "", model: "" },
-      deepseek: { apiKey: "", model: "deepseek-chat" },
-      yandexgpt: { apiKey: "", folderId: "", model: "yandexgpt" },
-      yandexai: { apiKey: "", folderId: "", model: "deepseek-r1" },
-      speechToText: {
-        isActive: false,
-        provider: "openai",
-        apiKey: "",
-        model: "gpt-4o-transcribe-diarize",
-        yandex: { apiKey: "", folderId: "", model: "general" },
-      },
-    };
-  }
+// «Искусственный интеллект» — канон «селектор → условный блок»: мастер-свитч,
+// провайдер, его поля. Список моделей подгружается по ключу (кнопка
+// обновления); сохранённая модель остаётся выбираемой, даже если её нет в
+// свежем списке. У YandexGPT каталог фиксированный (отдаёт бэкенд), у
+// Yandex AI Studio модель вводится вручную. Секция владеет группой ai целиком.
+const PROVIDERS = [
+  { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic" },
+  { value: "deepseek", label: "DeepSeek" },
+  { value: "yandexgpt", label: "YandexGPT" },
+  { value: "yandexai", label: "Yandex AI Studio" },
+];
+const SPEECH_PROVIDERS = [
+  { value: "openai", label: "OpenAI" },
+  { value: "yandex", label: "Yandex SpeechKit" },
+];
+// Провайдеры с динамическим каталогом моделей (по ключу); yandexgpt отдаёт
+// фиксированный список тем же эндпоинтом
+const LISTABLE = ["openai", "anthropic", "deepseek", "yandexgpt"];
 
-  const { ai } = props.prefs;
-  ai.isActive = ai.isActive || false;
-  ai.provider = ai.provider || "openai";
-  ai.openai = { apiKey: "", model: "", ...(ai.openai || {}) };
-  ai.anthropic = { apiKey: "", model: "", ...(ai.anthropic || {}) };
-  ai.deepseek = { apiKey: "", model: "deepseek-chat", ...(ai.deepseek || {}) };
-  ai.yandexgpt = {
-    apiKey: "",
-    folderId: "",
-    model: "yandexgpt",
-    ...(ai.yandexgpt || {}),
-  };
-  ai.yandexai = {
-    apiKey: "",
-    folderId: "",
-    model: "deepseek-r1",
-    ...(ai.yandexai || {}),
-  };
-  ai.speechToText = {
+const DEFAULT_AI = {
+  isActive: false,
+  provider: "openai",
+  openai: { apiKey: "", model: "" },
+  anthropic: { apiKey: "", model: "" },
+  deepseek: { apiKey: "", model: "deepseek-chat" },
+  yandexgpt: { apiKey: "", folderId: "", model: "yandexgpt" },
+  yandexai: { apiKey: "", folderId: "", model: "deepseek-r1" },
+  speechToText: {
     isActive: false,
     provider: "openai",
     apiKey: "",
     model: "gpt-4o-transcribe-diarize",
-    ...(ai.speechToText || {}),
-  };
-  ai.speechToText.yandex = {
-    apiKey: "",
-    folderId: "",
-    model: "general",
-    ...(ai.speechToText.yandex || {}),
-  };
-  const { token } = getLocalStorageData();
+    yandex: { apiKey: "", folderId: "", model: "general" },
+  },
+};
 
-  const [isActive, setIsActive] = useState(ai.isActive);
-  const [provider, setProvider] = useState(ai.provider);
+// Сохранённая модель остаётся опцией, даже если каталог её не вернул
+const withCurrent = (models, current) =>
+  current && !models.some((model) => model.id === current)
+    ? [{ id: current, name: current }, ...models]
+    : models;
 
-  const [openaiApiKey, setOpenaiApiKey] = useState(ai.openai?.apiKey);
-  const [openaiModel, setOpenaiModel] = useState(ai.openai?.model);
+const PrefsAi = ({ prefs }) => {
+  const [ai, setAi] = useState(() => {
+    const stored = prefs.ai || {};
+    return {
+      ...DEFAULT_AI,
+      ...stored,
+      openai: { ...DEFAULT_AI.openai, ...(stored.openai || {}) },
+      anthropic: { ...DEFAULT_AI.anthropic, ...(stored.anthropic || {}) },
+      deepseek: { ...DEFAULT_AI.deepseek, ...(stored.deepseek || {}) },
+      yandexgpt: { ...DEFAULT_AI.yandexgpt, ...(stored.yandexgpt || {}) },
+      yandexai: { ...DEFAULT_AI.yandexai, ...(stored.yandexai || {}) },
+      speechToText: {
+        ...DEFAULT_AI.speechToText,
+        ...(stored.speechToText || {}),
+        yandex: {
+          ...DEFAULT_AI.speechToText.yandex,
+          ...(stored.speechToText?.yandex || {}),
+        },
+      },
+    };
+  });
 
-  const [anthropicApiKey, setAnthropicApiKey] = useState(ai.anthropic?.apiKey);
-  const [anthropicModel, setAnthropicModel] = useState(ai.anthropic?.model);
+  const patchTop = (patch) => setAi((current) => ({ ...current, ...patch }));
+  const patchProvider = (key, patch) =>
+    setAi((current) => ({
+      ...current,
+      [key]: { ...current[key], ...patch },
+    }));
+  const patchSpeech = (patch) =>
+    setAi((current) => ({
+      ...current,
+      speechToText: { ...current.speechToText, ...patch },
+    }));
+  const patchSpeechYandex = (patch) =>
+    setAi((current) => ({
+      ...current,
+      speechToText: {
+        ...current.speechToText,
+        yandex: { ...current.speechToText.yandex, ...patch },
+      },
+    }));
 
-  const [deepseekApiKey, setDeepseekApiKey] = useState(ai.deepseek?.apiKey);
-  const [deepseekModel, setDeepseekModel] = useState(ai.deepseek?.model);
-
-  const [yandexGptApiKey, setYandexGptApiKey] = useState(ai.yandexgpt?.apiKey);
-  const [yandexGptFolderId, setYandexGptFolderId] = useState(
-    ai.yandexgpt?.folderId,
-  );
-  const [yandexGptModel, setYandexGptModel] = useState(ai.yandexgpt?.model);
-
-  const [yandexAiApiKey, setYandexAiApiKey] = useState(ai.yandexai?.apiKey);
-  const [yandexAiFolderId, setYandexAiFolderId] = useState(
-    ai.yandexai?.folderId,
-  );
-  const [yandexAiModel, setYandexAiModel] = useState(ai.yandexai?.model);
-
-  const [speechIsActive, setSpeechIsActive] = useState(
-    ai.speechToText?.isActive,
-  );
-  const [speechProvider, setSpeechProvider] = useState(
-    ai.speechToText?.provider || "openai",
-  );
-  const [speechApiKey, setSpeechApiKey] = useState(ai.speechToText?.apiKey);
-  const [speechModel, setSpeechModel] = useState(ai.speechToText?.model);
-  const [yandexSpeechApiKey, setYandexSpeechApiKey] = useState(
-    ai.speechToText?.yandex?.apiKey,
-  );
-  const [yandexSpeechFolderId, setYandexSpeechFolderId] = useState(
-    ai.speechToText?.yandex?.folderId,
-  );
-  const yandexSpeechModel = ai.speechToText?.yandex?.model || "general";
-
+  // Каталоги моделей (чат и распознавание) — по требованию, с ошибкой у поля
   const [models, setModels] = useState([]);
-  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelsBusy, setModelsBusy] = useState(false);
   const [modelsError, setModelsError] = useState(null);
   const [speechModels, setSpeechModels] = useState([]);
-  const [loadingSpeechModels, setLoadingSpeechModels] = useState(false);
-  const [speechModelsError, setSpeechModelsError] = useState(null);
+  const [speechBusy, setSpeechBusy] = useState(false);
+  const [speechError, setSpeechError] = useState(null);
 
-  const currentApiKey = {
-    openai: openaiApiKey,
-    anthropic: anthropicApiKey,
-    deepseek: deepseekApiKey,
-    yandexgpt: yandexGptApiKey,
-    yandexai: yandexAiApiKey,
-  }[provider];
-  const speechDiarizeModel = "gpt-4o-transcribe-diarize";
+  const fetchModels = async ({ provider, apiKey, feature }) => {
+    const { token } = getLocalStorageData();
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/preferences/ai-models`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({ provider, apiKey, feature }),
+      },
+    );
+    if (!response.ok) throw new Error();
+    return (await response.json()).models || [];
+  };
 
-  const loadModels = useCallback(async () => {
-    // У YandexGPT фиксированный список, у Yandex AI Studio — свободный ввод
-    // модели; динамически грузить нечего.
-    if (provider === "yandexgpt" || provider === "yandexai") return;
+  const provider = ai.provider;
+  const providerConf = ai[provider] || {};
 
-    const apiKey = {
-      openai: openaiApiKey,
-      anthropic: anthropicApiKey,
-      deepseek: deepseekApiKey,
-    }[provider];
-
-    if (!apiKey) {
+  const loadChatModels = async () => {
+    if (!LISTABLE.includes(provider)) return;
+    if (!providerConf.apiKey && provider !== "yandexgpt") {
       setModels([]);
       setModelsError("Сначала укажите API-ключ");
       return;
     }
-
-    setLoadingModels(true);
+    setModelsBusy(true);
     setModelsError(null);
-
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/preferences/ai-models`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
-          },
-          body: JSON.stringify({ provider, apiKey }),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error();
-      }
-
-      const data = await response.json();
-      setModels(data.models || []);
+      setModels(await fetchModels({ provider, apiKey: providerConf.apiKey }));
     } catch {
       setModels([]);
       setModelsError("Не удалось загрузить список моделей");
     } finally {
-      setLoadingModels(false);
+      setModelsBusy(false);
     }
-  }, [provider, openaiApiKey, anthropicApiKey, deepseekApiKey, token]);
+  };
 
-  const loadSpeechModels = useCallback(async () => {
-    if (!speechApiKey) {
+  const speech = ai.speechToText;
+  const loadSpeechModels = async () => {
+    const yandex = speech.provider === "yandex";
+    const apiKey = yandex ? speech.yandex.apiKey : speech.apiKey;
+    if (!apiKey && !yandex) {
       setSpeechModels([]);
-      setSpeechModelsError("Сначала укажите API-ключ");
+      setSpeechError("Сначала укажите API-ключ");
       return;
     }
-
-    setLoadingSpeechModels(true);
-    setSpeechModelsError(null);
-
+    setSpeechBusy(true);
+    setSpeechError(null);
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/preferences/ai-models`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
-          },
-          body: JSON.stringify({
-            provider: "openai",
-            apiKey: speechApiKey,
-            feature: "speechToText",
-          }),
-        },
+      setSpeechModels(
+        await fetchModels({
+          provider: yandex ? "yandex" : "openai",
+          apiKey,
+          feature: "speechToText",
+        }),
       );
-
-      if (!response.ok) {
-        throw new Error();
-      }
-
-      const data = await response.json();
-      setSpeechModels(data.models || []);
     } catch {
       setSpeechModels([]);
-      setSpeechModelsError("Не удалось загрузить список моделей");
+      setSpeechError("Не удалось загрузить список моделей");
     } finally {
-      setLoadingSpeechModels(false);
+      setSpeechBusy(false);
     }
-  }, [speechApiKey, token]);
+  };
 
-  // Reload the catalog whenever the provider changes (if a key is present).
+  // Смена провайдера сбрасывает каталог — он от другого сервиса
   useEffect(() => {
     setModels([]);
     setModelsError(null);
-    if (isActive && currentApiKey) {
-      loadModels();
-    }
   }, [provider]);
-
   useEffect(() => {
     setSpeechModels([]);
-    setSpeechModelsError(null);
-    if (speechIsActive && speechApiKey) {
-      loadSpeechModels();
-    }
-  }, [speechIsActive]);
+    setSpeechError(null);
+  }, [speech.provider]);
 
-  // Keep the saved model selectable even if it isn't in the fetched list.
-  const modelOptions = (current, availableModels) => {
-    const list = [...availableModels];
-    if (current && !list.some((model) => model.id === current)) {
-      list.unshift({ id: current, name: current });
-    }
-    return list;
-  };
+  const aiOn = !!ai.isActive;
+  const speechOn = aiOn && !!speech.isActive;
+  const dim = aiOn ? "tw:py-3" : "tw:py-3 tw:opacity-60";
+  const dimSpeech = speechOn ? "tw:py-3" : "tw:py-3 tw:opacity-60";
 
-  const speechModelOptions = () => {
-    const list = modelOptions(speechModel, speechModels);
+  const chatModelValue = providerConf.model
+    ? { id: providerConf.model, name: providerConf.model }
+    : null;
+  const chatModelOptions = withCurrent(models, providerConf.model);
 
-    return list.sort((first, second) => {
-      if (first.id === speechDiarizeModel) return -1;
-      if (second.id === speechDiarizeModel) return 1;
-      return first.id.localeCompare(second.id);
-    });
-  };
-
-  const isActiveHandler = () => {
-    setIsActive(!isActive);
-    ai.isActive = !isActive;
-  };
-
-  const providerHandler = (event) => {
-    setProvider(event.target.value);
-    ai.provider = event.target.value;
-  };
-
-  const openaiApiKeyHandler = (event) => {
-    setOpenaiApiKey(event.target.value);
-    ai.openai.apiKey = event.target.value;
-  };
-
-  const openaiModelHandler = (event) => {
-    setOpenaiModel(event.target.value);
-    ai.openai.model = event.target.value;
-  };
-
-  const anthropicApiKeyHandler = (event) => {
-    setAnthropicApiKey(event.target.value);
-    ai.anthropic.apiKey = event.target.value;
-  };
-
-  const anthropicModelHandler = (event) => {
-    setAnthropicModel(event.target.value);
-    ai.anthropic.model = event.target.value;
-  };
-
-  const deepseekApiKeyHandler = (event) => {
-    setDeepseekApiKey(event.target.value);
-    ai.deepseek.apiKey = event.target.value;
-  };
-
-  const deepseekModelHandler = (event) => {
-    setDeepseekModel(event.target.value);
-    ai.deepseek.model = event.target.value;
-  };
-
-  const yandexGptApiKeyHandler = (event) => {
-    setYandexGptApiKey(event.target.value);
-    ai.yandexgpt.apiKey = event.target.value;
-  };
-
-  const yandexGptFolderIdHandler = (event) => {
-    setYandexGptFolderId(event.target.value);
-    ai.yandexgpt.folderId = event.target.value;
-  };
-
-  const yandexGptModelHandler = (event) => {
-    setYandexGptModel(event.target.value);
-    ai.yandexgpt.model = event.target.value;
-  };
-
-  const yandexAiApiKeyHandler = (event) => {
-    setYandexAiApiKey(event.target.value);
-    ai.yandexai.apiKey = event.target.value;
-  };
-
-  const yandexAiFolderIdHandler = (event) => {
-    setYandexAiFolderId(event.target.value);
-    ai.yandexai.folderId = event.target.value;
-  };
-
-  const yandexAiModelHandler = (event) => {
-    setYandexAiModel(event.target.value);
-    ai.yandexai.model = event.target.value;
-  };
-
-  const speechIsActiveHandler = () => {
-    setSpeechIsActive(!speechIsActive);
-    ai.speechToText.isActive = !speechIsActive;
-  };
-
-  const speechProviderHandler = (event) => {
-    setSpeechProvider(event.target.value);
-    ai.speechToText.provider = event.target.value;
-  };
-
-  const speechApiKeyHandler = (event) => {
-    setSpeechApiKey(event.target.value);
-    ai.speechToText.apiKey = event.target.value;
-  };
-
-  const yandexSpeechApiKeyHandler = (event) => {
-    setYandexSpeechApiKey(event.target.value);
-    ai.speechToText.yandex.apiKey = event.target.value;
-  };
-
-  const yandexSpeechFolderIdHandler = (event) => {
-    setYandexSpeechFolderId(event.target.value);
-    ai.speechToText.yandex.folderId = event.target.value;
-  };
-
-  const speechModelHandler = (event) => {
-    setSpeechModel(event.target.value);
-    ai.speechToText.model = event.target.value;
-  };
-
-  const renderModelField = ({
-    currentModel,
-    onChange,
-    availableModels,
-    loading,
-    error,
-    disabled,
-    onRefresh,
-  }) => (
-    <Form.Group className="mb-3 w-100">
-      <Form.Label>Модель</Form.Label>
-      <Row className="g-2 align-items-center">
-        <Col>
-          <Form.Select
-            disabled={disabled || loading}
-            value={currentModel}
-            onChange={onChange}
-          >
-            {modelOptions(currentModel, availableModels).length === 0 && (
-              <option value="">— загрузите список моделей —</option>
-            )}
-            {modelOptions(currentModel, availableModels).map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name}
-              </option>
-            ))}
-          </Form.Select>
-        </Col>
-        <Col xs="auto">
-          <Button
-            variant="outline-secondary"
-            disabled={disabled || loading}
-            onClick={onRefresh}
-            title="Обновить список моделей"
-          >
-            {loading ? (
-              <Spinner animation="border" size="sm" />
-            ) : (
-              <RiRefreshLine />
-            )}
-          </Button>
-        </Col>
-      </Row>
-      {error && <Form.Text className="text-danger">{error}</Form.Text>}
-    </Form.Group>
-  );
-
-  const renderSpeechModelField = () => (
-    <Form.Group className="mb-3 w-100">
-      <Form.Label>Модель</Form.Label>
-      <Row className="g-2 align-items-center">
-        <Col>
-          <Form.Select
-            disabled={!speechIsActive || loadingSpeechModels || !speechApiKey}
-            value={speechModel}
-            onChange={speechModelHandler}
-          >
-            {speechModelOptions().length === 0 && (
-              <option value="">— загрузите список моделей —</option>
-            )}
-            {speechModelOptions().map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.id === speechDiarizeModel
-                  ? `${model.name} (roles)`
-                  : model.name}
-              </option>
-            ))}
-          </Form.Select>
-        </Col>
-        <Col xs="auto">
-          <Button
-            variant="outline-secondary"
-            disabled={!speechIsActive || loadingSpeechModels || !speechApiKey}
-            onClick={loadSpeechModels}
-            title="Обновить список моделей"
-          >
-            {loadingSpeechModels ? (
-              <Spinner animation="border" size="sm" />
-            ) : (
-              <RiRefreshLine />
-            )}
-          </Button>
-        </Col>
-      </Row>
-      {speechModelsError && (
-        <Form.Text className="text-danger">{speechModelsError}</Form.Text>
-      )}
-      {speechModel !== speechDiarizeModel && (
-        <Form.Text className="text-warning">
-          Разделение по участникам работает только с{" "}
-          {speechDiarizeModel}.
-        </Form.Text>
-      )}
-    </Form.Group>
-  );
+  const speechModelValue = speech.model
+    ? { id: speech.model, name: speech.model }
+    : null;
+  const speechModelOptions = withCurrent(speechModels, speech.model);
 
   return (
-    <>
-      <Row>
-        <Col xs="auto">
-          <h1 className="display-6 mb-3">Искусственный интеллект</h1>
-          <Form.Group className="mb-3 w-100">
-            <Form.Check
-              type="switch"
-              label="Использовать AI"
-              checked={isActive}
-              value={isActive}
-              onChange={isActiveHandler}
+    <SectionForm buildPayload={() => ({ ai })}>
+      <SettingRow
+        title="Использовать AI"
+        hint="Гайды по заявкам, определение категории, расшифровка звонков."
+        htmlFor="prefs-ai-enabled"
+      >
+        <Switch
+          id="prefs-ai-enabled"
+          checked={aiOn}
+          onCheckedChange={(value) => patchTop({ isActive: value })}
+        />
+      </SettingRow>
+      <SettingRow divider title="Провайдер" htmlFor="prefs-ai-provider" className={dim}>
+        <div className="tw:w-56 tw:max-md:w-full">
+          <Select
+            id="prefs-ai-provider"
+            closeMenuOnSelect
+            isDisabled={!aiOn}
+            value={PROVIDERS.find((option) => option.value === provider)}
+            options={PROVIDERS}
+            getOptionLabel={(option) => option.label}
+            getOptionValue={(option) => option.value}
+            onChange={(option) =>
+              patchTop({ provider: option?.value || "openai" })
+            }
+          />
+        </div>
+      </SettingRow>
+      <SettingRow
+        title={`API-ключ ${PROVIDERS.find((option) => option.value === provider)?.label}`}
+        htmlFor="prefs-ai-key"
+        className={dim}
+      >
+        <Input
+          id="prefs-ai-key"
+          type="password"
+          disabled={!aiOn}
+          value={providerConf.apiKey || ""}
+          onChange={(event) =>
+            patchProvider(provider, { apiKey: event.target.value })
+          }
+          className="tw:w-72 tw:max-md:w-full"
+          autoComplete="new-password"
+        />
+      </SettingRow>
+      {(provider === "yandexgpt" || provider === "yandexai") && (
+        <SettingRow
+          title="Идентификатор каталога (folder ID)"
+          htmlFor="prefs-ai-folder"
+          className={dim}
+        >
+          <Input
+            id="prefs-ai-folder"
+            type="text"
+            disabled={!aiOn}
+            value={providerConf.folderId || ""}
+            onChange={(event) =>
+              patchProvider(provider, { folderId: event.target.value })
+            }
+            className="tw:w-72 tw:max-md:w-full"
+          />
+        </SettingRow>
+      )}
+      <SettingRow
+        title="Модель"
+        hint={
+          provider === "yandexai"
+            ? "Идентификатор модели вводится вручную."
+            : modelsError || "Список подгружается по ключу."
+        }
+        htmlFor="prefs-ai-model"
+        className={dim}
+      >
+        <div className="tw:flex tw:items-center tw:gap-2">
+          {provider === "yandexai" ? (
+            <Input
+              id="prefs-ai-model"
+              type="text"
+              disabled={!aiOn}
+              value={providerConf.model || ""}
+              onChange={(event) =>
+                patchProvider(provider, { model: event.target.value })
+              }
+              className="tw:w-64 tw:max-md:w-full"
             />
-          </Form.Group>
-          <Form.Group className="mb-3 w-100">
-            <Form.Label>Провайдер</Form.Label>
-            <Form.Select
-              disabled={!isActive}
-              value={provider}
-              onChange={providerHandler}
-            >
-              <option value="openai">OpenAI ChatGPT</option>
-              <option value="anthropic">Anthropic Claude</option>
-              <option value="deepseek">DeepSeek</option>
-              <option value="yandexgpt">Yandex GPT</option>
-              <option value="yandexai">
-                Yandex AI Studio (DeepSeek, Qwen…)
-              </option>
-            </Form.Select>
-          </Form.Group>
-
-          {provider === "openai" && (
+          ) : (
             <>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>API-ключ OpenAI</Form.Label>
-                <Form.Control
-                  disabled={!isActive}
-                  type="password"
-                  value={openaiApiKey}
-                  onChange={openaiApiKeyHandler}
+              <div className="tw:w-64 tw:max-md:w-full">
+                <Select
+                  id="prefs-ai-model"
+                  placeholder="— загрузите список —"
+                  closeMenuOnSelect
+                  isSearchable
+                  isDisabled={!aiOn}
+                  value={chatModelValue}
+                  options={chatModelOptions}
+                  getOptionLabel={(option) => option.name}
+                  getOptionValue={(option) => option.id}
+                  onChange={(option) =>
+                    patchProvider(provider, { model: option?.id || "" })
+                  }
                 />
-              </Form.Group>
-              {renderModelField({
-                currentModel: openaiModel,
-                onChange: openaiModelHandler,
-                availableModels: models,
-                loading: loadingModels,
-                error: modelsError,
-                disabled: !isActive || !currentApiKey,
-                onRefresh: loadModels,
-              })}
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={!aiOn || modelsBusy}
+                onClick={loadChatModels}
+                title="Обновить список моделей"
+                aria-label="Обновить список моделей"
+              >
+                <RiRefreshLine
+                  className={modelsBusy ? "tw:animate-spin" : undefined}
+                />
+              </Button>
             </>
           )}
+        </div>
+      </SettingRow>
 
-          {provider === "anthropic" && (
-            <>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>API-ключ Anthropic</Form.Label>
-                <Form.Control
-                  disabled={!isActive}
-                  type="password"
-                  value={anthropicApiKey}
-                  onChange={anthropicApiKeyHandler}
-                />
-              </Form.Group>
-              {renderModelField({
-                currentModel: anthropicModel,
-                onChange: anthropicModelHandler,
-                availableModels: models,
-                loading: loadingModels,
-                error: modelsError,
-                disabled: !isActive || !currentApiKey,
-                onRefresh: loadModels,
-              })}
-            </>
-          )}
-
-          {provider === "deepseek" && (
-            <>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>API-ключ DeepSeek</Form.Label>
-                <Form.Control
-                  disabled={!isActive}
-                  type="password"
-                  value={deepseekApiKey}
-                  onChange={deepseekApiKeyHandler}
-                />
-              </Form.Group>
-              {renderModelField({
-                currentModel: deepseekModel,
-                onChange: deepseekModelHandler,
-                availableModels: models,
-                loading: loadingModels,
-                error: modelsError,
-                disabled: !isActive || !currentApiKey,
-                onRefresh: loadModels,
-              })}
-            </>
-          )}
-
-          {provider === "yandexgpt" && (
-            <>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>API-ключ Yandex GPT</Form.Label>
-                <Form.Control
-                  disabled={!isActive}
-                  type="password"
-                  value={yandexGptApiKey}
-                  onChange={yandexGptApiKeyHandler}
-                />
-              </Form.Group>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>
-                  Идентификатор каталога (folder ID){" "}
-                  <span className="text-danger">*</span>
-                </Form.Label>
-                <Form.Control
-                  disabled={!isActive}
-                  type="text"
-                  value={yandexGptFolderId}
-                  onChange={yandexGptFolderIdHandler}
-                />
-              </Form.Group>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>Модель</Form.Label>
-                <Form.Select
-                  disabled={!isActive}
-                  value={yandexGptModel}
-                  onChange={yandexGptModelHandler}
-                >
-                  <option value="yandexgpt">YandexGPT Pro</option>
-                  <option value="yandexgpt-lite">YandexGPT Lite</option>
-                  <option value="yandexgpt-32k">YandexGPT 32k</option>
-                </Form.Select>
-                <Form.Text className="text-muted">
-                  YandexGPT требует API-ключ сервисного аккаунта и идентификатор
-                  каталога. Набор моделей фиксированный.
-                </Form.Text>
-              </Form.Group>
-            </>
-          )}
-
-          {provider === "yandexai" && (
-            <>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>API-ключ Yandex AI Studio</Form.Label>
-                <Form.Control
-                  disabled={!isActive}
-                  type="password"
-                  value={yandexAiApiKey}
-                  onChange={yandexAiApiKeyHandler}
-                />
-              </Form.Group>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>
-                  Идентификатор каталога (folder ID){" "}
-                  <span className="text-danger">*</span>
-                </Form.Label>
-                <Form.Control
-                  disabled={!isActive}
-                  type="text"
-                  value={yandexAiFolderId}
-                  onChange={yandexAiFolderIdHandler}
-                />
-              </Form.Group>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>Модель</Form.Label>
-                <Form.Control
-                  disabled={!isActive}
-                  type="text"
-                  list="yandexai-models"
-                  value={yandexAiModel}
-                  onChange={yandexAiModelHandler}
-                />
-                <datalist id="yandexai-models">
-                  <option value="deepseek-r1" />
-                  <option value="deepseek-v3" />
-                  <option value="qwen3-235b-a22b-fp8" />
-                </datalist>
-                <Form.Text className="text-muted">
-                  Идентификатор модели Yandex AI Studio (например deepseek-r1,
-                  deepseek-v3, qwen3-235b-a22b-fp8); точные слаги — в консоли
-                  Yandex Cloud (AI Studio → Модели). Итоговый URI:{" "}
-                  {"gpt://<folder>/<модель>/latest"}.
-                </Form.Text>
-              </Form.Group>
-            </>
-          )}
-
-          <hr />
-
-          <Form.Group className="mb-3 w-100">
-            <Form.Check
-              type="switch"
-              label="Speech recognition"
-              checked={speechIsActive}
-              value={speechIsActive}
-              onChange={speechIsActiveHandler}
+      <div className="tw:px-5 tw:pt-4">
+        <SubLabel>Распознавание речи</SubLabel>
+      </div>
+      <SettingRow
+        title="Расшифровывать аудио из заявок"
+        hint="Голосовые сообщения и записи звонков — в текст."
+        htmlFor="prefs-speech-enabled"
+        className={aiOn ? "tw:py-3" : "tw:py-3 tw:opacity-60"}
+      >
+        <Switch
+          id="prefs-speech-enabled"
+          disabled={!aiOn}
+          checked={!!speech.isActive}
+          onCheckedChange={(value) => patchSpeech({ isActive: value })}
+        />
+      </SettingRow>
+      <SettingRow
+        title="Провайдер распознавания"
+        htmlFor="prefs-speech-provider"
+        className={dimSpeech}
+      >
+        <div className="tw:w-56 tw:max-md:w-full">
+          <Select
+            id="prefs-speech-provider"
+            closeMenuOnSelect
+            isDisabled={!speechOn}
+            value={SPEECH_PROVIDERS.find(
+              (option) => option.value === speech.provider,
+            )}
+            options={SPEECH_PROVIDERS}
+            getOptionLabel={(option) => option.label}
+            getOptionValue={(option) => option.value}
+            onChange={(option) =>
+              patchSpeech({ provider: option?.value || "openai" })
+            }
+          />
+        </div>
+      </SettingRow>
+      {speech.provider === "yandex" ? (
+        <>
+          <SettingRow
+            title="API-ключ Yandex SpeechKit"
+            htmlFor="prefs-speech-yandex-key"
+            className={dimSpeech}
+          >
+            <Input
+              id="prefs-speech-yandex-key"
+              type="password"
+              disabled={!speechOn}
+              value={speech.yandex.apiKey || ""}
+              onChange={(event) =>
+                patchSpeechYandex({ apiKey: event.target.value })
+              }
+              className="tw:w-72 tw:max-md:w-full"
+              autoComplete="new-password"
             />
-          </Form.Group>
-          <Form.Group className="mb-3 w-100">
-            <Form.Label>Провайдер распознавания речи</Form.Label>
-            <Form.Select
-              disabled={!speechIsActive}
-              value={speechProvider}
-              onChange={speechProviderHandler}
-            >
-              <option value="openai">OpenAI</option>
-              <option value="yandex">Yandex SpeechKit</option>
-            </Form.Select>
-          </Form.Group>
-
-          {speechProvider === "openai" && (
-            <>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>
-                  API-ключ OpenAI для распознавания речи
-                </Form.Label>
-                <Form.Control
-                  disabled={!speechIsActive}
-                  type="password"
-                  value={speechApiKey}
-                  onChange={speechApiKeyHandler}
+          </SettingRow>
+          <SettingRow
+            title="Идентификатор каталога (folder ID)"
+            htmlFor="prefs-speech-yandex-folder"
+            className={dimSpeech}
+          >
+            <Input
+              id="prefs-speech-yandex-folder"
+              type="text"
+              disabled={!speechOn}
+              value={speech.yandex.folderId || ""}
+              onChange={(event) =>
+                patchSpeechYandex({ folderId: event.target.value })
+              }
+              className="tw:w-72 tw:max-md:w-full"
+            />
+          </SettingRow>
+        </>
+      ) : (
+        <>
+          <SettingRow
+            title="API-ключ OpenAI"
+            htmlFor="prefs-speech-key"
+            className={dimSpeech}
+          >
+            <Input
+              id="prefs-speech-key"
+              type="password"
+              disabled={!speechOn}
+              value={speech.apiKey || ""}
+              onChange={(event) => patchSpeech({ apiKey: event.target.value })}
+              className="tw:w-72 tw:max-md:w-full"
+              autoComplete="new-password"
+            />
+          </SettingRow>
+          <SettingRow
+            title="Модель распознавания"
+            hint={speechError || "Список подгружается по ключу."}
+            htmlFor="prefs-speech-model"
+            className={dimSpeech}
+          >
+            <div className="tw:flex tw:items-center tw:gap-2">
+              <div className="tw:w-64 tw:max-md:w-full">
+                <Select
+                  id="prefs-speech-model"
+                  placeholder="— загрузите список —"
+                  closeMenuOnSelect
+                  isSearchable
+                  isDisabled={!speechOn}
+                  value={speechModelValue}
+                  options={speechModelOptions}
+                  getOptionLabel={(option) => option.name}
+                  getOptionValue={(option) => option.id}
+                  onChange={(option) =>
+                    patchSpeech({ model: option?.id || "" })
+                  }
                 />
-              </Form.Group>
-              {renderSpeechModelField()}
-            </>
-          )}
-
-          {speechProvider === "yandex" && (
-            <>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>API-ключ Yandex SpeechKit</Form.Label>
-                <Form.Control
-                  disabled={!speechIsActive}
-                  type="password"
-                  value={yandexSpeechApiKey}
-                  onChange={yandexSpeechApiKeyHandler}
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                disabled={!speechOn || speechBusy}
+                onClick={loadSpeechModels}
+                title="Обновить список моделей"
+                aria-label="Обновить список моделей распознавания"
+              >
+                <RiRefreshLine
+                  className={speechBusy ? "tw:animate-spin" : undefined}
                 />
-              </Form.Group>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>Идентификатор каталога (folder ID)</Form.Label>
-                <Form.Control
-                  disabled={!speechIsActive}
-                  type="text"
-                  value={yandexSpeechFolderId}
-                  onChange={yandexSpeechFolderIdHandler}
-                />
-              </Form.Group>
-              <Form.Group className="mb-3 w-100">
-                <Form.Label>Модель</Form.Label>
-                <Form.Select disabled value={yandexSpeechModel}>
-                  <option value="general">general (Yandex SpeechKit)</option>
-                </Form.Select>
-                <Form.Text className="text-muted">
-                  Yandex SpeechKit распознаёт русскую речь с разделением по
-                  участникам (поддерживаются MP3, WAV и OGG/OPUS).
-                </Form.Text>
-              </Form.Group>
-            </>
-          )}
-
-          <Form.Group>
-            <Alert variant="light">
-              Список моделей чата OpenAI, Anthropic и DeepSeek загружается
-              напрямую от провайдера по вашему API-ключу — нажмите кнопку
-              обновления после ввода ключа. Для YandexGPT и Yandex AI Studio
-              модель указывается вручную и нужен идентификатор каталога (folder
-              ID); Yandex AI Studio открывает open-source модели (DeepSeek,
-              Qwen) по OpenAI-совместимому API. Для распознавания речи доступны
-              OpenAI (модели speech-to-text) и Yandex SpeechKit.
-            </Alert>
-          </Form.Group>
-        </Col>
-      </Row>
-    </>
+              </Button>
+            </div>
+          </SettingRow>
+        </>
+      )}
+    </SectionForm>
   );
 };
 

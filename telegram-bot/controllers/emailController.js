@@ -6,6 +6,10 @@ const { Ticket } = require("../models/ticket");
 const User = require("../models/user");
 
 const logger = require("../utils/logger");
+const {
+  NOTIFY_MAX_ATTEMPTS,
+  NOTIFY_RETRY_INTERVAL_MINUTES,
+} = require("../utils/retryPolicy");
 
 // Маркер границы ответа: почтовый клиент цитирует его в reply, и парсер
 // входящей почты (backend/services/emailReplyStripper.js) отрезает всё от него
@@ -40,10 +44,10 @@ exports.checkEmailNotifications = async () => {
           }
 
           const okToSend =
-            prefs.notify.global.attempts > notification.attemptsCounter &&
+            NOTIFY_MAX_ATTEMPTS > notification.attemptsCounter &&
             (new Date(
               notification.updatedAt.getTime() +
-                prefs.notify.global.attemptsInterval * 60000,
+                NOTIFY_RETRY_INTERVAL_MINUTES * 60000,
             ) < new Date() ||
               notification.attemptsCounter === 0) &&
             !notification.failed;
@@ -98,7 +102,7 @@ exports.checkEmailNotifications = async () => {
               }
             }
           } else if (
-            prefs.notify.global.attempts === notification.attemptsCounter
+            NOTIFY_MAX_ATTEMPTS === notification.attemptsCounter
           ) {
             notification.failed = true;
             await notification.save();

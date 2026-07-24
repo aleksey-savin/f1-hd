@@ -399,8 +399,12 @@ const ViewUser = ({ user, tickets }) => {
         <PropRow icon={<RiShieldCheckLine size={17} />} label="Active Directory">
           <StatusText on={adLinked} onText="Связан" offText="Не связан" />
         </PropRow>
-        <PropRow icon={<RiRemoteControlLine size={17} />} label="Pro32Connect (GetScreen)">
-          <StatusText on={Boolean(getScreen?.api)} onText="Активна" offText="Не подключён" />
+        <PropRow icon={<RiRemoteControlLine size={17} />} label="PRO32 Connect">
+          <StatusText
+            on={Boolean(getScreen?.hasApi)}
+            onText="Подключён"
+            offText="Не подключён"
+          />
         </PropRow>
       </Panel>
 

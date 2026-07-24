@@ -1,206 +1,119 @@
 import { useContext } from "react";
 import { useLoaderData } from "react-router";
+import { BrowserView, MobileView } from "react-device-detect";
 
-import { RiSettings3Line } from "react-icons/ri";
+import SettingsSection from "@/components/app/SettingsSection";
+import AnchorRail from "@/components/app/AnchorRail";
 
-import Transitions from "../animations/Transition";
-
-import useHttp from "../hooks/use-http";
-
-import useToastStore from "../store/toast-store";
-
-import { RiSaveLine } from "react-icons/ri";
-
-import Tab from "react-bootstrap/Tab";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Nav from "react-bootstrap/Nav";
-import Form from "react-bootstrap/Form";
-import Button from "react-bootstrap/Button";
-import Card from "react-bootstrap/Card";
-
-import PrefsNotifications from "../components/Preferences/Notifications";
-import PrefsTicketsCollect from "../components/Preferences/TicketsCollect";
-import PrefsIntegrations from "../components/Preferences/Integrations";
-import PrefsService from "../components/Preferences/Service";
-import PrefsModules from "../components/Preferences/Modules";
 import PrefsGlobals from "../components/Preferences/Globals";
+import PrefsTicketsCollect from "../components/Preferences/TicketsCollect";
+import PrefsNotifications from "../components/Preferences/Notifications";
+import PrefsModules from "../components/Preferences/Modules";
+import PrefsIntegrations from "../components/Preferences/Integrations";
 import PrefsAi from "../components/Preferences/Ai";
 import PrefsKnowledgeBase from "../components/Preferences/KnowledgeBase";
-import PrefsMikrotik from "../components/Preferences/Mikrotik";
 import PrefsOvertime from "../components/Preferences/Overtime";
 
 import Forbidden from "../components/Error/403";
 import { getLocalStorageData } from "../util/auth";
 import { AuthedUserContext } from "../store/authed-user-context";
 
+// «Настройки системы»: одна страница вместо вкладок — секции-панели подряд,
+// слева липкий рейл-якорь (канон «Мой аккаунт»). Каждая секция сохраняется
+// отдельно (частичный POST /api/preferences — бэкенд меняет только присланную
+// группу). Секции выключенных модулей не рендерятся и не оставляют пункт в
+// рейле; после сохранения «Модулей» loader ревалидируется и состав секций
+// обновляется сам.
 const Preferences = () => {
-  const { token } = getLocalStorageData();
   const { isAdmin } = useContext(AuthedUserContext);
+  const prefs = useLoaderData() || {};
 
-  const { showToast } = useToastStore();
+  if (!isAdmin) {
+    return <Forbidden />;
+  }
 
-  const data = useLoaderData();
-  const prefs = data ? data : [];
+  const modules = prefs.modules || {};
+  const sections = [
+    { id: "globals", label: "Основные", element: <PrefsGlobals prefs={prefs} /> },
+    {
+      id: "tickets-collect",
+      label: "Сбор заявок",
+      element: <PrefsTicketsCollect prefs={prefs} />,
+    },
+    {
+      id: "notifications",
+      label: "Уведомления",
+      element: <PrefsNotifications prefs={prefs} />,
+    },
+    {
+      id: "ai",
+      label: "Искусственный интеллект",
+      // рейл тесный — в нём секция живёт коротким именем
+      rail: "ИИ",
+      element: <PrefsAi prefs={prefs} />,
+    },
+    {
+      id: "integrations",
+      label: "Интеграции",
+      element: <PrefsIntegrations prefs={prefs} />,
+    },
+    { id: "modules", label: "Модули", element: <PrefsModules prefs={prefs} /> },
+    ...(modules.knowledgeBase?.isActive
+      ? [
+          {
+            id: "knowledge-base",
+            label: "База знаний",
+            element: <PrefsKnowledgeBase prefs={prefs} />,
+          },
+        ]
+      : []),
+    ...(modules.finances?.isActive
+      ? [
+          {
+            id: "finances",
+            label: "Финансы",
+            element: <PrefsOvertime prefs={prefs} />,
+          },
+        ]
+      : []),
+  ];
 
-  const { sendRequest: updatePreferencesHandler } = useHttp();
-
-  const submitHandler = (event) => {
-    event.preventDefault();
-
-    updatePreferencesHandler(
-      {
-        url: `${import.meta.env.VITE_API_ADDRESS}/api/preferences`,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: prefs,
-      },
-      (data) => {
-        if (data.preferences) {
-          localStorage.setItem("timezone", data.preferences.timezone);
-          showToast("success text-white", "Изменения сохранены");
-        } else {
-          showToast("danger text-white", data.message);
-        }
-      },
-    );
-  };
+  const panels = (
+    <div className="tw:max-w-2xl tw:space-y-8">
+      {sections.map(({ id, label, element }) => (
+        <SettingsSection key={id} id={id} label={label}>
+          {element}
+        </SettingsSection>
+      ))}
+    </div>
+  );
 
   return (
-    <>
-      {isAdmin && (
-        <Transitions>
-          <Card.Title className="mb-3 border-bottom">
-            <h1 className="display-4">
-              <RiSettings3Line /> Глобальные настройки
-            </h1>
-          </Card.Title>
-          <Tab.Container defaultActiveKey="globals">
-            <Row>
-              <Col lg={3} className="mb-3">
-                <Nav variant="pills" className="flex-column">
-                  <Nav.Item>
-                    <Nav.Link eventKey="globals">Основные</Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="tickets">Сбор заявок</Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="notifications">Уведомления</Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="modules">
-                      Функциональные модули
-                    </Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="integrations">Интеграции</Nav.Link>
-                  </Nav.Item>
-                  <Nav.Item>
-                    <Nav.Link eventKey="ai">AI</Nav.Link>
-                  </Nav.Item>
-                  {prefs?.modules?.knowledgeBase.isActive && (
-                    <Nav.Item>
-                      <Nav.Link eventKey="knowledgeBase">База знаний</Nav.Link>
-                    </Nav.Item>
-                  )}
-                  {prefs?.modules?.finances?.isActive && (
-                    <Nav.Item>
-                      <Nav.Link eventKey="overtime">Переработки</Nav.Link>
-                    </Nav.Item>
-                  )}
-                  {prefs?.modules?.inventory?.isActive && (
-                    <Nav.Item>
-                      <Nav.Link eventKey="mikrotik">Mikrotik</Nav.Link>
-                    </Nav.Item>
-                  )}
-                  <Nav.Item>
-                    <Nav.Link eventKey="service">Обслуживание</Nav.Link>
-                  </Nav.Item>
-                </Nav>
-              </Col>
-              <Col lg={9} className="border-start ps-3">
-                <Form onSubmit={submitHandler}>
-                  <Tab.Content>
-                    <Tab.Pane eventKey="globals">
-                      <PrefsGlobals prefs={prefs} />
-                    </Tab.Pane>
-                    <Tab.Pane eventKey="tickets">
-                      <PrefsTicketsCollect prefs={prefs} />
-                    </Tab.Pane>
-                    <Tab.Pane eventKey="notifications">
-                      <PrefsNotifications prefs={prefs} />
-                    </Tab.Pane>
-                    <Tab.Pane eventKey="modules">
-                      <PrefsModules prefs={prefs} />
-                    </Tab.Pane>
-                    <Tab.Pane eventKey="integrations">
-                      <PrefsIntegrations prefs={prefs} />
-                    </Tab.Pane>
-                    <Tab.Pane eventKey="ai">
-                      <PrefsAi prefs={prefs} />
-                    </Tab.Pane>
-                    {prefs?.modules?.knowledgeBase.isActive && (
-                      <Tab.Pane eventKey="knowledgeBase">
-                        <PrefsKnowledgeBase prefs={prefs} />
-                      </Tab.Pane>
-                    )}
-                    {prefs?.modules?.finances?.isActive && (
-                      <Tab.Pane eventKey="overtime">
-                        <PrefsOvertime prefs={prefs} />
-                      </Tab.Pane>
-                    )}
-                    {prefs?.modules?.inventory?.isActive && (
-                      <Tab.Pane eventKey="mikrotik">
-                        <PrefsMikrotik prefs={prefs} />
-                      </Tab.Pane>
-                    )}
-                    <Tab.Pane eventKey="service">
-                      <PrefsService prefs={prefs} />
-                    </Tab.Pane>
-                  </Tab.Content>
-                  <Form.Group className="mt-3 border-top pt-3">
-                    <Button variant="primary" type="submit">
-                      <RiSaveLine /> Сохранить
-                    </Button>
-                  </Form.Group>
-                </Form>
-              </Col>
-            </Row>
-          </Tab.Container>
-        </Transitions>
-      )}
-      {!isAdmin && <Forbidden />}
-    </>
+    <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
+      <h1 className="tw:my-0 tw:mb-5 tw:text-4xl tw:leading-none tw:font-semibold tw:tracking-tight">
+        Настройки системы
+      </h1>
+      <BrowserView>
+        <div className="tw:flex tw:items-start tw:gap-7">
+          <AnchorRail
+            sections={sections.map(({ id, label, rail }) => ({
+              id,
+              label: rail ?? label,
+            }))}
+            ariaLabel="Разделы настроек"
+          />
+          <div className="tw:min-w-0 tw:flex-1">{panels}</div>
+        </div>
+      </BrowserView>
+      <MobileView>{panels}</MobileView>
+    </div>
   );
 };
 
 export default Preferences;
 
-export async function initialPrefsLoader() {
-  const { token } = getLocalStorageData();
-
-  const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw response;
-  }
-
-  return response;
-}
-
 export async function loader() {
-  document.title = "F1 HD | НАСТРОЙКИ";
+  document.title = "Настройки системы";
 
   const { token } = getLocalStorageData();
 
@@ -220,22 +133,35 @@ export async function loader() {
   return response;
 }
 
-export async function action() {
+// Сохранение секции: JSON-тело уходит на частичный POST /api/preferences.
+// Часовой пояс после сохранения дублируется в localStorage (его читает
+// util/format-date на каждой странице).
+export async function action({ request }) {
   const { token } = getLocalStorageData();
+  const payload = await request.json();
 
   const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/preferences/update-db-conf`,
+    `${import.meta.env.VITE_API_ADDRESS}/api/preferences`,
     {
       method: "POST",
       headers: {
+        "Content-Type": "application/json",
         Authorization: "Bearer " + token,
       },
+      body: JSON.stringify(payload),
     },
   );
 
   if (!response.ok) {
-    throw response;
+    return Response.json(
+      { error: true, message: "Не удалось сохранить настройки" },
+      { status: 200 },
+    );
   }
 
-  return response;
+  const data = await response.json();
+  if (data.preferences?.timezone) {
+    localStorage.setItem("timezone", data.preferences.timezone);
+  }
+  return Response.json(data);
 }

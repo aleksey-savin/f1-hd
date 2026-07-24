@@ -617,6 +617,25 @@ module.exports.inventoryModuleIsActive = async (req, res, next) => {
   next();
 };
 
+// Интеграция Mikrotik независима от модуля «Учёт техники»: свой рубильник
+// prefs.mikrotik.isActive (отсутствие поля в старых документах = включено)
+module.exports.mikrotikIsActive = async (req, res, next) => {
+  const prefs = await Preferences.findOne();
+
+  if (prefs.mikrotik?.isActive === false) {
+    req.isAuth = false;
+    const error = new Error(`Интеграция Mikrotik отключена.`);
+    error.statusCode = 403;
+    return res.status(error.statusCode).json({
+      error: true,
+      status: error.statusCode,
+      message: error.message,
+    });
+  }
+
+  next();
+};
+
 module.exports.financesModuleIsActive = async (req, res, next) => {
   const prefs = await Preferences.findOne();
 

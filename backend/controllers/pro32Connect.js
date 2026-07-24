@@ -3,6 +3,7 @@ const Connection = require("../models/pro32Connect/connection");
 
 const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
+const { resolveGetScreenApiKey } = require("../helpers/getScreenKey");
 
 exports.createSupport = async (req, res, next) => {
   try {
@@ -21,7 +22,7 @@ exports.createSupport = async (req, res, next) => {
     }
 
     const response = await fetch(
-      `https://api.pro32connect.ru/v1/support/create?apikey=${authedUser.getScreen.api}&client_name=${user.lastName} ${user.firstName}`,
+      `https://api.pro32connect.ru/v1/support/create?apikey=${resolveGetScreenApiKey(authedUser)}&client_name=${user.lastName} ${user.firstName}`,
       {
         method: "POST",
       },
@@ -80,7 +81,7 @@ exports.getConnection = async (req, res, next) => {
       try {
         const response = await fetch(
           `https://api.pro32connect.ru/v1/support/info?apikey=${
-            authedUser.getScreen?.api || process.env.GETSCREEN_ROOT_API
+            resolveGetScreenApiKey(authedUser) || process.env.GETSCREEN_ROOT_API
           }&connection_id=${connection.getScreenId}`,
         );
         const data = await response.json();

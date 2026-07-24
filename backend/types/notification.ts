@@ -7,6 +7,7 @@ export interface INotification {
   to?: {
     chatId?: string;
     globalChat?: boolean;
+    messageThreadId?: string;
     companyChat?: string;
     applicant?: string;
     responsible?: string;

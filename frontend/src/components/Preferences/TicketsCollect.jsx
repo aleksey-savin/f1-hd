@@ -1,183 +1,189 @@
-import { useState, useCallback, useEffect } from "react";
+import { useEffect, useState } from "react";
 
-import useHttp from "../../hooks/use-http";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import SettingRow from "@/components/app/SettingRow";
+import { SubLabel } from "@/components/app/Panel";
 
-import Select from "react-select";
-import Form from "react-bootstrap/Form";
-
+import Select from "../../UI/Select";
 import { getLocalStorageData } from "../../util/auth";
+import SectionForm from "./SectionForm";
 
-const PrefsTicketsCollect = (props) => {
-  const { token } = getLocalStorageData();
-
-  const [useEmail, setUseEmail] = useState(props.prefs.useEmail);
-  const [emailAddress, setEmailAddress] = useState(props.prefs.emailAddress);
-  const [emailPassword, setEmailPassword] = useState(props.prefs.emailPassword);
-  const [imapServer, setImapServer] = useState(props.prefs.imapServer);
-
-  const [defaultApplicant, setDefaultApplicant] = useState(
-    props.prefs.defaultApplicant,
+// «Сбор заявок»: почтовый ящик-приёмник (письма становятся заявками) и
+// эвристики распознавания отправителя. Пока мастер-свитч выключен, поля
+// погашены. Инициатор по умолчанию ставится машинным заявкам; его компания
+// денормализуется в defaultCompany (инвариант «заявка без company» — см.
+// контроллеры машинных каналов).
+const PrefsTicketsCollect = ({ prefs }) => {
+  const [useEmail, setUseEmail] = useState(!!prefs.useEmail);
+  const [emailAddress, setEmailAddress] = useState(prefs.emailAddress || "");
+  const [emailPassword, setEmailPassword] = useState(prefs.emailPassword || "");
+  const [imapServer, setImapServer] = useState(prefs.imapServer || "");
+  const [applicant, setApplicant] = useState(
+    prefs.defaultApplicant?._id ? prefs.defaultApplicant : null,
   );
   const [identifyCompany, setIdentifyCompany] = useState(
-    props.prefs.identifyCompany,
+    !!prefs.identifyCompany,
   );
   const [identifyApplicant, setIdentifyApplicant] = useState(
-    props.prefs.identifyApplicant,
+    !!prefs.identifyApplicant,
   );
   const [checkPhoneNumber, setCheckPhoneNumber] = useState(
-    props.prefs.checkPhoneNumber,
+    !!prefs.checkPhoneNumber,
   );
 
-  const useEmailChangeHandler = () => {
-    setUseEmail(!useEmail);
-    props.prefs.useEmail = !useEmail;
-  };
-
-  const emailAddressChangeHandler = (event) => {
-    setEmailAddress(event.target.value);
-    props.prefs.emailAddress = event.target.value;
-  };
-
-  const emailPasswordChangeHandler = (event) => {
-    setEmailPassword(event.target.value);
-    props.prefs.emailPassword = event.target.value;
-  };
-
-  const imapServerChangeHandler = (event) => {
-    setImapServer(event.target.value);
-    props.prefs.imapServer = event.target.value;
-  };
-
-  const defaultApplicantChangeHandler = (selectedItem) => {
-    setDefaultApplicant(selectedItem);
-    props.prefs.defaultApplicant = selectedItem;
-    props.prefs.defaultCompany = selectedItem.company;
-  };
-
-  const identifyCompanyChangeHandler = () => {
-    setIdentifyCompany(!identifyCompany);
-    props.prefs.identifyCompany = !identifyCompany;
-  };
-
-  const identifyApplicantChangeHandler = () => {
-    setIdentifyApplicant(!identifyApplicant);
-    props.prefs.identifyApplicant = !identifyApplicant;
-  };
-
-  const checkPhoneNumberChangeHandler = () => {
-    setCheckPhoneNumber(!checkPhoneNumber);
-    props.prefs.checkPhoneNumber = !checkPhoneNumber;
-  };
-
-  const [usersList, setUsersList] = useState([]);
-  const { sendRequest: fetchUsersHandler } = useHttp();
-
-  const fetchServiceAccounts = useCallback(() => {
-    fetchUsersHandler(
-      {
-        url: `${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`,
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-      (data) => {
-        if (data) {
-          setUsersList(data);
-        }
-      },
-    );
-  }, [fetchUsersHandler, token]);
-
+  // Сервисные аккаунты для «Инициатора по умолчанию»; сохранённое значение
+  // остаётся выбираемым, даже если его нет в свежем списке
+  const [accounts, setAccounts] = useState([]);
   useEffect(() => {
-    fetchServiceAccounts();
-  }, [fetchServiceAccounts]);
+    const { token } = getLocalStorageData();
+    fetch(`${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`, {
+      headers: { Authorization: "Bearer " + token },
+    })
+      .then((response) => (response.ok ? response.json() : []))
+      .then((data) => setAccounts(Array.isArray(data) ? data : data?.users || []))
+      .catch(() => {});
+  }, []);
+
+  const applicantOption = applicant
+    ? accounts.find((account) => account._id === applicant._id) || applicant
+    : null;
+
+  const buildPayload = () => {
+    const payload = {
+      useEmail,
+      emailAddress,
+      emailPassword,
+      imapServer,
+      identifyCompany,
+      identifyApplicant,
+      checkPhoneNumber,
+    };
+    if (applicant?._id) {
+      payload.defaultApplicant = {
+        _id: applicant._id,
+        firstName: applicant.firstName,
+        lastName: applicant.lastName,
+      };
+      // Компания инициатора известна только у значения из списка; у
+      // сохранённого объекта её нет — тогда defaultCompany не трогаем
+      if (applicant.company?._id) {
+        payload.defaultCompany = {
+          _id: applicant.company._id,
+          alias: applicant.company.alias,
+        };
+      }
+    }
+    return payload;
+  };
+
+  const dim = useEmail ? "" : "tw:opacity-60";
 
   return (
-    <>
-      <Form.Group className="mb-3">
-        <Form.Check
-          type="switch"
-          label="Собирать заявки с почтового ящика"
+    <SectionForm buildPayload={buildPayload}>
+      <SettingRow
+        title="Собирать заявки с почтового ящика"
+        hint="Письма на этот ящик становятся заявками, переписка — комментариями."
+        htmlFor="prefs-collect-enabled"
+      >
+        <Switch
+          id="prefs-collect-enabled"
           checked={useEmail}
-          value={useEmail}
-          onChange={useEmailChangeHandler}
+          onCheckedChange={setUseEmail}
         />
-      </Form.Group>
-      <Form.Group className="mb-3">
-        <Form.Label>Email</Form.Label>
-        <Form.Control
-          disabled={!useEmail}
-          required
-          type="email"
-          value={emailAddress}
-          onChange={emailAddressChangeHandler}
-        />
-      </Form.Group>
-      <Form.Group className="mb-3">
-        <Form.Label>Пароль</Form.Label>
-        <Form.Control
-          disabled={!useEmail}
-          required
-          type="password"
-          value={emailPassword}
-          onChange={emailPasswordChangeHandler}
-        />
-      </Form.Group>
-      <Form.Group className="mb-3">
-        <Form.Label>IMAP Сервер</Form.Label>
-        <Form.Control
-          disabled={!useEmail}
-          required
+      </SettingRow>
+      <SettingRow divider title="Email" htmlFor="prefs-collect-email" className={dim}>
+        <Input
+          id="prefs-collect-email"
           type="text"
+          disabled={!useEmail}
+          value={emailAddress}
+          onChange={(event) => setEmailAddress(event.target.value)}
+          className="tw:w-72 tw:max-md:w-full"
+        />
+      </SettingRow>
+      <SettingRow title="Пароль" htmlFor="prefs-collect-password" className={dim}>
+        <Input
+          id="prefs-collect-password"
+          type="password"
+          disabled={!useEmail}
+          value={emailPassword}
+          onChange={(event) => setEmailPassword(event.target.value)}
+          className="tw:w-72 tw:max-md:w-full"
+          autoComplete="new-password"
+        />
+      </SettingRow>
+      <SettingRow title="IMAP-сервер" htmlFor="prefs-collect-imap" className={dim}>
+        <Input
+          id="prefs-collect-imap"
+          type="text"
+          disabled={!useEmail}
           value={imapServer}
-          onChange={imapServerChangeHandler}
+          onChange={(event) => setImapServer(event.target.value)}
+          className="tw:w-72 tw:max-md:w-full"
         />
-      </Form.Group>
-      <Form.Group className="mb-3">
-        <Form.Label>Инициатор по умолчанию</Form.Label>
-        <Select
-          isDisabled={!useEmail}
-          placeholder="Выберите пользователя"
-          isClearable
-          isSearchable
-          options={usersList}
-          value={defaultApplicant}
-          getOptionLabel={(option) => `${option.lastName} ${option.firstName}`}
-          getOptionValue={(option) => option._id}
-          onChange={defaultApplicantChangeHandler}
-        />
-      </Form.Group>
-      <Form.Group className="mb-3">
-        <Form.Check
-          disabled={!useEmail}
-          type="switch"
-          label="Определять компанию по почтовому домену"
+      </SettingRow>
+      <SettingRow
+        divider
+        title="Инициатор по умолчанию"
+        hint="Ставится машинным заявкам, когда отправитель не распознан; его компания становится компанией таких заявок."
+        htmlFor="prefs-default-applicant"
+      >
+        <div className="tw:w-72 tw:max-md:w-full">
+          <Select
+            id="prefs-default-applicant"
+            placeholder="Выберите аккаунт"
+            closeMenuOnSelect
+            isSearchable
+            value={applicantOption}
+            options={accounts}
+            getOptionLabel={(option) =>
+              `${option.lastName || ""} ${option.firstName || ""}`.trim()
+            }
+            getOptionValue={(option) => option._id}
+            onChange={(option) => setApplicant(option || null)}
+          />
+        </div>
+      </SettingRow>
+
+      <div className="tw:px-5 tw:pt-4">
+        <SubLabel>Распознавание отправителя</SubLabel>
+      </div>
+      <SettingRow
+        title="Определять компанию по почтовому домену"
+        htmlFor="prefs-identify-company"
+        className="tw:py-3"
+      >
+        <Switch
+          id="prefs-identify-company"
           checked={identifyCompany}
-          value={identifyCompany}
-          onChange={identifyCompanyChangeHandler}
+          onCheckedChange={setIdentifyCompany}
         />
-      </Form.Group>
-      <Form.Group className="mb-3">
-        <Form.Check
-          disabled={!useEmail}
-          type="switch"
-          label="Определять инициатора по почтовому адресу"
+      </SettingRow>
+      <SettingRow
+        title="Определять инициатора по почтовому адресу"
+        htmlFor="prefs-identify-applicant"
+        className="tw:py-3"
+      >
+        <Switch
+          id="prefs-identify-applicant"
           checked={identifyApplicant}
-          value={identifyApplicant}
-          onChange={identifyApplicantChangeHandler}
+          onCheckedChange={setIdentifyApplicant}
         />
-      </Form.Group>
-      <Form.Group className="mb-3">
-        <Form.Check
-          disabled={!useEmail || !identifyApplicant || !identifyCompany}
-          type="switch"
-          label="Искать номер телефона в теме письма"
+      </SettingRow>
+      <SettingRow
+        title="Искать номер телефона в теме письма"
+        hint="Найденный номер сверяется со справочником пользователей."
+        htmlFor="prefs-check-phone"
+        className="tw:py-3"
+      >
+        <Switch
+          id="prefs-check-phone"
           checked={checkPhoneNumber}
-          value={checkPhoneNumber}
-          onChange={checkPhoneNumberChangeHandler}
+          onCheckedChange={setCheckPhoneNumber}
         />
-      </Form.Group>
-    </>
+      </SettingRow>
+    </SectionForm>
   );
 };
 

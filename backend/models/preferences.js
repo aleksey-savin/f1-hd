@@ -33,11 +33,9 @@ const preferencesSchema = new Schema({
   identifyApplicant: { type: Boolean, default: false },
   checkPhoneNumber: { type: Boolean, default: false },
   deadline: { type: Number, default: 10 },
+  // Политика повторов недоставленных уведомлений — константы бота
+  // (telegram-bot/utils/retryPolicy.js), из настроек убрана осознанно
   notify: {
-    global: {
-      attemptsInterval: { type: Number, default: 15 },
-      attempts: { type: Number, default: 3 },
-    },
     personal: {
       newTicket: { type: Boolean, default: false },
       respStateUpdate: { type: Boolean, default: false },
@@ -56,20 +54,22 @@ const preferencesSchema = new Schema({
       sendFromName: { type: String, default: "" },
       sendFromEmail: { type: String, default: "" },
     },
+    // Единственная группа Telegram команды: сюда идут групповые уведомления и
+    // здесь же живёт табло статусов; messageThreadId (ветка форум-группы)
+    // действует на оба потока ("" → General-топик или не форум)
     byTelegram: {
       isActive: { type: Boolean, default: false },
       sendToGroup: { type: Boolean, default: false },
       chatId: { type: String, default: "" },
+      messageThreadId: { type: String, default: "" },
     },
   },
-  // Табло статусов сотрудников в Telegram-группе: одно закреплённое сообщение,
-  // которое бот редактирует. isActive/chatId/messageThreadId — конфигурация
-  // (веб-настройки или команда /status_board в нужной ветке); messageId/lastText —
-  // служебные поля бота (кэш последнего рендера для no-op сравнения).
+  // Табло статусов сотрудников: одно закреплённое сообщение в группе
+  // notify.byTelegram (chatId + messageThreadId), которое бот редактирует.
+  // isActive — конфигурация (веб-настройки или команда /status_board);
+  // messageId/lastText — служебные поля бота (кэш рендера для no-op сравнения).
   statusBoard: {
     isActive: { type: Boolean, default: false },
-    chatId: { type: String, default: "" }, // "" → группа уведомлений notify.byTelegram.chatId
-    messageThreadId: { type: String, default: "" }, // "" → General-топик или не форум
     messageId: { type: Number, default: null },
     lastText: { type: String, default: "" },
   },
@@ -115,8 +115,11 @@ const preferencesSchema = new Schema({
     weekdayCoefficient: { type: Number, default: 1 },
     weekendCoefficient: { type: Number, default: 1 },
   },
-  // Управление устройствами Mikrotik: авто-заявки на события мониторинга.
+  // Интеграция Mikrotik: мониторинг, конфигурации, прошивки, авто-заявки.
+  // Независима от модуля «Учёт техники»; isActive — единый рубильник
+  // (меню, API, кроны). Отсутствие поля в старых документах = включено.
   mikrotik: {
+    isActive: { type: Boolean, default: true },
     // Сервисный аккаунт-автор всех машинных заявок и комментариев модуля
     // (недоступность, изменение конфигурации, уязвимости прошивки). Компания
     // сводной заявки об уязвимостях — компания этого аккаунта. Не задан →

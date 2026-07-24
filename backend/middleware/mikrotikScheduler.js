@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const Mikrotik = require("../models/mikrotik");
 const Preferences = require("../models/preferences");
+const { mikrotikEnabled } = require("../services/mikrotik/enabled");
 const { createArtifact } = require("../services/mikrotik/artifacts");
 const { computeNextRun } = require("../services/mikrotik/schedule");
 const logger = require("../utils/logger");
@@ -63,6 +64,9 @@ const processRecord = async (record, timezone, now) => {
 // Registered as a cron in app.js. Safe to call when idle (no active schedules).
 const runMikrotikScheduler = async () => {
   if (mongoose.connection.readyState !== 1) {
+    return;
+  }
+  if (!(await mikrotikEnabled())) {
     return;
   }
 

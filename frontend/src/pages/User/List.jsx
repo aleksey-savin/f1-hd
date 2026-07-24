@@ -96,6 +96,12 @@ const Users = () => {
       label: `Активность: ${ACTIVITY_LABEL[s.activity] ?? s.activity}`,
       onRemove: () => s.updateFilter({ activity: "any" }),
     });
+  if (s.pro32)
+    activeFilters.push({
+      key: "pro32",
+      label: "Подключён PRO32 Connect",
+      onRemove: () => s.updateFilter({ pro32: false }),
+    });
   if (!s.activeOnly)
     activeFilters.push({
       key: "inactive",

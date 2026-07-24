@@ -103,8 +103,11 @@ const UserForm = () => {
       salary: user?.finances?.salary ?? "",
       overtimeHourlyRate: user?.finances?.overtimeHourlyRate ?? "",
     },
-    getScreenApi: user?.getScreen?.api || "",
+    // Ключ PRO32 наружу не отдаётся (getOne маскирует в hasApi): поле всегда
+    // пустое, пусто = «не менять», ввод = новый ключ
+    getScreenApi: "",
   });
+  const hasGetScreenKey = Boolean(user?.getScreen?.hasApi);
   // notify правит админ, но это личные настройки пользователя: шлём объект
   // только если его реально трогали, иначе сохранение затрёт чужой выбор.
   const [notifyDirty, setNotifyDirty] = useState(false);
@@ -235,7 +238,10 @@ const UserForm = () => {
             : Number(form.finances.overtimeHourlyRate),
       };
     }
-    if (canEditGetScreen) payload.getScreenApi = form.getScreenApi;
+    // Пустое поле ключа не шлём — бэкенд трактует отсутствие как «не менять»
+    if (canEditGetScreen && form.getScreenApi) {
+      payload.getScreenApi = form.getScreenApi;
+    }
     if (notifyDirty && !isService) payload.notify = form.notify;
 
     fetcher.submit(payload, { method: "post", encType: "application/json" });
@@ -649,12 +655,19 @@ const UserForm = () => {
 
       {canEditGetScreen && (
         <Field
-          label="Pro32Connect API"
+          label="API-ключ PRO32 Connect"
           htmlFor="u-getscreen"
-          hint="Ключ интеграции удалённого подключения."
+          hint={
+            hasGetScreenKey
+              ? "Ключ задан и хранится в зашифрованном виде. Оставьте поле пустым, чтобы не менять; введённый ключ заменит текущий."
+              : "Персональный ключ удалённого подключения — без него кнопка PRO32 Connect в заявке не работает."
+          }
         >
           <Input
             id="u-getscreen"
+            type="password"
+            autoComplete="new-password"
+            placeholder={hasGetScreenKey ? "••••••••  (ключ задан)" : ""}
             value={form.getScreenApi}
             onChange={(event) => setField("getScreenApi", event.target.value)}
           />

@@ -29,6 +29,8 @@ const useInitialPrefsStore = create((set) => ({
     timeTracking: { isActive: false },
     knowledgeBase: { isActive: false },
   },
+  // Интеграция Mikrotik — независима от модулей; питает пункты меню
+  mikrotik: { isActive: false },
   ai: { isActive: false, speechToText: { isActive: false } },
   knowledgeBase: defaultKnowledgeBase,
   set: (data) =>
@@ -41,6 +43,7 @@ const useInitialPrefsStore = create((set) => ({
       telegramNotifications: data.telegramNotifications,
       personalNotifications: data.personalNotifications,
       modules: data.modules,
+      mikrotik: data.mikrotik || { isActive: false },
       ai: data.ai || { isActive: false, speechToText: { isActive: false } },
       knowledgeBase: data.knowledgeBase || defaultKnowledgeBase,
     })),
