@@ -1,49 +1,56 @@
 const Router = require("express");
 const router = new Router();
-const reportController = require("@/controllers/report");
+
+const companiesReportController = require("@/controllers/companiesReport");
 const isAuth = require("@/middleware/isAuth");
 
+const { runValidation } = require("@/middleware/runValidation");
+const reportValidation = require("@/validations/report");
+
 const {
-  canSeeWorksReport,
   canSeeAnalytics,
   timeTrackingModuleIsActive,
   canUseTimeTrackingModule,
 } = require("@/middleware/permissions");
 
-router.get(
-  "/report/form-data",
-  isAuth,
-  timeTrackingModuleIsActive,
-  canUseTimeTrackingModule,
-  canSeeWorksReport,
-  reportController.getFormData,
-);
-
-router.post(
-  "/report/works",
-  isAuth,
-  timeTrackingModuleIsActive,
-  canUseTimeTrackingModule,
-  canSeeWorksReport,
-  reportController.filterWorks,
-);
+// Отчёт «Компании» (бывшая «Аналитика»): сводка → карточка компании →
+// карточка подразделения. Право открывает страницу, объём данных считает
+// services/reportScope (наш сотрудник — все компании, ответственное лицо
+// клиента — свои компании, руководитель подразделения — своё поддерево).
+const gate = [isAuth, timeTrackingModuleIsActive, canUseTimeTrackingModule, canSeeAnalytics];
 
 router.get(
-  "/report/analytics",
-  isAuth,
-  timeTrackingModuleIsActive,
-  canUseTimeTrackingModule,
-  canSeeAnalytics,
-  reportController.getCompanySummary,
+  "/report/companies",
+  ...gate,
+  reportValidation.companiesSummary,
+  runValidation,
+  companiesReportController.getSummary,
+);
+
+// Объявляется РАНЬШЕ "/report/companies/:companyId", иначе Express уведёт
+// "trends" в параметр маршрута
+router.get(
+  "/report/companies/trends",
+  ...gate,
+  reportValidation.companiesTrends,
+  runValidation,
+  companiesReportController.getTrends,
 );
 
 router.get(
-  "/report/trends-analysis",
-  isAuth,
-  timeTrackingModuleIsActive,
-  canUseTimeTrackingModule,
-  canSeeAnalytics,
-  reportController.getTrendsAnalysis,
+  "/report/companies/:companyId",
+  ...gate,
+  reportValidation.companyCard,
+  runValidation,
+  companiesReportController.getCompany,
+);
+
+router.get(
+  "/report/companies/:companyId/subdivisions/:subdivisionId",
+  ...gate,
+  reportValidation.subdivisionCard,
+  runValidation,
+  companiesReportController.getSubdivision,
 );
 
 module.exports = router;

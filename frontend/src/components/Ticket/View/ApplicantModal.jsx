@@ -7,6 +7,8 @@ import Button from "react-bootstrap/Button";
 import Table from "react-bootstrap/Table";
 
 import { AuthedUserContext } from "../../../store/authed-user-context";
+import useMinuteTick from "../../../hooks/use-minute-tick";
+import { describeClientTimezone } from "../../../util/timezone-display";
 
 const ApplicantModal = ({ ticket }) => {
   const { isEndUser } = useContext(AuthedUserContext);
@@ -14,6 +16,11 @@ const ApplicantModal = ({ ticket }) => {
   const applicant = ticket.applicant
     ? ticket.applicant
     : { firstName: "Пользователь не найден или удалён", lastName: "" };
+
+  // Отсюда идут звонить, поэтому подсказка про местное время стоит прямо у
+  // номера, а не только бэджем в карточке
+  const now = useMinuteTick();
+  const clientTime = describeClientTimezone(ticket.clientTimezone, now);
 
   const [showApplicantModal, setShowApplicantModal] = useState(false);
 
@@ -58,6 +65,14 @@ const ApplicantModal = ({ ticket }) => {
                 <th>Телефон</th>
                 <td>
                   <a href={`tel:${applicant.phone}`}>{applicant.phone}</a>
+                  {clientTime?.differs && (
+                    <small
+                      className={`d-block ${clientTime.isNight ? "text-warning" : "text-muted"}`}
+                    >
+                      сейчас у абонента {clientTime.localTime} (
+                      {clientTime.offsetLabel})
+                    </small>
+                  )}
                 </td>
               </tr>
               <tr>

@@ -8,7 +8,6 @@ import {
   RiEdit2Line,
   RiLinkM,
   RiMoreLine,
-  RiSaveLine,
   RiTicketLine,
   RiTimeLine,
 } from "react-icons/ri";
@@ -67,50 +66,17 @@ const ViewRoutineTask = ({ task }) => {
   const canManage = canManageEntity("routineTask", permissions, task, userId);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  // Правка чек-листа на месте (как у шаблона).
-  const checklistFetcher = useFetcher();
-  const [editingChecklist, setEditingChecklist] = useState(false);
-  const [checklistDraft, setChecklistDraft] = useState(task.checklist || []);
-
   // Ручной запуск «создать заявку сейчас».
   const runFetcher = useFetcher();
   const [runOpen, setRunOpen] = useState(false);
   const [skipNext, setSkipNext] = useState(true);
 
-  const startChecklistEdit = () => {
-    setChecklistDraft(task.checklist || []);
-    setEditingChecklist(true);
-  };
-  const saveChecklist = () => {
-    checklistFetcher.submit(
-      {
-        intent: "updateChecklist",
-        checklist: JSON.stringify(
-          checklistDraft.map((item) => ({
-            description: item.description,
-            mandatory: !!item.mandatory,
-          })),
-        ),
-      },
-      { method: "post" },
-    );
-  };
   const doRun = () => {
     runFetcher.submit(
       { intent: "run", skipNext: skipNext ? "true" : "false" },
       { method: "post" },
     );
   };
-
-  useEffect(() => {
-    if (
-      checklistFetcher.state === "idle" &&
-      checklistFetcher.data &&
-      !checklistFetcher.data.error
-    ) {
-      setEditingChecklist(false);
-    }
-  }, [checklistFetcher.state, checklistFetcher.data]);
 
   useEffect(() => {
     if (runFetcher.state === "idle" && runFetcher.data && !runFetcher.data.error) {
@@ -334,57 +300,31 @@ const ViewRoutineTask = ({ task }) => {
         </>
       )}
 
-      {/* Чек-лист — правится на месте */}
+      {/* Чек-лист — только показ: правится в общей форме регламента */}
       {(checklist.length > 0 || canManage) && (
         <div className="tw:mt-6">
           <div className="tw:mb-2.5 tw:flex tw:items-center tw:gap-2">
             <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
               Чек-лист
             </span>
-            {!editingChecklist && checklist.length > 0 && (
+            {checklist.length > 0 && (
               <span className="tw:text-xs tw:font-bold tw:text-faint tw:tabular-nums">
                 · {checklist.length}
               </span>
             )}
-            {canManage && !editingChecklist && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="tw:ml-auto"
-                onClick={startChecklistEdit}
-              >
-                <RiEdit2Line />
-                {checklist.length ? "Изменить" : "Добавить чек-лист"}
+            {canManage && (
+              <Button asChild variant="outline" size="sm" className="tw:ml-auto">
+                {/* Та же форма, что у «Изменить» в шапке, — открытая сразу на
+                    секции чек-листа */}
+                <Link to="update#checklist" onClick={offcanvas.setShow}>
+                  <RiEdit2Line />
+                  {checklist.length ? "Изменить" : "Добавить чек-лист"}
+                </Link>
               </Button>
             )}
           </div>
           <Panel>
-            {editingChecklist ? (
-              <>
-                <Checklist
-                  mode="edit"
-                  framed={false}
-                  showHeader={false}
-                  items={checklistDraft}
-                  onChange={setChecklistDraft}
-                />
-                <div className="tw:mt-3 tw:flex tw:justify-end tw:gap-2.5 tw:border-t tw:border-border-soft tw:pt-3">
-                  <Button
-                    variant="ghost"
-                    onClick={() => setEditingChecklist(false)}
-                    disabled={checklistFetcher.state !== "idle"}
-                  >
-                    Отмена
-                  </Button>
-                  <Button
-                    onClick={saveChecklist}
-                    disabled={checklistFetcher.state !== "idle"}
-                  >
-                    <RiSaveLine /> Сохранить чек-лист
-                  </Button>
-                </div>
-              </>
-            ) : checklist.length > 0 ? (
+            {checklist.length > 0 ? (
               <Checklist
                 mode="read"
                 framed={false}
@@ -455,7 +395,7 @@ const ViewRoutineTask = ({ task }) => {
 
       <FormSheet
         open={offcanvas.isActive}
-        wide
+        size="lg"
         onOpenChange={(open) => {
           if (!open) {
             navigate(-1);

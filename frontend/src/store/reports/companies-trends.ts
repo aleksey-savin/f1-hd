@@ -7,7 +7,7 @@ import type {
 } from "../../types/report";
 import { getLocalStorageData } from "../../util/auth";
 
-// Сегмент «Динамика» отчёта «Аналитика»: пресет периода + группировка, при
+// Сегмент «Динамика» отчёта «Компании»: пресет периода + группировка, при
 // «Произвольном» — две даты из шторки (запрос уходит, когда заданы обе).
 // Выбор метрики и компаний — клиентский пивот по загруженным данным (без
 // запроса), живёт здесь же, чтобы переживать переключение сегментов.
@@ -59,18 +59,18 @@ const doFetch = async (get: Getter, set: Setter) => {
       params.set("startDate", startDate);
       params.set("endDate", endDate);
     }
-    const url = new URL(`${API}/api/report/trends-analysis`);
+    const url = new URL(`${API}/api/report/companies/trends`);
     url.search = params.toString();
     const response = await fetch(url, {
       headers: { Authorization: "Bearer " + token },
     });
-    if (!response.ok) throw new Error(`analytics trends ${response.status}`);
+    if (!response.ok) throw new Error(`companies trends ${response.status}`);
     const data = (await response.json()) as TrendsResponse;
     if (requestId !== requestSeq) return;
     set({ data, isLoading: false, error: null });
   } catch (error) {
     if (requestId !== requestSeq) return;
-    console.warn("Динамика аналитики не загрузилась:", error);
+    console.warn("Динамика по компаниям не загрузилась:", error);
     set({
       isLoading: false,
       error: "Не удалось загрузить динамику. Проверьте соединение и повторите.",
@@ -78,7 +78,7 @@ const doFetch = async (get: Getter, set: Setter) => {
   }
 };
 
-const useAnalyticsTrendsStore = create<TrendsState>()((set, get) => ({
+const useCompaniesTrendsStore = create<TrendsState>()((set, get) => ({
   preset: "12months",
   grouping: "month",
   startDate: "",
@@ -101,4 +101,4 @@ const useAnalyticsTrendsStore = create<TrendsState>()((set, get) => ({
   setSelectedCompanies: (ids) => set({ selectedCompanies: ids.slice(-5) }),
 }));
 
-export default useAnalyticsTrendsStore;
+export default useCompaniesTrendsStore;

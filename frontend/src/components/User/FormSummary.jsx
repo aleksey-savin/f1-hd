@@ -1,4 +1,29 @@
-import { ACCOUNT_KINDS } from "./permissions-catalog";
+import { SCHEDULE_DAYS } from "@/components/app/ScheduleEditor";
+
+import { ACCOUNT_KINDS, WORK_TIME_MODES } from "./permissions-catalog";
+
+// «5/2 · 09:00–18:00» — тот же язык, что в истории версий на карточке
+const scheduleLabel = (schedule) => {
+  if (!schedule) return null;
+  if (schedule.workTimeMode !== "scheduled") {
+    return WORK_TIME_MODES.find((mode) => mode.value === schedule.workTimeMode)
+      ?.label;
+  }
+  const working = SCHEDULE_DAYS.map(([, key]) => schedule.week?.[key]).filter(
+    (day) => day?.isWorking,
+  );
+  if (working.length === 0) return "нерабочая неделя";
+  const first = working[0];
+  const same = working.every(
+    (day) => day.start === first.start && day.end === first.end,
+  );
+  const time = first.is24hours
+    ? "круглосуточно"
+    : same
+      ? `${first.start}–${first.end}`
+      : "плавающее время";
+  return `${working.length}/${7 - working.length} · ${time}`;
+};
 
 // Живая сводка мастера создания пользователя: наполняется по мере прохождения
 // шагов, чтобы контекст не терялся при переходе вперёд-назад.
@@ -13,7 +38,7 @@ const None = ({ children }) => (
   <span className="tw:font-normal tw:text-faint">{children}</span>
 );
 
-const FormSummary = ({ form, kind }) => {
+const FormSummary = ({ form, kind, schedule }) => {
   const name = `${form.lastName || ""} ${form.firstName || ""}`.trim();
   const kindLabel = ACCOUNT_KINDS.find((item) => item.value === kind)?.label;
   const isStaff = kind === "staff";
@@ -36,6 +61,11 @@ const FormSummary = ({ form, kind }) => {
           <span className="tw:text-faint"> · {form.subdivision.name}</span>
         )}
       </Row>
+      {isStaff && schedule && (
+        <Row label="График">
+          {scheduleLabel(schedule) || <None>не задан</None>}
+        </Row>
+      )}
       {isStaff && (
         <>
           <Row label="Права">

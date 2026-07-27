@@ -1,12 +1,12 @@
 import { cn } from "@/lib/utils";
 
-import type { TrendsMetricKey } from "../../store/reports/analytics-trends";
-
 import { type Delta } from "./delta";
 
 // Карточки метрик «Динамики»: одновременно сводка (изменение первый →
 // последний период + спарклайн «Итого») и переключатель главного графика.
 // Активная — рамка primary; спарклайн активной — primary, остальных — faint.
+// Ключ метрики — произвольная строка: компонент делят «Компании» и
+// «Сотрудники», наборы метрик у них разные.
 
 const Spark = ({ values, active }: { values: number[]; active: boolean }) => {
   if (values.length < 2) return null;
@@ -42,7 +42,7 @@ const Spark = ({ values, active }: { values: number[]; active: boolean }) => {
 };
 
 export type MetricCard = {
-  key: TrendsMetricKey;
+  key: string;
   label: string;
   change: Delta;
   spark: number[];
@@ -54,8 +54,8 @@ const MetricCards = ({
   onSelect,
 }: {
   metrics: MetricCard[];
-  active: TrendsMetricKey;
-  onSelect: (key: TrendsMetricKey) => void;
+  active: string;
+  onSelect: (key: string) => void;
 }) => (
   <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:md:grid-cols-3 tw:xl:grid-cols-5">
     {metrics.map((metric) => {

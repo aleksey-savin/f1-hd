@@ -69,6 +69,7 @@ const CompanyItem = ({ item }) => {
     usersCount = 0,
     servicePlansCount = 0,
     workSchedule,
+    timezone,
     isActive,
     createdAt,
     updatedAt,
@@ -183,7 +184,7 @@ const CompanyItem = ({ item }) => {
             {inactive ? (
               <InactiveStatus />
             ) : (
-              <WorkStatusText workSchedule={workSchedule} />
+              <WorkStatusText workSchedule={workSchedule} timezone={timezone} />
             )}
           </div>
         </div>
@@ -195,7 +196,7 @@ const CompanyItem = ({ item }) => {
           {inactive ? (
             <InactiveStatus />
           ) : (
-            <WorkStatusText workSchedule={workSchedule} />
+            <WorkStatusText workSchedule={workSchedule} timezone={timezone} />
           )}
         </div>
 

@@ -176,6 +176,7 @@ const ViewCompany = ({
             {isActive ? (
               <WorkStatusText
                 workSchedule={company.workSchedule}
+                timezone={company.timezone}
                 halo
                 className="tw:font-semibold"
               />
@@ -365,6 +366,7 @@ const ViewCompany = ({
           <ScheduleSection
             workSchedule={company.workSchedule}
             hasSchedule={!noSchedule}
+            timezone={company.timezone}
             id="company-schedule"
           />
 
@@ -417,7 +419,7 @@ const ViewCompany = ({
       {/* Правка компании и мастер «Новой услуги» — вложенные маршруты в шторке */}
       <FormSheet
         open={offcanvas.isActive}
-        wide={isPlanWizard}
+        size={isPlanWizard ? "lg" : "md"}
         onOpenChange={(open) => {
           if (!open) {
             navigate(-1);

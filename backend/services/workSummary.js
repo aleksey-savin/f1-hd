@@ -58,6 +58,9 @@ const workDurationMs = (work) => {
  * withTickets: populate заявок с регламентом — нужен только там, где
  * различаются классы работ (аналитика); дашборду и статистике компании
  * достаточно visitRequired.
+ * ticketSelect: доп. поля заявки к обязательному routineTask (`num applicantId`
+ * для разреза по подразделениям, `categoryId` для разреза по категориям) —
+ * тем же populate, без второй выборки заявок.
  */
 const loadWorks = async ({
   from,
@@ -66,6 +69,7 @@ const loadWorks = async ({
   companyIds = null,
   executorIds = null,
   withTickets = true,
+  ticketSelect = "",
   extraSelect = "",
 }) => {
   const query = {
@@ -89,7 +93,7 @@ const loadWorks = async ({
     // иначе сырой ObjectId классифицировал бы работу как регламентную
     cursor.populate({
       path: "tickets",
-      select: "routineTask",
+      select: `routineTask${ticketSelect ? ` ${ticketSelect}` : ""}`,
       populate: { path: "routineTask", select: "_id" },
     });
   }

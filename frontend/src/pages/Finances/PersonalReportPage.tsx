@@ -21,7 +21,7 @@ import PeriodFilter from "../../components/Report/PeriodFilter";
 import PersonalWorksCards from "../../components/Report/PersonalWorksCards";
 import PersonalWorksTable from "../../components/Report/PersonalWorksTable";
 import ReportShell from "../../components/Report/ReportShell";
-import ShareList from "../../components/Report/ShareList";
+import ShareBars from "../../components/Report/ShareBars";
 import WorkTimeBars from "../../components/Report/WorkTimeBars";
 import { deltaOf } from "../../components/Report/delta";
 import { formatMinutes, formatMoney } from "../../components/Report/work-format";
@@ -278,11 +278,11 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
           <div className="tw:mt-5 tw:grid tw:gap-6 tw:border-t tw:border-border-soft tw:pt-4.5 tw:lg:grid-cols-2">
             <div>
               <SubLabel count={data.byCompany.length}>По компаниям</SubLabel>
-              <ShareList
+              <ShareBars
                 rows={data.byCompany.map((company) => ({
                   key: company._id ?? "none",
                   label: company.alias,
-                  minutes: company.minutes,
+                  value: company.minutes,
                 }))}
               />
             </div>
@@ -290,11 +290,11 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
               <SubLabel count={data.byCategory.length}>
                 По категориям заявок
               </SubLabel>
-              <ShareList
+              <ShareBars
                 rows={data.byCategory.map((category) => ({
                   key: category._id ?? "none",
                   label: category.title,
-                  minutes: category.minutes,
+                  value: category.minutes,
                 }))}
               />
             </div>

@@ -1,54 +1,29 @@
 import { useCallback, useContext, useEffect, useState } from "react";
+import { Link } from "react-router";
 import {
   RiCalendar2Line,
   RiEdit2Line,
   RiGlobalLine,
-  RiSaveLine,
   RiTimeLine,
 } from "react-icons/ri";
 
 import AlertMessage from "../app/AlertMessage";
 import { Eyebrow, Panel } from "../app/Panel";
 import PropRow from "../app/PropRow";
-import ScheduleEditor, { emptyDay, SCHEDULE_DAYS } from "../app/ScheduleEditor";
-import Field from "../app/Field";
-import Segmented from "../app/Segmented";
-import SwitchField from "../app/SwitchField";
+import { SCHEDULE_DAYS } from "../app/ScheduleEditor";
 import ScheduleView from "../app/ScheduleView";
 import Spinner from "../app/Spinner";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { Switch } from "../ui/switch";
-import Combobox from "../app/Combobox";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import timezones from "../../store/timezones";
+import useOffcanvasStore from "../../store/offcanvas";
 import { getLocalStorageData } from "../../util/auth";
 import { monthRange } from "../../util/period";
 import { getAbsenceType } from "../../util/absence-types";
 import { WORK_TIME_MODES } from "./permissions-catalog";
 
-const MODE_HINT = {
-  scheduled: "Статус меняется автоматически по графику, отсутствия — по заявке",
-  free: "В календаре есть, но статусы ставит сам — любые, включая отпуск",
-  none: "В календаре команды не показывается",
-};
-
 const API = import.meta.env.VITE_API_ADDRESS;
 
 const DAY_KEYS = SCHEDULE_DAYS.map(([, key]) => key);
-
-const workDay = () => ({ ...emptyDay(), isWorking: true, breakMinutes: 60 });
-
-// Заготовка личного графика: 5/2 09:00–18:00 с часовым перерывом — та же, что
-// DEFAULT_OVERTIME_SCHEDULE на бэкенде
-const defaultWeek = () =>
-  Object.fromEntries(
-    DAY_KEYS.map((key, index) => [
-      key,
-      index < 5 ? workDay() : { ...emptyDay(), breakMinutes: 0 },
-    ]),
-  );
 
 const humanDate = (key) => key.split("-").reverse().join(".");
 
@@ -79,15 +54,21 @@ const monthLabel = (from) => {
 };
 
 /**
- * Секция «График работы» карточки сотрудника.
+ * Секция «График работы» карточки сотрудника — ТОЛЬКО ПОКАЗ.
  *
- * Правится НА МЕСТЕ отдельным запросом (канон чек-листа шаблона заявки):
- * «Изменить» в метке секции, «Сохранить график» / «Отмена» внутри панели —
- * всю форму пользователя ради графика не открываем. Данные секция грузит сама
- * (как app/TechSection), поэтому карточка о ней ничего не знает.
+ * Правится там же, где остальные поля пользователя, — в общей форме
+ * «Изменить» (docs/ux-ui-guide.md, «одно поле — одно место правки»). Ярлык в
+ * метке секции открывает ту же форму сразу на секции «График работы»
+ * (`update#schedule`); своего редактора и своего сохранения у секции нет.
+ *
+ * Данные секция грузит сама (как app/TechSection), поэтому карточка о ней
+ * ничего не знает; `version` — отметка изменения пользователя (updatedAt):
+ * после сохранения формы роутер ревалидирует loader, отметка меняется, и
+ * секция перечитывает график.
  */
-const WorkScheduleSection = ({ id = "schedule", userId }) => {
+const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
   const authedUser = useContext(AuthedUserContext);
+  const offcanvas = useOffcanvasStore();
   const canManage = Boolean(
     authedUser?.isAdmin || authedUser?.permissions?.canManageWorkSchedules,
   );
@@ -96,11 +77,6 @@ const WorkScheduleSection = ({ id = "schedule", userId }) => {
   const [absences, setAbsences] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
-  const [draft, setDraft] = useState(null);
 
   const period = monthRange(new Date());
 
@@ -133,116 +109,11 @@ const WorkScheduleSection = ({ id = "schedule", userId }) => {
       setIsLoading(false);
     }
     // period пересоздаётся каждый рендер — в зависимостях его значения, не объект
-  }, [userId, period.from, period.to]);
+  }, [userId, period.from, period.to, version]);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  const startEdit = () => {
-    setSaveError(null);
-    setDraft({
-      timezone: data?.hasPersonalSchedule ? (data.timezone ?? "") : "",
-      followProductionCalendar: data?.followsProductionCalendar ?? true,
-      week: data?.hasPersonalSchedule ? structuredClone(data.schedule) : defaultWeek(),
-      // По умолчанию — с сегодня: новая версия не трогает прошлое
-      effectiveFrom: new Date().toISOString().slice(0, 10),
-      workTimeMode: data?.workTimeMode ?? "scheduled",
-      remoteOnly: Boolean(data?.remoteOnly),
-    });
-    setEditing(true);
-  };
-
-  const save = async () => {
-    const { token } = getLocalStorageData();
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const response = await fetch(`${API}/api/users/${userId}/work-schedule`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        // При «не ведётся» шлём только режим: график не редактировался, и
-        // новую версию плодить незачем — прежняя ждёт возврата учёта
-        body: JSON.stringify(
-          draft.workTimeMode === "none"
-            ? { workTimeMode: "none" }
-            : {
-                timezone: draft.timezone || null,
-                followProductionCalendar: draft.followProductionCalendar,
-                schedule: draft.week,
-                effectiveFrom: draft.effectiveFrom || null,
-                workTimeMode: draft.workTimeMode,
-                remoteOnly: draft.remoteOnly,
-              },
-        ),
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.message || "Сервер отклонил график");
-      }
-      setEditing(false);
-      await load();
-    } catch (submitError) {
-      setSaveError(submitError.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const setBreak = (value) => {
-    const minutes = Math.max(0, Math.min(480, Number(value) || 0));
-    setDraft((current) => ({
-      ...current,
-      week: Object.fromEntries(
-        Object.entries(current.week).map(([key, day]) => [
-          key,
-          day.isWorking ? { ...day, breakMinutes: minutes } : day,
-        ]),
-      ),
-    }));
-  };
-
-  // Сколько месяцев заденет правка задним числом — предупреждаем поимённо,
-  // иначе согласованные суммы поедут молча
-  const backdated = (() => {
-    const from = draft?.effectiveFrom;
-    if (!from) return null;
-    const start = new Date(`${from}T00:00:00Z`);
-    const now = new Date();
-    if (start >= new Date(now.toISOString().slice(0, 10))) return null;
-    const months = [];
-    const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
-    const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    while (cursor <= last && months.length < 12) {
-      months.push(`${MONTH_NAMES[cursor.getUTCMonth()]} ${cursor.getUTCFullYear()}`);
-      cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-    }
-    return months.join(", ");
-  })();
-
-  const currentBreak =
-    Object.values(draft?.week ?? {}).find((day) => day.isWorking)?.breakMinutes ?? 60;
-
-  const tzOptions = timezones.map((zone) => ({
-    value: zone.value,
-    label: zone.label,
-  }));
-
-  // Свободный режим: нормы и автостатусов нет, значит расписание, перерыв и
-  // производственный календарь ни на что не влияют — в форме их быть не должно
-  const isFreeMode = draft?.workTimeMode === "free";
-
-  // Пояс, в котором читается график: личный, а если не выбран — организации
-  const tzHint = (() => {
-    const own = draft?.timezone || null;
-    const effective = own || data?.organizationTimezone || data?.timezone;
-    if (!effective) return "часовой пояс организации";
-    const label = tzOptions.find((zone) => zone.value === effective)?.label ?? effective;
-    return own ? label : `${label}, как в организации`;
-  })();
 
   // «Не ведётся» — ни календаря, ни автостатусов: всё, что про расписание,
   // на карточке лишнее
@@ -259,10 +130,14 @@ const WorkScheduleSection = ({ id = "schedule", userId }) => {
       <Eyebrow
         id={id}
         action={
-          canManage && !editing ? (
-            <Button variant="outline" size="sm" onClick={startEdit}>
-              <RiEdit2Line />
-              {data?.hasPersonalSchedule ? "Изменить" : "Задать график"}
+          canManage ? (
+            <Button asChild variant="outline" size="sm">
+              {/* Та же форма, что у кнопки «Изменить» в шапке карточки, —
+                  открытая сразу на своей секции */}
+              <Link to="update#schedule" onClick={offcanvas.setShow}>
+                <RiEdit2Line />
+                {data?.hasPersonalSchedule ? "Изменить" : "Задать график"}
+              </Link>
             </Button>
           ) : undefined
         }
@@ -275,172 +150,6 @@ const WorkScheduleSection = ({ id = "schedule", userId }) => {
           <Spinner />
         ) : error ? (
           <AlertMessage variant="danger" message={error} />
-        ) : editing ? (
-          <div className="tw:space-y-4">
-            {saveError && <AlertMessage variant="danger" message={saveError} />}
-
-            {/* Учёт времени живёт здесь, а не в форме пользователя: одна тема
-                не должна правиться в двух местах */}
-            <Field
-              label="Учёт рабочего времени"
-              hint={MODE_HINT[draft.workTimeMode]}
-            >
-              <Segmented
-                ariaLabel="Учёт рабочего времени"
-                options={WORK_TIME_MODES}
-                value={draft.workTimeMode}
-                onChange={(value) =>
-                  setDraft((current) => ({ ...current, workTimeMode: value }))
-                }
-              />
-            </Field>
-
-            {/* «Не ведётся» — человека нет ни в календаре, ни в автоматике:
-                расписание и всё, что от него зависит, показывать незачем */}
-            {draft.workTimeMode === "none" ? (
-              <div className="tw:rounded-lg tw:border tw:border-dashed tw:border-border tw:px-4 tw:py-6 tw:text-center">
-                <p className="tw:mx-auto tw:mb-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
-                  Рабочее время не ведётся: сотрудник не показывается в
-                  календаре команды, статус по графику не меняется, заявки на
-                  отсутствие ему не нужны. Прежний график сохранится — если
-                  вернуть учёт, он снова заработает.
-                </p>
-              </div>
-            ) : (
-              <>
-            <SwitchField
-              id="ws-remote-only"
-              checked={draft.remoteOnly}
-              onCheckedChange={(value) =>
-                setDraft((current) => ({ ...current, remoteOnly: value === true }))
-              }
-              label="Работает только удалённо"
-              hint="Статуса «в офисе» у него не будет — автоматика поставит «на удалёнке»"
-            />
-
-            <div
-              className={
-                isFreeMode
-                  ? "tw:max-w-sm"
-                  : "tw:grid tw:gap-3 tw:md:grid-cols-2"
-              }
-            >
-              <div>
-                <Label htmlFor="ws-tz">Часовой пояс</Label>
-                <Combobox
-                  id="ws-tz"
-                  options={tzOptions}
-                  value={draft.timezone || null}
-                  onChange={(next) =>
-                    setDraft((current) => ({ ...current, timezone: next ?? "" }))
-                  }
-                  placeholder="Как в организации"
-                  searchPlaceholder="Город или зона…"
-                  clearable
-                  clearLabel="Как в организации"
-                />
-                <p className="tw:mt-1 tw:mb-0 tw:text-xs tw:text-muted-foreground">
-                  {isFreeMode
-                    ? "По нему показывается его местное время в календаре"
-                    : "По нему считается его рабочий день — и в календаре, и в отчётах"}
-                </p>
-              </div>
-              {!isFreeMode && (
-              <div>
-                <Label htmlFor="ws-break">Перерыв, мин</Label>
-                <Input
-                  id="ws-break"
-                  inputMode="numeric"
-                  value={currentBreak}
-                  onChange={(event) => setBreak(event.target.value)}
-                  className="tw:tabular-nums"
-                />
-                <p className="tw:mt-1 tw:mb-0 tw:text-xs tw:text-muted-foreground">
-                  Не входит в рабочее время; на часы влияет только в отчётах
-                </p>
-              </div>
-              )}
-            </div>
-
-            {!isFreeMode && (
-            <label className="tw:flex tw:cursor-pointer tw:items-start tw:gap-3">
-              <Switch
-                checked={draft.followProductionCalendar}
-                onCheckedChange={(checked) =>
-                  setDraft((current) => ({
-                    ...current,
-                    followProductionCalendar: checked === true,
-                  }))
-                }
-              />
-              <span>
-                <span className="tw:block tw:text-sm tw:font-medium">
-                  Следовать производственному календарю РФ
-                </span>
-                <span className="tw:block tw:text-xs tw:text-muted-foreground">
-                  Праздники и перенесённые выходные становятся нерабочими,
-                  предпраздничные — короче на час
-                </span>
-              </span>
-            </label>
-            )}
-
-            <div className="tw:max-w-xs">
-              <Label htmlFor="ws-from">Действует с</Label>
-              <Input
-                id="ws-from"
-                type="date"
-                value={draft.effectiveFrom}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    effectiveFrom: event.target.value,
-                  }))
-                }
-              />
-              <p className="tw:mt-1 tw:mb-0 tw:text-xs tw:text-muted-foreground">
-                {isFreeMode
-                  ? "С этой даты действует свободный режим; прежний график сохранится в истории"
-                  : "Прежний график сохранится в истории и продолжит действовать до этой даты"}
-              </p>
-            </div>
-
-            {/* Из самих полей «09:00–18:00» не видно, чьё это время: пояс
-                у сотрудника свой, и по нему же считается его день */}
-            {!isFreeMode && (
-            <div>
-              <p className="tw:mb-2 tw:text-xs tw:text-muted-foreground">
-                Время указывается по часовому поясу сотрудника —{" "}
-                <span className="tw:font-medium tw:text-body">{tzHint}</span>. В
-                календаре и отчётах у каждого свой день, поясá не приводятся к
-                общему.
-              </p>
-              <ScheduleEditor
-                schedule={draft.week}
-                onChange={(week) => setDraft((current) => ({ ...current, week }))}
-              />
-            </div>
-            )}
-
-            {!isFreeMode && backdated && (
-              <AlertMessage
-                variant="warning"
-                message={`Дата в прошлом: отчёты за ${backdated} пересчитаются по новому графику. Если месяц уже согласован, суммы в нём изменятся.`}
-              />
-            )}
-              </>
-            )}
-
-            <div className="tw:flex tw:justify-end tw:gap-2.5 tw:border-t tw:border-border-soft tw:pt-3.5">
-              <Button variant="ghost" onClick={() => setEditing(false)} disabled={saving}>
-                Отмена
-              </Button>
-              <Button onClick={save} disabled={saving}>
-                <RiSaveLine />
-                {saving ? "Сохранение…" : "Сохранить график"}
-              </Button>
-            </div>
-          </div>
         ) : (
           <div className="tw:space-y-4">
             <div className="tw:flex tw:flex-col">

@@ -1038,19 +1038,48 @@ function App() {
           loader: companiesNetworksLoader,
         },
         {
-          // Первый lazy-роут: recharts и логика отчёта уезжают в свой чанк и
-          // не грузятся тем, кто аналитику не открывает (протухший после
-          // деплоя чанк перезагружает vite:preloadError в main.jsx).
-          // Расширение в импорте обязательно, пока рядом живёт легаси
-          // Analytics.jsx (удаляется после живой проверки) — без него Vite
-          // зарезолвил бы .jsx раньше .tsx.
-          path: "report/analytics",
+          // Отчёт «Компании» (бывшая «Аналитика»): recharts и логика отчёта
+          // уезжают в свой чанк и не грузятся тем, кто отчёт не открывает
+          // (протухший после деплоя чанк перезагружает vite:preloadError).
+          path: "report/companies",
           lazy: async () => {
-            const analyticsModule = await import("./pages/Report/Analytics.tsx");
+            const companiesModule = await import("./pages/Report/Companies");
             return {
-              Component: analyticsModule.default,
-              loader: analyticsModule.loader,
+              Component: companiesModule.default,
+              loader: companiesModule.loader,
             };
+          },
+        },
+        {
+          // Второй уровень отчёта — карточка компании
+          path: "report/companies/:companyId",
+          lazy: async () => {
+            const cardModule = await import("./pages/Report/CompanyReport");
+            return {
+              Component: cardModule.default,
+              loader: cardModule.loader,
+            };
+          },
+        },
+        {
+          // Третий уровень — карточка подразделения клиента
+          path: "report/companies/:companyId/subdivisions/:subdivisionId",
+          lazy: async () => {
+            const cardModule = await import("./pages/Report/SubdivisionReport");
+            return {
+              Component: cardModule.default,
+              loader: cardModule.loader,
+            };
+          },
+        },
+        {
+          // Прежний адрес «Аналитики» — закладки не ломаем, режим сохраняем
+          path: "report/analytics",
+          loader: ({ request }) => {
+            const view = new URL(request.url).searchParams.get("view");
+            return redirect(
+              view ? `/report/companies?view=${view}` : "/report/companies",
+            );
           },
         },
         {

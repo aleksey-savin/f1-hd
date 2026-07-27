@@ -29,38 +29,20 @@ export type AggregatedPeriod = {
   totals: ReportTotals;
 };
 
-// Ось периодов: у всех компаний периоды одинаковые — берём у первой
+// Ось периодов и итоги по ним считает сервер (поле overall): складывать
+// уникальные заявки компаний на клиенте нельзя — одна заявка живёт в одной
+// компании, но сумма «уникальных» по срезам не равна уникальным глобально
 export const periodAxis = (data: TrendsResponse | null): TrendPeriod[] =>
-  data?.data[0]?.periods ?? [];
+  data?.overall ?? [];
 
-// «Итого» по каждому периоду — сумма по всем компаниям выборки
 export const aggregatePeriods = (
   data: TrendsResponse | null,
-): AggregatedPeriod[] => {
-  const axis = periodAxis(data);
-  return axis.map((period, index) => {
-    const totals: ReportTotals = {
-      totalTickets: 0,
-      totalWorks: 0,
-      totalTime: 0,
-      onSite: { count: 0, time: 0 },
-      remote: { count: 0, time: 0 },
-      routineTask: { count: 0, time: 0 },
-    };
-    for (const companyTrends of data?.data ?? []) {
-      const companyPeriod = companyTrends.periods[index];
-      if (!companyPeriod) continue;
-      totals.totalTickets += companyPeriod.totalTickets;
-      totals.totalWorks += companyPeriod.totalWorks;
-      totals.totalTime += companyPeriod.totalTime;
-      for (const key of ["onSite", "remote", "routineTask"] as const) {
-        totals[key].count += companyPeriod[key].count;
-        totals[key].time += companyPeriod[key].time;
-      }
-    }
-    return { key: period.key, label: period.label, totals };
-  });
-};
+): AggregatedPeriod[] =>
+  (data?.overall ?? []).map((period) => ({
+    key: period.key,
+    label: period.label,
+    totals: period as ReportTotals,
+  }));
 
 // Базовый порядок компаний — по суммарному времени за весь диапазон.
 // Он же раздаёт слоты палитры: смена метрики ничего не перекрашивает.

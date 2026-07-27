@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 import WizardStepper from "@/components/app/WizardStepper";
+import { FormHeader, FormSections } from "@/components/app/FormLayout";
 import AlertMessage from "@/components/app/AlertMessage";
 import Checklist from "@/components/app/Checklist";
 import ScheduleBuilder from "@/components/app/ScheduleBuilder";
@@ -28,6 +29,9 @@ import Summary from "./Summary";
 const STEPS = [{ label: "Основное" }, { label: "Расписание" }, { label: "Чек-лист" }];
 const LAST = STEPS.length - 1;
 const CHECKLIST_STEP = 2;
+// Ключи секций правки = якоря: ярлык «Изменить» у чек-листа на карточке
+// ведёт сюда хешем (update#checklist)
+const SECTION_KEYS = ["basic", "schedule", "checklist"];
 
 const stepMeta = [
   { title: "Основное", desc: "Тема, описание, куда пойдёт заявка и кто отвечает" },
@@ -42,6 +46,9 @@ const fullName = (person) =>
   `${person?.lastName || ""} ${person?.firstName || ""}`.trim();
 
 const RoutineTaskForm = () => {
+  // Липкая шапка формы: под неё прижимается рейл секций
+  const [headHeight, setHeadHeight] = useState(0);
+
   const { task = {}, formData = {}, prefillTemplate = null } = useLoaderData();
   const isEdit = !!task._id;
   // При создании из шаблона — сид для предзаполнения (копия-снимок).
@@ -377,29 +384,23 @@ const RoutineTaskForm = () => {
 
   return (
     <div>
-      <h1 className="tw:my-0 tw:mb-4 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
-        {isEdit ? "Изменить регламент" : "Новый регламент"}
-      </h1>
+      <FormHeader
+        title={isEdit ? "Изменить регламент" : "Новый регламент"}
+        onHeight={setHeadHeight}
+      />
 
       {sourceBlock}
 
       {isEdit ? (
-        <div className="tw:space-y-1">
-          {STEPS.map((meta, index) => (
-            <section
-              key={meta.label}
-              className="tw:border-t tw:border-border-soft tw:py-5 tw:first:border-t-0 tw:first:pt-1"
-            >
-              <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
-                {stepMeta[index].title}
-              </h3>
-              <p className="tw:mt-0.5 tw:mb-4 tw:text-sm tw:text-muted-foreground">
-                {stepMeta[index].desc}
-              </p>
-              {stepBody(index)}
-            </section>
-          ))}
-        </div>
+        <FormSections
+          headHeight={headHeight}
+          sections={STEPS.map((meta, index) => ({
+            key: SECTION_KEYS[index],
+            title: stepMeta[index].title,
+            desc: stepMeta[index].desc,
+            body: stepBody(index),
+          }))}
+        />
       ) : (
         <>
           <WizardStepper

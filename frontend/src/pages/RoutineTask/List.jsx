@@ -115,7 +115,7 @@ const RoutineTasks = () => {
       filter={<RoutineTaskFilter />}
       filterActive={activeFilters.length > 0}
       activeFilters={activeFilters}
-      formWide
+      formSize="lg"
     >
       <List items={filterStore.filteredList} />
     </ListWrapper>

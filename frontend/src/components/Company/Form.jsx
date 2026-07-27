@@ -21,6 +21,8 @@ import ScheduleEditor, {
 
 import Select from "../../UI/Select";
 import useOffcanvasStore from "../../store/offcanvas";
+import timezones from "../../store/timezones";
+import { orgTimezone, tzCity } from "../../util/timezone-display";
 
 import FormSummary from "./FormSummary";
 
@@ -100,6 +102,11 @@ const CompanyForm = () => {
     company?.clientsSideResponsibles || [],
   );
   const [schedule, setSchedule] = useState(initSchedule(company?.workSchedule));
+  // Пояс, в котором читается график: пусто = как в организации. У клиента с
+  // филиалами в разных поясах каждый филиал переопределяет его у себя
+  const [timezone, setTimezone] = useState(
+    () => timezones.find((zone) => zone.value === company?.timezone) || null,
+  );
 
   const [step, setStep] = useState(0);
   const [maxReached, setMaxReached] = useState(isEdit ? LAST : 0);
@@ -179,6 +186,7 @@ const CompanyForm = () => {
       linkToMap: form.linkToMap.trim(),
       responsibles: responsibles.map((resp) => resp._id),
       workSchedule: schedule,
+      timezone: timezone?.value || null,
       ...(isEdit
         ? {
             clientsSideResponsibles: clientsSideResponsibles.map(
@@ -347,7 +355,28 @@ const CompanyForm = () => {
       );
     }
 
-    return <ScheduleEditor schedule={schedule} onChange={setSchedule} />;
+    return (
+      <>
+        <Field
+          label="Часовой пояс"
+          hint={
+            timezone
+              ? "В нём читается график ниже и показывается местное время клиента."
+              : `Пусто — как в организации: ${tzCity(orgTimezone())}.`
+          }
+        >
+          <Select
+            isClearable
+            isSearchable
+            placeholder={`Как в организации — ${tzCity(orgTimezone())}`}
+            options={timezones}
+            value={timezone}
+            onChange={(next) => setTimezone(next || null)}
+          />
+        </Field>
+        <ScheduleEditor schedule={schedule} onChange={setSchedule} />
+      </>
+    );
   };
 
   return (

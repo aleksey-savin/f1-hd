@@ -23,6 +23,13 @@ const subdivisionSchema = new Schema(
       type: String,
       required: false,
     },
+    // Часовой пояс филиала (IANA). null — наследуется по цепочке
+    // родитель → компания → Preferences.timezone (см. services/clientTimezone).
+    // Без него техподдержка звонила главбуху филиала в его 3 часа ночи.
+    timezone: {
+      type: String,
+      default: null,
+    },
     company: {
       type: Schema.Types.ObjectId,
       ref: "Company",
@@ -51,6 +58,12 @@ const subdivisionSchema = new Schema(
   },
   { timestamps: true },
 );
+
+// Подразделения всегда выбираются либо целиком по компании (дерево карточки,
+// скоуп отчёта), либо по руководителю (доступ руководителя филиала к отчёту).
+// Индексов у коллекции не было вовсе — оба запроса шли коллсканом.
+subdivisionSchema.index({ company: 1 });
+subdivisionSchema.index({ manager: 1 });
 
 // Initialize arrays if they're undefined
 subdivisionSchema.pre("save", function (next) {

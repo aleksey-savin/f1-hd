@@ -101,6 +101,13 @@ const companySchema = new Schema(
       radius: Number,
     },
     workSchedule: workSchedule,
+    // Часовой пояс клиента (IANA): в нём читается workSchedule и показывается
+    // местное время. null — берётся Preferences.timezone. Подразделение может
+    // переопределить (см. services/clientTimezone).
+    timezone: {
+      type: String,
+      default: null,
+    },
     servicePlans: [
       {
         _id: {

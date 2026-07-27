@@ -76,8 +76,10 @@ function SheetContent({
         {children}
         {showCloseButton && (
           /* appearance/border/bg — гасим браузерные дефолты кнопки
-             (preflight выключен, bootstrap reboot их не сбрасывает) */
-          <SheetPrimitive.Close className="tw:absolute tw:top-4 tw:right-4 tw:grid tw:size-8 tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-md tw:border-0 tw:bg-transparent tw:text-muted-foreground tw:transition-colors tw:hover:bg-accent tw:hover:text-accent-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:focus:outline-hidden tw:disabled:pointer-events-none">
+             (preflight выключен, bootstrap reboot их не сбрасывает).
+             z-30 — выше липкой шапки формы (app/FormLayout), иначе она
+             закрывала крестик в длинной форме */
+          <SheetPrimitive.Close className="tw:absolute tw:top-4 tw:right-4 tw:z-30 tw:grid tw:size-8 tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-md tw:border-0 tw:bg-transparent tw:text-muted-foreground tw:transition-colors tw:hover:bg-accent tw:hover:text-accent-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:focus:outline-hidden tw:disabled:pointer-events-none">
             <XIcon className="tw:size-5" />
             <span className="tw:sr-only">Close</span>
           </SheetPrimitive.Close>

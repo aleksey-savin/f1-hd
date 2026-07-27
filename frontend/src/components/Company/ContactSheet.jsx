@@ -60,6 +60,7 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
     linkToMap,
     phones = [],
     workSchedule,
+    timezone,
     isActive,
   } = item;
   const inactive = isActive === false;
@@ -105,7 +106,7 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
                   отключена
                 </span>
               ) : (
-                <WorkStatusText workSchedule={workSchedule} />
+                <WorkStatusText workSchedule={workSchedule} timezone={timezone} />
               )}
             </div>
           </div>

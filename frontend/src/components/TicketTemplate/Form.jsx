@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 import WizardStepper from "@/components/app/WizardStepper";
+import { FormHeader, FormSections } from "@/components/app/FormLayout";
 import AlertMessage from "@/components/app/AlertMessage";
 import Checklist from "@/components/app/Checklist";
 import CustomFieldsEditor, {
@@ -45,8 +46,14 @@ const STEPS = [
 ];
 const LAST = STEPS.length - 1;
 const CHECKLIST_STEP = 2;
+// Ключи секций правки = якоря: ярлык «Изменить» у чек-листа на карточке
+// ведёт сюда хешем (update#checklist)
+const SECTION_KEYS = ["basic", "fields", "checklist", "access"];
 
 const TicketTemplateForm = () => {
+  // Липкая шапка формы: под неё прижимается рейл секций
+  const [headHeight, setHeadHeight] = useState(0);
+
   const { template = {}, formData = {} } = useLoaderData();
   const isEdit = !!template._id;
 
@@ -373,28 +380,22 @@ const TicketTemplateForm = () => {
 
   return (
     <div>
-      <h1 className="tw:my-0 tw:mb-4 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
-        {isEdit ? "Изменить шаблон" : "Новый шаблон"}
-      </h1>
+      <FormHeader
+        title={isEdit ? "Изменить шаблон" : "Новый шаблон"}
+        onHeight={setHeadHeight}
+      />
 
       {isEdit ? (
         // Правка — плоская форма без шагов
-        <div className="tw:space-y-1">
-          {STEPS.map((meta, index) => (
-            <section
-              key={meta.label}
-              className="tw:border-t tw:border-border-soft tw:py-5 tw:first:border-t-0 tw:first:pt-1"
-            >
-              <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
-                {stepMeta[index].title}
-              </h3>
-              <p className="tw:mt-0.5 tw:mb-4 tw:text-sm tw:text-muted-foreground">
-                {stepMeta[index].desc}
-              </p>
-              {stepBody(index)}
-            </section>
-          ))}
-        </div>
+        <FormSections
+          headHeight={headHeight}
+          sections={STEPS.map((meta, index) => ({
+            key: SECTION_KEYS[index],
+            title: stepMeta[index].title,
+            desc: stepMeta[index].desc,
+            body: stepBody(index),
+          }))}
+        />
       ) : (
         // Создание — мастер
         <>

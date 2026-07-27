@@ -1,6 +1,14 @@
 const { body, param } = require("express-validator");
 const User = require("../models/user");
 
+const { isValidTimezone } = require("../services/clientTimezone");
+
+// Пустая строка = «наследовать» (подразделение → компания → организация).
+const optionalTimezone = body("timezone")
+  .optional({ nullable: true })
+  .custom((value) => value === "" || isValidTimezone(value))
+  .withMessage("timezone must be a valid IANA time zone");
+
 exports.getOne = [param("id").isMongoId().withMessage("Invalid user ID")];
 
 exports.add = [
@@ -26,6 +34,7 @@ exports.add = [
   body("lastName").trim().not().isEmpty().withMessage("Last name is required"),
   body("role").trim().not().isEmpty().withMessage("Role is required"),
   body("isActive").isBoolean().withMessage("isActive must be a boolean"),
+  optionalTimezone,
 ];
 
 exports.update = [
@@ -63,6 +72,7 @@ exports.update = [
     .optional()
     .isBoolean()
     .withMessage("isActive must be a boolean"),
+  optionalTimezone,
 ];
 
 exports.updateMyAccount = [

@@ -2,13 +2,13 @@ import Field from "@/components/app/Field";
 import FilterContainer from "@/components/app/FilterContainer";
 import { Input } from "@/components/ui/input";
 
-import useAnalyticsTrendsStore from "../../store/reports/analytics-trends";
+import useCompaniesTrendsStore from "../../store/reports/companies-trends";
 
 // Sheet-фильтр «Динамики» — даты произвольного диапазона (пресет
 // «Произвольный»). Запрос уходит, когда заданы обе (гард в сторе);
 // «Сбросить» возвращает пресет «12 месяцев».
 const TrendsFilter = () => {
-  const s = useAnalyticsTrendsStore();
+  const s = useCompaniesTrendsStore();
 
   return (
     <FilterContainer

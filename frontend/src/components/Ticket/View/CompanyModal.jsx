@@ -7,6 +7,8 @@ import Button from "react-bootstrap/Button";
 import Table from "react-bootstrap/Table";
 
 import { AuthedUserContext } from "../../../store/authed-user-context";
+import useMinuteTick from "../../../hooks/use-minute-tick";
+import { describeClientTimezone } from "../../../util/timezone-display";
 
 const CompanyModal = ({ ticket, company = {} }) => {
   const { isEndUser } = useContext(AuthedUserContext);
@@ -14,6 +16,11 @@ const CompanyModal = ({ ticket, company = {} }) => {
   const subdivision = ticket.applicant?.subdivision
     ? ticket.applicant.subdivision
     : undefined;
+
+  // В модалке пояс показываем всегда, даже совпадающий: сюда заходят именно
+  // за контактами, и «время как у нас» — тоже ответ на вопрос
+  const now = useMinuteTick();
+  const clientTime = describeClientTimezone(ticket.clientTimezone, now);
 
   const [showCompanyModal, setShowCompanyModal] = useState(false);
 
@@ -46,6 +53,24 @@ const CompanyModal = ({ ticket, company = {} }) => {
                 <th>Наименование</th>
                 <td>{company.alias}</td>
               </tr>
+              {clientTime && (
+                <tr>
+                  <th>Часовой пояс</th>
+                  <td className={clientTime.isNight ? "text-warning" : ""}>
+                    {clientTime.city}, {clientTime.localTime}
+                    {clientTime.differs && ` (${clientTime.offsetLabel})`}
+                    {clientTime.sourceName && (
+                      <small className="text-muted d-block">
+                        {clientTime.source === "user"
+                          ? "личный пояс заявителя"
+                          : clientTime.source === "subdivision"
+                            ? `по подразделению «${clientTime.sourceName}»`
+                            : `по компании «${clientTime.sourceName}»`}
+                      </small>
+                    )}
+                  </td>
+                </tr>
+              )}
               {subdivision && (
                 <>
                   <tr>

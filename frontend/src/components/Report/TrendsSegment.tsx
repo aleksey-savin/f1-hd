@@ -10,7 +10,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
 import { cn } from "@/lib/utils";
 
-import useAnalyticsTrendsStore from "../../store/reports/analytics-trends";
+import useCompaniesTrendsStore, {
+  type TrendsMetricKey,
+} from "../../store/reports/companies-trends";
 import type { TrendsGrouping, TrendsPreset } from "../../types/report";
 import { msToHMS } from "../../util/time-helpers";
 
@@ -54,7 +56,7 @@ const GROUPING_TITLE: Record<TrendsGrouping, string> = {
 };
 
 const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
-  const s = useAnalyticsTrendsStore();
+  const s = useCompaniesTrendsStore();
   const filterOffcanvas = useMobileFilterOffcanvasStore();
 
   useEffect(() => {
@@ -262,7 +264,7 @@ const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
         <MetricCards
           metrics={metricCards}
           active={s.metric}
-          onSelect={s.setMetric}
+          onSelect={(key) => s.setMetric(key as TrendsMetricKey)}
         />
 
         <Eyebrow
@@ -311,7 +313,7 @@ const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
   }
 
   return (
-    <ReportShell title="Аналитика" toolbar={toolbar}>
+    <ReportShell title="Компании" toolbar={toolbar}>
       <FilterSheet>
         <TrendsFilter />
       </FilterSheet>

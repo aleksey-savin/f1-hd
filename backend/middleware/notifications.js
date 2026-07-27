@@ -10,8 +10,49 @@ const Comment = require("../models//comment");
 const Preferences = require("../models//preferences");
 const User = require("../models//user");
 const Work = require("../models/work");
+const Company = require("../models/company");
+const Subdivision = require("../models/subdivision");
+const {
+  resolveClientTimezone,
+  formatClientTimeLabel,
+} = require("../services/clientTimezone");
 
 const NOTIFICATION_BATCH_SIZE = 100;
+
+// Строка «У клиента сейчас: 🌙 Москва, 03:14 (−7 ч)» для уведомления
+// ответственному — исполнитель часто звонит прямо из телеграма. Пустая строка,
+// если время у клиента совпадает с нашим; ошибка подписи не должна ронять
+// рассылку, поэтому всё в try/catch.
+const clientTimeLine = async (ticket, applicant, prefs) => {
+  try {
+    const [subdivision, company] = await Promise.all([
+      applicant?.subdivision
+        ? Subdivision.findById(applicant.subdivision)
+            .select("name parent timezone")
+            .lean()
+        : null,
+      ticket.company?._id
+        ? Company.findById(ticket.company._id).select("alias timezone").lean()
+        : null,
+    ]);
+
+    const { timezone } = await resolveClientTimezone({
+      user: applicant,
+      subdivision,
+      company,
+      preferences: prefs,
+    });
+
+    const label = formatClientTimeLabel({
+      timezone,
+      orgTimezone: resolveTimezone(prefs),
+    });
+
+    return label ? `\nУ клиента сейчас: ${label}` : "";
+  } catch {
+    return "";
+  }
+};
 
 const isTransientMongoNetworkError = (error) =>
   error?.code === "ECONNRESET" ||
@@ -134,6 +175,12 @@ exports.createTicketNotifications = async () => {
       continue;
     }
 
+    // Лениво и один раз на заявку: подпись нужна только в уведомлениях
+    // ответственному, лишних запросов в общем цикле быть не должно.
+    let clientTimePromise;
+    const clientTime = () =>
+      (clientTimePromise ??= clientTimeLine(ticket, applicant, prefs));
+
     switch (lastAction) {
       case "new ticket":
         //--------------------------------------------------
@@ -205,7 +252,7 @@ exports.createTicketNotifications = async () => {
                   chatId: resp.telegramBot.chatId,
                   responsible: `${resp.lastName} ${resp.firstName}`,
                 },
-                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}${await clientTime()}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
@@ -355,7 +402,7 @@ exports.createTicketNotifications = async () => {
                   chatId: resp.telegramBot.chatId,
                   responsible: `${resp.lastName} ${resp.firstName}`,
                 },
-                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}${await clientTime()}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
@@ -537,7 +584,7 @@ exports.createTicketNotifications = async () => {
                   chatId: user.telegramBot?.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}${await clientTime()}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();

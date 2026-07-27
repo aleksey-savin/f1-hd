@@ -8,7 +8,7 @@ import { getLocalStorageData } from "../../util/auth";
 import { monthRange } from "../../util/period";
 
 // Сводка по сотрудникам: часы, классы работ, переработки и доплата за период.
-// Механика — как у аналитики (store/reports/analytics-summary): загрузка сразу
+// Механика — как у аналитики (store/reports/companies-summary): загрузка сразу
 // при открытии за текущий месяц, seq-guard от гонок листания, ошибка не
 // сбрасывает уже показанные данные.
 const API = import.meta.env.VITE_API_ADDRESS;

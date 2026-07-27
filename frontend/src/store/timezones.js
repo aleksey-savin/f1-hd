@@ -1,3 +1,9 @@
+// Каталог часовых поясов: настройки организации, графики сотрудников, пояс
+// компании и филиала. Подписи — города, а не названия зон: Intl по-русски
+// зовёт Asia/Novosibirsk «Красноярском».
+//
+// Города продублированы в backend/data/timezoneCities.json (бэкенд собирает из
+// них подпись для telegram) — при правке списка обновлять оба файла.
 const timezones = [
   {
     value: "Europe/London",
@@ -36,12 +42,28 @@ const timezones = [
     label: "Москва (UTC +3:00)",
   },
   {
+    value: "Europe/Volgograd",
+    label: "Волгоград (UTC +3:00)",
+  },
+  {
     value: "Asia/Dubai",
     label: "Дубай (UTC +4:00)",
   },
   {
     value: "Europe/Samara",
     label: "Самара (UTC +4:00)",
+  },
+  {
+    value: "Europe/Saratov",
+    label: "Саратов (UTC +4:00)",
+  },
+  {
+    value: "Europe/Astrakhan",
+    label: "Астрахань (UTC +4:00)",
+  },
+  {
+    value: "Europe/Ulyanovsk",
+    label: "Ульяновск (UTC +4:00)",
   },
   {
     value: "Asia/Kolkata",
@@ -64,6 +86,18 @@ const timezones = [
     label: "Красноярск (UTC +7:00)",
   },
   {
+    value: "Asia/Barnaul",
+    label: "Барнаул (UTC +7:00)",
+  },
+  {
+    value: "Asia/Tomsk",
+    label: "Томск (UTC +7:00)",
+  },
+  {
+    value: "Asia/Novokuznetsk",
+    label: "Новокузнецк (UTC +7:00)",
+  },
+  {
     value: "Asia/Shanghai",
     label: "Шанхай (UTC +8:00)",
   },
@@ -74,6 +108,10 @@ const timezones = [
   {
     value: "Asia/Yakutsk",
     label: "Якутск (UTC +9:00)",
+  },
+  {
+    value: "Asia/Chita",
+    label: "Чита (UTC +9:00)",
   },
   {
     value: "Asia/Seoul",
@@ -100,8 +138,16 @@ const timezones = [
     label: "Магадан (UTC +11:00)",
   },
   {
+    value: "Asia/Sakhalin",
+    label: "Южно-Сахалинск (UTC +11:00)",
+  },
+  {
     value: "Asia/Kamchatka",
     label: "Камчатка (UTC +12:00)",
+  },
+  {
+    value: "Asia/Anadyr",
+    label: "Анадырь (UTC +12:00)",
   },
   {
     value: "America/New_York",

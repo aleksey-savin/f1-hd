@@ -637,6 +637,12 @@ exports.launchTgBot = async () => {
             ({ num }) => num.toString() === ctx.data.toString(),
           );
           const { num, title, company, applicant, deadline, state } = ticket;
+          // Подпись про местное время клиента приходит готовой с бэкенда
+          // (services/clientTimezone): своей логики зон у бота нет. Пусто —
+          // если у клиента то же время, что у нас.
+          const clientTimeLine = ticket.clientTimeLabel
+            ? `\nУ клиента сейчас: ${ticket.clientTimeLabel}`
+            : "";
           const responsibles = ticket.responsibles
             .map((resp) => ` ${resp.lastName} ${resp.firstName}`)
             .toString();
@@ -661,7 +667,7 @@ exports.launchTgBot = async () => {
                 applicant.firstName
               }\nКонтактный номер: <a href='tel:${applicant.phone}'>${
                 applicant.phone
-              }</a>\nОтветственные:${responsibles}\n<b>Дедлайн: ${formatDate(
+              }</a>${clientTimeLine}\nОтветственные:${responsibles}\n<b>Дедлайн: ${formatDate(
                 deadline,
                 timezone,
               )}</b>${isOverdue ? " 🔴" : ""}\n<b>Статус: ${state}</b>`;

@@ -26,6 +26,24 @@ export type OvertimeTotals = {
 
 // ------------------------------------------------------- сводка по всем
 
+/** Разрез времени по компаниям/категориям — общий для команды и сотрудника. */
+export type BreakdownRow = {
+  _id: string | null;
+  minutes: number;
+  worksCount: number;
+  sharePercent: number;
+};
+
+export type CompanyBreakdownRow = BreakdownRow & {
+  alias: string;
+  onSiteCount: number;
+  ticketsFinished?: number;
+  /** Только в разрезе по команде: сколько сотрудников работали с компанией. */
+  employeesCount?: number;
+};
+
+export type CategoryBreakdownRow = BreakdownRow & { title: string };
+
 export type EmployeesTotals = {
   employeesCount: number;
   employeesWithWorks: number;
@@ -44,6 +62,8 @@ export type EmployeesTotals = {
   absenceDays: number;
   /** У скольких не задан личный график — их переработки считаются по-старому. */
   noScheduleCount: number;
+  /** Средняя длительность работы — знаменатель у «Работ» в KPI. */
+  avgWorkMinutes: number;
 };
 
 export type EmployeeRow = {
@@ -77,6 +97,9 @@ export type EmployeeRow = {
     overtimePay: number | null;
     missingRate: boolean;
   };
+  /** Разрезы приходят только в режиме «Статистика» (includeBreakdown). */
+  byCompany?: CompanyBreakdownRow[];
+  byCategory?: CategoryBreakdownRow[];
 };
 
 export type ReportPeriod = {
@@ -97,8 +120,51 @@ export type EmployeesSummaryResponse = {
   };
   totals: EmployeesTotals;
   byStatus: Partial<Record<FinanceStatusKey, StatusStat>>;
+  byCompany: CompanyBreakdownRow[];
+  byCategory: CategoryBreakdownRow[];
   employees: EmployeeRow[];
   prev: { period: ReportPeriod; totals: EmployeesTotals };
+};
+
+// ───────────────────────────────────── динамика по команде (12 месяцев)
+
+export type TrendMonth = {
+  month: string;
+  label: string;
+  minutes: number;
+  overtimeMinutes: number;
+  worksCount: number;
+  ticketsFinished: number;
+  onSite: WorkClassStat;
+  remote: WorkClassStat;
+  routineTask: WorkClassStat;
+};
+
+export type EmployeeTrendSeries = {
+  employee: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    position: string | null;
+    isActive: boolean;
+  };
+  totalMinutes: number;
+  rank: number;
+  months: {
+    month: string;
+    label: string;
+    minutes: number;
+    overtimeMinutes: number;
+    worksCount: number;
+  }[];
+};
+
+export type EmployeesTrendResponse = {
+  period: { from: string | null; to: string | null; months: number; timezone: string };
+  approvedOnly: boolean;
+  months: TrendMonth[];
+  byEmployee: EmployeeTrendSeries[];
+  meta: { employeesCount: number };
 };
 
 // -------------------------------------------------- персональный отчёт

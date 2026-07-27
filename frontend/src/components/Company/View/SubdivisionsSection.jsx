@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import SearchBar from "@/components/app/SearchBar";
+import ClientTime from "@/components/app/ClientTime";
 import { cn } from "@/lib/utils";
 
 import SubdivisionPreviewSheet from "./SubdivisionPreviewSheet";
@@ -142,6 +143,12 @@ const TreeNode = ({ node, isExpanded, onToggle, onOpen, forceExpand }) => {
             · {employeeCount}
           </span>
         )}
+        {/* В дереве — только расхождение с нашим временем: полный пояс, в том
+            числе унаследованный, показывает шторка */}
+        <ClientTime
+          clientTimezone={node.clientTimezone}
+          className="tw:flex-none tw:text-xs"
+        />
         <RiArrowRightSLine
           aria-hidden
           className="tw:ml-auto tw:flex-none tw:text-faint tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100"

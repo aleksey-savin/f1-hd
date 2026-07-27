@@ -12,14 +12,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import type { AnalyticsSummaryResponse } from "../../types/report";
+import type { CompaniesSummaryResponse } from "../../types/report";
 
 import { exportAnalyticsToCsv, exportAnalyticsToExcel } from "./export";
 
 // «Экспорт» в тулбаре «Сводки»: Excel (многолистовая книга) и CSV — прежняя
 // функциональность легаси-кнопок одним меню. У «Динамики» экспорта не было —
 // не добавляем.
-const ExportMenu = ({ data }: { data: AnalyticsSummaryResponse | null }) => (
+const ExportMenu = ({ data }: { data: CompaniesSummaryResponse | null }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button variant="outline" disabled={!data}>

@@ -2,6 +2,17 @@ const { body, param } = require("express-validator");
 
 const mongoose = require("mongoose");
 
+const { isValidTimezone } = require("../services/clientTimezone");
+
+// Часовой пояс клиента: пустая строка/null = «наследовать» (компания → зона
+// организации). Проверяем существование зоны — битое значение позже роняло бы
+// форматирование дат.
+const optionalTimezone = (field) =>
+  body(field)
+    .optional({ nullable: true })
+    .custom((value) => value === "" || isValidTimezone(value))
+    .withMessage(`${field} must be a valid IANA time zone`);
+
 exports.add = [
   body("alias").trim().not().isEmpty().withMessage("Company alias is required"),
   body("fullTitle")
@@ -36,6 +47,7 @@ exports.add = [
     .optional()
     .isObject()
     .withMessage("Work schedule must be an object"),
+  optionalTimezone("timezone"),
 ];
 
 exports.update = [
@@ -76,6 +88,7 @@ exports.update = [
     .optional()
     .isObject()
     .withMessage("Work schedule must be an object"),
+  optionalTimezone("timezone"),
 ];
 
 exports.delete = [param("id").isMongoId().withMessage("Invalid company ID")];
@@ -108,6 +121,7 @@ exports.addSubdivision = [
     .withMessage("Subdivision email must be string"),
   body("companyId").isMongoId().withMessage("Invalid company ID"),
   body("parentId").optional().isMongoId().withMessage("Invalid parent ID"),
+  optionalTimezone("timezone"),
 ];
 
 exports.updateSubdivision = [
@@ -117,6 +131,7 @@ exports.updateSubdivision = [
     .not()
     .isEmpty()
     .withMessage("Subdivision name is required"),
+  optionalTimezone("timezone"),
 ];
 
 exports.deleteSubdivision = [

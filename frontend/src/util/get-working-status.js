@@ -14,7 +14,11 @@ const DAYS_OF_WEEK = [
 // Возвращает isOpened/unknown и две формы фразы: `detail` — короткая, для
 // tw-строк (WorkStatusText: слово «открыто» рисует компонент, здесь только
 // остаток); `verbose` — полная, для легаси-индикатора (WorkingStatusIndicator).
-export const getWorkingStatus = (schedule) => {
+//
+// `zone` — часовой пояс клиента (филиала или компании): график «09:00–18:00»
+// означает настенное время ТАМ. Без него статус считался в зоне организации и
+// для филиала в другом поясе показывал «работает», когда там ночь.
+export const getWorkingStatus = (schedule, zone) => {
   if (hasOnlyId(schedule) || schedule === undefined || schedule === null) {
     return {
       isOpened: false,
@@ -24,7 +28,7 @@ export const getWorkingStatus = (schedule) => {
     };
   }
 
-  const { timezone } = getLocalStorageData();
+  const timezone = zone || getLocalStorageData().timezone;
   const now = toZonedTime(new Date(), timezone);
   const currentDay = DAYS_OF_WEEK[now.getDay() === 0 ? 6 : now.getDay() - 1];
   const currentTime = now.getHours() * 60 + now.getMinutes();

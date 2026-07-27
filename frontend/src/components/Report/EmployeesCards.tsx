@@ -9,13 +9,16 @@ import type { EmployeeRow } from "../../types/employeesReport";
 import { formatMinutes, formatMoney, fullName, initials } from "./work-format";
 
 // Мобильный вид сводки: таблица не помещается — строка-карточка отвечает на
-// те же вопросы (сколько отработал, есть ли переработки, сколько к доплате).
+// те же вопросы. Как и таблица, не форкается под режим: в «Статистике» правая
+// колонка показывает загрузку к норме, в «Переработках» — доплату.
 const EmployeesCards = ({
   employees,
   currentUserId,
+  variant = "stats",
 }: {
   employees: EmployeeRow[];
   currentUserId?: string;
+  variant?: "stats" | "overtime";
 }) => {
   const navigate = useNavigate();
   const [showIdle, setShowIdle] = useState(false);
@@ -64,20 +67,36 @@ const EmployeesCards = ({
               <span className="tw:block tw:font-semibold tw:tabular-nums">
                 {formatMinutes(row.totalMinutes)}
               </span>
-              <span
-                className={cn(
-                  "tw:block tw:text-xs tw:tabular-nums",
-                  row.payroll.missingRate && overtime > 0
-                    ? "tw:text-warning"
-                    : "tw:text-faint",
-                )}
-              >
-                {row.payroll.missingRate && overtime > 0
-                  ? "нет ставки"
-                  : row.payroll.overtimePay
-                    ? formatMoney(row.payroll.overtimePay)
-                    : "—"}
-              </span>
+              {variant === "overtime" ? (
+                <span
+                  className={cn(
+                    "tw:block tw:text-xs tw:tabular-nums",
+                    row.payroll.missingRate && overtime > 0
+                      ? "tw:text-warning"
+                      : "tw:text-faint",
+                  )}
+                >
+                  {row.payroll.missingRate && overtime > 0
+                    ? "нет ставки"
+                    : row.payroll.overtimePay
+                      ? formatMoney(row.payroll.overtimePay)
+                      : "—"}
+                </span>
+              ) : (
+                <span
+                  className={cn(
+                    "tw:block tw:text-xs tw:tabular-nums",
+                    row.utilizationPercent !== null &&
+                      row.utilizationPercent >= 90
+                      ? "tw:text-accent-text"
+                      : "tw:text-faint",
+                  )}
+                >
+                  {row.utilizationPercent === null
+                    ? "нет графика"
+                    : `${row.utilizationPercent}% к норме`}
+                </span>
+              )}
             </span>
             <RiArrowRightSLine
               size={16}

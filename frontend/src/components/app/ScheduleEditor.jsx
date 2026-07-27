@@ -3,15 +3,17 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
-// Дни недели: подпись + ключ (как в customProvisionSchedule на бэкенде/View)
+// Дни недели: подпись + ключ (как в customProvisionSchedule на бэкенде/View) +
+// короткая подпись. Короткую держим здесь же: обрезать полную по две буквы
+// нельзя («Че», «Пя», «Су»), а копии словаря уже расходились по компонентам.
 export const SCHEDULE_DAYS = [
-  ["Понедельник", "Monday"],
-  ["Вторник", "Tuesday"],
-  ["Среда", "Wednesday"],
-  ["Четверг", "Thursday"],
-  ["Пятница", "Friday"],
-  ["Суббота", "Saturday"],
-  ["Воскресенье", "Sunday"],
+  ["Понедельник", "Monday", "Пн"],
+  ["Вторник", "Tuesday", "Вт"],
+  ["Среда", "Wednesday", "Ср"],
+  ["Четверг", "Thursday", "Чт"],
+  ["Пятница", "Friday", "Пт"],
+  ["Суббота", "Saturday", "Сб"],
+  ["Воскресенье", "Sunday", "Вс"],
 ];
 
 export const emptyDay = () => ({
@@ -24,6 +26,11 @@ export const emptyDay = () => ({
 // Недельный редактор графика оказания: строка на день — чекбокс рабочего дня ·
 // время начала/конца · свитч «24 часа» (гасит поля времени, показывает
 // «Круглосуточно»). Выходной день приглушён.
+//
+// Строка дня обязана умещаться в ОДНУ строку и в узком контейнере (мобильная
+// шторка формы — 361px): там день называется коротко, поля времени делят
+// остаток поровну, подпись свитча сокращается. Фиксированные 144 + 256 px
+// переносили строку в три.
 const ScheduleEditor = ({ schedule, onChange }) => {
   const setDay = (key, patch) =>
     onChange({ ...schedule, [key]: { ...schedule[key], ...patch } });
@@ -33,14 +40,14 @@ const ScheduleEditor = ({ schedule, onChange }) => {
 
   return (
     <div className="tw:divide-y tw:divide-border-soft">
-      {SCHEDULE_DAYS.map(([label, key]) => {
+      {SCHEDULE_DAYS.map(([label, key, short]) => {
         const day = schedule[key] || emptyDay();
         return (
           <div
             key={key}
-            className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5 tw:py-2.5"
+            className="tw:flex tw:items-center tw:gap-2 tw:py-2.5 tw:sm:gap-3"
           >
-            <label className="tw:flex tw:w-36 tw:flex-none tw:cursor-pointer tw:items-center tw:gap-2.5 tw:text-sm tw:font-medium">
+            <label className="tw:flex tw:w-12 tw:flex-none tw:cursor-pointer tw:items-center tw:gap-2 tw:text-sm tw:font-medium tw:sm:w-36 tw:sm:gap-2.5">
               <Checkbox
                 checked={day.isWorking}
                 onCheckedChange={(checked) =>
@@ -48,13 +55,15 @@ const ScheduleEditor = ({ schedule, onChange }) => {
                 }
               />
               <span className={cn(!day.isWorking && "tw:text-faint")}>
-                {label}
+                <span className="tw:sm:hidden">{short}</span>
+                <span className="tw:max-sm:hidden">{label}</span>
               </span>
             </label>
 
-            {/* Фиксированная ширина блока времени — свитч «24 часа» держится
-                в одну строку и выравнивается по дням */}
-            <div className="tw:flex tw:w-64 tw:flex-none tw:items-center tw:gap-2">
+            {/* На широком — фиксированная ширина блока времени, чтобы свитч
+                «24 часа» выравнивался по дням; на узком блок тянется, и поля
+                делят остаток строки поровну */}
+            <div className="tw:flex tw:min-w-0 tw:flex-1 tw:items-center tw:gap-2 tw:sm:w-64 tw:sm:flex-none">
               {!day.isWorking ? (
                 <span className="tw:text-sm tw:text-faint">Выходной</span>
               ) : day.is24hours ? (
@@ -69,26 +78,28 @@ const ScheduleEditor = ({ schedule, onChange }) => {
                     onChange={(event) =>
                       setDay(key, { start: event.target.value })
                     }
-                    className="tw:h-9 tw:w-28 tw:tabular-nums"
+                    className="tw:h-9 tw:w-full tw:min-w-0 tw:tabular-nums tw:sm:w-28"
                   />
                   <span className="tw:text-faint">–</span>
                   <Input
                     type="time"
                     value={day.end}
                     onChange={(event) => setDay(key, { end: event.target.value })}
-                    className="tw:h-9 tw:w-28 tw:tabular-nums"
+                    className="tw:h-9 tw:w-full tw:min-w-0 tw:tabular-nums tw:sm:w-28"
                   />
                 </>
               )}
             </div>
 
             {day.isWorking && (
-              <label className="tw:flex tw:cursor-pointer tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground">
+              <label className="tw:flex tw:flex-none tw:cursor-pointer tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground">
                 <Switch
                   checked={day.is24hours}
                   onCheckedChange={(checked) => toggle24(key, checked === true)}
+                  aria-label={`${label}: круглосуточно`}
                 />
-                24 часа
+                <span className="tw:text-xs tw:sm:hidden">24ч</span>
+                <span className="tw:max-sm:hidden">24 часа</span>
               </label>
             )}
           </div>

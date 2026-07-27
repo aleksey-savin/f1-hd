@@ -44,19 +44,25 @@ const TrendsChart = ({
   series,
   isTime,
   grouping,
+  valueFormatter,
+  axisFormatter,
 }: {
   /** Строки по периодам: { key, label, [dataKey серии]: значение }. */
   data: Record<string, number | string>[];
   series: TrendsSeries[];
   isTime: boolean;
   grouping: TrendsGrouping;
+  /** Своя единица (отчёт «Сотрудники» считает в минутах, а не в мс). */
+  valueFormatter?: (value: number) => string;
+  /** Подписи оси Y — короче тултипа, иначе ось съедает половину графика. */
+  axisFormatter?: (value: number) => string;
 }) => {
   const config = Object.fromEntries(
     series.map((line) => [line.dataKey, { label: line.label, color: line.color }]),
   ) satisfies ChartConfig;
 
   const formatValue = (value: number) =>
-    isTime ? msToHMS(value) : String(value);
+    valueFormatter ? valueFormatter(value) : isTime ? msToHMS(value) : String(value);
 
   return (
     <ChartContainer
@@ -83,7 +89,11 @@ const TrendsChart = ({
           tickLine={false}
           tick={{ fontSize: 11 }}
           tickFormatter={(value: number) =>
-            isTime ? `${Math.round(value / 3_600_000)} ч` : String(value)
+            axisFormatter
+              ? axisFormatter(value)
+              : isTime
+                ? `${Math.round(value / 3_600_000)} ч`
+                : String(value)
           }
         />
         <ChartTooltip

@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { Link, Outlet, useFetcher, useNavigate } from "react-router";
+import { Link, Outlet, useNavigate } from "react-router";
 import {
   RiArrowLeftSLine,
   RiCalendarScheduleLine,
@@ -7,7 +7,6 @@ import {
   RiEdit2Line,
   RiFileList3Line,
   RiMoreLine,
-  RiSaveLine,
   RiTicketLine,
 } from "react-icons/ri";
 
@@ -59,41 +58,6 @@ const ViewTicketTemplate = ({ template }) => {
     userId,
   );
   const [deleteOpen, setDeleteOpen] = useState(false);
-
-  // Правка чек-листа на месте (отдельно от формы): черновик + сохранение своим
-  // запросом (intent=updateChecklist → endpoint шаблона), не трогая карточку.
-  const checklistFetcher = useFetcher();
-  const [editingChecklist, setEditingChecklist] = useState(false);
-  const [checklistDraft, setChecklistDraft] = useState(template.checklist || []);
-
-  const startChecklistEdit = () => {
-    setChecklistDraft(template.checklist || []);
-    setEditingChecklist(true);
-  };
-  const saveChecklist = () => {
-    checklistFetcher.submit(
-      {
-        intent: "updateChecklist",
-        checklist: JSON.stringify(
-          checklistDraft.map((item) => ({
-            description: item.description,
-            mandatory: !!item.mandatory,
-          })),
-        ),
-      },
-      { method: "post" },
-    );
-  };
-
-  useEffect(() => {
-    if (
-      checklistFetcher.state === "idle" &&
-      checklistFetcher.data &&
-      !checklistFetcher.data.error
-    ) {
-      setEditingChecklist(false);
-    }
-  }, [checklistFetcher.state, checklistFetcher.data]);
 
   // Карточку всегда открываем от начала (иначе hero прячется под баром при
   // переходе из проскроленного списка) — см. ServicePlan/View.
@@ -237,58 +201,33 @@ const ViewTicketTemplate = ({ template }) => {
       {/* Поля формы (общий компонент с заявкой) */}
       <CustomFieldsView fields={customFields} emptyText="Полей нет" />
 
-      {/* Чек-лист — общий компонент; правится на карточке отдельно от формы.
-          read без прогресса (это определение, а не выполнение). */}
+      {/* Чек-лист — общий компонент, только показ: правится в общей форме
+          шаблона (ярлык ведёт на её секцию). read без прогресса — это
+          определение, а не выполнение. */}
       {(checklist.length > 0 || canManage) && (
         <div className="tw:mt-6">
           <div className="tw:mb-2.5 tw:flex tw:items-center tw:gap-2">
             <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
               Чек-лист
             </span>
-            {!editingChecklist && checklist.length > 0 && (
+            {checklist.length > 0 && (
               <span className="tw:text-xs tw:font-bold tw:text-faint tw:tabular-nums">
                 · {checklist.length}
               </span>
             )}
-            {canManage && !editingChecklist && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="tw:ml-auto"
-                onClick={startChecklistEdit}
-              >
-                <RiEdit2Line />
-                {checklist.length ? "Изменить" : "Добавить чек-лист"}
+            {canManage && (
+              <Button asChild variant="outline" size="sm" className="tw:ml-auto">
+                {/* Та же форма, что у «Изменить» в шапке, — открытая сразу на
+                    секции чек-листа */}
+                <Link to="update#checklist" onClick={offcanvas.setShow}>
+                  <RiEdit2Line />
+                  {checklist.length ? "Изменить" : "Добавить чек-лист"}
+                </Link>
               </Button>
             )}
           </div>
           <Panel>
-            {editingChecklist ? (
-              <>
-                <Checklist
-                  mode="edit"
-                  framed={false}
-                  showHeader={false}
-                  items={checklistDraft}
-                  onChange={setChecklistDraft}
-                />
-                <div className="tw:mt-3 tw:flex tw:justify-end tw:gap-2.5 tw:border-t tw:border-border-soft tw:pt-3">
-                  <Button
-                    variant="ghost"
-                    onClick={() => setEditingChecklist(false)}
-                    disabled={checklistFetcher.state !== "idle"}
-                  >
-                    Отмена
-                  </Button>
-                  <Button
-                    onClick={saveChecklist}
-                    disabled={checklistFetcher.state !== "idle"}
-                  >
-                    <RiSaveLine /> Сохранить чек-лист
-                  </Button>
-                </div>
-              </>
-            ) : checklist.length > 0 ? (
+            {checklist.length > 0 ? (
               <Checklist
                 mode="read"
                 framed={false}
@@ -361,7 +300,7 @@ const ViewTicketTemplate = ({ template }) => {
 
       <FormSheet
         open={offcanvas.isActive}
-        wide
+        size="lg"
         onOpenChange={(open) => {
           if (!open) {
             navigate(-1);

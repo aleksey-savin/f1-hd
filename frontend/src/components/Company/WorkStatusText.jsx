@@ -9,8 +9,14 @@ import useWorkingStatus from "./useWorkingStatus";
 // мин»). Закрыто — целиком тихая фраза (закрытый офис — не ошибка), «график
 // не указан» — полая точка. verbose — полная форма фразы для секции графика
 // («до закрытия …» вместо «ещё …»), halo — кольцо у точки (hero карточки).
-const WorkStatusText = ({ workSchedule, verbose = false, halo = false, className }) => {
-  const status = useWorkingStatus(workSchedule);
+const WorkStatusText = ({
+  workSchedule,
+  timezone,
+  verbose = false,
+  halo = false,
+  className,
+}) => {
+  const status = useWorkingStatus(workSchedule, timezone);
   const open = status.isOpened;
   const text = verbose ? status.verbose : status.detail;
 

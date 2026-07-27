@@ -334,7 +334,7 @@ const ViewServicePlan = ({ servicePlan }) => {
 
       <FormSheet
         open={offcanvas.isActive}
-        wide
+        size="lg"
         onOpenChange={(open) => {
           if (!open) {
             navigate(-1);

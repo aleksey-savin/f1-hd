@@ -6,6 +6,8 @@ export interface ISubdivision {
   phone?: string;
   address?: string;
   linkToMap?: string;
+  /** IANA-зона филиала; null — наследуется от родителя/компании/организации. */
+  timezone?: string | null;
   company: Types.ObjectId;
   manager?: Types.ObjectId;
   users?: Types.ObjectId[];

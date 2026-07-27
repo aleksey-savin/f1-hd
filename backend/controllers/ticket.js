@@ -27,6 +27,12 @@ const {
   transcribeAttachment,
 } = require("../services/speechToTextService");
 const { buildKnownCaller } = require("../services/callerIdentityService");
+const {
+  resolveClientTimezone,
+  createClientTimezoneResolver,
+  formatClientTimeLabel,
+} = require("../services/clientTimezone");
+const { resolveTimezone } = require("../utils/datetime");
 
 const buildAttachment = (file) => ({
   mimetype: file.mimetype,
@@ -45,10 +51,10 @@ exports.getAllOpened = async (req, res, next) => {
       .populate({
         path: "applicantId",
         select:
-          "firstName lastName email phone position role isActive subdivision",
+          "firstName lastName email phone position role isActive subdivision timezone",
         populate: {
           path: "subdivision",
-          select: "name",
+          select: "name timezone parent",
         },
       })
       .populate({
@@ -123,10 +129,22 @@ exports.getAllOpened = async (req, res, next) => {
       finishedWorkTicketIds.map((id) => id.toString()),
     );
 
+    // Пояс клиента на всю страницу разом: подразделения и компании грузятся
+    // пачкой, каскад считается в памяти — иначе был бы запрос на строку.
+    const clientTimezoneOf = await createClientTimezoneResolver({
+      preferences: await Preferences.findOne({}),
+      companyIds: filteredTickets.map((ticket) => ticket.company?._id),
+    });
+
     const shortenedTickets = filteredTickets.map((ticket) => ({
       _id: ticket._id,
       num: ticket.num,
       company: ticket.company,
+      clientTimezone: clientTimezoneOf({
+        user: ticket.applicantId,
+        subdivision: ticket.applicantId?.subdivision,
+        companyId: ticket.company?._id,
+      }),
       category: ticket.categoryId || ticket.category,
       title: ticket.title,
       attachments: ticket.attachments,
@@ -208,6 +226,7 @@ exports.getRecentlyClosed = async (req, res, next) => {
                 role: 1,
                 isActive: 1,
                 subdivision: 1,
+                timezone: 1,
               },
             },
             {
@@ -216,7 +235,9 @@ exports.getRecentlyClosed = async (req, res, next) => {
                 localField: "subdivision",
                 foreignField: "_id",
                 as: "subdivision",
-                pipeline: [{ $project: { name: 1 } }],
+                pipeline: [
+                  { $project: { name: 1, timezone: 1, parent: 1 } },
+                ],
               },
             },
             {
@@ -312,7 +333,21 @@ exports.getRecentlyClosed = async (req, res, next) => {
       },
     ]);
 
-    res.status(200).json({ tickets: ticketData });
+    const clientTimezoneOf = await createClientTimezoneResolver({
+      preferences: await Preferences.findOne({}),
+      companyIds: ticketData.map((ticket) => ticket.company?._id),
+    });
+
+    res.status(200).json({
+      tickets: ticketData.map((ticket) => ({
+        ...ticket,
+        clientTimezone: clientTimezoneOf({
+          user: ticket.applicant,
+          subdivision: ticket.applicant?.subdivision,
+          companyId: ticket.company?._id,
+        }),
+      })),
+    });
   } catch (error) {
     next(
       new AppError("Failed to fetch recently closed tickets", 500, true, error),
@@ -530,10 +565,10 @@ exports.getOne = async (req, res, next) => {
       .populate({
         path: "applicantId",
         select:
-          "firstName lastName email phone position role isActive subdivision activeDirectoryObjectGUID",
+          "firstName lastName email phone position role isActive subdivision activeDirectoryObjectGUID timezone",
         populate: {
           path: "subdivision",
-          select: "name email address phone linkToMap",
+          select: "name email address phone linkToMap timezone parent",
         },
       })
       .populate({
@@ -615,6 +650,15 @@ exports.getOne = async (req, res, next) => {
 
     const logs = await TicketLog.find({
       $or: [{ ticket: ticketNum }, { ticketId: ticket._id }],
+    });
+
+    // В каком поясе живёт заявитель: специалист должен видеть, что у клиента
+    // ночь, ДО того как наберёт номер. Каскад — в services/clientTimezone.
+    ticket.clientTimezone = await resolveClientTimezone({
+      user: ticket.applicant,
+      subdivision: ticket.applicant?.subdivision,
+      company,
+      preferences: await Preferences.findOne({}),
     });
 
     res.status(200).json({
@@ -2173,7 +2217,8 @@ exports.getAllOpenedTg = async (req, res, next) => {
     const allTickets = await Ticket.find({ isClosed: false })
       .populate({
         path: "applicantId",
-        select: "firstName lastName email phone position",
+        select: "firstName lastName email phone position subdivision timezone",
+        populate: { path: "subdivision", select: "name timezone parent" },
       })
       .populate({
         path: "categoryId",
@@ -2220,7 +2265,9 @@ exports.getAllOpenedTg = async (req, res, next) => {
       })
         .populate({
           path: "applicantId",
-          select: "firstName lastName email phone position isActive",
+          select:
+            "firstName lastName email phone position isActive subdivision timezone",
+          populate: { path: "subdivision", select: "name timezone parent" },
         })
         .populate({
           path: "categoryId",
@@ -2240,7 +2287,22 @@ exports.getAllOpenedTg = async (req, res, next) => {
 
     let shortenedTickets = [];
 
+    // Бот показывает контактный телефон — рядом с ним обязано стоять местное
+    // время клиента. Подпись собираем здесь: своей логики зон у бота нет.
+    const prefs = await Preferences.findOne({});
+    const orgTimezone = resolveTimezone(prefs);
+    const clientTimezoneOf = await createClientTimezoneResolver({
+      preferences: prefs,
+      companyIds: tickets.map((ticket) => ticket.company?._id),
+    });
+
     for (let ticket of tickets) {
+      const clientTimezone = clientTimezoneOf({
+        user: ticket.applicantId,
+        subdivision: ticket.applicantId?.subdivision,
+        companyId: ticket.company?._id,
+      });
+
       shortenedTickets.push({
         _id: ticket._id,
         num: ticket.num,
@@ -2258,6 +2320,11 @@ exports.getAllOpenedTg = async (req, res, next) => {
         isClosed: ticket.isClosed,
         state: ticket.state,
         latestComment: ticket.comments[ticket.comments.length - 1],
+        clientTimezone,
+        clientTimeLabel: formatClientTimeLabel({
+          timezone: clientTimezone.timezone,
+          orgTimezone,
+        }),
       });
     }
 

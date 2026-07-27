@@ -1,23 +1,20 @@
 import { toZonedTime } from "date-fns-tz";
 
 import { Eyebrow, Panel } from "@/components/app/Panel";
+import ClientTime from "@/components/app/ClientTime";
+import { SCHEDULE_DAYS } from "@/components/app/ScheduleEditor";
 import { cn } from "@/lib/utils";
 
 import { getLocalStorageData } from "../../../util/auth";
+import { orgTimezone } from "../../../util/timezone-display";
 import WorkStatusText from "../WorkStatusText";
 
 // График работы: живая фраза статуса + сетка недели (как на карточке услуги).
 // Сегодняшний день подсвечен, тонкая полоска внизу ячейки — сколько рабочего
-// дня прошло (по TZ организации, как считает util/get-working-status).
-const WEEK = [
-  ["Пн", "Monday"],
-  ["Вт", "Tuesday"],
-  ["Ср", "Wednesday"],
-  ["Чт", "Thursday"],
-  ["Пт", "Friday"],
-  ["Сб", "Saturday"],
-  ["Вс", "Sunday"],
-];
+// дня прошло. Часы графика — настенное время В ПОЯСЕ КОМПАНИИ; если он не
+// задан, берётся зона организации (как считает util/get-working-status).
+// Дни — из общего каталога (app/ScheduleEditor): свой словарь тут уже жил
+const WEEK = SCHEDULE_DAYS.map(([, key, short]) => [short, key]);
 
 const toMinutes = (value) => {
   const [hours, minutes] = String(value || "").split(":").map(Number);
@@ -27,8 +24,8 @@ const toMinutes = (value) => {
 };
 
 // Ключ сегодняшнего дня и доля прошедшего рабочего дня (0–100 | null).
-const getToday = (schedule) => {
-  const { timezone } = getLocalStorageData();
+const getToday = (schedule, zone) => {
+  const timezone = zone || getLocalStorageData().timezone;
   const now = toZonedTime(new Date(), timezone);
   const key = WEEK[(now.getDay() + 6) % 7][1];
   const day = schedule?.[key];
@@ -45,8 +42,8 @@ const getToday = (schedule) => {
   return { key, progress: Math.min(100, Math.max(0, progress)) };
 };
 
-const ScheduleSection = ({ workSchedule, hasSchedule, id }) => {
-  const today = hasSchedule ? getToday(workSchedule) : { key: null };
+const ScheduleSection = ({ workSchedule, hasSchedule, timezone, id }) => {
+  const today = hasSchedule ? getToday(workSchedule, timezone) : { key: null };
 
   return (
     <>
@@ -59,8 +56,21 @@ const ScheduleSection = ({ workSchedule, hasSchedule, id }) => {
           </div>
         ) : (
           <>
-            <div className="tw:mb-3.5">
-              <WorkStatusText workSchedule={workSchedule} verbose />
+            <div className="tw:mb-3.5 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1">
+              <WorkStatusText
+                workSchedule={workSchedule}
+                timezone={timezone}
+                verbose
+              />
+              {/* Явно, в каком поясе читать часы ниже */}
+              <ClientTime
+                clientTimezone={{
+                  timezone: timezone || orgTimezone(),
+                  source: timezone ? "company" : "global",
+                }}
+                always
+                className="tw:text-xs"
+              />
             </div>
             <div className="tw:grid tw:grid-cols-7 tw:gap-2 tw:max-md:grid-cols-4">
               {WEEK.map(([label, key]) => {

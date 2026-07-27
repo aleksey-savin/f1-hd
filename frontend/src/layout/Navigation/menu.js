@@ -82,10 +82,10 @@ export function buildMenu({
         canUseTimeTrackingModule &&
         canSeeAnalytics &&
         link(
-          "report-analytics",
-          "Аналитика",
+          "report-companies",
+          "Компании",
           RiBuilding2Line,
-          "/report/analytics",
+          "/report/companies",
         ),
     ].filter(Boolean);
 
@@ -123,6 +123,11 @@ export function buildMenu({
   }
 
   // --- Сотрудник ---
+  // Отчёты — плоский список без групп: их всего три, и заголовок «Финансы»
+  // над двумя пунктами делил раздел там, где делить нечего. Слово «отчёт» в
+  // пунктах не повторяем — оно уже в названии раздела.
+  // Гейт зеркален API: весь /finances смонтирован за financesModuleIsActive +
+  // canUseFinancesModule (routes/index.js).
   const reportGroups = [
     {
       items: [
@@ -130,27 +135,10 @@ export function buildMenu({
           canUseTimeTrackingModule &&
           canSeeAnalytics &&
           link(
-            "report-analytics",
-            "Аналитика",
+            "report-companies",
+            "Компании",
             RiBuilding2Line,
-            "/report/analytics",
-          ),
-      ].filter(Boolean),
-    },
-    {
-      // Слово «отчёт» не повторяем — оно уже в названии раздела «Отчёты».
-      // Гейт зеркален API: весь /finances смонтирован за
-      // financesModuleIsActive + canUseFinancesModule (routes/index.js)
-      label: "Финансы",
-      items: [
-        finances &&
-          canUseFinancesModule &&
-          canSeeGlobalFinancialReport &&
-          link(
-            "fin-summary",
-            "Согласование",
-            RiDraftLine,
-            "/finances/summary-report",
+            "/report/companies",
           ),
         // Отчёты «Персональный» и «По сотрудникам» слиты в один раздел:
         // с полным правом — сводная по всем («Сотрудники», клик по строке
@@ -164,6 +152,15 @@ export function buildMenu({
           !(canSeeGlobalFinancialReport || isAdmin) &&
           canSeePersonalFinancialReport &&
           link("fin-personal", "Мой отчёт", RiContactsLine, "/finances/my-report"),
+        finances &&
+          canUseFinancesModule &&
+          canSeeGlobalFinancialReport &&
+          link(
+            "fin-summary",
+            "Согласование работ",
+            RiDraftLine,
+            "/finances/summary-report",
+          ),
       ].filter(Boolean),
     },
   ].filter((group) => group.items.length > 0);

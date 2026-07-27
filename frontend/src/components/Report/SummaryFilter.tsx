@@ -2,13 +2,13 @@ import Field from "@/components/app/Field";
 import FilterContainer from "@/components/app/FilterContainer";
 import { Input } from "@/components/ui/input";
 
-import useAnalyticsSummaryStore from "../../store/reports/analytics-summary";
+import useCompaniesSummaryStore from "../../store/reports/companies-summary";
 
 // Sheet-фильтр «Сводки»: произвольный период двумя нативными датами (паттерн
-// архива работ). «Сбросить» возвращает текущий месяц (дефолт аналитики).
+// архива работ). «Сбросить» возвращает текущий месяц (дефолт отчёта).
 // Запрос уходит, когда заданы обе границы (гард в сторе).
 const SummaryFilter = () => {
-  const s = useAnalyticsSummaryStore();
+  const s = useCompaniesSummaryStore();
 
   return (
     <FilterContainer resetFilterHandler={s.resetPeriod}>

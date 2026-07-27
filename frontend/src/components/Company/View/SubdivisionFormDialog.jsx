@@ -14,6 +14,8 @@ import AlertMessage from "@/components/app/AlertMessage";
 import { InsideOverlayContext } from "@/components/app/overlay-context";
 
 import Select from "../../../UI/Select";
+import timezones from "../../../store/timezones";
+import { orgTimezone, tzCity } from "../../../util/timezone-display";
 
 // Форма подразделения (создание/правка) в диалоге: полей мало, это справочный
 // под-объект карточки. Сабмит — прежний intent add/updateSubdivision на action
@@ -29,12 +31,27 @@ const SubdivisionFormDialog = ({
 }) => {
   const isEdit = Boolean(node);
   const [parent, setParent] = useState(null);
+  const [timezone, setTimezone] = useState(null);
 
   // Родитель — предустановка на каждое открытие: у правки — текущий родитель,
   // у «Вложенного» — узел-источник.
   useEffect(() => {
     if (open) setParent(parentPreset || null);
   }, [open, parentPreset]);
+
+  // Пустой пояс = «наследовать» (родитель → компания → организация). Копию
+  // унаследованного значения не проставляем: филиал переедет — она протухнет.
+  useEffect(() => {
+    if (!open) return;
+    setTimezone(
+      timezones.find((zone) => zone.value === node?.timezone) || null,
+    );
+  }, [open, node]);
+
+  // Что подставится, если поле оставить пустым: пояс выбранного родителя,
+  // иначе компании, иначе организации
+  const inheritedZone =
+    parent?.clientTimezone?.timezone || company?.timezone || orgTimezone();
 
   const busy = fetcher.state !== "idle";
 
@@ -94,6 +111,28 @@ const SubdivisionFormDialog = ({
                 isDisabled={parentOptions.length === 0}
               />
               <input type="hidden" name="parentId" value={parent?._id || ""} />
+            </Field>
+            <Field
+              label="Часовой пояс"
+              hint={
+                timezone
+                  ? "В нём живёт филиал: по нему считается его рабочее время и подсказка «который час у клиента»."
+                  : `Пусто — как ${parent ? "у родительского подразделения" : "у компании"}: ${tzCity(inheritedZone)}.`
+              }
+            >
+              <Select
+                isClearable
+                isSearchable
+                placeholder={`Как ${parent ? "у родительского" : "у компании"} — ${tzCity(inheritedZone)}`}
+                options={timezones}
+                value={timezone}
+                onChange={(next) => setTimezone(next || null)}
+              />
+              <input
+                type="hidden"
+                name="timezone"
+                value={timezone?.value || ""}
+              />
             </Field>
 
             <DialogFooter className="tw:mt-1">

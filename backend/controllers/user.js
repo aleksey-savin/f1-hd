@@ -9,6 +9,10 @@ const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
 const { concatIdsArray } = require("../helpers/concatIdsArray");
 const { encryptSecret, isEncrypted } = require("../services/crypto/secretBox");
+const {
+  normalizeTimezone,
+  resolveClientTimezone,
+} = require("../services/clientTimezone");
 
 const User = require("../models/user");
 const {
@@ -37,6 +41,95 @@ const toNonNegativeOrNull = (value) => {
 
 const canManageFinances = (caller) =>
   Boolean(caller.isAdmin || caller.permissions?.canSeeGlobalFinancialReport);
+
+// График правится из формы пользователя, но своим правом: у того, кто ведёт
+// пользователей, не обязательно есть право на графики и наоборот.
+const canManageSchedules = (caller) =>
+  Boolean(caller.isAdmin || caller.permissions?.canManageWorkSchedules);
+
+/**
+ * Применить блок графика работы к документу пользователя (без сохранения).
+ * Один код на три входа: создание, правка пользователя (форма шлёт блок
+ * `workSchedule`) и отдельный endpoint графика.
+ *
+ * График ведётся ВЕРСИЯМИ: новая запись не затирает прошлое, а начинает
+ * действовать с effectiveFrom. Версия с той же датой заменяется — иначе
+ * повторное сохранение плодило бы дубликаты одного дня.
+ * null в schedule снимает личный график — расчёт вернётся к прежнему каскаду.
+ */
+const applyWorkSchedule = (user, block, actorId) => {
+  if (!block) return;
+
+  if (block.timezone !== undefined) {
+    user.timezone = block.timezone || null;
+  }
+  if (block.workTimeMode !== undefined) {
+    user.workTimeMode = block.workTimeMode;
+  }
+  if (block.remoteOnly !== undefined) {
+    user.remoteOnly = Boolean(block.remoteOnly);
+  }
+
+  if (block.schedule !== undefined) {
+    if (!block.schedule) {
+      user.workSchedules = [];
+    } else {
+      const effectiveFrom = block.effectiveFrom
+        ? new Date(`${block.effectiveFrom}T00:00:00.000Z`)
+        : null;
+      const sameDay = (value) =>
+        (value ? new Date(value).toISOString().slice(0, 10) : null) ===
+        (effectiveFrom ? effectiveFrom.toISOString().slice(0, 10) : null);
+
+      const kept = (user.workSchedules || []).filter(
+        (version) => !sameDay(version.effectiveFrom),
+      );
+      user.workSchedules = [
+        ...kept,
+        {
+          effectiveFrom,
+          schedule: block.schedule,
+          followProductionCalendar: block.followProductionCalendar !== false,
+          createdBy: actorId,
+          createdAt: new Date(),
+        },
+      ].sort((a, b) => {
+        const key = (v) => (v.effectiveFrom ? new Date(v.effectiveFrom).getTime() : 0);
+        return key(a) - key(b);
+      });
+    }
+    // Легаси-поле держим синхронным с актуальной версией, пока его читают
+    user.workSchedule = block.schedule || null;
+    if (block.followProductionCalendar !== undefined) {
+      user.followProductionCalendar = Boolean(block.followProductionCalendar);
+    }
+  } else if (block.followProductionCalendar !== undefined) {
+    user.followProductionCalendar = Boolean(block.followProductionCalendar);
+  }
+};
+
+/**
+ * Пересчитать автоматический статус после смены графика: сменили расписание —
+ * и «в офисе» по старому врёт с этой же секунды. Ручной статус не трогаем: его
+ * человек выбрал сам, он доживёт до конца суток.
+ */
+const syncAutoWorkStatus = async (user) => {
+  if (user.workStatus?.auto === false) return;
+  if (user.workTimeMode === "scheduled") {
+    await runWorkStatusAuto({ userIds: [user._id] });
+  } else if (user.workStatus?.code !== "unset") {
+    // Свободный режим и «не ведётся» автоматики не имеют — оставлять «в офисе»
+    // от прежнего графика нельзя, статус обнуляем
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          workStatus: { code: "unset", note: "", updatedAt: new Date(), auto: true },
+        },
+      },
+    );
+  }
+};
 
 // Список «Пользователи» как адресная книга: серверный поиск/скоуп/фасеты/
 // сортировка/пагинация. Поля, по которым ищем (каждый терм должен встретиться
@@ -332,7 +425,7 @@ exports.getOne = async (req, res, next) => {
       .select("-password -resetToken -resetTokenExpiration ")
       .populate({
         path: "subdivision",
-        select: "_id name",
+        select: "_id name timezone parent",
         populate: {
           path: "manager",
           select: "_id firstName lastName",
@@ -352,15 +445,25 @@ exports.getOne = async (req, res, next) => {
     };
 
     if (!authedUser.isEndUser) {
+      // Эффективный пояс: карточка показывает, где человек находится, даже
+      // когда личное поле пустое и значение унаследовано от подразделения или
+      // компании. Клиенту, смотрящему сам себя (ветка ниже), это не нужно.
+      const clientTimezone = await resolveClientTimezone({
+        user,
+        subdivision: user.subdivision,
+        company: user.company?._id
+          ? await Company.findById(user.company._id).select("alias timezone")
+          : null,
+        preferences: await Prefs.findOne({}),
+      });
+
       const isSelf = authedUser._id.toString() === user._id.toString();
-      if (canManageFinances(authedUser) || isSelf) {
-        res.status(200).json(maskSecrets(user));
-      } else {
+      const payload = { ...maskSecrets(user), clientTimezone };
+      if (!canManageFinances(authedUser) && !isSelf) {
         // Оклад и ставка видны только самому сотруднику и фин. менеджерам
-        const payload = maskSecrets(user);
         delete payload.finances;
-        res.status(200).json(payload);
       }
+      res.status(200).json(payload);
     } else {
       res.status(200).json(maskSecrets(authedUser));
     }
@@ -576,6 +679,7 @@ exports.add = async (req, res, next) => {
       hideWorkStatus,
       workTimeMode,
       remoteOnly,
+      timezone,
       permissions,
       dashboard,
       finances,
@@ -626,6 +730,9 @@ exports.add = async (req, res, next) => {
       hideWorkStatus: !!hideWorkStatus,
       workTimeMode: workTimeMode || "scheduled",
       remoteOnly: !!remoteOnly,
+      // Личный пояс не копируем из подразделения: пустое значение = «как у
+      // подразделения», и переезд филиала подхватится сам (services/clientTimezone)
+      timezone: normalizeTimezone(timezone),
       password: hashedPassword,
       isActive: isActive,
       // Ключ PRO32 Connect храним только шифртекстом (secretBox)
@@ -653,6 +760,11 @@ exports.add = async (req, res, next) => {
         salary: toNonNegativeOrNull(finances.salary),
         overtimeHourlyRate: toNonNegativeOrNull(finances.overtimeHourlyRate),
       };
+    }
+
+    // График сотрудника задаётся шагом мастера — сразу первой версией
+    if (req.body.workSchedule && canManageSchedules(caller)) {
+      applyWorkSchedule(user, req.body.workSchedule, caller.userId);
     }
 
     await user.save();
@@ -734,6 +846,10 @@ exports.update = async (req, res, next) => {
       hideWorkStatus,
       workTimeMode,
       remoteOnly,
+      timezone,
+      // Секция «График работы» той же формы: режим, пояс, календарь и новая
+      // версия недельного расписания одним блоком
+      workSchedule,
       categories,
       permissions,
       dashboard,
@@ -798,6 +914,12 @@ exports.update = async (req, res, next) => {
     if (remoteOnly !== undefined) {
       user.remoteOnly = !!remoteOnly;
     }
+    // Только если поле реально пришло: у сотрудников тот же пояс правится в
+    // карточке графика и в «Мой аккаунт», и безусловное присваивание затирало
+    // бы его при любом сохранении формы
+    if (timezone !== undefined) {
+      user.timezone = normalizeTimezone(timezone);
+    }
     user.permissions = permissions;
     user.dashboard = dashboard;
     // Ответственность за компании теперь правится из формы пользователя
@@ -842,7 +964,20 @@ exports.update = async (req, res, next) => {
       }
     }
 
+    // График работы — секция той же формы, но под своим правом (как финансы).
+    // Форма шлёт блок, только если его трогали: иначе каждое сохранение
+    // пользователя плодило бы новую версию графика.
+    const scheduleChanged =
+      workSchedule !== undefined && canManageSchedules(caller);
+    if (scheduleChanged) {
+      applyWorkSchedule(user, workSchedule, caller.userId);
+    }
+
     await user.save();
+
+    if (scheduleChanged) {
+      await syncAutoWorkStatus(user);
+    }
 
     // Обновляем название рабочего места при изменении имени пользователя
     try {
@@ -1431,9 +1566,10 @@ exports.disableChangelogNotification = async (req, res, next) => {
 };
 
 // POST /users/:id/work-schedule — личный график, часовой пояс и следование
-// производственному календарю. Дочерний блок карточки правится отдельным
-// запросом: форму пользователя целиком ради графика не открываем.
-// null в schedule снимает личный график — расчёт вернётся к прежнему каскаду.
+// производственному календарю. Обычно график правится вместе с остальными
+// полями (форма пользователя шлёт блок `workSchedule` в update), но право на
+// графики живёт отдельно от права на пользователей: у кого есть только оно,
+// форма открывается одной секцией и уходит сюда.
 exports.updateWorkSchedule = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -1449,79 +1585,12 @@ exports.updateWorkSchedule = async (req, res, next) => {
 
     const { userId } = await getAuthData(req);
 
-    if (req.body.timezone !== undefined) {
-      user.timezone = req.body.timezone || null;
-    }
-    if (req.body.workTimeMode !== undefined) {
-      user.workTimeMode = req.body.workTimeMode;
-    }
-    if (req.body.remoteOnly !== undefined) {
-      user.remoteOnly = Boolean(req.body.remoteOnly);
-    }
-
-    // График ведётся ВЕРСИЯМИ: новая запись не затирает прошлое, а начинает
-    // действовать с effectiveFrom. Версия с той же датой заменяется — иначе
-    // повторное сохранение плодило бы дубликаты одного дня.
-    if (req.body.schedule !== undefined) {
-      if (!req.body.schedule) {
-        user.workSchedules = [];
-      } else {
-        const effectiveFrom = req.body.effectiveFrom
-          ? new Date(`${req.body.effectiveFrom}T00:00:00.000Z`)
-          : null;
-        const sameDay = (value) =>
-          (value ? new Date(value).toISOString().slice(0, 10) : null) ===
-          (effectiveFrom ? effectiveFrom.toISOString().slice(0, 10) : null);
-
-        const kept = (user.workSchedules || []).filter(
-          (version) => !sameDay(version.effectiveFrom),
-        );
-        user.workSchedules = [
-          ...kept,
-          {
-            effectiveFrom,
-            schedule: req.body.schedule,
-            followProductionCalendar:
-              req.body.followProductionCalendar !== false,
-            createdBy: userId,
-            createdAt: new Date(),
-          },
-        ].sort((a, b) => {
-          const key = (v) => (v.effectiveFrom ? new Date(v.effectiveFrom).getTime() : 0);
-          return key(a) - key(b);
-        });
-      }
-      // Легаси-поле держим синхронным с актуальной версией, пока его читают
-      user.workSchedule = req.body.schedule || null;
-      if (req.body.followProductionCalendar !== undefined) {
-        user.followProductionCalendar = Boolean(req.body.followProductionCalendar);
-      }
-    } else if (req.body.followProductionCalendar !== undefined) {
-      user.followProductionCalendar = Boolean(req.body.followProductionCalendar);
-    }
+    applyWorkSchedule(user, req.body, userId);
 
     user.updatedBy = userId;
     await user.save();
 
-    // Автоматический статус пересчитываем сразу: сменили график — и «в офисе»
-    // по старому расписанию врёт с этой же секунды. Ручной не трогаем: его
-    // человек выбрал сам, он доживёт до конца суток.
-    if (user.workStatus?.auto !== false) {
-      if (user.workTimeMode === "scheduled") {
-        await runWorkStatusAuto({ userIds: [user._id] });
-      } else if (user.workStatus?.code !== "unset") {
-        // Свободный режим и «не ведётся» автоматики не имеют — оставлять
-        // «в офисе» от прежнего графика нельзя, статус обнуляем
-        await User.updateOne(
-          { _id: user._id },
-          {
-            $set: {
-              workStatus: { code: "unset", note: "", updatedAt: new Date(), auto: true },
-            },
-          },
-        );
-      }
-    }
+    await syncAutoWorkStatus(user);
 
     res.status(200).json({
       _id: user._id,

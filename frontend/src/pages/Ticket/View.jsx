@@ -51,6 +51,7 @@ import Environment from "../../components/app/Environment";
 import AiSpeechBadge from "../../UI/AiSpeechBadge";
 import AiCategoryBadge from "../../UI/AiCategoryBadge";
 import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
+import ClientTimeBadge from "../../components/Company/ClientTimeBadge";
 import RelatedNotes from "../../components/Ticket/RelatedNotes";
 
 import TakeToWork from "../../components/Ticket/Actions/TakeToWork";
@@ -373,9 +374,17 @@ const ViewTicket = () => {
                                         ticket={ticket}
                                         company={company}
                                       />
+                                      {/* Который час у заявителя — до того,
+                                          как специалист наберёт номер */}
+                                      <ClientTimeBadge
+                                        clientTimezone={ticket.clientTimezone}
+                                      />
                                       <small>
                                         <WorkingStatusIndicator
                                           workSchedule={company.workSchedule}
+                                          timezone={
+                                            ticket.clientTimezone?.timezone
+                                          }
                                         />
                                       </small>
                                       {!isEndUser && (

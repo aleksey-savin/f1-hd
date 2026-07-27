@@ -3,6 +3,7 @@ import { NavLink } from "react-router";
 import { formatDate } from "../../util/format-date";
 
 import ItemCard from "../../UI/ItemCard";
+import ClientTimeBadge from "../Company/ClientTimeBadge";
 
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
@@ -38,6 +39,7 @@ const TicketItem = ({ item, isSelected, onSelect }) => {
     scheduledWorks,
     aiSpeech,
     aiCategory,
+    clientTimezone,
   } = item;
 
   const TitleContent = () => {
@@ -245,6 +247,11 @@ const TicketItem = ({ item, isSelected, onSelect }) => {
               <Badge className="ms-2" bg="secondary">
                 <RiBuilding2Line /> {company?.alias}
               </Badge>
+              {/* Диспетчер видит расхождение поясов, не открывая карточку */}
+              <ClientTimeBadge
+                clientTimezone={clientTimezone}
+                className="ms-2"
+              />
             </BrowserView>
           </div>
           <div className="py-1">

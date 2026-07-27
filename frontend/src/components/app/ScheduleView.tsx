@@ -27,7 +27,7 @@ const ScheduleView = ({
   className?: string;
 }) => (
   <div className={cn("tw:grid tw:grid-cols-7 tw:gap-1.5", className)}>
-    {(SCHEDULE_DAYS as [string, string][]).map(([label, key]) => {
+    {(SCHEDULE_DAYS as [string, string, string][]).map(([label, key, short]) => {
       const day = schedule?.[key];
       const off = !day?.isWorking;
       return (
@@ -47,8 +47,10 @@ const ScheduleView = ({
             today === key && "tw:border-primary",
           )}
         >
+          {/* Короткая подпись — из каталога дней: обрезка полной по две буквы
+              давала «Че», «Пя», «Су», «Во» */}
           <div className="tw:text-xs tw:tracking-wide tw:text-faint tw:uppercase">
-            {label.slice(0, 2)}
+            {short}
           </div>
           <div
             className={cn(

@@ -103,6 +103,18 @@ exports.employeesSummary = [
     .withMessage("approvedOnly must be a boolean"),
 ];
 
+exports.employeesTrend = [
+  query("to").optional().isISO8601().withMessage("Invalid date format"),
+  query("months")
+    .optional()
+    .isInt({ min: 1, max: 12 })
+    .withMessage("Months must be between 1 and 12"),
+  query("approvedOnly")
+    .optional()
+    .isBoolean()
+    .withMessage("approvedOnly must be a boolean"),
+];
+
 exports.employeeReport = [
   body("periodFrom")
     .notEmpty()

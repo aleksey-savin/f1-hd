@@ -10,6 +10,7 @@ const ReportShell = ({
   subtitle,
   toolbar,
   breadcrumb,
+  icon,
   wide = false,
   children,
 }: {
@@ -19,6 +20,8 @@ const ReportShell = ({
   toolbar?: ReactNode;
   /** Возврат к списку/сводной — крошками сверху, как на карточках сущностей. */
   breadcrumb?: ReactNode;
+  /** Плитка-монограмма слева от заголовка (карточки компании и подразделения). */
+  icon?: ReactNode;
   /**
    * Широкая раскладка (1600) вместо стандартной 1280 — для табеля «Графики
    * работы»: 31 колонка дней плюс липкие колонки сотрудника и итогов.
@@ -35,6 +38,7 @@ const ReportShell = ({
   >
     {breadcrumb && <div className="tw:mb-3">{breadcrumb}</div>}
     <div className="tw:mb-4 tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-3">
+      {icon}
       <div>
         <h1 className="tw:my-0 tw:text-4xl tw:leading-none tw:font-semibold tw:tracking-tight">
           {title}

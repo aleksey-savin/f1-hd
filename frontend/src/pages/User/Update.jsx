@@ -68,15 +68,23 @@ export async function action({ request, params }) {
   const { token } = getLocalStorageData();
   const userData = await request.json();
 
+  // Форма, открытая только на секции графика (право на графики без права на
+  // пользователей), шлёт один блок: общий endpoint закрыт canManageUsers,
+  // поэтому такой payload уходит на endpoint графика.
+  const keys = Object.keys(userData);
+  const scheduleOnly = keys.length === 1 && keys[0] === "workSchedule";
+
   const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/users/update/${params.id}`,
+    scheduleOnly
+      ? `${import.meta.env.VITE_API_ADDRESS}/api/users/${params.id}/work-schedule`
+      : `${import.meta.env.VITE_API_ADDRESS}/api/users/update/${params.id}`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
       },
-      body: JSON.stringify(userData),
+      body: JSON.stringify(scheduleOnly ? userData.workSchedule : userData),
     },
   );
 

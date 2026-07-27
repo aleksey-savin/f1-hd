@@ -3,6 +3,7 @@ const router = new Router();
 const reportController = require("@/controllers/finances/report");
 const personalReportController = require("@/controllers/finances/personalReport");
 const employeesSummaryController = require("@/controllers/finances/employeesSummary");
+const employeesTrendController = require("@/controllers/finances/employeesTrend");
 const isAuth = require("@/middleware/isAuth");
 
 const { runValidation } = require("@/middleware/runValidation");
@@ -53,6 +54,15 @@ router.get(
   reportValidation.employeesSummary,
   runValidation,
   employeesSummaryController.getSummary,
+);
+
+router.get(
+  "/employees-trend",
+  isAuth,
+  canSeeGlobalFinancialReport,
+  reportValidation.employeesTrend,
+  runValidation,
+  employeesTrendController.getTrend,
 );
 
 router.post(

@@ -10,6 +10,7 @@ import {
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import ClientTime from "@/components/app/ClientTime";
 import { plural } from "../../../util/plural";
 
 const dash = <span className="tw:text-faint">—</span>;
@@ -154,6 +155,23 @@ const SubdivisionPreviewSheet = ({
                     >
                       {node.phone}
                     </a>
+                  ) : null}
+                </Info>
+                <Info label="Часовой пояс">
+                  {node.clientTimezone ? (
+                    <>
+                      <ClientTime clientTimezone={node.clientTimezone} always />
+                      {!node.timezone && (
+                        <span className="tw:text-muted-foreground">
+                          {" · "}
+                          {node.clientTimezone.source === "subdivision"
+                            ? `наследует от «${node.clientTimezone.sourceName}»`
+                            : node.clientTimezone.source === "company"
+                              ? "как у компании"
+                              : "как в организации"}
+                        </span>
+                      )}
+                    </>
                   ) : null}
                 </Info>
                 <Info label="Адрес">

@@ -1,7 +1,8 @@
 const Work = require("@/models/work");
 const User = require("@/models/user");
 const { Ticket } = require("@/models/ticket");
-const ServicePlanReport = require("@/models/finances/servicePlanReport");
+
+const { filterApprovedWorks } = require("@/services/approvedWorks");
 
 const { resolveTimezone } = require("@/utils/datetime");
 const {
@@ -37,13 +38,6 @@ dayjs.extend(timezone);
  * approvedOnly сужает выборку до работ из согласованных отчётов по услугам
  * (режим финансовой сверки); по умолчанию учитываются все работы периода.
  */
-
-const APPROVED_REPORT_STATUSES = [
-  "approved",
-  "awaitingPayment",
-  "paid",
-  "archived",
-];
 
 const emptyTotals = () => ({
   employeesCount: 0,
@@ -89,25 +83,23 @@ const loadPeriodWorks = async ({ fromDate, toDate, approvedOnly }) => {
     return works;
   }
 
-  const reports = await ServicePlanReport.find({
-    status: { $in: APPROVED_REPORT_STATUSES },
-    periodFrom: { $lte: toDate },
-    periodTo: { $gte: fromDate },
-  })
-    .select("works")
-    .lean();
-
-  const approvedWorkIds = new Set();
-  for (const report of reports) {
-    for (const workId of report.works || []) {
-      approvedWorkIds.add(workId.toString());
-    }
-  }
-
-  return works.filter((work) => approvedWorkIds.has(work._id.toString()));
+  return filterApprovedWorks(works, { fromDate, toDate });
 };
 
-// Срез сотрудника: часы, классы, переработки (payroll добавляется отдельно)
+/** Доли в процентах — считает бэкенд, чтобы разрезы везде читались одинаково. */
+const withShares = (buckets, totalMinutes) =>
+  [...buckets.values()]
+    .map((bucket) => ({
+      ...bucket,
+      sharePercent: totalMinutes
+        ? Math.round((bucket.minutes / totalMinutes) * 1000) / 10
+        : 0,
+    }))
+    .sort((a, b) => b.minutes - a.minutes);
+
+// Срез сотрудника: часы, классы, переработки (payroll добавляется отдельно).
+// includeBreakdown добавляет разрезы по компаниям и категориям заявок — они
+// нужны режиму «Статистика», но не нужны пересчёту прошлого периода.
 const summarizeEmployeeWorks = ({
   works,
   plansByCompany,
@@ -115,6 +107,7 @@ const summarizeEmployeeWorks = ({
   overtimeSettings,
   planner,
   orgTz,
+  includeBreakdown = true,
 }) => {
   const row = {
     worksCount: 0,
@@ -132,6 +125,9 @@ const summarizeEmployeeWorks = ({
     },
   };
 
+  const byCompany = new Map();
+  const byCategory = new Map();
+
   for (const work of works) {
     row.worksCount += 1;
     const minutes = toMinutes(workDurationMs(work));
@@ -140,6 +136,42 @@ const summarizeEmployeeWorks = ({
     const classKey = classifyWork(work);
     row[classKey].count += 1;
     row[classKey].minutes += minutes;
+
+    if (includeBreakdown) {
+      const companyId = work.company?._id?.toString() || null;
+      const companyKey = companyId || "none";
+      if (!byCompany.has(companyKey)) {
+        byCompany.set(companyKey, {
+          _id: companyId,
+          alias: work.company?.alias || "Без компании",
+          minutes: 0,
+          worksCount: 0,
+          onSiteCount: 0,
+        });
+      }
+      const companyBucket = byCompany.get(companyKey);
+      companyBucket.minutes += minutes;
+      companyBucket.worksCount += 1;
+      if (classKey === "onSite") {
+        companyBucket.onSiteCount += 1;
+      }
+
+      // Категория — по первой заявке работы, ровно как в персональном отчёте:
+      // иначе строка сотрудника перестанет сходиться с его отчётом
+      const categoryId = work.tickets?.[0]?.categoryId?.toString();
+      const categoryKey = categoryId || "none";
+      if (!byCategory.has(categoryKey)) {
+        byCategory.set(categoryKey, {
+          _id: categoryId ?? null,
+          title: categoriesById.get(categoryId)?.title || "Без категории",
+          minutes: 0,
+          worksCount: 0,
+        });
+      }
+      const categoryBucket = byCategory.get(categoryKey);
+      categoryBucket.minutes += minutes;
+      categoryBucket.worksCount += 1;
+    }
 
     if (isExcludedFromOvertime(work, categoriesById) || !work.startedAt || !work.finishedAt) {
       continue;
@@ -167,6 +199,11 @@ const summarizeEmployeeWorks = ({
     }
   }
 
+  if (includeBreakdown) {
+    row.byCompany = withShares(byCompany, row.totalMinutes);
+    row.byCategory = withShares(byCategory, row.totalMinutes);
+  }
+
   return row;
 };
 
@@ -176,6 +213,7 @@ const buildEmployeesSummary = async ({
   approvedOnly = false,
   preferences,
   includePrev = true,
+  includeBreakdown = true,
 }) => {
   const tz = resolveTimezone(preferences);
   const overtimeSettings = resolveOvertimeSettings(preferences);
@@ -238,8 +276,10 @@ const buildEmployeesSummary = async ({
     }
   }
 
-  // Закрытые заявки — по всем исполнителям одним запросом
+  // Закрытые заявки — по всем исполнителям одним запросом; разрез по компаниям
+  // берётся из того же запроса (нужен разрезу «по компаниям» у сотрудника)
   const ticketsByExecutor = new Map();
+  const ticketsByExecutorCompany = new Map();
   const ticketRows = await Ticket.aggregate([
     {
       $match: {
@@ -247,10 +287,25 @@ const buildEmployeesSummary = async ({
         finishedAt: { $gte: fromDay.toDate(), $lte: toDay.toDate() },
       },
     },
-    { $group: { _id: "$finishedBy", count: { $sum: 1 } } },
+    {
+      $group: {
+        _id: { executor: "$finishedBy", company: "$company._id" },
+        count: { $sum: 1 },
+      },
+    },
   ]);
   for (const row of ticketRows) {
-    ticketsByExecutor.set(row._id.toString(), row.count);
+    const executorId = row._id.executor.toString();
+    ticketsByExecutor.set(
+      executorId,
+      (ticketsByExecutor.get(executorId) || 0) + row.count,
+    );
+    if (row._id.company) {
+      ticketsByExecutorCompany.set(
+        `${executorId}:${row._id.company.toString()}`,
+        row.count,
+      );
+    }
   }
 
   // Контекст графиков — один раз на всю выборку: календарь задетых лет плюс
@@ -278,7 +333,16 @@ const buildEmployeesSummary = async ({
       overtimeSettings,
       planner,
       orgTz: tz,
+      includeBreakdown,
     });
+
+    if (includeBreakdown) {
+      for (const bucket of summary.byCompany) {
+        bucket.ticketsFinished = bucket._id
+          ? ticketsByExecutorCompany.get(`${employeeId}:${bucket._id}`) || 0
+          : 0;
+      }
+    }
     const payroll = buildPayroll(
       employee,
       summary.overtime,
@@ -348,6 +412,52 @@ const buildEmployeesSummary = async ({
 
   rows.sort((a, b) => b.totalMinutes - a.totalMinutes);
 
+  // Разрезы по команде собираются из строк, а не вторым проходом по работам
+  const teamByCompany = new Map();
+  const teamByCategory = new Map();
+  if (includeBreakdown) {
+    for (const row of rows) {
+      for (const bucket of row.byCompany) {
+        const key = bucket._id || "none";
+        if (!teamByCompany.has(key)) {
+          teamByCompany.set(key, {
+            _id: bucket._id,
+            alias: bucket.alias,
+            minutes: 0,
+            worksCount: 0,
+            onSiteCount: 0,
+            ticketsFinished: 0,
+            employeesCount: 0,
+          });
+        }
+        const team = teamByCompany.get(key);
+        team.minutes += bucket.minutes;
+        team.worksCount += bucket.worksCount;
+        team.onSiteCount += bucket.onSiteCount;
+        team.ticketsFinished += bucket.ticketsFinished || 0;
+        team.employeesCount += 1;
+      }
+      for (const bucket of row.byCategory) {
+        const key = bucket._id || "none";
+        if (!teamByCategory.has(key)) {
+          teamByCategory.set(key, {
+            _id: bucket._id,
+            title: bucket.title,
+            minutes: 0,
+            worksCount: 0,
+          });
+        }
+        const team = teamByCategory.get(key);
+        team.minutes += bucket.minutes;
+        team.worksCount += bucket.worksCount;
+      }
+    }
+  }
+
+  totals.avgWorkMinutes = totals.worksCount
+    ? Math.round(totals.totalMinutes / totals.worksCount)
+    : 0;
+
   // Статусы согласования работ выборки — объясняют переключатель approvedOnly
   const byStatus = {};
   for (const work of works) {
@@ -380,6 +490,8 @@ const buildEmployeesSummary = async ({
     },
     totals,
     byStatus,
+    byCompany: withShares(teamByCompany, totals.totalMinutes),
+    byCategory: withShares(teamByCategory, totals.totalMinutes),
     employees: rows,
   };
 
@@ -392,6 +504,8 @@ const buildEmployeesSummary = async ({
       approvedOnly,
       preferences,
       includePrev: false,
+      // Прошлому периоду нужны только итоги — разрезы там никто не читает
+      includeBreakdown: false,
     });
     report.prev = { period: prev.period, totals: prev.totals };
   }

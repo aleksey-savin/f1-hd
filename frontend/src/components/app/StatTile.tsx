@@ -14,10 +14,13 @@ export const StatTileDelta = ({
   direction,
   percentage,
   hint,
+  unit = "%",
 }: {
   direction: "up" | "down" | "flat";
   percentage: number | null;
   hint: ReactNode;
+  /** Единица дельты: доли сравниваются в пунктах, а не в процентах от процента. */
+  unit?: string;
 }) => (
   <div className="tw:mt-1.5 tw:text-sm tw:tabular-nums">
     {percentage === null || direction === "flat" ? (
@@ -30,7 +33,8 @@ export const StatTileDelta = ({
         )}
       >
         {percentage > 0 ? "+" : ""}
-        {percentage}%
+        {percentage}
+        {unit}
       </span>
     )}{" "}
     <span className="tw:text-faint">{hint}</span>

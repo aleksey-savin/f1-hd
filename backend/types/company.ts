@@ -43,6 +43,8 @@ export interface ICompany {
     radius?: number;
   };
   workSchedule?: IWorkSchedule;
+  /** IANA-зона клиента; null — берётся Preferences.timezone. */
+  timezone?: string | null;
   servicePlans?: {
     _id?: Types.ObjectId;
     isActiveSince?: Date;

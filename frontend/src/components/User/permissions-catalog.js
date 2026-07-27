@@ -101,6 +101,19 @@ export const NOTIFY_EVENTS = [
   { key: "scheduledWorks", label: "Запланированные работы" },
 ];
 
+// Что применимо КЛИЕНТУ. Клиент не сотрудник, но у него бывает роль
+// «директор / секретарь»: видеть заявки всей своей компании, а не только свои.
+// Право читает бэкенд при выборе скоупа заявок (controllers/ticket.js), и оно
+// реально выдано — форма обязана его показывать и не затирать при сохранении.
+export const CLIENT_PERMISSIONS = [
+  {
+    key: "canSeeAllCompanyTickets",
+    label: "Все заявки своей компании",
+    hint: "Иначе клиент видит только свои обращения.",
+  },
+];
+export const CLIENT_PERMISSION_KEYS = CLIENT_PERMISSIONS.map((cap) => cap.key);
+
 // Все ключи permissions, которыми управляет форма — чтобы собрать полный объект
 // и не потерять права, которых нет ни в одной группе.
 export const ALL_PERMISSION_KEYS = PERMISSION_MODULES.flatMap((module) => [

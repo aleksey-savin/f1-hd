@@ -6,20 +6,10 @@ import { plural } from "../../util/plural";
 
 // Живая сводка мастера компании: наполняется по мере прохождения шагов
 // (reached — максимально достигнутый шаг), незаданное — «—».
-const SHORT_DAYS = {
-  Monday: "Пн",
-  Tuesday: "Вт",
-  Wednesday: "Ср",
-  Thursday: "Чт",
-  Friday: "Пт",
-  Saturday: "Сб",
-  Sunday: "Вс",
-};
-
 const scheduleLabel = (schedule) => {
   const working = SCHEDULE_DAYS.filter(
     ([, key]) => schedule?.[key]?.isWorking,
-  ).map(([, key]) => SHORT_DAYS[key]);
+  ).map(([, , short]) => short);
   if (working.length === 0) return "Не задан";
   if (working.length === 7) return "Ежедневно";
   return working.join(", ");

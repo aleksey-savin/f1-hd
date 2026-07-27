@@ -21,6 +21,7 @@ const {
   buildScheduleContext,
   makePlanner,
 } = require("@/services/workCalendar");
+const { buildMonthlyWorkTrend } = require("@/services/monthlyWorkTrend");
 
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
@@ -48,80 +49,6 @@ const calcOverlapMinutes = (works) => {
   return toMinutes(overlapMs);
 };
 
-/**
- * Помесячная динамика сотрудника: 12 месяцев, заканчивая месяцем конца
- * периода. Отвечает на вопрос «как менялась моя загрузка за год» — внутри
- * периода это не видно. Одна выборка на весь год + группировка; переработки
- * считаются тем же алгоритмом, что и в основной части отчёта.
- */
-const buildMonthlyTrend = async ({
-  userId,
-  anchorDay,
-  tz,
-  overtimeSettings,
-  user,
-  preferences,
-}) => {
-  const lastMonth = anchorDay.startOf("month");
-  const firstMonth = lastMonth.subtract(11, "month");
-
-  const works = await Work.find({
-    "finishedBy._id": userId,
-    finishedAt: {
-      $gte: firstMonth.toDate(),
-      $lte: lastMonth.endOf("month").toDate(),
-    },
-  })
-    .populate("company", "alias workSchedule servicePlans")
-    .populate({ path: "tickets", select: "categoryId" })
-    .lean();
-
-  const { plansByCompany, categoriesById } = await buildOvertimeContext(works);
-
-  // Планировщик на все 12 месяцев тренда: календарь и отсутствия за тот же срок
-  const trendContext = await buildScheduleContext({
-    fromKey: firstMonth.format("YYYY-MM-DD"),
-    toKey: lastMonth.endOf("month").format("YYYY-MM-DD"),
-    userIds: [userId],
-    preferences,
-  });
-  const planner = makePlanner(user, trendContext, overtimeSettings);
-
-  const months = new Map();
-  for (let cursor = firstMonth; cursor.valueOf() <= lastMonth.valueOf(); cursor = cursor.add(1, "month")) {
-    months.set(cursor.format("YYYY-MM"), {
-      month: cursor.format("YYYY-MM"),
-      minutes: 0,
-      overtimeMinutes: 0,
-      worksCount: 0,
-    });
-  }
-
-  for (const work of works) {
-    const entry = months.get(dayjs(work.finishedAt).tz(tz).format("YYYY-MM"));
-    if (!entry) {
-      continue;
-    }
-    entry.worksCount += 1;
-    entry.minutes += toMinutes(workDurationMs(work));
-
-    if (
-      !isExcludedFromOvertime(work, categoriesById) &&
-      work.startedAt &&
-      work.finishedAt
-    ) {
-      const { overtime } = overtimeForWork(work, {
-        planner,
-        plansByCompany,
-        overtimeSettings,
-        orgTz: tz,
-      });
-      entry.overtimeMinutes += toMinutes(overtime.roundedMs);
-    }
-  }
-
-  return [...months.values()];
-};
 
 /**
  * Персональный отчёт сотрудника за период [from..to] (даты "YYYY-MM-DD",
@@ -450,14 +377,16 @@ const buildPersonalReport = async ({
 
   if (includeDetails) {
     report.works = workDetails;
-    report.byMonth = await buildMonthlyTrend({
-      userId,
+    // Помесячная динамика — общий сервис (его же зовёт режим «Динамика»
+    // отчёта «Сотрудники»); здесь частный случай на одного человека
+    const trend = await buildMonthlyWorkTrend({
+      users: [user],
       anchorDay: toDay,
       tz,
       overtimeSettings,
-      user,
       preferences,
     });
+    report.byMonth = trend.months;
 
     // Предыдущий период той же длины — для дельт на KPI-картах
     const prevFrom = fromDay.subtract(periodDays, "day").format("YYYY-MM-DD");

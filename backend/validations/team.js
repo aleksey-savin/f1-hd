@@ -52,6 +52,29 @@ exports.userSchedule = [
   query("to").matches(DATE_RE).withMessage("Некорректная дата окончания"),
 ];
 
+// Тот же блок графика, но вложенным полем `workSchedule` — им форма
+// пользователя правит график вместе с остальными полями (add/update).
+// Поля графика в теле нет — вся цепочка optional, остальное не трогаем.
+exports.workScheduleBlock = [
+  body("workSchedule.timezone")
+    .optional({ nullable: true })
+    .isLength({ max: 64 })
+    .withMessage("Некорректный часовой пояс"),
+  body("workSchedule.followProductionCalendar").optional().isBoolean(),
+  body("workSchedule.effectiveFrom")
+    .optional({ nullable: true, values: "falsy" })
+    .matches(DATE_RE)
+    .withMessage("Некорректная дата начала действия графика"),
+  body("workSchedule.workTimeMode")
+    .optional()
+    .isIn(["scheduled", "free", "none"])
+    .withMessage("Неизвестный режим учёта рабочего времени"),
+  body("workSchedule.remoteOnly").optional().isBoolean(),
+  body("workSchedule.schedule")
+    .optional({ nullable: true })
+    .custom((value) => (value === null ? true : isWeekSchedule(value))),
+];
+
 exports.updateWorkSchedule = [
   param("id").isMongoId().withMessage("Некорректный идентификатор сотрудника"),
   // Пустая строка = «взять пояс организации»

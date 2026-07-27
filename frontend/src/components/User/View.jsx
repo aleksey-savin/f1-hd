@@ -46,6 +46,7 @@ import AnchorRail from "@/components/app/AnchorRail";
 import PropRow from "@/components/app/PropRow";
 import TechSection from "@/components/app/TechSection";
 import WorkScheduleSection from "@/components/User/WorkScheduleSection";
+import ClientTime from "@/components/app/ClientTime";
 import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
@@ -53,7 +54,11 @@ import useOffcanvasStore from "../../store/offcanvas";
 import useInitialPrefs from "../../store/prefs";
 import { getPresence } from "./presence";
 import PresenceText from "./PresenceText";
-import { DASHBOARD_MODULE, PERMISSION_MODULES } from "./permissions-catalog";
+import {
+  CLIENT_PERMISSIONS,
+  DASHBOARD_MODULE,
+  PERMISSION_MODULES,
+} from "./permissions-catalog";
 import { relativeDay } from "../../util/relative-time";
 import { formatPrice } from "../../util/format-string";
 
@@ -149,6 +154,7 @@ const ViewUser = ({ user, tickets }) => {
     role,
     company,
     subdivision,
+    clientTimezone,
     categories = [],
     responsibleForCompanies = [],
     isEndUser,
@@ -234,7 +240,13 @@ const ViewUser = ({ user, tickets }) => {
     : [];
   const tgConnected = Boolean(telegramBot?.isActive);
 
-  const showPermissions = canManageUsers && !isEndUser;
+  // Клиенту каталог модулей не применим, но одно право у него штатное —
+  // «все заявки своей компании»; секцию показываем и ему
+  const showPermissions = canManageUsers && !isServiceAccount;
+  const clientCaps = CLIENT_PERMISSIONS.map((cap) => ({
+    label: cap.label,
+    on: Boolean(permissions[cap.key]),
+  }));
   const showNotify = canManageUsers && Boolean(notify);
 
   // Техника (список + окружение) — при активном модуле инвентаря и праве на
@@ -451,6 +463,25 @@ const ViewUser = ({ user, tickets }) => {
                 <span className="tw:font-normal tw:text-faint">—</span>
               )}
             </PropRow>
+            {/* Эффективный пояс: где человек находится сейчас — чтобы не
+                звонить заявителю в его ночь. Показываем всегда, в том числе
+                унаследованный от подразделения или компании */}
+            {clientTimezone?.timezone && (
+              <PropRow icon={<RiTimeLine size={17} />} label="Часовой пояс">
+                <span className="tw:inline-flex tw:flex-wrap tw:items-center tw:gap-x-2">
+                  <ClientTime clientTimezone={clientTimezone} always />
+                  {clientTimezone.source !== "user" && (
+                    <span className="tw:font-normal tw:text-faint">
+                      {clientTimezone.source === "subdivision"
+                        ? `как у «${clientTimezone.sourceName}»`
+                        : clientTimezone.source === "company"
+                          ? "как у компании"
+                          : "как в организации"}
+                    </span>
+                  )}
+                </span>
+              </PropRow>
+            )}
             {role && (
               <PropRow icon={<RiPriceTag3Line size={17} />} label="Роль">
                 {role}
@@ -484,7 +515,13 @@ const ViewUser = ({ user, tickets }) => {
 
       {/* Техника: список с фасетами + окружение (общая шторка устройства) */}
       {showSchedule && (
-        <WorkScheduleSection id="schedule" userId={user._id} />
+        /* version — отметка последней правки пользователя: форма сохранила
+           график, роутер ревалидировал loader, секция перечитала данные */
+        <WorkScheduleSection
+          id="schedule"
+          userId={user._id}
+          version={user.updatedAt}
+        />
       )}
 
       {showTech && <TechSection id="tech" userId={user._id} subject="user" />}
@@ -591,6 +628,15 @@ const ViewUser = ({ user, tickets }) => {
               </span>
               {isAdmin && <Pill>{accountType}</Pill>}
             </div>
+            {isEndUser ? (
+              <div className="tw:grid tw:gap-x-6 tw:gap-y-1 tw:sm:grid-cols-2">
+                {clientCaps.map((cap) => (
+                  <Cap key={cap.label} on={cap.on}>
+                    {cap.label}
+                  </Cap>
+                ))}
+              </div>
+            ) : (
             <div className="tw:grid tw:gap-x-6 tw:gap-y-4 tw:sm:grid-cols-2">
               {modules.map((module) => {
                 const disabled = module.master === false;
@@ -630,6 +676,7 @@ const ViewUser = ({ user, tickets }) => {
                 );
               })}
             </div>
+            )}
           </Panel>
         </>
       )}
@@ -703,7 +750,7 @@ const ViewUser = ({ user, tickets }) => {
 
       <FormSheet
         open={offcanvas.isActive}
-        wide
+        size="xl"
         onOpenChange={(open) => {
           if (!open) {
             navigate(-1);

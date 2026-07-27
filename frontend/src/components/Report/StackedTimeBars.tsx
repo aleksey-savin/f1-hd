@@ -9,6 +9,8 @@ import {
 
 import { msToHMS } from "../../util/time-helpers";
 
+import { formatMinutes } from "./work-format";
+
 // Горизонтальный стек-бар времени по классам работ (компании / сотрудники /
 // подразделения — один компонент). Ось значений скрыта: сумму подписывает
 // LabelList у конца полосы (часть палитры на белом ниже контраста 3:1 —
@@ -35,7 +37,15 @@ const chartConfig = {
 const ROW_HEIGHT = 32;
 const CLASS_KEYS = ["onSite", "remote", "routineTask"] as const;
 
-const StackedTimeBars = ({ rows }: { rows: StackedTimeRow[] }) => {
+const StackedTimeBars = ({
+  rows,
+  unit = "ms",
+}: {
+  rows: StackedTimeRow[];
+  /** «Компании» считают в миллисекундах, «Сотрудники» — в минутах. */
+  unit?: "ms" | "minutes";
+}) => {
+  const format = unit === "ms" ? msToHMS : formatMinutes;
   const data = rows.map((row) => ({
     ...row,
     other: row.other ?? 0,
@@ -83,7 +93,7 @@ const StackedTimeBars = ({ rows }: { rows: StackedTimeRow[] }) => {
                           name}
                       </span>
                       <span className="tw:font-medium tw:text-foreground tw:tabular-nums">
-                        {msToHMS(Number(value))}
+                        {format(Number(value))}
                       </span>
                     </span>
                   </>
@@ -113,7 +123,7 @@ const StackedTimeBars = ({ rows }: { rows: StackedTimeRow[] }) => {
             dataKey="total"
             position="right"
             offset={8}
-            formatter={(value) => msToHMS(Number(value))}
+            formatter={(value) => format(Number(value))}
             className="tw:fill-muted-foreground"
             fontSize={12}
           />

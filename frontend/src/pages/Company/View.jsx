@@ -268,6 +268,8 @@ export async function action({ request }) {
           linkToMap: data.get("linkToMap"),
           companyId: data.get("companyId"),
           parentId: parentId,
+          // Пустая строка = наследовать пояс родителя/компании
+          timezone: data.get("timezone") || null,
         }),
       },
     );
@@ -300,6 +302,7 @@ export async function action({ request }) {
           address: data.get("address"),
           linkToMap: data.get("linkToMap"),
           parentId: data.get("parentId"),
+          timezone: data.get("timezone") || null,
         }),
       },
     );

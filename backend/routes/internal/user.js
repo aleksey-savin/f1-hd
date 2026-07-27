@@ -83,8 +83,25 @@ router.post(
   userController.setWorkStatusFromTelegram,
 );
 
-router.post("/users/add", isAuth, canManageUsers, userController.add);
-router.post("/users/update/:id", isAuth, canManageUsers, userController.update);
+// График работы — секция той же формы: блок `workSchedule` валидируется теми
+// же правилами, что и отдельный endpoint графика, и применяется только с
+// правом на графики (проверка — в контроллере, как у финансов)
+router.post(
+  "/users/add",
+  isAuth,
+  canManageUsers,
+  teamValidation.workScheduleBlock,
+  runValidation,
+  userController.add,
+);
+router.post(
+  "/users/update/:id",
+  isAuth,
+  canManageUsers,
+  teamValidation.workScheduleBlock,
+  runValidation,
+  userController.update,
+);
 router.post("/users/update-account", isAuth, userController.updateMyAccount);
 router.post("/users/delete/:id", isAuth, canManageUsers, userController.delete);
 router.post(

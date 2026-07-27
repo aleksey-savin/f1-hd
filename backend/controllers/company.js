@@ -15,6 +15,10 @@ const CompanyLog = require("../models/companyLog");
 const logger = require("../utils/logger");
 const storage = require("../services/storage");
 const companyStatsService = require("../services/companyStatsService");
+const {
+  normalizeTimezone,
+  annotateSubdivisionTree,
+} = require("../services/clientTimezone");
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -28,7 +32,9 @@ exports.getAll = async (req, res, next) => {
       req.query.includeInactive === "true" ? {} : { isActive: { $ne: false } };
 
     const allCompanies = await Company.find(scope)
-      .populate({ path: "subdivisions", select: "name _id" })
+      // timezone/parent — чтобы форма пользователя могла показать, какой пояс
+      // унаследует заявитель выбранного подразделения
+      .populate({ path: "subdivisions", select: "name _id timezone parent" })
       .sort({ alias: 1 })
       .lean();
 
@@ -101,7 +107,7 @@ exports.getOne = async (req, res, next) => {
     // subdivisions arrived as bare ObjectIds (no name/manager/users/children),
     // which broke deeply nested structures. JS assembly has no depth limit.
     const subdivisionDocs = await Subdivision.find({ company: company._id })
-      .select("name email phone address linkToMap manager users parent")
+      .select("name email phone address linkToMap manager users parent timezone")
       .populate({
         path: "manager",
         select: "firstName lastName email position role isActive",
@@ -132,6 +138,13 @@ exports.getOne = async (req, res, next) => {
       } else {
         rootSubdivisions.push(sub);
       }
+    });
+
+    // Эффективный пояс каждого узла считается здесь, а не на клиенте: каскад
+    // (узел → предки → компания → организация) обязан жить в одном месте.
+    annotateSubdivisionTree(rootSubdivisions, {
+      company: companyObj,
+      preferences: await Preferences.findOne({}),
     });
 
     companyObj.subdivisions = rootSubdivisions;
@@ -259,6 +272,7 @@ exports.add = async (req, res, next) => {
       linkToMap,
       users,
       workSchedule,
+      timezone,
       responsibles: respIds,
     } = req.body;
 
@@ -284,6 +298,9 @@ exports.add = async (req, res, next) => {
       users: users,
       responsibles: responsibles,
       workSchedule: workSchedule,
+      // В этом поясе читается workSchedule и показывается местное время
+      // клиента; null — берётся зона организации
+      timezone: normalizeTimezone(timezone),
       createdBy: userId,
     });
 
@@ -308,6 +325,7 @@ exports.update = async (req, res, next) => {
       address,
       linkToMap,
       workSchedule,
+      timezone,
       responsibles: respIds,
       clientsSideResponsibles: clientsSideRespIds = [],
     } = req.body;
@@ -327,6 +345,7 @@ exports.update = async (req, res, next) => {
     company.address = address;
     company.linkToMap = linkToMap;
     company.workSchedule = workSchedule;
+    company.timezone = normalizeTimezone(timezone);
 
     let responsibles = [];
     for (let id of respIds) {
@@ -630,8 +649,16 @@ exports.deleteServicePlan = async (req, res, next) => {
 
 exports.addSubdivision = async (req, res, next) => {
   try {
-    const { name, address, linkToMap, phone, email, companyId, parentId } =
-      req.body;
+    const {
+      name,
+      address,
+      linkToMap,
+      phone,
+      email,
+      companyId,
+      parentId,
+      timezone,
+    } = req.body;
 
     const company = await Company.findById(companyId);
 
@@ -643,6 +670,8 @@ exports.addSubdivision = async (req, res, next) => {
       email,
       company: companyId,
       parent: parentId || null,
+      // null = наследовать пояс родителя/компании/организации
+      timezone: normalizeTimezone(timezone),
       subdivisions: [],
     });
 
@@ -700,8 +729,16 @@ exports.addSubdivision = async (req, res, next) => {
 
 exports.updateSubdivision = async (req, res, next) => {
   try {
-    const { subdivisionId, name, address, linkToMap, phone, email, parentId } =
-      req.body;
+    const {
+      subdivisionId,
+      name,
+      address,
+      linkToMap,
+      phone,
+      email,
+      parentId,
+      timezone,
+    } = req.body;
 
     async function validateSubdivisionHierarchy(subdivisionId, parentId) {
       let currentParentId = parentId;
@@ -746,6 +783,7 @@ exports.updateSubdivision = async (req, res, next) => {
     subdivision.phone = phone;
     subdivision.email = email;
     subdivision.parent = parentId || null;
+    subdivision.timezone = normalizeTimezone(timezone);
 
     if (oldParentId !== parentId) {
       // Remove from old parent
