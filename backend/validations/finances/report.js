@@ -86,6 +86,23 @@ exports.personalSummary = [
     .withMessage("User ID must be a valid MongoDB ID"),
 ];
 
+exports.employeesSummary = [
+  query("from")
+    .notEmpty()
+    .withMessage("Period start date is required")
+    .isISO8601()
+    .withMessage("Invalid start date format"),
+  query("to")
+    .notEmpty()
+    .withMessage("Period end date is required")
+    .isISO8601()
+    .withMessage("Invalid end date format"),
+  query("approvedOnly")
+    .optional()
+    .isBoolean()
+    .withMessage("approvedOnly must be a boolean"),
+];
+
 exports.employeeReport = [
   body("periodFrom")
     .notEmpty()

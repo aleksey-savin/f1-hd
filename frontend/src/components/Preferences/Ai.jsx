@@ -125,9 +125,16 @@ const PrefsAi = ({ prefs }) => {
   const provider = ai.provider;
   const providerConf = ai[provider] || {};
 
+  // Сохранённые ключи наружу не отдаются — форма получает только флаг «задан»
+  // и рисует маску; пустое поле означает «не менять», а каталог моделей бэкенд
+  // подтянет по сохранённому ключу.
+  const providerKeyIsSet = !!prefs.ai?.[provider]?.apiKeyIsSet;
+  const speechKeyIsSet = !!prefs.ai?.speechToText?.apiKeyIsSet;
+  const speechYandexKeyIsSet = !!prefs.ai?.speechToText?.yandex?.apiKeyIsSet;
+
   const loadChatModels = async () => {
     if (!LISTABLE.includes(provider)) return;
-    if (!providerConf.apiKey && provider !== "yandexgpt") {
+    if (!providerConf.apiKey && !providerKeyIsSet && provider !== "yandexgpt") {
       setModels([]);
       setModelsError("Сначала укажите API-ключ");
       return;
@@ -148,7 +155,7 @@ const PrefsAi = ({ prefs }) => {
   const loadSpeechModels = async () => {
     const yandex = speech.provider === "yandex";
     const apiKey = yandex ? speech.yandex.apiKey : speech.apiKey;
-    if (!apiKey && !yandex) {
+    if (!apiKey && !speechKeyIsSet && !yandex) {
       setSpeechModels([]);
       setSpeechError("Сначала укажите API-ключ");
       return;
@@ -227,6 +234,11 @@ const PrefsAi = ({ prefs }) => {
       </SettingRow>
       <SettingRow
         title={`API-ключ ${PROVIDERS.find((option) => option.value === provider)?.label}`}
+        hint={
+          providerKeyIsSet
+            ? "Ключ задан и хранится в зашифрованном виде. Оставьте поле пустым, чтобы не менять."
+            : undefined
+        }
         htmlFor="prefs-ai-key"
         className={dim}
       >
@@ -234,6 +246,7 @@ const PrefsAi = ({ prefs }) => {
           id="prefs-ai-key"
           type="password"
           disabled={!aiOn}
+          placeholder={providerKeyIsSet ? "••••••••  (задан)" : ""}
           value={providerConf.apiKey || ""}
           onChange={(event) =>
             patchProvider(provider, { apiKey: event.target.value })
@@ -359,6 +372,11 @@ const PrefsAi = ({ prefs }) => {
         <>
           <SettingRow
             title="API-ключ Yandex SpeechKit"
+            hint={
+              speechYandexKeyIsSet
+                ? "Ключ задан и хранится в зашифрованном виде. Оставьте поле пустым, чтобы не менять."
+                : undefined
+            }
             htmlFor="prefs-speech-yandex-key"
             className={dimSpeech}
           >
@@ -366,6 +384,7 @@ const PrefsAi = ({ prefs }) => {
               id="prefs-speech-yandex-key"
               type="password"
               disabled={!speechOn}
+              placeholder={speechYandexKeyIsSet ? "••••••••  (задан)" : ""}
               value={speech.yandex.apiKey || ""}
               onChange={(event) =>
                 patchSpeechYandex({ apiKey: event.target.value })
@@ -395,6 +414,11 @@ const PrefsAi = ({ prefs }) => {
         <>
           <SettingRow
             title="API-ключ OpenAI"
+            hint={
+              speechKeyIsSet
+                ? "Ключ задан и хранится в зашифрованном виде. Оставьте поле пустым, чтобы не менять."
+                : undefined
+            }
             htmlFor="prefs-speech-key"
             className={dimSpeech}
           >
@@ -402,6 +426,7 @@ const PrefsAi = ({ prefs }) => {
               id="prefs-speech-key"
               type="password"
               disabled={!speechOn}
+              placeholder={speechKeyIsSet ? "••••••••  (задан)" : ""}
               value={speech.apiKey || ""}
               onChange={(event) => patchSpeech({ apiKey: event.target.value })}
               className="tw:w-72 tw:max-md:w-full"

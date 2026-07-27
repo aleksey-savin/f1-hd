@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { getLocalStorageData } from "../../util/auth";
+import { prevMonthRange } from "../../util/period";
 
 // «Архив заявок» — список на серверной выборке (канон «Пользователей»): поиск,
 // фасеты, сортировка и постраничность считает бэкенд (GET /api/tickets/closed).
@@ -33,6 +34,10 @@ const EMPTY_FILTERS = {
   categories: [],
   applicants: [],
 };
+
+// Дефолт и «Сбросить» — период за прошлый месяц (текущий ещё «не в архиве»);
+// период целиком снимается бейджем в плашке или очисткой дат в шторке
+const DEFAULT_FILTERS = { ...EMPTY_FILTERS, ...prevMonthRange() };
 
 let searchDebounce;
 
@@ -83,8 +88,8 @@ const useClosedTicketsStore = create((set, get) => ({
   isLoading: false,
   isSorting: false,
 
-  // фильтры (всё опционально — архив открывается целиком)
-  ...EMPTY_FILTERS,
+  // фильтры (всё опционально; период по умолчанию — прошлый месяц)
+  ...DEFAULT_FILTERS,
   searchTerm: "",
 
   // опции фасетов из form-data (полный каталог, включая отключённые компании)
@@ -149,7 +154,7 @@ const useClosedTicketsStore = create((set, get) => ({
 
   resetFilter: () => {
     set({
-      ...EMPTY_FILTERS,
+      ...DEFAULT_FILTERS,
       searchTerm: "",
       page: 1,
       sortBy: SORT.finished_desc,

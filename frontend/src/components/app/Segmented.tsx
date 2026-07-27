@@ -15,6 +15,7 @@ const Segmented = ({
   onChange,
   ariaLabel,
   stacked = false,
+  disabled = false,
   className,
 }: {
   options: readonly SegmentOption[];
@@ -22,6 +23,8 @@ const Segmented = ({
   onChange: (value: string) => void;
   ariaLabel?: string;
   stacked?: boolean;
+  /** Гасит группу целиком — как disabled у поля в выключенной секции настроек. */
+  disabled?: boolean;
   className?: string;
 }) => {
   return (
@@ -37,10 +40,12 @@ const Segmented = ({
         <button
           key={option.value}
           type="button"
+          disabled={disabled}
           aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
           className={cn(
             "tw:inline-flex tw:flex-1 tw:cursor-pointer tw:appearance-none tw:items-center tw:justify-center tw:rounded-md tw:border-0 tw:bg-transparent tw:font-semibold tw:text-muted-foreground tw:transition-colors tw:outline-none tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+            "tw:disabled:pointer-events-none tw:disabled:cursor-not-allowed",
             stacked
               ? "tw:flex-col tw:gap-1 tw:px-1.5 tw:py-2 tw:text-center tw:text-xs tw:leading-tight"
               : "tw:gap-1.5 tw:px-3 tw:py-2 tw:text-sm",

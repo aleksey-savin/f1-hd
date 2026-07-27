@@ -69,6 +69,20 @@ export const formatMonth = (date) =>
     month: "long",
   });
 
+// «только что» / «2 мин назад» / «3 ч назад», для старого — полная дата.
+// Формат «протухающих» статусов: мониторинг Mikrotik, состояние почтовых
+// каналов в настройках (см. ux-ui-guide, «Статус, который протухает»).
+export const formatAgo = (value) => {
+  if (!value) return null;
+  const diff = Date.now() - new Date(value).getTime();
+  if (diff < 90 * 1000) return "только что";
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)} мин назад`;
+  if (diff < 24 * 60 * 60 * 1000) {
+    return `${Math.floor(diff / 3600000)} ч назад`;
+  }
+  return formatDate(value);
+};
+
 /* ── КАЛЕНДАРНЫЕ даты (поля «только дата»: покупка, гарантия, срок действия —
       в БД хранятся UTC-полночью) ── */
 

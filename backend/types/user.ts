@@ -66,11 +66,14 @@ export interface IUserEmailNotify {
   scheduledWorks: boolean;
 }
 
+// Держать синхронно с каталогом utils/workStatuses.js
 export type WorkStatusCode =
   | "office"
   | "remote"
   | "trip"
   | "lunch"
+  | "absent"
+  | "offshift"
   | "vacation"
   | "sick"
   | "unset";

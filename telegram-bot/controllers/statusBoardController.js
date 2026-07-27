@@ -22,10 +22,14 @@ const escapeHtml = (text) =>
 const capitalize = (text) =>
   text ? text[0].toUpperCase() + text.slice(1) : text;
 
-// Статичная клавиатура из каталога: 6 статусов по 2 в ряд + сброс. Собирается
-// детерминированно, поэтому на no-op сравнение текста не влияет.
+// Статичная клавиатура из каталога: выбираемые статусы по 2 в ряд + сброс.
+// Табло одно на всех, поэтому персонализировать её нечем: показываем только
+// те статусы, что человек вправе поставить руками (manual). Отпуск, больничный
+// и «не на работе» проставляет автоматика — кнопок для них нет.
 const boardKeyboard = () => {
-  const real = WORK_STATUSES.filter((status) => status.code !== "unset");
+  const real = WORK_STATUSES.filter(
+    (status) => status.manual && status.code !== "unset",
+  );
   const rows = [];
   for (let i = 0; i < real.length; i += 2) {
     rows.push(

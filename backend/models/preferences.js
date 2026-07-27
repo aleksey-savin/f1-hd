@@ -5,13 +5,47 @@ const { DEFAULT_OVERTIME_SCHEDULE } = require("../utils/overtimeDefaults");
 
 const Schema = mongoose.Schema;
 
+// Здоровье внешнего почтового канала — единый контракт для приёма и отправки.
+// Пишут трое: крон сбора (backend), отправка уведомлений (telegram-bot) и ручная
+// проверка из настроек; читает строка состояния в секции (app/HealthRow).
+// lastMessageAt — когда канал последний раз реально сработал: забрал письмо
+// (приём) или отправил его (отправка), в отличие от lastOkAt («связь есть»).
+const channelHealth = () => ({
+  lastCheckedAt: { type: Date, default: null },
+  lastOkAt: { type: Date, default: null },
+  lastMessageAt: { type: Date, default: null },
+  // lastError — сама фраза состояния («Сервер отклонил пароль»), lastErrorHint —
+  // приглушённая подсказка «что делать». Обе строит describeMailError, чтобы
+  // UI не пытался угадать причину по коду ошибки.
+  lastError: { type: String, default: "" },
+  lastErrorHint: { type: String, default: "" },
+  lastErrorAt: { type: Date, default: null },
+  consecutiveFailures: { type: Number, default: 0 },
+});
+
 const preferencesSchema = new Schema({
   timezone: { type: String, default: "Europe/Moscow" },
   htmlTicketDesc: { type: Boolean, default: false },
-  useEmail: { type: Boolean, default: false },
-  emailAddress: { type: String, default: "" },
-  emailPassword: { type: String, default: "" },
-  imapServer: { type: String, default: "" },
+  // Ящик-приёмник: письма на него становятся заявками. Транспорт задаётся
+  // целиком (порт, шифрование, папка) — раньше был зашит в emailHandling.
+  // Логин отдельным полем не заводим: им служит address.
+  // password — шифртекст secretBox, наружу отдаётся маской (см. контроллер).
+  mailbox: {
+    isActive: { type: Boolean, default: false },
+    address: { type: String, default: "" },
+    host: { type: String, default: "" },
+    port: { type: Number, default: 993 },
+    security: {
+      type: String,
+      enum: ["ssl", "starttls", "none"],
+      default: "ssl",
+    },
+    folder: { type: String, default: "INBOX" },
+    // Отключает проверку сертификата — только для внутренних почтовиков
+    allowSelfSigned: { type: Boolean, default: false },
+    password: { type: String, default: "" },
+    health: channelHealth(),
+  },
   defaultApplicant: {
     _id: {
       type: Schema.Types.ObjectId,
@@ -43,16 +77,34 @@ const preferencesSchema = new Schema({
       ticketDeadlineUpdate: { type: Boolean, default: false },
       ticketNewComment: { type: Boolean, default: false },
       scheduledWorks: { type: Boolean, default: false },
+      // Отсутствия: запрос уходит согласующим, решение — заявителю.
+      // Ключ категории един для personal / byTelegram / byEmail.
+      absenceRequest: { type: Boolean, default: false },
+      absenceDecision: { type: Boolean, default: false },
     },
+    // Канал отправки (SMTP). Транспорт задаётся так же, как у ящика-приёмника;
+    // authMethod "none" — внутренний релей, принимающий почту без пароля.
+    // pass — шифртекст secretBox. Письма шлёт telegram-bot, он же пишет health.
     byEmail: {
       isActive: { type: Boolean, default: false },
       host: { type: String, default: "" },
-      isSecure: { type: Boolean, default: false },
       port: { type: Number, default: 465 },
+      security: {
+        type: String,
+        enum: ["ssl", "starttls", "none"],
+        default: "ssl",
+      },
+      allowSelfSigned: { type: Boolean, default: false },
+      authMethod: {
+        type: String,
+        enum: ["password", "none"],
+        default: "password",
+      },
       user: { type: String, default: "" },
       pass: { type: String, default: "" },
       sendFromName: { type: String, default: "" },
       sendFromEmail: { type: String, default: "" },
+      health: channelHealth(),
     },
     // Единственная группа Telegram команды: сюда идут групповые уведомления и
     // здесь же живёт табло статусов; messageThreadId (ветка форум-группы)
@@ -114,6 +166,39 @@ const preferencesSchema = new Schema({
     // Оплата: доплата = часы × ставка × коэффициент; на величину переработки не влияет
     weekdayCoefficient: { type: Number, default: 1 },
     weekendCoefficient: { type: Number, default: 1 },
+    // Работа в праздник по производственному календарю. null — «как в выходной»:
+    // так поведение существующих документов не меняется молча при выкатке.
+    holidayCoefficient: { type: Number, default: null },
+  },
+  // Производственный календарь: праздники, переносы и сокращённые дни.
+  // Снимок года лежит в отдельной коллекции (models/productionCalendar), здесь
+  // только настройки и здоровье загрузчика для строки состояния (app/HealthRow).
+  // isActive выключен — расчёт возвращается к правилу «нерабочий = Сб/Вс».
+  productionCalendar: {
+    isActive: { type: Boolean, default: true },
+    country: { type: String, default: "ru" },
+    source: {
+      type: String,
+      enum: ["xmlcalendar", "isdayoff"],
+      default: "xmlcalendar",
+    },
+    lastSyncAt: { type: Date, default: null },
+    lastError: { type: String, default: "" },
+    lastErrorAt: { type: Date, default: null },
+    // Ручные исключения организации («31 декабря у нас не работаем»).
+    // Перекрывают календарь страны. kind — те же значения, что у classifyDay.
+    overrides: [
+      {
+        _id: false,
+        date: { type: String, required: true }, // YYYY-MM-DD
+        kind: {
+          type: String,
+          enum: ["work", "short", "holiday", "weekend"],
+          required: true,
+        },
+        title: { type: String, default: "" },
+      },
+    ],
   },
   // Интеграция Mikrotik: мониторинг, конфигурации, прошивки, авто-заявки.
   // Независима от модуля «Учёт техники»; isActive — единый рубильник

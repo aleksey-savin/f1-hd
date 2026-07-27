@@ -1,7 +1,12 @@
 import { useContext } from "react";
 import { Form, NavLink } from "react-router";
 
-import { RiArrowDownSLine, RiLogoutBoxRLine, RiUserSettingsLine } from "react-icons/ri";
+import {
+  RiArrowDownSLine,
+  RiLogoutBoxRLine,
+  RiSettings3Line,
+  RiUserSettingsLine,
+} from "react-icons/ri";
 
 import {
   Collapsible,
@@ -119,13 +124,18 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
                 <CollapsibleContent className="tw:ps-4">
                   {item.groups.map((group, groupIndex) => (
                     <div
-                      key={groupIndex}
+                      key={group.label ?? groupIndex}
                       className={cn(
                         groupIndex > 0 &&
                           "tw:mt-1 tw:border-t tw:border-border-soft tw:pt-1",
                       )}
                     >
-                      {group.map((child) => (
+                      {group.label && (
+                        <div className="tw:px-3 tw:pt-2 tw:pb-1 tw:text-xs tw:font-semibold tw:tracking-wider tw:text-faint tw:uppercase">
+                          {group.label}
+                        </div>
+                      )}
+                      {group.items.map((child) => (
                         <NavLink
                           key={child.key}
                           to={child.to}
@@ -183,6 +193,12 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
             <RiUserSettingsLine size={18} aria-hidden className={iconClass} />
             Мой аккаунт
           </NavLink>
+          {isAdmin && (
+            <NavLink to="/preferences" onClick={close} className={itemClass}>
+              <RiSettings3Line size={18} aria-hidden className={iconClass} />
+              Настройки системы
+            </NavLink>
+          )}
           <Form action="/logout" method="POST">
             <button
               type="submit"

@@ -2,8 +2,6 @@ import { RiCloudLine, RiRouterLine } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";
 
-import { formatDate } from "../../util/format-date";
-
 // Канон статуса записи мониторинга: цветной текст с точкой (не заливной бейдж).
 // Ключ — rowStatus(row) из store/lists/mikrotik-devices.
 export const STATUS_META = {
@@ -80,17 +78,10 @@ export const formatDurationShort = (ms) => {
   return parts.join(" ") || "меньше минуты";
 };
 
-// «2 мин назад» / «только что» / полная дата для старого.
-export const formatAgo = (value) => {
-  if (!value) return null;
-  const diff = Date.now() - new Date(value).getTime();
-  if (diff < 90 * 1000) return "только что";
-  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)} мин назад`;
-  if (diff < 24 * 60 * 60 * 1000) {
-    return `${Math.floor(diff / 3600000)} ч назад`;
-  }
-  return formatDate(value);
-};
+// «2 мин назад» / «только что» / полная дата для старого. Переехал в
+// util/format-date (тот же формат нужен строке состояния почтовых каналов);
+// здесь остаётся реэкспортом — импорты модуля Mikrotik не трогаем.
+export { formatAgo } from "../../util/format-date";
 
 // «99,87%» (ru-запятая, tabular на месте использования).
 export const formatUptime = (pct) =>

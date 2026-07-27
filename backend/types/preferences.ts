@@ -2,13 +2,40 @@ import type { Types } from "mongoose";
 
 import type { IWorkSchedule } from "./_shared";
 
+/** Режим шифрования почтового соединения (IMAP и SMTP). */
+export type MailSecurity = "ssl" | "starttls" | "none";
+
+/**
+ * Состояние внешнего почтового канала: пишут крон сбора, отправка уведомлений
+ * и кнопка проверки в настройках; читает строка состояния секции.
+ */
+export interface IChannelHealth {
+  lastCheckedAt: Date | null;
+  lastOkAt: Date | null;
+  /** Когда канал последний раз реально сработал: забрал или отправил письмо. */
+  lastMessageAt: Date | null;
+  lastError: string;
+  lastErrorHint: string;
+  lastErrorAt: Date | null;
+  consecutiveFailures: number;
+}
+
 export interface IPreferences {
   timezone: string;
   htmlTicketDesc: boolean;
-  useEmail: boolean;
-  emailAddress: string;
-  emailPassword: string;
-  imapServer: string;
+  /** Ящик-приёмник: письма на него становятся заявками. */
+  mailbox: {
+    isActive: boolean;
+    address: string;
+    host: string;
+    port: number;
+    security: MailSecurity;
+    folder: string;
+    allowSelfSigned: boolean;
+    /** Шифртекст secretBox; наружу отдаётся маской. Логин — это address. */
+    password: string;
+    health: IChannelHealth;
+  };
   defaultApplicant?: {
     _id?: Types.ObjectId;
     firstName?: string;
@@ -30,12 +57,17 @@ export interface IPreferences {
     byEmail: {
       isActive: boolean;
       host: string;
-      isSecure: boolean;
       port: number;
+      security: MailSecurity;
+      allowSelfSigned: boolean;
+      /** "none" — внутренний релей, принимающий почту без пароля. */
+      authMethod: "password" | "none";
       user: string;
+      /** Шифртекст secretBox; наружу отдаётся маской. */
       pass: string;
       sendFromName: string;
       sendFromEmail: string;
+      health: IChannelHealth;
     };
     byTelegram: {
       isActive: boolean;

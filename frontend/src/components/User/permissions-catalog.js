@@ -46,6 +46,7 @@ export const PERMISSION_MODULES = [
       { key: "canAvoidWorks", label: "Можно не указывать работы" },
       { key: "canSeeWorksReport", label: "Отчёты по работам" },
       { key: "canSeeAnalytics", label: "Аналитика и тренды" },
+      { key: "canManageWorkSchedules", label: "Графики и отсутствия" },
     ],
   },
   {
@@ -106,6 +107,16 @@ export const ALL_PERMISSION_KEYS = PERMISSION_MODULES.flatMap((module) => [
   ...(module.master ? [module.master] : []),
   ...module.caps.map((cap) => cap.key),
 ]);
+
+/**
+ * Как ведётся рабочее время сотрудника. Отдельно от типа аккаунта: тип
+ * отвечает «кто это», а режим — «управляем ли мы его временем».
+ */
+export const WORK_TIME_MODES = [
+  { value: "scheduled", label: "По графику" },
+  { value: "free", label: "Свободный" },
+  { value: "none", label: "Не ведётся" },
+];
 
 // Тип аккаунта — один сегмент вместо трёх независимых флагов.
 export const ACCOUNT_KINDS = [

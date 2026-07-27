@@ -1,24 +1,41 @@
 import { useEffect, useState } from "react";
 
+import { RiRefreshLine } from "react-icons/ri";
+
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import SettingRow from "@/components/app/SettingRow";
+import HealthRow from "@/components/app/HealthRow";
 import { SubLabel } from "@/components/app/Panel";
 
 import Select from "../../UI/Select";
 import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
+import MailChannelFields from "./MailChannelFields";
+import { describeChannelHealth, describeCheckResult } from "./mail-health";
 
 // «Сбор заявок»: почтовый ящик-приёмник (письма становятся заявками) и
 // эвристики распознавания отправителя. Пока мастер-свитч выключен, поля
 // погашены. Инициатор по умолчанию ставится машинным заявкам; его компания
 // денормализуется в defaultCompany (инвариант «заявка без company» — см.
-// контроллеры машинных каналов).
+// контроллеры машинных каналов), и без него бэкенд не примет включённый сбор.
+//
+// Транспорт (порт, шифрование, папка, сертификат) — общий компонент
+// MailChannelFields, состояние канала — строка HealthRow: её пишет крон сбора,
+// поэтому она честна и без нажатия «Проверить».
 const PrefsTicketsCollect = ({ prefs }) => {
-  const [useEmail, setUseEmail] = useState(!!prefs.useEmail);
-  const [emailAddress, setEmailAddress] = useState(prefs.emailAddress || "");
-  const [emailPassword, setEmailPassword] = useState(prefs.emailPassword || "");
-  const [imapServer, setImapServer] = useState(prefs.imapServer || "");
+  const [mailbox, setMailbox] = useState(() => ({
+    isActive: !!prefs.mailbox?.isActive,
+    address: prefs.mailbox?.address || "",
+    host: prefs.mailbox?.host || "",
+    port: prefs.mailbox?.port ?? 993,
+    security: prefs.mailbox?.security || "ssl",
+    folder: prefs.mailbox?.folder || "INBOX",
+    allowSelfSigned: !!prefs.mailbox?.allowSelfSigned,
+    // Пароль с сервера не приходит: пустое поле означает «не менять»
+    password: "",
+  }));
   const [applicant, setApplicant] = useState(
     prefs.defaultApplicant?._id ? prefs.defaultApplicant : null,
   );
@@ -31,6 +48,43 @@ const PrefsTicketsCollect = ({ prefs }) => {
   const [checkPhoneNumber, setCheckPhoneNumber] = useState(
     !!prefs.checkPhoneNumber,
   );
+
+  const patch = (values) =>
+    setMailbox((current) => ({ ...current, ...values }));
+
+  // Проверка ящика: результат живёт до перезагрузки страницы и перекрывает
+  // сохранённое состояние — он свежее.
+  const [checking, setChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState(null);
+
+  const runCheck = async () => {
+    setChecking(true);
+    setCheckResult(null);
+    try {
+      const { token } = getLocalStorageData();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/preferences/mailbox/check`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+          body: JSON.stringify({ mailbox }),
+        },
+      );
+      if (!response.ok) throw new Error();
+      setCheckResult(await response.json());
+    } catch {
+      setCheckResult({
+        ok: false,
+        state: "Не удалось выполнить проверку",
+        hint: "Сервер приложения не ответил — попробуйте ещё раз.",
+      });
+    } finally {
+      setChecking(false);
+    }
+  };
 
   // Сервисные аккаунты для «Инициатора по умолчанию»; сохранённое значение
   // остаётся выбираемым, даже если его нет в свежем списке
@@ -51,10 +105,7 @@ const PrefsTicketsCollect = ({ prefs }) => {
 
   const buildPayload = () => {
     const payload = {
-      useEmail,
-      emailAddress,
-      emailPassword,
-      imapServer,
+      mailbox: { ...mailbox, port: Number(mailbox.port) || 993 },
       identifyCompany,
       identifyApplicant,
       checkPhoneNumber,
@@ -77,7 +128,14 @@ const PrefsTicketsCollect = ({ prefs }) => {
     return payload;
   };
 
-  const dim = useEmail ? "" : "tw:opacity-60";
+  const on = mailbox.isActive;
+  const dim = on ? "" : "tw:opacity-60";
+
+  const health = checking
+    ? { state: "busy", title: "Проверяем ящик…" }
+    : checkResult
+      ? describeCheckResult(checkResult, {})
+      : describeChannelHealth(prefs.mailbox?.health, { kind: "imap" });
 
   return (
     <SectionForm buildPayload={buildPayload}>
@@ -88,41 +146,73 @@ const PrefsTicketsCollect = ({ prefs }) => {
       >
         <Switch
           id="prefs-collect-enabled"
-          checked={useEmail}
-          onCheckedChange={setUseEmail}
+          checked={on}
+          onCheckedChange={(value) => patch({ isActive: value })}
         />
       </SettingRow>
-      <SettingRow divider title="Email" htmlFor="prefs-collect-email" className={dim}>
+
+      {on && (
+        <HealthRow
+          {...health}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={checking}
+              onClick={runCheck}
+            >
+              <RiRefreshLine className={checking ? "tw:animate-spin" : undefined} />
+              Проверить
+            </Button>
+          }
+        />
+      )}
+
+      <div className="tw:px-5 tw:pt-4">
+        <SubLabel>Почтовый ящик</SubLabel>
+      </div>
+      <SettingRow
+        title="Адрес ящика"
+        hint="Он же логин при входе на сервер."
+        htmlFor="prefs-collect-address"
+        className={dim}
+      >
         <Input
-          id="prefs-collect-email"
+          id="prefs-collect-address"
           type="text"
-          disabled={!useEmail}
-          value={emailAddress}
-          onChange={(event) => setEmailAddress(event.target.value)}
+          disabled={!on}
+          value={mailbox.address}
+          onChange={(event) => patch({ address: event.target.value })}
           className="tw:w-72 tw:max-md:w-full"
         />
       </SettingRow>
-      <SettingRow title="Пароль" htmlFor="prefs-collect-password" className={dim}>
+
+      <MailChannelFields
+        kind="imap"
+        idPrefix="prefs-collect"
+        value={mailbox}
+        onChange={patch}
+        disabled={!on}
+        passwordIsSet={!!prefs.mailbox?.passwordIsSet}
+        className={dim}
+      />
+
+      <SettingRow
+        title="Папка"
+        hint="Откуда забирать письма."
+        htmlFor="prefs-collect-folder"
+        className={dim}
+      >
         <Input
-          id="prefs-collect-password"
-          type="password"
-          disabled={!useEmail}
-          value={emailPassword}
-          onChange={(event) => setEmailPassword(event.target.value)}
-          className="tw:w-72 tw:max-md:w-full"
-          autoComplete="new-password"
-        />
-      </SettingRow>
-      <SettingRow title="IMAP-сервер" htmlFor="prefs-collect-imap" className={dim}>
-        <Input
-          id="prefs-collect-imap"
+          id="prefs-collect-folder"
           type="text"
-          disabled={!useEmail}
-          value={imapServer}
-          onChange={(event) => setImapServer(event.target.value)}
+          disabled={!on}
+          value={mailbox.folder}
+          onChange={(event) => patch({ folder: event.target.value })}
           className="tw:w-72 tw:max-md:w-full"
         />
       </SettingRow>
+
       <SettingRow
         divider
         title="Инициатор по умолчанию"

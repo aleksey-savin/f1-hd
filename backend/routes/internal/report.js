@@ -28,7 +28,7 @@ router.post(
   reportController.filterWorks,
 );
 
-router.post(
+router.get(
   "/report/analytics",
   isAuth,
   timeTrackingModuleIsActive,
@@ -37,7 +37,7 @@ router.post(
   reportController.getCompanySummary,
 );
 
-router.post(
+router.get(
   "/report/trends-analysis",
   isAuth,
   timeTrackingModuleIsActive,

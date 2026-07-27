@@ -38,7 +38,7 @@ const MobileBottomNavbar = () => {
         icon: RiBookOpenLine,
         label: "База",
       },
-    isEndUser && { to: "/closed-tickets", icon: RiArchiveLine, label: "Архив" },
+    isEndUser && { to: "/archive", icon: RiArchiveLine, label: "Архив" },
   ].filter(Boolean);
 
   const isActive = (tab) =>

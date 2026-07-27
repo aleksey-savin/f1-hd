@@ -1,11 +1,19 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 
+import { RiMailSendLine } from "react-icons/ri";
+
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import SettingRow from "@/components/app/SettingRow";
+import HealthRow from "@/components/app/HealthRow";
 import { SubLabel } from "@/components/app/Panel";
 
+import { AuthedUserContext } from "../../store/authed-user-context";
+import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
+import MailChannelFields from "./MailChannelFields";
+import { describeChannelHealth, describeCheckResult } from "./mail-health";
 
 // «Уведомления»: глобальные рубильники категорий событий, повторы при ошибке
 // отправки и каналы (SMTP, Telegram). Канал Telegram включает единую группу
@@ -24,9 +32,18 @@ const CATEGORIES = [
 ];
 
 const PrefsNotifications = ({ prefs }) => {
+  const authedUser = useContext(AuthedUserContext);
   const [notify, setNotify] = useState(() => ({
     personal: { ...(prefs.notify?.personal || {}) },
-    byEmail: { ...(prefs.notify?.byEmail || {}) },
+    // Транспорт канала общий с ящиком-приёмником, поэтому и здесь секрет зовётся
+    // password — в payload он уходит как pass (имя поля в модели не меняли:
+    // notify.byEmail читают getAuth, getInitial и telegram-bot)
+    byEmail: {
+      ...(prefs.notify?.byEmail || {}),
+      security: prefs.notify?.byEmail?.security || "ssl",
+      authMethod: prefs.notify?.byEmail?.authMethod || "password",
+      password: "",
+    },
     byTelegram: { ...(prefs.notify?.byTelegram || {}) },
   }));
   const [statusBoardOn, setStatusBoardOn] = useState(
@@ -39,13 +56,31 @@ const PrefsNotifications = ({ prefs }) => {
       [group]: { ...current[group], [key]: value },
     }));
 
+  const patchEmail = (values) =>
+    setNotify((current) => ({
+      ...current,
+      byEmail: { ...current.byEmail, ...values },
+    }));
+
+  // Перечисляем поля явно: health и флаг passIsSet принадлежат серверу и не
+  // должны уезжать обратно (иначе сохранение затрёт состояние канала).
+  const buildEmailPayload = () => ({
+    isActive: !!notify.byEmail.isActive,
+    host: notify.byEmail.host || "",
+    port: Number(notify.byEmail.port) || 465,
+    security: notify.byEmail.security || "ssl",
+    allowSelfSigned: !!notify.byEmail.allowSelfSigned,
+    authMethod: notify.byEmail.authMethod || "password",
+    user: notify.byEmail.user || "",
+    pass: notify.byEmail.password || "",
+    sendFromName: notify.byEmail.sendFromName || "",
+    sendFromEmail: notify.byEmail.sendFromEmail || "",
+  });
+
   const buildPayload = () => ({
     notify: {
       personal: notify.personal,
-      byEmail: {
-        ...notify.byEmail,
-        port: Number(notify.byEmail.port) || 465,
-      },
+      byEmail: buildEmailPayload(),
       byTelegram: {
         isActive: !!notify.byTelegram.isActive,
         sendToGroup: !!notify.byTelegram.sendToGroup,
@@ -56,10 +91,57 @@ const PrefsNotifications = ({ prefs }) => {
     statusBoard: { isActive: statusBoardOn },
   });
 
+  // Проверка канала — реальной отправкой: успешный коннект к SMTP ещё не значит,
+  // что письмо примут. Адресат — тот, кто нажал кнопку.
+  const [sending, setSending] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const testTarget = authedUser?.email;
+  const testHint = testTarget
+    ? `Тестовое письмо уйдёт на ${testTarget}`
+    : "Тестовое письмо уйдёт на адрес вашей учётной записи";
+
+  const sendTestEmail = async () => {
+    setSending(true);
+    setTestResult(null);
+    try {
+      const { token } = getLocalStorageData();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/preferences/smtp/test`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+          body: JSON.stringify({ byEmail: buildEmailPayload() }),
+        },
+      );
+      if (!response.ok) throw new Error();
+      setTestResult(await response.json());
+    } catch {
+      setTestResult({
+        ok: false,
+        state: "Не удалось выполнить проверку",
+        hint: "Сервер приложения не ответил — попробуйте ещё раз.",
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
   const emailOn = !!notify.byEmail.isActive;
   const telegramOn = !!notify.byTelegram.isActive;
   const dimEmail = emailOn ? "tw:py-3" : "tw:py-3 tw:opacity-60";
   const dimTelegram = telegramOn ? "tw:py-3" : "tw:py-3 tw:opacity-60";
+
+  const emailHealth = sending
+    ? { state: "busy", title: "Отправляем письмо…" }
+    : testResult
+      ? describeCheckResult(testResult, { hint: testHint })
+      : describeChannelHealth(prefs.notify?.byEmail?.health, {
+          kind: "smtp",
+          hint: testHint,
+        });
 
   return (
     <SectionForm buildPayload={buildPayload}>
@@ -98,67 +180,33 @@ const PrefsNotifications = ({ prefs }) => {
           onCheckedChange={(value) => patch("byEmail", "isActive", value)}
         />
       </SettingRow>
-      <SettingRow
-        title="SMTP-сервер и порт"
-        htmlFor="prefs-smtp-host"
-        className={dimEmail}
-      >
-        <div className="tw:flex tw:items-center tw:gap-2 tw:max-md:flex-col tw:max-md:items-stretch">
-          <Input
-            id="prefs-smtp-host"
-            type="text"
-            disabled={!emailOn}
-            value={notify.byEmail.host || ""}
-            onChange={(event) => patch("byEmail", "host", event.target.value)}
-            className="tw:w-56 tw:max-md:w-full"
-          />
-          <Input
-            type="number"
-            disabled={!emailOn}
-            value={notify.byEmail.port ?? 465}
-            onChange={(event) => patch("byEmail", "port", event.target.value)}
-            className="tw:w-24 tw:text-right tw:max-md:w-full"
-            aria-label="Порт SMTP-сервера"
-          />
-        </div>
-      </SettingRow>
-      <SettingRow
-        title="SSL/TLS шифрование"
-        htmlFor="prefs-smtp-secure"
-        className={dimEmail}
-      >
-        <Switch
-          id="prefs-smtp-secure"
-          disabled={!emailOn}
-          checked={!!notify.byEmail.isSecure}
-          onCheckedChange={(value) => patch("byEmail", "isSecure", value)}
+      {emailOn && (
+        <HealthRow
+          {...emailHealth}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={sending}
+              onClick={sendTestEmail}
+            >
+              <RiMailSendLine
+                className={sending ? "tw:animate-pulse" : undefined}
+              />
+              Отправить тестовое письмо
+            </Button>
+          }
         />
-      </SettingRow>
-      <SettingRow
-        title="Имя пользователя"
-        htmlFor="prefs-smtp-user"
+      )}
+      <MailChannelFields
+        kind="smtp"
+        idPrefix="prefs-smtp"
+        value={notify.byEmail}
+        onChange={patchEmail}
+        disabled={!emailOn}
+        passwordIsSet={!!prefs.notify?.byEmail?.passIsSet}
         className={dimEmail}
-      >
-        <Input
-          id="prefs-smtp-user"
-          type="text"
-          disabled={!emailOn}
-          value={notify.byEmail.user || ""}
-          onChange={(event) => patch("byEmail", "user", event.target.value)}
-          className="tw:w-72 tw:max-md:w-full"
-        />
-      </SettingRow>
-      <SettingRow title="Пароль" htmlFor="prefs-smtp-pass" className={dimEmail}>
-        <Input
-          id="prefs-smtp-pass"
-          type="password"
-          disabled={!emailOn}
-          value={notify.byEmail.pass || ""}
-          onChange={(event) => patch("byEmail", "pass", event.target.value)}
-          className="tw:w-72 tw:max-md:w-full"
-          autoComplete="new-password"
-        />
-      </SettingRow>
+      />
       <SettingRow
         title="Отправитель"
         hint="Имя и адрес в поле «От кого»."

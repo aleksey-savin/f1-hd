@@ -134,4 +134,9 @@ const workSchema = new Schema(
 // Под выборку запланированных работ по заявкам в getAllOpened
 workSchema.index({ tickets: 1, scheduled: 1, finishedAt: 1 });
 
+// Архив работ (getFinished): листинг с сортировкой по завершению и
+// выборка по компаниям
+workSchema.index({ finishedAt: -1, _id: -1 });
+workSchema.index({ company: 1, finishedAt: -1 });
+
 module.exports = mongoose.model("Work", workSchema);

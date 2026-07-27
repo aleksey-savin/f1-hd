@@ -1,4 +1,4 @@
-import { RouterProvider, createBrowserRouter } from "react-router";
+import { RouterProvider, createBrowserRouter, redirect } from "react-router";
 
 // Root
 import RootLayout from "./layout/Root.jsx";
@@ -51,9 +51,7 @@ import UpdateTicketPage, {
   loader as updateTicketLoader,
 } from "./pages/Ticket/Update.jsx";
 
-import TicketsArchive, {
-  loader as ticketsArchiveLoader,
-} from "./pages/Ticket/Archive.jsx";
+import ArchivePage, { loader as archiveLoader } from "./pages/Archive.jsx";
 
 // Companies
 import Companies, { loader as companiesLoader } from "./pages/Company/List.jsx";
@@ -330,31 +328,16 @@ import Preferences, {
 } from "./pages/Preferences.jsx";
 
 // Reports
-import WorkReport, {
-  loader as workReportLoader,
-} from "./pages/Report/WorkReport.jsx";
-
 import CompaniesNetworksReport, {
   loader as companiesNetworksLoader,
 } from "./pages/Report/CompaniesNetworksReport.jsx";
 
-import Analytics, {
-  loader as analyticsLoader,
-} from "./pages/Report/Analytics.jsx";
 
 // Finances
 import SummaryReport, {
   loader as summaryReportLoader,
   action as summaryReportAction,
 } from "./pages/Finances/SummaryReport.jsx";
-
-import PersonalReport, {
-  loader as personalFinanceReportLoader,
-} from "./pages/Finances/PersonalReport.jsx";
-
-import EmployeeReport, {
-  loader as employeeReportLoader,
-} from "./pages/Finances/EmployeeReport.jsx";
 
 // Auth
 import Authentication, {
@@ -481,9 +464,16 @@ function App() {
           ],
         },
         {
+          path: "archive",
+          element: <ArchivePage />,
+          loader: archiveLoader,
+        },
+        // Постоянный редирект со старого адреса архива (закладки и внешние
+        // ссылки); query переносится (?view=works и будущие параметры)
+        {
           path: "closed-tickets",
-          element: <TicketsArchive />,
-          loader: ticketsArchiveLoader,
+          loader: ({ request }) =>
+            redirect(`/archive${new URL(request.url).search}`),
         },
         // Knowledge Base
         {
@@ -1036,10 +1026,11 @@ function App() {
           children: [{ path: "update", element: <MikrotikDeviceForm /> }],
         },
         // Reports
+        // Легаси-отчёт по работам влился в «Архив» (сегмент «Работы») —
+        // постоянный редирект, закладки сотрудников не ломаются
         {
           path: "report/work",
-          element: <WorkReport />,
-          loader: workReportLoader,
+          loader: () => redirect("/archive?view=works"),
         },
         {
           path: "report/networks",
@@ -1047,10 +1038,34 @@ function App() {
           loader: companiesNetworksLoader,
         },
         {
+          // Первый lazy-роут: recharts и логика отчёта уезжают в свой чанк и
+          // не грузятся тем, кто аналитику не открывает (протухший после
+          // деплоя чанк перезагружает vite:preloadError в main.jsx).
+          // Расширение в импорте обязательно, пока рядом живёт легаси
+          // Analytics.jsx (удаляется после живой проверки) — без него Vite
+          // зарезолвил бы .jsx раньше .tsx.
           path: "report/analytics",
-          element: <Analytics />,
-          loader: analyticsLoader,
+          lazy: async () => {
+            const analyticsModule = await import("./pages/Report/Analytics.tsx");
+            return {
+              Component: analyticsModule.default,
+              loader: analyticsModule.loader,
+            };
+          },
         },
+        {
+          // Календарь команды: месячная сетка на всех сотрудников — свой чанк
+          path: "team/calendar",
+          lazy: async () => {
+            const calendarModule = await import("./pages/Team/Calendar.tsx");
+            return {
+              Component: calendarModule.default,
+              loader: calendarModule.loader,
+            };
+          },
+        },
+        // Прежний адрес — закладки не ломаем
+        { path: "team/schedule", loader: () => redirect("/team/calendar") },
         // Finances
         {
           path: "finances/summary-report",
@@ -1058,15 +1073,58 @@ function App() {
           loader: summaryReportLoader,
           action: summaryReportAction,
         },
+        // «Сотрудники»: сводная по всем + отчёт выбранного сотрудника;
+        // «Мой отчёт» — та же страница без выбора сотрудника (own).
+        // Ленивые чанки: recharts грузится только тем, кто открыл отчёт.
+        {
+          path: "finances/employees",
+          lazy: async () => {
+            const employeesModule = await import(
+              "./pages/Finances/EmployeesReport.tsx"
+            );
+            return {
+              Component: employeesModule.default,
+              loader: employeesModule.loader,
+            };
+          },
+        },
+        {
+          path: "finances/employees/:userId",
+          lazy: async () => {
+            const personalModule = await import(
+              "./pages/Finances/PersonalReportPage.tsx"
+            );
+            return {
+              Component: personalModule.default,
+              loader: personalModule.loader,
+            };
+          },
+        },
+        {
+          path: "finances/my-report",
+          lazy: async () => {
+            const personalModule = await import(
+              "./pages/Finances/PersonalReportPage.tsx"
+            );
+            return {
+              Component: () => <personalModule.default own />,
+              loader: personalModule.ownLoader,
+            };
+          },
+        },
+        // Прежние адреса финансовых отчётов — закладки не ломаем
         {
           path: "finances/personal-report",
-          element: <PersonalReport />,
-          loader: personalFinanceReportLoader,
+          loader: ({ request }) => {
+            const userId = new URL(request.url).searchParams.get("userId");
+            return redirect(
+              userId ? `/finances/employees/${userId}` : "/finances/my-report",
+            );
+          },
         },
         {
           path: "finances/employee-report",
-          element: <EmployeeReport />,
-          loader: employeeReportLoader,
+          loader: () => redirect("/finances/employees"),
         },
         // Preferences
         {

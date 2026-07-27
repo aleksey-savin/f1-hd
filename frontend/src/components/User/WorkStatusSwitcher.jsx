@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { WORK_STATUSES } from "../../util/work-statuses";
+import { selectableStatuses } from "../../util/work-statuses";
 
 // Секция «Мой статус» внутри меню пользователя (PopoverContent навбара —
 // НЕ radix-DropdownMenu: его typeahead/фокус-ловушка ломают инпут заметки).
@@ -16,7 +16,11 @@ import { WORK_STATUSES } from "../../util/work-statuses";
 // вручную revalidate() не зовём (гонка «Did not find corresponding fetcher
 // result»). Выбор нового статуса очищает заметку: она описывала предыдущий.
 const WorkStatusSwitcher = () => {
-  const { workStatus } = useContext(AuthedUserContext);
+  const authedUser = useContext(AuthedUserContext);
+  const { workStatus } = authedUser;
+  // Отпуск, больничный и «не на работе» ставит автоматика — их тут просто нет.
+  // Полагаться на 403 нельзя: action «Мой аккаунт» намеренно глотает ошибки.
+  const statuses = selectableStatuses(authedUser);
   const fetcher = useFetcher();
 
   const currentCode = workStatus?.code || "unset";
@@ -41,7 +45,7 @@ const WorkStatusSwitcher = () => {
       <div className="tw:px-2.5 tw:pt-1.5 tw:pb-1 tw:text-xs tw:font-semibold tw:tracking-wider tw:text-faint tw:uppercase">
         Мой статус
       </div>
-      {WORK_STATUSES.map((status) => (
+      {statuses.map((status) => (
         <button
           key={status.code}
           type="button"

@@ -140,9 +140,6 @@ const WorkStatusBar = ({ variant = "rail" }) => {
     const value = user.workStatus?.updatedAt;
     return value && (!latest || value > latest) ? value : latest;
   }, null);
-  const longLivedEmojis = WORK_STATUSES.filter((status) => status.longLived)
-    .map((status) => status.emoji)
-    .join(" и ");
 
   const toggle = () => {
     setOpen((prev) => {
@@ -339,8 +336,10 @@ const WorkStatusBar = ({ variant = "rail" }) => {
 
       {open && lastUpdatedAt && (
         <div className="tw:flex-none tw:truncate tw:border-t tw:border-border-soft tw:px-4 tw:py-2 tw:text-xs tw:whitespace-nowrap tw:text-muted-foreground tw:tabular-nums">
-          Обновлено {sinceLabel(lastUpdatedAt).replace(/^с /, "в ")} · ночной
-          сброс, кроме {longLivedEmojis}
+          {/* Про ночной сброс писать больше нельзя: днём статусы ведёт
+              автоматика по графику (services/workStatusAuto) */}
+          Обновлено {sinceLabel(lastUpdatedAt).replace(/^с /, "в ")} · статусы
+          меняются по графику
         </div>
       )}
     </aside>

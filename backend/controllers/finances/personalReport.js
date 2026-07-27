@@ -49,7 +49,9 @@ exports.getSummary = async (req, res, next) => {
     }
 
     const targetUser = await User.findById(targetUserId)
-      .select("_id firstName lastName position finances")
+      .select(
+        "_id firstName lastName position finances timezone workSchedule followProductionCalendar",
+      )
       .lean();
     if (!targetUser) {
       return next(new AppError("Сотрудник не найден", 404));

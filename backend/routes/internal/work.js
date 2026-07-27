@@ -3,6 +3,23 @@ const router = new Router();
 const workController = require("@/controllers/work");
 const isAuth = require("@/middleware/isAuth");
 
+const {
+  timeTrackingModuleIsActive,
+  canUseTimeTrackingModule,
+  canSeeWorksReport,
+} = require("@/middleware/permissions");
+
+// Архив работ (сегмент «Работы» страницы «Архив») — гейты прежнего
+// отчёта по работам
+router.get(
+  "/works",
+  isAuth,
+  timeTrackingModuleIsActive,
+  canUseTimeTrackingModule,
+  canSeeWorksReport,
+  workController.getFinished,
+);
+
 router.get(
   "/works/additional-data/:ticketNum",
   isAuth,

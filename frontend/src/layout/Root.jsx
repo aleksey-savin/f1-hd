@@ -261,13 +261,20 @@ const RootLayout = () => {
                     { path: "/my-account", maxWidth: 944 },
                     // Архив заявок: список ListWrapper (max-w-7xl), вложенных
                     // маршрутов нет
-                    { path: "/closed-tickets", maxWidth: 1328, exact: true },
+                    { path: "/archive", maxWidth: 1328, exact: true },
                     // Мониторинг Mikrotik: страница записи (max-w-5xl,
                     // «records») матчится раньше списка (max-w-7xl)
                     { path: "/devices/mikrotik/records", maxWidth: 1072 },
                     { path: "/devices/mikrotik", maxWidth: 1328 },
                     // Настройки системы: рейл + секции, как «Мой аккаунт»
                     { path: "/preferences", maxWidth: 944 },
+                    // Аналитика: каркас отчёта tw:max-w-7xl (1280) + 2×24
+                    { path: "/report/analytics", maxWidth: 1328 },
+                    // Отчёты по сотрудникам — тот же каркас
+                    { path: "/finances/employees", maxWidth: 1328 },
+                    { path: "/finances/my-report", maxWidth: 1328 },
+                    // Календарь команды — тот же каркас, что у отчётов
+                    { path: "/team/calendar", maxWidth: 1328 },
                   ];
                   // Страница ошибок живёт на канве при любом pathname —
                   // ширина как у карточки (944)

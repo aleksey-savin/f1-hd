@@ -1,10 +1,26 @@
 const Work = require("@/models/work");
 const { Ticket } = require("@/models/ticket");
-const ServicePlan = require("@/models/finances/servicePlan");
-const TicketCategory = require("@/models/ticketCategory");
 
-const { DEFAULT_OVERTIME_SETTINGS } = require("@/utils/overtimeDefaults");
 const { resolveTimezone } = require("@/utils/datetime");
+const {
+  MS_PER_MINUTE,
+  classifyWork,
+  splitIntoDaySegments,
+  toMinutes,
+  workDurationMs,
+} = require("@/services/workSummary");
+const {
+  buildOvertimeContext,
+  buildPayroll,
+  emptyOvertime,
+  isExcludedFromOvertime,
+  overtimeForWork,
+  resolveOvertimeSettings,
+} = require("@/services/workOvertime");
+const {
+  buildScheduleContext,
+  makePlanner,
+} = require("@/services/workCalendar");
 
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
@@ -12,208 +28,7 @@ const timezone = require("dayjs/plugin/timezone");
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const MS_PER_MINUTE = 60 * 1000;
 const MS_PER_DAY = 24 * 60 * MS_PER_MINUTE;
-
-// Monday-first, как daysOfWeek в frontend/src/util/finances.js
-const DAYS_OF_WEEK = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
-
-const dayNameOf = (day) => DAYS_OF_WEEK[(day.day() + 6) % 7];
-
-const toMinutes = (ms) => Math.round(ms / MS_PER_MINUTE);
-
-const roundUpMs = (ms, stepMinutes) =>
-  Math.ceil(ms / (stepMinutes * MS_PER_MINUTE)) * (stepMinutes * MS_PER_MINUTE);
-
-// "HH:mm" → минуты от полуночи; null для пустых/битых значений
-const parseTimeOfDay = (value) => {
-  if (typeof value !== "string" || !value.includes(":")) {
-    return null;
-  }
-  const [hours, minutes] = value.split(":").map(Number);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-    return null;
-  }
-  return hours * 60 + minutes;
-};
-
-const emptyOvertime = () => ({ actualMs: 0, roundedMs: 0, days: [] });
-
-/**
- * Порт calcSingleWorkOvertime из frontend/src/util/finances.js — семантика 1:1
- * со сводным финансовым отчётом, но границы суток в поясе организации:
- * рабочий день графика — переработка = время до start + после end; нерабочий
- * день — весь кусок работы; каждый кусок округляется вверх до периода
- * тарификации. is24hours (или пустые start/end — Schedule очищает их для
- * 24-часовых дней) → переработки в этот день нет, как и на клиенте.
- */
-const calcWorkOvertime = (work, schedule, tariffingPeriodMinutes, tz) => {
-  const result = emptyOvertime();
-
-  const startedAt = dayjs(work.startedAt).tz(tz);
-  const finishedAt = dayjs(work.finishedAt).tz(tz);
-
-  if (startedAt.valueOf() === finishedAt.valueOf() || work.withinPlan) {
-    return result;
-  }
-
-  let currentDay = startedAt.startOf("day");
-  const lastDay = finishedAt.startOf("day");
-
-  while (currentDay.valueOf() <= lastDay.valueOf()) {
-    const segStart = Math.max(currentDay.valueOf(), startedAt.valueOf());
-    const segEnd = Math.min(currentDay.endOf("day").valueOf(), finishedAt.valueOf());
-
-    const daySchedule = schedule?.[dayNameOf(currentDay)];
-    const isWorkingDay = Boolean(daySchedule && daySchedule.isWorking);
-
-    let dayActualMs = 0;
-    let dayRoundedMs = 0;
-
-    if (isWorkingDay) {
-      const startMinutes = parseTimeOfDay(daySchedule.start);
-      const endMinutes = parseTimeOfDay(daySchedule.end);
-      if (!daySchedule.is24hours && startMinutes !== null && endMinutes !== null) {
-        const workStart = currentDay.valueOf() + startMinutes * MS_PER_MINUTE;
-        const workEnd = currentDay.valueOf() + endMinutes * MS_PER_MINUTE;
-
-        // до начала рабочего дня
-        if (segStart < workStart) {
-          const chunk = Math.min(workStart - segStart, segEnd - segStart);
-          dayActualMs += chunk;
-          dayRoundedMs += roundUpMs(chunk, tariffingPeriodMinutes);
-        }
-        // после окончания рабочего дня
-        if (segEnd > workEnd) {
-          const chunk = segEnd - Math.max(workEnd, segStart);
-          dayActualMs += chunk;
-          dayRoundedMs += roundUpMs(chunk, tariffingPeriodMinutes);
-        }
-      }
-    } else {
-      const chunk = segEnd - segStart;
-      dayActualMs += chunk;
-      dayRoundedMs += roundUpMs(chunk, tariffingPeriodMinutes);
-    }
-
-    if (dayActualMs > 0) {
-      result.days.push({
-        date: currentDay.format("YYYY-MM-DD"),
-        bucket: isWorkingDay ? "weekday" : "weekend",
-        actualMinutes: toMinutes(dayActualMs),
-        roundedMinutes: toMinutes(dayRoundedMs),
-      });
-      result.actualMs += dayActualMs;
-      result.roundedMs += dayRoundedMs;
-    }
-
-    currentDay = currentDay.add(1, "day");
-  }
-
-  return result;
-};
-
-// Интервал работы → куски по локальным суткам (для byDay и календаря)
-const splitIntoDaySegments = (startedAt, finishedAt, tz) => {
-  const segments = [];
-  const start = dayjs(startedAt).tz(tz);
-  const finish = dayjs(finishedAt).tz(tz);
-
-  let currentDay = start.startOf("day");
-  const lastDay = finish.startOf("day");
-
-  while (currentDay.valueOf() <= lastDay.valueOf()) {
-    const segStart = Math.max(currentDay.valueOf(), start.valueOf());
-    const segEnd = Math.min(currentDay.endOf("day").valueOf(), finish.valueOf());
-    if (segEnd > segStart) {
-      segments.push({ date: currentDay.format("YYYY-MM-DD"), ms: segEnd - segStart });
-    }
-    currentDay = currentDay.add(1, "day");
-  }
-
-  return segments;
-};
-
-/**
- * График и период тарификации для работы — как в сводном отчёте (PreviewTable):
- * первый тариф компании, чьи ticketCategories содержат категорию заявки работы;
- * график тарифа или компании по флагу companyWorkSchedule. Работам вне тарифов
- * (и при отсутствующем графике компании) — резервные значения из настроек.
- */
-const resolveWorkSchedule = (work, plansByCompany, overtimeSettings) => {
-  const companyId = work.company?._id?.toString();
-  const plans = (companyId && plansByCompany.get(companyId)) || [];
-  const ticketCategoryIds = (work.tickets || [])
-    .map((ticket) => ticket.categoryId?.toString())
-    .filter(Boolean);
-
-  const plan = plans.find((candidate) =>
-    (candidate.ticketCategories || []).some((category) =>
-      ticketCategoryIds.includes(category._id?.toString()),
-    ),
-  );
-
-  const tariffingPeriodMinutes = plan
-    ? (plan.tariffingPeriod ??
-      plan.tariffing?.period ??
-      overtimeSettings.defaultTariffingPeriodMinutes)
-    : overtimeSettings.defaultTariffingPeriodMinutes;
-
-  if (plan) {
-    const schedule = plan.companyWorkSchedule
-      ? work.company?.workSchedule
-      : plan.customProvisionSchedule;
-    if (schedule) {
-      return {
-        schedule,
-        tariffingPeriodMinutes,
-        scheduleSource: plan.companyWorkSchedule ? "company" : "plan",
-        planTitle: plan.title ?? null,
-      };
-    }
-  }
-
-  return {
-    schedule: overtimeSettings.defaultSchedule,
-    tariffingPeriodMinutes,
-    scheduleSource: "fallback",
-    planTitle: plan?.title ?? null,
-  };
-};
-
-// Норма часов периода по резервному графику (информационно, для utilization)
-const calcNormMinutes = (fromDay, toDay, schedule) => {
-  let normMinutes = 0;
-  let workingDaysCount = 0;
-
-  let day = fromDay.startOf("day");
-  while (day.valueOf() <= toDay.valueOf()) {
-    const daySchedule = schedule?.[dayNameOf(day)];
-    if (daySchedule?.isWorking) {
-      workingDaysCount += 1;
-      if (daySchedule.is24hours) {
-        normMinutes += 24 * 60;
-      } else {
-        const start = parseTimeOfDay(daySchedule.start);
-        const end = parseTimeOfDay(daySchedule.end);
-        if (start !== null && end !== null && end > start) {
-          normMinutes += end - start;
-        }
-      }
-    }
-    day = day.add(1, "day");
-  }
-
-  return { normMinutes, workingDaysCount };
-};
 
 // Суммарное пересечение интервалов работ (информационно: задвоенное время)
 const calcOverlapMinutes = (works) => {
@@ -233,46 +48,79 @@ const calcOverlapMinutes = (works) => {
   return toMinutes(overlapMs);
 };
 
-const buildPayroll = (user, overtimeTotals, overtimeSettings, isFullMonth) => {
-  const salary = user?.finances?.salary ?? null;
-  const rate = user?.finances?.overtimeHourlyRate ?? null;
+/**
+ * Помесячная динамика сотрудника: 12 месяцев, заканчивая месяцем конца
+ * периода. Отвечает на вопрос «как менялась моя загрузка за год» — внутри
+ * периода это не видно. Одна выборка на весь год + группировка; переработки
+ * считаются тем же алгоритмом, что и в основной части отчёта.
+ */
+const buildMonthlyTrend = async ({
+  userId,
+  anchorDay,
+  tz,
+  overtimeSettings,
+  user,
+  preferences,
+}) => {
+  const lastMonth = anchorDay.startOf("month");
+  const firstMonth = lastMonth.subtract(11, "month");
 
-  const payFor = (minutes, coefficient) =>
-    rate == null ? null : Math.round((minutes / 60) * rate * coefficient);
-
-  const weekdayPay = payFor(
-    overtimeTotals.weekdayMinutes,
-    overtimeSettings.weekdayCoefficient,
-  );
-  const weekendPay = payFor(
-    overtimeTotals.weekendMinutes,
-    overtimeSettings.weekendCoefficient,
-  );
-  const overtimePay = rate == null ? null : weekdayPay + weekendPay;
-
-  return {
-    salary,
-    overtimeHourlyRate: rate,
-    weekday: {
-      minutes: overtimeTotals.weekdayMinutes,
-      coefficient: overtimeSettings.weekdayCoefficient,
-      pay: weekdayPay,
+  const works = await Work.find({
+    "finishedBy._id": userId,
+    finishedAt: {
+      $gte: firstMonth.toDate(),
+      $lte: lastMonth.endOf("month").toDate(),
     },
-    weekend: {
-      minutes: overtimeTotals.weekendMinutes,
-      coefficient: overtimeSettings.weekendCoefficient,
-      pay: weekendPay,
-    },
-    overtimePay,
-    // Итог с окладом имеет смысл только для полного календарного месяца —
-    // оклад пропорционально не делим
-    estimatedTotal:
-      isFullMonth && salary != null && overtimePay != null
-        ? salary + overtimePay
-        : null,
-    isFullMonth,
-    missing: { salary: salary == null, overtimeHourlyRate: rate == null },
-  };
+  })
+    .populate("company", "alias workSchedule servicePlans")
+    .populate({ path: "tickets", select: "categoryId" })
+    .lean();
+
+  const { plansByCompany, categoriesById } = await buildOvertimeContext(works);
+
+  // Планировщик на все 12 месяцев тренда: календарь и отсутствия за тот же срок
+  const trendContext = await buildScheduleContext({
+    fromKey: firstMonth.format("YYYY-MM-DD"),
+    toKey: lastMonth.endOf("month").format("YYYY-MM-DD"),
+    userIds: [userId],
+    preferences,
+  });
+  const planner = makePlanner(user, trendContext, overtimeSettings);
+
+  const months = new Map();
+  for (let cursor = firstMonth; cursor.valueOf() <= lastMonth.valueOf(); cursor = cursor.add(1, "month")) {
+    months.set(cursor.format("YYYY-MM"), {
+      month: cursor.format("YYYY-MM"),
+      minutes: 0,
+      overtimeMinutes: 0,
+      worksCount: 0,
+    });
+  }
+
+  for (const work of works) {
+    const entry = months.get(dayjs(work.finishedAt).tz(tz).format("YYYY-MM"));
+    if (!entry) {
+      continue;
+    }
+    entry.worksCount += 1;
+    entry.minutes += toMinutes(workDurationMs(work));
+
+    if (
+      !isExcludedFromOvertime(work, categoriesById) &&
+      work.startedAt &&
+      work.finishedAt
+    ) {
+      const { overtime } = overtimeForWork(work, {
+        planner,
+        plansByCompany,
+        overtimeSettings,
+        orgTz: tz,
+      });
+      entry.overtimeMinutes += toMinutes(overtime.roundedMs);
+    }
+  }
+
+  return [...months.values()];
 };
 
 /**
@@ -290,18 +138,7 @@ const buildPersonalReport = async ({
   includeDetails = true,
 }) => {
   const tz = resolveTimezone(preferences);
-
-  const prefOvertime = preferences?.overtime || {};
-  const overtimeSettings = { ...DEFAULT_OVERTIME_SETTINGS };
-  for (const [key, value] of Object.entries(prefOvertime)) {
-    if (value !== undefined && value !== null) {
-      overtimeSettings[key] = value;
-    }
-  }
-  // Битый/пустой резервный график непредсказуемо пометил бы все дни нерабочими
-  if (!overtimeSettings.defaultSchedule?.Monday) {
-    overtimeSettings.defaultSchedule = DEFAULT_OVERTIME_SETTINGS.defaultSchedule;
-  }
+  const overtimeSettings = resolveOvertimeSettings(preferences);
 
   const fromDay = dayjs.tz(from, tz).startOf("day");
   const toDay = dayjs.tz(to, tz).endOf("day");
@@ -315,7 +152,13 @@ const buildPersonalReport = async ({
       finishedAt: { $gte: fromDay.toDate(), $lte: toDay.toDate() },
     })
       .populate("company", "alias fullTitle workSchedule servicePlans")
-      .populate({ path: "tickets", select: "num title categoryId" })
+      // routineTask (с existence-check вложенным populate) — для классификации
+      // работ на выезд / удалённо / регламент общим правилом ядра
+      .populate({
+        path: "tickets",
+        select: "num title categoryId routineTask",
+        populate: { path: "routineTask", select: "_id" },
+      })
       .sort({ startedAt: 1 })
       .lean(),
     Ticket.countDocuments({
@@ -324,65 +167,38 @@ const buildPersonalReport = async ({
     }),
   ]);
 
-  // Тарифы задействованных компаний — одним запросом
-  const planIds = new Set();
-  for (const work of works) {
-    for (const planRef of work.company?.servicePlans || []) {
-      if (planRef._id) {
-        planIds.add(planRef._id.toString());
-      }
-    }
-  }
-  const plans = planIds.size
-    ? await ServicePlan.find({ _id: { $in: [...planIds] } })
-        .select(
-          "title ticketCategories companyWorkSchedule customProvisionSchedule tariffingPeriod tariffing",
-        )
-        .lean()
-    : [];
-  const plansById = new Map(plans.map((plan) => [plan._id.toString(), plan]));
-  const plansByCompany = new Map();
-  for (const work of works) {
-    const companyId = work.company?._id?.toString();
-    if (!companyId || plansByCompany.has(companyId)) {
-      continue;
-    }
-    plansByCompany.set(
-      companyId,
-      (work.company.servicePlans || [])
-        .map((planRef) => (planRef._id ? plansById.get(planRef._id.toString()) : null))
-        .filter(Boolean),
-    );
-  }
+  // Календарь периода + отсутствия сотрудника: один запрос на весь отчёт
+  const fromKey = fromDay.format("YYYY-MM-DD");
+  const toKey = toDay.format("YYYY-MM-DD");
+  const scheduleContext = await buildScheduleContext({
+    fromKey,
+    toKey,
+    userIds: [userId],
+    preferences,
+  });
+  const planner = makePlanner(user, scheduleContext, overtimeSettings);
 
-  // Флаги alwaysWithinPlan категорий заявок — одним запросом
-  const categoryIds = new Set();
-  for (const work of works) {
-    for (const ticket of work.tickets || []) {
-      if (ticket.categoryId) {
-        categoryIds.add(ticket.categoryId.toString());
-      }
-    }
-  }
-  const categories = categoryIds.size
-    ? await TicketCategory.find({ _id: { $in: [...categoryIds] } })
-        .select("alwaysWithinPlan")
-        .lean()
-    : [];
-  const categoriesById = new Map(
-    categories.map((category) => [category._id.toString(), category]),
-  );
+  // Тарифы компаний и флаги alwaysWithinPlan категорий — общим контекстом
+  const { plansByCompany, categoriesById } = await buildOvertimeContext(works);
 
   // Каркас byDay — по записи на каждый день периода (непрерывная ось)
   const byDayMap = new Map();
   let cursor = fromDay.startOf("day");
   while (cursor.valueOf() <= toDay.valueOf()) {
-    byDayMap.set(cursor.format("YYYY-MM-DD"), {
-      date: cursor.format("YYYY-MM-DD"),
+    const dateKey = cursor.format("YYYY-MM-DD");
+    // План дня едет вместе с фактом: месячная сетка отчёта красит праздники и
+    // отсутствия сама, не пересчитывая календарь на клиенте
+    const plan = planner.dayPlan(dateKey);
+    byDayMap.set(dateKey, {
+      date: dateKey,
       minutes: 0,
       overtimeMinutes: 0,
       worksCount: 0,
       onSiteCount: 0,
+      kind: plan.kind,
+      normMinutes: plan.minutes,
+      holidayTitle: plan.holidayTitle,
+      absenceType: plan.absence?.type ?? null,
     });
     cursor = cursor.add(1, "day");
   }
@@ -390,8 +206,11 @@ const buildPersonalReport = async ({
   const totals = {
     worksCount: works.length,
     totalMinutes: 0,
+    // Классы работ — правилом ядра: регламент отдельно от выездов и удалёнки
+    // (раньше регламентные растворялись в них по visitRequired)
     onSite: { count: 0, minutes: 0 },
     remote: { count: 0, minutes: 0 },
+    routineTask: { count: 0, minutes: 0 },
     ticketsFinished,
     byStatus: {},
     overtime: {
@@ -399,11 +218,15 @@ const buildPersonalReport = async ({
       roundedMinutes: 0,
       weekdayMinutes: 0,
       weekendMinutes: 0,
+      holidayMinutes: 0,
       daysWithOvertime: 0,
-      byScheduleSource: { plan: 0, company: 0, fallback: 0 },
+      // "user" — переработка мерялась по личному графику сотрудника в его
+      // поясе; остальные три — прежний путь по окну обслуживания клиента
+      byScheduleSource: { user: 0, plan: 0, company: 0, fallback: 0 },
     },
   };
   const byCompanyMap = new Map();
+  const byCategoryMap = new Map();
   const overtimeDates = new Set();
   const validWorks = [];
   const workDetails = [];
@@ -419,23 +242,21 @@ const buildPersonalReport = async ({
     }
 
     const isValid = issues.length === 0;
-    const durationMs = isValid
-      ? new Date(work.finishedAt).getTime() - new Date(work.startedAt).getTime()
-      : 0;
+    const durationMs = isValid ? workDurationMs(work) : 0;
     if (isValid && durationMs > MS_PER_DAY) {
       issues.push("over24h");
     }
     const durationMinutes = toMinutes(durationMs);
 
-    const resolved = resolveWorkSchedule(work, plansByCompany, overtimeSettings);
-    const firstCategory = categoriesById.get(
-      work.tickets?.[0]?.categoryId?.toString(),
-    );
-    const excludedFromOvertime = Boolean(firstCategory?.alwaysWithinPlan);
+    const excludedFromOvertime = isExcludedFromOvertime(work, categoriesById);
+    const resolved = overtimeForWork(work, {
+      planner,
+      plansByCompany,
+      overtimeSettings,
+      orgTz: tz,
+    });
     const overtime =
-      isValid && !excludedFromOvertime
-        ? calcWorkOvertime(work, resolved.schedule, resolved.tariffingPeriodMinutes, tz)
-        : emptyOvertime();
+      isValid && !excludedFromOvertime ? resolved.overtime : emptyOvertime();
 
     if (!isValid) {
       excludedWorks += 1;
@@ -443,9 +264,23 @@ const buildPersonalReport = async ({
       validWorks.push(work);
 
       totals.totalMinutes += durationMinutes;
-      const visitBucket = work.visitRequired ? totals.onSite : totals.remote;
-      visitBucket.count += 1;
-      visitBucket.minutes += durationMinutes;
+      const classKey = classifyWork(work);
+      totals[classKey].count += 1;
+      totals[classKey].minutes += durationMinutes;
+
+      const categoryId = work.tickets?.[0]?.categoryId?.toString();
+      const categoryKey = categoryId || "none";
+      if (!byCategoryMap.has(categoryKey)) {
+        byCategoryMap.set(categoryKey, {
+          _id: categoryId ?? null,
+          title: categoriesById.get(categoryId)?.title || "Без категории",
+          minutes: 0,
+          worksCount: 0,
+        });
+      }
+      const categoryEntry = byCategoryMap.get(categoryKey);
+      categoryEntry.minutes += durationMinutes;
+      categoryEntry.worksCount += 1;
 
       const statusKey = work.finances?.status || "none";
       if (!totals.byStatus[statusKey]) {
@@ -476,7 +311,9 @@ const buildPersonalReport = async ({
       totals.overtime.actualMinutes += toMinutes(overtime.actualMs);
       totals.overtime.roundedMinutes += toMinutes(overtime.roundedMs);
       for (const day of overtime.days) {
-        if (day.bucket === "weekend") {
+        if (day.bucket === "holiday") {
+          totals.overtime.holidayMinutes += day.roundedMinutes;
+        } else if (day.bucket === "weekend") {
           totals.overtime.weekendMinutes += day.roundedMinutes;
         } else {
           totals.overtime.weekdayMinutes += day.roundedMinutes;
@@ -518,6 +355,7 @@ const buildPersonalReport = async ({
         finishedAt: work.finishedAt,
         durationMinutes,
         visitRequired: Boolean(work.visitRequired),
+        workClass: classifyWork(work),
         withinPlan: Boolean(work.withinPlan),
         alwaysWithinPlan: excludedFromOvertime,
         financesStatus: work.finances?.status || null,
@@ -544,46 +382,65 @@ const buildPersonalReport = async ({
 
   totals.overtime.daysWithOvertime = overtimeDates.size;
 
-  const { normMinutes, workingDaysCount } = calcNormMinutes(
-    fromDay,
-    toDay,
-    overtimeSettings.defaultSchedule,
-  );
-  totals.normMinutes = normMinutes;
-  totals.workingDaysCount = workingDaysCount;
+  // Норма периода — по личному графику сотрудника с производственным
+  // календарём и минус подтверждённые отсутствия (services/workCalendar).
+  // Раньше это был «резервный график × календарные дни» без праздников.
+  const period = planner.periodPlan(fromKey, toKey);
+  totals.normMinutes = period.normMinutes;
+  totals.normMinutesBeforeAbsences = period.normMinutesBeforeAbsences;
+  totals.workingDaysCount = period.workingDays;
+  totals.absenceDays = period.absenceDays;
   totals.utilizationPercent =
-    normMinutes > 0 ? Math.round((totals.totalMinutes / normMinutes) * 100) : null;
+    period.normMinutes > 0
+      ? Math.round((totals.totalMinutes / period.normMinutes) * 100)
+      : null;
+
+  const withShare = (entry) => ({
+    ...entry,
+    sharePercent:
+      totals.totalMinutes > 0
+        ? Math.round((entry.minutes / totals.totalMinutes) * 1000) / 10
+        : 0,
+  });
 
   const byCompany = [...byCompanyMap.values()]
     .sort((a, b) => b.minutes - a.minutes)
-    .map((entry) => ({
-      ...entry,
-      sharePercent:
-        totals.totalMinutes > 0
-          ? Math.round((entry.minutes / totals.totalMinutes) * 1000) / 10
-          : 0,
-    }));
+    .map(withShare);
+
+  const byCategory = [...byCategoryMap.values()]
+    .sort((a, b) => b.minutes - a.minutes)
+    .map(withShare);
 
   const payroll = buildPayroll(user, totals.overtime, overtimeSettings, isFullMonth);
 
   const report = {
     period: {
-      from: fromDay.format("YYYY-MM-DD"),
-      to: toDay.format("YYYY-MM-DD"),
+      from: fromKey,
+      to: toKey,
       days: periodDays,
       isFullMonth,
-      timezone: tz,
+      // Пояс, в котором резались сутки: личный сотрудника, если задан
+      timezone: planner.tz,
+      organizationTimezone: tz,
+    },
+    schedule: {
+      source: planner.scheduleSource,
+      hasPersonalSchedule: planner.hasPersonalSchedule,
+      followsProductionCalendar: planner.followsCalendar,
+      week: planner.schedule,
     },
     settings: {
       defaultSchedule: overtimeSettings.defaultSchedule,
       defaultTariffingPeriodMinutes: overtimeSettings.defaultTariffingPeriodMinutes,
       weekdayCoefficient: overtimeSettings.weekdayCoefficient,
       weekendCoefficient: overtimeSettings.weekendCoefficient,
+      holidayCoefficient: overtimeSettings.holidayCoefficient,
     },
     totals,
     payroll,
     byDay: [...byDayMap.values()],
     byCompany,
+    byCategory,
     warnings: {
       excludedWorks,
       overlapMinutes: calcOverlapMinutes(validWorks),
@@ -593,6 +450,14 @@ const buildPersonalReport = async ({
 
   if (includeDetails) {
     report.works = workDetails;
+    report.byMonth = await buildMonthlyTrend({
+      userId,
+      anchorDay: toDay,
+      tz,
+      overtimeSettings,
+      user,
+      preferences,
+    });
 
     // Предыдущий период той же длины — для дельт на KPI-картах
     const prevFrom = fromDay.subtract(periodDays, "day").format("YYYY-MM-DD");
@@ -615,10 +480,4 @@ const buildPersonalReport = async ({
   return report;
 };
 
-module.exports = {
-  buildPersonalReport,
-  // экспорт для точечных проверок/переиспользования
-  calcWorkOvertime,
-  resolveWorkSchedule,
-  splitIntoDaySegments,
-};
+module.exports = { buildPersonalReport };

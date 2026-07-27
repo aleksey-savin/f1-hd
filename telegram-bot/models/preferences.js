@@ -2,13 +2,37 @@ const mongoose = require("mongoose");
 
 const Schema = mongoose.Schema;
 
+// Копия контракта из backend/models/preferences.js — менять синхронно.
+const channelHealth = () => ({
+  lastCheckedAt: { type: Date, default: null },
+  lastOkAt: { type: Date, default: null },
+  lastMessageAt: { type: Date, default: null },
+  lastError: { type: String, default: "" },
+  lastErrorHint: { type: String, default: "" },
+  lastErrorAt: { type: Date, default: null },
+  consecutiveFailures: { type: Number, default: 0 },
+});
+
 const preferencesSchema = new Schema({
   timezone: { type: String, default: "Europe/Moscow" },
   htmlTicketDesc: { type: Boolean, default: false },
-  useEmail: { type: Boolean, default: false },
-  emailAddress: { type: String, default: "" },
-  emailPassword: { type: String, default: "" },
-  imapServer: { type: String, default: "" },
+  // Ящик-приёмник (бот его не читает, но схема обязана совпадать с бэкендом)
+  mailbox: {
+    isActive: { type: Boolean, default: false },
+    address: { type: String, default: "" },
+    host: { type: String, default: "" },
+    port: { type: Number, default: 993 },
+    security: {
+      type: String,
+      enum: ["ssl", "starttls", "none"],
+      default: "ssl",
+    },
+    folder: { type: String, default: "INBOX" },
+    allowSelfSigned: { type: Boolean, default: false },
+    user: { type: String, default: "" },
+    password: { type: String, default: "" },
+    health: channelHealth(),
+  },
   defaultApplicant: {
     _id: {
       type: Schema.Types.ObjectId,
@@ -38,15 +62,29 @@ const preferencesSchema = new Schema({
       ticketNewComment: { type: Boolean, default: false },
       scheduledWorks: { type: Boolean, default: false },
     },
+    // Канал отправки. Транспорт собирает services/mail/transport, health пишет
+    // этот сервис при каждой отправке — по нему строка состояния в настройках
+    // показывает «письма уходят» или причину сбоя.
     byEmail: {
       isActive: { type: Boolean, default: false },
       host: { type: String, default: "" },
-      isSecure: { type: Boolean, default: false },
       port: { type: Number, default: 465 },
+      security: {
+        type: String,
+        enum: ["ssl", "starttls", "none"],
+        default: "ssl",
+      },
+      allowSelfSigned: { type: Boolean, default: false },
+      authMethod: {
+        type: String,
+        enum: ["password", "none"],
+        default: "password",
+      },
       user: { type: String, default: "" },
       pass: { type: String, default: "" },
       sendFromName: { type: String, default: "" },
       sendFromEmail: { type: String, default: "" },
+      health: channelHealth(),
     },
     // Единственная группа Telegram команды: сюда идут групповые уведомления и
     // здесь же живёт табло статусов; messageThreadId (ветка форум-группы)

@@ -6,15 +6,18 @@ import AnchorRail from "@/components/app/AnchorRail";
 
 import Profile from "../../components/User/AccountSettings/Profile";
 import Appearance from "../../components/User/AccountSettings/Appearance";
+import MySchedule from "../../components/User/AccountSettings/MySchedule";
 import Notifications from "../../components/User/AccountSettings/Notifications";
 import Integrations from "../../components/User/AccountSettings/Integrations";
 import Security from "../../components/User/AccountSettings/Security";
 
 import { getLocalStorageData } from "../../util/auth";
 
-const SECTIONS = [
+// Рейл ведёт только по реально отрисованным секциям: у клиента нет графика
+const buildSections = (showSchedule) => [
   { id: "profile", label: "Профиль" },
   { id: "appearance", label: "Внешний вид" },
+  ...(showSchedule ? [{ id: "schedule", label: "График и отсутствия" }] : []),
   { id: "notifications", label: "Уведомления" },
   { id: "integrations", label: "Интеграции" },
   { id: "security", label: "Безопасность" },
@@ -22,6 +25,8 @@ const SECTIONS = [
 
 const MyAccount = () => {
   const { user, initialPrefs } = useLoaderData();
+  const showSchedule = !user.isEndUser;
+  const railSections = buildSections(showSchedule);
 
   const sections = (
     <div className="tw:max-w-2xl tw:space-y-8">
@@ -31,6 +36,12 @@ const MyAccount = () => {
       <SettingsSection id="appearance" label="Внешний вид">
         <Appearance user={user} />
       </SettingsSection>
+      {/* Клиенту норма часов и отпуска не положены — секции у него нет */}
+      {showSchedule && (
+        <SettingsSection id="schedule" label="График и отсутствия">
+          <MySchedule user={user} />
+        </SettingsSection>
+      )}
       <SettingsSection id="notifications" label="Уведомления">
         <Notifications user={user} initialPrefs={initialPrefs} />
       </SettingsSection>
@@ -52,7 +63,7 @@ const MyAccount = () => {
       </h1>
       <BrowserView>
         <div className="tw:flex tw:items-start tw:gap-7">
-          <AnchorRail sections={SECTIONS} ariaLabel="Разделы настроек" />
+          <AnchorRail sections={railSections} ariaLabel="Разделы настроек" />
           <div className="tw:min-w-0 tw:flex-1">{sections}</div>
         </div>
       </BrowserView>

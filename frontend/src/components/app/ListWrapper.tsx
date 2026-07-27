@@ -108,6 +108,10 @@ type ListWrapperProps = {
   count?: number;
   /** Узел под списком (напр. пагинатор) — рендерится, когда есть данные. */
   belowList?: ReactNode;
+  /** Узел между плашкой фильтров и панелью списка (сводка серверной выборки —
+   *  «Суммарное время» сегмента «Работы» архива) — рендерится, когда есть
+   *  данные. */
+  aboveList?: ReactNode;
   /** Серверный режим: активны ли поиск/фильтры. При count===0 решает, что
    *  показать — «ничего не нашлось» (есть запрос) или «список пуст». */
   hasActiveQuery?: boolean;
@@ -140,6 +144,7 @@ const ListWrapper = ({
   activeFilters = [],
   count,
   belowList,
+  aboveList,
   hasActiveQuery = false,
   filterStore,
   filterActive = false,
@@ -457,6 +462,7 @@ const ListWrapper = ({
           ListRow). Спиннер — только у первой загрузки, когда показывать нечего.
           Пустые состояния предлагают действие (гайд): сброс/открытие фильтра
           при отфильтрованном в ноль списке, «Добавить …» при пустых данных. */}
+      {!noData && !filteredEmpty && aboveList}
       {!noData && (
         <div className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:pb-1.5">
           {filteredEmpty ? (

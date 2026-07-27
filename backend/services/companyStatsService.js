@@ -2,12 +2,12 @@ const mongoose = require("mongoose");
 
 const { Ticket } = require("@/models/ticket");
 const Company = require("@/models/company");
-const Work = require("@/models/work");
 const User = require("@/models/user");
 const Preferences = require("@/models/preferences");
 
 const { AppError } = require("@/middleware/errorHandling");
 const { resolveTimezone } = require("@/utils/datetime");
+const { groupBy, loadWorks, workDurationMs } = require("@/services/workSummary");
 
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
@@ -106,6 +106,37 @@ const getCompanyStats = async (companyId, monthParam = null) => {
     return { current, baselineAvg, ...computeDelta(current, baselineAvg) };
   };
 
+  // Работы за окно сравнения — общим ядром (одна формула длительности со
+  // всеми отчётами), помесячные бакеты «первых N дней» считаются здесь:
+  // интервалом это не выразить — N может превышать длину коротких месяцев.
+  const buildWorkBuckets = async () => {
+    const works = await loadWorks({
+      from: rangeStart,
+      to: rangeEnd,
+      companyIds: [companyObjectId],
+      withTickets: false,
+    });
+
+    const monthKeyOf = (work) => {
+      const finishedAt = dayjs(work.finishedAt).tz(tz);
+      return finishedAt.date() <= dayOfMonth ? finishedAt.format("YYYY-MM") : null;
+    };
+
+    return [...groupBy(works, monthKeyOf)].map(([monthKey, monthWorks]) => {
+      const bucket = { _id: monthKey, time: 0, onSiteTime: 0, remoteTime: 0 };
+      for (const work of monthWorks) {
+        const duration = workDurationMs(work);
+        bucket.time += duration;
+        if (work.visitRequired === true) {
+          bucket.onSiteTime += duration;
+        } else {
+          bucket.remoteTime += duration;
+        }
+      }
+      return bucket;
+    });
+  };
+
   const [ticketBuckets, workBuckets, channelRows, companyUserIds, activeAgg] =
     await Promise.all([
       // Заявки по первым N дням каждого месяца за 13 месяцев.
@@ -132,47 +163,8 @@ const getCompanyStats = async (companyId, monthParam = null) => {
         { $group: { _id: "$_ym", count: { $sum: 1 } } },
       ]),
 
-      // Затраченное время (мс) по выполненным работам, тот же отрезок месяца.
-      // Доп. разбивка выезд/удалённо — по visitRequired, без populate.
-      Work.aggregate([
-        {
-          $match: {
-            company: companyObjectId,
-            startedAt: { $ne: null },
-            finishedAt: { $ne: null, $gte: rangeStart, $lt: rangeEnd },
-          },
-        },
-        {
-          $addFields: {
-            _dom: { $dayOfMonth: { date: "$finishedAt", timezone: tz } },
-            _ym: {
-              $dateToString: {
-                date: "$finishedAt",
-                format: "%Y-%m",
-                timezone: tz,
-              },
-            },
-            _dur: { $subtract: ["$finishedAt", "$startedAt"] },
-          },
-        },
-        { $match: { _dom: { $lte: dayOfMonth } } },
-        {
-          $group: {
-            _id: "$_ym",
-            time: { $sum: "$_dur" },
-            onSiteTime: {
-              $sum: {
-                $cond: [{ $eq: ["$visitRequired", true] }, "$_dur", 0],
-              },
-            },
-            remoteTime: {
-              $sum: {
-                $cond: [{ $ne: ["$visitRequired", true] }, "$_dur", 0],
-              },
-            },
-          },
-        },
-      ]),
+      // Затраченное время (мс) по выполненным работам, тот же отрезок месяца
+      buildWorkBuckets(),
 
       // Каналы связи (Ticket.source) за последние 12 месяцев — от месяца не
       // зависят, при листании в прошлое не пересчитываются.

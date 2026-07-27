@@ -1,3 +1,5 @@
+const { Types } = require("mongoose");
+
 const Work = require("../models/work");
 const User = require("../models/user");
 const { Ticket } = require("../models/ticket");
@@ -405,5 +407,184 @@ exports.delete = async (req, res, next) => {
     });
   } catch (error) {
     next(new AppError(`Failed to delete work`, 500, true, error));
+  }
+};
+
+// ── Архив работ: серверная выборка ──────────────────────────────────────────
+// Сегмент «Работы» страницы «Архив» — зеркало ticket.getClosed: поиск, фасеты,
+// сортировку и постраничность считает БД; суммарная длительность — агрегатом по
+// ВСЕЙ выборке (ИТОГО легаси-отчёта, но не по странице). Id кастуются в
+// ObjectId при парсинге: query переиспользуется в find/count/aggregate, а
+// $match внутри aggregate строки не кастит.
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const OBJECT_ID_RX = /^[0-9a-fA-F]{24}$/;
+const parseObjectIdList = (value) =>
+  String(value || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => OBJECT_ID_RX.test(id))
+    .map((id) => new Types.ObjectId(id));
+
+const FINISHED_PAGE_LIMIT_DEFAULT = 50;
+const FINISHED_PAGE_LIMIT_MAX = 100;
+const FINISHED_SORT = {
+  finished_desc: { finishedAt: -1, _id: -1 },
+  finished_asc: { finishedAt: 1, _id: 1 },
+};
+
+exports.getFinished = async (req, res, next) => {
+  try {
+    const { isEndUser, company } = await getAuthData(req);
+    const q = req.query;
+
+    // Только завершённые: у подтверждённой запланированной работы флаг
+    // scheduled не сбрасывается (work.update), надёжен только факт finishedAt
+    const query = { finishedAt: { $ne: null } };
+    const and = [];
+
+    // Период по дате завершения: границы необязательны; конец — эксклюзивно
+    // следующим днём, чтобы включить весь день `to`
+    const fromDate = q.from ? new Date(q.from) : null;
+    if (fromDate && !isNaN(fromDate)) query.finishedAt.$gte = fromDate;
+    const toDate = q.to ? new Date(q.to) : null;
+    if (toDate && !isNaN(toDate)) {
+      toDate.setDate(toDate.getDate() + 1);
+      query.finishedAt.$lt = toDate;
+    }
+
+    const companies = parseObjectIdList(q.companies);
+    if (companies.length) query.company = { $in: companies };
+    const executors = parseObjectIdList(q.executors);
+    if (executors.length) query["finishedBy._id"] = { $in: executors };
+
+    // Категория — свойство заявки: работа проходит фильтр, если связана хотя
+    // бы с одной заявкой выбранных категорий. Предзапрос вместо $lookup — один
+    // query обслуживает все три запроса ниже
+    const categories = parseObjectIdList(q.categories);
+    if (categories.length) {
+      const categoryTickets = await Ticket.find({
+        categoryId: { $in: categories },
+      })
+        .select("_id")
+        .lean();
+      and.push({ tickets: { $in: categoryTickets.map((t) => t._id) } });
+    }
+
+    // Скоуп прав: canSeeWorksReport — глобальное право, но конечный
+    // пользователь заперт в своей компании поверх любых фасетов (легаси
+    // ограничивал только список опций формы — дыра закрыта)
+    if (isEndUser) query.company = company._id;
+
+    // Поиск: AND по термам (до 6, терм ≤ 64 символов) — описание работы, ФИО
+    // исполнителя; целиком цифровой терм — точный номер связанной заявки
+    const searchTerms = String(q.search || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 6);
+    for (const term of searchTerms) {
+      const rx = new RegExp(escapeRegex(term.slice(0, 64)), "i");
+      const or = [
+        { description: rx },
+        { "finishedBy.lastName": rx },
+        { "finishedBy.firstName": rx },
+      ];
+      if (/^\d+$/.test(term)) {
+        const ticket = await Ticket.findOne({ num: Number(term) })
+          .select("_id")
+          .lean();
+        if (ticket) or.push({ tickets: ticket._id });
+      }
+      and.push({ $or: or });
+    }
+
+    if (and.length) query.$and = and;
+
+    const limit = Math.min(
+      Math.max(Number(q.limit) || FINISHED_PAGE_LIMIT_DEFAULT, 1),
+      FINISHED_PAGE_LIMIT_MAX,
+    );
+    const page = Math.max(Number(q.page) || 1, 1);
+    const sort = FINISHED_SORT[q.sort] || FINISHED_SORT.finished_desc;
+
+    const [works, total, durationAgg] = await Promise.all([
+      Work.find(query)
+        .select(
+          "description startedAt finishedAt visitRequired finishedBy company tickets",
+        )
+        .populate({ path: "company", select: "alias" })
+        .populate({
+          path: "tickets",
+          select: "num title applicantId applicant categoryId",
+          populate: [
+            { path: "applicantId", select: "firstName lastName" },
+            { path: "categoryId", select: "title" },
+          ],
+        })
+        .sort(sort)
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Work.countDocuments(query),
+      Work.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: {
+                // Отрицательная длительность — битые данные (startedAt позже
+                // finishedAt): в сумму идёт нулём, а не вычитается
+                $max: [
+                  0,
+                  {
+                    $subtract: [
+                      "$finishedAt",
+                      { $ifNull: ["$startedAt", "$finishedAt"] },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ]),
+    ]);
+
+    const transformedWorks = works.map((work) => ({
+      _id: work._id,
+      description: work.description,
+      visitRequired: Boolean(work.visitRequired),
+      startedAt: work.startedAt,
+      finishedAt: work.finishedAt,
+      company: work.company,
+      finishedBy: work.finishedBy?._id
+        ? {
+            _id: work.finishedBy._id,
+            firstName: work.finishedBy.firstName,
+            lastName: work.finishedBy.lastName,
+          }
+        : null,
+      tickets: (work.tickets || []).map((ticket) => ({
+        _id: ticket._id,
+        num: ticket.num,
+        title: ticket.title,
+        // у старых заявок embedded applicant пуст, надёжен ref applicantId
+        applicant: ticket.applicantId || ticket.applicant || null,
+        category: ticket.categoryId || null,
+      })),
+    }));
+
+    res.status(200).json({
+      works: transformedWorks,
+      total,
+      page,
+      limit,
+      totalDurationMs: durationAgg[0]?.total || 0,
+    });
+  } catch (error) {
+    next(new AppError("Failed to fetch finished works", 500, true, error));
   }
 };

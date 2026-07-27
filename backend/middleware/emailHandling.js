@@ -26,6 +26,15 @@ const {
 const { detectTicketCategory } = require("../services/ticketCategoryService");
 const { logAiTicketEvent } = require("../services/aiTicketLog");
 const { stripQuotedReply } = require("../services/emailReplyStripper");
+const {
+  buildImapConfig,
+  describeMailError,
+} = require("../services/mail/transport");
+const {
+  MAILBOX,
+  recordOk,
+  recordError,
+} = require("../services/mail/health");
 
 const logger = require("../utils/logger");
 
@@ -222,6 +231,40 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
   }
 };
 
+// «Ядовитое письмо»: сообщение, которое стабильно падает при обработке, не
+// помечается прочитанным — и крон бьётся об него каждые 20 секунд вечно. После
+// трёх попыток помечаем прочитанным, оставляя след в журнале и в состоянии
+// канала: лучше одна потерянная заявка, чем вставший сбор.
+const MAX_MESSAGE_ATTEMPTS = 3;
+const failedMessageAttempts = new Map();
+
+const noteMessageFailure = async (connection, uid, context) => {
+  const attempts = (failedMessageAttempts.get(uid) || 0) + 1;
+  failedMessageAttempts.set(uid, attempts);
+
+  if (attempts < MAX_MESSAGE_ATTEMPTS) return;
+  failedMessageAttempts.delete(uid);
+
+  try {
+    await connection.addFlags(uid, "\\Seen");
+  } catch (error) {
+    logger.log("warn", "Failed to flag a poison message as seen", {
+      ...context,
+      error: error.message,
+    });
+  }
+
+  logger.log("error", `Giving up on message ${uid} after ${attempts} attempts`, {
+    ...context,
+    messageId: uid,
+  });
+
+  await recordError(MAILBOX, {
+    state: "Одно письмо не удалось обработать",
+    hint: "Письмо помечено прочитанным, чтобы не останавливать сбор. Подробности — в журнале сервера.",
+  });
+};
+
 // Закрыть IMAP-соединение, не роняя процесс: end() по уже мёртвому сокету
 // может бросить синхронно — глотаем и логируем.
 const endImapConnection = (connection, context) => {
@@ -245,39 +288,40 @@ exports.handleNewEmails = async () => {
   };
   const emailArray = [];
   let connection;
+  // Причину уже записали конкретной фразой — общий catch не должен затирать её
+  // безликим «не удалось подключиться».
+  let healthReported = false;
+  // Куда подключались — чтобы общий catch назвал адрес в фразе состояния
+  let target = {};
 
   try {
     const prefs = await Preferences.findOne({});
 
-    if (!prefs) {
+    if (!prefs?.mailbox?.isActive) {
       return;
     }
 
-    const config = {
-      imap: {
-        user: prefs.emailAddress,
-        password: prefs.emailPassword,
-        host: prefs.imapServer,
-        port: 993,
-        tls: true,
-        connTimeout: 15000, // установка TCP+TLS соединения
-        authTimeout: 10000, // было 3000 — слишком жёстко для внешнего TLS
-        // socketTimeout по умолчанию 0 (выключен). Без него «мёртвый» сокет в
-        // середине команды (openBox/search/getPartData/addFlags) висит вечно,
-        // handleNewEmails не завершается и замок isHandlingEmails залипает.
-        socketTimeout: 30000,
-        keepalive: true,
-      },
-    };
-
-    if (!prefs.useEmail) {
+    // Заявке из письма нужен автор: без инициатора по умолчанию она уйдёт без
+    // компании и сломает свою же карточку. Письма не трогаем — они дождутся
+    // настройки непрочитанными, а причина видна в строке состояния секции.
+    if (!prefs.defaultApplicant?._id) {
+      await recordError(MAILBOX, {
+        state: "Заявки не создаются: не выбран инициатор по умолчанию",
+        hint: "Письма читаются, но заявке не от кого прийти — выберите сервисный аккаунт в настройках сбора.",
+      });
       return;
     }
+
+    // Порт, шифрование и таймауты — из настроек (services/mail/transport)
+    const config = buildImapConfig(prefs.mailbox);
+    const folder = (prefs.mailbox.folder || "").trim() || "INBOX";
+    target = { host: config.imap.host, port: config.imap.port };
 
     const emailContext = {
       ...context,
-      emailAccount: prefs.emailAddress,
-      imapServer: prefs.imapServer,
+      emailAccount: prefs.mailbox.address,
+      imapServer: config.imap.host,
+      folder,
     };
 
     // logger.log("info", "Starting email processing", emailContext);
@@ -296,7 +340,17 @@ exports.handleNewEmails = async () => {
       });
     });
 
-    await connection.openBox("INBOX");
+    try {
+      await connection.openBox(folder);
+    } catch (error) {
+      await recordError(MAILBOX, {
+        state: `Папка «${folder}» не найдена`,
+        hint: "Проверьте имя папки в настройках сбора: у русских ящиков это чаще всего INBOX.",
+      });
+      healthReported = true;
+      throw error;
+    }
+
     const searchCriteria = ["UNSEEN"];
     const fetchOptions = {
       bodies: ["HEADER", "TEXT", ""],
@@ -513,6 +567,11 @@ exports.handleNewEmails = async () => {
           error: messageError.message,
           stack: messageError.stack,
         });
+        await noteMessageFailure(
+          connection,
+          message.attributes.uid,
+          messageContext,
+        );
         continue; // Continue with next message
       }
     }
@@ -526,13 +585,19 @@ exports.handleNewEmails = async () => {
       };
 
       try {
-        const defaultCompany = await MongoCompany.findById(
-          prefs.defaultCompany._id,
-        );
-
         const defaultApplicant = await MongoUser.findById(
           prefs.defaultApplicant._id,
         );
+
+        // Компания машинной заявки: снапшот из настроек, а если его нет —
+        // компания самого инициатора. Заявка без company ломает свою карточку
+        // и подставляет «undefined» в уведомления, поэтому пустой _id тут
+        // нельзя отдавать в findById: он вернул бы произвольную компанию.
+        const fallbackCompanyId =
+          prefs.defaultCompany?._id || defaultApplicant?.company?._id;
+        const defaultCompany = fallbackCompanyId
+          ? await MongoCompany.findById(fallbackCompanyId)
+          : null;
 
         let company = defaultCompany;
         let applicant = defaultApplicant;
@@ -784,16 +849,22 @@ exports.handleNewEmails = async () => {
         }
 
         await connection.addFlags(email.uid, "\\Seen");
+        failedMessageAttempts.delete(email.uid);
       } catch (emailError) {
         logger.log("error", `Failed to process email ${index + 1}`, {
           ...emailProcessingContext,
           error: emailError.message,
           stack: emailError.stack,
         });
+        await noteMessageFailure(connection, email.uid, emailProcessingContext);
       }
     }
     endImapConnection(connection, context);
     connection = null;
+
+    // Канал жив; message — были ли реально забраны письма (для строки состояния
+    // «последнее письмо — …»). Успех без событий пишется не чаще раза в минуту.
+    await recordOk(MAILBOX, { message: emailArray.length > 0 });
 
     if (emailArray.length > 0) {
       logger.log("info", "Email processing completed successfully", {
@@ -807,6 +878,11 @@ exports.handleNewEmails = async () => {
       error: error.message,
       stack: error.stack,
     });
+    if (!healthReported) {
+      await recordError(MAILBOX, describeMailError(error, target)).catch(
+        () => {},
+      );
+    }
   } finally {
     endImapConnection(connection, context);
   }

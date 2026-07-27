@@ -662,6 +662,10 @@ exports.getFormData = async (req, res, next) => {
         $and: [{ "permissions.canPerformTickets": true }, { isActive: true }],
       }).sort({ lastName: 1 });
 
+      // Полный активный каталог: фасет категорий в архиве (сегменты «Заявки»
+      // и «Работы») у конечного пользователя раньше оставался пустым
+      categories = await Category.find({ isActive: true }).sort({ title: 1 });
+
       if (authedUser.permissions?.canSeeAllCompanyTickets) {
         applicants = await User.find({
           "company._id": authedUser.company._id,

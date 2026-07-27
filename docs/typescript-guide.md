@@ -48,10 +48,17 @@ UI-конвенции — в соседнем [`ux-ui-guide.md`](./ux-ui-guide.m
   TypeScript **6.0.3** (сведён с бэкендом).
 - TypeScript пока только в: `components/app/*` (примитивы дизайн-системы),
   `lib/utils.ts`, `types/*` (доменные типы), `store/authed-user.ts`,
-  `components/ui/*` (генерённые shadcn).
-  Страницы (`pages/**`,
+  `components/ui/*` (генерённые shadcn), `components/Report/*` (первый
+  фича-раздел целиком на TS), `pages/Report/Analytics.tsx` (первая
+  `.tsx`-страница) и `store/reports/*.ts` (первые zustand-сторы на TS —
+  типизация у границы: один `as` на `response.json()`, формы ответов в
+  `types/report.ts`).
+  Остальные страницы (`pages/**`,
   ~390 `.jsx`), сторы (`store/**`, `.js`) и большинство компонентов — ещё
   легаси JS/JSX. Новый код в мигрируемых областях пишем на TS.
+- `src/vite-env.d.ts` (`/// <reference types="vite/client" />`) типизирует
+  `import.meta.env` для `.ts`-модулей — `types: []` в tsconfig не подхватывает
+  vite/client сам.
 - `strict: true`, `isolatedModules: true`, `moduleResolution: "bundler"`,
   `types: []` (см. раздел про гейт), алиас `@/* → ./src/*`.
 

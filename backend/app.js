@@ -44,9 +44,13 @@ const {
 } = require("./services/knowledgeApprovalExpiry");
 const { runSecretsScan } = require("./services/secretsScanRun");
 const { runWorkStatusReset } = require("./services/workStatusReset");
+const { runWorkStatusAuto } = require("./services/workStatusAuto");
 const {
   runServiceExpiryScan,
 } = require("./services/serviceExpiryScanRun");
+const {
+  syncCalendar: syncProductionCalendar,
+} = require("./services/productionCalendar");
 const Preferences = require("./models/preferences");
 const { DEFAULT_TIMEZONE } = require("./utils/datetime");
 
@@ -294,6 +298,16 @@ const guardedCron = (name, expression, run, timeoutMs) => {
   });
 };
 
+// Автостатусы присутствия по графику — каждые 5 минут. Таймзона крона здесь
+// НЕ нужна: у каждого сотрудника свой пояс, и «сейчас в смене?» считается
+// внутри прогона через resolveUserTimezone.
+guardedCron(
+  "work status auto-switch",
+  EVERY_5_MIN,
+  () => runWorkStatusAuto(),
+  120000,
+);
+
 // Refresh connectivity status of monitored Mikrotik devices every 5 minutes.
 guardedCron(
   "Mikrotik health-check",
@@ -463,6 +477,36 @@ const registerMaintenanceCrons = async () => {
         });
       } finally {
         isScanningServices = false;
+      }
+    },
+    { timezone },
+  );
+
+  // Производственный календарь: догрузить текущий и следующий год (3:45).
+  // Следующий год публикуется осенью — до этого его 404 штатный и в lastError
+  // не пишется (см. syncCalendar).
+  let isSyncingCalendar = false;
+  cron.schedule(
+    "45 3 * * *",
+    async () => {
+      if (isSyncingCalendar) {
+        return;
+      }
+
+      if (mongoose.connection.readyState !== 1) {
+        return;
+      }
+
+      isSyncingCalendar = true;
+
+      try {
+        await syncProductionCalendar();
+      } catch (error) {
+        logger.log("error", "Production calendar sync failed", {
+          error: error.message,
+        });
+      } finally {
+        isSyncingCalendar = false;
       }
     },
     { timezone },

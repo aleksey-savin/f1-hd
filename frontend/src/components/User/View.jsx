@@ -45,6 +45,7 @@ import PillPanel from "@/components/app/PillPanel";
 import AnchorRail from "@/components/app/AnchorRail";
 import PropRow from "@/components/app/PropRow";
 import TechSection from "@/components/app/TechSection";
+import WorkScheduleSection from "@/components/User/WorkScheduleSection";
 import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
@@ -244,10 +245,15 @@ const ViewUser = ({ user, tickets }) => {
     Boolean(appModules?.inventory?.isActive) &&
     Boolean(authedUser.permissions?.canUseInventoryModule);
 
+  // График работы — только у сотрудников: у клиентов и служебных аккаунтов
+  // нет ни нормы часов, ни отсутствий
+  const showSchedule = !isEndUser && !isServiceAccount && !isCloudTelephony;
+
   // Рейл ведёт только по реально отрисованным секциям
   const railSections = [
     { id: "contacts", label: "Контакты" },
     { id: "org", label: "Организация" },
+    ...(showSchedule ? [{ id: "schedule", label: "График работы" }] : []),
     ...(showTech ? [{ id: "tech", label: "Техника" }] : []),
     { id: "tickets", label: "Заявки" },
     ...(categories.length > 0 ? [{ id: "categories", label: "Категории" }] : []),
@@ -477,6 +483,10 @@ const ViewUser = ({ user, tickets }) => {
       </div>
 
       {/* Техника: список с фасетами + окружение (общая шторка устройства) */}
+      {showSchedule && (
+        <WorkScheduleSection id="schedule" userId={user._id} />
+      )}
+
       {showTech && <TechSection id="tech" userId={user._id} subject="user" />}
 
       {/* Недавние заявки */}

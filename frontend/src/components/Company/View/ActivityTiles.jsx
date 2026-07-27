@@ -3,16 +3,17 @@ import { RiArrowLeftSLine, RiArrowRightSLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
 import { Eyebrow } from "@/components/app/Panel";
-import { cn } from "@/lib/utils";
+import StatTile, { StatTileDelta } from "@/components/app/StatTile";
 
 import { getLocalStorageData } from "../../../util/auth";
 import { msToHMS } from "../../../util/time-helpers";
 
-// «Активность» — статборд-плитки вместо легаси-карточек статистики. Первые две
-// (заявки и время работ) листаются по месяцам пейджером в заголовке секции:
-// прошлые месяцы догружаются с ?month=YYYY-MM и кэшируются на время жизни
-// карточки. Пользователи (за 90 дней) и канал (за год) от месяца не зависят.
-// Нет данных (сбой первичного запроса) — секции нет, пункта в рейле тоже.
+// «Активность» — статборд-плитки (app/StatTile) вместо легаси-карточек
+// статистики. Первые две (заявки и время работ) листаются по месяцам пейджером
+// в заголовке секции: прошлые месяцы догружаются с ?month=YYYY-MM и кэшируются
+// на время жизни карточки. Пользователи (за 90 дней) и канал (за год) от месяца
+// не зависят. Нет данных (сбой первичного запроса) — секции нет, пункта в
+// рейле тоже.
 const API = import.meta.env.VITE_API_ADDRESS;
 
 // Подпись пейджера — именительный падеж («июль 2026»)
@@ -45,44 +46,6 @@ const labelOf = (key) => {
 };
 
 const round1 = (n) => Math.round(n * 10) / 10;
-
-// Дельта к среднему: знак и цвет по направлению; смысл дублируется знаком,
-// а не только цветом. Направления нет (flat/нет базы) — приглушённый «—».
-const Delta = ({ direction, percentage, baseline }) => (
-  <div className="tw:mt-1.5 tw:text-sm tw:tabular-nums">
-    {percentage === null || direction === "flat" ? (
-      <span className="tw:font-semibold tw:text-faint">—</span>
-    ) : (
-      <span
-        className={cn(
-          "tw:font-semibold",
-          direction === "up" ? "tw:text-accent-text" : "tw:text-destructive",
-        )}
-      >
-        {percentage > 0 ? "+" : ""}
-        {percentage}%
-      </span>
-    )}{" "}
-    <span className="tw:text-faint">к среднему {baseline}/мес</span>
-  </div>
-);
-
-const Tile = ({ label, children, className }) => (
-  <div
-    className={cn(
-      "tw:flex tw:flex-col tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-4",
-      className,
-    )}
-  >
-    <div className="tw:text-sm tw:font-medium tw:text-muted-foreground">
-      {label}
-    </div>
-    {children}
-  </div>
-);
-
-const valueClass =
-  "tw:mt-2 tw:text-3xl tw:leading-none tw:font-bold tw:tracking-tight tw:tabular-nums";
 
 const ActivityTiles = ({ company, stats, id }) => {
   const currentKey = keyOf(new Date());
@@ -184,68 +147,74 @@ const ActivityTiles = ({ company, stats, id }) => {
         Активность
       </Eyebrow>
       <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-4 tw:xl:gap-4">
-        <Tile
+        <StatTile
           label="Заявки"
-          className={cn("tw:transition-opacity", busy && "tw:opacity-60")}
-        >
-          <div className={valueClass}>{shown.tickets.current}</div>
-          <Delta
-            direction={shown.tickets.direction}
-            percentage={shown.tickets.percentage}
-            baseline={round1(shown.tickets.baselineAvg)}
-          />
-        </Tile>
+          busy={busy}
+          value={shown.tickets.current}
+          delta={
+            <StatTileDelta
+              direction={shown.tickets.direction}
+              percentage={shown.tickets.percentage}
+              hint={`к среднему ${round1(shown.tickets.baselineAvg)}/мес`}
+            />
+          }
+        />
 
-        <Tile
+        <StatTile
           label="Время работ"
-          className={cn("tw:transition-opacity", busy && "tw:opacity-60")}
-        >
-          <div className={valueClass}>{msToHMS(shown.time.current)}</div>
-          <Delta
-            direction={shown.time.direction}
-            percentage={shown.time.percentage}
-            baseline={msToHMS(shown.time.baselineAvg)}
-          />
-          <div className="tw:mt-1.5 tw:text-xs tw:text-faint tw:tabular-nums">
-            Выезды {msToHMS(shown.time.onSite.current)} · Удалённо{" "}
-            {msToHMS(shown.time.remote.current)}
-          </div>
-        </Tile>
+          busy={busy}
+          value={msToHMS(shown.time.current)}
+          delta={
+            <StatTileDelta
+              direction={shown.time.direction}
+              percentage={shown.time.percentage}
+              hint={`к среднему ${msToHMS(shown.time.baselineAvg)}/мес`}
+            />
+          }
+          footer={
+            <>
+              Выезды {msToHMS(shown.time.onSite.current)} · Удалённо{" "}
+              {msToHMS(shown.time.remote.current)}
+            </>
+          }
+        />
 
-        <Tile label="Активные пользователи">
+        <StatTile
+          label="Активные пользователи"
+          value={
+            users.total === 0 ? undefined : (
+              <>
+                {users.active}{" "}
+                <span className="tw:text-base tw:font-semibold tw:text-muted-foreground">
+                  / {users.total}
+                </span>
+              </>
+            )
+          }
+          footer={users.total === 0 ? undefined : "за последние 90 дней"}
+        >
           {users.total === 0 ? (
             <div className="tw:mt-2 tw:text-sm tw:text-muted-foreground">
               Нет пользователей
             </div>
           ) : (
-            <>
-              <div className={valueClass}>
-                {users.active}{" "}
-                <span className="tw:text-base tw:font-semibold tw:text-muted-foreground">
-                  / {users.total}
-                </span>
-              </div>
+            <div
+              role="img"
+              aria-label={`Активны ${users.active} из ${users.total}`}
+              className="tw:mt-2.5 tw:h-1.5 tw:overflow-hidden tw:rounded-full tw:bg-border-soft"
+            >
               <div
-                role="img"
-                aria-label={`Активны ${users.active} из ${users.total}`}
-                className="tw:mt-2.5 tw:h-1.5 tw:overflow-hidden tw:rounded-full tw:bg-border-soft"
-              >
-                <div
-                  className="tw:h-full tw:rounded-full"
-                  style={{
-                    width: `${activePct}%`,
-                    background: "var(--ws-st-office)",
-                  }}
-                />
-              </div>
-              <div className="tw:mt-1.5 tw:text-xs tw:text-faint">
-                за последние 90 дней
-              </div>
-            </>
+                className="tw:h-full tw:rounded-full"
+                style={{
+                  width: `${activePct}%`,
+                  background: "var(--ws-st-office)",
+                }}
+              />
+            </div>
           )}
-        </Tile>
+        </StatTile>
 
-        <Tile label="Основной канал">
+        <StatTile label="Основной канал">
           {!channels.primary || channels.total === 0 ? (
             <div className="tw:mt-2 tw:text-sm tw:text-muted-foreground">
               Нет заявок за последний год
@@ -264,7 +233,9 @@ const ActivityTiles = ({ company, stats, id }) => {
               {channels.breakdown.length > 1 && (
                 <div className="tw:mt-1.5 tw:text-xs tw:text-faint tw:tabular-nums">
                   {channels.breakdown
-                    .filter((channel) => channel.source !== channels.primary.source)
+                    .filter(
+                      (channel) => channel.source !== channels.primary.source,
+                    )
                     .slice(0, 3)
                     .map((channel) => `${channel.source} ${channel.percentage}%`)
                     .join(" · ")}
@@ -272,7 +243,7 @@ const ActivityTiles = ({ company, stats, id }) => {
               )}
             </>
           )}
-        </Tile>
+        </StatTile>
       </div>
     </>
   );

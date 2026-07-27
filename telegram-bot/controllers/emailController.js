@@ -1,4 +1,5 @@
 const { sendMail } = require("../middleware/nodemailer");
+const { SMTP, recordOk, recordError } = require("../services/mail/health");
 const Notification = require("../models/notification");
 const Preferences = require("../models/preferences");
 const TicketLog = require("../models/ticketLog");
@@ -76,6 +77,14 @@ exports.checkEmailNotifications = async () => {
               "",
               REPLY_MARKER_HTML + notification.text,
             );
+            // Состояние канала для строки в настройках: реальная отправка —
+            // самый честный источник, куда точнее кнопки проверки.
+            if (message?.success) {
+              await recordOk(SMTP, { message: true });
+            } else if (message?.failure) {
+              await recordError(SMTP, message.failure);
+            }
+
             if (message?.success) {
               notification.sent = true;
               await notification.save();

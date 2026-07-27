@@ -76,7 +76,8 @@ const RouterOsStrip = () => {
 
   return (
     <>
-      <div className="tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-1.5 tw:px-1 tw:text-sm tw:text-faint">
+      {/* Нижний отступ ряда задаёт обёртка topContent страницы списка */}
+      <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-1.5 tw:px-1 tw:text-sm tw:text-faint">
         <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:uppercase">
           RouterOS
         </span>

@@ -1,5 +1,9 @@
 import { useContext, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
+
+import { RiDraftLine } from "react-icons/ri";
+
+import { Button } from "@/components/ui/button";
 
 import ListWrapper from "@/components/app/ListWrapper";
 import ListGroupLabel from "@/components/app/ListGroupLabel";
@@ -185,7 +189,29 @@ const MikrotikDevices = () => {
         showAddButton={canManage}
         addRoute="add"
         addLabel="Новое устройство"
-        topContent={<RouterOsStrip />}
+        topContent={
+          // Ряд под шапкой: полоса RouterOS + «Диапазоны сетей» (переехали из
+          // меню «Отчёты»; строка инструментов и без того плотная, а правый
+          // край этого ряда свободен). Страница отчёта пока легаси.
+          <div className="tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5">
+            <div className="tw:min-w-0 tw:flex-1">
+              <RouterOsStrip />
+            </div>
+            {canManage && (
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="tw:flex-none tw:text-muted-foreground"
+              >
+                <Link to="/report/networks">
+                  <RiDraftLine aria-hidden />
+                  Диапазоны сетей
+                </Link>
+              </Button>
+            )}
+          </div>
+        }
       >
         <div>
           {groups.map((group) => (

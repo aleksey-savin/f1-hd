@@ -8,7 +8,75 @@ const storage = require("../services/storage");
 const { isModerator } = require("../helpers/knowledgeNoteVisibility");
 const { runSecretsScan } = require("../services/secretsScanRun");
 const { runServiceExpiryScan } = require("../services/serviceExpiryScanRun");
+const {
+  maskSecrets,
+  keepStoredSecrets,
+  readStoredSecret,
+} = require("../helpers/preferencesSecrets");
+const { checkMailbox, sendTestEmail } = require("../services/mail/check");
 const logger = require("../utils/logger");
+
+// Поля почтовых каналов, которые правит форма. Мержим по путям (а не заменяем
+// группу целиком): health пишут крон сбора и отправка уведомлений, форма о нём
+// не знает и не должна его затирать.
+const MAILBOX_FIELDS = [
+  "isActive",
+  "address",
+  "host",
+  "port",
+  "security",
+  "folder",
+  "allowSelfSigned",
+  "password",
+];
+
+const isValidPort = (value) => Number.isInteger(value) && value > 0 && value < 65536;
+
+// Инварианты включённых каналов: молча сохранённая полупустая конфигурация —
+// это канал, который «включён» и не работает, а искать причину придётся в логах.
+const findMailInvariant = (preferences) => {
+  const mailbox = preferences.mailbox || {};
+  if (mailbox.isActive) {
+    if (!(mailbox.address || "").trim()) {
+      return "Укажите адрес почтового ящика — с него собираются заявки";
+    }
+    if (!(mailbox.host || "").trim()) {
+      return "Укажите сервер IMAP — без него письма не забрать";
+    }
+    if (!isValidPort(mailbox.port)) {
+      return "Порт IMAP должен быть числом от 1 до 65535";
+    }
+    if (!mailbox.password) {
+      return "Укажите пароль почтового ящика";
+    }
+    if (!preferences.defaultApplicant?._id) {
+      return "Выберите инициатора по умолчанию — иначе заявкам из писем не от кого прийти";
+    }
+  }
+
+  const smtp = preferences.notify?.byEmail || {};
+  if (smtp.isActive) {
+    if (!(smtp.host || "").trim()) {
+      return "Укажите сервер SMTP — без него уведомления не отправить";
+    }
+    if (!isValidPort(smtp.port)) {
+      return "Порт SMTP должен быть числом от 1 до 65535";
+    }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((smtp.sendFromEmail || "").trim())) {
+      return "Укажите корректный адрес отправителя — сервер отвергнет письмо без него";
+    }
+    if ((smtp.authMethod || "password") !== "none") {
+      if (!(smtp.user || "").trim()) {
+        return "Укажите имя пользователя SMTP или выключите авторизацию";
+      }
+      if (!smtp.pass) {
+        return "Укажите пароль SMTP или выключите авторизацию";
+      }
+    }
+  }
+
+  return null;
+};
 
 const isOpenaiSpeechModel = (modelId) =>
   /^(whisper-1|gpt-4o(?:-mini)?-transcribe(?:-diarize)?(?:-\d{4}-\d{2}-\d{2})?)$/.test(
@@ -28,7 +96,8 @@ exports.get = async (req, res, next) => {
     if (!preferences) {
       return res.status(200).json({ message: "Preferences are not set" });
     }
-    res.status(200).json(preferences);
+    // Пароли и API-ключи наружу не уходят: вместо значения — флаг «задан»
+    res.status(200).json(maskSecrets(preferences));
   } catch (error) {
     next(new AppError(`Failed to fetch preferences`, 500, true, error));
   }
@@ -159,6 +228,12 @@ exports.update = async (req, res, next) => {
       preferences = new Preferences({});
     }
 
+    // Секреты формы: пустое поле = «не менять», непустое — новый секрет
+    // (шифруется). Делаем до присвоений, чтобы дальше группы клались как есть.
+    for (const group of ["mailbox", "notify", "ai"]) {
+      if (has(group)) keepStoredSecrets(body, preferences, group);
+    }
+
     // Переход флага «выкл→вкл» — повод просканировать сразу, не дожидаясь крона.
     // Старое значение читаем до перезаписи preferences.knowledgeBase.
     let secretsJustEnabled = false;
@@ -182,11 +257,20 @@ exports.update = async (req, res, next) => {
       preferences.taxi = { operator: body.taxi?.operator || "" };
     }
 
-    // «Сбор заявок»
-    if (has("useEmail")) preferences.useEmail = body.useEmail;
-    if (has("emailAddress")) preferences.emailAddress = body.emailAddress;
-    if (has("emailPassword")) preferences.emailPassword = body.emailPassword;
-    if (has("imapServer")) preferences.imapServer = body.imapServer;
+    // «Сбор заявок»: ящик-приёмник мержим по путям — форма не присылает health
+    // (его пишут крон сбора и кнопка проверки), а замена группы целиком его бы
+    // затёрла, и строка состояния обнулялась бы на каждом сохранении.
+    if (has("mailbox")) {
+      const incoming = body.mailbox || {};
+      for (const key of MAILBOX_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(incoming, key)) {
+          preferences.set(
+            `mailbox.${key}`,
+            key === "port" ? Number(incoming.port) : incoming[key],
+          );
+        }
+      }
+    }
     if (has("defaultApplicant"))
       preferences.defaultApplicant = body.defaultApplicant;
     if (has("defaultCompany")) preferences.defaultCompany = body.defaultCompany;
@@ -197,8 +281,9 @@ exports.update = async (req, res, next) => {
     if (has("checkPhoneNumber"))
       preferences.checkPhoneNumber = body.checkPhoneNumber;
 
-    // «Уведомления»: подгруппы notify заменяются присланными, byTelegram
-    // мержится по полям (канон «мерж по путям»). Группа byTelegram — единая:
+    // «Уведомления»: personal заменяется присланным, каналы мержатся по полям
+    // (канон «мерж по путям»). byEmail — потому что health пишет telegram-bot
+    // при реальной отправке, форма его не знает. Группа byTelegram — единая:
     // в ней и групповые уведомления, и табло статусов; смена chatId или ветки
     // инвалидирует закреп табло — бот пересоздаст его в новом месте
     if (has("notify")) {
@@ -207,9 +292,12 @@ exports.update = async (req, res, next) => {
       const mergedTelegram = notify.byTelegram
         ? { ...(prev.byTelegram || {}), ...notify.byTelegram }
         : prev.byTelegram;
+      const mergedEmail = notify.byEmail
+        ? { ...(prev.byEmail || {}), ...notify.byEmail }
+        : prev.byEmail;
       preferences.notify = {
         personal: notify.personal ?? prev.personal,
-        byEmail: notify.byEmail ?? prev.byEmail,
+        byEmail: mergedEmail,
         byTelegram: mergedTelegram,
       };
       const boardTargetChanged =
@@ -269,6 +357,32 @@ exports.update = async (req, res, next) => {
 
     if (has("overtime")) preferences.overtime = body.overtime;
 
+    // Календарь: настройки правит админ, а lastSyncAt/lastError пишет
+    // загрузчик — их из тела не берём, иначе форма затрёт состояние
+    if (has("productionCalendar")) {
+      const incoming = body.productionCalendar;
+      preferences.productionCalendar = {
+        ...(preferences.productionCalendar?.toObject?.() ??
+          preferences.productionCalendar ??
+          {}),
+        ...(incoming.isActive !== undefined
+          ? { isActive: Boolean(incoming.isActive) }
+          : {}),
+        ...(incoming.country ? { country: String(incoming.country).toLowerCase() } : {}),
+        ...(incoming.source ? { source: incoming.source } : {}),
+        ...(Array.isArray(incoming.overrides)
+          ? { overrides: incoming.overrides }
+          : {}),
+      };
+    }
+
+    // Включённый канал обязан быть настроен целиком — иначе он «работает»
+    // только на вид, а причина молчания видна лишь в логах контейнера.
+    const invariant = findMailInvariant(preferences);
+    if (invariant) {
+      return next(new AppError(invariant, 422, true));
+    }
+
     await preferences.save();
 
     // Только что включённые фичи сканируем сразу. Ошибка скана не должна
@@ -292,6 +406,46 @@ exports.update = async (req, res, next) => {
     });
   } catch (error) {
     next(new AppError(`Failed to update preferences`, 500, true, error));
+  }
+};
+
+// Проверка почтовых каналов по значениям формы (черновик ещё не сохранён).
+// Секреты форма не получает и потому не присылает: пустое поле означает
+// «использовать сохранённый» — transport.readSecret понимает оба вида.
+const mergeWithStored = (stored, incoming, secretKey) => ({
+  ...(stored?.toObject?.() ?? stored ?? {}),
+  ...(incoming || {}),
+  [secretKey]: incoming?.[secretKey] || stored?.[secretKey] || "",
+});
+
+exports.checkMailbox = async (req, res, next) => {
+  try {
+    const preferences = await Preferences.findOne({});
+    const mailbox = mergeWithStored(
+      preferences?.mailbox,
+      req.body?.mailbox,
+      "password",
+    );
+    res.status(200).json(await checkMailbox(mailbox));
+  } catch (error) {
+    next(new AppError(`Failed to check mailbox`, 500, true, error));
+  }
+};
+
+exports.sendTestEmail = async (req, res, next) => {
+  try {
+    const preferences = await Preferences.findOne({});
+    const channel = mergeWithStored(
+      preferences?.notify?.byEmail,
+      req.body?.byEmail,
+      "pass",
+    );
+    // Письмо уходит тому, кто нажал кнопку: свой ящик админ проверит сразу,
+    // а вводить адрес отдельным полем — лишний шаг с шансом опечататься.
+    const authedUser = await getAuthData(req);
+    res.status(200).json(await sendTestEmail(channel, authedUser?.email));
+  } catch (error) {
+    next(new AppError(`Failed to send test email`, 500, true, error));
   }
 };
 
@@ -373,13 +527,15 @@ exports.getAiModels = async (req, res, next) => {
       );
     }
 
-    // Fall back to the stored key if the client didn't send one.
+    // Fall back to the stored key if the client didn't send one — which is now
+    // the norm: the form never receives the key back, only a "set" flag.
     if (!apiKey) {
       const preferences = await Preferences.findOne({});
-      apiKey =
+      apiKey = readStoredSecret(
         feature === "speechToText"
           ? preferences?.ai?.speechToText?.apiKey
-          : preferences?.ai?.[provider]?.apiKey;
+          : preferences?.ai?.[provider]?.apiKey,
+      );
     }
 
     if (!apiKey) {

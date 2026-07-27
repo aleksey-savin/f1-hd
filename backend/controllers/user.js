@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const storage = require("../services/storage");
+const { runWorkStatusAuto } = require("../services/workStatusAuto");
 
 const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
@@ -13,6 +14,10 @@ const User = require("../models/user");
 const {
   WORK_STATUS_CODES,
   WORK_STATUS_BY_CODE,
+  WORKING_STATUS_CODES,
+  BREAK_STATUS_CODES,
+  AWAY_STATUS_CODES,
+  canSetStatusManually,
 } = require("../utils/workStatuses");
 const Company = require("../models/company");
 const Subdivision = require("../models/subdivision");
@@ -37,7 +42,8 @@ const canManageFinances = (caller) =>
 // сортировка/пагинация. Поля, по которым ищем (каждый терм должен встретиться
 // в одном из них); статусы присутствия, считающиеся «на связи».
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const PRESENCE_ONLINE = ["office", "remote", "trip"];
+// Списки кодов больше не хардкодим — семантика живёт в каталоге статусов
+const PRESENCE_ONLINE = WORKING_STATUS_CODES;
 const USER_SEARCH_FIELDS = [
   "firstName",
   "lastName",
@@ -183,9 +189,9 @@ exports.getAll = async (req, res, next) => {
             $switch: {
               branches: [
                 { case: { $in: ["$workStatus.code", PRESENCE_ONLINE] }, then: 0 },
-                { case: { $eq: ["$workStatus.code", "lunch"] }, then: 1 },
+                { case: { $in: ["$workStatus.code", BREAK_STATUS_CODES] }, then: 1 },
                 {
-                  case: { $in: ["$workStatus.code", ["vacation", "sick"]] },
+                  case: { $in: ["$workStatus.code", AWAY_STATUS_CODES] },
                   then: 3,
                 },
               ],
@@ -568,6 +574,8 @@ exports.add = async (req, res, next) => {
       isServiceAccount,
       isCloudTelephony,
       hideWorkStatus,
+      workTimeMode,
+      remoteOnly,
       permissions,
       dashboard,
       finances,
@@ -616,6 +624,8 @@ exports.add = async (req, res, next) => {
       isServiceAccount: isServiceAccount,
       isCloudTelephony: isCloudTelephony,
       hideWorkStatus: !!hideWorkStatus,
+      workTimeMode: workTimeMode || "scheduled",
+      remoteOnly: !!remoteOnly,
       password: hashedPassword,
       isActive: isActive,
       // Ключ PRO32 Connect храним только шифртекстом (secretBox)
@@ -722,6 +732,8 @@ exports.update = async (req, res, next) => {
       isServiceAccount,
       isCloudTelephony,
       hideWorkStatus,
+      workTimeMode,
+      remoteOnly,
       categories,
       permissions,
       dashboard,
@@ -780,6 +792,12 @@ exports.update = async (req, res, next) => {
     user.isServiceAccount = isServiceAccount;
     user.isCloudTelephony = isCloudTelephony;
     user.hideWorkStatus = !!hideWorkStatus;
+    if (workTimeMode !== undefined) {
+      user.workTimeMode = workTimeMode;
+    }
+    if (remoteOnly !== undefined) {
+      user.remoteOnly = !!remoteOnly;
+    }
     user.permissions = permissions;
     user.dashboard = dashboard;
     // Ответственность за компании теперь правится из формы пользователя
@@ -1191,9 +1209,16 @@ exports.updateMyAccount = async (req, res, next) => {
       categories,
       notify,
       telegramBot,
+      timezone,
     } = req.body;
 
     const user = await User.findById(id);
+
+    // Часовой пояс человек правит сам: он про него знает лучше, а от пояса
+    // зависят и его сутки в календаре, и границы его смены
+    if (timezone !== undefined) {
+      user.timezone = timezone || null;
+    }
 
     user.email = email ? email : user.email;
     user.phone = phone ? phone : user.phone;
@@ -1269,13 +1294,25 @@ exports.setWorkStatus = async (req, res, next) => {
     if (!WORK_STATUS_CODES.includes(code)) {
       return next(new AppError(`Некорректный статус "${code}"`, 400, true));
     }
+    // Отсутствия и «не на работе» ставит автоматика — иначе статусы и календарь
+    // разъедутся. Исключения: свободный режим учёта и право «Графики и
+    // отсутствия» (форс-мажор). UI такие пункты просто не показывает.
+    if (!canSetStatusManually(user, code)) {
+      return next(
+        new AppError(
+          "Этот статус проставляется автоматически: отпуск и больничный — по заявке, «не на работе» — по графику",
+          403,
+          true,
+        ),
+      );
+    }
 
     const note = String(req.body.note ?? "")
       .replace(/[\r\n]+/g, " ")
       .trim()
       .slice(0, 100);
 
-    user.workStatus = { code, note, updatedAt: new Date() };
+    user.workStatus = { code, note, updatedAt: new Date(), auto: false };
     await user.save();
 
     res.status(200).json({
@@ -1324,8 +1361,17 @@ exports.setWorkStatusFromTelegram = async (req, res, next) => {
     if (!WORK_STATUS_CODES.includes(code)) {
       return next(new AppError(`Некорректный статус "${code}"`, 400, true));
     }
+    if (!canSetStatusManually(user, code)) {
+      return next(
+        new AppError(
+          "Этот статус проставляется автоматически: отпуск и больничный — по заявке, «не на работе» — по графику",
+          403,
+          true,
+        ),
+      );
+    }
 
-    user.workStatus = { code, note: "", updatedAt: new Date() };
+    user.workStatus = { code, note: "", updatedAt: new Date(), auto: false };
     await user.save();
 
     const meta = WORK_STATUS_BY_CODE[code];
@@ -1378,6 +1424,117 @@ exports.disableChangelogNotification = async (req, res, next) => {
         `Failed to disable changelog notification`,
         500,
         true,
+        error,
+      ),
+    );
+  }
+};
+
+// POST /users/:id/work-schedule — личный график, часовой пояс и следование
+// производственному календарю. Дочерний блок карточки правится отдельным
+// запросом: форму пользователя целиком ради графика не открываем.
+// null в schedule снимает личный график — расчёт вернётся к прежнему каскаду.
+exports.updateWorkSchedule = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) {
+      return next(new AppError("Сотрудник не найден", 404));
+    }
+    if (user.isEndUser) {
+      return next(
+        new AppError("График работы ведётся только для сотрудников", 422),
+      );
+    }
+
+    const { userId } = await getAuthData(req);
+
+    if (req.body.timezone !== undefined) {
+      user.timezone = req.body.timezone || null;
+    }
+    if (req.body.workTimeMode !== undefined) {
+      user.workTimeMode = req.body.workTimeMode;
+    }
+    if (req.body.remoteOnly !== undefined) {
+      user.remoteOnly = Boolean(req.body.remoteOnly);
+    }
+
+    // График ведётся ВЕРСИЯМИ: новая запись не затирает прошлое, а начинает
+    // действовать с effectiveFrom. Версия с той же датой заменяется — иначе
+    // повторное сохранение плодило бы дубликаты одного дня.
+    if (req.body.schedule !== undefined) {
+      if (!req.body.schedule) {
+        user.workSchedules = [];
+      } else {
+        const effectiveFrom = req.body.effectiveFrom
+          ? new Date(`${req.body.effectiveFrom}T00:00:00.000Z`)
+          : null;
+        const sameDay = (value) =>
+          (value ? new Date(value).toISOString().slice(0, 10) : null) ===
+          (effectiveFrom ? effectiveFrom.toISOString().slice(0, 10) : null);
+
+        const kept = (user.workSchedules || []).filter(
+          (version) => !sameDay(version.effectiveFrom),
+        );
+        user.workSchedules = [
+          ...kept,
+          {
+            effectiveFrom,
+            schedule: req.body.schedule,
+            followProductionCalendar:
+              req.body.followProductionCalendar !== false,
+            createdBy: userId,
+            createdAt: new Date(),
+          },
+        ].sort((a, b) => {
+          const key = (v) => (v.effectiveFrom ? new Date(v.effectiveFrom).getTime() : 0);
+          return key(a) - key(b);
+        });
+      }
+      // Легаси-поле держим синхронным с актуальной версией, пока его читают
+      user.workSchedule = req.body.schedule || null;
+      if (req.body.followProductionCalendar !== undefined) {
+        user.followProductionCalendar = Boolean(req.body.followProductionCalendar);
+      }
+    } else if (req.body.followProductionCalendar !== undefined) {
+      user.followProductionCalendar = Boolean(req.body.followProductionCalendar);
+    }
+
+    user.updatedBy = userId;
+    await user.save();
+
+    // Автоматический статус пересчитываем сразу: сменили график — и «в офисе»
+    // по старому расписанию врёт с этой же секунды. Ручной не трогаем: его
+    // человек выбрал сам, он доживёт до конца суток.
+    if (user.workStatus?.auto !== false) {
+      if (user.workTimeMode === "scheduled") {
+        await runWorkStatusAuto({ userIds: [user._id] });
+      } else if (user.workStatus?.code !== "unset") {
+        // Свободный режим и «не ведётся» автоматики не имеют — оставлять
+        // «в офисе» от прежнего графика нельзя, статус обнуляем
+        await User.updateOne(
+          { _id: user._id },
+          {
+            $set: {
+              workStatus: { code: "unset", note: "", updatedAt: new Date(), auto: true },
+            },
+          },
+        );
+      }
+    }
+
+    res.status(200).json({
+      _id: user._id,
+      timezone: user.timezone,
+      workTimeMode: user.workTimeMode,
+      remoteOnly: user.remoteOnly,
+      workSchedules: user.workSchedules,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        error.message || "Не удалось сохранить график работы",
+        500,
         error,
       ),
     );

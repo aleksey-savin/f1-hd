@@ -16,6 +16,20 @@ dayjs.extend(dayjsTimezone);
 
 const { AppError } = require("../middleware/errorHandling");
 
+// Классификация работ, длительность и группировки — из общего ядра
+// (services/workSummary): те же правила читают дашборд, карточка компании и
+// персональный отчёт.
+const {
+  classifyWork,
+  countUniqueTickets,
+  groupBy,
+  groupByCompany,
+  loadWorks,
+  periodKeyFn,
+  summarize,
+  workDurationMs,
+} = require("../services/workSummary");
+
 exports.getFormData = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
@@ -140,12 +154,21 @@ exports.filterWorks = async (req, res, next) => {
 
 exports.getCompanySummary = async (req, res, next) => {
   try {
-    const { from, to } = req.body;
+    const { from, to } = req.query;
     const authedUser = await getAuthData(req);
 
+    // Период приходит yyyy-MM-dd; верхняя граница — эксклюзивная полночь
+    // следующего дня (семантика work.getFinished)
     const fromDate = new Date(from);
-    let toDate = new Date(to);
-    toDate = toDate.setDate(toDate.getDate() + 1);
+    const toExclusive = new Date(to);
+    toExclusive.setDate(toExclusive.getDate() + 1);
+    if (
+      Number.isNaN(fromDate.getTime()) ||
+      Number.isNaN(toExclusive.getTime()) ||
+      fromDate >= toExclusive
+    ) {
+      return next(new AppError("Invalid report period", 400, true));
+    }
 
     // Получаем компании в зависимости от роли пользователя
     let companies = [];
@@ -163,52 +186,68 @@ exports.getCompanySummary = async (req, res, next) => {
       }).sort({ name: 1 });
     }
 
+    // Все работы периода — одной выборкой, дальше группировка в памяти
+    const companyIds = companies.map((company) => company._id);
+    const periodWorks = await loadWorks({
+      from: fromDate,
+      to: toExclusive,
+      companyIds,
+    });
+    const worksByCompany = groupByCompany(periodWorks);
+
+    // Подразделения исполнителей (клиентский вид) — одним запросом вместо
+    // вложенного populate finishedBy._id → subdivision на каждой работе
+    let subdivisionByExecutor = new Map();
+    if (authedUser.isEndUser && subdivisions.length > 0) {
+      const executorIds = [
+        ...new Set(
+          periodWorks
+            .map((work) => work.finishedBy?._id?.toString())
+            .filter(Boolean),
+        ),
+      ];
+      const executors = executorIds.length
+        ? await User.find({ _id: { $in: executorIds } })
+            .select("subdivision")
+            .lean()
+        : [];
+      subdivisionByExecutor = new Map(
+        executors.map((executor) => [
+          executor._id.toString(),
+          executor.subdivision ? executor.subdivision.toString() : null,
+        ]),
+      );
+    }
+
     const companySummaries = [];
 
     for (let company of companies) {
-      // Получаем все работы компании за период
-      const works = await Work.find({
-        company: company._id,
-        finishedAt: { $gte: fromDate, $lte: toDate },
-      })
-        .populate({
-          path: "tickets",
-          populate: {
-            path: "routineTask",
-          },
-        })
-        .populate({
-          path: "finishedBy._id",
-          populate: {
-            path: "subdivision",
-          },
-        });
+      const works = worksByCompany.get(company._id.toString()) || [];
 
       if (works.length === 0) continue;
 
-      // Получаем все заявки, связанные с работами
-      const allTicketIds = works.reduce((acc, work) => {
-        return acc.concat(work.tickets);
-      }, []);
-
-      const uniqueTicketIds = [
-        ...new Set(allTicketIds.map((id) => id.toString())),
-      ];
-      const totalTickets = uniqueTicketIds.length;
+      const totalTickets = countUniqueTickets(works);
 
       // Группируем работы по подразделениям для клиентов
       const subdivisionStats = {};
       if (authedUser.isEndUser && subdivisions.length > 0) {
         // Создаем статистику для всех подразделений
+        const emptySubdivisionStats = () => ({
+          totalWorks: 0,
+          totalTime: 0,
+          onSiteCount: 0,
+          onSiteTime: 0,
+          remoteCount: 0,
+          remoteTime: 0,
+          routineTaskCount: 0,
+          routineTaskTime: 0,
+        });
+
         subdivisions.forEach((subdivision) => {
           subdivisionStats[subdivision._id.toString()] = {
             _id: subdivision._id.toString(),
             name: subdivision.name,
-            totalWorks: 0,
-            totalTime: 0,
-            onSiteTime: 0,
-            remoteTime: 0,
-            routineTaskTime: 0,
+            ...emptySubdivisionStats(),
           };
         });
 
@@ -216,83 +255,32 @@ exports.getCompanySummary = async (req, res, next) => {
         subdivisionStats["no_subdivision"] = {
           _id: "no_subdivision",
           name: "Без подразделения",
-          totalWorks: 0,
-          totalTime: 0,
-          onSiteTime: 0,
-          remoteTime: 0,
-          routineTaskTime: 0,
+          ...emptySubdivisionStats(),
         };
 
         works.forEach((work) => {
           if (work.finishedBy && work.finishedBy._id) {
-            let subdivisionId = null;
-            if (work.finishedBy._id.subdivision) {
-              subdivisionId = work.finishedBy._id.subdivision._id.toString();
-            } else {
-              // Если у исполнителя нет подразделения
-              subdivisionId = "no_subdivision";
-            }
+            // Исполнитель без подразделения — в общую корзину
+            const subdivisionId =
+              subdivisionByExecutor.get(work.finishedBy._id.toString()) ||
+              "no_subdivision";
 
             if (subdivisionId && subdivisionStats[subdivisionId]) {
-              subdivisionStats[subdivisionId].totalWorks++;
+              const stats = subdivisionStats[subdivisionId];
+              stats.totalWorks++;
 
-              if (work.startedAt && work.finishedAt) {
-                const workDuration =
-                  new Date(work.finishedAt) - new Date(work.startedAt);
-                subdivisionStats[subdivisionId].totalTime += workDuration;
+              const classKey = classifyWork(work);
+              stats[`${classKey}Count`]++;
 
-                const isRoutineTask = work.tickets.some(
-                  (ticket) => ticket.routineTask,
-                );
-
-                if (isRoutineTask) {
-                  subdivisionStats[subdivisionId].routineTaskTime +=
-                    workDuration;
-                } else if (work.visitRequired === true) {
-                  subdivisionStats[subdivisionId].onSiteTime += workDuration;
-                } else {
-                  subdivisionStats[subdivisionId].remoteTime += workDuration;
-                }
-              }
+              const workDuration = workDurationMs(work);
+              stats.totalTime += workDuration;
+              stats[`${classKey}Time`] += workDuration;
             }
           }
         });
       }
 
-      // Находим регламентные работы (работы с билетами, у которых есть routineTask)
-      const routineTaskWorks = works.filter((work) =>
-        work.tickets.some((ticket) => ticket.routineTask),
-      );
-
-      // Разделяем работы по типу (выезды/удаленные), исключая регламентные
-      const onSiteWorks = works.filter(
-        (work) =>
-          work.visitRequired === true &&
-          !work.tickets.some((ticket) => ticket.routineTask),
-      );
-      const remoteWorks = works.filter(
-        (work) =>
-          work.visitRequired !== true &&
-          !work.tickets.some((ticket) => ticket.routineTask),
-      );
-
-      // Вычисляем общее время
-      const calculateTotalTime = (worksList) => {
-        return worksList.reduce((total, work) => {
-          if (work.startedAt && work.finishedAt) {
-            return (
-              total + (new Date(work.finishedAt) - new Date(work.startedAt))
-            );
-          }
-          return total;
-        }, 0);
-      };
-
-      const totalOnSiteTime = calculateTotalTime(onSiteWorks);
-      const totalRemoteTime = calculateTotalTime(remoteWorks);
-      const totalRoutineTaskTime = calculateTotalTime(routineTaskWorks);
-      const totalTime =
-        totalOnSiteTime + totalRemoteTime + totalRoutineTaskTime;
+      const summary = summarize(works);
 
       // Статистика по исполнителям
       const executorStats = {};
@@ -317,29 +305,15 @@ exports.getCompanySummary = async (req, res, next) => {
 
           executorStats[executorId].totalWorks++;
 
+          // Счётчики классов у исполнителя исторически растут только вместе с
+          // временем — работа без отметок не попадает ни в один класс
           if (work.startedAt && work.finishedAt) {
-            const workDuration =
-              new Date(work.finishedAt) - new Date(work.startedAt);
+            const workDuration = workDurationMs(work);
+            const classKey = classifyWork(work);
+
             executorStats[executorId].totalTime += workDuration;
-
-            // Проверяем является ли работа регламентной
-            const isRoutineTask = work.tickets.some(
-              (ticket) => ticket.routineTask,
-            );
-
-            if (isRoutineTask) {
-              executorStats[executorId].routineTaskWorks++;
-              executorStats[executorId].routineTaskTime += workDuration;
-            } else {
-              // Определяем тип работы (выездная или удаленная) только для НЕ регламентных
-              if (work.visitRequired === true) {
-                executorStats[executorId].onSiteWorks++;
-                executorStats[executorId].onSiteTime += workDuration;
-              } else {
-                executorStats[executorId].remoteWorks++;
-                executorStats[executorId].remoteTime += workDuration;
-              }
-            }
+            executorStats[executorId][`${classKey}Works`]++;
+            executorStats[executorId][`${classKey}Time`] += workDuration;
           }
         }
       });
@@ -351,20 +325,7 @@ exports.getCompanySummary = async (req, res, next) => {
           name: company.name,
         },
         totalTickets,
-        totalWorks: works.length,
-        totalTime,
-        onSite: {
-          count: onSiteWorks.length,
-          time: totalOnSiteTime,
-        },
-        remote: {
-          count: remoteWorks.length,
-          time: totalRemoteTime,
-        },
-        routineTask: {
-          count: routineTaskWorks.length,
-          time: totalRoutineTaskTime,
-        },
+        ...summary,
         executors: authedUser.isEndUser ? [] : Object.values(executorStats),
         subdivisions: authedUser.isEndUser
           ? Object.values(subdivisionStats)
@@ -372,9 +333,58 @@ exports.getCompanySummary = async (req, res, next) => {
       });
     }
 
+    // Итоги текущего периода — сумма по компаниям выборки (заявка живёт в
+    // одной компании, сумма уникальных по компаниям = уникальные глобально)
+    const totals = companySummaries.reduce(
+      (acc, companySummary) => {
+        acc.totalTickets += companySummary.totalTickets;
+        acc.totalWorks += companySummary.totalWorks;
+        acc.totalTime += companySummary.totalTime;
+        for (const key of ["onSite", "remote", "routineTask"]) {
+          acc[key].count += companySummary[key].count;
+          acc[key].time += companySummary[key].time;
+        }
+        return acc;
+      },
+      {
+        totalTickets: 0,
+        totalWorks: 0,
+        totalTime: 0,
+        onSite: { count: 0, time: 0 },
+        remote: { count: 0, time: 0 },
+        routineTask: { count: 0, time: 0 },
+      },
+    );
+
+    // Дельты KPI: итоги предыдущего периода той же длины — одной лёгкой
+    // выборкой по всем компаниям скоупа, без разрезов
+    const spanDays = Math.round((toExclusive - fromDate) / 86400000);
+    const prevFromDate = new Date(fromDate);
+    prevFromDate.setDate(prevFromDate.getDate() - spanDays);
+
+    const prevWorks = await loadWorks({
+      from: prevFromDate,
+      to: fromDate,
+      companyIds,
+    });
+
+    const prevToDate = new Date(fromDate);
+    prevToDate.setDate(prevToDate.getDate() - 1);
+
     res.status(200).json({
       message: "Company summary",
       period: { from, to },
+      totals,
+      prev: {
+        period: {
+          from: dayjs.utc(prevFromDate).format("YYYY-MM-DD"),
+          to: dayjs.utc(prevToDate).format("YYYY-MM-DD"),
+        },
+        totals: {
+          totalTickets: countUniqueTickets(prevWorks),
+          ...summarize(prevWorks),
+        },
+      },
       companies: companySummaries,
       subdivisions: authedUser.isEndUser ? subdivisions : [],
       isClientView: authedUser.isEndUser,
@@ -398,7 +408,7 @@ exports.getTrendsAnalysis = async (req, res, next) => {
       grouping,
       startDate: customStartDate,
       endDate: customEndDate,
-    } = req.body;
+    } = req.query;
     const authedUser = await getAuthData(req);
 
     // Диапазон дат — по настенным часам БИЗНЕС-таймзоны (сервер живёт в UTC:
@@ -439,6 +449,20 @@ exports.getTrendsAnalysis = async (req, res, next) => {
     // Генерируем периоды (месяцы/кварталы/недели)
     const periods = generatePeriods(startDate, endDate, grouping, tz);
 
+    // Окно загрузки — по границам нарезки, а не по startDate/endDate: первый
+    // месячный/квартальный бакет начинается раньше запрошенной даты
+    // (generatePeriods выравнивает курсор на начало месяца)
+    const periodWorks = periods.length
+      ? await loadWorks({
+          from: periods[0].start,
+          to: periods[periods.length - 1].end,
+          endExclusive: false,
+          companyIds: companies.map((company) => company._id),
+        })
+      : [];
+    const worksByCompany = groupByCompany(periodWorks);
+    const keyOfPeriod = periodKeyFn(periods);
+
     for (let company of companies) {
       const companyTrends = {
         company: {
@@ -451,107 +475,17 @@ exports.getTrendsAnalysis = async (req, res, next) => {
 
       let hasData = false;
 
+      // Разрез по исполнителям в трендах не отдаём — UI его не показывает
+      const companyWorks = worksByCompany.get(company._id.toString()) || [];
+      const worksByPeriod = groupBy(companyWorks, keyOfPeriod);
+
       for (let period of periods) {
-        // Получаем работы за каждый период
-        const works = await Work.find({
-          company: company._id,
-          finishedAt: { $gte: period.start, $lte: period.end },
-        })
-          .populate("finishedBy")
-          .populate({
-            path: "tickets",
-            populate: {
-              path: "routineTask",
-            },
-          });
-
-        // Получаем все заявки, связанные с работами
-        const allTicketIds = works.reduce((acc, work) => {
-          return acc.concat(work.tickets);
-        }, []);
-
-        const uniqueTicketIds = [
-          ...new Set(allTicketIds.map((id) => id.toString())),
-        ];
-
-        // Находим регламентные работы (работы с билетами, у которых есть routineTask)
-        const routineTaskWorks = works.filter((work) =>
-          work.tickets.some((ticket) => ticket.routineTask),
-        );
-
-        // Разделяем работы по типу (выезды/удаленные), исключая регламентные
-        const onSiteWorks = works.filter(
-          (work) =>
-            work.visitRequired === true &&
-            !work.tickets.some((ticket) => ticket.routineTask),
-        );
-        const remoteWorks = works.filter(
-          (work) =>
-            work.visitRequired !== true &&
-            !work.tickets.some((ticket) => ticket.routineTask),
-        );
-
-        // Вычисляем общее время
-        const calculateTotalTime = (worksList) => {
-          return worksList.reduce((total, work) => {
-            if (work.startedAt && work.finishedAt) {
-              return (
-                total + (new Date(work.finishedAt) - new Date(work.startedAt))
-              );
-            }
-            return total;
-          }, 0);
-        };
-
-        const totalOnSiteTime = calculateTotalTime(onSiteWorks);
-        const totalRemoteTime = calculateTotalTime(remoteWorks);
-        const totalRoutineTaskTime = calculateTotalTime(routineTaskWorks);
-        const totalTime =
-          totalOnSiteTime + totalRemoteTime + totalRoutineTaskTime;
-
-        // Статистика по исполнителям для периода
-        const executorStats = {};
-        works.forEach((work) => {
-          if (work.finishedBy && work.finishedBy._id) {
-            const executorId = work.finishedBy._id.toString();
-            const executorName = `${work.finishedBy.lastName} ${work.finishedBy.firstName}`;
-
-            if (!executorStats[executorId]) {
-              executorStats[executorId] = {
-                name: executorName,
-                totalWorks: 0,
-                totalTime: 0,
-              };
-            }
-
-            executorStats[executorId].totalWorks++;
-
-            if (work.startedAt && work.finishedAt) {
-              const workDuration =
-                new Date(work.finishedAt) - new Date(work.startedAt);
-              executorStats[executorId].totalTime += workDuration;
-            }
-          }
-        });
+        const works = worksByPeriod.get(period.key) || [];
 
         const periodData = {
           ...period,
-          totalTickets: uniqueTicketIds.length,
-          totalWorks: works.length,
-          totalTime,
-          onSite: {
-            count: onSiteWorks.length,
-            time: totalOnSiteTime,
-          },
-          remote: {
-            count: remoteWorks.length,
-            time: totalRemoteTime,
-          },
-          routineTask: {
-            count: routineTaskWorks.length,
-            time: totalRoutineTaskTime,
-          },
-          executors: Object.values(executorStats),
+          totalTickets: countUniqueTickets(works),
+          ...summarize(works),
         };
 
         companyTrends.periods.push(periodData);

@@ -17,6 +17,7 @@ export default defineConfig([
         module: "readonly",
         __dirname: "readonly",
         require: "readonly",
+        Buffer: "readonly",
       },
       sourceType: "commonjs",
     },

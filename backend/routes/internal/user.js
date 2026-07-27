@@ -5,9 +5,13 @@ const userController = require("@/controllers/user");
 const isAuth = require("@/middleware/isAuth");
 const {
   canManageUsers,
+  canManageWorkSchedules,
   isNotClient,
   isAdmin,
 } = require("@/middleware/permissions");
+
+const { runValidation } = require("@/middleware/runValidation");
+const teamValidation = require("@/validations/team");
 
 const fileUpload = require("@/middleware/fileUpload");
 const { uploadBackgroundImage } = require("@/middleware/imageUpload");
@@ -114,6 +118,15 @@ router.post(
   "/users/disable-changelog",
   isAuth,
   userController.disableChangelogNotification,
+);
+// График работы правится отдельным запросом с карточки сотрудника
+router.post(
+  "/users/:id/work-schedule",
+  isAuth,
+  canManageWorkSchedules,
+  teamValidation.updateWorkSchedule,
+  runValidation,
+  userController.updateWorkSchedule,
 );
 router.get("/users/:id", isAuth, userController.getOne);
 

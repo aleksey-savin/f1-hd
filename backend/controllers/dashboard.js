@@ -1,11 +1,16 @@
 const { Ticket } = require("../models//ticket");
 const Company = require("../models//company");
-const Work = require("../models//work");
 const User = require("../models//user");
 const Preferences = require("../models//preferences");
 
 const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
+const {
+  groupByCompany,
+  groupByExecutor,
+  loadWorks,
+  workDurationMs,
+} = require("../services/workSummary");
 
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
@@ -27,15 +32,10 @@ exports.getAll = async (req, res, next) => {
   const startOfMonth = dayjs.tz(new Date(), prefsTz).startOf("month");
   const endOfMonth = dayjs.tz(new Date(), prefsTz).endOf("month");
 
-  const totalTime = (works) => {
-    let total = 0;
-    for (let work of works) {
-      const duration = new Date(work.finishedAt) - new Date(work.startedAt);
-
-      total += duration;
-    }
-    return total;
-  };
+  // Сумма длительностей — общей формулой ядра (работа без отметки времени
+  // раньше давала NaN и обнуляла весь показатель)
+  const totalTime = (works) =>
+    works.reduce((total, work) => total + workDurationMs(work), 0);
 
   const sortByTotalTime = (arr) => {
     return arr.sort((a, b) => b.totalTime - a.totalTime);
@@ -145,32 +145,27 @@ exports.getAll = async (req, res, next) => {
         isActive: true,
       });
 
-      let clientsWorksReport = [];
-      let specsWorksReport = [];
+      // Все работы месяца — одной выборкой; разрезы по компаниям и
+      // специалистам считаются группировкой (раньше был запрос на каждую
+      // компанию и на каждого специалиста)
+      const monthWorks = await loadWorks({
+        from: startOfMonth.toDate(),
+        to: endOfMonth.toDate(),
+        endExclusive: false,
+        withTickets: false,
+      });
+      const worksByCompany = groupByCompany(monthWorks);
+      const worksByExecutor = groupByExecutor(monthWorks);
 
-      for (let company of companies) {
-        const works = await Work.find({
-          company: company._id,
-          finishedAt: { $gte: startOfMonth, $lte: endOfMonth },
-        });
+      const clientsWorksReport = companies.map((company) => ({
+        company: company.alias,
+        totalTime: totalTime(worksByCompany.get(company._id.toString()) || []),
+      }));
 
-        clientsWorksReport.push({
-          company: company.alias,
-          totalTime: totalTime(works),
-        });
-      }
-
-      for (let user of specialists) {
-        const works = await Work.find({
-          "finishedBy._id": user._id,
-          finishedAt: { $gte: startOfMonth, $lte: endOfMonth },
-        });
-
-        specsWorksReport.push({
-          specialist: `${user.lastName} ${user.firstName}`,
-          totalTime: totalTime(works),
-        });
-      }
+      const specsWorksReport = specialists.map((user) => ({
+        specialist: `${user.lastName} ${user.firstName}`,
+        totalTime: totalTime(worksByExecutor.get(user._id.toString()) || []),
+      }));
 
       data.clientsWorksReport = sortByTotalTime(clientsWorksReport);
       data.specsWorksReport = sortByTotalTime(specsWorksReport);
@@ -230,28 +225,58 @@ exports.getAll = async (req, res, next) => {
     let myWorks = {};
 
     if (personalStats) {
-      const works = await Work.find({
-        "finishedBy._id": userId,
-        finishedAt: { $gte: startOfMonth, $lte: endOfMonth },
+      const works = await loadWorks({
+        from: startOfMonth.toDate(),
+        to: endOfMonth.toDate(),
+        endExclusive: false,
+        executorIds: [userId],
+        withTickets: false,
+        extraSelect: "description",
       });
 
-      let worksData = [];
+      // Заявки работ — одним запросом. Раньше здесь был findById(work.ticketId)
+      // по несуществующему полю схемы: mongoose отбрасывал undefined-фильтр,
+      // запрос возвращал null, и номер с категорией в таблице были пустыми, а
+      // инициатор — строкой «undefined undefined».
+      const ticketIds = [
+        ...new Set(
+          works.flatMap((work) =>
+            (work.tickets || []).map((ticket) => ticket.toString()),
+          ),
+        ),
+      ];
+      const tickets = ticketIds.length
+        ? await Ticket.find({ _id: { $in: ticketIds } })
+            .select("num applicant applicantId categoryId")
+            .populate({ path: "applicantId", select: "firstName lastName" })
+            .populate({ path: "categoryId", select: "title" })
+            .lean()
+        : [];
+      const ticketsById = new Map(
+        tickets.map((ticket) => [ticket._id.toString(), ticket]),
+      );
 
-      for (let work of works) {
-        const ticket = await Ticket.findById(work.ticketId);
-        const ticketNum = ticket?.num;
+      const fullName = (person) =>
+        person && (person.lastName || person.firstName)
+          ? `${person.lastName ?? ""} ${person.firstName ?? ""}`.trim()
+          : null;
 
-        worksData.push({
+      const worksData = works.map((work) => {
+        // У работы может быть несколько заявок — показываем первую
+        const ticket = ticketsById.get(work.tickets?.[0]?.toString());
+
+        return {
           _id: work._id,
-          ticketNum: work.ticket ? work.ticket : ticketNum,
-          ticketApplicant: `${ticket?.applicant.lastName} ${ticket?.applicant.firstName}`,
-          ticketCategory: ticket?.category.title,
+          ticketNum: ticket?.num ?? null,
+          ticketApplicant:
+            fullName(ticket?.applicantId) ?? fullName(ticket?.applicant),
+          ticketCategory: ticket?.categoryId?.title ?? null,
           description: work.description,
           finishedBy: `${work.finishedBy?.lastName} ${work.finishedBy?.firstName}`,
           startedAt: work.startedAt,
           finishedAt: work.finishedAt,
-        });
-      }
+        };
+      });
 
       myWorks = {
         list: worksData,

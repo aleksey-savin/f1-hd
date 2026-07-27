@@ -13,6 +13,7 @@ import PrefsIntegrations from "../components/Preferences/Integrations";
 import PrefsAi from "../components/Preferences/Ai";
 import PrefsKnowledgeBase from "../components/Preferences/KnowledgeBase";
 import PrefsOvertime from "../components/Preferences/Overtime";
+import PrefsProductionCalendar from "../components/Preferences/ProductionCalendar";
 
 import Forbidden from "../components/Error/403";
 import { getLocalStorageData } from "../util/auth";
@@ -76,6 +77,13 @@ const Preferences = () => {
           },
         ]
       : []),
+    // Календарь нужен норме часов и переработкам, поэтому модулем не закрыт:
+    // отпуска и графики ведутся и без учёта времени
+    {
+      id: "production-calendar",
+      label: "Производственный календарь",
+      element: <PrefsProductionCalendar prefs={prefs} />,
+    },
   ];
 
   const panels = (
@@ -153,8 +161,15 @@ export async function action({ request }) {
   );
 
   if (!response.ok) {
+    // Бэкенд отвечает 422 с человекочитаемой причиной («Укажите сервер IMAP…»)
+    // — она полезнее общей фразы, поэтому показываем её как есть.
+    const reason = await response
+      .json()
+      .then((data) => data?.message)
+      .catch(() => null);
+
     return Response.json(
-      { error: true, message: "Не удалось сохранить настройки" },
+      { error: true, message: reason || "Не удалось сохранить настройки" },
       { status: 200 },
     );
   }

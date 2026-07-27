@@ -348,6 +348,26 @@ module.exports.canSeeAnalytics = async (req, res, next) => {
   next();
 };
 
+// Правка графиков, заведение отсутствий и решение по запросам. Просмотр табеля
+// правом не закрыт — он открыт всем не-клиентам (isNotClient).
+module.exports.canManageWorkSchedules = async (req, res, next) => {
+  const { userId } = await getAuthData(req);
+  const authedUser = await User.findById(userId);
+  const { permissions, isAdmin } = authedUser;
+  if (!permissions.canManageWorkSchedules && !isAdmin) {
+    const error = new Error(
+      "Недостаточно прав для управления графиками и отсутствиями",
+    );
+    error.statusCode = 403;
+    return res.status(error.statusCode).json({
+      error: true,
+      status: error.statusCode,
+      message: error.message,
+    });
+  }
+  next();
+};
+
 // inventory module
 module.exports.canUseInventoryModule = async (req, res, next) => {
   const { userId } = await getAuthData(req);

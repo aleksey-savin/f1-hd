@@ -2,6 +2,7 @@ const Router = require("express");
 const router = new Router();
 const reportController = require("@/controllers/finances/report");
 const personalReportController = require("@/controllers/finances/personalReport");
+const employeesSummaryController = require("@/controllers/finances/employeesSummary");
 const isAuth = require("@/middleware/isAuth");
 
 const { runValidation } = require("@/middleware/runValidation");
@@ -45,6 +46,15 @@ router.get(
   personalReportController.getReportEmployees,
 );
 
+router.get(
+  "/employees-summary",
+  isAuth,
+  canSeeGlobalFinancialReport,
+  reportValidation.employeesSummary,
+  runValidation,
+  employeesSummaryController.getSummary,
+);
+
 router.post(
   "/summary-report/confirm-works-by-contractor",
   isAuth,
@@ -57,6 +67,7 @@ router.post(
 router.patch(
   "/summary-report/create-invoice",
   isAuth,
+  canConfirmReportActions,
   reportValidation.createInvoice,
   runValidation,
   reportController.createInvoice,
@@ -65,6 +76,7 @@ router.patch(
 router.patch(
   "/summary-report/confirm-payment",
   isAuth,
+  canConfirmReportActions,
   reportValidation.confirmPayment,
   runValidation,
   reportController.confirmPayment,
@@ -91,6 +103,7 @@ router.post(
 router.delete(
   "/summary-report/delete",
   isAuth,
+  canConfirmReportActions,
   reportValidation.delete,
   runValidation,
   reportController.delete,

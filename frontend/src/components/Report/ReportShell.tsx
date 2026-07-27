@@ -1,0 +1,56 @@
+import { type ReactNode } from "react";
+
+// Каркас страницы отчёта: заголовок в языке ListWrapper + строка инструментов
+// (сегмент режимов, период, экспорт) справа. Отчёт — не список: поиска,
+// сортировки и пагинации нет, поэтому ListWrapper не используется. Раскладка
+// адаптивная (flex-wrap), отдельной мобильной ветки не требуется. Выносить в
+// components/app рано — обобщим на втором отчёте (финансовые).
+const ReportShell = ({
+  title,
+  subtitle,
+  toolbar,
+  breadcrumb,
+  wide = false,
+  children,
+}: {
+  title: string;
+  /** Строка под заголовком: должность, ставка и т.п. */
+  subtitle?: ReactNode;
+  toolbar?: ReactNode;
+  /** Возврат к списку/сводной — крошками сверху, как на карточках сущностей. */
+  breadcrumb?: ReactNode;
+  /**
+   * Широкая раскладка (1600) вместо стандартной 1280 — для табеля «Графики
+   * работы»: 31 колонка дней плюс липкие колонки сотрудника и итогов.
+   * Ширину дублирует запись в MIGRATED_ROUTES (layout/Root.jsx).
+   */
+  wide?: boolean;
+  children: ReactNode;
+}) => (
+  <div
+    // 1600 нет во встроенной сетке tailwind, а произвольные значения в классах
+    // гайд запрещает — ширину задаём стилем
+    className={wide ? "tw:mx-auto tw:w-full" : "tw:mx-auto tw:w-full tw:max-w-7xl"}
+    style={wide ? { maxWidth: 1600 } : undefined}
+  >
+    {breadcrumb && <div className="tw:mb-3">{breadcrumb}</div>}
+    <div className="tw:mb-4 tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-3">
+      <div>
+        <h1 className="tw:my-0 tw:text-4xl tw:leading-none tw:font-semibold tw:tracking-tight">
+          {title}
+        </h1>
+        {subtitle && (
+          <div className="tw:mt-1.5 tw:text-sm tw:text-muted-foreground">
+            {subtitle}
+          </div>
+        )}
+      </div>
+      <div className="tw:ms-auto tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+        {toolbar}
+      </div>
+    </div>
+    {children}
+  </div>
+);
+
+export default ReportShell;

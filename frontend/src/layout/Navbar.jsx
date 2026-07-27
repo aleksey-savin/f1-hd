@@ -5,6 +5,7 @@ import {
   RiArrowDownSLine,
   RiLogoutBoxRLine,
   RiMenuLine,
+  RiSettings3Line,
   RiUserSettingsLine,
 } from "react-icons/ri";
 
@@ -13,6 +14,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -81,22 +83,29 @@ const Brand = ({ size = "default" }) => {
   );
 };
 
-// Дропдаун раздела бара: группы пунктов с разделителями
+// Дропдаун раздела бара: группы пунктов с разделителями; у группы может быть
+// uppercase-заголовок (label — «Администрирование» подписывает группы по
+// модулям). В триггере — shortLabel, если задан (экономия ширины бара на xl)
 const SectionDropdown = ({ item }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button type="button" className={navItemClass()}>
           <item.icon size={16} aria-hidden className="tw:opacity-85" />
-          {item.label}
+          {item.shortLabel ?? item.label}
           <RiArrowDownSLine size={14} aria-hidden className="tw:opacity-60" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="tw:min-w-56">
         {item.groups.map((group, groupIndex) => (
-          <div key={groupIndex}>
+          <div key={group.label ?? groupIndex}>
             {groupIndex > 0 && <DropdownMenuSeparator />}
-            {group.map((child) => (
+            {group.label && (
+              <DropdownMenuLabel className="tw:text-xs tw:font-semibold tw:tracking-wider tw:text-muted-foreground tw:uppercase">
+                {group.label}
+              </DropdownMenuLabel>
+            )}
+            {group.items.map((child) => (
               <DropdownMenuItem key={child.key} asChild>
                 <NavLink to={child.to} className="tw:no-underline">
                   <child.icon size={16} aria-hidden />
@@ -149,10 +158,12 @@ const ThemeDropdown = () => {
   );
 };
 
-// Меню пользователя: статусы присутствия + «Мой аккаунт» + «Выйти»
+// Меню пользователя: статусы присутствия + «Мой аккаунт» + «Настройки
+// системы» (только админам — переехали из «Администрирования») + «Выйти»
 const UserMenu = ({ trigger, align = "end" }) => {
   const [open, setOpen] = useState(false);
-  const { isEndUser, hideWorkStatus } = useContext(AuthedUserContext);
+  const { isAdmin, isEndUser, hideWorkStatus } =
+    useContext(AuthedUserContext);
   const workStatusAvailable = !isEndUser && !hideWorkStatus;
 
   const menuItemClass =
@@ -180,6 +191,20 @@ const UserMenu = ({ trigger, align = "end" }) => {
           />
           Мой аккаунт
         </NavLink>
+        {isAdmin && (
+          <NavLink
+            to="/preferences"
+            onClick={() => setOpen(false)}
+            className={menuItemClass}
+          >
+            <RiSettings3Line
+              size={16}
+              aria-hidden
+              className="tw:text-muted-foreground"
+            />
+            Настройки системы
+          </NavLink>
+        )}
         <div className="tw:mx-2 tw:my-1.5 tw:h-px tw:bg-border-soft" />
         <Form action="/logout" method="POST">
           <button

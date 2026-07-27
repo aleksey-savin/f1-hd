@@ -1,0 +1,217 @@
+// Формы ответов раздела «Сотрудники» (backend: services/employeesSummaryService
+// и services/personalReportService). Типизация у границы: один `as` на
+// response.json() в сторах store/reports/*.
+
+export type WorkClassStat = { count: number; minutes: number };
+
+export type WorkClassKey = "onSite" | "remote" | "routineTask";
+
+export type FinanceStatusKey =
+  | "approved"
+  | "underReview"
+  | "pendingApproval"
+  | "preview"
+  | "declined"
+  | "none";
+
+export type StatusStat = { count: number; minutes: number };
+
+export type OvertimeTotals = {
+  roundedMinutes: number;
+  weekdayMinutes: number;
+  weekendMinutes: number;
+  /** Работа в праздник по производственному календарю — свой коэффициент. */
+  holidayMinutes: number;
+};
+
+// ------------------------------------------------------- сводка по всем
+
+export type EmployeesTotals = {
+  employeesCount: number;
+  employeesWithWorks: number;
+  worksCount: number;
+  ticketsFinished: number;
+  totalMinutes: number;
+  onSite: WorkClassStat;
+  remote: WorkClassStat;
+  routineTask: WorkClassStat;
+  overtime: OvertimeTotals;
+  overtimePaySum: number;
+  /** Сколько сотрудников имеют переработки, но не имеют ставки. */
+  missingRateCount: number;
+  /** Норма периода по производственному календарю и личным графикам. */
+  normMinutes: number;
+  absenceDays: number;
+  /** У скольких не задан личный график — их переработки считаются по-старому. */
+  noScheduleCount: number;
+};
+
+export type EmployeeRow = {
+  employee: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    position: string | null;
+    isActive: boolean;
+  };
+  worksCount: number;
+  ticketsFinished: number;
+  totalMinutes: number;
+  onSite: WorkClassStat;
+  remote: WorkClassStat;
+  routineTask: WorkClassStat;
+  overtime: OvertimeTotals & { actualMinutes: number; worksCount: number };
+  /** Норма периода: график сотрудника × производственный календарь − отсутствия. */
+  normMinutes: number;
+  normMinutesBeforeAbsences: number;
+  workingDays: number;
+  absenceDays: number;
+  utilizationPercent: number | null;
+  timezone: string;
+  scheduleSource: "user" | "plan" | "company" | "fallback";
+  hasPersonalSchedule: boolean;
+  payroll: {
+    overtimeHourlyRate: number | null;
+    weekday: { minutes: number; coefficient: number; pay: number | null };
+    weekend: { minutes: number; coefficient: number; pay: number | null };
+    overtimePay: number | null;
+    missingRate: boolean;
+  };
+};
+
+export type ReportPeriod = {
+  from: string;
+  to: string;
+  days: number;
+  isFullMonth: boolean;
+  timezone: string;
+};
+
+export type EmployeesSummaryResponse = {
+  period: ReportPeriod;
+  approvedOnly: boolean;
+  settings: {
+    weekdayCoefficient: number;
+    weekendCoefficient: number;
+    defaultTariffingPeriodMinutes: number;
+  };
+  totals: EmployeesTotals;
+  byStatus: Partial<Record<FinanceStatusKey, StatusStat>>;
+  employees: EmployeeRow[];
+  prev: { period: ReportPeriod; totals: EmployeesTotals };
+};
+
+// -------------------------------------------------- персональный отчёт
+
+export type PersonalTotals = {
+  worksCount: number;
+  totalMinutes: number;
+  onSite: WorkClassStat;
+  remote: WorkClassStat;
+  routineTask: WorkClassStat;
+  ticketsFinished: number;
+  byStatus: Partial<Record<FinanceStatusKey, StatusStat>>;
+  overtime: OvertimeTotals & {
+    actualMinutes: number;
+    daysWithOvertime: number;
+    byScheduleSource: { plan: number; company: number; fallback: number };
+  };
+  normMinutes: number;
+  workingDaysCount: number;
+  utilizationPercent: number | null;
+};
+
+export type PersonalDay = {
+  date: string;
+  minutes: number;
+  overtimeMinutes: number;
+  worksCount: number;
+  onSiteCount: number;
+};
+
+export type PersonalMonth = {
+  month: string;
+  minutes: number;
+  overtimeMinutes: number;
+  worksCount: number;
+};
+
+export type PersonalBreakdown = {
+  _id: string | null;
+  minutes: number;
+  worksCount: number;
+  sharePercent: number;
+};
+
+export type PersonalCompany = PersonalBreakdown & {
+  alias: string;
+  onSiteCount: number;
+  overtimeMinutes: number;
+};
+
+export type PersonalCategory = PersonalBreakdown & { title: string };
+
+export type PersonalWork = {
+  _id: string;
+  description: string;
+  startedAt: string;
+  finishedAt: string;
+  durationMinutes: number;
+  visitRequired: boolean;
+  workClass: WorkClassKey;
+  withinPlan: boolean;
+  alwaysWithinPlan: boolean;
+  financesStatus: FinanceStatusKey | null;
+  company: { _id: string; alias: string } | null;
+  tickets: { _id: string; num: number; title: string }[];
+  scheduleSource: "plan" | "company" | "fallback";
+  planTitle: string | null;
+  tariffingPeriodMinutes: number;
+  overtime: { actualMinutes: number; roundedMinutes: number };
+  issues: string[];
+};
+
+export type PersonalPayroll = {
+  salary: number | null;
+  overtimeHourlyRate: number | null;
+  weekday: { minutes: number; coefficient: number; pay: number | null };
+  weekend: { minutes: number; coefficient: number; pay: number | null };
+  overtimePay: number | null;
+  estimatedTotal: number | null;
+  isFullMonth: boolean;
+  missing: { salary: boolean; overtimeHourlyRate: boolean };
+};
+
+export type PersonalReportResponse = {
+  /** Чей это отчёт (isSelf — свой). */
+  employee: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    position: string;
+    isSelf: boolean;
+  };
+  period: ReportPeriod;
+  settings: {
+    defaultTariffingPeriodMinutes: number;
+    weekdayCoefficient: number;
+    weekendCoefficient: number;
+  };
+  totals: PersonalTotals;
+  payroll: PersonalPayroll;
+  byDay: PersonalDay[];
+  byMonth: PersonalMonth[];
+  byCompany: PersonalCompany[];
+  byCategory: PersonalCategory[];
+  works: PersonalWork[];
+  warnings: {
+    excludedWorks: number;
+    overlapMinutes: number;
+    fallbackScheduleWorks: number;
+  };
+  prevPeriod: {
+    period: ReportPeriod;
+    totals: PersonalTotals;
+    overtimePay: number | null;
+  };
+};
