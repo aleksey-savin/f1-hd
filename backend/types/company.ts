@@ -49,6 +49,10 @@ export interface ICompany {
     _id?: Types.ObjectId;
     isActiveSince?: Date;
     customerApprovalRequired?: boolean;
+    /** Кто подписывает отчёт со стороны клиента — снапшот имени. */
+    approver?: { _id: string; firstName?: string; lastName?: string } | null;
+    /** Отчёт делится по филиалам, каждую часть подписывает их руководитель. */
+    subdivisionApprovalRequired?: boolean;
   }[];
   apiKeys?: ICompanyApiKey[];
   createdBy?: Types.ObjectId;

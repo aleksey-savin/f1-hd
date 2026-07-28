@@ -1,10 +1,10 @@
 # Knowledge Base — Implementation Notes
 
-_Last updated: 2026-07-09 (frontend redesign: document page, in-place editing,
-grouped explorer, bulk moderation). This document describes the Knowledge Base
-module as currently implemented, so the code can be reviewed and optimized later.
-It is a snapshot, not a spec — verify against the code before relying on any
-detail._
+_Last updated: 2026-07-28 (frontend migrated to Tailwind v4 + shadcn: two-pane
+section owned by the page, state-only colour, exception-only flags in the list).
+This document describes the Knowledge Base module as currently implemented, so
+the code can be reviewed and optimized later. It is a snapshot, not a spec —
+verify against the code before relying on any detail._
 
 ## Terminology: «Проверено» = `approved`
 
@@ -302,10 +302,16 @@ order of magnitude, this is the place to add `$text` — the contract with the
 client (`?search=`) does not change.
 
 `getModerationSummary` and the moderation block of `preferences.getInitial`
-return the same four counters: `pendingApproval` (unapproved, non-archived),
-`pendingDeletion`, `pendingArchive` (both non-archived), and `secretsFlagged`
-(incl. archived). `getInitial` additionally exposes `approvalPeriodDays`, which
-the client needs to print «действует ещё N дн.» in the trust line.
+share one implementation — **`services/knowledgeModerationCounts.js`** — and
+return the same counters: `pendingApproval` (unapproved, non-archived),
+`pendingDeletion`, `pendingArchive` (both non-archived), `secretsFlagged`
+(incl. archived) and **`total`**. `total` is a single `$or` `countDocuments`, not
+the sum: the queues **overlap** (an unapproved note with a scanner finding sits
+in two), so summing counted the same note twice — the shield badge read 195 on a
+base of ~180 notes. With `scanForSecrets` off the hidden secrets queue is left
+out of `total` too, so the badge never promises work with nowhere to go.
+`getInitial` additionally exposes `approvalPeriodDays`, which the client needs to
+print «действует ещё N дн.» in the trust line.
 
 ## Background jobs
 
@@ -407,11 +413,14 @@ context-matched notes.
 
 - Nested routes (`frontend/src/App.jsx`): `/knowledge-base` (list shell) with
   children `add` and `:id`.
-- `pages/KnowledgeBase/List.jsx` — on desktop pushes `<Explorer/>` into the left
-  rail (`store/sidebar`) and renders `<Outlet/>` (placeholder at the root); on
-  mobile the root **is** a list page built on `UI/ListWrapper`
-  (`renderOutlet={false}`, because this page renders `<Outlet/>` itself).
-  Loads notes on mount and reads `?moderation=<mode>` to enter a queue.
+- `pages/KnowledgeBase/List.jsx` — on desktop renders the **two-pane layout
+  itself**: `<Explorer/>` (rail, 288/344 px) + `<Outlet/>` (note, placeholder at
+  the root). The shell's legacy left sidebar (`store/sidebar` + the
+  `/knowledge-base` branch in `layout/Root.jsx`) is **no longer used** — the
+  section is a migrated route in `MIGRATED_ROUTES` (1328). On mobile the root
+  **is** a list page built on `app/ListWrapper` (`renderOutlet={false}`, because
+  this page renders `<Outlet/>` itself). Loads notes on mount and reads
+  `?moderation=<mode>` to enter a queue.
 - `pages/KnowledgeBase/Add.jsx` — `<NoteView mode="edit">` (blank note).
 - `pages/KnowledgeBase/View.jsx` — loader fetches the note, `<NoteView mode="read">`
   keyed by `_id` so navigation remounts and resets state.
@@ -420,18 +429,21 @@ context-matched notes.
 
 ### The note page — `components/KnowledgeBase/NoteView.jsx`
 
-A **document page**, built from the device-page vocabulary (`.account-hero`,
-`.contact-row`, `SectionCard`) — see `docs/ux-ui-guide.md`, «Страница сущности».
+A **document page** on the target system (Tailwind + shadcn), built from the
+entity-card vocabulary — see `docs/ux-ui-guide.md`, «Страница сущности».
 Composition: `NoteHero` (type tile · title · `VerificationLine` ·
-`NoteStatusBadges` · `NoteActions`) → `PendingRequestAlert` → `SecretsAlert` →
-`NoteProperties` → the markdown body.
+`NoteActions`) → `PendingRequestAlert` → `SecretsAlert` → `NoteProperties` →
+the markdown body (`.kb-doc .md-doc`). No breadcrumb on desktop — the list is in
+the next pane; the mobile page keeps «‹ База знаний». Status badges are gone:
+the state is a sentence in the trust line and, in the list, exception icons.
 
-- **Read and edit differ as little as possible.** The title is the same `h2`
-  metrics in both (`.kb-title` / `.kb-title-input`); the property rows keep a
-  `min-height` matching `UI/Select`, so chips and selects occupy one box; the
-  viewer and the WYSIWYG editor both render into `.toastui-editor-contents`, so
-  the reading measure (~74ch on prose, full width on tables/`pre`) is declared
-  once in `UI/knowledgeBase.css`.
+- **Read and edit differ as little as possible.** The title is the same `h1`
+  metrics in both (the edit input is borderless except for the baseline rule);
+  the property row keeps a `min-h-16` matching `UI/Select`, so pills and selects
+  occupy one box; the viewer and the WYSIWYG editor both render into
+  `.toastui-editor-contents`, so the reading measure (~74ch on prose, full width
+  on tables/`pre`) is declared once — `.kb-doc` in `index.css`, next to the
+  shared `.md-doc` / `.md-editor` rules used by templates and routine tasks.
 - **Entering edit**: the «Редактировать» button, `Ctrl/Cmd+E`, or a **double
   click on the body** (gated on `canManage` and not archived; clicks on links and
   task checkboxes are ignored). The clicked block index is remembered and, once
@@ -448,24 +460,37 @@ Composition: `NoteHero` (type tile · title · `VerificationLine` ·
   unverified → «Проверить», otherwise `canManage` → «Редактировать»), one outline
   button, and an icon-only `⋯` menu with the lifecycle items. Decisions on
   someone else's request live in `PendingRequestAlert`, not in the menu.
-- On mobile the edit-mode buttons move into `UI/MobileActionBar` (the floating
+- Confirmations (request archival, hard delete, leaving with unsaved changes)
+  go through `app/ConfirmDialog`; the verification attestation keeps its own
+  dialog with two switches (`VerifyModal`).
+- On mobile the edit-mode buttons move into `app/MobileActionBar` (the floating
   island that replaces the tab bar).
 
 ### Explorer — `components/KnowledgeBase/Explorer.jsx` + `NoteList.jsx` + `Filter.jsx`
 
-Three rows above the list, ~110 px total:
+Two rows above the list, ~90 px total:
 
-1. Search + moderation menu (moderators only: one shield button with the total
-   pending count, queues in its dropdown) + a `+` icon button.
-2. Collapsed `Accordion` «Фильтры» with a badge. Inside: scope segmented control
-   («Активные | Архив»), type chips with counts, the three binding multi-selects.
-3. Status line: context («Архив» / «Очередь: На проверку»), «Найдено: N»,
-   «Сбросить» (only when something is applied), sort as a link dropdown.
+1. Search + moderation menu (moderators only: one shield chip with the total
+   pending count, queues in its dropdown) + filter button + a `+` icon button
+   (the section's filled action lives on the note, so creation is icon-only).
+2. Status line: «Найдено: N», «Сбросить» (when search or filters are applied)
+   and the sort link-dropdown.
 
-The earlier version stacked all of that vertically and spent ~370 px before the
-first note — in a column a third of the screen wide. Everything that is touched
-rarely went under the accordion; the badge counts what is hidden (bindings +
-archive + disabled types), so an applied filter is never invisible.
+Between them, when anything is applied, a strip of **removable badges** (queue,
+archive, hidden type, each selected binding). The full filter — scope segmented
+control, type chips with counts, the three binding multi-selects — lives in a
+`Sheet` shared with mobile (`KnowledgeBaseFilter`, wrapped in
+`InsideOverlayContext` so `UI/Select` renders its menu inline). The pre-migration
+version stacked everything vertically (~370 px before the first note) and then
+hid it in an accordion whose badge only counted what was hidden; a badge strip
+says *what* is applied and removes it in one click.
+
+List rows (`NoteItem`): type icon · title (one line, truncated) · «тип · компании
+· дата» · **exception flags only** (not verified / verification expiring / secret
+findings / deletion requested / archival pending — `getNoteFlags`). A verified
+note shows nothing: normality needs no highlight, and in a 344 px column that is
+room for the title. The open note keeps a primary-coloured left edge and tinted
+background.
 
 `NoteList` groups notes **by company** (`util/knowledgeNoteGrouping.js`): a note's
 companies come from `companies[]` ∪ `users[].company`; a note with none is
@@ -476,13 +501,12 @@ flat with checkboxes for bulk actions.
 
 Folders are **collapsed by default**, «Общие» included — at 200 notes an open
 tree is 200 rows in a column a third of the screen wide, while the list of
-folders fits on screen and is itself the navigation. Opened automatically: the
-folder of the note currently open (deep-links must be visible), and, while a
-search is running, every folder with a match. That last one is a real
-`expandGroups` call, not an override of the expanded flag: an override would
-leave the group header looking clickable while doing nothing. Clearing the query
-collapses them back (`fullTextSearch` resets `expandedGroups`) — the search
-opened them, not the person.
+folders fits on screen and is itself the navigation. The folder header is an
+interactive row (chevron · name · count · a muted «2 не проверены»), not an
+uppercase `ListGroupLabel`: it is clicked, so it looks clickable. Opened
+automatically: the folder of the note currently open (deep-links must be
+visible). **Search drops the tree entirely** — results are flat, with the company
+in the meta line: while searching, the company is not the axis of the question.
 
 On mobile the tree becomes **drill-down**: `CompanyFolders.jsx` lists companies
 with counts, tapping one shows its notes. A narrow screen cannot hold an open
@@ -490,10 +514,12 @@ tree, but «Студия · 21» fits whole. Search and moderation queues jump o
 drill-down into a flat list — there the company is not the axis of navigation,
 the question is «where was this said» / «what is left to sort out».
 
-`Filter.jsx` exports the pieces (`ScopeSwitch`, `TypeChips`, `ModerationChips`,
-`BindingFilters`) so the desktop rail and the mobile filter offcanvas share one
-implementation; its default export is the mobile composition wrapped in
-`UI/FilterContainer`.
+`Filter.jsx` exports the pieces (`ScopeSwitch`, `TypeChips`, `BindingFilters`,
+`ModerationMenu`) and, as its default export, the filter body wrapped in
+`app/FilterContainer` — **one implementation** for the desktop rail's `Sheet`
+and the mobile `ListWrapper` `Sheet`. The queue chip (`ModerationMenu`) sits in
+the rail on desktop and in the `toolbar` slot on mobile; there is no separate
+chips version any more.
 
 Queue counters come from `store/knowledgeModeration.js` (a shared store around
 `/moderation-summary`), not from the loaded list: `secretsFlagged` counts
@@ -503,11 +529,14 @@ a bulk action in the KB refreshes its badges.
 ### Bulk moderation — `components/KnowledgeBase/NoteBulkActionBar.jsx`
 
 Selection lives in the notes store (`selectedIds`, pruned on every refetch, as in
-`Ticket/List.jsx`). One `actions[]` array feeds the desktop floating bar and
-`UI/MobileActionBar`; blocking reasons come from
-`util/knowledge-bulk-eligibility.js` and name notes by **title**. Verifying in
-bulk still requires both switches (`VerifyModal` with `count`). The skipped list
-returned by the backend is surfaced as a warning toast.
+`Ticket/List.jsx`). One `actions[]` array feeds **`app/BulkActionBar`**, which
+renders the desktop floating panel and delegates to `app/MobileActionBar` on
+touch; blocking reasons come from `util/knowledge-bulk-eligibility.js` and name
+notes by **title** (desktop: tooltip on a still-clickable button; mobile: the
+status line is replaced for 4 s). Verifying in bulk still requires both switches
+(`VerifyModal` with `count`). The skipped list returned by the backend is
+surfaced as a warning toast. In a queue the row itself toggles selection and the
+title stays a link — the checkbox replaces the type icon.
 
 ### Store — `store/lists/knowledgeNotes.js`
 
@@ -534,19 +563,25 @@ UI-only state also lives here: `expandedGroups` (desktop tree) and `openCompany`
 
 ### Note types & verification — `util/knowledgeNoteTypes.js`
 
-Single source for labels / badge colors / hero icons / ranking priority:
-`info` ("Информация", primary, 1, `RiInformationLine`) · `backlog` ("Бэклог",
-warning, 3, `RiBug2Line`) · `instructions` ("Инструкции", success, 2,
-`RiGuideLine`). The backend mirrors the priority in `knowledgeBaseContext.js`
-(`TYPE_PRIORITY`) — **keep them in sync**.
+Single source for labels / icons / ranking priority: `info` ("Информация", 1,
+`RiInformationLine`) · `backlog` ("Бэклог", 3, `RiBug2Line`) · `instructions`
+("Инструкции", 2, `RiGuideLine`). The backend mirrors the priority in
+`knowledgeBaseContext.js` (`TYPE_PRIORITY`) — **keep them in sync**. The `badge`
+field (a bootstrap variant) survives **only** for the not-yet-migrated notes
+panel on the ticket page: on the target system the type is carried by its icon
+and colour is reserved for state (see `docs/ux-ui-guide.md` → «Тема и цвет»).
 
 `getApprovalMeta` returns the verified/unverified icon + label; `formatActor`
 renders «Иванов И.»; `getVerificationSummary(note, { approvalPeriodDays })`
-assembles the trust line's state, actor, date and remaining days.
+assembles the trust line's state, actor, date and remaining days;
+**`getNoteFlags(note, { approvalPeriodDays })`** returns the list-row exceptions
+in severity order with a `tone` the component maps to a class.
 
-Binding chips (category / company / user) live in `BindingChips.jsx` — one
-neutral pill differing only by icon, shared by the note page, the explorer,
-`Ticket/RelatedNotes.jsx` and `ServiceExpiryCard.jsx`.
+Bindings: the kind catalogue and label formatting are pure and shared —
+`util/knowledgeNoteBindings.js`. On top of it, `BindingPills.jsx` (target: pills
+for the note page, plus `TypePill` / `EmptyPill`) and `BindingChips.jsx`
+(bootstrap badges, kept for `Ticket/RelatedNotes.jsx` and `ServiceExpiryCard.jsx`
+on the legacy ticket page).
 
 ### Ticket-page integration
 

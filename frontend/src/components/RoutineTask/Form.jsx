@@ -273,7 +273,7 @@ const RoutineTaskForm = () => {
         />
       </Field>
       <Field label="Описание">
-        <div className="tpl-editor tw:overflow-hidden tw:rounded-lg tw:border tw:border-input">
+        <div className="md-editor tw:overflow-hidden tw:rounded-lg tw:border tw:border-input">
           <MarkdownEditor
             key={sourceTemplate?._id || "rt-blank"}
             initialValue={form.description}

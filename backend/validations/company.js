@@ -162,7 +162,27 @@ exports.addServicePlan = [
   body("customerApprovalRequired")
     .isBoolean()
     .withMessage("Invalid customer approval required value"),
+  body("subdivisionApprovalRequired")
+    .optional()
+    .isBoolean()
+    .withMessage("Invalid subdivision approval value"),
+  // Пустая строка — «не назначен»: форма шлёт её, когда согласование выключено
+  body("approverId")
+    .optional({ values: "falsy" })
+    .isMongoId()
+    .withMessage("Некорректный идентификатор согласующего"),
 ];
+exports.updateServicePlan = [
+  body("servicePlanId").isMongoId().withMessage("Invalid service plan ID"),
+  body("isActiveSince").optional().notEmpty(),
+  body("customerApprovalRequired").isBoolean(),
+  body("subdivisionApprovalRequired").optional().isBoolean(),
+  body("approverId")
+    .optional({ values: "falsy" })
+    .isMongoId()
+    .withMessage("Некорректный идентификатор согласующего"),
+];
+
 exports.deleteServicePlan = [
   body("servicePlanId").isMongoId().withMessage("Invalid service plan ID"),
 ];

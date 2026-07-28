@@ -4,6 +4,7 @@ const TicketLog = require("../models/ticketLog");
 const { Ticket } = require("../models/ticket");
 
 const logger = require("../utils/logger");
+const { guardChat, guardText } = require("../utils/chatGuard");
 const {
   NOTIFY_MAX_ATTEMPTS,
   NOTIFY_RETRY_INTERVAL_MINUTES,
@@ -39,12 +40,25 @@ exports.checkTgNotifications = async () => {
           ) < new Date() ||
             notification.attemptsCounter === 0);
 
+        // Вне прода уведомление не может уйти клиенту: chatId в базе —
+        // настоящий, а копия прод-снимка про это не знает (см. utils/chatGuard)
+        const guarded = guardChat(notification.to.chatId);
+        if (guarded.blocked) {
+          notification.failed = true;
+          await notification.save();
+          continue;
+        }
+
         if (okToSend) {
           const message = await tgSendMessage(
-            notification.to.chatId,
-            notification.text,
+            guarded.chatId,
+            guarded.redirected
+              ? guardText(notification.text, guarded.intended)
+              : notification.text,
             notification.replyMarkup,
-            notification.to.messageThreadId,
+            // Ветка форума из прод-чата в дев-чате не существует — сообщение
+            // ушло бы в никуда с ошибкой
+            guarded.redirected ? undefined : notification.to.messageThreadId,
           );
           if (message?.message_id) {
             notification.attemptsCounter += 1;

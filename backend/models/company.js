@@ -115,7 +115,19 @@ const companySchema = new Schema(
           ref: "ServicePlan",
         },
         isActiveSince: Date,
+        // Отчёт по этой услуге уходит на согласование клиенту
         customerApprovalRequired: Boolean,
+        // Кто подписывает со стороны клиента. Снапшот имени — карточка отчёта
+        // и уведомления называют человека, а не ObjectId.
+        approver: {
+          _id: { type: Schema.Types.ObjectId, ref: "User" },
+          firstName: String,
+          lastName: String,
+        },
+        // Отчёт делится на части по подразделениям клиента, каждую подписывает
+        // руководитель своего филиала (subdivision.manager), и только после
+        // всех частей отчёт уходит на финальную подпись `approver`.
+        subdivisionApprovalRequired: Boolean,
       },
     ],
     apiKeys: [

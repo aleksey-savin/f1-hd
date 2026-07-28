@@ -1,6 +1,7 @@
 const nodemailer = require("nodemailer");
 
 const logger = require("../utils/logger");
+const { guardRecipient, guardSubject } = require("../utils/mailGuard");
 const {
   buildSmtpOptions,
   buildMailFrom,
@@ -28,9 +29,26 @@ exports.sendMail = async (creds, to, subject, text, html) => {
     };
   }
 
+  // Вне прода письмо не может уйти клиенту ни при каких настройках в базе —
+  // получатель подменяется здесь, у самой отправки (см. utils/mailGuard)
+  const guarded = guardRecipient(to);
+  const finalSubject = guarded.redirected
+    ? guardSubject(subject, guarded.intended)
+    : subject;
+
   try {
     const transport = nodemailer.createTransport(options);
-    const message = await transport.sendMail({ from, to, subject, text, html });
+    const message = await transport.sendMail({
+      from,
+      to: guarded.to,
+      subject: finalSubject,
+      text: guarded.redirected
+        ? `[Письмо предназначалось: ${guarded.intended}]\n\n${text || ""}`
+        : text,
+      html: guarded.redirected
+        ? `<p><b>Письмо предназначалось: ${guarded.intended}</b></p>${html || ""}`
+        : html,
+    });
 
     return { ...message, success: true };
   } catch (error) {

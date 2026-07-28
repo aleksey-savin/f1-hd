@@ -146,6 +146,9 @@ export async function action({ request }) {
       plan: data.get("servicePlan"),
       isActiveSince: date,
       customerApprovalRequired: data.get("customerApprovalRequired") === "true",
+      subdivisionApprovalRequired:
+        data.get("subdivisionApprovalRequired") === "true",
+      approverId: data.get("approverId") || null,
     };
 
     const response = await fetch(
@@ -168,6 +171,41 @@ export async function action({ request }) {
       throw response;
     }
 
+    return response;
+  }
+
+  // Правка условий уже подключённой услуги: сама услуга и её тариф общие для
+  // всех компаний, здесь меняются только условия привязки
+  if (intent === "updateServicePlan") {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/service-plan/${id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({
+          servicePlanId: data.get("servicePlanId"),
+          isActiveSince: data.get("isActiveSince"),
+          customerApprovalRequired:
+            data.get("customerApprovalRequired") === "true",
+          subdivisionApprovalRequired:
+            data.get("subdivisionApprovalRequired") === "true",
+          approverId: data.get("approverId") || null,
+        }),
+      },
+    );
+
+    if ([400, 404].includes(response.status)) {
+      return response.json();
+    }
+    if (!response.ok) {
+      throw response;
+    }
+    // Не redirect: диалог закрывается по ответу фетчера, а на редиректе
+    // fetcher.data остаётся пустым и модал повисает открытым.
+    // Лоадер карточки перечитается сам — фетчер-сабмит ревалидирует его.
     return response;
   }
 

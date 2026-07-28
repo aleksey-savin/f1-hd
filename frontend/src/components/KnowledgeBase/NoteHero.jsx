@@ -1,15 +1,11 @@
-import Form from "react-bootstrap/Form";
+import { cn } from "@/lib/utils";
 
 import { getNoteTypeMeta } from "../../util/knowledgeNoteTypes";
-import NoteStatusBadges from "./NoteStatusBadges";
 import VerificationLine from "./VerificationLine";
 
-import "../../UI/knowledgeBase.css";
-
-// Шапка заметки по образцу .account-hero со страницы устройства: плитка-глиф
-// слева, заголовок и строка доверия по центру, кластер действий справа.
-// Заголовок в правке — тот же h2, только редактируемый: метрики совпадают,
-// поэтому переключение режима не сдвигает текст.
+// Шапка заметки по канону карточки сущности: плитка-глиф · заголовок · строка
+// доверия · кластер действий справа. Заголовок в правке — тот же h1 с теми же
+// метриками, только редактируемый: переключение режима не сдвигает текст.
 const NoteHero = ({
   note,
   isNew,
@@ -21,41 +17,67 @@ const NoteHero = ({
 }) => {
   const typeMeta = getNoteTypeMeta(type);
   const TypeIcon = typeMeta.icon;
+  const archived = !!note?.archivedAt;
 
   return (
-    <div className="note-hero mb-3">
+    <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
       <span
-        className={`note-type-tile note-type-tile--${typeMeta.badge}`}
+        aria-hidden
         title={typeMeta.label}
+        className={cn(
+          "tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:rounded-2xl tw:text-2xl",
+          archived
+            ? "tw:text-faint"
+            : "tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border",
+        )}
       >
-        <TypeIcon aria-hidden="true" />
+        <TypeIcon />
       </span>
 
-      <div className="flex-grow-1" style={{ minWidth: 0 }}>
+      <div className="tw:min-w-0 tw:flex-1">
         {isEditing ? (
-          <Form.Control
-            autoFocus={isNew}
+          <input
             type="text"
+            autoFocus={isNew}
             aria-label="Заголовок заметки"
             placeholder="Заголовок заметки"
-            className="kb-title-input mb-1"
             value={title}
             onChange={(event) => onTitleChange(event.target.value)}
+            // Метрики совпадают с h1 ниже; рамка только снизу — поле не должно
+            // выглядеть «коробкой» посреди документа (preflight выключен,
+            // поэтому appearance/border/bg задаём явно)
+            className="tw:w-full tw:appearance-none tw:border-0 tw:bg-transparent tw:p-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:text-foreground tw:outline-none tw:placeholder:text-faint"
+            style={{ borderBottom: "1px solid var(--border)" }}
           />
         ) : (
-          <h2 className="kb-title mb-1 text-break">{note?.title}</h2>
+          <h1
+            className={cn(
+              "tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:break-words",
+              archived && "tw:text-muted-foreground",
+            )}
+          >
+            {note?.title}
+          </h1>
         )}
 
-        {!isNew && <VerificationLine note={note} isEditing={isEditing} />}
-
-        {!isEditing && (
-          <div className="d-flex flex-wrap gap-1 mt-2">
-            <NoteStatusBadges note={note} />
+        {!isNew && (
+          <div className="tw:mt-2">
+            {archived && !isEditing ? (
+              <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+                В архиве — только для чтения
+              </p>
+            ) : (
+              <VerificationLine note={note} isEditing={isEditing} />
+            )}
           </div>
         )}
       </div>
 
-      <div className="note-hero__actions">{actions}</div>
+      {actions && (
+        <div className="tw:flex tw:flex-none tw:items-center tw:gap-2">
+          {actions}
+        </div>
+      )}
     </div>
   );
 };

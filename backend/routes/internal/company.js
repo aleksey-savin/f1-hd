@@ -93,6 +93,15 @@ router.patch(
   companyController.updateSubdivisionUsers,
 );
 
+router.patch(
+  "/companies/service-plan/:id",
+  isAuth,
+  canManageServicePlans,
+  companyValidation.updateServicePlan,
+  runValidation,
+  companyController.updateServicePlan,
+);
+
 router.post(
   "/companies/add-service-plan/:id",
   isAuth,

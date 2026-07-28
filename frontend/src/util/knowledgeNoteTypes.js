@@ -4,15 +4,22 @@ import {
   RiInformationLine,
   RiGuideLine,
   RiBug2Line,
+  RiArchiveLine,
+  RiDeleteBin6Line,
+  RiShieldKeyholeLine,
 } from "react-icons/ri";
 
 import { formatShortDate } from "./format-date";
 
-// Типы заметок базы знаний — единый источник меток, цветов бейджей, иконок и
-// приоритета. priority задаёт значимость типа при ранжировании связанных заметок
-// на заявке: backlog (известные проблемы) > instructions > info.
-// Значения value и priority дублируются на бэкенде (services/knowledgeBaseContext.js,
-// TYPE_PRIORITY) — менять только синхронно.
+// Типы заметок базы знаний — единый источник меток, иконок и приоритета.
+// priority задаёт значимость типа при ранжировании связанных заметок на заявке:
+// backlog (известные проблемы) > instructions > info. Значения value и priority
+// дублируются на бэкенде (services/knowledgeBaseContext.js, TYPE_PRIORITY) —
+// менять только синхронно.
+//
+// `badge` (вариант bootstrap) остался ради легаси-панели заметок на странице
+// заявки: в целевой системе тип цветом НЕ передаётся — его несёт иконка, а цвет
+// отдан состоянию заметки (см. getNoteFlags и docs/ux-ui-guide.md).
 export const NOTE_TYPES = [
   {
     value: "info",
@@ -99,4 +106,67 @@ export const getVerificationSummary = (note, { approvalPeriodDays = 0 } = {}) =>
     daysLeft,
     expiresSoon: daysLeft !== null && daysLeft <= 7,
   };
+};
+
+// Состояния-исключения заметки для строки списка. Проверенная заметка не
+// показывает НИЧЕГО: это норма, а место в узком рейле дороже подтверждения
+// нормы. Значок появляется только там, где с заметкой что-то не так или её
+// ждёт решение; порядок — от самого срочного. tone раскрашивает вызывающий
+// компонент (util не знает про классы).
+export const getNoteFlags = (note, { approvalPeriodDays = 0 } = {}) => {
+  if (!note) {
+    return [];
+  }
+
+  const flags = [];
+
+  if (note.pendingDeletion) {
+    flags.push({
+      key: "deletion",
+      icon: RiDeleteBin6Line,
+      tone: "danger",
+      title: "Запрошено удаление",
+    });
+  }
+  if (note.secretsScan?.flagged) {
+    flags.push({
+      key: "secrets",
+      icon: RiShieldKeyholeLine,
+      tone: "warning",
+      title: "Найдены учётные данные",
+    });
+  }
+  if (note.approved !== true) {
+    flags.push({
+      key: "unapproved",
+      icon: RiErrorWarningLine,
+      tone: "warning",
+      title: "Не проверено",
+    });
+  } else {
+    const { daysLeft, expiresSoon } = getVerificationSummary(note, {
+      approvalPeriodDays,
+    });
+    if (expiresSoon) {
+      flags.push({
+        key: "expiring",
+        icon: RiShieldCheckLine,
+        tone: "warning",
+        title:
+          daysLeft === 0
+            ? "Проверка истекает сегодня"
+            : `Проверка истекает через ${daysLeft} дн.`,
+      });
+    }
+  }
+  if (note.pendingArchive) {
+    flags.push({
+      key: "archive",
+      icon: RiArchiveLine,
+      tone: "faint",
+      title: "Ожидает архивации",
+    });
+  }
+
+  return flags;
 };

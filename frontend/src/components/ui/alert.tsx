@@ -3,8 +3,13 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+// Точечный фикс генератора: shadcn пишет колонку под иконку как
+// calc(var(--spacing)*4), но у нас Tailwind подключён с префиксом, и тема
+// объявляет --tw-spacing — неизвестная переменная делает всё правило
+// grid-template-columns невалидным, колонки становятся auto и делят свободное
+// место поровну (текст алерта с иконкой уезжал на середину). Ставим литерал.
 const alertVariants = cva(
-  "tw:relative tw:grid tw:w-full tw:grid-cols-[0_1fr] tw:items-start tw:gap-y-0.5 tw:rounded-lg tw:border tw:px-4 tw:py-3 tw:text-sm tw:has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] tw:has-[>svg]:gap-x-3 tw:[&>svg]:size-4 tw:[&>svg]:translate-y-0.5 tw:[&>svg]:text-current",
+  "tw:relative tw:grid tw:w-full tw:grid-cols-[0_1fr] tw:items-start tw:gap-y-0.5 tw:rounded-lg tw:border tw:px-4 tw:py-3 tw:text-sm tw:has-[>svg]:grid-cols-[1rem_1fr] tw:has-[>svg]:gap-x-3 tw:[&>svg]:size-4 tw:[&>svg]:translate-y-0.5 tw:[&>svg]:text-current",
   {
     variants: {
       variant: {

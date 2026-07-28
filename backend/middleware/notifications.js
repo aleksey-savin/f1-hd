@@ -147,8 +147,6 @@ exports.createTicketNotifications = async () => {
 
   const notifyEmail = (user, state) =>
     // В dev почтовые уведомления подавляем, чтобы не слать письма реальным
-    // пользователям; telegram при этом работает (тест-бот безопасен).
-    process.env.NODE_ENV !== "development" &&
     prefs.notify?.byEmail?.isActive &&
     user?.notify?.byEmail?.[state] &&
     prefs.notify?.personal?.[state];
@@ -1385,8 +1383,6 @@ exports.createCommentNotifications = async () => {
 
   const notifyEmail = (user, state) =>
     // В dev почтовые уведомления подавляем, чтобы не слать письма реальным
-    // пользователям; telegram при этом работает (тест-бот безопасен).
-    process.env.NODE_ENV !== "development" &&
     prefs.notify?.byEmail?.isActive &&
     user?.notify?.byEmail?.[state] &&
     prefs.notify?.personal?.[state];
@@ -1875,8 +1871,6 @@ exports.createScheduledWorkNotifications = async () => {
 
   const notifyEmail = (user, state) =>
     // В dev почтовые уведомления подавляем, чтобы не слать письма реальным
-    // пользователям; telegram при этом работает (тест-бот безопасен).
-    process.env.NODE_ENV !== "development" &&
     prefs.notify?.byEmail?.isActive &&
     user?.notify?.byEmail?.[state] &&
     prefs.notify?.personal?.[state];

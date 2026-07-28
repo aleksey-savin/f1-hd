@@ -1,32 +1,29 @@
 import { useState } from "react";
 
-import Modal from "react-bootstrap/Modal";
-import Button from "react-bootstrap/Button";
-import Form from "react-bootstrap/Form";
-
 import { RiShieldCheckLine } from "react-icons/ri";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+
+import { plural } from "../../util/plural";
+
 // «N заметок» с правильным окончанием — модератор проверяет и по одной, и пачкой.
-const notesPlural = (count) => {
-  const tail = count % 100;
-  if (tail >= 11 && tail <= 14) return `${count} заметок`;
-  switch (count % 10) {
-    case 1:
-      return `${count} заметку`;
-    case 2:
-    case 3:
-    case 4:
-      return `${count} заметки`;
-    default:
-      return `${count} заметок`;
-  }
-};
+const notesPlural = (count) =>
+  `${count} ${plural(count, "заметку", "заметки", "заметок")}`;
 
 // Диалог проверки заметки. Обе галочки выключены по умолчанию; «Проверить»
 // активна только когда подтверждены оба условия — это и есть смысл отметки
 // «Проверено»: модератор ручается за актуальность и отсутствие секретов.
 // count > 1 — та же аттестация сразу для выделенных заметок.
-const VerifyModal = ({ show, onHide, onConfirm, isLoading, count = 1 }) => {
+const VerifyModal = ({ open, onOpenChange, onConfirm, isLoading, count = 1 }) => {
   const [confirmCurrent, setConfirmCurrent] = useState(false);
   const [confirmNoSecrets, setConfirmNoSecrets] = useState(false);
 
@@ -35,55 +32,76 @@ const VerifyModal = ({ show, onHide, onConfirm, isLoading, count = 1 }) => {
     setConfirmNoSecrets(false);
   };
 
-  const hide = () => {
-    reset();
-    onHide();
-  };
-
-  const confirm = () => {
-    onConfirm({ confirmCurrent, confirmNoSecrets }, reset);
+  const openChange = (next) => {
+    if (!next) {
+      reset();
+    }
+    onOpenChange(next);
   };
 
   const subject = count > 1 ? notesPlural(count) : "эта запись";
   const verb = count > 1 ? "содержат" : "содержит";
 
   return (
-    <Modal show={show} onHide={hide} centered>
-      <Modal.Header closeButton>
-        <Modal.Title>
-          {count > 1 ? `Проверка: ${notesPlural(count)}` : "Проверка заметки"}
-        </Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
-        <Form.Check
-          type="switch"
-          id="verify-confirm-current"
-          className="mb-3"
-          checked={confirmCurrent}
-          onChange={(event) => setConfirmCurrent(event.target.checked)}
-          label={`Я подтверждаю, что ${subject} ${verb} только актуальные данные`}
-        />
-        <Form.Check
-          type="switch"
-          id="verify-confirm-no-secrets"
-          checked={confirmNoSecrets}
-          onChange={(event) => setConfirmNoSecrets(event.target.checked)}
-          label={`Я подтверждаю, что ${subject} не ${verb} паролей, ключей шифрования, данных для активации программных продуктов и иных чувствительных данных`}
-        />
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="outline-secondary" onClick={hide} disabled={isLoading}>
-          Отмена
-        </Button>
-        <Button
-          variant="success"
-          onClick={confirm}
-          disabled={!confirmCurrent || !confirmNoSecrets || isLoading}
-        >
-          <RiShieldCheckLine /> Проверить
-        </Button>
-      </Modal.Footer>
-    </Modal>
+    <Dialog open={open} onOpenChange={openChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {count > 1 ? `Проверка: ${notesPlural(count)}` : "Проверка заметки"}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="tw:space-y-4">
+          <div className="tw:flex tw:items-start tw:gap-3">
+            <Switch
+              id="verify-confirm-current"
+              checked={confirmCurrent}
+              onCheckedChange={setConfirmCurrent}
+              className="tw:mt-0.5"
+            />
+            <Label
+              htmlFor="verify-confirm-current"
+              className="tw:text-sm tw:leading-snug tw:font-normal"
+            >
+              Я подтверждаю, что {subject} {verb} только актуальные данные
+            </Label>
+          </div>
+
+          <div className="tw:flex tw:items-start tw:gap-3">
+            <Switch
+              id="verify-confirm-no-secrets"
+              checked={confirmNoSecrets}
+              onCheckedChange={setConfirmNoSecrets}
+              className="tw:mt-0.5"
+            />
+            <Label
+              htmlFor="verify-confirm-no-secrets"
+              className="tw:text-sm tw:leading-snug tw:font-normal"
+            >
+              Я подтверждаю, что {subject} не {verb} паролей, ключей шифрования,
+              данных для активации программных продуктов и иных чувствительных
+              данных
+            </Label>
+          </div>
+        </div>
+
+        <DialogFooter className="tw:mt-4">
+          <Button
+            variant="outline"
+            onClick={() => openChange(false)}
+            disabled={isLoading}
+          >
+            Отмена
+          </Button>
+          <Button
+            onClick={() => onConfirm({ confirmCurrent, confirmNoSecrets }, reset)}
+            disabled={!confirmCurrent || !confirmNoSecrets || isLoading}
+          >
+            <RiShieldCheckLine /> Проверить
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

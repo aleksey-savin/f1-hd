@@ -234,7 +234,7 @@ const TicketTemplateForm = () => {
         />
       </Field>
       <Field label="Описание">
-        <div className="tpl-editor tw:overflow-hidden tw:rounded-lg tw:border tw:border-input">
+        <div className="md-editor tw:overflow-hidden tw:rounded-lg tw:border tw:border-input">
           <MarkdownEditor
             initialValue={template.description}
             onChange={(markdown) => setField("description", markdown)}

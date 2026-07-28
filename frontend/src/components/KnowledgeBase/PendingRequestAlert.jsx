@@ -1,14 +1,13 @@
-import Alert from "react-bootstrap/Alert";
-import Button from "react-bootstrap/Button";
-
 import { RiDeleteBin6Line, RiArchiveLine, RiCloseLine } from "react-icons/ri";
+
+import { Alert, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 import { formatActor } from "../../util/knowledgeNoteTypes";
 import { formatShortDate } from "../../util/format-date";
 
-// Запрос коллеги, ожидающий решения модератора. Раньше «Подтвердить удаление» и
-// «Отклонить запрос на архивацию» лежали в общем меню действий — решение
-// принималось вслепую, без контекста: кто попросил и когда. Теперь запрос сам
+// Запрос коллеги, ожидающий решения модератора. Решение, спрятанное в меню,
+// принимается вслепую: не видно ни кто попросил, ни когда. Поэтому запрос сам
 // приходит к модератору строкой под шапкой заметки, вместе с кнопками решения.
 // Менеджеру (не модератору) алерт объясняет, чего ждёт его собственный запрос.
 const PendingRequestAlert = ({
@@ -26,13 +25,12 @@ const PendingRequestAlert = ({
 
   const request = note.pendingDeletion
     ? {
-        variant: "danger",
-        icon: <RiDeleteBin6Line aria-hidden="true" />,
+        variant: "destructive",
+        icon: <RiDeleteBin6Line aria-hidden />,
         action: "удаление",
         actor: formatActor(note.pendingDeletionBy),
         at: note.pendingDeletionAt,
         confirmLabel: "Удалить",
-        confirmVariant: "danger",
         onConfirm: onConfirmDeletion,
         onDecline: onDeclineDeletion,
         waiting: "Заметка ждёт решения модератора и будет удалена безвозвратно.",
@@ -40,12 +38,11 @@ const PendingRequestAlert = ({
     : note.pendingArchive
       ? {
           variant: "warning",
-          icon: <RiArchiveLine aria-hidden="true" />,
+          icon: <RiArchiveLine aria-hidden />,
           action: "архивацию",
           actor: formatActor(note.pendingArchiveBy),
           at: note.pendingArchiveAt,
           confirmLabel: "В архив",
-          confirmVariant: "secondary",
           onConfirm: onConfirmArchive,
           onDecline: onDeclineArchive,
           waiting: "Заметка ждёт решения модератора.",
@@ -60,17 +57,29 @@ const PendingRequestAlert = ({
   const when = request.at ? ` ${formatShortDate(request.at)}` : "";
 
   return (
-    <Alert variant={request.variant} className="mb-3">
-      <div className="d-flex flex-wrap align-items-center gap-2">
-        <span className="fw-semibold">
-          {request.icon} {who} запросил {request.action}
+    <Alert
+      variant={request.variant}
+      // У сток-варианта destructive фон карточки; запрос на удаление обязан
+      // читаться как требующий решения — подкрашиваем, как warning-вариант
+      className={
+        request.variant === "destructive"
+          ? "tw:mt-4 tw:border-destructive/30 tw:bg-destructive/10"
+          : "tw:mt-4"
+      }
+    >
+      {request.icon}
+      <AlertTitle className="tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:line-clamp-none">
+        <span>
+          {who} запросил {request.action}
           {when}
         </span>
         {isModerator ? (
-          <span className="d-flex gap-2 ms-auto">
+          // Кнопки внутри цветного алерта наследуют его цвет (currentColor)
+          <span className="tw:ms-auto tw:flex tw:gap-2">
             <Button
               size="sm"
-              variant={request.confirmVariant}
+              variant="outline"
+              className="tw:border-current tw:bg-transparent tw:text-current"
               onClick={request.onConfirm}
               disabled={isLoading}
             >
@@ -78,8 +87,8 @@ const PendingRequestAlert = ({
             </Button>
             <Button
               size="sm"
-              variant="outline-secondary"
-              className="alert-action-btn"
+              variant="ghost"
+              className="tw:text-current"
               onClick={request.onDecline}
               disabled={isLoading}
             >
@@ -87,9 +96,11 @@ const PendingRequestAlert = ({
             </Button>
           </span>
         ) : (
-          <span className="ms-auto small">{request.waiting}</span>
+          <span className="tw:ms-auto tw:text-sm tw:font-normal">
+            {request.waiting}
+          </span>
         )}
-      </div>
+      </AlertTitle>
     </Alert>
   );
 };

@@ -20,7 +20,7 @@ import {
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { ThemeContext } from "../../store/theme-context";
 
-import MobileActionBar from "../../UI/MobileActionBar";
+import MobileActionBar from "../app/MobileActionBar";
 
 import TakeToWorkModal from "./BulkActions/TakeToWorkModal";
 import CommentModal from "./BulkActions/CommentModal";

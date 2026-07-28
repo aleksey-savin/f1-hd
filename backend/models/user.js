@@ -133,6 +133,11 @@ const userSchema = new Schema(
       canSeeGlobalFinancialReport: { type: Boolean, default: false },
       canConfirmReportActions: { type: Boolean, default: false },
       canSeePersonalFinancialReport: { type: Boolean, default: false },
+      // Клиентское право: открывает раздел «Согласование работ» на стороне
+      // заказчика. Объём даёт роль, а не право (services/reportApprovalScope):
+      // назначенный согласующий видит отчёт целиком, руководитель филиала —
+      // только свою часть. Так же устроен доступ к отчёту «Компании».
+      canApproveWorkReports: { type: Boolean, default: false },
     },
     dashboard: {
       isActive: { type: Boolean, default: false }, // может использовать дашборд
@@ -203,6 +208,9 @@ const userSchema = new Schema(
         // Отсутствия: запрос согласующим, решение заявителю
         absenceRequest: { type: Boolean, default: true },
         absenceDecision: { type: Boolean, default: true },
+        // Согласование отчётов: запрос согласующему клиента, решение нам
+        reportApproval: { type: Boolean, default: true },
+        reportDecision: { type: Boolean, default: true },
       },
       byEmail: {
         newTicket: { type: Boolean, default: true },
@@ -217,6 +225,9 @@ const userSchema = new Schema(
         // Отсутствия: запрос согласующим, решение заявителю
         absenceRequest: { type: Boolean, default: true },
         absenceDecision: { type: Boolean, default: true },
+        // Согласование отчётов: запрос согласующему клиента, решение нам
+        reportApproval: { type: Boolean, default: true },
+        reportDecision: { type: Boolean, default: true },
       },
     },
     password: {

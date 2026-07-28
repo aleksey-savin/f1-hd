@@ -1,11 +1,14 @@
 const Preferences = require("../models/preferences");
 const User = require("../models/user");
-const KnowledgeNote = require("../models/knowledgeNote");
 
 const { AppError } = require("../middleware/errorHandling");
 const getAuthData = require("../middleware/getAuthData");
 const storage = require("../services/storage");
 const { isModerator } = require("../helpers/knowledgeNoteVisibility");
+const {
+  getModerationCounts,
+  ZERO_COUNTS,
+} = require("../services/knowledgeModerationCounts");
 const { runSecretsScan } = require("../services/secretsScanRun");
 const { runServiceExpiryScan } = require("../services/serviceExpiryScanRun");
 const {
@@ -148,36 +151,11 @@ exports.getInitial = async (req, res, next) => {
       .filter(Boolean);
     const userIsModerator = isModerator(authedUser, moderatorIds);
 
-    let counts = {
-      pendingApproval: 0,
-      pendingDeletion: 0,
-      pendingArchive: 0,
-      secretsFlagged: 0,
-    };
+    let counts = ZERO_COUNTS;
     if (userIsModerator) {
-      // Архивные исключаем из счётчиков, кроме секретов (утечку видно и в архиве)
-      const [pendingApproval, pendingDeletion, pendingArchive, secretsFlagged] =
-        await Promise.all([
-          KnowledgeNote.countDocuments({
-            approved: { $ne: true },
-            archivedAt: null,
-          }),
-          KnowledgeNote.countDocuments({
-            pendingDeletion: true,
-            archivedAt: null,
-          }),
-          KnowledgeNote.countDocuments({
-            pendingArchive: true,
-            archivedAt: null,
-          }),
-          KnowledgeNote.countDocuments({ "secretsScan.flagged": true }),
-        ]);
-      counts = {
-        pendingApproval,
-        pendingDeletion,
-        pendingArchive,
-        secretsFlagged,
-      };
+      counts = await getModerationCounts({
+        scanForSecrets: !!kb.scanForSecrets,
+      });
     }
 
     res.status(200).json({

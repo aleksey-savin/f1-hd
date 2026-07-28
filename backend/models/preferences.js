@@ -81,6 +81,10 @@ const preferencesSchema = new Schema({
       // Ключ категории един для personal / byTelegram / byEmail.
       absenceRequest: { type: Boolean, default: false },
       absenceDecision: { type: Boolean, default: false },
+      // Согласование отчётов по услугам: запрос уходит согласующим со стороны
+      // клиента, решение — нам. Ключ категории един для personal/byTelegram/byEmail.
+      reportApproval: { type: Boolean, default: false },
+      reportDecision: { type: Boolean, default: false },
     },
     // Канал отправки (SMTP). Транспорт задаётся так же, как у ящика-приёмника;
     // authMethod "none" — внутренний релей, принимающий почту без пароля.
@@ -153,6 +157,22 @@ const preferencesSchema = new Schema({
     finances: { isActive: { type: Boolean, default: false } },
     inventory: { isActive: { type: Boolean, default: false } },
     knowledgeBase: { isActive: { type: Boolean, default: false } },
+  },
+  // Согласование отчётов по услугам со стороны клиента.
+  // Срок берётся из договора («клиент обязан согласовать в течение N дней»):
+  // молчание после срока — тоже решение, и отчёт подписывается автоматически,
+  // иначе он висел бы в очереди вечно. За сутки до срока всем, кто ещё не
+  // подписал, уходит напоминание (services/reportAutoApproval).
+  reportApproval: {
+    autoApprove: {
+      isActive: { type: Boolean, default: false },
+      days: { type: Number, default: 5, min: 1, max: 90 },
+      // Считать срок рабочими днями по производственному календарю
+      // (services/productionCalendar), а не календарными
+      workdaysOnly: { type: Boolean, default: false },
+    },
+    // Сколько ссылка из письма живёт после истечения срока согласования
+    linkExtraDays: { type: Number, default: 7, min: 0, max: 90 },
   },
   // Расчёт переработок сотрудников (персональный отчёт). Детекция идентична
   // сводному фин. отчёту: график и период тарификации берутся из тарифа/компании;

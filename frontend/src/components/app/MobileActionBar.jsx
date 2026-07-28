@@ -2,22 +2,37 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
-import Spinner from "react-bootstrap/Spinner";
-
-import { RiErrorWarningLine } from "react-icons/ri";
+import { RiErrorWarningLine, RiLoader4Line } from "react-icons/ri";
 
 // Сколько показывать причину блокировки, прежде чем вернуть строку статуса.
 const HINT_MS = 4000;
 
-// Контекстная панель действий на мобильных. Пока она в DOM, панель занимает
-// место плавающего острова навигации (тот же бокс и поверхность), а не висит
-// над ним второй плашкой: на экране всегда ровно один плавающий объект.
-// Позиционируется absolute внутри .mobile-shell — fixed на мобайле не
-// используем (см. app-shell в index.css).
+// Мобильная половина app/BulkActionBar — контекстная панель действий на
+// мобильных (её же напрямую использует легаси-панель заявок). Пока она в DOM,
+// панель занимает место плавающего острова навигации (тот же бокс и
+// поверхность), а не висит над ним второй плашкой: на экране всегда ровно один
+// плавающий объект. Позиционируется absolute внутри .mobile-shell — fixed на
+// мобайле не используем (см. app-shell в index.css).
 //
-// actions: [{ key, icon, label, reason, danger }]. Непустая reason гасит
-// действие, но кнопка остаётся нажимаемой: на тач-экране hover-тултипа нет, и
-// тап должен объяснить причину, а не промолчать.
+// Непустая `reason` гасит действие, но кнопка остаётся нажимаемой: на тач-экране
+// hover-тултипа нет, и тап должен объяснить причину, а не промолчать.
+//
+// Типы описаны JSDoc'ом: файл остаётся .jsx (react-dom без @types), но props
+// должны выводиться — иначе `actions` схлопывается в never[] у вызывающего
+// app/BulkActionBar.tsx.
+/**
+ * @typedef {import("@/components/app/BulkActionBar").BulkAction} BarAction
+ *
+ * @param {object} props
+ * @param {boolean} [props.show]
+ * @param {import("react").ReactNode} [props.statusText]
+ * @param {BarAction[]} [props.actions]
+ * @param {boolean} [props.isLoading]
+ * @param {(key: string) => void} props.onPick
+ * @param {() => void} props.onCancel
+ * @param {string} [props.cancelLabel]
+ * @param {string} [props.ariaLabel]
+ */
 const MobileActionBar = ({
   show,
   statusText,
@@ -30,11 +45,11 @@ const MobileActionBar = ({
 }) => {
   const reduceMotion = useReducedMotion();
 
-  const [shell, setShell] = useState(null);
+  const [shell, setShell] = useState(/** @type {Element | null} */ (null));
   useEffect(() => setShell(document.querySelector(".mobile-shell")), []);
 
-  const [hint, setHint] = useState(null);
-  const hintTimer = useRef(null);
+  const [hint, setHint] = useState(/** @type {string | null} */ (null));
+  const hintTimer = useRef(undefined);
 
   const showHint = (reason) => {
     clearTimeout(hintTimer.current);
@@ -94,9 +109,8 @@ const MobileActionBar = ({
                 >
                   <span>{statusText}</span>
                   {isLoading && (
-                    <Spinner
-                      animation="border"
-                      size="sm"
+                    <RiLoader4Line
+                      className="tw:animate-spin"
                       role="status"
                       aria-label="Обновление данных"
                     />

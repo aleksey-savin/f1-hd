@@ -10,6 +10,7 @@ const {
 } = require("./transport");
 const { MAILBOX, SMTP, recordOk, recordError } = require("./health");
 const logger = require("../../utils/logger");
+const { guardRecipient } = require("../../utils/mailGuard");
 
 // Проверка почтовых каналов по кнопке в настройках. Возвращает ту же пару фраз,
 // что и строка состояния: `state` — факт, `hint` — что делать.
@@ -95,7 +96,10 @@ const checkMailbox = async (mailbox = {}) => {
   }
 };
 
-const sendTestEmail = async (channel = {}, to) => {
+const sendTestEmail = async (channel = {}, requestedTo) => {
+  // Вне прода тестовое письмо тоже уходит только на разработческий ящик:
+  // «без исключений» значит без исключений (см. utils/mailGuard)
+  const to = guardRecipient(requestedTo, { module: "mailCheck" });
   const options = buildSmtpOptions(channel);
   const from = buildMailFrom(channel);
 

@@ -1,47 +1,70 @@
 import { useEffect, useMemo } from "react";
 import { useParams } from "react-router";
 
-import Badge from "react-bootstrap/Badge";
-import ListGroup from "react-bootstrap/ListGroup";
+import { RiArrowRightSLine, RiInboxLine } from "react-icons/ri";
 
-import { RiArrowRightSLine } from "react-icons/ri";
+import { cn } from "@/lib/utils";
 
-import AlertMessage from "../../UI/AlertMessage";
 import useKnowledgeNotesStore, {
   hasActiveFilter,
 } from "../../store/lists/knowledgeNotes";
+import { plural } from "../../util/plural";
 import {
   groupNotesByCompany,
   groupKeysOfNote,
 } from "../../util/knowledgeNoteGrouping";
 
 import NoteItem from "./NoteItem";
-import NoteBulkActionBar from "./NoteBulkActionBar";
 
-import "../../UI/knowledgeBase.css";
+// Заголовок папки-компании. Это навигация, а не подпись к секции: строка
+// кликается целиком, поэтому обычный регистр, шеврон и счётчик (uppercase-метку
+// ListGroupLabel оставляем неинтерактивным группам).
+const FolderRow = ({ group, expanded, onToggle }) => {
+  const unapproved = group.notes.filter(
+    (note) => note.approved !== true,
+  ).length;
 
-// Заголовок группы-папки. Липнет к верху скролл-контейнера, поэтому при длинном
-// списке всегда видно, чьи заметки сейчас на экране.
-const GroupHeader = ({ group, expanded, onToggle }) => (
-  <button
-    type="button"
-    className={`kb-group${expanded ? "" : " is-collapsed"}`}
-    aria-expanded={expanded}
-    onClick={onToggle}
-  >
-    <RiArrowRightSLine className="kb-group__chevron" aria-hidden="true" />
-    <span className="kb-group__title">{group.title}</span>
-    <Badge bg="secondary" className="ms-auto">
-      {group.notes.length}
-    </Badge>
-  </button>
+  return (
+    <button
+      type="button"
+      aria-expanded={expanded}
+      onClick={onToggle}
+      className="tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2 tw:border-0 tw:bg-transparent tw:px-3.5 tw:py-2.5 tw:text-start tw:text-base tw:font-semibold tw:text-foreground tw:transition-colors tw:hover:bg-accent/60 tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:focus-visible:outline-none"
+    >
+      <RiArrowRightSLine
+        size={16}
+        aria-hidden
+        className={cn(
+          "tw:flex-none tw:text-faint tw:transition-transform tw:motion-reduce:transition-none",
+          expanded && "tw:rotate-90",
+        )}
+      />
+      <span className="tw:min-w-0 tw:truncate">{group.title}</span>
+      <span className="tw:flex-none tw:text-faint tw:tabular-nums">
+        · {group.notes.length}
+      </span>
+      {unapproved > 0 && (
+        <span className="tw:ms-auto tw:flex-none tw:text-sm tw:font-normal tw:text-faint tw:tabular-nums">
+          {unapproved}{" "}
+          {plural(unapproved, "не проверена", "не проверены", "не проверено")}
+        </span>
+      )}
+    </button>
+  );
+};
+
+const EmptyState = ({ message }) => (
+  <div className="tw:flex tw:flex-col tw:items-center tw:gap-1.5 tw:px-5 tw:py-12 tw:text-center">
+    <RiInboxLine size={32} aria-hidden className="tw:text-faint" />
+    <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">{message}</p>
+  </div>
 );
 
 // Список заметок как дерево папок-компаний («Общие» первой). Все папки свёрнуты
 // по умолчанию: на двух сотнях заметок раскрытое дерево — это две сотни строк в
-// колонке шириной в треть экрана, а список папок целиком помещается на экран и
-// сам работает навигацией. Раскрываются папка открытой заметки и — пока идёт
-// поиск — все папки с совпадениями.
+// узкой колонке, а список папок целиком помещается на экран и сам работает
+// навигацией. Раскрываются папка открытой заметки и — пока идёт поиск — все
+// папки с совпадениями.
 //
 // В очередях модерации дерева нет: там важен статус, а не компания, и работает
 // выделение для массовых действий.
@@ -63,7 +86,7 @@ const NoteList = ({ notes, flat = false, showCompanies }) => {
 
   const list = notes ?? filteredList;
   const isSearching = searchTerm.trim().length > 0;
-  const asTree = !flat && !moderationMode;
+  const asTree = !flat && !moderationMode && !isSearching;
 
   const groups = useMemo(
     () => (asTree ? groupNotesByCompany(list) : null),
@@ -73,16 +96,6 @@ const NoteList = ({ notes, flat = false, showCompanies }) => {
   // Одна группа — группировать нечего: так бывает при выбранной компании и у
   // клиента, которому видны только заметки своей компании.
   const grouped = !!groups && groups.length > 1;
-
-  // Раскрываем папки поиска по-настоящему, а не подменой флага: иначе заголовок
-  // группы выглядит кликабельным, но клик по нему ничего не делает. Очистка
-  // запроса сворачивает их обратно (см. fullTextSearch в сторе).
-  useEffect(() => {
-    if (!grouped || !isSearching) {
-      return;
-    }
-    expandGroups(groups.map((group) => group.key));
-  }, [grouped, isSearching, groups, expandGroups]);
 
   // Открыли заметку из свёрнутой папки (переход по ссылке, deep-link) — папку
   // раскрываем, иначе активной строки не видно.
@@ -106,10 +119,11 @@ const NoteList = ({ notes, flat = false, showCompanies }) => {
           ? "Ничего не нашлось. Измените запрос или сбросьте фильтры"
           : "Заметок пока нет";
 
-  const renderNote = (note) => (
+  const renderNote = (note, nested) => (
     <NoteItem
       key={note._id}
       note={note}
+      nested={nested}
       isActive={note._id === activeId}
       selectable={!!moderationMode}
       isSelected={selectedIds.includes(note._id)}
@@ -118,33 +132,35 @@ const NoteList = ({ notes, flat = false, showCompanies }) => {
     />
   );
 
-  return (
-    <>
-      <div className="kb-explorer__list">
-        {list.length === 0 ? (
-          <AlertMessage variant="light" message={emptyMessage} />
-        ) : grouped ? (
-          groups.map((group) => (
-            <div key={group.key}>
-              <GroupHeader
-                group={group}
-                expanded={isExpanded(group.key)}
-                onToggle={() => toggleGroup(group.key)}
-              />
-              {isExpanded(group.key) && (
-                <ListGroup variant="flush">
-                  {group.notes.map(renderNote)}
-                </ListGroup>
-              )}
-            </div>
-          ))
-        ) : (
-          <ListGroup variant="flush">{list.map(renderNote)}</ListGroup>
-        )}
-      </div>
+  if (list.length === 0) {
+    return <EmptyState message={emptyMessage} />;
+  }
 
-      <NoteBulkActionBar />
-    </>
+  if (!grouped) {
+    return <div>{list.map((note) => renderNote(note, false))}</div>;
+  }
+
+  return (
+    <div>
+      {groups.map((group, index) => (
+        <div
+          key={group.key}
+          // Разделитель между папками — сверху у каждой, кроме первой
+          style={
+            index > 0 ? { borderTop: "1px solid var(--border-soft)" } : undefined
+          }
+        >
+          <FolderRow
+            group={group}
+            expanded={isExpanded(group.key)}
+            onToggle={() => toggleGroup(group.key)}
+          />
+          {isExpanded(group.key) && (
+            <div>{group.notes.map((note) => renderNote(note, true))}</div>
+          )}
+        </div>
+      ))}
+    </div>
   );
 };
 

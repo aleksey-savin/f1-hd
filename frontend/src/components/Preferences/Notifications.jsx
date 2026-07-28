@@ -29,6 +29,12 @@ const CATEGORIES = [
   { key: "ticketDeadlineUpdate", label: "Изменение срока заявки" },
   { key: "ticketNewComment", label: "Новые комментарии к заявке" },
   { key: "scheduledWorks", label: "Запланированные работы" },
+  // Категории появлялись в моделях, но в эту матрицу не попадали — глобальный
+  // выключатель у них есть, а включить его было негде
+  { key: "absenceRequest", label: "Запрос на отсутствие" },
+  { key: "absenceDecision", label: "Решение по отсутствию" },
+  { key: "reportApproval", label: "Отчёт на согласование" },
+  { key: "reportDecision", label: "Решение по отчёту" },
 ];
 
 const PrefsNotifications = ({ prefs }) => {

@@ -20,8 +20,6 @@ const notifyAbsence = async ({ recipients, text, category, title }) => {
   const tgAllowed =
     prefs.notify?.byTelegram?.isActive && prefs.notify?.personal?.[category];
   const emailAllowed =
-    // В dev почту подавляем, как и в заявочных уведомлениях
-    process.env.NODE_ENV !== "development" &&
     prefs.notify?.byEmail?.isActive &&
     prefs.notify?.personal?.[category];
 
@@ -32,7 +30,14 @@ const notifyAbsence = async ({ recipients, text, category, title }) => {
     }
     const who = `${user.lastName || ""} ${user.firstName || ""}`.trim();
 
-    if (tgAllowed && user.telegramBot?.isActive && user.notify?.byTelegram?.[category]) {
+    // Отсутствие поля = включено: в схеме у категории default true, но на уже
+    // сохранённых пользователях поля нет (дефолты применяются при создании
+    // документа). Строгая проверка означала бы «никому не слать никогда».
+    if (
+      tgAllowed &&
+      user.telegramBot?.isActive &&
+      user.notify?.byTelegram?.[category] !== false
+    ) {
       documents.push({
         instrument: "telegram",
         to: { chatId: user.telegramBot.chatId, applicant: who },
@@ -41,7 +46,7 @@ const notifyAbsence = async ({ recipients, text, category, title }) => {
       });
     }
 
-    if (emailAllowed && user.email && user.notify?.byEmail?.[category]) {
+    if (emailAllowed && user.email && user.notify?.byEmail?.[category] !== false) {
       documents.push({
         instrument: "email",
         to: { email: user.email, applicant: who },

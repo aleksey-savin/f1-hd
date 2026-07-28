@@ -54,9 +54,11 @@ export const formatMinutes = (minutes: number) => {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 };
 
-// Деньги — целыми рублями с разделителями разрядов
+// Деньги — целыми рублями с разделителями разрядов. Округление обязательно:
+// расчёт даёт дроби (833.3333…), и без него в карточке появлялось
+// «135 833,333 ₽».
 export const formatMoney = (value: number | null) =>
-  value == null ? "—" : `${value.toLocaleString("ru-RU")} ₽`;
+  value == null ? "—" : `${Math.round(value).toLocaleString("ru-RU")} ₽`;
 
 export const fullName = (person: { firstName?: string; lastName?: string }) =>
   `${person.lastName ?? ""} ${person.firstName ?? ""}`.trim();

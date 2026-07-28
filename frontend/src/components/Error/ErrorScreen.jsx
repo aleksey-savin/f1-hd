@@ -22,8 +22,19 @@ const TECH_DOT = {
  * автоповтора (`auto`) и тихая тех-строка (`tech`) — чтобы скриншот от
  * пользователя сразу говорил админу код и путь.
  */
-const ErrorScreen = ({ code, title, body, actions, auto, tech, docTitle }) => {
-  useDocTitle(docTitle ?? title);
+// Значения по умолчанию не косметика: без них TypeScript у вызывающих
+// .tsx-страниц считает ВСЕ поля обязательными и требует передавать пустые
+// actions/auto/tech там, где их и не бывает
+const ErrorScreen = ({
+  code,
+  title,
+  body,
+  actions = null,
+  auto = null,
+  tech = null,
+  docTitle = "",
+}) => {
+  useDocTitle(docTitle || title);
 
   return (
     <div

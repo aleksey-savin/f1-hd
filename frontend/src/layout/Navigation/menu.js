@@ -69,6 +69,7 @@ export function buildMenu({
     canManageServicePlans,
     canPerformTickets,
     canSeeKnowledgeBase,
+    canApproveWorkReports,
   } = permissions;
 
   const timeTracking = !!modules?.timeTracking?.isActive;
@@ -86,6 +87,19 @@ export function buildMenu({
           "Компании",
           RiBuilding2Line,
           "/report/companies",
+        ),
+      // Согласование отчётов по услугам со стороны клиента. Право открывает
+      // раздел, объём даёт роль (backend services/reportApprovalScope):
+      // назначенный согласующий видит отчёт целиком, руководитель филиала —
+      // свою часть. canUseFinancesModule тут НЕ нужен: финансовый модуль
+      // целиком согласующему не положен.
+      finances &&
+        canApproveWorkReports &&
+        link(
+          "approval",
+          "Согласование работ",
+          RiDraftLine,
+          "/finances/approval",
         ),
     ].filter(Boolean);
 
@@ -110,7 +124,7 @@ export function buildMenu({
       knowledgeBase &&
         canSeeKnowledgeBase &&
         link("knowledge-base", "База знаний", RiBookOpenLine, "/knowledge-base", {
-          shortLabel: "База",
+          shortLabel: "База знаний",
         }),
       reports.length > 0 && {
         key: "reports",
@@ -156,10 +170,10 @@ export function buildMenu({
           canUseFinancesModule &&
           canSeeGlobalFinancialReport &&
           link(
-            "fin-summary",
+            "fin-approval",
             "Согласование работ",
             RiDraftLine,
-            "/finances/summary-report",
+            "/finances/approval",
           ),
       ].filter(Boolean),
     },
@@ -290,7 +304,7 @@ export function buildMenu({
     knowledgeBase &&
       canSeeKnowledgeBase &&
       link("knowledge-base", "База знаний", RiBookOpenLine, "/knowledge-base", {
-        shortLabel: "База",
+        shortLabel: "База знаний",
       }),
     !canPerformTickets &&
       link(

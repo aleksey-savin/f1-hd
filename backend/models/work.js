@@ -73,17 +73,17 @@ const workSchema = new Schema(
       lastAction: String,
       pending: Boolean,
     },
+    // Стадия биллинга работы. preview — ещё не вошла ни в один отчёт;
+    // pendingApproval — отчёт ушёл клиенту; approved — подписан; declined —
+    // клиент отклонил, отчёт вернулся к нам на правку.
+    // `underReview` из enum убран: его не писала ни одна строка кода (метка в
+    // Report/work-format.ts оставлена для старых данных, если такие найдутся).
     finances: {
       status: {
         type: String,
-        enum: [
-          "preview",
-          "pendingApproval",
-          "approved",
-          "declined",
-          "underReview",
-        ],
+        enum: ["preview", "pendingApproval", "approved", "declined"],
       },
+      // Подпись нашей стороны — ставится при формировании отчёта
       contractor: {
         isConfirmed: Boolean,
         confirmedAt: Date,
@@ -96,6 +96,9 @@ const workSchema = new Schema(
           lastName: String,
         },
       },
+      // Подпись стороны клиента: финальный согласующий либо руководитель
+      // подразделения, если отчёт делится по филиалам. Поле объявлено давно,
+      // но до появления клиентского согласования его никто не заполнял.
       customer: {
         isConfirmed: Boolean,
         confirmedAt: Date,

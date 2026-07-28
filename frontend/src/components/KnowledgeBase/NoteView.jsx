@@ -2,12 +2,13 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useBlocker } from "react-router";
 import { isMobile, MobileView } from "react-device-detect";
 
-import { RiArrowLeftLine, RiSaveLine } from "react-icons/ri";
+import { RiArrowLeftSLine, RiSaveLine } from "react-icons/ri";
+
+import ConfirmDialog from "@/components/app/ConfirmDialog";
+import MobileActionBar from "@/components/app/MobileActionBar";
 
 import MarkdownEditor from "../../UI/MarkdownEditor";
 import MarkdownViewer from "../../UI/MarkdownViewer";
-import ConfirmActionModal from "../../UI/ConfirmActionModal";
-import MobileActionBar from "../../UI/MobileActionBar";
 
 import useHttp from "../../hooks/use-http";
 import useToastStore from "../../store/toast-store";
@@ -22,16 +23,13 @@ import NoteProperties from "./NoteProperties";
 import PendingRequestAlert from "./PendingRequestAlert";
 import SecretsAlert from "./SecretsAlert";
 import VerifyModal from "./VerifyModal";
-import ConfirmDeletionModal from "./ConfirmDeletionModal";
-
-import "../../UI/knowledgeBase.css";
 
 const API = import.meta.env.VITE_API_ADDRESS;
 
-// Высота редактора на десктопе: карточка Root минус навбар и паддинги.
+// Высота редактора на десктопе: экран минус бар, шапка заметки и свойства.
 // На мобайле фиксированная высота не годится — редактор живёт внутри
 // .mobile-shell__scroll и должен расти по содержимому (см. docs/ux-ui-guide.md).
-const EDITOR_HEIGHT = isMobile ? "auto" : "calc(100svh - 300px)";
+const EDITOR_HEIGHT = isMobile ? "auto" : "calc(100svh - 320px)";
 
 const idsOf = (list = []) => (list || []).map((item) => String(item._id)).sort();
 const sameIds = (a, b) =>
@@ -437,32 +435,35 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
 
   // На мобилке кнопки правки уезжают в плавающий остров: шапка прокручивается,
   // а «Сохранить» должно оставаться под большим пальцем.
-  const inlineActions = isMobile && isEditing ? null : (
-    <NoteActions
-      note={currentNote}
-      isNew={isNew}
-      isEditing={isEditing}
-      isLoading={isLoading}
-      canManage={canManage}
-      isModerator={isModerator}
-      onEdit={() => enterEdit()}
-      onSave={saveHandler}
-      onCancel={cancelEdit}
-      onVerify={() => setShowVerifyModal(true)}
-      onSendToDeletion={sendToDeletionHandler}
-      onRequestArchive={() => setShowRequestArchiveModal(true)}
-      onUnarchive={unarchiveHandler}
-    />
-  );
+  const inlineActions =
+    isMobile && isEditing ? null : (
+      <NoteActions
+        note={currentNote}
+        isNew={isNew}
+        isEditing={isEditing}
+        isLoading={isLoading}
+        canManage={canManage}
+        isModerator={isModerator}
+        onEdit={() => enterEdit()}
+        onSave={saveHandler}
+        onCancel={cancelEdit}
+        onVerify={() => setShowVerifyModal(true)}
+        onSendToDeletion={sendToDeletionHandler}
+        onRequestArchive={() => setShowRequestArchiveModal(true)}
+        onUnarchive={unarchiveHandler}
+      />
+    );
 
   return (
-    <article className="kb-note">
+    <article className="tw:min-w-0">
+      {/* Крошка нужна только там, где списка не видно: на десктопе он всегда
+          слева, в соседней панели */}
       <MobileView>
         <Link
           to="/knowledge-base"
-          className="d-inline-flex align-items-center gap-1 mb-3"
+          className="tw:mb-3 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
         >
-          <RiArrowLeftLine /> К списку
+          <RiArrowLeftSLine /> База знаний
         </Link>
       </MobileView>
 
@@ -510,16 +511,19 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
         onUsersChange={setUsers}
       />
 
-      {/* Вьюер и WYSIWYG-редактор рендерят в один и тот же .toastui-editor-contents,
-          поэтому текст в обоих режимах стоит на месте (см. knowledgeBase.css). */}
-      <div className="kb-doc">
+      {/* Вьюер и WYSIWYG-редактор рендерят в один и тот же
+          .toastui-editor-contents, поэтому мера чтения задана один раз и
+          действует в обоих режимах (.kb-doc в index.css) */}
+      <div className="kb-doc md-doc tw:mt-4">
         {isEditing ? (
-          <MarkdownEditor
-            initialValue={content}
-            onChange={setContent}
-            onReady={editorReadyHandler}
-            height={EDITOR_HEIGHT}
-          />
+          <div className="md-editor tw:overflow-hidden tw:rounded-lg tw:border tw:border-input">
+            <MarkdownEditor
+              initialValue={content}
+              onChange={setContent}
+              onReady={editorReadyHandler}
+              height={EDITOR_HEIGHT}
+            />
+          </div>
         ) : (
           <div
             ref={viewerRef}
@@ -548,38 +552,43 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
       )}
 
       <VerifyModal
-        show={showVerifyModal}
-        onHide={() => setShowVerifyModal(false)}
+        open={showVerifyModal}
+        onOpenChange={setShowVerifyModal}
         onConfirm={verifyHandler}
         isLoading={isLoading}
       />
 
-      <ConfirmDeletionModal
-        show={showDeleteModal}
-        onHide={() => setShowDeleteModal(false)}
+      <ConfirmDialog
+        open={showDeleteModal}
+        onOpenChange={setShowDeleteModal}
+        title="Подтверждение удаления"
+        description="Заметка будет безвозвратно удалена из приложения. Это действие нельзя отменить."
+        confirmLabel="Удалить безвозвратно"
+        confirmVariant="destructive"
+        isLoading={isLoading}
         onConfirm={confirmDeletionHandler}
-        isLoading={isLoading}
       />
 
-      <ConfirmActionModal
-        show={showRequestArchiveModal}
-        onHide={() => setShowRequestArchiveModal(false)}
-        onConfirm={requestArchiveHandler}
+      <ConfirmDialog
+        open={showRequestArchiveModal}
+        onOpenChange={setShowRequestArchiveModal}
         title="Запросить архивацию"
-        body="Заметка будет отправлена на архивацию и после подтверждения модератором скрыта из базы знаний. Продолжить?"
+        description="Заметка будет отправлена на архивацию и после подтверждения модератором скрыта из базы знаний. Продолжить?"
         confirmLabel="Запросить"
-        confirmVariant="secondary"
         isLoading={isLoading}
+        onConfirm={requestArchiveHandler}
       />
 
-      <ConfirmActionModal
-        show={blocker.state === "blocked"}
-        onHide={() => blocker.reset?.()}
-        onConfirm={() => blocker.proceed?.()}
+      <ConfirmDialog
+        open={blocker.state === "blocked"}
+        onOpenChange={(open) => {
+          if (!open) blocker.reset?.();
+        }}
         title="Несохранённые изменения"
-        body="Заметка изменена, но не сохранена. Уйти со страницы и потерять правки?"
+        description="Заметка изменена, но не сохранена. Уйти со страницы и потерять правки?"
         confirmLabel="Уйти без сохранения"
-        confirmVariant="danger"
+        confirmVariant="destructive"
+        onConfirm={() => blocker.proceed?.()}
       />
     </article>
   );

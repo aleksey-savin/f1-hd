@@ -1,9 +1,14 @@
 import { RiEditLine } from "react-icons/ri";
 
+import { cn } from "@/lib/utils";
+
 import useInitialPrefsStore from "../../store/prefs";
 import { getVerificationSummary } from "../../util/knowledgeNoteTypes";
 
-import "../../UI/knowledgeBase.css";
+const TONE_CLASS = {
+  success: "tw:text-accent-text",
+  warning: "tw:text-warning",
+};
 
 // Состояние заметки — предложение, а не плашка. Ценность базы знаний в том, что
 // заметку можно не перепроверять, поэтому кто и когда её проверил важнее самого
@@ -16,8 +21,8 @@ const VerificationLine = ({ note, isEditing = false }) => {
 
   if (isEditing) {
     return (
-      <p className="kb-trust kb-trust--editing mb-0">
-        <RiEditLine aria-hidden="true" />
+      <p className="tw:my-0 tw:flex tw:items-center tw:gap-1.5 tw:text-sm tw:text-muted-foreground">
+        <RiEditLine size={16} aria-hidden className="tw:flex-none" />
         <span>Сохранение снимет отметку «Проверено»</span>
       </p>
     );
@@ -34,7 +39,9 @@ const VerificationLine = ({ note, isEditing = false }) => {
   // даты, и лишние разделители «·» не должны появляться.
   const parts = [];
   if (summary.actorName) {
-    parts.push(summary.verified ? summary.actorName : `изменил ${summary.actorName}`);
+    parts.push(
+      summary.verified ? summary.actorName : `изменил ${summary.actorName}`,
+    );
   }
   if (summary.at) {
     parts.push(summary.at);
@@ -51,11 +58,17 @@ const VerificationLine = ({ note, isEditing = false }) => {
   const tone = summary.expiresSoon ? "warning" : summary.bg;
 
   return (
-    <p className={`kb-trust kb-trust--${tone} mb-0`}>
-      <Icon aria-hidden="true" />
-      <span className="kb-trust__state">{summary.label}</span>
+    <p className="tw:my-0 tw:flex tw:flex-wrap tw:items-center tw:gap-1.5 tw:text-sm">
+      <Icon
+        size={16}
+        aria-hidden
+        className={cn("tw:flex-none", TONE_CLASS[tone])}
+      />
+      <span className={cn("tw:font-semibold", TONE_CLASS[tone])}>
+        {summary.label}
+      </span>
       {parts.length > 0 && (
-        <span className="kb-trust__meta">{parts.join(" · ")}</span>
+        <span className="tw:text-muted-foreground">· {parts.join(" · ")}</span>
       )}
     </p>
   );

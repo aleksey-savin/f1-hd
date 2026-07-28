@@ -212,8 +212,12 @@ exports.getOne = async (req, res, next) => {
         if (servicePlan) {
           servicePlans.push({
             ...servicePlan,
+            // Условия подключения живут на привязке, а не на самой услуге:
+            // одна услуга у разных компаний согласуется по-разному
             isActiveSince: plan.isActiveSince,
             customerApprovalRequired: plan.customerApprovalRequired,
+            subdivisionApprovalRequired: plan.subdivisionApprovalRequired,
+            approver: plan.approver || null,
           });
         }
       }
@@ -494,9 +498,32 @@ exports.toggleActive = async (req, res, next) => {
   }
 };
 
+/**
+ * Согласующий со стороны клиента — снапшотом, а не ссылкой: карточка отчёта и
+ * письма обязаны называть имя, и оно не должно меняться задним числом, если
+ * человека переименуют.
+ */
+const resolveApprover = async (approverId) => {
+  if (!approverId) {
+    return null;
+  }
+  const user = await User.findById(approverId)
+    .select("firstName lastName")
+    .lean();
+  return user
+    ? { _id: user._id, firstName: user.firstName, lastName: user.lastName }
+    : null;
+};
+
 exports.addServicePlan = async (req, res, next) => {
   try {
-    const { plan, isActiveSince, customerApprovalRequired } = req.body;
+    const {
+      plan,
+      isActiveSince,
+      customerApprovalRequired,
+      subdivisionApprovalRequired,
+      approverId,
+    } = req.body;
 
     const company = await Company.findById(req.params.id);
     const servicePlan = await ServicePlan.findById(plan);
@@ -544,6 +571,10 @@ exports.addServicePlan = async (req, res, next) => {
         _id: servicePlan,
         isActiveSince: isActiveSince,
         customerApprovalRequired: customerApprovalRequired,
+        subdivisionApprovalRequired: Boolean(subdivisionApprovalRequired),
+        // Снапшот имени: карточка отчёта и письма называют человека, а не
+        // ObjectId (см. правило «бэкенд отдаёт имена» в ux-ui-guide)
+        approver: await resolveApprover(approverId),
       });
     }
 
@@ -609,6 +640,52 @@ exports.addProfileImage = async (req, res, next) => {
         true,
         error,
       ),
+    );
+  }
+};
+
+/**
+ * Правка условий уже подключённой услуги: дата, согласование, согласующий,
+ * распил по филиалам. Сама услуга и её тариф здесь не меняются — они общие для
+ * всех компаний, а условия живут на привязке.
+ */
+exports.updateServicePlan = async (req, res, next) => {
+  try {
+    const {
+      servicePlanId,
+      isActiveSince,
+      customerApprovalRequired,
+      subdivisionApprovalRequired,
+      approverId,
+    } = req.body;
+
+    const company = await Company.findById(req.params.id);
+    if (!company) {
+      return next(new AppError("Компания не найдена", 404));
+    }
+
+    const attachment = company.servicePlans.find(
+      (item) => String(item._id) === String(servicePlanId),
+    );
+    if (!attachment) {
+      return next(new AppError("Услуга не подключена этой компании", 404));
+    }
+
+    attachment.isActiveSince = isActiveSince || attachment.isActiveSince;
+    attachment.customerApprovalRequired = Boolean(customerApprovalRequired);
+    attachment.subdivisionApprovalRequired = Boolean(
+      customerApprovalRequired && subdivisionApprovalRequired,
+    );
+    // Согласование выключили — маршрут больше не нужен
+    attachment.approver = customerApprovalRequired
+      ? await resolveApprover(approverId)
+      : null;
+
+    await company.save();
+    res.status(200).json({ message: "Условия подключения обновлены" });
+  } catch (error) {
+    next(
+      new AppError("Не удалось обновить условия подключения", 500, true, error),
     );
   }
 };

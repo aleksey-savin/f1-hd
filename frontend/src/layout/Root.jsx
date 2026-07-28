@@ -79,12 +79,11 @@ const RootLayout = () => {
     if (
       [
         "/tickets",
-        "/finances/summary-report",
         // мигрированные экраны (companies, device-types, vendors, …) сайдбар
-        // не используют — фильтры живут в чипах/Sheet самого списка
+        // не используют — фильтры живут в чипах/Sheet самого списка, а база
+        // знаний рисует свою двухпанельную раскладку сама
         "/inventory/client-devices",
-      ].includes(location.pathname) ||
-      location.pathname.startsWith("/knowledge-base")
+      ].includes(location.pathname)
     ) {
       return showLeftSidebar();
     }
@@ -271,11 +270,21 @@ const RootLayout = () => {
                     // Отчёт «Компании»: сводка и карточки — один каркас
                     // ReportShell tw:max-w-7xl (1280) + 2×24
                     { path: "/report/companies", maxWidth: 1328 },
+                    // «Согласование работ»: карточка отчёта (max-w-5xl + 2×24)
+                    // матчится раньше конвейера — со слэшем, как у карточек
+                    // сущностей под общим префиксом
+                    // Карточка отчёта шире конвейера: шесть колонок работ на
+                    // 1024 давились и лезли друг на друга (max-w-7xl + 2×24)
+                    { path: "/finances/approval/", maxWidth: 1328 },
+                    { path: "/finances/approval", maxWidth: 1328 },
                     // Отчёты по сотрудникам — тот же каркас
                     { path: "/finances/employees", maxWidth: 1328 },
                     { path: "/finances/my-report", maxWidth: 1328 },
                     // Календарь команды — тот же каркас, что у отчётов
                     { path: "/team/calendar", maxWidth: 1328 },
+                    // База знаний: двухпанельный раздел (проводник + заметка)
+                    // одной шириной на все вложенные маршруты (add, :id)
+                    { path: "/knowledge-base", maxWidth: 1328 },
                   ];
                   // Страница ошибок живёт на канве при любом pathname —
                   // ширина как у карточки (944)

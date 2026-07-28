@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useFetcher, useNavigate } from "react-router";
 import {
   RiAddLine,
   RiContractLine,
+  RiEdit2Line,
   RiLinkUnlinkM,
   RiMoreLine,
 } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +34,7 @@ import {
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import Field from "@/components/app/Field";
 import AlertMessage from "@/components/app/AlertMessage";
+import AttachFields, { emptyAttach } from "../../ServicePlan/AttachFields";
 import { InsideOverlayContext } from "@/components/app/overlay-context";
 import useOffcanvasStore from "@/store/offcanvas";
 
@@ -97,8 +97,10 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
   const [addOpen, setAddOpen] = useState(false);
   const [detachPlan, setDetachPlan] = useState(null);
   const [newPlan, setNewPlan] = useState(null);
-  const [approvalRequired, setApprovalRequired] = useState(false);
-  const dateRef = useRef(null);
+  const [attach, setAttach] = useState(emptyAttach);
+  // Правка условий уже подключённой услуги — тем же блоком полей, что и
+  // добавление: одна форма условий, а не две расходящиеся
+  const [editPlan, setEditPlan] = useState(null);
 
   const busy = fetcher.state !== "idle";
 
@@ -114,8 +116,36 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
 
   const openAdd = () => {
     setNewPlan(null);
-    setApprovalRequired(false);
+    setAttach(emptyAttach());
     setAddOpen(true);
+  };
+
+  const openEdit = (plan) => {
+    setEditPlan(plan);
+    setAttach({
+      isActiveSince: plan.isActiveSince
+        ? String(plan.isActiveSince).slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+      customerApprovalRequired: Boolean(plan.customerApprovalRequired),
+      approver: plan.approver || null,
+      subdivisionApprovalRequired: Boolean(plan.subdivisionApprovalRequired),
+    });
+  };
+
+  const submitEdit = (event) => {
+    event.preventDefault();
+    fetcher.submit(
+      {
+        intent: "updateServicePlan",
+        id: company._id,
+        servicePlanId: editPlan._id,
+        isActiveSince: attach.isActiveSince,
+        customerApprovalRequired: attach.customerApprovalRequired,
+        subdivisionApprovalRequired: attach.subdivisionApprovalRequired,
+        approverId: attach.approver?._id || "",
+      },
+      { method: "POST", action: `/companies/${company._id}` },
+    );
   };
 
   const submitAdd = (event) => {
@@ -125,8 +155,10 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
         intent: "addServicePlan",
         id: company._id,
         servicePlan: newPlan?._id || "",
-        isActiveSince: dateRef.current?.value || "",
-        customerApprovalRequired: approvalRequired,
+        isActiveSince: attach.isActiveSince,
+        customerApprovalRequired: attach.customerApprovalRequired,
+        subdivisionApprovalRequired: attach.subdivisionApprovalRequired,
+        approverId: attach.approver?._id || "",
       },
       { method: "POST", action: `/companies/${company._id}` },
     );
@@ -135,13 +167,17 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
   // Ветка «создать новую»: диалог закрывается, параметры подключения уезжают
   // query-строкой в мастер услуги (вложенный маршрут карточки, wide-шторка)
   const openWizard = () => {
-    const isActiveSince =
-      dateRef.current?.value || new Date().toISOString().slice(0, 10);
     setAddOpen(false);
     offcanvas.setShow();
-    navigate(
-      `service-plans/add?isActiveSince=${isActiveSince}&customerApproval=${approvalRequired}`,
-    );
+    // Условия подключения уезжают в мастер query-строкой — там их подхватит
+    // тот же AttachFields
+    const params = new URLSearchParams({
+      isActiveSince: attach.isActiveSince,
+      customerApproval: String(attach.customerApprovalRequired),
+      subdivisionApproval: String(attach.subdivisionApprovalRequired),
+      ...(attach.approver?._id ? { approver: attach.approver._id } : {}),
+    });
+    navigate(`service-plans/add?${params}`);
   };
 
   const confirmDetach = () => {
@@ -159,6 +195,7 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
       setAddOpen(false);
+      setEditPlan(null);
     }
   }, [fetcher.state, fetcher.data]);
 
@@ -226,7 +263,13 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
                     {plan.customerApprovalRequired && (
                       <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:font-medium tw:text-warning">
                         <span className="tw:size-1.5 tw:rounded-full tw:bg-warning" />
-                        согласование с клиентом
+                        {/* Кто подписывает — часть условия, а не деталь:
+                            без согласующего отчёт будет некому согласовать */}
+                        согласование
+                        {plan.approver
+                          ? `: ${plan.approver.lastName || ""} ${plan.approver.firstName || ""}`.trimEnd()
+                          : ": не назначен"}
+                        {plan.subdivisionApprovalRequired && ", по филиалам"}
                       </span>
                     )}
                   </div>
@@ -254,6 +297,9 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onSelect={() => openEdit(plan)}>
+                          <RiEdit2Line /> Изменить условия
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           variant="destructive"
                           onSelect={() => setDetachPlan(plan)}
@@ -269,6 +315,59 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
           })
         )}
       </Panel>
+
+      {/* Правка условий: та же форма, что у добавления, но услуга уже выбрана
+          и не меняется — меняется только то, что живёт на привязке */}
+      <Dialog
+        open={Boolean(editPlan)}
+        onOpenChange={(open) => !open && setEditPlan(null)}
+      >
+        <DialogContent className="tw:max-w-lg" aria-describedby={undefined}>
+          <InsideOverlayContext.Provider value={true}>
+            <DialogHeader>
+              <DialogTitle>Условия подключения</DialogTitle>
+            </DialogHeader>
+
+            {fetcher.data?.error && (
+              <AlertMessage variant="danger" message={fetcher.data.error} />
+            )}
+
+            <form onSubmit={submitEdit}>
+              <div className="tw:mb-4 tw:rounded-lg tw:border tw:border-border tw:bg-accent tw:px-3.5 tw:py-2.5">
+                <div className="tw:font-semibold">{editPlan?.title}</div>
+                <div className="tw:text-sm tw:text-muted-foreground">
+                  {tariffTypeName(tariffOf(editPlan || {})?.type) || "—"}
+                </div>
+              </div>
+
+              <AttachFields
+                idPrefix="edit-attach"
+                companyId={company._id}
+                value={attach}
+                onChange={setAttach}
+              />
+
+              <DialogFooter className="tw:mt-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setEditPlan(null)}
+                >
+                  Отмена
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    busy || (attach.customerApprovalRequired && !attach.approver)
+                  }
+                >
+                  {busy ? "Сохранение…" : "Сохранить"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </InsideOverlayContext.Provider>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="tw:max-w-lg" aria-describedby={undefined}>
@@ -308,21 +407,11 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
                   getOptionValue={(option) => option._id}
                 />
               </Field>
-              <Field label="Действует с" required>
-                <Input
-                  type="date"
-                  required
-                  ref={dateRef}
-                  defaultValue={new Date().toISOString().slice(0, 10)}
-                />
-              </Field>
-              <label className="tw:mb-4 tw:flex tw:cursor-pointer tw:items-center tw:gap-2.5 tw:text-sm tw:font-medium">
-                <Switch
-                  checked={approvalRequired}
-                  onCheckedChange={setApprovalRequired}
-                />
-                Требуется согласование с клиентом
-              </label>
+              <AttachFields
+                companyId={company._id}
+                value={attach}
+                onChange={setAttach}
+              />
 
               {/* Ветка создания: нужной услуги нет в каталоге */}
               <div className="tw:mb-3.5 tw:flex tw:items-center tw:gap-3 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
@@ -351,7 +440,14 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
                 >
                   Отмена
                 </Button>
-                <Button type="submit" disabled={busy || !newPlan}>
+                <Button
+                  type="submit"
+                  disabled={
+                    busy ||
+                    !newPlan ||
+                    (attach.customerApprovalRequired && !attach.approver)
+                  }
+                >
                   {busy ? "Сохранение…" : "Сохранить"}
                 </Button>
               </DialogFooter>

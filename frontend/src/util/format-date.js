@@ -45,6 +45,19 @@ export const formatDateTime = (date) =>
     minute: "2-digit",
   });
 
+// «пт, 8 июля, 14:30» — с днём недели. Нужен там, где день недели объясняет
+// смысл строки: в отчёте по услуге он показывает, почему работа попала в
+// нерабочее время (выходной), — без него это надо вычислять в уме.
+export const formatWeekdayDateTime = (date) =>
+  new Date(date).toLocaleDateString("ru", {
+    timeZone: tz(),
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
 // «08.07, 14:30» — сверхкомпактный: оси/тултипы графиков и лент.
 export const formatDayMonthTime = (date) =>
   new Date(date).toLocaleString("ru", {
@@ -62,6 +75,23 @@ export const formatMonthYear = (date) =>
     month: "long",
     year: "numeric",
   });
+
+/**
+ * «июль 2026» из строки «2026-07».
+ *
+ * Без таймзоны вовсе, и это принципиально: календарный месяц — не момент
+ * времени, переводить его в чью-либо зону нельзя. Через `new Date("2026-07-01")`
+ * получалась полночь UTC, и в зонах западнее месяц уезжал на предыдущий.
+ */
+export const formatMonthLabel = (month) => {
+  const [year, index] = String(month).split("-").map(Number);
+  if (!year || !index) return "";
+  return new Date(Date.UTC(year, index - 1, 1)).toLocaleDateString("ru", {
+    timeZone: "UTC",
+    month: "long",
+    year: "numeric",
+  });
+};
 
 export const formatMonth = (date) =>
   new Date(date).toLocaleDateString("ru", {

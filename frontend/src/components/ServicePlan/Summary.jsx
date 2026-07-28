@@ -133,7 +133,9 @@ const Summary = ({ form, packages, reached, attach = null }) => {
           <div className="tw:mt-0.5 tw:text-sm tw:text-muted-foreground tw:tabular-nums">
             с {fmtDate(attach.isActiveSince) || "сегодня"} ·{" "}
             {attach.customerApprovalRequired
-              ? "согласование с клиентом"
+              ? attach.subdivisionApprovalRequired
+                ? "согласование с клиентом, по филиалам"
+                : "согласование с клиентом"
               : "без согласования"}
           </div>
         </div>

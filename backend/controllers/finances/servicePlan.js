@@ -1,4 +1,5 @@
 const getAuthData = require("../../middleware/getAuthData");
+const User = require("../../models/user");
 const ServicePlan = require("../../models/finances/servicePlan");
 const TicketCategory = require("../../models/ticketCategory");
 const Company = require("../../models/company");
@@ -138,12 +139,30 @@ exports.add = async (req, res, next) => {
     await servicePlan.save();
 
     if (attachToCompany) {
+      // Условия подключения приходят целиком из ServicePlan/AttachFields —
+      // того же блока, что и в диалоге на карточке компании
+      const approver = attachCompany.approverId
+        ? await User.findById(attachCompany.approverId)
+            .select("firstName lastName")
+            .lean()
+        : null;
+
       attachToCompany.servicePlans.push({
         _id: servicePlan._id,
         isActiveSince: attachCompany.isActiveSince || new Date(),
         customerApprovalRequired: Boolean(
           attachCompany.customerApprovalRequired,
         ),
+        subdivisionApprovalRequired: Boolean(
+          attachCompany.subdivisionApprovalRequired,
+        ),
+        approver: approver
+          ? {
+              _id: approver._id,
+              firstName: approver.firstName,
+              lastName: approver.lastName,
+            }
+          : null,
       });
       await attachToCompany.save();
     }

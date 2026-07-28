@@ -334,10 +334,6 @@ import CompaniesNetworksReport, {
 
 
 // Finances
-import SummaryReport, {
-  loader as summaryReportLoader,
-  action as summaryReportAction,
-} from "./pages/Finances/SummaryReport.jsx";
 
 // Auth
 import Authentication, {
@@ -368,6 +364,18 @@ function App() {
       element: <ResetPassword />,
       loader: resetPasswordLoader,
       action: resetPasswordAction,
+    },
+    {
+      // Согласование отчёта по ссылке из письма: без входа в приложение и без
+      // его оболочки — авторизацией служит сам токен в адресе
+      path: "approval/:token",
+      lazy: async () => {
+        const publicModule = await import("./pages/Approval/Public.tsx");
+        return {
+          Component: publicModule.default,
+          loader: publicModule.loader,
+        };
+      },
     },
     {
       path: "/",
@@ -1096,11 +1104,48 @@ function App() {
         // Прежний адрес — закладки не ломаем
         { path: "team/schedule", loader: () => redirect("/team/calendar") },
         // Finances
+        // Прежний адрес раздела — закладки не ломаем
         {
           path: "finances/summary-report",
-          element: <SummaryReport />,
-          loader: summaryReportLoader,
-          action: summaryReportAction,
+          loader: () => redirect("/finances/approval"),
+        },
+        // «Согласование работ»: конвейер и карточка отчёта. Ленивые чанки —
+        // раздел открывают не все, а тянет он таблицы и маршрут подписей.
+        {
+          path: "finances/approval",
+          lazy: async () => {
+            const approvalModule = await import("./pages/Finances/Approval.tsx");
+            return {
+              Component: approvalModule.default,
+              loader: approvalModule.loader,
+            };
+          },
+        },
+        // Карточка подбора: тот же компонент, что и карточка отчёта. Статический
+        // сегмент "preview" ранжируется выше, чем ":id", — конфликта нет.
+        {
+          path: "finances/approval/preview/:companyId/:servicePlanId/:month",
+          lazy: async () => {
+            const reportModule = await import(
+              "./pages/Finances/ApprovalReport.tsx"
+            );
+            return {
+              Component: reportModule.default,
+              loader: reportModule.previewLoader,
+            };
+          },
+        },
+        {
+          path: "finances/approval/:id",
+          lazy: async () => {
+            const reportModule = await import(
+              "./pages/Finances/ApprovalReport.tsx"
+            );
+            return {
+              Component: reportModule.default,
+              loader: reportModule.loader,
+            };
+          },
         },
         // «Сотрудники»: сводная по всем + отчёт выбранного сотрудника;
         // «Мой отчёт» — та же страница без выбора сотрудника (own).

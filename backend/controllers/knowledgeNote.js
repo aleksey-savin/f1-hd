@@ -10,6 +10,10 @@ const { markdownToPlainText } = require("../helpers/markdownToPlainText");
 const { scanNote } = require("../services/secretsScanner");
 const { parseServiceTables } = require("../services/serviceExpiryScanner");
 const {
+  getModerationCounts,
+  ZERO_COUNTS,
+} = require("../services/knowledgeModerationCounts");
+const {
   canViewNote,
   isModerator,
 } = require("../helpers/knowledgeNoteVisibility");
@@ -20,6 +24,7 @@ const getKbConfig = async () => {
   const kb = prefs?.knowledgeBase || {};
   return {
     hideNotApproved: !!kb.hideNotApproved,
+    scanForSecrets: !!kb.scanForSecrets,
     moderatorIds: (kb.moderators || [])
       .map((moderator) => moderator?._id?.toString())
       .filter(Boolean),
@@ -885,38 +890,15 @@ exports.declineArchiveMultiple = bulkModerationHandler({
 exports.getModerationSummary = async (req, res, next) => {
   try {
     const authedUser = await getAuthData(req);
-    const { moderatorIds } = await getKbConfig();
+    const { moderatorIds, scanForSecrets } = await getKbConfig();
 
     if (!isModerator(authedUser, moderatorIds)) {
-      return res.status(200).json({
-        isModerator: false,
-        pendingApproval: 0,
-        pendingDeletion: 0,
-        pendingArchive: 0,
-        secretsFlagged: 0,
-      });
+      return res.status(200).json({ isModerator: false, ...ZERO_COUNTS });
     }
 
-    // Архивные заметки исключаем из счётчиков (они «исчезли»), кроме секретов —
-    // утечку нужно видеть и в архиве.
-    const [pendingApproval, pendingDeletion, pendingArchive, secretsFlagged] =
-      await Promise.all([
-        KnowledgeNote.countDocuments({
-          approved: { $ne: true },
-          archivedAt: null,
-        }),
-        KnowledgeNote.countDocuments({ pendingDeletion: true, archivedAt: null }),
-        KnowledgeNote.countDocuments({ pendingArchive: true, archivedAt: null }),
-        KnowledgeNote.countDocuments({ "secretsScan.flagged": true }),
-      ]);
+    const counts = await getModerationCounts({ scanForSecrets });
 
-    res.status(200).json({
-      isModerator: true,
-      pendingApproval,
-      pendingDeletion,
-      pendingArchive,
-      secretsFlagged,
-    });
+    res.status(200).json({ isModerator: true, ...counts });
   } catch (error) {
     next(
       new AppError(

@@ -48,9 +48,9 @@ const initSchedule = (existing) =>
   );
 
 // attach — контекст «Новой услуги» с карточки компании ({ companyId,
-// companyAlias, isActiveSince, customerApprovalRequired }): показывается в
-// сводке и уходит в payload — бэкенд создаёт услугу и сразу подключает её
-// компании одним запросом.
+// companyAlias + условия подключения из ServicePlan/AttachFields):
+// показывается в сводке и уходит в payload — бэкенд создаёт услугу и сразу
+// подключает её компании одним запросом.
 const ServicePlanForm = ({ title, attach = null }) => {
   const { servicePlan = {}, ticketCategories = [] } = useLoaderData();
   const isEdit = !!servicePlan._id;
@@ -177,6 +177,8 @@ const ServicePlanForm = ({ title, attach = null }) => {
               companyId: attach.companyId,
               isActiveSince: attach.isActiveSince,
               customerApprovalRequired: attach.customerApprovalRequired,
+              subdivisionApprovalRequired: attach.subdivisionApprovalRequired,
+              approverId: attach.approverId || null,
             },
           }
         : {}),

@@ -71,15 +71,41 @@ const loadWorks = async ({
   withTickets = true,
   ticketSelect = "",
   extraSelect = "",
+  financeStatuses = null,
 }) => {
-  const query = {
-    finishedAt: endExclusive ? { $gte: from, $lt: to } : { $gte: from, $lte: to },
-  };
+  // Без границ периода — все завершённые работы: биллингу нужен срез «всё, что
+  // ещё не попало в отчёт», а он не ограничен месяцем (забытый май обязан
+  // остаться видимым). Работы без finishedAt в отчёты не попадают никогда.
+  const query =
+    from && to
+      ? {
+          finishedAt: endExclusive
+            ? { $gte: from, $lt: to }
+            : { $gte: from, $lte: to },
+        }
+      : { finishedAt: { $ne: null } };
   if (companyIds) {
     query.company = { $in: companyIds };
   }
   if (executorIds) {
     query["finishedBy._id"] = { $in: executorIds };
+  }
+  // Срез по стадии биллинга (services/servicePlanBilling): null в массиве —
+  // «поля нет», у работ, которых ещё не касался ни один отчёт. Фильтр живёт
+  // здесь, а не своим Work.find в биллинге, — выборка работ одна на всё
+  // приложение.
+  if (financeStatuses) {
+    const withoutField = financeStatuses.includes(null);
+    const values = financeStatuses.filter((status) => status !== null);
+    const conditions = [];
+    if (values.length) {
+      conditions.push({ "finances.status": { $in: values } });
+    }
+    if (withoutField) {
+      conditions.push({ "finances.status": { $exists: false } });
+      conditions.push({ "finances.status": null });
+    }
+    query.$or = conditions;
   }
 
   const cursor = Work.find(query).select(

@@ -1,23 +1,21 @@
 import { useEffect, useMemo } from "react";
 
-import Badge from "react-bootstrap/Badge";
-import Button from "react-bootstrap/Button";
-import ListGroup from "react-bootstrap/ListGroup";
-
 import { RiArrowRightSLine, RiArrowLeftLine } from "react-icons/ri";
 
-import AlertMessage from "../../UI/AlertMessage";
+import { Button } from "@/components/ui/button";
+
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
 import { groupNotesByCompany } from "../../util/knowledgeNoteGrouping";
+import { plural } from "../../util/plural";
 
 import NoteList from "./NoteList";
 
-import "../../UI/knowledgeBase.css";
-
 // Мобильная навигация по базе знаний: сначала компании, потом заметки компании.
 // На узком экране раскрытое дерево бессмысленно — одна компания уже не влезает,
-// а «Студия · 21» влезает вся. Поиск и очереди модерации выпрыгивают из
+// а «Гидромаш · 21» влезает вся. Поиск и очереди модерации выпрыгивают из
 // drill-down в плоский список: там компания не является осью навигации.
+//
+// Панель рисует ListWrapper — здесь только её содержимое.
 const CompanyFolders = () => {
   const filteredList = useKnowledgeNotesStore((state) => state.filteredList);
   const openCompany = useKnowledgeNotesStore((state) => state.openCompany);
@@ -45,15 +43,14 @@ const CompanyFolders = () => {
   if (active) {
     return (
       <>
-        <div className="d-flex align-items-center gap-2 mb-2">
-          <Button
-            variant="link"
-            className="px-0"
-            onClick={() => setOpenCompany(null)}
-          >
+        <div
+          className="tw:flex tw:items-center tw:gap-2 tw:px-3 tw:py-2"
+          style={{ borderBottom: "1px solid var(--border-soft)" }}
+        >
+          <Button variant="ghost" size="sm" onClick={() => setOpenCompany(null)}>
             <RiArrowLeftLine /> Все компании
           </Button>
-          <span className="ms-auto text-body-secondary small">
+          <span className="tw:ms-auto tw:text-sm tw:text-muted-foreground tw:tabular-nums">
             {active.title} · {active.notes.length}
           </span>
         </div>
@@ -63,28 +60,53 @@ const CompanyFolders = () => {
     );
   }
 
-  if (groups.length === 0) {
-    return <AlertMessage variant="light" message="Заметок пока нет" />;
-  }
-
   return (
-    <ListGroup variant="flush">
-      {groups.map((group) => (
-        <ListGroup.Item
-          key={group.key}
-          action
-          onClick={() => setOpenCompany(group.key)}
-          className="d-flex align-items-center gap-2"
-        >
-          <span className="flex-grow-1 text-truncate">{group.title}</span>
-          <Badge bg="secondary">{group.notes.length}</Badge>
-          <RiArrowRightSLine
-            className="text-body-secondary"
-            aria-hidden="true"
-          />
-        </ListGroup.Item>
-      ))}
-    </ListGroup>
+    <div>
+      {groups.map((group, index) => {
+        const unapproved = group.notes.filter(
+          (note) => note.approved !== true,
+        ).length;
+
+        return (
+          <button
+            key={group.key}
+            type="button"
+            onClick={() => setOpenCompany(group.key)}
+            className="tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-3 tw:border-0 tw:bg-transparent tw:px-4 tw:py-3 tw:text-start tw:text-foreground tw:transition-colors tw:hover:bg-accent/60"
+            style={
+              index > 0
+                ? { borderTop: "1px solid var(--border-soft)" }
+                : undefined
+            }
+          >
+            <span className="tw:min-w-0 tw:flex-1">
+              <span className="tw:block tw:truncate tw:text-base tw:font-medium">
+                {group.title}
+              </span>
+              {unapproved > 0 && (
+                <span className="tw:block tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+                  {unapproved}{" "}
+                  {plural(
+                    unapproved,
+                    "не проверена",
+                    "не проверены",
+                    "не проверено",
+                  )}
+                </span>
+              )}
+            </span>
+            <span className="tw:flex-none tw:text-faint tw:tabular-nums">
+              {group.notes.length}
+            </span>
+            <RiArrowRightSLine
+              size={18}
+              aria-hidden
+              className="tw:flex-none tw:text-faint"
+            />
+          </button>
+        );
+      })}
+    </div>
   );
 };
 

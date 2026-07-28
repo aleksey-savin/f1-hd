@@ -516,6 +516,34 @@ module.exports.canSeeGlobalFinancialReport = async (req, res, next) => {
   next();
 };
 
+/**
+ * Раздел «Согласование работ» открыт двум аудиториям: нам (весь конвейер) и
+ * согласующим со стороны клиента (только то, что ждёт их подписи). Объём
+ * данных считает services/reportApprovalScope — здесь только вход.
+ *
+ * Отдельно от canUseFinancesModule намеренно: клиенту не нужен доступ к
+ * финансовому модулю целиком ради одной кнопки «Согласовать».
+ */
+module.exports.canUseWorkApproval = async (req, res, next) => {
+  const { userId } = await getAuthData(req);
+  const authedUser = await User.findById(userId);
+  const { permissions, isAdmin } = authedUser;
+  if (
+    !isAdmin &&
+    !permissions.canSeeGlobalFinancialReport &&
+    !permissions.canApproveWorkReports
+  ) {
+    const error = new Error("Недостаточно прав для просмотра данной страницы");
+    error.statusCode = 403;
+    return res.status(error.statusCode).json({
+      error: false,
+      status: error.statusCode,
+      message: error.message,
+    });
+  }
+  next();
+};
+
 module.exports.canSeePersonalFinancialReport = async (req, res, next) => {
   const { userId } = await getAuthData(req);
   const authedUser = await User.findById(userId);

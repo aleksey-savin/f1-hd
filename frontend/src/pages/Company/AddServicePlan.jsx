@@ -22,6 +22,9 @@ const AddCompanyServicePlanPage = () => {
       searchParams.get("isActiveSince") ||
       new Date().toISOString().slice(0, 10),
     customerApprovalRequired: searchParams.get("customerApproval") === "true",
+    subdivisionApprovalRequired:
+      searchParams.get("subdivisionApproval") === "true",
+    approverId: searchParams.get("approver") || null,
   };
 
   return <ServicePlanForm title="Новая услуга" attach={attach} />;

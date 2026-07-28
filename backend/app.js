@@ -45,6 +45,7 @@ const {
 const { runSecretsScan } = require("./services/secretsScanRun");
 const { runWorkStatusReset } = require("./services/workStatusReset");
 const { runWorkStatusAuto } = require("./services/workStatusAuto");
+const { runReportAutoApproval } = require("./services/reportAutoApproval");
 const {
   runServiceExpiryScan,
 } = require("./services/serviceExpiryScanRun");
@@ -449,6 +450,35 @@ const registerMaintenanceCrons = async () => {
         });
       } finally {
         isExpiringApprovals = false;
+      }
+    },
+    { timezone },
+  );
+
+  // Согласование отчётов: напоминание за сутки до срока и автоподпись после
+  // него (daily 4:15 — после ночных пересчётов, до начала рабочего дня)
+  let isAutoApprovingReports = false;
+  cron.schedule(
+    "15 4 * * *",
+    async () => {
+      if (isAutoApprovingReports) {
+        return;
+      }
+
+      if (mongoose.connection.readyState !== 1) {
+        return;
+      }
+
+      isAutoApprovingReports = true;
+
+      try {
+        await runReportAutoApproval();
+      } catch (error) {
+        logger.log("error", "Report auto-approval run failed", {
+          error: error.message,
+        });
+      } finally {
+        isAutoApprovingReports = false;
       }
     },
     { timezone },

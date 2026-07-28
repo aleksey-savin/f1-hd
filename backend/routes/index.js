@@ -32,6 +32,7 @@ const workRoutes = require("./internal/work");
 // Internal finances routes
 const financesReportRoutes = require("./internal/finances/report");
 const servicePlanRoutes = require("./internal/finances/servicePlan");
+const workApprovalRoutes = require("./internal/finances/approval");
 
 // Internal inventory routes
 const clientDeviceRoutes = require("./internal/inventory/clientDevice");
@@ -47,6 +48,7 @@ const vendorRoutes = require("./internal/inventory/vendor");
 
 // External routes
 const externalUserRoutes = require("./external/user");
+const externalApprovalRoutes = require("./external/approval");
 
 // Public routes
 const healthRoutes = require("./public/health");
@@ -92,6 +94,11 @@ internalRoutes.use(
   canUseFinancesModule,
   servicePlanRoutes,
 );
+
+// «Согласование работ» — отдельный префикс: раздел открыт и согласующим со
+// стороны клиента, которым финансовый модуль целиком не нужен
+// (см. routes/internal/finances/approval.js)
+internalRoutes.use("/approval", financesModuleIsActive, workApprovalRoutes);
 
 // Mount internal inventory routes
 internalRoutes.use(
@@ -155,6 +162,8 @@ internalRoutes.use(
 
 // Mount external routes
 externalRoutes.use("/external", externalUserRoutes);
+// Согласование отчёта по ссылке из письма: авторизацией служит сам токен
+externalRoutes.use("/external", externalApprovalRoutes);
 
 // Mount public routes
 publicRoutes.use("/", healthRoutes);

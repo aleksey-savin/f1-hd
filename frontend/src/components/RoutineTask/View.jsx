@@ -293,7 +293,7 @@ const ViewRoutineTask = ({ task }) => {
         <>
           <Eyebrow>Описание</Eyebrow>
           <Panel>
-            <div className="tpl-doc">
+            <div className="md-doc">
               <MarkdownViewer value={description} />
             </div>
           </Panel>
