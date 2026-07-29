@@ -114,6 +114,12 @@ const DeviceRow = ({ device }) => {
   const openQr = () => setQrOpen(true);
   const stop = (event) => event.stopPropagation();
 
+  // Диалоги (QR, удаление) рендерятся в портал на <body>, но React-события
+  // всплывают по дереву КОМПОНЕНТОВ, а не по DOM: клик внутри модала долетал до
+  // строки, и закрытие уводило на карточку. Строка реагирует только на то, что
+  // произошло в ней самой.
+  const insideRow = (event) => event.currentTarget.contains(event.target);
+
   const place = device.user
     ? { icon: RiUser3Line, main: device.user.name, sub: device.location?.name }
     : {
@@ -127,8 +133,12 @@ const DeviceRow = ({ device }) => {
     <div
       role="button"
       tabIndex={0}
-      onClick={() => navigate(`/inventory/client-devices/${device._id}`)}
+      onClick={(event) => {
+        if (!insideRow(event)) return;
+        navigate(`/inventory/client-devices/${device._id}`);
+      }}
       onKeyDown={(event) => {
+        if (!insideRow(event)) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           navigate(`/inventory/client-devices/${device._id}`);

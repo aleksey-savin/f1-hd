@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 
 import { Link, useNavigate } from "react-router";
 import { RiDeleteBinLine, RiEdit2Line, RiMoreLine } from "react-icons/ri";
@@ -89,7 +89,14 @@ const ListRow = ({
   };
 
   const clickable = detailTo ? true : canManage && openUpdateOnClick;
-  const handleRowClick = detailTo ? () => navigate(detailTo) : openUpdate;
+  // Диалоги и меню рендерятся в портал на <body>, но React-события всплывают по
+  // дереву КОМПОНЕНТОВ, а не по DOM: без этой проверки клик внутри модала
+  // считался бы кликом по строке и уводил бы на карточку.
+  const handleRowClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.target as Node)) return;
+    if (detailTo) return navigate(detailTo);
+    openUpdate();
+  };
 
   return (
     <div
@@ -151,32 +158,32 @@ const ListRow = ({
               onClick={(e) => e.stopPropagation()}
             >
               <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Действия"
-                title="Действия"
-                className="tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:data-[state=open]:opacity-100 tw:pointer-coarse:opacity-100"
-              >
-                <RiMoreLine />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {extraActions}
-              <DropdownMenuItem asChild>
-                <Link to={updateTo} onClick={offcanvas.setShow}>
-                  <RiEdit2Line /> Изменить
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                variant="destructive"
-                onSelect={() => setDeleteOpen(true)}
-              >
-                <RiDeleteBinLine /> Удалить
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Действия"
+                    title="Действия"
+                    className="tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:data-[state=open]:opacity-100 tw:pointer-coarse:opacity-100"
+                  >
+                    <RiMoreLine />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {extraActions}
+                  <DropdownMenuItem asChild>
+                    <Link to={updateTo} onClick={offcanvas.setShow}>
+                      <RiEdit2Line /> Изменить
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => setDeleteOpen(true)}
+                  >
+                    <RiDeleteBinLine /> Удалить
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <DeleteDialog
                 item={item}
                 open={deleteOpen}
