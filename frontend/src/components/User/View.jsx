@@ -60,25 +60,13 @@ import {
   PERMISSION_MODULES,
 } from "./permissions-catalog";
 import { relativeDay } from "../../util/relative-time";
+import { formatDate, formatShortDate } from "../../util/format-date";
 import { formatPrice } from "../../util/format-string";
 
 import CardAvatar from "./CardAvatar";
 import ResetPasswordDialog from "./ResetPasswordDialog";
 import ToggleActiveDialog from "./ToggleActiveDialog";
 import LinkAdDialog from "./LinkAdDialog";
-
-const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("ru-RU") : null;
-const fmtDateTime = (value) =>
-  value
-    ? new Date(value).toLocaleString("ru-RU", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
 
 const ticketState = (state) =>
   state === "Новая" || state === "Не в работе"
@@ -494,7 +482,7 @@ const ViewUser = ({ user, tickets }) => {
           <Panel>
             <PropRow icon={<RiLoginCircleLine size={17} />} label="Последний вход">
               {lastLogin ? (
-                <span className="tw:tabular-nums">{fmtDateTime(lastLogin)}</span>
+                <span className="tw:tabular-nums">{formatDate(lastLogin)}</span>
               ) : (
                 <span className="tw:font-normal tw:text-faint">никогда</span>
               )}
@@ -507,7 +495,9 @@ const ViewUser = ({ user, tickets }) => {
               )}
             </PropRow>
             <PropRow icon={<RiTimeLine size={17} />} label="В системе с">
-              <span className="tw:tabular-nums">{fmtDate(createdAt) || "—"}</span>
+              <span className="tw:tabular-nums">
+                {formatShortDate(createdAt) || "—"}
+              </span>
             </PropRow>
           </Panel>
         </div>
@@ -545,7 +535,7 @@ const ViewUser = ({ user, tickets }) => {
                   </span>
                   <span className="tw:min-w-0 tw:flex-1 tw:truncate tw:text-sm">{ticket.title}</span>
                   <span className="tw:flex-none tw:text-xs tw:text-faint tw:tabular-nums">
-                    {fmtDate(ticket.createdAt)}
+                    {formatShortDate(ticket.createdAt)}
                   </span>
                   <span
                     className={cn(

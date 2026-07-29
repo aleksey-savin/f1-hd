@@ -19,6 +19,11 @@ const mongoose = require("mongoose");
 const Preferences = require("../models/preferences");
 const User = require("../models/user");
 const { DEFAULT_OVERTIME_SCHEDULE } = require("../utils/overtimeDefaults");
+const {
+  dayKey,
+  dayKeyToUtcMidnight,
+  resolveTimezone,
+} = require("../utils/datetime");
 const { syncCalendar, getHealth } = require("../services/productionCalendar");
 const Absence = require("../models/absence");
 const { getAbsenceType } = require("../utils/absenceTypes");
@@ -161,11 +166,12 @@ const run = async () => {
   // Отпуск и больничный, совпадающие с активной подтверждённой заявкой, ставил
   // автомат (ночная синхронизация) — иначе они застрянут: «ручной» статус
   // держится до конца суток, и снять его в день отмены заявки будет некому
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const tz = resolveTimezone(await Preferences.findOne({}));
+  const today = dayKeyToUtcMidnight(dayKey(new Date(), tz));
   const activeAbsences = await Absence.find({
     status: "approved",
-    from: { $lte: new Date(`${todayKey}T00:00:00.000Z`) },
-    to: { $gte: new Date(`${todayKey}T00:00:00.000Z`) },
+    from: { $lte: today },
+    to: { $gte: today },
   })
     .select("user type")
     .lean();

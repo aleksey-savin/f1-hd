@@ -1,10 +1,12 @@
 # Knowledge Base — Implementation Notes
 
-_Last updated: 2026-07-28 (frontend migrated to Tailwind v4 + shadcn: two-pane
-section owned by the page, state-only colour, exception-only flags in the list).
-This document describes the Knowledge Base module as currently implemented, so
-the code can be reviewed and optimized later. It is a snapshot, not a spec —
-verify against the code before relying on any detail._
+_Last updated: 2026-07-29. This document covers the data model, the API, the
+background jobs and the operational rules of the Knowledge Base module.
+Interface rules live in `docs/ux-ui-guide.md` — the module's components are its
+reference implementations («Правка на месте», «Статус, который протухает»,
+`app/BulkActionBar`); the reasoning behind the current screens is the 2026-07-28
+entry of `docs/ux-ui-changelog.md`. It is a snapshot, not a spec — verify against
+the code before relying on any detail._
 
 ## Terminology: «Проверено» = `approved`
 
@@ -54,9 +56,13 @@ everything is additionally scoped per-user in the controllers (defence in depth)
 | `isNotClient` | middleware | All mutations also require a non-client (staff) account. |
 
 Both permissions live on `User.permissions` (`backend/models/user.js`, mirrored
-in `backend/types/user.ts`) and are edited under User → "База знаний"
-(`frontend/src/components/User/Form.jsx`: "Просмотр базы знаний" /
-"Управление базой знаний").
+in `backend/types/user.ts`) and are declared in the shared permission catalog
+`frontend/src/components/User/permissions-catalog.js` (group «База знаний»:
+"Просмотр базы знаний" / "Управление базой знаний") — one source for both the
+user form and the user card, so saving never silently drops a flag.
+`Preferences.knowledgeBase` itself (moderators, the hide / approval-period
+options and both scanner switches) is edited in
+`frontend/src/components/Preferences/KnowledgeBase.jsx`.
 
 ### Moderators
 
@@ -281,6 +287,20 @@ silently drop out of a count. Response:
 the loop, so a note whose status changed while the moderator was looking at the
 list is skipped, not mis-transitioned.
 
+### Moderation counters
+
+`getModerationSummary` and the moderation block of `preferences.getInitial`
+share one implementation — **`services/knowledgeModerationCounts.js`** — and
+return the same counters: `pendingApproval` (unapproved, non-archived),
+`pendingDeletion`, `pendingArchive` (both non-archived), `secretsFlagged`
+(incl. archived) and **`total`**. `total` is a single `$or` `countDocuments`, not
+the sum: the queues **overlap** (an unapproved note with a scanner finding sits
+in two), so summing counted the same note twice — the counter read 195 on a base
+of ~180 notes. With `scanForSecrets` off the hidden secrets queue is left out of
+`total` too, so the number never promises work with nowhere to go. `getInitial`
+additionally exposes `approvalPeriodDays`, which the client needs to print
+«действует ещё N дн.» next to the approval state.
+
 ### List search — `?search=`
 
 Search runs on the server, and `plainText` never leaves it. The client used to
@@ -300,18 +320,6 @@ short documents is cheaper than the index it would need, and substring matching
 (`сет` → «Сеть») is what people expect from a filter box. If the base grows an
 order of magnitude, this is the place to add `$text` — the contract with the
 client (`?search=`) does not change.
-
-`getModerationSummary` and the moderation block of `preferences.getInitial`
-share one implementation — **`services/knowledgeModerationCounts.js`** — and
-return the same counters: `pendingApproval` (unapproved, non-archived),
-`pendingDeletion`, `pendingArchive` (both non-archived), `secretsFlagged`
-(incl. archived) and **`total`**. `total` is a single `$or` `countDocuments`, not
-the sum: the queues **overlap** (an unapproved note with a scanner finding sits
-in two), so summing counted the same note twice — the shield badge read 195 on a
-base of ~180 notes. With `scanForSecrets` off the hidden secrets queue is left
-out of `total` too, so the badge never promises work with nowhere to go.
-`getInitial` additionally exposes `approvalPeriodDays`, which the client needs to
-print «действует ещё N дн.» in the trust line.
 
 ## Background jobs
 
@@ -379,8 +387,9 @@ classifies columns:
 - **Registrar column** — by header only (`регистр|хостер|host|provider`).
 
 A table counts as a service table only if it has **both** a date and a service
-column. Dates parse `DD.MM.YYYY` / `DD/MM/YYYY` / `YYYY-MM-DD` to **UTC midnight**
-(so the day never drifts by timezone). Entries are deduped by service (case-insensitive).
+column. Dates parse `DD.MM.YYYY` / `DD/MM/YYYY` / `YYYY-MM-DD` into the calendar-date
+form used across the app — see `docs/datetime-conventions.md`, «Модель данных».
+Entries are deduped by service (case-insensitive).
 
 `getServiceExpiry` reads `serviceExpiryDays` (default 30), computes a cutoff
 `now + days`, finds non-archived notes with any `entries.expiresAt ≤ cutoff`,
@@ -407,204 +416,69 @@ guide is a staff-only artifact generated in the background without a viewer
 context (it's stripped for end-users in the ticket `getOne`), so it sees all
 context-matched notes.
 
-## Frontend
+## Frontend map
 
-### Routing & navigation
+Interface rules are in `docs/ux-ui-guide.md` — this module's components are its
+reference implementations for in-place document editing, the trust line and
+`app/BulkActionBar`; the decisions behind the current screens are the 2026-07-28
+entry of `docs/ux-ui-changelog.md`. Component internals live in each component's
+own header.
 
-- Nested routes (`frontend/src/App.jsx`): `/knowledge-base` (list shell) with
-  children `add` and `:id`.
-- `pages/KnowledgeBase/List.jsx` — on desktop renders the **two-pane layout
-  itself**: `<Explorer/>` (rail, 288/344 px) + `<Outlet/>` (note, placeholder at
-  the root). The shell's legacy left sidebar (`store/sidebar` + the
-  `/knowledge-base` branch in `layout/Root.jsx`) is **no longer used** — the
-  section is a migrated route in `MIGRATED_ROUTES` (1328). On mobile the root
-  **is** a list page built on `app/ListWrapper` (`renderOutlet={false}`, because
-  this page renders `<Outlet/>` itself). Loads notes on mount and reads
-  `?moderation=<mode>` to enter a queue.
-- `pages/KnowledgeBase/Add.jsx` — `<NoteView mode="edit">` (blank note).
-- `pages/KnowledgeBase/View.jsx` — loader fetches the note, `<NoteView mode="read">`
-  keyed by `_id` so navigation remounts and resets state.
-- Nav links in `layout/Navbar.jsx` and `layout/MobileBottomNavbar.jsx`
-  ("База знаний", `RiBookOpenLine`), gated by module + `canSeeKnowledgeBase`.
-
-### The note page — `components/KnowledgeBase/NoteView.jsx`
-
-A **document page** on the target system (Tailwind + shadcn), built from the
-entity-card vocabulary — see `docs/ux-ui-guide.md`, «Страница сущности».
-Composition: `NoteHero` (type tile · title · `VerificationLine` ·
-`NoteActions`) → `PendingRequestAlert` → `SecretsAlert` → `NoteProperties` →
-the markdown body (`.kb-doc .md-doc`). No breadcrumb on desktop — the list is in
-the next pane; the mobile page keeps «‹ База знаний». Status badges are gone:
-the state is a sentence in the trust line and, in the list, exception icons.
-
-- **Read and edit differ as little as possible.** The title is the same `h1`
-  metrics in both (the edit input is borderless except for the baseline rule);
-  the property row keeps a `min-h-16` matching `UI/Select`, so pills and selects
-  occupy one box; the viewer and the WYSIWYG editor both render into
-  `.toastui-editor-contents`, so the reading measure (~74ch on prose, full width
-  on tables/`pre`) is declared once — `.kb-doc` in `index.css`, next to the
-  shared `.md-doc` / `.md-editor` rules used by templates and routine tasks.
-- **Entering edit**: the «Редактировать» button, `Ctrl/Cmd+E`, or a **double
-  click on the body** (gated on `canManage` and not archived; clicks on links and
-  task checkboxes are ignored). The clicked block index is remembered and, once
-  the editor mounts (`MarkdownEditor onReady`), the matching block is scrolled
-  into view and the caret placed at its start via a DOM `Range` — Toast UI's
-  `setSelection` takes a ProseMirror offset, which cannot be derived from the
-  viewer DOM.
-- `Ctrl/Cmd+S` saves, `Esc` cancels. Unsaved changes are guarded by `useBlocker`
-  (data router) + `beforeunload`; the component's own navigations (saved a new
-  note, cancelled its creation) bypass the blocker via a ref.
-- The trust line warns **before** saving: «Сохранение снимет отметку „Проверено"»
-  — `update` really does reset `approved`.
-- `NoteActions` renders exactly one filled CTA chosen by state (moderator +
-  unverified → «Проверить», otherwise `canManage` → «Редактировать»), one outline
-  button, and an icon-only `⋯` menu with the lifecycle items. Decisions on
-  someone else's request live in `PendingRequestAlert`, not in the menu.
-- Confirmations (request archival, hard delete, leaving with unsaved changes)
-  go through `app/ConfirmDialog`; the verification attestation keeps its own
-  dialog with two switches (`VerifyModal`).
-- On mobile the edit-mode buttons move into `app/MobileActionBar` (the floating
-  island that replaces the tab bar).
-
-### Explorer — `components/KnowledgeBase/Explorer.jsx` + `NoteList.jsx` + `Filter.jsx`
-
-Two rows above the list, ~90 px total:
-
-1. Search + moderation menu (moderators only: one shield chip with the total
-   pending count, queues in its dropdown) + filter button + a `+` icon button
-   (the section's filled action lives on the note, so creation is icon-only).
-2. Status line: «Найдено: N», «Сбросить» (when search or filters are applied)
-   and the sort link-dropdown.
-
-Between them, when anything is applied, a strip of **removable badges** (queue,
-archive, hidden type, each selected binding). The full filter — scope segmented
-control, type chips with counts, the three binding multi-selects — lives in a
-`Sheet` shared with mobile (`KnowledgeBaseFilter`, wrapped in
-`InsideOverlayContext` so `UI/Select` renders its menu inline). The pre-migration
-version stacked everything vertically (~370 px before the first note) and then
-hid it in an accordion whose badge only counted what was hidden; a badge strip
-says *what* is applied and removes it in one click.
-
-List rows (`NoteItem`): type icon · title (one line, truncated) · «тип · компании
-· дата» · **exception flags only** (not verified / verification expiring / secret
-findings / deletion requested / archival pending — `getNoteFlags`). A verified
-note shows nothing: normality needs no highlight, and in a 344 px column that is
-room for the title. The open note keeps a primary-coloured left edge and tinted
-background.
-
-`NoteList` groups notes **by company** (`util/knowledgeNoteGrouping.js`): a note's
-companies come from `companies[]` ∪ `users[].company`; a note with none is
-«Общие» and sorts first; a note bound to several companies appears under each.
-Grouping collapses to a flat list when only one group results (single-company
-filter, or an end-user who only sees their own company). Moderation queues render
-flat with checkboxes for bulk actions.
-
-Folders are **collapsed by default**, «Общие» included — at 200 notes an open
-tree is 200 rows in a column a third of the screen wide, while the list of
-folders fits on screen and is itself the navigation. The folder header is an
-interactive row (chevron · name · count · a muted «2 не проверены»), not an
-uppercase `ListGroupLabel`: it is clicked, so it looks clickable. Opened
-automatically: the folder of the note currently open (deep-links must be
-visible). **Search drops the tree entirely** — results are flat, with the company
-in the meta line: while searching, the company is not the axis of the question.
-
-On mobile the tree becomes **drill-down**: `CompanyFolders.jsx` lists companies
-with counts, tapping one shows its notes. A narrow screen cannot hold an open
-tree, but «Студия · 21» fits whole. Search and moderation queues jump out of
-drill-down into a flat list — there the company is not the axis of navigation,
-the question is «where was this said» / «what is left to sort out».
-
-`Filter.jsx` exports the pieces (`ScopeSwitch`, `TypeChips`, `BindingFilters`,
-`ModerationMenu`) and, as its default export, the filter body wrapped in
-`app/FilterContainer` — **one implementation** for the desktop rail's `Sheet`
-and the mobile `ListWrapper` `Sheet`. The queue chip (`ModerationMenu`) sits in
-the rail on desktop and in the `toolbar` slot on mobile; there is no separate
-chips version any more.
-
-Queue counters come from `store/knowledgeModeration.js` (a shared store around
-`/moderation-summary`), not from the loaded list: `secretsFlagged` counts
-archived notes too. `ModerationCard` on the tickets page reads the same store, so
-a bulk action in the KB refreshes its badges.
-
-### Bulk moderation — `components/KnowledgeBase/NoteBulkActionBar.jsx`
-
-Selection lives in the notes store (`selectedIds`, pruned on every refetch, as in
-`Ticket/List.jsx`). One `actions[]` array feeds **`app/BulkActionBar`**, which
-renders the desktop floating panel and delegates to `app/MobileActionBar` on
-touch; blocking reasons come from `util/knowledge-bulk-eligibility.js` and name
-notes by **title** (desktop: tooltip on a still-clickable button; mobile: the
-status line is replaced for 4 s). Verifying in bulk still requires both switches
-(`VerifyModal` with `count`). The skipped list returned by the backend is
-surfaced as a warning toast. In a queue the row itself toggles selection and the
-title stays a link — the checkbox replaces the type icon.
-
-### Store — `store/lists/knowledgeNotes.js`
-
-Zustand. `datasetQuery` builds the server query (`archived` / `flaggedSecrets` /
-`search`); `refresh` refetches only when that query changed, otherwise re-filters
-client-side. **Without a filter the list shows everything the user may see** —
-the old "only global notes until you search" rule is gone; the backend is already
-the visibility boundary. `scope` (`active`/`archived`) and `moderationMode` are
-mutually exclusive; `moderationMode` bypasses binding scoping but still honours
-the type chips.
-
-`fullTextSearch` updates the input immediately and refetches after a 300 ms
-debounce — the query now costs a round-trip, so not on every keystroke.
-
-The binding facets (`companies`, `users`, `categories`) hold **objects, not ids**.
-Their options are derived from the loaded notes, and server search narrows that
-set: with ids alone a selected company would vanish from its own select the
-moment you typed a query. `BindingFilters` therefore unions the derived options
-with the selected objects (`uniqueById`).
-
-UI-only state also lives here: `expandedGroups` (desktop tree) and `openCompany`
-(mobile drill-down). Both reset on `setScope` / `setModerationMode` /
-`resetFilter` / clearing the search.
-
-### Note types & verification — `util/knowledgeNoteTypes.js`
-
-Single source for labels / icons / ranking priority: `info` ("Информация", 1,
-`RiInformationLine`) · `backlog` ("Бэклог", 3, `RiBug2Line`) · `instructions`
-("Инструкции", 2, `RiGuideLine`). The backend mirrors the priority in
-`knowledgeBaseContext.js` (`TYPE_PRIORITY`) — **keep them in sync**. The `badge`
-field (a bootstrap variant) survives **only** for the not-yet-migrated notes
-panel on the ticket page: on the target system the type is carried by its icon
-and colour is reserved for state (see `docs/ux-ui-guide.md` → «Тема и цвет»).
-
-`getApprovalMeta` returns the verified/unverified icon + label; `formatActor`
-renders «Иванов И.»; `getVerificationSummary(note, { approvalPeriodDays })`
-assembles the trust line's state, actor, date and remaining days;
-**`getNoteFlags(note, { approvalPeriodDays })`** returns the list-row exceptions
-in severity order with a `tone` the component maps to a class.
-
-Bindings: the kind catalogue and label formatting are pure and shared —
-`util/knowledgeNoteBindings.js`. On top of it, `BindingPills.jsx` (target: pills
-for the note page, plus `TypePill` / `EmptyPill`) and `BindingChips.jsx`
-(bootstrap badges, kept for `Ticket/RelatedNotes.jsx` and `ServiceExpiryCard.jsx`
-on the legacy ticket page).
+- **Routes** (`frontend/src/App.jsx`): `/knowledge-base` with children `add` and
+  `:id`. The page owns its two-pane layout — the shell sidebar (`store/sidebar`,
+  the `/knowledge-base` branch of `layout/Root.jsx`) is legacy and unused here;
+  the route is listed in `MIGRATED_ROUTES`.
+- **Pages** — `pages/KnowledgeBase/{List,Add,View}.jsx`: the list shell (loads
+  notes on mount, reads `?moderation=<mode>` to enter a queue), a blank note in
+  edit mode, and the note loader (`NoteView` keyed by `_id`, so navigating
+  between notes remounts and resets state).
+- **Components** (`components/KnowledgeBase/`): `NoteView` — the document page,
+  read and edit in the same place — composed of `NoteHero`, `VerificationLine`,
+  `NoteActions`, `PendingRequestAlert`, `SecretsAlert`, `NoteProperties`,
+  `BindingPills` and `VerifyModal` (the two-switch approval attestation);
+  `Explorer` + `NoteList` / `NoteItem` / `Filter` / `CompanyFolders` (the list
+  and its filters); `NoteBulkActionBar` (queue selection → `app/BulkActionBar`);
+  `useModerationSummary` (seeds queue counters from the prefs snapshot, then
+  refreshes them from `/moderation-summary`).
+- **Store** — `store/lists/knowledgeNotes.js` (Zustand): `datasetQuery` builds
+  the server query (`archived` / `flaggedSecrets` / `search`) and `refresh`
+  refetches **only when that query changed**, otherwise re-filters client-side.
+  `scope` (`active`/`archived`) and `moderationMode` are mutually exclusive; a
+  queue bypasses binding scoping but still honours the type filter. Search is
+  debounced 300 ms — it costs a round-trip now. The binding facets hold
+  **objects, not ids**: options are derived from the loaded notes and a server
+  search narrows that set, so with ids alone a selected company would vanish
+  from its own select the moment you typed. Without a filter the list shows
+  everything the user may see — the old "only global notes until you search"
+  rule is gone, the backend is already the visibility boundary.
+- **Shared utilities** (`frontend/src/util/`): `knowledgeNoteTypes.js` — labels,
+  icons and ranking priority (`TYPE_PRIORITY` is **duplicated** in
+  `backend/services/knowledgeBaseContext.js` — keep them in sync), plus
+  `getApprovalMeta` / `getVerificationSummary` / `getNoteFlags` (list exceptions
+  in severity order) / `formatActor` («Иванов И.»); `knowledgeNoteBindings.js`
+  (binding kinds and label formatting); `knowledgeNoteGrouping.js` (a note's
+  companies = `companies[]` ∪ `users[].company`, none ⇒ «Общие»);
+  `knowledge-bulk-eligibility.js` (why a given note can't take a bulk action).
+- **Still legacy (react-bootstrap)** — the notes panel and the moderation /
+  service-expiry cards on the ticket page; they migrate with that screen.
+  `UI/knowledgeBase.css` survives only as `.kb-chip` for them, and
+  `BindingChips.jsx` is their twin of `BindingPills.jsx`.
 
 ### Ticket-page integration
 
-- `components/Ticket/RelatedNotes.jsx` (ticket View) — fetches `/related`, ranks
-  client-side, shows a type-filtered list with per-note match badges, opens a note
-  in an `Offcanvas`. Approval badge hidden when `hideNotApproved`.
-- `components/KnowledgeBase/ModerationCard.jsx` (ticket List) — moderator-only
-  card with counter buttons linking into `?moderation=…`. Reads the shared
-  `store/knowledgeModeration.js` (seeded from the prefs snapshot, refreshed via
-  `/moderation-summary` and after every bulk action).
-- `components/KnowledgeBase/ServiceExpiryCard.jsx` (ticket List) — "Продление
-  услуг" card for anyone with `canSeeKnowledgeBase`; renders only when
-  `/service-expiry` returns services. UTC date formatting; "просрочена"/"скоро"
-  badge; links to the source note.
+- `components/Ticket/RelatedNotes.jsx` (ticket View) — fetches `/related` and
+  ranks client-side with the same `matchesTicketContext` logic as the backend
+  (**keep the two in sync**); the approval state is hidden when `hideNotApproved`.
+- `components/KnowledgeBase/ModerationCard.jsx` (ticket List) — moderator-only,
+  links into `?moderation=…`, reads the shared `store/knowledgeModeration.js`
+  (seeded from the prefs snapshot, refreshed via `/moderation-summary` and after
+  every bulk action).
+- `components/KnowledgeBase/ServiceExpiryCard.jsx` (ticket List) — for anyone
+  with `canSeeKnowledgeBase`; renders only when `/service-expiry` returns
+  services, formats dates with the shared calendar-date helper and links to
+  the source note.
 - `store/prefs.js` holds the global KB moderation snapshot
   (`isModerator/hideNotApproved/scanForSecrets/counts`) from `preferences.getInitial`.
-
-### Settings UI — `components/Preferences/KnowledgeBase.jsx`
-
-Edits `Preferences.knowledgeBase`: moderators multi-select (candidates from the
-admin endpoint), "скрывать неодобренные", approval-period days, "искать секреты",
-"отслеживать продление услуг", and the warn-days field (disabled unless tracking
-is on).
 
 ## Migration / one-off scripts (`backend/scripts/`)
 
@@ -627,42 +501,37 @@ All idempotent, run directly against Mongo. Run inside the backend container.
 1. Enable the module (Preferences → Модули → "База знаний"); grant a test staffer
    `canSeeKnowledgeBase` + `canManageKnowledgeBase`; add them to **Модераторы базы
    знаний** in Preferences → База знаний.
-2. **Create** a note (`/knowledge-base/add`). It saves **unapproved** (warning
-   icon). Bind it to a company/category/user to exercise scoping.
+2. **Create** a note (`/knowledge-base/add`). It saves **unapproved**. Bind it to
+   a company/category/user to exercise scoping.
 3. **Visibility** — log in as a staffer of another company: a bound note is hidden;
    a note with no bindings is visible; turn on "скрывать неодобренные" and confirm
    non-managers stop seeing the unapproved note.
-4. **Verify** with the «Проверить» button — both switches required. The trust
-   line then reads «Проверено · <имя> · <дата>» (and «действует ещё N дн.» when
-   `approvalPeriodDays > 0`). Edit the note and confirm it drops back to
-   «Не проверено · изменил <имя>».
-5. **Deletion** — "Отправить на удаление" as a manager → trash icon in the list;
-   as a moderator the note shows an inline alert naming who asked and when, with
-   «Удалить» / «Отклонить».
-6. **Archival** — "Запросить архивацию" → the same inline alert for the
-   moderator; the note leaves the default list and appears under the «Архив»
-   scope; "Восстановить из архива" brings it back.
-6a. **Bulk** — as a moderator open `?moderation=all-unapproved`, tick a few
-   notes, press «Проверить». The toast reports «Проверено: N»; notes whose status
-   changed meanwhile come back in a second, warning toast naming them.
-6b. **In-place editing** — `Ctrl+E`, double-click a paragraph (the editor opens
-   scrolled to it), `Ctrl+S`, `Esc`. Navigating to another note with unsaved
-   changes must be blocked by a confirmation.
-6c. **Navigation & search** — with no filter the explorer lists every visible
-   note; «Общие» is open, company folders are collapsed with counts. Opening a
-   note from a collapsed folder expands that folder. Type a query: matching
-   folders open and stay collapsible; clear it and they collapse back. Check the
-   network tab — `GET /knowledge-notes?search=…` fires once per 300 ms and the
-   response carries no `plainText`. Pick a company in «Фильтры», then type a
-   query: the selected company must stay in the select. On mobile the root shows
-   the company list; tapping drills into its notes; a search or a moderation
-   queue replaces the drill-down with a flat list.
-7. **Secrets** — enable "искать секреты", put `password = R00tP@ss123` in a note,
+4. **Verify** — «Проверить» requires **both** confirmations; the note then
+   reports «Проверено · <имя> · <дата>» (plus «действует ещё N дн.» when
+   `approvalPeriodDays > 0`). Edit it and confirm the approval drops back to
+   unverified, naming the editor.
+5. **Deletion** — request it as a manager, then as a moderator confirm or
+   decline; confirming **hard-deletes** the document from the collection.
+6. **Archival** — request, confirm, then restore: `archivedAt` set ⇒ the note
+   disappears from the default list and every scan except the secrets queue, and
+   `unarchive` brings it back.
+7. **Bulk** — as a moderator open `?moderation=all-unapproved`, select several
+   notes and verify them in one call. The response reports `processed` plus a
+   `skipped[]` list naming, **by title**, every note whose status changed while
+   the queue was open — those must not be mis-transitioned.
+8. **Search** — `GET /knowledge-notes?search=…` fires once per 300 ms (not per
+   keystroke) and its response carries **no `plainText`**; every term must match,
+   and a regex-special character in the box must not scan the collection.
+   Selecting a company and then typing a query must not drop the company from
+   its own filter.
+9. **Secrets** — enable "искать секреты", put `password = R00tP@ss123` in a note,
    run the hourly job (or call `runSecretsScan` manually). The note flags; the
-   moderator sees the masked finding and can mark "Не секрет".
-8. **Service expiry** — enable tracking, add a markdown table with service + renew
-   date columns, run `runServiceExpiryScan`. Within `serviceExpiryDays` the service
-   shows on the tickets page "Продление услуг" card (overdue dates always show).
-9. **Tickets** — open a ticket whose company/category/applicant matches a note and
-   confirm it appears under "База знаний"; with AI enabled, confirm the note is
-   listed as a guide source.
+   moderator sees the masked finding and can mark "Не секрет" — the raw value is
+   never stored, only its hash.
+10. **Service expiry** — enable tracking, add a markdown table with service +
+    renew date columns, run `runServiceExpiryScan`. Within `serviceExpiryDays`
+    the service shows on the tickets page (overdue dates always show).
+11. **Tickets** — open a ticket whose company/category/applicant matches a note
+    and confirm it appears under "База знаний"; with AI enabled, confirm the note
+    is listed as a guide source. A note bound to another company must **not**
+    leak in.

@@ -718,119 +718,7 @@ exports.getFirmwareReleases = async (req, res, next) => {
   }
 };
 
-// Single managed device + its record (credentials without password), used to
-// prefill the parameters modal.
-exports.getOne = async (req, res, next) => {
-  try {
-    const device = await ClientDevice.findById(req.params.clientDeviceId)
-      .populate({
-        path: "deviceModelId",
-        select: "name vendorId",
-        populate: { path: "vendorId", select: "name" },
-      })
-      .populate("locationId", "name address")
-      .populate("companyId", "alias fullTitle")
-      .lean();
 
-    if (!device) {
-      return next(
-        new AppError(
-          `Client device ${req.params.clientDeviceId} not found`,
-          404,
-        ),
-      );
-    }
-
-    const record = await Mikrotik.findOne({ clientDevice: device._id })
-      .select("-credentials.password -credentials.knockSequence")
-      .lean();
-
-    const firmware = await loadFirmwareContext();
-    const jump = await jumpInfoFor(record);
-
-    res.status(200).json({
-      ...buildRow(device, record, undefined, jump),
-      firmwareStatus: record ? evaluateFirmware(record, firmware) : null,
-      record: record || null,
-      // Стоячее предупреждение о расхождениях карточки с устройством.
-      reconciliation: computeReconciliation(device, record),
-    });
-  } catch (error) {
-    next(
-      new AppError(
-        `Failed to fetch mikrotik device ${req.params.clientDeviceId}`,
-        500,
-        true,
-        error,
-      ),
-    );
-  }
-};
-
-// Verify-on-save: open a live session, validate the account, poll metadata, and
-// upsert the management record. Invalid params / unreachable devices are rejected.
-exports.updateParameters = async (req, res, next) => {
-  try {
-    const { clientDeviceId } = req.params;
-
-    // Модель нужна для сверки полей карточки с данными устройства.
-    const device = await ClientDevice.findById(clientDeviceId).populate(
-      "deviceModelId",
-      "name",
-    );
-    if (!device) {
-      return next(
-        new AppError(`Client device ${clientDeviceId} not found`, 404),
-      );
-    }
-
-    const existing = await Mikrotik.findOne({ clientDevice: clientDeviceId });
-
-    let update;
-    try {
-      update = await verifyAndBuild(req.body, existing);
-    } catch (error) {
-      return next(mapVerifyError(error, req.body.host));
-    }
-
-    // The verified save proves the device is reachable again — close the outage
-    // episode (+ recovery comment) and clear the stale offline-alert state, which
-    // a bare upsert would otherwise leave behind until the next cron tick.
-    const unset = { firstFailureAt: "" };
-    // Очищенный селект транзита должен реально отвязать запись от роутера.
-    if (!update.jumpRecordId) unset.jumpRecordId = "";
-    if (existing?.offlineSince) {
-      await markRecovered(existing);
-      unset.offlineSince = "";
-      unset.offlineAlertedAt = "";
-      unset.alertTicketId = "";
-    }
-
-    const record = await Mikrotik.findOneAndUpdate(
-      { clientDevice: clientDeviceId },
-      { $set: { clientDevice: clientDeviceId, ...update }, $unset: unset },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
-    ).select("-credentials.password -credentials.knockSequence");
-
-    logger.log("info", "Mikrotik parameters saved", {
-      actor: req.userId,
-      clientDeviceId,
-      host: update.credentials.host,
-      useTls: update.credentials.useTls,
-      ip: req.ip,
-    });
-
-    res.status(200).json({
-      message: "Параметры сохранены и проверены",
-      record,
-      // Расхождения карточки с только что снятыми данными — модалка предлагает
-      // обновить карточку сразу после подключения.
-      reconciliation: computeReconciliation(device, record),
-    });
-  } catch (error) {
-    next(new AppError("Failed to save mikrotik parameters", 500, true, error));
-  }
-};
 
 // Fields the sync-inventory endpoint may write to the ClientDevice card. Values
 // are always derived server-side from the stored record (deriveSyncValues) — the
@@ -844,23 +732,31 @@ const SYNCABLE_FIELDS = [
 
 // Apply device-derived values to the inventory card (reconciliation step of the
 // parameters modal / the standing warning on the device page).
+/**
+ * Применить считанные с устройства значения к карточке инвентаря (расхождения
+ * показывает секция «Мониторинг» карточки). Вход record-центричный, как у всех
+ * живых операций: запись знает свою карточку, а обратный путь (:clientDeviceId)
+ * остался от вкладки мониторинга и удалён вместе с ней.
+ *
+ * Клиент присылает только ИМЕНА полей — значения выводит сервер из сохранённой
+ * записи, чтобы браузер не мог записать в карточку произвольное.
+ */
 exports.syncInventory = async (req, res, next) => {
   try {
-    const { clientDeviceId } = req.params;
+    const record = await Mikrotik.findById(req.params.recordId);
+    if (!record) {
+      return next(new AppError("Устройство не найдено", 404));
+    }
+    if (!record.clientDevice) {
+      return next(new AppError("Запись не связана с карточкой инвентаря", 409));
+    }
 
-    const device = await ClientDevice.findById(clientDeviceId).populate(
+    const device = await ClientDevice.findById(record.clientDevice).populate(
       "deviceModelId",
       "name",
     );
     if (!device) {
-      return next(
-        new AppError(`Client device ${clientDeviceId} not found`, 404),
-      );
-    }
-
-    const record = await Mikrotik.findOne({ clientDevice: clientDeviceId });
-    if (!record) {
-      return next(new AppError("Устройство не настроено", 404));
+      return next(new AppError("Карточка устройства не найдена", 404));
     }
 
     const requested = Array.isArray(req.body.fields) ? req.body.fields : [];
@@ -875,22 +771,8 @@ exports.syncInventory = async (req, res, next) => {
       return next(new AppError("Нет данных для синхронизации", 422));
     }
 
-    // Дубль-проверки как в update-контроллере устройств: серийник глобально,
-    // hostname — в пределах компании (+ страховка от гонки через E11000 ниже).
-    if (updates.serialNumber && updates.serialNumber !== device.serialNumber) {
-      const serialExists = await ClientDevice.findOne({
-        _id: { $ne: device._id },
-        serialNumber: updates.serialNumber,
-      });
-      if (serialExists) {
-        return next(
-          new AppError(
-            `Device with serial number ${updates.serialNumber} already exists`,
-            409,
-          ),
-        );
-      }
-    }
+    // Дубль-проверка hostname — в пределах компании (серийник не уникален,
+    // см. models/inventory/clientDevice.js).
     if (updates.hostname && updates.hostname !== device.hostname) {
       const hostExists = await ClientDevice.findOne({
         _id: { $ne: device._id },
@@ -940,8 +822,7 @@ exports.syncInventory = async (req, res, next) => {
 };
 
 // Enable background monitoring and do an immediate poll. Monitoring stays on
-// even if this first poll fails (the cron will retry). Общее тело для обеих
-// адресаций: по карточке инвентаря (легаси-вкладка) и по id записи.
+// even if this first poll fails (the cron will retry).
 const connectByFilter = async (filter, req, res, next) => {
   try {
     const record = await Mikrotik.findOne(filter);
@@ -1013,13 +894,10 @@ const connectByFilter = async (filter, req, res, next) => {
   }
 };
 
-exports.connect = (req, res, next) =>
-  connectByFilter({ clientDevice: req.params.clientDeviceId }, req, res, next);
 exports.connectRecord = (req, res, next) =>
   connectByFilter({ _id: req.params.recordId }, req, res, next);
 
-// Disable background monitoring and mark the device offline. Общее тело для
-// обеих адресаций (по карточке инвентаря и по id записи).
+// Выключить фоновый мониторинг и пометить устройство офлайн.
 const disconnectByFilter = async (filter, req, res, next) => {
   try {
     const record = await Mikrotik.findOneAndUpdate(
@@ -1052,54 +930,14 @@ const disconnectByFilter = async (filter, req, res, next) => {
 
     res.status(200).json({ message: "Мониторинг отключён", record });
   } catch (error) {
-    next(
-      new AppError("Failed to disconnect mikrotik device", 500, true, error),
-    );
+    next(new AppError("Failed to disconnect mikrotik device", 500, true, error));
   }
 };
 
-exports.disconnect = (req, res, next) =>
-  disconnectByFilter(
-    { clientDevice: req.params.clientDeviceId },
-    req,
-    res,
-    next,
-  );
 exports.disconnectRecord = (req, res, next) =>
   disconnectByFilter({ _id: req.params.recordId }, req, res, next);
 
-// Detach a device from Mikrotik management: delete its record (encrypted
-// credentials, pinned TLS cert, polled metadata). The ClientDevice itself is
-// untouched and returns to the "not configured" pool, so it can be re-added.
-exports.detach = async (req, res, next) => {
-  try {
-    const record = await Mikrotik.findOne({
-      clientDevice: req.params.clientDeviceId,
-    });
 
-    if (!record) {
-      return next(new AppError("Устройство не настроено", 404));
-    }
-
-    // Запись может быть транзитом для других — удалять её нельзя, пока они
-    // подключены через неё (иначе их мониторинг молча осиротеет).
-    const conflict = await dependentsConflict(record);
-    if (conflict) return next(conflict);
-
-    await Mikrotik.deleteOne({ _id: record._id });
-    await deleteOutages(record._id);
-
-    logger.log("info", "Mikrotik device detached", {
-      actor: req.userId,
-      clientDeviceId: req.params.clientDeviceId,
-      ip: req.ip,
-    });
-
-    res.status(200).json({ message: "Устройство отвязано от управления" });
-  } catch (error) {
-    next(new AppError("Failed to detach mikrotik device", 500, true, error));
-  }
-};
 
 // --- Связь записи мониторинга с инвентарём -------------------------------------
 
@@ -1490,139 +1328,8 @@ exports.deleteRecord = async (req, res, next) => {
   }
 };
 
-// One standalone record (credentials without password) for the edit-modal prefill.
-exports.getStandaloneOne = async (req, res, next) => {
-  try {
-    const record = await Mikrotik.findOne({
-      _id: req.params.recordId,
-      clientDevice: { $exists: false },
-    })
-      .populate("companyId", "alias fullTitle")
-      .select("-credentials.password -credentials.knockSequence")
-      .lean();
 
-    if (!record) {
-      return next(new AppError("Устройство не найдено", 404));
-    }
 
-    const firmware = await loadFirmwareContext();
-    const jump = await jumpInfoFor(record);
-
-    res.status(200).json({
-      ...buildStandaloneRow(record, undefined, jump),
-      firmwareStatus: evaluateFirmware(record, firmware),
-      record,
-    });
-  } catch (error) {
-    next(
-      new AppError(
-        "Failed to fetch standalone mikrotik device",
-        500,
-        true,
-        error,
-      ),
-    );
-  }
-};
-
-// Re-verify and update a standalone record's parameters (and company/label).
-exports.updateStandaloneParameters = async (req, res, next) => {
-  try {
-    const existing = await Mikrotik.findOne({
-      _id: req.params.recordId,
-      clientDevice: { $exists: false },
-    });
-    if (!existing) {
-      return next(new AppError("Устройство не найдено", 404));
-    }
-
-    let update;
-    try {
-      update = await verifyAndBuild(req.body, existing);
-    } catch (error) {
-      return next(mapVerifyError(error, req.body.host));
-    }
-
-    // Verified save = recovery (see updateParameters).
-    const unset = { firstFailureAt: "" };
-    // Очищенный селект транзита должен реально отвязать запись от роутера.
-    if (!update.jumpRecordId) unset.jumpRecordId = "";
-    if (existing.offlineSince) {
-      await markRecovered(existing);
-      unset.offlineSince = "";
-      unset.offlineAlertedAt = "";
-      unset.alertTicketId = "";
-    }
-
-    if (req.body.companyId !== undefined) {
-      update.companyId = req.body.companyId || null;
-    }
-    if (req.body.label !== undefined) {
-      update.label = req.body.label || null;
-    }
-
-    const record = await Mikrotik.findByIdAndUpdate(
-      req.params.recordId,
-      { $set: update, $unset: unset },
-      { new: true },
-    ).select("-credentials.password -credentials.knockSequence");
-
-    logger.log("info", "Standalone mikrotik parameters saved", {
-      actor: req.userId,
-      recordId: req.params.recordId,
-      host: update.credentials.host,
-      ip: req.ip,
-    });
-
-    res.status(200).json({ message: "Параметры сохранены и проверены", record });
-  } catch (error) {
-    next(
-      new AppError(
-        "Failed to save standalone mikrotik parameters",
-        500,
-        true,
-        error,
-      ),
-    );
-  }
-};
-
-// Delete a standalone record entirely (no inventory device to fall back to).
-exports.detachStandalone = async (req, res, next) => {
-  try {
-    const record = await Mikrotik.findOne({
-      _id: req.params.recordId,
-      clientDevice: { $exists: false },
-    });
-    if (!record) {
-      return next(new AppError("Устройство не найдено", 404));
-    }
-
-    // Как в detach: транзит с зависимыми удалять нельзя.
-    const conflict = await dependentsConflict(record);
-    if (conflict) return next(conflict);
-
-    await Mikrotik.deleteOne({ _id: record._id });
-    await deleteOutages(record._id);
-
-    logger.log("info", "Standalone mikrotik device deleted", {
-      actor: req.userId,
-      recordId: req.params.recordId,
-      ip: req.ip,
-    });
-
-    res.status(200).json({ message: "Устройство удалено" });
-  } catch (error) {
-    next(
-      new AppError(
-        "Failed to delete standalone mikrotik device",
-        500,
-        true,
-        error,
-      ),
-    );
-  }
-};
 
 // Availability report for one managed device (inventory-backed or standalone):
 // uptime % / downtime / outage episodes over a trailing window. Episode bounds

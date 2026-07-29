@@ -31,9 +31,8 @@ export async function loader({ params }) {
 export async function action({ request, params }) {
   const { token } = getLocalStorageData();
 
-  const data = await request.formData();
-
-  const clientDeviceData = Object.fromEntries(data);
+  // Тело формы — JSON (см. docs/ux-ui-guide.md, «Сложное вложенное тело»).
+  const clientDeviceData = await request.json();
 
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/update/${params.id}`,

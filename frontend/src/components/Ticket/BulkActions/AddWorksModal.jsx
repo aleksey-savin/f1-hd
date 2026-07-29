@@ -201,7 +201,7 @@ const AddWorksModal = ({ show, onHide, selectedItems, onConfirm }) => {
                 required
                 min={
                   plan.limitWorksDateFrom
-                    ? timeDateInputFormat(new Date(plan.limitWorksDateFrom))
+                    ? toDateTimeLocal(plan.limitWorksDateFrom)
                     : ""
                 }
                 type="datetime-local"

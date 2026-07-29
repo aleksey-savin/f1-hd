@@ -15,9 +15,6 @@ router.get("/companies-locations", isAuth, locationController.getAllCompanies);
 // Get location hierarchy
 router.get("/locations/hierarchy", isAuth, locationController.getHierarchy);
 
-// Get location statistics
-router.get("/locations/stats", isAuth, locationController.getLocationStats);
-
 // Get workplaces for specific user
 router.get(
   "/locations/user/:userId/workplaces",
@@ -64,13 +61,6 @@ router.get(
   locationController.getUserTech,
 );
 
-// Get devices in a location
-router.get(
-  "/locations/:id/devices",
-  isAuth,
-  locationController.getLocationDevices,
-);
-
 // Get assignable users for a location (правила привязки устройства к пользователю)
 router.get(
   "/locations/:id/assignable-users",
@@ -102,14 +92,6 @@ router.put(
   locationValidation,
   checkValidationResult,
   locationController.update,
-);
-
-// Move devices between locations
-router.post(
-  "/locations/move-devices",
-  isAuth,
-  canManageClientDevices,
-  locationController.moveDevices,
 );
 
 // Delete location

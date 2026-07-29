@@ -1,5 +1,6 @@
 const cron = require("node-cron");
 const Prefs = require("../models/preferences");
+const { resolveTimezone } = require("../utils/datetime");
 const logger = require("../utils/logger");
 
 class TaskManager {
@@ -17,8 +18,10 @@ class TaskManager {
 
       logger.log("info", `Adding task: ${taskId}`);
 
+      // Через resolveTimezone: без настроек (первый старт, пустая коллекция)
+      // prefs.timezone бросал бы на null, и задача молча не вставала.
       const task = cron.schedule(schedule, taskFunction, {
-        timezone: prefs.timezone,
+        timezone: resolveTimezone(prefs),
       });
 
       this.tasks.set(taskId, task);

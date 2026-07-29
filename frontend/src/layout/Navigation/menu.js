@@ -12,6 +12,7 @@ import {
   RiDraftLine,
   RiFileList3Line,
   RiListSettingsLine,
+  RiShoppingCart2Line,
   RiMapPinLine,
   RiPulseLine,
   RiServerLine,
@@ -273,6 +274,13 @@ export function buildMenu({
                     "Модели устройств",
                     RiDeviceLine,
                     "/inventory/device-models",
+                  ),
+                canManageClientDevices &&
+                  link(
+                    "adm-suppliers",
+                    "Поставщики",
+                    RiShoppingCart2Line,
+                    "/inventory/suppliers",
                   ),
               ]
             : []

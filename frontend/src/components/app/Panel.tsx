@@ -1,9 +1,68 @@
 import { type ReactNode } from "react";
 
+import { Link } from "react-router";
+import { RiEdit2Line } from "react-icons/ri";
+
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 // Примитивы карточки сущности (View) — панель-секция на канве и uppercase-метка
 // над ней. Эталон — components/ServicePlan/View.jsx.
+
+// Секция карточки целиком — метка + панель. Нужна ради наведения: карандаш
+// правки в метке проявляется при наведении на ЛЮБУЮ часть секции, а не на
+// тонкую строку ярлыка. Без SectionEditLink оборачивать секцию незачем.
+export function Section({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("tw:group", className)}>{children}</div>;
+}
+
+/**
+ * Вход в общую форму, открытую сразу на этой секции (`update#<якорь>`).
+ *
+ * Иконка, а не кнопка с текстом: это навигация, а не отдельная операция.
+ * Правимых секций на карточке бывает четыре и больше — четыре одинаковых
+ * «Изменить» перестают различаться по надписи и читаются по позиции, а справа
+ * выстраиваются в колонку кнопок, конкурирующую с содержимым. Обнаружимость
+ * держит залитая «Изменить» в шапке — она одна на карточке и видна всегда.
+ *
+ * Проявляется по наведению на секцию; при фокусе с клавиатуры и на тач-экране
+ * (`pointer-coarse`) виден всегда — как «⋯» в `app/ListRow`.
+ *
+ * Действие со СВОИМ именем («Выдать», «Прикрепить», «Задать график» у пустой
+ * секции) остаётся текстовой кнопкой в `action` — оно называет операцию, а не
+ * ведёт в ту же форму.
+ */
+export function SectionEditLink({
+  to,
+  label,
+  onClick,
+}: {
+  /** Относительный путь с якорем секции, напр. `update#purchase`. */
+  to: string;
+  /** Название секции — уходит в aria-label: «Изменить: Размещение». */
+  label: string;
+  onClick?: () => void;
+}) {
+  return (
+    <Button
+      asChild
+      variant="ghost"
+      // icon-xs — вровень с `xs`-кнопками секции («Выдать», «Прикрепить»)
+      size="icon-xs"
+      className="tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100"
+    >
+      <Link to={to} onClick={onClick} aria-label={`Изменить: ${label}`}>
+        <RiEdit2Line />
+      </Link>
+    </Button>
+  );
+}
 
 // Панель-секция: тонкая граница на канве, без тени (язык статус-борда).
 export function Panel({ children }: { children: ReactNode }) {

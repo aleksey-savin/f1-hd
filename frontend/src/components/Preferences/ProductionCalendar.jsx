@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import Select from "../../UI/Select";
 import { getLocalStorageData } from "../../util/auth";
+import { formatDayMonthTime } from "../../util/format-date";
 import useToastStore from "../../store/toast-store";
 
 import SectionForm from "./SectionForm";
@@ -24,16 +25,6 @@ const SOURCES = [
   { value: "xmlcalendar", label: "xmlcalendar.ru — с названиями праздников" },
   { value: "isdayoff", label: "isdayoff.ru — без названий" },
 ];
-
-const fmtDateTime = (value) =>
-  value
-    ? new Date(value).toLocaleString("ru", {
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
 
 /**
  * Производственный календарь: праздники, переносы и сокращённые дни, от
@@ -124,8 +115,8 @@ const ProductionCalendar = ({ prefs }) => {
           currentYear.statistic?.hours40
             ? `норма ${thisYear}: ${currentYear.statistic.hours40} ч при ${currentYear.statistic.workdays} рабочих днях`
             : null,
-          fmtDateTime(health?.lastSyncAt)
-            ? `обновлено ${fmtDateTime(health.lastSyncAt)}`
+          health?.lastSyncAt
+            ? `обновлено ${formatDayMonthTime(health.lastSyncAt)}`
             : null,
         ]
           .filter(Boolean)

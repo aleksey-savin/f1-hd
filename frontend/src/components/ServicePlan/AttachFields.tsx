@@ -6,6 +6,7 @@ import SwitchField from "@/components/app/SwitchField";
 import { Input } from "@/components/ui/input";
 
 import { getLocalStorageData } from "../../util/auth";
+import { toDateInputValue } from "../../util/format-date";
 
 /**
  * Условия подключения услуги компании — ОДИН блок на три поверхности:
@@ -28,7 +29,7 @@ export type AttachValue = {
 };
 
 export const emptyAttach = (): AttachValue => ({
-  isActiveSince: new Date().toISOString().slice(0, 10),
+  isActiveSince: toDateInputValue(),
   customerApprovalRequired: false,
   approver: null,
   subdivisionApprovalRequired: false,

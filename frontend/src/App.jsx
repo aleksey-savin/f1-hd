@@ -249,6 +249,24 @@ import ViewVendorPage, {
   action as viewVendorAction,
 } from "./pages/Vendor/View.jsx";
 
+// Suppliers
+import SupplierListPage, {
+  loader as supplierListLoader,
+  action as supplierAction,
+} from "./pages/Supplier/List.jsx";
+import AddSupplierPage, {
+  loader as addSupplierLoader,
+  action as addSupplierAction,
+} from "./pages/Supplier/Add.jsx";
+import UpdateSupplierPage, {
+  loader as updateSupplierLoader,
+  action as updateSupplierAction,
+} from "./pages/Supplier/Update.jsx";
+import ViewSupplierPage, {
+  loader as viewSupplierLoader,
+  action as viewSupplierAction,
+} from "./pages/Supplier/View.jsx";
+
 // Device Attributes
 import DeviceAttributeListPage, {
   action as deviceAttributeAction,
@@ -896,6 +914,41 @@ function App() {
               element: <UpdateVendorPage />,
               loader: updateVendorLoader,
               action: updateVendorAction,
+            },
+          ],
+        },
+        {
+          path: "inventory/suppliers",
+          element: <SupplierListPage />,
+          loader: supplierListLoader,
+          action: supplierAction,
+          children: [
+            {
+              path: "add",
+              element: <AddSupplierPage />,
+              loader: addSupplierLoader,
+              action: addSupplierAction,
+            },
+            {
+              path: "update/:id",
+              element: <UpdateSupplierPage />,
+              loader: updateSupplierLoader,
+              action: updateSupplierAction,
+            },
+          ],
+        },
+        {
+          path: "inventory/suppliers/:id",
+          element: <ViewSupplierPage />,
+          loader: viewSupplierLoader,
+          action: viewSupplierAction,
+          children: [
+            // Правка — в шторке карточки: после сабмита остаёмся на ней
+            {
+              path: "update",
+              element: <UpdateSupplierPage />,
+              loader: updateSupplierLoader,
+              action: updateSupplierAction,
             },
           ],
         },

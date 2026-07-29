@@ -1,6 +1,7 @@
 import { useParams, useRouteLoaderData, useSearchParams } from "react-router";
 
 import ServicePlanForm from "../../components/ServicePlan/Form";
+import { toDateInputValue } from "../../util/format-date";
 
 // «Новая услуга» с карточки компании: тот же мастер услуги вложенным маршрутом
 // /companies/:id/service-plans/add. Параметры подключения (дата, согласование)
@@ -18,9 +19,7 @@ const AddCompanyServicePlanPage = () => {
   const attach = {
     companyId: id,
     companyAlias: parent?.company?.alias || "компании",
-    isActiveSince:
-      searchParams.get("isActiveSince") ||
-      new Date().toISOString().slice(0, 10),
+    isActiveSince: searchParams.get("isActiveSince") || toDateInputValue(),
     customerApprovalRequired: searchParams.get("customerApproval") === "true",
     subdivisionApprovalRequired:
       searchParams.get("subdivisionApproval") === "true",

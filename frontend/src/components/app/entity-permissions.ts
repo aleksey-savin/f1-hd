@@ -14,6 +14,7 @@ export function canManageEntity(
     case "deviceModel":
     case "deviceType":
     case "vendor":
+    case "supplier":
     case "deviceAttribute":
     case "location":
       return !!permissions.canManageClientDevices;

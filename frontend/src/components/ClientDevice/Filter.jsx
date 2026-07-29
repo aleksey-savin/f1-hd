@@ -1,342 +1,115 @@
 import { useMemo } from "react";
 
+import FilterContainer from "@/components/app/FilterContainer";
+import Field from "@/components/app/Field";
+import SwitchField from "@/components/app/SwitchField";
+
+import Select from "../../UI/Select";
 import useClientDeviceFilterStore from "../../store/lists/client-devices";
-import { getLocalStorageData } from "../../util/auth";
-import {
-  STATUS_OPTIONS,
-  CUSTOM_VENDOR_BUCKET,
-  CUSTOM_VENDOR_LABEL,
-} from "./constants";
 
-import Accordion from "react-bootstrap/Accordion";
-import AccordionHeader from "react-bootstrap/AccordionHeader";
-import Form from "react-bootstrap/Form";
-
-import FilterContainer from "../../UI/FilterContainer";
-
-// Извлекаем уникальные опции {_id, name} из загруженного списка устройств
-const uniqueOptions = (items, pick) => {
-  const map = new Map();
-  items.forEach((item) => {
-    const entity = pick(item);
-    const id = entity?._id?.toString();
-    if (id && !map.has(id)) {
-      map.set(id, {
-        _id: id,
-        name: entity.name || entity.alias || entity.fullTitle || "—",
-      });
-    }
-  });
-  return [...map.values()];
-};
-
-// Тоггл значения в массиве
-const toggle = (arr = [], value) =>
-  arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
-
+/**
+ * Sheet-фильтр реестра устройств: компании · расположения · закреплено за ·
+ * тип · производитель. Статуса здесь нет — он живёт лентой парка над списком,
+ * а дублировать применённое незачем.
+ *
+ * Опции приходят отдельной ручкой (`/client-devices/facets`) и содержат только
+ * то, что реально есть в видимом парке: фильтр сужает существующее, а не
+ * предлагает пустые значения. Расположения показываются под выбранные
+ * компании — иначе список расползается на все объекты всех клиентов.
+ */
 const ClientDeviceFilter = () => {
-  const filterStore = useClientDeviceFilterStore();
-  const items = filterStore.originalList ?? [];
-  const list = filterStore.filteredList ?? [];
+  const facets = useClientDeviceFilterStore((state) => state.facets);
+  const options = useClientDeviceFilterStore((state) => state.options);
+  const setFacet = useClientDeviceFilterStore((state) => state.setFacet);
+  const resetFilter = useClientDeviceFilterStore((state) => state.resetFilter);
 
-  // --- Опции, деривируемые из загруженного списка устройств ---
-  const companies = useMemo(
-    () => uniqueOptions(items, (d) => d.companyId),
-    [items],
-  );
-  const vendors = useMemo(() => {
-    const opts = uniqueOptions(items, (d) => d.deviceModelId?.vendorId);
-    // Бакет для самосборной техники без модели/вендора.
-    if (items.some((d) => !d.deviceModelId)) {
-      opts.push({ _id: CUSTOM_VENDOR_BUCKET, name: CUSTOM_VENDOR_LABEL });
-    }
-    return opts;
-  }, [items]);
-  const deviceTypes = useMemo(
+  const locationOptions = useMemo(
     () =>
-      uniqueOptions(
-        items,
-        (d) => d.deviceModelId?.deviceTypeId || d.deviceTypeId,
+      facets.companies.length
+        ? options.locations.filter((option) =>
+            facets.companies.includes(option.company),
+          )
+        : options.locations,
+    [options.locations, facets.companies],
+  );
+
+  const multi = (key, optionList) => ({
+    isMulti: true,
+    options: optionList,
+    value: optionList.filter((option) => facets[key].includes(option.value)),
+    onChange: (selected) =>
+      setFacet(
+        key,
+        (selected || []).map((option) => option.value),
       ),
-    [items],
-  );
-  // Пользователи, за которыми закреплена техника (имя — не entity.name)
-  const owners = useMemo(() => {
-    const map = new Map();
-    items.forEach((item) => {
-      const user = item.userId;
-      const id = user?._id?.toString();
-      if (id && !map.has(id)) {
-        map.set(id, {
-          _id: id,
-          name:
-            `${user.lastName || ""} ${user.firstName || ""}`.trim() ||
-            user.email ||
-            "—",
-        });
-      }
-    });
-    return [...map.values()];
-  }, [items]);
-  // Статусы — фиксированный справочник, нормализуем к виду {_id, name}
-  const statuses = useMemo(
-    () => STATUS_OPTIONS.map((s) => ({ _id: s.value, name: s.label })),
-    [],
-  );
-
-  // --- Счётчики по текущему отфильтрованному списку ---
-  const countBy = {
-    company: (id) =>
-      list.filter((d) => d.companyId?._id?.toString() === id).length,
-    location: (id) =>
-      list.filter((d) => d.locationId?._id?.toString() === id).length,
-    vendor: (id) =>
-      id === CUSTOM_VENDOR_BUCKET
-        ? list.filter((d) => !d.deviceModelId).length
-        : list.filter((d) => d.deviceModelId?.vendorId?._id?.toString() === id)
-            .length,
-    deviceType: (id) =>
-      list.filter(
-        (d) =>
-          (
-            d.deviceModelId?.deviceTypeId?._id || d.deviceTypeId?._id
-          )?.toString() === id,
-      ).length,
-    status: (id) => list.filter((d) => d.status === id).length,
-    user: (id) => list.filter((d) => d.userId?._id?.toString() === id).length,
-  };
-
-  // Сортировка: отмеченные сверху, далее по алфавиту
-  const sortByChecked = (options, selected = []) =>
-    [...options]
-      .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
-      .sort((a, b) => {
-        const av = selected.includes(a._id);
-        const bv = selected.includes(b._id);
-        if (av === bv) return 0;
-        return av ? -1 : 1;
-      });
-
-  const sortedCompanies = useMemo(
-    () => sortByChecked(companies, filterStore.companies),
-    [companies, filterStore.companies],
-  );
-  const sortedVendors = useMemo(
-    () => sortByChecked(vendors, filterStore.vendors),
-    [vendors, filterStore.vendors],
-  );
-  const sortedDeviceTypes = useMemo(
-    () => sortByChecked(deviceTypes, filterStore.deviceTypes),
-    [deviceTypes, filterStore.deviceTypes],
-  );
-  const sortedLocations = useMemo(
-    () => sortByChecked(filterStore.locationOptions ?? [], filterStore.locations),
-    [filterStore.locationOptions, filterStore.locations],
-  );
-  const sortedOwners = useMemo(
-    () => sortByChecked(owners, filterStore.users),
-    [owners, filterStore.users],
-  );
-
-  // Простые клиентские фильтры (vendors / deviceTypes / statuses / locations)
-  const simpleToggle = (key, value) => {
-    filterStore.updateFilter({
-      ...filterStore,
-      [key]: toggle(filterStore[key], value),
-    });
-    filterStore.applyFilter();
-  };
-
-  // Каскад: выбор компании лениво подгружает её локации
-  const companyToggleHandler = async (companyId) => {
-    const nextCompanies = toggle(filterStore.companies, companyId);
-
-    // Компании не выбраны — сбрасываем опции и выбор локаций
-    if (nextCompanies.length === 0) {
-      filterStore.updateFilter({
-        ...filterStore,
-        companies: [],
-        locationOptions: [],
-        locations: [],
-      });
-      filterStore.applyFilter();
-      return;
-    }
-
-    let locationOptions = [];
-    try {
-      const { token } = getLocalStorageData();
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/companies-locations?companyIds=${nextCompanies.join(",")}`,
-        { headers: { Authorization: "Bearer " + token } },
-      );
-      if (response.ok) {
-        const data = await response.json();
-        locationOptions = Array.isArray(data) ? data : [];
-      }
-    } catch (error) {
-      console.error("Не удалось загрузить локации:", error);
-    }
-
-    // Отсеиваем выбранные локации, которых больше нет среди опций
-    const optionIds = new Set(
-      locationOptions.map((l) => l._id?.toString()).filter(Boolean),
-    );
-    const locations = (filterStore.locations ?? []).filter((id) =>
-      optionIds.has(id),
-    );
-
-    filterStore.updateFilter({
-      ...filterStore,
-      companies: nextCompanies,
-      locationOptions,
-      locations,
-    });
-    filterStore.applyFilter();
-  };
-
-  const resetFilterHandler = () => filterStore.resetFilter();
-
-  // Переиспользуемый рендер чекбоксов раздела
-  const renderChecks = (options, { selected = [], onChange, countFn, idPrefix }) =>
-    options.map((opt) => {
-      const count = countFn(opt._id);
-      const isChecked = selected.includes(opt._id);
-      return (
-        <Form.Check
-          key={opt._id}
-          type="checkbox"
-          id={`${idPrefix}-${opt._id}`}
-          checked={isChecked}
-          onChange={() => onChange(opt._id)}
-          label={`${opt.name} (${count})`}
-          className={`py-2 ${isChecked ? "text-info" : ""} ${
-            count === 0 ? "text-secondary" : ""
-          }`}
-        />
-      );
-    });
-
-  const sectionTitle = (label, count) => (
-    <span className={count > 0 ? "text-info" : ""}>
-      {label}
-      {count > 0 ? ` (${count})` : ""}
-    </span>
-  );
-
-  const bodyStyle = { maxHeight: "300px", overflowY: "auto" };
+  });
 
   return (
-    <FilterContainer resetFilterHandler={resetFilterHandler}>
-      {/* Компании */}
-      <Accordion className="py-2" defaultActiveKey="0">
-        <Accordion.Item eventKey="0">
-          <AccordionHeader>
-            {sectionTitle("Компании", filterStore.companies?.length)}
-          </AccordionHeader>
-          <Accordion.Body style={bodyStyle}>
-            {renderChecks(sortedCompanies, {
-              selected: filterStore.companies,
-              onChange: companyToggleHandler,
-              countFn: countBy.company,
-              idPrefix: "device-company",
-            })}
-          </Accordion.Body>
-        </Accordion.Item>
-      </Accordion>
+    <FilterContainer resetFilterHandler={resetFilter}>
+      <div className="tw:space-y-4 tw:pt-4">
+        <Field label="Компании" htmlFor="device-filter-companies">
+          <Select
+            id="device-filter-companies"
+            placeholder="Все компании"
+            {...multi("companies", options.companies)}
+          />
+        </Field>
+        <Field
+          label="Расположения"
+          htmlFor="device-filter-locations"
+          hint={
+            facets.companies.length
+              ? undefined
+              : "Выберите компанию, чтобы сузить список расположений"
+          }
+        >
+          <Select
+            id="device-filter-locations"
+            placeholder="Любое"
+            {...multi("locations", locationOptions)}
+          />
+        </Field>
+        <Field label="Закреплено за" htmlFor="device-filter-users">
+          <Select
+            id="device-filter-users"
+            placeholder="Любой сотрудник"
+            {...multi("users", options.users)}
+          />
+        </Field>
+        <Field label="Тип устройства" htmlFor="device-filter-types">
+          <Select
+            id="device-filter-types"
+            placeholder="Любой"
+            {...multi("types", options.types)}
+          />
+        </Field>
+        <Field
+          label="Производитель"
+          htmlFor="device-filter-vendors"
+          hint="Самосборные устройства — «Кастомная сборка»"
+        >
+          <Select
+            id="device-filter-vendors"
+            placeholder="Любой"
+            {...multi("vendors", options.vendors)}
+          />
+        </Field>
 
-      {/* Локации — только когда выбрана хотя бы одна компания */}
-      {filterStore.companies?.length > 0 && (
-        <Accordion className="py-2" defaultActiveKey="0">
-          <Accordion.Item eventKey="0">
-            <AccordionHeader>
-              {sectionTitle("Локации", filterStore.locations?.length)}
-            </AccordionHeader>
-            <Accordion.Body style={bodyStyle}>
-              {sortedLocations.length > 0 ? (
-                renderChecks(sortedLocations, {
-                  selected: filterStore.locations,
-                  onChange: (id) => simpleToggle("locations", id),
-                  countFn: countBy.location,
-                  idPrefix: "device-location",
-                })
-              ) : (
-                <span className="text-secondary">Нет локаций</span>
-              )}
-            </Accordion.Body>
-          </Accordion.Item>
-        </Accordion>
-      )}
-
-      {/* Закреплено за пользователем (ссылки с карточек: ?user=) */}
-      {owners.length > 0 && (
-        <Accordion className="py-2" defaultActiveKey="0">
-          <Accordion.Item eventKey="0">
-            <AccordionHeader>
-              {sectionTitle("Закреплено за", filterStore.users?.length)}
-            </AccordionHeader>
-            <Accordion.Body style={bodyStyle}>
-              {renderChecks(sortedOwners, {
-                selected: filterStore.users,
-                onChange: (id) => simpleToggle("users", id),
-                countFn: countBy.user,
-                idPrefix: "device-owner",
-              })}
-            </Accordion.Body>
-          </Accordion.Item>
-        </Accordion>
-      )}
-
-      {/* Производители */}
-      <Accordion className="py-2" defaultActiveKey="0">
-        <Accordion.Item eventKey="0">
-          <AccordionHeader>
-            {sectionTitle("Производители", filterStore.vendors?.length)}
-          </AccordionHeader>
-          <Accordion.Body style={bodyStyle}>
-            {renderChecks(sortedVendors, {
-              selected: filterStore.vendors,
-              onChange: (id) => simpleToggle("vendors", id),
-              countFn: countBy.vendor,
-              idPrefix: "device-vendor",
-            })}
-          </Accordion.Body>
-        </Accordion.Item>
-      </Accordion>
-
-      {/* Типы устройств */}
-      <Accordion className="py-2" defaultActiveKey="0">
-        <Accordion.Item eventKey="0">
-          <AccordionHeader>
-            {sectionTitle("Типы устройств", filterStore.deviceTypes?.length)}
-          </AccordionHeader>
-          <Accordion.Body style={bodyStyle}>
-            {renderChecks(sortedDeviceTypes, {
-              selected: filterStore.deviceTypes,
-              onChange: (id) => simpleToggle("deviceTypes", id),
-              countFn: countBy.deviceType,
-              idPrefix: "device-type",
-            })}
-          </Accordion.Body>
-        </Accordion.Item>
-      </Accordion>
-
-      {/* Статусы */}
-      <Accordion className="py-2" defaultActiveKey="0">
-        <Accordion.Item eventKey="0">
-          <AccordionHeader>
-            {sectionTitle("Статусы", filterStore.statuses?.length)}
-          </AccordionHeader>
-          <Accordion.Body style={bodyStyle}>
-            {renderChecks(statuses, {
-              selected: filterStore.statuses,
-              onChange: (id) => simpleToggle("statuses", id),
-              countFn: countBy.status,
-              idPrefix: "device-status",
-            })}
-          </Accordion.Body>
-        </Accordion.Item>
-      </Accordion>
+        {/* Детали сборок в реестре не показываются: они не выдаются и не
+            перемещаются сами по себе. Свитч — для просмотра («все модули
+            памяти»); поиск находит их и без него. */}
+        <div className="tw:border-t tw:border-border-soft tw:pt-4">
+          <SwitchField
+            id="device-filter-components"
+            label="Показывать комплектующие"
+            hint="Детали сборок обычно не в списке — поиск находит их и так."
+            checked={facets.withComponents}
+            onCheckedChange={() =>
+              setFacet("withComponents", !facets.withComponents)
+            }
+          />
+        </div>
+      </div>
     </FilterContainer>
   );
 };

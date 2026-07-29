@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { Link, Outlet, useNavigate } from "react-router";
 import {
+  RiAddLine,
   RiArrowLeftSLine,
   RiCalendarScheduleLine,
   RiDeleteBinLine,
@@ -20,11 +21,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import FormSheet from "@/components/app/FormSheet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
-import { Eyebrow, Panel } from "@/components/app/Panel";
+import { Eyebrow, Panel, SectionEditLink } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
 import CustomFieldsView from "@/components/app/CustomFieldsView";
 import Checklist from "@/components/app/Checklist";
 import { canManageEntity } from "@/components/app/entity-permissions";
+import { formatShortDate } from "@/util/format-date";
 import { cn } from "@/lib/utils";
 
 import MarkdownViewer from "../../UI/MarkdownViewer";
@@ -43,9 +45,6 @@ const personName = (person) =>
   person && (person.firstName || person.lastName)
     ? `${person.lastName || ""} ${person.firstName || ""}`.trim()
     : null;
-
-const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("ru-RU") : null;
 
 const ViewTicketTemplate = ({ template }) => {
   const navigate = useNavigate();
@@ -92,8 +91,8 @@ const ViewTicketTemplate = ({ template }) => {
   const metaBits = [
     fieldsCount ? `${fieldsCount} ${pluralFields(fieldsCount)}` : null,
     authorName ? `создал ${authorName}` : null,
-    createdAt ? fmtDate(createdAt) : null,
-    updatedAt ? `изменён ${fmtDate(updatedAt)}` : null,
+    formatShortDate(createdAt),
+    updatedAt ? `изменён ${formatShortDate(updatedAt)}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -205,7 +204,8 @@ const ViewTicketTemplate = ({ template }) => {
           шаблона (ярлык ведёт на её секцию). read без прогресса — это
           определение, а не выполнение. */}
       {(checklist.length > 0 || canManage) && (
-        <div className="tw:mt-6">
+        // group — карандаш правки проявляется при наведении на всю секцию
+        <div className="tw:group tw:mt-6">
           <div className="tw:mb-2.5 tw:flex tw:items-center tw:gap-2">
             <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
               Чек-лист
@@ -215,16 +215,30 @@ const ViewTicketTemplate = ({ template }) => {
                 · {checklist.length}
               </span>
             )}
-            {canManage && (
-              <Button asChild variant="outline" size="sm" className="tw:ml-auto">
-                {/* Та же форма, что у «Изменить» в шапке, — открытая сразу на
-                    секции чек-листа */}
-                <Link to="update#checklist" onClick={offcanvas.setShow}>
-                  <RiEdit2Line />
-                  {checklist.length ? "Изменить" : "Добавить чек-лист"}
-                </Link>
-              </Button>
-            )}
+            {canManage &&
+              /* Та же форма, что у «Изменить» в шапке, — открытая сразу на
+                 секции чек-листа. Пустая секция называет, что создаёт;
+                 заполненная — карандаш: это второй вход в ту же форму. */
+              (checklist.length ? (
+                <span className="tw:ml-auto">
+                  <SectionEditLink
+                    to="update#checklist"
+                    label="Чек-лист"
+                    onClick={offcanvas.setShow}
+                  />
+                </span>
+              ) : (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="tw:ml-auto"
+                >
+                  <Link to="update#checklist" onClick={offcanvas.setShow}>
+                    <RiAddLine /> Добавить чек-лист
+                  </Link>
+                </Button>
+              ))}
           </div>
           <Panel>
             {checklist.length > 0 ? (
@@ -279,8 +293,8 @@ const ViewTicketTemplate = ({ template }) => {
           <Eyebrow>Доступ</Eyebrow>
           <Panel>
             <div className="tw:text-sm tw:text-muted-foreground">
-              Личный шаблон — виден только вам и тем, у кого есть право управления
-              шаблонами.
+              Личный шаблон — виден только вам и тем, у кого есть право
+              управления шаблонами.
             </div>
           </Panel>
         </>

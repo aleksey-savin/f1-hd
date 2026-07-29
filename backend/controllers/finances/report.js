@@ -1,6 +1,15 @@
-const ServicePlanReport = require("../../models/finances/servicePlanReport");
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
 
+const ServicePlanReport = require("../../models/finances/servicePlanReport");
+const Preferences = require("../../models/preferences");
+
+const { resolveTimezone } = require("../../utils/datetime");
 const { AppError } = require("../../middleware/errorHandling");
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 /**
  * Остаток прежнего контроллера отчётов: только выборка работ по сотрудникам за
@@ -17,9 +26,12 @@ exports.getEmployeeReport = async (req, res, next) => {
   try {
     const { periodFrom, periodTo } = req.body;
 
-    const fromDate = new Date(periodFrom);
-    let toDate = new Date(periodTo);
-    toDate.setHours(23, 59, 59, 999);
+    // Границы — по настенным часам бизнес-таймзоны (docs/datetime-conventions).
+    // new Date(periodTo) + setHours брали зону сервера, то есть UTC: восточнее
+    // из выборки выпадал хвост последнего дня, западнее прилипал чужой.
+    const tz = resolveTimezone(await Preferences.findOne({}));
+    const fromDate = dayjs.tz(periodFrom, tz).startOf("day").toDate();
+    const toDate = dayjs.tz(periodTo, tz).endOf("day").toDate();
 
     // Find all approved reports that overlap with the period
     const approvedReports = await ServicePlanReport.find({

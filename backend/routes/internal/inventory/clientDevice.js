@@ -10,9 +10,14 @@ const {
 const { checkValidationResult } = require("@/middleware/validation");
 
 router.get("/client-devices", isAuth, deviceController.getAll);
-// До "/:id", иначе "attachable" уедет в параметр id.
+// До "/:id", иначе литеральные сегменты уедут в параметр id.
 router.get("/client-devices/attachable", isAuth, deviceController.getAttachable);
+router.get("/client-devices/facets", isAuth, deviceController.getFacets);
+// Мягкая проверка серийника: совпадение — предупреждение формы, не запрет.
+router.get("/client-devices/serial-check", isAuth, deviceController.checkSerial);
 router.get("/client-devices/:id", isAuth, deviceController.getOne);
+// Заявки, ссылающиеся на устройство (секция «Заявки» карточки).
+router.get("/client-devices/:id/tickets", isAuth, deviceController.getTickets);
 
 router.post(
   "/client-devices/add",

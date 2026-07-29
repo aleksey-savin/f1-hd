@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { Link, Outlet, useFetcher, useNavigate } from "react-router";
 import {
+  RiAddLine,
   RiArrowLeftSLine,
   RiCalendarScheduleLine,
   RiCornerDownRightLine,
@@ -32,7 +33,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import FormSheet from "@/components/app/FormSheet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
-import { Eyebrow, Panel } from "@/components/app/Panel";
+import { Eyebrow, Panel, SectionEditLink } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
 import Checklist from "@/components/app/Checklist";
 import { canManageEntity } from "@/components/app/entity-permissions";
@@ -44,6 +45,7 @@ import {
   nextCronRuns,
   relativeToNow,
 } from "@/util/cron";
+import { formatShortDate } from "@/util/format-date";
 
 import MarkdownViewer from "../../UI/MarkdownViewer";
 import useOffcanvasStore from "../../store/offcanvas";
@@ -54,9 +56,6 @@ const personName = (person) =>
   person && (person.firstName || person.lastName)
     ? `${person.lastName || ""} ${person.firstName || ""}`.trim()
     : null;
-
-const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("ru-RU") : null;
 
 const ViewRoutineTask = ({ task }) => {
   const navigate = useNavigate();
@@ -79,7 +78,11 @@ const ViewRoutineTask = ({ task }) => {
   };
 
   useEffect(() => {
-    if (runFetcher.state === "idle" && runFetcher.data && !runFetcher.data.error) {
+    if (
+      runFetcher.state === "idle" &&
+      runFetcher.data &&
+      !runFetcher.data.error
+    ) {
       setRunOpen(false);
       const num = runFetcher.data.ticketNum;
       showToast("success", num ? `Заявка №${num} создана` : "Заявка создана");
@@ -106,14 +109,15 @@ const ViewRoutineTask = ({ task }) => {
     updatedAt,
   } = task;
 
-  const runs = isActive && isValidCron(cronSchedule) ? nextCronRuns(cronSchedule, 1) : [];
+  const runs =
+    isActive && isValidCron(cronSchedule) ? nextCronRuns(cronSchedule, 1) : [];
   const nextRun = runs[0];
   const authorName = personName(createdBy);
 
   const metaBits = [
     authorName ? `создал ${authorName}` : null,
-    createdAt ? fmtDate(createdAt) : null,
-    updatedAt ? `изменён ${fmtDate(updatedAt)}` : null,
+    formatShortDate(createdAt),
+    updatedAt ? `изменён ${formatShortDate(updatedAt)}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -182,7 +186,12 @@ const ViewRoutineTask = ({ task }) => {
           <div className="tw:flex tw:flex-none tw:flex-wrap tw:items-center tw:gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="Действия" title="Действия">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Действия"
+                  title="Действия"
+                >
                   <RiMoreLine />
                 </Button>
               </DropdownMenuTrigger>
@@ -302,7 +311,8 @@ const ViewRoutineTask = ({ task }) => {
 
       {/* Чек-лист — только показ: правится в общей форме регламента */}
       {(checklist.length > 0 || canManage) && (
-        <div className="tw:mt-6">
+        // group — карандаш правки проявляется при наведении на всю секцию
+        <div className="tw:group tw:mt-6">
           <div className="tw:mb-2.5 tw:flex tw:items-center tw:gap-2">
             <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
               Чек-лист
@@ -312,16 +322,30 @@ const ViewRoutineTask = ({ task }) => {
                 · {checklist.length}
               </span>
             )}
-            {canManage && (
-              <Button asChild variant="outline" size="sm" className="tw:ml-auto">
-                {/* Та же форма, что у «Изменить» в шапке, — открытая сразу на
-                    секции чек-листа */}
-                <Link to="update#checklist" onClick={offcanvas.setShow}>
-                  <RiEdit2Line />
-                  {checklist.length ? "Изменить" : "Добавить чек-лист"}
-                </Link>
-              </Button>
-            )}
+            {canManage &&
+              /* Та же форма, что у «Изменить» в шапке, — открытая сразу на
+                 секции чек-листа. Пустая секция называет, что создаёт;
+                 заполненная — карандаш: это второй вход в ту же форму. */
+              (checklist.length ? (
+                <span className="tw:ml-auto">
+                  <SectionEditLink
+                    to="update#checklist"
+                    label="Чек-лист"
+                    onClick={offcanvas.setShow}
+                  />
+                </span>
+              ) : (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="tw:ml-auto"
+                >
+                  <Link to="update#checklist" onClick={offcanvas.setShow}>
+                    <RiAddLine /> Добавить чек-лист
+                  </Link>
+                </Button>
+              ))}
           </div>
           <Panel>
             {checklist.length > 0 ? (
@@ -348,7 +372,11 @@ const ViewRoutineTask = ({ task }) => {
         </div>
       )}
 
-      <DeleteDialog item={task} open={deleteOpen} onOpenChange={setDeleteOpen} />
+      <DeleteDialog
+        item={task}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+      />
 
       {/* Диалог «Создать заявку сейчас» */}
       <AlertDialog open={runOpen} onOpenChange={setRunOpen}>
@@ -356,8 +384,8 @@ const ViewRoutineTask = ({ task }) => {
           <AlertDialogHeader>
             <AlertDialogTitle>Создать заявку сейчас?</AlertDialogTitle>
             <AlertDialogDescription>
-              Заявка «{title}» будет создана немедленно из полей регламента — как
-              при плановом срабатывании.
+              Заявка «{title}» будет создана немедленно из полей регламента —
+              как при плановом срабатывании.
             </AlertDialogDescription>
           </AlertDialogHeader>
 

@@ -20,11 +20,11 @@ import ChipMultiCombobox from "./ChipMultiCombobox";
 import Environment from "./Environment";
 import EnvironmentDeviceSheet from "./EnvironmentDeviceSheet";
 import {
-  STATUS_META,
-  EnvStatusText,
+  DEVICE_STATUS_META,
+  DeviceStatusText,
   mikrotikStatus,
   deviceIcon,
-} from "./EnvironmentDeviceTile";
+} from "./device-status";
 import { Eyebrow, SubLabel } from "./Panel";
 import useHttp from "../../hooks/use-http";
 import { getLocalStorageData } from "../../util/auth";
@@ -58,7 +58,7 @@ const haystack = (device) =>
     device.serialNumber,
     device.ipAddress,
     device.operatingSystem,
-    STATUS_META[device.status]?.label,
+    DEVICE_STATUS_META[device.status]?.label,
   ]
     .filter(Boolean)
     .join(" ")
@@ -83,7 +83,7 @@ const uniqueOptions = (devices, pick) => {
 // статус текстом с точкой, «↗» по наведению. Клик по строке — шторка.
 const TechRow = ({ device, onSelect }) => {
   const Icon = deviceIcon(device.typeName);
-  const status = STATUS_META[device.status];
+  const status = DEVICE_STATUS_META[device.status];
   const mikro = mikrotikStatus(device);
   const meta = [device.typeName, device.vendorName, device.inventoryNumber]
     .filter(Boolean)
@@ -140,7 +140,7 @@ const TechRow = ({ device, onSelect }) => {
         {/* На узких экранах статус и расположение — подстрокой */}
         <span className="tw:mt-0.5 tw:flex tw:min-w-0 tw:items-center tw:gap-2.5 tw:md:hidden">
           {status && (
-            <EnvStatusText tone={status.tone}>{status.label}</EnvStatusText>
+            <DeviceStatusText tone={status.tone}>{status.label}</DeviceStatusText>
           )}
           <span className="tw:flex tw:min-w-0 tw:items-center tw:gap-1 tw:text-xs tw:text-faint">
             <RiMapPin2Line size={12} className="tw:flex-none" />
@@ -167,7 +167,7 @@ const TechRow = ({ device, onSelect }) => {
 
       <span className="tw:hidden tw:w-36 tw:flex-none tw:md:block">
         {status && (
-          <EnvStatusText tone={status.tone}>{status.label}</EnvStatusText>
+          <DeviceStatusText tone={status.tone}>{status.label}</DeviceStatusText>
         )}
       </span>
 
@@ -190,6 +190,15 @@ const TechRow = ({ device, onSelect }) => {
 // представлениях — «Список» (строки с фасетами страницы «Устройства») и
 // «Окружение» (zoom-виджет). Метка секции и сегмент представлений — здесь же;
 // клик по строке открывает общую шторку устройства.
+//
+// Данные: GET /locations/company/:companyId/tech (порядок строк — DFS-обход
+// иерархии расположений, поэтому сортировать на клиенте не нужно) либо
+// GET /locations/user/:userId/tech. Обе ручки отдают строку в DTO toEnvDevice —
+// того же формата, что и «Окружение», поэтому шторка устройства открывается без
+// дозапроса. Техника пользователя приходит уже разложенной бэкендом по группам:
+// «Личная и рабочее место» (без рабочего места — «Закреплено лично») и
+// «В помещении — X» (прямая техника родителя рабочего места); у компании группа
+// одна, безымянная.
 const TechSection = ({ id, companyId, userId, subject = "applicant" }) => {
   const { token } = getLocalStorageData();
   const { isLoading, error, sendRequest } = useHttp();
@@ -240,8 +249,8 @@ const TechSection = ({ id, companyId, userId, subject = "applicant" }) => {
     const seen = new Set();
     return allDevices
       .map((d) => d.status)
-      .filter((s) => s && STATUS_META[s] && !seen.has(s) && seen.add(s))
-      .map((s) => ({ value: s, label: STATUS_META[s].label }));
+      .filter((s) => s && DEVICE_STATUS_META[s] && !seen.has(s) && seen.add(s))
+      .map((s) => ({ value: s, label: DEVICE_STATUS_META[s].label }));
   }, [allDevices]);
   const locationOptions = useMemo(
     () => (companyId ? uniqueOptions(allDevices, (d) => d.locationName) : []),
@@ -305,7 +314,7 @@ const TechSection = ({ id, companyId, userId, subject = "applicant" }) => {
     ...vendors.map((v) => ({ k: "Вендор", label: v, onRemove: () => setVendors(vendors.filter((x) => x !== v)) })),
     ...statuses.map((v) => ({
       k: "Статус",
-      label: STATUS_META[v]?.label || v,
+      label: DEVICE_STATUS_META[v]?.label || v,
       onRemove: () => setStatuses(statuses.filter((x) => x !== v)),
     })),
     ...locations.map((v) => ({ k: "Расположение", label: v, onRemove: () => setLocations(locations.filter((x) => x !== v)) })),

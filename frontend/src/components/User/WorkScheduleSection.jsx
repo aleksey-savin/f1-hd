@@ -1,14 +1,14 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
+  RiAddLine,
   RiCalendar2Line,
-  RiEdit2Line,
   RiGlobalLine,
   RiTimeLine,
 } from "react-icons/ri";
 
 import AlertMessage from "../app/AlertMessage";
-import { Eyebrow, Panel } from "../app/Panel";
+import { Eyebrow, Panel, Section, SectionEditLink } from "../app/Panel";
 import PropRow from "../app/PropRow";
 import { SCHEDULE_DAYS } from "../app/ScheduleEditor";
 import ScheduleView from "../app/ScheduleView";
@@ -29,7 +29,9 @@ const humanDate = (key) => key.split("-").reverse().join(".");
 
 // «5/2 · 09:00–18:00» — компактная подпись версии в истории
 const weekSummary = (week) => {
-  const working = DAY_KEYS.map((key) => week?.[key]).filter((day) => day?.isWorking);
+  const working = DAY_KEYS.map((key) => week?.[key]).filter(
+    (day) => day?.isWorking,
+  );
   if (!working.length) return "нерабочая неделя";
   const first = working[0];
   const same = working.every(
@@ -44,12 +46,22 @@ const weekSummary = (week) => {
 };
 
 const MONTH_NAMES = [
-  "января", "февраля", "марта", "апреля", "мая", "июня",
-  "июля", "августа", "сентября", "октября", "ноября", "декабря",
+  "января",
+  "февраля",
+  "марта",
+  "апреля",
+  "мая",
+  "июня",
+  "июля",
+  "августа",
+  "сентября",
+  "октября",
+  "ноября",
+  "декабря",
 ];
 
 const monthLabel = (from) => {
-  const [, month, ] = from.split("-").map(Number);
+  const [, month] = from.split("-").map(Number);
   return MONTH_NAMES[month - 1];
 };
 
@@ -57,9 +69,11 @@ const monthLabel = (from) => {
  * Секция «График работы» карточки сотрудника — ТОЛЬКО ПОКАЗ.
  *
  * Правится там же, где остальные поля пользователя, — в общей форме
- * «Изменить» (docs/ux-ui-guide.md, «одно поле — одно место правки»). Ярлык в
+ * «Изменить» (docs/ux-ui-guide.md, «одно поле — одно место правки»). Карандаш в
  * метке секции открывает ту же форму сразу на секции «График работы»
- * (`update#schedule`); своего редактора и своего сохранения у секции нет.
+ * (`update#schedule`); своего редактора и своего сохранения у секции нет. Пока
+ * личного графика нет, вместо карандаша — кнопка «Задать график»: она называет,
+ * что создаёт.
  *
  * Данные секция грузит сама (как app/TechSection), поэтому карточка о ней
  * ничего не знает; `version` — отметка изменения пользователя (updatedAt):
@@ -126,20 +140,27 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
   );
 
   return (
-    <>
+    <Section>
       <Eyebrow
         id={id}
         action={
-          canManage ? (
+          /* Та же форма, что у кнопки «Изменить» в шапке карточки, — открытая
+             сразу на своей секции. Пока личного графика нет, кнопка называет,
+             что создаёт; когда он есть — карандаш: это второй вход в ту же
+             форму, а не отдельная операция. */
+          !canManage ? undefined : data?.hasPersonalSchedule ? (
+            <SectionEditLink
+              to="update#schedule"
+              label="График работы"
+              onClick={offcanvas.setShow}
+            />
+          ) : (
             <Button asChild variant="outline" size="sm">
-              {/* Та же форма, что у кнопки «Изменить» в шапке карточки, —
-                  открытая сразу на своей секции */}
               <Link to="update#schedule" onClick={offcanvas.setShow}>
-                <RiEdit2Line />
-                {data?.hasPersonalSchedule ? "Изменить" : "Задать график"}
+                <RiAddLine /> Задать график
               </Link>
             </Button>
-          ) : undefined
+          )
         }
       >
         График работы
@@ -153,9 +174,13 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
         ) : (
           <div className="tw:space-y-4">
             <div className="tw:flex tw:flex-col">
-              <PropRow icon={<RiTimeLine size={17} />} label="Учёт рабочего времени">
-                {WORK_TIME_MODES.find((mode) => mode.value === data.workTimeMode)
-                  ?.label ?? "По графику"}
+              <PropRow
+                icon={<RiTimeLine size={17} />}
+                label="Учёт рабочего времени"
+              >
+                {WORK_TIME_MODES.find(
+                  (mode) => mode.value === data.workTimeMode,
+                )?.label ?? "По графику"}
                 {data.remoteOnly && (
                   <span className="tw:ml-2 tw:text-xs tw:font-normal tw:text-muted-foreground">
                     только удалённо
@@ -164,7 +189,10 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
               </PropRow>
               {!isUntracked && (
                 <>
-                  <PropRow icon={<RiGlobalLine size={17} />} label="Часовой пояс">
+                  <PropRow
+                    icon={<RiGlobalLine size={17} />}
+                    label="Часовой пояс"
+                  >
                     {data.timezone}
                     {!data.hasPersonalSchedule && (
                       <span className="tw:ml-2 tw:text-xs tw:font-normal tw:text-faint">
@@ -173,24 +201,29 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
                     )}
                   </PropRow>
                   {showSchedule && (
-                    <PropRow icon={<RiCalendar2Line size={17} />} label="Производственный календарь">
-                      {data.followsProductionCalendar ? "Следует календарю РФ" : "Не учитывается"}
+                    <PropRow
+                      icon={<RiCalendar2Line size={17} />}
+                      label="Производственный календарь"
+                    >
+                      {data.followsProductionCalendar
+                        ? "Следует календарю РФ"
+                        : "Не учитывается"}
                     </PropRow>
                   )}
                   {/* Часы — забота отчёта «Сотрудники»; здесь календарь, а он
                       измеряет дни */}
                   {showSchedule && (
-                  <PropRow
-                    icon={<RiTimeLine size={17} />}
-                    label={`Рабочих дней в ${monthLabel(period.from)}`}
-                  >
-                    {data.workingDays}
-                    {data.absenceDays > 0 && (
-                      <span className="tw:ml-2 tw:text-xs tw:font-normal tw:text-muted-foreground">
-                        и {data.absenceDays} дн. отсутствия
-                      </span>
-                    )}
-                  </PropRow>
+                    <PropRow
+                      icon={<RiTimeLine size={17} />}
+                      label={`Рабочих дней в ${monthLabel(period.from)}`}
+                    >
+                      {data.workingDays}
+                      {data.absenceDays > 0 && (
+                        <span className="tw:ml-2 tw:text-xs tw:font-normal tw:text-muted-foreground">
+                          и {data.absenceDays} дн. отсутствия
+                        </span>
+                      )}
+                    </PropRow>
                   )}
                 </>
               )}
@@ -221,9 +254,9 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
             ) : (
               <div className="tw:rounded-lg tw:border tw:border-dashed tw:border-border tw:px-4 tw:py-6 tw:text-center">
                 <p className="tw:mx-auto tw:mb-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
-                  Личный график не задан — в календаре он показан по
-                  резервному графику организации, а переработки в отчётах
-                  считаются по окну обслуживания клиента.
+                  Личный график не задан — в календаре он показан по резервному
+                  графику организации, а переработки в отчётах считаются по окну
+                  обслуживания клиента.
                   {!canManage && " Обратитесь к администратору."}
                 </p>
               </div>
@@ -292,11 +325,14 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
                         {meta?.short}
                       </span>
                       <span>
-                        <span className="tw:font-medium">{absence.typeLabel}</span>
+                        <span className="tw:font-medium">
+                          {absence.typeLabel}
+                        </span>
                         <span className="tw:text-muted-foreground">
                           {" · "}
                           {humanDate(absence.from)}
-                          {absence.from !== absence.to && ` — ${humanDate(absence.to)}`}
+                          {absence.from !== absence.to &&
+                            ` — ${humanDate(absence.to)}`}
                         </span>
                       </span>
                       {absence.status === "pending" && (
@@ -312,7 +348,7 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
           </div>
         )}
       </Panel>
-    </>
+    </Section>
   );
 };
 

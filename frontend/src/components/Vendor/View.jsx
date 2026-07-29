@@ -26,7 +26,7 @@ import { DeleteDialog } from "@/components/app/DeleteItem";
 import { monogramFor } from "@/components/app/monogram";
 import { cn } from "@/lib/utils";
 
-import { photoUrl } from "../Devices/Photos";
+import { photoUrl } from "@/components/app/PhotoGallery";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import useOffcanvasStore from "../../store/offcanvas";

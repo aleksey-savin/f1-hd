@@ -60,6 +60,23 @@ const fmtMonthYear = (date, timeZone) => {
   }
 };
 
+/**
+ * Календарный день инстанта в заданной зоне, ключом «2026-07-08».
+ *
+ * Нужен там, где сравниваются ДНИ, а не моменты: «сегодня» для отсутствий и
+ * статусов присутствия. Сервер живёт в UTC, поэтому `getDate()` и
+ * `toISOString().slice(0, 10)` дают день по UTC — для восточных поясов сутки
+ * наступают позже, и «сегодня» уезжает. Фронтовая пара — `businessDayKey`
+ * в `frontend/src/util/format-date.js`, ботовая — `dayKey` в `tgBotApi`.
+ */
+const dayKey = (date, timeZone) =>
+  new Date(date).toLocaleDateString("en-CA", {
+    timeZone: timeZone || DEFAULT_TIMEZONE,
+  });
+
+/** Ключ дня → UTC-полночь: так лежат календарные даты (absence.from/to и др.). */
+const dayKeyToUtcMidnight = (key) => new Date(`${key}T00:00:00.000Z`);
+
 module.exports = {
   DEFAULT_TIMEZONE,
   resolveTimezone,
@@ -67,4 +84,6 @@ module.exports = {
   fmtDateTime,
   fmtDayMonth,
   fmtMonthYear,
+  dayKey,
+  dayKeyToUtcMidnight,
 };

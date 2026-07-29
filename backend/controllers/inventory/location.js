@@ -3,9 +3,12 @@ const Subdivision = require("../../models/subdivision");
 const User = require("../../models/user");
 const Company = require("../../models/company");
 const ClientDevice = require("../../models/inventory/clientDevice");
-const Mikrotik = require("../../models/mikrotik");
 const { AppError } = require("../../middleware/errorHandling");
 const getAuthData = require("../../middleware/getAuthData");
+const {
+  buildMikrotikStatusMap,
+  mikrotikOverlay,
+} = require("../../helpers/mikrotikOverlay");
 
 // Лёгкий populate-граф для виджета окружения заявки: только то, что нужно
 // карточке устройства. userId НЕ populate — сравниваем сырой ObjectId для флага
@@ -44,23 +47,8 @@ const toEnvDevice = (d, userId, mikroMap) => {
     locationName: d.locationId?.name || null,
     isPersonal: String(d.userId?._id || d.userId || "") === String(userId),
     // Mikrotik management overlay — present only for devices with a record.
-    mikrotikManaged: !!mikro,
-    mikrotikStatus: mikro ? mikro.status || "offline" : null,
-    mikrotikRecordId: mikro ? mikro._id : null,
-    mikrotikMonitoringEnabled: mikro ? mikro.monitoringEnabled : false,
-    mikrotikLastSeenAt: mikro ? mikro.lastSuccessfulConnectionAt || null : null,
+    ...mikrotikOverlay(mikro),
   };
-};
-
-// Map ClientDevice _id → its Mikrotik management record (status / monitoring /
-// last-seen) for the environment online-offline overlay. Only devices that have a
-// management record appear in the map.
-const buildMikrotikStatusMap = async (deviceIds) => {
-  if (!deviceIds.length) return new Map();
-  const records = await Mikrotik.find({
-    clientDevice: { $in: deviceIds },
-  }).select("clientDevice status monitoringEnabled lastSuccessfulConnectionAt");
-  return new Map(records.map((r) => [String(r.clientDevice), r]));
 };
 
 // Узел окружения: устройства локации (со слоем isPersonal) + дочерние локации с
@@ -223,7 +211,10 @@ exports.getAllCompanies = async (req, res, next) => {
 exports.getHierarchy = async (req, res, next) => {
   try {
     const { companyId } = req.query;
-    const targetCompanyId = companyId || req.user.company;
+    // req.user в приложении не существует — авторизованного берём из токена
+    // (getAuthData), как во всех прочих контроллерах.
+    const authedUser = await getAuthData(req);
+    const targetCompanyId = companyId || authedUser.company?._id;
 
     const hierarchy = await Location.getHierarchy(targetCompanyId);
     res.status(200).json(hierarchy);
@@ -405,8 +396,9 @@ exports.add = async (req, res, next) => {
       );
     }
 
-    // Use provided company or default to user's company
-    const targetCompanyId = company || req.user.company;
+    // Компания из тела, иначе — компания автора (req.user не существует,
+    // авторизованный приходит из токена выше).
+    const targetCompanyId = company || authedUser.company?._id;
 
     // Check if user belongs to the same company
     if (assignedUser) {
@@ -1244,162 +1236,3 @@ exports.getUserTech = async (req, res, next) => {
   }
 };
 
-// Get devices in a location
-exports.getLocationDevices = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { includeChildren } = req.query;
-
-    let locationIds = [id];
-
-    // If includeChildren is true, get all child locations recursively
-    if (includeChildren === "true") {
-      const location = await Location.findById(id);
-      if (location) {
-        const children = await location.getAllChildren();
-        locationIds = locationIds.concat(children.map((child) => child._id));
-      }
-    }
-
-    const devices = await ClientDevice.find({
-      location: { $in: locationIds },
-      isDeleted: { $ne: true },
-    })
-      .populate("deviceType", "name category")
-      .populate("vendor", "name")
-      .populate("location", "name type")
-      .sort({ model: 1 });
-
-    res.status(200).json({
-      devices,
-      totalCount: devices.length,
-      locationIds,
-    });
-  } catch (error) {
-    next(
-      new AppError(
-        `Failed to fetch devices for location ${req.params.id}`,
-        500,
-        true,
-        error,
-      ),
-    );
-  }
-};
-
-// Move devices between locations
-exports.moveDevices = async (req, res, next) => {
-  try {
-    const { deviceIds, targetLocationId, reason } = req.body;
-
-    if (!deviceIds || !Array.isArray(deviceIds) || deviceIds.length === 0) {
-      return next(new AppError("Device IDs are required", 400));
-    }
-
-    if (!targetLocationId) {
-      return next(new AppError("Target location ID is required", 400));
-    }
-
-    // Verify target location exists and belongs to user's company
-    const targetLocation =
-      await Location.findById(targetLocationId).populate("company");
-    if (!targetLocation) {
-      return next(new AppError("Target location not found", 404));
-    }
-
-    if (targetLocation.company.toString() !== req.user.company.toString()) {
-      return next(
-        new AppError("Target location must belong to your company", 403),
-      );
-    }
-
-    // Update devices
-    const updateResult = await ClientDevice.updateMany(
-      {
-        _id: { $in: deviceIds },
-        company: req.user.company,
-        isDeleted: { $ne: true },
-      },
-      {
-        location: targetLocationId,
-        updatedBy: req.userId,
-      },
-    );
-
-    // TODO: Handle responsibility changes for each device
-    // This would need to be implemented with the DeviceResponsibility model
-
-    res.status(200).json({
-      message: `${updateResult.modifiedCount} устройств успешно перемещено`,
-      movedCount: updateResult.modifiedCount,
-      targetLocation: {
-        _id: targetLocation._id,
-        name: targetLocation.name,
-        type: targetLocation.type,
-      },
-    });
-  } catch (error) {
-    next(new AppError("Failed to move devices", 500, true, error));
-  }
-};
-
-// Get location statistics
-exports.getLocationStats = async (req, res, next) => {
-  try {
-    const { companyId } = req.query;
-    const targetCompanyId = companyId || req.user.company;
-
-    const stats = await Location.aggregate([
-      {
-        $match: {
-          company: mongoose.Types.ObjectId(targetCompanyId),
-          isDeleted: { $ne: true },
-        },
-      },
-      {
-        $group: {
-          _id: "$type",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    // Get device count per location type
-    const deviceStats = await ClientDevice.aggregate([
-      {
-        $match: {
-          company: mongoose.Types.ObjectId(targetCompanyId),
-          isDeleted: { $ne: true },
-        },
-      },
-      {
-        $lookup: {
-          from: "locations",
-          localField: "location",
-          foreignField: "_id",
-          as: "locationInfo",
-        },
-      },
-      {
-        $unwind: {
-          path: "$locationInfo",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $group: {
-          _id: "$locationInfo.type",
-          deviceCount: { $sum: 1 },
-          totalValue: { $sum: "$currentValue" },
-        },
-      },
-    ]);
-
-    res.status(200).json({
-      locationStats: stats,
-      deviceStats,
-    });
-  } catch (error) {
-    next(new AppError("Failed to fetch location statistics", 500, true, error));
-  }
-};

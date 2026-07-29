@@ -1,7 +1,7 @@
 import ListRow from "@/components/app/ListRow";
 import { RiComputerLine } from "react-icons/ri";
 
-import { photoUrl } from "../Devices/Photos";
+import { photoUrl } from "@/components/app/PhotoGallery";
 import { plural } from "../../util/plural";
 
 // Строка каталога моделей: плитка — фото из каталога, иначе иконка устройства;

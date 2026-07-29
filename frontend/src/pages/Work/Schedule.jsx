@@ -1,4 +1,6 @@
 import FormScheduled from "../../components/Work/FormScheduled";
+
+import { localToUtc } from "../../util/format-date";
 import { getLocalStorageData } from "../../util/auth";
 
 const AddScheduledWorkPage = () => {
@@ -35,15 +37,18 @@ export async function action({ request }) {
   const linkToTickets = data.getAll("linkToTickets");
   linkToTickets.unshift(ticketId);
 
-  const localPlanningToStartDateTime = new Date(data.get("planningToStart"));
-  const localPlanningToFinishDateTime = new Date(data.get("planningToFinish"));
+  // Симметрично загрузке формы: FormScheduled показывает настенное время в
+  // бизнес-таймзоне, обратно переводит localToUtc. new Date(value) прочитал бы
+  // его в зоне браузера и сдвинул план на разницу поясов.
+  const planningToStart = localToUtc(data.get("planningToStart"));
+  const planningToFinish = localToUtc(data.get("planningToFinish"));
 
   let worksData = Object.fromEntries(data);
   worksData = {
     ...worksData,
     tickets: linkToTickets,
-    planningToStart: localPlanningToStartDateTime.toISOString(),
-    planningToFinish: localPlanningToFinishDateTime.toISOString(),
+    planningToStart,
+    planningToFinish,
   };
 
   const response = await fetch(

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 import type { PersonalWork } from "../../types/employeesReport";
 
+import { formatDayMonthTime } from "../../util/format-date";
 import {
   WORK_CLASSES,
   WORK_CLASS_LABEL,
@@ -16,13 +17,6 @@ import {
 // Мобильный вид списка работ: дата и длительность крупно, заявка и статус —
 // метой. Таблица со скроллом в кармане не читается.
 const PAGE = 10;
-
-const dateTime = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 const PersonalWorksCards = ({ works }: { works: PersonalWork[] }) => {
   const [shown, setShown] = useState(PAGE);
@@ -42,7 +36,7 @@ const PersonalWorksCards = ({ works }: { works: PersonalWork[] }) => {
           >
             <div className="tw:flex tw:items-baseline tw:gap-2">
               <span className="tw:text-xs tw:text-faint tw:tabular-nums">
-                {dateTime.format(new Date(work.startedAt))}
+                {formatDayMonthTime(work.startedAt)}
               </span>
               <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-xs tw:text-muted-foreground">
                 <span

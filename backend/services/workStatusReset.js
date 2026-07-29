@@ -4,7 +4,11 @@ const Preferences = require("../models/preferences");
 const logger = require("../utils/logger");
 const { LONG_LIVED_WORK_STATUSES } = require("../utils/workStatuses");
 const { getAbsenceType } = require("../utils/absenceTypes");
-const { resolveTimezone } = require("../utils/datetime");
+const {
+  dayKey,
+  dayKeyToUtcMidnight,
+  resolveTimezone,
+} = require("../utils/datetime");
 
 /**
  * Присутствие по подтверждённым отсутствиям. Раньше «отпуск» и «болею» висели,
@@ -18,8 +22,7 @@ const { resolveTimezone } = require("../utils/datetime");
 const syncStatusesWithAbsences = async (staffFilter) => {
   const preferences = await Preferences.findOne({}).lean();
   const tz = resolveTimezone(preferences);
-  const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: tz });
-  const today = new Date(`${todayKey}T00:00:00.000Z`);
+  const today = dayKeyToUtcMidnight(dayKey(new Date(), tz));
 
   const active = await Absence.find({
     status: "approved",

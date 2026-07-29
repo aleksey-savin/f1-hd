@@ -1,140 +1,189 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { Link, Outlet, useNavigate, useRevalidator } from "react-router";
+import { BrowserView } from "react-device-detect";
 import {
-  Link,
-  useNavigate,
-  useRevalidator,
-  useSearchParams,
-  Outlet,
-} from "react-router";
-
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Card from "react-bootstrap/Card";
-import Button from "react-bootstrap/Button";
-import Badge from "react-bootstrap/Badge";
-import Table from "react-bootstrap/Table";
-import Offcanvas from "react-bootstrap/Offcanvas";
-import Tabs from "react-bootstrap/Tabs";
-import Tab from "react-bootstrap/Tab";
-import Alert from "react-bootstrap/Alert";
-
-import {
-  RiComputerLine,
-  RiCpuLine,
-  RiBuilding2Line,
-  RiMapPin2Line,
-  RiUser3Line,
+  RiAddLine,
+  RiArrowLeftSLine,
+  RiArrowRightSLine,
   RiBarcodeLine,
-  RiPriceTag3Line,
-  RiShoppingCart2Line,
-  RiShieldCheckLine,
-  RiShieldLine,
+  RiBuilding2Line,
   RiCalendarLine,
-  RiInformationLine,
-  RiToolsLine,
-  RiGlobalLine,
-  RiHardDrive2Line,
-  RiFingerprintLine,
-  RiStackLine,
-  RiFileList2Line,
-  RiImage2Line,
-  RiArrowGoBackFill,
+  RiCpuLine,
+  RiDeleteBinLine,
   RiEdit2Line,
-  RiUserAddLine,
-  RiLinksLine,
+  RiFileList2Line,
+  RiFingerprintLine,
+  RiGlobalLine,
   RiLinkUnlink,
-  RiRouterLine,
-  RiProfileLine,
-  RiPulseLine,
+  RiLinksLine,
+  RiMapPin2Line,
+  RiMoreLine,
+  RiPriceTag3Line,
+  RiQrCodeLine,
+  RiShieldCheckLine,
+  RiShoppingCart2Line,
+  RiStackLine,
+  RiTerminalBoxLine,
+  RiUser3Line,
 } from "react-icons/ri";
 
-import Spinner from "react-bootstrap/Spinner";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import AlertMessage from "@/components/app/AlertMessage";
+import AnchorRail from "@/components/app/AnchorRail";
+import { DeleteDialog } from "@/components/app/DeleteItem";
+import FormSheet from "@/components/app/FormSheet";
+import Environment from "@/components/app/Environment";
+import {
+  Eyebrow,
+  Panel,
+  Section,
+  SectionEditLink,
+} from "@/components/app/Panel";
+import PropRow from "@/components/app/PropRow";
+import {
+  DEVICE_STATUS_META,
+  DeviceStatusText,
+  deviceIcon,
+  mikrotikStatus,
+} from "@/components/app/device-status";
+import { cn } from "@/lib/utils";
 
-import Transitions from "../../animations/Transition";
-import AlertMessage from "../../UI/AlertMessage";
-import useOffcanvasStore from "../../store/offcanvas";
 import { AuthedUserContext } from "../../store/authed-user-context";
+import useOffcanvasStore from "../../store/offcanvas";
 import { getLocalStorageData } from "../../util/auth";
-import DeleteItem from "../DeleteItem";
-import DeviceQr from "./DeviceQr";
-import DevicePhotos, { PhotoThumb } from "../Devices/Photos";
-import AssignUserModal from "./AssignUserModal";
-import AttachComponentModal from "./AttachComponentModal";
-import MonitoringSection from "../Devices/Mikrotik/MonitoringSection";
-import ArtifactsSection from "../Devices/Mikrotik/ArtifactsSection";
-import ParametersModal from "../Devices/Mikrotik/ParametersModal";
-import ConfirmActionModal from "../../UI/ConfirmActionModal";
-import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 import { formatCalendarDate } from "../../util/format-date";
-import { STATUS_LABELS } from "./constants";
+import { plural } from "../../util/plural";
+import PhotoGallery, { photoUrl } from "@/components/app/PhotoGallery";
+import AssignUserDialog from "./AssignUserDialog";
+import AttachComponentDialog from "./AttachComponentDialog";
+import MonitoringPanel from "./MonitoringPanel";
+import NewComponentDialog from "./NewComponentDialog";
+import QrDialog from "./QrDialog";
+import TicketsPanel from "./TicketsPanel";
 
-const refName = (ref) => ref?.name || ref?.alias || ref?.fullTitle || "";
-const dash = <span className="text-body-secondary">—</span>;
-// Даты карточки (покупка/гарантия/обслуживание) — календарные, в БД лежат
-// UTC-полночью: форматируем общим календарным хелпером (UTC-пиннинг).
-const formatDate = (d) => formatCalendarDate(d);
-const formatMoney = (n) =>
-  n || n === 0 ? `${Number(n).toLocaleString("ru-RU")} ₽` : null;
+const dash = <span className="tw:text-faint">—</span>;
 
-// Состояние гарантии для индикатора: истекла / скоро истекает / действует.
-const warrantyState = (dateStr) => {
-  if (!dateStr) return null;
-  const days = Math.ceil((new Date(dateStr) - new Date()) / 86400000);
-  const date = formatDate(dateStr);
-  if (days < 0) return { variant: "danger", text: `истекла ${date}` };
-  if (days <= 30) return { variant: "warning", text: `${date} · ${days} дн.` };
-  return { variant: "success", text: `до ${date}` };
+// Ярлык секции: та же форма, что у «Изменить» в шапке, открытая сразу на своей
+// секции (см. docs/ux-ui-guide.md, «Одно поле — одно место правки»).
+const refName = (value) =>
+  value?.alias || value?.fullTitle || value?.name || null;
+
+const formatMoney = (value) =>
+  value || value === 0 ? `${Number(value).toLocaleString("ru-RU")} ₽` : null;
+
+/**
+ * Гарантия — фраза с состоянием, а не бейдж: у состояния есть срок, и он важнее
+ * самого факта («до 10.06.2027 · ещё 3 мес.»). На исходе тон переключается на
+ * warning, истёкшая — приглушённо: это не авария, а факт учёта.
+ */
+const warrantyState = (value) => {
+  if (!value) return null;
+  const days = Math.ceil((new Date(value) - new Date()) / 86400000);
+  const date = formatCalendarDate(value);
+  if (days < 0) return { tone: "off", text: `истекла ${date}` };
+  if (days <= 30)
+    return {
+      tone: "warn",
+      text: `до ${date} · ${days} ${plural(days, "день", "дня", "дней")}`,
+    };
+  const months = Math.round(days / 30);
+  return {
+    tone: "ok",
+    text: `до ${date} · ещё ${months} ${plural(months, "месяц", "месяца", "месяцев")}`,
+  };
 };
 
-// Карточка-секция (паттерн страниц компании/пользователя).
-const SectionCard = ({ icon, title, children }) => (
-  <Card className="border-0 shadow-sm h-100">
-    <Card.Body>
-      <div className="cap-card-title mb-3">
-        {icon}
-        <span>{title}</span>
-      </div>
-      {children}
-    </Card.Body>
-  </Card>
-);
-
-// Строка «иконка + подпись + значение».
-const Line = ({ icon, label, mono, children }) => (
-  <div className="contact-row">
-    <span className="contact-row__icon">{icon}</span>
-    <div style={{ minWidth: 0 }}>
-      <div className="contact-row__label">{label}</div>
-      <div
-        className={`contact-row__value text-break ${mono ? "font-monospace" : ""}`}
-      >
-        {children || dash}
-      </div>
-    </div>
+// Пара «подпись — значение» в две колонки (характеристики конфигурации).
+const SpecRow = ({ label, children }) => (
+  <div className="tw:flex tw:items-baseline tw:gap-3 tw:border-t tw:border-border-soft tw:py-2 tw:first:border-t-0 tw:md:[&:nth-child(2)]:border-t-0">
+    <span className="tw:w-44 tw:flex-none tw:text-sm tw:text-muted-foreground">
+      {label}
+    </span>
+    <span className="tw:min-w-0 tw:flex-1 tw:font-medium">{children}</span>
   </div>
 );
 
+/**
+ * Карточка устройства — паспорт единицы техники: что это, чьё, где стоит, что
+ * рядом, из чего собрано, сколько стоило, на связи ли и что с ним случалось.
+ *
+ * Вкладок нет: мониторинг Mikrotik — самостоятельный раздел со своей страницей
+ * записи, здесь только сводка со ссылкой туда (см. MonitoringPanel). Секции
+ * ПОКАЗЫВАЮТ, правит форма («Изменить» в hero); у правимых секций есть второй
+ * вход в неё — `app/SectionEditLink`, карандаш по наведению, открывающий форму
+ * сразу на нужной секции. Исключения — операции со своими эндпоинтами: выдача
+ * пользователю (меняет статус) и прикрепление комплектующего; они называют себя
+ * текстом и видны всегда.
+ */
 const ViewClientDevice = ({ device = {} }) => {
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const offcanvas = useOffcanvasStore();
   const { permissions } = useContext(AuthedUserContext);
-  const canManage = permissions.canManageClientDevices;
-  const [showAssign, setShowAssign] = useState(false);
-  const [showAttach, setShowAttach] = useState(false);
+  const canManage = Boolean(permissions.canManageClientDevices);
+  const canManageMikrotik = Boolean(permissions.canManageMikrotikDevices);
+
+  const [qrOpen, setQrOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [newComponentOpen, setNewComponentOpen] = useState(false);
   const [detachingId, setDetachingId] = useState(null);
   const [detachError, setDetachError] = useState("");
+  const [hasTickets, setHasTickets] = useState(true);
 
-  // Открепить комплектующее: разрывает связь с хостом (устройство возвращается в
-  // общий список как «Готово к выдаче»). После — ревалидация загрузчика страницы.
+  // Карточка, открытая из проскроленного списка, иначе уезжает под навбар.
+  // Тело — блоком, а не выражением: стрелка с выражением ВОЗВРАЩАЕТ его
+  // результат, и React принимает его за функцию очистки («destroy is not a
+  // function» при размонтировании). Так же написано во всех прочих карточках.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  const model = device.deviceModelId;
+  const type = model?.deviceTypeId || device.deviceTypeId;
+  const vendor = model?.vendorId;
+  const isCustom = !model;
+  const title =
+    [vendor?.name, model?.name].filter(Boolean).join(" ") ||
+    type?.name ||
+    "Устройство";
+
+  const status = DEVICE_STATUS_META[device.status];
+  const warranty = warrantyState(device.warrantyExpirationDate);
+  const components = device.components || [];
+  const parent = device.parentDeviceId;
+  const configuration = device.configurationId;
+  const specs = (configuration?.values || []).filter((entry) => entry.value);
+
+  const photos = device.photos || [];
+  const modelPhotos = model?.photos || [];
+  const effectivePhotos = photos.length ? photos : modelPhotos;
+
+  // Живой статус связи — из оверлея загрузчика (полные данные тянет секция).
+  const mikro = mikrotikStatus({
+    mikrotikManaged: Boolean(device.mikrotik),
+    mikrotikMonitoringEnabled: device.mikrotik?.monitoringEnabled,
+    mikrotikStatus: device.mikrotik?.status,
+  });
+  // Секция мониторинга есть у подключённых и у управляемых вендоров (там —
+  // вход в подключение).
+  const showMonitoring =
+    Boolean(device.mikrotik) || Boolean(vendor?.isMikrotikManagementEnabled);
+
   const detachComponent = async (componentId) => {
     setDetachingId(componentId);
     setDetachError("");
     const { token } = getLocalStorageData();
-    const base = import.meta.env.VITE_API_ADDRESS;
     try {
       const response = await fetch(
-        `${base}/api/inventory/client-devices/${device._id}/components/${componentId}`,
+        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${device._id}/components/${componentId}`,
         {
           method: "DELETE",
           headers: {
@@ -148,706 +197,793 @@ const ViewClientDevice = ({ device = {} }) => {
         throw new Error(data.message || "Не удалось открепить устройство");
       }
       revalidator.revalidate();
-    } catch (err) {
-      setDetachError(err.message);
+    } catch (error) {
+      setDetachError(error.message);
     } finally {
       setDetachingId(null);
     }
   };
 
-  const model = device.deviceModelId;
-  const typeName = model?.deviceTypeId?.name || device.deviceTypeId?.name;
-  const vendorName = model?.vendorId?.name;
-  const isCustom = !model;
-
-  // Тип не входит в заголовок — он показан строкой ниже (для сборки типом и
-  // называем устройство, т.к. модели нет).
-  const title =
-    [vendorName, model?.name].filter(Boolean).join(" ") ||
-    typeName ||
-    "Устройство";
-
-  const assignee = device.userId
-    ? `${device.userId.firstName} ${device.userId.lastName}`
-    : null;
-
-  // Конфигурация (пресет характеристик модели): имя или собранная из значений строка.
-  const config = device.configurationId;
-  const configLabel = config
-    ? config.name ||
-      (config.values || [])
-        .map(
-          (v) =>
-            `${v.attributeId?.name || v.attributeId?.code || "—"}: ${v.value}`,
-        )
-        .join(", ")
-    : null;
-
-  const components = device.components || [];
-  const warranty = warrantyState(device.warrantyExpirationDate);
-
-  // Снимки экземпляра важнее каталожных: пока своих нет, устройство показывает
-  // фотографии своей модели.
-  const photos = device.photos || [];
-  const modelPhotos = model?.photos || [];
-  const effectivePhotos = photos.length > 0 ? photos : modelPhotos;
-  const modelTitle = [vendorName, model?.name].filter(Boolean).join(" ");
-
-  // Человекочитаемое название для модалки удаления.
-  const deleteItem = { _id: device._id, title };
-
-  // Mikrotik-оверлей (если у устройства есть управляющая запись): статус связи +
-  // переход на панель управления. В тёмной теме — без info.
-  const mikro = device.mikrotik;
-  const mikroBadge = !mikro
-    ? null
-    : !mikro.monitoringEnabled
-      ? { variant: "secondary", label: "Мониторинг выкл" }
-      : mikro.status === "online"
-        ? { variant: "success", label: "Online" }
-        : { variant: "danger", label: "Offline" };
-
-  // ── Mikrotik: вкладки «Мониторинг» и «Конфигурации» ──
-  const canManageMikrotik = permissions.canManageMikrotikDevices;
-  const canManageMikrotikConfigs = permissions.canManageMikrotikConfigs;
-  // Вкладка мониторинга видна и для ещё не подключённых устройств управляемого
-  // вендора — там живёт CTA «Подключить к мониторингу».
-  const vendorMikrotikEnabled =
-    !!device.deviceModelId?.vendorId?.isMikrotikManagementEnabled;
-  const showMonitoringTab = !!mikro || vendorMikrotikEnabled;
-
-  const [searchParams, setSearchParams] = useSearchParams();
-  const requestedTab = searchParams.get("tab");
-  const [activeTab, setActiveTab] = useState(
-    ["card", "monitoring", "configs"].includes(requestedTab)
-      ? requestedTab
-      : "card",
+  // Рейл собирается только из реально отрисованных секций.
+  const railSections = useMemo(
+    () =>
+      [
+        { id: "placement", label: "Размещение" },
+        { id: "environment", label: "Окружение" },
+        { id: "identity", label: "Идентификация" },
+        specs.length ? { id: "specs", label: "Характеристики" } : null,
+        { id: "tech", label: "Сеть и система" },
+        components.length || canManage
+          ? { id: "components", label: "Состав сборки" }
+          : null,
+        { id: "purchase", label: "Закупка и гарантия" },
+        showMonitoring ? { id: "monitoring", label: "Мониторинг" } : null,
+        hasTickets ? { id: "tickets", label: "Заявки" } : null,
+        effectivePhotos.length || canManage
+          ? { id: "photos", label: "Фотографии" }
+          : null,
+      ].filter(Boolean),
+    [
+      specs.length,
+      components.length,
+      canManage,
+      showMonitoring,
+      hasTickets,
+      effectivePhotos.length,
+    ],
   );
 
-  const [mikrotikRow, setMikrotikRow] = useState(null);
-  const [mikrotikLoading, setMikrotikLoading] = useState(false);
-  const [showParams, setShowParams] = useState(false);
-  const [showMikrotikDetach, setShowMikrotikDetach] = useState(false);
-  const [isMikrotikDetaching, setIsMikrotikDetaching] = useState(false);
-  const [mikrotikDetachError, setMikrotikDetachError] = useState(null);
-  const detachMikrotik = useMikrotikDeviceFilterStore((state) => state.detach);
-
-  // Строка управления Mikrotik (статус, адреса, расписания) для вкладок.
-  const reloadMikrotik = useCallback(async () => {
-    setMikrotikLoading(true);
-    try {
-      const { token } = getLocalStorageData();
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/${device._id}`,
-        { headers: { Authorization: "Bearer " + token } },
-      );
-      if (response.ok) setMikrotikRow(await response.json());
-    } catch {
-      // сеть — вкладка покажет пустое состояние
-    } finally {
-      setMikrotikLoading(false);
-    }
-  }, [device._id]);
-
-  useEffect(() => {
-    if (showMonitoringTab) reloadMikrotik();
-  }, [showMonitoringTab, reloadMikrotik]);
-
-  const mikrotikConfigured =
-    !!mikrotikRow && mikrotikRow.status !== "notConfigured";
-  const showConfigsTab = mikrotikConfigured && canManageMikrotikConfigs;
-
-  // Deep-link из мастера создания (?mikrotikSetup=1): открыть вкладку мониторинга
-  // сразу с формой подключения. Одноразово; параметр стирается из URL.
-  const setupHandled = useRef(false);
-  useEffect(() => {
-    if (setupHandled.current) return;
-    if (searchParams.get("mikrotikSetup") !== "1") return;
-    setupHandled.current = true;
-    if (showMonitoringTab && canManageMikrotik) {
-      setActiveTab("monitoring");
-      setShowParams(true);
-    }
-    const next = new URLSearchParams(searchParams);
-    next.delete("mikrotikSetup");
-    setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams, showMonitoringTab, canManageMikrotik]);
-
-  // Активная вкладка стала недоступной (устройство отключили / нет прав) —
-  // откатываемся на ближайшую доступную. Пока строка грузится, не дёргаемся.
-  useEffect(() => {
-    if (activeTab === "monitoring" && !showMonitoringTab) {
-      setActiveTab("card");
-    }
-    if (
-      activeTab === "configs" &&
-      (!canManageMikrotikConfigs || (mikrotikRow && !mikrotikConfigured))
-    ) {
-      setActiveTab(showMonitoringTab ? "monitoring" : "card");
-    }
-  }, [
-    activeTab,
-    showMonitoringTab,
-    canManageMikrotikConfigs,
-    mikrotikRow,
-    mikrotikConfigured,
-  ]);
-
-  const handleMikrotikDetach = async () => {
-    setIsMikrotikDetaching(true);
-    setMikrotikDetachError(null);
-    try {
-      const response = await detachMikrotik(device._id);
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        setMikrotikDetachError(data.message || "Не удалось выполнить действие");
-        return;
-      }
-      setShowMikrotikDetach(false);
-      revalidator.revalidate();
-      reloadMikrotik();
-    } finally {
-      setIsMikrotikDetaching(false);
-    }
-  };
+  const TypeIcon = deviceIcon(type?.name);
+  const heroPhoto = effectivePhotos[0] ? photoUrl(effectivePhotos[0]) : null;
 
   return (
-    <Transitions>
-      {/* ── Шапка ── */}
-      <div className="account-hero mb-4">
-        <PhotoThumb
-          photos={effectivePhotos}
-          icon={isCustom ? <RiCpuLine /> : <RiComputerLine />}
-        />
+    <>
+      <div className="tw:mx-auto tw:w-full tw:max-w-5xl">
+        {/* Возврат к списку — крошками, а не кнопкой в действиях */}
+        <Link
+          to="/inventory/client-devices"
+          className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        >
+          <RiArrowLeftSLine /> Устройства
+        </Link>
 
-        <div className="flex-grow-1" style={{ minWidth: 0 }}>
-          <h2 className="mb-1 text-break">{title}</h2>
-          {(isCustom || typeName) && (
-            <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-              {isCustom ? (
-                <Badge bg="secondary" className="fw-normal">
-                  Собственная сборка
-                </Badge>
-              ) : (
-                <span className="text-body-secondary small">{typeName}</span>
-              )}
-            </div>
-          )}
-          <div className="d-flex flex-wrap align-items-center gap-2">
-            {/* Статус — нейтральный: жизненный цикл актива не «успех/провал». */}
-            <Badge bg="secondary" className="fw-normal">
-              {STATUS_LABELS[device.status] || device.status || "—"}
-            </Badge>
-            {warranty && (
-              <Badge
-                bg={warranty.variant}
-                className="fw-normal d-inline-flex align-items-center gap-1"
-              >
-                {warranty.variant === "danger" ? (
-                  <RiShieldLine />
-                ) : (
-                  <RiShieldCheckLine />
+        {/* Hero */}
+        <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
+          <span
+            aria-hidden
+            className="tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:overflow-hidden tw:rounded-2xl tw:bg-accent tw:text-2xl tw:text-muted-foreground tw:inset-ring tw:inset-ring-border tw:bg-cover tw:bg-center"
+            style={
+              heroPhoto ? { backgroundImage: `url(${heroPhoto})` } : undefined
+            }
+          >
+            {!heroPhoto && <TypeIcon />}
+          </span>
+
+          <div className="tw:min-w-0 tw:flex-1">
+            <h1 className="tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight">
+              {title}
+            </h1>
+
+            <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-2">
+              <span className="tw:text-sm tw:text-muted-foreground">
+                {isCustom
+                  ? [type?.name, "собственная сборка"]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : [type?.name, vendor?.name].filter(Boolean).join(" · ")}
+              </span>
+              {/* Метка — тот же вход в QR, что в строке списка */}
+              <button
+                type="button"
+                onClick={() => setQrOpen(true)}
+                title="Показать QR-код"
+                className={cn(
+                  "tw:inline-flex tw:cursor-pointer tw:items-center tw:gap-1.5 tw:rounded-md tw:border tw:px-2 tw:py-0.5 tw:font-mono tw:text-xs tw:font-semibold tw:tracking-wide tw:transition-colors",
+                  device.inventoryNumber
+                    ? "tw:border-border-soft tw:bg-accent tw:text-foreground tw:hover:border-input"
+                    : "tw:bg-transparent tw:font-sans tw:font-normal tw:text-faint",
                 )}
-                Гарантия {warranty.text}
-              </Badge>
-            )}
-            {mikroBadge && (
-              <Badge
-                bg={mikroBadge.variant}
-                className="fw-normal d-inline-flex align-items-center gap-1"
-                title={
-                  mikro.lastSuccessfulConnectionAt
-                    ? `Последняя связь: ${new Date(
-                        mikro.lastSuccessfulConnectionAt,
-                      ).toLocaleString("ru-RU")}`
-                    : undefined
+                style={
+                  device.inventoryNumber
+                    ? undefined
+                    : { border: "1px dashed var(--border)" }
                 }
               >
-                <RiRouterLine /> {mikroBadge.label}
-              </Badge>
+                {device.inventoryNumber || "нет №"}
+                <RiQrCodeLine size={11} aria-hidden className="tw:opacity-55" />
+              </button>
+            </div>
+
+            <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-4 tw:gap-y-1.5">
+              {status && (
+                <DeviceStatusText tone={status.tone} className="tw:text-sm">
+                  {status.label}
+                </DeviceStatusText>
+              )}
+              {warranty && (
+                <span
+                  className={cn(
+                    "tw:text-sm",
+                    warranty.tone === "warn"
+                      ? "tw:text-warning"
+                      : "tw:text-muted-foreground",
+                  )}
+                >
+                  Гарантия {warranty.text}
+                </span>
+              )}
+              {mikro && (
+                <DeviceStatusText tone={mikro.tone} className="tw:text-sm">
+                  {mikro.label}
+                </DeviceStatusText>
+              )}
+            </div>
+
+            {/* Комплектующее: путь наверх — в списке устройств его нет */}
+            {parent && (
+              <Link
+                to={`/inventory/client-devices/${parent._id}`}
+                className="tw:mt-2.5 tw:inline-flex tw:items-center tw:gap-2 tw:rounded-lg tw:bg-accent tw:px-2.5 tw:py-1.5 tw:text-sm tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+              >
+                <RiStackLine size={15} aria-hidden />В составе:{" "}
+                <span className="tw:font-medium tw:text-accent-text">
+                  {[
+                    parent.deviceModelId?.name || parent.deviceTypeId?.name,
+                    parent.inventoryNumber,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+                <RiArrowRightSLine size={15} aria-hidden />
+              </Link>
+            )}
+          </div>
+
+          <div className="tw:flex tw:flex-none tw:items-center tw:gap-2">
+            {/* QR — отдельная кнопка, а не пункт меню: код открывают часто и
+                не глядя в списки действий */}
+            <Button
+              variant="outline"
+              onClick={() => setQrOpen(true)}
+              title="Показать QR-код"
+            >
+              <RiQrCodeLine /> QR-код
+            </Button>
+            {canManage && (
+              <>
+                {/* В «⋯» — только разрушающее: выдача и прикрепление живут
+                    ярлыками своих секций, дублировать их незачем */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label="Действия"
+                      title="Действия"
+                    >
+                      <RiMoreLine />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => setDeleteOpen(true)}
+                    >
+                      <RiDeleteBinLine /> Удалить
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button asChild>
+                  <Link to="update" onClick={offcanvas.setShow}>
+                    <RiEdit2Line /> Изменить
+                  </Link>
+                </Button>
+              </>
             )}
           </div>
         </div>
 
-        {/* Верх QR на одной линии с верхом снимка слева (оба align-self-sm-start). */}
-        <div className="ms-sm-auto d-flex flex-column align-items-center gap-2 align-self-sm-start">
-          <DeviceQr id={device._id} size={128} />
-          <span
-            className="font-monospace fw-semibold px-2 py-1 rounded border small"
-            style={{ borderStyle: "dashed", letterSpacing: "0.04em" }}
-            title="Инвентарный номер"
-          >
-            {device.inventoryNumber || "без инв. №"}
-          </span>
+        {/* Секции одним скроллом; слева — липкий рейл-якорь (только десктоп) */}
+        <div className="tw:flex tw:items-start tw:gap-7">
+          <BrowserView className="tw:contents">
+            <AnchorRail
+              sections={railSections}
+              ariaLabel="Разделы карточки"
+              className="tw:mt-6"
+            />
+          </BrowserView>
+          <div className="tw:min-w-0 tw:flex-1">
+            <Section>
+              <Eyebrow
+                id="placement"
+                action={
+                  canManage && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => setAssignOpen(true)}
+                      >
+                        {device.userId ? "Сменить пользователя" : "Выдать"}
+                      </Button>
+                      <SectionEditLink
+                        to="update#placement"
+                        label="Размещение"
+                        onClick={offcanvas.setShow}
+                      />
+                    </>
+                  )
+                }
+              >
+                Размещение
+              </Eyebrow>
+              <Panel>
+                <PropRow icon={<RiBuilding2Line size={17} />} label="Компания">
+                  {device.companyId ? (
+                    <Link
+                      to={`/companies/${device.companyId._id}`}
+                      className="tw:text-foreground tw:no-underline tw:hover:text-accent-text"
+                    >
+                      {refName(device.companyId)}
+                    </Link>
+                  ) : (
+                    dash
+                  )}
+                </PropRow>
+                <PropRow
+                  icon={<RiMapPin2Line size={17} />}
+                  label="Расположение"
+                >
+                  {device.locationId ? (
+                    <>
+                      <Link
+                        to={`/inventory/locations/${device.locationId._id}`}
+                        className="tw:text-foreground tw:no-underline tw:hover:text-accent-text"
+                      >
+                        {device.locationId.name}
+                      </Link>
+                      {device.locationPath?.length > 1 && (
+                        // Путь целиком: «Серверная» без здания не отвечает на
+                        // вопрос «куда ехать».
+                        <span className="tw:mt-0.5 tw:block tw:truncate tw:text-xs tw:font-normal tw:text-faint">
+                          {device.locationPath
+                            .map((node) => node.name)
+                            .join(" › ")}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    dash
+                  )}
+                </PropRow>
+                <PropRow icon={<RiUser3Line size={17} />} label="Закреплено за">
+                  {device.userId ? (
+                    <Link
+                      to={`/users/${device.userId._id}`}
+                      className="tw:text-foreground tw:no-underline tw:hover:text-accent-text"
+                    >
+                      {[device.userId.lastName, device.userId.firstName]
+                        .filter(Boolean)
+                        .join(" ")}
+                    </Link>
+                  ) : (
+                    dash
+                  )}
+                </PropRow>
+              </Panel>
+            </Section>
+
+            {/* Окружение — тот же виджет, что у заявки и карточек компании и
+                пользователя, в режиме «по устройству»: цепочка расположений и
+                соседи по помещению, само устройство обведено */}
+            <Eyebrow id="environment">Окружение</Eyebrow>
+            <Environment deviceId={device._id} />
+
+            <Section>
+              <Eyebrow
+                id="identity"
+                action={
+                  canManage && (
+                    <SectionEditLink
+                      to="update#device"
+                      label="Идентификация"
+                      onClick={offcanvas.setShow}
+                    />
+                  )
+                }
+              >
+                Идентификация
+              </Eyebrow>
+              <Panel>
+                <PropRow
+                  icon={<RiPriceTag3Line size={17} />}
+                  label="Тип · модель"
+                >
+                  {type ? (
+                    <>
+                      <Link
+                        to={`/inventory/device-types/${type._id}`}
+                        className="tw:text-foreground tw:no-underline tw:hover:text-accent-text"
+                      >
+                        {type.name}
+                      </Link>
+                      {model && (
+                        <>
+                          {" · "}
+                          <Link
+                            to={`/inventory/device-models/${model._id}`}
+                            className="tw:text-foreground tw:no-underline tw:hover:text-accent-text"
+                          >
+                            {[vendor?.name, model.name]
+                              .filter(Boolean)
+                              .join(" ")}
+                          </Link>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    dash
+                  )}
+                </PropRow>
+                <PropRow
+                  icon={<RiQrCodeLine size={17} />}
+                  label="Инвентарный номер"
+                  copy={
+                    device.inventoryNumber
+                      ? {
+                          value: device.inventoryNumber,
+                          label: "Инвентарный номер",
+                        }
+                      : undefined
+                  }
+                >
+                  {device.inventoryNumber ? (
+                    <span className="tw:font-mono">
+                      {device.inventoryNumber}
+                    </span>
+                  ) : (
+                    dash
+                  )}
+                </PropRow>
+                <PropRow
+                  icon={<RiBarcodeLine size={17} />}
+                  label="Серийный номер"
+                  copy={
+                    device.serialNumber
+                      ? { value: device.serialNumber, label: "Серийный номер" }
+                      : undefined
+                  }
+                >
+                  {device.serialNumber ? (
+                    <span className="tw:font-mono">{device.serialNumber}</span>
+                  ) : (
+                    dash
+                  )}
+                </PropRow>
+              </Panel>
+            </Section>
+
+            {specs.length > 0 && (
+              <>
+                <Eyebrow id="specs">
+                  Характеристики
+                  {configuration?.name ? ` · ${configuration.name}` : ""}
+                </Eyebrow>
+                <Panel>
+                  <div className="tw:grid tw:gap-x-8 tw:md:grid-cols-2">
+                    {specs.map((entry) => (
+                      <SpecRow
+                        key={entry.attributeId?._id || entry.attributeId?.code}
+                        label={
+                          entry.attributeId?.name ||
+                          entry.attributeId?.code ||
+                          "Свойство"
+                        }
+                      >
+                        {entry.value}
+                        {entry.attributeId?.unit
+                          ? ` ${entry.attributeId.unit}`
+                          : ""}
+                      </SpecRow>
+                    ))}
+                  </div>
+                </Panel>
+              </>
+            )}
+
+            <Section>
+              <Eyebrow
+                id="tech"
+                action={
+                  canManage && (
+                    <SectionEditLink
+                      to="update#tech"
+                      label="Сеть и система"
+                      onClick={offcanvas.setShow}
+                    />
+                  )
+                }
+              >
+                Сеть и система
+              </Eyebrow>
+              <Panel>
+                <PropRow
+                  icon={<RiTerminalBoxLine size={17} />}
+                  label="Имя в сети"
+                >
+                  {device.hostname ? (
+                    <span className="tw:font-mono">{device.hostname}</span>
+                  ) : (
+                    dash
+                  )}
+                </PropRow>
+                <PropRow
+                  icon={<RiGlobalLine size={17} />}
+                  label="IP-адрес"
+                  copy={
+                    device.ipAddress
+                      ? { value: device.ipAddress, label: "IP-адрес" }
+                      : undefined
+                  }
+                >
+                  {device.ipAddress ? (
+                    <span className="tw:font-mono">{device.ipAddress}</span>
+                  ) : (
+                    dash
+                  )}
+                </PropRow>
+                <PropRow icon={<RiGlobalLine size={17} />} label="MAC-адрес">
+                  {device.macAddress ? (
+                    <span className="tw:font-mono">{device.macAddress}</span>
+                  ) : (
+                    dash
+                  )}
+                </PropRow>
+                <PropRow
+                  icon={<RiCpuLine size={17} />}
+                  label="Операционная система"
+                >
+                  {device.operatingSystem || dash}
+                </PropRow>
+                {device.machineId && (
+                  <PropRow
+                    icon={<RiFingerprintLine size={17} />}
+                    label="ID машины (агент)"
+                  >
+                    <span className="tw:font-mono tw:text-sm">
+                      {device.machineId}
+                    </span>
+                  </PropRow>
+                )}
+                {device.notes && (
+                  <PropRow icon={<RiFileList2Line size={17} />} label="Заметки">
+                    <span className="tw:font-normal tw:whitespace-pre-line">
+                      {device.notes}
+                    </span>
+                  </PropRow>
+                )}
+              </Panel>
+            </Section>
+
+            {(components.length > 0 || canManage) && (
+              <>
+                <Eyebrow
+                  id="components"
+                  count={components.length}
+                  action={
+                    canManage && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={() => setNewComponentOpen(true)}
+                        >
+                          <RiAddLine /> Новая
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={() => setAttachOpen(true)}
+                        >
+                          <RiLinksLine /> Прикрепить
+                        </Button>
+                      </>
+                    )
+                  }
+                >
+                  Состав сборки
+                </Eyebrow>
+                <Panel>
+                  {detachError && (
+                    <AlertMessage variant="danger" message={detachError} />
+                  )}
+                  {components.length === 0 ? (
+                    <p className="tw:my-1 tw:text-sm tw:text-muted-foreground">
+                      Комплектующие не прикреплены. «Прикрепить» добавит в
+                      сборку свободное устройство этой компании.
+                    </p>
+                  ) : (
+                    components.map((component) => {
+                      const componentType =
+                        component.deviceModelId?.deviceTypeId?.name ||
+                        component.deviceTypeId?.name;
+                      const ComponentIcon = deviceIcon(componentType);
+                      const componentWarranty = warrantyState(
+                        component.warrantyExpirationDate,
+                      );
+                      const name =
+                        [
+                          component.deviceModelId?.vendorId?.name,
+                          component.deviceModelId?.name,
+                        ]
+                          .filter(Boolean)
+                          .join(" ") ||
+                        componentType ||
+                        "Устройство";
+                      return (
+                        <div
+                          key={component._id}
+                          className="tw:flex tw:items-center tw:gap-3.5 tw:border-t tw:border-border-soft tw:py-2.5 tw:first:border-t-0"
+                        >
+                          <Link
+                            to={`/inventory/client-devices/${component._id}`}
+                            className="tw:flex tw:min-w-0 tw:flex-1 tw:items-center tw:gap-3 tw:text-foreground tw:no-underline"
+                          >
+                            <span
+                              aria-hidden
+                              className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground"
+                            >
+                              <ComponentIcon size={17} />
+                            </span>
+                            <span className="tw:min-w-0">
+                              <span className="tw:block tw:truncate tw:font-medium">
+                                {name}
+                                {component.quantity > 1 && (
+                                  <span className="tw:font-normal tw:text-faint">
+                                    {" "}
+                                    × {component.quantity}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="tw:block tw:truncate tw:text-sm tw:text-muted-foreground">
+                                {[
+                                  componentType,
+                                  component.inventoryNumber,
+                                  component.serialNumber
+                                    ? `SN ${component.serialNumber}`
+                                    : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
+                            </span>
+                          </Link>
+                          <span className="tw:hidden tw:w-48 tw:flex-none tw:text-sm tw:lg:block">
+                            {componentWarranty ? (
+                              <span
+                                className={cn(
+                                  componentWarranty.tone === "warn"
+                                    ? "tw:text-warning"
+                                    : "tw:text-muted-foreground",
+                                )}
+                              >
+                                Гарантия {componentWarranty.text}
+                              </span>
+                            ) : (
+                              <span className="tw:text-faint">
+                                Гарантия не указана
+                              </span>
+                            )}
+                          </span>
+                          {canManage && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title="Открепить от сборки"
+                              aria-label="Открепить от сборки"
+                              disabled={detachingId === component._id}
+                              onClick={() => detachComponent(component._id)}
+                              className="tw:flex-none tw:text-faint"
+                            >
+                              <RiLinkUnlink />
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </Panel>
+              </>
+            )}
+
+            <Section>
+              <Eyebrow
+                id="purchase"
+                action={
+                  canManage && (
+                    <SectionEditLink
+                      to="update#purchase"
+                      label="Закупка и гарантия"
+                      onClick={offcanvas.setShow}
+                    />
+                  )
+                }
+              >
+                Закупка и гарантия
+              </Eyebrow>
+              <Panel>
+                <PropRow
+                  icon={<RiShoppingCart2Line size={17} />}
+                  label="Приобретено · стоимость"
+                >
+                  {[
+                    formatCalendarDate(device.purchasedAt),
+                    formatMoney(device.price),
+                  ].filter(Boolean).length
+                    ? [
+                        formatCalendarDate(device.purchasedAt),
+                        formatMoney(device.price),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : dash}
+                </PropRow>
+                <PropRow
+                  icon={<RiFileList2Line size={17} />}
+                  label="Документ · поставщик"
+                >
+                  {[device.purchaseDocument, refName(device.supplierId)].filter(
+                    Boolean,
+                  ).length
+                    ? [device.purchaseDocument, refName(device.supplierId)]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : dash}
+                </PropRow>
+                <PropRow
+                  icon={<RiShieldCheckLine size={17} />}
+                  label="Гарантия"
+                >
+                  {warranty ? (
+                    <span
+                      className={
+                        warranty.tone === "warn" ? "tw:text-warning" : undefined
+                      }
+                    >
+                      {warranty.text}
+                    </span>
+                  ) : (
+                    dash
+                  )}
+                </PropRow>
+                <PropRow
+                  icon={<RiCalendarLine size={17} />}
+                  label="Последнее обслуживание"
+                >
+                  {formatCalendarDate(device.lastMaintenanceDate) || dash}
+                </PropRow>
+              </Panel>
+            </Section>
+
+            {showMonitoring && (
+              <>
+                <Eyebrow id="monitoring">Мониторинг</Eyebrow>
+                <Panel>
+                  <MonitoringPanel
+                    device={device}
+                    canManage={canManageMikrotik}
+                    onSynced={() => revalidator.revalidate()}
+                  />
+                </Panel>
+              </>
+            )}
+
+            {hasTickets && (
+              <>
+                <Eyebrow id="tickets">Заявки</Eyebrow>
+                <Panel>
+                  <TicketsPanel
+                    deviceId={device._id}
+                    onEmpty={() => setHasTickets(false)}
+                  />
+                </Panel>
+              </>
+            )}
+
+            {(effectivePhotos.length > 0 || canManage) && (
+              <>
+                <Eyebrow id="photos" count={effectivePhotos.length}>
+                  Фотографии
+                </Eyebrow>
+                <Panel>
+                  <PhotoGallery
+                    key={device._id}
+                    endpoint={`${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${device._id}/photos`}
+                    photos={photos}
+                    canManage={canManage}
+                    inherited={{
+                      photos: modelPhotos,
+                      title: [vendor?.name, model?.name]
+                        .filter(Boolean)
+                        .join(" "),
+                    }}
+                    onChange={() => revalidator.revalidate()}
+                  />
+                </Panel>
+              </>
+            )}
+
+            <div className="tw:mt-6 tw:border-t tw:border-border-soft tw:pt-3.5 tw:text-sm tw:text-faint">
+              {device.createdBy && (
+                <>
+                  Завёл{" "}
+                  {[device.createdBy.lastName, device.createdBy.firstName]
+                    .filter(Boolean)
+                    .join(" ")}
+                  {device.createdAt
+                    ? ` · ${formatCalendarDate(device.createdAt)}`
+                    : ""}
+                </>
+              )}
+              {device.updatedBy && (
+                <>
+                  {device.createdBy ? "  ·  " : ""}изменил{" "}
+                  {[device.updatedBy.lastName, device.updatedBy.firstName]
+                    .filter(Boolean)
+                    .join(" ")}
+                  {device.updatedAt
+                    ? ` · ${formatCalendarDate(device.updatedAt)}`
+                    : ""}
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* ── Вкладки: карточка / мониторинг Mikrotik / конфигурации ── */}
-      <div className="company-view-tabs">
-        <Tabs
-          activeKey={activeTab}
-          onSelect={(key) => setActiveTab(key || "card")}
-          className="mb-3 scrollable-tabs"
-        >
-          <Tab
-            eventKey="card"
-            title={
-              <>
-                <RiProfileLine /> Карточка
-              </>
-            }
-          >
-            <div className="pt-1">
-              <Row className="g-3">
-                <Col xs={12} lg={6}>
-                  <SectionCard icon={<RiBuilding2Line />} title="Назначение">
-                    <Line icon={<RiBuilding2Line />} label="Компания">
-                      {refName(device.companyId)}
-                    </Line>
-                    <Line icon={<RiMapPin2Line />} label="Расположение">
-                      {refName(device.locationId)}
-                    </Line>
-                    <Line icon={<RiUser3Line />} label="Пользователь">
-                      {assignee}
-                    </Line>
-                  </SectionCard>
-                </Col>
-
-                <Col xs={12} lg={6}>
-                  <SectionCard
-                    icon={<RiInformationLine />}
-                    title="Идентификация"
-                  >
-                    <Line icon={<RiPriceTag3Line />} label="Тип">
-                      {typeName}
-                    </Line>
-                    {!isCustom && (
-                      <Line icon={<RiPriceTag3Line />} label="Вендор / модель">
-                        {[vendorName, model?.name].filter(Boolean).join(" ")}
-                      </Line>
-                    )}
-                    {configLabel && (
-                      <Line icon={<RiCpuLine />} label="Конфигурация">
-                        {configLabel}
-                      </Line>
-                    )}
-                    <Line
-                      icon={<RiBarcodeLine />}
-                      label="Инвентарный номер"
-                      mono
-                    >
-                      {device.inventoryNumber}
-                    </Line>
-                    <Line icon={<RiBarcodeLine />} label="Серийный номер" mono>
-                      {device.serialNumber}
-                    </Line>
-                  </SectionCard>
-                </Col>
-
-                <Col xs={12} lg={6}>
-                  <SectionCard icon={<RiShoppingCart2Line />} title="Закупка">
-                    <Line icon={<RiCalendarLine />} label="Дата приобретения">
-                      {formatDate(device.purchasedAt)}
-                    </Line>
-                    <Line icon={<RiPriceTag3Line />} label="Стоимость">
-                      {formatMoney(device.price)}
-                    </Line>
-                    <Line icon={<RiFileList2Line />} label="Документ">
-                      {device.purchaseDocument}
-                    </Line>
-                    <Line icon={<RiBuilding2Line />} label="Поставщик">
-                      {refName(device.supplierId)}
-                    </Line>
-                    <Line icon={<RiShieldCheckLine />} label="Гарантия до">
-                      {formatDate(device.warrantyExpirationDate)}
-                    </Line>
-                  </SectionCard>
-                </Col>
-
-                <Col xs={12} lg={6}>
-                  <SectionCard
-                    icon={<RiToolsLine />}
-                    title="Техническая информация"
-                  >
-                    <Line icon={<RiComputerLine />} label="Имя устройства" mono>
-                      {device.hostname}
-                    </Line>
-                    {device.machineId && (
-                      <Line
-                        icon={<RiFingerprintLine />}
-                        label="ID машины (агент)"
-                        mono
-                      >
-                        {device.machineId}
-                      </Line>
-                    )}
-                    <Line icon={<RiGlobalLine />} label="IP-адрес" mono>
-                      {device.ipAddress}
-                    </Line>
-                    <Line icon={<RiGlobalLine />} label="MAC-адрес" mono>
-                      {device.macAddress}
-                    </Line>
-                    <Line icon={<RiHardDrive2Line />} label="ОС">
-                      {device.operatingSystem}
-                    </Line>
-                    <Line
-                      icon={<RiCalendarLine />}
-                      label="Последнее обслуживание"
-                    >
-                      {formatDate(device.lastMaintenanceDate)}
-                    </Line>
-                    {device.notes && (
-                      <Line icon={<RiInformationLine />} label="Заметки">
-                        {device.notes}
-                      </Line>
-                    )}
-                  </SectionCard>
-                </Col>
-
-                {(canManage || effectivePhotos.length > 0) && (
-                  <Col xs={12}>
-                    <SectionCard
-                      icon={<RiImage2Line />}
-                      title={
-                        effectivePhotos.length
-                          ? `Фотографии · ${effectivePhotos.length}`
-                          : "Фотографии"
-                      }
-                    >
-                      <DevicePhotos
-                        key={device._id}
-                        endpoint={`${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${device._id}/photos`}
-                        photos={photos}
-                        canManage={canManage}
-                        inherited={{
-                          photos: modelPhotos,
-                          title: modelTitle,
-                        }}
-                        onChange={() => revalidator.revalidate()}
-                      />
-                    </SectionCard>
-                  </Col>
-                )}
-
-                {(canManage || components.length > 0) && (
-                  <Col xs={12}>
-                    <SectionCard
-                      icon={<RiStackLine />}
-                      title={`Состав сборки · ${components.length}`}
-                    >
-                      {detachError && (
-                        <AlertMessage variant="danger" message={detachError} />
-                      )}
-                      {canManage && (
-                        <div className="d-flex justify-content-end mb-2">
-                          <Button
-                            variant="outline-primary"
-                            size="sm"
-                            onClick={() => setShowAttach(true)}
-                          >
-                            <RiLinksLine /> Прикрепить
-                          </Button>
-                        </div>
-                      )}
-                      {components.length === 0 ? (
-                        <p className="text-body-secondary small mb-0">
-                          Комплектующие не прикреплены. Нажмите «Прикрепить»,
-                          чтобы добавить устройство в сборку.
-                        </p>
-                      ) : (
-                        <Table
-                          responsive
-                          hover
-                          size="sm"
-                          className="mb-0 align-middle"
-                        >
-                          <thead>
-                            <tr className="text-body-secondary">
-                              <th>Тип</th>
-                              <th>Производитель / модель</th>
-                              <th>Серийный номер</th>
-                              <th className="text-center">Кол-во</th>
-                              <th>Гарантия</th>
-                              {canManage && (
-                                <th className="text-end">Действия</th>
-                              )}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {components.map((c) => {
-                              const cType =
-                                c.deviceModelId?.deviceTypeId?.name ||
-                                c.deviceTypeId?.name;
-                              const cName = [
-                                c.deviceModelId?.vendorId?.name,
-                                c.deviceModelId?.name,
-                              ]
-                                .filter(Boolean)
-                                .join(" ");
-                              const cWar = warrantyState(
-                                c.warrantyExpirationDate,
-                              );
-                              return (
-                                <tr key={c._id}>
-                                  <td>{cType || dash}</td>
-                                  <td>{cName || dash}</td>
-                                  <td className="font-monospace">
-                                    {c.serialNumber || dash}
-                                  </td>
-                                  <td className="text-center">
-                                    {c.quantity ?? 1}
-                                  </td>
-                                  <td>
-                                    {cWar ? (
-                                      <Badge
-                                        bg={cWar.variant}
-                                        className="fw-normal"
-                                      >
-                                        {cWar.text}
-                                      </Badge>
-                                    ) : (
-                                      dash
-                                    )}
-                                  </td>
-                                  {canManage && (
-                                    <td className="text-end">
-                                      <Button
-                                        variant="outline-danger"
-                                        size="sm"
-                                        disabled={detachingId === c._id}
-                                        onClick={() => detachComponent(c._id)}
-                                        title="Открепить от сборки"
-                                      >
-                                        {detachingId === c._id ? (
-                                          <Spinner
-                                            animation="border"
-                                            size="sm"
-                                          />
-                                        ) : (
-                                          <RiLinkUnlink />
-                                        )}
-                                      </Button>
-                                    </td>
-                                  )}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </Table>
-                      )}
-                    </SectionCard>
-                  </Col>
-                )}
-              </Row>
-            </div>
-          </Tab>
-
-          {showMonitoringTab && (
-            <Tab
-              eventKey="monitoring"
-              title={
-                <>
-                  <RiPulseLine /> Мониторинг
-                  {mikrotikConfigured && (
-                    <span
-                      className={`mikrotik-tab-dot bg-${
-                        mikrotikRow.status === "online" ? "success" : "danger"
-                      }`}
-                    />
-                  )}
-                </>
-              }
-            >
-              <div className="pt-1">
-                {mikrotikLoading && !mikrotikRow ? (
-                  <div className="text-center py-5">
-                    <Spinner animation="border" />
-                  </div>
-                ) : mikrotikConfigured ? (
-                  <MonitoringSection
-                    device={mikrotikRow}
-                    canManage={canManageMikrotik}
-                    onEditParams={() => setShowParams(true)}
-                    onDetach={() => {
-                      setMikrotikDetachError(null);
-                      setShowMikrotikDetach(true);
-                    }}
-                    reconciliation={mikrotikRow.reconciliation}
-                    onSynced={() => {
-                      revalidator.revalidate();
-                      reloadMikrotik();
-                    }}
-                  />
-                ) : (
-                  <Card className="border-0 shadow-sm">
-                    <Card.Body className="text-center py-5">
-                      <div className="display-6 text-body-secondary mb-2">
-                        <RiRouterLine />
-                      </div>
-                      <h5 className="mb-2">
-                        Устройство ещё не подключено к мониторингу
-                      </h5>
-                      <p
-                        className="text-body-secondary mb-4 mx-auto"
-                        style={{ maxWidth: 480 }}
-                      >
-                        Подключение проверит доступ по API, включит фоновые
-                        проверки связи каждые 5 минут и позволит хранить копии
-                        конфигурации устройства.
-                      </p>
-                      {canManageMikrotik ? (
-                        <Button
-                          variant="primary"
-                          onClick={() => setShowParams(true)}
-                        >
-                          <RiRouterLine /> Подключить к мониторингу
-                        </Button>
-                      ) : (
-                        <div className="text-body-secondary small">
-                          Недостаточно прав для подключения — обратитесь к
-                          администратору.
-                        </div>
-                      )}
-                    </Card.Body>
-                  </Card>
-                )}
-              </div>
-            </Tab>
-          )}
-
-          {showConfigsTab && (
-            <Tab
-              eventKey="configs"
-              title={
-                <>
-                  <RiShieldCheckLine /> Конфигурации
-                </>
-              }
-            >
-              <div className="pt-1">
-                <ArtifactsSection
-                  recordId={mikrotikRow.recordId}
-                  type="export"
-                  initialSchedule={mikrotikRow.schedules?.export}
-                  canManage={canManageMikrotikConfigs}
-                />
-              </div>
-            </Tab>
-          )}
-        </Tabs>
-      </div>
-
-      {/* ── Действия ── */}
-      <Row className="py-3 mt-2 border-top justify-content-end gap-2">
-        <Col sm="auto">
-          <Button
-            variant="secondary"
-            className="w-100"
-            onClick={() => navigate("/inventory/client-devices")}
-          >
-            <RiArrowGoBackFill /> К списку
-          </Button>
-        </Col>
-        {canManage && (
-          <>
-            <Col sm="auto">
-              <Button
-                variant="outline-primary"
-                className="w-100"
-                onClick={() => setShowAssign(true)}
-              >
-                <RiUserAddLine />{" "}
-                {assignee ? "Сменить пользователя" : "Выдать пользователю"}
-              </Button>
-            </Col>
-            <Col sm="auto">
-              <Button
-                as={Link}
-                to="update"
-                className="w-100"
-                onClick={offcanvas.setShow}
-              >
-                <RiEdit2Line /> Изменить
-              </Button>
-            </Col>
-            <Col sm="auto">
-              <DeleteItem isButton item={deleteItem} />
-            </Col>
-          </>
-        )}
-      </Row>
-
-      <AssignUserModal
-        show={showAssign}
-        onHide={() => setShowAssign(false)}
+      {/* Открывается кнопкой «QR-код» в hero и кликом по инвентарной метке */}
+      <QrDialog
+        device={{ ...device, name: title, company: device.companyId }}
+        open={qrOpen}
+        onOpenChange={setQrOpen}
+      />
+      <AssignUserDialog
+        open={assignOpen}
+        onOpenChange={setAssignOpen}
         device={device}
         onAssigned={() => revalidator.revalidate()}
       />
-
-      <AttachComponentModal
-        show={showAttach}
-        onHide={() => setShowAttach(false)}
+      <NewComponentDialog
+        open={newComponentOpen}
+        onOpenChange={setNewComponentOpen}
+        host={device}
+        onCreated={() => revalidator.revalidate()}
+      />
+      <AttachComponentDialog
+        open={attachOpen}
+        onOpenChange={setAttachOpen}
         device={device}
         onAttached={() => revalidator.revalidate()}
       />
-
-      {/* Подключение к мониторингу Mikrotik / правка параметров (verify-on-save). */}
-      <ParametersModal
-        device={{
-          clientDeviceId: device._id,
-          displayName: title,
-          host: mikrotikRow?.host,
-        }}
-        show={showParams}
-        onClose={() => setShowParams(false)}
-        onSaved={() => {
-          setShowParams(false);
-          revalidator.revalidate();
-          reloadMikrotik();
-        }}
+      <DeleteDialog
+        item={{ _id: device._id, title }}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
       />
-
-      <ConfirmActionModal
-        show={showMikrotikDetach}
-        onHide={() => setShowMikrotikDetach(false)}
-        onConfirm={handleMikrotikDetach}
-        title="Отключить устройство"
-        body={
-          <>
-            Устройство <strong>{title}</strong> будет отвязано от управления
-            Mikrotik: сохранённые параметры (учётные данные и сертификат) будут
-            удалены, а мониторинг остановлен. Само устройство останется в
-            инвентаре — его можно подключить снова.
-            {mikrotikDetachError && (
-              <Alert variant="danger" className="mt-3 mb-0">
-                {mikrotikDetachError}
-              </Alert>
-            )}
-          </>
-        }
-        confirmLabel="Отключить"
-        confirmVariant="danger"
-        isLoading={isMikrotikDetaching}
-      />
-
-      <Offcanvas
-        show={offcanvas.isActive}
-        onHide={() => {
-          navigate(-1);
-          offcanvas.setClose();
+      {/* Правка — плоская форма с рейлом: шторка xl (рейл + колонка полей) */}
+      <FormSheet
+        open={offcanvas.isActive}
+        size="xl"
+        onOpenChange={(open) => {
+          if (!open) {
+            navigate(-1);
+            offcanvas.setClose();
+          }
         }}
-        keyboard
-        placement="bottom"
-        className="h-100"
       >
-        <Offcanvas.Header closeButton>
-          <Offcanvas.Title></Offcanvas.Title>
-        </Offcanvas.Header>
-        <Offcanvas.Body>
-          <Outlet />
-        </Offcanvas.Body>
-      </Offcanvas>
-    </Transitions>
+        <Outlet />
+      </FormSheet>
+    </>
   );
 };
 

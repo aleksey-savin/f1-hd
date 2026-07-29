@@ -39,6 +39,10 @@ import { InsideOverlayContext } from "@/components/app/overlay-context";
 import useOffcanvasStore from "@/store/offcanvas";
 
 import Select from "../../../UI/Select";
+import {
+  formatCalendarDate,
+  toDateInputValue,
+} from "../../../util/format-date";
 import { formatPrice } from "../../../util/format-string";
 import { tariffTypeName } from "../../ServicePlan/tariff-types";
 
@@ -47,9 +51,6 @@ import { tariffTypeName } from "../../ServicePlan/tariff-types";
 // warning-пометка. «Добавить услугу» — привязка существующей (диалог: услуга +
 // дата + согласование), открепление — в «⋯» строки с подтверждением.
 const money = (value) => formatPrice(Math.round(Number(value) || 0));
-
-const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("ru-RU") : null;
 
 // Тарификация: актуальная схема — плоские поля (type/hourPackages/fixedPrice/
 // pricePerHour — так пишет мастер и читает карточка услуги); у старых
@@ -123,9 +124,12 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
   const openEdit = (plan) => {
     setEditPlan(plan);
     setAttach({
+      // isActiveSince — календарная дата (UTC-полночь): день читаем обратно
+      // UTC-срезом ISO, а вот «сегодня» — уже локальный день (toDateInputValue),
+      // иначе восточнее UTC до смены суток подставлялось бы вчера.
       isActiveSince: plan.isActiveSince
         ? String(plan.isActiveSince).slice(0, 10)
-        : new Date().toISOString().slice(0, 10),
+        : toDateInputValue(),
       customerApprovalRequired: Boolean(plan.customerApprovalRequired),
       approver: plan.approver || null,
       subdivisionApprovalRequired: Boolean(plan.subdivisionApprovalRequired),
@@ -257,7 +261,7 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
                     {plan.isActiveSince && (
                       <span className="tw:tabular-nums">
                         <span className="tw:text-faint">·</span> с{" "}
-                        {fmtDate(plan.isActiveSince)}
+                        {formatCalendarDate(plan.isActiveSince)}
                       </span>
                     )}
                     {plan.customerApprovalRequired && (

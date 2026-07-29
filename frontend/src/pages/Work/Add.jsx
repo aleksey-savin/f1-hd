@@ -1,4 +1,6 @@
 import WorkForm from "../../components/Work/Form";
+
+import { localToUtc } from "../../util/format-date";
 import { getLocalStorageData } from "../../util/auth";
 
 const AddWorkPage = () => {
@@ -35,15 +37,19 @@ export async function action({ request }) {
   const linkToTickets = data.getAll("linkToTickets");
   linkToTickets.unshift(ticketId);
 
-  const localStartedAtDateTime = new Date(data.get("startedAt"));
-  const localFinishedAtDateTime = new Date(data.get("finishedAt"));
+  // Форма отдаёт настенное время в бизнес-таймзоне (utcToLocalForm /
+  // toDateTimeLocal при загрузке) — обратно в UTC его переводит только
+  // localToUtc. new Date(value) взял бы зону браузера, и работа, созданная из
+  // другого пояса, легла бы в базу со сдвигом.
+  const startedAt = localToUtc(data.get("startedAt"));
+  const finishedAt = localToUtc(data.get("finishedAt"));
 
   let worksData = Object.fromEntries(data);
   worksData = {
     ...worksData,
     tickets: linkToTickets,
-    startedAt: localStartedAtDateTime.toISOString(),
-    finishedAt: localFinishedAtDateTime.toISOString(),
+    startedAt,
+    finishedAt,
   };
 
   const response = await fetch(

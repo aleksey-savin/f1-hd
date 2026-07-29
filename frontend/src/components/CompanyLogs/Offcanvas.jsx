@@ -43,6 +43,12 @@ import { cn } from "@/lib/utils";
 import Select from "../../UI/Select";
 import { getLocalStorageData } from "../../util/auth";
 import { plural } from "../../util/plural";
+import {
+  businessDaysAgo,
+  formatDate,
+  formatDayMonth,
+  formatTime,
+} from "../../util/format-date";
 
 // Лог активности компании (макет v2). Главный вопрос журнала — «за каким
 // компьютером сидит пользователь», поэтому иерархия такая: поиск сверху →
@@ -60,28 +66,14 @@ const adName = (entry) =>
 const userName = (user) =>
   `${user?.lastName || ""} ${user?.firstName || ""}`.trim();
 
-const fmtTime = (value) =>
-  new Date(value).toLocaleTimeString("ru-RU", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-const fmtDay = (value) =>
-  new Date(value).toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-  });
-const fmtFull = (value) => new Date(value).toLocaleString("ru-RU");
-
-// «сегодня» / «вчера» / дд.мм — короткая метка дня для строк
+// «сегодня» / «вчера» / дд.мм — короткая метка дня для строк. День считается в
+// бизнес-таймзоне: в браузерной лог, записанный вечером по времени компании,
+// показывался бы «вчера» тому, кто смотрит западнее.
 const dayLabel = (value) => {
-  const startOfDay = (date) =>
-    new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  const diffDays = Math.round(
-    (startOfDay(new Date()) - startOfDay(new Date(value))) / 86400000,
-  );
+  const diffDays = businessDaysAgo(value);
   if (diffDays === 0) return "сегодня";
   if (diffDays === 1) return "вчера";
-  return fmtDay(value);
+  return formatDayMonth(value);
 };
 
 const authHeaders = () => ({
@@ -413,7 +405,7 @@ const CompanyLogsOffcanvas = ({
                               </span>
                               <span className="tw:block tw:text-xs tw:text-faint tw:tabular-nums">
                                 вход {dayLabel(account.lastSeenAt)}{" "}
-                                {fmtTime(account.lastSeenAt)}
+                                {formatTime(account.lastSeenAt)}
                               </span>
                             </span>
                           </span>
@@ -475,9 +467,9 @@ const CompanyLogsOffcanvas = ({
                           >
                             <span
                               className="tw:w-24 tw:flex-none tw:text-sm tw:text-muted-foreground tw:tabular-nums"
-                              title={fmtFull(log.createdAt)}
+                              title={formatDate(log.createdAt)}
                             >
-                              {fmtTime(log.createdAt)}{" "}
+                              {formatTime(log.createdAt)}{" "}
                               <span className="tw:text-xs tw:text-faint">
                                 {dayLabel(log.createdAt)}
                               </span>

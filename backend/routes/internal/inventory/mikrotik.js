@@ -28,8 +28,8 @@ const downloadCodeLimiter = rateLimit({
   keyGenerator: (req) => req.userId || req.ip,
 });
 
-// Reads. NOTE: the static "report/networks" route must be declared before the
-// ":clientDeviceId" param route so it isn't swallowed as an id.
+// Reads. Все живые операции адресуются id ЗАПИСИ мониторинга: обратный путь по
+// карточке инвентаря жил ради вкладки «Мониторинг», её больше нет.
 router.get("/mikrotik-devices", isAuth, mikrotikController.getManagedDevices);
 router.get(
   "/mikrotik-devices/report/networks",
@@ -42,33 +42,14 @@ router.get(
   isAuth,
   mikrotikController.getFirmwareReleases,
 );
-// --- Standalone devices (no inventory ClientDevice, e.g. Cloud Hosted Router).
-// Declared before the ":clientDeviceId" routes so the literal "standalone"
-// segment isn't captured as a device id. ---
-router.get(
-  "/mikrotik-devices/standalone/:recordId",
-  isAuth,
-  mikrotikController.getStandaloneOne,
-);
+// --- Standalone device (no inventory ClientDevice, e.g. Cloud Hosted Router):
+// заводится тем же мастером, дальше живёт как обычная запись. ---
 router.post(
   "/mikrotik-devices/standalone/parameters",
   isAuth,
   canManageMikrotikDevices,
   parametersLimiter,
   mikrotikController.createStandalone,
-);
-router.post(
-  "/mikrotik-devices/standalone/:recordId/parameters",
-  isAuth,
-  canManageMikrotikDevices,
-  parametersLimiter,
-  mikrotikController.updateStandaloneParameters,
-);
-router.delete(
-  "/mikrotik-devices/standalone/:recordId",
-  isAuth,
-  canManageMikrotikDevices,
-  mikrotikController.detachStandalone,
 );
 
 // --- Record-centric operations (страница записи и новая форма). Запись — общий
@@ -112,6 +93,13 @@ router.post(
   canManageMikrotikDevices,
   mikrotikController.linkInventory,
 );
+// Применить считанные с устройства значения к связанной карточке инвентаря.
+router.post(
+  "/mikrotik-devices/records/:recordId/sync-inventory",
+  isAuth,
+  canManageMikrotikDevices,
+  mikrotikController.syncInventory,
+);
 router.post(
   "/mikrotik-devices/records/:recordId/create-inventory",
   isAuth,
@@ -120,10 +108,9 @@ router.post(
   mikrotikController.createInventoryCard,
 );
 
-// --- Config exports (.rsc). Keyed by the Mikrotik record id, so the same routes
-// serve both inventory-backed and standalone devices. Declared before the
-// ":clientDeviceId" routes so the literal "records" segment isn't captured as an
-// id. Live operations open an outbound SSH session — throttle them per user. ---
+// --- Config exports (.rsc). Keyed by the Mikrotik record id — он общий адрес и
+// для инвентарных, и для standalone устройств. Live operations open an outbound
+// SSH session — throttle them per user. ---
 // Config-management routes are gated by the dedicated `canManageMikrotikConfigs`
 // permission (separation of duties) — a config operator can be granted access to
 // backups/exports WITHOUT the device-editing `canManageMikrotikDevices` right. Even
@@ -172,50 +159,6 @@ router.put(
   isAuth,
   canManageMikrotikConfigs,
   mikrotikController.updateSchedules,
-);
-
-router.get(
-  "/mikrotik-devices/:clientDeviceId",
-  isAuth,
-  mikrotikController.getOne,
-);
-
-// Mutations (verify-on-save parameters, start/stop monitoring).
-router.post(
-  "/mikrotik-devices/:clientDeviceId/parameters",
-  isAuth,
-  canManageMikrotikDevices,
-  parametersLimiter,
-  mikrotikController.updateParameters,
-);
-// Apply device-derived values to the inventory card (reconciliation). No rate
-// limit: the endpoint never opens an outbound connection.
-router.post(
-  "/mikrotik-devices/:clientDeviceId/sync-inventory",
-  isAuth,
-  canManageMikrotikDevices,
-  mikrotikController.syncInventory,
-);
-router.post(
-  "/mikrotik-devices/:clientDeviceId/connect",
-  isAuth,
-  canManageMikrotikDevices,
-  mikrotikController.connect,
-);
-router.post(
-  "/mikrotik-devices/:clientDeviceId/disconnect",
-  isAuth,
-  canManageMikrotikDevices,
-  mikrotikController.disconnect,
-);
-
-// Detach: delete the management record (credentials + polled data). The
-// ClientDevice returns to the "not configured" pool for re-adding.
-router.delete(
-  "/mikrotik-devices/:clientDeviceId",
-  isAuth,
-  canManageMikrotikDevices,
-  mikrotikController.detach,
 );
 
 module.exports = router;

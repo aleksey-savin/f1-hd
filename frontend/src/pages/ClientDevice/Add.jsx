@@ -16,9 +16,9 @@ export async function loader() {
 export async function action({ request }) {
   const { token } = getLocalStorageData();
 
-  const data = await request.formData();
-
-  const clientDevice = Object.fromEntries(data.entries());
+  // Тело формы — JSON: собирать вложенные данные из FormData значит терять
+  // ключи молча (см. docs/ux-ui-guide.md, «Сложное вложенное тело — JSON»).
+  const clientDevice = await request.json();
 
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/add`,

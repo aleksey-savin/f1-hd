@@ -1,90 +1,13 @@
-import {
-  RiComputerLine,
-  RiFocus3Line,
-  RiHardDrive2Line,
-  RiHeadphoneLine,
-  RiMacbookLine,
-  RiMapPin2Line,
-  RiPlugLine,
-  RiPrinterLine,
-  RiRouterLine,
-  RiServerLine,
-  RiSmartphoneLine,
-  RiStarFill,
-  RiTvLine,
-} from "react-icons/ri";
+import { RiFocus3Line, RiMapPin2Line, RiStarFill } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";
 
-// Статусы ClientDevice → подпись + тон. Показ — цветной текст с точкой
-// (язык статус-борда), не заливной бейдж.
-export const STATUS_META = {
-  readyForDeployment: { label: "Готово к выдаче", tone: "off" },
-  deployed: { label: "В эксплуатации", tone: "ok" },
-  inRepair: { label: "В ремонте", tone: "warn" },
-  decommissioned: { label: "Списано", tone: "off" },
-  inReserve: { label: "В резерве", tone: "info" },
-  disposed: { label: "Утилизировано", tone: "bad" },
-};
-
-const TONE_TEXT = {
-  ok: "tw:text-accent-text",
-  warn: "tw:text-warning",
-  info: "tw:text-info",
-  bad: "tw:text-destructive",
-  off: "tw:text-faint",
-};
-const TONE_DOT = {
-  ok: "tw:bg-primary",
-  warn: "tw:bg-warning",
-  info: "tw:bg-info",
-  bad: "tw:bg-destructive",
-  off: "tw:bg-faint",
-};
-
-// Цветной статус-текст с точкой — общий для плитки и шторки устройства.
-export const EnvStatusText = ({ tone = "off", className, children }) => (
-  <span
-    className={cn(
-      "tw:inline-flex tw:items-center tw:gap-1.5 tw:text-xs tw:font-medium tw:whitespace-nowrap",
-      TONE_TEXT[tone],
-      className,
-    )}
-  >
-    <span
-      aria-hidden
-      className={cn("tw:size-1.5 tw:flex-none tw:rounded-full", TONE_DOT[tone])}
-    />
-    {children}
-  </span>
-);
-
-// Mikrotik-статус связи. Только для управляемых устройств; при выключенном
-// мониторинге статус устаревший — так и пишем, не утверждая онлайн/офлайн.
-export const mikrotikStatus = (device) => {
-  if (!device.mikrotikManaged) return null;
-  if (!device.mikrotikMonitoringEnabled)
-    return { label: "мониторинг выкл", tone: "off" };
-  if (device.mikrotikStatus === "online") return { label: "В сети", tone: "ok" };
-  return { label: "Не в сети", tone: "bad" };
-};
-
-// Иконка по названию типа устройства — типы свободные, поэтому матчим по
-// ключевым словам с разумным запасным вариантом.
-export const deviceIcon = (typeName = "") => {
-  const t = (typeName || "").toLowerCase();
-  if (/монитор|дисплей/.test(t)) return RiTvLine;
-  if (/ноут|laptop/.test(t)) return RiMacbookLine;
-  if (/систем|пк\b|компьютер|моноблок|настольн|desktop/.test(t))
-    return RiComputerLine;
-  if (/принт|мфу|сканер|печат/.test(t)) return RiPrinterLine;
-  if (/сет|роутер|коммутат|маршрут|switch|router/.test(t)) return RiRouterLine;
-  if (/телефон|смартфон|phone/.test(t)) return RiSmartphoneLine;
-  if (/сервер|server|схд|nas/.test(t)) return RiServerLine;
-  if (/гарнитур|наушник|headset/.test(t)) return RiHeadphoneLine;
-  if (/ибп|ups|бесперебойн/.test(t)) return RiPlugLine;
-  return RiHardDrive2Line;
-};
+import {
+  DEVICE_STATUS_META,
+  DeviceStatusText,
+  deviceIcon,
+  mikrotikStatus,
+} from "./device-status";
 
 // Плитка устройства в окружении: плитка-иконка, имя (+★ личного), тип · вендор,
 // статусы текстом с точкой. highlightId — устройство заявки (режим окружения по
@@ -96,7 +19,7 @@ const EnvironmentDeviceTile = ({
   onSelect,
 }) => {
   const Icon = deviceIcon(device.typeName);
-  const status = STATUS_META[device.status];
+  const status = DEVICE_STATUS_META[device.status];
   const mikro = mikrotikStatus(device);
   const isTarget = highlightId && String(device._id) === String(highlightId);
 
@@ -155,10 +78,10 @@ const EnvironmentDeviceTile = ({
         {(status || mikro) && (
           <span className="tw:mt-1 tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-0.5">
             {status && (
-              <EnvStatusText tone={status.tone}>{status.label}</EnvStatusText>
+              <DeviceStatusText tone={status.tone}>{status.label}</DeviceStatusText>
             )}
             {mikro && (
-              <EnvStatusText tone={mikro.tone}>{mikro.label}</EnvStatusText>
+              <DeviceStatusText tone={mikro.tone}>{mikro.label}</DeviceStatusText>
             )}
           </span>
         )}

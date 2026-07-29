@@ -1,5 +1,6 @@
 import { toZonedTime } from "date-fns-tz";
 import { getLocalStorageData } from "./auth";
+import { DEFAULT_TIMEZONE } from "./format-date";
 
 const DAYS_OF_WEEK = [
   "Monday",
@@ -28,7 +29,10 @@ export const getWorkingStatus = (schedule, zone) => {
     };
   }
 
-  const timezone = zone || getLocalStorageData().timezone;
+  // Без зоны клиента — зона организации. Именно с дефолтом: на пустом
+  // localStorage (до логина) toZonedTime(date, undefined) молча берёт зону
+  // браузера, и «работает/закрыто» считалось бы не там.
+  const timezone = zone || getLocalStorageData().timezone || DEFAULT_TIMEZONE;
   const now = toZonedTime(new Date(), timezone);
   const currentDay = DAYS_OF_WEEK[now.getDay() === 0 ? 6 : now.getDay() - 1];
   const currentTime = now.getHours() * 60 + now.getMinutes();

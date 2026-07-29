@@ -9,6 +9,7 @@ import Select from "../../UI/Select";
 import timezones from "../../store/timezones";
 import useToastStore from "../../store/toast-store";
 import { getLocalStorageData } from "../../util/auth";
+import { DEFAULT_TIMEZONE } from "../../util/format-date";
 import { TAXI_OPERATORS } from "../../util/taxi-operators";
 import SectionForm from "./SectionForm";
 
@@ -22,7 +23,7 @@ const TAXI_OPTIONS = [
 const PrefsGlobals = ({ prefs }) => {
   const { showToast } = useToastStore();
 
-  const [timezone, setTimezone] = useState(prefs.timezone || "Europe/Moscow");
+  const [timezone, setTimezone] = useState(prefs.timezone || DEFAULT_TIMEZONE);
   const [deadline, setDeadline] = useState(prefs.deadline ?? 10);
   const [tel, setTel] = useState(prefs.contacts?.tel || "");
   const [email, setEmail] = useState(prefs.contacts?.email || "");
@@ -102,7 +103,7 @@ const PrefsGlobals = ({ prefs }) => {
             options={timezones}
             getOptionLabel={(option) => option.label}
             getOptionValue={(option) => option.value}
-            onChange={(option) => setTimezone(option?.value || "Europe/Moscow")}
+            onChange={(option) => setTimezone(option?.value || DEFAULT_TIMEZONE)}
           />
         </div>
       </SettingRow>

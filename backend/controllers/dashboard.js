@@ -3,6 +3,7 @@ const Company = require("../models//company");
 const User = require("../models//user");
 const Preferences = require("../models//preferences");
 
+const { resolveTimezone } = require("../utils/datetime");
 const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
 const {
@@ -21,7 +22,7 @@ dayjs.extend(timezone);
 exports.getAll = async (req, res, next) => {
   const { userId } = await getAuthData(req);
   const preferences = await Preferences.findOne({});
-  const prefsTz = preferences.timezone;
+  const prefsTz = resolveTimezone(preferences);
 
   const startOfDay = dayjs.tz(new Date(), prefsTz).startOf("day");
   const endOfDay = dayjs.tz(new Date(), prefsTz).endOf("day");

@@ -2,6 +2,7 @@ import { RiFileList2Line } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";
 
+import { formatCalendarDate } from "../../util/format-date";
 import { formatPrice } from "../../util/format-string";
 import { plural } from "../../util/plural";
 import { tariffTypeName } from "./tariff-types";
@@ -59,9 +60,6 @@ const Row = ({ label, value, muted }) => (
     </dd>
   </div>
 );
-
-const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("ru-RU") : null;
 
 // Живая сводка мастера: наполняется по мере прохождения шагов (reached —
 // максимально достигнутый шаг). Незаданное показывает «—». attach — контекст
@@ -131,7 +129,7 @@ const Summary = ({ form, packages, reached, attach = null }) => {
           </div>
           <div className="tw:text-sm tw:font-semibold">{attach.companyAlias}</div>
           <div className="tw:mt-0.5 tw:text-sm tw:text-muted-foreground tw:tabular-nums">
-            с {fmtDate(attach.isActiveSince) || "сегодня"} ·{" "}
+            с {formatCalendarDate(attach.isActiveSince) || "сегодня"} ·{" "}
             {attach.customerApprovalRequired
               ? attach.subdivisionApprovalRequired
                 ? "согласование с клиентом, по филиалам"

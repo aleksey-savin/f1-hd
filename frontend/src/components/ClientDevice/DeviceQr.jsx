@@ -69,8 +69,11 @@ const DeviceQr = ({ id, size = 72, className = "" }) => {
   if (!url) return null;
 
   return (
+    // Белая подложка обязательна (код тёмный в обе темы), а её поле — тихая
+    // зона: без неё сканеру не за что зацепить границу кода. Классы tw —
+    // компонент общий для легаси-карточки и мигрированного списка.
     <span
-      className={`bg-white rounded p-1 d-inline-flex flex-shrink-0 ${className}`}
+      className={`tw:inline-flex tw:flex-none tw:rounded-md tw:bg-white tw:p-2 ${className}`}
       title="QR на страницу устройства"
     >
       <span style={{ width: size, height: size, lineHeight: 0 }} ref={ref} />

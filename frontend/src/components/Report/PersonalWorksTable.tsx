@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 import type { PersonalWork } from "../../types/employeesReport";
 
+import { formatDayMonthTime, formatTime } from "../../util/format-date";
 import {
   WORK_CLASSES,
   WORK_CLASS_LABEL,
@@ -25,17 +26,6 @@ import {
 // Список работ периода: когда, у кого, по какой заявке, сколько и попало ли в
 // согласованный отчёт. Статус — цветной текст с точкой, а не заливной бейдж.
 const PAGE = 15;
-
-const dateTime = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-const timeOnly = new Intl.DateTimeFormat("ru-RU", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 const classColor = (work: PersonalWork) =>
   WORK_CLASSES.find((item) => item.key === work.workClass)?.color ??
@@ -80,8 +70,8 @@ const PersonalWorksTable = ({
             return (
               <TableRow key={work._id}>
                 <TableCell className="tw:whitespace-nowrap tw:tabular-nums">
-                  {dateTime.format(new Date(work.startedAt))}–
-                  {timeOnly.format(new Date(work.finishedAt))}
+                  {formatDayMonthTime(work.startedAt)}–
+                  {formatTime(work.finishedAt)}
                 </TableCell>
                 <TableCell className="tw:whitespace-nowrap">
                   {work.company?.alias ?? "—"}

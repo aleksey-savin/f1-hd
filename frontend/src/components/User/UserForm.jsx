@@ -23,6 +23,7 @@ import useOffcanvasStore from "../../store/offcanvas";
 import useInitialPrefs from "../../store/prefs";
 import timezones from "../../store/timezones";
 import { inheritedTimezone, tzCity } from "../../util/timezone-display";
+import { businessDayKey } from "../../util/format-date";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getInitialPrefsData } from "../../util/prefs";
 
@@ -95,7 +96,10 @@ const defaultWeek = () =>
     ]),
   );
 
-const todayKey = () => new Date().toISOString().slice(0, 10);
+// «Сегодня» календарём организации, а не UTC: effectiveFrom — календарная дата,
+// и toISOString() восточнее UTC до смены суток выбирал бы вчерашнюю версию
+// графика (и подставлял вчерашнюю дату в новую).
+const todayKey = () => businessDayKey();
 
 // Действующая версия — последняя, начавшаяся не позже сегодняшнего дня
 // (как её выбирает планировщик на бэкенде); версии без даты действуют всегда.

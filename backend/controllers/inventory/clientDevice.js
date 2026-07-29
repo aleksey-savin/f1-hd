@@ -1,13 +1,26 @@
+const mongoose = require("mongoose");
+
 const ClientDevice = require("../../models/inventory/clientDevice");
 const Company = require("../../models/company");
 const User = require("../../models/user");
 const DeviceModel = require("../../models/inventory/deviceModel");
 const DeviceType = require("../../models/inventory/deviceType");
+const Vendor = require("../../models/inventory/vendor");
+const Location = require("../../models/inventory/location");
 const Counter = require("../../models/inventory/counter");
 const Mikrotik = require("../../models/mikrotik");
+const { Ticket } = require("../../models/ticket");
 
 const { createPhotoHandlers, deleteAllPhotos } = require("./photoHandlers");
 const { AppError } = require("../../middleware/errorHandling");
+const getAuthData = require("../../middleware/getAuthData");
+const {
+  buildMikrotikStatusMap,
+  mikrotikOverlay,
+} = require("../../helpers/mikrotikOverlay");
+
+// Каталог статусов — из схемы, чтобы второй копии списка не заводить.
+const DEVICE_STATUSES = ClientDevice.schema.path("status").enumValues;
 
 // Shared populate graph: model (+ its vendor & type), company, location, user.
 // Снимки модели тянем только там, где они действительно нужны (карточка
@@ -110,42 +123,658 @@ const populatedTypeId = (d) =>
   d.deviceTypeId ||
   null;
 
+// ─── Список устройств: серверная выборка ──────────────────────────────────
+//
+// Поиск, фасеты, сортировка и постраничность считает БД (клиентский поиск
+// несовместим с пагинацией, а реестр активов растёт вместе с парком клиентов).
+// Порядок разделов ниже повторяет controllers/user.js getAll — это тот же
+// канон списка на серверной выборке.
+
+const LIST_PAGE_LIMIT_DEFAULT = 50;
+const LIST_PAGE_LIMIT_MAX = 100;
+
+// Синтетический «производитель» — бакет самосборной техники без модели.
+// Значение синхронно с фронтом (components/ClientDevice/device-status.js).
+const CUSTOM_VENDOR_BUCKET = "__custom__";
+
+// Populate строки списка: только то, что рисует строка. Конфигурация,
+// поставщик, заметки и фото на карточке — в списке это лишний вес.
+const LIST_POPULATE = [
+  {
+    path: "deviceModelId",
+    select: "name vendorId deviceTypeId",
+    populate: [
+      { path: "vendorId", select: "name" },
+      { path: "deviceTypeId", select: "name" },
+    ],
+  },
+  { path: "deviceTypeId", select: "name" },
+  { path: "companyId", select: "alias fullTitle" },
+  { path: "locationId", select: "name" },
+  { path: "userId", select: "firstName lastName" },
+  // Хозяин сборки — только у комплектующих: строка помечает, внутри чего деталь.
+  {
+    path: "parentDeviceId",
+    select: "inventoryNumber deviceModelId deviceTypeId",
+    populate: [
+      { path: "deviceModelId", select: "name" },
+      { path: "deviceTypeId", select: "name" },
+    ],
+  },
+];
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Собственные текстовые поля устройства (по связям ищем предзапросами ниже).
+const DEVICE_SEARCH_FIELDS = [
+  "inventoryNumber",
+  "serialNumber",
+  "hostname",
+  "ipAddress",
+  "macAddress",
+  "operatingSystem",
+];
+
+const toIdList = (value) =>
+  String(value || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => mongoose.isValidObjectId(entry))
+    .map((entry) => new mongoose.Types.ObjectId(entry));
+
+const toValueList = (value) =>
+  String(value || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+// Строка списка — тот же принцип, что у toEnvDevice окружения: DTO собирает
+// сервер, строка на клиенте ничего не вычисляет. Имя — из модели или прямого
+// типа (самосборные), тип — эффективный (модельный приоритетнее).
+const toListDevice = (device, { componentCount = 0, mikro = null } = {}) => {
+  const model = device.deviceModelId;
+  const type = model?.deviceTypeId || device.deviceTypeId;
+  const user = device.userId;
+  return {
+    _id: device._id,
+    name: model?.name || type?.name || "Устройство",
+    typeId: type?._id || null,
+    typeName: type?.name || null,
+    vendorName: model?.vendorId?.name || null,
+    inventoryNumber: device.inventoryNumber || null,
+    serialNumber: device.serialNumber || null,
+    hostname: device.hostname || null,
+    ipAddress: device.ipAddress || null,
+    status: device.status || null,
+    company: device.companyId
+      ? {
+          _id: device.companyId._id,
+          name: device.companyId.alias || device.companyId.fullTitle || "—",
+        }
+      : null,
+    location: device.locationId
+      ? { _id: device.locationId._id, name: device.locationId.name }
+      : null,
+    user: user
+      ? {
+          _id: user._id,
+          name:
+            [user.lastName, user.firstName].filter(Boolean).join(" ").trim() ||
+            "—",
+        }
+      : null,
+    componentCount,
+    // Комплектующее: своей строкой в списке оно бывает только по запросу
+    // (поиск или свитч фильтра), и тогда обязано назвать хозяина.
+    parent: device.parentDeviceId
+      ? {
+          _id: device.parentDeviceId._id,
+          name:
+            device.parentDeviceId.deviceModelId?.name ||
+            device.parentDeviceId.deviceTypeId?.name ||
+            "Сборка",
+          inventoryNumber: device.parentDeviceId.inventoryNumber || null,
+        }
+      : null,
+    ...mikrotikOverlay(mikro),
+    // ListRow подсвечивает свежесозданные и только что изменённые строки —
+    // без отметок времени подсветка тихо гаснет.
+    createdAt: device.createdAt,
+    updatedAt: device.updatedAt,
+  };
+};
+
+// Совпадений нет вовсе (клиент без компании, фасет вне скоупа). Пустой $in —
+// а не null: companyId у устройства необязателен, и null отдал бы всю технику
+// без компании.
+const MATCHES_NOTHING = { $in: [] };
+
+/**
+ * Условие видимости — в самом запросе, а не фильтрацией в памяти.
+ * Конечный пользователь заперт в своей компании поверх любых фасетов: доступ к
+ * модулю («Учёт техники») открывает раздел, а объём данных определяет роль —
+ * как в архиве работ (controllers/work.js getFinished).
+ */
+const scopeMatch = ({ isEndUser, company }) =>
+  isEndUser ? { companyId: company?._id || MATCHES_NOTHING } : {};
+
+/**
+ * Условия выборки без статуса: статус нужен отдельно, потому что счётчики
+ * ленты парка считаются по набору БЕЗ него — фасет, обнуляющий сам себя,
+ * показывал бы «В ремонте · 0» сразу после выбора «В ремонте».
+ */
+/**
+ * Комплектующие показываются, КОГДА ИХ СПРОСИЛИ: поиском (прицельный вопрос
+ * «где эта железка» — ищем по всему учёту, иначе реестр отвечает «ничего не
+ * нашлось» про то, что в нём есть) или свитчем фильтра (просмотр «покажи все
+ * модули памяти»). Без запроса список — реестр самостоятельных единиц.
+ */
+const wantsComponents = (query) =>
+  query.withComponents === "true" || Boolean(String(query.search || "").trim());
+
+const buildListMatch = async (query, authedUser) => {
+  const searchTerm = String(query.search || "").trim();
+  const withComponents = wantsComponents(query);
+
+  const match = {
+    deletedAt: null,
+    ...(withComponents ? {} : { parentDeviceId: null }),
+  };
+  const and = [];
+
+  const companies = toIdList(query.companies);
+  const scopedCompanyId = authedUser.isEndUser
+    ? authedUser.company?._id || null
+    : null;
+  if (authedUser.isEndUser) {
+    // Скоуп сильнее фасета: клиент, подставивший в запрос чужую компанию,
+    // не увидит ничего.
+    const withinScope =
+      scopedCompanyId &&
+      (!companies.length ||
+        companies.some((id) => id.equals(scopedCompanyId)));
+    match.companyId = withinScope ? scopedCompanyId : MATCHES_NOTHING;
+  } else if (companies.length) {
+    match.companyId = { $in: companies };
+  }
+
+  const locations = toIdList(query.locations);
+  if (locations.length) match.locationId = { $in: locations };
+
+  // Пробел учёта: единица без инвентарного номера. Счётчик такой техники
+  // показывает лента парка, и он же её отбирает — число, по которому нельзя
+  // кликнуть, только раздражает.
+  if (query.noInventory === "true") {
+    and.push({ $or: [{ inventoryNumber: null }, { inventoryNumber: "" }] });
+  }
+
+  const users = toIdList(query.users);
+  if (users.length) match.userId = { $in: users };
+
+  // Тип эффективный: у заводской сборки берётся из модели, у самосборной —
+  // прямой. Модели нужного типа резолвим предзапросом — так основной запрос
+  // остаётся индексируемым, без $lookup по всей коллекции.
+  const types = toIdList(query.types);
+  if (types.length) {
+    const models = await DeviceModel.find({
+      deviceTypeId: { $in: types },
+      deletedAt: null,
+    }).select("_id");
+    and.push({
+      $or: [
+        { deviceTypeId: { $in: types } },
+        { deviceModelId: { $in: models.map((model) => model._id) } },
+      ],
+    });
+  }
+
+  // Производитель: живёт на модели; «Кастомная сборка» — устройства без модели.
+  const vendorValues = toValueList(query.vendors);
+  if (vendorValues.length) {
+    const vendorIds = vendorValues
+      .filter((value) => mongoose.isValidObjectId(value))
+      .map((value) => new mongoose.Types.ObjectId(value));
+    const or = [];
+    if (vendorIds.length) {
+      const models = await DeviceModel.find({
+        vendorId: { $in: vendorIds },
+        deletedAt: null,
+      }).select("_id");
+      or.push({ deviceModelId: { $in: models.map((model) => model._id) } });
+    }
+    if (vendorValues.includes(CUSTOM_VENDOR_BUCKET)) {
+      or.push({ deviceModelId: null });
+    }
+    and.push(or.length ? { $or: or } : { _id: null });
+  }
+
+  // Поиск: каждый терм должен встретиться хотя бы в одном поле — своём или
+  // связанном (модель, вендор, тип, компания, расположение, сотрудник). Связи
+  // резолвим предзапросами по маленьким каталогам: regex по $lookup-полю
+  // означал бы скан всей коллекции устройств.
+  const terms = searchTerm
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3);
+  for (const term of terms) {
+    const rx = new RegExp(escapeRegex(term.slice(0, 64)), "i");
+    const [models, typeDocs, companies_, locationDocs, userDocs, vendors] =
+      await Promise.all([
+        DeviceModel.find({ name: rx, deletedAt: null }).select("_id"),
+        DeviceType.find({ name: rx }).select("_id"),
+        Company.find({ $or: [{ alias: rx }, { fullTitle: rx }] }).select("_id"),
+        Location.find({ name: rx }).select("_id"),
+        User.find({ $or: [{ firstName: rx }, { lastName: rx }] }).select("_id"),
+        Vendor.find({ name: rx }).select("_id"),
+      ]);
+    const byVendor = vendors.length
+      ? await DeviceModel.find({
+          vendorId: { $in: vendors.map((vendor) => vendor._id) },
+          deletedAt: null,
+        }).select("_id")
+      : [];
+    const typeIds = typeDocs.map((type) => type._id);
+    const modelIds = [...models, ...byVendor].map((model) => model._id);
+    const modelsOfType = typeIds.length
+      ? await DeviceModel.find({
+          deviceTypeId: { $in: typeIds },
+          deletedAt: null,
+        }).select("_id")
+      : [];
+
+    and.push({
+      $or: [
+        ...DEVICE_SEARCH_FIELDS.map((field) => ({ [field]: rx })),
+        { deviceModelId: { $in: [...modelIds, ...modelsOfType.map((m) => m._id)] } },
+        { deviceTypeId: { $in: typeIds } },
+        { companyId: { $in: companies_.map((company) => company._id) } },
+        { locationId: { $in: locationDocs.map((location) => location._id) } },
+        { userId: { $in: userDocs.map((user) => user._id) } },
+      ],
+    });
+  }
+
+  if (and.length) match.$and = and;
+  return match;
+};
+
+/**
+ * E11000 → человеческая 409 вместо «Failed to add device» с 500.
+ *
+ * Уникальны инвентарный номер, имя в сети (в пределах компании) и machineId —
+ * конфликт по ним означает ровно одно: значение уже занято. Серийника здесь нет
+ * намеренно: он не уникален (см. модель). Отдельная подстраховка на базе, где не
+ * прогнан `scripts/migrateClientDeviceIndexes.js`: старый уникальный
+ * `serialNumber_1` там ещё жив, и из ответа должно быть понятно, что чинить
+ * (см. docs/inventory.md §7).
+ */
+const DUPLICATE_FIELDS = {
+  inventoryNumber: "инвентарным номером",
+  hostname: "именем в сети",
+  machineId: "идентификатором машины",
+};
+
+const duplicateError = (error) => {
+  if (error?.code !== 11000) return null;
+  const field = Object.keys(error.keyPattern || {}).find(
+    (key) => DUPLICATE_FIELDS[key],
+  );
+  if (!field) {
+    // Чаще всего это устаревший уникальный serialNumber_1 на непромигрированной
+    // базе — называем скрипт, а не отдаём «Такая запись уже существует».
+    const stale = Object.keys(error.keyPattern || {}).join(", ");
+    return new AppError(
+      `Конфликт уникальности по полю «${stale}». Если это серийный номер — на базе не прогнан scripts/migrateClientDeviceIndexes.js.`,
+      409,
+    );
+  }
+  const value = error.keyValue?.[field];
+  if (value == null) {
+    return new AppError(
+      `В базе устаревший уникальный индекс по полю «${field}»: второе устройство без значения он не пропускает. Прогоните scripts/migrateClientDeviceIndexes.js.`,
+      409,
+    );
+  }
+  return new AppError(
+    `Устройство с таким ${DUPLICATE_FIELDS[field]} (${value}) уже есть`,
+    409,
+  );
+};
+
 exports.getAll = async (req, res, next) => {
   try {
-    // Только самостоятельные устройства — комплектующие сборок (parentDeviceId)
-    // в общий список не попадают.
-    const devices = await ClientDevice.find({
-      deletedAt: null,
-      parentDeviceId: null,
-    })
-      // Фото нужны только на карточке устройства — в списке это лишний вес.
-      .select("-photos")
-      .populate(DEVICE_POPULATE)
-      .sort({ _id: -1 });
+    const authedUser = await getAuthData(req);
+    const q = req.query;
 
-    // Кол-во комплектующих на каждую сборку — одним агрегатом.
-    const counts = await ClientDevice.aggregate([
-      { $match: { deletedAt: null, parentDeviceId: { $ne: null } } },
-      { $group: { _id: "$parentDeviceId", count: { $sum: 1 } } },
+    const baseMatch = await buildListMatch(q, authedUser);
+    const statuses = toValueList(q.statuses).filter((status) =>
+      DEVICE_STATUSES.includes(status),
+    );
+    const match = statuses.length
+      ? { ...baseMatch, status: { $in: statuses } }
+      : baseMatch;
+
+    const limit = Math.min(
+      Number(q.limit) || LIST_PAGE_LIMIT_DEFAULT,
+      LIST_PAGE_LIMIT_MAX,
+    );
+    const page = Math.max(Number(q.page) || 1, 1);
+
+    // Сортировки — только по собственным полям устройства: порядок по
+    // связанному имени потребовал бы $lookup всей выборки на каждый запрос.
+    const sortKey = q.sort === "inventory" ? "inventory" : "created";
+    const pipeline = [{ $match: match }];
+    if (sortKey === "inventory") {
+      // Техника без номера — в конце: пустая метка это пробел учёта, но не
+      // повод открывать им список.
+      pipeline.push({
+        $addFields: {
+          _noInventory: {
+            $cond: [
+              { $gt: [{ $strLenCP: { $ifNull: ["$inventoryNumber", ""] } }, 0] },
+              0,
+              1,
+            ],
+          },
+        },
+      });
+      pipeline.push({ $sort: { _noInventory: 1, inventoryNumber: 1, _id: -1 } });
+    } else {
+      pipeline.push({ $sort: { _id: -1 } });
+    }
+    pipeline.push(
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+      {
+        $project: {
+          companyId: 1,
+          userId: 1,
+          locationId: 1,
+          deviceModelId: 1,
+          deviceTypeId: 1,
+          parentDeviceId: 1,
+          status: 1,
+          inventoryNumber: 1,
+          serialNumber: 1,
+          hostname: 1,
+          ipAddress: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      },
+    );
+
+    const [rows, total, componentsCount, [facetCounts]] = await Promise.all([
+      ClientDevice.aggregate(pipeline),
+      ClientDevice.countDocuments(match),
+      // Сколько из найденного — детали внутри сборок: строка над списком
+      // объясняет, почему сумма ленты парка меньше счётчика. Когда деталей в
+      // выборке нет по условию, считать нечего (иначе ключ parentDeviceId в
+      // литерале перетёр бы ограничение match и посчитал бы все детали учёта).
+      wantsComponents(q)
+        ? ClientDevice.countDocuments({
+            ...match,
+            parentDeviceId: { $ne: null },
+          })
+        : 0,
+      // Лента парка: счётчики стадий и пробелов учёта — по всей выборке без
+      // фасета статуса, поэтому агрегат идёт по baseMatch. Комплектующие в них
+      // не входят НИКОГДА: они наследуют статус хозяина, и сложить их со
+      // сборками значило бы удвоить парк (расхождение подписано над списком).
+      ClientDevice.aggregate([
+        { $match: { ...baseMatch, parentDeviceId: null } },
+        {
+          $facet: {
+            byStatus: [{ $group: { _id: "$status", n: { $sum: 1 } } }],
+            noInventoryNumber: [
+              {
+                $match: {
+                  $or: [{ inventoryNumber: null }, { inventoryNumber: "" }],
+                },
+              },
+              { $count: "n" },
+            ],
+          },
+        },
+      ]),
     ]);
-    const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
 
-    const result = devices.map((d) => ({
-      ...d.toObject(),
-      componentCount: countMap.get(String(d._id)) || 0,
-    }));
+    await ClientDevice.populate(rows, LIST_POPULATE);
 
-    res.status(200).json(result);
+    const ids = rows.map((row) => row._id);
+    const [componentCounts, mikroMap] = await Promise.all([
+      ClientDevice.aggregate([
+        { $match: { deletedAt: null, parentDeviceId: { $in: ids } } },
+        { $group: { _id: "$parentDeviceId", n: { $sum: 1 } } },
+      ]),
+      buildMikrotikStatusMap(ids),
+    ]);
+    const componentMap = new Map(
+      componentCounts.map((entry) => [String(entry._id), entry.n]),
+    );
+
+    const statusCounts = Object.fromEntries(
+      (facetCounts?.byStatus || [])
+        .filter((entry) => entry._id)
+        .map((entry) => [entry._id, entry.n]),
+    );
+
+    res.status(200).json({
+      devices: rows.map((row) =>
+        toListDevice(row, {
+          componentCount: componentMap.get(String(row._id)) || 0,
+          mikro: mikroMap.get(String(row._id)) || null,
+        }),
+      ),
+      total,
+      componentsCount,
+      page,
+      pageSize: limit,
+      statusCounts,
+      noInventoryNumber: facetCounts?.noInventoryNumber?.[0]?.n || 0,
+    });
   } catch (error) {
     next(new AppError("Failed to fetch devices", 500, true, error));
   }
 };
 
+/**
+ * Опции фасетов фильтра — только то, что реально есть в видимом парке
+ * (фильтр сужает существующее, а не предлагает пустые значения). Один проход
+ * по выборке + короткие запросы за названиями.
+ */
+exports.getFacets = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    // Комплектующие входят в опции: без них в фасете типов не было бы
+    // «Оперативной памяти», и свитч «показывать комплектующие» не с чем было бы
+    // складывать.
+    const match = {
+      deletedAt: null,
+      ...scopeMatch(authedUser),
+    };
+
+    const [groups] = await ClientDevice.aggregate([
+      { $match: match },
+      {
+        $lookup: {
+          from: "devicemodels",
+          localField: "deviceModelId",
+          foreignField: "_id",
+          as: "_model",
+          pipeline: [{ $project: { deviceTypeId: 1, vendorId: 1 } }],
+        },
+      },
+      {
+        $addFields: {
+          _typeId: {
+            $ifNull: [
+              { $arrayElemAt: ["$_model.deviceTypeId", 0] },
+              "$deviceTypeId",
+            ],
+          },
+          _vendorId: { $arrayElemAt: ["$_model.vendorId", 0] },
+        },
+      },
+      {
+        $facet: {
+          companies: [{ $group: { _id: "$companyId" } }],
+          users: [{ $group: { _id: "$userId" } }],
+          // Расположение несёт компанию: фильтр показывает расположения
+          // выбранных компаний, каскад считается на клиенте без дозапроса.
+          locations: [
+            { $group: { _id: "$locationId", company: { $first: "$companyId" } } },
+          ],
+          types: [{ $group: { _id: "$_typeId" } }],
+          vendors: [{ $group: { _id: "$_vendorId" } }],
+          custom: [{ $match: { deviceModelId: null } }, { $count: "n" }],
+        },
+      },
+    ]);
+
+    const idsOf = (rows) => (rows || []).map((row) => row._id).filter(Boolean);
+    const [companies, users, locations, types, vendors] = await Promise.all([
+      Company.find({ _id: { $in: idsOf(groups?.companies) } }).select(
+        "alias fullTitle",
+      ),
+      User.find({ _id: { $in: idsOf(groups?.users) } }).select(
+        "firstName lastName",
+      ),
+      Location.find({ _id: { $in: idsOf(groups?.locations) } }).select("name"),
+      DeviceType.find({ _id: { $in: idsOf(groups?.types) } }).select("name"),
+      Vendor.find({ _id: { $in: idsOf(groups?.vendors) } }).select("name"),
+    ]);
+
+    const locationCompany = new Map(
+      (groups?.locations || [])
+        .filter((row) => row._id)
+        .map((row) => [String(row._id), row.company ? String(row.company) : null]),
+    );
+    const sortByLabel = (options) =>
+      options.sort((a, b) => a.label.localeCompare(b.label, "ru"));
+    const toOptions = (docs, label) =>
+      sortByLabel(
+        docs.map((doc) => ({ value: String(doc._id), label: label(doc) })),
+      );
+
+    const vendorOptions = toOptions(vendors, (vendor) => vendor.name);
+    if (groups?.custom?.[0]?.n) {
+      vendorOptions.push({
+        value: CUSTOM_VENDOR_BUCKET,
+        label: "Кастомная сборка",
+      });
+    }
+
+    res.status(200).json({
+      companies: toOptions(
+        companies,
+        (company) => company.alias || company.fullTitle || "—",
+      ),
+      users: toOptions(
+        users,
+        (user) => [user.lastName, user.firstName].filter(Boolean).join(" ") || "—",
+      ),
+      locations: sortByLabel(
+        locations.map((location) => ({
+          value: String(location._id),
+          label: location.name,
+          company: locationCompany.get(String(location._id)) || null,
+        })),
+      ),
+      types: toOptions(types, (type) => type.name),
+      vendors: vendorOptions,
+    });
+  } catch (error) {
+    next(new AppError("Failed to fetch device facets", 500, true, error));
+  }
+};
+
+/**
+ * Цепочка расположения от корня к самому расположению устройства.
+ * `Location.fullPath` — асинхронный виртуал и по проводу приходит undefined
+ * (см. docs/inventory.md §7), поэтому путь собираем обходом `parent` вверх.
+ * Глубина ограничена: дерево здание → этаж → помещение → рабочее место.
+ */
+const buildLocationPath = async (locationId) => {
+  if (!locationId) return [];
+  const chain = [];
+  let current = await Location.findById(locationId).select("name type parent");
+  let guard = 0;
+  while (current && guard < 8) {
+    chain.unshift({ _id: current._id, name: current.name, type: current.type });
+    if (!current.parent) break;
+    current = await Location.findById(current.parent).select(
+      "name type parent",
+    );
+    guard += 1;
+  }
+  return chain;
+};
+
+/**
+ * Мягкая проверка серийного номера: есть ли уже устройства с таким же.
+ *
+ * Уникальности по серийнику нет — он повторяется в жизни (партия одинаковых
+ * блоков питания, нечитаемая наклейка), и жёсткое ограничение люди обходили
+ * суффиксом, портя данные. Совпадение — повод предупредить и показать, что
+ * именно уже заведено, а решает человек.
+ */
+exports.checkSerial = async (req, res, next) => {
+  try {
+    const value = String(req.query.value || "").trim();
+    if (!value) return res.status(200).json({ matches: [] });
+
+    const authedUser = await getAuthData(req);
+    const match = {
+      deletedAt: null,
+      serialNumber: value,
+      ...scopeMatch(authedUser),
+    };
+    if (mongoose.isValidObjectId(req.query.excludeId)) {
+      match._id = { $ne: new mongoose.Types.ObjectId(req.query.excludeId) };
+    }
+
+    const devices = await ClientDevice.find(match)
+      .select("inventoryNumber deviceModelId deviceTypeId companyId")
+      .populate([
+        { path: "deviceModelId", select: "name" },
+        { path: "deviceTypeId", select: "name" },
+        { path: "companyId", select: "alias fullTitle" },
+      ])
+      .limit(5)
+      .lean();
+
+    res.status(200).json({
+      matches: devices.map((device) => ({
+        _id: device._id,
+        inventoryNumber: device.inventoryNumber || null,
+        name:
+          device.deviceModelId?.name ||
+          device.deviceTypeId?.name ||
+          "Устройство",
+        company:
+          device.companyId?.alias || device.companyId?.fullTitle || null,
+      })),
+    });
+  } catch (error) {
+    next(new AppError("Failed to check serial number", 500, true, error));
+  }
+};
+
 exports.getOne = async (req, res, next) => {
   try {
-    const device = await ClientDevice.findById(req.params.id).populate(
-      devicePopulate({ withModelPhotos: true }),
-    );
+    const device = await ClientDevice.findById(req.params.id)
+      .populate(devicePopulate({ withModelPhotos: true }))
+      // Хозяин сборки: у комплектующего это единственный путь «наверх» —
+      // в общем списке устройств его нет по определению.
+      .populate({
+        path: "parentDeviceId",
+        select: "inventoryNumber deviceModelId deviceTypeId",
+        populate: [
+          { path: "deviceModelId", select: "name" },
+          { path: "deviceTypeId", select: "name" },
+        ],
+      });
 
     if (!device) {
       return next(
@@ -158,6 +787,8 @@ exports.getOne = async (req, res, next) => {
       parentDeviceId: req.params.id,
       deletedAt: null,
     }).populate(DEVICE_POPULATE);
+
+    const locationPath = await buildLocationPath(device.locationId?._id);
 
     // Mikrotik management overlay: connectivity + a link target for the panel,
     // present only when the device has a management record.
@@ -174,7 +805,9 @@ exports.getOne = async (req, res, next) => {
         }
       : null;
 
-    res.status(200).json({ ...device.toObject(), components, mikrotik });
+    res
+      .status(200)
+      .json({ ...device.toObject(), components, mikrotik, locationPath });
   } catch (error) {
     next(
       new AppError(`Failed to fetch device ${req.params.id}`, 500, true, error),
@@ -182,24 +815,56 @@ exports.getOne = async (req, res, next) => {
   }
 };
 
+/**
+ * Заявки, ссылающиеся на устройство. Ссылку сейчас ставит только автоматика
+ * мониторинга (`services/mikrotik/tickets.js`), поэтому список короткий и это
+ * честно: ручное создание заявки устройство пока не выбирает.
+ *
+ * Секция карточки читает историю простоев, а не ведёт переписку, — отдаём
+ * только то, что рисует строка, и без пагинации (последние N).
+ */
+exports.getTickets = async (req, res, next) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 10, 50);
+    const query = { relatedClientDeviceId: req.params.id };
+    const [tickets, total] = await Promise.all([
+      Ticket.find(query)
+        .select("num title state isClosed source createdAt finishedAt")
+        .sort({ num: -1 })
+        .limit(limit)
+        .lean(),
+      Ticket.countDocuments(query),
+    ]);
+
+    res.status(200).json({
+      tickets: tickets.map((ticket) => ({
+        _id: ticket._id,
+        num: ticket.num,
+        title: ticket.title,
+        state: ticket.state,
+        isClosed: ticket.isClosed,
+        // Автозаявка мониторинга — по источнику: значок «авто» в строке.
+        isAuto: ticket.source === "Мониторинг устройств",
+        createdAt: ticket.createdAt,
+        finishedAt: ticket.finishedAt || null,
+      })),
+      total,
+    });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to fetch tickets of device ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
 exports.add = async (req, res, next) => {
   try {
     const payload = buildDevicePayload(req.body);
-
-    // Серийник опционален — проверяем дубль только если он задан.
-    if (payload.serialNumber) {
-      const serialExists = await ClientDevice.findOne({
-        serialNumber: payload.serialNumber,
-      });
-      if (serialExists) {
-        return next(
-          new AppError(
-            `Device with serial number ${payload.serialNumber} already exists`,
-            409,
-          ),
-        );
-      }
-    }
 
     if (payload.inventoryNumber) {
       const invExists = await ClientDevice.findOne({
@@ -297,7 +962,7 @@ exports.add = async (req, res, next) => {
       clientDevice,
     });
   } catch (error) {
-    next(new AppError("Failed to add device", 500, true, error));
+    next(duplicateError(error) || new AppError("Failed to add device", 500, true, error));
   }
 };
 
@@ -311,21 +976,6 @@ exports.update = async (req, res, next) => {
     }
 
     const payload = buildDevicePayload(req.body);
-
-    if (payload.serialNumber && payload.serialNumber !== device.serialNumber) {
-      const serialExists = await ClientDevice.findOne({
-        serialNumber: payload.serialNumber,
-        _id: { $ne: req.params.id },
-      });
-      if (serialExists) {
-        return next(
-          new AppError(
-            `Device with serial number ${payload.serialNumber} already exists`,
-            409,
-          ),
-        );
-      }
-    }
 
     if (
       payload.inventoryNumber &&
@@ -399,12 +1049,13 @@ exports.update = async (req, res, next) => {
     });
   } catch (error) {
     next(
-      new AppError(
-        `Failed to update device ${req.params.id}`,
-        500,
-        true,
-        error,
-      ),
+      duplicateError(error) ||
+        new AppError(
+          `Failed to update device ${req.params.id}`,
+          500,
+          true,
+          error,
+        ),
     );
   }
 };

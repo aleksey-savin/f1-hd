@@ -23,6 +23,7 @@ import PillPanel from "@/components/app/PillPanel";
 
 import useOffcanvasStore from "../../store/offcanvas";
 import { AuthedUserContext } from "../../store/authed-user-context";
+import { formatShortDate } from "../../util/format-date";
 import { formatPrice } from "../../util/format-string";
 import { plural } from "../../util/plural";
 import { tariffTypeName } from "./tariff-types";
@@ -39,8 +40,6 @@ const WEEK = [
 ];
 
 const money = (value) => formatPrice(Math.round(Number(value) || 0));
-
-const fmtDate = (value) => new Date(value).toLocaleDateString("ru-RU");
 
 // Имя автора (populate createdBy/updatedBy на getOne) — «Фамилия Имя»
 const personName = (person) =>
@@ -85,8 +84,8 @@ const ViewServicePlan = ({ servicePlan }) => {
   const updaterName = personName(updatedBy);
   const metaBits = [
     updatedAt &&
-      `Обновлено ${fmtDate(updatedAt)}${updaterName ? `, ${updaterName}` : ""}`,
-    createdAt && `создано ${fmtDate(createdAt)}`,
+      `Обновлено ${formatShortDate(updatedAt)}${updaterName ? `, ${updaterName}` : ""}`,
+    createdAt && `создано ${formatShortDate(createdAt)}`,
   ]
     .filter(Boolean)
     .join(" · ");

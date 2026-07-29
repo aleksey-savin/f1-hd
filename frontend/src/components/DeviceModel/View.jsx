@@ -31,7 +31,7 @@ import FormSheet from "@/components/app/FormSheet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { cn } from "@/lib/utils";
 
-import DevicePhotos, { photoUrl } from "../Devices/Photos";
+import PhotoGallery, { photoUrl } from "@/components/app/PhotoGallery";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import useOffcanvasStore from "../../store/offcanvas";
@@ -388,7 +388,7 @@ const ViewDeviceModel = ({
                 модели, у которых нет собственных фотографий.
               </p>
             )}
-            <DevicePhotos
+            <PhotoGallery
               key={deviceModel._id}
               endpoint={`${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models/${deviceModel._id}/photos`}
               photos={photos}

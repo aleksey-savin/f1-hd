@@ -1,7 +1,8 @@
 // Каталог прав пользователя — ОДИН источник для формы (редактирование) и
-// карточки (показ выданных). Раньше список жил в двух местах и расходился:
-// в форме не было canManageDeviceModels/Types/Attributes, из-за чего
-// `user.permissions = permissions` при каждом сохранении их сбрасывал.
+// карточки (показ выданных). Список жил в двух местах и расходился: право,
+// которого нет в форме, каждое сохранение сбрасывало (`user.permissions =
+// permissions`). Показываем только те права, которые реально что-то гейтят на
+// бэкенде: галочка, ничего не меняющая, врёт администратору.
 //
 // master — ключ «рубильника» модуля: выключен, значит группа неактивна.
 
@@ -55,9 +56,6 @@ export const PERMISSION_MODULES = [
     master: "canUseInventoryModule",
     caps: [
       { key: "canManageClientDevices", label: "Управление устройствами" },
-      { key: "canManageDeviceModels", label: "Модели устройств" },
-      { key: "canManageDeviceTypes", label: "Типы устройств" },
-      { key: "canManageDeviceAttributes", label: "Атрибуты устройств" },
       { key: "canManageMikrotikDevices", label: "Устройства Mikrotik" },
       { key: "canManageMikrotikConfigs", label: "Резервные копии Mikrotik" },
     ],

@@ -1,167 +1,209 @@
 import { create } from "zustand";
+
 import { getLocalStorageData } from "../../util/auth";
-import { CUSTOM_VENDOR_BUCKET } from "../../components/ClientDevice/constants";
 
-// Searchable text fields of a populated client-device.
-const deviceSearchFields = (item) => [
-  item.companyId?.alias,
-  item.companyId?.fullTitle,
-  item.userId?.firstName,
-  item.userId?.lastName,
-  item.userId?.email,
-  item.locationId?.name,
-  item.deviceModelId?.name,
-  item.deviceModelId?.vendorId?.name,
-  item.deviceModelId?.deviceTypeId?.name,
-  item.deviceTypeId?.name,
-  item.supplierId?.name,
-  item.serialNumber,
-  item.inventoryNumber,
-  item.purchaseDocument,
-  item.status,
-  item.notes,
-  item.ipAddress,
-  item.macAddress,
-  item.operatingSystem,
-  item.hostname,
-];
+// Список «Устройства» — реестр активов на серверной выборке: поиск, фасеты,
+// сортировка, постраничность и счётчики стадий считает бэкенд (клиентский поиск
+// несовместим с пагинацией, а парк растёт вместе с числом клиентов). Стор
+// держит текущую порцию (items), общий счётчик (total) и состояние фасетов;
+// каждое изменение фасета/сортировки/страницы делает запрос само.
+//
+// Контракт app/ListWrapper сохранён: fullTextSearch / handleSorting / sortBy /
+// sortingOptions / isLoading / isSorting / resetFilter.
+const API = import.meta.env.VITE_API_ADDRESS;
+const PAGE_SIZE = 50;
 
-// функция последовательно отсеивает устройства согласно активным фильтрам
-// (И между разделами, ИЛИ внутри раздела; пустой раздел не фильтрует)
-const clientDeviceFilter = (state) => {
-  const originalList = Array.isArray(state.originalList)
-    ? state.originalList
-    : [];
-  return originalList
-    .filter(
-      (item) =>
-        !state.companies?.length ||
-        state.companies.includes(item.companyId?._id?.toString()),
-    )
-    .filter(
-      (item) =>
-        !state.locations?.length ||
-        state.locations.includes(item.locationId?._id?.toString()),
-    )
-    .filter(
-      (item) =>
-        !state.users?.length ||
-        state.users.includes(item.userId?._id?.toString()),
-    )
-    .filter((item) => {
-      if (!state.vendors?.length) return true;
-      const vendorId = item.deviceModelId?.vendorId?._id?.toString();
-      // Без модели/вендора — самосборка, попадает в бакет «Кастомная сборка».
-      return vendorId
-        ? state.vendors.includes(vendorId)
-        : state.vendors.includes(CUSTOM_VENDOR_BUCKET);
-    })
-    .filter((item) => {
-      if (!state.deviceTypes?.length) return true;
-      // Тип — из модели (заводская сборка) или напрямую (самосборное).
-      const typeId = (
-        item.deviceModelId?.deviceTypeId?._id || item.deviceTypeId?._id
-      )?.toString();
-      return state.deviceTypes.includes(typeId);
-    })
-    .filter(
-      (item) => !state.statuses?.length || state.statuses.includes(item.status),
-    )
-    .filter((item) => {
-      if (state.searchTerm.length > 0) {
-        return deviceSearchFields(item)
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(state.searchTerm);
-      } else {
-        return true;
-      }
-    });
+const SORT = {
+  created: { label: "Сначала новые" },
+  inventory: { label: "По инв. номеру" },
 };
+const SORT_KEY_BY_LABEL = Object.fromEntries(
+  Object.entries(SORT).map(([key, option]) => [option.label, key]),
+);
 
-const searchItems = (query, items) => {
-  if (!query) return items;
-
-  const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
-
-  return items.filter((item) => {
-    const fieldsToSearch = deviceSearchFields(item);
-    return queryTerms.every((term) =>
-      fieldsToSearch.some(
-        (field) => field && String(field).toLowerCase().includes(term),
-      ),
-    );
-  });
-};
-
-const useClientDeviceFilterStore = create((set) => ({
-  searchTerm: "",
-  // Мульти-селект фильтры (массивы выбранных id / значений)
+const EMPTY_FACETS = {
   companies: [],
   locations: [],
   users: [],
+  types: [],
   vendors: [],
-  deviceTypes: [],
   statuses: [],
-  // Опции локаций, лениво подгружаемые по выбранным компаниям
-  locationOptions: [],
-  originalList: [],
-  filteredList: [],
-  isLoading: false,
-  fetch: async () => {
-    set({ isLoading: true });
-    const { token } = getLocalStorageData();
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
-    const data = await response.json();
+  // Пробел учёта — флаг, а не набор: техника без инвентарного номера.
+  noInventory: false,
+  // Показывать детали сборок. Поиск включает их сам (см. бэкенд), свитч нужен
+  // для просмотра: «покажи все модули памяти».
+  withComponents: false,
+};
 
-    set({
-      originalList: Array.isArray(data) ? data : [],
-      isLoading: false,
+let searchDebounce;
+// Гонка листания: поздний ответ прошлого запроса не должен перетирать свежий.
+let requestSeq = 0;
+
+const buildParams = (state) => {
+  const params = new URLSearchParams();
+  Object.entries(state.facets).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      if (value.length) params.set(key, value.join(","));
+    } else if (value) {
+      params.set(key, "true");
+    }
+  });
+  if (state.searchTerm) params.set("search", state.searchTerm);
+  params.set("sort", SORT_KEY_BY_LABEL[state.sortBy?.label] || "created");
+  params.set("page", String(state.page));
+  params.set("limit", String(PAGE_SIZE));
+  return params;
+};
+
+const doFetch = async (get, set, { append = false } = {}) => {
+  const { token } = getLocalStorageData();
+  const seq = ++requestSeq;
+  set({ isLoading: true });
+  try {
+    const url = new URL(`${API}/api/inventory/client-devices`);
+    url.search = buildParams(get()).toString();
+    const response = await fetch(url, {
+      headers: { Authorization: "Bearer " + token },
     });
-  },
-  updateFilter: (data) =>
-    set(() => ({
-      searchTerm: data.searchTerm,
-      originalList: data.originalList,
-      companies: data.companies ?? [],
-      locations: data.locations ?? [],
-      users: data.users ?? [],
-      vendors: data.vendors ?? [],
-      deviceTypes: data.deviceTypes ?? [],
-      statuses: data.statuses ?? [],
-      locationOptions: data.locationOptions ?? [],
+    if (!response.ok) throw new Error(`client-devices ${response.status}`);
+    const data = await response.json();
+    if (seq !== requestSeq) return;
+    set((state) => ({
+      items: append ? [...state.items, ...data.devices] : data.devices,
+      total: typeof data.total === "number" ? data.total : data.devices.length,
+      statusCounts: data.statusCounts || {},
+      noInventoryNumber: data.noInventoryNumber || 0,
+      componentsCount: data.componentsCount || 0,
       isLoading: false,
-    })),
-  fullTextSearch: (query) =>
-    set((state) => ({
-      filteredList: searchItems(query, clientDeviceFilter(state)),
-    })),
-  applyFilter: () =>
+      isSorting: false,
+    }));
+  } catch (error) {
+    if (seq === requestSeq) set({ isLoading: false, isSorting: false });
+    console.warn("Загрузка устройств пропущена:", error);
+  }
+};
+
+const useClientDeviceFilterStore = create((set, get) => ({
+  items: [],
+  total: 0,
+  page: 1,
+  pageSize: PAGE_SIZE,
+  statusCounts: {},
+  noInventoryNumber: 0,
+  // Сколько из найденного — детали внутри сборок (подпись над списком).
+  componentsCount: 0,
+  // true с самого начала: страница монтируется уже с идущим запросом, и без
+  // этого между первым кадром и ответом мигало бы «Список пуст».
+  isLoading: true,
+  isSorting: false,
+
+  searchTerm: "",
+  facets: { ...EMPTY_FACETS },
+  // Опции фасетов приезжают отдельной ручкой: серверная выборка сужает набор,
+  // из которого иначе собирались бы опции, и выбранное значение исчезало бы из
+  // собственного фильтра, стоит начать печатать.
+  options: { companies: [], locations: [], users: [], types: [], vendors: [] },
+
+  sortingOptions: [SORT.created, SORT.inventory],
+  sortBy: SORT.created,
+
+  fetch: () => doFetch(get, set),
+
+  fetchOptions: async () => {
+    const { token } = getLocalStorageData();
+    try {
+      const response = await fetch(
+        `${API}/api/inventory/client-devices/facets`,
+        { headers: { Authorization: "Bearer " + token } },
+      );
+      if (!response.ok) throw new Error(`facets ${response.status}`);
+      set({ options: await response.json() });
+    } catch (error) {
+      console.warn("Опции фильтра устройств пропущены:", error);
+    }
+  },
+
+  setFacet: (key, value) => {
     set((state) => {
-      return { filteredList: clientDeviceFilter(state) };
-    }),
+      const facets = { ...state.facets, [key]: value };
+      // Расположения принадлежат компаниям: сменили набор компаний — выбранные
+      // расположения, которых больше не предлагают, отваливаются вместе с ним.
+      if (key === "companies") {
+        facets.locations = value.length
+          ? state.facets.locations.filter((locationId) =>
+              state.options.locations.some(
+                (option) =>
+                  option.value === locationId && value.includes(option.company),
+              ),
+            )
+          : [];
+      }
+      return { facets, page: 1 };
+    });
+    doFetch(get, set);
+  },
+
+  toggleNoInventory: () => {
+    get().setFacet("noInventory", !get().facets.noInventory);
+  },
+
+  toggleComponents: () => {
+    get().setFacet("withComponents", !get().facets.withComponents);
+  },
+
+  toggleStatus: (status) => {
+    const current = get().facets.statuses;
+    get().setFacet(
+      "statuses",
+      current.includes(status)
+        ? current.filter((entry) => entry !== status)
+        : [...current, status],
+    );
+  },
+
+  setPage: (page) => {
+    set({ page });
+    doFetch(get, set);
+  },
+  loadMore: () => {
+    set((state) => ({ page: state.page + 1 }));
+    doFetch(get, set, { append: true });
+  },
+
+  handleSorting: async (option) => {
+    set({ sortBy: option, isSorting: true, page: 1 });
+    await doFetch(get, set);
+  },
+
+  fullTextSearch: (query) => {
+    set({ searchTerm: query });
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      set({ page: 1 });
+      doFetch(get, set);
+    }, 300);
+  },
+
   resetFilter: () => {
-    set(() => ({
-      searchTerm: "",
-      companies: [],
-      locations: [],
-      users: [],
-      vendors: [],
-      deviceTypes: [],
-      statuses: [],
-      locationOptions: [],
-    }));
+    set({ facets: { ...EMPTY_FACETS }, searchTerm: "", page: 1 });
+    doFetch(get, set);
+  },
+
+  /**
+   * Ссылки «Вся техника в „Устройствах“» с карточек компании и пользователя
+   * (?company= | ?user=): фасет подставляется до первой загрузки, дальше
+   * снимается как обычный — бейджем в плашке применённых фильтров.
+   */
+  applyPrefilter: ({ companyId, userId }) => {
     set((state) => ({
-      filteredList: clientDeviceFilter(state),
+      facets: {
+        ...state.facets,
+        companies: companyId ? [companyId] : state.facets.companies,
+        users: userId ? [userId] : state.facets.users,
+      },
+      page: 1,
     }));
+    doFetch(get, set);
   },
 }));
 

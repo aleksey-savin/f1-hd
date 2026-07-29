@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useRevalidator } from "react-router";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useRevalidator,
+  useSearchParams,
+} from "react-router";
 
 import {
   RiArchive2Line,
@@ -70,6 +76,14 @@ const DeviceForm = () => {
   );
 
   const isEdit = Boolean(recordId);
+
+  // Подключение существующей карточки инвентаря: «Подключить к мониторингу» на
+  // карточке устройства открывает эту же форму с ?clientDeviceId=. Компания и
+  // адрес берутся из карточки, а связь ставится сразу после успешной проверки —
+  // шаг «нашли карточку по серийному номеру» на этом пути не нужен.
+  const [searchParams] = useSearchParams();
+  const targetDeviceId = isEdit ? null : searchParams.get("clientDeviceId");
+  const [targetDevice, setTargetDevice] = useState(null);
 
   const [form, setForm] = useState(EMPTY_FORM);
   // Связанная с инвентарём запись: идентичность даёт карточка — поля
@@ -152,6 +166,50 @@ const DeviceForm = () => {
     };
   }, [recordId]);
 
+  // Префилл из карточки инвентаря: компания (менять её нельзя — запись
+  // принадлежит той же компании), название и адрес, если он в карточке указан.
+  useEffect(() => {
+    if (!targetDeviceId) return;
+    let cancelled = false;
+    (async () => {
+      const { token } = getLocalStorageData();
+      const base = import.meta.env.VITE_API_ADDRESS;
+      try {
+        const response = await fetch(
+          base + "/api/inventory/client-devices/" + targetDeviceId,
+          { headers: { Authorization: "Bearer " + token } },
+        );
+        if (!response.ok) return;
+        const device = await response.json();
+        if (cancelled) return;
+        const model = device.deviceModelId;
+        const title =
+          [model?.vendorId?.name, model?.name].filter(Boolean).join(" ") ||
+          model?.deviceTypeId?.name ||
+          device.deviceTypeId?.name ||
+          "Устройство";
+        setTargetDevice({
+          _id: device._id,
+          title,
+          inventoryNumber: device.inventoryNumber || null,
+          companyName:
+            device.companyId?.alias || device.companyId?.fullTitle || null,
+        });
+        setForm((prev) => ({
+          ...prev,
+          companyId: device.companyId?._id || prev.companyId,
+          label: title,
+          host: prev.host || device.ipAddress || "",
+        }));
+      } catch {
+        // Не получилось прочитать карточку — форма остаётся обычной.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [targetDeviceId]);
+
   const changeHandler = (event) =>
     setForm((prev) => ({
       ...prev,
@@ -192,6 +250,14 @@ const DeviceForm = () => {
     fetchRows();
     revalidator.revalidate();
     offcanvas.setClose();
+    // Пришли с карточки устройства — туда и возвращаемся: подключение было
+    // шагом её задачи, а не заходом в раздел мониторинга.
+    if (targetDeviceId) {
+      navigate(`/inventory/client-devices/${targetDeviceId}`, {
+        replace: true,
+      });
+      return;
+    }
     navigate("..", { replace: true, relative: "route" });
   };
 
@@ -210,9 +276,7 @@ const DeviceForm = () => {
         knockSequence: form.jumpRecordId ? [] : parseKnock(form.knockSequence),
         sshPort: Number(form.sshPort),
         jumpRecordId: form.jumpRecordId || null,
-        ...(isLinked
-          ? {}
-          : { companyId: form.companyId, label: form.label }),
+        ...(isLinked ? {} : { companyId: form.companyId, label: form.label }),
       };
       const response = isEdit
         ? await saveRecordParameters(recordId, body)
@@ -220,6 +284,27 @@ const DeviceForm = () => {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         setError(data.message || "Не удалось сохранить устройство");
+        return;
+      }
+
+      // Пришли с карточки устройства — связываем сразу: решать, какую карточку
+      // взять, не нужно, её выбрал пользователь ещё до формы.
+      if (targetDeviceId && data.record?._id) {
+        setResult({ record: data.record, inventory: null });
+        setStep("done");
+        const linkResponse = await linkInventory(
+          data.record._id,
+          targetDeviceId,
+        );
+        if (linkResponse.ok) {
+          setLinkState("linked");
+        } else {
+          const linkData = await linkResponse.json().catch(() => ({}));
+          setLinkError(
+            linkData.message ||
+              "Устройство подключено, но связать карточку не удалось",
+          );
+        }
         return;
       }
 
@@ -285,8 +370,14 @@ const DeviceForm = () => {
     const record = result.record || {};
     const inventory = result.inventory;
     const candidate = inventory?.candidate;
+    // linkState — уже связано (в том числе автоматически, при заходе с
+    // карточки устройства): блок показывает результат, а не выбор.
     const showInventory =
-      inventory && record.serialNumber && (candidate || inventory.canCreateCard);
+      linkState ||
+      linkError ||
+      (inventory &&
+        record.serialNumber &&
+        (candidate || inventory.canCreateCard));
 
     return (
       <div>
@@ -339,6 +430,12 @@ const DeviceForm = () => {
                   Живой статус устройства появится в «Окружении» и на карточке
                   инвентаря.
                 </span>
+              </div>
+            ) : !inventory ? (
+              // Пришли с карточки, но связать не удалось — запись создана,
+              // связь можно поставить с карточки повторно.
+              <div className="tw:rounded-xl tw:border tw:border-destructive/40 tw:bg-destructive/10 tw:px-4 tw:py-3 tw:text-sm">
+                {linkError}
               </div>
             ) : (
               <div className="tw:rounded-xl tw:border tw:border-border tw:px-4 tw:py-3.5">
@@ -440,7 +537,38 @@ const DeviceForm = () => {
 
       {error && <AlertMessage variant="danger" message={error} />}
 
-      {!isLinked ? (
+      {/* Подключение карточки из инвентаря: с чем свяжемся — видно до сабмита */}
+      {targetDevice && (
+        <div className="tw:mb-4 tw:flex tw:items-center tw:gap-3 tw:rounded-xl tw:border tw:border-border tw:bg-accent tw:px-3.5 tw:py-3">
+          <span className="tw:grid tw:size-10 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-card tw:text-muted-foreground">
+            <RiArchive2Line size={18} aria-hidden />
+          </span>
+          <div className="tw:min-w-0">
+            <div className="tw:text-sm tw:font-semibold">
+              Подключаем карточку из инвентаря
+            </div>
+            <div className="tw:truncate tw:text-sm tw:text-muted-foreground">
+              {[
+                targetDevice.title,
+                targetDevice.inventoryNumber
+                  ? `инв. №${targetDevice.inventoryNumber}`
+                  : null,
+                targetDevice.companyName,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {targetDevice ? (
+        // Компания и название — из карточки: запись принадлежит той же
+        // компании, а имя устройства уже названо в инвентаре.
+        <div className="tw:mb-3 tw:text-sm tw:text-muted-foreground">
+          Компания и название берутся из карточки устройства.
+        </div>
+      ) : !isLinked ? (
         <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
           <Field label="Компания" htmlFor="mikrotik-company" required>
             <Select

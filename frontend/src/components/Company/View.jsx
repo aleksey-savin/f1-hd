@@ -42,6 +42,7 @@ import useOffcanvasStore from "@/store/offcanvas";
 import useToastStore from "@/store/toast-store";
 
 import { plural } from "../../util/plural";
+import { formatShortDate } from "../../util/format-date";
 import { getWorkingStatus } from "../../util/get-working-status";
 import { getTaxiAction } from "./company-links";
 import WorkStatusText from "./WorkStatusText";
@@ -63,9 +64,6 @@ import ApiKeysSection from "./View/ApiKeysSection";
 // «Лог активности» — в «⋯»-меню.
 const DELETE_MESSAGE =
   "Вы уверены? Все пользователи компании также будут удалены. Это действие нельзя отменить.";
-
-const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("ru-RU") : null;
 
 const personName = (person) =>
   person && (person.firstName || person.lastName)
@@ -135,8 +133,8 @@ const ViewCompany = ({
   const updaterName = personName(company.updatedBy);
   const metaBits = [
     company.updatedAt &&
-      `Обновлено ${fmtDate(company.updatedAt)}${updaterName ? `, ${updaterName}` : ""}`,
-    company.createdAt && `создано ${fmtDate(company.createdAt)}`,
+      `Обновлено ${formatShortDate(company.updatedAt)}${updaterName ? `, ${updaterName}` : ""}`,
+    company.createdAt && `создано ${formatShortDate(company.createdAt)}`,
   ]
     .filter(Boolean)
     .join(" · ");

@@ -31,14 +31,12 @@ import { Eyebrow, Panel } from "@/components/app/Panel";
 import Field from "@/components/app/Field";
 import AlertMessage from "@/components/app/AlertMessage";
 import useToastStore from "@/store/toast-store";
+import { formatShortDate } from "@/util/format-date";
 import { cn } from "@/lib/utils";
 
 // API-ключи компании (только для управляющих компаниями): строки с маской
 // ключа, показом/копированием и статусом текстом с точкой. «Создать ключ» —
 // генерация (исключение словаря действий), удаление — с подтверждением.
-const fmtDate = (value) =>
-  value ? new Date(value).toLocaleDateString("ru-RU") : "—";
-
 const maskKey = (key) =>
   key.length <= 8 ? key : `${key.slice(0, 4)}••••${key.slice(-4)}`;
 
@@ -177,7 +175,7 @@ const ApiKeysSection = ({ company, id }) => {
                 </button>
               </span>
               <span className="tw:ms-auto tw:flex-none tw:text-xs tw:text-faint tw:tabular-nums tw:max-md:hidden">
-                создан {fmtDate(apiKey.createdAt)}
+                создан {formatShortDate(apiKey.createdAt) || "—"}
               </span>
               <span
                 className={cn(

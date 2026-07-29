@@ -1,5 +1,5 @@
 import { getLocalStorageData } from "../../util/auth";
-import { STATUS_LABELS } from "./constants";
+import { DEVICE_STATUS_LABELS as STATUS_LABELS } from "@/components/app/device-status";
 
 const base = import.meta.env.VITE_API_ADDRESS;
 

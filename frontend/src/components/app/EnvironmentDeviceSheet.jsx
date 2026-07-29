@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import {
-  STATUS_META,
-  EnvStatusText,
+  DEVICE_STATUS_META,
+  DeviceStatusText,
   mikrotikStatus,
   deviceIcon,
-} from "./EnvironmentDeviceTile";
+} from "./device-status";
 
 const dash = <span className="tw:text-faint">—</span>;
 
@@ -41,7 +41,7 @@ const EnvironmentDeviceSheet = ({
   onClose,
 }) => {
   const Icon = device ? deviceIcon(device.typeName) : null;
-  const status = device ? STATUS_META[device.status] : null;
+  const status = device ? DEVICE_STATUS_META[device.status] : null;
   const mikro = device ? mikrotikStatus(device) : null;
 
   return (
@@ -90,16 +90,16 @@ const EnvironmentDeviceSheet = ({
                 <Info label="Производитель">{device.vendorName}</Info>
                 <Info label="Статус">
                   {status && (
-                    <EnvStatusText tone={status.tone} className="tw:text-sm">
+                    <DeviceStatusText tone={status.tone} className="tw:text-sm">
                       {status.label}
-                    </EnvStatusText>
+                    </DeviceStatusText>
                   )}
                 </Info>
                 {mikro && (
                   <Info label="Mikrotik">
-                    <EnvStatusText tone={mikro.tone} className="tw:text-sm">
+                    <DeviceStatusText tone={mikro.tone} className="tw:text-sm">
                       {mikro.label}
-                    </EnvStatusText>
+                    </DeviceStatusText>
                   </Info>
                 )}
                 <Info label="Инвентарный №" mono>

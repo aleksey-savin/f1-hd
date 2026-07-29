@@ -14,20 +14,24 @@ import { AuthedUserContext } from "../../store/authed-user-context";
 import useWorkStatusesStore from "../../store/work-statuses";
 import usePolling from "../../hooks/use-polling";
 import { WORK_STATUSES } from "../../util/work-statuses";
+import {
+  businessDayKey,
+  formatDayMonth,
+  formatTime,
+} from "../../util/format-date";
 import WorkStatusAvatar from "./WorkStatusAvatar";
 
 const STORAGE_KEY = "workStatusBarOpen";
 
-// «с HH:MM» для сегодняшних смен статуса, «с DD.MM» для более старых
+// «с HH:MM» для сегодняшних смен статуса, «с DD.MM» для более старых. «Сегодня»
+// — день бизнес-таймзоны (табло общее для всей организации), а не браузера.
 const sinceLabel = (updatedAt) => {
   if (!updatedAt) {
     return "";
   }
-  const date = new Date(updatedAt);
-  const now = new Date();
-  return date.toDateString() === now.toDateString()
-    ? `с ${date.toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" })}`
-    : `с ${date.toLocaleDateString("ru", { day: "2-digit", month: "2-digit" })}`;
+  return businessDayKey(updatedAt) === businessDayKey()
+    ? `с ${formatTime(updatedAt)}`
+    : `с ${formatDayMonth(updatedAt)}`;
 };
 
 const personTitle = (user, status) =>

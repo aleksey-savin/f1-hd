@@ -4,7 +4,6 @@ const deviceAttributeController = require("@/controllers/inventory/deviceAttribu
 const isAuth = require("@/middleware/isAuth");
 const {
   canManageClientDevices,
-  canManageDeviceAttributes,
 } = require("@/middleware/permissions");
 const {
   deviceAttributeValidation,
@@ -19,7 +18,6 @@ router.post(
   "/device-attributes/add",
   isAuth,
   canManageClientDevices,
-  // canManageDeviceAttributes,
   deviceAttributeValidation,
   checkValidationResult,
   deviceAttributeController.add,
@@ -29,7 +27,6 @@ router.put(
   "/device-attributes/update/:id",
   isAuth,
   canManageClientDevices,
-  // canManageDeviceAttributes,
   deviceAttributeValidation,
   checkValidationResult,
   deviceAttributeController.update,
@@ -39,7 +36,6 @@ router.post(
   "/device-attributes/delete/:id",
   isAuth,
   canManageClientDevices,
-  // canManageDeviceAttributes,
   deviceAttributeController.delete,
 );
 

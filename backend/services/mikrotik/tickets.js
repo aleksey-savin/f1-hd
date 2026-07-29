@@ -27,11 +27,12 @@ const fmtTime = (date, timeZone) =>
 // якорь работает в обоих местах (telegram-уведомления описание не включают).
 // ADDRESS даёт абсолютный URL для писем; без него ссылка остаётся относительной
 // и работает в вебе.
+// Ведём НА ЗАПИСЬ мониторинга, а не на карточку инвентаря: заявка про связь, а
+// отвечает на «что с устройством сейчас» страница записи (лента доступности,
+// журнал простоев). У карточки инвентаря — сводка со ссылкой сюда же.
 const deviceLinkHtml = (record) => {
   const base = process.env.ADDRESS || "";
-  const path = record.clientDevice
-    ? `/inventory/client-devices/${record.clientDevice}?tab=monitoring`
-    : `/devices/mikrotik/records/${record._id}`;
+  const path = `/devices/mikrotik/records/${record._id}`;
   return `<a href="${base}${path}">Открыть страницу устройства</a>`;
 };
 

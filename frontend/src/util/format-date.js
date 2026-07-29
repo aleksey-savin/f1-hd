@@ -12,69 +12,109 @@ export const DEFAULT_TIMEZONE = "Europe/Moscow";
 
 const tz = () => getLocalStorageData().timezone || DEFAULT_TIMEZONE;
 
+// Пустое значение — не дата: `new Date(null)` даёт эпоху, и в карточку попадает
+// «01.01.1970», а `new Date(undefined)` — «Invalid Date». Поэтому все хелперы
+// отображения возвращают null, а вызывающий сам решает, что показать вместо
+// даты (обычно `|| "—"`).
+const isEmpty = (date) => date === null || date === undefined || date === "";
+
 /* ── Отображение ИНСТАНТОВ (моментов времени) — в бизнес-таймзоне ── */
 
 // «пн, 08.07.2026, 14:30» — канонический формат «дата и время».
 export const formatDate = (date) =>
-  new Date(date).toLocaleDateString("ru", {
-    timeZone: tz(),
-    weekday: "short",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleDateString("ru", {
+        timeZone: tz(),
+        weekday: "short",
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
 // «08.07.2026» — только дата инстанта.
 export const formatShortDate = (date) =>
-  new Date(date).toLocaleDateString("ru", {
-    timeZone: tz(),
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-  });
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleDateString("ru", {
+        timeZone: tz(),
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+      });
 
-// «8 июля, 14:30» — компактный вариант без года.
+// «8 июля в 14:30» — компактный вариант без года («в» подставляет CLDR).
 export const formatDateTime = (date) =>
-  new Date(date).toLocaleDateString("ru", {
-    timeZone: tz(),
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleDateString("ru", {
+        timeZone: tz(),
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
-// «пт, 8 июля, 14:30» — с днём недели. Нужен там, где день недели объясняет
+// «пт, 8 июля в 14:30» — с днём недели. Нужен там, где день недели объясняет
 // смысл строки: в отчёте по услуге он показывает, почему работа попала в
 // нерабочее время (выходной), — без него это надо вычислять в уме.
 export const formatWeekdayDateTime = (date) =>
-  new Date(date).toLocaleDateString("ru", {
-    timeZone: tz(),
-    weekday: "short",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleDateString("ru", {
+        timeZone: tz(),
+        weekday: "short",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+// «14:30» — только время инстанта: ленты и логи, где день вынесен отдельной
+// меткой (см. businessDayKey ниже).
+export const formatTime = (date) =>
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleTimeString("ru", {
+        timeZone: tz(),
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+// «08.07» — день и месяц без года и времени.
+export const formatDayMonth = (date) =>
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleDateString("ru", {
+        timeZone: tz(),
+        day: "2-digit",
+        month: "2-digit",
+      });
 
 // «08.07, 14:30» — сверхкомпактный: оси/тултипы графиков и лент.
 export const formatDayMonthTime = (date) =>
-  new Date(date).toLocaleString("ru", {
-    timeZone: tz(),
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleString("ru", {
+        timeZone: tz(),
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
-// «июль 2026» / «июль» — заголовки месячных периодов.
+// «июль 2026 г.» / «июль» — заголовки месячных периодов. Суффикс « г.» даёт
+// CLDR; где он мешает вёрстке, его режут на месте (components/app/MonthStepper).
 export const formatMonthYear = (date) =>
-  new Date(date).toLocaleDateString("ru", {
-    timeZone: tz(),
-    month: "long",
-    year: "numeric",
-  });
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleDateString("ru", {
+        timeZone: tz(),
+        month: "long",
+        year: "numeric",
+      });
 
 /**
  * «июль 2026» из строки «2026-07».
@@ -94,10 +134,12 @@ export const formatMonthLabel = (month) => {
 };
 
 export const formatMonth = (date) =>
-  new Date(date).toLocaleDateString("ru", {
-    timeZone: tz(),
-    month: "long",
-  });
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleDateString("ru", {
+        timeZone: tz(),
+        month: "long",
+      });
 
 // «только что» / «2 мин назад» / «3 ч назад», для старого — полная дата.
 // Формат «протухающих» статусов: мониторинг Mikrotik, состояние почтовых
@@ -113,13 +155,40 @@ export const formatAgo = (value) => {
   return formatDate(value);
 };
 
+/* ── Сравнение ДНЕЙ (а не моментов) ── */
+
+/**
+ * Календарный день инстанта в бизнес-таймзоне, ключом «2026-07-08».
+ *
+ * Нужен там, где сравниваются дни, а не моменты («сегодня», «вчера», «эта
+ * работа за тот же день»): `date.getDate()` и `toDateString()` берут зону
+ * браузера, и сотрудник западнее организации видит «вчера» там, где у компании
+ * ещё сегодня. Серверная пара — `toLocaleDateString("en-CA", { timeZone })` в
+ * `backend/services/workStatusReset.js` и `dayKey` в telegram-bot.
+ */
+export const businessDayKey = (date = new Date()) =>
+  new Date(date).toLocaleDateString("en-CA", { timeZone: tz() });
+
+/** Разница в календарных днях бизнес-зоны: сегодня → 0, вчера → 1. */
+export const businessDaysAgo = (date) => {
+  if (isEmpty(date)) return null;
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const midnight = (key) => Date.parse(`${key}T00:00:00Z`);
+  return Math.round(
+    (midnight(businessDayKey()) - midnight(businessDayKey(parsed))) / 86400000,
+  );
+};
+
 /* ── КАЛЕНДАРНЫЕ даты (поля «только дата»: покупка, гарантия, срок действия —
       в БД хранятся UTC-полночью) ── */
 
 // Показываем такие поля в UTC, чтобы календарный день не съезжал ни в какой
 // таймзоне браузера (для отрицательных смещений локальный рендер даёт «вчера»).
 export const formatCalendarDate = (date) =>
-  date ? new Date(date).toLocaleDateString("ru-RU", { timeZone: "UTC" }) : null;
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleDateString("ru-RU", { timeZone: "UTC" });
 
 // Значение для <input type="date">: ЛОКАЛЬНЫЙ календарный день инстанта.
 // НИКОГДА не получайте его через toISOString().split("T")[0] — ISO даёт
@@ -141,10 +210,6 @@ export const toDateTimeLocal = (date = new Date()) =>
 // То же для ISO-строки с бэка (исторический альяс toDateTimeLocal).
 export const utcToLocalForm = (utcDateString) =>
   format(toZonedTime(parseISO(utcDateString), tz()), "yyyy-MM-dd'T'HH:mm");
-
-export const utcToLocal = (localDateString) => {
-  return toZonedTime(new Date(localDateString), tz()).toISOString();
-};
 
 export const localToUtc = (localDateString) => {
   return fromZonedTime(new Date(localDateString), tz()).toISOString();

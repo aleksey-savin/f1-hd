@@ -26,7 +26,7 @@ import FormSheet from "@/components/app/FormSheet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { cn } from "@/lib/utils";
 
-import { STATUS_LABELS } from "../ClientDevice/constants";
+import { DEVICE_STATUS_LABELS as STATUS_LABELS } from "@/components/app/device-status";
 import { TYPE_LABEL, TYPE_ICON, CHILD_CAPABLE } from "./type-meta";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";

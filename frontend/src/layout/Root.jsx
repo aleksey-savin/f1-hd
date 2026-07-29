@@ -77,13 +77,10 @@ const RootLayout = () => {
 
   useEffect(() => {
     if (
-      [
-        "/tickets",
-        // мигрированные экраны (companies, device-types, vendors, …) сайдбар
-        // не используют — фильтры живут в чипах/Sheet самого списка, а база
-        // знаний рисует свою двухпанельную раскладку сама
-        "/inventory/client-devices",
-      ].includes(location.pathname)
+      // мигрированные экраны (companies, device-types, vendors, устройства, …)
+      // сайдбар не используют — фильтры живут в чипах/Sheet самого списка, а
+      // база знаний рисует свою двухпанельную раскладку сама
+      ["/tickets"].includes(location.pathname)
     ) {
       return showLeftSidebar();
     }
@@ -218,6 +215,24 @@ const RootLayout = () => {
                     // ListWrapper: tw:max-w-7xl (1280) + 2×24
                     { path: "/inventory/vendors", maxWidth: 1328 },
                     { path: "/inventory/device-attributes", maxWidth: 1328 },
+                    // Поставщики: карточка (max-w-4xl, со слэшем) матчится
+                    // раньше списка (max-w-7xl) — порядок в .find важен
+                    { path: "/inventory/suppliers/", maxWidth: 944 },
+                    { path: "/inventory/suppliers", maxWidth: 1328 },
+                    // Устройства: формы списка (add/update/:id) — его ширина;
+                    // карточка (max-w-5xl + рейл, со слэшем) идёт ПОСЛЕ них, но
+                    // ДО точного «/inventory/client-devices»
+                    { path: "/inventory/client-devices/add", maxWidth: 1328 },
+                    {
+                      path: "/inventory/client-devices/update",
+                      maxWidth: 1328,
+                    },
+                    { path: "/inventory/client-devices/", maxWidth: 1072 },
+                    {
+                      path: "/inventory/client-devices",
+                      maxWidth: 1328,
+                      exact: true,
+                    },
                     // Типы: карточка (max-w-4xl, со слэшем) матчится раньше
                     // списка (max-w-7xl) — порядок в .find важен
                     { path: "/inventory/device-types/", maxWidth: 944 },

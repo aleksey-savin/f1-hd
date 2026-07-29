@@ -135,6 +135,12 @@ exports.createTicketNotifications = async () => {
     "loading pending ticket notifications",
   );
 
+  // Имя категории уведомления (`state`) едино в трёх местах:
+  // prefs.notify.personal.X, user.notify.byTelegram.X и user.notify.byEmail.X —
+  // по нему работают оба гейта ниже, и расхождение в одной букве тихо гасит
+  // канал. Новая категория = флаг в модели Preferences (+ свитч в админке) +
+  // поля в модели User + ветка `case` в switch по lastAction; само значение
+  // lastAction берётся из enum схемы Ticket.
   const notifyTg = (user, state) =>
     prefs.notify?.byTelegram?.isActive &&
     user?.telegramBot?.isActive &&

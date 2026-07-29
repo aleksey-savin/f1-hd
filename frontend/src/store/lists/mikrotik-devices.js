@@ -290,40 +290,15 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
     return response;
   },
 
-  // --- Легаси-операции по карточке инвентаря (вкладка «Мониторинг» карточки) ----
-  // Detach an inventory-backed device from management (delete its record), then
-  // refresh. The ClientDevice returns to the "available" pool for re-adding.
-  detach: async (clientDeviceId) => {
-    const response = await fetch(`${API}/${clientDeviceId}`, {
-      method: "DELETE",
-      headers: authHeaders(),
-    });
-    if (response.ok) {
-      await get().fetch();
-    }
-    return response;
-  },
-  // Verify-on-save connection parameters, then refresh the list.
-  saveParameters: async (clientDeviceId, body) => {
-    const response = await fetch(`${API}/${clientDeviceId}/parameters`, {
-      method: "POST",
-      headers: jsonHeaders(),
-      body: JSON.stringify(body),
-    });
-    if (response.ok) {
-      await get().fetch();
-    }
-    return response;
-  },
-  // Apply device-derived values to the inventory card (reconciliation step).
-  // The backend derives the values itself — only field NAMES are sent.
-  syncInventory: async (clientDeviceId, fields) => {
-    return fetch(`${API}/${clientDeviceId}/sync-inventory`, {
+  // Применить считанные с устройства значения к связанной карточке инвентаря
+  // (расхождения показывает секция «Мониторинг» карточки). Шлём только ИМЕНА
+  // полей — значения сервер выводит сам из сохранённой записи.
+  syncInventory: async (recordId, fields) =>
+    fetch(`${API}/records/${recordId}/sync-inventory`, {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({ fields }),
-    });
-  },
+    }),
 
   // --- Отчёты и конфигурации (по id записи) --------------------------------------
   // Availability report (uptime / outage episodes) for one record. Returns the

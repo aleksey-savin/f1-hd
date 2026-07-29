@@ -1,14 +1,15 @@
+import { businessDaysAgo } from "./format-date";
+
 // Человекочитаемая «последняя активность» для адресной книги: гранулярность —
 // день (когда пользователь последний раз обращался, по дате его последней
 // заявки). Возвращает null, если даты нет.
+//
+// День считается в бизнес-таймзоне (businessDaysAgo), а не в браузерной:
+// иначе сотрудник, открывший адресную книгу западнее организации, видел бы
+// «вчера» там, где у компании ещё сегодня.
 export function relativeDay(input) {
-  if (!input) return null;
-  const date = new Date(input);
-  if (Number.isNaN(date.getTime())) return null;
-
-  const startOfDay = (d) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86400000);
+  const days = businessDaysAgo(input);
+  if (days === null) return null;
 
   if (days <= 0) return "сегодня";
   if (days === 1) return "вчера";
