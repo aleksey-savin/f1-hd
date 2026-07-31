@@ -298,6 +298,10 @@ const ViewTicket = () => {
           label: "Поля формы",
         },
         { id: "ticket-facts", label: "Детали" },
+        // Руководство идёт сразу за фактами: оно отвечает «что делать», за этим
+        // и открывают чужую заявку. Но не раньше «Деталей» — компания,
+        // заявитель и ответственный это факты, а руководство предложение
+        showAi && { id: "ticket-ai", label: "Руководство ИИ" },
         // Чек-лист есть у 3 % заявок — пустой пункт рейла вёл бы к строке
         // «Чек-листа нет»
         hasChecklist && { id: "ticket-checklist", label: "Чек-лист" },
@@ -308,7 +312,6 @@ const ViewTicket = () => {
             label: "Окружение",
           },
         showKnowledge && { id: "ticket-knowledge", label: "База знаний" },
-        showAi && { id: "ticket-ai", label: "Руководство ИИ" },
       ].filter(Boolean),
     [
       ticket.customFields?.length,
@@ -490,6 +493,8 @@ const ViewTicket = () => {
             }
           />
 
+          {showAi && <AiGuideSection />}
+
           {/* Секция появляется вместе с содержимым: пустой чек-лист — это блок,
               который сообщает только о своём отсутствии, а он бывает пустым у
               97 заявок из 100. Вход в составление — пункт «⋯»-меню, он же
@@ -619,8 +624,6 @@ const ViewTicket = () => {
           )}
 
           {showKnowledge && <KnowledgeSection ticket={ticket} />}
-
-          {showAi && <AiGuideSection />}
         </div>
 
         <div className="tw:sticky tw:top-20 tw:hidden tw:w-96 tw:flex-none tw:xl:block">

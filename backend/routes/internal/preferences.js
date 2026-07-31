@@ -68,6 +68,20 @@ router.post(
   checkLimiter,
   preferencesController.checkSpeechToText,
 );
+// Правила ИИ — замечания сотрудников, включает их администратор
+router.get("/preferences/ai-rules", isAuth, isAdmin, preferencesController.getAiRules);
+router.post(
+  "/preferences/ai-rules/toggle",
+  isAuth,
+  isAdmin,
+  preferencesController.toggleAiRule,
+);
+router.post(
+  "/preferences/ai-rules/delete",
+  isAuth,
+  isAdmin,
+  preferencesController.deleteAiRule,
+);
 router.post(
   "/preferences/mailbox/check",
   isAuth,

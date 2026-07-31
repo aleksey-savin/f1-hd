@@ -15,6 +15,7 @@ const {
 } = require("./knowledgeBaseContext");
 const { logAiTicketEvent } = require("./aiTicketLog");
 const { humanizeAiError } = require("./aiErrors");
+const { rulesFor } = require("./aiRules");
 
 const MAX_COMMENTS = 20;
 const MAX_FIELD_LENGTH = 2000;
@@ -301,10 +302,18 @@ exports.generateTicketAiGuide = async (ticketId) => {
 
     // Vision can fail if the configured model isn't multimodal — fall back to a
     // text-only request so a guide is still produced.
+    // Замечания сотрудников по прошлым руководствам в этой области
+    const system =
+      SYSTEM_PROMPT +
+      (await rulesFor({
+        categoryId: ticket.categoryId?._id,
+        companyId: ticket.company?._id,
+      }));
+
     let result;
     try {
       result = await aiService.generateJson({
-        system: SYSTEM_PROMPT,
+        system,
         user,
         images,
       });
@@ -314,7 +323,7 @@ exports.generateTicketAiGuide = async (ticketId) => {
           ticketId,
           error: error.message,
         });
-        result = await aiService.generateJson({ system: SYSTEM_PROMPT, user });
+        result = await aiService.generateJson({ system, user });
       } else {
         throw error;
       }

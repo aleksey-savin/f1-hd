@@ -50,6 +50,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { AuthedUserContext } from "../../../store/authed-user-context";
+import AiMark from "./AiMark";
+import TicketTerms, {
+  appendAiMark,
+  highlightTerms,
+  inTextTerms,
+} from "./TicketTerms";
 import useInitialPrefsStore from "../../../store/prefs";
 import { formatDate } from "../../../util/format-date";
 import { openTaxi } from "../../../util/taxi-operators";
@@ -92,7 +98,46 @@ export const EmptySection = ({ icon: Icon, hint }) => (
  */
 export const DescriptionSection = ({ ticket, attachments, uploadAction }) => {
   const [showOriginal, setShowOriginal] = useState(false);
+  const [openTerm, setOpenTerm] = useState(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const { permissions, isEndUser } = useContext(AuthedUserContext);
+  const { modules, ai } = useInitialPrefsStore();
   const clean = (html) => ({ __html: DOMPurify.sanitize(html) });
+
+  const showAi = !isEndUser && ai?.isActive;
+  const terms = inTextTerms(ticket);
+  const canSaveNote =
+    !!modules?.knowledgeBase?.isActive && !!permissions?.canManageKnowledgeBase;
+
+  // Понятия подчёркиваем строкой в уже очищенном html, поэтому своих React-узлов
+  // там нет: клик ловим одним обработчиком на всей панели и находим понятие по
+  // номеру из data-атрибута
+  const description = DOMPurify.sanitize(ticket.description || "");
+  // Метка ИИ — только там, где он вписал данные вместо человека: итог звонка
+  // стал описанием заявки, и ошибка в нём уезжает в уведомление и в отчёт
+  const marked = ticket.aiSpeech?.status === "processed";
+  const html = showAi
+    ? (() => {
+        const withTerms = highlightTerms(description, terms);
+        return marked
+          ? appendAiMark(withTerms, "Описание собрано ИИ из записи звонка")
+          : withTerms;
+      })()
+    : description;
+
+  // Клик по подчёркнутому понятию или по метке: свои React-узлы в готовом html
+  // не живут, поэтому обработчик один на всю панель
+  const pickFromText = (event) => {
+    // Клик может прийти по <path> внутри иконки — ищем метку вверх по дереву
+    if (event.target?.closest?.("[data-ai-mark]")) {
+      setFeedbackOpen(true);
+      return;
+    }
+    const hit = event.target?.closest?.("[data-term]");
+    if (!hit) return;
+    const term = terms[Number(hit.dataset.term)];
+    setOpenTerm((current) => (current === term ? null : term));
+  };
 
   return (
     <Section>
@@ -123,14 +168,45 @@ export const DescriptionSection = ({ ticket, attachments, uploadAction }) => {
           // который читают целиком, а не сканируют.
           <div
             className="md-doc tw:max-h-96 tw:overflow-auto tw:text-xl tw:leading-relaxed tw:break-words"
-            dangerouslySetInnerHTML={clean(ticket.description)}
+            onClick={showAi ? pickFromText : undefined}
+            onKeyDown={
+              showAi
+                ? (event) => {
+                    if (event.key === "Enter" || event.key === " ")
+                      pickFromText(event);
+                  }
+                : undefined
+            }
+            dangerouslySetInnerHTML={{ __html: html }}
           />
         ) : (
           <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
             Нет описания
           </p>
         )}
+        {/* Сама метка дописана в конец текста выше — здесь только форма
+            замечания, которую она открывает */}
+        {showAi && marked && (
+          <AiMark
+            ticketId={ticket._id}
+            target="description"
+            hint="Описание собрано ИИ из записи звонка"
+            title="Что не так в описании?"
+            scope="итогов звонка"
+            open={feedbackOpen}
+            onOpenChange={setFeedbackOpen}
+          />
+        )}
+
         {attachments}
+
+        {showAi && (
+          <TicketTerms
+            openTerm={openTerm}
+            onOpenTerm={setOpenTerm}
+            canSaveNote={canSaveNote}
+          />
+        )}
       </Panel>
 
       {ticket.htmlDescription && (
@@ -202,7 +278,7 @@ export const FactsSection = ({
   onShowLogs,
   onEdit,
 }) => {
-  const { permissions } = useContext(AuthedUserContext);
+  const { permissions, isEndUser } = useContext(AuthedUserContext);
   const { taxi } = useInitialPrefsStore();
   const applicant = ticket.applicant;
   const computer = applicant?.computer;
@@ -316,10 +392,10 @@ export const FactsSection = ({
             <EntityLink to={`/users/${applicant._id}`}>
               {`${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()}
             </EntityLink>
+          ) : applicant ? (
+            `${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()
           ) : (
-            (applicant
-              ? `${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()
-              : ticket.realSender)
+            ticket.realSender
           )}
           {applicant?.position && (
             <span className="tw:text-muted-foreground">
@@ -355,6 +431,19 @@ export const FactsSection = ({
                 ИИ подбирает категорию…
               </span>
             )}
+          {/* Подобранная категория — второе место, где ИИ заполнил поле заявки:
+              ошибка в ней уводит подбор заметок и отчёты */}
+          {!isEndUser && ticket.aiCategory?.status === "processed" && (
+            <span className="tw:ms-1.5">
+              <AiMark
+                ticketId={ticket._id}
+                target="category"
+                hint="Категорию подобрал ИИ"
+                title="Категория подобрана неверно?"
+                scope="подбора категории для этой компании"
+              />
+            </span>
+          )}
         </PropRow>
 
         {computer?.name && (

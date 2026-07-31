@@ -104,6 +104,13 @@ export const createdText = (createdAt) => {
  * не должен читаться как подпись. Тон «нормы» при этом становится обычным
  * текстом, а не приглушённым: в списке она молчит, потому что таких строк
  * десятки, а на карточке заявка одна.
+ *
+ * НЕ inline-flex, хотя точка с текстом просятся во флекс. У флекс-контейнера
+ * базовая линия берётся от ПЕРВОГО элемента, а первый здесь — пустая точка без
+ * текста: её базовую линию браузер синтезирует по нижнему краю, и весь статус
+ * уезжает вниз относительно соседей. В шапке заявки из-за этого номер, статус и
+ * срок стояли на трёх разных высотах. Обычный строчный поток: точка —
+ * inline-block с align-middle, отступ — margin, а не gap.
  */
 export const TicketStateText = ({
   tone = "normal",
@@ -113,7 +120,7 @@ export const TicketStateText = ({
 }) => (
   <span
     className={cn(
-      "tw:inline-flex tw:items-center tw:gap-1.5 tw:text-sm tw:whitespace-nowrap",
+      "tw:text-sm tw:whitespace-nowrap",
       strong ? TONE_TEXT_STRONG[tone] : TONE_TEXT[tone],
       strong && "tw:font-semibold",
       className,
@@ -121,7 +128,10 @@ export const TicketStateText = ({
   >
     <span
       aria-hidden
-      className={cn("tw:size-1.5 tw:flex-none tw:rounded-full", TONE_DOT[tone])}
+      className={cn(
+        "tw:me-1.5 tw:inline-block tw:size-1.5 tw:rounded-full tw:align-middle",
+        TONE_DOT[tone],
+      )}
     />
     {children}
   </span>

@@ -6,16 +6,18 @@ not a spec — verify against the code before relying on any detail._
 
 ## Overview
 
-Four AI capabilities have been added:
+Five AI capabilities have been added:
 
-1. **AI provider preferences** — admin chooses OpenAI, Anthropic, DeepSeek or
-   Yandex AI Studio and stores the API key + model. Models are fetched live from
-   the provider, and each outbound channel carries a health line plus a check
-   action (see «Секция внешнего сервиса обязана отвечать, работает ли она» in the
-   UX guide). Speech recognition
-   has its own provider switch under the same AI preferences tab: **OpenAI**
-   (API key + model) or **Yandex SpeechKit** (API key + folder ID + `general`
-   model).
+1. **AI provider preferences** — admin chooses OpenAI, Anthropic, DeepSeek,
+   Yandex AI Studio or a **self-hosted server** (Ollama, LM Studio, vLLM,
+   llama.cpp, LocalAI — one option for all of them, they differ only by address)
+   and stores the API key + model. Models are fetched live from the provider, and
+   each outbound channel carries a health line plus a check action (see «Секция
+   внешнего сервиса обязана отвечать, работает ли она» in the UX guide). Speech
+   recognition has its own provider switch under the same section: **OpenAI**
+   (API key + model), **Yandex SpeechKit** (API key + folder ID + `general`) or a
+   **local** OpenAI-compatible server; a toggle lets it take the credentials from
+   the chat provider when the pair actually shares any.
 2. **AI ticket solution guide (experimental)** — generated **manually only**, via
    the button on the ticket page (auto-generation on ticket creation is disabled
    at the current stage). The configured provider generates either a step-by-step
@@ -39,6 +41,13 @@ Four AI capabilities have been added:
    summary replaces the description, so the category reflects the recognized call. A
    `aiCategory.status` badge shows progress (like the speech badge), and both the
    category and speech flows write start/end/error ticket-log entries (see §4).
+5. **Subject reference** — on demand the assistant extracts the ticket's
+   conceptual apparatus and writes a reference on any of those concepts (what it
+   is, what it consists of, how it is deployed, common pitfalls, links to the
+   vendor's documentation). The reference is about the subject, not the ticket, so
+   it can be saved into the knowledge base and reused. Whatever the AI wrote into
+   the ticket's own fields carries a mark, and the mark opens a correction that
+   can grow into a prompt rule (see §5).
 
 Design principle throughout: **provider-agnostic via the global `fetch`** (no
 OpenAI/Anthropic SDK), matching the pre-existing `getAiModels` pattern. Output is
@@ -53,7 +62,9 @@ a header comment stating what it does and where it is used), imported via the
   constant (§3);
 - `prompts/transcription.js` — OpenAI speech-to-text Russian support-call hint (§3);
 - `prompts/ticketCategory.js` — category-classification prompt builder, `({ title,
-  description, categories }) → { system, user }` (§4).
+  description, categories }) → { system, user }` (§4);
+- `prompts/ticketTerms.js` — the ticket's conceptual apparatus (§5);
+- `prompts/termReference.js` — reference on one concept (§5).
 
 ---
 
@@ -222,16 +233,18 @@ aiGuide: {
   - reads the singleton `Preferences`; throws `AppError` if no provider key, and
     (unless `requireActive:false`) if `ai.isActive` is off;
   - OpenAI → `POST /v1/chat/completions` with `response_format:{type:"json_object"}`,
-    **no `temperature`** and `max_completion_tokens` (GPT‑5/o‑series reject a custom
-    `temperature` and the deprecated `max_tokens` with a 400); Anthropic →
+    **neither `temperature` nor an output cap**: GPT‑5/o‑series reject a custom
+    `temperature` with a 400, and even a valid `max_completion_tokens` is spent on
+    reasoning budget there, which ends in a 400 or an empty answer; Anthropic →
     `POST /v1/messages`, `max_tokens` (`maxTokens` or 1500),
     `anthropic-version: 2023-06-01`;
   - on a non-OK response the thrown error message **includes the provider's
     response body**, so the real cause is visible in logs;
   - `images` become provider-specific blocks (OpenAI `image_url`, Anthropic
     `image`/base64);
-  - `parseJsonResponse` strips ```` ```json ```` fences / extracts outer braces
-    before `JSON.parse`.
+  - `parseJsonResponse` strips `<think>…</think>` (reasoning models put braces in
+    there and would derail the fallback), then ```` ```json ```` fences, then
+    extracts the outer braces before `JSON.parse`.
 - **`attachmentExtractor.js`**:
   - `collectAttachments(ticket)` — ticket + all comment attachments, de-duped.
   - `extractAttachments(...)` →
@@ -325,8 +338,11 @@ module aliases and deps `pdf-parse`, `mammoth`, `xlsx`.
     `/knowledge-base/:id` in a new tab;
   - footer: provider · model · when generated · how many comments were taken into
     account.
-- `pages/Ticket/View.jsx` — renders `<AiGuideSection />` as the last section, gated
-  by `!isEndUser && ai?.isActive`; the rail entry is «Руководство ИИ».
+- `pages/Ticket/View.jsx` — renders `<AiGuideSection />` **third, right after
+  «Детали»** (since 2026-07-31), gated by `!isEndUser && ai?.isActive`; the rail
+  entry is «Руководство ИИ» and follows the same order. It answers "what to do",
+  which is what a ticket is opened for — but not before the facts: company,
+  requester and assignee are facts, a guide is a proposal.
 - `store/prefs.js` — carries the `ai.isActive` flag from `getInitial`.
 
 ---
@@ -645,6 +661,95 @@ The speech flow also writes `TicketLog` start/end/error entries via the same
 
 ---
 
+## 5. Subject reference (ticket terms)
+
+The assistant answers two different questions and the split runs through the whole
+design: the **guide** (§2) answers "what to do about this ticket", the
+**reference** answers "what is this thing". The first lives exactly one ticket;
+the second is reusable, which is why it can flow into the knowledge base and come
+back through the normal note matching — without a model call.
+
+### Data — `backend/models/ticket.js`
+```
+aiTerms: {
+  status: "idle" | "pending" | "ready" | "error",
+  startedAt, error, generatedAt,
+  items: [{
+    term: String,
+    inText: Boolean,           // встречается в тексте заявки дословно
+    reference: {               // пусто, пока справку не открывали
+      summary, blocks: [{ title, kind: "text"|"list"|"steps", text, items }],
+      links: [{ url, title, host }],   // только прошедшие живую проверку
+      provider, model, generatedAt,
+    },
+  }],
+}
+```
+`inText` is computed in code, never asked of the model: it decides whether the
+word gets underlined inside the description or listed under «Ещё в теме», and
+that border between the requester's words and the model's guesswork has to be
+exact.
+
+### Service — `backend/services/ticketAiTerms.js`
+- `analyzeTicketTerms` — one call with `prompts/ticketTerms`; dedupes, caps at 5,
+  marks `inText`, never throws (failure lands in `aiTerms.status`). No chronicle
+  entry on failure: the analysis is a reader's aid, not an event in the ticket's
+  life, and the reason is shown inline next to the terms.
+- `buildTermReference` — generates on demand with `prompts/termReference` and
+  **returns a stored reference as is**: opening an already-analysed term must be
+  a read, not a new generation.
+- `verifyDocLinks` — every link is fetched (HEAD, GET on 403/405/501, 6 s
+  timeout) and dropped unless it answers < 400. A hallucinated URL is the model's
+  most frequent sin, and a dead link in a reference costs more than a missing one.
+  There is deliberately **no domain whitelist**: there are as many vendors as
+  there are subjects.
+- `saveReferenceAsNote` — builds markdown, creates an **unapproved** note bound to
+  the ticket's category, and runs `rescanNoteDerived` (extracted to
+  `helpers/knowledgeNoteDerived.js`, shared with the knowledge-base controller) so
+  the secrets scanner sees it immediately rather than an hour later.
+- `expireStalePendingTerms` — the same `pending` lifetime as the guide.
+
+### Feedback that becomes a rule — `models/aiFeedback.js`, `services/aiRules.js`
+A mark on AI-written data opens a form with a **mandatory reason** and free text:
+a thumbs-down cannot be turned into a rule. The record is written immediately and
+shown in the ticket chronicle, but reaches prompts only once an administrator
+flips `isActive` in «Настройки → ИИ» — one emotional sentence would otherwise
+quietly poison generation for the whole team. Scope always comes from the ticket
+(category + company); `rulesFor` appends active rules to the guide, category and
+reference prompts alike. The bot mirrors the read side
+(`telegram-bot/models/aiFeedback.js`) so category detection behaves the same
+wherever a ticket is created.
+
+### API
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/api/tickets/ai-terms/analyze` | staff | extract the ticket's concepts |
+| POST | `/api/tickets/ai-terms/reference` | staff | reference for one concept |
+| POST | `/api/tickets/ai-terms/save-note` | staff + KB manage | store it as a note |
+| POST | `/api/tickets/ai-feedback` | staff | record a correction |
+| GET/POST | `/api/preferences/ai-rules[/toggle,/delete]` | admin | review and enable rules |
+
+### Frontend
+`Ticket/View/TicketTerms.jsx` (strip + reference) and `Ticket/View/AiMark.jsx`
+(mark + correction form).
+
+Both the term underline and the mark are injected into the description's
+**already-sanitized** HTML, because React nodes cannot live inside
+`dangerouslySetInnerHTML`: `highlightTerms` is a string replacement over text
+chunks only (the injected markup carries the term's **index**, never model text),
+and `appendAiMark` uses `DOMParser` to place the mark at the end of the last
+line — skipping void tags (an itemized call summary is `text<br>text`, and a mark
+inside `<br>` is lost on serialization) and descending into the last `<li>` of a
+list. The mark is the app's own AI icon (`RiSparkling2Line`) rebuilt as inline
+`svg` with the same path, so it is identical to the React one used on the
+category row. One delegated handler serves both, resolving the target with
+`closest` — a click can land on the `<path>` inside the icon. The correction form
+opens in a **dialog**, not in place: pushing apart the description someone is
+reading is the worst thing to do to their attention. Layout rules are in
+`docs/ux-ui-guide.md` («Что сделал ИИ, а что человек»).
+
+---
+
 ## API summary
 
 | Method | Path | Auth | Purpose |
@@ -654,6 +759,13 @@ The speech flow also writes `TicketLog` start/end/error entries via the same
 | POST | `/api/preferences/ai/speech-check` | admin | probe the speech recognition channel |
 | POST | `/api/tickets/ai-guide/generate` | staff | (re)generate guide for a ticket |
 | POST | `/api/tickets/:ticketNum/attachments/speech-to-text` | staff | summarize an audio attachment |
+| POST | `/api/tickets/ai-terms/analyze` | staff | extract the ticket's concepts |
+| POST | `/api/tickets/ai-terms/reference` | staff | reference for one concept |
+| POST | `/api/tickets/ai-terms/save-note` | staff + KB manage | store a reference as a note |
+| POST | `/api/tickets/ai-feedback` | staff | record a correction to AI-written data |
+| GET | `/api/preferences/ai-rules` | admin | review corrections |
+| POST | `/api/preferences/ai-rules/toggle` | admin | let a correction reach the prompts |
+| POST | `/api/preferences/ai-rules/delete` | admin | drop a correction |
 
 (Provider settings persist via the existing `POST /api/preferences`; AI guide and
 speech results are returned inside the existing `GET /api/tickets/:num`.)
@@ -740,28 +852,32 @@ UX:
 
 ## Touched files (reference)
 
-Backend: `models/preferences.js`, `models/ticket.js`, `types/ticket.ts`,
-`types/_shared.ts`,
-`controllers/preferences.js`, `controllers/ticket.js`, `routes/internal/ticket.js`,
-`services/aiService.js`, `services/ticketAiGuide.js`,
-`services/knowledgeBaseContext.js`,
-`services/attachmentExtractor.js`, `services/speechToTextService.js`,
-`services/callerIdentityService.js`, `services/ticketCategoryService.js`,
-`services/aiTicketLog.js`,
-`prompts/ticketGuide.js`, `prompts/callSummary.js`, `prompts/transcription.js`,
-`prompts/ticketCategory.js`,
-`middleware/fileUpload.js`, `middleware/emailHandling.js`, `package.json`,
-`tsconfig.json`.
+Backend — models: `preferences.js`, `ticket.js`, **`aiFeedback.js`**;
+types: `preferences.ts`, `ticket.ts`, `_shared.ts`.
+Controllers/routes: `controllers/preferences.js`, `controllers/ticket.js`,
+`controllers/knowledgeNote.js`, `routes/internal/preferences.js`,
+`routes/internal/ticket.js`.
+Services: `aiService.js`, **`ai/health.js`**, **`aiRules.js`**, `aiErrors.js`,
+`ticketAiGuide.js`, **`ticketAiTerms.js`**, `knowledgeBaseContext.js`,
+`attachmentExtractor.js`, `speechToTextService.js`, `callerIdentityService.js`,
+`ticketCategoryService.js`, `aiTicketLog.js`, `crypto/secretBox.js`.
+Helpers: `preferencesSecrets.js`, **`knowledgeNoteDerived.js`**.
+Prompts: `ticketGuide.js`, `callSummary.js`, `transcription.js`,
+`ticketCategory.js`, **`ticketTerms.js`**, **`termReference.js`**.
+Middleware: `fileUpload.js`, `emailHandling.js`, `notifications.js`.
+Scripts: **`migrateAiProvider.js`**. Plus `package.json`, `tsconfig.json`.
 
-Frontend: `components/Preferences/Ai.jsx`, `pages/Preferences.jsx`,
-`components/Ticket/View/AiGuideSection.jsx`,
-`components/Ticket/View/AttachmentStrip.jsx`,
-`components/Ticket/View/AttachmentChip.jsx`,
-`components/Ticket/View/attachment-utils.js`,
-`components/Ticket/View/Sections.jsx`, `components/Ticket/Chronicle.jsx`,
-`pages/Ticket/View.jsx`, `pages/Ticket/List.jsx`, `util/ticket-events.js`,
-`store/prefs.js`.
+Frontend — settings: `components/Preferences/Ai.jsx`, **`AiRules.jsx`**,
+**`channel-health.js`** (renamed from `mail-health.js`), `TicketsCollect.jsx`,
+`Notifications.jsx`, `pages/Preferences.jsx`.
+Ticket card: `View/AiGuideSection.jsx`, **`View/TicketTerms.jsx`**,
+**`View/AiMark.jsx`**, `View/AttachmentStrip.jsx`, `View/AttachmentChip.jsx`,
+`View/attachment-utils.js`, `View/Sections.jsx`, `Ticket/Chronicle.jsx`,
+`Ticket/ticket-state.jsx`, `pages/Ticket/View.jsx`, `pages/Ticket/List.jsx`,
+`util/ticket-events.js`, `store/prefs.js`, `styles/tailwind.css`
+(`.ai-term`, `.ai-mark`).
 
-Telegram-bot (self-contained category detection): `models/ticket.js`,
-`models/ticketCategory.js`, `models/preferences.js`,
-`services/ticketCategoryService.js`, `middleware/tgBotApi.js`.
+Telegram-bot (self-contained category detection + its share of the AI rules):
+`models/ticket.js`, `models/ticketCategory.js`, `models/preferences.js`,
+**`models/aiFeedback.js`**, `services/ticketCategoryService.js`,
+`services/crypto/secretBox.js`, `middleware/tgBotApi.js`.

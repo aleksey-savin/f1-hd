@@ -1,5 +1,6 @@
 const Preferences = require("../models/preferences");
 const User = require("../models/user");
+const AiFeedback = require("../models/aiFeedback");
 
 const { AppError } = require("../middleware/errorHandling");
 const getAuthData = require("../middleware/getAuthData");
@@ -566,6 +567,64 @@ exports.checkSpeechToText = async (req, res, next) => {
     res.status(200).json(await checkSpeechToText(resolveSpeechConfig(ai)));
   } catch (error) {
     next(new AppError(`Failed to check speech recognition`, 500, true, error));
+  }
+};
+
+// ── Правила ИИ ────────────────────────────────────────────────────────────
+// Замечания, оставленные на карточках заявок. Пока администратор не включит
+// замечание, в промпты оно не попадает: одна эмоциональная формулировка иначе
+// тихо испортила бы генерации всему отделу (services/aiRules.js).
+const AI_RULES_LIMIT = 100;
+
+exports.getAiRules = async (req, res, next) => {
+  try {
+    const rules = await AiFeedback.find({})
+      .sort({ isActive: -1, updatedAt: -1 })
+      .limit(AI_RULES_LIMIT)
+      .lean();
+
+    res.status(200).json({ rules });
+  } catch (error) {
+    next(new AppError(`Failed to fetch AI rules`, 500, true, error));
+  }
+};
+
+exports.toggleAiRule = async (req, res, next) => {
+  try {
+    const { _id, isActive } = req.body;
+    const { userId } = await getAuthData(req);
+
+    const rule = await AiFeedback.findByIdAndUpdate(
+      _id,
+      {
+        isActive: !!isActive,
+        activatedBy: isActive ? userId : null,
+        activatedAt: isActive ? new Date() : null,
+      },
+      { new: true },
+    );
+
+    if (!rule) return next(new AppError("Правило не найдено", 404, true));
+
+    res.status(200).json({
+      message: rule.isActive
+        ? "Правило включено — ИИ учтёт его в следующих ответах"
+        : "Правило выключено",
+      rule,
+    });
+  } catch (error) {
+    next(new AppError(`Failed to toggle AI rule`, 500, true, error));
+  }
+};
+
+exports.deleteAiRule = async (req, res, next) => {
+  try {
+    const deleted = await AiFeedback.findByIdAndDelete(req.body?._id);
+    if (!deleted) return next(new AppError("Правило не найдено", 404, true));
+
+    res.status(200).json({ message: "Правило удалено" });
+  } catch (error) {
+    next(new AppError(`Failed to delete AI rule`, 500, true, error));
   }
 };
 

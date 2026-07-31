@@ -23,6 +23,13 @@ const {
   generateTicketAiGuide,
   expireStalePendingGuide,
 } = require("../services/ticketAiGuide");
+const {
+  analyzeTicketTerms,
+  buildTermReference,
+  saveReferenceAsNote,
+  expireStalePendingTerms,
+} = require("../services/ticketAiTerms");
+const AiFeedback = require("../models/aiFeedback");
 const { detectTicketCategory } = require("../services/ticketCategoryService");
 const { logAiTicketEvent } = require("../services/aiTicketLog");
 const { humanizeAiError } = require("../services/aiErrors");
@@ -473,6 +480,7 @@ exports.getOne = async (req, res, next) => {
     // вложений болезнь одна.
     await expireStalePendingGuide(ticket);
     await expireStalePendingSpeech(ticket);
+    await expireStalePendingTerms(ticket);
 
     // У заявки может не быть компании (легаси-данные): toObject() с minimize
     // вырезает пустой объект company — без ?. карточка падала бы в 500.
@@ -848,6 +856,155 @@ exports.regenerateAiGuide = async (req, res, next) => {
     });
   } catch (error) {
     next(new AppError(`Failed to regenerate AI guide`, 500, true, error));
+  }
+};
+
+// ── Понятийный аппарат заявки ─────────────────────────────────────────────
+// Разбор и справка — по требованию: платить вызовом модели за каждую созданную
+// заявку незачем, к предмету вопрос возникает у единиц.
+
+exports.analyzeAiTerms = async (req, res, next) => {
+  try {
+    const { _id } = req.body;
+
+    const ticket = await Ticket.findById(_id).select("_id");
+    if (!ticket) {
+      return next(new AppError(`Ticket not found`, 404, true));
+    }
+
+    const aiTerms = await analyzeTicketTerms(_id);
+
+    if (aiTerms?.status === "error") {
+      return next(
+        new AppError(aiTerms.error || "Failed to analyze ticket", 502, true),
+      );
+    }
+
+    res.status(200).json({ message: "Ticket analyzed", aiTerms });
+  } catch (error) {
+    next(new AppError(`Failed to analyze ticket terms`, 500, true, error));
+  }
+};
+
+exports.getAiTermReference = async (req, res, next) => {
+  try {
+    const { _id, term } = req.body;
+
+    if (!String(term || "").trim()) {
+      return next(new AppError(`Term is required`, 400, true));
+    }
+
+    res.status(200).json({ item: await buildTermReference(_id, term) });
+  } catch (error) {
+    // Наружу — человеческая причина: сырой ответ поставщика остаётся в логе
+    if (error?.statusCode === 404) return next(error);
+    next(
+      new AppError(
+        humanizeAiError(error, "не удалось составить справку"),
+        502,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+// Справка про предмет, а не про заявку, — поэтому её место в базе знаний.
+// Заметка создаётся неодобренной, как любая другая: модерация и есть тот
+// человек, который отделяет проверенное знание от предположения модели.
+exports.saveAiTermNote = async (req, res, next) => {
+  try {
+    const { userId } = await getAuthData(req);
+    const { _id, term } = req.body;
+
+    const note = await saveReferenceAsNote(_id, term, userId);
+
+    res.status(201).json({
+      message: "Справка сохранена в базу знаний",
+      note: { _id: note._id, title: note.title, type: note.type },
+    });
+  } catch (error) {
+    if (error instanceof AppError) return next(error);
+    next(new AppError(`Failed to save term reference`, 500, true, error));
+  }
+};
+
+// ── Замечание к работе ИИ ─────────────────────────────────────────────────
+// Не «палец вниз»: из «не понравилось» правила не составишь. Причина
+// обязательна, текст объясняет, как правильно, а областью становится категория
+// и компания заявки. В промпты замечание попадёт, только когда администратор
+// включит его в настройках (services/aiRules.js).
+const FEEDBACK_TARGETS = ["description", "category"];
+const FEEDBACK_REASONS = ["offtopic", "facts", "invented", "outdated"];
+const TARGET_LABEL = {
+  description: "описанию, собранному ИИ",
+  category: "подбору категории",
+};
+
+exports.addAiFeedback = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const { _id, target, reason, text } = req.body;
+
+    if (!FEEDBACK_TARGETS.includes(target)) {
+      return next(new AppError(`Unknown feedback target`, 400, true));
+    }
+    if (!FEEDBACK_REASONS.includes(reason)) {
+      return next(
+        new AppError("Выберите, что именно не так", 422, true),
+      );
+    }
+    if (!String(text || "").trim()) {
+      return next(
+        new AppError(
+          "Опишите, что неверно и как правильно — из одной пометки правило не составить",
+          422,
+          true,
+        ),
+      );
+    }
+
+    const ticket = await Ticket.findById(_id)
+      .select("num categoryId company")
+      .populate({ path: "categoryId", select: "title" });
+    if (!ticket) {
+      return next(new AppError(`Ticket not found`, 404, true));
+    }
+
+    const feedback = await new AiFeedback({
+      ticketId: ticket._id,
+      ticketNum: ticket.num,
+      target,
+      reason,
+      text: String(text).trim(),
+      category: ticket.categoryId?._id
+        ? { _id: ticket.categoryId._id, title: ticket.categoryId.title }
+        : undefined,
+      company: ticket.company?._id
+        ? { _id: ticket.company._id, alias: ticket.company.alias }
+        : undefined,
+      createdBy: {
+        _id: authedUser._id,
+        firstName: authedUser.firstName,
+        lastName: authedUser.lastName,
+      },
+    }).save();
+
+    // В хронику — сразу: замечание относится к этой заявке и объясняет, почему
+    // её содержимое пришлось поправить
+    await logAiTicketEvent(
+      ticket._id,
+      `Замечание к ${TARGET_LABEL[target]}: ${feedback.text}`,
+      "warning",
+    );
+
+    res.status(201).json({
+      message:
+        "Замечание записано. В работу ИИ оно пойдёт, когда администратор включит его в настройках",
+      feedback: { _id: feedback._id, target, reason },
+    });
+  } catch (error) {
+    next(new AppError(`Failed to save AI feedback`, 500, true, error));
   }
 };
 

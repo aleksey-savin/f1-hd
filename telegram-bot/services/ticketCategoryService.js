@@ -4,6 +4,7 @@ const { Ticket } = require("../models/ticket");
 const TicketCategory = require("../models/ticketCategory");
 const Preferences = require("../models/preferences");
 const TicketLog = require("../models/ticketLog");
+const AiFeedback = require("../models/aiFeedback");
 const { isEncrypted, decryptSecret } = require("./crypto/secretBox");
 const logger = require("../utils/logger");
 
@@ -233,6 +234,35 @@ const readStoredSecret = (stored) => {
   return isEncrypted(stored) ? decryptSecret(stored) : stored;
 };
 
+const MAX_RULES = 8;
+
+const rulesFor = async (companyId) => {
+  if (!companyId) return "";
+
+  try {
+    const rules = await AiFeedback.find({ isActive: true, "company._id": companyId })
+      .select("text")
+      .sort({ updatedAt: -1 })
+      .limit(MAX_RULES)
+      .lean();
+
+    const lines = rules
+      .map((rule) => String(rule.text || "").trim())
+      .filter(Boolean)
+      .map((text) => `- ${text}`);
+
+    if (!lines.length) return "";
+
+    return (
+      "\n\nЗамечания сотрудников по прошлым ответам в этой области — учти их и не повторяй разобранных ошибок:\n" +
+      lines.join("\n")
+    );
+  } catch (error) {
+    logger.log("warn", "Failed to load AI rules", { error: error.message });
+    return "";
+  }
+};
+
 const generateJson = async ({ system, user }) => {
   const preferences = await Preferences.findOne({});
   const ai = preferences?.ai;
@@ -276,7 +306,7 @@ const logAiTicketEvent = async (ticketId, event, severity = "info") => {
 exports.detectTicketCategory = async (ticketId) => {
   try {
     const ticket = await Ticket.findById(ticketId).select(
-      "num title description htmlDescription categoryId aiCategory",
+      "num title description htmlDescription categoryId aiCategory company",
     );
 
     if (!ticket) return null;
@@ -319,7 +349,13 @@ exports.detectTicketCategory = async (ticketId) => {
       categories: candidates,
     });
 
-    const data = await generateJson({ system, user });
+    // Замечания сотрудников по прошлым подборам для этой компании — зеркало
+    // backend/services/aiRules.js: правило появляется из живой ошибки и
+    // применяется, только когда администратор его включил
+    const data = await generateJson({
+      system: system + (await rulesFor(ticket.company?._id)),
+      user,
+    });
 
     const chosenId =
       typeof data?.categoryId === "string" ? data.categoryId.trim() : "";

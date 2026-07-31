@@ -9,6 +9,9 @@ const {
   canEditTickets,
   canPerformTickets,
   canAdministrateTickets,
+  canManageKnowledgeBase,
+  canSeeKnowledgeBase,
+  knowledgeBaseModuleIsActive,
 } = require("@/middleware/permissions");
 
 const fileUpload = require("@/middleware/fileUpload");
@@ -99,6 +102,37 @@ router.post(
   isAuth,
   canPerformTickets,
   ticketController.regenerateAiGuide,
+);
+
+// Понятийный аппарат заявки: разбор и справка по понятию — по требованию
+router.post(
+  "/tickets/ai-terms/analyze",
+  isAuth,
+  canPerformTickets,
+  ticketController.analyzeAiTerms,
+);
+router.post(
+  "/tickets/ai-terms/reference",
+  isAuth,
+  canPerformTickets,
+  ticketController.getAiTermReference,
+);
+// Заводит заметку — значит, и права те же, что у формы базы знаний
+router.post(
+  "/tickets/ai-terms/save-note",
+  isAuth,
+  canPerformTickets,
+  knowledgeBaseModuleIsActive,
+  canSeeKnowledgeBase,
+  canManageKnowledgeBase,
+  ticketController.saveAiTermNote,
+);
+// Замечание к тому, что ИИ вписал в заявку вместо человека
+router.post(
+  "/tickets/ai-feedback",
+  isAuth,
+  canPerformTickets,
+  ticketController.addAiFeedback,
 );
 router.post(
   "/tickets/:ticketNum/attachments/speech-to-text",

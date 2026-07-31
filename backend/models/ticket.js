@@ -335,6 +335,53 @@ const ticketSchema = new Schema(
       generatedFromCommentCount: { type: Number, default: 0 },
     },
 
+    // Понятийный аппарат заявки: предметные понятия и справка по каждому.
+    // Справка — про предмет, а не про эту заявку, поэтому она переиспользуема:
+    // сохранённая в базу знаний, она приезжает в следующую такую заявку обычным
+    // подбором заметок, уже без вызова модели.
+    aiTerms: {
+      status: {
+        type: String,
+        enum: ["idle", "pending", "ready", "error"],
+        default: "idle",
+      },
+      // Срок жизни pending — как у руководства: перезапуск процесса убивает
+      // разбор молча (services/ticketAiTerms.js)
+      startedAt: Date,
+      error: { type: String, default: "" },
+      generatedAt: Date,
+      items: [
+        {
+          _id: false,
+          term: { type: String, required: true },
+          // Встречается ли понятие в тексте заявки дословно. Считаем кодом, а не
+          // моделью: от этого зависит, подчеркнём мы слово в описании или
+          // покажем строкой «Ещё в теме» — граница между словами человека и
+          // домыслом модели должна быть точной.
+          inText: { type: Boolean, default: false },
+          // Пусто, пока справку не открывали: генерируем по требованию
+          reference: {
+            summary: { type: String, default: "" },
+            blocks: [
+              {
+                _id: false,
+                title: String,
+                kind: { type: String, enum: ["text", "list", "steps"] },
+                text: String,
+                items: [String],
+              },
+            ],
+            // Только ссылки, ответившие на живой запрос: модель выдумывает
+            // адреса охотнее, чем факты
+            links: [{ _id: false, url: String, title: String, host: String }],
+            provider: String,
+            model: String,
+            generatedAt: Date,
+          },
+        },
+      ],
+    },
+
     // Состояние фоновой обработки аудиозаписи звонка распознаванием речи
     aiSpeech: {
       status: {

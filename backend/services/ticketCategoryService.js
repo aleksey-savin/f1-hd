@@ -3,6 +3,7 @@ const TicketCategory = require("@/models/ticketCategory");
 const logger = require("@/utils/logger");
 
 const aiService = require("./aiService");
+const { rulesFor } = require("./aiRules");
 const buildCategoryPrompt = require("@/prompts/ticketCategory");
 const { logAiTicketEvent } = require("./aiTicketLog");
 
@@ -47,7 +48,7 @@ const truncate = (value, max = MAX_FIELD_LENGTH) => {
 exports.detectTicketCategory = async (ticketId) => {
   try {
     const ticket = await Ticket.findById(ticketId).select(
-      "num title description htmlDescription categoryId aiCategory",
+      "num title description htmlDescription categoryId aiCategory company",
     );
 
     if (!ticket) {
@@ -103,7 +104,11 @@ exports.detectTicketCategory = async (ticketId) => {
       categories: candidates,
     });
 
-    const { data } = await aiService.generateJson({ system, user });
+    // Замечания сотрудников по прошлым подборам для этой компании — правила
+    // включает администратор, см. services/aiRules.js
+    const rules = await rulesFor({ companyId: ticket.company?._id });
+
+    const { data } = await aiService.generateJson({ system: system + rules, user });
 
     const chosenId =
       typeof data?.categoryId === "string" ? data.categoryId.trim() : "";
