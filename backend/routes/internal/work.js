@@ -25,6 +25,9 @@ router.get(
   isAuth,
   workController.getAdditionalData,
 );
+// Предварительный расчёт по черновику работы: ничего не сохраняет, суммы
+// отдаёт только тем, кому положено (controllers/work.js → canSeeMoney)
+router.post("/works/preview", isAuth, workController.preview);
 router.get("/works/:ticketNum", isAuth, workController.getTicketWorks);
 router.get("/all-scheduled-works", isAuth, workController.getAllScheduled);
 

@@ -7,7 +7,6 @@ import {
   AuthedUserContext,
   defaultAuthedUser,
 } from "../store/authed-user-context";
-import useSidebarStore from "../store/sidebar";
 
 import NavigationBar from "./Navbar";
 import Footer from "./Footer";
@@ -16,6 +15,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { RiRefreshLine } from "react-icons/ri";
 import { Button } from "@/components/ui/button";
 import AppBanner from "@/components/app/AppBanner";
+import ModerationBanner from "../components/KnowledgeBase/ModerationBanner";
 // import Pro32Connect from "../components/Integrations/Pro32Connect/Pro32Connect";
 
 import Container from "react-bootstrap/Container";
@@ -36,17 +36,10 @@ const RootLayout = () => {
   const { token } = getLocalStorageData();
   const { appVersion, userData, prefs } = useLoaderData();
 
-  const {
-    leftSidebarIsActive,
-    showLeftSidebar,
-    closeLeftSidebar,
-    leftSidebarContent,
-  } = useSidebarStore();
-
   const initialPrefs = useInitialPrefsStore();
 
   // В Outlet отрисован errorElement (флаг ставит pages/Error.jsx): контент —
-  // на канву независимо от MIGRATED_ROUTES, сайдбар не показываем.
+  // на канву независимо от MIGRATED_ROUTES.
   const routeErrorActive = useRouteErrorStore((s) => s.active);
 
   useEffect(() => {
@@ -59,6 +52,8 @@ const RootLayout = () => {
 
   // Баннер о новой версии можно скрыть до следующей перезагрузки
   const [versionDismissed, setVersionDismissed] = useState(false);
+  // Сводка модерации базы знаний — тоже сквозная: прячется до перезагрузки
+  const [moderationDismissed, setModerationDismissed] = useState(false);
 
   // Мобильный app-shell: <main> — свой скролл-контейнер (не window), поэтому
   // сбрасываем прокрутку вверх при смене маршрута вручную.
@@ -73,19 +68,6 @@ const RootLayout = () => {
     if (location.state?.refresh) {
       revalidator.revalidate();
     }
-  }, [location]);
-
-  useEffect(() => {
-    if (
-      // мигрированные экраны (companies, device-types, vendors, устройства, …)
-      // сайдбар не используют — фильтры живут в чипах/Sheet самого списка, а
-      // база знаний рисует свою двухпанельную раскладку сама
-      ["/tickets"].includes(location.pathname)
-    ) {
-      return showLeftSidebar();
-    }
-
-    closeLeftSidebar();
   }, [location]);
 
   useEffect(() => {
@@ -186,16 +168,13 @@ const RootLayout = () => {
                 </AppBanner>
               )}
 
+            {isLoggedIn && !routeErrorActive && !moderationDismissed && (
+              <ModerationBanner
+                onDismiss={() => setModerationDismissed(true)}
+              />
+            )}
+
             <Row>
-              {leftSidebarIsActive && !routeErrorActive && (
-                <Col hidden={!leftSidebarIsActive} className="col-4 col-xl-3">
-                  <Card className="shadow">
-                    <Card.Body className="h-100 p-3">
-                      {leftSidebarContent}
-                    </Card.Body>
-                  </Card>
-                </Col>
-              )}
               <Col>
                 {/* Мигрированные на tailwind/shadcn маршруты живут прямо на
                     канве, без bootstrap-Card: заголовок страницы — на канве,
@@ -205,6 +184,16 @@ const RootLayout = () => {
                     страницы (её tw:max-w-*) + горизонтальный p-4 листа. */}
                 {(() => {
                   const MIGRATED_ROUTES = [
+                    // Заявки: список ListWrapper (max-w-7xl) и карточка (тоже
+                    // max-w-7xl — рейл + секции + хроника). Форма создания
+                    // живёт в шторке списка, поэтому идёт первой; «/tickets/»
+                    // (со слэшем) ловит карточку и её вложенные маршруты
+                    { path: "/tickets/checklist-templates", maxWidth: 1328 },
+                    { path: "/tickets/add", maxWidth: 1328 },
+                    // Карточка шире списка: max-w-8xl (1440) + 2×24 — виджету
+                    // «Окружение» в 1280 не хватало места
+                    { path: "/tickets/", maxWidth: 1488 },
+                    { path: "/tickets", maxWidth: 1328, exact: true },
                     // Расположения: карточка (max-w-4xl, со слэшем) матчится
                     // раньше списка (max-w-7xl) — порядок в .find важен
                     { path: "/inventory/locations/", maxWidth: 944 },

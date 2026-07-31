@@ -133,6 +133,11 @@
 }
 
 @theme inline {
+  /* Встроенная шкала контейнеров кончается на 7xl (1280). Карточке заявки этого
+     мало: рейл 192 + хроника 384 оставляют секциям 656, и виджет «Окружение»
+     (план помещения с плитками техники) в них не помещается. 8xl = 1440 даёт
+     секциям 816. Заводим токен, а не пишем произвольное значение в утилите. */
+  --container-8xl: 90rem;
   --font-sans:
     "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",

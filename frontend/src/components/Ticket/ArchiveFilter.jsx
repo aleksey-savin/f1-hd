@@ -52,7 +52,9 @@ const ArchiveFilter = () => {
           options={s.options.companies}
           getOptionLabel={(option) => option.label}
           getOptionValue={(option) => option.value}
-          onChange={(selected) => s.updateFilter({ companies: toIds(selected) })}
+          onChange={(selected) =>
+            s.updateFilter({ companies: toIds(selected) })
+          }
         />
       </Field>
 
@@ -67,7 +69,9 @@ const ArchiveFilter = () => {
           options={s.options.applicants}
           getOptionLabel={(option) => option.label}
           getOptionValue={(option) => option.value}
-          onChange={(selected) => s.updateFilter({ applicants: toIds(selected) })}
+          onChange={(selected) =>
+            s.updateFilter({ applicants: toIds(selected) })
+          }
         />
       </Field>
 

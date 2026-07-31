@@ -5,12 +5,51 @@ const User = require("../models/user");
 const { Ticket } = require("../models/ticket");
 const TicketLog = require("../models//ticketLog");
 const Company = require("../models/company");
-const ServicePlan = require("../models/finances/servicePlan");
 const ServicePlanReport = require("../models/finances/servicePlanReport");
 const TicketCategory = require("../models/ticketCategory");
 
 const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
+const { previewWork } = require("../services/workPreview");
+
+/**
+ * Право видеть суммы и условия тарифа. `isAdmin` здесь обязателен: во всех
+ * гейтах приложения (middleware/permissions.js) он есть, и админ без явно
+ * проставленных финансовых флагов иначе не видел бы предварительной доплаты.
+ */
+const canSeeMoney = ({ isAdmin, permissions }) =>
+  Boolean(
+    isAdmin ||
+      (permissions?.canUseFinancesModule &&
+        permissions?.canSeeGlobalFinancialReport),
+  );
+
+/**
+ * Работа не тарифицируется, если ХОТЬ ОДНА её заявка льготной категории.
+ * По всем заявкам, а не по первой: одна работа вешается сразу на несколько
+ * заявок (массовое добавление, «Связанные заявки»), и категории у них разные.
+ * То же правило — в `workOvertime.isExcludedFromOvertime`.
+ */
+const isAlwaysWithinPlan = async (ticketIds) => {
+  const tickets = await Ticket.find({ _id: { $in: ticketIds.filter(Boolean) } })
+    .select("categoryId")
+    .lean();
+
+  const categoryIds = tickets
+    .map((ticket) => ticket.categoryId)
+    .filter(Boolean);
+
+  if (categoryIds.length === 0) {
+    return false;
+  }
+
+  const exempt = await TicketCategory.countDocuments({
+    _id: { $in: categoryIds },
+    alwaysWithinPlan: true,
+  });
+
+  return exempt > 0;
+};
 
 exports.getTicketWorks = async (req, res, next) => {
   try {
@@ -101,64 +140,51 @@ exports.getAllScheduled = async (req, res, next) => {
   }
 };
 
+/**
+ * Данные, которые форме работ нужны СРАЗУ при открытии: с какой даты вообще
+ * можно указывать работы. Всё остальное — график, переработка, доплата —
+ * приходит расчётом (`POST /works/preview`), потому что зависит от введённого
+ * времени и считается тем же кодом, что выставляет счёт.
+ */
 exports.getAdditionalData = async (req, res, next) => {
   try {
-    const { permissions } = await getAuthData(req);
-    const { canUseFinancesModule, canSeeGlobalFinancialReport } = permissions;
-
     const ticket = await Ticket.findOne({ num: +req.params.ticketNum });
 
-    const plan = await ServicePlan.findOne({
-      companies: { $elemMatch: { _id: ticket.company._id } },
-      ticketCategories: { $elemMatch: { _id: ticket.categoryId } },
-    });
-
-    let reports;
-
-    if (plan) {
-      reports = await ServicePlanReport.find({ servicePlan: plan._id });
+    if (!ticket) {
+      return next(new AppError(`Ticket not found`, 404));
     }
 
-    let latestPeriodTo;
+    let limitWorksDateFrom = null;
 
-    if (reports && reports.length && ticket.isArchived) {
-      latestPeriodTo = reports.reduce((latest, report) => {
-        return !latest || report.periodTo > latest
-          ? new Date(report.periodTo.getTime() + 24 * 60 * 60 * 1000)
-          : latest;
-      }, null);
-    }
+    // Период, закрытый сформированным отчётом, трогать нельзя. Услуги берём со
+    // стороны компании (как весь биллинг), а не обратным поиском по
+    // ServicePlan.companies: это две несогласованные связи, и вторая устаревает
+    if (ticket.isArchived) {
+      const company = await Company.findById(ticket.company._id)
+        .select("servicePlans")
+        .lean();
+      const planIds = (company?.servicePlans || []).map(
+        (attachment) => attachment._id,
+      );
 
-    const company = await Company.findById(ticket.company._id);
+      if (planIds.length > 0) {
+        const reports = await ServicePlanReport.find({
+          servicePlan: { $in: planIds },
+        })
+          .select("periodTo")
+          .lean();
 
-    let schedule = {};
-    let companySchedule = {};
-    let pricePerHourNonWorking = 0;
-    let tariffingPeriod = 0;
-
-    if (plan) {
-      companySchedule = company.workSchedule || {};
-
-      schedule = plan.companyWorkSchedule
-        ? companySchedule
-        : plan.customProvisionSchedule;
-
-      if (canUseFinancesModule && canSeeGlobalFinancialReport) {
-        pricePerHourNonWorking = plan.pricePerHourNonWorking;
-        tariffingPeriod = plan.tariffingPeriod;
+        limitWorksDateFrom = reports.reduce(
+          (latest, report) =>
+            report.periodTo && (!latest || report.periodTo > latest)
+              ? new Date(report.periodTo.getTime() + 24 * 60 * 60 * 1000)
+              : latest,
+          null,
+        );
       }
     }
 
-    const category = await TicketCategory.findById(ticket.categoryId);
-
-    res.status(200).json({
-      limitWorksDateFrom: latestPeriodTo,
-      hasServicePlan: !!plan,
-      schedule: schedule,
-      pricePerHourNonWorking: pricePerHourNonWorking,
-      tariffingPeriod: tariffingPeriod,
-      alwaysWithinPlan: category?.alwaysWithinPlan || false,
-    });
+    res.status(200).json({ limitWorksDateFrom });
   } catch (error) {
     next(
       new AppError(
@@ -168,6 +194,28 @@ exports.getAdditionalData = async (req, res, next) => {
         error,
       ),
     );
+  }
+};
+
+/**
+ * Предварительный расчёт по заполняемой работе: переработка, причина и доплата.
+ * Тело — черновик работы, ничего не сохраняется.
+ */
+exports.preview = async (req, res, next) => {
+  try {
+    const authData = await getAuthData(req);
+    const { tickets, startedAt, finishedAt } = req.body;
+
+    const result = await previewWork({
+      ticketIds: tickets,
+      startedAt,
+      finishedAt,
+      canSeeMoney: canSeeMoney(authData),
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    next(new AppError(`Failed to preview work`, 500, true, error));
   }
 };
 
@@ -186,8 +234,8 @@ exports.add = async (req, res, next) => {
     const authedUser = await User.findById(authData.userId);
 
     const ticket = await Ticket.findById(tickets[0]);
-    const category = await TicketCategory.findById(ticket.categoryId);
     const finishedBy = await User.findById(req.body.finishedBy);
+    const alwaysWithinPlan = await isAlwaysWithinPlan(tickets);
 
     const work = new Work({
       startedAt: startedAt,
@@ -195,7 +243,7 @@ exports.add = async (req, res, next) => {
       finishedBy: finishedBy ? finishedBy : authedUser,
       description: description,
       visitRequired: visitRequired,
-      withinPlan: category?.alwaysWithinPlan ? true : withinPlan,
+      withinPlan: alwaysWithinPlan ? true : withinPlan,
       tickets: tickets.filter(Boolean),
       company: ticket.company._id,
       finances: {
@@ -256,8 +304,8 @@ exports.schedule = async (req, res, next) => {
     const authedUser = await User.findById(authData.userId);
 
     const ticket = await Ticket.findById(tickets[0]);
-    const category = await TicketCategory.findById(ticket.categoryId);
     const executor = await User.findById(req.body.executor);
+    const alwaysWithinPlan = await isAlwaysWithinPlan(tickets);
 
     const work = new Work({
       scheduled: true,
@@ -266,7 +314,7 @@ exports.schedule = async (req, res, next) => {
       executor: executor ? executor : authedUser,
       description: description,
       visitRequired: visitRequired,
-      withinPlan: category?.alwaysWithinPlan ? true : withinPlan,
+      withinPlan: alwaysWithinPlan ? true : withinPlan,
       tickets: tickets.filter(Boolean),
       company: ticket.company._id,
       notifications: {
@@ -287,17 +335,20 @@ exports.schedule = async (req, res, next) => {
 
     await work.save();
 
-    // добавляем запись в лог заявки
-    const logEntry = new TicketLog({
-      ticketId: req.body.ticketId,
-      user: {
-        firstName: authData.firstName,
-        lastName: authData.lastName,
-      },
-      severity: "info",
-      event: `запланированы работы`,
-    });
-    await logEntry.save();
+    // Запись в лог по каждой привязанной заявке: работа может относиться сразу
+    // к нескольким, и отметка нужна у всех (как в `add`)
+    for (const linkedTicketId of tickets.filter(Boolean)) {
+      const logEntry = new TicketLog({
+        ticketId: linkedTicketId,
+        user: {
+          firstName: authData.firstName,
+          lastName: authData.lastName,
+        },
+        severity: "info",
+        event: `запланированы работы`,
+      });
+      await logEntry.save();
+    }
 
     res.status(201).json({
       message: "Work scheduled successfully!",
@@ -319,19 +370,22 @@ exports.update = async (req, res, next) => {
     const executor = await User.findById(req.body.executor);
     let notifications = work.notifications;
 
+    // Дефолты берутся из САМОЙ работы, а не из нулей: тело обновления бывает
+    // частичным (подтверждение запланированной работы шлёт только факт), и
+    // `= null` стирал бы отметки, которых в этом теле просто не было.
     const {
       tickets = work.tickets,
       description = work.description,
-      visitRequired = false,
-      withinPlan = false,
-      planningToStart = null,
-      planningToFinish = null,
-      startedAt = null,
-      finishedAt = null,
+      visitRequired = work.visitRequired,
+      withinPlan = work.withinPlan,
+      planningToStart = work.planningToStart,
+      planningToFinish = work.planningToFinish,
+      startedAt = work.startedAt,
+      finishedAt = work.finishedAt,
     } = req.body;
 
     const ticket = await Ticket.findById(tickets[0]);
-    const category = await TicketCategory.findById(ticket.categoryId);
+    const alwaysWithinPlan = await isAlwaysWithinPlan(tickets);
 
     if (
       req.body.planningToStart ||
@@ -346,31 +400,40 @@ exports.update = async (req, res, next) => {
 
     work.description = description;
     work.visitRequired = visitRequired;
-    work.withinPlan = category?.alwaysWithinPlan ? true : withinPlan;
+    work.withinPlan = alwaysWithinPlan ? true : withinPlan;
     work.company = ticket.company._id;
     work.tickets = tickets.filter(Boolean);
     work.startedAt = startedAt;
     work.finishedAt = finishedAt;
-    work.finishedBy = finishedBy ? finishedBy : authedUser;
     work.planningToStart = planningToStart;
     work.planningToFinish = planningToFinish;
     work.executor = executor || work.executor;
+
+    // Исполнителя факта проставляем только у работы с отметками: пустое поле
+    // в теле означало «не менять», а не «это сделал тот, кто нажал сохранить»
+    if (finishedBy) {
+      work.finishedBy = finishedBy;
+    } else if (work.finishedAt && !work.finishedBy?._id) {
+      work.finishedBy = authedUser;
+    }
+
     work.notifications = notifications;
     work.updatedBy = authedUser;
 
     await work.save();
 
-    // добавляем запись в лог заявки
-    const logEntry = new TicketLog({
-      ticketId: req.body.ticketId,
-      user: {
-        firstName: firstName,
-        lastName: lastName,
-      },
-      severity: "info",
-      event: `изменены работы`,
-    });
-    await logEntry.save();
+    for (const linkedTicketId of work.tickets) {
+      const logEntry = new TicketLog({
+        ticketId: linkedTicketId,
+        user: {
+          firstName: firstName,
+          lastName: lastName,
+        },
+        severity: "info",
+        event: `изменены работы`,
+      });
+      await logEntry.save();
+    }
 
     res.status(201).json({
       message: "Work updated successfully!",

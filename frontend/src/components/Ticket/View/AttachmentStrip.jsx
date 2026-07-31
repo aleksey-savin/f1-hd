@@ -1,0 +1,341 @@
+import { useContext, useState } from "react";
+
+import { RiAttachment2, RiFileTextLine, RiVoiceprintLine } from "react-icons/ri";
+
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+import useHttp from "../../../hooks/use-http";
+import { AuthedUserContext } from "../../../store/authed-user-context";
+import useInitialPrefsStore from "../../../store/prefs";
+import useToastStore from "../../../store/toast-store";
+import useViewTicketStore from "../../../store/view-ticket";
+import { getLocalStorageData } from "../../../util/auth";
+
+import AttachmentChip from "./AttachmentChip";
+import {
+  attachmentKind,
+  attachmentName,
+  fileUrl,
+} from "./attachment-utils";
+
+/**
+ * Вложения заявки — лента в подвале секции «Описание», а не своя секция.
+ *
+ * Почему так: вложение почти всегда приходит вместе с заявкой (скриншот, акт,
+ * запись звонка), дальше его читают по ходу дела, а новое кладут в комментарий.
+ * По смыслу это часть описания проблемы, а не отдельный предмет, — и рамка на
+ * каждый файл с развёрнутым плеером стоила около 310 px вертикали в колонке,
+ * где ниже чек-лист, работы, окружение и база знаний.
+ *
+ * Аудио — единственное исключение: запись слушают на месте, поэтому она
+ * занимает всю ширину строки и держит плеер. Плеер нативный, а не
+ * react-h5-audio-player: у той библиотеки в поставляемой RC нет defaultProps, и
+ * без явного progressJumpSteps перемотка роняет приложение.
+ *
+ * Пустого состояния нет вовсе: строка «Вложений нет» не сообщает ничего, а у
+ * большинства заявок файлов и не бывает. Кнопка «Прикрепить» при этом на месте
+ * — её отдаёт `uploadAction` в метку секции.
+ */
+
+const VISIBLE_LIMIT = 4;
+
+export const useAttachments = (ticket) => {
+  const { token } = getLocalStorageData();
+  const { permissions } = useContext(AuthedUserContext);
+  const { showToast } = useToastStore();
+  const store = useViewTicketStore();
+  const { sendRequest } = useHttp();
+
+  const attachments = store.ticket?.attachments ?? ticket.attachments ?? [];
+  const [uploading, setUploading] = useState(false);
+
+  const { ai } = useInitialPrefsStore();
+
+  const canUpload = !ticket.isArchived && permissions?.canPerformTickets;
+  const canDelete = !ticket.isArchived && permissions?.canAdministrateTickets;
+  const canTranscribe =
+    !ticket.isArchived &&
+    permissions?.canPerformTickets &&
+    ai?.speechToText?.isActive;
+
+  const sync = (next) =>
+    store.updateTicket({ ...store.ticket, attachments: next });
+
+  const upload = (event) => {
+    const files = [...(event.target.files ?? [])];
+    if (!files.length) return;
+    const formData = new FormData();
+    for (const file of files) formData.append("attachments", file);
+    setUploading(true);
+    sendRequest(
+      {
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticket.num}/add-attachments`,
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+        isFormData: true,
+        body: formData,
+      },
+      (data) => {
+        setUploading(false);
+        event.target.value = "";
+        if (!data.success)
+          return showToast("danger", "Не удалось загрузить файлы");
+        sync([...attachments, ...(data.attachments ?? [])]);
+        showToast(
+          "success",
+          `Добавлено файлов: ${data.attachments?.length ?? 0}`,
+        );
+      },
+    );
+  };
+
+  const remove = (attachment) =>
+    sendRequest(
+      {
+        url: `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticket.num}/remove-attachment`,
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + token,
+          "Content-Type": "application/json",
+        },
+        body: { attachmentName: attachment.name },
+      },
+      (data) => {
+        if (!data.success)
+          return showToast("danger", "Не удалось удалить файл");
+        sync(attachments.filter((item) => item.name !== attachment.name));
+        showToast("success", "Файл удалён");
+      },
+    );
+
+  // Действие секции живёт в её метке — и когда файлов нет, и когда их пять.
+  // Скрытый input рендерится рядом с кнопкой: label по htmlFor открывает диалог
+  // выбора, а сама кнопка остаётся кнопкой каталога
+  const uploadAction = canUpload && (
+    <>
+      <input
+        id="ticket-attachment-input"
+        type="file"
+        multiple
+        className="tw:hidden"
+        onChange={upload}
+      />
+      <Button asChild variant="outline" size="xs" disabled={uploading}>
+        <label htmlFor="ticket-attachment-input" className="tw:cursor-pointer">
+          <RiAttachment2 />
+          {uploading ? "Загрузка…" : "Прикрепить"}
+        </label>
+      </Button>
+    </>
+  );
+
+  return {
+    attachments,
+    uploadAction,
+    remove,
+    canDelete,
+    canTranscribe,
+    uploading,
+    ticketNum: ticket.num,
+  };
+};
+
+const AttachmentStrip = ({
+  attachments,
+  onRemove,
+  canDelete,
+  canTranscribe,
+  ticketNum,
+}) => {
+  const { showToast } = useToastStore();
+  const { token } = getLocalStorageData();
+  const store = useViewTicketStore();
+
+  const [preview, setPreview] = useState(null);
+  const [openText, setOpenText] = useState("");
+  const [busyName, setBusyName] = useState("");
+  const [expanded, setExpanded] = useState(false);
+
+  if (!attachments.length) return null;
+
+  const audio = attachments.filter(
+    (item) => attachmentKind(item) === "audio",
+  );
+  const files = attachments.filter((item) => attachmentKind(item) !== "audio");
+  const shown = expanded ? files : files.slice(0, VISIBLE_LIMIT);
+
+  const transcribe = async (attachment) => {
+    setBusyName(attachment.name);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticketNum}/attachments/speech-to-text`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ attachmentName: attachment.name }),
+        },
+      );
+      const data = await response.json();
+      if (data.attachments)
+        store.updateTicket({ ...store.ticket, attachments: data.attachments });
+      if (!response.ok || !data.success) {
+        showToast("danger", data.message || "Не удалось распознать аудио");
+        return;
+      }
+      showToast("success", "Аудио распознано");
+      setOpenText(attachment.name);
+    } catch (error) {
+      console.error("Не удалось распознать аудио:", error);
+      showToast("danger", "Не удалось распознать аудио");
+    } finally {
+      setBusyName("");
+    }
+  };
+
+  return (
+    <div className="tw:mt-4 tw:border-t tw:border-border-soft tw:pt-3.5">
+      <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+        <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-xs tw:text-faint">
+          <RiAttachment2 size={14} />
+          {attachments.length}{" "}
+          {attachments.length === 1
+            ? "файл"
+            : attachments.length < 5
+              ? "файла"
+              : "файлов"}
+        </span>
+
+        {shown.map((attachment) => (
+          <AttachmentChip
+            key={attachment.name}
+            attachment={attachment}
+            onOpen={
+              attachmentKind(attachment) === "image" ? setPreview : undefined
+            }
+            onRemove={canDelete ? onRemove : undefined}
+          />
+        ))}
+
+        {files.length > VISIBLE_LIMIT && !expanded && (
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className="tw:border-dashed tw:text-muted-foreground"
+            onClick={() => setExpanded(true)}
+          >
+            Показать все ({files.length})
+          </Button>
+        )}
+      </div>
+
+      {/* Запись звонка — во всю ширину: её слушают на месте, а не скачивают */}
+      {audio.map((attachment) => {
+        const speech = attachment.speechToText;
+        return (
+          <div key={attachment.name} className="tw:mt-2">
+            <div className="tw:flex tw:items-center tw:gap-2">
+              <span className="tw:min-w-0 tw:flex-1">
+                <audio
+                  controls
+                  preload="none"
+                  src={fileUrl(attachment.name)}
+                  // Скачивание есть в чипе, а скорость воспроизведения записи
+                  // звонка никому не нужна — «⋮»-меню плеера убираем целиком
+                  controlsList="nodownload noplaybackrate"
+                  disablePictureInPicture
+                  className="tw:h-9 tw:w-full"
+                />
+              </span>
+
+              {canTranscribe && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  disabled={busyName === attachment.name}
+                  onClick={() =>
+                    speech?.status === "ready"
+                      ? setOpenText(
+                          openText === attachment.name ? "" : attachment.name,
+                        )
+                      : transcribe(attachment)
+                  }
+                >
+                  {speech?.status === "ready" ? (
+                    <RiFileTextLine />
+                  ) : (
+                    <RiVoiceprintLine />
+                  )}
+                  {busyName === attachment.name
+                    ? "Распознаём…"
+                    : speech?.status === "ready"
+                      ? "Расшифровка"
+                      : "Распознать"}
+                </Button>
+              )}
+
+              {canDelete && (
+                <AttachmentChip
+                  attachment={attachment}
+                  onRemove={onRemove}
+                  compact
+                />
+              )}
+            </div>
+
+            {/* Фоновое распознавание (звонок пришёл письмом) — иначе непонятно,
+                почему расшифровки ещё нет */}
+            {speech?.status === "pending" && (
+              <p className="tw:mt-1 tw:mb-0 tw:text-xs tw:text-faint">
+                ИИ распознаёт запись…
+              </p>
+            )}
+            {speech?.status === "error" && (
+              <p className="tw:mt-1 tw:mb-0 tw:text-xs tw:text-faint">
+                Не удалось распознать
+              </p>
+            )}
+
+            {/* Реплики разговора: speech.text — плоская расшифровка диалога.
+                Пересказ звонка живёт только в описании заявки — второй его
+                экземпляр здесь превращал одну мысль в три */}
+            {openText === attachment.name && speech?.text && (
+              <p className="tw:mt-2 tw:mb-0 tw:border-s tw:border-border tw:ps-3 tw:text-sm tw:whitespace-pre-wrap tw:text-muted-foreground">
+                {speech.text}
+              </p>
+            )}
+          </div>
+        );
+      })}
+
+      <Dialog open={Boolean(preview)} onOpenChange={() => setPreview(null)}>
+        <DialogContent className="tw:sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="tw:truncate">
+              {attachmentName(preview)}
+            </DialogTitle>
+          </DialogHeader>
+          {preview && (
+            <img
+              src={fileUrl(preview.name)}
+              alt={attachmentName(preview)}
+              className="tw:max-h-[70dvh] tw:w-full tw:object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default AttachmentStrip;

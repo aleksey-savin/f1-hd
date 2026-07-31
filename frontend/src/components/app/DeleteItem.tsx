@@ -24,7 +24,7 @@ type DeletableItem = {
 //  - DeleteDialog — сам диалог подтверждения (RouterForm intent=delete на
 //    action текущего маршрута). Radix-меню размонтирует содержимое при
 //    закрытии, поэтому из выпадающих меню диалог рендерят СНАРУЖИ меню и
-//    открывают состоянием (см. ItemCard).
+//    открывают состоянием (так это собрано в app/ListRow).
 //  - DeleteItem (default) — самостоятельная кнопка «Удалить» + диалог
 //    (бывший isButton-режим).
 export function DeleteDialog({

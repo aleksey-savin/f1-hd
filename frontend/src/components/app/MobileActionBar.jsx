@@ -29,7 +29,7 @@ const HINT_MS = 4000;
  * @param {BarAction[]} [props.actions]
  * @param {boolean} [props.isLoading]
  * @param {(key: string) => void} props.onPick
- * @param {() => void} props.onCancel
+ * @param {(() => void) | undefined} [props.onCancel]
  * @param {string} [props.cancelLabel]
  * @param {string} [props.ariaLabel]
  */
@@ -119,14 +119,19 @@ const MobileActionBar = ({
               )}
             </AnimatePresence>
 
-            <button
-              type="button"
-              className="mobile-actionbar__cancel"
-              onClick={onCancel}
-              disabled={isLoading}
-            >
-              {cancelLabel}
-            </button>
+            {/* Выхода может не быть: в списках с отдельным режимом выбора он
+                живёт в липкой шапке (app/SelectionBar), и второй «Отмена»
+                здесь был бы дублем */}
+            {onCancel && (
+              <button
+                type="button"
+                className="mobile-actionbar__cancel"
+                onClick={onCancel}
+                disabled={isLoading}
+              >
+                {cancelLabel}
+              </button>
+            )}
           </div>
 
           <div className="mobile-actionbar__actions">

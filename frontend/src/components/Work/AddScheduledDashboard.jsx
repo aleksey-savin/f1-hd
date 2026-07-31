@@ -4,7 +4,7 @@ import pad from "pad";
 
 import useHttp from "../../hooks/use-http";
 
-import { timeDateInputFormat, localToUtc } from "../../util/format-date";
+import { shiftLocalForm, localToUtc } from "../../util/format-date";
 
 import Select from "../../UI/Select";
 
@@ -153,10 +153,12 @@ const ScheduleWorkDashboard = ({
         ? new Date(planningToStartInputRef.current.value)
         : null;
     if (date) {
-      // Настенная арифметика над значением инпута: локальный round-trip, без
-      // конверсии таймзон (changeTimezone сдвигал время при поясе ≠ бизнес).
-      planningToFinishInputRef.current.value = timeDateInputFormat(
-        new Date(date.getTime() + minutes * 60000),
+      // Сдвиг в бизнес-таймзоне: значение инпута разбирается и печатается
+      // одним хелпером (см. util/format-date.shiftLocalForm)
+      planningToFinishInputRef.current.value = shiftLocalForm(
+        planningToFinishInputRef.current.value ||
+          planningToStartInputRef.current.value,
+        minutes,
       );
     } else {
       document.getElementById("planning-to-start").focus();

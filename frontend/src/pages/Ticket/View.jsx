@@ -1,202 +1,211 @@
-import { useState, useEffect, useRef, useContext } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 
 import {
-  useLoaderData,
-  redirect,
-  useNavigation,
+  Link,
   Outlet,
-  useNavigate,
   useFetcher,
   useFetchers,
+  useLoaderData,
+  useNavigate,
   useRevalidator,
 } from "react-router";
+import { BrowserView } from "react-device-detect";
+import {
+  RiArrowLeftSLine,
+  RiDeleteBinLine,
+  RiErrorWarningLine,
+  RiMoreLine,
+  RiRepeat2Line,
+} from "react-icons/ri";
 
-import "react-h5-audio-player/lib/styles.css";
+import AnchorRail from "@/components/app/AnchorRail";
+import Checklist from "@/components/app/Checklist";
+import { DeleteDialog } from "@/components/app/DeleteItem";
+import Environment from "@/components/app/Environment";
+import FormSheet from "@/components/app/FormSheet";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-import { motion } from "framer-motion";
-
+import AiGuideSection from "../../components/Ticket/View/AiGuideSection";
+import AttachmentStrip, {
+  useAttachments,
+} from "../../components/Ticket/View/AttachmentStrip";
+import {
+  TemplateOffer,
+  TemplatePicker,
+  useChecklistTemplates,
+} from "../../components/Ticket/View/ChecklistTemplates";
+import Chronicle from "../../components/Ticket/Chronicle";
+import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
+import CustomFieldsView from "@/components/app/CustomFieldsView";
+import KnowledgeSection from "../../components/Ticket/View/KnowledgeSection";
+import ProcessDialog from "../../components/Ticket/Actions/ProcessDialog";
+import RemoteAccess from "../../components/Ticket/View/RemoteAccess";
+import ActionDialog from "../../components/Ticket/Actions/ActionDialog";
+import {
+  Eyebrow,
+  Panel,
+  Section,
+  SectionEditButton,
+} from "@/components/app/Panel";
+import {
+  DescriptionSection,
+  FactsSection,
+  WorksSection,
+} from "../../components/Ticket/View/Sections";
+import {
+  DIALOG_ACTIONS,
+  ticketActions,
+} from "../../components/Ticket/ticket-actions";
+import {
+  TicketStateText,
+  deadlineText,
+  isOverdue,
+  ticketTone,
+} from "../../components/Ticket/ticket-state";
+import usePolling from "../../hooks/use-polling";
+import { AuthedUserContext } from "../../store/authed-user-context";
+import useInitialPrefsStore from "../../store/prefs";
+import useOffcanvasStore from "../../store/offcanvas";
+import useToastStore from "../../store/toast-store";
 import useViewTicketStore from "../../store/view-ticket";
-
-import { BrowserView, MobileView } from "react-device-detect";
-
-import Transitions from "../../animations/Transition";
-import Spinner from "../../animations/Spinner";
-
-import Offcanvas from "react-bootstrap/Offcanvas";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Badge from "react-bootstrap/Badge";
-import Table from "react-bootstrap/Table";
-import Button from "react-bootstrap/Button";
-import Tabs from "react-bootstrap/Tabs";
-import Tab from "react-bootstrap/Tab";
-import ListGroup from "react-bootstrap/ListGroup";
-
-import { formatDate } from "../../util/format-date";
 import { getLocalStorageData } from "../../util/auth";
 
-import { RiHistoryLine, RiComputerLine, RiCheckLine } from "react-icons/ri";
+// Карточка заявки: hero (номер · тема · статус фразой · одно действие по
+// состоянию и «⋯») → слева секции с липким рейлом-якорем, справа хроника.
+//
+// Вкладок нет: семь вкладок были семью экранами в одном. Хроника заменила и
+// колонку комментариев, и вкладку «Лог» — события и переписка идут одной лентой,
+// а служебные записи сворачивает бэкенд (см. services/ticketEvents.js).
+//
+// Высота правой колонки — sticky + свой скролл; прежняя карточка считала её в JS
+// от window.innerWidth и слушателя resize.
 
-import BootstrapSpinner from "react-bootstrap/Spinner";
-
-import Comments from "../../components/Comment/List";
-import Works from "../../components/Work/List";
-
-import Attachments from "../../components/Ticket/View/Attachments";
-import ApplicantModal from "../../components/Ticket/View/ApplicantModal";
-import CompanyModal from "../../components/Ticket/View/CompanyModal";
-import DescriptionCard from "../../components/Ticket/View/DescriptionCard";
-import AiAssistant from "../../components/Ticket/View/AiAssistant";
-import Environment from "../../components/app/Environment";
-import AiSpeechBadge from "../../UI/AiSpeechBadge";
-import AiCategoryBadge from "../../UI/AiCategoryBadge";
-import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
-import ClientTimeBadge from "../../components/Company/ClientTimeBadge";
-import RelatedNotes from "../../components/Ticket/RelatedNotes";
-
-import TakeToWork from "../../components/Ticket/Actions/TakeToWork";
-import ProcessTicket from "../../components/Ticket/Actions/Process";
-import CloseTicket from "../../components/Ticket/Actions/Close";
-import BackToWork from "../../components/Ticket/Actions/BackToWork";
-import JoinResponsibles from "../../components/Ticket/Actions/JoinResponsibles";
-import Pro32Connect from "../../components/Integrations/Pro32Connect";
-
-
-import Checklist from "../../components/app/Checklist";
-import ActionDropdown from "../../components/Ticket/View/ActionsDropDown";
-
-import { AuthedUserContext } from "../../store/authed-user-context";
-import useOffcanvasStore from "../../store/offcanvas";
-import useInitialPrefsStore from "../../store/prefs";
-import usePolling from "../../hooks/use-polling";
-
-import CustomFieldsDisplay from "../../components/CustomFieldsDisplay";
-import { Alert } from "react-bootstrap";
-import WorkingStatusIndicator from "../../components/Company/WorkingStatusIndicator";
-
-// Слепок «значимого» состояния заявки. Если он меняется между опросами — значит
-// заявку обновили (чужой комментарий, смена статуса, дедлайн, ответственные,
-// чек-лист, ИИ-статусы) и нужно тихо ревалидировать loader. Комментарии живут
-// отдельной коллекцией и могут не двигать ticket.updatedAt — учитываем их явно.
-const ticketSignature = (ticket) =>
+// Слепок «значимого» состояния заявки: меняется — тихо ревалидируем loader.
+// Комментарии и события живут отдельно от ticket.updatedAt, поэтому считаем их
+// явно, иначе чужой комментарий или новое событие не подтянутся.
+const ticketSignature = (data) =>
   [
-    ticket?.updatedAt,
-    ticket?.state,
-    ticket?.deadline,
-    ticket?.comments?.length,
-    ticket?.responsibles?.length,
-    ticket?.checklist?.map((item) => `${item._id}:${item.checked}`).join(","),
-    ticket?.aiSpeech?.status,
-    ticket?.aiCategory?.status,
-    ticket?.aiGuide?.status,
+    data?.ticket?.updatedAt,
+    data?.ticket?.state,
+    data?.ticket?.deadline,
+    data?.ticket?.comments?.length,
+    data?.ticket?.responsibles?.length,
+    data?.ticket?.checklist
+      ?.map((item) => `${item._id}:${item.checked}`)
+      .join(","),
+    data?.ticket?.aiSpeech?.status,
+    data?.ticket?.aiCategory?.status,
+    data?.ticket?.aiGuide?.status,
+    data?.events?.length,
   ].join("|");
 
 const ViewTicket = () => {
-  const { state: routerState } = useNavigation();
+  const data = useLoaderData();
+  const { ticketData, responsiblesData } = data;
+  const { ticket, company, works, events = [] } = ticketData;
 
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
-  const { modules, ai } = useInitialPrefsStore();
-  const data = useLoaderData();
-  const { ticketData, otherCompanyTickets, responsiblesData } = data;
-
-  const { ticket, company, works, logs } = ticketData;
-
-  const ticketStore = useViewTicketStore();
-  useEffect(() => {
-    ticketStore.updateTicket(ticket);
-    ticketStore.updateCompany(company);
-    ticketStore.updateResponsibles(responsiblesData);
-    ticketStore.updateComments(ticket.comments);
-    ticketStore.updateWorks(works);
-    ticketStore.updateOtherCompanyTickets(otherCompanyTickets);
-  }, [ticket, company, works, otherCompanyTickets, responsiblesData]);
-
-  const { _id: userId, permissions, isEndUser } = useContext(AuthedUserContext);
-  const { canAvoidWorks, canUseTimeTrackingModule } = permissions;
-  const checklistFetcher = useFetcher();
-
-  const isOverdue =
-    !!ticket?.deadline &&
-    new Date(ticket.deadline) < new Date() &&
-    ticket.state !== "Закрыта";
-
-  const [badgeBg, setBadgeBg] = useState("light");
-
-  const [closeTicketIsActive, setCloseTicketIsActive] = useState(false);
-
-  // Состояние для Offcanvas с логами
-  const [showLogsOffcanvas, setShowLogsOffcanvas] = useState(false);
-  const [logsSearchQuery, setLogsSearchQuery] = useState("");
-
-  // Кол-во связанных заметок базы знаний — для счётчика во вкладке
-  const [relatedNotesCount, setRelatedNotesCount] = useState(0);
-
-  const handleShowLogs = (searchQuery = "") => {
-    setLogsSearchQuery(searchQuery);
-    setShowLogsOffcanvas(true);
-  };
-
-  const handleCloseLogs = () => {
-    setShowLogsOffcanvas(false);
-    setLogsSearchQuery("");
-  };
-
-  useEffect(() => {
-    const finishedWorks = works.filter(
-      (item) =>
-        item.finishedAt && userId.toString() === item.finishedBy._id.toString(),
-    );
-    if (
-      finishedWorks.length > 0 ||
-      canAvoidWorks ||
-      !modules.timeTracking.isActive
-    ) {
-      setCloseTicketIsActive(true);
-    } else {
-      setCloseTicketIsActive(false);
-    }
-  }, [works, canAvoidWorks]);
-
-  useEffect(() => {
-    if (ticket) {
-      setBadgeBg(
-        ticket.state === "Новая"
-          ? "warning"
-          : ticket.state === "Не в работе"
-            ? "warning"
-            : ticket.state === "В работе"
-              ? "info"
-              : ticket.state === "Закрыта"
-                ? "secondary"
-                : "info",
-      );
-    }
-  }, [ticket]);
-
-  // Постоянное фоновое автообновление заявки: опрашиваем лёгкий GET, сравниваем
-  // слепок состояния и тихо ревалидируем loader при изменениях (чужой
-  // комментарий, смена статуса, новые работы, чек-лист, ИИ-бейджи). Ревалидация
-  // не триггерит navigation "loading" — спиннер и fade не появляются.
-  // Не вмешиваемся во время сабмита действия/навигации и при открытой
-  // Offcanvas-форме, чтобы не затереть ввод. Пауза при скрытой вкладке — внутри
-  // usePolling.
   const revalidator = useRevalidator();
-  // Сабмит действия по заявке идёт через fetcher и НЕ меняет navigation state,
-  // поэтому фетчеры проверяем отдельно. Ревалидация во время висящего фетчера
-  // роняет роутер ("Did not find corresponding fetcher result") и способна
-  // затереть оптимистичный ввод — на это время автообновление ставим на паузу.
   const fetchers = useFetchers();
-  const hasActiveFetcher = fetchers.some((f) => f.state !== "idle");
-  const autoUpdateEnabled =
-    routerState === "idle" &&
-    revalidator.state === "idle" &&
-    !hasActiveFetcher &&
-    !offcanvas.isActive;
+  const checklistFetcher = useFetcher();
+  const { modules, ai } = useInitialPrefsStore();
+  const authedUser = useContext(AuthedUserContext);
+  const { _id: userId, permissions, isEndUser, isAdmin } = authedUser;
 
+  const { showToast } = useToastStore();
+
+  const store = useViewTicketStore();
+  useEffect(() => {
+    store.updateTicket(ticket);
+    store.updateCompany(company);
+    store.updateResponsibles(responsiblesData);
+    store.updateComments(ticket.comments ?? []);
+    store.updateWorks(works);
+    store.updateOtherCompanyTickets(data.otherCompanyTickets);
+  }, [ticket, company, works, responsiblesData, data.otherCompanyTickets]);
+
+  // Карточку всегда открываем от начала: Root сбрасывает только мобильный
+  // контейнер, а window-скролл при навигации сохраняется
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  // Вложения живут лентой в подвале описания: состояние (список, загрузка,
+  // удаление) держит хук, а кнопка «Прикрепить» уходит в метку секции
+  const attachments = useAttachments(ticket);
+
+  const [dialog, setDialog] = useState(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [processOpen, setProcessOpen] = useState(false);
+  const [logsQuery, setLogsQuery] = useState(null);
+  const [checklistEdit, setChecklistEdit] = useState(false);
+  const [scrollToChecklist, setScrollToChecklist] = useState(false);
+
+  // Секция только что смонтировалась — переносим к ней и ставим курсор в поле
+  useEffect(() => {
+    if (!scrollToChecklist) return;
+    setScrollToChecklist(false);
+
+    const anchor = document.getElementById("ticket-checklist");
+    anchor?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // preventScroll: фокус без него отменяет плавную прокрутку и швыряет
+    // страницу рывком. У поля добавления пункта нет type — селектор общий
+    anchor?.parentElement?.querySelector("input")?.focus({
+      preventScroll: true,
+    });
+  }, [scrollToChecklist]);
+
+  // Переход на соседнюю заявку не размонтирует страницу — режим правки от
+  // прошлой заявки нужно снимать руками
+  useEffect(() => {
+    setChecklistEdit(false);
+  }, [ticket.num]);
+
+  // Состав чек-листа уходит на сервер после каждого изменения: «Готово» только
+  // выходит из режима, поэтому кнопки «Сохранить» у секции нет.
+  const saveChecklist = (items) =>
+    checklistFetcher.submit(
+      {
+        intent: "updateChecklist",
+        ticketNum: ticket.num,
+        checklist: JSON.stringify(
+          items.map((item) => ({
+            _id: item._id,
+            description: item.description,
+            mandatory: !!item.mandatory,
+          })),
+        ),
+      },
+      { method: "POST", action: `/tickets/${ticket.num}` },
+    );
+
+  const overdue = isOverdue(ticket);
+  const state = ticketTone(ticket);
+  const mine = (ticket.responsibles ?? []).some(
+    (user) => user._id?.toString() === userId?.toString(),
+  );
+  const { primary, menu } = ticketActions(ticket, {
+    userId,
+    permissions,
+    isAdmin,
+    isEndUser,
+    works,
+  });
+
+  // Фоновое автообновление: не вмешиваемся во время сабмита действия и при
+  // открытой шторке формы, чтобы не затереть ввод.
+  const hasActiveFetcher = fetchers.some((f) => f.state !== "idle");
   usePolling(
     async () => {
-      if (!ticket?.num) return;
       const { token } = getLocalStorageData();
       try {
         const response = await fetch(
@@ -204,973 +213,524 @@ const ViewTicket = () => {
           { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok) return;
-        const data = await response.json();
-        if (
-          data?.ticket &&
-          ticketSignature(data.ticket) !== ticketSignature(ticket)
-        ) {
+        const fresh = await response.json();
+        if (ticketSignature(fresh) !== ticketSignature(ticketData)) {
           revalidator.revalidate();
         }
       } catch (error) {
         console.error("Ticket auto-update poll failed:", error);
       }
     },
-    { intervalMs: 15000, enabled: autoUpdateEnabled },
+    {
+      intervalMs: 15000,
+      // Правка чек-листа идёт прямо в секции — ответ сервера перетёр бы
+      // незаконченный ввод, как и открытая форма
+      enabled:
+        revalidator.state === "idle" &&
+        !hasActiveFetcher &&
+        !offcanvas.isActive &&
+        !checklistEdit,
+    },
   );
 
-  const firstColumnRef = useRef();
+  const canPerform =
+    permissions.canPerformTickets && mine && !ticket.isArchived;
+  const canEditChecklist = permissions.canEditTickets && !ticket.isArchived;
+  const hasChecklist = ticket.checklist?.length > 0;
 
-  const [firstColumnHeight, setFirstColumnHeight] = useState("0px");
-  const [firstColumnClassName, setFirstColumnClassName] = useState("");
+  // Шаблоны чек-листов, подходящие этой заявке: ранжирование («побеждает самый
+  // узкий») считает сервер, здесь только показ
+  const templates = useChecklistTemplates(ticket.num, canEditChecklist);
+  const checklistHasChecks = (ticket.checklist ?? []).some(
+    (item) => item.checked,
+  );
 
-  const screenWidth = window.innerWidth;
-  const isWideLayout = screenWidth >= 1500;
+  // Применение и смена идут тем же update-checklist: сервер поднимает отметки
+  // совпавших по названию пунктов, поэтому смена шаблона не теряет отмеченное
+  const applyTemplate = (template) => {
+    // Редактор в режиме edit намеренно не читает пропсы (локальный черновик —
+    // источник правды, иначе дёргается drag), поэтому внешнюю замену состава он
+    // не увидит. Выходим из режима: шаблон на то и готовый список, что править
+    // его сразу не надо, а карандаш рядом
+    setChecklistEdit(false);
+    if (template?.items?.length) {
+      showToast("success", `Чек-лист «${template.title}» применён`);
+    }
 
-  useEffect(() => {
-    const updateFirstColumnHeight = () => {
-      if (firstColumnRef.current && isWideLayout) {
-        setFirstColumnHeight(firstColumnRef.current.clientHeight + "px");
-        setFirstColumnClassName("col col-8 border-end d-flex flex-column");
-      } else {
-        setFirstColumnHeight("100%");
-        setFirstColumnClassName("col mb-3");
-      }
-    };
+    return checklistFetcher.submit(
+      {
+        intent: "updateChecklist",
+        ticketNum: ticket.num,
+        templateTitle: template?.title ?? "",
+        checklist: JSON.stringify(
+          (template?.items ?? []).map((item) => ({
+            description: item.description,
+            mandatory: !!item.mandatory,
+          })),
+        ),
+      },
+      { method: "POST", action: `/tickets/${ticket.num}` },
+    );
+  };
 
-    updateFirstColumnHeight();
+  const showWorks =
+    modules.timeTracking?.isActive && permissions.canUseTimeTrackingModule;
+  const showEnvironment =
+    !isEndUser &&
+    modules.inventory?.isActive &&
+    permissions.canUseInventoryModule;
+  const showKnowledge =
+    modules.knowledgeBase?.isActive && permissions.canSeeKnowledgeBase;
+  const showAi = !isEndUser && ai?.isActive;
 
-    window.addEventListener("resize", updateFirstColumnHeight);
+  const railSections = useMemo(
+    () =>
+      [
+        // Порядок обязан совпадать с разметкой ниже — рейл ведёт по секциям,
+        // а не по своему списку
+        // Вложения — часть описания, своей секции и пункта рейла у них нет
+        { id: "ticket-description", label: "Описание" },
+        ticket.customFields?.length && {
+          id: "ticket-fields",
+          label: "Поля формы",
+        },
+        { id: "ticket-facts", label: "Детали" },
+        // Чек-лист есть у 3 % заявок — пустой пункт рейла вёл бы к строке
+        // «Чек-листа нет»
+        hasChecklist && { id: "ticket-checklist", label: "Чек-лист" },
+        showWorks && { id: "ticket-works", label: "Работы" },
+        showEnvironment && { id: "ticket-environment", label: "Окружение" },
+        showKnowledge && { id: "ticket-knowledge", label: "База знаний" },
+        showAi && { id: "ticket-ai", label: "Руководство ИИ" },
+      ].filter(Boolean),
+    [
+      ticket.customFields?.length,
+      hasChecklist,
+      showWorks,
+      showEnvironment,
+      showKnowledge,
+      showAi,
+    ],
+  );
 
-    return () => {
-      window.removeEventListener("resize", updateFirstColumnHeight);
-    };
-  }, [isWideLayout]);
+  const pickAction = (key) => {
+    // Секции у пустого чек-листа нет — пункт меню сразу открывает её в режиме
+    // правки, с одной пустой строкой
+    if (key === "makeChecklist") {
+      setChecklistEdit(true);
+      // Секции у пустого чек-листа нет — она появляется только сейчас, и без
+      // переноса человек остаётся смотреть на прежний экран
+      setScrollToChecklist(true);
+      return;
+    }
+    if (key === "process") return setProcessOpen(true);
+    if (DIALOG_ACTIONS.includes(key)) return setDialog(key);
+    if (key === "delete") return setDeleteOpen(true);
+    if (key === "update" || key === "addWork") {
+      offcanvas.setShow();
+      navigate(key === "addWork" ? "work/add" : "update");
+    }
+  };
 
   return (
-    <>
-      {routerState === "idle" && ticket?.num && (
-        <Transitions>
-          <Row>
-            <Col
-              ref={firstColumnRef}
-              className={firstColumnClassName}
-              style={{
-                minHeight: isWideLayout ? "calc(100svh - 156px)" : undefined,
-              }}
-            >
-              {ticket.isArchived && (
-                <Row>
-                  <Col>
-                    <Alert variant="warning">
-                      <strong>{`Заявка находится в архиве и привязана к отчёту за соответствующий период. Редактирование запрещено.`}</strong>
-                    </Alert>
-                  </Col>
-                </Row>
-              )}
-              <Row>
-                <Col>
-                  <Row className="justify-content-md-between">
-                    <MobileView>
-                      <Col sm="auto">
-                        <h3>
-                          <motion.span
-                            key={ticket.state}
-                            className="d-block w-100"
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ duration: 0.3 }}
-                          >
-                            <Badge bg={badgeBg} className="w-100">
-                              {ticket.state}
-                            </Badge>
-                          </motion.span>
-                        </h3>
-                      </Col>
-                    </MobileView>
-                    <Col sm="auto">
-                      <h3>
-                        <Badge bg="secondary" className="w-100">
-                          {ticket.num}
-                        </Badge>
-                      </h3>
-                    </Col>
-                    <Col sm="auto">
-                      <BrowserView>
-                        <h3>
-                          <motion.span
-                            key={ticket.state}
-                            className="d-inline-block"
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ duration: 0.3 }}
-                          >
-                            <Badge bg={badgeBg}>{ticket.state}</Badge>
-                          </motion.span>
-                        </h3>
-                      </BrowserView>
-                    </Col>
-                  </Row>
-                  <Row className="mb-2">
-                    <Col>
-                      <div className="d-flex justify-content-between align-items-center gap-2">
-                        <h1 className="display-6 mb-0">{ticket.title}</h1>
-                        {!isEndUser && (
-                          <div className="d-flex flex-shrink-0 gap-2 mt-1">
-                            <AiSpeechBadge status={ticket.aiSpeech?.status} />
-                            <AiCategoryBadge
-                              status={ticket.aiCategory?.status}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </Col>
-                  </Row>
-                  <Row className="mb-2">
-                    <Col>
-                      <DescriptionCard ticket={ticket} />
-                    </Col>
-                  </Row>
-                  <CustomFieldsDisplay customFields={ticket.customFields} />
-                  <Tabs
-                    defaultActiveKey="info"
-                    className="mb-3 scrollable-tabs"
-                  >
-                    <Tab eventKey="info" title="Информация">
-                      <h6>
-                        <Row>
-                          <Col sm="12">
-                            <Table>
-                              <tbody>
-                                <tr>
-                                  <th>Создана</th>
-                                  <td>{formatDate(ticket.createdAt)}</td>
-                                </tr>
-                                <tr>
-                                  <th>Дедлайн</th>
-                                  <td
-                                    className={isOverdue ? "text-danger" : ""}
-                                  >
-                                    {ticket.deadline && (
-                                      <>{formatDate(ticket.deadline)}</>
-                                    )}
-                                    {isOverdue && (
-                                      <Badge bg="danger" className="ms-2">
-                                        Просрочена
-                                      </Badge>
-                                    )}
-                                  </td>
-                                </tr>
-                                {ticket.realSender && (
-                                  <tr>
-                                    <th>Отправитель</th>
-                                    <td>{ticket.realSender}</td>
-                                  </tr>
-                                )}
-                                <tr>
-                                  <th>Компания</th>
-                                  <td>
-                                    <h5 className="mb-0 d-flex align-items-center flex-wrap gap-2">
-                                      <CompanyModal
-                                        ticket={ticket}
-                                        company={company}
-                                      />
-                                      {/* Который час у заявителя — до того,
-                                          как специалист наберёт номер */}
-                                      <ClientTimeBadge
-                                        clientTimezone={ticket.clientTimezone}
-                                      />
-                                      <small>
-                                        <WorkingStatusIndicator
-                                          workSchedule={company.workSchedule}
-                                          timezone={
-                                            ticket.clientTimezone?.timezone
-                                          }
-                                        />
-                                      </small>
-                                      {!isEndUser && (
-                                        <Button
-                                          onClick={() => handleShowLogs()}
-                                          size="sm"
-                                          variant="outline-info"
-                                          title="Лог активности компании"
-                                        >
-                                          <RiHistoryLine />
-                                        </Button>
-                                      )}
-                                    </h5>
-                                  </td>
-                                </tr>
-                                <tr>
-                                  <th>Инициатор</th>
-                                  <td>
-                                    <h5 className="mb-0 d-flex align-items-center gap-2">
-                                      <ApplicantModal ticket={ticket} />
-                                      {permissions.canManageCompanies &&
-                                        ticket.applicant
-                                          ?.activeDirectoryObjectGUID && (
-                                          <Button
-                                            onClick={() =>
-                                              handleShowLogs(
-                                                `${ticket.applicant.firstName} ${ticket.applicant.lastName}`,
-                                              )
-                                            }
-                                            size="sm"
-                                            variant="outline-success"
-                                            title="Лог активности пользователя"
-                                          >
-                                            <RiHistoryLine />
-                                          </Button>
-                                        )}
-                                    </h5>
-                                  </td>
-                                </tr>
-                                {!isEndUser &&
-                                  ticket.applicant?.computer?.name && (
-                                    <tr>
-                                      <th>Компьютер</th>
-                                      <td>
-                                        <span className="d-inline-flex align-items-center gap-1">
-                                          <RiComputerLine />
-                                          <span className="font-monospace">
-                                            {ticket.applicant.computer.name}
-                                          </span>
-                                          {ticket.applicant.computer
-                                            .activeDirectoryLogin && (
-                                            <small className="text-muted ms-1">
-                                              (
-                                              {
-                                                ticket.applicant.computer
-                                                  .activeDirectoryLogin
-                                              }
-                                              )
-                                            </small>
-                                          )}
-                                        </span>
-                                        {ticket.applicant.computer
-                                          .lastSeenAt && (
-                                          <div>
-                                            <small className="text-muted">
-                                              Вход:{" "}
-                                              {formatDate(
-                                                ticket.applicant.computer
-                                                  .lastSeenAt,
-                                              )}
-                                            </small>
-                                          </div>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  )}
-                                <tr>
-                                  <th>Ответственные</th>
-                                  <td>
-                                    <h5 className="mb-0">
-                                      {ticket.responsibles?.map((user) => (
-                                        <Badge
-                                          bg="secondary"
-                                          style={{ marginLeft: "0.5rem" }}
-                                          key={user._id}
-                                        >
-                                          {user.lastName + " " + user.firstName}
-                                        </Badge>
-                                      ))}
-                                    </h5>
-                                  </td>
-                                </tr>
-                                <tr>
-                                  <th>Категория</th>
-                                  <td>{ticket.category?.title}</td>
-                                </tr>
-                                <tr>
-                                  <th>Источник</th>
-                                  <td>{ticket.source}</td>
-                                </tr>
-                              </tbody>
-                            </Table>
-                          </Col>
-                        </Row>
-                      </h6>
-                      <Row className="mb-3">
-                        <Col>
-                          <Checklist
-                            mode="run"
-                            items={ticket.checklist ?? []}
-                            canCheck={ticket.responsibles
-                              ?.map((user) => user._id.toString())
-                              .includes(userId)}
-                            onToggle={(item, checked) =>
-                              checklistFetcher.submit(
-                                {
-                                  intent: "updateChecklistItem",
-                                  itemId: item._id,
-                                  itemDescription: item.description,
-                                  itemChecked: checked,
-                                  ticketNum: ticket.num,
-                                },
-                                {
-                                  method: "POST",
-                                  action: `/tickets/${ticket.num}`,
-                                },
-                              )
-                            }
-                            mandatoryGuard
-                          />
-
-                        </Col>
-                      </Row>
-                    </Tab>
-                    {!isEndUser &&
-                      modules.inventory?.isActive &&
-                      permissions.canUseInventoryModule && (
-                        <Tab eventKey="environment" title="Окружение">
-                          <Environment
-                            userId={ticket.applicant?._id}
-                            deviceId={ticket.relatedClientDeviceId}
-                          />
-                        </Tab>
-                      )}
-                    <Tab
-                      eventKey="attachments"
-                      title={
-                        <>
-                          Вложения{" "}
-                          {ticket.attachments?.length > 0 && (
-                            <Badge bg="secondary" pill>
-                              {ticket.attachments.length}
-                            </Badge>
-                          )}
-                        </>
-                      }
-                    >
-                      <Attachments ticket={ticket} />
-                    </Tab>
-                    {modules.timeTracking.isActive &&
-                      canUseTimeTrackingModule && (
-                        <Tab
-                          eventKey="works"
-                          title={
-                            <>
-                              Работы{" "}
-                              {works.length > 0 && (
-                                <Badge bg="secondary" pill>
-                                  {works.length}
-                                </Badge>
-                              )}
-                            </>
-                          }
-                        >
-                          <Works
-                            ticket={ticket}
-                            company={company}
-                            otherCompanyTickets={otherCompanyTickets}
-                            responsibles={responsiblesData}
-                            works={works}
-                            closeTicketIsActive={closeTicketIsActive}
-                          />
-                        </Tab>
-                      )}
-                    {modules.knowledgeBase.isActive &&
-                      permissions?.canSeeKnowledgeBase && (
-                        <Tab
-                          eventKey="knowledge"
-                          title={
-                            <>
-                              База знаний{" "}
-                              <Badge bg="secondary" pill>
-                                {relatedNotesCount}
-                              </Badge>
-                            </>
-                          }
-                        >
-                          <RelatedNotes
-                            companyId={ticket.company?._id}
-                            categoryId={ticket.category?._id}
-                            applicantId={ticket.applicant?._id}
-                            onCountChange={setRelatedNotesCount}
-                          />
-                        </Tab>
-                      )}
-                    {!isEndUser && ai?.isActive && (
-                      <Tab
-                        eventKey="ai"
-                        title={
-                          <>
-                            AI-ассистент{" "}
-                            {ticket.aiGuide?.status === "pending" && (
-                              <BootstrapSpinner
-                                animation="border"
-                                size="sm"
-                                title="ИИ готовит руководство"
-                              />
-                            )}
-                            {ticket.aiGuide?.status === "ready" && (
-                              <Badge
-                                bg="success"
-                                pill
-                                title="Руководство сформировано"
-                              >
-                                <RiCheckLine className="align-middle" />
-                              </Badge>
-                            )}
-                          </>
-                        }
-                      >
-                        <AiAssistant />
-                      </Tab>
-                    )}
-                    {!isEndUser && (
-                      <Tab
-                        eventKey="log"
-                        title={
-                          <>
-                            Лог{" "}
-                            {logs?.length > 0 && (
-                              <Badge bg="secondary" pill>
-                                {logs.length}
-                              </Badge>
-                            )}
-                          </>
-                        }
-                      >
-                        <ListGroup variant="flush">
-                          {logs?.length > 0 ? (
-                            logs.map((entry) => (
-                              <ListGroup.Item key={entry._id}>
-                                <Badge className="me-2" bg={entry.severity}>
-                                  {entry.severity}
-                                </Badge>
-                                {entry.user
-                                  ? `${formatDate(entry.createdAt)} — ${entry.user.firstName} ${entry.user.lastName}, ${entry.event}`
-                                  : `${formatDate(entry.createdAt)} — ${entry.event}`}
-                              </ListGroup.Item>
-                            ))
-                          ) : (
-                            <Alert variant="light">Нет записей</Alert>
-                          )}
-                        </ListGroup>
-                      </Tab>
-                    )}
-                  </Tabs>
-                </Col>
-              </Row>
-              <Row className="mt-auto pt-3">
-                <Col>
-                  {!ticket.isArchived && (
-                    <Row id="ticket-actions">
-                      <ProcessTicket ticket={ticket} />
-                      <JoinResponsibles ticket={ticket} />
-                      <TakeToWork ticket={ticket} />
-                      <CloseTicket
-                        scheduledWorks={
-                          works.filter(
-                            (item) => !item.finishedAt && item.planningToStart,
-                          ).length > 0
-                        }
-                      />
-                      <Pro32Connect ticket={ticket} />
-                      {ticket.state === "Закрыта" && (
-                        <Col sm="auto">
-                          <BackToWork ticket={ticket} />
-                        </Col>
-                      )}
-                      <ActionDropdown
-                        ticket={ticket}
-                        isOverdue={isOverdue}
-                        responsibles={responsiblesData}
-                      />
-                    </Row>
-                  )}
-                </Col>
-              </Row>
-            </Col>
-            <Col
-              xxl="4"
-              style={{
-                height: firstColumnHeight,
-              }}
-              className="overflow-y-auto m-0"
-            >
-              <h3>Комментарии</h3>
-              <Comments ticket={ticket} />
-            </Col>
-          </Row>
-        </Transitions>
-      )}
-      {routerState === "loading" && (
-        <Transitions>
-          <Spinner />
-        </Transitions>
-      )}
-      <Offcanvas
-        show={offcanvas.isActive}
-        onHide={() => {
-          navigate(-1);
-          offcanvas.setClose();
-        }}
-        keyboard
-        placement="bottom"
-        className="h-100"
-        backdrop={false}
+    <div className="tw:mx-auto tw:w-full tw:max-w-8xl">
+      <Link
+        to="/tickets"
+        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
       >
-        <Offcanvas.Header closeButton>
-          <Offcanvas.Title></Offcanvas.Title>
-        </Offcanvas.Header>
-        <Offcanvas.Body>
-          <Outlet />
-        </Offcanvas.Body>
-      </Offcanvas>
+        <RiArrowLeftSLine /> Заявки
+      </Link>
+
+      {ticket.isArchived && (
+        <Alert variant="warning" className="tw:mb-4">
+          <RiErrorWarningLine />
+          <AlertDescription>
+            Заявка в архиве и привязана к отчёту за период — правка и новые
+            работы запрещены.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* HERO */}
+      <div className="tw:mb-6 tw:flex tw:flex-wrap tw:items-start tw:gap-x-5 tw:gap-y-3">
+        <div className="tw:min-w-0 tw:flex-1">
+          {/* Номер, статус и срок — одной строкой над темой: разнесённые по
+              разным строкам, они читались как три независимых сообщения */}
+          {/* Разделительных «·» здесь нет: текстовая точка сидит на высоте
+              строчных, а точка статуса — по центру строки, и рядом они читаются
+              как две разные точки. Разделяет расстояние */}
+          <div className="tw:flex tw:flex-wrap tw:items-baseline tw:gap-x-4 tw:gap-y-1 tw:text-sm">
+            <span className="tw:font-semibold tw:text-muted-foreground tw:tabular-nums">
+              № {ticket.num}
+            </span>
+            <TicketStateText tone={state.tone} strong>
+              {state.label}
+            </TicketStateText>
+            {/* Просрочка — второй знак рядом со статусом, а не вместо него;
+                слово и срок одного цвета, чтобы читались одной мыслью */}
+            {overdue ? (
+              <span className="tw:text-destructive">
+                <span className="tw:font-semibold">просрочена</span> ·{" "}
+                {deadlineText(ticket.deadline)}
+              </span>
+            ) : (
+              <span className="tw:text-muted-foreground">
+                {deadlineText(ticket.deadline)}
+              </span>
+            )}
+          </div>
+          <h1 className="tw:mt-1.5 tw:mb-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:break-words">
+            {ticket.title}
+          </h1>
+        </div>
+
+        <div className="tw:flex tw:flex-none tw:items-center tw:gap-2">
+          {primary && (
+            <Button onClick={() => pickAction(primary.key)}>
+              {primary.label}
+            </Button>
+          )}
+          {/* Подключение к экрану: своя механика (запрос сессии → ссылка),
+              показывает себя само только у заявки «В работе» */}
+          <RemoteAccess ticket={ticket} />
+          {menu.length > 0 && (
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title="Действия"
+                  aria-label="Действия"
+                >
+                  <RiMoreLine />
+                </Button>
+              </DropdownMenuTrigger>
+              {/* Сплошной список: групп на пять пунктов не бывает, а
+                  заголовки съедали половину высоты меню. Разрушающее —
+                  последним и отбито разделителем */}
+              <DropdownMenuContent align="end" className="tw:w-56">
+                {menu.map((item, index) => (
+                  <div key={item.key}>
+                    {item.danger && index > 0 && <DropdownMenuSeparator />}
+                    <DropdownMenuItem
+                      variant={item.danger ? "destructive" : undefined}
+                      onSelect={() => pickAction(item.key)}
+                    >
+                      {item.danger && <RiDeleteBinLine />}
+                      {item.label}
+                    </DropdownMenuItem>
+                  </div>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+      </div>
+
+      {/* Предложение чек-листа — отдельной строкой между шапкой и раскладкой:
+          внутри колонки секций оно терялось, а первым блоком колонки вставало
+          на одну линию с темой заявки и отжимало описание */}
+      {canEditChecklist &&
+        !hasChecklist &&
+        !checklistEdit &&
+        !ticket.routineTask && (
+          <div className="tw:mb-5">
+            <TemplateOffer
+              ticketNum={ticket.num}
+              templates={templates}
+              onApply={applyTemplate}
+            />
+          </div>
+        )}
+
+      {/* КАРКАС */}
+      <div className="tw:flex tw:items-start tw:gap-6">
+        <BrowserView className="tw:contents">
+          <AnchorRail sections={railSections} ariaLabel="Разделы карточки" />
+        </BrowserView>
+
+        {/* -mt-6 гасит верхний отступ первой метки секции (у Eyebrow он mt-6):
+            иначе колонка секций начинается на 24px ниже рейла и хроники */}
+        <div className="tw:-mt-6 tw:flex tw:min-w-0 tw:flex-1 tw:flex-col tw:gap-5">
+          <DescriptionSection
+            ticket={ticket}
+            uploadAction={attachments.uploadAction}
+            attachments={
+              <AttachmentStrip
+                attachments={attachments.attachments}
+                onRemove={attachments.remove}
+                canDelete={attachments.canDelete}
+                canTranscribe={attachments.canTranscribe}
+                ticketNum={attachments.ticketNum}
+              />
+            }
+          />
+
+          {ticket.customFields?.length > 0 && (
+            <Section>
+              <span id="ticket-fields" className="tw:block tw:scroll-mt-28" />
+              <CustomFieldsView fields={ticket.customFields} />
+            </Section>
+          )}
+
+          <FactsSection
+            ticket={ticket}
+            company={company}
+            canEdit={permissions.canEditTickets && !ticket.isArchived}
+            onShowLogs={
+              !isEndUser ? (query) => setLogsQuery(query ?? "") : undefined
+            }
+          />
+
+          {/* Секция появляется вместе с содержимым: пустой чек-лист — это блок,
+              который сообщает только о своём отсутствии, а он бывает пустым у
+              97 заявок из 100. Вход в составление — пункт «⋯»-меню, он же
+              включает режим правки.
+
+              Чек-лист правится в самой секции: его и в покое меняют на месте
+              (галочка), поэтому состав не уводим в форму заявки. Правка —
+              явным режимом, чтобы рука, привыкшая отмечать, не промахнулась
+              по «удалить». */}
+          {(hasChecklist || checklistEdit) && (
+          <Section>
+            <Eyebrow
+              id="ticket-checklist"
+              count={ticket.checklist?.length || undefined}
+              action={
+                canEditChecklist && (
+                  <SectionEditButton
+                    label="Чек-лист"
+                    editing={checklistEdit}
+                    onToggle={() => setChecklistEdit((prev) => !prev)}
+                  />
+                )
+              }
+            >
+              Чек-лист
+            </Eyebrow>
+            <Panel>
+              {/* Откуда список: в 96 % случаев это регламент, и пункты для
+                  будущих заявок правятся там, а не здесь */}
+              {(ticket.routineTask?.title ||
+                (canEditChecklist && templates)) && (
+                <p className="tw:mt-0 tw:mb-3 tw:flex tw:items-center tw:gap-1.5 tw:border-b tw:border-border-soft tw:pb-2.5 tw:text-xs tw:text-muted-foreground">
+                  <RiRepeat2Line size={14} className="tw:text-faint" />
+                  {ticket.routineTask?.title ? (
+                    <>
+                      Из регламента{" "}
+                      <Link
+                        to={`/routine-tasks/${ticket.routineTask._id}`}
+                        className="tw:text-accent-text tw:no-underline tw:hover:underline"
+                      >
+                        «{ticket.routineTask.title}»
+                      </Link>
+                    </>
+                  ) : (
+                    "Чек-лист заявки"
+                  )}
+                  {/* Кнопка появляется, только когда есть из чего выбирать;
+                      у регламентной заявки список — часть определения задания,
+                      и шаблоны его не подменяют (сервер отдаёт пустой matched) */}
+                  {!ticket.routineTask && canEditChecklist && (
+                    <TemplatePicker
+                      templates={templates}
+                      hasChecks={checklistHasChecks}
+                      onApply={applyTemplate}
+                      onClear={() => applyTemplate({ items: [], title: "" })}
+                      trigger={
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="tw:ms-auto tw:text-muted-foreground"
+                        >
+                          Ещё чек-листы ·{" "}
+                          {(templates?.matched?.length ?? 0) +
+                            (templates?.others?.length ?? 0)}
+                        </Button>
+                      }
+                    />
+                  )}
+                </p>
+              )}
+              {checklistEdit ? (
+                <Checklist
+                  key="edit"
+                  mode="edit"
+                  items={ticket.checklist ?? []}
+                  showHeader={false}
+                  framed={false}
+                  onChange={saveChecklist}
+                />
+              ) : ticket.checklist?.length ? (
+                <Checklist
+                  key="run"
+                  mode="run"
+                  items={ticket.checklist}
+                  showHeader={false}
+                  framed={false}
+                  canCheck={mine && !ticket.isArchived}
+                  mandatoryGuard
+                  onToggle={(item, checked) =>
+                    checklistFetcher.submit(
+                      {
+                        intent: "updateChecklistItem",
+                        itemId: item._id,
+                        itemDescription: item.description,
+                        itemChecked: checked,
+                        ticketNum: ticket.num,
+                      },
+                      { method: "POST", action: `/tickets/${ticket.num}` },
+                    )
+                  }
+                />
+              ) : null}
+            </Panel>
+          </Section>
+          )}
+
+          {showWorks && (
+            <WorksSection
+              works={works}
+              ticket={ticket}
+              canAddWork={
+                canPerform && !["Новая", "Не в работе"].includes(ticket.state)
+              }
+              onOpenForm={offcanvas.setShow}
+            />
+          )}
+
+          {showEnvironment && (
+            <Section>
+              <Eyebrow id="ticket-environment">Окружение</Eyebrow>
+              <Environment
+                userId={ticket.applicant?._id}
+                deviceId={ticket.relatedClientDeviceId}
+              />
+            </Section>
+          )}
+
+          {showKnowledge && <KnowledgeSection ticket={ticket} />}
+
+          {showAi && <AiGuideSection />}
+        </div>
+
+        <div className="tw:sticky tw:top-20 tw:hidden tw:w-96 tw:flex-none tw:xl:block">
+          <Chronicle
+            ticket={ticket}
+            events={events}
+            canComment={!ticket.isArchived && !!permissions.canPerformTickets}
+          />
+        </div>
+      </div>
+
+      {/* На узких экранах хроника идёт последней секцией */}
+      <div className="tw:mt-5 tw:xl:hidden">
+        <Chronicle
+          ticket={ticket}
+          events={events}
+          canComment={!ticket.isArchived && !!permissions.canPerformTickets}
+        />
+      </div>
+
+      <ProcessDialog
+        ticket={ticket}
+        open={processOpen}
+        onClose={() => setProcessOpen(false)}
+      />
+
+      <ActionDialog
+        action={dialog}
+        ticket={ticket}
+        works={works}
+        responsibles={responsiblesData}
+        onClose={() => setDialog(null)}
+        onFixWorks={() => pickAction("addWork")}
+      />
+
+      <DeleteDialog
+        item={{ _id: ticket._id, title: `Заявка № ${ticket.num}` }}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+      />
 
       <CompanyLogsOffcanvas
-        show={showLogsOffcanvas}
-        onHide={handleCloseLogs}
-        companyId={company._id}
+        show={logsQuery !== null}
+        onHide={() => setLogsQuery(null)}
+        companyId={company?._id}
         company={company}
         permissions={permissions}
-        initialSearchQuery={logsSearchQuery}
+        initialSearchQuery={logsQuery ?? ""}
       />
-    </>
+
+      <FormSheet
+        open={offcanvas.isActive}
+        size="lg"
+        onOpenChange={(open) => {
+          if (!open) {
+            navigate(-1);
+            offcanvas.setClose();
+          }
+        }}
+      >
+        <Outlet />
+      </FormSheet>
+    </div>
   );
 };
 
 export default ViewTicket;
 
 export async function loader({ params }) {
-  document.title = `Заявка ${params.ticketNum}`;
+  document.title = `Заявка № ${params.ticketNum}`;
 
   const { token, userId } = getLocalStorageData();
+  const headers = { Authorization: "Bearer " + token };
 
   const ticketResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${params.ticketNum}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
+    { headers },
   );
-
-  if (!ticketResponse.ok) {
-    throw ticketResponse;
-  }
-
+  if (!ticketResponse.ok) throw ticketResponse;
   const ticketData = await ticketResponse.json();
 
   const responsiblesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
+    { headers },
   );
-
-  if (!responsiblesResponse.ok) {
-    throw responsiblesResponse;
-  }
+  if (!responsiblesResponse.ok) throw responsiblesResponse;
 
   const openedTicketsResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
+    { headers },
   );
-
-  if (!openedTicketsResponse.ok) {
-    throw openedTicketsResponse;
-  }
-
+  if (!openedTicketsResponse.ok) throw openedTicketsResponse;
   const openedTickets = await openedTicketsResponse.json();
 
   const additionalDataResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/works/additional-data/${params.ticketNum}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
+    { headers },
   );
-
-  if (!additionalDataResponse.ok) {
-    throw additionalDataResponse;
-  }
-
+  if (!additionalDataResponse.ok) throw additionalDataResponse;
   const additionalData = await additionalDataResponse.json();
 
   return {
     ...additionalData,
-    ticketData: ticketData,
+    ticketData,
     responsiblesData: await responsiblesResponse.json(),
-    otherCompanyTickets: openedTickets.tickets.filter((ticket) => {
-      const ticketCategory = ticket.categoryId
-        ? ticket.categoryId.toString()
-        : null;
-      // У заявки может не быть компании (легаси системных заявок) — такие в
-      // «другие заявки компании» не попадают, и сравнение undefined ===
-      // undefined не должно склеивать две заявки без компании.
+    // «Другие заявки этой компании» нужны формам работ: одна запись работы
+    // привязывается сразу к нескольким заявкам одной компании и категории
+    otherCompanyTickets: openedTickets.tickets.filter((item) => {
       const currentCompanyId = ticketData.ticket?.company?._id;
       return (
         currentCompanyId &&
-        ticket?.company?._id?.toString() === currentCompanyId.toString() &&
-        ticket.num !== ticketData.ticket.num &&
-        ticket.responsibles
-          .map((user) => user._id.toString())
-          .includes(userId) &&
-        ticketCategory === ticketData.ticket.categoryId?.toString()
+        item?.company?._id?.toString() === currentCompanyId.toString() &&
+        item.num !== ticketData.ticket.num &&
+        item.responsibles.map((user) => user._id.toString()).includes(userId) &&
+        (item.categoryId ? item.categoryId.toString() : null) ===
+          ticketData.ticket.categoryId?.toString()
       );
     }),
   };
 }
 
-export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
-  const data = await request.formData();
-
-  const intent = data.get("intent");
-
-  if (intent === "process") {
-    const ticketData = {
-      _id: data.get("_id"),
-      title: data.get("title"),
-      description: data.get("description"),
-      company: JSON.parse(data.get("company")),
-      categoryId: data.get("categoryId"),
-      applicantId: data.get("applicantId"),
-      responsibles: JSON.parse(data.getAll("responsibles")),
-      deadline: new Date(data.get("deadline")),
-      expectedVersion: data.get("expectedVersion"),
-    };
-
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/process`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify(ticketData),
-      },
-    );
-
-    if (response.status === 409) {
-      return await response.json();
-    }
-
-    if (!response.ok) {
-      throw response;
-    }
-
-    return response;
-  }
-
-  if (intent === "takeToWork") {
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/take-to-work`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify({
-          _id: data.get("_id"),
-          takeOver: data.get("takeOver") === "true",
-          expectedVersion: data.get("expectedVersion"),
-        }),
-      },
-    );
-
-    if (response.status === 409) {
-      return await response.json();
-    }
-
-    if (!response.ok) {
-      throw response;
-    }
-
-    return response;
-  }
-
-  if (intent === "reject") {
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/reject`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify({
-          _id: data.get("_id"),
-          rejectDesc: data.get("rejectDesc"),
-          expectedVersion: data.get("expectedVersion"),
-        }),
-      },
-    );
-
-    if (response.status === 409) {
-      return await response.json();
-    }
-
-    if (!response.ok) {
-      throw response;
-    }
-
-    return redirect("/tickets");
-  }
-
-  if (intent === "join") {
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/join-responsibles`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify({
-          _id: data.get("_id"),
-          expectedVersion: data.get("expectedVersion"),
-        }),
-      },
-    );
-
-    if (response.status === 409) {
-      return await response.json();
-    }
-
-    if (!response.ok) {
-      throw response;
-    }
-
-    return response;
-  }
-
-  if (intent === "requestHelp") {
-    const ticketData = {
-      _id: data.get("_id"),
-      responsibles: JSON.parse(data.getAll("responsibles")),
-      expectedVersion: data.get("expectedVersion"),
-    };
-
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/request-help`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify(ticketData),
-      },
-    );
-
-    if (response.status === 409) {
-      return await response.json();
-    }
-
-    if (!response.ok) {
-      throw response;
-    }
-    return response;
-  }
-
-  if (intent === "updateDeadline") {
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/update-deadline`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify({
-          _id: data.get("_id"),
-          deadline: data.get("deadline"),
-          expectedVersion: data.get("expectedVersion"),
-        }),
-      },
-    );
-
-    if (response.status === 409) {
-      return await response.json();
-    }
-
-    if (!response.ok) {
-      throw response;
-    }
-
-    return response;
-  }
-
-  if (intent === "close") {
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/close`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify({
-          _id: data.get("_id"),
-          closingComment: data.get("closingComment"),
-          expectedVersion: data.get("expectedVersion"),
-        }),
-      },
-    );
-
-    if (response.status === 409) {
-      return await response.json();
-    }
-
-    if ([403].includes(response.status)) {
-      return response;
-    }
-
-    if (!response.ok) {
-      throw response;
-    }
-
-    return redirect("/tickets");
-  }
-
-  if (intent === "backToWork") {
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/back-to-work`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify({
-          _id: data.get("_id"),
-          returningComment: data.get("returningComment"),
-          expectedVersion: data.get("expectedVersion"),
-        }),
-      },
-    );
-
-    if (response.status === 409) {
-      return await response.json();
-    }
-
-    if (!response.ok) {
-      throw Response.json(
-        { message: "Не удалось вернуть заявку в работу" },
-        { status: 500 },
-      );
-    }
-
-    return response;
-  }
-
-  if (intent === "addComment") {
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/comments/add`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-        body: data,
-      },
-    );
-
-    if (!response.ok) {
-      throw response;
-    }
-
-    return response;
-  }
-
-  if (intent === "updateChecklistItem") {
-    const ticketNum = data.get("ticketNum");
-
-    const checklistItem = {
-      _id: data.get("itemId"),
-      description: data.get("itemDescription"),
-      checked: data.get("itemChecked"),
-    };
-
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticketNum}/update-checklist-item`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify(checklistItem),
-      },
-    );
-
-    if ([409].includes(response.status)) {
-      return response;
-    }
-
-    if (!response.ok) {
-      throw response;
-    }
-
-    return response;
-  }
-
-  if (intent === "updateChecklist") {
-    const ticketNum = data.get("ticketNum");
-
-    const checklist = data.getAll("checklist");
-
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticketNum}/update-checklist`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify(checklist),
-      },
-    );
-
-    if ([409].includes(response.status)) {
-      return response;
-    }
-
-    if (!response.ok) {
-      throw response;
-    }
-
-    return response;
-  }
-
-  if (intent === "delete") {
-    const ticketId = data.get("id");
-
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/delete/${ticketId}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
-
-    if ([409].includes(response.status)) {
-      return response;
-    }
-
-    if (!response.ok) {
-      throw response;
-    }
-
-    return redirect("/tickets");
-  }
-
-  return null;
-}
+export { action } from "./view-actions";

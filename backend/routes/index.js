@@ -25,6 +25,7 @@ const ticketRoutes = require("./internal/ticket");
 const ticketCategoryRoutes = require("./internal/ticketCategory");
 const ticketLogRoutes = require("./internal/ticketLog");
 const ticketTemplateRoutes = require("./internal/ticketTemplate");
+const checklistTemplateRoutes = require("./internal/checklistTemplate");
 const teamRoutes = require("./internal/team");
 const userRoutes = require("./internal/user");
 const workRoutes = require("./internal/work");
@@ -75,6 +76,7 @@ internalRoutes.use("/", ticketRoutes);
 internalRoutes.use("/", ticketCategoryRoutes);
 internalRoutes.use("/", ticketLogRoutes);
 internalRoutes.use("/", ticketTemplateRoutes);
+internalRoutes.use("/", checklistTemplateRoutes);
 // Графики работы, производственный календарь и отсутствия. Модулем «Учёт
 // времени» НЕ закрыты: отпуска и присутствие нужны и без учёта часов.
 internalRoutes.use("/team", teamRoutes);

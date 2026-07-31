@@ -11,6 +11,7 @@ import {
   RiDeviceLine,
   RiDraftLine,
   RiFileList3Line,
+  RiListCheck2,
   RiListSettingsLine,
   RiShoppingCart2Line,
   RiMapPinLine,
@@ -203,6 +204,12 @@ export function buildMenu({
               "Шаблоны заявок",
               RiFileList3Line,
               "/ticket-templates",
+            ),
+            link(
+              "adm-checklist-templates",
+              "Шаблоны чек-листов",
+              RiListCheck2,
+              "/tickets/checklist-templates",
             ),
             canManageRoutineTasks &&
               link(

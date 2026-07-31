@@ -1,0 +1,128 @@
+import { cn } from "@/lib/utils";
+
+import {
+  businessDaysAgo,
+  formatDayMonth,
+  formatDayMonthTime,
+  formatTime,
+} from "../../util/format-date";
+
+/**
+ * Каталог состояний заявки — единственный источник тонов для списка, карточки и
+ * панели заявок на других экранах.
+ *
+ * Ось у цвета одна: **ждёт ли заявка человека**. «Новая» (никто не обработал),
+ * «Не в работе» (обработана, но не принята) и «На согласовании» ждут решения —
+ * янтарные. «В работе» — норма процесса, поэтому приглушена: подсвечивать норму
+ * значит покрасить весь список и потерять на этом фоне то, что действительно
+ * требует внимания.
+ *
+ * Просрочка состояние **не заменяет**: «в каком она состоянии» и «что с ней не
+ * так» — разные вопросы, и заявка не перестаёт быть в работе оттого, что
+ * просрочена. Просрочку несёт срок (красным) и, где есть место, отдельное слово
+ * рядом со статусом.
+ */
+export const TICKET_STATE_TONE = {
+  Новая: "warn",
+  "Не в работе": "warn",
+  "На согласовании": "warn",
+  "В работе": "normal",
+  Выполнена: "normal",
+  Закрыта: "off",
+};
+
+export const TONE_TEXT = {
+  warn: "tw:text-warning",
+  bad: "tw:text-destructive",
+  normal: "tw:text-muted-foreground",
+  off: "tw:text-faint",
+};
+
+// Те же тона, но для шапки карточки: «норма» звучит в полный голос
+export const TONE_TEXT_STRONG = {
+  warn: "tw:text-warning",
+  bad: "tw:text-destructive",
+  normal: "tw:text-foreground",
+  off: "tw:text-muted-foreground",
+};
+
+export const TONE_DOT = {
+  warn: "tw:bg-warning",
+  bad: "tw:bg-destructive",
+  normal: "tw:bg-faint",
+  off: "tw:bg-faint",
+};
+
+/** Просрочена — дедлайн в прошлом и заявка ещё не завершена. */
+export const isOverdue = (ticket) =>
+  !!ticket?.deadline &&
+  new Date(ticket.deadline) < new Date() &&
+  !ticket.isClosed &&
+  ticket.state !== "Выполнена";
+
+/** Подпись и тон состояния строкой — статус заявки виден всегда. */
+export const ticketTone = (ticket) => ({
+  label: (ticket?.state || "").toLowerCase(),
+  tone: TICKET_STATE_TONE[ticket?.state] ?? "normal",
+});
+
+/**
+ * Срок строкой для списка и предпросмотра. Ближние дни — относительной меткой
+ * («срок сегодня в 18:00»), дальние и прошедшие — компактной датой («срок до
+ * 18.07, 05:00»): полная фраза с днём недели и месяцем прописью не помещалась в
+ * колонку и переносилась на две строки. Просрочку называет цвет, а не слово, —
+ * поэтому «срок до», а не «срок был».
+ */
+export const deadlineText = (deadline) => {
+  if (!deadline) return "срок не задан";
+  const days = businessDaysAgo(deadline);
+  if (days === 0) return `срок сегодня в ${formatTime(deadline)}`;
+  if (days === -1) return `срок завтра в ${formatTime(deadline)}`;
+  if (days === 1) return `срок вчера в ${formatTime(deadline)}`;
+  return `срок до ${formatDayMonthTime(deadline)}`;
+};
+
+/** «сегодня» · «вчера» · «18.07» — возраст заявки без слова. */
+export const createdShort = (createdAt) => {
+  const days = businessDaysAgo(createdAt);
+  if (days === null) return "";
+  if (days === 0) return "сегодня";
+  if (days === 1) return "вчера";
+  return formatDayMonth(createdAt);
+};
+
+/** «создана сегодня» · «создана 18.07» — там, где колонка не подписана. */
+export const createdText = (createdAt) => {
+  const short = createdShort(createdAt);
+  return short ? `создана ${short}` : "";
+};
+
+/**
+ * Цветной статус-текст с точкой — язык статус-борда, не заливной бейдж.
+ *
+ * `strong` — для шапки карточки: там статус отвечает на главный вопрос экрана и
+ * не должен читаться как подпись. Тон «нормы» при этом становится обычным
+ * текстом, а не приглушённым: в списке она молчит, потому что таких строк
+ * десятки, а на карточке заявка одна.
+ */
+export const TicketStateText = ({
+  tone = "normal",
+  strong = false,
+  className,
+  children,
+}) => (
+  <span
+    className={cn(
+      "tw:inline-flex tw:items-center tw:gap-1.5 tw:text-sm tw:whitespace-nowrap",
+      strong ? TONE_TEXT_STRONG[tone] : TONE_TEXT[tone],
+      strong && "tw:font-semibold",
+      className,
+    )}
+  >
+    <span
+      aria-hidden
+      className={cn("tw:size-1.5 tw:flex-none tw:rounded-full", TONE_DOT[tone])}
+    />
+    {children}
+  </span>
+);

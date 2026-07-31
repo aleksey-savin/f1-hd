@@ -721,6 +721,7 @@ module.exports = {
   roundUp,
   isZeroLength,
   dayWindow,
+  eachDay,
   calcSingleWorkOvertime,
   calcOvertime,
   calcWorkTime,

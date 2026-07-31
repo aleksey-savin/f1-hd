@@ -36,6 +36,7 @@ const BulkActionBar = ({
   count,
   actions,
   isLoading = false,
+  show,
   onPick,
   onClear,
   statusText,
@@ -45,8 +46,16 @@ const BulkActionBar = ({
   count: number;
   actions: BulkAction[];
   isLoading?: boolean;
+  /**
+   * Когда показывать панель. По умолчанию — как только что-то выбрано. Списки с
+   * отдельным режимом выбора (hooks/use-list-selection) передают сюда сам режим:
+   * панель остаётся на экране и с нулём выбранных, а действия объясняют, почему
+   * заблокированы.
+   */
+  show?: boolean;
   onPick: (key: string) => void;
-  onClear: () => void;
+  /** Не задан — кнопка сброса не рисуется (выход живёт в app/SelectionBar). */
+  onClear?: () => void;
   /** По умолчанию — «Выбрано: N». */
   statusText?: ReactNode;
   ariaLabel?: string;
@@ -58,12 +67,13 @@ const BulkActionBar = ({
     return null;
   }
 
+  const visible = show ?? count > 0;
   const status = statusText ?? `Выбрано: ${count}`;
 
   if (isMobile) {
     return (
       <MobileActionBar
-        show={count > 0}
+        show={visible}
         statusText={status}
         actions={actions}
         isLoading={isLoading}
@@ -77,7 +87,7 @@ const BulkActionBar = ({
 
   return (
     <AnimatePresence>
-      {count > 0 && (
+      {visible && (
         <motion.div
           initial={{ y: 24, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -142,14 +152,16 @@ const BulkActionBar = ({
                 );
               })}
 
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onClear}
-                disabled={isLoading}
-              >
-                <RiCloseLine /> {clearLabel}
-              </Button>
+              {onClear && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onClear}
+                  disabled={isLoading}
+                >
+                  <RiCloseLine /> {clearLabel}
+                </Button>
+              )}
             </div>
           </TooltipProvider>
         </motion.div>

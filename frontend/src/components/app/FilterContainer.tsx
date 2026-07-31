@@ -26,15 +26,16 @@ const FilterContainer = ({
       {children}
       <div className="tw:sticky tw:bottom-0 tw:z-10 tw:mt-4 tw:space-y-2 tw:bg-background/80 tw:py-2 tw:backdrop-blur">
         <MobileView>
-          <Button
-            className="tw:w-full"
-            onClick={filterOffcanvas.handleClose}
-          >
+          <Button className="tw:w-full" onClick={filterOffcanvas.handleClose}>
             Применить
           </Button>
         </MobileView>
+        {/* Не warning: у залитой кнопки в приложении текст всегда белый, а
+            вариант warning даёт тёмный текст на янтарном — «Сбросить»
+            выбивалась из всех остальных экранов. Залитая в шторке одна —
+            «Применить». */}
         <Button
-          variant="warning"
+          variant="outline"
           className="tw:w-full"
           onClick={handleResetFilter}
         >

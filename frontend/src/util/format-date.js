@@ -83,6 +83,17 @@ export const formatTime = (date) =>
         minute: "2-digit",
       });
 
+// «27 июля» — день и месяц прописью, без года и времени: метки дня над
+// группами записей (хроника заявки).
+export const formatDayMonthLong = (date) =>
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleDateString("ru", {
+        timeZone: tz(),
+        day: "numeric",
+        month: "long",
+      });
+
 // «08.07» — день и месяц без года и времени.
 export const formatDayMonth = (date) =>
   isEmpty(date)
@@ -215,11 +226,19 @@ export const localToUtc = (localDateString) => {
   return fromZonedTime(new Date(localDateString), tz()).toISOString();
 };
 
-/* ── Устаревшее (мигрируется на toDateTimeLocal/utcToLocalForm) ── */
+// Сдвиг значения datetime-local на N минут, не выходя из бизнес-таймзоны:
+// значение разбирается localToUtc, сдвигается по epoch и печатается обратно
+// toDateTimeLocal. Прежний приём (арифметика поверх браузерного
+// timeDateInputFormat) держался на том, что зоны разбора и печати взаимно
+// сокращаются, и ломался, стоило одной стороне стать зонированной.
+export const shiftLocalForm = (localDateString, minutes) => {
+  if (!localDateString) {
+    return "";
+  }
 
-// БРАУЗЕРНАЯ таймзона, а не бизнес — оставлено до миграции форм работ; в новых
-// местах не использовать.
-export const timeDateInputFormat = (unformattedDate) => {
-  const date = new Date(unformattedDate);
-  return format(date, "yyyy-MM-dd'T'HH:mm");
+  const shifted = new Date(
+    new Date(localToUtc(localDateString)).getTime() + minutes * 60000,
+  );
+
+  return toDateTimeLocal(shifted);
 };

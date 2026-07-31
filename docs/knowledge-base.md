@@ -185,8 +185,8 @@ in tickets of *those* companies (*those* applicants) and never leaks into others
 company sharing that category. To appear, a note must match **at least one**
 ticket dimension. The same logic is duplicated server-side in
 `backend/services/knowledgeBaseContext.js` and client-side in
-`frontend/src/components/Ticket/RelatedNotes.jsx` (ranking only) — keep them in
-sync.
+`frontend/src/components/Ticket/View/KnowledgeSection.jsx` (ranking and grouping
+only) — keep them in sync.
 
 ## Note lifecycle & moderation
 
@@ -459,16 +459,21 @@ own header.
   (binding kinds and label formatting); `knowledgeNoteGrouping.js` (a note's
   companies = `companies[]` ∪ `users[].company`, none ⇒ «Общие»);
   `knowledge-bulk-eligibility.js` (why a given note can't take a bulk action).
-- **Still legacy (react-bootstrap)** — the notes panel and the moderation /
-  service-expiry cards on the ticket page; they migrate with that screen.
-  `UI/knowledgeBase.css` survives only as `.kb-chip` for them, and
-  `BindingChips.jsx` is their twin of `BindingPills.jsx`.
+- **Nothing legacy is left in the KB surface** — the ticket-page notes panel was
+  the last consumer of `UI/knowledgeBase.css` and `BindingChips.jsx`; both are
+  gone, `BindingPills.jsx` is the only binding-pill component.
 
 ### Ticket-page integration
 
-- `components/Ticket/RelatedNotes.jsx` (ticket View) — fetches `/related` and
-  ranks client-side with the same `matchesTicketContext` logic as the backend
-  (**keep the two in sync**); the approval state is hidden when `hideNotApproved`.
+- `components/Ticket/View/KnowledgeSection.jsx` (ticket View) — fetches
+  `/related`, ranks client-side with the same `matchesTicketContext` logic as the
+  backend (**keep the two in sync**) and groups rows by the narrowest match
+  (category → company → applicant). Reading opens a right sheet; the body is
+  fetched per note by `_id` because `/related` returns no `content`. «Новая
+  заметка» seeds the section's facet store with the ticket's company and category
+  and navigates to `/knowledge-base/add`, where `NoteView` (`isNew`) inherits
+  them. Type filter, secrets flag and approval-expiry warning are deliberately
+  not shown here — see docs/ux-ui-changelog.md, 2026-07-30.
 - `components/KnowledgeBase/ModerationCard.jsx` (ticket List) — moderator-only,
   links into `?moderation=…`, reads the shared `store/knowledgeModeration.js`
   (seeded from the prefs snapshot, refreshed via `/moderation-summary` and after

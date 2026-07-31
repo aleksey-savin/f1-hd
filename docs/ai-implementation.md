@@ -160,10 +160,16 @@ aiGuide: {
     impact/urgency, source, custom fields, applicant, company, last ~20 comments;
   - appends extracted document text and an image-count note to the prompt; the
     system prompt itself is imported from `prompts/ticketGuide.js`;
+  - **feeds past closed tickets of the SAME company** (`collectPastTickets`): up
+    to 5, same category first then by recency, each with its works' descriptions
+    (what was actually done) and the closing comment **only when it is ≥ 100
+    chars** — 390 of 400 closing comments are the «Работы по заявке выполнены»
+    boilerplate and would only burn tokens. This is the institutional memory that
+    stops the model from asking what a previous ticket already answered;
   - **pulls in relevant knowledge-base notes** via
     `services/knowledgeBaseContext.js` `collectRelevantNotes({ companyId, categoryId,
     applicantId })` — same company/category/applicant matching + ranking as the ticket
-    "База знаний" tab (`RelatedNotes.jsx`), top 5, formatted by `buildKnowledgeContext`
+    "База знаний" section (`Ticket/View/KnowledgeSection.jsx`), top 5, formatted by `buildKnowledgeContext`
     and appended to the prompt as a **priority source** (known issues/instructions).
     Per-user `canViewNote` is intentionally **not** applied — the guide is a shared
     staff-only artifact. The used notes are persisted on `aiGuide.sources`;
@@ -182,23 +188,35 @@ module aliases and deps `pdf-parse`, `mammoth`, `xlsx`.
   runs in the background after the 201.
 - `getOne` — `delete doc.aiGuide` when `isEndUser` (internal aid only).
 - `regenerateAiGuide` — `POST /tickets/ai-guide/generate { _id }`, **synchronous**,
-  returns the refreshed guide.
-- `toggleAiGuideItem` — `POST /tickets/ai-guide/toggle-item { _id, index, done }`.
-- Both new routes: `isAuth, canPerformTickets`.
+  returns the refreshed guide. Route: `isAuth, canPerformTickets`.
+- `toggleAiGuideItem` / `POST /tickets/ai-guide/toggle-item` — **removed 2026-07-30**
+  together with the per-item checkboxes (10 ticks across ~980 items in 99 guides).
+  The `done` field stays in the schema; nothing writes it.
+- `detectCategory` / `POST /tickets/ai-category/detect` — **removed 2026-07-30**.
+  Category detection is background-only, on ticket creation and on incoming mail.
 
 ### Frontend
-- `components/Ticket/View/AiGuide.jsx` — card showing the guide:
-  - `pending` → spinner + **polls `GET /api/tickets/:num` every 4 s** until ready;
-  - `solution` → summary + checkable `Form.Check` steps;
-  - `questions` → warning + checkable question list;
-  - `error`/`idle` → message; header **regenerate** button (also used to generate);
-  - when `aiGuide.sources` is non-empty, a **"Источники из базы знаний"** section lists
-    the used KB notes as links to `/knowledge-base/:id` (new tab), badged by note type
-    via `util/knowledgeNoteTypes`;
-  - checkbox toggles call the toggle endpoint and update the `view-ticket` store
-    optimistically.
-- `pages/Ticket/View.jsx` — renders `<AiGuide />` after the description, gated by
-  `!isClient && ai?.isActive`.
+- `components/Ticket/View/AiGuideSection.jsx` — the whole «Руководство ИИ» section
+  (eyebrow + panel), replacing `AiAssistant` / `AiGuide` / `AiCategory` / `AiSection`
+  and the `.ai-*` CSS block in `index.css`:
+  - `idle` / `pending` / `error` are **one line each**; `pending` polls
+    `GET /api/tickets/:num` every 4 s until the status changes;
+  - `ready` → summary, then the items as a **read-only numbered list** (no
+    checkboxes, no progress ring), collapsed to 5 with «Показать все N»;
+  - `questions` (3 of 4 guides) → amber «Не хватает данных» line, action
+    **«Спросить заявителя»** puts the questions as a draft into the chronicle's
+    comment box (`store/view-ticket` → `pushCommentDraft`, consumed and cleared by
+    `Chronicle`), plus a per-item `+` that appends a single question. Nothing is
+    sent automatically;
+  - `solution` → action **«Перенести в чек-лист»**: appends the steps to the
+    ticket checklist via the same `POST /tickets/:num/update-checklist` (existing
+    ticks survive, the server matches them by `_id`);
+  - `aiGuide.sources` → compact rows (type icon + title) opening
+    `/knowledge-base/:id` in a new tab;
+  - footer: provider · model · when generated · how many comments were taken into
+    account.
+- `pages/Ticket/View.jsx` — renders `<AiGuideSection />` as the last section, gated
+  by `!isEndUser && ai?.isActive`; the rail entry is «Руководство ИИ».
 - `store/prefs.js` — carries the `ai.isActive` flag from `getInitial`.
 
 ---
@@ -210,8 +228,8 @@ Ticket attachments now support a `speechToText` sub-document:
 ```
 speechToText: {
   status: "idle" | "pending" | "ready" | "error",
-  text: String,       // currently the same structured summary, for compatibility
-  summary: String,    // structured Russian call summary shown in the UI
+  text: String,       // flat transcript of `segments` ("Name: line", blank-line separated)
+  summary: String,    // Russian call summary; also becomes the ticket description
   segments: [{
     speaker: String,
     text: String,
@@ -223,6 +241,12 @@ speechToText: {
   generatedAt: Date,
 }
 ```
+`text` and `summary` are two different artefacts and must never hold the same
+string: `text` is what was said, `summary` is what it means (and what the email
+trigger copies into `ticket.description`). Until 2026-07-30 the service built
+`text` as `summary || transcript`, so on the happy path both fields held the
+identical summary and the transcript survived only inside `segments`.
+
 Attachment writes were normalized to include both `mimetype` and `mimeType` plus
 `originalName`/`size` where the upload source provides them. This matters because
 older ticket code used `mimetype`, while later attachment upload code used
@@ -261,6 +285,10 @@ older ticket code used `mimetype`, while later attachment upload code used
     `finalRefinement` per utterance; `parseYandexResults` uses **only the
     refinements when any exist** (else the raw finals), so the same phrase isn't
     captured twice (which previously showed as duplicated dialog text).
+    Within one utterance only **`alternatives[0]`** is used: alternatives are
+    competing hypotheses of the *same* phrase, so joining them glued the phrase
+    to itself. It is also the alternative the speaker tag and timestamps are
+    read from, so text and metadata stay consistent.
 - Both paths then:
   - normalize diarization to **at most two participants**, because the current
     business assumption is that calls always contain exactly two people;
@@ -299,11 +327,16 @@ older ticket code used `mimetype`, while later attachment upload code used
     operator name parsed from the **"С кем говорил:"** field of the email body
     (text or HTML). Names are corrected toward these values;
   - returns `{ text, summary, title, segments, model, generatedAt, summaryError,
-    recognized }`. `text` is currently set to the summary for compatibility with earlier
-    UI/data reads; `title` is consumed by the email auto-trigger and ignored by the manual
-    path; `recognized` is `true` only when ASR produced real non-empty speech (not just an
-    empty fallback segment), and the email auto-trigger uses it to gate the ticket
-    title/description overwrite (see §3 Email auto-trigger).
+    recognized }`. `text` is the **flat transcript** — `formatSegments(segments)`, i.e.
+    the cleaned dialog when the summary pass returned one, otherwise the raw ASR turns —
+    and never the summary; `title` is consumed by the email auto-trigger and ignored by
+    the manual path; `recognized` is `true` only when ASR produced real non-empty speech
+    (not just an empty fallback segment), and the email auto-trigger uses it to gate the
+    ticket title/description overwrite (see §3 Email auto-trigger);
+  - `recognized:false` (silent or unrecognizable audio) now yields an **empty `text` and
+    therefore the "Speech recognition returned an empty result" error**, i.e. attachment
+    `status:"error"`, instead of the previous `ready` with a summary hallucinated from an
+    empty transcript.
 
 ### Controller / routes — `backend/controllers/ticket.js`, `routes/internal/ticket.js`
 - `POST /tickets/:ticketNum/attachments/speech-to-text` (`isAuth,
@@ -311,6 +344,12 @@ older ticket code used `mimetype`, while later attachment upload code used
 - The controller sets the attachment `speechToText.status` to `pending`, calls
   `transcribeAttachment`, then persists `ready` with summary/segments/model/time
   or `error` with the provider/service message.
+- `pending` and `error` writes replace the whole sub-document, so they spread
+  `carryOverSpeechResult(previous)` (exported by the service) first: re-running
+  recognition on an already-`ready` attachment must not wipe the previous
+  `text`/`summary`/`segments`/`model`/`generatedAt` — on failure they would be
+  gone for good. The email path does the same, taking `previous` from the
+  re-fetched ticket rather than from the pre-`pending` snapshot.
 - Manual recognition is synchronous from the frontend perspective: the request
   returns when recognition + summary generation is complete.
 
@@ -392,8 +431,10 @@ confusion and conflicts.
   - calls the speech route and updates the `view-ticket` store with returned
     attachments.
 - `store/prefs.js` carries `ai.speechToText.isActive` from `getInitial`.
-- `UI/AiSpeechBadge.jsx` — renders `ticket.aiSpeech.status`: `pending` → spinner +
-  "ИИ обрабатывает запись", `processed` → green "Обработана ИИ", `error` → danger.
+- `UI/AiSpeechBadge.jsx` — **removed with the ticket-card redesign (2026-07-30)**.
+  Per-attachment state is shown in the attachment row's meta line
+  (`Ticket/View/AttachmentsSection.jsx`): «ИИ распознаёт запись…» / «распознано» /
+  «не удалось распознать». The card poll still watches `aiSpeech.status`.
   - **Ticket view** (`pages/Ticket/View.jsx`, staff only): shown under the title;
     while `pending` it polls `GET /api/tickets/:num` every 5 s and, once the status
     changes, calls `revalidator.revalidate()` so the title/description/badge refresh
@@ -476,13 +517,12 @@ The speech flow also writes `TicketLog` start/end/error entries via the same
 `middleware/emailHandling.js` `transcribeTicketAudioAttachments` (auto, per attachment).
 
 ### Frontend
-- `UI/AiCategoryBadge.jsx` — `pending` → spinner "ИИ подбирает категорию"; `error` → danger
-  "Не удалось определить категорию"; `processed` → no badge (the category itself is shown).
-- `pages/Ticket/View.jsx` renders it next to `AiSpeechBadge` under the title; the existing
-  poll now also runs while `aiCategory.status === "pending"` and revalidates when it
-  resolves.
-- `components/Ticket/Item.jsx` adds an "ИИ подбирает категорию" badge; `pages/Ticket/List.jsx`
-  extends the live-refresh `anyPending` check to `aiCategory.status === "pending"`.
+- `UI/AiCategoryBadge.jsx` — **removed with the ticket-card redesign (2026-07-30)**.
+  The state now lives where the value does: the «Категория» row of
+  `Ticket/View/Sections.jsx` says «ИИ подбирает категорию…» while
+  `aiCategory.status === "pending"` and the category is still empty. The card's
+  background poll (`ticketSignature` includes `aiCategory.status`) revalidates when
+  it resolves, so the title appears by itself.
 
 ---
 
@@ -492,7 +532,6 @@ The speech flow also writes `TicketLog` start/end/error entries via the same
 |---|---|---|---|
 | POST | `/api/preferences/ai-models` | admin | list provider models |
 | POST | `/api/tickets/ai-guide/generate` | staff | (re)generate guide for a ticket |
-| POST | `/api/tickets/ai-guide/toggle-item` | staff | toggle a step/question done |
 | POST | `/api/tickets/:ticketNum/attachments/speech-to-text` | staff | summarize an audio attachment |
 
 (Provider settings persist via the existing `POST /api/preferences`; AI guide and
@@ -583,8 +622,7 @@ Backend: `models/preferences.js`, `models/ticket.js`, `types/ticket.ts`,
 `tsconfig.json`.
 
 Frontend: `components/Preferences/Ai.jsx`, `pages/Preferences.jsx`,
-`components/Ticket/View/AiGuide.jsx`, `components/Ticket/View/Attachments.jsx`,
-`UI/AttachmentPreview.jsx`, `UI/AiSpeechBadge.jsx`, `UI/AiCategoryBadge.jsx`,
+`components/Ticket/View/AiGuideSection.jsx`,
 `pages/Ticket/View.jsx`,
 `pages/Ticket/List.jsx`, `components/Ticket/Item.jsx`, `store/prefs.js`.
 

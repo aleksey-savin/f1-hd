@@ -377,7 +377,7 @@ const Checklist = ({
     if (mode === "edit") return;
     setLocal(items.map(normalize));
     setJustToggled(new Set());
-  }, [signature]);
+  }, [signature, mode]);
 
   const isEdit = mode === "edit";
   const isRun = mode === "run";
@@ -491,27 +491,28 @@ const Checklist = ({
       )}
     >
       {showHeader && (
-        <>
-          {/* Заголовок + прогресс */}
-          <div className="tw:flex tw:items-center tw:gap-2 tw:px-1.5 tw:pt-0.5 tw:pb-2.5">
-            <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
-              {title}
+        <div className="tw:flex tw:items-center tw:gap-2 tw:px-1.5 tw:pt-0.5 tw:pb-2.5">
+          <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+            {title}
+          </span>
+          <span className="tw:text-xs tw:font-bold tw:text-faint tw:tabular-nums">
+            {showCompletion ? `${done} / ${total}` : `${total} ${plural(total)}`}
+          </span>
+          {showCompletion && (
+            <span className="tw:ml-auto tw:text-sm tw:font-semibold tw:text-accent-text tw:tabular-nums">
+              {pct}%
             </span>
-            <span className="tw:text-xs tw:font-bold tw:text-faint tw:tabular-nums">
-              {showCompletion
-                ? `${done} / ${total}`
-                : `${total} ${plural(total)}`}
-            </span>
-            {showCompletion && (
-              <span className="tw:ml-auto tw:text-sm tw:font-semibold tw:text-accent-text tw:tabular-nums">
-                {pct}%
-              </span>
-            )}
-          </div>
-          {showCompletion && total > 0 && (
-            <Progress value={pct} className="tw:mx-1.5 tw:mb-1 tw:h-1.5" />
           )}
-        </>
+        </div>
+      )}
+
+      {/* Прогресс — и без встроенного заголовка: секция карточки подписывает
+          список снаружи, но полоса выполнения остаётся его частью */}
+      {showCompletion && total > 0 && (
+        <Progress
+          value={pct}
+          className={cn("tw:mx-1.5 tw:mb-1 tw:h-1.5", !showHeader && "tw:mb-2")}
+        />
       )}
 
       {/* Список */}

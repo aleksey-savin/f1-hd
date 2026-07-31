@@ -1,5 +1,6 @@
 const { Ticket } = require("@/models/ticket");
 const Company = require("@/models/company");
+const Work = require("@/models/work");
 const logger = require("@/utils/logger");
 
 const aiService = require("./aiService");
@@ -13,6 +14,7 @@ const {
   buildKnowledgeContext,
 } = require("./knowledgeBaseContext");
 const { logAiTicketEvent } = require("./aiTicketLog");
+const { humanizeAiError } = require("./aiErrors");
 
 const MAX_COMMENTS = 20;
 const MAX_FIELD_LENGTH = 2000;
@@ -95,6 +97,92 @@ const buildUserContent = (ticket, company) => {
   return lines.join("\n");
 };
 
+/**
+ * Institutional memory for the prompt: what this company already asked about and
+ * what we actually did. Cheaper than asking the client again — half of the
+ * "уточняющих вопросов" the model used to produce were already answered in a
+ * closed ticket of the same company.
+ *
+ * Scope is the ticket's OWN company (that's where the useful precedent is), same
+ * category first, then the rest by recency. Per ticket we take the closing
+ * comment (what the client was told) and the works' descriptions (what was
+ * actually done).
+ */
+const PAST_TICKETS = 5;
+const PAST_TEXT_LENGTH = 400;
+
+const collectPastTickets = async (ticket) => {
+  const companyId = ticket.company?._id;
+  if (!companyId) return [];
+
+  const categoryId = ticket.categoryId?._id ?? ticket.categoryId;
+
+  const closed = await Ticket.find({
+    _id: { $ne: ticket._id },
+    "company._id": companyId,
+    isClosed: true,
+  })
+    .select("num title categoryId closingComment finishedAt")
+    .sort({ finishedAt: -1 })
+    .limit(40)
+    .lean();
+
+  if (!closed.length) return [];
+
+  const sameCategory = (item) =>
+    categoryId && item.categoryId?.toString() === categoryId.toString();
+
+  const ranked = [
+    ...closed.filter(sameCategory),
+    ...closed.filter((item) => !sameCategory(item)),
+  ].slice(0, PAST_TICKETS);
+
+  const works = await Work.find({
+    tickets: { $in: ranked.map((item) => item._id) },
+    finishedAt: { $ne: null },
+  })
+    .select("description visitRequired tickets")
+    .lean();
+
+  return ranked.map((item) => ({
+    ...item,
+    works: works.filter((work) =>
+      (work.tickets || []).some(
+        (id) => id.toString() === item._id.toString(),
+      ),
+    ),
+  }));
+};
+
+// Итог заявки почти всегда шаблонный: из 400 закрытых у 390 он короче ста
+// знаков и звучит как «Добрый день! Работы по заявке выполнены». Такой текст
+// модели ничего не даёт — берём итог только когда он содержательный, а что
+// именно сделали, рассказывают описания работ.
+const MEANINGFUL_SUMMARY = 100;
+
+const buildPastContext = (items) =>
+  items
+    .map((item) => {
+      const lines = [`- №${item.num}: ${truncate(item.title, 160)}`];
+      const closing = stripHtml(item.closingComment);
+      if (closing.length >= MEANINGFUL_SUMMARY) {
+        lines.push(`  итог: ${truncate(closing, PAST_TEXT_LENGTH)}`);
+      }
+      const done = item.works
+        .map((work) =>
+          [
+            work.visitRequired ? "выезд" : "удалённо",
+            truncate(stripHtml(work.description), 200),
+          ]
+            .filter(Boolean)
+            .join(": "),
+        )
+        .filter(Boolean);
+      if (done.length) lines.push(`  работы: ${done.join("; ")}`);
+      return lines.join("\n");
+    })
+    .join("\n");
+
 const normalizeItems = (items) => {
   if (!Array.isArray(items)) return [];
   return items
@@ -154,6 +242,16 @@ exports.generateTicketAiGuide = async (ticketId) => {
     if (knowledgeNotes.length) {
       user += `\n\nРелевантные заметки базы знаний (приоритетный источник — известные проблемы и инструкции):\n${buildKnowledgeContext(
         knowledgeNotes,
+      )}`;
+    }
+
+    // Прошлые закрытые заявки этой же компании и что по ним сделали: половина
+    // «уточняющих вопросов» уже отвечена там, а решение часто повторяется
+    const pastTickets = await collectPastTickets(ticket);
+
+    if (pastTickets.length) {
+      user += `\n\nЗакрытые заявки этой компании и что по ним сделали (сначала та же категория). Опирайся на них: если похожая проблема уже решалась, повтори проверенный путь и не спрашивай то, что из них известно:\n${buildPastContext(
+        pastTickets,
       )}`;
     }
 
@@ -217,16 +315,17 @@ exports.generateTicketAiGuide = async (ticketId) => {
       stack: error.stack,
     });
 
-    const aiGuide = {
-      status: "error",
-      error: error.message || "Не удалось сгенерировать руководство",
-    };
+    // В заявку и в её хронику — человеческая причина; сырой ответ поставщика
+    // остался выше, в логе сервера
+    const reason = humanizeAiError(error, "не удалось собрать руководство");
+
+    const aiGuide = { status: "error", error: reason };
 
     await Ticket.findByIdAndUpdate(ticketId, { aiGuide }).catch(() => {});
 
     await logAiTicketEvent(
       ticketId,
-      `Ошибка формирования AI-руководства: ${error.message}`,
+      `Ошибка формирования AI-руководства: ${reason}`,
       "danger",
     );
 

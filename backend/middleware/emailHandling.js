@@ -15,6 +15,7 @@ const TicketLog = require("../models/ticketLog");
 const {
   isAudioAttachment,
   transcribeAttachment,
+  carryOverSpeechResult,
 } = require("../services/speechToTextService");
 const {
   extractCallerPhone,
@@ -102,9 +103,8 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
 
     try {
       freshTicket.attachments[index].speechToText = {
+        ...carryOverSpeechResult(attachment.speechToText),
         status: "pending",
-        text: attachment.speechToText?.text || "",
-        summary: attachment.speechToText?.summary || "",
         error: "",
       };
       freshTicket.markModified("attachments");
@@ -180,9 +180,12 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
       );
       if (freshTicket && errorIndex !== -1) {
         freshTicket.attachments[errorIndex].speechToText = {
+          // Прошлый результат берём из перечитанной заявки, а не из снимка
+          // `attachment` до перехода в pending.
+          ...carryOverSpeechResult(
+            freshTicket.attachments[errorIndex].speechToText,
+          ),
           status: "error",
-          text: attachment.speechToText?.text || "",
-          summary: attachment.speechToText?.summary || "",
           error: error.message,
           generatedAt: new Date(),
         };

@@ -17,11 +17,23 @@ const FormWrapper = ({
   title,
   action,
   successTo,
+  json,
+  submitLabel = "Сохранить",
+  submitDisabled = false,
   children,
 }: {
   title: ReactNode;
   action?: string;
   successTo?: string | ((data: unknown) => string | undefined);
+  /**
+   * Тело запроса собирает сама форма — тогда сабмит уходит JSON-ом, а не
+   * FormData. Нужно там, где в теле массивы и булевы (см. «Сложное вложенное
+   * тело — JSON» в ux-ui-guide): ручная сборка из FormData там становится
+   * источником тихих потерь.
+   */
+  json?: () => unknown;
+  submitLabel?: string;
+  submitDisabled?: boolean;
   children: ReactNode;
 }) => {
   const data = useActionData() as
@@ -49,7 +61,22 @@ const FormWrapper = ({
   // Без fade-обёртки: движение у формы одно — slide самой шторки
   return (
     <>
-      <fetcher.Form method="post" action={action || "."}>
+      <fetcher.Form
+        method="post"
+        action={action || "."}
+        onSubmit={
+          json
+            ? (event) => {
+                event.preventDefault();
+                fetcher.submit(json() as Record<string, unknown>, {
+                  method: "post",
+                  action: action || ".",
+                  encType: "application/json",
+                });
+              }
+            : undefined
+        }
+      >
         <h1 className="tw:my-0 tw:mb-5 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
           {title}
         </h1>
@@ -67,8 +94,11 @@ const FormWrapper = ({
           <Button type="button" variant="ghost" onClick={close}>
             Отмена
           </Button>
-          <Button type="submit" disabled={fetcher.state !== "idle"}>
-            Сохранить
+          <Button
+            type="submit"
+            disabled={submitDisabled || fetcher.state !== "idle"}
+          >
+            {submitLabel}
           </Button>
         </div>
       </fetcher.Form>

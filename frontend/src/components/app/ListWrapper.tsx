@@ -47,7 +47,8 @@ import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
 // формы add/update — в нижней шторке (десктоп: колонка 600px по центру,
 // мобайл: почти весь экран). Контракты легаси сохранены: filterStore,
 // store/offcanvas.js (Root.jsx открывает шторку по хвосту пути add/update).
-type SortOption = { label: string };
+/** `shortLabel` — подпись для узкой строки инструментов (мобайл). */
+type SortOption = { label: string; shortLabel?: string };
 
 type FilterStore = {
   isLoading?: boolean;
@@ -103,6 +104,10 @@ type ListWrapperProps = {
   /** Применённые фильтры — липкая полоса бейджей над списком (видна при
    *  скролле; каждый бейдж снимается крестиком). */
   activeFilters?: ActiveFilter[];
+  /** Шапка режима выбора (app/SelectionBar) — липкая строка, приросшая к верху
+   *  панели списка. Пока она есть, липкость у плашки activeFilters снимается:
+   *  на экране один закреплённый объект, а фильтры во время выбора не меняют. */
+  selection?: ReactNode;
   /** Серверный счётчик (total) — переопределяет число у заголовка. Включает
    *  серверный режим пустых состояний (см. hasActiveQuery). */
   count?: number;
@@ -129,6 +134,13 @@ type ListWrapperProps = {
   /** Плейсхолдер поиска — подсказывает охват («Найти в архиве…»). */
   searchPlaceholder?: string;
   showSortAndCount?: boolean;
+  /** Пустое состояние «данных нет вовсе». Умолчание — «Список пуст», но у
+   *  очереди задач пустота не недоделка, а хорошая новость («Открытых заявок
+   *  нет»), и об этом стоит сказать словами раздела. */
+  emptyTitle?: ReactNode;
+  emptyHint?: ReactNode;
+  /** Дополнительное действие рядом с кнопкой создания в пустом состоянии. */
+  emptyAction?: ReactNode;
   renderOutlet?: boolean;
   /** Ширина шторки формы: md 672 · lg 896 (мастер со сводкой) · xl 1024
       (форма с рейлом секций). Та же, что у этой формы на карточке. */
@@ -143,6 +155,7 @@ const ListWrapper = ({
   topContent,
   toolbar,
   activeFilters = [],
+  selection,
   count,
   belowList,
   aboveList,
@@ -160,6 +173,9 @@ const ListWrapper = ({
   defaultSearchValue = "",
   searchPlaceholder,
   showSortAndCount = true,
+  emptyTitle,
+  emptyHint,
+  emptyAction,
   // Нижняя шторка с <Outlet/> для форм add/update. Экраны, рендерящие
   // <Outlet/> сами (база знаний), передают false — иначе маршрут
   // смонтируется дважды.
@@ -244,8 +260,17 @@ const ListWrapper = ({
   const sortDropdown = showSortAndCount && (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
+        {/* Короткая подпись (`shortLabel` у опции) — для узкой строки
+            инструментов: «Сначала новые» вытесняет из ряда сегмент набора */}
         <Button variant="ghost" className="tw:font-medium">
-          {filterStore.sortBy?.label ?? "Сортировка"}
+          <span className="tw:hidden tw:sm:inline">
+            {filterStore.sortBy?.label ?? "Сортировка"}
+          </span>
+          <span className="tw:sm:hidden">
+            {filterStore.sortBy?.shortLabel ??
+              filterStore.sortBy?.label ??
+              "Сортировка"}
+          </span>
           <RiArrowDownSLine aria-hidden />
         </Button>
       </DropdownMenuTrigger>
@@ -272,7 +297,13 @@ const ListWrapper = ({
   const backButton =
     showBackButton &&
     (backRoute ? (
-      <Button asChild variant="ghost" size="icon" title="Назад" aria-label="Назад">
+      <Button
+        asChild
+        variant="ghost"
+        size="icon"
+        title="Назад"
+        aria-label="Назад"
+      >
         <Link to={backRoute}>
           <RiArrowGoBackLine />
         </Link>
@@ -420,13 +451,22 @@ const ListWrapper = ({
       )}
       {hasActiveFilters && (
         // top-14 = высота навбара: при скролле плашка приклеивается к нему
-        // вплотную (на мобайле бар в потоке шелла — липнем к верху скролла)
-        <div className="tw:sticky tw:top-14 tw:z-30 tw:mb-3 tw:max-md:top-0">
+        // вплотную (на мобайле бар в потоке шелла — липнем к верху скролла).
+        // В режиме выбора липкость уходит шапке выбора — двух приклеенных
+        // плашек друг на друге не бывает.
+        <div
+          className={cn(
+            "tw:z-30 tw:mb-3",
+            selection ? "tw:relative" : "tw:sticky tw:top-14 tw:max-md:top-0",
+          )}
+        >
           <div
             className={cn(
               "tw:flex tw:flex-wrap tw:items-center tw:gap-1.5 tw:rounded-xl tw:border tw:border-border tw:bg-card/85 tw:px-2.5 tw:py-1.5 tw:backdrop-blur-md",
               "tw:transition-[border-radius,border-color] tw:duration-200",
-              filtersStuck && "tw:rounded-t-none tw:border-t-transparent",
+              !selection &&
+                filtersStuck &&
+                "tw:rounded-t-none tw:border-t-transparent",
             )}
           >
             <RiFilter3Line
@@ -464,8 +504,25 @@ const ListWrapper = ({
           Пустые состояния предлагают действие (гайд): сброс/открытие фильтра
           при отфильтрованном в ноль списке, «Добавить …» при пустых данных. */}
       {!noData && !filteredEmpty && aboveList}
+      {/* Шапка режима выбора прирастает к верху панели: её нижняя граница и
+          служит разделителем. Внутрь панели её положить нельзя — там
+          overflow-hidden (клип ховера по скруглению), а он ломает sticky. */}
+      {!noData && !filteredEmpty && selection && (
+        <div className="tw:sticky tw:top-14 tw:z-30 tw:max-md:top-0">
+          <div className="tw:rounded-t-xl tw:border tw:border-border tw:bg-card">
+            {selection}
+          </div>
+        </div>
+      )}
       {!noData && (
-        <div className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:pb-1.5">
+        <div
+          className={cn(
+            "tw:overflow-hidden tw:border tw:border-border tw:bg-card tw:pb-1.5",
+            selection && !filteredEmpty
+              ? "tw:rounded-b-xl tw:border-t-0"
+              : "tw:rounded-xl",
+          )}
+        >
           {filteredEmpty ? (
             <EmptyState
               icon={RiFilterOffLine}
@@ -492,14 +549,16 @@ const ListWrapper = ({
         <div className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:pb-1.5">
           <EmptyState
             icon={RiInboxLine}
-            title="Список пуст"
+            title={emptyTitle ?? "Список пуст"}
             hint={
-              showAddButton && !hiddenAddButton && (addRoute || onAddClick)
+              emptyHint ??
+              (showAddButton && !hiddenAddButton && (addRoute || onAddClick)
                 ? "Добавьте первую запись — она появится здесь."
-                : "Здесь пока ничего нет."
+                : "Здесь пока ничего нет.")
             }
           >
             {addButton(false)}
+            {emptyAction}
           </EmptyState>
         </div>
       )}

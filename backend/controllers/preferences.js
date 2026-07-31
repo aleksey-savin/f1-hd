@@ -234,6 +234,11 @@ exports.update = async (req, res, next) => {
     if (has("taxi")) {
       preferences.taxi = { operator: body.taxi?.operator || "" };
     }
+    if (has("checklistTemplates")) {
+      preferences.checklistTemplates = {
+        autoApply: !!body.checklistTemplates?.autoApply,
+      };
+    }
 
     // «Сбор заявок»: ящик-приёмник мержим по путям — форма не присылает health
     // (его пишут крон сбора и кнопка проверки), а замена группы целиком его бы

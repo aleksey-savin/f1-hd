@@ -1,0 +1,295 @@
+import { useEffect, useState } from "react";
+
+import {
+  RiBuildingLine,
+  RiCheckLine,
+  RiListCheck2,
+  RiPriceTag3Line,
+} from "react-icons/ri";
+
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+
+import { getLocalStorageData } from "../../../util/auth";
+import { plural } from "../../../util/plural";
+import {
+  dismissOffer,
+  isOfferDismissed,
+} from "../../../util/checklist-offer";
+
+/**
+ * Шаблоны чек-листов в заявке: строка источника с «Ещё чек-листы», предложка
+ * при выключенном автоприменении и подтверждение смены.
+ *
+ * Ранжирование («побеждает самый узкий») считает сервер —
+ * `services/checklistTemplates`. Второй копии правила на клиенте нет: она
+ * разъехалась бы с первой на первом же краевом случае.
+ */
+
+export const useChecklistTemplates = (ticketNum, canEdit) => {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    if (!canEdit) return;
+    let alive = true;
+
+    (async () => {
+      try {
+        const { token } = getLocalStorageData();
+        const response = await fetch(
+          `${import.meta.env.VITE_API_ADDRESS}/api/checklist-templates/for-ticket/${ticketNum}`,
+          { headers: { Authorization: "Bearer " + token } },
+        );
+        if (!response.ok) return;
+        const json = await response.json();
+        if (alive) setData(json);
+      } catch (error) {
+        console.error("Не удалось получить шаблоны чек-листов:", error);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [ticketNum, canEdit]);
+
+  return data;
+};
+
+const Bind = ({ icon: Icon, children, dashed = false }) => (
+  <span
+    className={cn(
+      "tw:inline-flex tw:items-center tw:gap-1 tw:rounded-md tw:border tw:border-border-soft tw:px-1.5 tw:py-0.5 tw:text-xs tw:text-muted-foreground",
+      dashed ? "tw:border-dashed" : "tw:bg-secondary",
+    )}
+  >
+    {Icon && <Icon size={11} className="tw:text-faint" />}
+    {children}
+  </span>
+);
+
+const TemplateOption = ({ template, active, onPick }) => (
+  <button
+    type="button"
+    onClick={() => onPick(template)}
+    className={cn(
+      "tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-start tw:gap-2.5 tw:rounded-lg tw:border-0 tw:bg-transparent tw:px-2.5 tw:py-2 tw:text-left tw:hover:bg-accent",
+      active && "tw:bg-accent",
+    )}
+  >
+    <span className="tw:min-w-0 tw:flex-1">
+      <span className="tw:block tw:text-sm tw:font-medium">
+        {template.title}
+      </span>
+      <span className="tw:mt-1 tw:flex tw:flex-wrap tw:gap-1.5">
+        {(template.categories || []).map((category) => (
+          <Bind key={category._id ?? category} icon={RiPriceTag3Line}>
+            {category.title ?? "категория"}
+          </Bind>
+        ))}
+        {(template.companies || []).map((company) => (
+          <Bind key={company._id ?? company} icon={RiBuildingLine}>
+            {company.alias ?? "компания"}
+          </Bind>
+        ))}
+        {(template.categories?.length ?? 0) === 0 &&
+          (template.companies?.length ?? 0) === 0 && (
+            <Bind dashed>без привязок</Bind>
+          )}
+      </span>
+    </span>
+    <span className="tw:flex-none tw:text-xs tw:text-faint tw:tabular-nums">
+      {template.items?.length ?? 0}
+    </span>
+    {active && (
+      <RiCheckLine className="tw:flex-none tw:text-accent-text" size={15} />
+    )}
+  </button>
+);
+
+/**
+ * «Ещё чек-листы» — поповер выбора. Два раздела, а не один список: «подходят
+ * этой заявке» — те, что сработали бы автоматически, «остальные» — шаблоны с
+ * чужими привязками и без них, которые всё равно иногда нужны. Смешать их
+ * значит потерять смысл автоподбора.
+ */
+export const TemplatePicker = ({
+  templates,
+  currentTitle,
+  hasChecks,
+  onApply,
+  onClear,
+  trigger,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(null);
+
+  const matched = templates?.matched ?? [];
+  const others = templates?.others ?? [];
+  const total = matched.length + others.length;
+
+  if (total === 0) return null;
+
+  const pick = (template) => {
+    setOpen(false);
+    // Пока ничего не отмечено — меняем молча; отметки исчезают вместе с
+    // пунктами, и об этом говорим до, а не после
+    if (hasChecks) return setPending(template);
+    onApply(template);
+  };
+
+  return (
+    <>
+      <Popover open={open} onOpenChange={setOpen} modal={false}>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        <PopoverContent align="start" className="tw:w-96 tw:p-1.5">
+          {matched.length > 0 && (
+            <>
+              <p className="tw:m-0 tw:px-2.5 tw:pt-2 tw:pb-1.5 tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
+                Подходят этой заявке
+              </p>
+              {matched.map((template) => (
+                <TemplateOption
+                  key={template._id}
+                  template={template}
+                  active={template.title === currentTitle}
+                  onPick={pick}
+                />
+              ))}
+            </>
+          )}
+
+          {others.length > 0 && (
+            <>
+              <p className="tw:m-0 tw:mt-1 tw:border-t tw:border-border-soft tw:px-2.5 tw:pt-2.5 tw:pb-1.5 tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
+                Остальные
+              </p>
+              {others.map((template) => (
+                <TemplateOption
+                  key={template._id}
+                  template={template}
+                  active={template.title === currentTitle}
+                  onPick={pick}
+                />
+              ))}
+            </>
+          )}
+
+          {onClear && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onClear();
+              }}
+              className="tw:mt-1 tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:border-0 tw:border-t tw:border-border-soft tw:bg-transparent tw:px-2.5 tw:py-2.5 tw:text-left tw:text-sm tw:text-muted-foreground tw:hover:text-foreground"
+            >
+              Убрать чек-лист
+            </button>
+          )}
+        </PopoverContent>
+      </Popover>
+
+      <Dialog open={Boolean(pending)} onOpenChange={() => setPending(null)}>
+        <DialogContent className="tw:sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Сменить чек-лист на «{pending?.title}»?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="tw:m-0 tw:text-sm tw:text-muted-foreground">
+            Совпадающие по названию пункты сохранят отметки. Остальные отмеченные
+            пункты исчезнут вместе с тем, кто и когда их выполнил.
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPending(null)}>
+              Отмена
+            </Button>
+            <Button
+              onClick={() => {
+                onApply(pending);
+                setPending(null);
+              }}
+            >
+              Сменить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
+
+/**
+ * Предложение применить шаблон, когда автоприменение выключено.
+ *
+ * Живёт НА МЕСТЕ секции чек-листа — там, где список и появится, — а не
+ * баннером над описанием: наверху оно оказывалось на одной линии с темой
+ * заявки и отжимало вниз то, ради чего карточку открыли.
+ *
+ * Тон нейтральный, а не акцентный: это подсказка, а не событие, требующее
+ * решения. Отказ переживает перезагрузку (util/checklist-offer) — иначе строка
+ * всплывала бы снова на каждое обновление страницы.
+ */
+export const TemplateOffer = ({ ticketNum, templates, onApply }) => {
+  const [dismissed, setDismissed] = useState(() => isOfferDismissed(ticketNum));
+  const best = templates?.matched?.[0];
+
+  if (!best || dismissed || templates?.autoApply) return null;
+
+  const rest = (templates.matched?.length ?? 0) - 1;
+  const basis = best.categories?.[0]?.title
+    ? `по категории «${best.categories[0].title}»`
+    : best.companies?.[0]?.alias
+      ? `по компании «${best.companies[0].alias}»`
+      : null;
+
+  return (
+    <div className="tw:flex tw:items-center tw:gap-3 tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-4 tw:py-3">
+      <span className="tw:grid tw:size-7 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-primary/10 tw:text-accent-text">
+        <RiListCheck2 size={15} />
+      </span>
+      <span className="tw:min-w-0 tw:flex-1">
+        <p className="tw:m-0 tw:text-sm tw:text-muted-foreground">
+          Есть чек-лист{" "}
+          <span className="tw:font-medium tw:text-foreground">
+            «{best.title}»
+          </span>
+        </p>
+        <p className="tw:mt-0.5 tw:mb-0 tw:text-xs tw:text-faint">
+          {best.items?.length ?? 0}{" "}
+          {plural(best.items?.length ?? 0, "пункт", "пункта", "пунктов")}
+          {basis ? ` · ${basis}` : ""}
+          {rest > 0 && ` · ещё ${rest} подходит`}
+        </p>
+      </span>
+      <span className="tw:flex tw:flex-none tw:gap-1.5">
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() => {
+            dismissOffer(ticketNum);
+            setDismissed(true);
+          }}
+        >
+          Скрыть
+        </Button>
+        <Button variant="outline" size="xs" onClick={() => onApply(best)}>
+          Применить
+        </Button>
+      </span>
+    </div>
+  );
+};

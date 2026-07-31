@@ -24,28 +24,23 @@ import AddTicketPage, {
   action as addTicketAction,
 } from "./pages/Ticket/Add.jsx";
 
-import AddWorkPage, {
-  loader as addWorkLoader,
-  action as addWorkAction,
-} from "./pages/Work/Add.jsx";
+import ChecklistTemplateListPage from "./pages/ChecklistTemplate/List.jsx";
+import AddChecklistTemplatePage from "./pages/ChecklistTemplate/Add.jsx";
+import UpdateChecklistTemplatePage from "./pages/ChecklistTemplate/Update.jsx";
+import {
+  checklistTemplateFormLoader,
+  addChecklistTemplateAction,
+  updateChecklistTemplateAction,
+  deleteChecklistTemplateAction,
+} from "./pages/ChecklistTemplate/routes.js";
 
-import ScheduleWorkPage, {
-  loader as scheduleWorkLoader,
-  action as scheduleWorkAction,
-} from "./pages/Work/Schedule.jsx";
-
-import ConfirmScheduledWorkPage, {
-  loader as confirmScheduledWorkLoader,
-} from "./pages/Work/ConfirmScheduled.jsx";
-
-import UpdateWorkPage, {
-  action as updateWorkAction,
-  loader as updateWorkLoader,
-} from "./pages/Work/Update.jsx";
-
-import UpdateScheduledWorkPage, {
-  loader as updateScheduledWorkLoader,
-} from "./pages/Work/UpdateScheduled.jsx";
+import WorkFormRoute from "./components/Work/WorkFormRoute.jsx";
+import {
+  workFormLoader,
+  addWorkAction,
+  scheduleWorkAction,
+  updateWorkAction,
+} from "./pages/Work/work-routes.js";
 
 import UpdateTicketPage, {
   loader as updateTicketLoader,
@@ -459,33 +454,33 @@ function App() {
             },
             {
               path: "work/add",
-              loader: addWorkLoader,
+              loader: workFormLoader,
               action: addWorkAction,
-              element: <AddWorkPage />,
+              element: <WorkFormRoute mode="add" />,
             },
             {
               path: "work/:workId/update",
-              loader: updateWorkLoader,
+              loader: workFormLoader,
               action: updateWorkAction,
-              element: <UpdateWorkPage />,
+              element: <WorkFormRoute mode="update" />,
             },
             {
               path: "work/schedule",
+              loader: workFormLoader,
               action: scheduleWorkAction,
-              loader: scheduleWorkLoader,
-              element: <ScheduleWorkPage />,
+              element: <WorkFormRoute mode="schedule" />,
             },
             {
               path: "work-scheduled/:workId/update",
-              loader: updateScheduledWorkLoader,
+              loader: workFormLoader,
               action: updateWorkAction,
-              element: <UpdateScheduledWorkPage />,
+              element: <WorkFormRoute mode="updateScheduled" />,
             },
             {
               path: "work/:workId/confirm",
+              loader: workFormLoader,
               action: updateWorkAction,
-              loader: confirmScheduledWorkLoader,
-              element: <ConfirmScheduledWorkPage />,
+              element: <WorkFormRoute mode="confirm" />,
             },
           ],
         },
@@ -516,27 +511,6 @@ function App() {
               path: ":id",
               element: <ViewKnowledgeNotePage />,
               loader: viewKnowledgeNoteLoader,
-            },
-          ],
-        },
-        // Works
-        {
-          path: "works",
-          children: [
-            {
-              path: "add",
-              element: <AddWorkPage />,
-              action: addWorkAction,
-            },
-            {
-              path: "schedule",
-              element: <ScheduleWorkPage />,
-              action: scheduleWorkAction,
-            },
-            {
-              path: ":workId/update",
-              element: <UpdateWorkPage />,
-              action: updateWorkAction,
             },
           ],
         },
@@ -687,6 +661,26 @@ function App() {
             },
             {
               path: "delete",
+            },
+          ],
+        },
+        // Шаблоны чек-листов
+        {
+          path: "tickets/checklist-templates",
+          element: <ChecklistTemplateListPage />,
+          action: deleteChecklistTemplateAction,
+          children: [
+            {
+              path: "add",
+              loader: checklistTemplateFormLoader,
+              action: addChecklistTemplateAction,
+              element: <AddChecklistTemplatePage />,
+            },
+            {
+              path: "update/:id",
+              loader: checklistTemplateFormLoader,
+              action: updateChecklistTemplateAction,
+              element: <UpdateChecklistTemplatePage />,
             },
           ],
         },

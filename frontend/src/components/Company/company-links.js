@@ -32,9 +32,13 @@ export function getCompanyCoords(company) {
   return null;
 }
 
-// Действие «такси»: href + человеческие подписи. orderText — короткая фраза
-// («Такси до офиса» только когда ссылка реально ведёт маршрутом к офису),
-// label — имя оператора, title — для тултипов строки списка.
+// Действие «такси»: ссылка + человеческие подписи. Подпись кнопки нейтральная —
+// «Такси»: она честна и когда маршрут строится, и когда оператор его не умеет.
+// Куда именно поедет, говорит `routeText` (тултип и подпись мобильной строки).
+//
+// `buildHref(origin)` подставляет начальную точку — текущее положение
+// сотрудника; открывать ссылку следует через util/taxi-operators → openTaxi,
+// он и спрашивает геолокацию.
 export function getTaxiAction(company, operatorValue) {
   const operator = getTaxiOperator(operatorValue);
   if (!operator) return null;
@@ -43,8 +47,11 @@ export function getTaxiAction(company, operatorValue) {
   const toOffice = Boolean(operator.routes && coords);
   return {
     href: operator.buildLink(coords),
+    buildHref: (origin) => operator.buildLink(coords, origin),
+    supportsRoute: toOffice,
     label: operator.label,
-    orderText: toOffice ? "Такси до офиса" : "Заказать такси",
-    title: `${toOffice ? "Такси до офиса" : "Заказать такси"} · ${operator.label}`,
+    orderText: "Такси",
+    routeText: toOffice ? "от вас до офиса" : "заказ в приложении",
+    title: `${operator.label} · ${toOffice ? "маршрут от вас до офиса клиента" : "заказ такси"}`,
   };
 }

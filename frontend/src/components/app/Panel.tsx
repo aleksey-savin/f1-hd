@@ -64,6 +64,49 @@ export function SectionEditLink({
   );
 }
 
+/**
+ * То же, но правка идёт в самой секции, а не в форме: карандаш включает у
+ * секции режим правки (`onClick`), «Готово» его выключает.
+ *
+ * Так правится секция, которая и в покое меняет данные на месте, — чек-лист
+ * заявки отмечают прямо на карточке, и уводить состав того же списка в форму
+ * значило бы разорвать одно занятие между двумя поверхностями. Секцию, которая
+ * только показывает сохранённое, правит форма — `SectionEditLink`.
+ *
+ * Режим обязателен: отмечать и перестраивать — разные занятия, и рука,
+ * привыкшая ставить галочки, промахнётся по «удалить». Заодно у прав одна
+ * точка — показывать кнопку или нет.
+ */
+export function SectionEditButton({
+  label,
+  editing,
+  onToggle,
+}: {
+  /** Название секции — уходит в aria-label: «Изменить: Чек-лист». */
+  label: string;
+  editing: boolean;
+  onToggle: () => void;
+}) {
+  if (editing)
+    return (
+      <Button variant="outline" size="xs" onClick={onToggle}>
+        Готово
+      </Button>
+    );
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      onClick={onToggle}
+      aria-label={`Изменить: ${label}`}
+      className="tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100"
+    >
+      <RiEdit2Line />
+    </Button>
+  );
+}
+
 // Панель-секция: тонкая граница на канве, без тени (язык статус-борда).
 export function Panel({ children }: { children: ReactNode }) {
   return (
@@ -116,10 +159,13 @@ export function Eyebrow({
 export function SubLabel({
   children,
   count,
+  action,
   className,
 }: {
   children: ReactNode;
   count?: number;
+  /** Контрол подгруппы справа (outline `xs`) — как `action` у Eyebrow. */
+  action?: ReactNode;
   className?: string;
 }) {
   return (
@@ -133,6 +179,11 @@ export function SubLabel({
       {count != null && (
         <span className="tw:font-semibold tw:tracking-normal tw:tabular-nums">
           · {count}
+        </span>
+      )}
+      {action != null && (
+        <span className="tw:ms-auto tw:flex tw:items-center tw:gap-2 tw:font-normal tw:tracking-normal tw:normal-case">
+          {action}
         </span>
       )}
     </div>

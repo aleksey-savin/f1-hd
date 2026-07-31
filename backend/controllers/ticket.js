@@ -22,9 +22,18 @@ const Connection = require("../models/pro32Connect/connection");
 const { generateTicketAiGuide } = require("../services/ticketAiGuide");
 const { detectTicketCategory } = require("../services/ticketCategoryService");
 const { logAiTicketEvent } = require("../services/aiTicketLog");
+const { humanizeAiError } = require("../services/aiErrors");
+const { annotateWorks } = require("../services/workPreview");
+const {
+  autoApplyEnabled,
+  bestTemplateForTicket,
+  itemsToChecklist,
+} = require("../services/checklistTemplates");
+const { buildFeed, isTechnical, classify } = require("../services/ticketEvents");
 const {
   isAudioAttachment,
   transcribeAttachment,
+  carryOverSpeechResult,
 } = require("../services/speechToTextService");
 const { buildKnownCaller } = require("../services/callerIdentityService");
 const {
@@ -156,6 +165,10 @@ exports.getAllOpened = async (req, res, next) => {
       isClosed: ticket.isClosed,
       state: ticket.state,
       latestComment: ticket.comments[ticket.comments.length - 1],
+      // Счётчик переписки — тихий значок в строке списка: диспетчер видит, что по
+      // заявке уже общались, не открывая её. Отдаём число, а не массив: тексты
+      // комментариев списку не нужны.
+      commentsCount: ticket.comments.length,
       scheduledWorks: worksByTicket.get(ticket._id.toString()) || [],
       hasFinishedWorks: finishedSet.has(ticket._id.toString()),
       routineTask: ticket.routineTask,
@@ -166,192 +179,6 @@ exports.getAllOpened = async (req, res, next) => {
     res.status(200).json({ tickets: shortenedTickets });
   } catch (error) {
     next(new AppError("Failed to fetch opened tickets", 500, true, error));
-  }
-};
-
-exports.getRecentlyClosed = async (req, res, next) => {
-  try {
-    const {
-      _id: userId,
-      isAdmin,
-      permissions,
-      company,
-    } = await getAuthData(req);
-
-    // Calculate date threshold (14 days ago)
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-
-    // Build query conditions based on permissions
-    let matchConditions = {
-      isClosed: true,
-      finishedAt: { $gte: fourteenDaysAgo },
-    };
-
-    if (
-      isAdmin ||
-      permissions.canAdministrateTickets ||
-      permissions.canSeeAllTickets
-    ) {
-      // No additional filters for admins
-    } else if (permissions.canSeeAllCompanyTickets) {
-      matchConditions["company._id"] = company._id;
-    } else {
-      // Filter for specific user involvement
-      matchConditions.$or = [
-        { "responsibles._id": userId },
-        { createdBy: userId },
-        { applicantId: userId },
-      ];
-    }
-
-    // Use aggregation pipeline for better performance
-    const ticketData = await Ticket.aggregate([
-      { $match: matchConditions },
-      { $sort: { _id: -1 } },
-      {
-        $lookup: {
-          from: "users",
-          localField: "applicantId",
-          foreignField: "_id",
-          as: "applicant",
-          pipeline: [
-            {
-              $project: {
-                firstName: 1,
-                lastName: 1,
-                email: 1,
-                phone: 1,
-                position: 1,
-                role: 1,
-                isActive: 1,
-                subdivision: 1,
-                timezone: 1,
-              },
-            },
-            {
-              $lookup: {
-                from: "subdivisions",
-                localField: "subdivision",
-                foreignField: "_id",
-                as: "subdivision",
-                pipeline: [
-                  { $project: { name: 1, timezone: 1, parent: 1 } },
-                ],
-              },
-            },
-            {
-              $addFields: {
-                subdivision: { $arrayElemAt: ["$subdivision", 0] },
-              },
-            },
-          ],
-        },
-      },
-      {
-        $lookup: {
-          from: "ticketcategories",
-          localField: "categoryId",
-          foreignField: "_id",
-          as: "category",
-          pipeline: [{ $project: { title: 1 } }],
-        },
-      },
-      {
-        $lookup: {
-          from: "comments",
-          localField: "comments",
-          foreignField: "_id",
-          as: "comments",
-          pipeline: [
-            { $sort: { createdAt: -1 } },
-            { $limit: 1 },
-            {
-              $lookup: {
-                from: "users",
-                localField: "createdBy",
-                foreignField: "_id",
-                as: "createdBy",
-                pipeline: [{ $project: { firstName: 1, lastName: 1 } }],
-              },
-            },
-            {
-              $addFields: {
-                createdBy: { $arrayElemAt: ["$createdBy", 0] },
-              },
-            },
-            {
-              $project: {
-                content: 1,
-                attachments: 1,
-                createdAt: 1,
-                createdBy: 1,
-              },
-            },
-          ],
-        },
-      },
-      {
-        $lookup: {
-          from: "works",
-          let: { ticketId: "$_id" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $in: ["$$ticketId", { $ifNull: ["$tickets", []] }] },
-                    { $eq: ["$scheduled", true] },
-                    { $eq: ["$finishedAt", null] },
-                  ],
-                },
-              },
-            },
-          ],
-          as: "scheduledWorks",
-        },
-      },
-      {
-        $project: {
-          _id: 1,
-          num: 1,
-          company: 1,
-          title: 1,
-          attachments: 1,
-          deadline: 1,
-          finishedAt: 1,
-          isClosed: 1,
-          state: 1,
-          createdAt: 1,
-          routineTask: 1,
-          responsibles: 1,
-          applicant: { $arrayElemAt: ["$applicant", 0] },
-          category: { $arrayElemAt: ["$category", 0] },
-          latestComment: { $arrayElemAt: ["$comments", 0] },
-          scheduledWorks: 1,
-        },
-      },
-    ]);
-
-    const clientTimezoneOf = await createClientTimezoneResolver({
-      preferences: await Preferences.findOne({}),
-      companyIds: ticketData.map((ticket) => ticket.company?._id),
-    });
-
-    res.status(200).json({
-      tickets: ticketData.map((ticket) => ({
-        ...ticket,
-        clientTimezone: clientTimezoneOf({
-          user: ticket.applicant,
-          subdivision: ticket.applicant?.subdivision,
-          companyId: ticket.company?._id,
-        }),
-      })),
-    });
-  } catch (error) {
-    next(
-      new AppError("Failed to fetch recently closed tickets", 500, true, error),
-    );
   }
 };
 
@@ -464,7 +291,7 @@ exports.getClosed = async (req, res, next) => {
     const applicants = parseIdList(q.applicants);
     if (applicants.length) query.applicantId = { $in: applicants };
 
-    // Скоуп прав — те же ярусы, что у getAllOpened/getRecentlyClosed: админ и
+    // Скоуп прав — те же ярусы, что у getAllOpened: админ и
     // canSeeAll* видят всё; canSeeAllCompanyTickets — только своя компания
     // (жёстче фильтра компаний из запроса); остальные — заявки, в которых
     // участвовали (ответственный, автор или заявитель)
@@ -556,12 +383,55 @@ exports.getClosed = async (req, res, next) => {
   }
 };
 
-exports.getOne = async (req, res, next) => {
+
+/**
+ * Служебные записи лога за окно времени — раскрытие свёрнутой группы в хронике
+ * («6 уведомлений · 2 не доставлены»). Отдельным запросом, потому что этих
+ * записей у заявки бывают тысячи, а смотрят их редко.
+ */
+exports.getTechnicalLog = async (req, res, next) => {
   try {
     const { isEndUser } = await getAuthData(req);
+    if (isEndUser) return res.status(200).json({ entries: [] });
+
+    const ticket = await Ticket.findOne({ num: req.params.ticketNum })
+      .select("_id num")
+      .lean();
+    if (!ticket) return next(new AppError("Ticket not found", 404));
+
+    const range = {};
+    if (req.query.from) range.$gte = new Date(req.query.from);
+    if (req.query.to) range.$lte = new Date(req.query.to);
+
+    const entries = await TicketLog.find({
+      $or: [{ ticket: ticket.num }, { ticketId: ticket._id }],
+      ...(range.$gte || range.$lte ? { createdAt: range } : {}),
+    })
+      .select("kind event user severity createdAt files")
+      .sort({ createdAt: 1 })
+      .limit(200)
+      .lean();
+
+    res.status(200).json({
+      entries: entries.filter((entry) =>
+        isTechnical(entry.kind || classify(entry.event)),
+      ),
+    });
+  } catch (error) {
+    next(new AppError("Failed to fetch ticket log", 500, true, error));
+  }
+};
+
+exports.getOne = async (req, res, next) => {
+  try {
+    const { isEndUser, isAdmin, permissions } = await getAuthData(req);
     const ticketNum = req.params.ticketNum;
 
     const ticket = await Ticket.findOne({ num: ticketNum })
+      // Чек-лист заявки почти всегда приезжает из регламента — секция называет
+      // источник и ссылается на него: править пункты для будущих заявок нужно
+      // там, а не здесь
+      .populate({ path: "routineTask", select: "title" })
       .populate({
         path: "applicantId",
         select:
@@ -641,16 +511,36 @@ exports.getOne = async (req, res, next) => {
         { _id: t._id, num: t.num, title: t.title },
       ]),
     );
+    // Переработка и доплата по каждой работе — тем же кодом, что выставляет
+    // счёт (services/workPreview → servicePlanBilling). В строке показывается
+    // только исключение: у работы в рамках тарифа поля просто нет.
+    const billingByWork = await annotateWorks({
+      works: works.map((work) => work.toObject()),
+      canSeeMoney: Boolean(
+        isAdmin ||
+          (permissions?.canUseFinancesModule &&
+            permissions?.canSeeGlobalFinancialReport),
+      ),
+    });
+
     const worksWithLinks = works.map((work) => ({
       ...work.toObject(),
       linkedTickets: work.tickets
         .map((t) => linkedById.get(t.toString()))
         .filter(Boolean),
+      outOfSchedule: billingByWork[work._id.toString()] || null,
     }));
 
+    // Хроника карточки: события заявки, служебные записи — счётчиками под
+    // предыдущим событием (у одной заявки их бывает 1476 против 10 событий).
+    // Тексты записей клиенту не нужны — разворачиваются по запросу через
+    // GET /tickets/:num/log.
     const logs = await TicketLog.find({
       $or: [{ ticket: ticketNum }, { ticketId: ticket._id }],
-    });
+    })
+      .select("kind event user severity createdAt files")
+      .lean();
+    const events = buildFeed(logs);
 
     // В каком поясе живёт заявитель: специалист должен видеть, что у клиента
     // ночь, ДО того как наберёт номер. Каскад — в services/clientTimezone.
@@ -666,7 +556,7 @@ exports.getOne = async (req, res, next) => {
       ticket: ticket,
       company: company || {},
       works: worksWithLinks,
-      logs: isEndUser ? [] : logs,
+      events: isEndUser ? [] : events,
     });
   } catch (error) {
     next(
@@ -817,11 +707,28 @@ exports.add = async (req, res, next) => {
       ? JSON.parse(req.body.template)
       : null;
     // Чек-лист-заготовка шаблона копируется в заявку (обязательность сохраняется).
-    const templateChecklist = (parsedTemplate?.checklist || []).map((item) => ({
+    let templateChecklist = (parsedTemplate?.checklist || []).map((item) => ({
       description: item.description,
       checked: false,
       mandatory: !!item.mandatory,
     }));
+
+    // Свой чек-лист шаблона заявки сильнее подбора: он часть заготовки, по
+    // которой заявку и создают. Подбор шаблона чек-листа работает там, где
+    // списка нет, — то есть в 90 % заявок, создаваемых вручную
+    const ticketCompany = req.body.company
+      ? JSON.parse(req.body.company)
+      : userCompany;
+
+    if (templateChecklist.length === 0 && (await autoApplyEnabled())) {
+      const best = await bestTemplateForTicket({
+        categoryId,
+        company: ticketCompany,
+      });
+      if (best) {
+        templateChecklist = itemsToChecklist(best);
+      }
+    }
 
     const ticket = new Ticket({
       title: req.body.title,
@@ -834,7 +741,7 @@ exports.add = async (req, res, next) => {
       categoryId: categoryId,
       // Заявитель либо авторизованный пользователь, либо указанный в полной форме создания заявки
       applicantId: applicant,
-      company: req.body.company ? JSON.parse(req.body.company) : userCompany,
+      company: ticketCompany,
       responsibles: JSON.parse(req.body.responsibles),
       deadline: req.body.deadline
         ? req.body.deadline
@@ -927,50 +834,6 @@ exports.regenerateAiGuide = async (req, res, next) => {
   }
 };
 
-// Подбор категории заявки ИИ по запросу пользователя. Использует ту же логику, что
-// и фоновое автоопределение (detectTicketCategory), но синхронно возвращает результат
-// для обратной связи в интерфейсе: назначенную категорию либо ближайшие кандидаты.
-exports.detectCategory = async (req, res, next) => {
-  try {
-    const { _id } = req.body;
-
-    const ticket = await Ticket.findById(_id).select("_id");
-    if (!ticket) {
-      return next(new AppError(`Ticket not found`, 404, true));
-    }
-
-    const result = await detectTicketCategory(_id);
-
-    res.status(200).json({
-      message: "Category detection finished",
-      result,
-    });
-  } catch (error) {
-    next(new AppError(`Failed to detect ticket category`, 500, true, error));
-  }
-};
-
-exports.toggleAiGuideItem = async (req, res, next) => {
-  try {
-    const { _id, index, done } = req.body;
-
-    const ticket = await Ticket.findById(_id).select("aiGuide");
-    if (!ticket || !ticket.aiGuide?.items?.[index]) {
-      return next(new AppError(`AI guide item not found`, 404, true));
-    }
-
-    ticket.aiGuide.items[index].done = !!done;
-    await ticket.save();
-
-    res.status(200).json({
-      message: "AI guide item updated",
-      aiGuide: ticket.aiGuide,
-    });
-  } catch (error) {
-    next(new AppError(`Failed to update AI guide item`, 500, true, error));
-  }
-};
-
 exports.transcribeAttachment = async (req, res, next) => {
   let ticket;
   let attachmentIndex = -1;
@@ -1003,8 +866,10 @@ exports.transcribeAttachment = async (req, res, next) => {
     }
 
     ticket.attachments[attachmentIndex].speechToText = {
+      ...carryOverSpeechResult(
+        ticket.attachments[attachmentIndex].speechToText,
+      ),
       status: "pending",
-      text: ticket.attachments[attachmentIndex].speechToText?.text || "",
       error: "",
     };
     ticket.markModified("attachments");
@@ -1060,10 +925,16 @@ exports.transcribeAttachment = async (req, res, next) => {
     });
   } catch (error) {
     if (ticket && attachmentIndex >= 0) {
+      // Наружу — человеческая причина: сырой ответ поставщика уезжал и в тост,
+      // и в хронику заявки, вместе с префиксом ключа
+      const reason = humanizeAiError(error, "не удалось распознать запись");
+
       ticket.attachments[attachmentIndex].speechToText = {
+        ...carryOverSpeechResult(
+          ticket.attachments[attachmentIndex].speechToText,
+        ),
         status: "error",
-        text: ticket.attachments[attachmentIndex].speechToText?.text || "",
-        error: error.message,
+        error: reason,
         generatedAt: new Date(),
       };
       ticket.markModified("attachments");
@@ -1076,13 +947,13 @@ exports.transcribeAttachment = async (req, res, next) => {
 
       await logAiTicketEvent(
         ticket._id,
-        `Ошибка распознавания записи звонка: ${error.message}`,
+        `Ошибка распознавания записи звонка: ${reason}`,
         "danger",
       );
 
       return res.status(error.statusCode || 500).json({
         success: false,
-        message: error.message || "Failed to recognize speech",
+        message: reason,
         attachment: ticket.attachments[attachmentIndex],
         attachments: ticket.attachments,
       });
@@ -1514,6 +1385,20 @@ exports.close = async (req, res, next) => {
       return sendConflict(res, ticket);
     }
 
+    // Обязательные пункты чек-листа держат закрытие так же, как работы:
+    // проверка на клиенте прячет кнопку, но закрыть можно и минуя её
+    const unchecked = (ticket.checklist ?? []).filter(
+      (item) => item.mandatory && !item.checked,
+    );
+    if (unchecked.length > 0) {
+      return next(
+        new AppError(
+          `В чек-листе остались невыполненные обязательные пункты`,
+          422,
+        ),
+      );
+    }
+
     const works = await Work.find({
       tickets: ticket._id,
     });
@@ -1910,6 +1795,12 @@ exports.closeMultiple = async (req, res, next) => {
       const works = await Work.find({ tickets: ticket._id });
 
       if (!(works.length > 0 || permissions.canAvoidWorks)) continue;
+      // То же правило, что у одиночного закрытия: заявку с невыполненным
+      // обязательным пунктом массовое действие пропускает, а не закрывает
+      if (
+        (ticket.checklist ?? []).some((item) => item.mandatory && !item.checked)
+      )
+        continue;
 
       let responsibles = [];
       for (let resp of ticket.responsibles) {
@@ -2391,6 +2282,15 @@ exports.updateChecklistItem = async (req, res, next) => {
   }
 };
 
+/**
+ * Состав чек-листа целиком: секция карточки правит его на месте и шлёт весь
+ * список после каждого изменения.
+ *
+ * Отметки выполнения приходят не от клиента, а поднимаются из сохранённых
+ * пунктов: правка соседней строки не должна переписывать «кто и когда
+ * отметил». Пункт узнаётся по `_id`, а новый (у него временный id из браузера)
+ * — по описанию, чтобы пересозданная строка не потеряла свою отметку.
+ */
 exports.updateChecklist = async (req, res, next) => {
   try {
     const ticketNum = req.params.ticketNum;
@@ -2401,23 +2301,66 @@ exports.updateChecklist = async (req, res, next) => {
       return next(new AppError(`Couldn't find ticket ${ticketNum}`, 404));
     }
 
-    const checklist = req.body.map((item) => {
-      const jsonItem = JSON.parse(item);
+    const items = Array.isArray(req.body) ? req.body : req.body.checklist;
+
+    if (!Array.isArray(items)) {
+      return next(new AppError("Чек-лист должен быть списком", 400));
+    }
+
+    const wasEmpty = !(ticket.checklist?.length > 0);
+
+    ticket.checklist = items.map((item) => {
+      const saved = ticket.checklist?.find(
+        (previous) =>
+          previous._id?.toString() === item._id?.toString() ||
+          previous.description === item.description,
+      );
       return {
-        description: jsonItem.description,
-        checked: jsonItem.checked,
-        mandatory: jsonItem.mandatory,
-        checkedBy: jsonItem.checkedBy,
-        checkedAt: jsonItem.checkedAt,
+        ...(saved?._id ? { _id: saved._id } : {}),
+        description: item.description,
+        mandatory: !!item.mandatory,
+        checked: saved?.checked ?? false,
+        checkedBy: saved?.checked ? saved.checkedBy : undefined,
+        checkedAt: saved?.checked ? saved.checkedAt : null,
       };
     });
 
-    ticket.checklist = checklist;
-
     await ticket.save();
+
+    // Отметка в хронике: до 31.07 состав чек-листа менялся молча — в ленте не
+    // было ни следа, кто и когда его завёл. Источник важен: чек-лист, собранный
+    // из руководства ИИ, — это и есть та фича, ради которой их станет больше,
+    // и в истории она должна отличаться от ручной правки
+    const { firstName, lastName } = await getAuthData(req);
+    const fromAi = req.body?.source === "ai";
+    const templateTitle = req.body?.templateTitle;
+
+    // Смену шаблона называем вслух: часть отметок при ней исчезает, и без
+    // записи это выглядит как чужая ошибка
+    const event = templateTitle
+      ? wasEmpty
+        ? `чек-лист из шаблона «${templateTitle}»`
+        : `чек-лист заменён на «${templateTitle}»`
+      : fromAi
+        ? `чек-лист составлен ИИ: пунктов ${ticket.checklist.length}`
+        : ticket.checklist.length === 0
+          ? `чек-лист убран`
+          : wasEmpty
+            ? `составлен чек-лист: пунктов ${ticket.checklist.length}`
+            : `изменён чек-лист`;
+
+    const log = new TicketLog({
+      ticketId: ticket._id,
+      kind: "checklist",
+      user: { firstName, lastName },
+      severity: "info",
+      event,
+    });
+    await log.save();
 
     res.status(201).json({
       message: "Чеклист обновлён",
+      checklist: ticket.checklist,
     });
   } catch (error) {
     next(
@@ -2466,15 +2409,27 @@ exports.addAttachments = async (req, res, next) => {
     ticket.attachments = [...(ticket.attachments || []), ...newAttachments];
     await ticket.save();
 
-    // Log the action
-    const { userId } = await getAuthData(req);
-    const user = await User.findById(userId);
+    // Отметка в хронике: файл, принесённый уже после создания заявки, иначе
+    // появляется молча — не видно ни кто, ни когда. Вложения, приехавшие
+    // ВМЕСТЕ с заявкой, событием не отмечаются: они уже перечислены в описании.
+    // Поля именно те, что есть в схеме TicketLog: до 31.07 здесь писались
+    // action/description/createdBy, которых в ней нет, и Mongoose в
+    // strict-режиме молча их выбрасывал — в базе оставалась пустая запись.
+    const { firstName, lastName } = await getAuthData(req);
 
     const log = new TicketLog({
       ticketId: ticket._id,
-      action: "Добавлены файлы",
-      description: `Добавлено файлов: ${files.length}`,
-      createdBy: userId,
+      kind: "attachmentAdded",
+      user: { firstName, lastName },
+      severity: "info",
+      event:
+        newAttachments.length === 1
+          ? `прикреплён файл «${newAttachments[0].originalName || newAttachments[0].name}»`
+          : `прикреплено файлов: ${newAttachments.length}`,
+      files: newAttachments.map((attachment) => ({
+        name: attachment.name,
+        originalName: attachment.originalName,
+      })),
     });
     await log.save();
 
@@ -2519,7 +2474,9 @@ exports.removeAttachment = async (req, res, next) => {
       return res.status(404).json({ error: "Attachment not found" });
     }
 
-    // Remove from database
+    // Имя нужно для записи в хронику — снимаем до удаления из массива
+    const removed = ticket.attachments[attachmentIndex];
+
     ticket.attachments.splice(attachmentIndex, 1);
     await ticket.save();
 
@@ -2530,13 +2487,18 @@ exports.removeAttachment = async (req, res, next) => {
       logger.warn(`Could not delete file ${attachmentName}:`, fileError);
     }
 
-    // Log the action
-    const { userId } = await getAuthData(req);
+    // Удаление тоже событие: файл исчезает из описания бесследно, и
+    // восстановить его нечем
+    const { firstName, lastName } = await getAuthData(req);
     const log = new TicketLog({
       ticketId: ticket._id,
-      action: "Удален файл",
-      description: `Удален файл: ${attachmentName}`,
-      createdBy: userId,
+      kind: "attachmentRemoved",
+      user: { firstName, lastName },
+      severity: "info",
+      event: `удалён файл «${removed?.originalName || attachmentName}»`,
+      files: [
+        { name: attachmentName, originalName: removed?.originalName },
+      ],
     });
     await log.save();
 

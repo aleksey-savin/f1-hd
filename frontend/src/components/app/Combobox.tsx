@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { RiArrowDownSLine, RiCheckLine } from "react-icons/ri";
+import { RiArrowDownSLine, RiCheckLine, RiCloseLine } from "react-icons/ri";
 
 import {
   Command,
@@ -131,6 +131,139 @@ const Combobox = ({
                     )}
                   </span>
                   {option.value === value && (
+                    <RiCheckLine className="tw:flex-none" size={16} />
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+/**
+ * Тот же список с поиском, но с МНОЖЕСТВЕННЫМ выбором — поле формы, не чип
+ * (чип-фасет строки инструментов — `app/ChipMultiCombobox`). Выбранное живёт
+ * токенами внутри поля, меню при выборе не закрывается: набирают обычно
+ * несколько значений подряд.
+ *
+ * Триггер — `div` с `role="combobox"`, а не `button`: у токена своя кнопка
+ * «убрать», а кнопка внутри кнопки невалидна. Клавиатуру поэтому открываем
+ * руками (Enter/Space).
+ */
+export const MultiCombobox = ({
+  id,
+  value,
+  options,
+  onChange,
+  placeholder = "Выберите значения",
+  searchPlaceholder = "Найти…",
+  emptyText = "Ничего не нашлось.",
+  disabled = false,
+  className,
+}: {
+  id?: string;
+  value: string[];
+  options: ComboboxOption[];
+  onChange: (value: string[]) => void;
+  placeholder?: string;
+  searchPlaceholder?: string;
+  emptyText?: string;
+  disabled?: boolean;
+  className?: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const selected = options.filter((option) => value.includes(option.value));
+
+  const toggle = (next: string) =>
+    onChange(
+      value.includes(next)
+        ? value.filter((item) => item !== next)
+        : [...value, next],
+    );
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div
+          id={id}
+          role="combobox"
+          tabIndex={disabled ? -1 : 0}
+          aria-expanded={open}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setOpen(true);
+            }
+          }}
+          className={cn(
+            "tw:flex tw:min-h-9 tw:w-full tw:flex-wrap tw:items-center tw:gap-1.5 tw:rounded-md",
+            "tw:border tw:border-input tw:bg-background tw:px-2 tw:py-1 tw:text-sm",
+            "tw:hover:bg-accent tw:focus-visible:outline-2 tw:focus-visible:outline-ring",
+            disabled && "tw:cursor-not-allowed tw:opacity-60",
+            className,
+          )}
+        >
+          {selected.map((option) => (
+            <span
+              key={option.value}
+              className="tw:inline-flex tw:items-center tw:gap-1 tw:rounded-md tw:border tw:border-border-soft tw:bg-secondary tw:py-0.5 tw:pr-1 tw:pl-2 tw:text-xs"
+            >
+              <span className="tw:max-w-60 tw:truncate">{option.label}</span>
+              <button
+                type="button"
+                aria-label={`Убрать «${option.label}»`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggle(option.value);
+                }}
+                // appearance/bg/border/p-0 явно: preflight выключен
+                className="tw:appearance-none tw:rounded-sm tw:border-0 tw:bg-transparent tw:p-0 tw:text-faint tw:hover:text-foreground"
+              >
+                <RiCloseLine size={14} />
+              </button>
+            </span>
+          ))}
+
+          {selected.length === 0 && (
+            <span className="tw:flex-1 tw:px-1 tw:text-muted-foreground">
+              {placeholder}
+            </span>
+          )}
+
+          <RiArrowDownSLine
+            className="tw:ml-auto tw:flex-none tw:text-faint"
+            size={16}
+          />
+        </div>
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="start"
+        className="tw:w-(--radix-popover-trigger-width) tw:p-0"
+      >
+        <Command>
+          <CommandInput placeholder={searchPlaceholder} />
+          <CommandList>
+            <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={`${option.label} ${option.hint ?? ""}`}
+                  onSelect={() => toggle(option.value)}
+                >
+                  <span className="tw:min-w-0 tw:flex-1">
+                    <span className="tw:block tw:truncate">{option.label}</span>
+                    {option.hint && (
+                      <span className="tw:block tw:truncate tw:text-xs tw:text-muted-foreground">
+                        {option.hint}
+                      </span>
+                    )}
+                  </span>
+                  {value.includes(option.value) && (
                     <RiCheckLine className="tw:flex-none" size={16} />
                   )}
                 </CommandItem>

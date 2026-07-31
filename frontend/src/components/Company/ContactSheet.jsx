@@ -18,6 +18,7 @@ import useToastStore from "@/store/toast-store";
 import useInitialPrefs from "@/store/prefs";
 import { cn } from "@/lib/utils";
 
+import { openTaxi } from "../../util/taxi-operators";
 import { getTaxiAction } from "./company-links";
 import CompanyLogo from "./CompanyLogo";
 import WorkStatusText from "./WorkStatusText";
@@ -106,7 +107,10 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
                   отключена
                 </span>
               ) : (
-                <WorkStatusText workSchedule={workSchedule} timezone={timezone} />
+                <WorkStatusText
+                  workSchedule={workSchedule}
+                  timezone={timezone}
+                />
               )}
             </div>
           </div>
@@ -135,7 +139,9 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
                   </span>
                 </a>
               ) : (
-                <span className={cn(channelLinkClass, "tw:active:bg-transparent")}>
+                <span
+                  className={cn(channelLinkClass, "tw:active:bg-transparent")}
+                >
                   <span className={channelIconClass}>
                     <RiMapPin2Line size={19} />
                   </span>
@@ -162,11 +168,15 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
 
           {taxiAction && (
             <div className={channelClass}>
-              <a
-                href={taxiAction.href}
-                target="_blank"
-                rel="noreferrer"
-                className={channelLinkClass}
+              {/* Через openTaxi, а не голой ссылкой: он спрашивает текущее
+                  положение и кладёт его в маршрут начальной точкой */}
+              <button
+                type="button"
+                onClick={() => openTaxi(taxiAction)}
+                className={cn(
+                  channelLinkClass,
+                  "tw:cursor-pointer tw:border-0 tw:bg-transparent tw:text-start",
+                )}
               >
                 <span
                   className={cn(
@@ -178,7 +188,7 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
                 </span>
                 <span className="tw:min-w-0">
                   <span className="tw:block tw:text-xs tw:text-faint">
-                    {taxiAction.label}
+                    {taxiAction.label} · {taxiAction.routeText}
                   </span>
                   <span className="tw:block tw:truncate tw:font-medium">
                     {taxiAction.orderText}
@@ -189,7 +199,7 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
                   aria-hidden
                   className="tw:ms-auto tw:flex-none tw:text-faint"
                 />
-              </a>
+              </button>
             </div>
           )}
 

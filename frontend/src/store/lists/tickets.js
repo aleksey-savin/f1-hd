@@ -1,421 +1,293 @@
 import { create } from "zustand";
+
 import { getLocalStorageData } from "../../util/auth";
+import {
+  DEFAULT_QUEUE,
+  TICKET_QUEUES,
+  matchesQueue,
+} from "../../util/ticket-queues";
 
-const isToday = (date) => {
-  const today = new Date();
-  return (
-    date.getDate() === today.getDate() &&
-    date.getMonth() === today.getMonth() &&
-    date.getFullYear() === today.getFullYear()
-  );
-};
+// Список активных заявок — выборка клиентская: открытых заявок десятки, и весь
+// набор помещается в память целиком. Из этого следует главное свойство ленты
+// очередей: её счётчики считаются по ВСЕЙ выборке, а не по странице, и потому
+// честны (см. util/ticket-queues.js).
+//
+// Правки фильтра частичные (`updateFilter({ companies: [...] })`) и сами
+// пересчитывают отфильтрованный список: раньше стор принимал слепок всего
+// состояния, и любой забытый ключ молча сбрасывал соседний фасет.
 
-// функция последовательно отсеивает заявки согласно активным фильтрам
-const ticketFilter = (state) => {
-  const { userId } = getLocalStorageData();
-  const originalList = state.originalList ? state.originalList : [];
-  return originalList
-    .filter((ticket) => {
-      switch (state.nowActive) {
-        case "all_active":
-          return state.originalList
-            .filter((ticket) => !ticket.isClosed)
-            .includes(ticket);
-        case "today":
-          return state.originalList
-            .filter((ticket) => !ticket.isClosed)
-            .filter((ticket) => isToday(new Date(ticket.deadline)))
-            .includes(ticket);
-        case "not_processed":
-          return state.originalList
-            .filter((ticket) => !ticket.isClosed)
-            .filter((ticket) => ticket.state === "Новая")
-            .includes(ticket);
-        case "overdue":
-          return state.originalList
-            .filter((ticket) => !ticket.isClosed)
-            .filter((ticket) => new Date(ticket.deadline) < new Date())
-            .includes(ticket);
-        case "i_am_applicant":
-          return state.originalList
-            .filter(
-              (ticket) =>
-                ticket.applicant._id.toString() === userId && !ticket.isClosed,
-            )
-            .includes(ticket);
-        case "recently_closed":
-          return state.originalList
-            .filter((ticket) => ticket.isClosed)
-            .includes(ticket);
-        default:
-          return true;
-      }
-    })
-    .filter((ticket) => {
-      if (state.companies?.length > 0) {
-        return state.companies.includes(ticket.company._id.toString());
-      } else {
-        return true;
-      }
-    })
-    .filter((ticket) => {
-      if (state.responsibles?.length > 0) {
-        const isEqual = (a, b) => a === b;
-        return ticket.responsibles
-          .map((resp) => resp._id.toString())
-          .some((item2) =>
-            state.responsibles.some((item1) => isEqual(item1, item2)),
-          );
-      } else {
-        return true;
-      }
-    })
-    .filter((ticket) => {
-      if (state.iAmResponsible) {
-        return ticket.responsibles.map((resp) => resp._id).includes(userId);
-      } else {
-        return true;
-      }
-    })
-    .filter((ticket) => {
-      if (state.searchTerm.length > 0) {
-        return [
-          ticket.num,
-          ticket.company.alias,
-          ticket.applicant.lastName,
-          ticket.applicant.firstName,
-          JSON.stringify(ticket.responsibles),
-          ticket.title,
-          ticket.state,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(state.searchTerm);
-      } else {
-        return true;
-      }
-    })
-    .filter((ticket) => {
-      const now = new Date();
-      const oneDayAgo = new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000);
-      const latestCommentDate = new Date(ticket.latestComment?.createdAt);
-      const deadline = new Date(ticket.deadline);
-      switch (state.comments) {
-        case "present":
-          return ticket.latestComment;
-        case "abcent":
-          return !ticket.latestComment;
-        case "more_than_1_day":
-          return !ticket.latestComment || latestCommentDate < oneDayAgo;
-        case "no_comments_after_deadline":
-          if (latestCommentDate) {
-            return latestCommentDate > deadline;
-          }
-          return false;
-        default:
-          return true;
-      }
-    })
-    .filter((ticket) => {
-      switch (state.scheduledWorks) {
-        case "present":
-          return ticket.scheduledWorks?.length > 0;
-        case "abcent":
-          return ticket.scheduledWorks?.length === 0;
-        default:
-          return true;
-      }
-    })
-    .filter((ticket) => {
-      switch (state.routineTask) {
-        case "present":
-          return ticket.routineTask;
-        case "absent":
-          return !ticket.routineTask;
-        default:
-          return true;
-      }
-    });
-};
-
-const searchItems = (query, items) => {
-  if (!query) return items;
-
-  // Split the query into individual terms (e.g., "Ольга Вознюк" becomes ["Ольга", "Вознюк"])
-  const queryTerms = query.toLowerCase().split(" ").filter(Boolean);
-
-  return items.filter((item) => {
-    const fieldsToSearch = [
-      String(item.num),
-      item.company?.alias,
-      item.title,
-      `${item.applicant?.firstName} ${item.applicant?.lastName}`,
-      item.applicant?.firstName,
-      item.applicant?.lastName,
-      item.applicant?.email,
-      item.applicant?.phone,
-      item.applicant?.position,
-      item.applicant?.role,
-      item.state,
-      ...item.responsibles.flatMap((responsible) => [
-        `${responsible?.firstName} ${responsible?.lastName}`,
-        responsible?.firstName,
-        responsible?.lastName,
-        responsible?.email,
-        responsible?.phone,
-        responsible?.position,
-        responsible?.role,
-      ]),
-    ];
-
-    return queryTerms.every((term) =>
-      fieldsToSearch.some(
-        (field) => field && field.toLowerCase().includes(term),
-      ),
-    );
-  });
-};
-
-const handleSorting = (selected, list) => {
-  if (!selected || !list.length) {
-    return;
-  }
-
-  const sortedList = [...list];
-
-  switch (selected.label) {
-    case "По алфавиту":
-      sortedList.sort((a, b) => a.title.localeCompare(b.title));
-      break;
-
-    case "Сначала новые":
-      sortedList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      break;
-
-    case "Сначала старые":
-      sortedList.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-      break;
-
-    case "Дедлайн":
-      sortedList.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
-      break;
-
-    default:
-      break;
-  }
-
-  return sortedList;
-};
-
-const useTicketFilterStore = create((set) => ({
-  nowActive: "all_active",
+const FACET_DEFAULTS = {
+  queue: DEFAULT_QUEUE,
   iAmResponsible: false,
   companies: [],
+  applicants: [],
   responsibles: [],
+  categories: [],
+  states: [],
+  createdFrom: "",
+  createdTo: "",
   comments: "any",
   scheduledWorks: "any",
   routineTask: "any",
   searchTerm: "",
-  sortingOptions: [
-    {
-      label: "Сначала новые",
-    },
-    { label: "Сначала старые" },
-    { label: "По алфавиту" },
-    { label: "Дедлайн" },
-  ],
-  sortBy: {
-    label: "Сначала новые",
-  },
-  isSorting: false,
-  handleSorting: async (data) => {
-    set({ isSorting: true });
+};
 
-    // Set new sort option immediately
-    set({ sortBy: data });
+const SORTING_OPTIONS = [
+  { label: "Сначала новые", shortLabel: "Новые" },
+  { label: "Сначала старые", shortLabel: "Старые" },
+  { label: "По алфавиту", shortLabel: "А–Я" },
+  { label: "Дедлайн" },
+];
 
-    // Use Promise and setTimeout to make sorting async
-    await new Promise((resolve) => setTimeout(resolve, 0));
+const matchesSearch = (ticket, term) => {
+  if (!term) return true;
+  const terms = term.toLowerCase().split(" ").filter(Boolean);
+  const haystack = [
+    String(ticket.num),
+    ticket.title,
+    ticket.company?.alias,
+    ticket.category?.title,
+    ticket.state,
+    ticket.applicant?.firstName,
+    ticket.applicant?.lastName,
+    ticket.applicant?.email,
+    ticket.applicant?.phone,
+    ticket.realSender,
+    ...(ticket.responsibles ?? []).flatMap((user) => [
+      user?.firstName,
+      user?.lastName,
+      user?.email,
+    ]),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return terms.every((part) => haystack.includes(part));
+};
 
-    set((state) => {
-      const sortedList = handleSorting(data, state.filteredList);
-      return {
-        sortBy: data,
-        filteredList: sortedList,
-        isSorting: false,
-      };
-    });
-  },
+// Три значения вместо пяти: переключатель на три кнопки не держит больше, а
+// «без ответа» вбирает и «комментариев нет вовсе», и «последний старше суток» —
+// оба про одно, про молчание по заявке.
+const matchesComments = (ticket, mode) => {
+  if (mode === "any") return true;
+  const latest = ticket.latestComment?.createdAt
+    ? new Date(ticket.latestComment.createdAt)
+    : null;
+  if (mode === "present") return !!latest;
+  if (mode === "silent") {
+    return !latest || Date.now() - latest.getTime() > 24 * 60 * 60 * 1000;
+  }
+  return true;
+};
+
+/**
+ * Все фасеты, кроме очереди: по ним считаются и список, и счётчики очередей —
+ * счётчик фасета считается без него самого, иначе выбранная очередь обнуляла бы
+ * соседние и лента перестала бы отвечать на свой вопрос.
+ */
+const matchesFacets = (ticket, state, userId) => {
+  if (
+    state.iAmResponsible &&
+    !ticket.responsibles?.some(
+      (user) => user._id?.toString() === userId?.toString(),
+    )
+  ) {
+    return false;
+  }
+  if (
+    state.companies.length > 0 &&
+    !state.companies.includes(ticket.company?._id?.toString())
+  ) {
+    return false;
+  }
+  if (
+    state.responsibles.length > 0 &&
+    !ticket.responsibles?.some((user) =>
+      state.responsibles.includes(user._id?.toString()),
+    )
+  ) {
+    return false;
+  }
+  if (
+    state.applicants.length > 0 &&
+    !state.applicants.includes(ticket.applicant?._id?.toString())
+  ) {
+    return false;
+  }
+  if (
+    state.categories.length > 0 &&
+    !state.categories.includes(ticket.category?._id?.toString())
+  ) {
+    return false;
+  }
+  if (state.states.length > 0 && !state.states.includes(ticket.state)) {
+    return false;
+  }
+  // Период создания — календарные дни включительно: «по 18.07» значит «весь
+  // день 18-го», поэтому верхняя граница сдвигается на конец суток
+  if (
+    state.createdFrom &&
+    new Date(ticket.createdAt) < new Date(state.createdFrom)
+  ) {
+    return false;
+  }
+  if (
+    state.createdTo &&
+    new Date(ticket.createdAt) > new Date(`${state.createdTo}T23:59:59`)
+  ) {
+    return false;
+  }
+  if (state.routineTask === "present" && !ticket.routineTask) return false;
+  if (state.routineTask === "absent" && ticket.routineTask) return false;
+  if (state.scheduledWorks === "present" && !ticket.scheduledWorks?.length) {
+    return false;
+  }
+  if (state.scheduledWorks === "absent" && ticket.scheduledWorks?.length) {
+    return false;
+  }
+  if (!matchesComments(ticket, state.comments)) return false;
+  return matchesSearch(ticket, state.searchTerm);
+};
+
+const applyFilter = (state) => {
+  const { userId } = getLocalStorageData();
+  return (state.originalList ?? []).filter(
+    (ticket) =>
+      matchesFacets(ticket, state, userId) &&
+      matchesQueue(ticket, state.queue, userId),
+  );
+};
+
+const countQueues = (state) => {
+  const { userId } = getLocalStorageData();
+  const base = (state.originalList ?? []).filter((ticket) =>
+    matchesFacets(ticket, state, userId),
+  );
+  return Object.fromEntries(
+    TICKET_QUEUES.map(({ value }) => [
+      value,
+      base.filter((ticket) => matchesQueue(ticket, value, userId)).length,
+    ]),
+  );
+};
+
+const sortList = (sortBy, list) => {
+  const sorted = [...list];
+  switch (sortBy?.label) {
+    case "По алфавиту":
+      return sorted.sort((a, b) => a.title.localeCompare(b.title));
+    case "Сначала старые":
+      return sorted.sort(
+        (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+      );
+    case "Дедлайн":
+      // Заявки без срока — в конец: пустое значение не «самый ранний дедлайн»
+      return sorted.sort((a, b) => {
+        if (!a.deadline) return 1;
+        if (!b.deadline) return -1;
+        return new Date(a.deadline) - new Date(b.deadline);
+      });
+    default:
+      return sorted.sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+      );
+  }
+};
+
+// Пересчёт списка и счётчиков одним set-вызовом: список не должен мигать
+// промежуточным состоянием.
+const recalc = (state) => ({
+  filteredList: sortList(state.sortBy, applyFilter(state)),
+  queueCounts: countQueues(state),
+});
+
+const fetchTickets = async () => {
+  const { token } = getLocalStorageData();
+  const response = await fetch(
+    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
+    { headers: { Authorization: "Bearer " + token } },
+  );
+  if (!response.ok) throw new Error(`all-opened ${response.status}`);
+  return response.json();
+};
+
+const useTicketFilterStore = create((set, get) => ({
+  ...FACET_DEFAULTS,
   originalList: [],
   filteredList: [],
-  recentlyClosedList: [],
+  queueCounts: {},
   isLoading: false,
-  // Время последнего успешного обновления данных (для индикатора «обновлено»).
+  isSorting: false,
   lastSyncedAt: null,
-  // Признак того, что список только что обновлён "тихо" (фоновым опросом).
-  // По нему страница пропускает повторный пересчёт фильтра/сортировки, чтобы
-  // не дёргать спиннер и fade-анимацию при живом обновлении бейджей.
-  silentUpdate: false,
-  clearSilentUpdate: () => set({ silentUpdate: false }),
+  sortingOptions: SORTING_OPTIONS,
+  sortBy: SORTING_OPTIONS[0],
+
   fetchOpened: async () => {
     set({ isLoading: true });
-    const { token } = getLocalStorageData();
     let data;
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
-        {
-          headers: {
-            Authorization: "Bearer " + token,
-          },
-        },
-      );
-      if (!response.ok) throw new Error(`all-opened ${response.status}`);
-      data = await response.json();
+      data = await fetchTickets();
     } catch (error) {
-      // Сетевой сбой/недоступность сервера: не валимся необработанным reject
-      // (иначе TypeError "Failed to fetch" улетает в Sentry), снимаем спиннер
-      // и оставляем ранее загруженный список.
+      // Сетевой сбой не роняем необработанным reject (иначе TypeError "Failed to
+      // fetch" улетает в Sentry): снимаем спиннер и оставляем прежний список.
       console.error("Не удалось загрузить список заявок:", error);
       set({ isLoading: false });
       return;
     }
-
-    set({
-      originalList: data.tickets ?? [],
-      isLoading: false,
-      lastSyncedAt: Date.now(),
+    set((state) => {
+      const next = { ...state, originalList: data.tickets ?? [] };
+      return {
+        originalList: next.originalList,
+        ...recalc(next),
+        isLoading: false,
+        lastSyncedAt: Date.now(),
+      };
     });
   },
-  // Фоновое обновление без флагов загрузки: подтягивает свежие данные и
-  // пересчитывает отфильтрованный/отсортированный список одним set-вызовом.
-  // Так бейджи (например, статус ИИ) обновляются на месте — без перерисовки
-  // всего списка и fade-анимации в ListWrapper.
+
+  // Фоновое обновление без флагов загрузки: список стоит на месте, меняются
+  // только сами строки.
   silentRefresh: async () => {
-    const { token } = getLocalStorageData();
     let data;
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
-        {
-          headers: {
-            Authorization: "Bearer " + token,
-          },
-        },
-      );
-      if (!response.ok) throw new Error(`all-opened ${response.status}`);
-      data = await response.json();
+      data = await fetchTickets();
     } catch (error) {
-      // Фоновый опрос: транзиентный сетевой сбой ожидаем (сон вкладки/обрыв
-      // связи). Тихо пропускаем цикл — данные остаются прежними, следующий
-      // опрос через 15 c подтянет свежие. Без catch reject уходит в Sentry
-      // ("Failed to fetch"), т.к. usePolling не ловит ошибку колбэка.
+      // Транзиентный сбой на фоновом опросе ожидаем (сон вкладки, обрыв связи):
+      // тихо пропускаем цикл, следующий подтянет свежие данные.
       console.warn("Фоновое обновление заявок пропущено:", error);
       return;
     }
-
     set((state) => {
-      // На вкладке «Недавно закрытые» ответ all-opened не содержит закрытых
-      // заявок — домёрдживаем ранее загруженные, иначе фоновый опрос их сотрёт.
-      const opened = data.tickets ?? [];
-      const mergedList =
-        state.nowActive === "recently_closed"
-          ? [...opened, ...state.recentlyClosedList]
-          : opened;
-      const nextState = { ...state, originalList: mergedList };
-      const filteredList = ticketFilter(nextState);
-      const sortedList = handleSorting(nextState.sortBy, filteredList);
+      const next = { ...state, originalList: data.tickets ?? [] };
       return {
-        originalList: nextState.originalList,
-        filteredList: sortedList || filteredList,
-        silentUpdate: true,
+        originalList: next.originalList,
+        ...recalc(next),
         lastSyncedAt: Date.now(),
       };
     });
   },
-  fetchRecentlyClosed: async () => {
-    set({ isLoading: true });
-    const { token } = getLocalStorageData();
-    let data;
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/tickets/recently-closed`,
-        {
-          headers: {
-            Authorization: "Bearer " + token,
-          },
-        },
-      );
-      if (!response.ok) throw new Error(`recently-closed ${response.status}`);
-      data = await response.json();
-    } catch (error) {
-      console.error("Не удалось загрузить недавно закрытые заявки:", error);
-      set({ isLoading: false });
-      return;
-    }
 
-    if (data.error) {
-      set({ isLoading: false });
-      return data;
-    }
-
+  /** Частичная правка фасетов — остальные значения остаются как были. */
+  updateFilter: (patch) =>
     set((state) => {
-      const nextState = {
-        ...state,
-        originalList: [
-          ...state.originalList.filter((ticket) => !ticket.isClosed),
-          ...data.tickets,
-        ],
-        recentlyClosedList: data.tickets,
-        isLoading: false,
-      };
-      const filteredList = ticketFilter(nextState);
-      const sortedList = handleSorting(nextState.sortBy, filteredList);
-
-      return {
-        originalList: nextState.originalList,
-        filteredList: sortedList || filteredList,
-        recentlyClosedList: nextState.recentlyClosedList,
-        isLoading: false,
-        lastSyncedAt: Date.now(),
-      };
-    });
-  },
-  updateFilter: (data) =>
-    set(() => ({
-      nowActive: data.nowActive,
-      iAmResponsible: data.iAmResponsible,
-      companies: data.companies,
-      responsibles: data.responsibles,
-      comments: data.comments,
-      scheduledWorks: data.scheduledWorks,
-      routineTask: data.routineTask,
-      searchTerm: data.searchTerm,
-      originalList: data.originalList,
-      recentlyClosedList: data.recentlyClosedList,
-      isLoading: false,
-    })),
-  fullTextSearch: (query) =>
-    set((state) => ({ filteredList: searchItems(query, ticketFilter(state)) })),
-  applyFilter: () =>
-    set((state) => {
-      return { filteredList: ticketFilter(state) };
+      const next = { ...state, ...patch };
+      return { ...patch, ...recalc(next) };
     }),
-  resetFilter: () => {
-    set(() => ({
-      nowActive: "all_active",
-      iAmResponsible: false,
-      companies: [],
-      responsibles: [],
-      comments: "any",
-      scheduledWorks: "any",
-      routineTask: "any",
-      searchTerm: "",
-    }));
+
+  resetFilter: () =>
+    set((state) => {
+      const next = { ...state, ...FACET_DEFAULTS };
+      return { ...FACET_DEFAULTS, ...recalc(next) };
+    }),
+
+  // ListWrapper зовёт это на каждый ввод в поиске
+  fullTextSearch: (query) => get().updateFilter({ searchTerm: query }),
+
+  handleSorting: (option) =>
     set((state) => ({
-      filteredList: ticketFilter(state),
-    }));
-  },
+      sortBy: option,
+      filteredList: sortList(option, state.filteredList),
+    })),
 }));
 
 export default useTicketFilterStore;

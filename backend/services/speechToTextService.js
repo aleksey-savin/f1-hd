@@ -360,11 +360,10 @@ const parseYandexResults = (rawText) => {
     const alternatives = event?.alternatives;
     if (!Array.isArray(alternatives) || !alternatives.length) continue;
 
-    const text = alternatives
-      .map((alt) => alt?.text)
-      .filter(Boolean)
-      .join(" ")
-      .trim();
+    // alternatives — конкурирующие гипотезы одной реплики, а не её продолжение:
+    // склеивая их, мы получали одну фразу дважды. Первая — самая вероятная, из
+    // неё же ниже берём спикера и таймкоды.
+    const text = String(alternatives[0]?.text || "").trim();
     if (!text) continue;
 
     const words = alternatives[0]?.words;
@@ -528,6 +527,22 @@ const transcribeWithYandex = async (
 
 exports.isAudioAttachment = isAudioAttachment;
 
+// Переходы pending/error перезаписывают поддокумент speechToText целиком —
+// переносим в них прошлый результат, иначе повторный прогон стирает итог и
+// реплики, а при ошибке они теряются совсем.
+exports.carryOverSpeechResult = (previous) => ({
+  text: previous?.text || "",
+  summary: previous?.summary || "",
+  segments: (previous?.segments || []).map(({ speaker, text, start, end }) => ({
+    speaker,
+    text,
+    start,
+    end,
+  })),
+  model: previous?.model || undefined,
+  generatedAt: previous?.generatedAt || undefined,
+});
+
 exports.transcribeAttachment = async (attachment, context = {}) => {
   if (!isAudioAttachment(attachment)) {
     throw new AppError("Attachment is not a supported audio file", 400, true);
@@ -579,8 +594,15 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
     segments = compactSegments(cleanedDialog);
   }
 
-  const rawText = segments.length ? formatSegments(segments) : fallbackText;
-  const text = summary || rawText;
+  // text — плоская расшифровка диалога (реплики через «Имя: …»), и только она:
+  // итог живёт в summary и в описании заявки, а его дубль здесь показывал одну
+  // мысль дважды. Пустая расшифровка = ASR ничего не распознал; итог в этом
+  // случае не подставляем — на пустом входе он галлюцинация.
+  const text = hasRecognizedSpeech
+    ? segments.length
+      ? formatSegments(segments)
+      : fallbackText.trim()
+    : "";
 
   if (!text) {
     throw new AppError("Speech recognition returned an empty result", 502, true);

@@ -28,6 +28,10 @@ export function canManageEntity(
       return !!(permissions.canEditTickets || permissions.canDeleteTickets);
     case "ticketCategory":
       return !!permissions.canManageTicketCategories;
+    // Шаблоны чек-листов правит тот же, кто администрирует заявки — как и
+    // маршрут на бэкенде (routes/internal/checklistTemplate.js)
+    case "checklistTemplate":
+      return !!permissions.canAdministrateTickets;
     case "user":
       return !!permissions.canManageUsers;
     case "ticketTemplate":

@@ -44,6 +44,7 @@ import useToastStore from "@/store/toast-store";
 import { plural } from "../../util/plural";
 import { formatShortDate } from "../../util/format-date";
 import { getWorkingStatus } from "../../util/get-working-status";
+import { openTaxi } from "../../util/taxi-operators";
 import { getTaxiAction } from "./company-links";
 import WorkStatusText from "./WorkStatusText";
 import ToggleActiveDialog from "./ToggleActiveDialog";
@@ -270,7 +271,11 @@ const ViewCompany = ({
           />
         </BrowserView>
         <div className="tw:min-w-0 tw:flex-1">
-          <ActivityTiles stats={stats} company={company} id="company-activity" />
+          <ActivityTiles
+            stats={stats}
+            company={company}
+            id="company-activity"
+          />
 
           {/* Реквизиты */}
           <Eyebrow id="company-requisites">Реквизиты</Eyebrow>
@@ -310,16 +315,17 @@ const ViewCompany = ({
               label="Адрес"
               action={
                 taxiAction && (
-                  <a
-                    href={taxiAction.href}
-                    target="_blank"
-                    rel="noreferrer"
+                  // Через openTaxi, а не голой ссылкой: он спрашивает текущее
+                  // положение и кладёт его в маршрут начальной точкой
+                  <button
+                    type="button"
+                    onClick={() => openTaxi(taxiAction)}
                     title={taxiAction.title}
                     aria-label={`${taxiAction.orderText} · ${taxiAction.label}`}
-                    className="tw:grid tw:size-8 tw:flex-none tw:place-items-center tw:rounded-lg tw:text-faint tw:no-underline tw:transition-colors tw:hover:bg-accent tw:hover:text-warning"
+                    className="tw:grid tw:size-8 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:transition-colors tw:hover:bg-accent tw:hover:text-warning"
                   >
                     <RiTaxiLine size={16} />
-                  </a>
+                  </button>
                 )
               }
               copy={
@@ -375,7 +381,9 @@ const ViewCompany = ({
           />
 
           {/* Техника: список с фасетами + окружение (общая шторка устройства) */}
-          {showTech && <TechSection id="company-tech" companyId={company._id} />}
+          {showTech && (
+            <TechSection id="company-tech" companyId={company._id} />
+          )}
 
           <EmployeesSection company={company} id="company-people" />
 

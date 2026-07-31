@@ -1,0 +1,42 @@
+const Router = require("express");
+const router = new Router();
+const controller = require("@/controllers/checklistTemplate");
+const isAuth = require("@/middleware/isAuth");
+const { canAdministrateTickets } = require("@/middleware/permissions");
+
+// Читать справочник нужно всем, кто заполняет чек-лист в заявке (список «Ещё
+// чек-листы» и «Взять шаблон»), а править — тем же, кто правит шаблоны заявок.
+router.get("/checklist-templates", isAuth, controller.getAll);
+router.get(
+  "/checklist-templates/form-data",
+  isAuth,
+  canAdministrateTickets,
+  controller.getFormData,
+);
+router.get(
+  "/checklist-templates/for-ticket/:ticketNum",
+  isAuth,
+  controller.forTicket,
+);
+router.get("/checklist-templates/:id", isAuth, controller.getOne);
+
+router.post(
+  "/checklist-templates/add",
+  isAuth,
+  canAdministrateTickets,
+  controller.add,
+);
+router.post(
+  "/checklist-templates/update/:id",
+  isAuth,
+  canAdministrateTickets,
+  controller.update,
+);
+router.post(
+  "/checklist-templates/delete/:id",
+  isAuth,
+  canAdministrateTickets,
+  controller.delete,
+);
+
+module.exports = router;

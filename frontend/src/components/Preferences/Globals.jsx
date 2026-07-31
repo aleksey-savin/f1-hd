@@ -1,7 +1,10 @@
 import { useRef, useState } from "react";
 
+import { Link } from "react-router";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import SettingRow from "@/components/app/SettingRow";
 import { SubLabel } from "@/components/app/Panel";
 
@@ -29,6 +32,9 @@ const PrefsGlobals = ({ prefs }) => {
   const [email, setEmail] = useState(prefs.contacts?.email || "");
   const [address, setAddress] = useState(prefs.contacts?.address || "");
   const [taxiOperator, setTaxiOperator] = useState(prefs.taxi?.operator || "");
+  const [autoApplyChecklists, setAutoApplyChecklists] = useState(
+    prefs.checklistTemplates?.autoApply ?? false,
+  );
 
   // Лого компании: загрузка/удаление — сразу, отдельными эндпоинтами
   const logoInputRef = useRef(null);
@@ -86,6 +92,7 @@ const PrefsGlobals = ({ prefs }) => {
         deadline: Number(deadline) || 0,
         contacts: { tel, email, address },
         taxi: { operator: taxiOperator },
+        checklistTemplates: { autoApply: autoApplyChecklists },
       })}
     >
       <SettingRow
@@ -124,6 +131,28 @@ const PrefsGlobals = ({ prefs }) => {
           />
           <span className="tw:text-sm tw:text-muted-foreground">часов</span>
         </div>
+      </SettingRow>
+
+      <SettingRow
+        divider
+        title="Автоматически добавлять шаблоны чек-листов"
+        hint="При создании заявки подходящий шаблон применяется сам. Побеждает самый узкий: сначала «категория и компания», затем «компания», затем «категория». Выключено — карточка предлагает шаблон строкой."
+        htmlFor="prefs-checklist-autoapply"
+      >
+        <Switch
+          id="prefs-checklist-autoapply"
+          checked={autoApplyChecklists}
+          onCheckedChange={setAutoApplyChecklists}
+        />
+      </SettingRow>
+      <SettingRow
+        divider
+        title="Шаблоны чек-листов"
+        hint="Готовые списки с привязкой к категориям заявок и компаниям."
+      >
+        <Button asChild variant="outline" size="sm">
+          <Link to="/tickets/checklist-templates">Открыть справочник</Link>
+        </Button>
       </SettingRow>
 
       <div className="tw:px-5 tw:pt-4">

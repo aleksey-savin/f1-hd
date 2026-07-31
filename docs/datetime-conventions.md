@@ -120,7 +120,10 @@ const to = dayjs.tz(date, tz).endOf("month").toDate();
 `services/workCalendar.js`. Личный и сводный отчёты обязаны совпадать, поэтому
 своей формулы не заводить. В `services/servicePlanBilling.js` лежит её порт
 (`calcSingleWorkOvertime`) — это копия для биллинга, а не источник: правки
-методики начинаются с `workOvertime`.
+методики начинаются с `workOvertime`. Предпросмотр в форме работы
+(`services/workPreview.js`) своей формулы не имеет вовсе — он зовёт функции
+биллинга, потому что показывает ту самую цифру, которую клиент потом
+подписывает.
 
 ### День как единица (а не момент)
 
@@ -203,7 +206,7 @@ const to = dayjs.tz(date, tz).endOf("month").toDate();
 | `toDateTimeLocal(date?)` | → `<input type="datetime-local">` | настенное время в **бизнес-таймзоне** (дефолт — сейчас; кнопки «Сейчас», а также границы `min`/`max`) |
 | `utcToLocalForm(iso)` | ISO → datetime-local | то же для строки с бэка (загрузка форм) |
 | `localToUtc(value)` | datetime-local → ISO | обратное: настенное бизнес-время → UTC (сохранение форм) |
-| `timeDateInputFormat(date)` | Date → datetime-local | **браузерная** зона; только для настенной арифметики «±N минут» (см. ниже). В новых местах не использовать |
+| `shiftLocalForm(value, ±N)` | datetime-local → datetime-local | сдвиг на N минут, не выходя из **бизнес-таймзоны** (чипы длительности в форме работы) |
 
 ### Другие датовые модули фронта
 
@@ -240,14 +243,14 @@ const to = dayjs.tz(date, tz).endOf("month").toDate();
 Отдельно — **арифметика «±N минут»** над уже введённым значением:
 
 ```
-±N минут:   setValue(timeDateInputFormat(new Date(parsed ± N*60000)))
+±N минут:   setValue(shiftLocalForm(value, ±N))
 ```
 
-Здесь браузерная зона допустима и симметрию не ломает: значение и парсится
-(`new Date(value)`), и печатается (`timeDateInputFormat`) браузером — зоны
-взаимно сокращаются, наружу уходит та же строка настенного времени, что
-пришла. Как только одна из сторон становится зонированной, приём перестаёт
-работать; поэтому в новых формах его лучше не заводить.
+`shiftLocalForm` разбирает значение `localToUtc`, сдвигает по epoch и печатает
+обратно `toDateTimeLocal` — то есть не выходит из бизнес-зоны. Прежний приём
+(арифметика поверх браузерного `timeDateInputFormat`) держался на том, что зоны
+разбора и печати взаимно сокращаются, и сломался бы, стоило одной стороне стать
+зонированной; вместе с миграцией форм работ он удалён.
 
 ### Счётчики и «сегодня»
 
@@ -338,8 +341,6 @@ Europe/Volgograd и Europe/Moscow — одно и то же настенное �
 - **`util/period.js`, `WorkCalendar` и `TimeByDayChart`** (финансы) — работают
   с day-key-строками `YYYY-MM-DD` самосогласованно в браузерной зоне; менять
   только вместе с сервером ключей.
-- **`timeDateInputFormat` в арифметике «±N минут»** — см. «Конвенция
-  datetime-форм»: браузерная зона там сокращается сама с собой.
 
 ## Анти-паттерны
 
@@ -370,12 +371,6 @@ Europe/Volgograd и Europe/Moscow — одно и то же настенное �
 
 ## Долг
 
-- **`frontend/src/util/finances.js`** — фронтовая копия расчёта переработки
-  (`calcSingleWorkOvertime`) считает по настенным часам **браузера**
-  (`getFullYear`/`setHours`). Живёт в списках работ и в отчёте по сотрудникам.
-  Противоречит правилу «методика переработок — только сервер»
-  (`services/workOvertime`); переезд не сделан, потому что это смена источника
-  данных для четырёх экранов, а не правка формата.
 - **Названия месяцев мимо хелперов** — рукописные массивы в
   `Company/View/ActivityTiles.jsx` и `Team/calendar.ts`, свои
   `Intl.DateTimeFormat` в `app/MonthStepper.tsx`, `Report/TrendsChart.tsx`,
@@ -383,9 +378,9 @@ Europe/Volgograd и Europe/Moscow — одно и то же настенное �
   от синтетической даты, собранной из day-key), но это пять параллельных
   наборов. Туда же day-key-форматтеры `Ticket/ArchiveList.jsx` и
   `Work/ArchiveList.jsx` (`isoDay.split("-").reverse().join(".")`).
-- **Три копии `msToHMS`** — `Dashboard/WorksCard.jsx`,
-  `Work/AddScheduledDashboard.jsx`, `pages/Dashboard.jsx`,
-  `pages/Finances/EmployeeReport.jsx` при живом `util/time-helpers.js`.
+- **Копии `msToHMS`** — `Dashboard/WorksCard.jsx`,
+  `Work/AddScheduledDashboard.jsx`, `pages/Dashboard.jsx` при живом
+  `util/time-helpers.js`.
 
 ## Как проверить руками
 

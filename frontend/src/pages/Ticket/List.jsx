@@ -1,94 +1,250 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { Link, useLocation } from "react-router";
 
-import useSidebarStore from "../../store/sidebar";
-import useTicketFilterStore from "../../store/lists/tickets";
-import usePolling from "../../hooks/use-polling";
+import { RiCheckboxMultipleLine } from "react-icons/ri";
 
-import { BrowserView, MobileView } from "react-device-detect";
+import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
+import ListWrapper from "@/components/app/ListWrapper";
+import Segmented from "@/components/app/Segmented";
+import SelectionBar from "@/components/app/SelectionBar";
+import { Button } from "@/components/ui/button";
 
-import { TbCheckbox } from "react-icons/tb";
-
-import ListWrapper from "../../UI/ListWrapper";
-
+import BulkActionBar from "../../components/Ticket/BulkActionBar";
 import TicketFilter from "../../components/Ticket/Filter";
-import List from "../../components/Ticket/List";
-import KnowledgeModerationCard from "../../components/KnowledgeBase/ModerationCard";
-import ServiceExpiryCard from "../../components/KnowledgeBase/ServiceExpiryCard";
-
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import Form from "react-bootstrap/Form";
-import { useLocation } from "react-router";
-import useInitialPrefsStore from "../../store/prefs";
+import QueueStrip from "../../components/Ticket/QueueStrip";
+import TicketRow from "../../components/Ticket/Row";
+import useListSelection from "../../hooks/use-list-selection";
+import usePolling from "../../hooks/use-polling";
+import { AuthedUserContext } from "../../store/authed-user-context";
+import useTicketFilterStore from "../../store/lists/tickets";
 import useToastStore from "../../store/toast-store";
+import { getLocalStorageData } from "../../util/auth";
+import { queueLabel } from "../../util/ticket-queues";
+
+// Список активных заявок. Выборка клиентская (открытых заявок десятки), поэтому
+// счётчики очередей считаются по всей выборке и честны.
+//
+// Клик по строке открывает предпросмотр (шторка справа на десктопе, снизу на
+// мобилке) — чаще всего нужно понять, о чём заявка, и связаться, а не открывать
+// весь экран; «Открыть заявку» живёт в самой шторке. Выделение — в отдельном
+// режиме (hooks/use-list-selection): чекбокс по наведению, кнопка «Выбрать» в
+// тулбаре, долгий тап на мобилке.
+
+// Опции фасетов собираем из самой выборки — отдельного каталога тут не нужно.
+// Форма опции чистая: у объекта-опции не должно быть ключа `options`, иначе
+// react-select видит пустую группу и пишет «No options».
+const facetOptions = (list, extract) => {
+  const map = new Map();
+  for (const ticket of list) {
+    for (const { value, label } of extract(ticket)) {
+      if (value && !map.has(value)) map.set(value, { value, label });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.label.localeCompare(b.label));
+};
 
 const Tickets = () => {
-  const { modules } = useInitialPrefsStore();
   const location = useLocation();
-  const { setLeftSidebarContent } = useSidebarStore();
-  const filterStore = useTicketFilterStore();
+  const store = useTicketFilterStore();
   const { showToast } = useToastStore();
+  const { isAdmin, permissions } = useContext(AuthedUserContext);
 
-  // Пока пользователь выделил заявки для удаления — фоновый опрос на паузе.
-  const [selectionActive, setSelectionActive] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
-  useEffect(() => {
-    // Тихое фоновое обновление уже пересчитало фильтр/сортировку атомарно —
-    // не пересчитываем повторно, иначе мелькнёт спиннер и fade-анимация.
-    if (filterStore.silentUpdate) {
-      filterStore.clearSilentUpdate();
-      return;
-    }
-    filterStore.applyFilter();
-    filterStore.handleSorting(filterStore.sortBy);
-  }, [filterStore.originalList]);
+  const canSelect =
+    permissions.canDeleteTickets || permissions.canPerformTickets;
+  const canFilterByResponsible =
+    isAdmin ||
+    permissions.canAdministrateTickets ||
+    permissions.canSeeAllTickets;
 
-  useEffect(() => {
-    filterStore.fetchOpened();
-  }, [location]);
-
-  useEffect(() => {
-    if (filterStore.nowActive === "recently_closed") {
-      filterStore.fetchRecentlyClosed();
-    }
-  }, [filterStore.nowActive]);
-
-  // Постоянное фоновое автообновление списка: тихо подтягиваем свежие заявки
-  // (новые, смена статуса, ИИ-бейджи) без спиннера и fade. Опрос на паузе, когда
-  // вкладка скрыта или активно выделение заявок; при возврате фокуса — сразу.
-  usePolling(() => filterStore.silentRefresh(), {
-    intervalMs: 15000,
-    enabled: !selectionActive,
+  const selection = useListSelection({
+    items: store.filteredList,
+    enabled: canSelect,
   });
 
   useEffect(() => {
-    setLeftSidebarContent(
-      <BrowserView>
-        <TicketFilter items={filterStore.originalList} />
-      </BrowserView>,
-    );
-  }, [setLeftSidebarContent, filterStore.tickets]);
+    store.fetchOpened();
+  }, [location]);
 
-  const iAmResponsibleToggleHandler = () => {
-    filterStore.updateFilter({
-      ...filterStore,
-      iAmResponsible: !filterStore.iAmResponsible,
+  // Фоновое автообновление: пока идёт выбор — пауза, иначе список поехал бы под
+  // курсором, а выделение частично протухло.
+  usePolling(() => store.silentRefresh(), {
+    intervalMs: 15000,
+    enabled: !selection.isActive,
+  });
+
+  const companyOptions = useMemo(
+    () =>
+      facetOptions(store.originalList, (ticket) => [
+        {
+          value: ticket.company?._id?.toString(),
+          label: ticket.company?.alias,
+        },
+      ]),
+    [store.originalList],
+  );
+
+  const applicantOptions = useMemo(
+    () =>
+      facetOptions(store.originalList, (ticket) => [
+        {
+          value: ticket.applicant?._id?.toString(),
+          label:
+            `${ticket.applicant?.lastName ?? ""} ${ticket.applicant?.firstName ?? ""}`.trim(),
+        },
+      ]),
+    [store.originalList],
+  );
+
+  const categoryOptions = useMemo(
+    () =>
+      facetOptions(store.originalList, (ticket) => [
+        {
+          value: ticket.category?._id?.toString(),
+          label: ticket.category?.title,
+        },
+      ]),
+    [store.originalList],
+  );
+
+  const responsibleOptions = useMemo(
+    () =>
+      facetOptions(store.originalList, (ticket) =>
+        (ticket.responsibles ?? []).map((user) => ({
+          value: user._id?.toString(),
+          label: `${user.lastName ?? ""} ${user.firstName ?? ""}`.trim(),
+        })),
+      ),
+    [store.originalList],
+  );
+
+  const optionLabel = (options, id) =>
+    options.find((option) => option.value === id)?.label ?? "выбрано";
+
+  // Плашка применённого не повторяет то, что и так видно на экране: набор
+  // «Все | Мои» — сегмент в тулбаре, поиск — в своём поле. Очередь попадает:
+  // лента прокручивается, и активный чип может быть за краем.
+  const activeFilters = [];
+  if (store.queue !== "all") {
+    activeFilters.push({
+      key: "queue",
+      label: `Очередь: ${queueLabel(store.queue)}`,
+      onRemove: () => store.updateFilter({ queue: "all" }),
     });
-    filterStore.applyFilter();
+  }
+  const facetBadge = (key, options, one, many) => {
+    if (!store[key].length) return;
+    activeFilters.push({
+      key,
+      label:
+        store[key].length === 1
+          ? `${one}: ${optionLabel(options, store[key][0])}`
+          : `${many}: ${store[key].length}`,
+      onRemove: () => store.updateFilter({ [key]: [] }),
+    });
   };
-
-  const title = () => {
-    return (
-      <>
-        <TbCheckbox /> Заявки
-      </>
-    );
+  facetBadge("companies", companyOptions, "Компания", "Компании");
+  facetBadge("applicants", applicantOptions, "Инициатор", "Инициаторы");
+  facetBadge(
+    "responsibles",
+    responsibleOptions,
+    "Ответственный",
+    "Ответственные",
+  );
+  facetBadge("categories", categoryOptions, "Категория", "Категории");
+  if (store.states.length) {
+    activeFilters.push({
+      key: "states",
+      label:
+        store.states.length === 1
+          ? `Состояние: ${store.states[0]}`
+          : `Состояний: ${store.states.length}`,
+      onRemove: () => store.updateFilter({ states: [] }),
+    });
+  }
+  if (store.createdFrom || store.createdTo) {
+    const day = (value) => value.split("-").reverse().join(".");
+    activeFilters.push({
+      key: "created",
+      label:
+        store.createdFrom && store.createdTo
+          ? `Создана: ${day(store.createdFrom)} – ${day(store.createdTo)}`
+          : store.createdFrom
+            ? `Создана с ${day(store.createdFrom)}`
+            : `Создана по ${day(store.createdTo)}`,
+      onRemove: () => store.updateFilter({ createdFrom: "", createdTo: "" }),
+    });
+  }
+  const valueBadge = (key, label) => {
+    if (store[key] === "any") return;
+    activeFilters.push({
+      key,
+      label,
+      onRemove: () => store.updateFilter({ [key]: "any" }),
+    });
   };
+  valueBadge(
+    "comments",
+    store.comments === "present" ? "Есть комментарии" : "Без ответа",
+  );
+  valueBadge(
+    "scheduledWorks",
+    store.scheduledWorks === "present"
+      ? "Работы запланированы"
+      : "Работы не запланированы",
+  );
+  valueBadge(
+    "routineTask",
+    store.routineTask === "present"
+      ? "Только регламентные"
+      : "Без регламентных",
+  );
 
-  // Общий запрос массового действия: POST на bulk-эндпоинт + обновление списка.
-  // Сетевые сбои не роняем (см. память polling-fetch-error-handling) — показываем
-  // тост, в любом случае перечитываем список.
+  const toolbar = (
+    <>
+      {canFilterByResponsible && (
+        <Segmented
+          ariaLabel="Набор заявок"
+          options={[
+            { value: "all", label: "Все" },
+            { value: "mine", label: "Мои" },
+          ]}
+          value={store.iAmResponsible ? "mine" : "all"}
+          onChange={(value) =>
+            store.updateFilter({ iAmResponsible: value === "mine" })
+          }
+        />
+      )}
+      <span className="tw:hidden tw:md:contents">
+        <ChipMultiCombobox
+          placeholder="Компании"
+          searchPlaceholder="Найти компанию…"
+          countLabel={(count) => `Компании: ${count}`}
+          value={store.companies}
+          options={companyOptions}
+          onChange={(value) => store.updateFilter({ companies: value })}
+        />
+      </span>
+      {canSelect && !selection.isActive && (
+        <Button
+          variant="outline"
+          size="icon"
+          title="Выбрать несколько"
+          aria-label="Выбрать несколько заявок"
+          onClick={() => selection.enter()}
+        >
+          <RiCheckboxMultipleLine />
+        </Button>
+      )}
+    </>
+  );
+
+  // Общий запрос массового действия: POST + обновление списка. Сетевые сбои не
+  // роняем — показываем тост, список перечитываем в любом случае.
   const bulkRequest = async (url, body, successMessage) => {
+    const { token } = getLocalStorageData();
+    setProcessing(true);
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}${url}`,
@@ -96,7 +252,7 @@ const Tickets = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + localStorage.getItem("token"),
+            Authorization: "Bearer " + token,
           },
           body: JSON.stringify(body),
         },
@@ -107,111 +263,136 @@ const Tickets = () => {
       console.error("Ошибка массового действия:", error);
       showToast("danger", "Не удалось выполнить действие. Попробуйте ещё раз.");
     } finally {
-      // Тихое обновление (без isLoading-спиннера и пропадания списка) —
-      // обновляем заявки на месте, выделение при этом сохраняется.
-      await filterStore.silentRefresh();
+      setProcessing(false);
+      // Тихое обновление: список не пропадает, выделение сохраняется, а
+      // исчезнувшие заявки хук сам уберёт из выбора.
+      await store.silentRefresh();
     }
   };
 
-  const handleDeleteSelected = (ids) =>
-    bulkRequest("/api/tickets/delete-multiple", { ids }, "Заявки удалены");
-
-  const handleTakeToWorkSelected = (ids, { takeOver }) =>
-    bulkRequest(
-      "/api/tickets/take-to-work-multiple",
-      { ids, takeOver },
-      "Заявки приняты в работу",
-    );
-
-  const handleCommentSelected = (ids, { content }) =>
-    bulkRequest(
-      "/api/comments/add-multiple",
-      { ids, content },
-      "Комментарий добавлен",
-    );
-
-  const handleAddWorksSelected = (ids, payload) =>
-    bulkRequest(
-      "/api/works/add",
-      { ...payload, tickets: ids },
-      "Работы добавлены",
-    );
-
-  const handleCloseSelected = (ids, { closingComment }) =>
-    bulkRequest(
-      "/api/tickets/close-multiple",
-      { ids, closingComment },
-      "Заявки закрыты",
-    );
-
-  // Мобайл: подсветка кнопки «Фильтр», когда в offcanvas выбрано что-то
-  // помимо значений по умолчанию. Поиск и «Назначены на меня» не учитываем —
-  // у них свои видимые индикаторы (раскрытый инпут и переключатель).
-  const filterActive =
-    filterStore.nowActive !== "all_active" ||
-    filterStore.companies?.length > 0 ||
-    filterStore.responsibles?.length > 0 ||
-    filterStore.comments !== "any" ||
-    filterStore.scheduledWorks !== "any" ||
-    filterStore.routineTask !== "any";
-
-  const customData = () => {
-    return (
-      <MobileView>
-        <Row className="my-3">
-          <Col>
-            <Form.Check
-              type="switch"
-              className="form-control-lg"
-              id="i-am-responsible"
-              label="Назначены на меня"
-              value={filterStore.iAmResponsible}
-              checked={filterStore.iAmResponsible}
-              onChange={iAmResponsibleToggleHandler}
-            />
-          </Col>
-        </Row>
-      </MobileView>
-    );
-  };
+  const ids = selection.selectedIds;
+  const selectedItems = store.filteredList.filter((ticket) =>
+    selection.isSelected(ticket._id),
+  );
 
   return (
-    <ListWrapper
-      title={title}
-      filter={<TicketFilter />}
-      filterStore={filterStore}
-      filterActive={filterActive}
-      addRoute="/tickets/add"
-      addLabel="Новая заявка"
-      showRefreshButton={false}
-      customData={customData}
-      topContent={
-        <>
-          {modules.knowledgeBase.isActive && <KnowledgeModerationCard />}
-          <ServiceExpiryCard />
-        </>
-      }
-    >
-      <List
-        items={filterStore.filteredList}
-        onDeleteSelected={handleDeleteSelected}
-        onTakeToWorkSelected={handleTakeToWorkSelected}
-        onCommentSelected={handleCommentSelected}
-        onAddWorksSelected={handleAddWorksSelected}
-        onCloseSelected={handleCloseSelected}
-        onSelectionActiveChange={setSelectionActive}
-      ></List>
-    </ListWrapper>
+    <>
+      <ListWrapper
+        title={() => "Заявки"}
+        filterStore={store}
+        filter={
+          <TicketFilter
+            companyOptions={companyOptions}
+            applicantOptions={applicantOptions}
+            responsibleOptions={responsibleOptions}
+            categoryOptions={categoryOptions}
+          />
+        }
+        filterActive={activeFilters.length > 0}
+        activeFilters={activeFilters}
+        toolbar={toolbar}
+        searchPlaceholder="Найти заявку…"
+        defaultSearchValue={store.searchTerm}
+        addRoute="/tickets/add"
+        addLabel="Новая заявка"
+        emptyTitle="Открытых заявок нет"
+        emptyHint="Всё разобрано. Закрытые заявки лежат в архиве."
+        emptyAction={
+          <Button asChild variant="ghost">
+            <Link to="/archive">Открыть архив</Link>
+          </Button>
+        }
+        selection={
+          selection.isActive ? (
+            <SelectionBar
+              count={selection.count}
+              total={selection.total}
+              allSelected={selection.allSelected}
+              someSelected={selection.someSelected}
+              onToggleAll={
+                selection.allSelected
+                  ? selection.clearSelection
+                  : selection.selectAll
+              }
+              onSelectAll={selection.selectAll}
+              onExit={selection.exit}
+            />
+          ) : undefined
+        }
+        topContent={
+          <>
+            {/* Лента очередей — в topContent, а не aboveList: она обязана быть
+              видна и когда очередь отфильтровала список в ноль, иначе из пустой
+              очереди некуда переключиться */}
+            <QueueStrip
+              value={store.queue}
+              counts={store.queueCounts}
+              onChange={(queue) => store.updateFilter({ queue })}
+            />
+          </>
+        }
+      >
+        {store.filteredList.map((ticket) => (
+          <TicketRow
+            key={ticket._id}
+            ticket={ticket}
+            selectable={canSelect}
+            selectionActive={selection.isActive}
+            isSelected={selection.isSelected(ticket._id)}
+            onToggle={selection.toggle}
+            pressProps={selection.pressProps(ticket._id)}
+            consumeSuppressedClick={selection.consumeSuppressedClick}
+            canEdit={permissions.canEditTickets}
+            canDelete={permissions.canDeleteTickets}
+          />
+        ))}
+      </ListWrapper>
+
+      {/* Плавающая панель — соседка списка, а не его содержимое: она обязана
+          оставаться на экране и когда очередь отфильтровала всё в ноль */}
+      <BulkActionBar
+        selectionActive={selection.isActive}
+        selectedItems={selectedItems}
+        isLoading={processing || store.isLoading}
+        onTakeToWork={({ takeOver }) =>
+          bulkRequest(
+            "/api/tickets/take-to-work-multiple",
+            { ids, takeOver },
+            "Заявки приняты в работу",
+          )
+        }
+        onComment={({ content }) =>
+          bulkRequest(
+            "/api/comments/add-multiple",
+            { ids, content },
+            "Комментарий добавлен",
+          )
+        }
+        onAddWorks={(payload) =>
+          bulkRequest(
+            "/api/works/add",
+            { ...payload, tickets: ids },
+            "Работы добавлены",
+          )
+        }
+        onClose={({ closingComment }) =>
+          bulkRequest(
+            "/api/tickets/close-multiple",
+            { ids, closingComment },
+            "Заявки закрыты",
+          )
+        }
+        onDelete={() =>
+          bulkRequest("/api/tickets/delete-multiple", { ids }, "Заявки удалены")
+        }
+      />
+    </>
   );
 };
 
 export default Tickets;
 
 export async function loader() {
-  document.title = "F1 HD | Заявки";
+  document.title = "Заявки";
   return null;
-}
-
-export async function action() {
-  return;
 }

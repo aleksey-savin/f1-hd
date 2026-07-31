@@ -14,14 +14,15 @@ const {
 const fileUpload = require("@/middleware/fileUpload");
 
 router.get("/tickets/all-opened", isAuth, ticketController.getAllOpened);
-router.get(
-  "/tickets/recently-closed",
-  isAuth,
-  ticketController.getRecentlyClosed,
-);
 router.get("/tickets/user/:id", isAuth, ticketController.getUsersTickets);
 router.get("/tickets/closed", isAuth, ticketController.getClosed);
 router.get("/tickets/form-data", isAuth, ticketController.getFormData);
+// Раскрытие свёрнутой группы служебных записей в хронике
+router.get(
+  "/tickets/:ticketNum/log",
+  isAuth,
+  ticketController.getTechnicalLog,
+);
 
 router.post(
   "/tickets/add",
@@ -100,18 +101,6 @@ router.post(
   ticketController.regenerateAiGuide,
 );
 router.post(
-  "/tickets/ai-guide/toggle-item",
-  isAuth,
-  canPerformTickets,
-  ticketController.toggleAiGuideItem,
-);
-router.post(
-  "/tickets/ai-category/detect",
-  isAuth,
-  canPerformTickets,
-  ticketController.detectCategory,
-);
-router.post(
   "/tickets/:ticketNum/attachments/speech-to-text",
   isAuth,
   canPerformTickets,
@@ -146,10 +135,12 @@ router.post(
   ticketController.closeMultiple,
 );
 
+// Состав чек-листа — правка заявки (карандаш секции), а отметка пункта —
+// её выполнение, поэтому права разные
 router.post(
   "/tickets/:ticketNum/update-checklist",
   isAuth,
-  canPerformTickets,
+  canEditTickets,
   ticketController.updateChecklist,
 );
 
