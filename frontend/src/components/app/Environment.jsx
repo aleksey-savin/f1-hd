@@ -258,7 +258,13 @@ const EnvLevel = ({
 //  - карточка компании: companyId — вход с обзора зданий (счётчики по поддереву).
 // Скролл/стрелки/линейка/кластер «+/−» меняют масштаб по текущему пути; клик по
 // любой дочерней локации подгружает её и ветвит путь. Клик по технике — шторка.
-const Environment = ({ userId, deviceId, companyId, subject = "applicant" }) => {
+const Environment = ({
+  userId,
+  deviceId,
+  companyId,
+  subject = "applicant",
+  onEmptyChange,
+}) => {
   const { token } = getLocalStorageData();
   const reduceMotion = useReducedMotion();
   const { isLoading, error, sendRequest } = useHttp();
@@ -406,6 +412,23 @@ const Environment = ({ userId, deviceId, companyId, subject = "applicant" }) => 
       navigate(safeIndex - 1);
     }
   };
+
+  // «Показывать нечего» решает сам виджет — он один знает, что приехало с
+  // сервера, — но прячет секцию ХОЗЯИН: метка и панель принадлежат странице.
+  // Тот же приём, что у чек-листа: блок, сообщающий только о своём отсутствии,
+  // занимает экран и пункт рейла ни за что.
+  const empty =
+    !mode ||
+    (!isLoading &&
+      !error &&
+      Boolean(env) &&
+      path.length === 0 &&
+      (env.personalDevices?.length ?? 0) === 0 &&
+      !(mode === "device" && env.device));
+
+  useEffect(() => {
+    onEmptyChange?.(empty);
+  }, [empty]);
 
   if (!mode) {
     return (

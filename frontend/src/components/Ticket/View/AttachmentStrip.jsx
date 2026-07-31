@@ -1,6 +1,12 @@
 import { useContext, useState } from "react";
 
-import { RiAttachment2, RiFileTextLine, RiVoiceprintLine } from "react-icons/ri";
+import {
+  RiAttachment2,
+  RiDeleteBinLine,
+  RiDownloadLine,
+  RiFileTextLine,
+  RiVoiceprintLine,
+} from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -284,12 +290,36 @@ const AttachmentStrip = ({
                 </Button>
               )}
 
+              {/* Скачивание — кнопкой, а не чипом с именем: имя записи звонка
+                  («2026.07.16__79532148763__Odzjal Svetlana.mp3») занимает
+                  полстроки и ничего не сообщает — файл и так подписан плеером */}
+              <Button
+                asChild
+                variant="ghost"
+                size="xs"
+                title={attachmentName(attachment)}
+              >
+                <a
+                  href={fileUrl(attachment.name)}
+                  target="_blank"
+                  rel="noreferrer"
+                  download
+                >
+                  <RiDownloadLine /> Скачать
+                </a>
+              </Button>
+
               {canDelete && (
-                <AttachmentChip
-                  attachment={attachment}
-                  onRemove={onRemove}
-                  compact
-                />
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  title="Удалить запись"
+                  aria-label="Удалить запись"
+                  className="tw:text-faint tw:hover:text-destructive"
+                  onClick={() => onRemove(attachment)}
+                >
+                  <RiDeleteBinLine />
+                </Button>
               )}
             </div>
 

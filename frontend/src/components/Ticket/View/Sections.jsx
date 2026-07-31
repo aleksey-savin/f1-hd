@@ -57,6 +57,7 @@ import { msToHMS } from "../../../util/time-helpers";
 import { getTaxiAction } from "../../Company/company-links";
 import WorkStatusText from "../../Company/WorkStatusText";
 import { formatMoney } from "../../Report/work-format";
+import { cn } from "@/lib/utils";
 
 // Секции карточки заявки. Все они ТОЛЬКО показывают: правка — в форме заявки.
 // Вход в неё — карандаш `app/SectionEditLink` в метке секции (проявляется по
@@ -171,10 +172,27 @@ const PropRow = ({ icon, label, children, action }) => (
   </div>
 );
 
-const Pill = ({ children }) => (
-  <span className="tw:me-1.5 tw:mb-1.5 tw:inline-flex tw:items-center tw:rounded-full tw:border tw:border-border-soft tw:bg-accent tw:px-2.5 tw:py-0.5 tw:text-sm tw:font-medium">
+const Pill = ({ className, children }) => (
+  <span
+    className={cn(
+      "tw:me-1.5 tw:mb-1.5 tw:inline-flex tw:items-center tw:rounded-full tw:border tw:border-border-soft tw:bg-accent tw:px-2.5 tw:py-0.5 tw:text-sm tw:font-medium",
+      className,
+    )}
+  >
     {children}
   </span>
+);
+
+// Переход к связанной сущности: подчёркивание по наведению, а не всегда —
+// строк-значений в «Деталях» много, и постоянные подчёркивания превратили бы
+// панель в список ссылок
+const EntityLink = ({ to, children }) => (
+  <Link
+    to={to}
+    className="tw:font-medium tw:text-foreground tw:no-underline tw:hover:text-accent-text tw:hover:underline"
+  >
+    {children}
+  </Link>
 );
 
 export const FactsSection = ({
@@ -242,7 +260,15 @@ export const FactsSection = ({
           }
         >
           <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-2 tw:gap-y-1">
-            {ticket.company?.alias || "—"}
+            {/* Имя — ссылка на карточку: раньше из заявки нельзя было попасть ни
+                к клиенту, ни к людям, и путь лежал через поиск в справочнике */}
+            {ticket.company?._id ? (
+              <EntityLink to={`/companies/${ticket.company._id}`}>
+                {ticket.company.alias}
+              </EntityLink>
+            ) : (
+              (ticket.company?.alias ?? "—")
+            )}
             <ClientTime clientTimezone={ticket.clientTimezone} />
             <WorkStatusText
               workSchedule={company?.workSchedule}
@@ -286,9 +312,15 @@ export const FactsSection = ({
             </>
           }
         >
-          {applicant
-            ? `${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()
-            : ticket.realSender}
+          {applicant?._id ? (
+            <EntityLink to={`/users/${applicant._id}`}>
+              {`${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()}
+            </EntityLink>
+          ) : (
+            (applicant
+              ? `${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()
+              : ticket.realSender)
+          )}
           {applicant?.position && (
             <span className="tw:text-muted-foreground">
               {" · "}
@@ -300,9 +332,15 @@ export const FactsSection = ({
         <PropRow icon={<RiTeamLine size={16} />} label="Ответственные">
           {ticket.responsibles?.length
             ? ticket.responsibles.map((user) => (
-                <Pill key={user._id}>
-                  {user.lastName} {user.firstName}
-                </Pill>
+                <Link
+                  key={user._id}
+                  to={`/users/${user._id}`}
+                  className="tw:no-underline"
+                >
+                  <Pill className="tw:hover:border-primary tw:hover:text-accent-text">
+                    {user.lastName} {user.firstName}
+                  </Pill>
+                </Link>
               ))
             : null}
         </PropRow>

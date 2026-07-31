@@ -149,6 +149,9 @@ const ViewTicket = () => {
   const [logsQuery, setLogsQuery] = useState(null);
   const [checklistEdit, setChecklistEdit] = useState(false);
   const [scrollToChecklist, setScrollToChecklist] = useState(false);
+  // Окружение прячется целиком, когда сопоставлять нечего: виджет сам знает,
+  // что приехало с сервера, а метку и панель рисует страница
+  const [environmentEmpty, setEnvironmentEmpty] = useState(false);
 
   // Секция только что смонтировалась — переносим к ней и ставим курсор в поле
   useEffect(() => {
@@ -299,13 +302,18 @@ const ViewTicket = () => {
         // «Чек-листа нет»
         hasChecklist && { id: "ticket-checklist", label: "Чек-лист" },
         showWorks && { id: "ticket-works", label: "Работы" },
-        showEnvironment && { id: "ticket-environment", label: "Окружение" },
+        showEnvironment &&
+          !environmentEmpty && {
+            id: "ticket-environment",
+            label: "Окружение",
+          },
         showKnowledge && { id: "ticket-knowledge", label: "База знаний" },
         showAi && { id: "ticket-ai", label: "Руководство ИИ" },
       ].filter(Boolean),
     [
       ticket.customFields?.length,
       hasChecklist,
+      environmentEmpty,
       showWorks,
       showEnvironment,
       showKnowledge,
@@ -600,11 +608,12 @@ const ViewTicket = () => {
           )}
 
           {showEnvironment && (
-            <Section>
+            <Section className={environmentEmpty ? "tw:hidden" : undefined}>
               <Eyebrow id="ticket-environment">Окружение</Eyebrow>
               <Environment
                 userId={ticket.applicant?._id}
                 deviceId={ticket.relatedClientDeviceId}
+                onEmptyChange={setEnvironmentEmpty}
               />
             </Section>
           )}
