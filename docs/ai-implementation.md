@@ -1,6 +1,6 @@
 # AI Integration — Implementation Notes
 
-_Last updated: 2026-07-14. This document describes the AI features as currently
+_Last updated: 2026-07-31. This document describes the AI features as currently
 implemented, so the code can be reviewed and optimized later. It is a snapshot,
 not a spec — verify against the code before relying on any detail._
 
@@ -208,9 +208,13 @@ module aliases and deps `pdf-parse`, `mammoth`, `xlsx`.
     comment box (`store/view-ticket` → `pushCommentDraft`, consumed and cleared by
     `Chronicle`), plus a per-item `+` that appends a single question. Nothing is
     sent automatically;
-  - `solution` → action **«Перенести в чек-лист»**: appends the steps to the
-    ticket checklist via the same `POST /tickets/:num/update-checklist` (existing
-    ticks survive, the server matches them by `_id`);
+  - `solution` → the checklist action, named by state: **«Составить чек-лист»**
+    when the ticket has none, **«Дополнить чек-лист»** when it already has one.
+    Steps are appended via the same `POST /tickets/:num/update-checklist`
+    (existing ticks survive — the server matches them by `_id`) with
+    `source: "ai"`, which makes the ticket-log entry read «Чек-лист составлен
+    ИИ» instead of a plain edit. This is the cheapest way a checklist ever gets
+    created: not a single invented item, the guide steps are already written;
   - `aiGuide.sources` → compact rows (type icon + title) opening
     `/knowledge-base/:id` in a new tab;
   - footer: provider · model · when generated · how many comments were taken into
@@ -414,39 +418,33 @@ wrong matches (assigning unrelated clients/companies), which risked client-facin
 confusion and conflicts.
 
 ### Frontend
-- `UI/AttachmentPreview.jsx`:
-  - audio attachments show an inline audio player plus action buttons for download,
-    speech recognition, and delete;
-  - the speech action is an icon button with tooltip (`title="Распознать речь"`);
-  - recognition results are displayed in a Bootstrap accordion titled
-    **"Итог разговора"**;
-  - after a successful manual recognition, the accordion opens automatically;
-  - when opening an existing ticket page, saved results are closed by default;
-  - the accordion body renders the **dialog** — diarized `segments` as
-    `speaker: text` lines (falling back to `text`/`summary` if no segments).
-    Errors still use a danger alert.
-- `components/Ticket/View/Attachments.jsx`:
-  - gates recognition by `!ticket.isArchived`, `permissions.canPerformTickets`,
-    and `ai.speechToText.isActive`;
-  - calls the speech route and updates the `view-ticket` store with returned
-    attachments.
+Entry point is `components/Ticket/View/AttachmentStrip.jsx` — since 2026-07-31
+attachments live as a strip inside the description panel, not as their own
+section (`UI/AttachmentPreview.jsx` and `Ticket/View/Attachments*.jsx` are gone;
+the file chip is shared with the chronicle via `View/AttachmentChip.jsx`, type
+detection in `View/attachment-utils.js`).
+- Audio is the one attachment kind kept expanded: a native `<audio>` row plus a
+  **«Распознать»** / **«Расшифровка»** button. Recognition is gated by
+  `!ticket.isArchived`, `permissions.canPerformTickets` and
+  `ai.speechToText.isActive`; the call updates the `view-ticket` store with the
+  returned attachments.
+- Per-attachment state is a meta line next to the player: «ИИ распознаёт
+  запись…» / «не удалось распознать». The card poll still watches
+  `aiSpeech.status`.
 - `store/prefs.js` carries `ai.speechToText.isActive` from `getInitial`.
-- `UI/AiSpeechBadge.jsx` — **removed with the ticket-card redesign (2026-07-30)**.
-  Per-attachment state is shown in the attachment row's meta line
-  (`Ticket/View/AttachmentsSection.jsx`): «ИИ распознаёт запись…» / «распознано» /
-  «не удалось распознать». The card poll still watches `aiSpeech.status`.
-  - **Ticket view** (`pages/Ticket/View.jsx`, staff only): shown under the title;
-    while `pending` it polls `GET /api/tickets/:num` every 5 s and, once the status
-    changes, calls `revalidator.revalidate()` so the title/description/badge refresh
-    without a manual reload.
-  - **Ticket list** (`components/Ticket/Item.jsx` via the `ItemCard` badges array):
-    `pages/Ticket/List.jsx` re-fetches the opened list every 5 s while any row is
-    `pending`, so all badges update live with a single request. The poll uses the
-    store's `silentRefresh` (in `store/lists/tickets.js`), which updates
-    `originalList`/`filteredList` atomically **without** touching `isLoading`/
-    `isSorting` and sets a `silentUpdate` flag so the page skips the re-filter/sort
-    effect. This keeps `ListWrapper` from swapping the list for a `<Spinner>`, so
-    rows update in place (stable `key={item._id}`) with no fade-out/fade-in.
+- `UI/AiSpeechBadge.jsx` — **removed with the ticket-card redesign (2026-07-30)**,
+  and with it the AI badges in list rows: a background job nobody is waiting on
+  does not deserve a marker in a list of 47 tickets. What replaced them:
+  - **Ticket card** (`pages/Ticket/View.jsx`): `aiSpeech.status` is part of
+    `ticketSignature`, so the card's 15 s background poll revalidates the loader
+    when recognition finishes and the refreshed title/description appear by
+    themselves. The poll pauses while a form sheet or the checklist editor is
+    open, so a server answer never overwrites unfinished input.
+  - **Ticket list** (`pages/Ticket/List.jsx`): the same 15 s `usePolling` +
+    `store.silentRefresh` (`store/lists/tickets.js`) refreshes rows in place —
+    it updates `originalList`/`filteredList` atomically **without** touching
+    `isLoading`/`isSorting`, so `ListWrapper` never swaps the list for a
+    `<Spinner>`. Paused while the selection mode is on.
 
 ---
 
@@ -581,6 +579,12 @@ Coverage:
 - **Audio is summarized only for ticket attachments** via the manual button, and
   automatically only for new email-created tickets. Audio attachments on comments
   are not auto-summarized yet.
+- **The guide is the only source of AI-made checklists.** Steps of an existing
+  guide can be turned into a ticket checklist, but there is no «generate a
+  checklist from scratch» call — neither in the ticket checklist editor nor in
+  the checklist-template form. Coverage is therefore capped by guide coverage:
+  99 ready guides out of 3387 tickets over the last year (2.9 %), plus 374
+  `idle` and 27 `error`.
 - **`pptx` and `rtf` not extracted** (accepted as uploads but skipped); would need
   another lib.
 - **No OCR** — scanned/image-only PDFs yield little/no text (images still go via
@@ -598,11 +602,14 @@ Coverage:
 
 UX:
 - Frontend polls every 4 s while pending (no websocket/SSE).
-- Checkbox state is replaced on regenerate (items array is rebuilt).
+- Regenerating a guide rebuilds `items` from scratch. Nothing is lost with it —
+  the per-item `done` flag has had no writer since the checkboxes were removed
+  (2026-07-30); state lives in the ticket checklist the steps are copied into.
 - Speech recognition is request/response for manual clicks; there is no progress
   polling beyond button spinner state.
-- Existing speech summaries are collapsed by default when opening a ticket, even
-  if recognition previously succeeded.
+- An existing transcript stays collapsed until «Расшифровка» is pressed: the
+  summary already sits in the ticket description, and showing both would be one
+  thought told twice.
 
 ---
 
@@ -623,8 +630,12 @@ Backend: `models/preferences.js`, `models/ticket.js`, `types/ticket.ts`,
 
 Frontend: `components/Preferences/Ai.jsx`, `pages/Preferences.jsx`,
 `components/Ticket/View/AiGuideSection.jsx`,
-`pages/Ticket/View.jsx`,
-`pages/Ticket/List.jsx`, `components/Ticket/Item.jsx`, `store/prefs.js`.
+`components/Ticket/View/AttachmentStrip.jsx`,
+`components/Ticket/View/AttachmentChip.jsx`,
+`components/Ticket/View/attachment-utils.js`,
+`components/Ticket/View/Sections.jsx`, `components/Ticket/Chronicle.jsx`,
+`pages/Ticket/View.jsx`, `pages/Ticket/List.jsx`, `util/ticket-events.js`,
+`store/prefs.js`.
 
 Telegram-bot (self-contained category detection): `models/ticket.js`,
 `models/ticketCategory.js`, `models/preferences.js`,
