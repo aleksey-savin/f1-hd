@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import AiGuideSection from "../../components/Ticket/View/AiGuideSection";
+import AiMark from "../../components/Ticket/View/AiMark";
 import AttachmentStrip, {
   useAttachments,
 } from "../../components/Ticket/View/AttachmentStrip";
@@ -46,7 +47,6 @@ import Chronicle from "../../components/Ticket/Chronicle";
 import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
 import CustomFieldsView from "@/components/app/CustomFieldsView";
 import KnowledgeSection from "../../components/Ticket/View/KnowledgeSection";
-import ProcessDialog from "../../components/Ticket/Actions/ProcessDialog";
 import RemoteAccess from "../../components/Ticket/View/RemoteAccess";
 import ActionDialog from "../../components/Ticket/Actions/ActionDialog";
 import {
@@ -145,7 +145,6 @@ const ViewTicket = () => {
 
   const [dialog, setDialog] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [processOpen, setProcessOpen] = useState(false);
   const [logsQuery, setLogsQuery] = useState(null);
   const [checklistEdit, setChecklistEdit] = useState(false);
   const [scrollToChecklist, setScrollToChecklist] = useState(false);
@@ -334,12 +333,13 @@ const ViewTicket = () => {
       setScrollToChecklist(true);
       return;
     }
-    if (key === "process") return setProcessOpen(true);
     if (DIALOG_ACTIONS.includes(key)) return setDialog(key);
     if (key === "delete") return setDeleteOpen(true);
-    if (key === "update" || key === "addWork") {
+    // «Обработать» — такая же форма заявки, как правка, только с другой
+    // подписью сабмита, поэтому и открывается так же: маршрутом в шторке
+    if (key === "update" || key === "process" || key === "addWork") {
       offcanvas.setShow();
-      navigate(key === "addWork" ? "work/add" : "update");
+      navigate(key === "addWork" ? "work/add" : key);
     }
   };
 
@@ -392,6 +392,20 @@ const ViewTicket = () => {
           </div>
           <h1 className="tw:mt-1.5 tw:mb-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:break-words">
             {ticket.title}
+            {/* Третье место, где ИИ заполнил поле заявки вместо человека:
+                заявитель темы не пишет, а она уезжает в список, в письмо,
+                в Telegram и в отчёты */}
+            {!isEndUser && ticket.aiTitle?.status === "processed" && (
+              <span className="tw:ms-1.5 tw:align-middle">
+                <AiMark
+                  ticketId={ticket._id}
+                  target="title"
+                  hint="Тему написал ИИ по описанию заявки"
+                  title="Что не так в теме?"
+                  scope="тем заявок этой компании"
+                />
+              </span>
+            )}
           </h1>
         </div>
 
@@ -465,6 +479,7 @@ const ViewTicket = () => {
         <div className="tw:-mt-6 tw:flex tw:min-w-0 tw:flex-1 tw:flex-col tw:gap-5">
           <DescriptionSection
             ticket={ticket}
+            canEdit={permissions.canEditTickets && !ticket.isArchived}
             uploadAction={attachments.uploadAction}
             attachments={
               <AttachmentStrip
@@ -643,12 +658,6 @@ const ViewTicket = () => {
           canComment={!ticket.isArchived && !!permissions.canPerformTickets}
         />
       </div>
-
-      <ProcessDialog
-        ticket={ticket}
-        open={processOpen}
-        onClose={() => setProcessOpen(false)}
-      />
 
       <ActionDialog
         action={dialog}

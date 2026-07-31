@@ -295,6 +295,9 @@ const Tickets = () => {
         defaultSearchValue={store.searchTerm}
         addRoute="/tickets/add"
         addLabel="Новая заявка"
+        // Та же ширина, что у шторки карточки: одна форма не может быть
+        // 672 со списка и 896 с карточки
+        formSize="lg"
         emptyTitle="Открытых заявок нет"
         emptyHint="Всё разобрано. Закрытые заявки лежат в архиве."
         emptyAction={

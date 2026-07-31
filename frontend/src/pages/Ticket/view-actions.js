@@ -14,6 +14,48 @@ export async function action({ request }) {
 
   const intent = data.get("intent");
 
+  // Правка заявки. Раньше форма слала запрос сама (useHttp) и уходила с
+  // карточки, не дождавшись ответа: тост про конфликт версий показывался, когда
+  // форма уже закрыта, а данные, «которые обновлены», никто не перечитывал.
+  // Через router-action форма остаётся открытой с сообщением, а loader
+  // ревалидируется сам.
+  if (intent === "update") {
+    const payload = new FormData();
+    for (const [key, value] of data.entries()) {
+      if (key === "intent") continue;
+      payload.append(key, value);
+    }
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/tickets/update`,
+      {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+        body: payload,
+      },
+    );
+
+    const body = await response.json().catch(() => ({}));
+
+    if (response.status === 409) {
+      return {
+        error: true,
+        message:
+          body.message ||
+          "Заявку изменили в другом окне. Закройте форму и откройте заново.",
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        error: true,
+        message: body.message || "Не удалось сохранить заявку",
+      };
+    }
+
+    return body;
+  }
+
   if (intent === "process") {
     const ticketData = {
       _id: data.get("_id"),
@@ -23,7 +65,8 @@ export async function action({ request }) {
       categoryId: data.get("categoryId"),
       applicantId: data.get("applicantId"),
       responsibles: JSON.parse(data.get("responsibles")),
-      deadline: new Date(data.get("deadline")),
+      // Пустой срок — это «срок не задан», а не Invalid Date
+      deadline: data.get("deadline") ? new Date(data.get("deadline")) : null,
       expectedVersion: data.get("expectedVersion"),
     };
 
@@ -39,15 +82,28 @@ export async function action({ request }) {
       },
     );
 
+    // «Обработать» — теперь форма в шторке, а не диалог действия, поэтому
+    // отвечаем её контрактом: ошибка оставляет форму открытой с сообщением,
+    // а не гасит её тостом в спину.
+    const body = await response.json().catch(() => ({}));
+
     if (response.status === 409) {
-      return await response.json();
+      return {
+        error: true,
+        message:
+          body.message ||
+          "Заявку изменили в другом окне. Закройте форму и откройте заново.",
+      };
     }
 
     if (!response.ok) {
-      throw response;
+      return {
+        error: true,
+        message: body.message || "Не удалось обработать заявку",
+      };
     }
 
-    return response;
+    return body;
   }
 
   if (intent === "takeToWork") {

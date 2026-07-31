@@ -5,6 +5,7 @@ const logger = require("@/utils/logger");
 const aiService = require("./aiService");
 const { rulesFor } = require("./aiRules");
 const buildCategoryPrompt = require("@/prompts/ticketCategory");
+const { MAX_TITLE_LENGTH } = require("@/helpers/deriveTicketTitle");
 const { logAiTicketEvent } = require("./aiTicketLog");
 
 const MAX_FIELD_LENGTH = 2000;
@@ -48,7 +49,7 @@ const truncate = (value, max = MAX_FIELD_LENGTH) => {
 exports.detectTicketCategory = async (ticketId) => {
   try {
     const ticket = await Ticket.findById(ticketId).select(
-      "num title description htmlDescription categoryId aiCategory company",
+      "num title description htmlDescription categoryId aiCategory aiTitle company",
     );
 
     if (!ticket) {
@@ -56,8 +57,18 @@ exports.detectTicketCategory = async (ticketId) => {
       return { outcome: "error", error: "ticket not found" };
     }
 
+    // Ранние выходы обязаны снять ожидание темы: она едет этим же проходом, и
+    // без снятия pending висел бы вечно, а метка ✦ так и не появилась бы.
+    const dropPendingTitle = async () => {
+      if (ticket.aiTitle?.status !== "pending") return;
+      await Ticket.findByIdAndUpdate(ticketId, {
+        $unset: { aiTitle: "" },
+      }).catch(() => {});
+    };
+
     // Не перезаписываем уже выбранную категорию (например, заданную оператором).
     if (ticket.categoryId) {
+      await dropPendingTitle();
       return { outcome: "already_set", categoryId: ticket.categoryId.toString() };
     }
 
@@ -76,6 +87,7 @@ exports.detectTicketCategory = async (ticketId) => {
           "aiCategory.status": "processed",
         });
       }
+      await dropPendingTitle();
       return { outcome: "no_categories" };
     }
 
@@ -98,10 +110,16 @@ exports.detectTicketCategory = async (ticketId) => {
       ),
     }));
 
+    // Тему просим тем же вызовом, а не отдельным: у заявителя поля «Тема» нет,
+    // и при создании там стоит обрезка описания, сделанная сервером. Заявку
+    // модель уже читает целиком — второй запрос был бы платой ни за что.
+    const needsTitle = ticket.aiTitle?.status === "pending";
+
     const { system, user } = buildCategoryPrompt({
       title: ticket.title || "",
       description,
       categories: candidates,
+      needsTitle,
     });
 
     // Замечания сотрудников по прошлым подборам для этой компании — правила
@@ -125,6 +143,42 @@ exports.detectTicketCategory = async (ticketId) => {
       .slice(0, 3)
       .map((candidate) => candidate.title);
 
+    // Тема живёт отдельно от категории: категорию модель могла не выбрать, а
+    // тему написать — и наоборот. Метку ✦ у заголовка карточки даёт статус
+    // processed, поэтому его ставим ТОЛЬКО когда тема действительно заменена, —
+    // иначе метка стояла бы у строки, которую ИИ не писал. Не получилось —
+    // снимаем поле целиком, чтобы pending не висел вечно.
+    const aiTitle =
+      needsTitle && typeof data?.title === "string"
+        ? data.title
+            .trim()
+            .replace(/^["«']+|["»']+$/gu, "")
+            .trim()
+            .slice(0, MAX_TITLE_LENGTH)
+        : "";
+
+    const setOps = { "aiCategory.status": "processed" };
+    const unsetOps = {};
+    if (needsTitle) {
+      if (aiTitle) {
+        setOps.title = aiTitle;
+        setOps["aiTitle.status"] = "processed";
+      } else {
+        unsetOps.aiTitle = "";
+      }
+      await logAiTicketEvent(
+        ticketId,
+        aiTitle
+          ? `ИИ написал тему заявки: «${aiTitle}»`
+          : "не смог написать тему заявки — осталась выведенная из описания",
+        aiTitle ? "info" : "warning",
+      );
+    }
+    const buildUpdate = (extra = {}) => ({
+      $set: { ...setOps, ...extra },
+      ...(Object.keys(unsetOps).length ? { $unset: unsetOps } : {}),
+    });
+
     if (!match) {
       logger.log("info", "Category detection: no confident match", {
         ticketId: ticket._id.toString(),
@@ -132,9 +186,7 @@ exports.detectTicketCategory = async (ticketId) => {
         chosenId: chosenId || null,
         reason: reason || undefined,
       });
-      await Ticket.findByIdAndUpdate(ticketId, {
-        "aiCategory.status": "processed",
-      });
+      await Ticket.findByIdAndUpdate(ticketId, buildUpdate());
       await logAiTicketEvent(
         ticketId,
         "не нашёл подходящую категорию для заявки",
@@ -143,10 +195,10 @@ exports.detectTicketCategory = async (ticketId) => {
       return { outcome: "not_found", categoryId: null, reason, closest };
     }
 
-    await Ticket.findByIdAndUpdate(ticketId, {
-      categoryId: chosenId,
-      "aiCategory.status": "processed",
-    });
+    await Ticket.findByIdAndUpdate(
+      ticketId,
+      buildUpdate({ categoryId: chosenId }),
+    );
 
     logger.log("info", "Ticket category detected", {
       ticketId: ticket._id.toString(),
@@ -171,8 +223,11 @@ exports.detectTicketCategory = async (ticketId) => {
       error: error.message,
       stack: error.stack,
     });
+    // Тема ехала этим же вызовом — снимаем её ожидание вместе с ошибкой
+    // категории, иначе заявка останется с вечным pending и без метки.
     await Ticket.findByIdAndUpdate(ticketId, {
-      "aiCategory.status": "error",
+      $set: { "aiCategory.status": "error" },
+      $unset: { aiTitle: "" },
     }).catch(() => {});
     await logAiTicketEvent(
       ticketId,

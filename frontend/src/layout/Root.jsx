@@ -74,7 +74,7 @@ const RootLayout = () => {
     // Формы базы знаний открываются в основной панели, а не в offcanvas
     if (
       !location.pathname.startsWith("/knowledge-base") &&
-      (["add", "update", "schedule", "confirm"].includes(
+      (["add", "update", "process", "schedule", "confirm"].includes(
         location.pathname.split("/")[location.pathname.split("/").length - 1],
       ) ||
         ["update"].includes(

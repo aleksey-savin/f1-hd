@@ -8,6 +8,7 @@ const Preferences = require("../models//preferences");
 
 const { Ticket } = require("../models/ticket");
 const { isStaleVersion, sendConflict } = require("../helpers/ticketVersion");
+const { deriveTicketTitle } = require("../helpers/deriveTicketTitle");
 const { resolveGetScreenApiKey } = require("../helpers/getScreenKey");
 const User = require("../models//user");
 const Company = require("../models/company");
@@ -687,9 +688,16 @@ exports.getFormData = async (req, res, next) => {
         permissions: applicant.permissions,
       })),
 
+      // description объясняет, что попадает в категорию, и показывается
+      // подсказкой под полем; users отвечают, кто эту категорию ведёт, и делят
+      // список ответственных на две группы. Без них форма годами показывала
+      // «У данной категории нет описания» при заполненном описании у всех
+      // категорий и ни разу не подсвечивала «своего» исполнителя.
       categories: categories.map((category) => ({
         _id: category._id,
         title: category.title,
+        description: category.description || "",
+        users: (category.users || []).map((user) => user._id ?? user),
       })),
       responsibles: responsibles.map((resp) => ({
         _id: resp._id,
@@ -749,8 +757,25 @@ exports.add = async (req, res, next) => {
       }
     }
 
+    // Тему выводит сервер, а не браузер: у заявителя поля «Тема» нет, а тема
+    // уезжает в список, в письмо, в Telegram и в отчёты. Прежняя обрезка на
+    // клиенте (`substring(0, 50)`) давала 684 темы ровно в 50 знаков из 884
+    // клиентских заявок за год — оборванных посреди слова.
+    const submittedTitle = (req.body.title || "").trim();
+    const title = submittedTitle || deriveTicketTitle(req.body.description);
+    // Тему, выведенную из текста, может переписать ассистент — тем же проходом,
+    // которым он подбирает категорию. Провизорную тему всё равно сохраняем:
+    // уведомления уходят в момент создания, безымянной заявки быть не должно.
+    //
+    // Условие повторяет условие запуска прохода (ниже: ИИ включён и категории
+    // нет). Иначе заявка с категорией, но без темы получила бы вечный pending:
+    // проход для неё не стартует. На практике это одно и то же множество —
+    // темы не заполняет только заявитель, а категорию он и не выбирает.
+    const wantsAiTitle =
+      !!prefs?.ai?.isActive && !categoryId && !submittedTitle && !!title;
+
     const ticket = new Ticket({
-      title: req.body.title,
+      title,
       description: req.body.description,
       template: parsedTemplate,
       checklist: templateChecklist,
@@ -778,6 +803,7 @@ exports.add = async (req, res, next) => {
       ...(prefs?.ai?.isActive && !categoryId
         ? { aiCategory: { status: "pending" } }
         : {}),
+      ...(wantsAiTitle ? { aiTitle: { status: "pending" } } : {}),
     });
 
     await ticket.save();
@@ -934,11 +960,12 @@ exports.saveAiTermNote = async (req, res, next) => {
 // обязательна, текст объясняет, как правильно, а областью становится категория
 // и компания заявки. В промпты замечание попадёт, только когда администратор
 // включит его в настройках (services/aiRules.js).
-const FEEDBACK_TARGETS = ["description", "category"];
+const FEEDBACK_TARGETS = ["description", "category", "title"];
 const FEEDBACK_REASONS = ["offtopic", "facts", "invented", "outdated"];
 const TARGET_LABEL = {
   description: "описанию, собранному ИИ",
   category: "подбору категории",
+  title: "теме, написанной ИИ",
 };
 
 exports.addAiFeedback = async (req, res, next) => {

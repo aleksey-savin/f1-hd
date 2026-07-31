@@ -17,7 +17,7 @@ import { OverlayScrollContext } from "@/components/app/overlay-context";
  * поэтому заголовок остаётся на месте вместе с крестиком, а `onHeight`
  * отдаёт его высоту рейлу — тот прижимается ровно под него.
  */
-export const FormHeader = ({ title, subtitle, onHeight }) => (
+export const FormHeader = ({ title, subtitle, onHeight, children }) => (
   <div
     ref={(node) => {
       if (node) onHeight?.(node.offsetHeight);
@@ -32,6 +32,10 @@ export const FormHeader = ({ title, subtitle, onHeight }) => (
         {subtitle}
       </p>
     )}
+    {/* Тихий контрол при заголовке — вход «Из шаблона» у новой заявки: он
+        задаёт заготовку всей формы, а не правит одно поле, поэтому стоит в
+        шапке, а не полем среди прочих */}
+    {children && <div className="tw:mt-3">{children}</div>}
   </div>
 );
 
@@ -41,11 +45,15 @@ export const FormHeader = ({ title, subtitle, onHeight }) => (
  * sections: [{ key, title, desc?, body }] — key служит и якорем: ярлык секции
  * на карточке ведёт в форму хешем (`update#checklist`), и она открывается уже
  * прокрученной к нужному месту.
+ *
+ * rail=false выключает рейл, оставляя секции и якоря: у формы заявки секций
+ * две, и рейл вёл бы по двум пунктам — переход по хешу работает и без него.
  */
 export const FormSections = ({
   sections,
   headHeight = 0,
   ariaLabel = "Разделы формы",
+  rail = true,
 }) => {
   const location = useLocation();
   const scroller = useContext(OverlayScrollContext);
@@ -65,7 +73,7 @@ export const FormSections = ({
 
   return (
     <div className="tw:flex tw:items-start tw:gap-7">
-      {sections.length > 1 && (
+      {rail && sections.length > 1 && (
         <BrowserView className="tw:contents">
           <AnchorRail
             sections={sections.map((section) => ({

@@ -96,7 +96,13 @@ export const EmptySection = ({ icon: Icon, hint }) => (
  * «Описание», счётчик файлов живёт в самой ленте: в метке он считал бы текст
  * вместе с файлами.
  */
-export const DescriptionSection = ({ ticket, attachments, uploadAction }) => {
+export const DescriptionSection = ({
+  ticket,
+  attachments,
+  uploadAction,
+  canEdit,
+  onEdit,
+}) => {
   const [showOriginal, setShowOriginal] = useState(false);
   const [openTerm, setOpenTerm] = useState(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -155,6 +161,15 @@ export const DescriptionSection = ({ ticket, attachments, uploadAction }) => {
               </Button>
             )}
             {uploadAction}
+            {canEdit && (
+              // Тема и описание правятся в форме заявки — карандаш открывает
+              // её сразу на этой секции
+              <SectionEditLink
+                to="update#description"
+                label="Описание"
+                onClick={onEdit}
+              />
+            )}
           </>
         }
       >
@@ -296,7 +311,12 @@ export const FactsSection = ({
         id="ticket-facts"
         action={
           canEdit && (
-            <SectionEditLink to="update" label="Детали" onClick={onEdit} />
+            // Ключ секции формы = якорь: форма откроется прокрученной сюда
+            <SectionEditLink
+              to="update#details"
+              label="Детали"
+              onClick={onEdit}
+            />
           )
         }
       >

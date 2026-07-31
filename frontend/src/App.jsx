@@ -44,6 +44,7 @@ import {
 
 import UpdateTicketPage, {
   loader as updateTicketLoader,
+  makeLoader as makeTicketFormLoader,
 } from "./pages/Ticket/Update.jsx";
 
 import ArchivePage, { loader as archiveLoader } from "./pages/Archive.jsx";
@@ -451,6 +452,13 @@ function App() {
               path: "update",
               element: <UpdateTicketPage />,
               loader: updateTicketLoader,
+            },
+            // «Обработать» — та же форма с другой подписью сабмита: у неё шесть
+            // полей, и диалогом она была нарушением «диалог → только мелкие вещи»
+            {
+              path: "process",
+              element: <UpdateTicketPage mode="process" />,
+              loader: makeTicketFormLoader("process"),
             },
             {
               path: "work/add",

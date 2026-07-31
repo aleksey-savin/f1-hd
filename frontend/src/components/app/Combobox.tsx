@@ -22,6 +22,29 @@ export type ComboboxOption = {
   label: string;
   /** Приглушённая строка под названием: должность, город, пояснение. */
   hint?: string;
+  /**
+   * Заголовок группы, под которой стоит опция. Группа — способ сказать про
+   * опции то, что раньше говорили цветом: «Ведут категорию «Почта»» против
+   * «Остальные» в ответственных заявки. Порядок групп — порядок первого
+   * появления в `options`; опции без группы идут первыми, без заголовка.
+   */
+  group?: string;
+};
+
+// Группируем сохраняя порядок: список ответственных уже отсортирован, и
+// перестановка групп по алфавиту поменяла бы смысл — первой должна идти та,
+// ради которой группировка и заведена.
+const groupOptions = (options: ComboboxOption[]) => {
+  const groups: { key: string; heading?: string; items: ComboboxOption[] }[] =
+    [];
+  for (const option of options) {
+    const heading = option.group;
+    const key = heading ?? "";
+    const existing = groups.find((group) => group.key === key);
+    if (existing) existing.items.push(option);
+    else groups.push({ key, heading, items: [option] });
+  }
+  return groups;
 };
 
 /**
@@ -78,8 +101,10 @@ const Combobox = ({
           disabled={disabled}
           // appearance/border/bg заданы явно: preflight выключен, браузерные
           // дефолты <button> никто не сбрасывает
+          // Высота и радиус — как у ui/Input: комбобокс и текстовое поле стоят
+          // в одном ряду формы, и разнобой 36/40 там виден
           className={cn(
-            "tw:flex tw:h-9 tw:w-full tw:appearance-none tw:items-center tw:gap-2 tw:rounded-md",
+            "tw:flex tw:h-10 tw:w-full tw:appearance-none tw:items-center tw:gap-2 tw:rounded-lg",
             "tw:border tw:border-input tw:bg-background tw:px-3 tw:text-left tw:text-sm",
             "tw:hover:bg-accent tw:focus-visible:outline-2 tw:focus-visible:outline-ring",
             "tw:disabled:cursor-not-allowed tw:disabled:opacity-60",
@@ -106,36 +131,42 @@ const Combobox = ({
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {clearable && (
+            {clearable && (
+              <CommandGroup>
                 <CommandItem value={clearLabel} onSelect={() => pick(null)}>
                   <span className="tw:flex-1 tw:text-muted-foreground">
                     {clearLabel}
                   </span>
                   {value === null && <RiCheckLine size={16} />}
                 </CommandItem>
-              )}
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  // value — то, по чему ищет cmdk: подпись, а не id
-                  value={`${option.label} ${option.hint ?? ""}`}
-                  onSelect={() => pick(option.value)}
-                >
-                  <span className="tw:min-w-0 tw:flex-1">
-                    <span className="tw:block tw:truncate">{option.label}</span>
-                    {option.hint && (
-                      <span className="tw:block tw:truncate tw:text-xs tw:text-muted-foreground">
-                        {option.hint}
+              </CommandGroup>
+            )}
+            {groupOptions(options).map((group) => (
+              <CommandGroup key={group.key} heading={group.heading}>
+                {group.items.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    // value — то, по чему ищет cmdk: подпись, а не id
+                    value={`${option.label} ${option.hint ?? ""}`}
+                    onSelect={() => pick(option.value)}
+                  >
+                    <span className="tw:min-w-0 tw:flex-1">
+                      <span className="tw:block tw:truncate">
+                        {option.label}
                       </span>
+                      {option.hint && (
+                        <span className="tw:block tw:truncate tw:text-xs tw:text-muted-foreground">
+                          {option.hint}
+                        </span>
+                      )}
+                    </span>
+                    {option.value === value && (
+                      <RiCheckLine className="tw:flex-none" size={16} />
                     )}
-                  </span>
-                  {option.value === value && (
-                    <RiCheckLine className="tw:flex-none" size={16} />
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>
@@ -199,7 +230,7 @@ export const MultiCombobox = ({
             }
           }}
           className={cn(
-            "tw:flex tw:min-h-9 tw:w-full tw:flex-wrap tw:items-center tw:gap-1.5 tw:rounded-md",
+            "tw:flex tw:min-h-10 tw:w-full tw:flex-wrap tw:items-center tw:gap-1.5 tw:rounded-lg",
             "tw:border tw:border-input tw:bg-background tw:px-2 tw:py-1 tw:text-sm",
             "tw:hover:bg-accent tw:focus-visible:outline-2 tw:focus-visible:outline-ring",
             disabled && "tw:cursor-not-allowed tw:opacity-60",
@@ -248,27 +279,31 @@ export const MultiCombobox = ({
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={`${option.label} ${option.hint ?? ""}`}
-                  onSelect={() => toggle(option.value)}
-                >
-                  <span className="tw:min-w-0 tw:flex-1">
-                    <span className="tw:block tw:truncate">{option.label}</span>
-                    {option.hint && (
-                      <span className="tw:block tw:truncate tw:text-xs tw:text-muted-foreground">
-                        {option.hint}
+            {groupOptions(options).map((group) => (
+              <CommandGroup key={group.key} heading={group.heading}>
+                {group.items.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    value={`${option.label} ${option.hint ?? ""}`}
+                    onSelect={() => toggle(option.value)}
+                  >
+                    <span className="tw:min-w-0 tw:flex-1">
+                      <span className="tw:block tw:truncate">
+                        {option.label}
                       </span>
+                      {option.hint && (
+                        <span className="tw:block tw:truncate tw:text-xs tw:text-muted-foreground">
+                          {option.hint}
+                        </span>
+                      )}
+                    </span>
+                    {value.includes(option.value) && (
+                      <RiCheckLine className="tw:flex-none" size={16} />
                     )}
-                  </span>
-                  {value.includes(option.value) && (
-                    <RiCheckLine className="tw:flex-none" size={16} />
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>

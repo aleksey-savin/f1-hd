@@ -15,14 +15,22 @@ import useOffcanvasStore from "@/store/offcanvas";
 // формы не остаётся в истории, «назад» ведёт туда, где форму открыли.
 const FormWrapper = ({
   title,
+  header,
   action,
   successTo,
   json,
+  formData,
   submitLabel = "Сохранить",
   submitDisabled = false,
   children,
 }: {
   title: ReactNode;
+  /**
+   * Своя шапка вместо простого заголовка — например липкий `FormHeader` из
+   * `app/FormLayout` (форма заявки: у неё есть подзаголовок с номером).
+   * Передан — `title` идёт только в `aria-label` формы.
+   */
+  header?: ReactNode;
   action?: string;
   successTo?: string | ((data: unknown) => string | undefined);
   /**
@@ -32,6 +40,15 @@ const FormWrapper = ({
    * источником тихих потерь.
    */
   json?: () => unknown;
+  /**
+   * То же, но телом уходит FormData — единственный вариант, когда в форме есть
+   * файлы: вложения заявки в JSON не положить. Взаимоисключающе с `json`.
+   *
+   * Вернуть `null` — отменить отправку: так форма показывает ошибки полей по
+   * нажатию «Сохранить», не блокируя кнопку заранее (заблокированная кнопка не
+   * объясняет, чего не хватает).
+   */
+  formData?: () => FormData | null;
   submitLabel?: string;
   submitDisabled?: boolean;
   children: ReactNode;
@@ -64,11 +81,22 @@ const FormWrapper = ({
       <fetcher.Form
         method="post"
         action={action || "."}
+        encType={formData ? "multipart/form-data" : undefined}
         onSubmit={
-          json
+          json || formData
             ? (event) => {
                 event.preventDefault();
-                fetcher.submit(json() as Record<string, unknown>, {
+                if (formData) {
+                  const body = formData();
+                  if (!body) return;
+                  fetcher.submit(body, {
+                    method: "post",
+                    action: action || ".",
+                    encType: "multipart/form-data",
+                  });
+                  return;
+                }
+                fetcher.submit(json!() as Record<string, unknown>, {
                   method: "post",
                   action: action || ".",
                   encType: "application/json",
@@ -77,9 +105,11 @@ const FormWrapper = ({
             : undefined
         }
       >
-        <h1 className="tw:my-0 tw:mb-5 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
-          {title}
-        </h1>
+        {header ?? (
+          <h1 className="tw:my-0 tw:mb-5 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
+            {title}
+          </h1>
+        )}
         {fetcher.data && fetcher.data.error && (
           <AlertMessage variant="danger" message={fetcher.data.message} />
         )}
@@ -90,7 +120,7 @@ const FormWrapper = ({
           <AlertMessage variant="success" message={data.message} />
         )}
         {children}
-        <div className="tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:justify-end tw:gap-2.5 tw:bg-background tw:px-6 tw:py-3">
+        <div className="tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:justify-end tw:gap-2.5 tw:border-t tw:border-border-soft tw:bg-background tw:px-6 tw:py-3">
           <Button type="button" variant="ghost" onClick={close}>
             Отмена
           </Button>

@@ -7,9 +7,16 @@ import "@toast-ui/editor/dist/theme/toastui-editor-dark.css";
 import { ThemeContext } from "../store/theme-context";
 
 // Тонкая обёртка над ванильным Toast UI Editor (markdown-нативный редактор).
-// Источник истины — Markdown: наружу отдаём instance.getMarkdown(). Ванильный
-// пакет не зависит от React, поэтому совместим с React 19 (в отличие от
-// устаревшей @toast-ui/react-editor).
+// Ванильный пакет не зависит от React, поэтому совместим с React 19 (в отличие
+// от устаревшей @toast-ui/react-editor).
+//
+// Формат наружу выбирает вызывающий:
+//   "markdown" (по умолчанию) — база знаний, шаблон заявки, регламент;
+//   "html" — описание заявки. Оно остаётся HTML не по привычке: на html-строке
+//   работают подсветка понятий и метка ИИ (View/TicketTerms), карточка выводит
+//   его через dangerouslySetInnerHTML, а «Оригинал письма» лежит в соседнем
+//   htmlDescription. Из 3375 заявок за год html-разметку несут все 314 заявок
+//   из регламентов и 949 из 1141 портальных.
 const MarkdownEditor = ({
   initialValue = "",
   onChange,
@@ -17,7 +24,9 @@ const MarkdownEditor = ({
   height = "500px",
   // Скрыть вкладки Markdown/WYSIWYG снизу — редактор остаётся только WYSIWYG.
   hideModeSwitch = false,
+  format = "markdown",
 }) => {
+  const isHtml = format === "html";
   const elRef = useRef(null);
   const editorRef = useRef(null);
   const { isDark } = useContext(ThemeContext);
@@ -38,7 +47,10 @@ const MarkdownEditor = ({
       hideModeSwitch,
       usageStatistics: false,
       autofocus: false,
-      initialValue: initialValue || "",
+      // В html-режиме initialValue отдаём отдельно: initialValue конструктора
+      // трактуется как markdown, и готовая разметка приехала бы в редактор
+      // текстом с тегами.
+      initialValue: isHtml ? "" : initialValue || "",
       toolbarItems: [
         ["heading", "bold", "italic", "strike"],
         ["hr", "quote"],
@@ -48,8 +60,12 @@ const MarkdownEditor = ({
       ],
     });
 
+    if (isHtml && initialValue) editor.setHTML(initialValue, false);
+
     editor.on("change", () => {
-      onChangeRef.current?.(editor.getMarkdown());
+      onChangeRef.current?.(
+        isHtml ? editor.getHTML() : editor.getMarkdown(),
+      );
     });
 
     editorRef.current = editor;

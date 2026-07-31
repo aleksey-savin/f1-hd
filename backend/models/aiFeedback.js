@@ -17,10 +17,12 @@ const aiFeedbackSchema = new Schema(
     ticketId: { type: Schema.Types.ObjectId, ref: "Ticket", required: true },
     ticketNum: Number,
     // Что именно оказалось не так. Метку ставим только там, где ИИ вписал
-    // данные вместо человека (см. docs/ux-ui-guide.md), поэтому целей две.
+    // данные вместо человека (см. docs/ux-ui-guide.md): описание, собранное из
+    // записи звонка, подобранная категория и тема — её заявитель не пишет
+    // вовсе, и она уезжает в список, в письмо, в Telegram и в отчёты.
     target: {
       type: String,
-      enum: ["description", "category"],
+      enum: ["description", "category", "title"],
       required: true,
     },
     reason: {
