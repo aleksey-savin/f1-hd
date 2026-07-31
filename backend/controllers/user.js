@@ -681,7 +681,6 @@ exports.add = async (req, res, next) => {
       remoteOnly,
       timezone,
       permissions,
-      dashboard,
       finances,
       getScreenApi,
       responsibleForCompanies,
@@ -740,7 +739,6 @@ exports.add = async (req, res, next) => {
         api: getScreenApi ? encryptSecret(getScreenApi) : "",
       },
       permissions: permissions,
-      dashboard: dashboard,
       notify: notify,
       responsibleForCompanies: (responsibleForCompanies || []).map((item) => ({
         id: item.id,
@@ -852,7 +850,6 @@ exports.update = async (req, res, next) => {
       workSchedule,
       categories,
       permissions,
-      dashboard,
       finances,
       getScreenApi,
       notify,
@@ -921,7 +918,6 @@ exports.update = async (req, res, next) => {
       user.timezone = normalizeTimezone(timezone);
     }
     user.permissions = permissions;
-    user.dashboard = dashboard;
     // Ответственность за компании теперь правится из формы пользователя
     // (раньше — только через карточку компании)
     if (responsibleForCompanies !== undefined) {

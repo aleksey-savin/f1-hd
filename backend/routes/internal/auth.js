@@ -69,6 +69,22 @@ const authLimiter = rateLimit({
   },
 });
 
+// Подсказка компании дёргается по ходу набора адреса, поэтому у неё свой
+// счётчик: общий authLimiter — одно хранилище на вход, регистрацию и
+// восстановление, и десяток подсказок закрыл бы человеку сам вход.
+const signupLookupLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: async (req, res, _next, options) => {
+    res.status(options.statusCode).json({
+      error: true,
+      message: "Слишком много запросов. Подождите немного.",
+    });
+  },
+});
+
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // limit to 10 login attempts per hour per IP+email combination
@@ -111,7 +127,16 @@ router.post(
 );
 
 router.post(
+  "/signup/company-by-email",
+  signupLookupLimiter,
+  authValidation.companyByEmail,
+  runValidation,
+  authController.companyByEmail,
+);
+
+router.post(
   "/first-launch",
+  authLimiter,
   authValidation.firstLaunch,
   runValidation,
   authController.firstLaunch,

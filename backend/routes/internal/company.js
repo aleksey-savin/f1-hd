@@ -15,6 +15,10 @@ const {
 } = require("@/middleware/permissions");
 
 router.get("/companies", isAuth, isNotClient, companyController.getAll);
+// Блок «Кто ведёт вашу компанию» на главной. Единственный маршрут раздела БЕЗ
+// isNotClient — он как раз для клиента; кому именно отвечать, решает контроллер.
+// Обязан стоять ВЫШЕ «/companies/:id», иначе :id съест «my-support».
+router.get("/companies/my-support", isAuth, companyController.getMySupport);
 // Формат id здесь не валидируем: битый ObjectId переводится в 404 глобально
 // (CastError в middleware/errorHandling.js), как у остальных сущностей.
 router.get("/companies/:id", isAuth, isNotClient, companyController.getOne);

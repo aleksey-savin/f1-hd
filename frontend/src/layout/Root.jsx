@@ -15,7 +15,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { RiRefreshLine } from "react-icons/ri";
 import { Button } from "@/components/ui/button";
 import AppBanner from "@/components/app/AppBanner";
-import ModerationBanner from "../components/KnowledgeBase/ModerationBanner";
 // import Pro32Connect from "../components/Integrations/Pro32Connect/Pro32Connect";
 
 import Container from "react-bootstrap/Container";
@@ -52,8 +51,6 @@ const RootLayout = () => {
 
   // Баннер о новой версии можно скрыть до следующей перезагрузки
   const [versionDismissed, setVersionDismissed] = useState(false);
-  // Сводка модерации базы знаний — тоже сквозная: прячется до перезагрузки
-  const [moderationDismissed, setModerationDismissed] = useState(false);
 
   // Мобильный app-shell: <main> — свой скролл-контейнер (не window), поэтому
   // сбрасываем прокрутку вверх при смене маршрута вручную.
@@ -168,12 +165,6 @@ const RootLayout = () => {
                 </AppBanner>
               )}
 
-            {isLoggedIn && !routeErrorActive && !moderationDismissed && (
-              <ModerationBanner
-                onDismiss={() => setModerationDismissed(true)}
-              />
-            )}
-
             <Row>
               <Col>
                 {/* Мигрированные на tailwind/shadcn маршруты живут прямо на
@@ -184,6 +175,11 @@ const RootLayout = () => {
                     страницы (её tw:max-w-*) + горизонтальный p-4 листа. */}
                 {(() => {
                   const MIGRATED_ROUTES = [
+                    // Главная: ролевой лендинг, PageShell tw:max-w-7xl + 2×24.
+                    // «/» — точным совпадением, иначе префикс поймал бы вообще
+                    // всё остальное приложение.
+                    { path: "/dashboard", maxWidth: 1328 },
+                    { path: "/", maxWidth: 1328, exact: true },
                     // Заявки: список ListWrapper (max-w-7xl) и карточка (тоже
                     // max-w-7xl — рейл + секции + хроника). Форма создания
                     // живёт в шторке списка, поэтому идёт первой; «/tickets/»
@@ -272,7 +268,7 @@ const RootLayout = () => {
                     // Настройки системы: рейл + секции, как «Мой аккаунт»
                     { path: "/preferences", maxWidth: 944 },
                     // Отчёт «Компании»: сводка и карточки — один каркас
-                    // ReportShell tw:max-w-7xl (1280) + 2×24
+                    // PageShell tw:max-w-7xl (1280) + 2×24
                     { path: "/report/companies", maxWidth: 1328 },
                     // «Согласование работ»: карточка отчёта (max-w-5xl + 2×24)
                     // матчится раньше конвейера — со слэшем, как у карточек

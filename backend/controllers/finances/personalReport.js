@@ -9,13 +9,18 @@ const getAuthData = require("../../middleware/getAuthData");
 
 const MAX_PERIOD_DAYS = 366;
 
-// GET /finances/personal-report-summary?from&to[&userId]
+// GET /finances/personal-report-summary?from&to[&userId][&details=0]
 // Свой отчёт — любому обладателю personal/global права; чужой (?userId) —
 // только isAdmin или canSeeGlobalFinancialReport.
+//
+// details=0 — режим плитки на главной: без списка работ и без 12-месячного
+// тренда (это два лишних прохода на каждый заход на главную), но с дельтой к
+// прошлому периоду — без неё плитке нечего показать под значением.
 exports.getSummary = async (req, res, next) => {
   try {
     const authData = await getAuthData(req);
-    const { from, to, userId: requestedUserId } = req.query;
+    const { from, to, userId: requestedUserId, details } = req.query;
+    const includeDetails = details !== "0" && details !== "false";
 
     let targetUserId = authData.userId;
     if (requestedUserId && requestedUserId !== String(authData.userId)) {
@@ -65,6 +70,8 @@ exports.getSummary = async (req, res, next) => {
       to,
       preferences,
       user: targetUser,
+      includeDetails,
+      includePrevPeriod: true,
     });
 
     res.status(200).json({

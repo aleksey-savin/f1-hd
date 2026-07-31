@@ -38,16 +38,6 @@ export interface IUserPermissions {
   canSeePersonalFinancialReport: boolean;
 }
 
-export interface IUserDashboard {
-  isActive: boolean;
-  personalActions: boolean;
-  personalTasks: boolean;
-  personalStats: boolean;
-  globalActions: boolean;
-  globalTasks: boolean;
-  globalStats: boolean;
-}
-
 export interface IUserTelegramNotify {
   newTicket: boolean;
   respStateUpdate: boolean;
@@ -98,7 +88,6 @@ export interface IUser {
   isCloudTelephony: boolean;
   hideWorkStatus?: boolean;
   permissions: IUserPermissions;
-  dashboard: IUserDashboard;
   finances?: {
     salary: number | null;
     overtimeHourlyRate: number | null;

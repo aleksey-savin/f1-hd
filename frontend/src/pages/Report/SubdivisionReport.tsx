@@ -24,7 +24,7 @@ import EmptyReport from "../../components/Report/EmptyReport";
 import FilterSheet from "../../components/Report/FilterSheet";
 import KpiRow from "../../components/Report/KpiRow";
 import PeriodFilter from "../../components/Report/PeriodFilter";
-import ReportShell from "../../components/Report/ReportShell";
+import PageShell from "@/components/app/PageShell";
 import ShareBars from "../../components/Report/ShareBars";
 import StackedTimeBars, {
   type StackedTimeRow,
@@ -205,7 +205,7 @@ const SubdivisionReport = () => {
   }
 
   return (
-    <ReportShell
+    <PageShell
       title={data?.subdivision.name ?? "Подразделение"}
       subtitle={
         data && (
@@ -260,7 +260,7 @@ const SubdivisionReport = () => {
         />
       </FilterSheet>
       {body}
-    </ReportShell>
+    </PageShell>
   );
 };
 

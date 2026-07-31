@@ -14,8 +14,7 @@ import { TbCheckbox } from "react-icons/tb";
 import { AuthedUserContext } from "../store/authed-user-context";
 
 const MobileBottomNavbar = () => {
-  const { dashboard, isEndUser, isAdmin, permissions } =
-    useContext(AuthedUserContext);
+  const { isEndUser, isAdmin, permissions } = useContext(AuthedUserContext);
   const { pathname } = useLocation();
   const reduceMotion = useReducedMotion();
 
@@ -23,7 +22,7 @@ const MobileBottomNavbar = () => {
   // ведёт на /dashboard (как в drawer), а индекс "/" — алиас через extraActive,
   // чтобы активной всегда была ровно одна вкладка (инвариант для layoutId-пилюли).
   const tabs = [
-    dashboard?.isActive && {
+    {
       to: "/dashboard",
       extraActive: ["/"],
       icon: RiDashboard2Line,

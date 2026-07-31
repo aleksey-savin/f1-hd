@@ -566,22 +566,6 @@ module.exports.canManageServicePlans = async (req, res, next) => {
   next();
 };
 
-// dashboard
-module.exports.canUseDashboard = async (req, res, next) => {
-  const authedUser = await getAuthData(req);
-
-  if (!authedUser.dashboard?.isActive) {
-    const error = new Error("Недостаточно прав для просмотра данной страницы");
-    error.statusCode = 403;
-    return res.status(error.statusCode).json({
-      error: false,
-      status: error.statusCode,
-      message: error.message,
-    });
-  }
-  next();
-};
-
 // functional modules enabled/disabled
 module.exports.timeTrackingModuleIsActive = async (req, res, next) => {
   const prefs = await Preferences.findOne();

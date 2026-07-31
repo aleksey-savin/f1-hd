@@ -63,6 +63,10 @@ const buildPersonalReport = async ({
   preferences,
   user,
   includeDetails = true,
+  // Дельта к прошлому периоду — отдельно от деталей: плитке переработок на
+  // главной она нужна, а список работ и 12-месячный тренд — нет. По умолчанию
+  // следует за includeDetails, чтобы поведение страницы отчёта не менялось.
+  includePrevPeriod = includeDetails,
 }) => {
   const tz = resolveTimezone(preferences);
   const overtimeSettings = resolveOvertimeSettings(preferences);
@@ -387,7 +391,9 @@ const buildPersonalReport = async ({
       preferences,
     });
     report.byMonth = trend.months;
+  }
 
+  if (includePrevPeriod) {
     // Предыдущий период той же длины — для дельт на KPI-картах
     const prevFrom = fromDay.subtract(periodDays, "day").format("YYYY-MM-DD");
     const prevTo = fromDay.subtract(1, "day").format("YYYY-MM-DD");
@@ -398,6 +404,7 @@ const buildPersonalReport = async ({
       preferences,
       user,
       includeDetails: false,
+      includePrevPeriod: false,
     });
     report.prevPeriod = {
       period: prev.period,

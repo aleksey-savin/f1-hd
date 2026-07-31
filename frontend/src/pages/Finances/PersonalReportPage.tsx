@@ -20,7 +20,7 @@ import PayslipPanel from "../../components/Report/PayslipPanel";
 import PeriodFilter from "../../components/Report/PeriodFilter";
 import PersonalWorksCards from "../../components/Report/PersonalWorksCards";
 import PersonalWorksTable from "../../components/Report/PersonalWorksTable";
-import ReportShell from "../../components/Report/ReportShell";
+import PageShell from "@/components/app/PageShell";
 import ShareBars from "../../components/Report/ShareBars";
 import WorkTimeBars from "../../components/Report/WorkTimeBars";
 import { deltaOf } from "../../components/Report/delta";
@@ -357,7 +357,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
       : undefined;
 
   return (
-    <ReportShell
+    <PageShell
       title={
         isOwn
           ? "Мой отчёт"
@@ -389,7 +389,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
         />
       </FilterSheet>
       {body}
-    </ReportShell>
+    </PageShell>
   );
 };
 

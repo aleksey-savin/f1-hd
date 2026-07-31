@@ -52,7 +52,6 @@ export function buildMenu({
   modules,
   // Интеграция Mikrotik — свой рубильник, от модулей не зависит
   mikrotikActive = false,
-  dashboardActive,
 }) {
   const {
     canManageTicketCategories,
@@ -106,8 +105,7 @@ export function buildMenu({
     ].filter(Boolean);
 
     return [
-      dashboardActive &&
-        link("dashboard", "Главная", RiDashboard2Line, "/dashboard"),
+      link("dashboard", "Главная", RiDashboard2Line, "/dashboard"),
       link("tickets", "Заявки", RiCheckboxLine, "/tickets"),
       link(
         "ticket-templates",
@@ -297,8 +295,7 @@ export function buildMenu({
     : [];
 
   return [
-    dashboardActive &&
-      link("dashboard", "Главная", RiDashboard2Line, "/dashboard"),
+    link("dashboard", "Главная", RiDashboard2Line, "/dashboard"),
     link("tickets", "Заявки", RiCheckboxLine, "/tickets"),
     (canPerformTickets || canManageCompanies || isAdmin) &&
       link("companies", "Компании", RiBuilding2Line, "/companies"),

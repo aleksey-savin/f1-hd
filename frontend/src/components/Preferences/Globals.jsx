@@ -28,6 +28,7 @@ const PrefsGlobals = ({ prefs }) => {
 
   const [timezone, setTimezone] = useState(prefs.timezone || DEFAULT_TIMEZONE);
   const [deadline, setDeadline] = useState(prefs.deadline ?? 10);
+  const [orgTitle, setOrgTitle] = useState(prefs.contacts?.title || "");
   const [tel, setTel] = useState(prefs.contacts?.tel || "");
   const [email, setEmail] = useState(prefs.contacts?.email || "");
   const [address, setAddress] = useState(prefs.contacts?.address || "");
@@ -90,7 +91,7 @@ const PrefsGlobals = ({ prefs }) => {
       buildPayload={() => ({
         timezone,
         deadline: Number(deadline) || 0,
-        contacts: { tel, email, address },
+        contacts: { title: orgTitle, tel, email, address },
         taxi: { operator: taxiOperator },
         checklistTemplates: { autoApply: autoApplyChecklists },
       })}
@@ -156,8 +157,23 @@ const PrefsGlobals = ({ prefs }) => {
       </SettingRow>
 
       <div className="tw:px-5 tw:pt-4">
-        <SubLabel>Контакты организации</SubLabel>
+        <SubLabel>Организация</SubLabel>
       </div>
+      <SettingRow
+        title="Название организации"
+        hint="Подпись под маркой на экране входа. Пусто — подписи нет."
+        htmlFor="prefs-contact-title"
+        className="tw:py-3"
+      >
+        <Input
+          id="prefs-contact-title"
+          type="text"
+          value={orgTitle}
+          onChange={(event) => setOrgTitle(event.target.value)}
+          placeholder="Служба поддержки «Ромашка»"
+          className="tw:w-72 tw:max-md:w-full"
+        />
+      </SettingRow>
       <SettingRow title="Телефон" htmlFor="prefs-contact-tel" className="tw:py-3">
         <Input
           id="prefs-contact-tel"
@@ -189,7 +205,7 @@ const PrefsGlobals = ({ prefs }) => {
       <SettingRow
         divider
         title="Лого компании"
-        hint="Показывается в навбаре. PNG, JPG или GIF до 2 МБ. Пусто — текстовый бренд «HelpDesk»."
+        hint="Показывается в навбаре и на экране входа. PNG, JPG или GIF до 2 МБ. Пусто — текстовый бренд «HelpDesk»."
       >
         <div className="tw:flex tw:items-center tw:gap-2">
           {logo && (

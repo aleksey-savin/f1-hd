@@ -15,7 +15,7 @@ import ScheduleFilter from "@/components/Team/ScheduleFilter";
 import TodayView from "@/components/Team/TodayView";
 import { isThin } from "@/components/Team/calendar";
 import FilterSheet from "@/components/Report/FilterSheet";
-import ReportShell from "@/components/Report/ReportShell";
+import PageShell from "@/components/app/PageShell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -273,7 +273,7 @@ const TeamCalendar = () => {
   ) : undefined;
 
   return (
-    <ReportShell title="Календарь команды" subtitle={subtitle} toolbar={toolbar}>
+    <PageShell title="Календарь команды" subtitle={subtitle} toolbar={toolbar}>
       <FilterSheet>
         <ScheduleFilter />
       </FilterSheet>
@@ -328,7 +328,7 @@ const TeamCalendar = () => {
         employees={data?.employees ?? []}
         onSaved={() => store.fetch()}
       />
-    </ReportShell>
+    </PageShell>
   );
 };
 

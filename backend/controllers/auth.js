@@ -8,15 +8,85 @@ const User = require("../models/user");
 const Company = require("../models/company");
 const Preferences = require("../models/preferences");
 
-exports.signup = async (req, res, next) => {
-  const emailDomain = req.body.email.replace(/.*@/, "");
-  // Отключённая компания не опознаётся — саморегистрация не привяжет к ней
-  // нового пользователя (уйдёт в ветку «не можем понять из какой Вы компании»)
-  const company = await Company.findOne({
-    emailDomains: { $in: [emailDomain] },
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const SESSION_DAYS = 14;
+
+/**
+ * Сеанс для только что заведённого пользователя (регистрация, первый запуск).
+ * В полезной нагрузке один `userId` — этого хватает `isAuth`, а профиль клиент
+ * всё равно перечитывает загрузчиком корня. Полный набор клеймов остаётся у
+ * `login`, где он исторически сложился.
+ */
+const issueSession = (user) => ({
+  token: jwt.sign({ userId: user._id.toString() }, process.env.JWT_SECRET, {
+    expiresIn: `${SESSION_DAYS}d`,
+    issuer: "helpdesk-api",
+    audience: "web-client",
+    notBefore: 0,
+  }),
+  expiryDate: new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000),
+  userId: user._id,
+});
+
+/**
+ * Компания по домену рабочей почты. Домены вводит администратор руками, и
+ * регистр им никто не нормализует, поэтому сравниваем без учёта регистра:
+ * иначе подсказка формы и сама регистрация разойдутся на `F1Lab.ru`.
+ * Отключённая компания не опознаётся — саморегистрация к ней не привяжет.
+ */
+const findCompanyByEmailDomain = (email) => {
+  const domain = String(email || "").split("@")[1];
+  if (!domain) {
+    return null;
+  }
+  return Company.findOne({
+    emailDomains: {
+      $elemMatch: { $regex: `^${escapeRegex(domain)}$`, $options: "i" },
+    },
     isActive: { $ne: false },
   });
-  const userExists = await User.findOne({ email: req.body.email });
+};
+
+/**
+ * Узнавание компании по адресу — то же правило, по которому привязывает
+ * `signup`, но ДО сабмита: иначе человек заполняет пять полей и получает 404
+ * «не можем понять из какой Вы компании».
+ *
+ * Ответ намеренно беден: название компании и два флага, без имён и id. Факт
+ * существования учётки приложение и так проговаривает (409 на регистрации,
+ * 404 на восстановлении), новой возможности эта ручка не даёт — зато уводит
+ * человека с готовой учёткой туда, где ему помогут («Получить пароль»).
+ */
+exports.companyByEmail = async (req, res, next) => {
+  try {
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
+
+    const [company, registered] = await Promise.all([
+      findCompanyByEmailDomain(email),
+      User.exists({ email }),
+    ]);
+
+    return res.status(200).json({
+      status: company ? "known" : "unknown",
+      company: company ? { title: company.alias || company.fullTitle } : null,
+      registered: Boolean(registered),
+    });
+  } catch (error) {
+    next(new AppError("Failed to resolve company by email", 500, true, error));
+  }
+};
+
+exports.signup = async (req, res, next) => {
+  // Адрес приводим к нижнему регистру ДО поисков: сохраняется он тоже
+  // lowercase, а поиск по сырому вводу пропускал дубль мимо проверки 409
+  const email = String(req.body.email || "")
+    .trim()
+    .toLowerCase();
+  const company = await findCompanyByEmailDomain(email);
+  const userExists = await User.findOne({ email });
 
   if (userExists) {
     return next(
@@ -24,9 +94,9 @@ exports.signup = async (req, res, next) => {
     );
   }
 
-  const users = await User.find({});
+  const usersCount = await User.countDocuments();
 
-  if (!company && users.length > 0) {
+  if (!company && usersCount > 0) {
     return next(
       new AppError(
         "Мы не можем понять из какой Вы компании :( Пожалуйста, укажите рабочий email и попробуйте снова.",
@@ -39,7 +109,7 @@ exports.signup = async (req, res, next) => {
     const hashedPassword = await bcrypt.hash(req.body.password, 12);
 
     const user = new User({
-      email: req.body.email.toLowerCase(),
+      email,
       firstName: req.body.firstName,
       lastName: req.body.lastName,
       password: hashedPassword,
@@ -53,24 +123,7 @@ exports.signup = async (req, res, next) => {
     });
     await user.save();
 
-    const token = jwt.sign(
-      {
-        userId: user._id.toString(),
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "14d",
-        issuer: "helpdesk-api",
-        audience: "web-client",
-        notBefore: 0,
-      },
-    );
-
-    res.status(201).json({
-      token: token,
-      expiryDate: new Date(new Date().getTime() + 14 * 24 * 60 * 60 * 1000),
-      userId: user._id,
-    });
+    res.status(201).json(issueSession(user));
   } catch (error) {
     next(new AppError("Failed to signup user", 500, true, error));
   }
@@ -93,7 +146,8 @@ exports.login = async (req, res, next) => {
 
     if (!user || user.isServiceAccount || !isEqual) {
       return next(
-        new AppError("Неверный логин или пароль", 401, true, null, {
+        // «логина» в приложении нет — входят почтой
+        new AppError("Неверная почта или пароль.", 401, true, null, {
           attemptedEmail: email,
         }),
       );
@@ -130,7 +184,6 @@ exports.login = async (req, res, next) => {
         isAdmin: loadedUser.isAdmin,
         isEndUser: loadedUser.isEndUser,
         permissions: loadedUser.permissions,
-        dashboard: loadedUser.dashboard,
         companies: loadedUser.companies,
         categories: loadedUser.categories,
         profileImagePath: loadedUser.profileImagePath,
@@ -157,7 +210,6 @@ exports.login = async (req, res, next) => {
       categories: loadedUser.categories,
       isAdmin: loadedUser.isAdmin,
       permissions: loadedUser.permissions,
-      dashboard: loadedUser.dashboard,
       companies: loadedUser.companies,
       profileImagePath: loadedUser.profileImagePath,
     });
@@ -205,7 +257,9 @@ exports.forgotPassword = async (req, res, next) => {
     const user = await User.findOne({ email: req.body.email.toLowerCase() });
 
     if (!user) {
-      next(
+      // return обязателен: без него код шёл дальше и падал на user.resetToken,
+      // превращая честный 404 в 500
+      return next(
         new AppError(
           "Пользователь с указанным E-Mail адресом не найден.",
           404,
@@ -325,17 +379,19 @@ exports.firstLaunch = async (req, res, next) => {
     userFirstName,
     userLastName,
     userPassword,
-    userPasswordRepeat,
   } = req.body;
 
   try {
-    if (userPassword !== userPasswordRepeat) {
-      next(new AppError("Failed to fetch opened tickets", 500));
-      return res.status(400).json({
-        error: 400,
-        message: "Пароли не совпадают.",
-      });
+    // Ручка неавторизованная — она и не может быть иной — поэтому единственное,
+    // что отделяет её от создания администратора на живой базе, это счётчик
+    // пользователей. Без него POST извне заводил в проде учётку с
+    // canManageUsers/canManageCompanies/canAdministrateTickets.
+    if ((await User.countDocuments()) > 0) {
+      return next(new AppError("Первичная настройка уже выполнена.", 409));
     }
+
+    // Поля-двойника у формы больше нет: его работу делает кнопка показа
+    // пароля, а страховкой остаётся восстановление по почте
     const hashedPassword = await bcrypt.hash(userPassword, 12);
 
     const user = new User({
@@ -372,10 +428,12 @@ exports.firstLaunch = async (req, res, next) => {
     const preferences = new Preferences({});
     await preferences.save();
 
+    // Отдаём сеанс: человек ввёл этот пароль полминуты назад, и отправлять его
+    // обратно на форму входа — тупик, который выглядит как «пароль не подошёл»
     res.status(201).json({
       message: "Созданы новый пользователь и компания.",
-      user: user._id,
       company: company._id,
+      ...issueSession(user),
     });
   } catch (error) {
     next(new AppError("First launch failed", 500, true, error));

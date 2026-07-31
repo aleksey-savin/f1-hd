@@ -43,9 +43,9 @@ const FormSummary = ({ form, kind, schedule }) => {
   const kindLabel = ACCOUNT_KINDS.find((item) => item.value === kind)?.label;
   const isStaff = kind === "staff";
 
-  const grantedCount =
-    Object.values(form.permissions || {}).filter(Boolean).length +
-    Object.values(form.dashboard || {}).filter(Boolean).length;
+  const grantedCount = Object.values(form.permissions || {}).filter(
+    Boolean,
+  ).length;
 
   return (
     <aside className="tw:rounded-xl tw:border tw:border-border tw:bg-accent tw:p-4">

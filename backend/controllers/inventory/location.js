@@ -1159,6 +1159,24 @@ const PARENT_GROUP_LABEL = {
 // техника родителя РМ (общие принтеры/МФУ помещения). Группы собирает бэкенд:
 // «Личная и рабочее место» и «В помещении — X»; дубли (личное, стоящее на РМ)
 // не повторяются.
+/**
+ * Своё рабочее место — блок «Моё рабочее место» на главной клиента.
+ *
+ * Отдельно от getUserTech, потому что весь /inventory смонтирован за
+ * `canUseInventoryModule`, а этого права нет **ни у одного из 676 клиентов** и
+ * быть не должно: оно открывает раздел «Устройства» целиком. Но собственный
+ * стол — не модуль учёта техники, и спрашивать за него право, выданное
+ * инженерам, неправильно.
+ *
+ * Скоуп жёсткий: id берётся из токена, параметра нет — подставить чужой
+ * нечем.
+ */
+exports.getMyTech = async (req, res, next) => {
+  const authedUser = await getAuthData(req);
+  req.params = { ...req.params, userId: authedUser._id.toString() };
+  return exports.getUserTech(req, res, next);
+};
+
 exports.getUserTech = async (req, res, next) => {
   try {
     const { userId } = req.params;

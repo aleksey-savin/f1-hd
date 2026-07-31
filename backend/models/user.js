@@ -136,15 +136,6 @@ const userSchema = new Schema(
       // только свою часть. Так же устроен доступ к отчёту «Компании».
       canApproveWorkReports: { type: Boolean, default: false },
     },
-    dashboard: {
-      isActive: { type: Boolean, default: false }, // может использовать дашборд
-      personalActions: { type: Boolean, default: false }, // персональные задачи
-      personalTasks: { type: Boolean, default: false }, // персональные задачи
-      personalStats: { type: Boolean, default: false },
-      globalActions: { type: Boolean, default: false }, // глобальные действия
-      globalTasks: { type: Boolean, default: false }, // общие задачи
-      globalStats: { type: Boolean, default: false },
-    },
     // Часовой пояс сотрудника (IANA). null — берётся Preferences.timezone.
     // От него считаются границы его суток, норма и переработки: без этого поля
     // смена инженера из UTC+10 целиком попадала в «до 09:00 по Москве» и

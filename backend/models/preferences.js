@@ -142,6 +142,10 @@ const preferencesSchema = new Schema({
     },
   },
   contacts: {
+    // Название организации — своего у приложения нет: компанию-исполнителя
+    // везде выводят из автора документа (services/reportCard.js), а до входа
+    // автора нет. Поэтому подпись на экране входа берётся отсюда, а не из кода.
+    title: { type: String, default: "" },
     tel: { type: String, default: "" },
     email: { type: String, default: "" },
     address: { type: String, default: "" },

@@ -881,7 +881,18 @@ exports.getModerationSummary = async (req, res, next) => {
 };
 
 // Услуги, у которых до продления остался месяц или меньше (включая просроченные).
-// Для карточки на странице заявок; доступно всем с canSeeKnowledgeBase.
+// Блок «Сроки на исходе» на главной.
+//
+// Кто что видит. Сотрудники — всё, что им и так доступно по правилам базы
+// знаний. Клиент — только услуги СВОЕЙ компании и только если он ответственный
+// с её стороны (Company.clientsSideResponsibles): рядовому сотруднику клиента
+// срок продления домена не адресован, а ответственному — адресован напрямую,
+// потому что продлевать его ему.
+//
+// Само правило видимости заметки не дублируем: фильтруем готовым canViewNote —
+// он уже знает и про скрытие неодобренных, и про «клиент видит только свою
+// компанию». Поэтому в проекции обязаны быть все поля, которые он читает
+// (companies/users/approved), иначе он молча решит, что связей нет.
 exports.getServiceExpiry = async (req, res, next) => {
   try {
     const prefs = await Preferences.findOne({}).lean();
@@ -891,14 +902,67 @@ exports.getServiceExpiry = async (req, res, next) => {
       return res.status(200).json({ services: [], count: 0 });
     }
 
+    const authedUser = await getAuthData(req);
+    const { hideNotApproved, moderatorIds } = await getKbConfig();
+    const empty = { services: [], count: 0 };
+
+    // Кому вообще отвечаем, и по какому правилу потом фильтруем заметки.
+    let ownCompanyId = null;
+    if (authedUser.isEndUser) {
+      ownCompanyId = authedUser.company?._id;
+      if (!ownCompanyId) {
+        return res.status(200).json(empty);
+      }
+      // Схема объявляет ссылку как `id`, но в базе она лежит в `_id` — матчим оба
+      // (тот же разнобой, что у responsibleForCompanies, см. services/reportScope.js)
+      const isClientSideResponsible = await Company.exists({
+        _id: ownCompanyId,
+        $or: [
+          { "clientsSideResponsibles._id": authedUser._id },
+          { "clientsSideResponsibles.id": authedUser._id },
+        ],
+      });
+      if (!isClientSideResponsible) {
+        return res.status(200).json(empty);
+      }
+    } else if (!authedUser.isAdmin && !authedUser.permissions?.canSeeKnowledgeBase) {
+      // Сотрудник без права «видеть базу знаний» не видел этого и раньше —
+      // маршрут был закрыт middleware; гейт просто переехал сюда.
+      return res.status(200).json(empty);
+    }
+
     const days = kb.serviceExpiryDays > 0 ? kb.serviceExpiryDays : 30;
     const now = new Date();
     const cutoff = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
-    const notes = await KnowledgeNote.find(
+    const allNotes = await KnowledgeNote.find(
       { archivedAt: null, "serviceExpiry.entries.expiresAt": { $lte: cutoff } },
-      { title: 1, serviceExpiry: 1, categories: 1 },
+      {
+        title: 1,
+        serviceExpiry: 1,
+        categories: 1,
+        companies: 1,
+        users: 1,
+        approved: 1,
+      },
     ).lean();
+
+    // Клиента через canViewNote не пропустить — он первым делом требует
+    // canSeeKnowledgeBase, которого у клиента нет. Для него правило своё и
+    // узкое: только своя компания, и неодобренное скрывается, если так
+    // настроено. Для сотрудника правило не дублируем — оно уже написано.
+    const notes = ownCompanyId
+      ? allNotes.filter(
+          (note) =>
+            (!hideNotApproved || note.approved === true) &&
+            (note.companies || []).some(
+              (company) =>
+                company._id?.toString() === ownCompanyId.toString(),
+            ),
+        )
+      : allNotes.filter((note) =>
+          canViewNote(note, authedUser, { hideNotApproved, moderatorIds }),
+        );
 
     // Все записи в окне, дедуп по услуге (оставляем ближайшую дату)
     const byService = new Map();
@@ -923,6 +987,11 @@ exports.getServiceExpiry = async (req, res, next) => {
           categories: (note.categories || []).map((category) => ({
             _id: category._id,
             title: category.title,
+          })),
+          // Чьё это — строка блока на главной сотрудника («Домен · БОЛТ»)
+          companies: (note.companies || []).map((company) => ({
+            _id: company._id,
+            alias: company.alias,
           })),
         });
       }

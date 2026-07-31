@@ -539,6 +539,135 @@ const DEVICE_ROW_POPULATE = [
   { path: "companyId", select: "alias fullTitle" },
 ];
 
+// Окно, внутри которого отметки offlineSince считаются ОДНИМ проходом опроса.
+const ONE_POLL_WINDOW_MS = 5 * 60 * 1000;
+// Сколько строк максимум уносит главная; остальное — по ссылке в раздел.
+const OFFLINE_ROWS_LIMIT = 10;
+
+/**
+ * GET /inventory/mikrotik-devices/offline — блок «Мониторинг» на главной.
+ *
+ * Отдельно от getManagedDevices намеренно: тот тянет все записи, все карточки
+ * инвентаря, сводку артефактов, 30-дневную доступность и кэш прошивок с CVE —
+ * это эндпоинт страницы раздела, на лендинге ему делать нечего.
+ *
+ * От заявок блок не зависит. `Preferences.mikrotik.offlineTicket.isActive`
+ * выключен по умолчанию, и тогда недоступность не порождает ни заявки, ни
+ * уведомления; читаем состояние записи напрямую.
+ *
+ * `pollLooksBroken` — главное здесь. Когда опрос падает целиком (протухли
+ * креды, лёг воркер, нет маршрута), офлайн уходят ВСЕ устройства разом и с
+ * одной ошибкой. Список из N строк в этом случае врёт: это одна авария, а не N.
+ * Фронт в таком режиме показывает строку состояния вместо списка.
+ */
+exports.getOfflineDevices = async (req, res, next) => {
+  try {
+    const [records, monitored] = await Promise.all([
+      Mikrotik.find({ monitoringEnabled: true, status: "offline" })
+        .select(
+          "name label boardName clientDevice companyId offlineSince lastError alertTicketId",
+        )
+        .populate("companyId", "alias")
+        .populate("alertTicketId", "num")
+        .lean(),
+      Mikrotik.countDocuments({ monitoringEnabled: true }),
+    ]);
+
+    // Компанию берём через карточку инвентаря: Mikrotik.companyId в базе не
+    // заполнен ни у одной записи, а clientDevice — у всех.
+    const deviceIds = records.map((record) => record.clientDevice).filter(Boolean);
+    const devices = deviceIds.length
+      ? await ClientDevice.find({ _id: { $in: deviceIds } })
+          .select("companyId serialNumber deviceModelId")
+          .populate("companyId", "alias")
+          .populate("deviceModelId", "name")
+          .lean()
+      : [];
+    const deviceById = new Map(
+      devices.map((device) => [String(device._id), device]),
+    );
+
+    const items = records
+      .map((record) => {
+        const device = record.clientDevice
+          ? deviceById.get(String(record.clientDevice))
+          : null;
+        return {
+          _id: record._id,
+          name:
+            record.name ||
+            record.label ||
+            device?.deviceModelId?.name ||
+            "Устройство",
+          company:
+            record.companyId?.alias || device?.companyId?.alias || null,
+          offlineSince: record.offlineSince || null,
+          lastError: record.lastError || "",
+          alertTicketNum: record.alertTicketId?.num || null,
+        };
+      })
+      // Дольше всех молчит — выше: это и есть порядок разбора.
+      .sort((a, b) => {
+        if (!a.offlineSince) return 1;
+        if (!b.offlineSince) return -1;
+        return new Date(a.offlineSince) - new Date(b.offlineSince);
+      });
+
+    // Ищем не «весь список ушёл разом», а САМУЮ БОЛЬШУЮ ОДНОВРЕМЕННУЮ ГРУППУ.
+    // Разброс по всему списку тут не годится: достаточно одного роутера,
+    // упавшего накануне по своей причине, и признак пропадает — ровно это и
+    // происходит на живых данных (17 записей в одну секунду + один за 11 часов
+    // до них).
+    const withStamp = items.filter((item) => item.offlineSince);
+    let cluster = [];
+    for (const anchor of withStamp) {
+      const start = new Date(anchor.offlineSince).getTime();
+      const group = withStamp.filter((item) => {
+        const delta = new Date(item.offlineSince).getTime() - start;
+        return delta >= 0 && delta <= ONE_POLL_WINDOW_MS;
+      });
+      if (group.length > cluster.length) {
+        cluster = group;
+      }
+    }
+
+    const errorCounts = new Map();
+    for (const item of cluster) {
+      if (!item.lastError) continue;
+      errorCounts.set(item.lastError, (errorCounts.get(item.lastError) || 0) + 1);
+    }
+    const [dominantError, dominantErrorCount] = [...errorCounts.entries()].sort(
+      (a, b) => b[1] - a[1],
+    )[0] || [null, 0];
+
+    // Три признака сразу: группа накрывает почти весь парк, ушла одним проходом
+    // и с одной ошибкой. Порознь каждый бывает и при настоящей аварии —
+    // вместе почти нет.
+    const pollLooksBroken =
+      cluster.length >= 3 &&
+      monitored > 0 &&
+      cluster.length / monitored >= 0.8 &&
+      dominantErrorCount / cluster.length >= 0.5;
+
+    res.status(200).json({
+      items: items.slice(0, OFFLINE_ROWS_LIMIT),
+      total: items.length,
+      monitored,
+      pollLooksBroken,
+      // При сломанном опросе интересен момент, когда он сломался (начало
+      // группы), а не когда упал самый первый роутер: он-то упал сам по себе.
+      since:
+        (pollLooksBroken ? cluster[0]?.offlineSince : items[0]?.offlineSince) ||
+        null,
+      dominantError: pollLooksBroken ? dominantError : null,
+    });
+  } catch (error) {
+    next(
+      new AppError(`Failed to fetch offline Mikrotik devices`, 500, true, error),
+    );
+  }
+};
+
 // Все записи мониторинга одним списком — строка идёт от ЗАПИСИ. Инвентарные
 // устройства «без записи» на странице больше не показываются: добавление всегда
 // создаёт новую запись, а связь с карточкой инвентаря — отдельный шаг после

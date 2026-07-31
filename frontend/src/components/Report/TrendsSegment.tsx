@@ -19,7 +19,7 @@ import { msToHMS } from "../../util/time-helpers";
 import EmptyReport from "./EmptyReport";
 import FilterSheet from "./FilterSheet";
 import MetricCards, { type MetricCard } from "./MetricCards";
-import ReportShell from "./ReportShell";
+import PageShell from "@/components/app/PageShell";
 import TrendsChart, { type TrendsSeries } from "./TrendsChart";
 import TrendsFilter from "./TrendsFilter";
 import TrendsTable from "./TrendsTable";
@@ -313,12 +313,12 @@ const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
   }
 
   return (
-    <ReportShell title="Компании" toolbar={toolbar}>
+    <PageShell title="Компании" toolbar={toolbar}>
       <FilterSheet>
         <TrendsFilter />
       </FilterSheet>
       {body}
-    </ReportShell>
+    </PageShell>
   );
 };
 

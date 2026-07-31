@@ -263,6 +263,80 @@ exports.getStats = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /companies/my-support — блок «Кто ведёт вашу компанию» на главной клиента.
+ *
+ * Кому. Только тем на стороне клиента, кто отвечает за ИТ: ответственным из
+ * `clientsSideResponsibles` и руководителям подразделений своей компании.
+ * Рядовому сотруднику клиента список наших инженеров не адресован — он пишет
+ * заявку и не выбирает, кого дёргать; эскалируют как раз эти двое.
+ *
+ * Откуда данные. `Company.responsibles` — наши инженеры, контакты лежат прямо
+ * в массиве (имя, должность, телефон, почта), поэтому populate не нужен.
+ * Общий канал поддержки (`Preferences.contacts`) фронт уже держит в
+ * `store/prefs.js` — здесь его не дублируем.
+ *
+ * Осторожно: схема объявляет ссылку на пользователя как `id`, но в базе она
+ * лежит в `_id` (0 документов с `id`, 33 с `_id`) — тот же разнобой, что у
+ * `responsibleForCompanies`, см. services/reportScope.js. Матчим оба поля.
+ */
+exports.getMySupport = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const empty = { eligible: false, company: null, responsibles: [] };
+
+    const companyId = authedUser.company?._id;
+    if (!authedUser.isEndUser || !companyId) {
+      return res.status(200).json(empty);
+    }
+
+    const company = await Company.findById(companyId)
+      .select("alias fullTitle phones responsibles clientsSideResponsibles")
+      .lean();
+    if (!company) {
+      return res.status(200).json(empty);
+    }
+
+    const refOf = (entry) => (entry?._id || entry?.id || "").toString();
+    const isClientSideResponsible = (company.clientsSideResponsibles || []).some(
+      (entry) => refOf(entry) === authedUser._id.toString(),
+    );
+    const managesSubdivision =
+      isClientSideResponsible ||
+      !!(await Subdivision.exists({
+        company: companyId,
+        manager: authedUser._id,
+      }));
+
+    if (!isClientSideResponsible && !managesSubdivision) {
+      return res.status(200).json(empty);
+    }
+
+    res.status(200).json({
+      eligible: true,
+      company: {
+        _id: company._id,
+        alias: company.alias,
+        phones: company.phones || [],
+      },
+      // Уволенных и отключённых не показываем: контакт, по которому не отвечают,
+      // хуже отсутствия контакта.
+      responsibles: (company.responsibles || [])
+        .filter((entry) => entry?.isActive !== false)
+        .map((entry) => ({
+          _id: refOf(entry) || null,
+          firstName: entry.firstName || "",
+          lastName: entry.lastName || "",
+          position: entry.position || "",
+          email: entry.email || "",
+          phone: entry.phone || "",
+        })),
+    });
+  } catch (error) {
+    next(new AppError(`Failed to fetch company support contacts`, 500, true, error));
+  }
+};
+
 exports.add = async (req, res, next) => {
   try {
     const { userId } = await getAuthData(req);

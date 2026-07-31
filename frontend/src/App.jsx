@@ -350,34 +350,79 @@ import CompaniesNetworksReport, {
 // Finances
 
 // Auth
-import Authentication, {
-  loader as authLoader,
-  action as authAction,
-} from "./pages/Authentication.jsx";
+import AuthLayout, {
+  loader as authLayoutLoader,
+} from "./pages/Auth/Layout.tsx";
+import Login, {
+  loader as loginLoader,
+  action as loginAction,
+} from "./pages/Auth/Login.tsx";
+import Signup, {
+  loader as signupLoader,
+  action as signupAction,
+} from "./pages/Auth/Signup.tsx";
+import PasswordRequest, {
+  loader as passwordLoader,
+  action as passwordAction,
+} from "./pages/Auth/Password.tsx";
+import NewPassword, {
+  loader as newPasswordLoader,
+  action as newPasswordAction,
+} from "./pages/Auth/NewPassword.tsx";
+import Setup, {
+  loader as setupLoader,
+  action as setupAction,
+} from "./pages/Auth/Setup.tsx";
 import { authDataLoader, checkAuthLoader } from "./util/auth.js";
-import { action as logoutAction } from "./components/Auth/Logout.jsx";
-import ResetPassword, {
-  loader as resetPasswordLoader,
-  action as resetPasswordAction,
-} from "./pages/ResetPassword.jsx";
+import { action as logoutAction } from "./pages/Auth/logout.js";
 
 // Errors
 import Error from "./pages/Error.jsx";
 
 function App() {
   const router = createBrowserRouter([
-    // Auth
+    // Пред-авторизационные экраны: одна оболочка на все, режимы — маршрутами.
+    // Маршрут беспутевой, потому что /reset-password/:token уже разослан
+    // письмами и не может стать потомком /auth. shouldRevalidate гасит
+    // повторный запрос настроек после каждого неудачного входа.
     {
-      path: "auth",
-      element: <Authentication />,
-      loader: authLoader,
-      action: authAction,
-    },
-    {
-      path: "reset-password/:token",
-      element: <ResetPassword />,
-      loader: resetPasswordLoader,
-      action: resetPasswordAction,
+      id: "auth",
+      element: <AuthLayout />,
+      loader: authLayoutLoader,
+      shouldRevalidate: () => false,
+      errorElement: <Error />,
+      children: [
+        {
+          path: "auth",
+          element: <Login />,
+          loader: loginLoader,
+          action: loginAction,
+        },
+        {
+          path: "auth/signup",
+          element: <Signup />,
+          loader: signupLoader,
+          action: signupAction,
+        },
+        {
+          path: "auth/password",
+          element: <PasswordRequest />,
+          loader: passwordLoader,
+          action: passwordAction,
+        },
+        {
+          path: "auth/setup",
+          element: <Setup />,
+          loader: setupLoader,
+          action: setupAction,
+        },
+        {
+          path: "reset-password/:token",
+          element: <NewPassword />,
+          loader: newPasswordLoader,
+          action: newPasswordAction,
+        },
+      ],
     },
     {
       // Согласование отчёта по ссылке из письма: без входа в приложение и без

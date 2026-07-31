@@ -23,7 +23,7 @@ import EmptyReport from "../../components/Report/EmptyReport";
 import FilterSheet from "../../components/Report/FilterSheet";
 import KpiRow from "../../components/Report/KpiRow";
 import PeriodFilter from "../../components/Report/PeriodFilter";
-import ReportShell from "../../components/Report/ReportShell";
+import PageShell from "@/components/app/PageShell";
 import ShareBars from "../../components/Report/ShareBars";
 import StackedTimeBars, {
   type StackedTimeRow,
@@ -202,7 +202,7 @@ const CompanyReport = () => {
   }
 
   return (
-    <ReportShell
+    <PageShell
       title={data?.company.alias ?? "Компания"}
       subtitle={
         data && (
@@ -242,7 +242,7 @@ const CompanyReport = () => {
         />
       </FilterSheet>
       {body}
-    </ReportShell>
+    </PageShell>
   );
 };
 

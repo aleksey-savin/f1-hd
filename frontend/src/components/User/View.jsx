@@ -6,7 +6,6 @@ import {
   RiBuilding2Line,
   RiCheckLine,
   RiCloseLine,
-  RiDashboardLine,
   RiDeleteBinLine,
   RiEdit2Line,
   RiGroupLine,
@@ -54,11 +53,7 @@ import useOffcanvasStore from "../../store/offcanvas";
 import useInitialPrefs from "../../store/prefs";
 import { getPresence } from "./presence";
 import PresenceText from "./PresenceText";
-import {
-  CLIENT_PERMISSIONS,
-  DASHBOARD_MODULE,
-  PERMISSION_MODULES,
-} from "./permissions-catalog";
+import { CLIENT_PERMISSIONS, PERMISSION_MODULES } from "./permissions-catalog";
 import { relativeDay } from "../../util/relative-time";
 import { formatDate, formatShortDate } from "../../util/format-date";
 import { formatPrice } from "../../util/format-string";
@@ -155,7 +150,6 @@ const ViewUser = ({ user, tickets }) => {
     activeDirectoryObjectGUID,
     finances,
     permissions = {},
-    dashboard = {},
     notify,
     lastLogin,
     lastActivityAt,
@@ -201,16 +195,14 @@ const ViewUser = ({ user, tickets }) => {
     time: <RiTimeLine />,
     inventory: <RiHardDrive2Line />,
     finances: <RiMoneyDollarCircleLine />,
-    dashboard: <RiDashboardLine />,
   };
-  const modules = [...PERMISSION_MODULES, DASHBOARD_MODULE].map((module) => {
-    const values = module.key === "dashboard" ? dashboard : permissions;
+  const modules = PERMISSION_MODULES.map((module) => {
     return {
       label: module.label,
       icon: MODULE_ICONS[module.key],
-      master: module.master ? Boolean(values[module.master]) : undefined,
+      master: module.master ? Boolean(permissions[module.master]) : undefined,
       caps: module.caps.map((cap) => ({
-        on: Boolean(values[cap.key]),
+        on: Boolean(permissions[cap.key]),
         label: cap.label,
       })),
     };

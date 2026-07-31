@@ -32,7 +32,6 @@ import {
   ALL_PERMISSION_KEYS,
   CLIENT_PERMISSIONS,
   CLIENT_PERMISSION_KEYS,
-  DASHBOARD_MODULE,
   NOTIFY_EVENTS,
   PERMISSION_MODULES,
   WORK_TIME_MODES,
@@ -48,13 +47,6 @@ import FormSummary from "./FormSummary";
 // isCloudTelephony); обратно в флаги собирается при сабмите.
 const emptyPermissions = () =>
   Object.fromEntries(ALL_PERMISSION_KEYS.map((key) => [key, false]));
-
-const emptyDashboard = () =>
-  Object.fromEntries(
-    [DASHBOARD_MODULE.master, ...DASHBOARD_MODULE.caps.map((c) => c.key)].map(
-      (key) => [key, false],
-    ),
-  );
 
 const emptyNotify = () => ({
   byTelegram: Object.fromEntries(NOTIFY_EVENTS.map((e) => [e.key, true])),
@@ -183,7 +175,6 @@ const UserForm = () => {
       .map((item) => companiesList.find((c) => c._id === String(item.id)))
       .filter(Boolean),
     permissions: { ...emptyPermissions(), ...(user?.permissions || {}) },
-    dashboard: { ...emptyDashboard(), ...(user?.dashboard || {}) },
     notify: user?.notify
       ? {
           byTelegram: { ...emptyNotify().byTelegram, ...user.notify.byTelegram },
@@ -380,7 +371,6 @@ const UserForm = () => {
         ? form.responsibleForCompanies.map((c) => ({ id: c._id, alias: c.alias }))
         : [],
       permissions: isStaff ? form.permissions : clientPermissions(),
-      dashboard: isStaff ? form.dashboard : emptyDashboard(),
     };
 
     if (!isEdit && !isService) {
@@ -419,11 +409,6 @@ const UserForm = () => {
     setForm((prev) => ({
       ...prev,
       permissions: { ...prev.permissions, [key]: !prev.permissions[key] },
-    }));
-  const toggleDash = (key) =>
-    setForm((prev) => ({
-      ...prev,
-      dashboard: { ...prev.dashboard, [key]: !prev.dashboard[key] },
     }));
   const toggleNotify = (channel, key) => {
     setNotifyDirty(true);
@@ -971,7 +956,6 @@ const UserForm = () => {
       {PERMISSION_MODULES.map((module) =>
         moduleBlock(module, form.permissions, togglePerm),
       )}
-      {moduleBlock(DASHBOARD_MODULE, form.dashboard, toggleDash)}
     </>
   );
 

@@ -1,5 +1,6 @@
 const Preferences = require("../models/preferences");
 const User = require("../models/user");
+const Company = require("../models/company");
 const AiFeedback = require("../models/aiFeedback");
 
 const { AppError } = require("../middleware/errorHandling");
@@ -158,21 +159,42 @@ exports.get = async (req, res, next) => {
   }
 };
 
+/**
+ * Данные для пред-авторизационных экранов: их видят до входа, поэтому ручка
+ * без `isAuth` и отдаёт ровно то, что рисует оболочка, — бренд, контакты
+ * поддержки (человеку, который не может войти, нужен живой канал) и два флага
+ * доступности путей.
+ */
 exports.getAuth = async (req, res, next) => {
   try {
     const usersCount = await User.countDocuments();
 
     if (usersCount === 0) {
-      return res.status(200).json({
-        firstLaunch: true,
-      });
+      return res.status(200).json({ firstLaunch: true });
     }
 
-    const preferences = await Preferences.findOne({});
+    const [preferences, selfSignupCompany] = await Promise.all([
+      Preferences.findOne({}),
+      // регистрация возможна, только если есть кому опознать домен
+      Company.exists({
+        isActive: { $ne: false },
+        "emailDomains.0": { $exists: true },
+      }),
+    ]);
 
     return res.status(200).json({
-      pro32connect: preferences?.getScreen || false,
+      firstLaunch: false,
+      contacts: {
+        title: preferences?.contacts?.title || "",
+        tel: preferences?.contacts?.tel || "",
+        email: preferences?.contacts?.email || "",
+        address: preferences?.contacts?.address || "",
+        logo: preferences?.contacts?.logo || "",
+      },
+      timezone: preferences?.timezone || "",
+      // без почты ссылку на смену пароля отправить нечем — путь прячется
       emailIsActive: preferences?.notify?.byEmail?.isActive || false,
+      selfSignupIsActive: Boolean(selfSignupCompany),
     });
   } catch (error) {
     next(
@@ -277,6 +299,7 @@ exports.update = async (req, res, next) => {
       // contacts.logo управляется отдельными эндпоинтами (/preferences/logo):
       // замена объекта целиком затирала бы лого при сохранении общих настроек
       preferences.contacts = {
+        title: body.contacts?.title ?? "",
         tel: body.contacts?.tel ?? "",
         email: body.contacts?.email ?? "",
         address: body.contacts?.address ?? "",

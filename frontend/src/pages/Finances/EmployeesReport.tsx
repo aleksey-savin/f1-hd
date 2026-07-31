@@ -15,7 +15,7 @@ import EmployeesTrendsSegment from "../../components/Report/EmployeesTrendsSegme
 import EmptyReport from "../../components/Report/EmptyReport";
 import FilterSheet from "../../components/Report/FilterSheet";
 import PeriodFilter from "../../components/Report/PeriodFilter";
-import ReportShell from "../../components/Report/ReportShell";
+import PageShell from "@/components/app/PageShell";
 import { useAuthedUser } from "../../store/authed-user";
 import useEmployeesSummaryStore from "../../store/reports/employees-summary";
 import { isFullMonthRange } from "../../util/period";
@@ -160,7 +160,7 @@ const EmployeesReport = () => {
   }
 
   return (
-    <ReportShell title="Сотрудники" toolbar={toolbar}>
+    <PageShell title="Сотрудники" toolbar={toolbar}>
       <FilterSheet>
         <PeriodFilter
           idPrefix="employees"
@@ -173,7 +173,7 @@ const EmployeesReport = () => {
         />
       </FilterSheet>
       {body}
-    </ReportShell>
+    </PageShell>
   );
 };
 

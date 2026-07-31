@@ -19,7 +19,7 @@ import EmptyReport from "./EmptyReport";
 import ExportMenu from "./ExportMenu";
 import FilterSheet from "./FilterSheet";
 import KpiRow from "./KpiRow";
-import ReportShell from "./ReportShell";
+import PageShell from "@/components/app/PageShell";
 import StackedTimeBars, { type StackedTimeRow } from "./StackedTimeBars";
 import SummaryFilter from "./SummaryFilter";
 import { CompanySummaryTable } from "./SummaryTables";
@@ -185,12 +185,12 @@ const SummarySegment = ({ segment }: { segment: ReactNode }) => {
   }
 
   return (
-    <ReportShell title="Компании" toolbar={toolbar}>
+    <PageShell title="Компании" toolbar={toolbar}>
       <FilterSheet>
         <SummaryFilter />
       </FilterSheet>
       {body}
-    </ReportShell>
+    </PageShell>
   );
 };
 

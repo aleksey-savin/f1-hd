@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLoaderData } from "react-router";
+import { useLoaderData, useSearchParams } from "react-router";
 
 import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
 import ListWrapper from "@/components/app/ListWrapper";
@@ -21,18 +21,44 @@ import ArchiveItem from "./ArchiveItem";
 // yyyy-MM-dd (значение нативного поля даты) → dd.MM.yyyy для бейджа
 const formatBadgeDate = (isoDay) => isoDay.split("-").reverse().join(".");
 
+// Фасеты-списки, которые принимаются из адреса через запятую.
+const URL_LIST_FACETS = ["companies", "applicants", "responsibles", "categories"];
+
 const TicketsArchiveList = ({ segment }) => {
   const s = useClosedTicketsStore();
   const formData = useLoaderData();
+  const [searchParams] = useSearchParams();
 
-  // Опции фасетов из loader (form-data, включая отключённые компании)
+  // Опции фасетов из loader (form-data, включая отключённые компании).
+  // Объявлен ПЕРВЫМ намеренно: иначе бейдж пришедшего из адреса фасета не
+  // найдёт, как назвать выбранное значение, и покажет «выбрано».
   useEffect(() => {
     s.setOptions(formData);
   }, [formData]);
 
-  // Первичная загрузка; фильтры/сортировка/страницы делают запросы сами
+  // Первичная загрузка. Адрес может принести готовый фильтр («Все закрытые» с
+  // главной ведёт сюда с периодом и инициатором) — тогда засеиваем стор им, и
+  // запрос делает сам updateFilter. Двух запросов на вход не бывает.
   useEffect(() => {
-    s.fetch();
+    const patch = {};
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+    if (from) patch.from = from;
+    if (to) patch.to = to;
+    URL_LIST_FACETS.forEach((key) => {
+      const raw = searchParams.get(key);
+      if (raw) patch[key] = raw.split(",").filter(Boolean);
+    });
+    const search = searchParams.get("search");
+    if (search) patch.searchTerm = search;
+
+    if (Object.keys(patch).length > 0) {
+      s.updateFilter(patch);
+    } else {
+      // Без параметров прежний фильтр остаётся — он переживает уход со
+      // страницы намеренно (канон «Архива»), и адрес его не сбрасывает.
+      s.fetch();
+    }
   }, []);
 
   const optionLabel = (key, id) =>

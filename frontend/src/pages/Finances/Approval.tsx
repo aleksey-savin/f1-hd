@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import CategoryFixDialog from "../../components/Report/CategoryFixDialog";
 import EmptyReport from "../../components/Report/EmptyReport";
 import PipelineRail, { STAGES, plural } from "../../components/Report/PipelineRail";
-import ReportShell from "../../components/Report/ReportShell";
+import PageShell from "@/components/app/PageShell";
 import { formatMinutes, formatMoney } from "../../components/Report/work-format";
 import usePolling from "../../hooks/use-polling";
 import useApprovalStore from "../../store/reports/approval";
@@ -178,7 +178,7 @@ const Approval = () => {
 
   if (!data) {
     return (
-      <ReportShell title="Согласование работ" toolbar={toolbar}>
+      <PageShell title="Согласование работ" toolbar={toolbar}>
         {store.error ? (
           errorBanner
         ) : (
@@ -191,18 +191,18 @@ const Approval = () => {
             <Skeleton className="tw:h-72 tw:rounded-xl" />
           </div>
         )}
-      </ReportShell>
+      </PageShell>
     );
   }
 
   if (data.scope.kind === "none") {
     return (
-      <ReportShell title="Согласование работ">
+      <PageShell title="Согласование работ">
         <EmptyReport
           title="Раздел вам пока недоступен"
           hint="Отчёты по услугам видят те, кто их формирует, и согласующие со стороны клиента. Если раздел нужен по работе, попросите администратора назначить вас согласующим в карточке компании."
         />
-      </ReportShell>
+      </PageShell>
     );
   }
 
@@ -216,7 +216,7 @@ const Approval = () => {
     const awaitingIds = new Set(awaiting.map((row) => row._id));
 
     return (
-      <ReportShell title="Согласование работ" toolbar={toolbar}>
+      <PageShell title="Согласование работ" toolbar={toolbar}>
         <div className={cn("tw:space-y-1", store.isLoading && "tw:opacity-60")}>
           {errorBanner}
           <ClientSummary
@@ -227,7 +227,7 @@ const Approval = () => {
             onOpen={(id) => navigate(`/finances/approval/${id}`)}
           />
         </div>
-      </ReportShell>
+      </PageShell>
     );
   }
 
@@ -235,7 +235,7 @@ const Approval = () => {
     STAGES.find((item) => item.key === stage)?.label || "Отчёты";
 
   return (
-    <ReportShell title="Согласование работ" toolbar={toolbar}>
+    <PageShell title="Согласование работ" toolbar={toolbar}>
       <div className={cn("tw:space-y-1", store.isLoading && "tw:opacity-60")}>
         {errorBanner}
         {actionError && <AlertMessage variant="danger" message={actionError} />}
@@ -296,7 +296,7 @@ const Approval = () => {
         onOpenChange={(open) => !open && setFixQueue(null)}
         onFixed={() => store.fetch()}
       />
-    </ReportShell>
+    </PageShell>
   );
 };
 

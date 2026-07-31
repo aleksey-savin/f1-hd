@@ -25,6 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import BrandMark from "@/components/app/BrandMark";
 import { THEME_OPTIONS } from "@/components/app/ThemeSegment";
 import { cn } from "@/lib/utils";
 
@@ -61,24 +62,7 @@ const Brand = ({ size = "default" }) => {
       aria-label="HelpDesk — на главную"
       className="tw:inline-flex tw:flex-none tw:items-center tw:no-underline"
     >
-      {contacts?.logo ? (
-        // width:auto задаёт глобальный img-автоскейл, max-height — инлайном
-        // (глобальное правило ограничивает только width/height, не max-height)
-        <img
-          src={`${import.meta.env.VITE_API_ADDRESS}/uploads/${contacts.logo}`}
-          alt="Логотип компании"
-          style={{ maxHeight: size === "sm" ? "28px" : "32px" }}
-        />
-      ) : (
-        <span
-          className={cn(
-            "tw:font-bold tw:tracking-tight tw:text-foreground",
-            size === "sm" ? "tw:text-base" : "tw:text-lg",
-          )}
-        >
-          Help<span className="tw:text-primary">Desk</span>
-        </span>
-      )}
+      <BrandMark logo={contacts?.logo} size={size} />
     </NavLink>
   );
 };
@@ -239,7 +223,6 @@ const NavigationBar = ({ embedded = false }) => {
     profileImagePath,
     workStatus,
     hideWorkStatus,
-    dashboard,
     permissions,
   } = authedUser;
 
@@ -256,10 +239,9 @@ const NavigationBar = ({ embedded = false }) => {
             permissions,
             modules,
             mikrotikActive: !!mikrotik?.isActive,
-            dashboardActive: !!dashboard?.isActive,
           })
         : [],
-    [isLoggedIn, isEndUser, isAdmin, permissions, modules, mikrotik, dashboard],
+    [isLoggedIn, isEndUser, isAdmin, permissions, modules, mikrotik],
   );
 
   const userTrigger = (

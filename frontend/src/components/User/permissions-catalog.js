@@ -73,21 +73,6 @@ export const PERMISSION_MODULES = [
   },
 ];
 
-// Dashboard живёт отдельным поддокументом (dashboard.*), не в permissions.
-export const DASHBOARD_MODULE = {
-  key: "dashboard",
-  label: "Dashboard",
-  master: "isActive",
-  caps: [
-    { key: "personalActions", label: "Персональные действия" },
-    { key: "personalTasks", label: "Персональные задачи" },
-    { key: "personalStats", label: "Персональная статистика" },
-    { key: "globalActions", label: "Глобальные действия" },
-    { key: "globalTasks", label: "Глобальные задачи" },
-    { key: "globalStats", label: "Глобальная статистика" },
-  ],
-};
-
 // Категории уведомлений — имя ключа едино для notify.byTelegram / notify.byEmail
 // и prefs.notify.personal (см. middleware/notifications.js).
 export const NOTIFY_EVENTS = [

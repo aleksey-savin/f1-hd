@@ -1,12 +1,18 @@
 const { body, param } = require("express-validator");
 const User = require("../models/user");
 
+exports.companyByEmail = [
+  body("email").isEmail().withMessage("Please enter a valid email."),
+];
+
 exports.signup = [
   body("email")
     .isEmail()
     .withMessage("Please enter a valid email.")
     .custom(async (value) => {
-      const user = await User.findOne({ email: value });
+      // адрес хранится в нижнем регистре — иначе проверка уникальности
+      // пропускает Ivan@RADV.ru мимо существующего ivan@radv.ru
+      const user = await User.findOne({ email: String(value).toLowerCase() });
       if (user) {
         return Promise.reject("Email address already exists");
       }

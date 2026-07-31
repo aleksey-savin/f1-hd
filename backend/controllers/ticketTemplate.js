@@ -9,7 +9,12 @@ const { AppError } = require("../middleware/errorHandling");
 
 exports.getAll = async (req, res, next) => {
   try {
-    const { _id: userId, company, permissions } = await getAuthData(req);
+    const {
+      _id: userId,
+      company,
+      permissions,
+      isEndUser,
+    } = await getAuthData(req);
     const authedUser = await User.findById(userId);
 
     let templates = [];
@@ -24,13 +29,19 @@ exports.getAll = async (req, res, next) => {
       return res.status(200).json(templates);
     }
 
-    templates = await TicketTemplate.find({
-      $or: [
-        { "createdBy._id": userId },
-        { sharedCompanies: company },
-        { sharedUsers: authedUser },
-      ],
-    })
+    // Флаг «доступен всем сотрудникам» не участвовал в выборке вовсе: шаблон с
+    // ним не видел никто, кроме автора. Ветка добавлена, а не заменена, —
+    // явный шеринг компаниям/пользователям продолжает работать сам по себе.
+    const visibility = [
+      { "createdBy._id": userId },
+      { sharedCompanies: company },
+      { sharedUsers: authedUser },
+    ];
+    if (!isEndUser) {
+      visibility.push({ allowAllStaff: true });
+    }
+
+    templates = await TicketTemplate.find({ $or: visibility })
       .populate("categoryId", "_id title")
       .sort({
         title: 1,

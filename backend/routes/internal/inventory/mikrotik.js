@@ -31,6 +31,12 @@ const downloadCodeLimiter = rateLimit({
 // Reads. Все живые операции адресуются id ЗАПИСИ мониторинга: обратный путь по
 // карточке инвентаря жил ради вкладки «Мониторинг», её больше нет.
 router.get("/mikrotik-devices", isAuth, mikrotikController.getManagedDevices);
+// Блок «Мониторинг» на главной: только офлайн, без доступности и прошивок.
+router.get(
+  "/mikrotik-devices/offline",
+  isAuth,
+  mikrotikController.getOfflineDevices,
+);
 router.get(
   "/mikrotik-devices/report/networks",
   isAuth,

@@ -199,7 +199,23 @@ const TechRow = ({ device, onSelect }) => {
 // «Личная и рабочее место» (без рабочего места — «Закреплено лично») и
 // «В помещении — X» (прямая техника родителя рабочего места); у компании группа
 // одна, безымянная.
-const TechSection = ({ id, companyId, userId, subject = "applicant" }) => {
+const TechSection = ({
+  id,
+  companyId,
+  userId,
+  subject = "applicant",
+  // Своя техника: адрес без id, скоуп считает токен. Так блок «Моё рабочее
+  // место» работает у клиента, которому раздел учёта не открыт.
+  self = false,
+  // Метка секции. На карточках это «Техника» (предмет — учёт), на главной
+  // клиента — «Моё рабочее место»: там же те же данные отвечают на другой
+  // вопрос, «что вокруг меня стоит».
+  label = "Техника",
+  // Прятать секцию целиком, когда учёт пуст. На карточке заглушка нужна — она
+  // объясняет, где техника появляется; на лендинге секций много, и плакат
+  // «Техники пока нет» отжимал бы вниз то, ради чего страницу открыли.
+  hideWhenEmpty = false,
+}) => {
   const { token } = getLocalStorageData();
   const { isLoading, error, sendRequest } = useHttp();
 
@@ -220,13 +236,18 @@ const TechSection = ({ id, companyId, userId, subject = "applicant" }) => {
   const [locations, setLocations] = useState([]);
 
   useEffect(() => {
-    if (!companyId && !userId) return;
+    if (!companyId && !userId && !self) return;
     const base = import.meta.env.VITE_API_ADDRESS;
-    const url = companyId
-      ? `${base}/api/inventory/locations/company/${companyId}/tech`
-      : `${base}/api/inventory/locations/user/${userId}/tech`;
+    // «Своё» ходит по отдельному адресу вне /inventory: тот целиком закрыт
+    // правом инженера, которого у клиента нет и быть не должно (см. шапку
+    // routes/internal/myWorkplace.js). Ответ по форме тот же — группы.
+    const url = self
+      ? `${base}/api/my-workplace`
+      : companyId
+        ? `${base}/api/inventory/locations/company/${companyId}/tech`
+        : `${base}/api/inventory/locations/user/${userId}/tech`;
     sendRequest({ url, headers: { Authorization: "Bearer " + token } }, setData);
-  }, [companyId, userId, token, sendRequest]);
+  }, [companyId, userId, self, token, sendRequest]);
 
   // Единый формат: массив групп (у компании — одна безымянная)
   const groups = useMemo(() => {
@@ -343,18 +364,30 @@ const TechSection = ({ id, companyId, userId, subject = "applicant" }) => {
     />
   );
 
+  // Пока данных нет, решить «пусто ли» нельзя — на лендинге молчим до ответа,
+  // иначе секция мигает заголовком и исчезает.
+  if (hideWhenEmpty && (!data || total === 0)) return null;
+
   return (
     <>
       <Eyebrow
         id={id}
         count={total ?? undefined}
-        action={<span className="tw:max-md:hidden">{segmented()}</span>}
+        // «Окружение» строит семантический зум по всей физической иерархии, а
+        // его ручка — внутри закрытого клиенту /inventory. Переключателя,
+        // который у половины зрителей ведёт в 403, не бывает: в режиме `self`
+        // остаётся один список.
+        action={
+          self ? undefined : <span className="tw:max-md:hidden">{segmented()}</span>
+        }
       >
-        Техника
+        {label}
       </Eyebrow>
-      <div className="tw:mb-2.5 tw:md:hidden">{segmented("tw:w-full")}</div>
+      {!self && (
+        <div className="tw:mb-2.5 tw:md:hidden">{segmented("tw:w-full")}</div>
+      )}
 
-      {view === "env" ? (
+      {view === "env" && !self ? (
         <Environment companyId={companyId} userId={userId} subject={subject} />
       ) : isLoading || (!data && !error) ? (
         <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card">
@@ -506,15 +539,19 @@ const TechSection = ({ id, companyId, userId, subject = "applicant" }) => {
             )}
           </div>
 
-          <div className="tw:border-t tw:border-border-soft tw:px-4 tw:py-3">
-            <Link
-              to={allDevicesLink}
-              className="tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-semibold tw:text-accent-text tw:no-underline tw:hover:underline"
-            >
-              Вся техника в «Устройствах» ({total}){" "}
-              <RiArrowRightSLine size={16} />
-            </Link>
-          </div>
+          {/* Раздел «Устройства» клиенту не открыт — ссылка туда была бы
+              обещанием, которого интерфейс не держит. */}
+          {!self && (
+            <div className="tw:border-t tw:border-border-soft tw:px-4 tw:py-3">
+              <Link
+                to={allDevicesLink}
+                className="tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-semibold tw:text-accent-text tw:no-underline tw:hover:underline"
+              >
+                Вся техника в «Устройствах» ({total}){" "}
+                <RiArrowRightSLine size={16} />
+              </Link>
+            </div>
+          )}
         </div>
       )}
 

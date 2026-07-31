@@ -48,12 +48,18 @@ router.get(
   knowledgeNoteController.getModerationSummary,
 );
 
-// service-expiry объявляется до :id, чтобы не быть перехваченным динамическим сегментом
+// service-expiry объявляется до :id, чтобы не быть перехваченным динамическим сегментом.
+//
+// БЕЗ canSeeKnowledgeBase — намеренно, это единственный маршрут раздела без него.
+// Сроки продления адресованы и ответственному со стороны клиента, а права «видеть
+// базу знаний» у клиентов нет и быть не должно: оно открыло бы им базу целиком.
+// Ручка отдаёт не заметки, а строки сроков, и решает, кому что показать, сама
+// (см. getServiceExpiry) — сотрудник по правилам базы знаний, клиент-ответственный
+// только по своей компании, остальные не получают ничего.
 router.get(
   "/knowledge-notes/service-expiry",
   isAuth,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
   knowledgeNoteController.getServiceExpiry,
 );
 
