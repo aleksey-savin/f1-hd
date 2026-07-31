@@ -95,6 +95,7 @@ export interface ITicketAiGuide {
   provider?: string;
   model?: string;
   error?: string;
+  startedAt?: Date;
   generatedAt?: Date;
   generatedFromCommentCount?: number;
 }

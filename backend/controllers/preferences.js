@@ -17,6 +17,16 @@ const {
   readStoredSecret,
 } = require("../helpers/preferencesSecrets");
 const { checkMailbox, sendTestEmail } = require("../services/mail/check");
+const {
+  checkProvider,
+  buildLocalBaseUrl,
+  needsApiKey,
+} = require("../services/aiService");
+const {
+  checkSpeechToText,
+  resolveSpeechConfig,
+  canShareCredentials,
+} = require("../services/speechToTextService");
 const logger = require("../utils/logger");
 
 // Поля почтовых каналов, которые правит форма. Мержим по путям (а не заменяем
@@ -81,17 +91,58 @@ const findMailInvariant = (preferences) => {
   return null;
 };
 
+// Тот же принцип у каналов ИИ: у чат-провайдера и у распознавания речи свои
+// ключи, и включённый канал без них — это молчание, объяснимое только логами.
+const findAiInvariant = (preferences) => {
+  const ai = preferences.ai || {};
+  if (!ai.isActive) return null;
+
+  const provider = ai.provider;
+  const config = (provider ? ai[provider] : null) || {};
+
+  if (!config.apiKey && needsApiKey(provider)) {
+    return "Укажите API-ключ поставщика ИИ — без него ответов не будет";
+  }
+  if (provider === "yandexai" && !(config.folderId || "").trim()) {
+    return "Укажите идентификатор каталога — без него Yandex AI Studio не отвечает";
+  }
+  if (provider === "local" && !(config.baseUrl || "").trim()) {
+    return "Укажите адрес сервера модели — например, http://192.168.1.10:11434";
+  }
+  // Каталог живой у всех четырёх поставщиков, поэтому пустая модель — это не
+  // «возьмём по умолчанию», а неизбежная ошибка при первом же вызове
+  if (!(config.model || "").trim()) {
+    return "Выберите модель — список обновляется кнопкой рядом с полем";
+  }
+
+  // У распознавания свои данные либо взятые у основного провайдера — разбирает
+  // это резолвер, инвариант проверяет уже результат
+  if (ai.speechToText?.isActive) {
+    const speech = resolveSpeechConfig(ai);
+
+    if (speech.provider === "local") {
+      if (!speech.baseUrl) {
+        return "Укажите адрес сервера распознавания — например, http://192.168.1.10:8000";
+      }
+      if (!speech.model) {
+        return "Выберите модель распознавания — список обновляется кнопкой рядом";
+      }
+    } else if (!speech.apiKey) {
+      return speech.provider === "yandex"
+        ? "Укажите API-ключ Yandex SpeechKit — без него аудио не расшифровать"
+        : "Укажите API-ключ OpenAI для распознавания речи";
+    } else if (speech.provider === "yandex" && !speech.folderId) {
+      return "Укажите идентификатор каталога SpeechKit — без него запрос не примут";
+    }
+  }
+
+  return null;
+};
+
 const isOpenaiSpeechModel = (modelId) =>
   /^(whisper-1|gpt-4o(?:-mini)?-transcribe(?:-diarize)?(?:-\d{4}-\d{2}-\d{2})?)$/.test(
     modelId,
   );
-
-// YandexGPT не отдаёт каталог моделей по API — список фиксированный.
-const YANDEX_GPT_MODELS = [
-  { id: "yandexgpt", name: "YandexGPT Pro" },
-  { id: "yandexgpt-lite", name: "YandexGPT Lite" },
-  { id: "yandexgpt-32k", name: "YandexGPT 32k" },
-];
 
 exports.get = async (req, res, next) => {
   try {
@@ -314,7 +365,22 @@ exports.update = async (req, res, next) => {
       };
     }
 
-    if (has("ai")) preferences.ai = body.ai;
+    // «ИИ»: форма присылает группу целиком (все провайдеры разом), но health
+    // пишут настоящие вызовы и кнопки проверки — форма о нём не знает, и замена
+    // группы обнуляла бы строки состояния на каждом сохранении секции.
+    if (has("ai")) {
+      const prevAi = preferences.ai?.toObject?.() ?? preferences.ai ?? {};
+      const incoming = body.ai || {};
+      const speechToText = incoming.speechToText
+        ? { ...incoming.speechToText, health: prevAi.speechToText?.health }
+        : prevAi.speechToText;
+
+      preferences.ai = {
+        ...incoming,
+        ...(speechToText ? { speechToText } : {}),
+        health: prevAi.health,
+      };
+    }
 
     if (has("knowledgeBase")) {
       const prevKb = preferences.knowledgeBase || {};
@@ -361,7 +427,7 @@ exports.update = async (req, res, next) => {
 
     // Включённый канал обязан быть настроен целиком — иначе он «работает»
     // только на вид, а причина молчания видна лишь в логах контейнера.
-    const invariant = findMailInvariant(preferences);
+    const invariant = findMailInvariant(preferences) || findAiInvariant(preferences);
     if (invariant) {
       return next(new AppError(invariant, 422, true));
     }
@@ -385,7 +451,9 @@ exports.update = async (req, res, next) => {
 
     res.status(200).json({
       message: "Настройки сохранены",
-      preferences: preferences,
+      // Ответ на сохранение — такой же выход наружу, как и чтение: секреты в нём
+      // маскируются (иначе форма получала бы обратно шифртексты ключей)
+      preferences: maskSecrets(preferences),
     });
   } catch (error) {
     next(new AppError(`Failed to update preferences`, 500, true, error));
@@ -429,6 +497,75 @@ exports.sendTestEmail = async (req, res, next) => {
     res.status(200).json(await sendTestEmail(channel, authedUser?.email));
   } catch (error) {
     next(new AppError(`Failed to send test email`, 500, true, error));
+  }
+};
+
+// Проверка каналов ИИ идёт по значениям формы (черновик ещё не сохранён), а
+// ключ форма не получает и потому не присылает: пустое поле означает
+// «использовать сохранённый» — тот же канон, что у почтовых проверок. Обе
+// проверки берут группу ai целиком: распознавание умеет брать данные у
+// основного провайдера, и без его блока это не разрешить.
+const AI_PROVIDER_GROUPS = [
+  "openai",
+  "anthropic",
+  "deepseek",
+  "yandexai",
+  "local",
+];
+
+const mergeAiDraft = (stored, incoming) => {
+  const speechStored = stored.speechToText || {};
+  const speechIncoming = incoming.speechToText || {};
+  const merged = { ...stored, ...incoming };
+
+  for (const group of AI_PROVIDER_GROUPS) {
+    merged[group] = mergeWithStored(stored[group], incoming[group], "apiKey");
+  }
+
+  merged.speechToText = {
+    ...mergeWithStored(speechStored, speechIncoming, "apiKey"),
+    yandex: mergeWithStored(speechStored.yandex, speechIncoming.yandex, "apiKey"),
+    local: mergeWithStored(speechStored.local, speechIncoming.local, "apiKey"),
+  };
+
+  return merged;
+};
+
+const readAiDraft = async (req) => {
+  const preferences = await Preferences.findOne({});
+  const stored = preferences?.ai?.toObject?.() ?? preferences?.ai ?? {};
+
+  return mergeAiDraft(stored, req.body?.ai || {});
+};
+
+exports.checkAi = async (req, res, next) => {
+  try {
+    const ai = await readAiDraft(req);
+    const provider = ai.provider;
+    const config = ai[provider] || {};
+
+    res.status(200).json(
+      await checkProvider({
+        provider,
+        // Из формы ключ приходит открытым, из базы — шифртекстом
+        apiKey: readStoredSecret(config.apiKey),
+        model: config.model,
+        folderId: config.folderId,
+        baseUrl: config.baseUrl,
+      }),
+    );
+  } catch (error) {
+    next(new AppError(`Failed to check AI provider`, 500, true, error));
+  }
+};
+
+exports.checkSpeechToText = async (req, res, next) => {
+  try {
+    const ai = await readAiDraft(req);
+
+    res.status(200).json(await checkSpeechToText(resolveSpeechConfig(ai)));
+  } catch (error) {
+    next(new AppError(`Failed to check speech recognition`, 500, true, error));
   }
 };
 
@@ -482,7 +619,7 @@ exports.deleteLogo = async (req, res, next) => {
 exports.getAiModels = async (req, res, next) => {
   try {
     const { provider, feature } = req.body;
-    let { apiKey } = req.body;
+    let { apiKey, folderId, baseUrl } = req.body;
 
     // Yandex SpeechKit не отдаёт список моделей по API — возвращаем статический.
     if (feature === "speechToText" && provider === "yandex") {
@@ -491,37 +628,60 @@ exports.getAiModels = async (req, res, next) => {
       });
     }
 
-    // YandexGPT (чат) тоже без каталога по API — отдаём фиксированный набор.
-    if (provider === "yandexgpt") {
-      return res.status(200).json({ models: YANDEX_GPT_MODELS });
-    }
-
-    if (!provider || !["openai", "anthropic", "deepseek"].includes(provider)) {
+    if (
+      !provider ||
+      !["openai", "anthropic", "deepseek", "yandexai", "local"].includes(
+        provider,
+      )
+    ) {
       return next(new AppError("Unknown AI provider", 400, true));
     }
 
-    if (feature === "speechToText" && provider !== "openai") {
+    if (feature === "speechToText" && !["openai", "local"].includes(provider)) {
       return next(
         new AppError(
-          "Speech recognition is only supported by OpenAI or Yandex",
+          "Speech recognition is only supported by OpenAI, Yandex or a local server",
           400,
           true,
         ),
       );
     }
 
-    // Fall back to the stored key if the client didn't send one — which is now
-    // the norm: the form never receives the key back, only a "set" flag.
-    if (!apiKey) {
+    // Fall back to the stored key/folder/address if the client didn't send them
+    // — which is now the norm: the form never receives the key back, only a
+    // "set" flag. У распознавания данные может давать основной провайдер,
+    // поэтому его конфигурацию собирает тот же резолвер, что и вызовы.
+    if (
+      !apiKey ||
+      (provider === "yandexai" && !folderId) ||
+      (provider === "local" && !baseUrl)
+    ) {
       const preferences = await Preferences.findOne({});
-      apiKey = readStoredSecret(
-        feature === "speechToText"
-          ? preferences?.ai?.speechToText?.apiKey
-          : preferences?.ai?.[provider]?.apiKey,
-      );
+      const ai = preferences?.ai?.toObject?.() ?? preferences?.ai ?? {};
+
+      if (feature === "speechToText") {
+        // Берём группу ЗАПРОШЕННОГО провайдера, а не сохранённого: в форме его
+        // могли только что переключить, и локальному серверу уехал бы ключ
+        // OpenAI. Общие данные — из блока основного провайдера, если пара
+        // совместима (у SpeechKit каталог статический, сюда он не доходит).
+        const speech = ai.speechToText || {};
+        const own = provider === "local" ? speech.local || {} : speech;
+        const source =
+          speech.useProviderCredentials &&
+          canShareCredentials(ai.provider, provider)
+            ? ai[ai.provider] || {}
+            : own;
+
+        if (!apiKey) apiKey = readStoredSecret(source.apiKey);
+        if (!baseUrl) baseUrl = source.baseUrl || "";
+      } else {
+        if (!apiKey) apiKey = readStoredSecret(ai[provider]?.apiKey);
+        if (!folderId) folderId = ai.yandexai?.folderId || "";
+        if (!baseUrl) baseUrl = ai.local?.baseUrl || "";
+      }
     }
 
-    if (!apiKey) {
+    if (!apiKey && needsApiKey(provider)) {
       return next(new AppError("AI API key is not set", 400, true));
     }
 
@@ -575,6 +735,80 @@ exports.getAiModels = async (req, res, next) => {
         id: model.id,
         name: model.display_name || model.id,
       }));
+    }
+
+    // Yandex AI Studio отдаёт каталог по OpenAI-совместимому адресу, но полными
+    // идентификаторами: gpt://<каталог>/<модель>/<версия> вперемешку с
+    // эмбеддингами (emb://) и потоковыми моделями речи. В селект чата идут
+    // только генеративные, а в настройках храним путь без каталога — иначе
+    // смена folder ID протухнет вместе с выбранной моделью.
+    if (provider === "yandexai") {
+      if (!folderId) {
+        return next(
+          new AppError("Yandex AI Studio folder ID is not set", 400, true),
+        );
+      }
+
+      const response = await fetch(
+        "https://llm.api.cloud.yandex.net/v1/models",
+        {
+          headers: {
+            Authorization: `Api-Key ${apiKey}`,
+            "x-folder-id": folderId,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        return next(
+          new AppError(
+            "Failed to fetch Yandex AI Studio models",
+            response.status,
+            true,
+          ),
+        );
+      }
+
+      const data = await response.json();
+      models = (data.data || [])
+        .map((model) => String(model.id || ""))
+        .filter(
+          (id) => id.startsWith("gpt://") && !id.includes("/speech-realtime-"),
+        )
+        .map((id) => {
+          const [name, version] = id.split("/").slice(3);
+          return version === "latest"
+            ? { id: name, name }
+            : { id: `${name}/${version}`, name: `${name} · ${version}` };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    // Локальный сервер (Ollama, LM Studio, vLLM …) отдаёт каталог тем же
+    // OpenAI-совместимым адресом. Эмбеддинги в чат-селект не берём: в Ollama они
+    // лежат в общем списке рядом с генеративными.
+    if (provider === "local") {
+      const response = await fetch(`${buildLocalBaseUrl(baseUrl)}/models`, {
+        headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!response.ok) {
+        return next(
+          new AppError(
+            "Failed to fetch local models",
+            response.status,
+            true,
+          ),
+        );
+      }
+
+      const data = await response.json();
+      models = (data.data || [])
+        .map((model) => String(model.id || ""))
+        .filter((id) => id && !/embed/i.test(id))
+        .map((id) => ({ id, name: id }))
+        .sort((a, b) => a.id.localeCompare(b.id));
     }
 
     // DeepSeek предоставляет OpenAI-совместимый эндпоинт каталога моделей.

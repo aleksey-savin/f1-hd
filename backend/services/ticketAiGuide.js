@@ -183,6 +183,47 @@ const buildPastContext = (items) =>
     })
     .join("\n");
 
+// Сборка идёт в живом запросе, и перезапуск процесса (деплой, nodemon) убивает
+// её молча: исключения нет — значит, catch ниже статус не поправит, и заявка
+// остаётся в pending навсегда, а панель опрашивает её раз в 4 секунды до
+// скончания века. Поэтому у pending есть срок. Пять минут — с запасом: самая
+// долгая живая сборка (документы + картинки + база знаний) укладывалась в две.
+const PENDING_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Гасит зависший pending при чтении заявки — единственном месте, куда панель
+ * ходит за статусом. Если сборка всё-таки жива, свой результат она запишет
+ * поверх.
+ *
+ * @param {object} ticket план-объект заявки (мутируется на месте)
+ */
+exports.expireStalePendingGuide = async (ticket) => {
+  const guide = ticket?.aiGuide;
+  if (guide?.status !== "pending") return ticket;
+
+  // Заявки, начатые до появления startedAt, гасим сразу: живая сборка перепишет
+  const startedAt = guide.startedAt ? new Date(guide.startedAt).getTime() : 0;
+  if (startedAt && Date.now() - startedAt < PENDING_TTL_MS) return ticket;
+
+  const error = "сборка прервалась, запустите её заново";
+
+  await Ticket.findByIdAndUpdate(ticket._id, {
+    "aiGuide.status": "error",
+    "aiGuide.error": error,
+  }).catch(() => {});
+
+  // Панель отсылает к хронике заявки — там должно быть что прочитать
+  await logAiTicketEvent(
+    ticket._id,
+    "Сборка руководства ИИ прервалась: сервис перезапустился, пока она шла",
+    "warning",
+  );
+
+  ticket.aiGuide = { ...guide, status: "error", error };
+
+  return ticket;
+};
+
 const normalizeItems = (items) => {
   if (!Array.isArray(items)) return [];
   return items
@@ -237,6 +278,9 @@ exports.generateTicketAiGuide = async (ticketId) => {
       companyId: ticket.company?._id,
       categoryId: ticket.categoryId?._id,
       applicantId: ticket.applicantId?._id,
+      // Привязка находит кандидатов, слова заявки решают, кто из них поедет
+      title: ticket.title,
+      text: stripHtml(ticket.description || ticket.htmlDescription),
     });
 
     if (knowledgeNotes.length) {

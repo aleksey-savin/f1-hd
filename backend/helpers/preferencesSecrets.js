@@ -20,10 +20,11 @@ const SECRET_PATHS = [
   "ai.openai.apiKey",
   "ai.anthropic.apiKey",
   "ai.deepseek.apiKey",
-  "ai.yandexgpt.apiKey",
   "ai.yandexai.apiKey",
+  "ai.local.apiKey",
   "ai.speechToText.apiKey",
   "ai.speechToText.yandex.apiKey",
+  "ai.speechToText.local.apiKey",
 ];
 
 const getByPath = (source, path) =>

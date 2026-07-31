@@ -19,7 +19,10 @@ const CompanyLog = require("../models/companyLog");
 
 const Connection = require("../models/pro32Connect/connection");
 
-const { generateTicketAiGuide } = require("../services/ticketAiGuide");
+const {
+  generateTicketAiGuide,
+  expireStalePendingGuide,
+} = require("../services/ticketAiGuide");
 const { detectTicketCategory } = require("../services/ticketCategoryService");
 const { logAiTicketEvent } = require("../services/aiTicketLog");
 const { humanizeAiError } = require("../services/aiErrors");
@@ -34,6 +37,7 @@ const {
   isAudioAttachment,
   transcribeAttachment,
   carryOverSpeechResult,
+  expireStalePendingSpeech,
 } = require("../services/speechToTextService");
 const { buildKnownCaller } = require("../services/callerIdentityService");
 const {
@@ -463,6 +467,13 @@ exports.getOne = async (req, res, next) => {
         return doc;
       });
 
+    // Фоновая работа, убитая перезапуском процесса, остаётся в pending — а
+    // карточка опрашивает именно этот ответ. Гасим просроченное здесь, чтобы у
+    // неё был выход из вечного ожидания: у руководства ИИ и у расшифровок
+    // вложений болезнь одна.
+    await expireStalePendingGuide(ticket);
+    await expireStalePendingSpeech(ticket);
+
     // У заявки может не быть компании (легаси-данные): toObject() с minimize
     // вырезает пустой объект company — без ?. карточка падала бы в 500.
     const company = await Company.findById(ticket.company?._id).populate({
@@ -815,7 +826,13 @@ exports.regenerateAiGuide = async (req, res, next) => {
       return next(new AppError(`Ticket not found`, 404, true));
     }
 
-    await Ticket.findByIdAndUpdate(_id, { "aiGuide.status": "pending" });
+    // Ошибку прошлой попытки чистим сразу: она пережила бы сборку и всплыла бы
+    // как причина уже в новом результате. startedAt — срок жизни pending
+    await Ticket.findByIdAndUpdate(_id, {
+      "aiGuide.status": "pending",
+      "aiGuide.startedAt": new Date(),
+      "aiGuide.error": "",
+    });
 
     const aiGuide = await generateTicketAiGuide(_id);
 
@@ -871,6 +888,7 @@ exports.transcribeAttachment = async (req, res, next) => {
       ),
       status: "pending",
       error: "",
+      startedAt: new Date(),
     };
     ticket.markModified("attachments");
     await ticket.save();

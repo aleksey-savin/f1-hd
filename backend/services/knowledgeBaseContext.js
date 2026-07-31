@@ -56,6 +56,113 @@ const truncate = (value, max = MAX_NOTE_LENGTH) => {
   return value.length > max ? `${value.slice(0, max)}…` : value;
 };
 
+// ── Совпадение по тексту ────────────────────────────────────────────────────
+// Привязка к компании — это не «про то же самое»: у компании с полудюжиной
+// заметок в «приоритетный источник» уезжали все подряд, и на заявке про 1С
+// модель читала про миграцию CRM и про договор с провайдером. Поэтому заметки
+// ещё и сопоставляются со словами заявки.
+//
+// Морфологии нет намеренно: сравниваем пятибуквенные основы, и «открывается»
+// сходится с «открыть», а «серверы» с «сервером».
+const STEM_LENGTH = 5;
+const MIN_WORD_LENGTH = 4;
+
+// Что считаем словом. Коротких исключения два, и оба нужны: «1с» — самое важное
+// слово половины заявок, а «vpn», «rdp», «crm» короче порога. Чистые числа не
+// берём вовсе: «21» из темы «21 ВЕК» находилось в маске подсети внутри заметки
+// про интернет — совпадение есть, смысла нет.
+const isMeaningfulWord = (word) => {
+  if (!word || /^\d+$/.test(word)) return false;
+  if (/\d/.test(word)) return true;
+  if (/^[a-z]+$/.test(word)) return word.length >= 3;
+  return word.length >= MIN_WORD_LENGTH;
+};
+
+const stem = (word) =>
+  word.length > STEM_LENGTH ? word.slice(0, STEM_LENGTH) : word;
+
+// Слова заявки, совпадение по которым не значит ничего: вежливость, канцелярит
+// и слова, которые есть в любой заметке.
+const STOP_WORDS = [
+  "который",
+  "когда",
+  "чтобы",
+  "этот",
+  "этого",
+  "была",
+  "были",
+  "было",
+  "быть",
+  "есть",
+  "очень",
+  "просто",
+  "нужно",
+  "надо",
+  "можно",
+  "пожалуйста",
+  "добрый",
+  "день",
+  "здравствуйте",
+  "спасибо",
+  "заявка",
+  "заявки",
+  "клиент",
+  "сообщил",
+  "просит",
+  "уточнил",
+  "снова",
+  "опять",
+  "также",
+  "более",
+  "менее",
+  "после",
+  "через",
+  "всего",
+  "только",
+  "тоже",
+  "если",
+  "данные",
+  "момент",
+  "информация",
+  "сообщение",
+  "решение",
+  "попробуйте",
+  "появляется",
+  "внимание",
+  "просьба",
+  "необходимо",
+  "требуется",
+];
+const STOP_STEMS = new Set(STOP_WORDS.map(stem));
+
+const toStems = (value) =>
+  new Set(
+    String(value || "")
+      .toLowerCase()
+      .replace(/ё/g, "е")
+      .split(/[^0-9a-zа-я]+/)
+      .filter(isMeaningfulWord)
+      .map(stem)
+      .filter((key) => !STOP_STEMS.has(key)),
+  );
+
+// Слово из заголовка заметки весит больше: заголовок называет предмет, а текст
+// может упомянуть его вскользь.
+const scoreNote = (note, ticketStems) => {
+  if (!ticketStems.size) return 0;
+
+  const title = toStems(note.title);
+  const body = toStems(note.plainText);
+  let score = 0;
+
+  ticketStems.forEach((key) => {
+    if (title.has(key)) score += 3;
+    else if (body.has(key)) score += 1;
+  });
+
+  return score;
+};
+
 // Помечает заметку совпадениями по измерениям заявки и считает релевантность —
 // та же логика, что в карточке «База знаний» (frontend RelatedNotes.jsx),
 // но на сервере и с учётом контента заметки.
@@ -68,6 +175,8 @@ const annotate = (note, companyId, categoryId, applicantId) => {
 };
 
 const byRelevance = (a, b) =>
+  b.score - a.score ||
+  b.textScore - a.textScore ||
   b.matchCount - a.matchCount ||
   (TYPE_PRIORITY[b.type] || 1) - (TYPE_PRIORITY[a.type] || 1) ||
   new Date(b.updatedAt) - new Date(a.updatedAt);
@@ -77,16 +186,30 @@ const byRelevance = (a, b) =>
  * инициатор) — совпадение хотя бы по одному измерению, ранжирование по
  * релевантности, топ MAX_NOTES.
  *
+ * Привязка отбирает кандидатов, слова заявки решают, кто из них поедет в
+ * промпт. Ступени сужения — по убыванию доверия к сигналу:
+ *   1. заметки, задетые словами ТЕМЫ заявки («Не открывается 1С» → заметка про
+ *      1С). Тема называет предмет, описание вокруг него пересказывает разговор;
+ *   2. если таких нет — задетые словами описания (тема бывает пустой или
+ *      «Re: заявка» из письма);
+ *   3. если нет и таких — прежний порядок по привязкам.
+ * Не задетые никем в промпт не едут: «приоритетный источник» из чужой темы
+ * вреднее, чем его отсутствие.
+ *
  * Видимость: AI-руководство — общий staff-only артефакт (генерируется в фоне без
  * пользовательского контекста, в getOne удаляется для end-user), поэтому per-user
  * canViewNote здесь НЕ применяется — берём все связанные заметки.
  *
+ * @param {string} [params.title] тема заявки
+ * @param {string} [params.text] описание заявки
  * @returns {Promise<Array>} заметки с полями title, type, plainText
  */
 exports.collectRelevantNotes = async ({
   companyId,
   categoryId,
   applicantId,
+  title,
+  text,
 } = {}) => {
   const or = [];
   if (companyId) or.push({ "companies._id": companyId });
@@ -100,13 +223,23 @@ exports.collectRelevantNotes = async ({
     .select("title type plainText companies categories users updatedAt")
     .lean();
 
-  return notes
+  const titleStems = toStems(title);
+  const textStems = toStems(text);
+  const candidates = notes
     .filter((note) =>
       matchesTicketContext(note, { companyId, categoryId, applicantId }),
     )
-    .map((note) => annotate(note, companyId, categoryId, applicantId))
-    .sort(byRelevance)
-    .slice(0, MAX_NOTES);
+    .map((note) => ({
+      ...annotate(note, companyId, categoryId, applicantId),
+      score: scoreNote(note, titleStems),
+      textScore: scoreNote(note, textStems),
+    }));
+
+  const byTitle = candidates.filter((note) => note.score > 0);
+  const byText = candidates.filter((note) => note.textScore > 0);
+  const chosen = byTitle.length ? byTitle : byText.length ? byText : candidates;
+
+  return chosen.sort(byRelevance).slice(0, MAX_NOTES);
 };
 
 /**

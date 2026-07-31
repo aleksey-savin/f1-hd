@@ -106,6 +106,7 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
         ...carryOverSpeechResult(attachment.speechToText),
         status: "pending",
         error: "",
+        startedAt: new Date(),
       };
       freshTicket.markModified("attachments");
       await freshTicket.save();
@@ -788,8 +789,11 @@ exports.handleNewEmails = async () => {
             },
             source: source,
             attachments: email.attachments,
-            // помечаем заявку как ожидающую распознавания речи звонка
-            ...(willTranscribe ? { aiSpeech: { status: "pending" } } : {}),
+            // помечаем заявку как ожидающую распознавания речи звонка;
+            // startedAt задаёт сроку ожидания точку отсчёта
+            ...(willTranscribe
+              ? { aiSpeech: { status: "pending", startedAt: new Date() } }
+              : {}),
             // без распознавания категорию подбираем сразу — помечаем заявку
             // ожидающей автоопределения (для заявок с аудио это сделает поток
             // транскрипции после готового итога звонка)

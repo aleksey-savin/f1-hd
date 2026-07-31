@@ -13,7 +13,7 @@ import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
 import MailChannelFields from "./MailChannelFields";
-import { describeChannelHealth, describeCheckResult } from "./mail-health";
+import { describeChannelHealth, describeCheckResult } from "./channel-health";
 
 // «Уведомления»: глобальные рубильники категорий событий, повторы при ошибке
 // отправки и каналы (SMTP, Telegram). Канал Telegram включает единую группу

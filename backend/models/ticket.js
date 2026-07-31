@@ -36,6 +36,10 @@ const attachmentSchema = new Schema(
       ],
       model: String,
       error: { type: String, default: "" },
+      // Начало распознавания — точка отсчёта для срока ожидания: перезапуск
+      // процесса убивает расшифровку молча, и без срока вложение осталось бы
+      // «распознаётся» навсегда (services/speechToTextService.js).
+      startedAt: Date,
       generatedAt: Date,
     },
   },
@@ -322,6 +326,11 @@ const ticketSchema = new Schema(
       provider: String,
       model: String,
       error: { type: String, default: "" },
+      // Когда сборка ушла в работу. Она идёт в живом запросе, и перезапуск
+      // процесса (деплой) убивает её молча: ошибки нет, а статус остался
+      // pending — карточка опрашивала бы его вечно. По этой отметке
+      // просроченный pending считается прерванным (services/ticketAiGuide.js).
+      startedAt: Date,
       generatedAt: Date,
       generatedFromCommentCount: { type: Number, default: 0 },
     },
@@ -332,6 +341,11 @@ const ticketSchema = new Schema(
         type: String,
         enum: ["pending", "processed", "error"],
       },
+      // Когда распознавание ушло в работу. Оно идёт фоновой задачей, и
+      // перезапуск процесса убивает её без исключения — статус остался бы
+      // pending навсегда, а по нему стоит гейт уведомлений: о заявке не узнал
+      // бы никто (срок ожидания — middleware/notifications.js).
+      startedAt: Date,
     },
 
     // Состояние фонового автоопределения категории заявки ИИ

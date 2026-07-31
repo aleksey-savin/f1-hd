@@ -1,8 +1,9 @@
 import { formatAgo } from "../../util/format-date";
 
-// Состояние почтового канала → пропсы app/HealthRow. Источник — группа health
-// в настройках, которую пишут крон сбора, отправка уведомлений и кнопка
-// проверки (backend/services/mail/health.js).
+// Состояние внешнего канала → пропсы app/HealthRow. Источник — группа health в
+// настройках: у почты её пишут крон сбора, отправка уведомлений и кнопка
+// проверки (backend/services/mail/health.js), у ИИ — настоящие вызовы и кнопки
+// проверки (backend/services/ai/health.js).
 //
 // Ошибка «свежее» последнего успеха — значит канал сейчас сломан; иначе
 // показываем, что и когда в последний раз получилось.
@@ -41,6 +42,31 @@ export const describeChannelHealth = (health, { kind, hint }) => {
       : {
           state: "ok",
           title: "Связь с сервером есть",
+          meta: ` · проверено ${formatAgo(health.lastOkAt)}`,
+          hint,
+        };
+  }
+
+  // У каналов ИИ «связь есть» и «канал сделал работу» — разные факты: ответ
+  // модели или расшифровка приходят от настоящих вызовов, проверка кнопкой
+  // доказывает только первое.
+  if (kind === "ai" || kind === "speech") {
+    const worked = kind === "ai" ? "ИИ отвечает" : "Речь распознаётся";
+    const linked =
+      kind === "ai"
+        ? "Связь с поставщиком есть"
+        : "Сервис распознавания отвечает";
+
+    return health.lastMessageAt
+      ? {
+          state: "ok",
+          title: worked,
+          meta: ` · последний раз ${formatAgo(health.lastMessageAt)}`,
+          hint,
+        }
+      : {
+          state: "ok",
+          title: linked,
           meta: ` · проверено ${formatAgo(health.lastOkAt)}`,
           hint,
         };

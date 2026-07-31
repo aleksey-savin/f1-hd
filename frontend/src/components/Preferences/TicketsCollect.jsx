@@ -13,7 +13,7 @@ import Select from "../../UI/Select";
 import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
 import MailChannelFields from "./MailChannelFields";
-import { describeChannelHealth, describeCheckResult } from "./mail-health";
+import { describeChannelHealth, describeCheckResult } from "./channel-health";
 
 // «Сбор заявок»: почтовый ящик-приёмник (письма становятся заявками) и
 // эвристики распознавания отправителя. Пока мастер-свитч выключен, поля

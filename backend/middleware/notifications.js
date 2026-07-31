@@ -12,12 +12,18 @@ const User = require("../models//user");
 const Work = require("../models/work");
 const Company = require("../models/company");
 const Subdivision = require("../models/subdivision");
+const { logAiTicketEvent } = require("../services/aiTicketLog");
 const {
   resolveClientTimezone,
   formatClientTimeLabel,
 } = require("../services/clientTimezone");
 
 const NOTIFICATION_BATCH_SIZE = 100;
+// Сколько ждать распознавание звонка, прежде чем уведомить без него. С запасом:
+// асинхронное распознавание Yandex опрашивается до шести минут, следом идёт
+// AI-итог. Слишком короткий срок отправит уведомление с текстом письма вместо
+// итога звонка, слишком длинный — задержит его на всё это время.
+const SPEECH_PENDING_TTL_MS = 15 * 60 * 1000;
 
 // Строка «У клиента сейчас: 🌙 Москва, 03:14 (−7 ч)» для уведомления
 // ответственному — исполнитель часто звонит прямо из телеграма. Пустая строка,
@@ -120,6 +126,7 @@ exports.createTicketNotifications = async () => {
     return;
   }
 
+  const speechCutoff = new Date(Date.now() - SPEECH_PENDING_TTL_MS);
   const tickets = await withMongoRetry(
     () =>
       Ticket.find({
@@ -127,13 +134,46 @@ exports.createTicketNotifications = async () => {
         // Не уведомляем, пока ИИ распознаёт звонок: дождёмся итога и заголовка,
         // иначе в уведомление попадёт заглушка вместо сформированных ИИ данных.
         // $ne: "pending" также пропускает заявки без поля aiSpeech (портал/почта).
-        "aiSpeech.status": { $ne: "pending" },
+        //
+        // Но ждать вечно нельзя. Распознавание идёт фоновой задачей, и перезапуск
+        // процесса убивает её без исключения: страховка в emailHandling не
+        // срабатывает, статус навсегда остаётся pending — и о заявке не узнаёт
+        // никто. Просроченное ожидание отпускаем прямо в запросе, чтобы не
+        // сканировать коллекцию отдельным проходом.
+        $or: [
+          { "aiSpeech.status": { $ne: "pending" } },
+          { "aiSpeech.startedAt": { $lt: speechCutoff } },
+          // Заявки, начатые до появления startedAt: их поток перезапуск не
+          // пережил бы, а живой перепишет статус своим результатом
+          { "aiSpeech.startedAt": null },
+        ],
       })
         .sort({ updatedAt: 1 })
         .limit(NOTIFICATION_BATCH_SIZE)
         .populate("applicantId"),
     "loading pending ticket notifications",
   );
+
+  // Отпустили — значит, распознавание не состоялось: помечаем сбоем, иначе
+  // карточка вечно показывала бы «распознаётся», а хроника молчала о причине.
+  for (const ticket of tickets) {
+    if (ticket.aiSpeech?.status !== "pending") continue;
+
+    ticket.aiSpeech = { status: "error", startedAt: ticket.aiSpeech.startedAt };
+    await Ticket.updateOne(
+      { _id: ticket._id },
+      { $set: { "aiSpeech.status": "error" } },
+    ).catch(() => {});
+    await logAiTicketEvent(
+      ticket._id,
+      "Распознавание записи звонка прервалось: сервис перезапустился, пока оно шло",
+      "warning",
+    );
+    logger.log("warn", "Released stale speech recognition", {
+      ticketId: ticket._id.toString(),
+      num: ticket.num,
+    });
+  }
 
   // Имя категории уведомления (`state`) едино в трёх местах:
   // prefs.notify.personal.X, user.notify.byTelegram.X и user.notify.byEmail.X —

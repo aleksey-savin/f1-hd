@@ -1,7 +1,12 @@
 const path = require("path");
 
 const Preferences = require("@/models/preferences");
+const { Ticket } = require("@/models/ticket");
 const { AppError } = require("@/middleware/errorHandling");
+const { logAiTicketEvent } = require("./aiTicketLog");
+const { readStoredSecret } = require("@/helpers/preferencesSecrets");
+const { describeAiError } = require("@/services/aiErrors");
+const aiHealth = require("@/services/ai/health");
 const logger = require("@/utils/logger");
 const storage = require("@/services/storage");
 const aiService = require("./aiService");
@@ -23,6 +28,15 @@ const YANDEX_GET_RECOGNITION_ENDPOINT =
   "https://stt.api.cloud.yandex.net/stt/v3/getRecognition";
 const YANDEX_OPERATION_ENDPOINT =
   "https://operation.api.cloud.yandex.net/operations";
+// Проба канала для кнопки проверки в настройках. Рабочий путь (v3) требует
+// файл и асинхронную операцию — для проверки настроек он не годится, поэтому
+// у пробы своя, синхронная версия API: те же ключ и каталог, ответ за секунду.
+const YANDEX_STT_PROBE_ENDPOINT =
+  "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize";
+// Локальный сервер распознавания (faster-whisper-server, speaches, LocalAI,
+// vLLM) отдаёт OpenAI-совместимый /v1/audio/transcriptions. Предел по времени —
+// как у локального чата: неверный адрес в закрытой сети висит молча.
+const LOCAL_SPEECH_TIMEOUT_MS = 5 * 60 * 1000;
 const YANDEX_POLL_INTERVAL_MS = 3000;
 const YANDEX_MAX_POLL_ATTEMPTS = 120; // ~6 минут ожидания операции
 // Передаём аудио инлайном (base64 в теле запроса), без Object Storage —
@@ -91,6 +105,55 @@ const isAudioAttachment = (attachment) => {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Основной провайдер, у которого распознавание может взять данные. Пары не
+// произвольные: у OpenAI один ключ на чат и на расшифровку, у Яндекса один ключ
+// Cloud открывает и AI Studio, и SpeechKit, а локальный сервер — это один адрес.
+// Остальные сочетания (чат в Anthropic, расшифровка в OpenAI) общего ничего не
+// имеют, и переключатель для них смысла не несёт.
+const CREDENTIALS_SOURCE = {
+  openai: "openai",
+  yandex: "yandexai",
+  local: "local",
+};
+
+exports.canShareCredentials = (chatProvider, speechProvider) =>
+  !!speechProvider && CREDENTIALS_SOURCE[speechProvider] === chatProvider;
+
+/**
+ * Данные канала распознавания: свои или взятые у основного провайдера.
+ * Модель всегда своя — каталог расшифровки и каталог чата не пересекаются.
+ *
+ * @param {object} ai группа настроек ИИ (уже слитая с черновиком формы)
+ * @returns {{ provider: string, apiKey: string, folderId: string, baseUrl: string, model: string, shared: boolean }}
+ */
+const resolveSpeechConfig = (ai) => {
+  const speechToText = ai?.speechToText || {};
+  const provider = speechToText.provider || "openai";
+  const own =
+    provider === "yandex"
+      ? speechToText.yandex || {}
+      : provider === "local"
+        ? speechToText.local || {}
+        : speechToText;
+
+  const shared =
+    !!speechToText.useProviderCredentials &&
+    exports.canShareCredentials(ai?.provider, provider);
+  const source = shared ? ai[ai.provider] || {} : own;
+
+  return {
+    provider,
+    // В базе ключ лежит шифртекстом secretBox — наружу уходит расшифрованный
+    apiKey: readStoredSecret(source.apiKey),
+    folderId: source.folderId || "",
+    baseUrl: source.baseUrl || "",
+    model: own.model || (provider === "yandex" ? "general" : ""),
+    shared,
+  };
+};
+
+exports.resolveSpeechConfig = resolveSpeechConfig;
+
 const getSpeechToTextConfig = async () => {
   const preferences = await Preferences.findOne({});
   const speechToText = preferences?.ai?.speechToText;
@@ -99,28 +162,32 @@ const getSpeechToTextConfig = async () => {
     throw new AppError("Speech recognition is disabled", 400, true);
   }
 
-  const provider = speechToText.provider || "openai";
+  const config = resolveSpeechConfig(preferences.ai?.toObject?.() ?? preferences.ai);
 
-  if (provider === "yandex") {
-    const yandex = speechToText.yandex || {};
+  if (config.provider === "yandex") {
+    if (!config.apiKey) {
+      throw new AppError("Yandex SpeechKit API key is not set", 400, true);
+    }
 
-    if (!yandex.apiKey) {
-      throw new AppError(
-        "Yandex SpeechKit API key is not set",
-        400,
-        true,
-      );
+    return config;
+  }
+
+  if (config.provider === "local") {
+    if (!config.baseUrl) {
+      throw new AppError("Local speech base URL is not set", 400, true);
+    }
+    if (!config.model) {
+      throw new AppError("Local speech model is not set", 400, true);
     }
 
     return {
-      provider,
-      apiKey: yandex.apiKey,
-      folderId: yandex.folderId || "",
-      model: yandex.model || "general",
+      ...config,
+      endpoint: `${aiService.buildLocalBaseUrl(config.baseUrl)}/audio/transcriptions`,
+      timeoutMs: LOCAL_SPEECH_TIMEOUT_MS,
     };
   }
 
-  if (!speechToText.apiKey) {
+  if (!config.apiKey) {
     throw new AppError(
       "OpenAI speech recognition API key is not set",
       400,
@@ -128,7 +195,9 @@ const getSpeechToTextConfig = async () => {
     );
   }
 
-  if (!isOpenaiSpeechModel(speechToText.model)) {
+  // Проверка каталога OpenAI: их имена моделей фиксированы, и чат-модель в этом
+  // поле — заведомо неработающая настройка. У локального сервера имена свои
+  if (!isOpenaiSpeechModel(config.model)) {
     throw new AppError(
       "Selected model does not support speech recognition",
       400,
@@ -136,7 +205,7 @@ const getSpeechToTextConfig = async () => {
     );
   }
 
-  return { provider, apiKey: speechToText.apiKey, model: speechToText.model };
+  return config;
 };
 
 const getSpeakerLabel = (speaker, speakerMap, previousSpeaker) => {
@@ -258,7 +327,19 @@ const summarizeDialog = async ({ segments, context = {} }) => {
 
 // --- OpenAI: распознавание речи -------------------------------------------
 
-const transcribeWithOpenai = async (attachment, { apiKey, model }) => {
+// Тот же путь обслуживает локальные серверы распознавания: у них
+// OpenAI-совместимый /v1/audio/transcriptions, отличается только адрес, а ключа
+// они обычно не спрашивают.
+const transcribeWithOpenai = async (
+  attachment,
+  {
+    apiKey,
+    model,
+    endpoint = OPENAI_TRANSCRIPTIONS_ENDPOINT,
+    timeoutMs,
+    provider = "openai",
+  },
+) => {
   const buffer = await storage.getObjectBuffer(attachment.name);
 
   if (buffer.length > MAX_AUDIO_SIZE_BYTES) {
@@ -283,23 +364,24 @@ const transcribeWithOpenai = async (attachment, { apiKey, model }) => {
     formData.append("prompt", transcriptionPrompt);
   }
 
-  logger.log("info", "Requesting OpenAI speech recognition", {
+  logger.log("info", "Requesting speech recognition", {
+    provider,
     model,
     attachment: attachment.name,
   });
 
-  const response = await fetch(OPENAI_TRANSCRIPTIONS_ENDPOINT, {
+  const response = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
+    // Локальные серверы ключа не спрашивают — пустой заголовок не шлём
+    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
     body: formData,
+    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
   });
 
   if (!response.ok) {
     const detail = await response.text();
     throw new AppError(
-      `OpenAI speech recognition failed (${response.status})`,
+      `Speech recognition failed (${response.status})`,
       response.status,
       true,
       null,
@@ -551,10 +633,19 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
   const config = await getSpeechToTextConfig();
   const { provider } = config;
 
-  const { segments: recognizedSegments, fallbackText, model } =
-    provider === "yandex"
-      ? await transcribeWithYandex(attachment, config)
-      : await transcribeWithOpenai(attachment, config);
+  // Настоящие расшифровки и наполняют строку состояния канала в настройках
+  let recognition;
+  try {
+    recognition =
+      provider === "yandex"
+        ? await transcribeWithYandex(attachment, config)
+        : await transcribeWithOpenai(attachment, config);
+  } catch (error) {
+    await aiHealth.recordError(aiHealth.SPEECH, describeAiError(error));
+    throw error;
+  }
+
+  const { segments: recognizedSegments, fallbackText, model } = recognition;
 
   // Реальная речь распознана, если ASR вернул непустой текст (а не единственный
   // пустой fallback-сегмент). Нужно вызывающему коду, чтобы НЕ подменять
@@ -563,6 +654,9 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
   const hasRecognizedSpeech = recognizedSegments.some(
     (segment) => segment.text && segment.text.trim(),
   );
+
+  // Канал ответил; «сработал» — только когда речь действительно нашлась
+  await aiHealth.recordOk(aiHealth.SPEECH, { message: hasRecognizedSpeech });
 
   let segments = recognizedSegments;
   let summary = "";
@@ -618,4 +712,178 @@ exports.transcribeAttachment = async (attachment, context = {}) => {
     summaryError,
     recognized: hasRecognizedSpeech,
   };
+};
+
+// Срок ожидания расшифровки вложения. Как и у руководства заявки, перезапуск
+// процесса убивает работу без исключения: catch не сработает, статус останется
+// pending, и в карточке навсегда закрутится спиннер. Запас тот же, что у гейта
+// уведомлений (middleware/notifications.js): асинхронное распознавание Yandex
+// опрашивается до шести минут, следом идёт AI-итог.
+const PENDING_TTL_MS = 15 * 60 * 1000;
+
+/**
+ * Гасит зависшие расшифровки вложений при чтении заявки — карточка опрашивает
+ * именно её. Живая расшифровка перепишет статус своим результатом.
+ *
+ * @param {object} ticket план-объект заявки (мутируется на месте)
+ */
+exports.expireStalePendingSpeech = async (ticket) => {
+  const stale = (ticket?.attachments || []).filter((attachment) => {
+    if (attachment?.speechToText?.status !== "pending") return false;
+    const startedAt = attachment.speechToText.startedAt;
+    // Вложения, начатые до появления startedAt, гасим сразу
+    return (
+      !startedAt || Date.now() - new Date(startedAt).getTime() >= PENDING_TTL_MS
+    );
+  });
+
+  if (!stale.length) return ticket;
+
+  const error = "распознавание прервалось, запустите его заново";
+
+  for (const attachment of stale) {
+    attachment.speechToText = {
+      ...attachment.speechToText,
+      status: "error",
+      error,
+    };
+  }
+
+  await Ticket.updateOne(
+    { _id: ticket._id },
+    {
+      $set: {
+        "attachments.$[stuck].speechToText.status": "error",
+        "attachments.$[stuck].speechToText.error": error,
+      },
+    },
+    {
+      arrayFilters: [
+        { "stuck.name": { $in: stale.map((item) => item.name) } },
+      ],
+    },
+  ).catch(() => {});
+
+  // Карточка отсылает к хронике заявки — там должно быть что прочитать
+  await logAiTicketEvent(
+    ticket._id,
+    "Распознавание записи звонка прервалось: сервис перезапустился, пока оно шло",
+    "warning",
+  );
+
+  return ticket;
+};
+
+/**
+ * Проба канала распознавания для кнопки проверки в настройках: ключ отдаём
+ * самому сервису, а не проверяем его на глаз. Ошибку наружу не бросаем — она и
+ * есть результат проверки; успех пишем в состояние канала, неуспех — нет.
+ *
+ * @returns {Promise<{ ok: boolean, state: string, hint: string }>}
+ */
+exports.checkSpeechToText = async ({
+  provider,
+  apiKey,
+  folderId,
+  model,
+  baseUrl,
+}) => {
+  // Локальному серверу ключ не нужен — ему нужен адрес
+  if (!apiKey && provider !== "local") {
+    return { ok: false, state: "Ключ распознавания не задан", hint: "" };
+  }
+
+  try {
+    if (provider === "local") {
+      if (!baseUrl) {
+        return {
+          ok: false,
+          state: "Не указан адрес сервера распознавания",
+          hint: "",
+        };
+      }
+
+      // Каталог моделей — самая дешёвая проба: файл гонять не нужно
+      const response = await fetch(
+        `${aiService.buildLocalBaseUrl(baseUrl)}/models`,
+        {
+          headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new AppError(
+          `Local speech request failed (${response.status}): ${detail}`,
+          response.status,
+          true,
+        );
+      }
+    } else if (provider === "yandex") {
+      if (!folderId) {
+        return {
+          ok: false,
+          state: "Не указан идентификатор каталога",
+          hint: "Без каталога SpeechKit не примет запрос.",
+        };
+      }
+
+      // 0,2 с тишины: самый дешёвый способ доказать, что ключ и каталог
+      // рабочие, — файла в репозитории для этого не нужно.
+      const silence = Buffer.alloc(16000 * 2 * 0.2);
+      const query = new URLSearchParams({
+        folderId,
+        lang: "ru-RU",
+        format: "lpcm",
+        sampleRateHertz: "16000",
+      });
+      const response = await fetch(`${YANDEX_STT_PROBE_ENDPOINT}?${query}`, {
+        method: "POST",
+        headers: { Authorization: `Api-Key ${apiKey}` },
+        body: silence,
+      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new AppError(
+          `Yandex SpeechKit request failed (${response.status}): ${detail}`,
+          response.status,
+          true,
+        );
+      }
+    } else {
+      if (!isOpenaiSpeechModel(model)) {
+        return {
+          ok: false,
+          state: "Выбранная модель не умеет распознавать речь",
+          hint: "Загрузите список и выберите модель расшифровки.",
+        };
+      }
+
+      const response = await fetch("https://api.openai.com/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new AppError(
+          `OpenAI request failed (${response.status}): ${detail}`,
+          response.status,
+          true,
+        );
+      }
+    }
+
+    await aiHealth.recordOk(aiHealth.SPEECH);
+
+    return { ok: true, state: "Сервис распознавания отвечает", hint: "" };
+  } catch (error) {
+    logger.log("warn", "Speech recognition check failed", {
+      provider,
+      error: error.message,
+    });
+
+    return { ok: false, ...describeAiError(error) };
+  }
 };

@@ -1,5 +1,8 @@
 const Preferences = require("@/models/preferences");
 const { AppError } = require("@/middleware/errorHandling");
+const { readStoredSecret } = require("@/helpers/preferencesSecrets");
+const { describeAiError } = require("@/services/aiErrors");
+const aiHealth = require("@/services/ai/health");
 const logger = require("@/utils/logger");
 
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
@@ -7,9 +10,9 @@ const ANTHROPIC_ENDPOINT = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 // DeepSeek полностью OpenAI-совместим (тот же формат запроса/ответа).
 const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
-const YANDEX_GPT_ENDPOINT =
-  "https://llm.api.cloud.yandex.net/foundationModels/v1/completion";
-// OpenAI-совместимый шлюз Yandex AI Studio (open-source каталог: DeepSeek, Qwen …).
+// OpenAI-совместимый шлюз Yandex AI Studio — единственный вход к яндексовому
+// каталогу (YandexGPT, DeepSeek, Qwen, gpt-oss …) после переименования
+// Foundation Models в AI Studio.
 const YANDEX_AI_STUDIO_ENDPOINT =
   "https://llm.api.cloud.yandex.net/v1/chat/completions";
 
@@ -23,6 +26,16 @@ const parseJsonResponse = (raw) => {
   }
 
   let text = raw.trim();
+
+  // Reasoning models (DeepSeek R1 and kin in the Yandex AI Studio catalogue)
+  // put their thinking in <think>…</think> — braces and all, which would derail
+  // the outermost-braces fallback below. An unclosed block means the answer was
+  // cut off mid-thought: everything from the tag on is reasoning, not JSON.
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const openThink = text.search(/<think>/i);
+  if (openThink !== -1) {
+    text = text.slice(0, openThink).trim();
+  }
 
   // Strip ```json ... ``` / ``` ... ``` fences if present.
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -63,6 +76,7 @@ const callOpenai = async ({
   authScheme = "Bearer",
   extraHeaders = {},
   jsonMode = true,
+  timeoutMs,
 }) => {
   const content = images.length
     ? [
@@ -96,10 +110,15 @@ const callOpenai = async ({
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `${authScheme} ${apiKey}`,
+      // Локальные серверы моделей ключа не спрашивают, и пустой заголовок часть
+      // из них отвергает — тогда не отправляем его вовсе
+      ...(apiKey ? { Authorization: `${authScheme} ${apiKey}` } : {}),
       ...extraHeaders,
     },
     body: JSON.stringify(body),
+    // Без предела висим до победного: неверный адрес в закрытой сети не даёт
+    // отказа, пакеты просто пропадают
+    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
   });
 
   if (!response.ok) {
@@ -127,16 +146,34 @@ const callDeepseek = (params) =>
     label: "DeepSeek",
   });
 
-// Yandex AI Studio — OpenAI-совместимый шлюз к open-source каталогу (DeepSeek,
-// Qwen …). Авторизация Api-Key + заголовок x-folder-id; модель — полный modelUri.
+// Модель у AI Studio адресуется идентификатором gpt://<каталог>/<модель>/<версия>.
+// В настройках храним путь без каталога (иначе смена folder ID протухнет вместе
+// с моделью), но принимаем все три вида: целый URI из буфера обмена, «модель/rc»
+// из каталога и голое имя из старых конфигураций.
+const buildYandexModelUri = (folderId, model) => {
+  const value = String(model || "").trim();
+
+  if (value.startsWith("gpt://")) return value;
+  if (value.includes("/")) return `gpt://${folderId}/${value}`;
+
+  return `gpt://${folderId}/${value}/latest`;
+};
+
+// Yandex AI Studio — OpenAI-совместимый шлюз к яндексовому каталогу.
+// Авторизация Api-Key + заголовок x-folder-id; модель — полный modelUri.
 const callYandexAi = ({ apiKey, model, folderId, system, user }) => {
   if (!folderId) {
     throw new AppError("Yandex AI Studio folder ID is not set", 400, true);
   }
+  // Дефолта нет намеренно: каталог у каждого свой, а угаданное имя даёт 400 с
+  // невнятной формулировкой вместо честного «выберите модель».
+  if (!String(model || "").trim()) {
+    throw new AppError("Yandex AI Studio model is not set", 400, true);
+  }
 
   return callOpenai({
     apiKey,
-    model: `gpt://${folderId}/${model || "deepseek-r1"}/latest`,
+    model: buildYandexModelUri(folderId, model),
     system,
     user,
     images: [],
@@ -148,54 +185,72 @@ const callYandexAi = ({ apiKey, model, folderId, system, user }) => {
   });
 };
 
-const callYandexGpt = async ({
-  apiKey,
-  model,
-  folderId,
-  system,
-  user,
-  maxTokens,
-}) => {
-  if (!folderId) {
-    throw new AppError("Yandex GPT folder ID is not set", 400, true);
+// Локально развёрнутая модель: Ollama (порт 11434), LM Studio (1234), vLLM,
+// llama.cpp, LocalAI — все отдают OpenAI-совместимый /v1, различаясь только
+// адресом. Отсюда один провайдер на всех.
+//
+// Запрос ограничен по времени: неверный адрес в закрытой сети не отвечает
+// отказом, а молча висит — дольше, чем живёт pending у руководства заявки
+// (services/ticketAiGuide.js), и карточка успела бы объявить сборку прерванной.
+const LOCAL_DEFAULT_PATH = "/v1";
+const LOCAL_TIMEOUT_MS = 4 * 60 * 1000;
+
+// Адрес вводит человек, поэтому принимаем все живые написания:
+// «192.168.1.10:11434», «http://host:1234/» и «http://host:11434/v1».
+// Путь дописываем, только если его нет: за обратным прокси встречается
+// http://host/openai/v1, и туда лишний /v1 добавлять нельзя.
+const buildLocalBaseUrl = (raw) => {
+  const value = String(raw || "").trim();
+  if (!value) {
+    throw new AppError("Local model base URL is not set", 400, true);
   }
 
-  const modelUri = `gpt://${folderId}/${model || "yandexgpt"}/latest`;
-
-  const response = await fetch(YANDEX_GPT_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Api-Key ${apiKey}`,
-      "x-folder-id": folderId,
-    },
-    body: JSON.stringify({
-      modelUri,
-      completionOptions: {
-        stream: false,
-        temperature: 0.3,
-        maxTokens: String(maxTokens || 2000),
-      },
-      messages: [
-        { role: "system", text: system },
-        { role: "user", text: user },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new AppError(
-      `Yandex GPT request failed (${response.status})`,
-      response.status,
-      true,
-      null,
-      { detail },
-    );
+  let url;
+  try {
+    url = new URL(/^https?:\/\//i.test(value) ? value : `http://${value}`);
+  } catch {
+    throw new AppError("Local model base URL is malformed", 400, true);
   }
 
-  const data = await response.json();
-  return data.result?.alternatives?.[0]?.message?.text;
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new AppError("Local model base URL is malformed", 400, true);
+  }
+
+  const path = url.pathname.replace(/\/+$/, "");
+
+  return `${url.origin}${path || LOCAL_DEFAULT_PATH}`;
+};
+
+const callLocal = async ({ apiKey, model, baseUrl, system, user }) => {
+  if (!String(model || "").trim()) {
+    throw new AppError("Local model is not set", 400, true);
+  }
+
+  const params = {
+    apiKey,
+    model,
+    system,
+    user,
+    // Vision у локальных сборок скорее исключение — картинки не шлём
+    images: [],
+    endpoint: `${buildLocalBaseUrl(baseUrl)}/chat/completions`,
+    label: "Локальная модель",
+    timeoutMs: LOCAL_TIMEOUT_MS,
+  };
+
+  try {
+    // Маленькие модели хуже держат формат, поэтому режим JSON здесь нужнее
+    // всего — но часть сборок llama.cpp отвечает на него 400
+    return await callOpenai({ ...params, jsonMode: true });
+  } catch (error) {
+    if (error?.statusCode !== 400) throw error;
+
+    logger.log("warn", "Local model rejected json_object, retrying without it", {
+      model,
+    });
+
+    return callOpenai({ ...params, jsonMode: false });
+  }
 };
 
 const callAnthropic = async ({
@@ -255,8 +310,29 @@ const PROVIDER_CALLERS = {
   openai: callOpenai,
   anthropic: callAnthropic,
   deepseek: callDeepseek,
-  yandexgpt: callYandexGpt,
   yandexai: callYandexAi,
+  local: callLocal,
+};
+
+// Локальный сервер ключа не требует — «ключ не задан» для него не отказ
+const needsApiKey = (provider) => provider !== "local";
+
+exports.buildLocalBaseUrl = buildLocalBaseUrl;
+exports.needsApiKey = needsApiKey;
+
+// Конфигурация провайдера из группы настроек: ключ в базе лежит шифртекстом
+// secretBox, наружу уходит расшифрованный.
+const resolveProviderConfig = (ai) => {
+  const provider = ai?.provider;
+  const providerConfig = provider ? ai[provider] : null;
+
+  return {
+    provider,
+    apiKey: readStoredSecret(providerConfig?.apiKey),
+    model: providerConfig?.model,
+    folderId: providerConfig?.folderId,
+    baseUrl: providerConfig?.baseUrl,
+  };
 };
 
 /**
@@ -286,13 +362,10 @@ exports.generateJson = async ({
     throw new AppError("AI features are disabled", 400, true);
   }
 
-  const provider = ai?.provider;
-  const providerConfig = provider ? ai[provider] : null;
-  const apiKey = providerConfig?.apiKey;
-  const model = providerConfig?.model;
-  const folderId = providerConfig?.folderId;
+  const { provider, apiKey, model, folderId, baseUrl } =
+    resolveProviderConfig(ai);
 
-  if (!apiKey) {
+  if (!apiKey && needsApiKey(provider)) {
     throw new AppError(`API key for ${provider || "AI provider"} is not set`, 400, true);
   }
 
@@ -303,15 +376,83 @@ exports.generateJson = async ({
 
   logger.log("info", "Requesting AI completion", { provider, model });
 
-  const raw = await call({
-    apiKey,
-    model,
-    folderId,
-    system,
-    user,
-    images,
-    maxTokens,
-  });
+  // Настоящие вызовы и наполняют строку состояния в настройках: разобранный
+  // ответ — канал сделал работу, любой отказ по дороге — причина в строке.
+  try {
+    const raw = await call({
+      apiKey,
+      model,
+      folderId,
+      baseUrl,
+      system,
+      user,
+      images,
+      maxTokens,
+    });
+    const data = parseJsonResponse(raw);
 
-  return { data: parseJsonResponse(raw), provider, model };
+    await aiHealth.recordOk(aiHealth.AI, { message: true });
+
+    return { data, provider, model };
+  } catch (error) {
+    await aiHealth.recordError(aiHealth.AI, describeAiError(error));
+    throw error;
+  }
+};
+
+/**
+ * Проба канала «на живом» для кнопки проверки в настройках: минимальная
+ * настоящая генерация тем же путём, каким ходят возможности приложения.
+ * Принятый ключ — это ещё не работающий канал: неверный идентификатор модели
+ * или несговорчивый формат ответа видно только по ответу. Ошибку наружу не
+ * бросаем — она и есть результат проверки.
+ *
+ * Успех пишем в состояние канала, неуспех — нет: проверяют обычно черновик, и
+ * красная строка про несохранённые поля врала бы о работающем канале.
+ *
+ * @returns {Promise<{ ok: boolean, state: string, hint: string }>}
+ */
+exports.checkProvider = async ({
+  provider,
+  apiKey,
+  model,
+  folderId,
+  baseUrl,
+}) => {
+  const call = PROVIDER_CALLERS[provider];
+
+  if (!call) {
+    return { ok: false, state: "Поставщик ИИ не выбран", hint: "" };
+  }
+  if (!apiKey && needsApiKey(provider)) {
+    return { ok: false, state: "Ключ поставщика не задан", hint: "" };
+  }
+
+  try {
+    // Слово «JSON» в промпте обязательно: у OpenAI режим json_object без него
+    // отвечает 400. Заодно проба повторяет контракт настоящих вызовов.
+    const raw = await call({
+      apiKey,
+      model,
+      folderId,
+      baseUrl,
+      system: "Ты отвечаешь строго одним JSON-объектом, без пояснений.",
+      user: 'Верни JSON: {"ok": true}',
+      images: [],
+      maxTokens: 64,
+    });
+    parseJsonResponse(raw);
+
+    await aiHealth.recordOk(aiHealth.AI);
+
+    return { ok: true, state: "Модель отвечает", hint: "" };
+  } catch (error) {
+    logger.log("warn", "AI provider check failed", {
+      provider,
+      model,
+      error: error.message,
+    });
+
+    return { ok: false, ...describeAiError(error) };
+  }
 };

@@ -302,9 +302,12 @@ const preferencesSchema = new Schema({
   },
   ai: {
     isActive: { type: Boolean, default: false },
+    // Яндекс у списка один: Foundation Models переименованы в AI Studio, у них
+    // общий каталог и общая авторизация (перенос старых настроек —
+    // scripts/migrateAiProvider.js).
     provider: {
       type: String,
-      enum: ["openai", "anthropic", "deepseek", "yandexgpt", "yandexai"],
+      enum: ["openai", "anthropic", "deepseek", "yandexai", "local"],
       default: "openai",
     },
     openai: {
@@ -319,19 +322,39 @@ const preferencesSchema = new Schema({
       apiKey: { type: String, default: "" },
       model: { type: String, default: "deepseek-chat" },
     },
-    yandexgpt: {
-      apiKey: { type: String, default: "" },
-      folderId: { type: String, default: "" },
-      model: { type: String, default: "yandexgpt" },
-    },
+    // Каталог моделей у каждого арендатора свой — дефолтное имя было бы
+    // угадыванием, дающим 400 вместо честного «выберите модель»
     yandexai: {
       apiKey: { type: String, default: "" },
       folderId: { type: String, default: "" },
-      model: { type: String, default: "deepseek-r1" },
+      model: { type: String, default: "" },
     },
+    // Локально развёрнутая модель. Ollama, LM Studio, vLLM, llama.cpp и LocalAI
+    // говорят по одному OpenAI-совместимому протоколу и различаются только
+    // адресом — поэтому провайдер один на всех, а не по штуке на продукт.
+    // Ключ такие серверы обычно не спрашивают; он нужен, если сервер закрыт
+    // прокси с авторизацией.
+    local: {
+      baseUrl: { type: String, default: "" },
+      apiKey: { type: String, default: "" },
+      model: { type: String, default: "" },
+    },
+    // Состояние канала: чат-провайдер отвечает сам за себя, распознавание речи —
+    // за себя (у него свой ключ и свой сервис). Пишут настоящие вызовы и кнопки
+    // проверки (services/ai/health.js), читает строка состояния в настройках.
+    health: channelHealth(),
     speechToText: {
       isActive: { type: Boolean, default: false },
-      provider: { type: String, enum: ["openai", "yandex"], default: "openai" },
+      provider: {
+        type: String,
+        enum: ["openai", "yandex", "local"],
+        default: "openai",
+      },
+      // Брать ключ (и адрес) у основного провайдера, когда он умеет то же
+      // самое: у OpenAI ключ один на чат и распознавание, у Яндекса один ключ
+      // Cloud открывает и AI Studio, и SpeechKit, у локального сервера один
+      // адрес. Модель всегда своя — каталоги чата и распознавания разные.
+      useProviderCredentials: { type: Boolean, default: false },
       apiKey: { type: String, default: "" },
       model: { type: String, default: "gpt-4o-transcribe-diarize" },
       yandex: {
@@ -339,6 +362,15 @@ const preferencesSchema = new Schema({
         folderId: { type: String, default: "" },
         model: { type: String, default: "general" },
       },
+      // Локальный сервер распознавания: faster-whisper-server, speaches,
+      // LocalAI, vLLM — все отдают OpenAI-совместимый /v1/audio/transcriptions.
+      // Ollama среди них нет: аудио она не расшифровывает.
+      local: {
+        baseUrl: { type: String, default: "" },
+        apiKey: { type: String, default: "" },
+        model: { type: String, default: "" },
+      },
+      health: channelHealth(),
     },
   },
 });

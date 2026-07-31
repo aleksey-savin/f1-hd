@@ -8,9 +8,10 @@ const { isAdmin } = require("@/middleware/permissions");
 const { uploadCompanyLogo } = require("@/middleware/imageUpload");
 const { checkValidationResult } = require("@/middleware/validation");
 
-// Проверки ходят во внешнюю сеть по адресу из тела запроса и отправляют почту —
-// ограничиваем частоту даже для админа (образец — роуты параметров Mikrotik).
-const mailCheckLimiter = rateLimit({
+// Проверки ходят во внешнюю сеть по адресу и ключу из тела запроса, отправляют
+// почту и тратят токены ИИ — ограничиваем частоту даже для админа (образец —
+// роуты параметров Mikrotik).
+const checkLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
   max: 20,
   standardHeaders: true,
@@ -50,20 +51,35 @@ router.post(
   "/preferences/ai-models",
   isAuth,
   isAdmin,
+  checkLimiter,
   preferencesController.getAiModels,
+);
+router.post(
+  "/preferences/ai/check",
+  isAuth,
+  isAdmin,
+  checkLimiter,
+  preferencesController.checkAi,
+);
+router.post(
+  "/preferences/ai/speech-check",
+  isAuth,
+  isAdmin,
+  checkLimiter,
+  preferencesController.checkSpeechToText,
 );
 router.post(
   "/preferences/mailbox/check",
   isAuth,
   isAdmin,
-  mailCheckLimiter,
+  checkLimiter,
   preferencesController.checkMailbox,
 );
 router.post(
   "/preferences/smtp/test",
   isAuth,
   isAdmin,
-  mailCheckLimiter,
+  checkLimiter,
   preferencesController.sendTestEmail,
 );
 module.exports = router;

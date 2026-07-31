@@ -8,8 +8,11 @@ not a spec — verify against the code before relying on any detail._
 
 Four AI capabilities have been added:
 
-1. **AI provider preferences** — admin chooses OpenAI or Anthropic and stores the
-   API key + model. Models are fetched live from the provider. Speech recognition
+1. **AI provider preferences** — admin chooses OpenAI, Anthropic, DeepSeek or
+   Yandex AI Studio and stores the API key + model. Models are fetched live from
+   the provider, and each outbound channel carries a health line plus a check
+   action (see «Секция внешнего сервиса обязана отвечать, работает ли она» in the
+   UX guide). Speech recognition
    has its own provider switch under the same AI preferences tab: **OpenAI**
    (API key + model) or **Yandex SpeechKit** (API key + folder ID + `general`
    model).
@@ -61,12 +64,16 @@ Singleton `Preferences` doc gained an `ai` sub-document:
 ```
 ai: {
   isActive: Boolean,
-  provider: "openai" | "anthropic",
+  provider: "openai" | "anthropic" | "deepseek" | "yandexai" | "local",
   openai:    { apiKey: String, model: String (default "gpt-4o") },
   anthropic: { apiKey: String, model: String (default "claude-opus-4-8") },
+  deepseek:  { apiKey: String, model: String (default "deepseek-chat") },
+  yandexai:  { apiKey: String, folderId: String, model: String (default "") },
+  local:     { baseUrl: String, apiKey: String, model: String },
   speechToText: {
     isActive: Boolean,
-    provider: "openai" | "yandex" (default "openai"),
+    provider: "openai" | "yandex" | "local" (default "openai"),
+    useProviderCredentials: Boolean,
     apiKey: String,                                   // OpenAI key
     model: String (default "gpt-4o-transcribe-diarize"), // OpenAI model
     yandex: {
@@ -74,39 +81,121 @@ ai: {
       folderId: String,
       model: String (default "general"),
     },
+    local: { baseUrl: String, apiKey: String, model: String },
+    health: channelHealth(),
   },
+  health: channelHealth(),
 }
 ```
-- API keys are stored **plaintext**, matching the existing `emailPassword` /
-  `notify.byEmail.pass` convention. **Tech debt** — candidate for encryption.
+- **API keys are encrypted at rest** (AES-256-GCM, `services/crypto/secretBox.js`,
+  storage format `v1:<iv>:<tag>:<ciphertext>`). Every consumer must read them
+  through `readStoredSecret` (`helpers/preferencesSecrets.js`), which also passes
+  through values saved before encryption was introduced. Skipping it sends the
+  ciphertext as the credential and the provider answers 401 — this was a live
+  regression across every provider until 2026-07-31. Keys never leave the server:
+  `maskSecrets` blanks them on both read and save and adds a `<field>IsSet` flag;
+  an empty field on save means "keep the stored one".
+- **One Yandex provider.** Foundation Models were renamed to AI Studio: one host,
+  one catalogue, one auth scheme. The former `yandexgpt` provider (native
+  `foundationModels/v1/completion` + a hardcoded three-model list) is gone;
+  `scripts/migrateAiProvider.js` moves an existing config onto `yandexai`.
+- **One provider for every self-hosted server.** Ollama (:11434), LM Studio
+  (:1234), vLLM, llama.cpp and LocalAI all speak the same OpenAI-compatible
+  `/v1`, so `local` differs from them only by `baseUrl` — a provider per product
+  would be the same form with different captions. `buildLocalBaseUrl`
+  (`aiService.js`) accepts `host:port`, a trailing slash and an explicit `/v1`,
+  and only appends the default path when there is none (behind a reverse proxy
+  the address can be `http://host/openai/v1`). Local calls carry a 4-minute
+  timeout — a wrong address inside a closed network does not refuse the
+  connection, it hangs silently, and it would outlive the AI-guide `pending` TTL.
+  The `Authorization` header is omitted when the key is empty: local servers do
+  not ask for one and some reject an empty header. `response_format:
+  json_object` is sent first and retried without it on a 400, because small
+  models need JSON mode the most while some llama.cpp builds reject the field.
+  Images are not sent to local models — vision builds are the exception there.
+- **Speech recognition has the same `local` option**: faster-whisper-server,
+  speaches, LocalAI and vLLM expose an OpenAI-compatible
+  `/v1/audio/transcriptions`, so `transcribeWithOpenai` serves them with a
+  different endpoint. Ollama is deliberately absent — it does not transcribe
+  audio. The OpenAI-model-name guard (`isOpenaiSpeechModel`) applies to the
+  OpenAI provider only; local servers name models their own way.
+- **`speechToText.useProviderCredentials`** takes the key (and address) from the
+  chat provider when the pair actually shares anything: OpenAI↔OpenAI (one key),
+  Yandex SpeechKit↔AI Studio (one Cloud key and folder), local↔local (one
+  address). Other pairs have nothing in common and the switch is inert — both
+  `canShareCredentials` (backend) and the settings form gate on the same map.
+  The **model is always the channel's own**: chat and transcription catalogues do
+  not intersect. `resolveSpeechConfig` is the single place that resolves this and
+  is used by the transcription path, the check endpoint, the model catalogue and
+  the save invariant alike.
+- `yandexai.model` holds the catalogue path **without** the folder
+  (`deepseek-v4-flash`, `yandexgpt-lite/rc`) so that changing the folder ID does
+  not invalidate the model. `buildYandexModelUri` in `aiService.js` also accepts a
+  whole `gpt://…` URI pasted from the console.
+- `health` groups (one per outbound channel — chat provider and speech
+  recognition) use the same `channelHealth()` shape as the mail channels and are
+  written by `services/ai/health.js`: real calls record success/failure, the check
+  buttons record success only. The settings form never sends `health`, and
+  `update` merges it back so a section save cannot wipe the status line.
 
 ### Backend
 - `controllers/preferences.js`
   - `update` — `ai` is wired through the destructure + create + update branches.
   - `getInitial` — returns `ai: { isActive, speechToText: { isActive } }` so the
     client can gate AI guide + speech controls.
-  - `getAiModels` — `POST /api/preferences/ai-models { provider, apiKey, feature }`.
-    Calls the provider's list-models endpoint (OpenAI `GET /v1/models`; Anthropic
-    `GET /v1/models`). Normal chat models are filtered to `gpt*`/`o\d`/`chatgpt*`;
+  - `getAiModels` — `POST /api/preferences/ai-models { provider, apiKey, feature,
+    folderId }`. Calls the provider's list-models endpoint (OpenAI, Anthropic and
+    DeepSeek `GET /v1/models`; Yandex AI Studio `GET
+    https://llm.api.cloud.yandex.net/v1/models` with `Api-Key` + `x-folder-id`).
+    Normal chat models are filtered to `gpt*`/`o\d`/`chatgpt*`;
     `feature:"speechToText"` with `provider:"openai"` filters to speech-capable
     models (`gpt-4o-transcribe*`, `gpt-4o-mini-transcribe*`, `whisper-1`);
     `provider:"yandex"` short-circuits and returns the static `general` model
-    (Yandex has no list-models endpoint, so no key/HTTP call is needed). Falls
-    back to the saved key if none is passed. Admin-only.
-- `routes/internal/preferences.js` — `POST /preferences/ai-models`
-  (`isAuth, isAdmin`). Other AI settings ride the existing `POST /preferences`.
+    (SpeechKit has no catalogue endpoint); `provider:"local"` reads
+    `GET {baseUrl}/models` and drops ids matching `/embed/i` (Ollama lists
+    embedding models next to generative ones). Stored fallbacks for a speech
+    request are taken from the **requested** provider's group, not the saved one
+    — the form may have just switched it, and a local server must not receive an
+    OpenAI key. The Yandex catalogue answers with full
+    URIs mixing generative models, embeddings (`emb://`) and realtime speech
+    models — only `gpt://` entries minus `speech-realtime-*` reach the chat
+    dropdown, stripped of the folder. Falls back to the saved key and folder if
+    none are passed. Admin-only.
+  - `checkAi` / `checkSpeechToText` — outbound probes for the settings buttons.
+    Both merge the unsaved draft over the whole stored `ai` group (`mergeAiDraft`
+    → `mergeWithStored` per provider), so an empty key field means "use the saved
+    one"; the speech check needs the chat provider's block too, because the
+    credentials may come from there. Both answer the mail-check contract
+    `{ ok, state, hint }` with the phrase built by
+    `services/aiErrors.describeAiError`. The local speech probe is the model
+    catalogue — no need to push a file through.
+  - `findAiInvariant` — an enabled channel must be configured whole; otherwise
+    `update` answers 422 with a human sentence (mirrors `findMailInvariant`).
+- `routes/internal/preferences.js` — `POST /preferences/ai-models`,
+  `POST /preferences/ai/check`, `POST /preferences/ai/speech-check`
+  (`isAuth, isAdmin, checkLimiter` — 20 requests / 5 min, shared with the mail
+  checks). Other AI settings ride the existing `POST /preferences`.
+- `services/aiService.js`
+  - `generateJson` — the single provider-agnostic entry point. Reads the config,
+    decrypts the key, dispatches by provider, parses the JSON answer (stripping
+    `<think>…</think>` from reasoning models) and records channel health.
+  - `checkProvider` — a minimal real generation asking for `{"ok": true}`. Connect
+    and key alone are not proof: a wrong model id or an uncooperative answer
+    format only shows up in a real round trip. The word "JSON" stays in the prompt
+    because OpenAI rejects `response_format: json_object` without it.
+- `services/speechToTextService.js`
+  - `checkSpeechToText` — OpenAI: `GET /v1/models` with the speech key; Yandex:
+    0.2 s of generated LPCM silence to the **synchronous** `speech/v1/stt:recognize`.
+    The production path (async v3 with a file) cannot serve as a settings probe.
 
 ### Frontend
-- `components/Preferences/Ai.jsx` — tab in Preferences: enable switch, provider
-  select, masked API key, and a **model dropdown populated by fetching the
-  provider** (refresh button; disabled until a key is entered). Also contains a
-  separate **Speech recognition** switch and a **speech provider select**
-  (OpenAI / Yandex SpeechKit). For OpenAI: API key field + model dropdown filtered
-  to speech-to-text models (`gpt-4o-transcribe-diarize` preferred and marked as the
-  model that supports role/speaker handling). For Yandex: API key + folder ID
-  fields and a fixed `general` model.
-- `pages/Preferences.jsx` — registers the "AI" tab; the existing submit handler
-  persists `prefs.ai`.
+- `components/Preferences/Ai.jsx` — the whole «Искусственный интеллект» section:
+  it owns the `ai` group and posts it in one payload. Model dropdowns are filled
+  on demand from `POST /preferences/ai-models`; the two check buttons post the
+  current draft and render the answer through `channel-health.js` into
+  `app/HealthRow`. Layout rules live in `docs/ux-ui-guide.md` («Панели настроек»),
+  not here.
+- `pages/Preferences.jsx` — registers the section; the page action persists it.
 
 ---
 
@@ -168,15 +257,32 @@ aiGuide: {
     stops the model from asking what a previous ticket already answered;
   - **pulls in relevant knowledge-base notes** via
     `services/knowledgeBaseContext.js` `collectRelevantNotes({ companyId, categoryId,
-    applicantId })` — same company/category/applicant matching + ranking as the ticket
-    "База знаний" section (`Ticket/View/KnowledgeSection.jsx`), top 5, formatted by `buildKnowledgeContext`
-    and appended to the prompt as a **priority source** (known issues/instructions).
+    applicantId, title, text })`. Company/category/applicant bindings pick the
+    **candidates** (same matching as the ticket "База знаний" section,
+    `Ticket/View/KnowledgeSection.jsx`); the ticket's own words then decide which
+    of them are actually sent, in three tiers: notes touched by words of the
+    **title**, else by words of the **description**, else — nothing matched —
+    the old binding order. Untouched notes are dropped rather than padded in: a
+    "priority source" about someone else's topic is worse than no source at all.
+    Matching is stem-based (first 5 letters, no morphology), with a stop-list for
+    filler words; pure numbers are not words (`21` in a ticket title used to hit a
+    subnet mask inside a note), while `1с`/`vpn`/`rdp` are. Top 5, formatted by
+    `buildKnowledgeContext` and appended to the prompt as a **priority source**.
     Per-user `canViewNote` is intentionally **not** applied — the guide is a shared
     staff-only artifact. The used notes are persisted on `aiGuide.sources`;
   - calls `generateJson` with images; **text-only fallback** if the vision call
     fails (e.g. non-vision model) so a guide is still produced;
   - persists `aiGuide` via `findByIdAndUpdate`; **never throws** — failures are
     recorded as `status:"error"`.
+  - `expireStalePendingGuide` — generation runs inside a live request, so a
+    process restart (deploy, nodemon) kills it *without* an exception: the catch
+    above never fires and `status` stays `pending` while the ticket card polls it
+    forever. `aiGuide.startedAt` gives `pending` a 5-minute lifetime; the ticket
+    read path (`controllers/ticket.js` `getOne`) flips an expired one to `error`
+    and writes a chronicle line, because the panel's error text points there. A
+    generation that is still alive simply overwrites the verdict with its result.
+    `regenerateAiGuide` sets `startedAt` and clears the previous `error` — a stale
+    reason used to resurface as the cause of the *next* run.
 
 `backend/package.json` / `tsconfig.json` — added `@/services` and `@/prompts`
 module aliases and deps `pdf-parse`, `mammoth`, `xlsx`.
@@ -399,6 +505,21 @@ older ticket code used `mimetype`, while later attachment upload code used
   flipped to `processed` once the description/title are updated, and finalized after
   the loop to `processed` (any attachment transcribed) or `error` (none). Returned
   by `getOne` and `getAllOpened`; drives the live badge (see Frontend).
+- **`pending` expires.** The transcription runs as a detached background task, so a
+  process restart kills it *without* rejecting the promise — the `.catch` guard in
+  `emailHandling.js` never fires and the status stays `pending`. That costs more
+  here than anywhere else: `createTicketNotifications` filters on
+  `aiSpeech.status !== "pending"`, so a stuck ticket is one **nobody is ever told
+  about**. Both levels now carry a `startedAt` and a 15-minute lifetime (long
+  enough for Yandex's ~6-minute async polling plus the AI summary):
+  - the notification query releases an expired wait inline (`$or` on `startedAt`,
+    no extra collection scan) and flips the ticket to `error` with a chronicle
+    line;
+  - `expireStalePendingSpeech` does the same for a stuck
+    `attachment.speechToText` on the ticket read path, next to
+    `expireStalePendingGuide` — the card polls that response.
+  A transcription that is still alive simply overwrites the verdict with its
+  result.
 
 ### Caller identification — `backend/services/callerIdentityService.js`
 For telephony emails the applicant + company are resolved **by phone number only**
@@ -529,6 +650,8 @@ The speech flow also writes `TicketLog` start/end/error entries via the same
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | POST | `/api/preferences/ai-models` | admin | list provider models |
+| POST | `/api/preferences/ai/check` | admin | probe the chat provider (real generation) |
+| POST | `/api/preferences/ai/speech-check` | admin | probe the speech recognition channel |
 | POST | `/api/tickets/ai-guide/generate` | staff | (re)generate guide for a ticket |
 | POST | `/api/tickets/:ticketNum/attachments/speech-to-text` | staff | summarize an audio attachment |
 
@@ -543,10 +666,11 @@ Operational / correctness:
 - **Container deps**: `pdf-parse`/`mammoth`/`xlsx` were added to `package.json` but
   the Docker image must be rebuilt (or `pnpm install` run in-container) — the
   container ships its own `node_modules`.
-- **Fire-and-forget generation**: if the process restarts mid-generation, a ticket
-  can stay `status:"pending"` until someone clicks Regenerate. A cron sweep for
-  stale `pending` guides and speech recognition results (mirroring the
-  notifications cron) would make it robust.
+- ~~Fire-and-forget generation leaves `status:"pending"` forever~~ — closed
+  2026-07-31 for the AI guide, ticket-level speech and attachment-level speech:
+  each carries a `startedAt` and expires (see the respective sections).
+  `aiCategory.status` still has no lifetime, but nothing gates on it — a stuck
+  value only means the category was not auto-filled.
 - **No concurrency guard / rate limiting** on generation — a burst of new tickets
   or email tickets with audio fires N parallel provider calls.
 - **Email auto-transcription is background-only**: email-created tickets can show
@@ -562,7 +686,8 @@ Cost / quality:
   into two calls would remove that ceiling.
 - **Models hardcoded as defaults** (`gpt-4o`, `claude-opus-4-8`,
   `gpt-4o-transcribe-diarize`).
-- **Plaintext API key storage** (see above).
+- ~~Plaintext API key storage~~ — closed 2026-07-31: keys are encrypted at rest
+  and read through `readStoredSecret` (see above).
 - **Speech recognition quality in Russian is variable**; the raw dialog is shown
   for reference while the AI summary (not the verbatim transcript) is what feeds
   the email ticket's description/title.

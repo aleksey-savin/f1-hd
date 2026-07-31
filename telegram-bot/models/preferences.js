@@ -124,7 +124,7 @@ const preferencesSchema = new Schema({
     isActive: { type: Boolean, default: false },
     provider: {
       type: String,
-      enum: ["openai", "anthropic", "deepseek", "yandexgpt", "yandexai"],
+      enum: ["openai", "anthropic", "deepseek", "yandexai", "local"],
     },
     openai: {
       apiKey: { type: String, default: "" },
@@ -138,15 +138,15 @@ const preferencesSchema = new Schema({
       apiKey: { type: String, default: "" },
       model: { type: String, default: "deepseek-chat" },
     },
-    yandexgpt: {
-      apiKey: { type: String, default: "" },
-      folderId: { type: String, default: "" },
-      model: { type: String, default: "yandexgpt" },
-    },
     yandexai: {
       apiKey: { type: String, default: "" },
       folderId: { type: String, default: "" },
-      model: { type: String, default: "deepseek-r1" },
+      model: { type: String, default: "" },
+    },
+    local: {
+      baseUrl: { type: String, default: "" },
+      apiKey: { type: String, default: "" },
+      model: { type: String, default: "" },
     },
   },
 });

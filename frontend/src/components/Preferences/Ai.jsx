@@ -6,31 +6,52 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import SettingRow from "@/components/app/SettingRow";
+import HealthRow from "@/components/app/HealthRow";
 import { SubLabel } from "@/components/app/Panel";
 
 import Select from "../../UI/Select";
 import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
+import { describeChannelHealth, describeCheckResult } from "./channel-health";
 
 // «Искусственный интеллект» — канон «селектор → условный блок»: мастер-свитч,
-// провайдер, его поля. Список моделей подгружается по ключу (кнопка
-// обновления); сохранённая модель остаётся выбираемой, даже если её нет в
-// свежем списке. У YandexGPT каталог фиксированный (отдаёт бэкенд), у
-// Yandex AI Studio модель вводится вручную. Секция владеет группой ai целиком.
+// провайдер, его поля. Каталог моделей у всех провайдеров живой: подгружается
+// по ключу (у Yandex AI Studio — по ключу и каталогу) кнопкой обновления,
+// сохранённая модель остаётся выбираемой, даже если её нет в свежем списке.
+// Секция владеет группой ai целиком.
+//
+// Каналов наружу здесь два — чат-провайдер и распознавание речи, у каждого свой
+// ключ и своя строка состояния: включённый свитч это намерение, а не факт.
+//
+// «Локальная модель» — один пункт на все self-hosted сервисы: Ollama, LM Studio,
+// vLLM, llama.cpp и LocalAI отдают один и тот же OpenAI-совместимый /v1 и
+// различаются только адресом. Отдельные пункты на каждый продукт были бы
+// одинаковыми формами с разными подписями.
 const PROVIDERS = [
   { value: "openai", label: "OpenAI" },
   { value: "anthropic", label: "Anthropic" },
   { value: "deepseek", label: "DeepSeek" },
-  { value: "yandexgpt", label: "YandexGPT" },
   { value: "yandexai", label: "Yandex AI Studio" },
+  { value: "local", label: "Локальная модель" },
 ];
 const SPEECH_PROVIDERS = [
   { value: "openai", label: "OpenAI" },
   { value: "yandex", label: "Yandex SpeechKit" },
+  { value: "local", label: "Локальная модель" },
 ];
-// Провайдеры с динамическим каталогом моделей (по ключу); yandexgpt отдаёт
-// фиксированный список тем же эндпоинтом
-const LISTABLE = ["openai", "anthropic", "deepseek", "yandexgpt"];
+
+// Основной провайдер, у которого распознавание может взять ключ и адрес.
+// Пары не произвольные: у OpenAI ключ один на чат и расшифровку, у Яндекса один
+// ключ Cloud открывает и AI Studio, и SpeechKit, локальный сервер — это один
+// адрес. Чат в Anthropic и расшифровка в OpenAI общего не имеют вовсе.
+// Зеркало CREDENTIALS_SOURCE в backend/services/speechToTextService.js.
+const CREDENTIALS_SOURCE = {
+  openai: "openai",
+  yandex: "yandexai",
+  local: "local",
+};
+const canShareCredentials = (chatProvider, speechProvider) =>
+  CREDENTIALS_SOURCE[speechProvider] === chatProvider;
 
 const DEFAULT_AI = {
   isActive: false,
@@ -38,14 +59,17 @@ const DEFAULT_AI = {
   openai: { apiKey: "", model: "" },
   anthropic: { apiKey: "", model: "" },
   deepseek: { apiKey: "", model: "deepseek-chat" },
-  yandexgpt: { apiKey: "", folderId: "", model: "yandexgpt" },
-  yandexai: { apiKey: "", folderId: "", model: "deepseek-r1" },
+  // Каталог у каждого арендатора свой — дефолтное имя модели было бы угадыванием
+  yandexai: { apiKey: "", folderId: "", model: "" },
+  local: { baseUrl: "", apiKey: "", model: "" },
   speechToText: {
     isActive: false,
     provider: "openai",
+    useProviderCredentials: false,
     apiKey: "",
     model: "gpt-4o-transcribe-diarize",
     yandex: { apiKey: "", folderId: "", model: "general" },
+    local: { baseUrl: "", apiKey: "", model: "" },
   },
 };
 
@@ -64,14 +88,18 @@ const PrefsAi = ({ prefs }) => {
       openai: { ...DEFAULT_AI.openai, ...(stored.openai || {}) },
       anthropic: { ...DEFAULT_AI.anthropic, ...(stored.anthropic || {}) },
       deepseek: { ...DEFAULT_AI.deepseek, ...(stored.deepseek || {}) },
-      yandexgpt: { ...DEFAULT_AI.yandexgpt, ...(stored.yandexgpt || {}) },
       yandexai: { ...DEFAULT_AI.yandexai, ...(stored.yandexai || {}) },
+      local: { ...DEFAULT_AI.local, ...(stored.local || {}) },
       speechToText: {
         ...DEFAULT_AI.speechToText,
         ...(stored.speechToText || {}),
         yandex: {
           ...DEFAULT_AI.speechToText.yandex,
           ...(stored.speechToText?.yandex || {}),
+        },
+        local: {
+          ...DEFAULT_AI.speechToText.local,
+          ...(stored.speechToText?.local || {}),
         },
       },
     };
@@ -88,14 +116,16 @@ const PrefsAi = ({ prefs }) => {
       ...current,
       speechToText: { ...current.speechToText, ...patch },
     }));
-  const patchSpeechYandex = (patch) =>
+  const patchSpeechGroup = (key, patch) =>
     setAi((current) => ({
       ...current,
       speechToText: {
         ...current.speechToText,
-        yandex: { ...current.speechToText.yandex, ...patch },
+        [key]: { ...current.speechToText[key], ...patch },
       },
     }));
+  const patchSpeechYandex = (patch) => patchSpeechGroup("yandex", patch);
+  const patchSpeechLocal = (patch) => patchSpeechGroup("local", patch);
 
   // Каталоги моделей (чат и распознавание) — по требованию, с ошибкой у поля
   const [models, setModels] = useState([]);
@@ -104,8 +134,18 @@ const PrefsAi = ({ prefs }) => {
   const [speechModels, setSpeechModels] = useState([]);
   const [speechBusy, setSpeechBusy] = useState(false);
   const [speechError, setSpeechError] = useState(null);
+  const [aiChecking, setAiChecking] = useState(false);
+  const [aiCheckResult, setAiCheckResult] = useState(null);
+  const [speechChecking, setSpeechChecking] = useState(false);
+  const [speechCheckResult, setSpeechCheckResult] = useState(null);
 
-  const fetchModels = async ({ provider, apiKey, feature }) => {
+  const fetchModels = async ({
+    provider,
+    apiKey,
+    feature,
+    folderId,
+    baseUrl,
+  }) => {
     const { token } = getLocalStorageData();
     const response = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/preferences/ai-models`,
@@ -115,15 +155,47 @@ const PrefsAi = ({ prefs }) => {
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
         },
-        body: JSON.stringify({ provider, apiKey, feature }),
+        body: JSON.stringify({ provider, apiKey, feature, folderId, baseUrl }),
       },
     );
     if (!response.ok) throw new Error();
     return (await response.json()).models || [];
   };
 
+  // Проверка канала: результат живёт до перезагрузки страницы и перекрывает
+  // сохранённое состояние — он свежее. Пустой ключ бэкенд подставит сам.
+  const runCheck = async (path, payload, setBusy, setResult) => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const { token } = getLocalStorageData();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/preferences/${path}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (!response.ok) throw new Error();
+      setResult(await response.json());
+    } catch {
+      setResult({
+        ok: false,
+        state: "Не удалось выполнить проверку",
+        hint: "Сервер приложения не ответил — попробуйте ещё раз.",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const provider = ai.provider;
   const providerConf = ai[provider] || {};
+  const isLocal = provider === "local";
 
   // Сохранённые ключи наружу не отдаются — форма получает только флаг «задан»
   // и рисует маску; пустое поле означает «не менять», а каталог моделей бэкенд
@@ -131,18 +203,36 @@ const PrefsAi = ({ prefs }) => {
   const providerKeyIsSet = !!prefs.ai?.[provider]?.apiKeyIsSet;
   const speechKeyIsSet = !!prefs.ai?.speechToText?.apiKeyIsSet;
   const speechYandexKeyIsSet = !!prefs.ai?.speechToText?.yandex?.apiKeyIsSet;
+  const speechLocalKeyIsSet = !!prefs.ai?.speechToText?.local?.apiKeyIsSet;
 
   const loadChatModels = async () => {
-    if (!LISTABLE.includes(provider)) return;
-    if (!providerConf.apiKey && !providerKeyIsSet && provider !== "yandexgpt") {
+    // Локальному серверу ключ не нужен — ему нужен адрес
+    if (isLocal && !providerConf.baseUrl) {
+      setModels([]);
+      setModelsError("Сначала укажите адрес сервера");
+      return;
+    }
+    if (!isLocal && !providerConf.apiKey && !providerKeyIsSet) {
       setModels([]);
       setModelsError("Сначала укажите API-ключ");
+      return;
+    }
+    if (provider === "yandexai" && !providerConf.folderId) {
+      setModels([]);
+      setModelsError("Сначала укажите идентификатор каталога");
       return;
     }
     setModelsBusy(true);
     setModelsError(null);
     try {
-      setModels(await fetchModels({ provider, apiKey: providerConf.apiKey }));
+      setModels(
+        await fetchModels({
+          provider,
+          apiKey: providerConf.apiKey,
+          folderId: providerConf.folderId,
+          baseUrl: providerConf.baseUrl,
+        }),
+      );
     } catch {
       setModels([]);
       setModelsError("Не удалось загрузить список моделей");
@@ -152,10 +242,40 @@ const PrefsAi = ({ prefs }) => {
   };
 
   const speech = ai.speechToText;
+  const speechIsLocal = speech.provider === "local";
+  // Данные берём у основного провайдера, только если ему есть что дать
+  const speechShared =
+    !!speech.useProviderCredentials &&
+    canShareCredentials(provider, speech.provider);
+  // Блок полей у каждого провайдера свой, а у OpenAI ключ и модель лежат прямо
+  // в speechToText — исторически, без вложенной группы
+  const speechConf = speechIsLocal
+    ? speech.local
+    : speech.provider === "yandex"
+      ? speech.yandex
+      : speech;
+  const patchSpeechConf = speechIsLocal
+    ? patchSpeechLocal
+    : speech.provider === "yandex"
+      ? patchSpeechYandex
+      : patchSpeech;
+
   const loadSpeechModels = async () => {
     const yandex = speech.provider === "yandex";
-    const apiKey = yandex ? speech.yandex.apiKey : speech.apiKey;
-    if (!apiKey && !speechKeyIsSet && !yandex) {
+    const apiKey = speechShared ? "" : speechConf.apiKey;
+    const baseUrl = speechShared ? "" : speech.local.baseUrl;
+    if (speechIsLocal && !speechShared && !baseUrl) {
+      setSpeechModels([]);
+      setSpeechError("Сначала укажите адрес сервера");
+      return;
+    }
+    if (
+      !apiKey &&
+      !speechKeyIsSet &&
+      !yandex &&
+      !speechIsLocal &&
+      !speechShared
+    ) {
       setSpeechModels([]);
       setSpeechError("Сначала укажите API-ключ");
       return;
@@ -165,8 +285,9 @@ const PrefsAi = ({ prefs }) => {
     try {
       setSpeechModels(
         await fetchModels({
-          provider: yandex ? "yandex" : "openai",
+          provider: speech.provider,
           apiKey,
+          baseUrl,
           feature: "speechToText",
         }),
       );
@@ -198,10 +319,24 @@ const PrefsAi = ({ prefs }) => {
     : null;
   const chatModelOptions = withCurrent(models, providerConf.model);
 
-  const speechModelValue = speech.model
-    ? { id: speech.model, name: speech.model }
+  const speechModelValue = speechConf.model
+    ? { id: speechConf.model, name: speechConf.model }
     : null;
-  const speechModelOptions = withCurrent(speechModels, speech.model);
+  const speechModelOptions = withCurrent(speechModels, speechConf.model);
+
+  const chatHealth = aiChecking
+    ? { state: "busy", title: "Спрашиваем модель…" }
+    : aiCheckResult
+      ? describeCheckResult(aiCheckResult, {})
+      : describeChannelHealth(prefs.ai?.health, { kind: "ai" });
+
+  const speechHealth = speechChecking
+    ? { state: "busy", title: "Проверяем распознавание…" }
+    : speechCheckResult
+      ? describeCheckResult(speechCheckResult, {})
+      : describeChannelHealth(prefs.ai?.speechToText?.health, {
+          kind: "speech",
+        });
 
   return (
     <SectionForm buildPayload={() => ({ ai })}>
@@ -216,7 +351,12 @@ const PrefsAi = ({ prefs }) => {
           onCheckedChange={(value) => patchTop({ isActive: value })}
         />
       </SettingRow>
-      <SettingRow divider title="Провайдер" htmlFor="prefs-ai-provider" className={dim}>
+      <SettingRow
+        divider
+        title="Провайдер"
+        htmlFor="prefs-ai-provider"
+        className={dim}
+      >
         <div className="tw:w-56 tw:max-md:w-full">
           <Select
             id="prefs-ai-provider"
@@ -232,12 +372,38 @@ const PrefsAi = ({ prefs }) => {
           />
         </div>
       </SettingRow>
+      {isLocal && (
+        <SettingRow
+          title="Адрес сервера"
+          hint="Ollama, LM Studio, vLLM, llama.cpp — любой OpenAI-совместимый сервер. Путь /v1 допишем сами."
+          htmlFor="prefs-ai-base-url"
+          className={dim}
+        >
+          <Input
+            id="prefs-ai-base-url"
+            type="text"
+            disabled={!aiOn}
+            placeholder="http://192.168.1.10:11434"
+            value={providerConf.baseUrl || ""}
+            onChange={(event) =>
+              patchProvider(provider, { baseUrl: event.target.value })
+            }
+            className="tw:w-72 tw:max-md:w-full"
+          />
+        </SettingRow>
+      )}
       <SettingRow
-        title={`API-ключ ${PROVIDERS.find((option) => option.value === provider)?.label}`}
+        title={
+          isLocal
+            ? "API-ключ"
+            : `API-ключ ${PROVIDERS.find((option) => option.value === provider)?.label}`
+        }
         hint={
           providerKeyIsSet
             ? "Ключ задан и хранится в зашифрованном виде. Оставьте поле пустым, чтобы не менять."
-            : undefined
+            : isLocal
+              ? "Ollama и LM Studio ключа не спрашивают — оставьте пустым. Заполните, если сервер закрыт прокси с авторизацией."
+              : undefined
         }
         htmlFor="prefs-ai-key"
         className={dim}
@@ -255,7 +421,7 @@ const PrefsAi = ({ prefs }) => {
           autoComplete="new-password"
         />
       </SettingRow>
-      {(provider === "yandexgpt" || provider === "yandexai") && (
+      {provider === "yandexai" && (
         <SettingRow
           title="Идентификатор каталога (folder ID)"
           htmlFor="prefs-ai-folder"
@@ -276,59 +442,68 @@ const PrefsAi = ({ prefs }) => {
       <SettingRow
         title="Модель"
         hint={
-          provider === "yandexai"
-            ? "Идентификатор модели вводится вручную."
-            : modelsError || "Список подгружается по ключу."
+          modelsError ||
+          (isLocal
+            ? "Список подгружается с сервера."
+            : provider === "yandexai"
+              ? "Список подгружается по ключу и каталогу."
+              : "Список подгружается по ключу.")
         }
         htmlFor="prefs-ai-model"
         className={dim}
       >
         <div className="tw:flex tw:items-center tw:gap-2">
-          {provider === "yandexai" ? (
-            <Input
+          <div className="tw:w-64 tw:max-md:w-full">
+            <Select
               id="prefs-ai-model"
-              type="text"
-              disabled={!aiOn}
-              value={providerConf.model || ""}
-              onChange={(event) =>
-                patchProvider(provider, { model: event.target.value })
+              placeholder="— загрузите список —"
+              closeMenuOnSelect
+              isSearchable
+              isDisabled={!aiOn}
+              value={chatModelValue}
+              options={chatModelOptions}
+              getOptionLabel={(option) => option.name}
+              getOptionValue={(option) => option.id}
+              onChange={(option) =>
+                patchProvider(provider, { model: option?.id || "" })
               }
-              className="tw:w-64 tw:max-md:w-full"
             />
-          ) : (
-            <>
-              <div className="tw:w-64 tw:max-md:w-full">
-                <Select
-                  id="prefs-ai-model"
-                  placeholder="— загрузите список —"
-                  closeMenuOnSelect
-                  isSearchable
-                  isDisabled={!aiOn}
-                  value={chatModelValue}
-                  options={chatModelOptions}
-                  getOptionLabel={(option) => option.name}
-                  getOptionValue={(option) => option.id}
-                  onChange={(option) =>
-                    patchProvider(provider, { model: option?.id || "" })
-                  }
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={!aiOn || modelsBusy}
-                onClick={loadChatModels}
-                title="Обновить список моделей"
-                aria-label="Обновить список моделей"
-              >
-                <RiRefreshLine
-                  className={modelsBusy ? "tw:animate-spin" : undefined}
-                />
-              </Button>
-            </>
-          )}
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            disabled={!aiOn || modelsBusy}
+            onClick={loadChatModels}
+            title="Обновить список моделей"
+            aria-label="Обновить список моделей"
+          >
+            <RiRefreshLine
+              className={modelsBusy ? "tw:animate-spin" : undefined}
+            />
+          </Button>
         </div>
       </SettingRow>
+
+      {aiOn && (
+        <HealthRow
+          {...chatHealth}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={aiChecking}
+              onClick={() =>
+                runCheck("ai/check", { ai }, setAiChecking, setAiCheckResult)
+              }
+            >
+              <RiRefreshLine
+                className={aiChecking ? "tw:animate-spin" : undefined}
+              />
+              Проверить
+            </Button>
+          }
+        />
+      )}
 
       <div className="tw:px-5 tw:pt-4">
         <SubLabel>Распознавание речи</SubLabel>
@@ -368,109 +543,190 @@ const PrefsAi = ({ prefs }) => {
           />
         </div>
       </SettingRow>
-      {speech.provider === "yandex" ? (
-        <>
-          <SettingRow
-            title="API-ключ Yandex SpeechKit"
-            hint={
-              speechYandexKeyIsSet
-                ? "Ключ задан и хранится в зашифрованном виде. Оставьте поле пустым, чтобы не менять."
-                : undefined
+      <SettingRow
+        title="Использовать данные основного провайдера"
+        hint={
+          canShareCredentials(provider, speech.provider)
+            ? `Ключ${speechIsLocal ? " и адрес" : ""} возьмём из блока выше — заводить их второй раз не нужно.`
+            : `${PROVIDERS.find((option) => option.value === provider)?.label} не умеет распознавать речь — данные нужны свои.`
+        }
+        htmlFor="prefs-speech-shared"
+        className={dimSpeech}
+      >
+        <Switch
+          id="prefs-speech-shared"
+          disabled={
+            !speechOn || !canShareCredentials(provider, speech.provider)
+          }
+          checked={speechShared}
+          onCheckedChange={(value) =>
+            patchSpeech({ useProviderCredentials: value })
+          }
+        />
+      </SettingRow>
+
+      {!speechShared && speechIsLocal && (
+        <SettingRow
+          title="Адрес сервера"
+          hint="faster-whisper-server, speaches, LocalAI, vLLM — любой сервер с OpenAI-совместимым /v1/audio/transcriptions. Ollama аудио не расшифровывает."
+          htmlFor="prefs-speech-base-url"
+          className={dimSpeech}
+        >
+          <Input
+            id="prefs-speech-base-url"
+            type="text"
+            disabled={!speechOn}
+            placeholder="http://192.168.1.10:8000"
+            value={speech.local.baseUrl || ""}
+            onChange={(event) =>
+              patchSpeechLocal({ baseUrl: event.target.value })
             }
-            htmlFor="prefs-speech-yandex-key"
-            className={dimSpeech}
-          >
-            <Input
-              id="prefs-speech-yandex-key"
-              type="password"
-              disabled={!speechOn}
-              placeholder={speechYandexKeyIsSet ? "••••••••  (задан)" : ""}
-              value={speech.yandex.apiKey || ""}
-              onChange={(event) =>
-                patchSpeechYandex({ apiKey: event.target.value })
-              }
-              className="tw:w-72 tw:max-md:w-full"
-              autoComplete="new-password"
-            />
-          </SettingRow>
-          <SettingRow
-            title="Идентификатор каталога (folder ID)"
-            htmlFor="prefs-speech-yandex-folder"
-            className={dimSpeech}
-          >
-            <Input
-              id="prefs-speech-yandex-folder"
-              type="text"
-              disabled={!speechOn}
-              value={speech.yandex.folderId || ""}
-              onChange={(event) =>
-                patchSpeechYandex({ folderId: event.target.value })
-              }
-              className="tw:w-72 tw:max-md:w-full"
-            />
-          </SettingRow>
-        </>
-      ) : (
-        <>
-          <SettingRow
-            title="API-ключ OpenAI"
-            hint={
-              speechKeyIsSet
-                ? "Ключ задан и хранится в зашифрованном виде. Оставьте поле пустым, чтобы не менять."
+            className="tw:w-72 tw:max-md:w-full"
+          />
+        </SettingRow>
+      )}
+
+      {!speechShared && (
+        <SettingRow
+          title={
+            speech.provider === "yandex"
+              ? "API-ключ Yandex SpeechKit"
+              : speechIsLocal
+                ? "API-ключ"
+                : "API-ключ OpenAI"
+          }
+          hint={
+            (
+              speech.provider === "yandex"
+                ? speechYandexKeyIsSet
+                : speechIsLocal
+                  ? speechLocalKeyIsSet
+                  : speechKeyIsSet
+            )
+              ? "Ключ задан и хранится в зашифрованном виде. Оставьте поле пустым, чтобы не менять."
+              : speechIsLocal
+                ? "Локальные серверы ключа обычно не спрашивают — оставьте пустым."
                 : undefined
+          }
+          htmlFor="prefs-speech-key"
+          className={dimSpeech}
+        >
+          <Input
+            id="prefs-speech-key"
+            type="password"
+            disabled={!speechOn}
+            placeholder={
+              (
+                speech.provider === "yandex"
+                  ? speechYandexKeyIsSet
+                  : speechIsLocal
+                    ? speechLocalKeyIsSet
+                    : speechKeyIsSet
+              )
+                ? "••••••••  (задан)"
+                : ""
             }
-            htmlFor="prefs-speech-key"
-            className={dimSpeech}
-          >
-            <Input
-              id="prefs-speech-key"
-              type="password"
-              disabled={!speechOn}
-              placeholder={speechKeyIsSet ? "••••••••  (задан)" : ""}
-              value={speech.apiKey || ""}
-              onChange={(event) => patchSpeech({ apiKey: event.target.value })}
-              className="tw:w-72 tw:max-md:w-full"
-              autoComplete="new-password"
-            />
-          </SettingRow>
-          <SettingRow
-            title="Модель распознавания"
-            hint={speechError || "Список подгружается по ключу."}
-            htmlFor="prefs-speech-model"
-            className={dimSpeech}
-          >
-            <div className="tw:flex tw:items-center tw:gap-2">
-              <div className="tw:w-64 tw:max-md:w-full">
-                <Select
-                  id="prefs-speech-model"
-                  placeholder="— загрузите список —"
-                  closeMenuOnSelect
-                  isSearchable
-                  isDisabled={!speechOn}
-                  value={speechModelValue}
-                  options={speechModelOptions}
-                  getOptionLabel={(option) => option.name}
-                  getOptionValue={(option) => option.id}
-                  onChange={(option) =>
-                    patchSpeech({ model: option?.id || "" })
-                  }
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={!speechOn || speechBusy}
-                onClick={loadSpeechModels}
-                title="Обновить список моделей"
-                aria-label="Обновить список моделей распознавания"
-              >
-                <RiRefreshLine
-                  className={speechBusy ? "tw:animate-spin" : undefined}
-                />
-              </Button>
+            value={speechConf.apiKey || ""}
+            onChange={(event) =>
+              patchSpeechConf({ apiKey: event.target.value })
+            }
+            className="tw:w-72 tw:max-md:w-full"
+            autoComplete="new-password"
+          />
+        </SettingRow>
+      )}
+
+      {!speechShared && speech.provider === "yandex" && (
+        <SettingRow
+          title="Идентификатор каталога (folder ID)"
+          htmlFor="prefs-speech-yandex-folder"
+          className={dimSpeech}
+        >
+          <Input
+            id="prefs-speech-yandex-folder"
+            type="text"
+            disabled={!speechOn}
+            value={speech.yandex.folderId || ""}
+            onChange={(event) =>
+              patchSpeechYandex({ folderId: event.target.value })
+            }
+            className="tw:w-72 tw:max-md:w-full"
+          />
+        </SettingRow>
+      )}
+
+      {/* У SpeechKit каталог из одной модели — выбирать не из чего */}
+      {speech.provider !== "yandex" && (
+        <SettingRow
+          title="Модель распознавания"
+          hint={
+            speechError ||
+            (speechIsLocal
+              ? "Список подгружается с сервера."
+              : "Список подгружается по ключу.")
+          }
+          htmlFor="prefs-speech-model"
+          className={dimSpeech}
+        >
+          <div className="tw:flex tw:items-center tw:gap-2">
+            <div className="tw:w-64 tw:max-md:w-full">
+              <Select
+                id="prefs-speech-model"
+                placeholder="— загрузите список —"
+                closeMenuOnSelect
+                isSearchable
+                isDisabled={!speechOn}
+                value={speechModelValue}
+                options={speechModelOptions}
+                getOptionLabel={(option) => option.name}
+                getOptionValue={(option) => option.id}
+                onChange={(option) =>
+                  patchSpeechConf({ model: option?.id || "" })
+                }
+              />
             </div>
-          </SettingRow>
-        </>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={!speechOn || speechBusy}
+              onClick={loadSpeechModels}
+              title="Обновить список моделей"
+              aria-label="Обновить список моделей распознавания"
+            >
+              <RiRefreshLine
+                className={speechBusy ? "tw:animate-spin" : undefined}
+              />
+            </Button>
+          </div>
+        </SettingRow>
+      )}
+
+      {speechOn && (
+        <HealthRow
+          {...speechHealth}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={speechChecking}
+              onClick={() =>
+                runCheck(
+                  "ai/speech-check",
+                  // Группа целиком: с общими данными проверка смотрит и на
+                  // основного провайдера
+                  { ai },
+                  setSpeechChecking,
+                  setSpeechCheckResult,
+                )
+              }
+            >
+              <RiRefreshLine
+                className={speechChecking ? "tw:animate-spin" : undefined}
+              />
+              Проверить
+            </Button>
+          }
+        />
       )}
     </SectionForm>
   );

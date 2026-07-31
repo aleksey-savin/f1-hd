@@ -96,12 +96,23 @@ export interface IPreferences {
   };
   ai: {
     isActive: boolean;
-    provider: "openai" | "anthropic" | "deepseek" | "yandexgpt" | "yandexai";
+    provider: "openai" | "anthropic" | "deepseek" | "yandexai" | "local";
     openai: { apiKey: string; model: string };
     anthropic: { apiKey: string; model: string };
     deepseek: { apiKey: string; model: string };
-    yandexgpt: { apiKey: string; model: string; folderId: string };
     yandexai: { apiKey: string; model: string; folderId: string };
+    local: { baseUrl: string; apiKey: string; model: string };
+    speechToText: {
+      isActive: boolean;
+      provider: "openai" | "yandex" | "local";
+      useProviderCredentials: boolean;
+      apiKey: string;
+      model: string;
+      yandex: { apiKey: string; model: string; folderId: string };
+      local: { baseUrl: string; apiKey: string; model: string };
+      health: IChannelHealth;
+    };
+    health: IChannelHealth;
   };
   knowledgeBase: {
     moderators: {

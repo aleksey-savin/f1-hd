@@ -4,6 +4,7 @@ const { Ticket } = require("../models/ticket");
 const TicketCategory = require("../models/ticketCategory");
 const Preferences = require("../models/preferences");
 const TicketLog = require("../models/ticketLog");
+const { isEncrypted, decryptSecret } = require("./crypto/secretBox");
 const logger = require("../utils/logger");
 
 // Самодостаточное зеркало backend/services/ticketCategoryService.js (+ aiService,
@@ -14,10 +15,9 @@ const logger = require("../utils/logger");
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const ANTHROPIC_ENDPOINT = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-// DeepSeek OpenAI-совместим; YandexGPT — Foundation Models API.
+// DeepSeek OpenAI-совместим; Yandex AI Studio — единственный вход к яндексовому
+// каталогу (YandexGPT, DeepSeek, Qwen …).
 const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
-const YANDEX_GPT_ENDPOINT =
-  "https://llm.api.cloud.yandex.net/foundationModels/v1/completion";
 const YANDEX_AI_STUDIO_ENDPOINT =
   "https://llm.api.cloud.yandex.net/v1/chat/completions";
 
@@ -98,6 +98,7 @@ const callOpenai = async ({
   authScheme = "Bearer",
   extraHeaders = {},
   jsonMode = true,
+  timeoutMs,
 }) => {
   const body = {
     model,
@@ -111,9 +112,11 @@ const callOpenai = async ({
   const response = await axios.post(endpoint, body, {
     headers: {
       "Content-Type": "application/json",
-      Authorization: `${authScheme} ${apiKey}`,
+      // Локальные серверы моделей ключа не спрашивают
+      ...(apiKey ? { Authorization: `${authScheme} ${apiKey}` } : {}),
       ...extraHeaders,
     },
+    ...(timeoutMs ? { timeout: timeoutMs } : {}),
   });
 
   return response.data?.choices?.[0]?.message?.content;
@@ -123,14 +126,27 @@ const callOpenai = async ({
 const callDeepseek = (params) =>
   callOpenai({ ...params, endpoint: DEEPSEEK_ENDPOINT });
 
-// Yandex AI Studio — OpenAI-совместимый шлюз (DeepSeek, Qwen …): Api-Key +
-// x-folder-id, модель задаётся как modelUri gpt://<folder>/<model>/latest.
+// Зеркало backend/services/aiService.js: в настройках лежит путь без каталога,
+// но принимаем и целый URI, и «модель/версия», и голое имя.
+const buildYandexModelUri = (folderId, model) => {
+  const value = String(model || "").trim();
+
+  if (value.startsWith("gpt://")) return value;
+  if (value.includes("/")) return `gpt://${folderId}/${value}`;
+
+  return `gpt://${folderId}/${value}/latest`;
+};
+
+// Yandex AI Studio — OpenAI-совместимый шлюз: Api-Key + x-folder-id, модель
+// задаётся полным modelUri.
 const callYandexAi = ({ apiKey, model, folderId, system, user }) => {
   if (!folderId) throw new Error("Yandex AI Studio folder ID is not set");
+  if (!String(model || "").trim())
+    throw new Error("Yandex AI Studio model is not set");
 
   return callOpenai({
     apiKey,
-    model: `gpt://${folderId}/${model || "deepseek-r1"}/latest`,
+    model: buildYandexModelUri(folderId, model),
     system,
     user,
     endpoint: YANDEX_AI_STUDIO_ENDPOINT,
@@ -161,39 +177,60 @@ const callAnthropic = async ({ apiKey, model, system, user }) => {
   return response.data?.content?.[0]?.text;
 };
 
-const callYandexGpt = async ({ apiKey, model, folderId, system, user }) => {
-  if (!folderId) throw new Error("Yandex GPT folder ID is not set");
+// Зеркало backend/services/aiService.js: Ollama, LM Studio, vLLM и llama.cpp
+// отдают OpenAI-совместимый /v1, различаясь только адресом.
+const LOCAL_TIMEOUT_MS = 4 * 60 * 1000;
 
-  const modelUri = `gpt://${folderId}/${model || "yandexgpt"}/latest`;
+const buildLocalBaseUrl = (raw) => {
+  const value = String(raw || "").trim();
+  if (!value) throw new Error("Local model base URL is not set");
 
-  const response = await axios.post(
-    YANDEX_GPT_ENDPOINT,
-    {
-      modelUri,
-      completionOptions: { stream: false, temperature: 0.3, maxTokens: "2000" },
-      messages: [
-        { role: "system", text: system },
-        { role: "user", text: user },
-      ],
-    },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Api-Key ${apiKey}`,
-        "x-folder-id": folderId,
-      },
-    },
-  );
+  const url = new URL(/^https?:\/\//i.test(value) ? value : `http://${value}`);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Local model base URL is malformed");
+  }
 
-  return response.data?.result?.alternatives?.[0]?.message?.text;
+  return `${url.origin}${url.pathname.replace(/\/+$/, "") || "/v1"}`;
+};
+
+const callLocal = async ({ apiKey, model, baseUrl, system, user }) => {
+  if (!String(model || "").trim()) throw new Error("Local model is not set");
+
+  const params = {
+    apiKey,
+    model,
+    system,
+    user,
+    endpoint: `${buildLocalBaseUrl(baseUrl)}/chat/completions`,
+    timeoutMs: LOCAL_TIMEOUT_MS,
+  };
+
+  try {
+    return await callOpenai({ ...params, jsonMode: true });
+  } catch (error) {
+    // Часть сборок llama.cpp отвечает 400 на response_format
+    if (error?.response?.status !== 400) throw error;
+    return callOpenai({ ...params, jsonMode: false });
+  }
 };
 
 const PROVIDER_CALLERS = {
   openai: callOpenai,
   anthropic: callAnthropic,
   deepseek: callDeepseek,
-  yandexgpt: callYandexGpt,
   yandexai: callYandexAi,
+  local: callLocal,
+};
+
+// Локальный сервер ключа не требует
+const needsApiKey = (provider) => provider !== "local";
+
+// Ключ в базе лежит шифртекстом secretBox; значения, сохранённые до ввода
+// шифрования, читаются как есть (зеркало helpers/preferencesSecrets бэкенда).
+const readStoredSecret = (stored) => {
+  if (!stored) return "";
+
+  return isEncrypted(stored) ? decryptSecret(stored) : stored;
 };
 
 const generateJson = async ({ system, user }) => {
@@ -204,17 +241,18 @@ const generateJson = async ({ system, user }) => {
 
   const provider = ai.provider;
   const providerConfig = provider ? ai[provider] : null;
-  const apiKey = providerConfig?.apiKey;
+  const apiKey = readStoredSecret(providerConfig?.apiKey);
   const model = providerConfig?.model;
   const folderId = providerConfig?.folderId;
+  const baseUrl = providerConfig?.baseUrl;
 
-  if (!apiKey)
+  if (!apiKey && needsApiKey(provider))
     throw new Error(`API key for ${provider || "AI provider"} is not set`);
 
   const call = PROVIDER_CALLERS[provider];
   if (!call) throw new Error(`Unsupported AI provider: ${provider}`);
 
-  const raw = await call({ apiKey, model, folderId, system, user });
+  const raw = await call({ apiKey, model, folderId, baseUrl, system, user });
 
   return parseJsonResponse(raw);
 };
