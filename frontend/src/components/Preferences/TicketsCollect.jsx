@@ -9,7 +9,7 @@ import SettingRow from "@/components/app/SettingRow";
 import HealthRow from "@/components/app/HealthRow";
 import { SubLabel } from "@/components/app/Panel";
 
-import Select from "../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
 import MailChannelFields from "./MailChannelFields";
@@ -91,11 +91,16 @@ const PrefsTicketsCollect = ({ prefs }) => {
   const [accounts, setAccounts] = useState([]);
   useEffect(() => {
     const { token } = getLocalStorageData();
-    fetch(`${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`, {
-      headers: { Authorization: "Bearer " + token },
-    })
+    fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`,
+      {
+        headers: { Authorization: "Bearer " + token },
+      },
+    )
       .then((response) => (response.ok ? response.json() : []))
-      .then((data) => setAccounts(Array.isArray(data) ? data : data?.users || []))
+      .then((data) =>
+        setAccounts(Array.isArray(data) ? data : data?.users || []),
+      )
       .catch(() => {});
   }, []);
 
@@ -129,7 +134,7 @@ const PrefsTicketsCollect = ({ prefs }) => {
   };
 
   const on = mailbox.isActive;
-  const dim = on ? "" : "tw:opacity-60";
+  const dim = on ? "" : "opacity-60";
 
   const health = checking
     ? { state: "busy", title: "Проверяем ящик…" }
@@ -161,14 +166,16 @@ const PrefsTicketsCollect = ({ prefs }) => {
               disabled={checking}
               onClick={runCheck}
             >
-              <RiRefreshLine className={checking ? "tw:animate-spin" : undefined} />
+              <RiRefreshLine
+                className={checking ? "animate-spin" : undefined}
+              />
               Проверить
             </Button>
           }
         />
       )}
 
-      <div className="tw:px-5 tw:pt-4">
+      <div className="px-5 pt-4">
         <SubLabel>Почтовый ящик</SubLabel>
       </div>
       <SettingRow
@@ -183,7 +190,7 @@ const PrefsTicketsCollect = ({ prefs }) => {
           disabled={!on}
           value={mailbox.address}
           onChange={(event) => patch({ address: event.target.value })}
-          className="tw:w-72 tw:max-md:w-full"
+          className="w-72 max-md:w-full"
         />
       </SettingRow>
 
@@ -209,7 +216,7 @@ const PrefsTicketsCollect = ({ prefs }) => {
           disabled={!on}
           value={mailbox.folder}
           onChange={(event) => patch({ folder: event.target.value })}
-          className="tw:w-72 tw:max-md:w-full"
+          className="w-72 max-md:w-full"
         />
       </SettingRow>
 
@@ -219,30 +226,32 @@ const PrefsTicketsCollect = ({ prefs }) => {
         hint="Ставится машинным заявкам, когда отправитель не распознан; его компания становится компанией таких заявок."
         htmlFor="prefs-default-applicant"
       >
-        <div className="tw:w-72 tw:max-md:w-full">
-          <Select
+        <div className="w-72 max-md:w-full">
+          <Combobox
             id="prefs-default-applicant"
             placeholder="Выберите аккаунт"
-            closeMenuOnSelect
-            isSearchable
-            value={applicantOption}
-            options={accounts}
-            getOptionLabel={(option) =>
-              `${option.lastName || ""} ${option.firstName || ""}`.trim()
+            value={applicantOption?._id ? String(applicantOption._id) : null}
+            options={toOptions(accounts, {
+              value: (account) => String(account._id),
+              label: (account) =>
+                `${account.lastName || ""} ${account.firstName || ""}`.trim(),
+            })}
+            onChange={(id) =>
+              setApplicant(
+                accounts.find((account) => String(account._id) === id) || null,
+              )
             }
-            getOptionValue={(option) => option._id}
-            onChange={(option) => setApplicant(option || null)}
           />
         </div>
       </SettingRow>
 
-      <div className="tw:px-5 tw:pt-4">
+      <div className="px-5 pt-4">
         <SubLabel>Распознавание отправителя</SubLabel>
       </div>
       <SettingRow
         title="Определять компанию по почтовому домену"
         htmlFor="prefs-identify-company"
-        className="tw:py-3"
+        className="py-3"
       >
         <Switch
           id="prefs-identify-company"
@@ -253,7 +262,7 @@ const PrefsTicketsCollect = ({ prefs }) => {
       <SettingRow
         title="Определять инициатора по почтовому адресу"
         htmlFor="prefs-identify-applicant"
-        className="tw:py-3"
+        className="py-3"
       >
         <Switch
           id="prefs-identify-applicant"
@@ -265,7 +274,7 @@ const PrefsTicketsCollect = ({ prefs }) => {
         title="Искать номер телефона в теме письма"
         hint="Найденный номер сверяется со справочником пользователей."
         htmlFor="prefs-check-phone"
-        className="tw:py-3"
+        className="py-3"
       >
         <Switch
           id="prefs-check-phone"

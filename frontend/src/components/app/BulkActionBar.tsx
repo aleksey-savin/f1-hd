@@ -97,7 +97,7 @@ const BulkActionBar = ({
               ? { duration: 0 }
               : { type: "spring", stiffness: 420, damping: 34 }
           }
-          className="tw:fixed tw:inset-x-0 tw:bottom-4 tw:flex tw:justify-center tw:px-4"
+          className="fixed inset-x-0 bottom-4 flex justify-center px-4"
           // Легаси-шкала z (tw-сетка заканчивается на 50): выше radix-оверлеев
           // приложения, как и прежняя панель заявок
           style={{ zIndex: 1100 }}
@@ -106,13 +106,13 @@ const BulkActionBar = ({
             <div
               role="toolbar"
               aria-label={ariaLabel}
-              className="tw:flex tw:max-w-full tw:flex-wrap tw:items-center tw:gap-2 tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-3 tw:py-2 tw:shadow-lg"
+              className="flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-lg"
             >
-              <span className="tw:inline-flex tw:items-center tw:gap-2 tw:pe-1 tw:text-sm tw:font-semibold tw:whitespace-nowrap">
+              <span className="inline-flex items-center gap-2 pe-1 text-sm font-semibold whitespace-nowrap">
                 {status}
                 {isLoading && (
                   <RiLoader4Line
-                    className="tw:animate-spin tw:text-faint"
+                    className="animate-spin text-faint"
                     role="status"
                     aria-label="Выполняется"
                   />
@@ -128,7 +128,7 @@ const BulkActionBar = ({
                     // Заблокированная кнопка не disabled: тултип должен ловить
                     // наведение, а причина — доходить до пользователя.
                     aria-disabled={blocked || isLoading}
-                    className={blocked ? "tw:opacity-50" : undefined}
+                    className={blocked ? "opacity-50" : undefined}
                     onClick={() => {
                       if (blocked || isLoading) return;
                       onPick(key);

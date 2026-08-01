@@ -18,16 +18,10 @@ const { uploadBackgroundImage } = require("@/middleware/imageUpload");
 const isTelegramBot = require("@/middleware/isTelegramBot");
 
 router.get("/users", isAuth, isNotClient, userController.getAll);
-router.get("/auth-data", isAuth, userController.getAuthed);
 router.get(
   "/users/can-perform-tickets",
   isAuth,
   userController.getCanPerformTicketsUsers,
-);
-router.get(
-  "/users/with-workplaces",
-  isAuth,
-  userController.getUsersWithWorkplaces,
 );
 router.get(
   "/users/knowledge-base-moderators",
@@ -55,12 +49,6 @@ router.get(
   isAuth,
   isNotClient,
   userController.getScopeCompanies,
-);
-router.post(
-  "/users/create-workplaces",
-  isAuth,
-  canManageUsers,
-  userController.createWorkplacesForExistingUsers,
 );
 
 // Статусы присутствия: лёгкий список для бара + смена своего статуса
@@ -131,11 +119,6 @@ router.post(
   userController.deleteBackgroundImage,
 );
 
-router.post(
-  "/users/disable-changelog",
-  isAuth,
-  userController.disableChangelogNotification,
-);
 // График работы правится отдельным запросом с карточки сотрудника
 router.post(
   "/users/:id/work-schedule",

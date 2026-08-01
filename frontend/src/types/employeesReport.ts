@@ -160,7 +160,12 @@ export type EmployeeTrendSeries = {
 };
 
 export type EmployeesTrendResponse = {
-  period: { from: string | null; to: string | null; months: number; timezone: string };
+  period: {
+    from: string | null;
+    to: string | null;
+    months: number;
+    timezone: string;
+  };
   approvedOnly: boolean;
   months: TrendMonth[];
   byEmployee: EmployeeTrendSeries[];

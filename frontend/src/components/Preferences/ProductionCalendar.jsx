@@ -5,7 +5,7 @@ import SettingRow from "@/components/app/SettingRow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import Select from "../../UI/Select";
+import Combobox from "@/components/app/Combobox";
 import { getLocalStorageData } from "../../util/auth";
 import { formatDayMonthTime } from "../../util/format-date";
 import useToastStore from "../../store/toast-store";
@@ -42,7 +42,9 @@ const ProductionCalendar = ({ prefs }) => {
   const [country, setCountry] = useState(config.country || "ru");
   const [source, setSource] = useState(config.source || "xmlcalendar");
   const [holidayCoefficient, setHolidayCoefficient] = useState(
-    prefs.overtime?.holidayCoefficient ?? prefs.overtime?.weekendCoefficient ?? 1,
+    prefs.overtime?.holidayCoefficient ??
+      prefs.overtime?.weekendCoefficient ??
+      1,
   );
 
   const [health, setHealth] = useState(null);
@@ -75,7 +77,8 @@ const ProductionCalendar = ({ prefs }) => {
         headers: { Authorization: "Bearer " + token },
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.message || "Обновление не удалось");
+      if (!response.ok)
+        throw new Error(payload.message || "Обновление не удалось");
       setHealth(payload.health ?? null);
       showToast(
         payload.lastError ? "danger" : "success",
@@ -155,7 +158,11 @@ const ProductionCalendar = ({ prefs }) => {
         htmlFor="pc-active"
         divider
       >
-        <Switch id="pc-active" checked={isActive} onCheckedChange={setIsActive} />
+        <Switch
+          id="pc-active"
+          checked={isActive}
+          onCheckedChange={setIsActive}
+        />
       </SettingRow>
 
       <SettingRow
@@ -164,12 +171,12 @@ const ProductionCalendar = ({ prefs }) => {
         htmlFor="pc-country"
         divider
       >
-        <div className="tw:w-56">
-          <Select
+        <div className="w-56">
+          <Combobox
             id="pc-country"
             options={COUNTRIES}
-            value={COUNTRIES.find((item) => item.value === country) ?? null}
-            onChange={(option) => setCountry(option?.value ?? "ru")}
+            value={country ?? null}
+            onChange={(value) => setCountry(value ?? "ru")}
           />
         </div>
       </SettingRow>
@@ -180,12 +187,12 @@ const ProductionCalendar = ({ prefs }) => {
         htmlFor="pc-source"
         divider
       >
-        <div className="tw:w-72">
-          <Select
+        <div className="w-72">
+          <Combobox
             id="pc-source"
             options={SOURCES}
-            value={SOURCES.find((item) => item.value === source) ?? null}
-            onChange={(option) => setSource(option?.value ?? "xmlcalendar")}
+            value={source ?? null}
+            onChange={(value) => setSource(value ?? "xmlcalendar")}
           />
         </div>
       </SettingRow>
@@ -201,7 +208,7 @@ const ProductionCalendar = ({ prefs }) => {
           inputMode="decimal"
           value={holidayCoefficient}
           onChange={(event) => setHolidayCoefficient(event.target.value)}
-          className="tw:w-24 tw:text-center tw:tabular-nums"
+          className="w-24 text-center tabular-nums"
         />
       </SettingRow>
     </SectionForm>

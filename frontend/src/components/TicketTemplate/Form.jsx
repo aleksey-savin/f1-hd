@@ -30,7 +30,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { describeCron } from "@/util/cron";
 
-import Select from "../../UI/Select";
+import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import MarkdownEditor from "../../UI/MarkdownEditor";
 import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
@@ -161,9 +161,7 @@ const TicketTemplateForm = () => {
       sharedCompanies: shareCompanies
         ? form.sharedCompanies.map((company) => company._id)
         : [],
-      sharedUsers: shareUsers
-        ? form.sharedUsers.map((user) => user._id)
-        : [],
+      sharedUsers: shareUsers ? form.sharedUsers.map((user) => user._id) : [],
     };
     fetcher.submit(payload, { method: "post", encType: "application/json" });
   };
@@ -234,7 +232,7 @@ const TicketTemplateForm = () => {
         />
       </Field>
       <Field label="Описание">
-        <div className="md-editor tw:overflow-hidden tw:rounded-lg tw:border tw:border-input">
+        <div className="md-editor overflow-hidden rounded-lg border border-input">
           <MarkdownEditor
             initialValue={template.description}
             onChange={(markdown) => setField("description", markdown)}
@@ -244,31 +242,47 @@ const TicketTemplateForm = () => {
         </div>
       </Field>
       {!isEndUser && (
-        <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           <Field label="Категория" htmlFor="tpl-category">
-            <Select
+            <Combobox
               id="tpl-category"
               placeholder="Выберите категорию"
-              isClearable
-              isSearchable
-              value={form.category}
-              options={formData.categories || []}
-              getOptionLabel={(option) => option.title}
-              getOptionValue={(option) => option._id}
-              onChange={(selected) => setField("category", selected)}
+              value={form.category?._id ? String(form.category._id) : null}
+              options={toOptions(formData.categories || [], {
+                value: (option) => String(option._id),
+                label: (option) => option.title,
+              })}
+              onChange={(id) =>
+                setField(
+                  "category",
+                  (formData.categories || []).find(
+                    (option) => String(option._id) === id,
+                  ) || null,
+                )
+              }
+              clearable
+              clearLabel="Не выбрано"
             />
           </Field>
           <Field label="Компания" htmlFor="tpl-company">
-            <Select
+            <Combobox
               id="tpl-company"
               placeholder="Выберите компанию"
-              isClearable
-              isSearchable
-              value={form.company}
-              options={formData.companies || []}
-              getOptionLabel={(option) => option.alias}
-              getOptionValue={(option) => option._id}
-              onChange={(selected) => setField("company", selected)}
+              value={form.company?._id ? String(form.company._id) : null}
+              options={toOptions(formData.companies || [], {
+                value: (option) => String(option._id),
+                label: (option) => option.alias,
+              })}
+              onChange={(id) =>
+                setField(
+                  "company",
+                  (formData.companies || []).find(
+                    (option) => String(option._id) === id,
+                  ) || null,
+                )
+              }
+              clearable
+              clearLabel="Не выбрано"
             />
           </Field>
         </div>
@@ -299,18 +313,23 @@ const TicketTemplateForm = () => {
         />
       )}
       {!isEndUser && shareCompanies && (
-        <div className="tw:mb-2 tw:pl-13">
-          <Select
+        <div className="mb-2 pl-13">
+          <MultiCombobox
             id="tpl-shared-companies"
             placeholder="Выберите компании"
-            isMulti
-            isClearable
-            isSearchable
-            value={form.sharedCompanies}
-            options={formData.companies || []}
-            getOptionLabel={(option) => option.alias}
-            getOptionValue={(option) => option._id}
-            onChange={(selected) => setField("sharedCompanies", selected || [])}
+            value={(form.sharedCompanies || []).map((item) => String(item._id))}
+            options={toOptions(formData.companies || [], {
+              value: (option) => String(option._id),
+              label: (option) => option.alias,
+            })}
+            onChange={(ids) =>
+              setField(
+                "sharedCompanies",
+                (formData.companies || []).filter((option) =>
+                  ids.includes(String(option._id)),
+                ),
+              )
+            }
           />
         </div>
       )}
@@ -326,21 +345,24 @@ const TicketTemplateForm = () => {
         divider
       />
       {shareUsers && (
-        <div className="tw:mb-2 tw:pl-13">
-          <Select
+        <div className="mb-2 pl-13">
+          <MultiCombobox
             id="tpl-shared-users"
             placeholder="Выберите пользователей"
-            isMulti
-            isClearable
-            isSearchable
-            closeMenuOnSelect={false}
-            value={form.sharedUsers}
-            options={formData.applicants || []}
-            getOptionLabel={(option) =>
-              `${option.lastName || ""} ${option.firstName || ""}`.trim()
+            value={(form.sharedUsers || []).map((item) => String(item._id))}
+            options={toOptions(formData.applicants || [], {
+              value: (option) => String(option._id),
+              label: (option) =>
+                `${option.lastName || ""} ${option.firstName || ""}`.trim(),
+            })}
+            onChange={(ids) =>
+              setField(
+                "sharedUsers",
+                (formData.applicants || []).filter((option) =>
+                  ids.includes(String(option._id)),
+                ),
+              )
             }
-            getOptionValue={(option) => option._id}
-            onChange={(selected) => setField("sharedUsers", selected || [])}
           />
         </div>
       )}
@@ -350,7 +372,9 @@ const TicketTemplateForm = () => {
   const stepBody = (index) => {
     if (index === 0) return basicFields;
     if (index === 1)
-      return <CustomFieldsEditor value={customFields} onChange={setCustomFields} />;
+      return (
+        <CustomFieldsEditor value={customFields} onChange={setCustomFields} />
+      );
     if (index === 2)
       return (
         <Checklist
@@ -405,24 +429,24 @@ const TicketTemplateForm = () => {
             maxReached={maxReached}
             onStepClick={handleStepClick}
           />
-          <div className="tw:mt-6 tw:flex tw:flex-col tw:gap-6 tw:md:flex-row">
-            <div className="tw:min-w-0 tw:flex-1">
-              <div className="tw:mb-4">
-                <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
+          <div className="mt-6 flex flex-col gap-6 md:flex-row">
+            <div className="min-w-0 flex-1">
+              <div className="mb-4">
+                <h3 className="my-0 text-base font-semibold tracking-tight">
                   {stepMeta[step].title}
                 </h3>
-                <p className="tw:mt-0.5 tw:mb-0 tw:text-sm tw:text-muted-foreground">
+                <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
                   {stepMeta[step].desc}
                 </p>
               </div>
               {stepBody(step)}
               {attempted && stepError(step) && (
-                <p className="tw:mt-2 tw:mb-0 tw:text-sm tw:text-destructive">
+                <p className="mt-2 mb-0 text-sm text-destructive">
                   {stepError(step)}
                 </p>
               )}
             </div>
-            <div className="tw:md:w-72 tw:md:flex-none">
+            <div className="md:w-72 md:flex-none">
               <Summary form={summaryForm} reached={maxReached} />
             </div>
           </div>
@@ -430,16 +454,21 @@ const TicketTemplateForm = () => {
       )}
 
       {fetcher.data && fetcher.data.error && (
-        <div className="tw:mt-4">
+        <div className="mt-4">
           <AlertMessage variant="danger" message={fetcher.data.message} />
         </div>
       )}
 
-      <div className="tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:gap-2.5 tw:border-t tw:border-border-soft tw:bg-background tw:px-6 tw:py-3">
-        <Button type="button" variant="ghost" onClick={handleClose} disabled={saving}>
+      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center gap-2.5 border-t border-border-soft bg-background px-6 py-3">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleClose}
+          disabled={saving}
+        >
           Отмена
         </Button>
-        <div className="tw:ml-auto tw:flex tw:items-center tw:gap-2.5">
+        <div className="ml-auto flex items-center gap-2.5">
           {isEdit ? (
             <Button type="button" onClick={handleSubmit} disabled={saving}>
               <RiCheckLine /> Сохранить
@@ -491,8 +520,8 @@ const TicketTemplateForm = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className="tw:flex tw:items-center tw:justify-between tw:px-0.5">
-            <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+          <div className="flex items-center justify-between px-0.5">
+            <span className="text-xs font-bold tracking-wider text-faint uppercase">
               Регламенты · {childRoutines.length}
             </span>
             <button
@@ -504,28 +533,32 @@ const TicketTemplateForm = () => {
                     : childRoutines.map((routine) => routine._id),
                 )
               }
-              className="tw:cursor-pointer tw:appearance-none tw:border-0 tw:bg-transparent tw:text-sm tw:font-semibold tw:text-accent-text"
+              className="cursor-pointer appearance-none border-0 bg-transparent text-sm font-semibold text-accent-text"
             >
-              {syncIds.length === childRoutines.length ? "Снять все" : "Выбрать все"}
+              {syncIds.length === childRoutines.length
+                ? "Снять все"
+                : "Выбрать все"}
             </button>
           </div>
-          <div className="tw:max-h-64 tw:overflow-y-auto tw:rounded-xl tw:border tw:border-border">
+          <div className="max-h-64 overflow-y-auto rounded-xl border border-border">
             {childRoutines.map((routine) => (
               <label
                 key={routine._id}
-                className="tw:flex tw:cursor-pointer tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:p-3 tw:first:border-t-0"
+                className="flex cursor-pointer items-center gap-3 border-t border-border-soft p-3 first:border-t-0"
               >
                 <Checkbox
                   checked={syncIds.includes(routine._id)}
                   onCheckedChange={() => toggleSync(routine._id)}
                 />
-                <span className="tw:min-w-0 tw:flex-1">
-                  <span className="tw:block tw:truncate tw:text-sm tw:font-semibold">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">
                     {routine.title}
                   </span>
-                  <span className="tw:block tw:truncate tw:text-xs tw:text-muted-foreground">
+                  <span className="block truncate text-xs text-muted-foreground">
                     {describeCron(routine.cronSchedule)}
-                    {routine.company?.alias ? ` · ${routine.company.alias}` : ""}
+                    {routine.company?.alias
+                      ? ` · ${routine.company.alias}`
+                      : ""}
                   </span>
                 </span>
               </label>
@@ -536,7 +569,10 @@ const TicketTemplateForm = () => {
             <Button variant="ghost" onClick={finishClose} disabled={syncing}>
               Не обновлять
             </Button>
-            <Button onClick={applySync} disabled={syncing || syncIds.length === 0}>
+            <Button
+              onClick={applySync}
+              disabled={syncing || syncIds.length === 0}
+            >
               <RiRefreshLine /> Обновить выбранные ({syncIds.length})
             </Button>
           </AlertDialogFooter>

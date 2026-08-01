@@ -68,9 +68,7 @@ const ActivityTiles = ({ company, stats, id }) => {
         currentSlice;
 
   // Листать назад дальше месяца создания компании нет смысла
-  const minKey = company?.createdAt
-    ? keyOf(new Date(company.createdAt))
-    : null;
+  const minKey = company?.createdAt ? keyOf(new Date(company.createdAt)) : null;
   const prevKey = shiftKey(monthKey, -1);
   const canBack = !minKey || prevKey >= minKey;
   const canForward = monthKey < currentKey;
@@ -115,7 +113,7 @@ const ActivityTiles = ({ company, stats, id }) => {
       <Eyebrow
         id={id}
         action={
-          <span className="tw:flex tw:items-center tw:gap-0.5">
+          <span className="flex items-center gap-0.5">
             <Button
               variant="ghost"
               size="icon-sm"
@@ -123,11 +121,11 @@ const ActivityTiles = ({ company, stats, id }) => {
               title="Предыдущий месяц"
               disabled={!canBack}
               onClick={() => switchMonth(prevKey)}
-              className="tw:text-muted-foreground"
+              className="text-muted-foreground"
             >
               <RiArrowLeftSLine />
             </Button>
-            <span className="tw:min-w-28 tw:text-center tw:text-sm tw:font-medium tw:text-muted-foreground tw:tabular-nums">
+            <span className="min-w-28 text-center text-sm font-medium text-muted-foreground tabular-nums">
               {labelOf(monthKey)}
             </span>
             <Button
@@ -137,7 +135,7 @@ const ActivityTiles = ({ company, stats, id }) => {
               title="Следующий месяц"
               disabled={!canForward}
               onClick={() => switchMonth(shiftKey(monthKey, 1))}
-              className="tw:text-muted-foreground"
+              className="text-muted-foreground"
             >
               <RiArrowRightSLine />
             </Button>
@@ -146,7 +144,7 @@ const ActivityTiles = ({ company, stats, id }) => {
       >
         Активность
       </Eyebrow>
-      <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-4 tw:xl:gap-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
         <StatTile
           label="Заявки"
           busy={busy}
@@ -185,7 +183,7 @@ const ActivityTiles = ({ company, stats, id }) => {
             users.total === 0 ? undefined : (
               <>
                 {users.active}{" "}
-                <span className="tw:text-base tw:font-semibold tw:text-muted-foreground">
+                <span className="text-base font-semibold text-muted-foreground">
                   / {users.total}
                 </span>
               </>
@@ -194,17 +192,17 @@ const ActivityTiles = ({ company, stats, id }) => {
           footer={users.total === 0 ? undefined : "за последние 90 дней"}
         >
           {users.total === 0 ? (
-            <div className="tw:mt-2 tw:text-sm tw:text-muted-foreground">
+            <div className="mt-2 text-sm text-muted-foreground">
               Нет пользователей
             </div>
           ) : (
             <div
               role="img"
               aria-label={`Активны ${users.active} из ${users.total}`}
-              className="tw:mt-2.5 tw:h-1.5 tw:overflow-hidden tw:rounded-full tw:bg-border-soft"
+              className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-border-soft"
             >
               <div
-                className="tw:h-full tw:rounded-full"
+                className="h-full rounded-full"
                 style={{
                   width: `${activePct}%`,
                   background: "var(--ws-st-office)",
@@ -216,28 +214,30 @@ const ActivityTiles = ({ company, stats, id }) => {
 
         <StatTile label="Основной канал">
           {!channels.primary || channels.total === 0 ? (
-            <div className="tw:mt-2 tw:text-sm tw:text-muted-foreground">
+            <div className="mt-2 text-sm text-muted-foreground">
               Нет заявок за последний год
             </div>
           ) : (
             <>
-              <div className="tw:mt-2 tw:text-2xl tw:leading-tight tw:font-bold tw:tracking-tight">
+              <div className="mt-2 text-2xl leading-tight font-bold tracking-tight">
                 {channels.primary.source}
               </div>
-              <div className="tw:mt-1.5 tw:text-sm tw:text-faint tw:tabular-nums">
-                <b className="tw:font-semibold tw:text-foreground">
+              <div className="mt-1.5 text-sm text-faint tabular-nums">
+                <b className="font-semibold text-foreground">
                   {channels.primary.percentage}%
                 </b>{" "}
                 обращений за год
               </div>
               {channels.breakdown.length > 1 && (
-                <div className="tw:mt-1.5 tw:text-xs tw:text-faint tw:tabular-nums">
+                <div className="mt-1.5 text-xs text-faint tabular-nums">
                   {channels.breakdown
                     .filter(
                       (channel) => channel.source !== channels.primary.source,
                     )
                     .slice(0, 3)
-                    .map((channel) => `${channel.source} ${channel.percentage}%`)
+                    .map(
+                      (channel) => `${channel.source} ${channel.percentage}%`,
+                    )
                     .join(" · ")}
                 </div>
               )}

@@ -17,18 +17,18 @@ import DeviceQr from "./DeviceQr";
 const QR_SIZE = 216;
 
 const QrCard = ({ device }) => (
-  <div className="tw:text-center">
-    <div className="tw:flex tw:justify-center">
+  <div className="text-center">
+    <div className="flex justify-center">
       <DeviceQr id={device._id} size={QR_SIZE} />
     </div>
-    <div className="tw:mt-2.5 tw:font-mono tw:text-base tw:font-semibold tw:tracking-wide">
+    <div className="mt-2.5 font-mono text-base font-semibold tracking-wide">
       {device.inventoryNumber || (
-        <span className="tw:font-sans tw:text-sm tw:font-normal tw:text-faint">
+        <span className="font-sans text-sm font-normal text-faint">
           Инвентарный номер не присвоен
         </span>
       )}
     </div>
-    <div className="tw:truncate tw:text-sm tw:text-muted-foreground">
+    <div className="truncate text-sm text-muted-foreground">
       {device.name}
       {device.company?.name ? ` · ${device.company.name}` : ""}
     </div>
@@ -51,9 +51,9 @@ const QrDialog = ({ device, open, onOpenChange, children = null }) => {
       <>
         {children}
         <Sheet open={open} onOpenChange={onOpenChange}>
-          <SheetContent side="bottom" className="tw:pb-8">
-            <SheetTitle className="tw:sr-only">QR-код устройства</SheetTitle>
-            <div className="tw:px-5 tw:pt-6">
+          <SheetContent side="bottom" className="pb-8">
+            <SheetTitle className="sr-only">QR-код устройства</SheetTitle>
+            <div className="px-5 pt-6">
               <QrCard device={device} />
             </div>
           </SheetContent>
@@ -66,7 +66,7 @@ const QrDialog = ({ device, open, onOpenChange, children = null }) => {
     <>
       {children}
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="tw:sm:max-w-xs">
+        <DialogContent className="sm:max-w-xs">
           <DialogHeader>
             <DialogTitle>QR-код</DialogTitle>
             <DialogDescription>

@@ -17,9 +17,9 @@ const NON_WORKING_METHODS = [
 
 // Число с единицей-суффиксом внутри поля (₽, ₽/ч, мин)
 const UnitInput = ({ unit, ...props }) => (
-  <div className="tw:relative">
-    <Input type="number" className="tw:pr-12 tw:tabular-nums" {...props} />
-    <span className="tw:pointer-events-none tw:absolute tw:inset-y-0 tw:right-3 tw:flex tw:items-center tw:text-sm tw:text-faint">
+  <div className="relative">
+    <Input type="number" className="pr-12 tabular-nums" {...props} />
+    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-faint">
       {unit}
     </span>
   </div>
@@ -35,11 +35,11 @@ const Tariffing = ({ form, setField, packages, setPackages }) => {
 
   return (
     <div>
-      <div className="tw:mb-4">
-        <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
+      <div className="mb-4">
+        <h3 className="my-0 text-base font-semibold tracking-tight">
           Тарификация
         </h3>
-        <p className="tw:mt-0.5 tw:mb-0 tw:text-sm tw:text-muted-foreground">
+        <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
           Как считается стоимость услуги
         </p>
       </div>
@@ -79,7 +79,7 @@ const Tariffing = ({ form, setField, packages, setPackages }) => {
 
       {isPackages && (
         <>
-          <div className="tw:mb-4">
+          <div className="mb-4">
             <PackagesEditor packages={packages} onChange={setPackages} />
           </div>
           <Field label="Учёт работ вне графика оказания услуги">
@@ -110,12 +110,12 @@ const Tariffing = ({ form, setField, packages, setPackages }) => {
             onChange={(event) =>
               setField("packagesNonWorkingCoefficient", event.target.value)
             }
-            className="tw:tabular-nums"
+            className="tabular-nums"
           />
         </Field>
       )}
 
-      <div className="tw:grid tw:gap-x-4 tw:sm:grid-cols-2">
+      <div className="grid gap-x-4 sm:grid-cols-2">
         {!isCoefficient && (
           <Field
             label="Стоимость часа в нерабочее время"
@@ -143,7 +143,9 @@ const Tariffing = ({ form, setField, packages, setPackages }) => {
             unit="мин"
             min={1}
             value={form.tariffingPeriod}
-            onChange={(event) => setField("tariffingPeriod", event.target.value)}
+            onChange={(event) =>
+              setField("tariffingPeriod", event.target.value)
+            }
           />
         </Field>
       </div>

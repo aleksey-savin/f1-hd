@@ -199,9 +199,9 @@ function ImageUpload({ userId, setProfileImage }) {
             <DialogTitle>Выберите область для загрузки</DialogTitle>
           </DialogHeader>
           {error && (
-            <AlertMessage variant="danger" message={error} className="tw:my-0" />
+            <AlertMessage variant="danger" message={error} className="my-0" />
           )}
-          <div className="tw:flex tw:justify-center tw:overflow-hidden">
+          <div className="flex justify-center overflow-hidden">
             <ReactCrop
               crop={crop}
               onChange={(pixelCrop) => setCrop(pixelCrop)}
@@ -214,7 +214,7 @@ function ImageUpload({ userId, setProfileImage }) {
                 alt="Область обрезки"
                 src={imgSrc}
                 onLoad={onImageLoad}
-                className="tw:max-h-96 tw:max-w-full"
+                className="max-h-96 max-w-full"
               />
             </ReactCrop>
           </div>

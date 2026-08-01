@@ -23,7 +23,13 @@ const notesPlural = (count) =>
 // активна только когда подтверждены оба условия — это и есть смысл отметки
 // «Проверено»: модератор ручается за актуальность и отсутствие секретов.
 // count > 1 — та же аттестация сразу для выделенных заметок.
-const VerifyModal = ({ open, onOpenChange, onConfirm, isLoading, count = 1 }) => {
+const VerifyModal = ({
+  open,
+  onOpenChange,
+  onConfirm,
+  isLoading,
+  count = 1,
+}) => {
   const [confirmCurrent, setConfirmCurrent] = useState(false);
   const [confirmNoSecrets, setConfirmNoSecrets] = useState(false);
 
@@ -51,32 +57,32 @@ const VerifyModal = ({ open, onOpenChange, onConfirm, isLoading, count = 1 }) =>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="tw:space-y-4">
-          <div className="tw:flex tw:items-start tw:gap-3">
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
             <Switch
               id="verify-confirm-current"
               checked={confirmCurrent}
               onCheckedChange={setConfirmCurrent}
-              className="tw:mt-0.5"
+              className="mt-0.5"
             />
             <Label
               htmlFor="verify-confirm-current"
-              className="tw:text-sm tw:leading-snug tw:font-normal"
+              className="text-sm leading-snug font-normal"
             >
               Я подтверждаю, что {subject} {verb} только актуальные данные
             </Label>
           </div>
 
-          <div className="tw:flex tw:items-start tw:gap-3">
+          <div className="flex items-start gap-3">
             <Switch
               id="verify-confirm-no-secrets"
               checked={confirmNoSecrets}
               onCheckedChange={setConfirmNoSecrets}
-              className="tw:mt-0.5"
+              className="mt-0.5"
             />
             <Label
               htmlFor="verify-confirm-no-secrets"
-              className="tw:text-sm tw:leading-snug tw:font-normal"
+              className="text-sm leading-snug font-normal"
             >
               Я подтверждаю, что {subject} не {verb} паролей, ключей шифрования,
               данных для активации программных продуктов и иных чувствительных
@@ -85,7 +91,7 @@ const VerifyModal = ({ open, onOpenChange, onConfirm, isLoading, count = 1 }) =>
           </div>
         </div>
 
-        <DialogFooter className="tw:mt-4">
+        <DialogFooter className="mt-4">
           <Button
             variant="outline"
             onClick={() => openChange(false)}
@@ -94,7 +100,9 @@ const VerifyModal = ({ open, onOpenChange, onConfirm, isLoading, count = 1 }) =>
             Отмена
           </Button>
           <Button
-            onClick={() => onConfirm({ confirmCurrent, confirmNoSecrets }, reset)}
+            onClick={() =>
+              onConfirm({ confirmCurrent, confirmNoSecrets }, reset)
+            }
             disabled={!confirmCurrent || !confirmNoSecrets || isLoading}
           >
             <RiShieldCheckLine /> Проверить

@@ -44,7 +44,7 @@ const ConfirmDialog = ({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className="tw:mt-4">
+        <AlertDialogFooter className="mt-4">
           <AlertDialogCancel type="button" disabled={isLoading}>
             {cancelLabel}
           </AlertDialogCancel>

@@ -1,7 +1,13 @@
 import type { TeamMember, TeamScheduleResponse } from "@/types/teamSchedule";
 import { WORK_STATUSES, getWorkStatusMeta } from "@/util/work-statuses";
 
-import { fullName, humanDate, initialsOf, offsetLabel, statusColor } from "./calendar";
+import {
+  fullName,
+  humanDate,
+  initialsOf,
+  offsetLabel,
+  statusColor,
+} from "./calendar";
 
 type Props = { data: TeamScheduleResponse };
 
@@ -17,15 +23,21 @@ const GROUP_ORDER: { kind: string; label: string }[] = [
   { kind: "idle", label: "Не на работе" },
 ];
 
-const Row = ({ member, todayKey }: { member: TeamMember; todayKey: string }) => {
+const Row = ({
+  member,
+  todayKey,
+}: {
+  member: TeamMember;
+  todayKey: string;
+}) => {
   const day = member.days.find((item) => item.date === todayKey);
   const absence = day?.absence ?? null;
   const status = member.status;
 
   return (
-    <div className="tw:flex tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:px-4 tw:py-2.5 tw:first:border-t-0">
+    <div className="flex items-center gap-3 border-t border-border-soft px-4 py-2.5 first:border-t-0">
       <span
-        className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-full tw:bg-accent tw:text-xs tw:font-semibold tw:text-muted-foreground"
+        className="grid size-9 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground"
         style={{
           boxShadow: `0 0 0 2px var(--card), 0 0 0 3.5px ${statusColor(status?.code)}`,
         }}
@@ -33,22 +45,24 @@ const Row = ({ member, todayKey }: { member: TeamMember; todayKey: string }) => 
         {initialsOf(member.user)}
       </span>
 
-      <span className="tw:min-w-0 tw:flex-1">
-        <span className="tw:block tw:truncate tw:text-sm tw:font-medium tw:text-foreground">
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-foreground">
           {fullName(member.user)}
         </span>
-        <span className="tw:block tw:truncate tw:text-xs tw:text-muted-foreground">
+        <span className="block truncate text-xs text-muted-foreground">
           {member.user.position ?? "Должность не указана"} · {member.city}{" "}
-          <span className="tw:tabular-nums">{offsetLabel(member.utcOffsetMinutes)}</span>
+          <span className="tabular-nums">
+            {offsetLabel(member.utcOffsetMinutes)}
+          </span>
         </span>
       </span>
 
-      <span className="tw:flex-none tw:text-right">
-        <span className="tw:block tw:text-xs tw:text-foreground">
+      <span className="flex-none text-right">
+        <span className="block text-xs text-foreground">
           {status ? `${status.emoji} ${status.label}` : "статус скрыт"}
         </span>
         {/* Формулировка без привязки к полу: «у него» подходит не всем */}
-        <span className="tw:block tw:text-xs tw:text-faint tw:tabular-nums">
+        <span className="block text-xs text-faint tabular-nums">
           {absence
             ? `до ${humanDate(absence.to)}`
             : member.localTime
@@ -66,8 +80,9 @@ const TodayView = ({ data }: Props) => {
 
   if (!data.period.todayInPeriod) {
     return (
-      <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-5 tw:py-12 tw:text-center tw:text-sm tw:text-muted-foreground">
-        Сегодняшний день не входит в выбранный период — вернитесь к текущему месяцу.
+      <div className="rounded-xl border border-border bg-card px-5 py-12 text-center text-sm text-muted-foreground">
+        Сегодняшний день не входит в выбранный период — вернитесь к текущему
+        месяцу.
       </div>
     );
   }
@@ -81,22 +96,24 @@ const TodayView = ({ data }: Props) => {
     "var(--ws-st-unset)";
 
   return (
-    <div className="tw:grid tw:gap-4 tw:md:grid-cols-2 tw:xl:grid-cols-3">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {GROUP_ORDER.map((group) => {
-        const list = data.employees.filter((member) => kindOf(member) === group.kind);
+        const list = data.employees.filter(
+          (member) => kindOf(member) === group.kind,
+        );
         if (!list.length) return null;
         return (
           <section
             key={group.kind}
-            className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card"
+            className="overflow-hidden rounded-xl border border-border bg-card"
           >
-            <header className="tw:flex tw:items-center tw:gap-2 tw:border-b tw:border-border-soft tw:px-4 tw:py-2.5 tw:text-xs tw:font-bold tw:tracking-wider tw:uppercase">
+            <header className="flex items-center gap-2 border-b border-border-soft px-4 py-2.5 text-xs font-bold tracking-wider uppercase">
               <i
-                className="tw:size-2 tw:rounded-full"
+                className="size-2 rounded-full"
                 style={{ background: colorOfKind(group.kind) }}
               />
               {group.label}
-              <span className="tw:ms-auto tw:text-faint tw:tabular-nums">
+              <span className="ms-auto text-faint tabular-nums">
                 {list.length}
               </span>
             </header>

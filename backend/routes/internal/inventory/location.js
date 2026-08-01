@@ -13,14 +13,8 @@ router.get("/locations", isAuth, locationController.getAll);
 router.get("/companies-locations", isAuth, locationController.getAllCompanies);
 
 // Get location hierarchy
-router.get("/locations/hierarchy", isAuth, locationController.getHierarchy);
 
 // Get workplaces for specific user
-router.get(
-  "/locations/user/:userId/workplaces",
-  isAuth,
-  locationController.getUserWorkplaces,
-);
 
 // Get full environment for a user (workplace + ancestor chain + devices).
 // Должен идти до "/locations/:id", иначе :id перехватит "user".

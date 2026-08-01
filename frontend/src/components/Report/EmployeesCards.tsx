@@ -33,7 +33,7 @@ const EmployeesCards = ({
   const rows = showIdle ? [...active, ...idle] : active;
 
   return (
-    <div className="tw:px-3.5">
+    <div className="px-3.5">
       {rows.map((row) => {
         const isMe = row.employee._id === currentUserId;
         const overtime = row.overtime.roundedMinutes;
@@ -42,38 +42,40 @@ const EmployeesCards = ({
             key={row.employee._id}
             type="button"
             onClick={() => navigate(`/finances/employees/${row.employee._id}`)}
-            className="tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2.5 tw:border-0 tw:border-t tw:border-border-soft tw:bg-transparent tw:px-0 tw:py-3 tw:text-left tw:first:border-t-0 tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+            className="flex w-full cursor-pointer appearance-none items-center gap-2.5 border-0 border-t border-border-soft bg-transparent px-0 py-3 text-left first:border-t-0 focus-visible:ring-4 focus-visible:ring-ring/50"
           >
-            <span className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-full tw:bg-accent tw:text-xs tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border">
+            <span className="grid size-9 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border">
               {initials(row.employee)}
             </span>
-            <span className="tw:min-w-0 tw:flex-1">
-              <span className="tw:flex tw:items-center tw:gap-2">
-                <span className="tw:truncate tw:font-medium">
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2">
+                <span className="truncate font-medium">
                   {fullName(row.employee)}
                 </span>
                 {isMe && (
-                  <span className="tw:flex-none tw:rounded-full tw:bg-primary tw:px-2 tw:py-px tw:text-xs tw:font-semibold tw:text-white">
+                  <span className="flex-none rounded-full bg-primary px-2 py-px text-xs font-semibold text-white">
                     Вы
                   </span>
                 )}
               </span>
-              <span className="tw:block tw:truncate tw:text-xs tw:text-faint tw:tabular-nums">
+              <span className="block truncate text-xs text-faint tabular-nums">
                 {row.worksCount} работ · {row.ticketsFinished} заявок
-                {overtime > 0 ? ` · переработки ${formatMinutes(overtime)}` : ""}
+                {overtime > 0
+                  ? ` · переработки ${formatMinutes(overtime)}`
+                  : ""}
               </span>
             </span>
-            <span className="tw:flex-none tw:text-right">
-              <span className="tw:block tw:font-semibold tw:tabular-nums">
+            <span className="flex-none text-right">
+              <span className="block font-semibold tabular-nums">
                 {formatMinutes(row.totalMinutes)}
               </span>
               {variant === "overtime" ? (
                 <span
                   className={cn(
-                    "tw:block tw:text-xs tw:tabular-nums",
+                    "block text-xs tabular-nums",
                     row.payroll.missingRate && overtime > 0
-                      ? "tw:text-warning"
-                      : "tw:text-faint",
+                      ? "text-warning"
+                      : "text-faint",
                   )}
                 >
                   {row.payroll.missingRate && overtime > 0
@@ -85,11 +87,11 @@ const EmployeesCards = ({
               ) : (
                 <span
                   className={cn(
-                    "tw:block tw:text-xs tw:tabular-nums",
+                    "block text-xs tabular-nums",
                     row.utilizationPercent !== null &&
                       row.utilizationPercent >= 90
-                      ? "tw:text-accent-text"
-                      : "tw:text-faint",
+                      ? "text-accent-text"
+                      : "text-faint",
                   )}
                 >
                   {row.utilizationPercent === null
@@ -101,7 +103,7 @@ const EmployeesCards = ({
             <RiArrowRightSLine
               size={16}
               aria-hidden
-              className="tw:flex-none tw:text-faint"
+              className="flex-none text-faint"
             />
           </button>
         );
@@ -110,15 +112,15 @@ const EmployeesCards = ({
         <button
           type="button"
           onClick={() => setShowIdle((current) => !current)}
-          className="tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:justify-between tw:border-0 tw:border-t tw:border-border-soft tw:bg-transparent tw:px-0 tw:py-3 tw:text-left tw:text-sm tw:text-muted-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+          className="flex w-full cursor-pointer appearance-none items-center justify-between border-0 border-t border-border-soft bg-transparent px-0 py-3 text-left text-sm text-muted-foreground focus-visible:ring-4 focus-visible:ring-ring/50"
         >
           {showIdle ? "Скрыть без работ" : `Ещё ${idle.length} без работ`}
           <RiArrowRightSLine
             size={16}
             aria-hidden
             className={cn(
-              "tw:text-faint tw:transition-transform",
-              showIdle && "tw:rotate-90",
+              "text-faint transition-transform",
+              showIdle && "rotate-90",
             )}
           />
         </button>

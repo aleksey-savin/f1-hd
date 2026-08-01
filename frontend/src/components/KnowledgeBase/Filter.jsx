@@ -15,7 +15,7 @@ import FilterContainer from "@/components/app/FilterContainer";
 import Segmented from "@/components/app/Segmented";
 import { cn } from "@/lib/utils";
 
-import Select from "../../UI/Select";
+import { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
 import useInitialPrefsStore from "../../store/prefs";
 import { NOTE_TYPES } from "../../util/knowledgeNoteTypes";
@@ -37,8 +37,16 @@ const uniqueById = (items) => {
 // по которому в базу знаний ведут карточки со страницы заявок.
 export const MODERATION_FILTERS = [
   { mode: "all-unapproved", label: "На проверку", countKey: "pendingApproval" },
-  { mode: "pending-deletion", label: "На удаление", countKey: "pendingDeletion" },
-  { mode: "pending-archive", label: "На архивацию", countKey: "pendingArchive" },
+  {
+    mode: "pending-deletion",
+    label: "На удаление",
+    countKey: "pendingDeletion",
+  },
+  {
+    mode: "pending-archive",
+    label: "На архивацию",
+    countKey: "pendingArchive",
+  },
   {
     mode: "flagged-secrets",
     label: "Учётные данные",
@@ -52,7 +60,7 @@ export const MODERATION_FILTERS = [
 // набор чипов), а «label в никуда» — это баг доступности.
 const FieldLabel = ({ htmlFor, children }) => {
   const className =
-    "tw:mb-1.5 tw:block tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase";
+    "mb-1.5 block text-xs font-bold tracking-wider text-faint uppercase";
 
   return htmlFor ? (
     <label htmlFor={htmlFor} className={className}>
@@ -64,7 +72,7 @@ const FieldLabel = ({ htmlFor, children }) => {
 };
 
 // Набор данных: активные заметки или архив — взаимоисключающие наборы.
-export const ScopeSwitch = () => {
+const ScopeSwitch = () => {
   const scope = useKnowledgeNotesStore((state) => state.scope);
   const setScope = useKnowledgeNotesStore((state) => state.setScope);
 
@@ -83,7 +91,7 @@ export const ScopeSwitch = () => {
 
 // Чипы типов со счётчиками по загруженному набору. Выключение типа убирает его
 // заметки из выдачи; по умолчанию включены все.
-export const TypeChips = () => {
+const TypeChips = () => {
   const originalList = useKnowledgeNotesStore((state) => state.originalList);
   const enabledTypes = useKnowledgeNotesStore((state) => state.enabledTypes);
   const updateFilter = useKnowledgeNotesStore((state) => state.updateFilter);
@@ -109,7 +117,7 @@ export const TypeChips = () => {
   };
 
   return (
-    <div className="tw:flex tw:flex-wrap tw:gap-2">
+    <div className="flex flex-wrap gap-2">
       {NOTE_TYPES.map((type) => {
         const Icon = type.icon;
         const checked = enabledTypes?.[type.value] ?? true;
@@ -118,11 +126,11 @@ export const TypeChips = () => {
             key={type.value}
             active={checked}
             onClick={() => toggle(type.value)}
-            className="tw:h-9 tw:px-3"
+            className="h-9 px-3"
           >
             <Icon size={15} aria-hidden />
             {type.label}
-            <span className="tw:tabular-nums">{counts[type.value] || 0}</span>
+            <span className="tabular-nums">{counts[type.value] || 0}</span>
           </FilterChip>
         );
       })}
@@ -135,7 +143,9 @@ export const TypeChips = () => {
 // (docs/ux-ui-guide.md → «Бюджет управляющих элементов»).
 export const ModerationMenu = ({ className }) => {
   const scope = useKnowledgeNotesStore((state) => state.scope);
-  const moderationMode = useKnowledgeNotesStore((state) => state.moderationMode);
+  const moderationMode = useKnowledgeNotesStore(
+    (state) => state.moderationMode,
+  );
   const setModerationMode = useKnowledgeNotesStore(
     (state) => state.setModerationMode,
   );
@@ -165,15 +175,15 @@ export const ModerationMenu = ({ className }) => {
           title={active ? `Очередь: ${active.label}` : "Очереди модерации"}
           aria-label="Очереди модерации"
           className={cn(
-            "tw:inline-flex tw:h-9 tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1.5 tw:rounded-full tw:border tw:border-input tw:bg-transparent tw:px-3 tw:text-sm tw:font-semibold tw:text-muted-foreground tw:transition-colors tw:outline-none tw:hover:bg-accent tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+            "inline-flex h-9 cursor-pointer appearance-none items-center gap-1.5 rounded-full border border-input bg-transparent px-3 text-sm font-semibold text-muted-foreground transition-colors outline-none hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/50",
             active &&
-              "tw:border-transparent tw:bg-primary/15 tw:text-accent-text tw:hover:bg-primary/20",
+              "border-transparent bg-primary/15 text-accent-text hover:bg-primary/20",
             className,
           )}
         >
           <RiShieldCheckLine size={17} aria-hidden />
           {count > 0 && (
-            <span className="tw:rounded-full tw:bg-foreground/10 tw:px-1.5 tw:text-xs tw:font-bold tw:tabular-nums">
+            <span className="rounded-full bg-foreground/10 px-1.5 text-xs font-bold tabular-nums">
               {count}
             </span>
           )}
@@ -185,10 +195,10 @@ export const ModerationMenu = ({ className }) => {
           <DropdownMenuItem
             key={item.mode}
             onSelect={() => setModerationMode(item.mode)}
-            className={cn(item.mode === moderationMode && "tw:bg-accent")}
+            className={cn(item.mode === moderationMode && "bg-accent")}
           >
             {item.label}
-            <span className="tw:ms-auto tw:text-faint tw:tabular-nums">
+            <span className="ms-auto text-faint tabular-nums">
               {counts?.[item.countKey] || 0}
             </span>
           </DropdownMenuItem>
@@ -210,7 +220,7 @@ export const ModerationMenu = ({ className }) => {
 // запрос за справочниками здесь не нужен. К ним всегда домешиваем уже выбранные
 // значения: серверный поиск сужает набор заметок, и без этого выбранная компания
 // исчезала бы из собственного селекта, стоило ввести запрос.
-export const BindingFilters = () => {
+const BindingFilters = () => {
   const store = useKnowledgeNotesStore();
   const { originalList, updateFilter, refresh } = store;
 
@@ -238,52 +248,63 @@ export const BindingFilters = () => {
     refresh();
   };
 
-  const common = {
-    closeMenuOnSelect: false,
-    isClearable: true,
-    isSearchable: true,
-    isMulti: true,
-  };
-
   return (
-    <div className="tw:space-y-3">
+    <div className="space-y-3">
       <div>
         <FieldLabel htmlFor="kb-filter-companies">Компании</FieldLabel>
-        <Select
-          {...common}
+        <MultiCombobox
           id="kb-filter-companies"
           placeholder="Все компании"
-          value={store.companies}
-          options={options.companies}
-          getOptionLabel={(option) => bindingLabel("company", option)}
-          getOptionValue={(option) => option._id}
-          onChange={change("companies")}
+          value={(store.companies || []).map((item) => String(item._id))}
+          options={toOptions(options.companies, {
+            value: (option) => String(option._id),
+            label: (option) => bindingLabel("company", option),
+          })}
+          onChange={(ids) =>
+            change("companies")(
+              options.companies.filter((option) =>
+                ids.includes(String(option._id)),
+              ),
+            )
+          }
         />
       </div>
       <div>
         <FieldLabel htmlFor="kb-filter-categories">Категории заявок</FieldLabel>
-        <Select
-          {...common}
+        <MultiCombobox
           id="kb-filter-categories"
           placeholder="Все категории"
-          value={store.categories}
-          options={options.categories}
-          getOptionLabel={(option) => bindingLabel("category", option)}
-          getOptionValue={(option) => option._id}
-          onChange={change("categories")}
+          value={(store.categories || []).map((item) => String(item._id))}
+          options={toOptions(options.categories, {
+            value: (option) => String(option._id),
+            label: (option) => bindingLabel("category", option),
+          })}
+          onChange={(ids) =>
+            change("categories")(
+              options.categories.filter((option) =>
+                ids.includes(String(option._id)),
+              ),
+            )
+          }
         />
       </div>
       <div>
         <FieldLabel htmlFor="kb-filter-users">Пользователи</FieldLabel>
-        <Select
-          {...common}
+        <MultiCombobox
           id="kb-filter-users"
           placeholder="Все пользователи"
-          value={store.users}
-          options={options.users}
-          getOptionLabel={(option) => bindingLabel("user", option)}
-          getOptionValue={(option) => option._id}
-          onChange={change("users")}
+          value={(store.users || []).map((item) => String(item._id))}
+          options={toOptions(options.users, {
+            value: (option) => String(option._id),
+            label: (option) => bindingLabel("user", option),
+          })}
+          onChange={(ids) =>
+            change("users")(
+              options.users.filter((option) =>
+                ids.includes(String(option._id)),
+              ),
+            )
+          }
         />
       </div>
     </div>
@@ -309,7 +330,7 @@ const KnowledgeBaseFilter = () => {
 
   return (
     <FilterContainer resetFilterHandler={resetFilter}>
-      <div className="tw:space-y-4 tw:pt-4">
+      <div className="space-y-4 pt-4">
         <div>
           <FieldLabel>Набор</FieldLabel>
           <ScopeSwitch />

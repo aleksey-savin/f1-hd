@@ -52,7 +52,10 @@ export async function action({ request }: { request: Request }) {
     if (!INLINE_STATUSES.includes(response.status)) {
       throw response;
     }
-    const failure = await inlineError(response, "Не удалось зарегистрироваться.");
+    const failure = await inlineError(
+      response,
+      "Не удалось зарегистрироваться.",
+    );
     // Возвращаем что перенабирать, но БЕЗ пароля: данные экшена живут в
     // памяти роутера и видны в devtools, а секрету там делать нечего
     const { password: _password, ...values } = payload;
@@ -78,15 +81,15 @@ const Resolution = ({
 }) => (
   <p
     className={cn(
-      "tw:mt-2 tw:mb-0 tw:flex tw:items-start tw:gap-2 tw:text-sm",
-      tone === "ok" ? "tw:text-accent-text" : "tw:text-muted-foreground",
+      "mt-2 mb-0 flex items-start gap-2 text-sm",
+      tone === "ok" ? "text-accent-text" : "text-muted-foreground",
     )}
   >
     <span
       className={cn(
-        "tw:mt-0.5 tw:flex-none",
-        tone === "warn" && "tw:text-warning",
-        tone === "info" && "tw:text-faint",
+        "mt-0.5 flex-none",
+        tone === "warn" && "text-warning",
+        tone === "info" && "text-faint",
       )}
       aria-hidden
     >
@@ -99,7 +102,10 @@ const Resolution = ({
 const Signup = () => {
   const prefs = useAuthPrefs();
   const failure = useActionData() as
-    | { message: string; values: { email: string; firstName: string; lastName: string } }
+    | {
+        message: string;
+        values: { email: string; firstName: string; lastName: string };
+      }
     | undefined;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
@@ -135,7 +141,7 @@ const Signup = () => {
 
       {failure && <AlertMessage variant="danger" message={failure.message} />}
 
-      <Form method="post" className="tw:mt-5">
+      <Form method="post" className="mt-5">
         <Field label="Рабочая почта" htmlFor="email" required>
           <Input
             id="email"
@@ -158,7 +164,7 @@ const Signup = () => {
         )}
         {!resolution?.registered && resolution?.status === "known" && (
           <Resolution tone="ok" icon={<RiCheckLine size={16} />}>
-            <b className="tw:font-semibold">{resolution.company?.title}</b> —
+            <b className="font-semibold">{resolution.company?.title}</b> —
             узнали по адресу
           </Resolution>
         )}
@@ -170,8 +176,8 @@ const Signup = () => {
 
         {/* Поля гаснут и блокируются вместе с подменой кнопки: заполнять их
             незачем — этот адрес зарегистрировать не выйдет */}
-        <div className={cn("tw:mt-4", blocked && "tw:opacity-50")}>
-          <div className="tw:grid tw:gap-3 tw:sm:grid-cols-2">
+        <div className={cn("mt-4", blocked && "opacity-50")}>
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Имя" htmlFor="firstName" required>
               <Input
                 id="firstName"
@@ -212,19 +218,15 @@ const Signup = () => {
         </div>
 
         {takenAddress ? (
-          <Button asChild className="tw:mt-1 tw:w-full">
+          <Button asChild className="mt-1 w-full">
             <Link to="/auth/password">Получить пароль</Link>
           </Button>
         ) : foreignDomain ? (
-          <Button asChild className="tw:mt-1 tw:w-full">
+          <Button asChild className="mt-1 w-full">
             <a href={supportHref as string}>Написать в поддержку</a>
           </Button>
         ) : (
-          <Button
-            type="submit"
-            disabled={submitting}
-            className="tw:mt-1 tw:w-full"
-          >
+          <Button type="submit" disabled={submitting} className="mt-1 w-full">
             {submitting ? "Регистрируем…" : "Зарегистрироваться"}
           </Button>
         )}

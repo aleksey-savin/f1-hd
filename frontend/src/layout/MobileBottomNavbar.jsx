@@ -8,8 +8,10 @@ import {
   RiBuilding2Line,
   RiBookOpenLine,
   RiArchiveLine,
+  RiCheckboxLine,
 } from "react-icons/ri";
-import { TbCheckbox } from "react-icons/tb";
+
+import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../store/authed-user-context";
 
@@ -28,9 +30,13 @@ const MobileBottomNavbar = () => {
       icon: RiDashboard2Line,
       label: "Главная",
     },
-    { to: "/tickets", icon: TbCheckbox, label: "Заявки" },
+    { to: "/tickets", icon: RiCheckboxLine, label: "Заявки" },
     !isEndUser && { to: "/users", icon: RiAccountBoxLine, label: "Люди" },
-    !isEndUser && { to: "/companies", icon: RiBuilding2Line, label: "Компании" },
+    !isEndUser && {
+      to: "/companies",
+      icon: RiBuilding2Line,
+      label: "Компании",
+    },
     !isEndUser &&
       (isAdmin || permissions?.canSeeKnowledgeBase) && {
         to: "/knowledge-base",
@@ -47,7 +53,10 @@ const MobileBottomNavbar = () => {
 
   return (
     <LayoutGroup id="mobile-tabbar">
-      <nav className="mobile-tabbar" aria-label="Основная навигация">
+      <nav
+        className="mobile-tabbar flex items-stretch justify-around border border-border bg-card/88 px-1.5 py-1"
+        aria-label="Основная навигация"
+      >
         {tabs.map((tab) => {
           const active = isActive(tab);
           const Icon = tab.icon;
@@ -59,12 +68,18 @@ const MobileBottomNavbar = () => {
               replace
               aria-label={tab.label}
               aria-current={active ? "page" : undefined}
-              className={`mobile-tabbar__tab${active ? " is-active" : ""}`}
+              // min-h-13 — тач-таргет ≥44px с запасом под подпись
+              className={cn(
+                "tap-none relative flex min-h-13 flex-1 flex-col items-center justify-center gap-1 p-1 no-underline transition-colors motion-reduce:transition-none focus-visible:rounded-xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary",
+                active ? "text-primary" : "text-muted-foreground",
+              )}
             >
               {active && (
                 <motion.span
                   layoutId="mobile-tab-pill"
-                  className="mobile-tabbar__pill"
+                  // Пилюлю центрируем равными inset, а НЕ transform: им
+                  // управляет layoutId-анимация framer и перетёрла бы сдвиг
+                  className="absolute inset-x-2 inset-y-1 z-0 rounded-xl bg-primary/15"
                   transition={
                     reduceMotion
                       ? { duration: 0 }
@@ -72,8 +87,10 @@ const MobileBottomNavbar = () => {
                   }
                 />
               )}
-              <Icon className="mobile-tabbar__icon" aria-hidden="true" />
-              <span className="mobile-tabbar__label">{tab.label}</span>
+              <Icon className="relative z-10 size-6" aria-hidden="true" />
+              <span className="relative z-10 max-w-full truncate text-xs leading-none">
+                {tab.label}
+              </span>
             </NavLink>
           );
         })}

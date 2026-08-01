@@ -37,9 +37,9 @@ import QrDialog from "./QrDialog";
 const FRESH_MS = 8000;
 
 const LIVE_DOT = {
-  ok: "tw:bg-primary",
-  bad: "tw:bg-destructive",
-  off: "tw:bg-faint",
+  ok: "bg-primary",
+  bad: "bg-destructive",
+  off: "bg-faint",
 };
 
 // Инвентарная метка — опорный столбец реестра: номер ищут глазами по
@@ -55,12 +55,12 @@ const InventoryTag = ({ number, onOpenQr }) => (
     }}
     title="Показать QR-код"
     className={cn(
-      "tw:inline-flex tw:cursor-pointer tw:items-center tw:gap-1.5 tw:rounded-md tw:border tw:px-2 tw:py-0.5 tw:font-mono tw:text-xs tw:tracking-wide tw:transition-colors",
+      "inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-xs tracking-wide transition-colors",
       number
-        ? "tw:border-border-soft tw:bg-accent tw:font-semibold tw:text-foreground tw:group-hover:border-input"
+        ? "border-border-soft bg-accent font-semibold text-foreground group-hover:border-input"
         : // Пустая метка — пробел учёта: пунктир вместо номера. Пунктир задаём
           // инлайном: без preflight классы border-dashed рисуют бокс (см. гайд).
-          "tw:bg-transparent tw:font-sans tw:text-faint",
+          "bg-transparent font-sans text-faint",
     )}
     style={number ? undefined : { border: "1px dashed var(--border)" }}
   >
@@ -68,7 +68,7 @@ const InventoryTag = ({ number, onOpenQr }) => (
     <RiQrCodeLine
       size={11}
       aria-hidden
-      className="tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-55 tw:pointer-coarse:opacity-55"
+      className="opacity-0 transition-opacity group-hover:opacity-55 pointer-coarse:opacity-55"
     />
   </button>
 );
@@ -146,79 +146,76 @@ const DeviceRow = ({ device }) => {
       }}
       title="Открыть карточку устройства"
       className={cn(
-        "tw:group tw:relative tw:flex tw:cursor-pointer tw:items-center tw:gap-3 tw:px-4 tw:py-2.5 tw:transition-colors tw:md:gap-4 tw:md:px-5",
-        "tw:before:absolute tw:before:top-0 tw:before:right-5 tw:before:left-5 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden",
-        "tw:hover:bg-accent/60",
-        justCreated && "tw:row-appear",
-        justUpdated && "tw:row-flash",
+        "group relative flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors md:gap-4 md:px-5",
+        "before:absolute before:top-0 before:right-5 before:left-5 before:h-px before:bg-border-soft first:before:hidden",
+        "hover:bg-accent/60",
+        justCreated && "row-appear",
+        justUpdated && "row-flash",
       )}
     >
       <span
         aria-hidden
-        className="tw:relative tw:grid tw:size-10 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+        className="relative grid size-10 flex-none place-items-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border"
       >
         <Icon size={19} />
         {mikro && (
           <span
             title={`Mikrotik: ${mikro.label}`}
             className={cn(
-              "tw:absolute tw:-right-0.5 tw:-bottom-0.5 tw:size-2.5 tw:rounded-full tw:ring-2 tw:ring-card",
+              "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-card",
               LIVE_DOT[mikro.tone],
             )}
           />
         )}
       </span>
 
-      <span className="tw:min-w-0 tw:flex-1">
-        <span className="tw:flex tw:items-center tw:gap-2">
-          <span
-            className="tw:min-w-0 tw:truncate tw:font-medium"
-            title={device.name}
-          >
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="min-w-0 truncate font-medium" title={device.name}>
             {device.name}
           </span>
           {device.componentCount > 0 && (
             <span
               title={`Сборка: ${device.componentCount} комплектующих`}
-              className="tw:inline-flex tw:flex-none tw:items-center tw:gap-1 tw:rounded-md tw:bg-accent tw:px-1.5 tw:text-xs tw:font-semibold tw:text-muted-foreground tw:tabular-nums"
+              className="inline-flex flex-none items-center gap-1 rounded-md bg-accent px-1.5 text-xs font-semibold text-muted-foreground tabular-nums"
             >
               <RiStackLine size={12} aria-hidden />
               {device.componentCount}
             </span>
           )}
         </span>
-        <span className="tw:flex tw:min-w-0 tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground">
+        <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
           {/* До md колонки схлопнуты — метка едет в строку меты */}
-          <span className="tw:flex-none tw:md:hidden" onClick={stop}>
+          <span className="flex-none md:hidden" onClick={stop}>
             <InventoryTag number={device.inventoryNumber} onOpenQr={openQr} />
           </span>
-          <span className="tw:truncate">{meta || "—"}</span>
+          <span className="truncate">{meta || "—"}</span>
           {/* Комплектующее попадает в список только по запросу и обязано
               назвать хозяина: у детали расположение и владелец — его. */}
           {device.parent && (
             <span
               title={`В составе: ${device.parent.name}`}
-              className="tw:inline-flex tw:flex-none tw:items-center tw:gap-1 tw:rounded-md tw:bg-accent tw:px-1.5 tw:text-xs tw:font-medium tw:text-muted-foreground"
+              className="inline-flex flex-none items-center gap-1 rounded-md bg-accent px-1.5 text-xs font-medium text-muted-foreground"
             >
               <RiBox3Line size={12} aria-hidden />
-              <span className="tw:max-md:hidden">в составе: </span>
+              <span className="max-md:hidden">в составе: </span>
               {device.parent.inventoryNumber || device.parent.name}
             </span>
           )}
           {device.hostname && !device.parent && (
-            <span className="tw:hidden tw:flex-none tw:font-mono tw:text-xs tw:text-faint tw:lg:inline">
+            <span className="hidden flex-none font-mono text-xs text-faint lg:inline">
               {device.hostname}
             </span>
           )}
         </span>
         {/* Узкий экран: статус и принадлежность подстрокой */}
-        <span className="tw:mt-0.5 tw:flex tw:min-w-0 tw:items-center tw:gap-2.5 tw:md:hidden">
+        <span className="mt-0.5 flex min-w-0 items-center gap-2.5 md:hidden">
           {status && (
             <DeviceStatusText tone={status.tone}>
               {status.label}
             </DeviceStatusText>
           )}
-          <span className="tw:min-w-0 tw:truncate tw:text-xs tw:text-faint">
+          <span className="min-w-0 truncate text-xs text-faint">
             {[device.company?.name, place.main].filter(Boolean).join(" · ") ||
               "—"}
           </span>
@@ -226,36 +223,26 @@ const DeviceRow = ({ device }) => {
       </span>
 
       <QrDialog device={device} open={qrOpen} onOpenChange={setQrOpen}>
-        <span
-          className="tw:hidden tw:w-32 tw:flex-none tw:md:block"
-          onClick={stop}
-        >
+        <span className="hidden w-32 flex-none md:block" onClick={stop}>
           <InventoryTag number={device.inventoryNumber} onOpenQr={openQr} />
         </span>
       </QrDialog>
 
-      <span className="tw:hidden tw:w-40 tw:flex-none tw:truncate tw:text-sm tw:lg:block">
-        {device.company?.name || <span className="tw:text-faint">—</span>}
+      <span className="hidden w-40 flex-none truncate text-sm lg:block">
+        {device.company?.name || <span className="text-faint">—</span>}
       </span>
 
-      <span className="tw:hidden tw:w-56 tw:min-w-0 tw:flex-none tw:items-center tw:gap-2 tw:lg:flex">
-        <PlaceIcon
-          size={15}
-          className="tw:flex-none tw:text-faint"
-          aria-hidden
-        />
-        <span className="tw:min-w-0">
+      <span className="hidden w-56 min-w-0 flex-none items-center gap-2 lg:flex">
+        <PlaceIcon size={15} className="flex-none text-faint" aria-hidden />
+        <span className="min-w-0">
           {place.main ? (
             <>
-              <span
-                className="tw:block tw:truncate tw:text-sm"
-                title={place.main}
-              >
+              <span className="block truncate text-sm" title={place.main}>
                 {place.main}
               </span>
               {place.sub && (
                 <span
-                  className="tw:block tw:truncate tw:text-xs tw:text-faint"
+                  className="block truncate text-xs text-faint"
                   title={place.sub}
                 >
                   {place.sub}
@@ -263,14 +250,14 @@ const DeviceRow = ({ device }) => {
               )}
             </>
           ) : (
-            <span className="tw:text-sm tw:text-faint">не размещено</span>
+            <span className="text-sm text-faint">не размещено</span>
           )}
         </span>
       </span>
 
-      <span className="tw:hidden tw:w-36 tw:flex-none tw:md:block">
+      <span className="hidden w-36 flex-none md:block">
         {status && (
-          <DeviceStatusText tone={status.tone} className="tw:text-sm">
+          <DeviceStatusText tone={status.tone} className="text-sm">
             {status.label}
           </DeviceStatusText>
         )}
@@ -279,7 +266,7 @@ const DeviceRow = ({ device }) => {
       {/* Гнездо действий постоянной ширины (две кнопки 36px) — правый край
           ровный у всех строк, в том числе там, где прав на правку нет */}
       <span
-        className="tw:hidden tw:w-18 tw:flex-none tw:items-center tw:justify-end tw:md:flex"
+        className="hidden w-18 flex-none items-center justify-end md:flex"
         onClick={stop}
       >
         <Button
@@ -289,8 +276,8 @@ const DeviceRow = ({ device }) => {
           aria-label="Показать QR-код"
           onClick={openQr}
           className={cn(
-            "tw:text-faint tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100",
-            qrOpen && "tw:opacity-100 tw:bg-accent tw:text-accent-text",
+            "text-faint opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
+            qrOpen && "opacity-100 bg-accent text-accent-text",
           )}
         >
           <RiQrCodeLine />
@@ -304,7 +291,7 @@ const DeviceRow = ({ device }) => {
                   size="icon-sm"
                   title="Действия"
                   aria-label="Действия"
-                  className="tw:text-faint tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:data-[state=open]:opacity-100 tw:pointer-coarse:opacity-100"
+                  className="text-faint opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
                 >
                   <RiMoreLine />
                 </Button>

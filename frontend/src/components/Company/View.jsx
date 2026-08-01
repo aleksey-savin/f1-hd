@@ -77,10 +77,10 @@ const countTree = (nodes) =>
     0,
   );
 
-const dash = <span className="tw:font-normal tw:text-faint">—</span>;
+const dash = <span className="font-normal text-faint">—</span>;
 
 const Pill = ({ children }) => (
-  <span className="tw:inline-flex tw:items-center tw:rounded-full tw:border tw:border-border-soft tw:bg-accent tw:px-2.5 tw:py-0.5 tw:text-sm tw:font-medium">
+  <span className="inline-flex items-center rounded-full border border-border-soft bg-accent px-2.5 py-0.5 text-sm font-medium">
     {children}
   </span>
 );
@@ -154,49 +154,47 @@ const ViewCompany = ({
   ];
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-5xl">
+    <div className="mx-auto w-full max-w-5xl">
       <Link
         to="/companies"
-        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
       >
         <RiArrowLeftSLine /> Компании
       </Link>
 
       {/* HERO */}
-      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-x-5 tw:gap-y-4">
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-4">
         <HeroLogo company={company} canEdit={canManage} />
-        <div className="tw:min-w-0 tw:flex-1">
-          <h1 className="tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:break-words">
+        <div className="min-w-0 flex-1">
+          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight break-words">
             {company.alias || "—"}
           </h1>
           {/* Юрлицо в hero не дублируем — полное наименование есть в
               «Реквизитах» (согласовано при живом прогоне) */}
-          <div className="tw:mt-2.5 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5 tw:text-sm">
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
             {isActive ? (
               <WorkStatusText
                 workSchedule={company.workSchedule}
                 timezone={company.timezone}
                 halo
-                className="tw:font-semibold"
+                className="font-semibold"
               />
             ) : (
               /* Живой график у отключённой — шум; статус как у пользователя */
-              <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:font-semibold tw:text-destructive">
-                <span className="tw:size-2 tw:rounded-full tw:bg-destructive" />
+              <span className="inline-flex items-center gap-1.5 font-semibold text-destructive">
+                <span className="size-2 rounded-full bg-destructive" />
                 Отключена
               </span>
             )}
-            <span className="tw:text-muted-foreground tw:tabular-nums">
-              <span className="tw:text-faint">·</span>{" "}
-              <b className="tw:font-semibold tw:text-foreground">
-                {employeesCount}
-              </b>{" "}
+            <span className="text-muted-foreground tabular-nums">
+              <span className="text-faint">·</span>{" "}
+              <b className="font-semibold text-foreground">{employeesCount}</b>{" "}
               {plural(employeesCount, "сотрудник", "сотрудника", "сотрудников")}
               {showFinances && (
                 <>
                   {" "}
-                  <span className="tw:text-faint">·</span>{" "}
-                  <b className="tw:font-semibold tw:text-foreground">
+                  <span className="text-faint">·</span>{" "}
+                  <b className="font-semibold text-foreground">
                     {servicePlans.length}
                   </b>{" "}
                   {plural(servicePlans.length, "услуга", "услуги", "услуг")}
@@ -205,8 +203,8 @@ const ViewCompany = ({
               {subdivisionsCount > 0 && (
                 <>
                   {" "}
-                  <span className="tw:text-faint">·</span>{" "}
-                  <b className="tw:font-semibold tw:text-foreground">
+                  <span className="text-faint">·</span>{" "}
+                  <b className="font-semibold text-foreground">
                     {subdivisionsCount}
                   </b>{" "}
                   {plural(
@@ -222,8 +220,8 @@ const ViewCompany = ({
         </div>
         {canManage && (
           /* На мобильном блок действий занимает свою строку во всю ширину */
-          <div className="tw:flex tw:w-full tw:items-center tw:gap-2 tw:sm:w-auto tw:sm:flex-none">
-            <Button asChild className="tw:flex-1 tw:sm:flex-none">
+          <div className="flex w-full items-center gap-2 sm:w-auto sm:flex-none">
+            <Button asChild className="flex-1 sm:flex-none">
               <Link to="update" onClick={offcanvas.setShow}>
                 <RiEdit2Line /> Изменить
               </Link>
@@ -262,15 +260,15 @@ const ViewCompany = ({
 
       {/* Разделы одним скроллом; слева — липкий рейл-якорь (только десктоп:
           на мобайле window не скроллится, рейл не рендерится) */}
-      <div className="tw:flex tw:items-start tw:gap-7">
-        <BrowserView className="tw:contents">
+      <div className="flex items-start gap-7">
+        <BrowserView className="contents">
           <AnchorRail
             sections={railSections}
             ariaLabel="Разделы карточки"
-            className="tw:mt-6"
+            className="mt-6"
           />
         </BrowserView>
-        <div className="tw:min-w-0 tw:flex-1">
+        <div className="min-w-0 flex-1">
           <ActivityTiles
             stats={stats}
             company={company}
@@ -293,13 +291,13 @@ const ViewCompany = ({
             </PropRow>
             <PropRow icon={<RiPhoneLine size={17} />} label="Телефоны">
               {company.phones?.length ? (
-                <span className="tw:tabular-nums">
+                <span className="tabular-nums">
                   {company.phones.map((phone, index) => (
                     <span key={phone}>
-                      {index > 0 && <span className="tw:text-faint"> · </span>}
+                      {index > 0 && <span className="text-faint"> · </span>}
                       <a
                         href={`tel:${phone}`}
-                        className="tw:text-accent-text tw:no-underline tw:hover:underline"
+                        className="text-accent-text no-underline hover:underline"
                       >
                         {phone}
                       </a>
@@ -322,7 +320,7 @@ const ViewCompany = ({
                     onClick={() => openTaxi(taxiAction)}
                     title={taxiAction.title}
                     aria-label={`${taxiAction.orderText} · ${taxiAction.label}`}
-                    className="tw:grid tw:size-8 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:transition-colors tw:hover:bg-accent tw:hover:text-warning"
+                    className="grid size-8 flex-none cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-transparent text-faint transition-colors hover:bg-accent hover:text-warning"
                   >
                     <RiTaxiLine size={16} />
                   </button>
@@ -341,7 +339,7 @@ const ViewCompany = ({
                     target="_blank"
                     rel="noreferrer"
                     title="Открыть на карте"
-                    className="tw:text-accent-text tw:no-underline tw:hover:underline"
+                    className="text-accent-text no-underline hover:underline"
                   >
                     {company.address}
                   </a>
@@ -355,7 +353,7 @@ const ViewCompany = ({
             {canManage && (
               <PropRow icon={<RiAtLine size={17} />} label="Почтовые домены">
                 {company.emailDomains?.length ? (
-                  <span className="tw:flex tw:flex-wrap tw:gap-1.5 tw:pt-0.5">
+                  <span className="flex flex-wrap gap-1.5 pt-0.5">
                     {company.emailDomains.map((domain) => (
                       <Pill key={domain}>{domain}</Pill>
                     ))}
@@ -402,7 +400,7 @@ const ViewCompany = ({
           {canManage && <ApiKeysSection company={company} id="company-keys" />}
 
           {metaBits && (
-            <div className="tw:mt-5 tw:border-t tw:border-border-soft tw:pt-3.5 tw:text-xs tw:text-faint tw:tabular-nums">
+            <div className="mt-5 border-t border-border-soft pt-3.5 text-xs text-faint tabular-nums">
               {metaBits}
             </div>
           )}

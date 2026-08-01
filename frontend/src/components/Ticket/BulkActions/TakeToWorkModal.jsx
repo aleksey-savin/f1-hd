@@ -42,7 +42,7 @@ const TakeToWorkModal = ({ show, onHide, count, onConfirm }) => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="tw:mt-2">
+          <div className="mt-2">
             <SwitchField
               id="bulk-take-over"
               label="Взять на себя"
@@ -59,7 +59,7 @@ const TakeToWorkModal = ({ show, onHide, count, onConfirm }) => {
             )}
           </div>
 
-          <DialogFooter className="tw:mt-4">
+          <DialogFooter className="mt-4">
             <Button type="button" variant="ghost" onClick={close}>
               Отмена
             </Button>

@@ -40,9 +40,12 @@ export async function loader({ params }) {
       fetch(`${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`, {
         headers,
       }),
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/companies/${params.id}/stats`, {
-        headers,
-      })
+      fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/companies/${params.id}/stats`,
+        {
+          headers,
+        },
+      )
         .then((response) => (response.ok ? response.json() : null))
         .catch(() => null),
     ]);

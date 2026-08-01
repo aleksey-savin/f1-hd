@@ -8,13 +8,12 @@ import { Input } from "@/components/ui/input";
 import useInitialPrefsStore from "../../store/prefs";
 import useTicketFilterStore from "../../store/lists/tickets";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import Select from "../../UI/Select";
+import { MultiCombobox } from "@/components/app/Combobox";
 
 // Sheet-фильтр списка заявок — один для десктопа и мобайла. Здесь живёт всё, что
 // трогают редко; набор «Все | Мои» и чип компаний остаются на экране, поля
 // «Набор» тут намеренно нет: два места для одного булева пришлось бы
-// синхронизировать руками. UI/Select внутри шторки работает через
-// InsideOverlayContext (его ставит сам ListWrapper).
+// синхронизировать руками.
 //
 // Сверху — три быстрых переключателя на три кнопки: у них по три значения, и
 // сегмент отвечает быстрее выпадающего списка. Ниже — период и длинные
@@ -45,11 +44,6 @@ const STATE_OPTIONS = [
   "На согласовании",
   "Выполнена",
 ].map((value) => ({ value, label: value }));
-
-const byIds = (options, ids) =>
-  options.filter((option) => ids.includes(option.value));
-
-const toIds = (selected) => (selected || []).map((option) => option.value);
 
 const TicketFilter = ({
   companyOptions = [],
@@ -107,7 +101,7 @@ const TicketFilter = ({
       )}
 
       <Field label="Создана в период" htmlFor="filter-created-from">
-        <div className="tw:grid tw:grid-cols-2 tw:gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Input
             id="filter-created-from"
             type="date"
@@ -132,78 +126,54 @@ const TicketFilter = ({
       </Field>
 
       <Field label="Компании" htmlFor="filter-companies">
-        <Select
+        <MultiCombobox
           id="filter-companies"
           placeholder="Все компании"
-          isMulti
-          isClearable
-          isSearchable
-          value={byIds(companyOptions, store.companies)}
+          value={store.companies}
           options={companyOptions}
-          onChange={(selected) =>
-            store.updateFilter({ companies: toIds(selected) })
-          }
+          onChange={(values) => store.updateFilter({ companies: values })}
         />
       </Field>
 
       <Field label="Инициаторы" htmlFor="filter-applicants">
-        <Select
+        <MultiCombobox
           id="filter-applicants"
           placeholder="Все инициаторы"
-          isMulti
-          isClearable
-          isSearchable
-          value={byIds(applicantOptions, store.applicants)}
+          value={store.applicants}
           options={applicantOptions}
-          onChange={(selected) =>
-            store.updateFilter({ applicants: toIds(selected) })
-          }
+          onChange={(values) => store.updateFilter({ applicants: values })}
         />
       </Field>
 
       {canSeeResponsiblesFacet && (
         <Field label="Ответственные" htmlFor="filter-responsibles">
-          <Select
+          <MultiCombobox
             id="filter-responsibles"
             placeholder="Все ответственные"
-            isMulti
-            isClearable
-            isSearchable
-            value={byIds(responsibleOptions, store.responsibles)}
+            value={store.responsibles}
             options={responsibleOptions}
-            onChange={(selected) =>
-              store.updateFilter({ responsibles: toIds(selected) })
-            }
+            onChange={(values) => store.updateFilter({ responsibles: values })}
           />
         </Field>
       )}
 
       <Field label="Категории" htmlFor="filter-categories">
-        <Select
+        <MultiCombobox
           id="filter-categories"
           placeholder="Все категории"
-          isMulti
-          isClearable
-          isSearchable
-          value={byIds(categoryOptions, store.categories)}
+          value={store.categories}
           options={categoryOptions}
-          onChange={(selected) =>
-            store.updateFilter({ categories: toIds(selected) })
-          }
+          onChange={(values) => store.updateFilter({ categories: values })}
         />
       </Field>
 
       <Field label="Состояние" htmlFor="filter-states">
-        <Select
+        <MultiCombobox
           id="filter-states"
           placeholder="Любое состояние"
-          isMulti
-          isClearable
-          value={byIds(STATE_OPTIONS, store.states)}
+          value={store.states}
           options={STATE_OPTIONS}
-          onChange={(selected) =>
-            store.updateFilter({ states: toIds(selected) })
-          }
+          onChange={(values) => store.updateFilter({ states: values })}
         />
       </Field>
     </FilterContainer>

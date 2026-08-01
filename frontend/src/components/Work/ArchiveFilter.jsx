@@ -2,7 +2,8 @@ import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
 import { Input } from "@/components/ui/input";
 
-import Select from "../../UI/Select";
+import { MultiCombobox } from "@/components/app/Combobox";
+
 import useWorksStore from "../../store/lists/works";
 
 // Sheet-фильтр сегмента «Работы» архива. Все условия опциональны (обязательных
@@ -10,18 +11,13 @@ import useWorksStore from "../../store/lists/works";
 // два нативных поля даты, остальное — мультиселекты по полному каталогу
 // form-data. Категории — свойство связанных заявок; исполнители — активные
 // пользователи с правом выполнения заявок.
-const byIds = (options, ids) =>
-  options.filter((option) => ids.includes(option.value));
-
-const toIds = (selected) => (selected || []).map((option) => option.value);
-
 const WorkArchiveFilter = () => {
   const s = useWorksStore();
 
   return (
     <FilterContainer resetFilterHandler={s.resetFilter}>
       <Field label="Завершена в период" htmlFor="work-filter-period-from">
-        <div className="tw:grid tw:grid-cols-2 tw:gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Input
             id="work-filter-period-from"
             type="date"
@@ -42,49 +38,32 @@ const WorkArchiveFilter = () => {
       </Field>
 
       <Field label="Компании" htmlFor="work-filter-companies">
-        <Select
+        <MultiCombobox
           id="work-filter-companies"
           placeholder="Все компании"
-          isMulti
-          isClearable
-          isSearchable
-          value={byIds(s.options.companies, s.companies)}
+          value={s.companies}
           options={s.options.companies}
-          getOptionLabel={(option) => option.label}
-          getOptionValue={(option) => option.value}
-          onChange={(selected) => s.updateFilter({ companies: toIds(selected) })}
+          onChange={(values) => s.updateFilter({ companies: values })}
         />
       </Field>
 
       <Field label="Категории" htmlFor="work-filter-categories">
-        <Select
+        <MultiCombobox
           id="work-filter-categories"
           placeholder="Все категории"
-          isMulti
-          isClearable
-          isSearchable
-          value={byIds(s.options.categories, s.categories)}
+          value={s.categories}
           options={s.options.categories}
-          getOptionLabel={(option) => option.label}
-          getOptionValue={(option) => option.value}
-          onChange={(selected) =>
-            s.updateFilter({ categories: toIds(selected) })
-          }
+          onChange={(values) => s.updateFilter({ categories: values })}
         />
       </Field>
 
       <Field label="Исполнители" htmlFor="work-filter-executors">
-        <Select
+        <MultiCombobox
           id="work-filter-executors"
           placeholder="Все исполнители"
-          isMulti
-          isClearable
-          isSearchable
-          value={byIds(s.options.executors, s.executors)}
+          value={s.executors}
           options={s.options.executors}
-          getOptionLabel={(option) => option.label}
-          getOptionValue={(option) => option.value}
-          onChange={(selected) => s.updateFilter({ executors: toIds(selected) })}
+          onChange={(values) => s.updateFilter({ executors: values })}
         />
       </Field>
     </FilterContainer>

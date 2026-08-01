@@ -105,38 +105,36 @@ const NoteRow = ({ note, active, onOpen }) => {
       type="button"
       onClick={onOpen}
       className={cn(
-        "tw:relative tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-start tw:gap-2.5 tw:rounded-lg tw:border-0 tw:px-2 tw:py-2 tw:text-start tw:transition-colors tw:outline-none tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+        "relative flex w-full cursor-pointer appearance-none items-start gap-2.5 rounded-lg border-0 px-2 py-2 text-start transition-colors outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
         // Открытая подсказка остаётся отмеченной в списке: шторку не закрывают,
         // чтобы посмотреть следующую
-        active ? "tw:bg-primary/10" : "tw:bg-transparent tw:hover:bg-accent",
+        active ? "bg-primary/10" : "bg-transparent hover:bg-accent",
       )}
     >
       <RiArrowRightSLine
         size={16}
         aria-hidden
-        className="tw:mt-0.5 tw:flex-none tw:text-faint"
+        className="mt-0.5 flex-none text-faint"
       />
       <TypeIcon
         size={17}
         aria-hidden
         title={typeMeta.label}
-        className="tw:mt-0.5 tw:flex-none tw:text-faint"
+        className="mt-0.5 flex-none text-faint"
       />
-      <span className="tw:min-w-0 tw:flex-1">
-        <span className="tw:block tw:text-[0.9375rem] tw:leading-snug tw:font-medium">
+      <span className="min-w-0 flex-1">
+        <span className="block text-[0.9375rem] leading-snug font-medium">
           {note.title}
         </span>
-        <span className="tw:mt-0.5 tw:block tw:text-sm tw:text-muted-foreground">
+        <span className="mt-0.5 block text-sm text-muted-foreground">
           {meta[0]}
           {meta[1] && (
             <>
               {" · "}
-              <span className="tw:text-warning">{meta[1]}</span>
+              <span className="text-warning">{meta[1]}</span>
             </>
           )}
-          {meta[2] && (
-            <span className="tw:tabular-nums">{` · ${meta[2]}`}</span>
-          )}
+          {meta[2] && <span className="tabular-nums">{` · ${meta[2]}`}</span>}
         </span>
       </span>
     </button>
@@ -161,52 +159,49 @@ const NoteSheet = ({ note, loading, onClose }) => {
     >
       <SheetContent
         side={isMobile ? "bottom" : "right"}
-        className={cn(
-          isMobile ? "tw:h-[92dvh]" : "tw:w-11/12 tw:sm:max-w-2xl",
-          "tw:gap-0",
-        )}
+        className={cn(isMobile ? "h-[92dvh]" : "w-11/12 sm:max-w-2xl", "gap-0")}
       >
-        <div className="tw:px-5 tw:pt-4">
-          <div className="tw:flex tw:items-center tw:gap-2 tw:pe-8 tw:text-sm tw:text-muted-foreground">
+        <div className="px-5 pt-4">
+          <div className="flex items-center gap-2 pe-8 text-sm text-muted-foreground">
             {TypeIcon && (
-              <TypeIcon size={15} aria-hidden className="tw:text-faint" />
+              <TypeIcon size={15} aria-hidden className="text-faint" />
             )}
             {typeMeta?.label}
             {note?.approved !== true && (
               <>
-                <span className="tw:text-faint">·</span>
-                <span className="tw:text-warning">не проверено</span>
+                <span className="text-faint">·</span>
+                <span className="text-warning">не проверено</span>
               </>
             )}
             {note?.updatedAt && (
-              <span className="tw:tabular-nums">{`· ${formatShortDate(note.updatedAt)}`}</span>
+              <span className="tabular-nums">{`· ${formatShortDate(note.updatedAt)}`}</span>
             )}
           </div>
-          <SheetTitle className="tw:mt-1 tw:mb-0 tw:pe-8 tw:text-lg tw:leading-snug tw:font-semibold tw:tracking-tight tw:break-words">
+          <SheetTitle className="mt-1 mb-0 pe-8 text-lg leading-snug font-semibold tracking-tight break-words">
             {note?.title ?? "Заметка"}
           </SheetTitle>
 
           {/* Пилюли привязок — каталожные: те же, что на странице заметки */}
-          <div className="tw:mt-3 tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <BindingPillList kind="company" items={note?.companies} />
             <BindingPillList kind="category" items={note?.categories} />
             <BindingPillList kind="user" items={note?.users} />
           </div>
         </div>
 
-        <div className="tw:flex-1 tw:overflow-y-auto tw:px-5 tw:py-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           {loading ? (
             <Spinner />
           ) : (
-            <div className="kb-doc md-doc tw:break-words">
+            <div className="kb-doc md-doc break-words">
               <MarkdownViewer value={note?.content || ""} />
             </div>
           )}
         </div>
 
         {/* Целиком — в базе знаний, в новой вкладке: заявка остаётся на своей */}
-        <div className="tw:border-t tw:border-border-soft tw:px-5 tw:py-3.5">
-          <Button asChild variant="outline" className="tw:w-full">
+        <div className="border-t border-border-soft px-5 py-3.5">
+          <Button asChild variant="outline" className="w-full">
             <a
               href={`/knowledge-base/${note?._id}`}
               target="_blank"
@@ -379,7 +374,7 @@ const KnowledgeSection = ({ ticket }) => {
               {/* Подзаголовок — только когда групп больше одной: у заявки с
                   одной компанией он ничего не добавил бы */}
               {groups.length > 1 && (
-                <div className="tw:px-2 tw:pt-3 tw:pb-1 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase tw:first:pt-0">
+                <div className="px-2 pt-3 pb-1 text-xs font-bold tracking-wider text-faint uppercase first:pt-0">
                   {groupLabel(group.key)}
                 </div>
               )}
@@ -398,7 +393,7 @@ const KnowledgeSection = ({ ticket }) => {
           <Button
             variant="ghost"
             size="xs"
-            className="tw:mt-1.5"
+            className="mt-1.5"
             onClick={() => setShowAll(true)}
           >
             Показать все {notes.length}

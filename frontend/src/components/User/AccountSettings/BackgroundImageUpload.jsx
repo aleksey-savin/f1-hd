@@ -105,7 +105,7 @@ function BackgroundImageUpload({ user }) {
   };
 
   return (
-    <div className="tw:grid tw:justify-items-start tw:gap-2.5 tw:max-md:justify-items-stretch">
+    <div className="grid justify-items-start gap-2.5 max-md:justify-items-stretch">
       {previewUrl ? (
         // div с background-image, а не <img>: глобальный автоскейл картинок
         // тикетов (index.css: img { width/height: auto !important }) ломает
@@ -114,14 +114,14 @@ function BackgroundImageUpload({ user }) {
           role="img"
           aria-label="Превью фонового изображения"
           style={{ backgroundImage: `url("${previewUrl}")` }}
-          className="tw:h-32 tw:w-56 tw:rounded-lg tw:border tw:border-border tw:bg-cover tw:bg-center tw:max-md:h-40 tw:max-md:w-full"
+          className="h-32 w-56 rounded-lg border border-border bg-cover bg-center max-md:h-40 max-md:w-full"
         />
       ) : (
-        <div className="tw:grid tw:h-32 tw:w-56 tw:place-items-center tw:rounded-lg tw:border tw:border-dashed tw:border-input tw:text-sm tw:text-faint tw:max-md:h-40 tw:max-md:w-full">
+        <div className="grid h-32 w-56 place-items-center rounded-lg border border-dashed border-input text-sm text-faint max-md:h-40 max-md:w-full">
           Не задано
         </div>
       )}
-      <div className="tw:flex tw:gap-2">
+      <div className="flex gap-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -144,7 +144,7 @@ function BackgroundImageUpload({ user }) {
             variant="ghost"
             size="sm"
             disabled={loading}
-            className="tw:text-destructive tw:hover:bg-destructive/10 tw:hover:text-destructive"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={handleDelete}
           >
             Удалить

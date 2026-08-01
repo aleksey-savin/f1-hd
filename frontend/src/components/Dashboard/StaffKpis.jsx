@@ -85,14 +85,15 @@ const StaffKpis = () => {
   );
 
   const current = overtime?.totals?.overtime?.roundedMinutes ?? null;
-  const previous = overtime?.prevPeriod?.totals?.overtime?.roundedMinutes ?? null;
+  const previous =
+    overtime?.prevPeriod?.totals?.overtime?.roundedMinutes ?? null;
   const delta =
     current !== null && previous
       ? Math.round(((current - previous) / previous) * 100)
       : null;
 
   return (
-    <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:lg:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
       <StatTile label="На мне заявок" value={mineCount} />
 
       {seesOthers && (
@@ -115,7 +116,11 @@ const StaffKpis = () => {
           delta={
             <StatTileDelta
               direction={
-                delta === null || delta === 0 ? "flat" : delta > 0 ? "up" : "down"
+                delta === null || delta === 0
+                  ? "flat"
+                  : delta > 0
+                    ? "up"
+                    : "down"
               }
               percentage={delta}
               hint="к прошлому месяцу"

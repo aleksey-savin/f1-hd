@@ -56,7 +56,7 @@ const Setup = () => {
 
       {failure && <AlertMessage variant="danger" message={failure.message} />}
 
-      <Form method="post" className="tw:mt-5">
+      <Form method="post" className="mt-5">
         <Field label="Название компании" htmlFor="companyFullTitle" required>
           <Input
             id="companyFullTitle"
@@ -67,7 +67,7 @@ const Setup = () => {
           />
         </Field>
 
-        <div className="tw:grid tw:gap-3 tw:sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Имя" htmlFor="userFirstName" required>
             <Input
               id="userFirstName"
@@ -114,7 +114,7 @@ const Setup = () => {
           />
         </Field>
 
-        <Button type="submit" disabled={submitting} className="tw:mt-1 tw:w-full">
+        <Button type="submit" disabled={submitting} className="mt-1 w-full">
           {submitting ? "Сохраняем…" : "Сохранить"}
         </Button>
       </Form>

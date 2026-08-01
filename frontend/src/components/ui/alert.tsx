@@ -1,7 +1,7 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 // Точечный фикс генератора: shadcn пишет колонку под иконку как
 // calc(var(--spacing)*4), но у нас Tailwind подключён с префиксом, и тема
@@ -9,28 +9,28 @@ import { cn } from "@/lib/utils"
 // grid-template-columns невалидным, колонки становятся auto и делят свободное
 // место поровну (текст алерта с иконкой уезжал на середину). Ставим литерал.
 const alertVariants = cva(
-  "tw:relative tw:grid tw:w-full tw:grid-cols-[0_1fr] tw:items-start tw:gap-y-0.5 tw:rounded-lg tw:border tw:px-4 tw:py-3 tw:text-sm tw:has-[>svg]:grid-cols-[1rem_1fr] tw:has-[>svg]:gap-x-3 tw:[&>svg]:size-4 tw:[&>svg]:translate-y-0.5 tw:[&>svg]:text-current",
+  "relative grid w-full grid-cols-[0_1fr] items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm has-[>svg]:grid-cols-[1rem_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current",
   {
     variants: {
       variant: {
-        default: "tw:bg-card tw:text-card-foreground",
+        default: "bg-card text-card-foreground",
         destructive:
-          "tw:bg-card tw:text-destructive tw:*:data-[slot=alert-description]:text-destructive/90 tw:[&>svg]:text-current",
+          "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 [&>svg]:text-current",
         // Семантика bootstrap-палитры: подкрашенный фон в духе прежних алертов
         success:
-          "tw:border-success/30 tw:bg-success/10 tw:text-success tw:*:data-[slot=alert-description]:text-success/90 tw:[&>svg]:text-current",
+          "border-success/30 bg-success/10 text-success *:data-[slot=alert-description]:text-success/90 [&>svg]:text-current",
         warning:
-          "tw:border-warning/30 tw:bg-warning/10 tw:text-warning tw:*:data-[slot=alert-description]:text-warning/90 tw:[&>svg]:text-current",
-        info: "tw:border-info/30 tw:bg-info/10 tw:text-info tw:*:data-[slot=alert-description]:text-info/90 tw:[&>svg]:text-current",
+          "border-warning/30 bg-warning/10 text-warning *:data-[slot=alert-description]:text-warning/90 [&>svg]:text-current",
+        info: "border-info/30 bg-info/10 text-info *:data-[slot=alert-description]:text-info/90 [&>svg]:text-current",
         // Нейтральная плашка (бывший variant="light": пустые состояния, счётчики)
-        light: "tw:border-transparent tw:bg-muted/60 tw:text-muted-foreground",
+        light: "border-transparent bg-muted/60 text-muted-foreground",
       },
     },
     defaultVariants: {
       variant: "default",
     },
-  }
-)
+  },
+);
 
 function Alert({
   className,
@@ -44,7 +44,7 @@ function Alert({
       className={cn(alertVariants({ variant }), className)}
       {...props}
     />
-  )
+  );
 }
 
 function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
@@ -52,12 +52,12 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-title"
       className={cn(
-        "tw:col-start-2 tw:line-clamp-1 tw:min-h-4 tw:font-medium tw:tracking-tight",
-        className
+        "col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight",
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function AlertDescription({
@@ -68,12 +68,12 @@ function AlertDescription({
     <div
       data-slot="alert-description"
       className={cn(
-        "tw:col-start-2 tw:grid tw:justify-items-start tw:gap-1 tw:text-sm tw:text-muted-foreground tw:[&_p]:leading-relaxed",
-        className
+        "col-start-2 grid justify-items-start gap-1 text-sm text-muted-foreground [&_p]:leading-relaxed",
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
-export { Alert, AlertTitle, AlertDescription }
+export { Alert, AlertTitle, AlertDescription };

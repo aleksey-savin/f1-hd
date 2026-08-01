@@ -49,11 +49,12 @@ export function DeleteDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>{item.title || item.alias}</AlertDialogTitle>
             <AlertDialogDescription>
-              {customDeleteMessage || "Вы уверены? Это действие нельзя отменить."}
+              {customDeleteMessage ||
+                "Вы уверены? Это действие нельзя отменить."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <input type="hidden" name="id" value={item._id} readOnly />
-          <AlertDialogFooter className="tw:mt-4">
+          <AlertDialogFooter className="mt-4">
             <AlertDialogCancel type="button">Отмена</AlertDialogCancel>
             <Button
               variant="destructive"
@@ -83,7 +84,7 @@ const DeleteItem = ({
     <>
       <Button
         variant="destructive"
-        className="tw:mb-2 tw:w-full"
+        className="mb-2 w-full"
         onClick={() => setOpen(true)}
       >
         <RiDeleteBinLine /> Удалить

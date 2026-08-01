@@ -51,34 +51,37 @@ const MySupport = () => {
     <section>
       <Eyebrow>Кто ведёт вашу компанию</Eyebrow>
       <Panel>
-        <div className="tw:-mx-5 tw:-my-5">
+        <div className="-mx-5 -my-5">
           {people.map((person) => {
             const name = `${person.firstName} ${person.lastName}`.trim();
             return (
               <div
                 key={person._id || person.email || name}
-                className="tw:flex tw:items-center tw:gap-3 tw:border-b tw:border-border-soft tw:px-5 tw:py-3 tw:last:border-b-0"
+                className="flex items-center gap-3 border-b border-border-soft px-5 py-3 last:border-b-0"
               >
-                <span className="tw:flex tw:size-9 tw:flex-none tw:items-center tw:justify-center tw:rounded-full tw:bg-accent tw:text-xs tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border-soft">
+                <span className="flex size-9 flex-none items-center justify-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border-soft">
                   {monogramFor(name)}
                 </span>
-                <span className="tw:min-w-0 tw:flex-1">
-                  <span className="tw:block tw:truncate tw:text-sm tw:font-semibold">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">
                     {name || "—"}
                   </span>
-                  <span className="tw:block tw:truncate tw:text-sm tw:text-muted-foreground">
+                  <span className="block truncate text-sm text-muted-foreground">
                     {person.position || "—"}
                   </span>
                 </span>
-                <span className="tw:flex tw:flex-none tw:gap-1">
+                <span className="flex flex-none gap-1">
                   {person.phone && (
                     <Button
                       asChild
                       variant="ghost"
                       size="icon-xs"
-                      className="tw:text-muted-foreground"
+                      className="text-muted-foreground"
                     >
-                      <a href={`tel:${person.phone}`} aria-label={`Позвонить: ${name}`}>
+                      <a
+                        href={`tel:${person.phone}`}
+                        aria-label={`Позвонить: ${name}`}
+                      >
                         <RiPhoneLine />
                       </a>
                     </Button>
@@ -88,9 +91,12 @@ const MySupport = () => {
                       asChild
                       variant="ghost"
                       size="icon-xs"
-                      className="tw:text-muted-foreground"
+                      className="text-muted-foreground"
                     >
-                      <a href={`mailto:${person.email}`} aria-label={`Написать: ${name}`}>
+                      <a
+                        href={`mailto:${person.email}`}
+                        aria-label={`Написать: ${name}`}
+                      >
                         <RiMailLine />
                       </a>
                     </Button>
@@ -101,15 +107,15 @@ const MySupport = () => {
           })}
 
           {(supportPhone || supportEmail) && (
-            <div className="tw:flex tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:px-5 tw:py-3">
-              <span className="tw:flex tw:size-9 tw:flex-none tw:items-center tw:justify-center tw:rounded-full tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border-soft">
+            <div className="flex items-center gap-3 border-t border-border-soft px-5 py-3">
+              <span className="flex size-9 flex-none items-center justify-center rounded-full bg-accent text-muted-foreground inset-ring inset-ring-border-soft">
                 <RiPhoneLine size={15} aria-hidden />
               </span>
-              <span className="tw:min-w-0 tw:flex-1">
-                <span className="tw:block tw:truncate tw:text-sm tw:font-semibold">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold">
                   {supportPhone || supportEmail}
                 </span>
-                <span className="tw:block tw:truncate tw:text-sm tw:text-muted-foreground">
+                <span className="block truncate text-sm text-muted-foreground">
                   Общая линия поддержки
                   {supportPhone && supportEmail ? ` · ${supportEmail}` : ""}
                 </span>

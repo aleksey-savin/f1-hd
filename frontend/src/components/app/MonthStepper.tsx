@@ -28,7 +28,7 @@ const MONTH_LABEL = new Intl.DateTimeFormat("ru-RU", {
 const shortDate = (value: string) => value.split("-").reverse().join(".");
 
 const arrowClass =
-  "tw:grid tw:size-8 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-md tw:border-0 tw:bg-transparent tw:p-0 tw:text-muted-foreground tw:transition-colors tw:outline-none tw:hover:bg-accent tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:disabled:cursor-default tw:disabled:opacity-40 tw:disabled:hover:bg-transparent";
+  "grid size-8 flex-none cursor-pointer appearance-none place-items-center rounded-md border-0 bg-transparent p-0 text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent";
 
 const MonthStepper = ({
   from,
@@ -47,7 +47,11 @@ const MonthStepper = ({
   const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const anchorDay = from ? parseIsoDay(from) : to ? parseIsoDay(to) : now;
-  const anchorMonth = new Date(anchorDay.getFullYear(), anchorDay.getMonth(), 1);
+  const anchorMonth = new Date(
+    anchorDay.getFullYear(),
+    anchorDay.getMonth(),
+    1,
+  );
 
   const isEmpty = !from && !to;
   const fullMonth = monthRange(anchorMonth);
@@ -62,7 +66,9 @@ const MonthStepper = ({
 
   const step = (delta: number) => {
     const base = isEmpty ? currentMonth : anchorMonth;
-    onChange(monthRange(new Date(base.getFullYear(), base.getMonth() + delta, 1)));
+    onChange(
+      monthRange(new Date(base.getFullYear(), base.getMonth() + delta, 1)),
+    );
   };
 
   const nextDisabled = allowFuture
@@ -72,7 +78,7 @@ const MonthStepper = ({
   return (
     <div
       className={cn(
-        "tw:inline-flex tw:h-9 tw:flex-none tw:items-center tw:gap-0.5 tw:rounded-lg tw:border tw:border-input tw:px-0.5",
+        "inline-flex h-9 flex-none items-center gap-0.5 rounded-lg border border-input px-0.5",
         className,
       )}
     >
@@ -84,7 +90,7 @@ const MonthStepper = ({
       >
         <RiArrowLeftSLine size={16} aria-hidden />
       </button>
-      <span className="tw:min-w-24 tw:px-1 tw:text-center tw:text-sm tw:font-medium tw:whitespace-nowrap tw:tabular-nums">
+      <span className="min-w-24 px-1 text-center text-sm font-medium whitespace-nowrap tabular-nums">
         {label}
       </span>
       <button

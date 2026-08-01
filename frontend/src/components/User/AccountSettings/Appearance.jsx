@@ -11,31 +11,22 @@ import BackgroundImageUpload from "./BackgroundImageUpload";
 const Appearance = ({ user }) => {
   const { theme, setTheme } = useContext(ThemeContext);
 
-  const changeTheme = (value) => {
-    if (value === theme) return;
-    setTheme(value);
-    // Легаси-CSS (bootstrap-темы) до эндшпиля миграции подхватывает
-    // тему только с перезагрузкой — как при смене темы из навбара.
-    window.location.reload();
-  };
+  const changeTheme = (value) => setTheme(value);
 
   return (
     <>
-      <SettingRow
-        title="Тема"
-        hint="Применяется сразу на этом устройстве."
-      >
+      <SettingRow title="Тема" hint="Применяется сразу на этом устройстве.">
         <ThemeSegment
           theme={theme}
           onChange={changeTheme}
-          className="tw:max-md:flex"
+          className="max-md:flex"
         />
       </SettingRow>
       <SettingRow
         divider
         title="Фоновое изображение"
         hint="Показывается за панелями главного экрана. JPG, PNG или GIF, до 5 МБ."
-        className="tw:items-start"
+        className="items-start"
       >
         <BackgroundImageUpload user={user} />
       </SettingRow>

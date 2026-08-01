@@ -50,7 +50,9 @@ const EmployeesReport = () => {
   }, []);
 
   const switchView = (value: string) => {
-    setSearchParams(value === "stats" ? {} : { view: value }, { replace: true });
+    setSearchParams(value === "stats" ? {} : { view: value }, {
+      replace: true,
+    });
     // Смена query не меняет pathname — скролл-ресеты Root не срабатывают
     window.scrollTo(0, 0);
     document.querySelector(".mobile-shell__scroll")?.scrollTo(0, 0);
@@ -92,7 +94,7 @@ const EmployeesReport = () => {
     <AlertMessage
       variant="danger"
       message={
-        <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+        <span className="flex flex-wrap items-center gap-3">
           {s.error}
           <Button variant="outline" size="xs" onClick={() => s.fetch()}>
             Повторить
@@ -114,13 +116,13 @@ const EmployeesReport = () => {
     body = s.error ? (
       errorBanner
     ) : (
-      <div className="tw:space-y-6">
-        <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-4 tw:xl:gap-4">
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
           {[0, 1, 2, 3].map((index) => (
-            <Skeleton key={index} className="tw:h-28 tw:rounded-xl" />
+            <Skeleton key={index} className="h-28 rounded-xl" />
           ))}
         </div>
-        <Skeleton className="tw:h-80 tw:rounded-xl" />
+        <Skeleton className="h-80 rounded-xl" />
       </div>
     );
   } else if (data.totals.worksCount === 0) {

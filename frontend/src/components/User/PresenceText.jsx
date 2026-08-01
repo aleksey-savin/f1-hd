@@ -8,17 +8,17 @@ const PresenceText = ({ presence, className, showNote = true }) => {
 
   return (
     <span
-      className={cn("tw:inline-flex tw:items-center tw:gap-2", className)}
+      className={cn("inline-flex items-center gap-2", className)}
       style={{ color: unset ? "var(--faint)" : meta.color }}
     >
       <span
         aria-hidden
-        className="tw:size-2 tw:flex-none tw:rounded-full"
+        className="size-2 flex-none rounded-full"
         style={{ background: unset ? "var(--ws-st-unset)" : meta.color }}
       />
       {meta.label}
       {showNote && note && (
-        <span className="tw:font-normal tw:text-faint">· {note}</span>
+        <span className="font-normal text-faint">· {note}</span>
       )}
     </span>
   );

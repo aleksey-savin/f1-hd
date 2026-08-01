@@ -104,7 +104,7 @@ const AnchorRail = ({
       aria-label={ariaLabel}
       style={style}
       className={cn(
-        "tw:sticky tw:top-28 tw:flex tw:w-48 tw:flex-none tw:flex-col tw:gap-0.5",
+        "sticky top-28 flex w-48 flex-none flex-col gap-0.5",
         className,
       )}
     >
@@ -115,10 +115,10 @@ const AnchorRail = ({
           onClick={(event) => go(event, section.id)}
           aria-current={active === section.id ? "true" : undefined}
           className={cn(
-            "tw:rounded-lg tw:px-3 tw:py-1.5 tw:text-base tw:font-medium tw:no-underline tw:transition-colors",
+            "rounded-lg px-3 py-1.5 text-base font-medium no-underline transition-colors",
             active === section.id
-              ? "tw:bg-primary/15 tw:text-accent-text tw:hover:text-accent-text"
-              : "tw:text-muted-foreground tw:hover:bg-accent tw:hover:text-foreground",
+              ? "bg-primary/15 text-accent-text hover:text-accent-text"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
           )}
         >
           {section.label}

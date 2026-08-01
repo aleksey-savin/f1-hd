@@ -123,9 +123,15 @@ export function buildMenu({
         ),
       knowledgeBase &&
         canSeeKnowledgeBase &&
-        link("knowledge-base", "База знаний", RiBookOpenLine, "/knowledge-base", {
-          shortLabel: "База знаний",
-        }),
+        link(
+          "knowledge-base",
+          "База знаний",
+          RiBookOpenLine,
+          "/knowledge-base",
+          {
+            shortLabel: "База знаний",
+          },
+        ),
       reports.length > 0 && {
         key: "reports",
         label: "Отчёты",
@@ -160,12 +166,22 @@ export function buildMenu({
         finances &&
           canUseFinancesModule &&
           (canSeeGlobalFinancialReport || isAdmin) &&
-          link("fin-employees", "Сотрудники", RiTeamLine, "/finances/employees"),
+          link(
+            "fin-employees",
+            "Сотрудники",
+            RiTeamLine,
+            "/finances/employees",
+          ),
         finances &&
           canUseFinancesModule &&
           !(canSeeGlobalFinancialReport || isAdmin) &&
           canSeePersonalFinancialReport &&
-          link("fin-personal", "Мой отчёт", RiContactsLine, "/finances/my-report"),
+          link(
+            "fin-personal",
+            "Мой отчёт",
+            RiContactsLine,
+            "/finances/my-report",
+          ),
         finances &&
           canUseFinancesModule &&
           canSeeGlobalFinancialReport &&
@@ -186,7 +202,12 @@ export function buildMenu({
   const peopleItems = [
     (canPerformTickets || canManageUsers || isAdmin) &&
       link("users", "Пользователи", RiContactsLine, "/users"),
-    link("team-calendar", "Календарь команды", RiCalendar2Line, "/team/calendar"),
+    link(
+      "team-calendar",
+      "Календарь команды",
+      RiCalendar2Line,
+      "/team/calendar",
+    ),
   ].filter(Boolean);
 
   // Группы «Администрирования» подписаны по модулям; «Компании»,

@@ -34,10 +34,14 @@ const NoteBulkActionBar = () => {
   const { showToast } = useToastStore();
   const refreshCounts = useKnowledgeModerationStore((state) => state.refresh);
 
-  const moderationMode = useKnowledgeNotesStore((state) => state.moderationMode);
+  const moderationMode = useKnowledgeNotesStore(
+    (state) => state.moderationMode,
+  );
   const selectedIds = useKnowledgeNotesStore((state) => state.selectedIds);
   const originalList = useKnowledgeNotesStore((state) => state.originalList);
-  const clearSelection = useKnowledgeNotesStore((state) => state.clearSelection);
+  const clearSelection = useKnowledgeNotesStore(
+    (state) => state.clearSelection,
+  );
   const fetchNotes = useKnowledgeNotesStore((state) => state.fetch);
 
   const [openModal, setOpenModal] = useState(null);

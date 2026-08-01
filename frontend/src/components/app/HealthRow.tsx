@@ -17,14 +17,14 @@ import { cn } from "@/lib/utils";
 // Канон «Статус, который протухает, — предложение, а не бейдж» (ux-ui-guide):
 // цветом красим только иконку и само состояние, дату и детали — muted.
 
-export type HealthState = "ok" | "error" | "warning" | "busy" | "idle";
+type HealthState = "ok" | "error" | "warning" | "busy" | "idle";
 
 const TONE: Record<HealthState, string> = {
-  ok: "tw:text-accent-text",
-  error: "tw:text-destructive",
-  warning: "tw:text-warning",
-  busy: "tw:text-muted-foreground",
-  idle: "tw:text-faint",
+  ok: "text-accent-text",
+  error: "text-destructive",
+  warning: "text-warning",
+  busy: "text-muted-foreground",
+  idle: "text-faint",
 };
 
 const ICON: Record<HealthState, typeof RiCheckLine> = {
@@ -56,8 +56,8 @@ const HealthRow = ({
   return (
     <div
       className={cn(
-        "tw:flex tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:bg-foreground/[0.03] tw:px-5 tw:py-3.5",
-        "tw:max-md:flex-wrap",
+        "flex items-center gap-3 border-t border-border-soft bg-foreground/[0.03] px-5 py-3.5",
+        "max-md:flex-wrap",
         className,
       )}
     >
@@ -65,24 +65,22 @@ const HealthRow = ({
         aria-hidden
         size={20}
         className={cn(
-          "tw:flex-none",
+          "flex-none",
           TONE[state],
-          state === "busy" && "tw:animate-spin",
+          state === "busy" && "animate-spin",
         )}
       />
-      <div className="tw:min-w-0">
-        <div className="tw:text-[0.9375rem]">
-          <span className={cn("tw:font-semibold", TONE[state])}>{title}</span>
-          {meta && <span className="tw:text-muted-foreground">{meta}</span>}
+      <div className="min-w-0">
+        <div className="text-[0.9375rem]">
+          <span className={cn("font-semibold", TONE[state])}>{title}</span>
+          {meta && <span className="text-muted-foreground">{meta}</span>}
         </div>
         {hint && (
-          <div className="tw:mt-0.5 tw:text-sm tw:text-muted-foreground">
-            {hint}
-          </div>
+          <div className="mt-0.5 text-sm text-muted-foreground">{hint}</div>
         )}
       </div>
       {action && (
-        <div className="tw:ms-auto tw:flex-none tw:max-md:ms-0 tw:max-md:w-full tw:max-md:[&>button]:w-full">
+        <div className="ms-auto flex-none max-md:ms-0 max-md:w-full max-md:[&>button]:w-full">
           {action}
         </div>
       )}

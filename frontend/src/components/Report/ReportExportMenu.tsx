@@ -32,10 +32,39 @@ const TARIFF_LABEL: Record<string, string> = {
 };
 
 const TRANSLIT: Record<string, string> = {
-  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z",
-  и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r",
-  с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "c", ч: "ch", ш: "sh", щ: "sch",
-  ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
+  а: "a",
+  б: "b",
+  в: "v",
+  г: "g",
+  д: "d",
+  е: "e",
+  ё: "e",
+  ж: "zh",
+  з: "z",
+  и: "i",
+  й: "y",
+  к: "k",
+  л: "l",
+  м: "m",
+  н: "n",
+  о: "o",
+  п: "p",
+  р: "r",
+  с: "s",
+  т: "t",
+  у: "u",
+  ф: "f",
+  х: "h",
+  ц: "c",
+  ч: "ch",
+  ш: "sh",
+  щ: "sch",
+  ъ: "",
+  ы: "y",
+  ь: "",
+  э: "e",
+  ю: "yu",
+  я: "ya",
 };
 
 const translit = (value: string) =>
@@ -72,7 +101,9 @@ const headerRows = (report: any) => {
     ],
     [
       "Стоимость в нерабочее время",
-      terms.pricePerHourNonWorking ? `${terms.pricePerHourNonWorking} ₽/час` : "",
+      terms.pricePerHourNonWorking
+        ? `${terms.pricePerHourNonWorking} ₽/час`
+        : "",
     ],
   ];
 };
@@ -104,7 +135,9 @@ const HEAD = [
 ];
 
 const totalsRows = (report: any) => {
-  const rows: [string, number][] = [["Оплата по тарифу", money(report.calc?.price)]];
+  const rows: [string, number][] = [
+    ["Оплата по тарифу", money(report.calc?.price)],
+  ];
   if (report.calc?.additionalPrice) {
     rows.push(["Оплата в нерабочее время", money(report.calc.additionalPrice)]);
   }
@@ -249,7 +282,9 @@ ${table(HEAD, worksRows(report.worktimeWorks || [], false))}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={exportExcel}>Excel (.xlsx)</DropdownMenuItem>
+        <DropdownMenuItem onSelect={exportExcel}>
+          Excel (.xlsx)
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={exportPdf}>PDF (печать)</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

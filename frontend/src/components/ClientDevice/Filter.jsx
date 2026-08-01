@@ -4,7 +4,8 @@ import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
-import Select from "../../UI/Select";
+import { MultiCombobox } from "@/components/app/Combobox";
+
 import useClientDeviceFilterStore from "../../store/lists/client-devices";
 
 /**
@@ -33,22 +34,18 @@ const ClientDeviceFilter = () => {
     [options.locations, facets.companies],
   );
 
+  // Фасеты хранятся массивами id — MultiCombobox говорит ими же
   const multi = (key, optionList) => ({
-    isMulti: true,
     options: optionList,
-    value: optionList.filter((option) => facets[key].includes(option.value)),
-    onChange: (selected) =>
-      setFacet(
-        key,
-        (selected || []).map((option) => option.value),
-      ),
+    value: facets[key],
+    onChange: (values) => setFacet(key, values),
   });
 
   return (
     <FilterContainer resetFilterHandler={resetFilter}>
-      <div className="tw:space-y-4 tw:pt-4">
+      <div className="space-y-4 pt-4">
         <Field label="Компании" htmlFor="device-filter-companies">
-          <Select
+          <MultiCombobox
             id="device-filter-companies"
             placeholder="Все компании"
             {...multi("companies", options.companies)}
@@ -63,21 +60,21 @@ const ClientDeviceFilter = () => {
               : "Выберите компанию, чтобы сузить список расположений"
           }
         >
-          <Select
+          <MultiCombobox
             id="device-filter-locations"
             placeholder="Любое"
             {...multi("locations", locationOptions)}
           />
         </Field>
         <Field label="Закреплено за" htmlFor="device-filter-users">
-          <Select
+          <MultiCombobox
             id="device-filter-users"
             placeholder="Любой сотрудник"
             {...multi("users", options.users)}
           />
         </Field>
         <Field label="Тип устройства" htmlFor="device-filter-types">
-          <Select
+          <MultiCombobox
             id="device-filter-types"
             placeholder="Любой"
             {...multi("types", options.types)}
@@ -88,7 +85,7 @@ const ClientDeviceFilter = () => {
           htmlFor="device-filter-vendors"
           hint="Самосборные устройства — «Кастомная сборка»"
         >
-          <Select
+          <MultiCombobox
             id="device-filter-vendors"
             placeholder="Любой"
             {...multi("vendors", options.vendors)}
@@ -98,7 +95,7 @@ const ClientDeviceFilter = () => {
         {/* Детали сборок в реестре не показываются: они не выдаются и не
             перемещаются сами по себе. Свитч — для просмотра («все модули
             памяти»); поиск находит их и без него. */}
-        <div className="tw:border-t tw:border-border-soft tw:pt-4">
+        <div className="border-t border-border-soft pt-4">
           <SwitchField
             id="device-filter-components"
             label="Показывать комплектующие"

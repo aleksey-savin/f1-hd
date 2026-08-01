@@ -20,13 +20,17 @@ import ScheduleBuilder from "@/components/app/ScheduleBuilder";
 import { isValidCron } from "@/util/cron";
 import { cn } from "@/lib/utils";
 
-import Select from "../../UI/Select";
+import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import MarkdownEditor from "../../UI/MarkdownEditor";
 import useOffcanvasStore from "../../store/offcanvas";
 import { getLocalStorageData } from "../../util/auth";
 import Summary from "./Summary";
 
-const STEPS = [{ label: "Основное" }, { label: "Расписание" }, { label: "Чек-лист" }];
+const STEPS = [
+  { label: "Основное" },
+  { label: "Расписание" },
+  { label: "Чек-лист" },
+];
 const LAST = STEPS.length - 1;
 const CHECKLIST_STEP = 2;
 // Ключи секций правки = якоря: ярлык «Изменить» у чек-листа на карточке
@@ -34,7 +38,10 @@ const CHECKLIST_STEP = 2;
 const SECTION_KEYS = ["basic", "schedule", "checklist"];
 
 const stepMeta = [
-  { title: "Основное", desc: "Тема, описание, куда пойдёт заявка и кто отвечает" },
+  {
+    title: "Основное",
+    desc: "Тема, описание, куда пойдёт заявка и кто отвечает",
+  },
   { title: "Расписание", desc: "Когда автоматически создавать заявку" },
   {
     title: "Чек-лист",
@@ -214,15 +221,15 @@ const RoutineTaskForm = () => {
 
   /* ---------- «Основа» (шаблон-источник) ---------- */
   const sourceBlock = sourceTemplate ? (
-    <div className="tw:mb-5 tw:flex tw:items-center tw:gap-3 tw:rounded-xl tw:border tw:border-primary/25 tw:bg-primary/6 tw:p-3 tw:pl-3.5">
-      <span className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-primary/15 tw:text-accent-text tw:[&_svg]:size-5">
+    <div className="mb-5 flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/6 p-3 pl-3.5">
+      <span className="grid size-9 flex-none place-items-center rounded-lg bg-primary/15 text-accent-text [&_svg]:size-5">
         <RiFileList3Line />
       </span>
-      <div className="tw:min-w-0 tw:flex-1">
-        <div className="tw:text-sm tw:font-semibold">
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold">
           Основа: шаблон «{sourceTemplate.title}»
         </div>
-        <div className="tw:text-xs tw:text-muted-foreground">
+        <div className="text-xs text-muted-foreground">
           Поля скопированы из шаблона; связь сохранится для синхронизации
         </div>
       </div>
@@ -239,22 +246,29 @@ const RoutineTaskForm = () => {
     </div>
   ) : (
     !isEdit && (
-      <div className="tw:mb-5">
+      <div className="mb-5">
         <Field
           label="Основа (необязательно)"
           htmlFor="rt-source"
           hint="Выберите шаблон — тема, описание, категория и чек-лист заполнятся автоматически"
         >
-          <Select
+          {/* Значение всегда null: это не поле, а разовое действие —
+              выбрал шаблон, поля заполнились, список снова пуст */}
+          <Combobox
             id="rt-source"
             placeholder="Взять за основу шаблон…"
-            isClearable
-            isSearchable
             value={null}
-            options={formData.templates || []}
-            getOptionLabel={(option) => option.title}
-            getOptionValue={(option) => option._id}
-            onChange={applyTemplate}
+            options={toOptions(formData.templates || [], {
+              value: (option) => String(option._id),
+              label: (option) => option.title,
+            })}
+            onChange={(id) =>
+              applyTemplate(
+                (formData.templates || []).find(
+                  (option) => String(option._id) === id,
+                ) || null,
+              )
+            }
           />
         </Field>
       </div>
@@ -273,7 +287,7 @@ const RoutineTaskForm = () => {
         />
       </Field>
       <Field label="Описание">
-        <div className="md-editor tw:overflow-hidden tw:rounded-lg tw:border tw:border-input">
+        <div className="md-editor overflow-hidden rounded-lg border border-input">
           <MarkdownEditor
             key={sourceTemplate?._id || "rt-blank"}
             initialValue={form.description}
@@ -283,31 +297,47 @@ const RoutineTaskForm = () => {
           />
         </div>
       </Field>
-      <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <Field label="Категория" htmlFor="rt-category" required>
-          <Select
+          <Combobox
             id="rt-category"
             placeholder="Выберите категорию"
-            isClearable
-            isSearchable
-            value={form.category}
-            options={formData.categories || []}
-            getOptionLabel={(option) => option.title}
-            getOptionValue={(option) => option._id}
-            onChange={(selected) => setField("category", selected)}
+            value={form.category?._id ? String(form.category._id) : null}
+            options={toOptions(formData.categories || [], {
+              value: (option) => String(option._id),
+              label: (option) => option.title,
+            })}
+            onChange={(id) =>
+              setField(
+                "category",
+                (formData.categories || []).find(
+                  (option) => String(option._id) === id,
+                ) || null,
+              )
+            }
+            clearable
+            clearLabel="Не выбрано"
           />
         </Field>
         <Field label="Компания" htmlFor="rt-company" required>
-          <Select
+          <Combobox
             id="rt-company"
             placeholder="Выберите компанию"
-            isClearable
-            isSearchable
-            value={form.company}
-            options={formData.companies || []}
-            getOptionLabel={(option) => option.alias}
-            getOptionValue={(option) => option._id}
-            onChange={(selected) => setField("company", selected)}
+            value={form.company?._id ? String(form.company._id) : null}
+            options={toOptions(formData.companies || [], {
+              value: (option) => String(option._id),
+              label: (option) => option.alias,
+            })}
+            onChange={(id) =>
+              setField(
+                "company",
+                (formData.companies || []).find(
+                  (option) => String(option._id) === id,
+                ) || null,
+              )
+            }
+            clearable
+            clearLabel="Не выбрано"
           />
         </Field>
       </div>
@@ -317,16 +347,24 @@ const RoutineTaskForm = () => {
         required
         hint="Заявки создаются от имени сервисного аккаунта"
       >
-        <Select
+        <Combobox
           id="rt-applicant"
           placeholder="Выберите инициатора"
-          isClearable
-          isSearchable
-          value={form.applicant}
-          options={formData.serviceAccounts || []}
-          getOptionLabel={(option) => option.firstName}
-          getOptionValue={(option) => option._id}
-          onChange={(selected) => setField("applicant", selected)}
+          value={form.applicant?._id ? String(form.applicant._id) : null}
+          options={toOptions(formData.serviceAccounts || [], {
+            value: (option) => String(option._id),
+            label: (option) => option.firstName,
+          })}
+          onChange={(id) =>
+            setField(
+              "applicant",
+              (formData.serviceAccounts || []).find(
+                (option) => String(option._id) === id,
+              ) || null,
+            )
+          }
+          clearable
+          clearLabel="Не выбрано"
         />
       </Field>
       <Field
@@ -334,18 +372,21 @@ const RoutineTaskForm = () => {
         htmlFor="rt-responsibles"
         hint="Необязательно. Указанные сотрудники сразу назначаются на создаваемую заявку."
       >
-        <Select
+        <MultiCombobox
           id="rt-responsibles"
           placeholder="Не назначать — или выберите сотрудников"
-          isMulti
-          isClearable
-          isSearchable
-          closeMenuOnSelect={false}
-          value={responsibles}
-          options={formData.responsibles || []}
-          getOptionLabel={(option) => fullName(option) || "Без имени"}
-          getOptionValue={(option) => option._id}
-          onChange={(selected) => setResponsibles(selected || [])}
+          value={(responsibles || []).map((user) => String(user._id))}
+          options={toOptions(formData.responsibles || [], {
+            value: (option) => String(option._id),
+            label: (option) => fullName(option) || "Без имени",
+          })}
+          onChange={(ids) =>
+            setResponsibles(
+              (formData.responsibles || []).filter((option) =>
+                ids.includes(String(option._id)),
+              ),
+            )
+          }
         />
       </Field>
     </>
@@ -354,7 +395,7 @@ const RoutineTaskForm = () => {
   const scheduleFields = (
     <>
       <ScheduleBuilder value={cronSchedule} onChange={setCronSchedule} />
-      <div className="tw:mt-2 tw:border-t tw:border-border-soft tw:pt-2">
+      <div className="mt-2 border-t border-border-soft pt-2">
         <SwitchField
           id="rt-active"
           checked={form.isActive}
@@ -409,24 +450,24 @@ const RoutineTaskForm = () => {
             maxReached={maxReached}
             onStepClick={handleStepClick}
           />
-          <div className="tw:mt-6 tw:flex tw:flex-col tw:gap-6 tw:md:flex-row">
-            <div className="tw:min-w-0 tw:flex-1">
-              <div className="tw:mb-4">
-                <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
+          <div className="mt-6 flex flex-col gap-6 md:flex-row">
+            <div className="min-w-0 flex-1">
+              <div className="mb-4">
+                <h3 className="my-0 text-base font-semibold tracking-tight">
                   {stepMeta[step].title}
                 </h3>
-                <p className="tw:mt-0.5 tw:mb-0 tw:text-sm tw:text-muted-foreground">
+                <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
                   {stepMeta[step].desc}
                 </p>
               </div>
               {stepBody(step)}
               {attempted && stepError(step) && (
-                <p className="tw:mt-2 tw:mb-0 tw:text-sm tw:text-destructive">
+                <p className="mt-2 mb-0 text-sm text-destructive">
                   {stepError(step)}
                 </p>
               )}
             </div>
-            <div className="tw:md:w-72 tw:md:flex-none">
+            <div className="md:w-72 md:flex-none">
               <Summary
                 form={summaryForm}
                 cronSchedule={cronSchedule}
@@ -442,20 +483,25 @@ const RoutineTaskForm = () => {
       )}
 
       {fetcher.data && fetcher.data.error && (
-        <div className="tw:mt-4">
+        <div className="mt-4">
           <AlertMessage variant="danger" message={fetcher.data.message} />
         </div>
       )}
 
       <div
         className={cn(
-          "tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:gap-2.5 tw:border-t tw:border-border-soft tw:bg-background tw:px-6 tw:py-3",
+          "sticky bottom-0 -mx-6 mt-6 flex items-center gap-2.5 border-t border-border-soft bg-background px-6 py-3",
         )}
       >
-        <Button type="button" variant="ghost" onClick={handleClose} disabled={saving}>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleClose}
+          disabled={saving}
+        >
           Отмена
         </Button>
-        <div className="tw:ml-auto tw:flex tw:items-center tw:gap-2.5">
+        <div className="ml-auto flex items-center gap-2.5">
           {isEdit ? (
             <Button type="button" onClick={handleSubmit} disabled={saving}>
               <RiCheckLine /> Сохранить

@@ -48,8 +48,8 @@ const DashboardClient = () => {
   return (
     <>
       <TemplateTiles />
-      <div className="tw:mt-6 tw:grid tw:gap-5 tw:xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] tw:xl:items-start">
-        <div className="tw:flex tw:flex-col tw:gap-5">
+      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start">
+        <div className="flex flex-col gap-5">
           <MyTicketsClient />
           {showTech && (
             <div>
@@ -62,7 +62,7 @@ const DashboardClient = () => {
             </div>
           )}
         </div>
-        <div className="tw:flex tw:flex-col tw:gap-5">
+        <div className="flex flex-col gap-5">
           <MySupport />
           <ServiceExpiry />
         </div>
@@ -78,21 +78,21 @@ const DashboardStaff = () => {
   const showTemplates = isAdmin || !!permissions?.canAdministrateTickets;
 
   return (
-  <>
-    <StaffKpis />
-    <div className="tw:mt-6 tw:grid tw:gap-5 tw:xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] tw:xl:items-start">
-      <div className="tw:flex tw:flex-col tw:gap-5">
-        <StaffTickets />
-        {showTemplates && <TemplateTiles heading="Заготовки заявок" />}
+    <>
+      <StaffKpis />
+      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start">
+        <div className="flex flex-col gap-5">
+          <StaffTickets />
+          {showTemplates && <TemplateTiles heading="Заготовки заявок" />}
+        </div>
+        <div className="flex flex-col gap-5">
+          <MonitoringOffline />
+          <ScheduledWorks />
+          <KbAttention />
+          <ServiceExpiry showCompany />
+        </div>
       </div>
-      <div className="tw:flex tw:flex-col tw:gap-5">
-        <MonitoringOffline />
-        <ScheduledWorks />
-        <KbAttention />
-        <ServiceExpiry showCompany />
-      </div>
-    </div>
-  </>
+    </>
   );
 };
 
@@ -117,7 +117,9 @@ const Dashboard = () => {
 
   return (
     <PageShell
-      title={isEndUser ? "Чем помочь?" : `Здравствуйте, ${firstName || ""}`.trim()}
+      title={
+        isEndUser ? "Чем помочь?" : `Здравствуйте, ${firstName || ""}`.trim()
+      }
       subtitle={
         isEndUser
           ? "Выберите готовый запрос — заявка заполнится сама. Ничего не подходит — опишите словами."

@@ -22,20 +22,16 @@ const Row = ({
 }) => (
   <div
     className={cn(
-      "tw:grid tw:grid-cols-[1fr_auto] tw:items-baseline tw:gap-x-4 tw:gap-y-0.5 tw:border-t tw:border-border-soft tw:py-2.5 tw:first:border-t-0 tw:sm:grid-cols-[1fr_auto_8rem]",
-      total &&
-        "tw:mt-1 tw:border-t tw:border-border tw:pt-3 tw:font-semibold",
+      "grid grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-0.5 border-t border-border-soft py-2.5 first:border-t-0 sm:grid-cols-[1fr_auto_8rem]",
+      total && "mt-1 border-t border-border pt-3 font-semibold",
     )}
   >
     <span>{label}</span>
-    <span className="tw:text-xs tw:text-faint tw:tabular-nums tw:max-sm:col-span-2">
+    <span className="text-xs text-faint tabular-nums max-sm:col-span-2">
       {formula}
     </span>
     <span
-      className={cn(
-        "tw:text-right tw:font-medium tw:tabular-nums",
-        total && "tw:text-lg",
-      )}
+      className={cn("text-right font-medium tabular-nums", total && "text-lg")}
     >
       {amount}
     </span>
@@ -47,13 +43,13 @@ const PayslipPanel = ({ payroll }: { payroll: PersonalPayroll }) => {
 
   return (
     <>
-      <div className="tw:flex tw:flex-col">
+      <div className="flex flex-col">
         <Row
           label="Оклад"
           formula={payroll.isFullMonth ? "полный месяц" : "период не месяц"}
           amount={
             payroll.salary == null ? (
-              <span className="tw:font-normal tw:text-faint">не указан</span>
+              <span className="font-normal text-faint">не указан</span>
             ) : (
               formatMoney(payroll.salary)
             )
@@ -68,7 +64,7 @@ const PayslipPanel = ({ payroll }: { payroll: PersonalPayroll }) => {
           }
           amount={
             rate == null ? (
-              <span className="tw:font-normal tw:text-warning">нет ставки</span>
+              <span className="font-normal text-warning">нет ставки</span>
             ) : (
               formatMoney(payroll.weekday.pay)
             )
@@ -83,7 +79,7 @@ const PayslipPanel = ({ payroll }: { payroll: PersonalPayroll }) => {
           }
           amount={
             rate == null ? (
-              <span className="tw:font-normal tw:text-warning">нет ставки</span>
+              <span className="font-normal text-warning">нет ставки</span>
             ) : (
               formatMoney(payroll.weekend.pay)
             )
@@ -91,7 +87,11 @@ const PayslipPanel = ({ payroll }: { payroll: PersonalPayroll }) => {
         />
         <Row
           total
-          label={payroll.estimatedTotal == null ? "Доплата за период" : "Итого за месяц"}
+          label={
+            payroll.estimatedTotal == null
+              ? "Доплата за период"
+              : "Итого за месяц"
+          }
           formula={
             payroll.estimatedTotal == null
               ? "оклад считается только за полный месяц"
@@ -100,7 +100,7 @@ const PayslipPanel = ({ payroll }: { payroll: PersonalPayroll }) => {
           amount={formatMoney(payroll.estimatedTotal ?? payroll.overtimePay)}
         />
       </div>
-      <p className="tw:mt-3.5 tw:mb-0 tw:text-xs tw:text-faint">
+      <p className="mt-3.5 mb-0 text-xs text-faint">
         Переработка — время работ вне графика тарифа или компании, округлённое
         вверх до периода тарификации. Коэффициенты заданы в настройках системы.
       </p>

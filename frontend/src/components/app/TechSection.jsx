@@ -41,9 +41,9 @@ const VIEW_OPTIONS = [
 ];
 
 const LIVE_DOT = {
-  ok: "tw:bg-primary",
-  bad: "tw:bg-destructive",
-  off: "tw:bg-faint",
+  ok: "bg-primary",
+  bad: "bg-destructive",
+  off: "bg-faint",
 };
 
 // Строка поиска по устройству (клиентская фильтрация, как на странице
@@ -101,50 +101,52 @@ const TechRow = ({ device, onSelect }) => {
         }
       }}
       title="Открыть карточку устройства"
-      className="tw:group tw:flex tw:cursor-pointer tw:items-center tw:gap-3 tw:rounded-lg tw:px-2.5 tw:py-2 tw:transition-colors tw:hover:bg-accent"
+      className="group flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 transition-colors hover:bg-accent"
     >
       <span
         aria-hidden
-        className="tw:relative tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+        className="relative grid size-9 flex-none place-items-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border"
       >
         <Icon size={17} />
         {mikro && (
           <span
             title={mikro.label}
             className={cn(
-              "tw:absolute tw:-right-0.5 tw:-bottom-0.5 tw:size-2.5 tw:rounded-full tw:ring-2 tw:ring-card",
+              "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-card",
               LIVE_DOT[mikro.tone],
             )}
           />
         )}
       </span>
 
-      <span className="tw:min-w-0 tw:flex-1">
-        <span className="tw:flex tw:items-center tw:gap-1.5 tw:text-[15px] tw:leading-snug tw:font-medium">
-          <span className="tw:min-w-0 tw:truncate" title={device.name}>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5 text-[15px] leading-snug font-medium">
+          <span className="min-w-0 truncate" title={device.name}>
             {device.name}
           </span>
           {device.isPersonal && (
             <RiStarFill
               size={13}
-              className="tw:flex-none tw:text-warning"
+              className="flex-none text-warning"
               title="Закреплено лично"
             />
           )}
         </span>
         {meta && (
-          <span className="tw:block tw:truncate tw:text-sm tw:text-muted-foreground">
+          <span className="block truncate text-sm text-muted-foreground">
             {meta}
           </span>
         )}
         {/* На узких экранах статус и расположение — подстрокой */}
-        <span className="tw:mt-0.5 tw:flex tw:min-w-0 tw:items-center tw:gap-2.5 tw:md:hidden">
+        <span className="mt-0.5 flex min-w-0 items-center gap-2.5 md:hidden">
           {status && (
-            <DeviceStatusText tone={status.tone}>{status.label}</DeviceStatusText>
+            <DeviceStatusText tone={status.tone}>
+              {status.label}
+            </DeviceStatusText>
           )}
-          <span className="tw:flex tw:min-w-0 tw:items-center tw:gap-1 tw:text-xs tw:text-faint">
-            <RiMapPin2Line size={12} className="tw:flex-none" />
-            <span className="tw:truncate">
+          <span className="flex min-w-0 items-center gap-1 text-xs text-faint">
+            <RiMapPin2Line size={12} className="flex-none" />
+            <span className="truncate">
               {device.locationName ||
                 (device.isPersonal ? "лично, без расположения" : "—")}
             </span>
@@ -152,32 +154,32 @@ const TechRow = ({ device, onSelect }) => {
         </span>
       </span>
 
-      <span className="tw:hidden tw:w-48 tw:flex-none tw:items-center tw:gap-1.5 tw:text-sm tw:text-muted-foreground tw:md:flex">
-        <RiMapPin2Line size={14} className="tw:flex-none tw:text-faint" />
+      <span className="hidden w-48 flex-none items-center gap-1.5 text-sm text-muted-foreground md:flex">
+        <RiMapPin2Line size={14} className="flex-none text-faint" />
         {device.locationName ? (
-          <span className="tw:truncate" title={device.locationName}>
+          <span className="truncate" title={device.locationName}>
             {device.locationName}
           </span>
         ) : (
-          <span className="tw:text-faint">
+          <span className="text-faint">
             {device.isPersonal ? "лично, без расположения" : "—"}
           </span>
         )}
       </span>
 
-      <span className="tw:hidden tw:w-36 tw:flex-none tw:md:block">
+      <span className="hidden w-36 flex-none md:block">
         {status && (
           <DeviceStatusText tone={status.tone}>{status.label}</DeviceStatusText>
         )}
       </span>
 
-      <span className="tw:hidden tw:w-8 tw:flex-none tw:place-items-center tw:md:grid">
+      <span className="hidden w-8 flex-none place-items-center md:grid">
         <Link
           to={`/inventory/client-devices/${device._id}`}
           title="Открыть карточку устройства"
           aria-label="Открыть карточку устройства"
           onClick={(event) => event.stopPropagation()}
-          className="tw:grid tw:size-8 tw:place-items-center tw:rounded-lg tw:text-faint tw:no-underline tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100 tw:hover:bg-accent tw:hover:text-muted-foreground tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100"
+          className="grid size-8 place-items-center rounded-lg text-faint no-underline opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-muted-foreground focus-visible:opacity-100 pointer-coarse:opacity-100"
         >
           <RiExternalLinkLine size={15} />
         </Link>
@@ -246,13 +248,17 @@ const TechSection = ({
       : companyId
         ? `${base}/api/inventory/locations/company/${companyId}/tech`
         : `${base}/api/inventory/locations/user/${userId}/tech`;
-    sendRequest({ url, headers: { Authorization: "Bearer " + token } }, setData);
+    sendRequest(
+      { url, headers: { Authorization: "Bearer " + token } },
+      setData,
+    );
   }, [companyId, userId, self, token, sendRequest]);
 
   // Единый формат: массив групп (у компании — одна безымянная)
   const groups = useMemo(() => {
     if (!data) return [];
-    if (companyId) return [{ key: "all", label: null, devices: data.devices || [] }];
+    if (companyId)
+      return [{ key: "all", label: null, devices: data.devices || [] }];
     return data.groups || [];
   }, [data, companyId]);
   const allDevices = useMemo(() => groups.flatMap((g) => g.devices), [groups]);
@@ -331,14 +337,26 @@ const TechSection = ({
   };
 
   const badges = [
-    ...types.map((v) => ({ k: "Тип", label: v, onRemove: () => setTypes(types.filter((x) => x !== v)) })),
-    ...vendors.map((v) => ({ k: "Вендор", label: v, onRemove: () => setVendors(vendors.filter((x) => x !== v)) })),
+    ...types.map((v) => ({
+      k: "Тип",
+      label: v,
+      onRemove: () => setTypes(types.filter((x) => x !== v)),
+    })),
+    ...vendors.map((v) => ({
+      k: "Вендор",
+      label: v,
+      onRemove: () => setVendors(vendors.filter((x) => x !== v)),
+    })),
     ...statuses.map((v) => ({
       k: "Статус",
       label: DEVICE_STATUS_META[v]?.label || v,
       onRemove: () => setStatuses(statuses.filter((x) => x !== v)),
     })),
-    ...locations.map((v) => ({ k: "Расположение", label: v, onRemove: () => setLocations(locations.filter((x) => x !== v)) })),
+    ...locations.map((v) => ({
+      k: "Расположение",
+      label: v,
+      onRemove: () => setLocations(locations.filter((x) => x !== v)),
+    })),
   ];
 
   const allDevicesLink = companyId
@@ -353,7 +371,7 @@ const TechSection = ({
         ? `${total} ${plural(total, "устройство", "устройства", "устройств")}`
         : "";
 
-  const chipClass = "tw:h-8 tw:px-3";
+  const chipClass = "h-8 px-3";
   const segmented = (className) => (
     <Segmented
       ariaLabel="Представление техники"
@@ -378,39 +396,39 @@ const TechSection = ({
         // который у половины зрителей ведёт в 403, не бывает: в режиме `self`
         // остаётся один список.
         action={
-          self ? undefined : <span className="tw:max-md:hidden">{segmented()}</span>
+          self ? undefined : (
+            <span className="max-md:hidden">{segmented()}</span>
+          )
         }
       >
         {label}
       </Eyebrow>
-      {!self && (
-        <div className="tw:mb-2.5 tw:md:hidden">{segmented("tw:w-full")}</div>
-      )}
+      {!self && <div className="mb-2.5 md:hidden">{segmented("w-full")}</div>}
 
       {view === "env" && !self ? (
         <Environment companyId={companyId} userId={userId} subject={subject} />
       ) : isLoading || (!data && !error) ? (
-        <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card">
-          <Spinner className="tw:min-h-48" />
+        <div className="rounded-xl border border-border bg-card">
+          <Spinner className="min-h-48" />
         </div>
       ) : error ? (
-        <div className="tw:flex tw:items-center tw:gap-2.5 tw:rounded-lg tw:border tw:border-border-soft tw:bg-accent/50 tw:px-3.5 tw:py-2.5 tw:text-sm tw:text-muted-foreground">
-          <RiServerLine size={16} className="tw:flex-none tw:text-faint" />
+        <div className="flex items-center gap-2.5 rounded-lg border border-border-soft bg-accent/50 px-3.5 py-2.5 text-sm text-muted-foreground">
+          <RiServerLine size={16} className="flex-none text-faint" />
           Не удалось загрузить технику.
         </div>
       ) : total === 0 ? (
-        <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
-          <div className="tw:flex tw:flex-col tw:items-center tw:px-5 tw:py-4 tw:text-center">
+        <div className="rounded-xl border border-border bg-card p-5">
+          <div className="flex flex-col items-center px-5 py-4 text-center">
             <span
               aria-hidden
-              className="tw:grid tw:size-12 tw:place-items-center tw:rounded-xl tw:bg-accent tw:text-faint tw:inset-ring tw:inset-ring-border"
+              className="grid size-12 place-items-center rounded-xl bg-accent text-faint inset-ring inset-ring-border"
             >
               <RiServerLine size={22} />
             </span>
-            <div className="tw:mt-3.5 tw:text-base tw:font-semibold">
+            <div className="mt-3.5 text-base font-semibold">
               Техники в учёте пока нет
             </div>
-            <p className="tw:mx-auto tw:mt-1.5 tw:mb-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
+            <p className="mx-auto mt-1.5 mb-0 max-w-md text-sm text-muted-foreground">
               {companyId
                 ? "У компании нет устройств в учёте техники — они появятся здесь после добавления в разделе «Устройства»."
                 : "За пользователем не закреплено устройств, а его рабочее место пусто."}
@@ -418,18 +436,18 @@ const TechSection = ({
           </div>
         </div>
       ) : (
-        <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card">
+        <div className="rounded-xl border border-border bg-card">
           {/* Тулбар: поиск + фасеты страницы «Устройства» (минус контекст карточки) */}
-          <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:border-b tw:border-border-soft tw:px-4 tw:py-3">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border-soft px-4 py-3">
             {showSearch && (
-              <label className="tw:flex tw:h-8 tw:min-w-0 tw:basis-52 tw:items-center tw:gap-2 tw:rounded-lg tw:border tw:border-input tw:bg-background tw:px-2.5 tw:max-md:basis-full">
-                <RiSearchLine size={15} className="tw:flex-none tw:text-faint" />
+              <label className="flex h-8 min-w-0 basis-52 items-center gap-2 rounded-lg border border-input bg-background px-2.5 max-md:basis-full">
+                <RiSearchLine size={15} className="flex-none text-faint" />
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Поиск по технике"
                   aria-label="Поиск по технике"
-                  className="tw:min-w-0 tw:flex-1 tw:appearance-none tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:outline-none tw:placeholder:text-faint"
+                  className="min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-faint"
                 />
               </label>
             )}
@@ -468,7 +486,7 @@ const TechSection = ({
               />
             )}
             {counterText && (
-              <span className="tw:ms-auto tw:text-sm tw:text-faint tw:tabular-nums tw:max-md:hidden">
+              <span className="ms-auto text-sm text-faint tabular-nums max-md:hidden">
                 {counterText}
               </span>
             )}
@@ -476,19 +494,19 @@ const TechSection = ({
 
           {/* Применённые фильтры всегда видны — снимаемые бейджи */}
           {badges.length > 0 && (
-            <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:px-4 tw:pt-2.5">
+            <div className="flex flex-wrap items-center gap-2 px-4 pt-2.5">
               {badges.map((badge) => (
                 <span
                   key={`${badge.k}:${badge.label}`}
-                  className="tw:inline-flex tw:items-center tw:gap-1 tw:rounded-full tw:border tw:border-border-soft tw:bg-accent tw:py-0.5 tw:ps-2.5 tw:pe-1 tw:text-sm"
+                  className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-accent py-0.5 ps-2.5 pe-1 text-sm"
                 >
-                  <span className="tw:text-muted-foreground">{badge.k}:</span>{" "}
+                  <span className="text-muted-foreground">{badge.k}:</span>{" "}
                   {badge.label}
                   <button
                     type="button"
                     onClick={badge.onRemove}
                     aria-label={`Снять фильтр «${badge.label}»`}
-                    className="tw:grid tw:size-5 tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-full tw:border-0 tw:bg-transparent tw:p-0 tw:text-faint tw:hover:bg-destructive/10 tw:hover:text-destructive"
+                    className="grid size-5 cursor-pointer appearance-none place-items-center rounded-full border-0 bg-transparent p-0 text-faint hover:bg-destructive/10 hover:text-destructive"
                   >
                     <RiCloseLine size={13} />
                   </button>
@@ -501,9 +519,9 @@ const TechSection = ({
           )}
 
           {/* Список: у пользователя — группы источников, у компании — плоско */}
-          <div className="tw:p-2">
+          <div className="p-2">
             {matchedCount === 0 ? (
-              <div className="tw:flex tw:flex-col tw:items-center tw:gap-2 tw:px-4 tw:py-6 tw:text-center tw:text-sm tw:text-faint">
+              <div className="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm text-faint">
                 Ничего не нашлось. Измените запрос или сбросьте фильтры.
                 <Button variant="ghost" size="sm" onClick={resetFilters}>
                   Сбросить
@@ -519,8 +537,8 @@ const TechSection = ({
                           .length
                       }
                       className={cn(
-                        "tw:px-2.5 tw:pt-3",
-                        groupIndex === 0 && "tw:pt-1.5",
+                        "px-2.5 pt-3",
+                        groupIndex === 0 && "pt-1.5",
                       )}
                     >
                       {group.label}
@@ -529,7 +547,7 @@ const TechSection = ({
                   {group.devices.map((device, index) => (
                     <div key={device._id}>
                       {index > 0 && (
-                        <div className="tw:mx-2.5 tw:h-px tw:bg-border-soft" />
+                        <div className="mx-2.5 h-px bg-border-soft" />
                       )}
                       <TechRow device={device} onSelect={setSelectedDevice} />
                     </div>
@@ -542,10 +560,10 @@ const TechSection = ({
           {/* Раздел «Устройства» клиенту не открыт — ссылка туда была бы
               обещанием, которого интерфейс не держит. */}
           {!self && (
-            <div className="tw:border-t tw:border-border-soft tw:px-4 tw:py-3">
+            <div className="border-t border-border-soft px-4 py-3">
               <Link
                 to={allDevicesLink}
-                className="tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-semibold tw:text-accent-text tw:no-underline tw:hover:underline"
+                className="inline-flex items-center gap-1 text-sm font-semibold text-accent-text no-underline hover:underline"
               >
                 Вся техника в «Устройствах» ({total}){" "}
                 <RiArrowRightSLine size={16} />

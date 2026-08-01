@@ -28,7 +28,7 @@ const DeviceTypeItem = ({ item }) => {
     attributeCount > 0 &&
       `${attributeCount} ${plural(attributeCount, "атрибут", "атрибута", "атрибутов")}`,
     kindFlags && (
-      <span key="kind" className="tw:text-accent-text">
+      <span key="kind" className="text-accent-text">
         {kindFlags}
       </span>
     ),

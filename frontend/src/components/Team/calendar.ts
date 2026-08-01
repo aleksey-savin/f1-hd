@@ -16,11 +16,22 @@ export const dowOf = (dateKey: string) => {
 
 export const dayNumber = (dateKey: string) => Number(dateKey.slice(8, 10));
 
-export const humanDate = (dateKey: string) => dateKey.split("-").reverse().join(".");
+export const humanDate = (dateKey: string) =>
+  dateKey.split("-").reverse().join(".");
 
 const MONTHS = [
-  "января", "февраля", "марта", "апреля", "мая", "июня",
-  "июля", "августа", "сентября", "октября", "ноября", "декабря",
+  "января",
+  "февраля",
+  "марта",
+  "апреля",
+  "мая",
+  "июня",
+  "июля",
+  "августа",
+  "сентября",
+  "октября",
+  "ноября",
+  "декабря",
 ];
 
 /** «10 июня, среда» — заголовок поповера дня. */
@@ -33,10 +44,12 @@ export const statusColor = (code: string | null | undefined) =>
   WORK_STATUSES.find((status) => status.code === code)?.color ??
   "var(--ws-st-unset)";
 
-export const PLANNED_COLOR = "color-mix(in srgb, var(--ws-st-office) 55%, transparent)";
-export const OFF_COLOR = "color-mix(in srgb, var(--foreground) 9%, transparent)";
+export const PLANNED_COLOR =
+  "color-mix(in srgb, var(--ws-st-office) 55%, transparent)";
+export const OFF_COLOR =
+  "color-mix(in srgb, var(--foreground) 9%, transparent)";
 
-export type DotState = {
+type DotState = {
   color: string;
   /** Запрос на согласовании — пунктирное кольцо: не решено ≠ решено. */
   hollow: boolean;
@@ -55,7 +68,8 @@ export const dotState = (
   const who = `${member.user.lastName} ${member.user.firstName}`.trim();
 
   if (day.absence) {
-    const color = getAbsenceType(day.absence.type)?.color ?? "var(--ws-st-unset)";
+    const color =
+      getAbsenceType(day.absence.type)?.color ?? "var(--ws-st-unset)";
     const pending = day.absence.status === "pending";
     return {
       color,
@@ -77,7 +91,11 @@ export const dotState = (
       title: `${who} — ${member.status.label}${member.status.note ? ` · ${member.status.note}` : ""}`,
     };
   }
-  return { color: PLANNED_COLOR, hollow: false, title: `${who} — по графику работает` };
+  return {
+    color: PLANNED_COLOR,
+    hollow: false,
+    title: `${who} — по графику работает`,
+  };
 };
 
 export const fullName = (user: TeamMember["user"]) =>

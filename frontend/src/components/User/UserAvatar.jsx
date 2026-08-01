@@ -17,8 +17,8 @@ const UserAvatar = ({
   user,
   /** Переопределение картинки (превью после загрузки на карточке). */
   src,
-  sizeClass = "tw:size-13",
-  textClass = "tw:text-base",
+  sizeClass = "size-13",
+  textClass = "text-base",
   ringColor = null,
   ring = "sm",
   className,
@@ -40,11 +40,11 @@ const UserAvatar = ({
         ...(ringColor ? { boxShadow: `${RING[ring]} ${ringColor}` } : {}),
       }}
       className={cn(
-        "tw:grid tw:flex-none tw:place-items-center tw:overflow-hidden tw:rounded-full tw:bg-accent tw:bg-cover tw:bg-center tw:font-semibold tw:text-muted-foreground",
+        "grid flex-none place-items-center overflow-hidden rounded-full bg-accent bg-cover bg-center font-semibold text-muted-foreground",
         sizeClass,
         textClass,
-        !ringColor && "tw:inset-ring tw:inset-ring-border",
-        image && "tw:text-transparent",
+        !ringColor && "inset-ring inset-ring-border",
+        image && "text-transparent",
         className,
       )}
     >

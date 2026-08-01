@@ -61,7 +61,12 @@ export const CompanySummaryTable = ({
     <Table>
       <TableHeader>
         <TableRow>
-          <SortableHead columnKey="alias" sort={sort} onSort={setSort} numeric={false}>
+          <SortableHead
+            columnKey="alias"
+            sort={sort}
+            onSort={setSort}
+            numeric={false}
+          >
             Компания
           </SortableHead>
           <SortableHead columnKey="totalTickets" sort={sort} onSort={setSort}>
@@ -82,7 +87,7 @@ export const CompanySummaryTable = ({
           <SortableHead columnKey="totalTime" sort={sort} onSort={setSort}>
             Время всего
           </SortableHead>
-          <TableHead className="tw:w-6" />
+          <TableHead className="w-6" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -90,32 +95,32 @@ export const CompanySummaryTable = ({
           <TableRow
             key={row.company._id}
             onClick={() => onOpen(row.company._id)}
-            className="tw:cursor-pointer"
+            className="cursor-pointer"
           >
             <TableCell>
-              <span className="tw:flex tw:items-center tw:gap-2.5">
+              <span className="flex items-center gap-2.5">
                 <span
                   aria-hidden
-                  className="tw:grid tw:size-8 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-[0.6875rem] tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+                  className="grid size-8 flex-none place-items-center rounded-lg bg-accent text-[0.6875rem] font-semibold text-muted-foreground inset-ring inset-ring-border"
                 >
                   {monogramFor(row.company.alias)}
                 </span>
-                <span className="tw:min-w-0">
-                  <span className="tw:block tw:truncate tw:font-medium">
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">
                     {row.company.alias}
                   </span>
                   {row.scopeLimited && (
-                    <span className="tw:block tw:text-xs tw:text-faint">
+                    <span className="block text-xs text-faint">
                       данные вашего подразделения
                     </span>
                   )}
                 </span>
               </span>
             </TableCell>
-            <TableCell className="tw:text-right tw:tabular-nums">
+            <TableCell className="text-right tabular-nums">
               {row.totalTickets}
             </TableCell>
-            <TableCell className="tw:text-right tw:tabular-nums">
+            <TableCell className="text-right tabular-nums">
               {row.totalWorks}
             </TableCell>
             <CountTimeCell count={row.onSite.count} time={row.onSite.time} />
@@ -124,10 +129,10 @@ export const CompanySummaryTable = ({
               count={row.routineTask.count}
               time={row.routineTask.time}
             />
-            <TableCell className="tw:text-right tw:font-semibold tw:tabular-nums">
+            <TableCell className="text-right font-semibold tabular-nums">
               {msToHMS(row.totalTime)}
             </TableCell>
-            <TableCell className="tw:text-faint">
+            <TableCell className="text-faint">
               <RiArrowRightSLine size={16} aria-hidden />
             </TableCell>
           </TableRow>
@@ -136,19 +141,25 @@ export const CompanySummaryTable = ({
       <TableFooter>
         <TableRow>
           <TableCell>Итого</TableCell>
-          <TableCell className="tw:text-right tw:tabular-nums">
+          <TableCell className="text-right tabular-nums">
             {totals.totalTickets}
           </TableCell>
-          <TableCell className="tw:text-right tw:tabular-nums">
+          <TableCell className="text-right tabular-nums">
             {totals.totalWorks}
           </TableCell>
-          <CountTimeCell count={totals.onSite.count} time={totals.onSite.time} />
-          <CountTimeCell count={totals.remote.count} time={totals.remote.time} />
+          <CountTimeCell
+            count={totals.onSite.count}
+            time={totals.onSite.time}
+          />
+          <CountTimeCell
+            count={totals.remote.count}
+            time={totals.remote.time}
+          />
           <CountTimeCell
             count={totals.routineTask.count}
             time={totals.routineTask.time}
           />
-          <TableCell className="tw:text-right tw:font-semibold tw:tabular-nums">
+          <TableCell className="text-right font-semibold tabular-nums">
             {msToHMS(totals.totalTime)}
           </TableCell>
           <TableCell />

@@ -93,19 +93,3 @@ exports.getSummary = async (req, res, next) => {
 
 // GET /finances/report-employees — список сотрудников для селектора отчёта.
 // Отдаём только 4 поля: полные документы пользователя здесь недопустимы.
-exports.getReportEmployees = async (req, res, next) => {
-  try {
-    const users = await User.find({
-      isActive: true,
-      isEndUser: false,
-      isServiceAccount: false,
-    })
-      .select("_id firstName lastName position")
-      .sort({ lastName: 1, firstName: 1 })
-      .lean();
-
-    res.status(200).json(users);
-  } catch (error) {
-    next(new AppError("Failed to fetch report employees", 500, true, error));
-  }
-};

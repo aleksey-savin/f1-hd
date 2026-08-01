@@ -222,29 +222,6 @@ locationSchema.pre(
   },
 );
 
-// Static method to get location hierarchy
-locationSchema.statics.getHierarchy = async function (
-  companyId,
-  parentId = null,
-) {
-  const locations = await this.find({
-    company: companyId,
-    parent: parentId,
-    isActive: true,
-  })
-    .populate("assignedUser", "firstName lastName email")
-    .populate("subdivisions", "name manager")
-    .populate("defaultResponsible", "firstName lastName email")
-    .sort({ type: 1, name: 1 });
-
-  // Recursively get children
-  for (let location of locations) {
-    location.children = await this.getHierarchy(companyId, location._id);
-  }
-
-  return locations;
-};
-
 // Static method to find responsible user for a device at this location
 locationSchema.statics.findResponsibleUser = async function (
   locationId,

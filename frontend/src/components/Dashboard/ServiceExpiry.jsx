@@ -61,20 +61,20 @@ const ServiceExpiry = ({ showCompany = false }) => {
     <section>
       <Eyebrow count={services.length}>Сроки на исходе</Eyebrow>
       <Panel>
-        <div className="tw:-mx-5 tw:-my-5">
+        <div className="-mx-5 -my-5">
           {services.map((service) => {
             const overdue = service.overdue;
             return (
               <Link
                 key={`${service.noteId}-${service.service}`}
                 to={`/knowledge-base/${service.noteId}`}
-                className="tw:flex tw:items-center tw:gap-3 tw:border-b tw:border-border-soft tw:px-5 tw:py-2.5 tw:text-foreground tw:no-underline tw:transition-colors tw:last:border-b-0 tw:hover:bg-accent/60 tw:hover:text-foreground"
+                className="flex items-center gap-3 border-b border-border-soft px-5 py-2.5 text-foreground no-underline transition-colors last:border-b-0 hover:bg-accent/60 hover:text-foreground"
               >
-                <span className="tw:min-w-0 tw:flex-1">
-                  <span className="tw:block tw:truncate tw:text-sm tw:font-medium">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
                     {service.service}
                   </span>
-                  <span className="tw:block tw:truncate tw:text-sm tw:text-muted-foreground">
+                  <span className="block truncate text-sm text-muted-foreground">
                     {[
                       service.noteTitle,
                       showCompany
@@ -89,8 +89,8 @@ const ServiceExpiry = ({ showCompany = false }) => {
                 </span>
                 <span
                   className={
-                    "tw:flex-none tw:text-sm tw:tabular-nums " +
-                    (overdue ? "tw:text-destructive" : "tw:text-warning")
+                    "flex-none text-sm tabular-nums " +
+                    (overdue ? "text-destructive" : "text-warning")
                   }
                 >
                   {expiryText(service.expiresAt)}

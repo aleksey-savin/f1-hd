@@ -36,7 +36,7 @@ const SelectionBar = ({
   selectAllLabel?: (count: number) => string;
   allSelectedLabel?: (count: number) => string;
 }) => (
-  <div className="tw:flex tw:items-center tw:gap-4 tw:px-4 tw:py-2.5 tw:md:px-5">
+  <div className="flex items-center gap-4 px-4 py-2.5 md:px-5">
     <button
       type="button"
       role="checkbox"
@@ -44,10 +44,10 @@ const SelectionBar = ({
       aria-label={allSelected ? "Снять выделение" : "Выбрать все"}
       onClick={onToggleAll}
       className={cn(
-        "tw:grid tw:size-4 tw:shrink-0 tw:cursor-pointer tw:appearance-none tw:place-content-center tw:rounded-[4px] tw:border tw:p-0 tw:outline-none tw:focus-visible:border-ring tw:focus-visible:ring-[3px] tw:focus-visible:ring-ring/50",
+        "grid size-4 shrink-0 cursor-pointer appearance-none place-content-center rounded-[4px] border p-0 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
         allSelected || someSelected
-          ? "tw:border-primary tw:bg-primary tw:text-primary-foreground"
-          : "tw:border-input tw:bg-transparent tw:text-transparent",
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-input bg-transparent text-transparent",
       )}
     >
       {allSelected ? (
@@ -57,21 +57,21 @@ const SelectionBar = ({
       ) : null}
     </button>
 
-    <span className="tw:text-sm tw:font-semibold tw:tabular-nums">
+    <span className="text-sm font-semibold tabular-nums">
       {itemsLabel} {count} из {total}
     </span>
 
     {total > 0 && (
       <>
         {allSelected ? (
-          <span className="tw:text-sm tw:text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             {allSelectedLabel(total)}
           </span>
         ) : (
           <button
             type="button"
             onClick={onSelectAll}
-            className="tw:cursor-pointer tw:appearance-none tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:font-medium tw:text-accent-text tw:outline-none tw:hover:underline tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+            className="cursor-pointer appearance-none border-0 bg-transparent p-0 text-sm font-medium text-accent-text outline-none hover:underline focus-visible:ring-4 focus-visible:ring-ring/50"
           >
             {selectAllLabel(total)}
           </button>
@@ -79,8 +79,8 @@ const SelectionBar = ({
       </>
     )}
 
-    <span className="tw:ms-auto tw:flex tw:items-center tw:gap-2.5">
-      <span className="tw:hidden tw:rounded tw:border tw:border-border tw:px-1.5 tw:py-px tw:font-mono tw:text-xs tw:text-faint tw:md:inline">
+    <span className="ms-auto flex items-center gap-2.5">
+      <span className="hidden rounded border border-border px-1.5 py-px font-mono text-xs text-faint md:inline">
         Esc
       </span>
       <Button variant="ghost" size="xs" onClick={onExit}>

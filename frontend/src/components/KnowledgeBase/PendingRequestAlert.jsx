@@ -33,7 +33,8 @@ const PendingRequestAlert = ({
         confirmLabel: "Удалить",
         onConfirm: onConfirmDeletion,
         onDecline: onDeclineDeletion,
-        waiting: "Заметка ждёт решения модератора и будет удалена безвозвратно.",
+        waiting:
+          "Заметка ждёт решения модератора и будет удалена безвозвратно.",
       }
     : note.pendingArchive
       ? {
@@ -63,23 +64,23 @@ const PendingRequestAlert = ({
       // читаться как требующий решения — подкрашиваем, как warning-вариант
       className={
         request.variant === "destructive"
-          ? "tw:mt-4 tw:border-destructive/30 tw:bg-destructive/10"
-          : "tw:mt-4"
+          ? "mt-4 border-destructive/30 bg-destructive/10"
+          : "mt-4"
       }
     >
       {request.icon}
-      <AlertTitle className="tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:line-clamp-none">
+      <AlertTitle className="flex flex-wrap items-center gap-2 line-clamp-none">
         <span>
           {who} запросил {request.action}
           {when}
         </span>
         {isModerator ? (
           // Кнопки внутри цветного алерта наследуют его цвет (currentColor)
-          <span className="tw:ms-auto tw:flex tw:gap-2">
+          <span className="ms-auto flex gap-2">
             <Button
               size="sm"
               variant="outline"
-              className="tw:border-current tw:bg-transparent tw:text-current"
+              className="border-current bg-transparent text-current"
               onClick={request.onConfirm}
               disabled={isLoading}
             >
@@ -88,7 +89,7 @@ const PendingRequestAlert = ({
             <Button
               size="sm"
               variant="ghost"
-              className="tw:text-current"
+              className="text-current"
               onClick={request.onDecline}
               disabled={isLoading}
             >
@@ -96,9 +97,7 @@ const PendingRequestAlert = ({
             </Button>
           </span>
         ) : (
-          <span className="tw:ms-auto tw:text-sm tw:font-normal">
-            {request.waiting}
-          </span>
+          <span className="ms-auto text-sm font-normal">{request.waiting}</span>
         )}
       </AlertTitle>
     </Alert>

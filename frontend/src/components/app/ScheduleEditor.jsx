@@ -39,35 +39,32 @@ const ScheduleEditor = ({ schedule, onChange }) => {
     setDay(key, on ? { is24hours: true, start: "", end: "" } : emptyDay());
 
   return (
-    <div className="tw:divide-y tw:divide-border-soft">
+    <div className="divide-y divide-border-soft">
       {SCHEDULE_DAYS.map(([label, key, short]) => {
         const day = schedule[key] || emptyDay();
         return (
-          <div
-            key={key}
-            className="tw:flex tw:items-center tw:gap-2 tw:py-2.5 tw:sm:gap-3"
-          >
-            <label className="tw:flex tw:w-12 tw:flex-none tw:cursor-pointer tw:items-center tw:gap-2 tw:text-sm tw:font-medium tw:sm:w-36 tw:sm:gap-2.5">
+          <div key={key} className="flex items-center gap-2 py-2.5 sm:gap-3">
+            <label className="flex w-12 flex-none cursor-pointer items-center gap-2 text-sm font-medium sm:w-36 sm:gap-2.5">
               <Checkbox
                 checked={day.isWorking}
                 onCheckedChange={(checked) =>
                   setDay(key, { isWorking: checked === true })
                 }
               />
-              <span className={cn(!day.isWorking && "tw:text-faint")}>
-                <span className="tw:sm:hidden">{short}</span>
-                <span className="tw:max-sm:hidden">{label}</span>
+              <span className={cn(!day.isWorking && "text-faint")}>
+                <span className="sm:hidden">{short}</span>
+                <span className="max-sm:hidden">{label}</span>
               </span>
             </label>
 
             {/* На широком — фиксированная ширина блока времени, чтобы свитч
                 «24 часа» выравнивался по дням; на узком блок тянется, и поля
                 делят остаток строки поровну */}
-            <div className="tw:flex tw:min-w-0 tw:flex-1 tw:items-center tw:gap-2 tw:sm:w-64 tw:sm:flex-none">
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:w-64 sm:flex-none">
               {!day.isWorking ? (
-                <span className="tw:text-sm tw:text-faint">Выходной</span>
+                <span className="text-sm text-faint">Выходной</span>
               ) : day.is24hours ? (
-                <span className="tw:text-sm tw:text-muted-foreground">
+                <span className="text-sm text-muted-foreground">
                   Круглосуточно
                 </span>
               ) : (
@@ -78,28 +75,30 @@ const ScheduleEditor = ({ schedule, onChange }) => {
                     onChange={(event) =>
                       setDay(key, { start: event.target.value })
                     }
-                    className="tw:h-9 tw:w-full tw:min-w-0 tw:tabular-nums tw:sm:w-28"
+                    className="h-9 w-full min-w-0 tabular-nums sm:w-28"
                   />
-                  <span className="tw:text-faint">–</span>
+                  <span className="text-faint">–</span>
                   <Input
                     type="time"
                     value={day.end}
-                    onChange={(event) => setDay(key, { end: event.target.value })}
-                    className="tw:h-9 tw:w-full tw:min-w-0 tw:tabular-nums tw:sm:w-28"
+                    onChange={(event) =>
+                      setDay(key, { end: event.target.value })
+                    }
+                    className="h-9 w-full min-w-0 tabular-nums sm:w-28"
                   />
                 </>
               )}
             </div>
 
             {day.isWorking && (
-              <label className="tw:flex tw:flex-none tw:cursor-pointer tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground">
+              <label className="flex flex-none cursor-pointer items-center gap-2 text-sm text-muted-foreground">
                 <Switch
                   checked={day.is24hours}
                   onCheckedChange={(checked) => toggle24(key, checked === true)}
                   aria-label={`${label}: круглосуточно`}
                 />
-                <span className="tw:text-xs tw:sm:hidden">24ч</span>
-                <span className="tw:max-sm:hidden">24 часа</span>
+                <span className="text-xs sm:hidden">24ч</span>
+                <span className="max-sm:hidden">24 часа</span>
               </label>
             )}
           </div>

@@ -35,25 +35,25 @@ const CustomFieldsView = ({
       <Eyebrow count={fields.length}>{label}</Eyebrow>
       <Panel>
         {fields.length === 0 ? (
-          <div className="tw:text-sm tw:text-muted-foreground">{emptyText}</div>
+          <div className="text-sm text-muted-foreground">{emptyText}</div>
         ) : (
-          <div className="tw:grid tw:gap-3">
+          <div className="grid gap-3">
             {fields.map((field, index) => (
               <div
                 key={index}
-                className="tw:flex tw:flex-wrap tw:items-start tw:gap-x-3 tw:gap-y-1.5 tw:border-t tw:border-border-soft tw:pt-3 tw:first:border-t-0 tw:first:pt-0"
+                className="flex flex-wrap items-start gap-x-3 gap-y-1.5 border-t border-border-soft pt-3 first:border-t-0 first:pt-0"
               >
-                <div className="tw:min-w-48 tw:flex-1 tw:text-base tw:font-medium">
+                <div className="min-w-48 flex-1 text-base font-medium">
                   {field.name || "—"}
                 </div>
-                <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-1.5">
-                  <span className="tw:inline-flex tw:items-center tw:rounded-full tw:border tw:border-border tw:bg-accent tw:px-2.5 tw:py-0.5 tw:text-xs tw:font-semibold tw:text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="inline-flex items-center rounded-full border border-border bg-accent px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
                     {TYPE_LABEL[field.type ?? "text"] ?? field.type}
                   </span>
                   {(field.options ?? []).map((option, optionIndex) => (
                     <span
                       key={optionIndex}
-                      className="tw:rounded-md tw:bg-muted tw:px-2 tw:py-0.5 tw:text-xs tw:text-muted-foreground"
+                      className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
                     >
                       {option}
                     </span>

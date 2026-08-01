@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import SettingRow from "@/components/app/SettingRow";
 import { SubLabel } from "@/components/app/Panel";
 
-import Select from "../../UI/Select";
+import Combobox from "@/components/app/Combobox";
 import timezones from "../../store/timezones";
 import useToastStore from "../../store/toast-store";
 import { getLocalStorageData } from "../../util/auth";
@@ -101,17 +101,13 @@ const PrefsGlobals = ({ prefs }) => {
         hint="Все даты и расписания приложения считаются в нём."
         htmlFor="prefs-timezone"
       >
-        <div className="tw:w-72 tw:max-md:w-full">
-          <Select
+        <div className="w-72 max-md:w-full">
+          <Combobox
             id="prefs-timezone"
             placeholder="Выберите часовой пояс"
-            closeMenuOnSelect
-            isSearchable
-            value={timezones.filter((zone) => zone.value === timezone)}
+            value={timezone}
             options={timezones}
-            getOptionLabel={(option) => option.label}
-            getOptionValue={(option) => option.value}
-            onChange={(option) => setTimezone(option?.value || DEFAULT_TIMEZONE)}
+            onChange={(value) => setTimezone(value || DEFAULT_TIMEZONE)}
           />
         </div>
       </SettingRow>
@@ -121,16 +117,16 @@ const PrefsGlobals = ({ prefs }) => {
         hint="Дедлайн новой заявки, если не указан вручную."
         htmlFor="prefs-deadline"
       >
-        <div className="tw:flex tw:items-center tw:gap-2">
+        <div className="flex items-center gap-2">
           <Input
             id="prefs-deadline"
             type="number"
             min="1"
             value={deadline}
             onChange={(event) => setDeadline(event.target.value)}
-            className="tw:w-24 tw:text-right"
+            className="w-24 text-right"
           />
-          <span className="tw:text-sm tw:text-muted-foreground">часов</span>
+          <span className="text-sm text-muted-foreground">часов</span>
         </div>
       </SettingRow>
 
@@ -156,14 +152,14 @@ const PrefsGlobals = ({ prefs }) => {
         </Button>
       </SettingRow>
 
-      <div className="tw:px-5 tw:pt-4">
+      <div className="px-5 pt-4">
         <SubLabel>Организация</SubLabel>
       </div>
       <SettingRow
         title="Название организации"
         hint="Подпись под маркой на экране входа. Пусто — подписи нет."
         htmlFor="prefs-contact-title"
-        className="tw:py-3"
+        className="py-3"
       >
         <Input
           id="prefs-contact-title"
@@ -171,34 +167,38 @@ const PrefsGlobals = ({ prefs }) => {
           value={orgTitle}
           onChange={(event) => setOrgTitle(event.target.value)}
           placeholder="Служба поддержки «Ромашка»"
-          className="tw:w-72 tw:max-md:w-full"
+          className="w-72 max-md:w-full"
         />
       </SettingRow>
-      <SettingRow title="Телефон" htmlFor="prefs-contact-tel" className="tw:py-3">
+      <SettingRow title="Телефон" htmlFor="prefs-contact-tel" className="py-3">
         <Input
           id="prefs-contact-tel"
           type="text"
           value={tel}
           onChange={(event) => setTel(event.target.value)}
-          className="tw:w-72 tw:max-md:w-full"
+          className="w-72 max-md:w-full"
         />
       </SettingRow>
-      <SettingRow title="Email" htmlFor="prefs-contact-email" className="tw:py-3">
+      <SettingRow title="Email" htmlFor="prefs-contact-email" className="py-3">
         <Input
           id="prefs-contact-email"
           type="text"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="tw:w-72 tw:max-md:w-full"
+          className="w-72 max-md:w-full"
         />
       </SettingRow>
-      <SettingRow title="Адрес" htmlFor="prefs-contact-address" className="tw:py-3">
+      <SettingRow
+        title="Адрес"
+        htmlFor="prefs-contact-address"
+        className="py-3"
+      >
         <Input
           id="prefs-contact-address"
           type="text"
           value={address}
           onChange={(event) => setAddress(event.target.value)}
-          className="tw:w-72 tw:max-md:w-full"
+          className="w-72 max-md:w-full"
         />
       </SettingRow>
 
@@ -207,7 +207,7 @@ const PrefsGlobals = ({ prefs }) => {
         title="Лого компании"
         hint="Показывается в навбаре и на экране входа. PNG, JPG или GIF до 2 МБ. Пусто — текстовый бренд «HelpDesk»."
       >
-        <div className="tw:flex tw:items-center tw:gap-2">
+        <div className="flex items-center gap-2">
           {logo && (
             <span
               role="img"
@@ -215,7 +215,7 @@ const PrefsGlobals = ({ prefs }) => {
               style={{
                 backgroundImage: `url("${import.meta.env.VITE_API_ADDRESS}/uploads/${logo}")`,
               }}
-              className="tw:h-10 tw:w-28 tw:flex-none tw:rounded-lg tw:bg-contain tw:bg-center tw:bg-no-repeat tw:inset-ring tw:inset-ring-border"
+              className="h-10 w-28 flex-none rounded-lg bg-contain bg-center bg-no-repeat inset-ring inset-ring-border"
             />
           )}
           <input
@@ -237,7 +237,7 @@ const PrefsGlobals = ({ prefs }) => {
               variant="ghost"
               disabled={logoBusy}
               onClick={() => logoRequest("/api/preferences/delete-logo", {})}
-              className="tw:text-destructive tw:hover:text-destructive"
+              className="text-destructive hover:text-destructive"
             >
               Удалить
             </Button>
@@ -250,15 +250,12 @@ const PrefsGlobals = ({ prefs }) => {
         hint="Действие «такси» в справочнике компаний. Маршрут до офиса умеет только Яндекс Go — по координатам компании или метке из ссылки на карты."
         htmlFor="prefs-taxi"
       >
-        <div className="tw:w-56 tw:max-md:w-full">
-          <Select
+        <div className="w-56 max-md:w-full">
+          <Combobox
             id="prefs-taxi"
-            closeMenuOnSelect
-            value={TAXI_OPTIONS.find((option) => option.value === taxiOperator)}
+            value={taxiOperator || null}
             options={TAXI_OPTIONS}
-            getOptionLabel={(option) => option.label}
-            getOptionValue={(option) => option.value}
-            onChange={(option) => setTaxiOperator(option?.value || "")}
+            onChange={(value) => setTaxiOperator(value || "")}
           />
         </div>
       </SettingRow>

@@ -1,17 +1,17 @@
 import { useState, type ReactNode } from "react";
-import { RiArrowDownSLine, RiArrowRightSLine } from "react-icons/ri";
+import { RiArrowDownSLine } from "react-icons/ri";
 
-import { TableCell, TableHead, TableRow } from "@/components/ui/table";
+import { TableCell, TableHead } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 import { msToHMS } from "../../util/time-helpers";
 
-// Общий язык таблиц отчётов: сортировка кликом по заголовку, ячейка
-// «кол-во · время», строка с раскрытием в детализацию. Делят таблицы обоих
-// отчётов («Компании» и «Сотрудники»), поэтому живут отдельно от конкретной
-// таблицы. Сортировка — локальный state таблицы, в стор не уезжает.
+// Общий язык таблиц отчётов: сортировка кликом по заголовку и ячейка
+// «кол-во · время». Делят таблицы обоих отчётов («Компании» и «Сотрудники»),
+// поэтому живут отдельно от конкретной таблицы. Сортировка — локальный state
+// таблицы, в стор не уезжает.
 
-export type SortDirection = "asc" | "desc";
+type SortDirection = "asc" | "desc";
 export type SortState<Key extends string> = {
   key: Key;
   direction: SortDirection;
@@ -50,7 +50,7 @@ export const SortableHead = <Key extends string>({
   const isActive = sort.key === columnKey;
   return (
     <TableHead
-      className={cn("tw:whitespace-nowrap", numeric && "tw:text-right")}
+      className={cn("whitespace-nowrap", numeric && "text-right")}
       title={title}
     >
       <button
@@ -62,8 +62,8 @@ export const SortableHead = <Key extends string>({
           })
         }
         className={cn(
-          "tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-0.5 tw:border-0 tw:bg-transparent tw:p-0 tw:text-xs tw:font-semibold tw:whitespace-nowrap tw:outline-none tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
-          isActive ? "tw:text-foreground" : "tw:text-muted-foreground",
+          "inline-flex cursor-pointer appearance-none items-center gap-0.5 border-0 bg-transparent p-0 text-xs font-semibold whitespace-nowrap outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50",
+          isActive ? "text-foreground" : "text-muted-foreground",
         )}
       >
         {children}
@@ -72,8 +72,8 @@ export const SortableHead = <Key extends string>({
             size={14}
             aria-hidden
             className={cn(
-              "tw:transition-transform",
-              sort.direction === "asc" && "tw:rotate-180",
+              "transition-transform",
+              sort.direction === "asc" && "rotate-180",
             )}
           />
         )}
@@ -90,59 +90,9 @@ export const CountTimeCell = ({
   count: number;
   time: number;
 }) => (
-  <TableCell className="tw:text-right tw:whitespace-nowrap tw:tabular-nums">
-    {count} <span className="tw:text-faint">· {msToHMS(time)}</span>
+  <TableCell className="text-right whitespace-nowrap tabular-nums">
+    {count} <span className="text-faint">· {msToHMS(time)}</span>
   </TableCell>
-);
-
-/** Строка с раскрытием: сама строка + строка-детализация. */
-export const ExpandableRow = ({
-  expandable,
-  expanded,
-  onToggle,
-  cells,
-  nameCell,
-  detail,
-  columnsCount,
-}: {
-  expandable: boolean;
-  expanded: boolean;
-  onToggle: () => void;
-  nameCell: ReactNode;
-  cells: ReactNode;
-  detail: ReactNode;
-  columnsCount: number;
-}) => (
-  <>
-    <TableRow
-      onClick={expandable ? onToggle : undefined}
-      className={cn(expandable && "tw:cursor-pointer")}
-    >
-      <TableCell className="tw:font-medium">
-        <span className="tw:inline-flex tw:items-center tw:gap-1.5">
-          {expandable && (
-            <RiArrowRightSLine
-              size={15}
-              aria-hidden
-              className={cn(
-                "tw:flex-none tw:text-faint tw:transition-transform",
-                expanded && "tw:rotate-90",
-              )}
-            />
-          )}
-          {nameCell}
-        </span>
-      </TableCell>
-      {cells}
-    </TableRow>
-    {expanded && (
-      <TableRow className="tw:hover:bg-transparent">
-        <TableCell colSpan={columnsCount} className="tw:py-3 tw:ps-9">
-          {detail}
-        </TableCell>
-      </TableRow>
-    )}
-  </>
 );
 
 export const useExpanded = () => {

@@ -109,37 +109,37 @@ const PillPanel = ({
       </Eyebrow>
       <Panel>
         {count === 0 ? (
-          <div className="tw:text-sm tw:text-muted-foreground">{emptyText}</div>
+          <div className="text-sm text-muted-foreground">{emptyText}</div>
         ) : (
           <>
-            <div className="tw:relative">
+            <div className="relative">
               <div
                 ref={cloudRef}
                 onTransitionEnd={handleTransitionEnd}
                 style={{ maxHeight: maxHeight ?? undefined }}
                 className={cn(
-                  "tw:flex tw:flex-wrap tw:gap-1.5 tw:overflow-hidden",
-                  "tw:transition-all tw:duration-300 tw:ease-out tw:motion-reduce:transition-none",
+                  "flex flex-wrap gap-1.5 overflow-hidden",
+                  "transition-all duration-300 ease-out motion-reduce:transition-none",
                 )}
               >
                 {items.map((item, index) => (
                   <span
                     key={getKey(item, index)}
-                    className="tw:inline-flex tw:cursor-default tw:items-center tw:rounded-full tw:border tw:border-border-soft tw:bg-accent tw:px-2.5 tw:py-1 tw:text-sm tw:font-medium tw:text-foreground tw:transition-colors tw:hover:border-primary/40 tw:hover:bg-primary/10 tw:hover:text-accent-text"
+                    className="inline-flex cursor-default items-center rounded-full border border-border-soft bg-accent px-2.5 py-1 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-accent-text"
                   >
                     {getLabel(item)}
                   </span>
                 ))}
               </div>
               {overflowing && !expanded && (
-                <div className="tw:pointer-events-none tw:absolute tw:inset-x-0 tw:bottom-0 tw:h-8 tw:bg-gradient-to-t tw:from-card tw:to-card/0" />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card to-card/0" />
               )}
             </div>
             {overflowing && (
               <button
                 type="button"
                 onClick={expanded ? collapse : expand}
-                className="tw:mt-3.5 tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:font-semibold tw:text-accent-text tw:outline-none tw:hover:underline"
+                className="mt-3.5 inline-flex cursor-pointer appearance-none items-center border-0 bg-transparent p-0 text-sm font-semibold text-accent-text outline-none hover:underline"
               >
                 {expanded ? "Свернуть" : `Показать все (${count})`}
               </button>

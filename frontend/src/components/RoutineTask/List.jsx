@@ -33,9 +33,7 @@ const List = ({ items = [] }) => {
               count={group.rows.length}
               tone={group.tone}
               className={
-                index > 0
-                  ? "tw:mt-1.5 tw:border-t tw:border-border-soft"
-                  : undefined
+                index > 0 ? "mt-1.5 border-t border-border-soft" : undefined
               }
             />
           )}

@@ -59,7 +59,7 @@ export const getWorkingStatus = (schedule, zone) => {
     schedule,
     currentDay,
     now,
-    timezone
+    timezone,
   );
 };
 
@@ -69,7 +69,7 @@ function getCurrentStatus(
   schedule,
   currentDay,
   now,
-  timezone
+  timezone,
 ) {
   const [startHour, startMinute] = todaySchedule.start.split(":").map(Number);
   const [endHour, endMinute] = todaySchedule.end.split(":").map(Number);
@@ -109,7 +109,7 @@ function getNextOpeningTime(schedule, currentDay, now, timezone) {
         .map(Number);
       const openingTime = toZonedTime(
         new Date(now.getTime() + daysUntilOpen * 24 * 60 * 60 * 1000),
-        timezone
+        timezone,
       );
       openingTime.setHours(openHour, openMinute, 0, 0);
       const minutesUntilOpen = Math.round((openingTime - now) / (60 * 1000));

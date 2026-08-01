@@ -19,11 +19,11 @@ const SettingsSection = ({
   children: ReactNode;
 }) => {
   return (
-    <section id={id} className={cn("tw:scroll-mt-28", className)}>
-      <div className="tw:mb-2 tw:px-1 tw:text-sm tw:font-semibold tw:tracking-widest tw:text-muted-foreground tw:uppercase">
+    <section id={id} className={cn("scroll-mt-28", className)}>
+      <div className="mb-2 px-1 text-sm font-semibold tracking-widest text-muted-foreground uppercase">
         {label}
       </div>
-      <div className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         {children}
       </div>
     </section>

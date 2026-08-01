@@ -2,7 +2,8 @@ import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
-import Select from "../../UI/Select";
+import Combobox from "@/components/app/Combobox";
+
 import useDeviceAttributeFilterStore from "../../store/lists/deviceAttributes";
 import { VALUE_TYPES } from "./value-types";
 
@@ -21,10 +22,10 @@ const DeviceAttributeFilter = () => {
     filterStore.applyFilter();
   };
 
-  const valueTypeChangeHandler = (option) => {
+  const valueTypeChangeHandler = (value) => {
     filterStore.updateFilter({
       ...filterStore,
-      valueType: option?.value ?? "all",
+      valueType: value ?? "all",
     });
     filterStore.applyFilter();
   };
@@ -37,17 +38,12 @@ const DeviceAttributeFilter = () => {
         onCheckedChange={isActiveToggleHandler}
         label="Только активные"
       />
-      <Field label="Тип данных" htmlFor="filter-value-type" className="tw:mt-2">
-        <Select
+      <Field label="Тип данных" htmlFor="filter-value-type" className="mt-2">
+        <Combobox
           id="filter-value-type"
           placeholder="Все типы"
-          closeMenuOnSelect
-          value={TYPE_OPTIONS.filter(
-            (option) => option.value === (filterStore.valueType || "all"),
-          )}
+          value={filterStore.valueType || "all"}
           options={TYPE_OPTIONS}
-          getOptionLabel={(option) => option.label}
-          getOptionValue={(option) => option.value}
           onChange={valueTypeChangeHandler}
         />
       </Field>

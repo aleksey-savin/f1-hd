@@ -36,7 +36,7 @@ import { formatMoney } from "./work-format";
  */
 
 // Одна строка на шапку и ячейку — разъехаться они не могут
-const NUM = "tw:text-right tw:tabular-nums";
+const NUM = "text-right tabular-nums";
 
 const fullName = (person?: { firstName?: string; lastName?: string }) =>
   person ? `${person.lastName || ""} ${person.firstName || ""}`.trim() : "";
@@ -48,14 +48,14 @@ const initiators = (work: any) =>
     .join(", ") || "—";
 
 const Tickets = ({ work }: { work: any }) => (
-  <span className="tw:flex tw:flex-wrap tw:gap-x-2 tw:gap-y-0.5">
+  <span className="flex flex-wrap gap-x-2 gap-y-0.5">
     {(work.tickets || []).map((ticket: any) => (
       <a
         key={ticket._id}
         href={`/tickets/${ticket.num}`}
         target="_blank"
         rel="noreferrer"
-        className="tw:text-accent-text tw:no-underline tw:tabular-nums tw:hover:underline"
+        className="text-accent-text no-underline tabular-nums hover:underline"
       >
         {ticket.num}
       </a>
@@ -90,18 +90,18 @@ const ReportWorksTable = ({
   return (
     <div
       className={cn(
-        "tw:rounded-xl tw:border tw:bg-card",
+        "rounded-xl border bg-card",
         // Блокирующий блок обязан отличаться от обычной таблицы: он не «ещё
         // одна секция», а причина, по которой отчёт не сформировать
         tone === "warning"
-          ? "tw:border-warning tw:ring-1 tw:ring-warning/30 tw:ring-inset"
-          : "tw:border-border",
+          ? "border-warning ring-1 ring-warning/30 ring-inset"
+          : "border-border",
       )}
     >
       {/* Десктоп — таблица: проверка отчёта это сверка колонок, глаз идёт по
           длительностям и суммам сверху вниз */}
-      <div className="tw:hidden tw:px-2 tw:py-1.5 tw:lg:block">
-        <Table className="tw:table-fixed">
+      <div className="hidden px-2 py-1.5 lg:block">
+        <Table className="table-fixed">
           <TableHeader>
             {/* Ширины подобраны под ЗАГОЛОВКИ, а не только под данные: у
                 TableHead стоит whitespace-nowrap, и слишком узкая колонка
@@ -111,24 +111,26 @@ const ReportWorksTable = ({
                 Плюс перенос в шапке: тогда узкая колонка переносит подпись,
                 а не ломает раскладку. */}
             <TableRow>
-              <TableHead className="tw:w-24 tw:whitespace-normal">Заявки</TableHead>
-              <TableHead className="tw:w-40 tw:whitespace-normal">
+              <TableHead className="w-24 whitespace-normal">Заявки</TableHead>
+              <TableHead className="w-40 whitespace-normal">
                 Инициаторы
               </TableHead>
-              <TableHead className="tw:whitespace-normal">Описание работ</TableHead>
-              <TableHead className="tw:w-36 tw:whitespace-normal">
+              <TableHead className="whitespace-normal">
+                Описание работ
+              </TableHead>
+              <TableHead className="w-36 whitespace-normal">
                 Исполнитель
               </TableHead>
-              <TableHead className="tw:w-36 tw:whitespace-normal">Начало</TableHead>
-              <TableHead className={cn("tw:w-32 tw:whitespace-normal", NUM)}>
+              <TableHead className="w-36 whitespace-normal">Начало</TableHead>
+              <TableHead className={cn("w-32 whitespace-normal", NUM)}>
                 Длительность
               </TableHead>
               {showCost && (
-                <TableHead className={cn("tw:w-28 tw:whitespace-normal", NUM)}>
+                <TableHead className={cn("w-28 whitespace-normal", NUM)}>
                   Стоимость
                 </TableHead>
               )}
-              {action && <TableHead className="tw:w-48" />}
+              {action && <TableHead className="w-48" />}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -138,21 +140,21 @@ const ReportWorksTable = ({
                 // Работы дочерних подразделений уже подписаны — они здесь
                 // контекст, а не предмет решения. Подсветка тихая: выделять
                 // надо то, что требует внимания, а это как раз наоборот
-                className={cn(work.subdivisionApproved && "tw:bg-primary/5")}
+                className={cn(work.subdivisionApproved && "bg-primary/5")}
               >
-                <TableCell className="tw:align-top tw:whitespace-normal">
+                <TableCell className="align-top whitespace-normal">
                   <Tickets work={work} />
                 </TableCell>
-                <TableCell className="tw:align-top tw:text-sm tw:break-words tw:whitespace-normal">
+                <TableCell className="align-top text-sm break-words whitespace-normal">
                   {initiators(work)}
                   {/* Подразделение — свойство заявителя, поэтому живёт в его
                       ячейке: отдельная колонка была бы восьмой и вернула бы
                       горизонтальный скролл */}
                   {work.subdivision?.name && (
-                    <span className="tw:block tw:text-xs tw:text-faint">
+                    <span className="block text-xs text-faint">
                       {work.subdivision.name}
                       {work.subdivisionApproved && (
-                        <span className="tw:ms-1.5 tw:inline-flex tw:items-center tw:gap-0.5 tw:font-semibold tw:text-accent-text">
+                        <span className="ms-1.5 inline-flex items-center gap-0.5 font-semibold text-accent-text">
                           <RiCheckLine size={11} />
                           согласовано
                         </span>
@@ -160,25 +162,25 @@ const ReportWorksTable = ({
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="tw:align-top tw:font-medium tw:break-words tw:whitespace-normal">
+                <TableCell className="align-top font-medium break-words whitespace-normal">
                   {work.description || "—"}
                 </TableCell>
-                <TableCell className="tw:align-top tw:text-sm tw:break-words tw:whitespace-normal">
+                <TableCell className="align-top text-sm break-words whitespace-normal">
                   {fullName(work.finishedBy) || "—"}
                 </TableCell>
-                <TableCell className="tw:align-top tw:text-sm tw:tabular-nums tw:whitespace-normal">
+                <TableCell className="align-top text-sm tabular-nums whitespace-normal">
                   {formatWeekdayDateTime(work.startedAt)}
                 </TableCell>
-                <TableCell className={cn("tw:align-top", NUM)}>
+                <TableCell className={cn("align-top", NUM)}>
                   {msToHMS((work.billedMinutes || 0) * 60000)}
                 </TableCell>
                 {showCost && (
-                  <TableCell className={cn("tw:align-top", NUM)}>
+                  <TableCell className={cn("align-top", NUM)}>
                     {formatMoney(work.cost || 0)}
                   </TableCell>
                 )}
                 {action && (
-                  <TableCell className="tw:align-top tw:text-right">
+                  <TableCell className="align-top text-right">
                     {action(work)}
                   </TableCell>
                 )}
@@ -186,12 +188,14 @@ const ReportWorksTable = ({
             ))}
           </TableBody>
           <TableFooter>
-            <TableRow className="tw:text-base tw:font-semibold">
+            <TableRow className="text-base font-semibold">
               <TableCell colSpan={5}>
                 {totalLabel || "Итого"} · {works.length}{" "}
                 {plural(works.length, ["работа", "работы", "работ"])}
               </TableCell>
-              <TableCell className={NUM}>{msToHMS(totalMinutes * 60000)}</TableCell>
+              <TableCell className={NUM}>
+                {msToHMS(totalMinutes * 60000)}
+              </TableCell>
               {showCost && (
                 <TableCell className={NUM}>{formatMoney(totalCost)}</TableCell>
               )}
@@ -203,50 +207,50 @@ const ReportWorksTable = ({
 
       {/* Узкий экран — запись вместо строки таблицы: шесть колонок на 360px
           не живут ни при каких ширинах */}
-      <div className="tw:px-4 tw:py-1 tw:lg:hidden">
+      <div className="px-4 py-1 lg:hidden">
         {works.map((work) => (
           <div
             key={work._id}
             className={cn(
-              "tw:border-t tw:border-border-soft tw:py-3 tw:first:border-t-0",
-              work.subdivisionApproved && "tw:-mx-2 tw:bg-primary/5 tw:px-2",
+              "border-t border-border-soft py-3 first:border-t-0",
+              work.subdivisionApproved && "-mx-2 bg-primary/5 px-2",
             )}
           >
-            <div className="tw:font-medium tw:break-words">
+            <div className="font-medium break-words">
               {work.description || "—"}
             </div>
-            <div className="tw:mt-1 tw:flex tw:flex-wrap tw:items-baseline tw:gap-x-2.5 tw:gap-y-0.5 tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 text-sm text-muted-foreground tabular-nums">
               <Tickets work={work} />
-              <span className="tw:break-words">
+              <span className="break-words">
                 {initiators(work)}
                 {work.subdivision?.name && ` · ${work.subdivision.name}`}
               </span>
               {work.subdivisionApproved && (
-                <span className="tw:inline-flex tw:items-center tw:gap-0.5 tw:font-semibold tw:text-accent-text">
+                <span className="inline-flex items-center gap-0.5 font-semibold text-accent-text">
                   <RiCheckLine size={11} />
                   согласовано
                 </span>
               )}
               <span>{fullName(work.finishedBy) || "—"}</span>
               <span>{formatWeekdayDateTime(work.startedAt)}</span>
-              <b className="tw:ms-auto tw:font-semibold tw:text-foreground">
+              <b className="ms-auto font-semibold text-foreground">
                 {msToHMS((work.billedMinutes || 0) * 60000)}
               </b>
               {showCost && (
-                <b className="tw:font-semibold tw:text-foreground">
+                <b className="font-semibold text-foreground">
                   {formatMoney(work.cost || 0)}
                 </b>
               )}
             </div>
-            {action && <div className="tw:mt-2">{action(work)}</div>}
+            {action && <div className="mt-2">{action(work)}</div>}
           </div>
         ))}
-        <div className="tw:flex tw:items-baseline tw:gap-3 tw:border-t tw:border-border tw:py-3 tw:text-base tw:font-semibold tw:tabular-nums">
+        <div className="flex items-baseline gap-3 border-t border-border py-3 text-base font-semibold tabular-nums">
           <span>
             {totalLabel || "Итого"} · {works.length}{" "}
             {plural(works.length, ["работа", "работы", "работ"])}
           </span>
-          <span className="tw:ms-auto">{msToHMS(totalMinutes * 60000)}</span>
+          <span className="ms-auto">{msToHMS(totalMinutes * 60000)}</span>
           {showCost && <span>{formatMoney(totalCost)}</span>}
         </div>
       </div>
@@ -254,10 +258,10 @@ const ReportWorksTable = ({
       {footnote && (
         <div
           className={cn(
-            "tw:border-t tw:px-4 tw:py-2.5 tw:text-sm",
+            "border-t px-4 py-2.5 text-sm",
             tone === "warning"
-              ? "tw:border-warning/30 tw:bg-warning/10 tw:text-foreground"
-              : "tw:border-border-soft tw:text-muted-foreground",
+              ? "border-warning/30 bg-warning/10 text-foreground"
+              : "border-border-soft text-muted-foreground",
           )}
         >
           {footnote}

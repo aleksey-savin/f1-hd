@@ -342,10 +342,6 @@ import Preferences, {
 } from "./pages/Preferences.jsx";
 
 // Reports
-import CompaniesNetworksReport, {
-  loader as companiesNetworksLoader,
-} from "./pages/Report/CompaniesNetworksReport.jsx";
-
 
 // Finances
 
@@ -450,863 +446,881 @@ function App() {
           // случай падения самого authDataLoader.
           errorElement: <Error />,
           children: [
-        // Index
-        {
-          index: true,
-          element: <Dashboard />,
-          loader: dashboardLoader,
-        },
+            // Index
+            {
+              index: true,
+              element: <Dashboard />,
+              loader: dashboardLoader,
+            },
 
-        {
-          path: "logout",
-          loader: checkAuthLoader,
-          action: logoutAction,
-        },
-        // Dashboard
-        {
-          path: "dashboard",
-          element: <Dashboard />,
-          loader: dashboardLoader,
-        },
-        // Tickets
-        {
-          path: "tickets",
-          element: <Tickets />,
-          loader: ticketsLoader,
-          action: viewTicketAction,
-          children: [
             {
-              path: "add",
-              loader: addTicketLoader,
-              action: addTicketAction,
-              element: <AddTicketPage />,
+              path: "logout",
+              loader: checkAuthLoader,
+              action: logoutAction,
+            },
+            // Dashboard
+            {
+              path: "dashboard",
+              element: <Dashboard />,
+              loader: dashboardLoader,
+            },
+            // Tickets
+            {
+              path: "tickets",
+              element: <Tickets />,
+              loader: ticketsLoader,
+              action: viewTicketAction,
+              children: [
+                {
+                  path: "add",
+                  loader: addTicketLoader,
+                  action: addTicketAction,
+                  element: <AddTicketPage />,
+                },
+                {
+                  path: "delete",
+                  action: deleteTicketAction,
+                },
+              ],
             },
             {
-              path: "delete",
-              action: deleteTicketAction,
-            },
-          ],
-        },
-        {
-          path: "/tickets/:ticketNum",
-          loader: viewTicketLoader,
-          action: viewTicketAction,
-          element: <ViewTicket />,
-          children: [
-            {
-              path: "update",
-              element: <UpdateTicketPage />,
-              loader: updateTicketLoader,
-            },
-            // «Обработать» — та же форма с другой подписью сабмита: у неё шесть
-            // полей, и диалогом она была нарушением «диалог → только мелкие вещи»
-            {
-              path: "process",
-              element: <UpdateTicketPage mode="process" />,
-              loader: makeTicketFormLoader("process"),
-            },
-            {
-              path: "work/add",
-              loader: workFormLoader,
-              action: addWorkAction,
-              element: <WorkFormRoute mode="add" />,
-            },
-            {
-              path: "work/:workId/update",
-              loader: workFormLoader,
-              action: updateWorkAction,
-              element: <WorkFormRoute mode="update" />,
-            },
-            {
-              path: "work/schedule",
-              loader: workFormLoader,
-              action: scheduleWorkAction,
-              element: <WorkFormRoute mode="schedule" />,
-            },
-            {
-              path: "work-scheduled/:workId/update",
-              loader: workFormLoader,
-              action: updateWorkAction,
-              element: <WorkFormRoute mode="updateScheduled" />,
-            },
-            {
-              path: "work/:workId/confirm",
-              loader: workFormLoader,
-              action: updateWorkAction,
-              element: <WorkFormRoute mode="confirm" />,
-            },
-          ],
-        },
-        {
-          path: "archive",
-          element: <ArchivePage />,
-          loader: archiveLoader,
-        },
-        // Постоянный редирект со старого адреса архива (закладки и внешние
-        // ссылки); query переносится (?view=works и будущие параметры)
-        {
-          path: "closed-tickets",
-          loader: ({ request }) =>
-            redirect(`/archive${new URL(request.url).search}`),
-        },
-        // Knowledge Base
-        {
-          path: "knowledge-base",
-          element: <KnowledgeBaseList />,
-          loader: knowledgeBaseListLoader,
-          children: [
-            {
-              path: "add",
-              element: <AddKnowledgeNotePage />,
-              loader: addKnowledgeNoteLoader,
+              path: "/tickets/:ticketNum",
+              loader: viewTicketLoader,
+              action: viewTicketAction,
+              element: <ViewTicket />,
+              children: [
+                {
+                  path: "update",
+                  element: <UpdateTicketPage />,
+                  loader: updateTicketLoader,
+                },
+                // «Обработать» — та же форма с другой подписью сабмита: у неё шесть
+                // полей, и диалогом она была нарушением «диалог → только мелкие вещи»
+                {
+                  path: "process",
+                  element: <UpdateTicketPage mode="process" />,
+                  loader: makeTicketFormLoader("process"),
+                },
+                {
+                  path: "work/add",
+                  loader: workFormLoader,
+                  action: addWorkAction,
+                  element: <WorkFormRoute mode="add" />,
+                },
+                {
+                  path: "work/:workId/update",
+                  loader: workFormLoader,
+                  action: updateWorkAction,
+                  element: <WorkFormRoute mode="update" />,
+                },
+                {
+                  path: "work/schedule",
+                  loader: workFormLoader,
+                  action: scheduleWorkAction,
+                  element: <WorkFormRoute mode="schedule" />,
+                },
+                {
+                  path: "work-scheduled/:workId/update",
+                  loader: workFormLoader,
+                  action: updateWorkAction,
+                  element: <WorkFormRoute mode="updateScheduled" />,
+                },
+                {
+                  path: "work/:workId/confirm",
+                  loader: workFormLoader,
+                  action: updateWorkAction,
+                  element: <WorkFormRoute mode="confirm" />,
+                },
+              ],
             },
             {
-              path: ":id",
-              element: <ViewKnowledgeNotePage />,
-              loader: viewKnowledgeNoteLoader,
+              path: "archive",
+              element: <ArchivePage />,
+              loader: archiveLoader,
             },
-          ],
-        },
-        // Companies
-        {
-          path: "companies",
-          element: <Companies />,
-          loader: companiesLoader,
-          action: viewCompanyAction,
-          children: [
+            // Постоянный редирект со старого адреса архива (закладки и внешние
+            // ссылки); query переносится (?view=works и будущие параметры)
             {
-              path: "add",
-              loader: addCompanyLoader,
-              action: addCompanyAction,
-              element: <AddCompanyPage />,
+              path: "closed-tickets",
+              loader: ({ request }) =>
+                redirect(`/archive${new URL(request.url).search}`),
             },
+            // Knowledge Base
             {
-              path: "update/:id",
-              loader: updateCompanyLoader,
-              action: updateCompanyrAction,
-              element: <UpdateCompanyPage />,
+              path: "knowledge-base",
+              element: <KnowledgeBaseList />,
+              loader: knowledgeBaseListLoader,
+              children: [
+                {
+                  path: "add",
+                  element: <AddKnowledgeNotePage />,
+                  loader: addKnowledgeNoteLoader,
+                },
+                {
+                  path: ":id",
+                  element: <ViewKnowledgeNotePage />,
+                  loader: viewKnowledgeNoteLoader,
+                },
+              ],
             },
-          ],
-        },
-        {
-          path: "companies/:id",
-          id: "company-view",
-          loader: viewCompanyLoader,
-          action: viewCompanyAction,
-          element: <ViewCompanyPage />,
-          children: [
+            // Companies
             {
-              path: "update",
-              loader: updateCompanyLoader,
-              action: updateCompanyrAction,
-              element: <UpdateCompanyPage />,
-            },
-            {
-              // «Новая услуга» из диалога «Добавить услугу»: мастер услуги в
-              // wide-шторке карточки, создание + подключение одним запросом
-              path: "service-plans/add",
-              loader: addCompanyServicePlanLoader,
-              action: addCompanyServicePlanAction,
-              element: <AddCompanyServicePlanPage />,
-            },
-          ],
-        },
-        // Users
-        {
-          path: "users",
-          element: <Users />,
-          loader: usersLoader,
-          action: viewUserAction,
-          children: [
-            {
-              path: "add",
-              loader: addUserLoader,
-              action: addUserAction,
-              element: <AddUserPage />,
+              path: "companies",
+              element: <Companies />,
+              loader: companiesLoader,
+              action: viewCompanyAction,
+              children: [
+                {
+                  path: "add",
+                  loader: addCompanyLoader,
+                  action: addCompanyAction,
+                  element: <AddCompanyPage />,
+                },
+                {
+                  path: "update/:id",
+                  loader: updateCompanyLoader,
+                  action: updateCompanyrAction,
+                  element: <UpdateCompanyPage />,
+                },
+              ],
             },
             {
-              path: "update/:id",
-              loader: updateUserLoader,
-              action: updateUserAction,
-              element: <UpdateUserPage />,
+              path: "companies/:id",
+              id: "company-view",
+              loader: viewCompanyLoader,
+              action: viewCompanyAction,
+              element: <ViewCompanyPage />,
+              children: [
+                {
+                  path: "update",
+                  loader: updateCompanyLoader,
+                  action: updateCompanyrAction,
+                  element: <UpdateCompanyPage />,
+                },
+                {
+                  // «Новая услуга» из диалога «Добавить услугу»: мастер услуги в
+                  // wide-шторке карточки, создание + подключение одним запросом
+                  path: "service-plans/add",
+                  loader: addCompanyServicePlanLoader,
+                  action: addCompanyServicePlanAction,
+                  element: <AddCompanyServicePlanPage />,
+                },
+              ],
             },
-          ],
-        },
-        {
-          path: "users/:id",
-          loader: viewUserLoader,
-          action: viewUserAction,
-          element: <ViewUserPage />,
-          children: [
+            // Users
             {
-              path: "update",
-              loader: updateUserLoader,
-              action: updateUserAction,
-              element: <UpdateUserPage />,
-            },
-          ],
-        },
-        {
-          path: "my-account",
-          element: <MyAccount />,
-          loader: myAccountLoader,
-          action: myAccountAction,
-        },
-        // Ticket Categories
-        {
-          path: "ticket-categories",
-          element: <TicketCatogries />,
-          loader: ticketCategoriesLoader,
-          action: deleteTicketCategoryAction,
-          children: [
-            {
-              path: "add",
-              loader: addTicketCategoryLoader,
-              action: addTicketCategoryAction,
-              element: <AddTicketCategoryPage />,
-            },
-            {
-              path: "update/:id",
-              loader: updateTicketCategoryLoader,
-              action: updateTicketCategoryAction,
-              element: <UpdateTicketCategoryPage />,
+              path: "users",
+              element: <Users />,
+              loader: usersLoader,
+              action: viewUserAction,
+              children: [
+                {
+                  path: "add",
+                  loader: addUserLoader,
+                  action: addUserAction,
+                  element: <AddUserPage />,
+                },
+                {
+                  path: "update/:id",
+                  loader: updateUserLoader,
+                  action: updateUserAction,
+                  element: <UpdateUserPage />,
+                },
+              ],
             },
             {
-              path: "delete/:id",
-            },
-          ],
-        },
-        // Ticket Templates
-        {
-          path: "ticket-templates",
-          element: <TicketTemplates />,
-          loader: ticketTemplatesLoader,
-          action: deleteTicketTemplateAction,
-          children: [
-            {
-              path: "add",
-              loader: addTicketTemplateLoader,
-              action: addTicketTemplateAction,
-              element: <AddTicketTemplatePage />,
+              path: "users/:id",
+              loader: viewUserLoader,
+              action: viewUserAction,
+              element: <ViewUserPage />,
+              children: [
+                {
+                  path: "update",
+                  loader: updateUserLoader,
+                  action: updateUserAction,
+                  element: <UpdateUserPage />,
+                },
+              ],
             },
             {
-              path: "update/:id",
-              loader: updateTicketTemplateLoader,
-              action: updateTicketTemplateAction,
-              element: <UpdateTicketTemplatePage />,
+              path: "my-account",
+              element: <MyAccount />,
+              loader: myAccountLoader,
+              action: myAccountAction,
+            },
+            // Ticket Categories
+            {
+              path: "ticket-categories",
+              element: <TicketCatogries />,
+              loader: ticketCategoriesLoader,
+              action: deleteTicketCategoryAction,
+              children: [
+                {
+                  path: "add",
+                  loader: addTicketCategoryLoader,
+                  action: addTicketCategoryAction,
+                  element: <AddTicketCategoryPage />,
+                },
+                {
+                  path: "update/:id",
+                  loader: updateTicketCategoryLoader,
+                  action: updateTicketCategoryAction,
+                  element: <UpdateTicketCategoryPage />,
+                },
+                {
+                  path: "delete/:id",
+                },
+              ],
+            },
+            // Ticket Templates
+            {
+              path: "ticket-templates",
+              element: <TicketTemplates />,
+              loader: ticketTemplatesLoader,
+              action: deleteTicketTemplateAction,
+              children: [
+                {
+                  path: "add",
+                  loader: addTicketTemplateLoader,
+                  action: addTicketTemplateAction,
+                  element: <AddTicketTemplatePage />,
+                },
+                {
+                  path: "update/:id",
+                  loader: updateTicketTemplateLoader,
+                  action: updateTicketTemplateAction,
+                  element: <UpdateTicketTemplatePage />,
+                },
+                {
+                  path: "delete/:id",
+                },
+              ],
             },
             {
-              path: "delete/:id",
+              path: "ticket-templates/:id",
+              loader: viewTicketTemplateLoader,
+              action: viewTicketTemplateAction,
+              element: <ViewTicketTemplatePage />,
+              children: [
+                {
+                  path: "update",
+                  loader: updateTicketTemplateLoader,
+                  action: updateTicketTemplateAction,
+                  element: <UpdateTicketTemplatePage />,
+                },
+                {
+                  path: "delete",
+                },
+              ],
             },
-          ],
-        },
-        {
-          path: "ticket-templates/:id",
-          loader: viewTicketTemplateLoader,
-          action: viewTicketTemplateAction,
-          element: <ViewTicketTemplatePage />,
-          children: [
+            // Шаблоны чек-листов
             {
-              path: "update",
-              loader: updateTicketTemplateLoader,
-              action: updateTicketTemplateAction,
-              element: <UpdateTicketTemplatePage />,
+              path: "tickets/checklist-templates",
+              element: <ChecklistTemplateListPage />,
+              action: deleteChecklistTemplateAction,
+              children: [
+                {
+                  path: "add",
+                  loader: checklistTemplateFormLoader,
+                  action: addChecklistTemplateAction,
+                  element: <AddChecklistTemplatePage />,
+                },
+                {
+                  path: "update/:id",
+                  loader: checklistTemplateFormLoader,
+                  action: updateChecklistTemplateAction,
+                  element: <UpdateChecklistTemplatePage />,
+                },
+              ],
             },
+            // Routine tasks
             {
-              path: "delete",
-            },
-          ],
-        },
-        // Шаблоны чек-листов
-        {
-          path: "tickets/checklist-templates",
-          element: <ChecklistTemplateListPage />,
-          action: deleteChecklistTemplateAction,
-          children: [
-            {
-              path: "add",
-              loader: checklistTemplateFormLoader,
-              action: addChecklistTemplateAction,
-              element: <AddChecklistTemplatePage />,
-            },
-            {
-              path: "update/:id",
-              loader: checklistTemplateFormLoader,
-              action: updateChecklistTemplateAction,
-              element: <UpdateChecklistTemplatePage />,
-            },
-          ],
-        },
-        // Routine tasks
-        {
-          path: "routine-tasks",
-          element: <RoutineTask />,
-          loader: routineTaskLoader,
-          action: deleteRoutineTaskAction,
-          children: [
-            {
-              path: "add",
-              loader: addRoutineTaskLoader,
-              action: addRoutineTaskAction,
-              element: <AddRoutineTaskPage />,
-            },
-            {
-              path: "update/:id",
-              loader: updateRoutineTaskLoader,
-              action: updateRoutineTaskAction,
-              element: <UpdateRoutineTaskPage />,
-            },
-            {
-              path: "delete/:id",
-            },
-          ],
-        },
-        {
-          path: "routine-tasks/:id",
-          loader: viewRoutineTaskLoader,
-          action: viewRoutineTaskAction,
-          element: <ViewRoutineTaskPage />,
-          children: [
-            {
-              path: "update",
-              loader: updateRoutineTaskLoader,
-              action: updateRoutineTaskAction,
-              element: <UpdateRoutineTaskPage />,
+              path: "routine-tasks",
+              element: <RoutineTask />,
+              loader: routineTaskLoader,
+              action: deleteRoutineTaskAction,
+              children: [
+                {
+                  path: "add",
+                  loader: addRoutineTaskLoader,
+                  action: addRoutineTaskAction,
+                  element: <AddRoutineTaskPage />,
+                },
+                {
+                  path: "update/:id",
+                  loader: updateRoutineTaskLoader,
+                  action: updateRoutineTaskAction,
+                  element: <UpdateRoutineTaskPage />,
+                },
+                {
+                  path: "delete/:id",
+                },
+              ],
             },
             {
-              path: "delete",
+              path: "routine-tasks/:id",
+              loader: viewRoutineTaskLoader,
+              action: viewRoutineTaskAction,
+              element: <ViewRoutineTaskPage />,
+              children: [
+                {
+                  path: "update",
+                  loader: updateRoutineTaskLoader,
+                  action: updateRoutineTaskAction,
+                  element: <UpdateRoutineTaskPage />,
+                },
+                {
+                  path: "delete",
+                },
+              ],
             },
-          ],
-        },
-        // Service Plans
-        {
-          path: "finances/service-plans",
-          element: <ServicePlans />,
-          loader: servicePlansLoader,
-          action: servicePlansAction,
-          children: [
+            // Service Plans
             {
-              path: "add",
-              loader: addServicePlanLoader,
-              action: addServicePlanAction,
-              element: <AddServicePlanPage />,
+              path: "finances/service-plans",
+              element: <ServicePlans />,
+              loader: servicePlansLoader,
+              action: servicePlansAction,
+              children: [
+                {
+                  path: "add",
+                  loader: addServicePlanLoader,
+                  action: addServicePlanAction,
+                  element: <AddServicePlanPage />,
+                },
+                {
+                  path: "update/:id",
+                  loader: updateServicePlanLoader,
+                  action: updateServicePlanAction,
+                  element: <UpdateServicePlanPage />,
+                },
+              ],
             },
+            // Client Devices
             {
-              path: "update/:id",
-              loader: updateServicePlanLoader,
-              action: updateServicePlanAction,
-              element: <UpdateServicePlanPage />,
+              path: "inventory/client-devices",
+              element: <ClientDevices />,
+              loader: clientDevicesLoader,
+              action: clientDevicesAction,
+              children: [
+                {
+                  path: "add",
+                  loader: addClientDeviceLoader,
+                  action: addClientDeviceAction,
+                  element: <AddClientDevicePage />,
+                },
+                {
+                  path: "update/:id",
+                  loader: updateClientDeviceLoader,
+                  action: updateClientDeviceAction,
+                  element: <UpdateClientDevicePage />,
+                },
+                {
+                  path: "delete/:id",
+                },
+              ],
             },
-          ],
-        },
-        // Client Devices
-        {
-          path: "inventory/client-devices",
-          element: <ClientDevices />,
-          loader: clientDevicesLoader,
-          action: clientDevicesAction,
-          children: [
+            // Карточка устройства (полная страница) + редактирование в offcanvas
             {
-              path: "add",
-              loader: addClientDeviceLoader,
-              action: addClientDeviceAction,
-              element: <AddClientDevicePage />,
+              path: "inventory/client-devices/:id",
+              element: <ViewClientDevicePage />,
+              loader: viewClientDeviceLoader,
+              action: viewClientDeviceAction,
+              children: [
+                {
+                  path: "update",
+                  loader: updateClientDeviceLoader,
+                  action: updateClientDeviceAction,
+                  element: <UpdateClientDevicePage />,
+                },
+              ],
             },
-            {
-              path: "update/:id",
-              loader: updateClientDeviceLoader,
-              action: updateClientDeviceAction,
-              element: <UpdateClientDevicePage />,
-            },
-            {
-              path: "delete/:id",
-            },
-          ],
-        },
-        // Карточка устройства (полная страница) + редактирование в offcanvas
-        {
-          path: "inventory/client-devices/:id",
-          element: <ViewClientDevicePage />,
-          loader: viewClientDeviceLoader,
-          action: viewClientDeviceAction,
-          children: [
-            {
-              path: "update",
-              loader: updateClientDeviceLoader,
-              action: updateClientDeviceAction,
-              element: <UpdateClientDevicePage />,
-            },
-          ],
-        },
 
-        // Location Management
-        {
-          path: "inventory/locations",
-          element: <LocationList />,
-          loader: locationLoader,
-          action: locationAction,
-          children: [
+            // Location Management
             {
-              path: "add",
-              loader: addLocationLoader,
-              action: addLocationAction,
-              element: <AddLocationPage />,
+              path: "inventory/locations",
+              element: <LocationList />,
+              loader: locationLoader,
+              action: locationAction,
+              children: [
+                {
+                  path: "add",
+                  loader: addLocationLoader,
+                  action: addLocationAction,
+                  element: <AddLocationPage />,
+                },
+                {
+                  path: "update/:id",
+                  loader: updateLocationLoader,
+                  action: updateLocationAction,
+                  element: <UpdateLocationPage />,
+                },
+              ],
             },
             {
-              path: "update/:id",
-              loader: updateLocationLoader,
-              action: updateLocationAction,
-              element: <UpdateLocationPage />,
+              path: "inventory/locations/:id",
+              element: <ViewLocationPage />,
+              loader: viewLocationLoader,
+              action: viewLocationAction,
+              children: [
+                // Правка расположения — в нижней шторке карточки: после сабмита
+                // остаёмся на карточке
+                {
+                  path: "update",
+                  loader: updateLocationLoader,
+                  action: updateLocationAction,
+                  element: <UpdateLocationPage />,
+                },
+                // Вложенное расположение — шторка здесь же; loader читает
+                // query-пресеты ?company=&parent=; после сабмита форма уводит на
+                // карточку созданного расположения
+                {
+                  path: "add",
+                  loader: addLocationLoader,
+                  action: addLocationAction,
+                  element: <AddLocationPage />,
+                },
+              ],
             },
-          ],
-        },
-        {
-          path: "inventory/locations/:id",
-          element: <ViewLocationPage />,
-          loader: viewLocationLoader,
-          action: viewLocationAction,
-          children: [
-            // Правка расположения — в нижней шторке карточки: после сабмита
-            // остаёмся на карточке
-            {
-              path: "update",
-              loader: updateLocationLoader,
-              action: updateLocationAction,
-              element: <UpdateLocationPage />,
-            },
-            // Вложенное расположение — шторка здесь же; loader читает
-            // query-пресеты ?company=&parent=; после сабмита форма уводит на
-            // карточку созданного расположения
-            {
-              path: "add",
-              loader: addLocationLoader,
-              action: addLocationAction,
-              element: <AddLocationPage />,
-            },
-          ],
-        },
 
-        // Device Types
-        {
-          path: "inventory/device-types",
-          element: <DeviceTypeListPage />,
-          action: deviceTypeAction,
-          children: [
+            // Device Types
             {
-              path: "add",
-              element: <AddDeviceTypePage />,
-              loader: addDeviceTypeLoader,
-              action: addDeviceTypeAction,
+              path: "inventory/device-types",
+              element: <DeviceTypeListPage />,
+              action: deviceTypeAction,
+              children: [
+                {
+                  path: "add",
+                  element: <AddDeviceTypePage />,
+                  loader: addDeviceTypeLoader,
+                  action: addDeviceTypeAction,
+                },
+                {
+                  path: "update/:id",
+                  element: <UpdateDeviceTypePage />,
+                  loader: updateDeviceTypeLoader,
+                  action: updateDeviceTypeAction,
+                },
+              ],
             },
             {
-              path: "update/:id",
-              element: <UpdateDeviceTypePage />,
-              loader: updateDeviceTypeLoader,
-              action: updateDeviceTypeAction,
+              path: "inventory/device-types/:id",
+              element: <ViewDeviceTypePage />,
+              loader: viewDeviceTypeLoader,
+              action: viewDeviceTypeAction,
+              children: [
+                // Правка типа — в нижней шторке карточки: после сабмита остаёмся
+                // на карточке (правило «редактирование не меняет страницу»)
+                {
+                  path: "update",
+                  element: <UpdateDeviceTypePage />,
+                  loader: updateDeviceTypeLoader,
+                  action: updateDeviceTypeAction,
+                },
+                // Новая модель с карточки типа — шторка здесь же; после сабмита
+                // форма сама уводит на карточку созданной модели
+                {
+                  path: "models/add",
+                  element: <AddDeviceModelPage presetFrom="deviceType" />,
+                  loader: addDeviceModelLoader,
+                  action: addDeviceModelAction,
+                },
+                // Атрибуты типа — формы add/update в нижней шторке карточки
+                {
+                  path: "attributes/add",
+                  element: <AttributeAddPage />,
+                  loader: attributeAddLoader,
+                  action: attributeAddAction,
+                },
+                {
+                  path: "attributes/update/:attrId",
+                  element: <AttributeUpdatePage />,
+                  loader: attributeUpdateLoader,
+                  action: attributeUpdateAction,
+                },
+              ],
             },
-          ],
-        },
-        {
-          path: "inventory/device-types/:id",
-          element: <ViewDeviceTypePage />,
-          loader: viewDeviceTypeLoader,
-          action: viewDeviceTypeAction,
-          children: [
-            // Правка типа — в нижней шторке карточки: после сабмита остаёмся
-            // на карточке (правило «редактирование не меняет страницу»)
-            {
-              path: "update",
-              element: <UpdateDeviceTypePage />,
-              loader: updateDeviceTypeLoader,
-              action: updateDeviceTypeAction,
-            },
-            // Новая модель с карточки типа — шторка здесь же; после сабмита
-            // форма сама уводит на карточку созданной модели
-            {
-              path: "models/add",
-              element: <AddDeviceModelPage presetFrom="deviceType" />,
-              loader: addDeviceModelLoader,
-              action: addDeviceModelAction,
-            },
-            // Атрибуты типа — формы add/update в нижней шторке карточки
-            {
-              path: "attributes/add",
-              element: <AttributeAddPage />,
-              loader: attributeAddLoader,
-              action: attributeAddAction,
-            },
-            {
-              path: "attributes/update/:attrId",
-              element: <AttributeUpdatePage />,
-              loader: attributeUpdateLoader,
-              action: attributeUpdateAction,
-            },
-          ],
-        },
 
-        // Vendors
-        {
-          path: "inventory/vendors",
-          element: <VendorListPage />,
-          action: vendorAction,
-          children: [
+            // Vendors
             {
-              path: "add",
-              element: <AddVendorPage />,
-              loader: addVendorLoader,
-              action: addVendorAction,
+              path: "inventory/vendors",
+              element: <VendorListPage />,
+              action: vendorAction,
+              children: [
+                {
+                  path: "add",
+                  element: <AddVendorPage />,
+                  loader: addVendorLoader,
+                  action: addVendorAction,
+                },
+                {
+                  path: "update/:id",
+                  element: <UpdateVendorPage />,
+                  loader: updateVendorLoader,
+                  action: updateVendorAction,
+                },
+              ],
             },
             {
-              path: "update/:id",
-              element: <UpdateVendorPage />,
-              loader: updateVendorLoader,
-              action: updateVendorAction,
+              path: "inventory/suppliers",
+              element: <SupplierListPage />,
+              loader: supplierListLoader,
+              action: supplierAction,
+              children: [
+                {
+                  path: "add",
+                  element: <AddSupplierPage />,
+                  loader: addSupplierLoader,
+                  action: addSupplierAction,
+                },
+                {
+                  path: "update/:id",
+                  element: <UpdateSupplierPage />,
+                  loader: updateSupplierLoader,
+                  action: updateSupplierAction,
+                },
+              ],
             },
-          ],
-        },
-        {
-          path: "inventory/suppliers",
-          element: <SupplierListPage />,
-          loader: supplierListLoader,
-          action: supplierAction,
-          children: [
             {
-              path: "add",
-              element: <AddSupplierPage />,
-              loader: addSupplierLoader,
-              action: addSupplierAction,
+              path: "inventory/suppliers/:id",
+              element: <ViewSupplierPage />,
+              loader: viewSupplierLoader,
+              action: viewSupplierAction,
+              children: [
+                // Правка — в шторке карточки: после сабмита остаёмся на ней
+                {
+                  path: "update",
+                  element: <UpdateSupplierPage />,
+                  loader: updateSupplierLoader,
+                  action: updateSupplierAction,
+                },
+              ],
             },
             {
-              path: "update/:id",
-              element: <UpdateSupplierPage />,
-              loader: updateSupplierLoader,
-              action: updateSupplierAction,
+              path: "inventory/vendors/:id",
+              element: <ViewVendorPage />,
+              loader: viewVendorLoader,
+              action: viewVendorAction,
+              children: [
+                // Правка вендора — в нижней шторке карточки: после сабмита
+                // остаёмся на карточке (правило «редактирование не меняет
+                // страницу»)
+                {
+                  path: "update",
+                  element: <UpdateVendorPage />,
+                  loader: updateVendorLoader,
+                  action: updateVendorAction,
+                },
+                // Новая модель с карточки вендора — шторка здесь же; после
+                // сабмита форма сама уводит на карточку созданной модели
+                {
+                  path: "models/add",
+                  element: <AddDeviceModelPage presetFrom="vendor" />,
+                  loader: addDeviceModelLoader,
+                  action: addDeviceModelAction,
+                },
+              ],
             },
-          ],
-        },
-        {
-          path: "inventory/suppliers/:id",
-          element: <ViewSupplierPage />,
-          loader: viewSupplierLoader,
-          action: viewSupplierAction,
-          children: [
-            // Правка — в шторке карточки: после сабмита остаёмся на ней
-            {
-              path: "update",
-              element: <UpdateSupplierPage />,
-              loader: updateSupplierLoader,
-              action: updateSupplierAction,
-            },
-          ],
-        },
-        {
-          path: "inventory/vendors/:id",
-          element: <ViewVendorPage />,
-          loader: viewVendorLoader,
-          action: viewVendorAction,
-          children: [
-            // Правка вендора — в нижней шторке карточки: после сабмита
-            // остаёмся на карточке (правило «редактирование не меняет
-            // страницу»)
-            {
-              path: "update",
-              element: <UpdateVendorPage />,
-              loader: updateVendorLoader,
-              action: updateVendorAction,
-            },
-            // Новая модель с карточки вендора — шторка здесь же; после
-            // сабмита форма сама уводит на карточку созданной модели
-            {
-              path: "models/add",
-              element: <AddDeviceModelPage presetFrom="vendor" />,
-              loader: addDeviceModelLoader,
-              action: addDeviceModelAction,
-            },
-          ],
-        },
 
-        // Device Attributes
-        {
-          path: "inventory/device-attributes",
-          element: <DeviceAttributeListPage />,
-          action: deviceAttributeAction,
-          children: [
+            // Device Attributes
             {
-              path: "add",
-              element: <AddDeviceAttributePage />,
-              loader: addDeviceAttributeLoader,
-              action: addDeviceAttributeAction,
+              path: "inventory/device-attributes",
+              element: <DeviceAttributeListPage />,
+              action: deviceAttributeAction,
+              children: [
+                {
+                  path: "add",
+                  element: <AddDeviceAttributePage />,
+                  loader: addDeviceAttributeLoader,
+                  action: addDeviceAttributeAction,
+                },
+                {
+                  path: "update/:id",
+                  element: <UpdateDeviceAttributePage />,
+                  loader: updateDeviceAttributeLoader,
+                  action: updateDeviceAttributeAction,
+                },
+              ],
             },
-            {
-              path: "update/:id",
-              element: <UpdateDeviceAttributePage />,
-              loader: updateDeviceAttributeLoader,
-              action: updateDeviceAttributeAction,
-            },
-          ],
-        },
 
-        // Device Models
-        {
-          path: "inventory/device-models",
-          element: <DeviceModelListPage />,
-          action: deviceModelAction,
-          children: [
+            // Device Models
             {
-              path: "add",
-              element: <AddDeviceModelPage />,
-              loader: addDeviceModelLoader,
-              action: addDeviceModelAction,
+              path: "inventory/device-models",
+              element: <DeviceModelListPage />,
+              action: deviceModelAction,
+              children: [
+                {
+                  path: "add",
+                  element: <AddDeviceModelPage />,
+                  loader: addDeviceModelLoader,
+                  action: addDeviceModelAction,
+                },
+                {
+                  path: "update/:id",
+                  element: <UpdateDeviceModelPage />,
+                  loader: updateDeviceModelLoader,
+                  action: updateDeviceModelAction,
+                },
+              ],
             },
             {
-              path: "update/:id",
-              element: <UpdateDeviceModelPage />,
-              loader: updateDeviceModelLoader,
-              action: updateDeviceModelAction,
+              path: "inventory/device-models/:id",
+              element: <ViewDeviceModelPage />,
+              loader: viewDeviceModelLoader,
+              action: viewDeviceModelAction,
+              children: [
+                // Правка модели — в нижней шторке карточки: после сабмита
+                // остаёмся на карточке (статический "update" матчится раньше
+                // "update/:configId" конфигураций)
+                {
+                  path: "update",
+                  element: <UpdateDeviceModelPage />,
+                  loader: updateDeviceModelLoader,
+                  action: updateDeviceModelAction,
+                },
+                // Конфигурации модели открываются в нижнем Offcanvas страницы просмотра.
+                {
+                  path: "add",
+                  element: <AddDeviceConfigurationPage />,
+                  loader: addDeviceConfigurationLoader,
+                  action: addDeviceConfigurationAction,
+                },
+                {
+                  path: "update/:configId",
+                  element: <UpdateDeviceConfigurationPage />,
+                  loader: updateDeviceConfigurationLoader,
+                  action: updateDeviceConfigurationAction,
+                },
+              ],
             },
-          ],
-        },
-        {
-          path: "inventory/device-models/:id",
-          element: <ViewDeviceModelPage />,
-          loader: viewDeviceModelLoader,
-          action: viewDeviceModelAction,
-          children: [
-            // Правка модели — в нижней шторке карточки: после сабмита
-            // остаёмся на карточке (статический "update" матчится раньше
-            // "update/:configId" конфигураций)
-            {
-              path: "update",
-              element: <UpdateDeviceModelPage />,
-              loader: updateDeviceModelLoader,
-              action: updateDeviceModelAction,
-            },
-            // Конфигурации модели открываются в нижнем Offcanvas страницы просмотра.
-            {
-              path: "add",
-              element: <AddDeviceConfigurationPage />,
-              loader: addDeviceConfigurationLoader,
-              action: addDeviceConfigurationAction,
-            },
-            {
-              path: "update/:configId",
-              element: <UpdateDeviceConfigurationPage />,
-              loader: updateDeviceConfigurationLoader,
-              action: updateDeviceConfigurationAction,
-            },
-          ],
-        },
 
-        {
-          path: "finances/service-plans/:id",
-          loader: viewServicePlanLoader,
-          action: viewServicePlanAction,
-          element: <ViewServicePlanPage />,
-          children: [
             {
-              path: "update",
-              loader: updateServicePlanLoader,
-              action: updateServicePlanAction,
-              element: <UpdateServicePlanPage />,
+              path: "finances/service-plans/:id",
+              loader: viewServicePlanLoader,
+              action: viewServicePlanAction,
+              element: <ViewServicePlanPage />,
+              children: [
+                {
+                  path: "update",
+                  loader: updateServicePlanLoader,
+                  action: updateServicePlanAction,
+                  element: <UpdateServicePlanPage />,
+                },
+                {
+                  path: "delete",
+                },
+              ],
+            },
+            // Devices
+            {
+              path: "devices/mikrotik",
+              element: <MikrotikDevices />,
+              loader: mikrotikDevicesLoader,
+              // Формы создания/правки — нижняя шторка списка (Outlet ListWrapper).
+              children: [
+                { path: "add", element: <MikrotikDeviceForm /> },
+                { path: "update/:recordId", element: <MikrotikDeviceForm /> },
+              ],
+            },
+            // Страница записи мониторинга — общая для инвентарных и standalone
+            // устройств; правка — в шторке на месте (вложенный маршрут update).
+            {
+              path: "devices/mikrotik/records/:recordId",
+              element: <MikrotikRecordPage />,
+              loader: mikrotikRecordLoader,
+              children: [{ path: "update", element: <MikrotikDeviceForm /> }],
+            },
+            // Reports
+            // Легаси-отчёт по работам влился в «Архив» (сегмент «Работы») —
+            // постоянный редирект, закладки сотрудников не ломаются
+            {
+              path: "report/work",
+              loader: () => redirect("/archive?view=works"),
             },
             {
-              path: "delete",
+              // Сводка IP-адресации парка Mikrotik: свой чанк, как у остальных
+              // отчётов, — открывают её из тулбара мониторинга, а не с каждой
+              // страницы (xlsx выгрузки подгружается ещё позже, по нажатию).
+              path: "report/networks",
+              lazy: async () => {
+                const networksModule = await import("./pages/Report/Networks");
+                return {
+                  Component: networksModule.default,
+                  loader: networksModule.loader,
+                };
+              },
             },
-          ],
-        },
-        // Devices
-        {
-          path: "devices/mikrotik",
-          element: <MikrotikDevices />,
-          loader: mikrotikDevicesLoader,
-          // Формы создания/правки — нижняя шторка списка (Outlet ListWrapper).
-          children: [
-            { path: "add", element: <MikrotikDeviceForm /> },
-            { path: "update/:recordId", element: <MikrotikDeviceForm /> },
-          ],
-        },
-        // Страница записи мониторинга — общая для инвентарных и standalone
-        // устройств; правка — в шторке на месте (вложенный маршрут update).
-        {
-          path: "devices/mikrotik/records/:recordId",
-          element: <MikrotikRecordPage />,
-          loader: mikrotikRecordLoader,
-          children: [{ path: "update", element: <MikrotikDeviceForm /> }],
-        },
-        // Reports
-        // Легаси-отчёт по работам влился в «Архив» (сегмент «Работы») —
-        // постоянный редирект, закладки сотрудников не ломаются
-        {
-          path: "report/work",
-          loader: () => redirect("/archive?view=works"),
-        },
-        {
-          path: "report/networks",
-          element: <CompaniesNetworksReport />,
-          loader: companiesNetworksLoader,
-        },
-        {
-          // Отчёт «Компании» (бывшая «Аналитика»): recharts и логика отчёта
-          // уезжают в свой чанк и не грузятся тем, кто отчёт не открывает
-          // (протухший после деплоя чанк перезагружает vite:preloadError).
-          path: "report/companies",
-          lazy: async () => {
-            const companiesModule = await import("./pages/Report/Companies");
-            return {
-              Component: companiesModule.default,
-              loader: companiesModule.loader,
-            };
-          },
-        },
-        {
-          // Второй уровень отчёта — карточка компании
-          path: "report/companies/:companyId",
-          lazy: async () => {
-            const cardModule = await import("./pages/Report/CompanyReport");
-            return {
-              Component: cardModule.default,
-              loader: cardModule.loader,
-            };
-          },
-        },
-        {
-          // Третий уровень — карточка подразделения клиента
-          path: "report/companies/:companyId/subdivisions/:subdivisionId",
-          lazy: async () => {
-            const cardModule = await import("./pages/Report/SubdivisionReport");
-            return {
-              Component: cardModule.default,
-              loader: cardModule.loader,
-            };
-          },
-        },
-        {
-          // Прежний адрес «Аналитики» — закладки не ломаем, режим сохраняем
-          path: "report/analytics",
-          loader: ({ request }) => {
-            const view = new URL(request.url).searchParams.get("view");
-            return redirect(
-              view ? `/report/companies?view=${view}` : "/report/companies",
-            );
-          },
-        },
-        {
-          // Календарь команды: месячная сетка на всех сотрудников — свой чанк
-          path: "team/calendar",
-          lazy: async () => {
-            const calendarModule = await import("./pages/Team/Calendar.tsx");
-            return {
-              Component: calendarModule.default,
-              loader: calendarModule.loader,
-            };
-          },
-        },
-        // Прежний адрес — закладки не ломаем
-        { path: "team/schedule", loader: () => redirect("/team/calendar") },
-        // Finances
-        // Прежний адрес раздела — закладки не ломаем
-        {
-          path: "finances/summary-report",
-          loader: () => redirect("/finances/approval"),
-        },
-        // «Согласование работ»: конвейер и карточка отчёта. Ленивые чанки —
-        // раздел открывают не все, а тянет он таблицы и маршрут подписей.
-        {
-          path: "finances/approval",
-          lazy: async () => {
-            const approvalModule = await import("./pages/Finances/Approval.tsx");
-            return {
-              Component: approvalModule.default,
-              loader: approvalModule.loader,
-            };
-          },
-        },
-        // Карточка подбора: тот же компонент, что и карточка отчёта. Статический
-        // сегмент "preview" ранжируется выше, чем ":id", — конфликта нет.
-        {
-          path: "finances/approval/preview/:companyId/:servicePlanId/:month",
-          lazy: async () => {
-            const reportModule = await import(
-              "./pages/Finances/ApprovalReport.tsx"
-            );
-            return {
-              Component: reportModule.default,
-              loader: reportModule.previewLoader,
-            };
-          },
-        },
-        {
-          path: "finances/approval/:id",
-          lazy: async () => {
-            const reportModule = await import(
-              "./pages/Finances/ApprovalReport.tsx"
-            );
-            return {
-              Component: reportModule.default,
-              loader: reportModule.loader,
-            };
-          },
-        },
-        // «Сотрудники»: сводная по всем + отчёт выбранного сотрудника;
-        // «Мой отчёт» — та же страница без выбора сотрудника (own).
-        // Ленивые чанки: recharts грузится только тем, кто открыл отчёт.
-        {
-          path: "finances/employees",
-          lazy: async () => {
-            const employeesModule = await import(
-              "./pages/Finances/EmployeesReport.tsx"
-            );
-            return {
-              Component: employeesModule.default,
-              loader: employeesModule.loader,
-            };
-          },
-        },
-        {
-          path: "finances/employees/:userId",
-          lazy: async () => {
-            const personalModule = await import(
-              "./pages/Finances/PersonalReportPage.tsx"
-            );
-            return {
-              Component: personalModule.default,
-              loader: personalModule.loader,
-            };
-          },
-        },
-        {
-          path: "finances/my-report",
-          lazy: async () => {
-            const personalModule = await import(
-              "./pages/Finances/PersonalReportPage.tsx"
-            );
-            return {
-              Component: () => <personalModule.default own />,
-              loader: personalModule.ownLoader,
-            };
-          },
-        },
-        // Прежние адреса финансовых отчётов — закладки не ломаем
-        {
-          path: "finances/personal-report",
-          loader: ({ request }) => {
-            const userId = new URL(request.url).searchParams.get("userId");
-            return redirect(
-              userId ? `/finances/employees/${userId}` : "/finances/my-report",
-            );
-          },
-        },
-        {
-          path: "finances/employee-report",
-          loader: () => redirect("/finances/employees"),
-        },
-        // Preferences
-        {
-          path: "preferences",
-          element: <Preferences />,
-          loader: prefsLoader,
-          action: prefsAction,
-        },
+            {
+              // Отчёт «Компании» (бывшая «Аналитика»): recharts и логика отчёта
+              // уезжают в свой чанк и не грузятся тем, кто отчёт не открывает
+              // (протухший после деплоя чанк перезагружает vite:preloadError).
+              path: "report/companies",
+              lazy: async () => {
+                const companiesModule = await import(
+                  "./pages/Report/Companies"
+                );
+                return {
+                  Component: companiesModule.default,
+                  loader: companiesModule.loader,
+                };
+              },
+            },
+            {
+              // Второй уровень отчёта — карточка компании
+              path: "report/companies/:companyId",
+              lazy: async () => {
+                const cardModule = await import("./pages/Report/CompanyReport");
+                return {
+                  Component: cardModule.default,
+                  loader: cardModule.loader,
+                };
+              },
+            },
+            {
+              // Третий уровень — карточка подразделения клиента
+              path: "report/companies/:companyId/subdivisions/:subdivisionId",
+              lazy: async () => {
+                const cardModule = await import(
+                  "./pages/Report/SubdivisionReport"
+                );
+                return {
+                  Component: cardModule.default,
+                  loader: cardModule.loader,
+                };
+              },
+            },
+            {
+              // Прежний адрес «Аналитики» — закладки не ломаем, режим сохраняем
+              path: "report/analytics",
+              loader: ({ request }) => {
+                const view = new URL(request.url).searchParams.get("view");
+                return redirect(
+                  view ? `/report/companies?view=${view}` : "/report/companies",
+                );
+              },
+            },
+            {
+              // Календарь команды: месячная сетка на всех сотрудников — свой чанк
+              path: "team/calendar",
+              lazy: async () => {
+                const calendarModule = await import(
+                  "./pages/Team/Calendar.tsx"
+                );
+                return {
+                  Component: calendarModule.default,
+                  loader: calendarModule.loader,
+                };
+              },
+            },
+            // Прежний адрес — закладки не ломаем
+            { path: "team/schedule", loader: () => redirect("/team/calendar") },
+            // Finances
+            // Прежний адрес раздела — закладки не ломаем
+            {
+              path: "finances/summary-report",
+              loader: () => redirect("/finances/approval"),
+            },
+            // «Согласование работ»: конвейер и карточка отчёта. Ленивые чанки —
+            // раздел открывают не все, а тянет он таблицы и маршрут подписей.
+            {
+              path: "finances/approval",
+              lazy: async () => {
+                const approvalModule = await import(
+                  "./pages/Finances/Approval.tsx"
+                );
+                return {
+                  Component: approvalModule.default,
+                  loader: approvalModule.loader,
+                };
+              },
+            },
+            // Карточка подбора: тот же компонент, что и карточка отчёта. Статический
+            // сегмент "preview" ранжируется выше, чем ":id", — конфликта нет.
+            {
+              path: "finances/approval/preview/:companyId/:servicePlanId/:month",
+              lazy: async () => {
+                const reportModule = await import(
+                  "./pages/Finances/ApprovalReport.tsx"
+                );
+                return {
+                  Component: reportModule.default,
+                  loader: reportModule.previewLoader,
+                };
+              },
+            },
+            {
+              path: "finances/approval/:id",
+              lazy: async () => {
+                const reportModule = await import(
+                  "./pages/Finances/ApprovalReport.tsx"
+                );
+                return {
+                  Component: reportModule.default,
+                  loader: reportModule.loader,
+                };
+              },
+            },
+            // «Сотрудники»: сводная по всем + отчёт выбранного сотрудника;
+            // «Мой отчёт» — та же страница без выбора сотрудника (own).
+            // Ленивые чанки: recharts грузится только тем, кто открыл отчёт.
+            {
+              path: "finances/employees",
+              lazy: async () => {
+                const employeesModule = await import(
+                  "./pages/Finances/EmployeesReport.tsx"
+                );
+                return {
+                  Component: employeesModule.default,
+                  loader: employeesModule.loader,
+                };
+              },
+            },
+            {
+              path: "finances/employees/:userId",
+              lazy: async () => {
+                const personalModule = await import(
+                  "./pages/Finances/PersonalReportPage.tsx"
+                );
+                return {
+                  Component: personalModule.default,
+                  loader: personalModule.loader,
+                };
+              },
+            },
+            {
+              path: "finances/my-report",
+              lazy: async () => {
+                const personalModule = await import(
+                  "./pages/Finances/PersonalReportPage.tsx"
+                );
+                return {
+                  Component: () => <personalModule.default own />,
+                  loader: personalModule.ownLoader,
+                };
+              },
+            },
+            // Прежние адреса финансовых отчётов — закладки не ломаем
+            {
+              path: "finances/personal-report",
+              loader: ({ request }) => {
+                const userId = new URL(request.url).searchParams.get("userId");
+                return redirect(
+                  userId
+                    ? `/finances/employees/${userId}`
+                    : "/finances/my-report",
+                );
+              },
+            },
+            {
+              path: "finances/employee-report",
+              loader: () => redirect("/finances/employees"),
+            },
+            // Preferences
+            {
+              path: "preferences",
+              element: <Preferences />,
+              loader: prefsLoader,
+              action: prefsAction,
+            },
           ],
         },
       ],

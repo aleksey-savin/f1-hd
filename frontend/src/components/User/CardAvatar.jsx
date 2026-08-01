@@ -152,19 +152,21 @@ const CardAvatar = ({ user, ringColor, canEdit }) => {
       useToastStore.getState().showToast("success", "Фото обновлено");
       close();
     } catch (uploadError) {
-      setError(uploadError.message || "Что-то пошло не так, попробуйте ещё раз");
+      setError(
+        uploadError.message || "Что-то пошло не так, попробуйте ещё раз",
+      );
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="tw:relative tw:flex-none">
+    <div className="relative flex-none">
       <UserAvatar
         user={user}
         src={preview}
-        sizeClass="tw:size-20"
-        textClass="tw:text-2xl"
+        sizeClass="size-20"
+        textClass="text-2xl"
         ringColor={ringColor}
         ring="lg"
       />
@@ -176,7 +178,7 @@ const CardAvatar = ({ user, ringColor, canEdit }) => {
             onClick={() => inputRef.current?.click()}
             title="Изменить фото"
             aria-label="Изменить фото"
-            className="tw:absolute tw:right-0 tw:bottom-0 tw:grid tw:size-8 tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-full tw:border-2 tw:border-card tw:bg-primary tw:text-primary-foreground tw:transition-colors tw:hover:bg-primary/90"
+            className="absolute right-0 bottom-0 grid size-8 cursor-pointer appearance-none place-items-center rounded-full border-2 border-card bg-primary text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <RiCameraLine size={15} />
           </button>
@@ -185,21 +187,24 @@ const CardAvatar = ({ user, ringColor, canEdit }) => {
             type="file"
             accept="image/*"
             onChange={onFileSelect}
-            className="tw:hidden"
+            className="hidden"
           />
         </>
       )}
 
-      <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
-        <DialogContent className="tw:max-w-xl" aria-describedby={undefined}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => (next ? setOpen(true) : close())}
+      >
+        <DialogContent className="max-w-xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Выберите область для загрузки</DialogTitle>
           </DialogHeader>
 
-          {error && <p className="tw:my-0 tw:text-sm tw:text-destructive">{error}</p>}
+          {error && <p className="my-0 text-sm text-destructive">{error}</p>}
 
           {imgSrc && (
-            <div className="tw:flex tw:justify-center tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-accent tw:p-2">
+            <div className="flex justify-center overflow-hidden rounded-xl border border-border bg-accent p-2">
               <ReactCrop
                 crop={crop}
                 onChange={(pixelCrop) => setCrop(pixelCrop)}
@@ -218,7 +223,7 @@ const CardAvatar = ({ user, ringColor, canEdit }) => {
             </div>
           )}
 
-          <DialogFooter className="tw:mt-2">
+          <DialogFooter className="mt-2">
             <Button variant="ghost" type="button" onClick={close}>
               Отмена
             </Button>

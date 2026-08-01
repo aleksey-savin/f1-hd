@@ -17,7 +17,7 @@ import { localToUtc, utcToLocalForm } from "../../util/format-date";
  */
 
 /** Чем режимы отличаются: заголовок, подпись сабмита и состав полей. */
-export const TICKET_FORM_MODES = {
+const TICKET_FORM_MODES = {
   add: {
     title: "Новая заявка",
     submitLabel: "Сохранить",
@@ -55,8 +55,12 @@ const asId = (value) => (value == null ? "" : String(value._id ?? value));
 
 // Toast UI на пустом редакторе отдаёт «<p><br></p>», и проверка на пустую
 // строку пропустила бы заявку без описания
-export const htmlIsEmpty = (html) =>
-  !html || !html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim();
+const htmlIsEmpty = (html) =>
+  !html ||
+  !html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .trim();
 
 /**
  * @param {object} params
@@ -214,9 +218,8 @@ export const useTicketForm = ({
       payload.append(
         "company",
         JSON.stringify(
-          (formData.companies ?? []).find(
-            (item) => asId(item) === companyId,
-          ) ?? null,
+          (formData.companies ?? []).find((item) => asId(item) === companyId) ??
+            null,
         ),
       );
       payload.append("applicantId", applicantId);

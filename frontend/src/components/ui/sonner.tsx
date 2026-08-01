@@ -1,15 +1,15 @@
-"use client"
+"use client";
 
-import { useContext } from "react"
-import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { useContext } from "react";
+import { Toaster as Sonner, type ToasterProps } from "sonner";
 
-import { ThemeContext } from "@/store/theme-context"
+import { ThemeContext } from "@/store/theme-context";
 
 // Тему берём из ThemeContext приложения (шаблон shadcn использует next-themes).
 // Поверхность/границы — токены новой системы; z-index у sonner собственный,
 // выше bootstrap-модалок.
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { isDark } = useContext(ThemeContext)
+  const { isDark } = useContext(ThemeContext);
 
   return (
     <Sonner
@@ -25,7 +25,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }
       {...props}
     />
-  )
-}
+  );
+};
 
-export { Toaster }
+export { Toaster };

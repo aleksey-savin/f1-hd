@@ -47,8 +47,8 @@ const EXAMPLES = [
 ];
 
 const INP =
-  "tw:h-9 tw:rounded-lg tw:border tw:border-input tw:bg-background tw:px-3 tw:text-sm tw:text-foreground tw:outline-none tw:focus-visible:border-ring tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50";
-const LAB = "tw:text-sm tw:text-muted-foreground";
+  "h-9 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/50";
+const LAB = "text-sm text-muted-foreground";
 
 const ScheduleBuilder = ({ value, onChange }) => {
   const initial = parseCronToState(value);
@@ -110,14 +110,16 @@ const ScheduleBuilder = ({ value, onChange }) => {
     if (state.freq === "minutes") {
       const isMin = state.everyUnit === "minutes";
       return (
-        <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <span className={LAB}>Повторять каждые</span>
           <input
             type="number"
             min="1"
             value={state.everyN}
-            onChange={(e) => patch({ everyN: Math.max(1, +e.target.value || 1) })}
-            className={cn(INP, "tw:w-16 tw:text-center")}
+            onChange={(e) =>
+              patch({ everyN: Math.max(1, +e.target.value || 1) })
+            }
+            className={cn(INP, "w-16 text-center")}
           />
           <select
             value={state.everyUnit}
@@ -127,7 +129,7 @@ const ScheduleBuilder = ({ value, onChange }) => {
             <option value="minutes">минут</option>
             <option value="hours">часов</option>
           </select>
-          <div className="tw:flex tw:gap-1.5">
+          <div className="flex gap-1.5">
             {[
               ["5m", "5 мин", { everyUnit: "minutes", everyN: 5 }],
               ["30m", "30 мин", { everyUnit: "minutes", everyN: 30 }],
@@ -137,7 +139,7 @@ const ScheduleBuilder = ({ value, onChange }) => {
                 key={key}
                 type="button"
                 onClick={() => patch(p)}
-                className="tw:cursor-pointer tw:rounded-md tw:border tw:border-dashed tw:border-border tw:bg-transparent tw:px-2.5 tw:py-1.5 tw:text-xs tw:font-semibold tw:text-accent-text tw:hover:bg-accent"
+                className="cursor-pointer rounded-md border border-dashed border-border bg-transparent px-2.5 py-1.5 text-xs font-semibold text-accent-text hover:bg-accent"
               >
                 {label}
               </button>
@@ -150,7 +152,7 @@ const ScheduleBuilder = ({ value, onChange }) => {
 
     if (state.freq === "hourly") {
       return (
-        <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <span className={LAB}>Каждый час, в минуту</span>
           <select
             value={state.minute}
@@ -169,27 +171,32 @@ const ScheduleBuilder = ({ value, onChange }) => {
 
     if (state.freq === "daily") {
       return (
-        <div className="tw:flex tw:flex-col tw:gap-3.5">
-          <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+        <div className="flex flex-col gap-3.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <span className={LAB}>Каждый день, время</span>
-            <input type="time" value={timeValue} onChange={setTime} className={INP} />
+            <input
+              type="time"
+              value={timeValue}
+              onChange={setTime}
+              className={INP}
+            />
           </div>
           <button
             type="button"
             role="checkbox"
             aria-checked={state.weekdaysOnly}
             onClick={() => patch({ weekdaysOnly: !state.weekdaysOnly })}
-            className="tw:inline-flex tw:w-fit tw:cursor-pointer tw:items-center tw:gap-2.5 tw:appearance-none tw:border-0 tw:bg-transparent tw:text-sm tw:text-foreground"
+            className="inline-flex w-fit cursor-pointer items-center gap-2.5 appearance-none border-0 bg-transparent text-sm text-foreground"
           >
             <span
               className={cn(
-                "tw:grid tw:size-[18px] tw:place-items-center tw:rounded-[5px] tw:border",
+                "grid size-[18px] place-items-center rounded-[5px] border",
                 state.weekdaysOnly
-                  ? "tw:border-primary tw:bg-primary tw:text-primary-foreground"
-                  : "tw:border-input tw:text-transparent",
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input text-transparent",
               )}
             >
-              <RiCheckLine className="tw:size-3" />
+              <RiCheckLine className="size-3" />
             </span>
             Только по будням (Пн–Пт)
           </button>
@@ -205,10 +212,10 @@ const ScheduleBuilder = ({ value, onChange }) => {
             : [...state.days, v],
         });
       return (
-        <div className="tw:flex tw:flex-col tw:gap-3.5">
-          <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-2">
+        <div className="flex flex-col gap-3.5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className={LAB}>По дням</span>
-            <div className="tw:flex tw:flex-wrap tw:gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {DAY_ORDER.map((v) => (
                 <button
                   key={v}
@@ -216,17 +223,17 @@ const ScheduleBuilder = ({ value, onChange }) => {
                   aria-pressed={state.days.includes(v)}
                   onClick={() => toggleDay(v)}
                   className={cn(
-                    "tw:size-9 tw:cursor-pointer tw:rounded-lg tw:border tw:text-sm tw:font-semibold tw:tabular-nums",
+                    "size-9 cursor-pointer rounded-lg border text-sm font-semibold tabular-nums",
                     state.days.includes(v)
-                      ? "tw:border-primary tw:bg-primary tw:text-primary-foreground"
-                      : "tw:border-input tw:bg-background tw:text-muted-foreground tw:hover:bg-accent tw:hover:text-foreground",
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground",
                   )}
                 >
                   {WEEKDAYS[v]}
                 </button>
               ))}
             </div>
-            <div className="tw:flex tw:gap-1.5">
+            <div className="flex gap-1.5">
               {[
                 ["Будни", [1, 2, 3, 4, 5]],
                 ["Выходные", [6, 0]],
@@ -235,16 +242,21 @@ const ScheduleBuilder = ({ value, onChange }) => {
                   key={label}
                   type="button"
                   onClick={() => patch({ days })}
-                  className="tw:cursor-pointer tw:rounded-md tw:border tw:border-dashed tw:border-border tw:bg-transparent tw:px-2.5 tw:py-1.5 tw:text-xs tw:font-semibold tw:text-accent-text tw:hover:bg-accent"
+                  className="cursor-pointer rounded-md border border-dashed border-border bg-transparent px-2.5 py-1.5 text-xs font-semibold text-accent-text hover:bg-accent"
                 >
                   {label}
                 </button>
               ))}
             </div>
           </div>
-          <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <span className={LAB}>Время</span>
-            <input type="time" value={timeValue} onChange={setTime} className={INP} />
+            <input
+              type="time"
+              value={timeValue}
+              onChange={setTime}
+              className={INP}
+            />
           </div>
         </div>
       );
@@ -252,8 +264,8 @@ const ScheduleBuilder = ({ value, onChange }) => {
 
     // monthly
     return (
-      <div className="tw:flex tw:flex-col tw:gap-2.5">
-        <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+      <div className="flex flex-col gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <span className={LAB}>Каждый месяц, число</span>
           <select
             value={state.dom}
@@ -267,9 +279,14 @@ const ScheduleBuilder = ({ value, onChange }) => {
             ))}
           </select>
           <span className={LAB}>время</span>
-          <input type="time" value={timeValue} onChange={setTime} className={INP} />
+          <input
+            type="time"
+            value={timeValue}
+            onChange={setTime}
+            className={INP}
+          />
         </div>
-        <p className="tw:m-0 tw:text-xs tw:text-faint">
+        <p className="m-0 text-xs text-faint">
           Числа 29–31 планировщик не поддерживает напрямую — в коротких месяцах
           запуск пропускается.
         </p>
@@ -283,21 +300,21 @@ const ScheduleBuilder = ({ value, onChange }) => {
   const runs = valid ? nextCronRuns(currentCron, 3) : [];
 
   const preview = (
-    <div className="tw:mt-5 tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card">
-      <div className="tw:flex tw:items-center tw:gap-3 tw:p-4">
-        <span className="tw:grid tw:size-10 tw:flex-none tw:place-items-center tw:rounded-xl tw:bg-primary/15 tw:text-accent-text">
-          <RiTimeLine className="tw:size-5" />
+    <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex items-center gap-3 p-4">
+        <span className="grid size-10 flex-none place-items-center rounded-xl bg-primary/15 text-accent-text">
+          <RiTimeLine className="size-5" />
         </span>
-        <div className="tw:min-w-0">
+        <div className="min-w-0">
           <div
             className={cn(
-              "tw:text-lg tw:font-semibold tw:tracking-tight",
-              !valid && "tw:text-destructive",
+              "text-lg font-semibold tracking-tight",
+              !valid && "text-destructive",
             )}
           >
             {valid ? describeCron(currentCron) : "Неверный формат cron"}
           </div>
-          <div className="tw:text-xs tw:text-faint">
+          <div className="text-xs text-faint">
             {phrase
               ? "Понятная запись"
               : valid
@@ -307,13 +324,13 @@ const ScheduleBuilder = ({ value, onChange }) => {
         </div>
       </div>
       <div
-        className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-2 tw:px-4 tw:py-3"
+        className="flex flex-wrap items-center gap-x-2.5 gap-y-2 px-4 py-3"
         style={{ borderTop: "1px dashed var(--border)" }}
       >
-        <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+        <span className="text-xs font-bold tracking-wider text-faint uppercase">
           cron
         </span>
-        <code className="tw:rounded-md tw:border tw:border-border tw:bg-accent tw:px-2.5 tw:py-1 tw:font-mono tw:text-sm tw:whitespace-nowrap tw:text-foreground">
+        <code className="rounded-md border border-border bg-accent px-2.5 py-1 font-mono text-sm whitespace-nowrap text-foreground">
           {currentCron}
         </code>
         <button
@@ -322,39 +339,37 @@ const ScheduleBuilder = ({ value, onChange }) => {
           title="Копировать"
           aria-label="Копировать"
           className={cn(
-            "tw:grid tw:size-[30px] tw:flex-none tw:cursor-pointer tw:place-items-center tw:rounded-md tw:border tw:border-input tw:bg-transparent tw:hover:bg-accent tw:hover:text-foreground",
-            copied ? "tw:text-accent-text" : "tw:text-faint",
+            "grid size-[30px] flex-none cursor-pointer place-items-center rounded-md border border-input bg-transparent hover:bg-accent hover:text-foreground",
+            copied ? "text-accent-text" : "text-faint",
           )}
         >
           {copied ? (
-            <RiCheckLine className="tw:size-[15px]" />
+            <RiCheckLine className="size-[15px]" />
           ) : (
-            <RiFileCopyLine className="tw:size-[15px]" />
+            <RiFileCopyLine className="size-[15px]" />
           )}
         </button>
       </div>
-      <div className="tw:border-t tw:border-border-soft tw:px-4 tw:py-3">
-        <div className="tw:mb-2 tw:text-[11px] tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+      <div className="border-t border-border-soft px-4 py-3">
+        <div className="mb-2 text-[11px] font-bold tracking-wider text-faint uppercase">
           Ближайшие запуски
         </div>
-        <ul className="tw:m-0 tw:flex tw:list-none tw:flex-col tw:gap-1.5 tw:p-0">
+        <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
           {runs.length ? (
             runs.map((d, i) => (
               <li
                 key={d.getTime()}
-                className="tw:flex tw:items-center tw:gap-2.5 tw:text-sm tw:tabular-nums"
+                className="flex items-center gap-2.5 text-sm tabular-nums"
               >
-                <RiTimeLine className="tw:size-4 tw:text-faint" />
+                <RiTimeLine className="size-4 text-faint" />
                 <span>{formatCronRun(d)}</span>
                 {i === 0 && (
-                  <span className="tw:text-xs tw:text-faint">
-                    {relativeToNow(d)}
-                  </span>
+                  <span className="text-xs text-faint">{relativeToNow(d)}</span>
                 )}
               </li>
             ))
           ) : (
-            <li className="tw:text-sm tw:text-faint">
+            <li className="text-sm text-faint">
               {valid ? "Не удалось вычислить ближайшие запуски" : "—"}
             </li>
           )}
@@ -370,10 +385,10 @@ const ScheduleBuilder = ({ value, onChange }) => {
       aria-pressed={mode === target}
       onClick={() => switchMode(target)}
       className={cn(
-        "tw:inline-flex tw:cursor-pointer tw:items-center tw:gap-1.5 tw:rounded-md tw:border-0 tw:px-3 tw:py-1.5 tw:text-sm tw:font-semibold tw:[&_svg]:size-4",
+        "inline-flex cursor-pointer items-center gap-1.5 rounded-md border-0 px-3 py-1.5 text-sm font-semibold [&_svg]:size-4",
         mode === target
-          ? "tw:bg-accent tw:text-foreground tw:inset-ring tw:inset-ring-border"
-          : "tw:bg-transparent tw:text-muted-foreground",
+          ? "bg-accent text-foreground inset-ring inset-ring-border"
+          : "bg-transparent text-muted-foreground",
       )}
     >
       {icon} {label}
@@ -382,17 +397,17 @@ const ScheduleBuilder = ({ value, onChange }) => {
 
   return (
     <div>
-      <div className="tw:mb-4 tw:flex tw:flex-wrap tw:items-center tw:justify-end tw:gap-2.5">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2.5">
         <span className={LAB}>Режим</span>
-        <div className="tw:inline-flex tw:gap-0.5 tw:rounded-lg tw:border tw:border-border tw:bg-background tw:p-0.5">
+        <div className="inline-flex gap-0.5 rounded-lg border border-border bg-background p-0.5">
           {modeBtn("simple", <RiEqualizer2Line />, "Простой")}
           {modeBtn("cron", <RiCodeSSlashLine />, "Строка cron")}
         </div>
       </div>
 
       {mode === "simple" ? (
-        <div className="tw:flex tw:flex-col tw:gap-4">
-          <div className="tw:flex tw:flex-wrap tw:gap-1.5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-1.5">
             {FREQS.map((f) => (
               <button
                 key={f.value}
@@ -400,10 +415,10 @@ const ScheduleBuilder = ({ value, onChange }) => {
                 aria-pressed={state.freq === f.value}
                 onClick={() => patch({ freq: f.value })}
                 className={cn(
-                  "tw:cursor-pointer tw:rounded-lg tw:border tw:px-3.5 tw:py-2 tw:text-sm tw:font-semibold",
+                  "cursor-pointer rounded-lg border px-3.5 py-2 text-sm font-semibold",
                   state.freq === f.value
-                    ? "tw:border-primary/40 tw:bg-primary/15 tw:text-accent-text"
-                    : "tw:border-input tw:bg-background tw:text-muted-foreground tw:hover:bg-accent tw:hover:text-foreground",
+                    ? "border-primary/40 bg-primary/15 text-accent-text"
+                    : "border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground",
                 )}
               >
                 {f.label}
@@ -424,13 +439,13 @@ const ScheduleBuilder = ({ value, onChange }) => {
             }}
             aria-label="cron-строка"
             className={cn(
-              "tw:w-full tw:rounded-lg tw:border tw:bg-background tw:px-3.5 tw:py-3 tw:text-center tw:font-mono tw:text-base tw:tracking-widest tw:text-foreground tw:outline-none tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+              "w-full rounded-lg border bg-background px-3.5 py-3 text-center font-mono text-base tracking-widest text-foreground outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
               isValidCron(cronText)
-                ? "tw:border-input tw:focus-visible:border-ring"
-                : "tw:border-destructive",
+                ? "border-input focus-visible:border-ring"
+                : "border-destructive",
             )}
           />
-          <div className="tw:mt-2 tw:grid tw:grid-cols-5 tw:gap-1.5 tw:text-center tw:text-[11px] tw:font-semibold tw:text-faint">
+          <div className="mt-2 grid grid-cols-5 gap-1.5 text-center text-[11px] font-semibold text-faint">
             <span>минута</span>
             <span>час</span>
             <span>день мес.</span>
@@ -438,17 +453,17 @@ const ScheduleBuilder = ({ value, onChange }) => {
             <span>день нед.</span>
           </div>
           {notice && (
-            <div className="tw:mt-3 tw:flex tw:items-center tw:gap-2 tw:text-sm tw:text-warn-text [&_svg]:tw:size-4">
+            <div className="mt-3 flex items-center gap-2 text-sm text-warning [&_svg]:size-4">
               <RiErrorWarningLine />
               Эта строка не раскладывается на простые правила — оставьте её в
               режиме «Строка cron».
             </div>
           )}
-          <div className="tw:mt-4">
-            <div className="tw:mb-2 tw:text-sm tw:text-muted-foreground">
+          <div className="mt-4">
+            <div className="mb-2 text-sm text-muted-foreground">
               Примеры — нажмите, чтобы подставить:
             </div>
-            <div className="tw:flex tw:flex-wrap tw:gap-2">
+            <div className="flex flex-wrap gap-2">
               {EXAMPLES.map(([expr, label]) => (
                 <button
                   key={expr}
@@ -457,12 +472,12 @@ const ScheduleBuilder = ({ value, onChange }) => {
                     setCronText(expr);
                     setNotice(false);
                   }}
-                  className="tw:cursor-pointer tw:rounded-lg tw:border tw:border-input tw:bg-background tw:px-2.5 tw:py-1.5 tw:text-left tw:hover:bg-accent"
+                  className="cursor-pointer rounded-lg border border-input bg-background px-2.5 py-1.5 text-left hover:bg-accent"
                 >
-                  <code className="tw:block tw:font-mono tw:text-xs tw:text-accent-text">
+                  <code className="block font-mono text-xs text-accent-text">
                     {expr}
                   </code>
-                  <span className="tw:text-[11.5px] tw:text-muted-foreground">
+                  <span className="text-[11.5px] text-muted-foreground">
                     {label}
                   </span>
                 </button>
@@ -474,7 +489,7 @@ const ScheduleBuilder = ({ value, onChange }) => {
 
       {preview}
 
-      <p className="tw:mt-3 tw:flex tw:items-center tw:gap-2 tw:text-xs tw:text-faint [&_svg]:tw:size-4">
+      <p className="mt-3 flex items-center gap-2 text-xs text-faint [&_svg]:size-4">
         <RiTimeLine />
         Время — по часовому поясу организации. Секунды не используются.
       </p>

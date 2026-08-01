@@ -37,7 +37,7 @@ const ThemeSegment = ({
       role="group"
       aria-label="Тема оформления"
       className={cn(
-        "tw:inline-flex tw:gap-0.5 tw:rounded-lg tw:border tw:border-input tw:bg-background tw:p-0.5",
+        "inline-flex gap-0.5 rounded-lg border border-input bg-background p-0.5",
         className,
       )}
     >
@@ -51,9 +51,9 @@ const ThemeSegment = ({
           // appearance/border/bg — гасим браузерные дефолты кнопки
           // (preflight выключен)
           className={cn(
-            "tw:inline-flex tw:flex-1 tw:cursor-pointer tw:appearance-none tw:items-center tw:justify-center tw:gap-1.5 tw:rounded-md tw:border-0 tw:bg-transparent tw:px-3 tw:py-1.5 tw:text-sm tw:font-medium tw:text-muted-foreground tw:transition-colors tw:outline-none tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+            "inline-flex flex-1 cursor-pointer appearance-none items-center justify-center gap-1.5 rounded-md border-0 bg-transparent px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50",
             theme === value &&
-              "tw:bg-primary/15 tw:text-accent-text tw:hover:text-accent-text",
+              "bg-primary/15 text-accent-text hover:text-accent-text",
           )}
         >
           <Icon size={15} aria-hidden />

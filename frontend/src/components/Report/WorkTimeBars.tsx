@@ -12,7 +12,7 @@ import { formatMinutes } from "./work-format";
 // Время работ столбиками: «в графике» + переработка сверху. Одним компонентом
 // рисуются дневной разрез периода и помесячная динамика за год — вопрос один
 // и тот же («сколько отработано и сколько сверх графика»), меняется только ось.
-export type TimeBar = {
+type TimeBar = {
   key: string;
   label: string;
   minutes: number;
@@ -48,7 +48,7 @@ const WorkTimeBars = ({
   return (
     <ChartContainer
       config={chartConfig}
-      className="tw:aspect-auto tw:w-full"
+      className="aspect-auto w-full"
       style={{ height }}
     >
       <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
@@ -77,15 +77,15 @@ const WorkTimeBars = ({
                   <>
                     <span
                       aria-hidden
-                      className="tw:mt-0.5 tw:size-2.5 tw:shrink-0 tw:rounded-xs"
+                      className="mt-0.5 size-2.5 shrink-0 rounded-xs"
                       style={{ background: item.color }}
                     />
-                    <span className="tw:flex tw:flex-1 tw:items-center tw:justify-between tw:gap-4 tw:leading-none">
-                      <span className="tw:text-muted-foreground">
+                    <span className="flex flex-1 items-center justify-between gap-4 leading-none">
+                      <span className="text-muted-foreground">
                         {chartConfig[name as keyof typeof chartConfig]?.label ??
                           name}
                       </span>
-                      <span className="tw:font-medium tw:text-foreground tw:tabular-nums">
+                      <span className="font-medium text-foreground tabular-nums">
                         {formatMinutes(Number(value))}
                       </span>
                     </span>

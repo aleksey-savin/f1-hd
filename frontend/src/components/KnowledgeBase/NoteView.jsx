@@ -31,7 +31,8 @@ const API = import.meta.env.VITE_API_ADDRESS;
 // .mobile-shell__scroll и должен расти по содержимому (см. docs/ux-ui-guide.md).
 const EDITOR_HEIGHT = isMobile ? "auto" : "calc(100svh - 320px)";
 
-const idsOf = (list = []) => (list || []).map((item) => String(item._id)).sort();
+const idsOf = (list = []) =>
+  (list || []).map((item) => String(item._id)).sort();
 const sameIds = (a, b) =>
   a.length === b.length && a.every((value, index) => value === b[index]);
 
@@ -344,7 +345,9 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
       return;
     }
     const block = event.target.closest(".toastui-editor-contents > *");
-    const contents = viewerRef.current?.querySelector(".toastui-editor-contents");
+    const contents = viewerRef.current?.querySelector(
+      ".toastui-editor-contents",
+    );
     const index =
       block && contents ? [...contents.children].indexOf(block) : null;
     enterEdit(index !== null && index >= 0 ? index : null);
@@ -387,7 +390,7 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
 
   // Ctrl/Cmd+E — переключить режим, Ctrl/Cmd+S — сохранить, Esc — выйти.
   // Esc игнорируем, когда фокус в поле ввода (там он закрывает выпадающий
-  // список react-select), а Ctrl+S ловим всегда — иначе он уходит браузеру.
+  // список), а Ctrl+S ловим всегда — иначе он уходит браузеру.
   useEffect(() => {
     const handler = (event) => {
       const key = event.key.toLowerCase();
@@ -455,13 +458,13 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
     );
 
   return (
-    <article className="tw:min-w-0">
+    <article className="min-w-0">
       {/* Крошка нужна только там, где списка не видно: на десктопе он всегда
           слева, в соседней панели */}
       <MobileView>
         <Link
           to="/knowledge-base"
-          className="tw:mb-3 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+          className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
         >
           <RiArrowLeftSLine /> База знаний
         </Link>
@@ -514,9 +517,9 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
       {/* Вьюер и WYSIWYG-редактор рендерят в один и тот же
           .toastui-editor-contents, поэтому мера чтения задана один раз и
           действует в обоих режимах (.kb-doc в index.css) */}
-      <div className="kb-doc md-doc tw:mt-4">
+      <div className="kb-doc md-doc mt-4">
         {isEditing ? (
-          <div className="md-editor tw:overflow-hidden tw:rounded-lg tw:border tw:border-input">
+          <div className="md-editor overflow-hidden rounded-lg border border-input">
             <MarkdownEditor
               initialValue={content}
               onChange={setContent}

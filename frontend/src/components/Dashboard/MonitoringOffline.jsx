@@ -46,7 +46,8 @@ const MonitoringOffline = () => {
           `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/offline`,
           { headers: { Authorization: "Bearer " + token } },
         );
-        if (!response.ok) throw new Error(`mikrotik offline ${response.status}`);
+        if (!response.ok)
+          throw new Error(`mikrotik offline ${response.status}`);
         setData(await response.json());
       } catch (error) {
         console.error("Не удалось загрузить состояние мониторинга:", error);
@@ -62,26 +63,31 @@ const MonitoringOffline = () => {
       <section>
         <Eyebrow>Мониторинг</Eyebrow>
         <Panel>
-          <div className="tw:flex tw:gap-3">
-            <span className="tw:flex tw:size-8 tw:flex-none tw:items-center tw:justify-center tw:rounded-lg tw:bg-warning/15 tw:text-warning">
+          <div className="flex gap-3">
+            <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-warning/15 text-warning">
               <RiAlertLine size={16} aria-hidden />
             </span>
-            <div className="tw:min-w-0 tw:flex-1">
-              <div className="tw:text-sm tw:font-semibold">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">
                 Опрос не отвечает с {formatDayMonth(data.since)}
               </div>
-              <p className="tw:mt-1 tw:mb-0 tw:text-sm tw:text-muted-foreground">
+              <p className="mt-1 mb-0 text-sm text-muted-foreground">
                 Все {data.total} устройств ушли в офлайн одним проходом
                 {data.dominantError ? " и с одной ошибкой" : ""}. Похоже на сбой
                 опроса, а не на {data.total} аварий.
               </p>
               {data.dominantError && (
-                <p className="tw:mt-1 tw:mb-0 tw:font-mono tw:text-xs tw:text-faint">
+                <p className="mt-1 mb-0 font-mono text-xs text-faint">
                   {data.dominantError}
                 </p>
               )}
             </div>
-            <Button asChild variant="outline" size="xs" className="tw:flex-none tw:self-center">
+            <Button
+              asChild
+              variant="outline"
+              size="xs"
+              className="flex-none self-center"
+            >
               <Link to="/devices/mikrotik">Открыть</Link>
             </Button>
           </div>
@@ -97,7 +103,7 @@ const MonitoringOffline = () => {
         action={
           <Link
             to="/devices/mikrotik"
-            className="tw:text-sm tw:font-medium tw:text-accent-text tw:no-underline"
+            className="text-sm font-medium text-accent-text no-underline"
           >
             Все устройства →
           </Link>
@@ -106,7 +112,7 @@ const MonitoringOffline = () => {
         Мониторинг
       </Eyebrow>
       <Panel>
-        <div className="tw:-mx-5 tw:-my-5">
+        <div className="-mx-5 -my-5">
           {data.items.map((item) => {
             // Меньше часа — ещё может само подняться, дольше — уже инцидент.
             const fresh =
@@ -116,27 +122,27 @@ const MonitoringOffline = () => {
               <Link
                 key={item._id}
                 to={`/devices/mikrotik/records/${item._id}`}
-                className="tw:flex tw:items-center tw:gap-3 tw:border-b tw:border-border-soft tw:px-5 tw:py-2.5 tw:text-foreground tw:no-underline tw:transition-colors tw:last:border-b-0 tw:hover:bg-accent/60 tw:hover:text-foreground"
+                className="flex items-center gap-3 border-b border-border-soft px-5 py-2.5 text-foreground no-underline transition-colors last:border-b-0 hover:bg-accent/60 hover:text-foreground"
               >
-                <span className="tw:min-w-0 tw:flex-1">
-                  <span className="tw:block tw:truncate tw:text-sm tw:font-medium">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
                     {item.name}
                   </span>
-                  <span className="tw:block tw:truncate tw:text-sm tw:text-muted-foreground">
+                  <span className="block truncate text-sm text-muted-foreground">
                     {item.company || "Без компании"}
                   </span>
                 </span>
                 <span
                   className={
-                    "tw:flex-none tw:text-sm tw:whitespace-nowrap tw:tabular-nums " +
-                    (fresh ? "tw:text-warning" : "tw:text-destructive")
+                    "flex-none text-sm whitespace-nowrap tabular-nums " +
+                    (fresh ? "text-warning" : "text-destructive")
                   }
                 >
                   <span
                     aria-hidden
                     className={
-                      "tw:me-1.5 tw:inline-block tw:size-1.5 tw:rounded-full tw:align-middle " +
-                      (fresh ? "tw:bg-warning" : "tw:bg-destructive")
+                      "me-1.5 inline-block size-1.5 rounded-full align-middle " +
+                      (fresh ? "bg-warning" : "bg-destructive")
                     }
                   />
                   {downtimeText(item.offlineSince)}

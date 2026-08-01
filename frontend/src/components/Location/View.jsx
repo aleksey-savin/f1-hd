@@ -34,7 +34,7 @@ import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { AuthedUserContext } from "../../store/authed-user-context";
 
-const dash = <span className="tw:text-faint">—</span>;
+const dash = <span className="text-faint">—</span>;
 const fmtDate = (value) => (value ? formatShortDate(value) : null);
 const userName = (u) =>
   u ? [u.firstName, u.lastName].filter(Boolean).join(" ") : null;
@@ -42,21 +42,21 @@ const userName = (u) =>
 // Тон статуса устройства в строке: жизненный цикл цветным текстом
 // (никаких заливных бейджей — язык карточек).
 const STATUS_TONE = {
-  readyForDeployment: "tw:text-accent-text",
-  deployed: "tw:text-accent-text",
-  inRepair: "tw:text-warning",
-  inReserve: "tw:text-muted-foreground",
-  decommissioned: "tw:text-faint",
-  disposed: "tw:text-faint",
+  readyForDeployment: "text-accent-text",
+  deployed: "text-accent-text",
+  inRepair: "text-warning",
+  inReserve: "text-muted-foreground",
+  decommissioned: "text-faint",
+  disposed: "text-faint",
 };
 
 // Микро-подпись + значение в панели «Основное» (ср. карточку типа).
 const Detail = ({ label, children, className }) => (
-  <div className={cn("tw:min-w-0", className)}>
-    <div className="tw:mb-0.5 tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
+  <div className={cn("min-w-0", className)}>
+    <div className="mb-0.5 text-xs font-semibold tracking-wide text-faint uppercase">
       {label}
     </div>
-    <div className="tw:text-[15px] tw:leading-relaxed tw:break-words">
+    <div className="text-[15px] leading-relaxed break-words">
       {children || dash}
     </div>
   </div>
@@ -66,7 +66,7 @@ const Detail = ({ label, children, className }) => (
 const EntityLink = ({ to, children }) => (
   <Link
     to={to}
-    className="tw:font-medium tw:text-accent-text tw:no-underline tw:hover:underline"
+    className="font-medium text-accent-text no-underline hover:underline"
   >
     {children}
   </Link>
@@ -85,20 +85,20 @@ const ChildRow = ({ child }) => {
   return (
     <Link
       to={`/inventory/locations/${child._id}`}
-      className="tw:group tw:relative tw:flex tw:items-center tw:gap-3.5 tw:px-4 tw:py-2.5 tw:text-inherit tw:no-underline tw:transition-colors tw:hover:bg-accent tw:before:absolute tw:before:top-0 tw:before:right-4 tw:before:left-16 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden"
+      className="group relative flex items-center gap-3.5 px-4 py-2.5 text-inherit no-underline transition-colors hover:bg-accent before:absolute before:top-0 before:right-4 before:left-16 before:h-px before:bg-border-soft first:before:hidden"
     >
-      <span className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border">
+      <span className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border">
         <Icon size={18} />
       </span>
-      <div className="tw:min-w-0 tw:flex-1">
-        <div className="tw:truncate tw:text-base tw:font-medium">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-base font-medium">
           {child.name || "Без названия"}
         </div>
-        <div className="tw:truncate tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+        <div className="truncate text-sm text-muted-foreground tabular-nums">
           {meta}
         </div>
       </div>
-      <RiArrowRightSLine aria-hidden className="tw:flex-none tw:text-faint" />
+      <RiArrowRightSLine aria-hidden className="flex-none text-faint" />
     </Link>
   );
 };
@@ -113,25 +113,23 @@ const DeviceRow = ({ device }) => {
     .filter(Boolean)
     .join(" · ");
   const statusLabel = STATUS_LABELS[device.status] || null;
-  const statusTone = STATUS_TONE[device.status] || "tw:text-muted-foreground";
+  const statusTone = STATUS_TONE[device.status] || "text-muted-foreground";
 
   return (
     <Link
       to={`/inventory/client-devices/${device._id}`}
-      className="tw:group tw:relative tw:flex tw:items-center tw:gap-3.5 tw:px-4 tw:py-2.5 tw:text-inherit tw:no-underline tw:transition-colors tw:hover:bg-accent tw:before:absolute tw:before:top-0 tw:before:right-4 tw:before:left-16 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden"
+      className="group relative flex items-center gap-3.5 px-4 py-2.5 text-inherit no-underline transition-colors hover:bg-accent before:absolute before:top-0 before:right-4 before:left-16 before:h-px before:bg-border-soft first:before:hidden"
     >
-      <span className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border">
+      <span className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border">
         <RiComputerLine size={18} />
       </span>
-      <div className="tw:min-w-0 tw:flex-1">
-        <div className="tw:truncate tw:text-base tw:font-medium">
-          {device.name}
-        </div>
-        <div className="tw:truncate tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-base font-medium">{device.name}</div>
+        <div className="truncate text-sm text-muted-foreground tabular-nums">
           {meta || "—"}
           {/* На узких экранах статус переезжает из правой колонки в мету */}
           {statusLabel && (
-            <span className={cn("tw:sm:hidden", statusTone)}>
+            <span className={cn("sm:hidden", statusTone)}>
               {meta ? " · " : ""}
               {statusLabel}
             </span>
@@ -141,14 +139,14 @@ const DeviceRow = ({ device }) => {
       {statusLabel && (
         <span
           className={cn(
-            "tw:flex-none tw:text-[13px] tw:font-semibold tw:max-sm:hidden",
+            "flex-none text-[13px] font-semibold max-sm:hidden",
             statusTone,
           )}
         >
           {statusLabel}
         </span>
       )}
-      <RiArrowRightSLine aria-hidden className="tw:flex-none tw:text-faint" />
+      <RiArrowRightSLine aria-hidden className="flex-none text-faint" />
     </Link>
   );
 };
@@ -244,10 +242,8 @@ const ViewLocation = ({
     .filter(Boolean)
     .join(" · ");
 
-  const bold = (n) => (
-    <b className="tw:font-semibold tw:text-foreground">{n}</b>
-  );
-  const sep = <span className="tw:text-faint">·</span>;
+  const bold = (n) => <b className="font-semibold text-foreground">{n}</b>;
+  const sep = <span className="text-faint">·</span>;
 
   // Формы — вложенные маршруты карточки (шторка на месте): правка не уводит
   // со страницы; add наследует query-пресеты компании и родителя
@@ -256,24 +252,24 @@ const ViewLocation = ({
   const filteredEmpty = !devicesEmpty && filteredDevices.length === 0;
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
+    <div className="mx-auto w-full max-w-4xl">
       {/* Крошки — полная цепочка предков: список → здание → этаж; текущее
           расположение только в h1 */}
-      <nav className="tw:mb-4 tw:flex tw:flex-wrap tw:items-center tw:gap-x-1 tw:gap-y-1 tw:text-sm tw:font-medium tw:text-muted-foreground">
+      <nav className="mb-4 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm font-medium text-muted-foreground">
         <Link
           to="/inventory/locations"
-          className="tw:inline-flex tw:items-center tw:gap-1 tw:text-inherit tw:no-underline tw:hover:text-foreground"
+          className="inline-flex items-center gap-1 text-inherit no-underline hover:text-foreground"
         >
           <RiArrowLeftSLine /> Расположения
         </Link>
         {ancestors.map((ancestor) => (
-          <span key={ancestor._id} className="tw:inline-flex tw:items-center tw:gap-1">
-            <span aria-hidden className="tw:mx-1 tw:text-faint">
+          <span key={ancestor._id} className="inline-flex items-center gap-1">
+            <span aria-hidden className="mx-1 text-faint">
               ›
             </span>
             <Link
               to={`/inventory/locations/${ancestor._id}`}
-              className="tw:text-inherit tw:no-underline tw:hover:text-foreground"
+              className="text-inherit no-underline hover:text-foreground"
             >
               {ancestor.name}
             </Link>
@@ -282,65 +278,73 @@ const ViewLocation = ({
       </nav>
 
       {/* Hero */}
-      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <span
           aria-hidden
           className={cn(
-            "tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:rounded-2xl tw:inset-ring tw:inset-ring-border",
+            "grid size-14 flex-none place-items-center rounded-2xl inset-ring inset-ring-border",
             isActive
-              ? "tw:bg-accent tw:text-muted-foreground"
-              : "tw:bg-accent/50 tw:text-faint",
+              ? "bg-accent text-muted-foreground"
+              : "bg-accent/50 text-faint",
           )}
         >
           <TypeIcon size={26} />
         </span>
-        <div className="tw:min-w-0 tw:flex-1">
+        <div className="min-w-0 flex-1">
           <h1
             className={cn(
-              "tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:break-words",
-              !isActive && "tw:text-muted-foreground",
+              "my-0 text-3xl leading-tight font-semibold tracking-tight break-words",
+              !isActive && "text-muted-foreground",
             )}
           >
             {name}
           </h1>
-          <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <span
               className={cn(
-                "tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold",
-                isActive ? "tw:text-accent-text" : "tw:text-muted-foreground",
+                "inline-flex items-center gap-2 text-sm font-semibold",
+                isActive ? "text-accent-text" : "text-muted-foreground",
               )}
             >
               <span
                 className={cn(
-                  "tw:size-2 tw:rounded-full",
-                  isActive
-                    ? "tw:bg-primary tw:ring-4 tw:ring-primary/20"
-                    : "tw:bg-faint",
+                  "size-2 rounded-full",
+                  isActive ? "bg-primary ring-4 ring-primary/20" : "bg-faint",
                 )}
               />
               {isActive ? "Активно" : "Отключено"}
             </span>
-            <span className="tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+            <span className="text-sm text-muted-foreground tabular-nums">
               {sep} {typeLabel}
-              {companyName && <> {sep} {companyName}</>}
+              {companyName && (
+                <>
+                  {" "}
+                  {sep} {companyName}
+                </>
+              )}
               {isPublic && (
                 <>
                   {" "}
                   {sep}{" "}
-                  <span className="tw:font-medium tw:text-accent-text">
+                  <span className="font-medium text-accent-text">
                     общедоступное
                   </span>
                 </>
               )}{" "}
               {sep} {bold(childLocations.length)}{" "}
-              {plural(childLocations.length, "вложенное", "вложенных", "вложенных")}{" "}
+              {plural(
+                childLocations.length,
+                "вложенное",
+                "вложенных",
+                "вложенных",
+              )}{" "}
               {sep} {bold(devices.length)}{" "}
               {plural(devices.length, "устройство", "устройства", "устройств")}
             </span>
           </div>
         </div>
         {canManage && (
-          <div className="tw:flex tw:flex-none tw:items-center tw:gap-2">
+          <div className="flex flex-none items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -371,19 +375,19 @@ const ViewLocation = ({
       </div>
 
       {/* Основное */}
-      <div className="tw:mt-6 tw:mb-2.5 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+      <div className="mt-6 mb-2.5 text-xs font-bold tracking-wider text-faint uppercase">
         Основное
       </div>
       <Panel>
-        <div className="tw:grid tw:gap-x-6 tw:gap-y-4 tw:sm:grid-cols-2">
+        <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
           <Detail label="Компания">{companyName}</Detail>
           <Detail label="Подразделения">
             {subdivisions.length > 0 ? (
-              <span className="tw:flex tw:flex-wrap tw:gap-1.5">
+              <span className="flex flex-wrap gap-1.5">
                 {subdivisions.map((subdivision) => (
                   <span
                     key={subdivision._id}
-                    className="tw:inline-flex tw:items-center tw:rounded-full tw:border tw:border-border-soft tw:bg-accent tw:px-2.5 tw:py-1 tw:text-sm tw:font-medium"
+                    className="inline-flex items-center rounded-full border border-border-soft bg-accent px-2.5 py-1 text-sm font-medium"
                   >
                     {subdivision.name}
                   </span>
@@ -409,7 +413,7 @@ const ViewLocation = ({
             ) : null}
           </Detail>
           {description && (
-            <Detail label="Описание" className="tw:sm:col-span-2">
+            <Detail label="Описание" className="sm:col-span-2">
               {description}
             </Detail>
           )}
@@ -417,11 +421,11 @@ const ViewLocation = ({
       </Panel>
 
       {/* Вложенные расположения */}
-      <div className="tw:mt-6 tw:mb-2.5 tw:flex tw:items-center tw:justify-between tw:gap-3">
-        <div className="tw:flex tw:items-center tw:gap-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+      <div className="mt-6 mb-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
           Вложенные расположения
           {childLocations.length > 0 && (
-            <span className="tw:font-semibold tw:tracking-normal tw:tabular-nums">
+            <span className="font-semibold tracking-normal tabular-nums">
               · {childLocations.length}
             </span>
           )}
@@ -437,14 +441,14 @@ const ViewLocation = ({
 
       {childLocations.length === 0 ? (
         <Panel>
-          <div className="tw:px-2 tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground">
+          <div className="px-2 py-6 text-center text-sm text-muted-foreground">
             {canHaveChildren
               ? "Вложенных расположений пока нет."
               : "У расположений этого типа не бывает вложенных."}
           </div>
         </Panel>
       ) : (
-        <div className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:py-1.5">
+        <div className="overflow-hidden rounded-xl border border-border bg-card py-1.5">
           {childLocations.map((child) => (
             <ChildRow key={child._id} child={child} />
           ))}
@@ -452,10 +456,10 @@ const ViewLocation = ({
       )}
 
       {/* Устройства непосредственно в этом расположении */}
-      <div className="tw:mt-6 tw:mb-2.5 tw:flex tw:items-center tw:gap-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+      <div className="mt-6 mb-2.5 flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
         Устройства здесь
         {devices.length > 0 && (
-          <span className="tw:font-semibold tw:tracking-normal tw:tabular-nums">
+          <span className="font-semibold tracking-normal tabular-nums">
             · {devices.length}
           </span>
         )}
@@ -463,17 +467,17 @@ const ViewLocation = ({
 
       {devicesEmpty ? (
         <Panel>
-          <div className="tw:px-2 tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground">
+          <div className="px-2 py-6 text-center text-sm text-muted-foreground">
             Устройств в этом расположении нет.
           </div>
         </Panel>
       ) : (
         <>
-          <div className="tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+          <div className="mb-3 flex flex-wrap items-center gap-2.5">
             <SearchBar
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="tw:w-full tw:sm:w-64"
+              className="w-full sm:w-64"
             />
             {typeOptions.length > 0 && (
               <ChipSelect
@@ -487,12 +491,12 @@ const ViewLocation = ({
           </div>
           {filteredEmpty ? (
             <Panel>
-              <div className="tw:px-2 tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground">
+              <div className="px-2 py-6 text-center text-sm text-muted-foreground">
                 Ничего не нашлось. Измените запрос или фильтр.
               </div>
             </Panel>
           ) : (
-            <div className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:py-1.5">
+            <div className="overflow-hidden rounded-xl border border-border bg-card py-1.5">
               {filteredDevices.map((device) => (
                 <DeviceRow key={device._id} device={device} />
               ))}
@@ -502,7 +506,7 @@ const ViewLocation = ({
       )}
 
       {metaBits && (
-        <div className="tw:mt-6 tw:border-t tw:border-border-soft tw:pt-3.5 tw:text-xs tw:text-faint tw:tabular-nums">
+        <div className="mt-6 border-t border-border-soft pt-3.5 text-xs text-faint tabular-nums">
           {metaBits}
         </div>
       )}

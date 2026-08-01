@@ -28,23 +28,23 @@ const SecretsAlert = ({ note, isModerator, isLoading, onIgnore }) => {
   return (
     <Alert
       variant="destructive"
-      className="tw:mt-4 tw:border-destructive/30 tw:bg-destructive/10"
+      className="mt-4 border-destructive/30 bg-destructive/10"
     >
       <RiShieldKeyholeLine aria-hidden />
-      <AlertTitle className="tw:line-clamp-none">
+      <AlertTitle className="line-clamp-none">
         Возможные учётные данные — {findings.length}{" "}
         {plural(findings.length, "находка", "находки", "находок")}
       </AlertTitle>
-      <AlertDescription className="tw:mt-1.5 tw:w-full">
+      <AlertDescription className="mt-1.5 w-full">
         {/* Находки — плотным списком: одна строка на значение, действие
             появляется по наведению, чтобы 13 красных кнопок не забивали текст */}
-        <div className="tw:flex tw:w-full tw:flex-col">
+        <div className="flex w-full flex-col">
           {shown.map((finding, index) => (
             <div
               key={finding.hash || index}
-              className="tw:group tw:flex tw:w-full tw:items-center tw:gap-3 tw:py-1"
+              className="group flex w-full items-center gap-3 py-1"
             >
-              <span className="tw:min-w-0 tw:truncate tw:font-mono tw:text-sm tw:text-foreground">
+              <span className="min-w-0 truncate font-mono text-sm text-foreground">
                 {finding.maskedSnippet}
               </span>
               <Button
@@ -52,7 +52,7 @@ const SecretsAlert = ({ note, isModerator, isLoading, onIgnore }) => {
                 variant="ghost"
                 disabled={isLoading}
                 onClick={() => onIgnore(finding.hash)}
-                className="tw:ms-auto tw:flex-none tw:text-current tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100"
+                className="ms-auto flex-none text-current opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
               >
                 Не секрет
               </Button>
@@ -64,7 +64,7 @@ const SecretsAlert = ({ note, isModerator, isLoading, onIgnore }) => {
           <Button
             size="xs"
             variant="ghost"
-            className="tw:mt-1 tw:text-current"
+            className="mt-1 text-current"
             onClick={() => setExpanded(!expanded)}
           >
             {expanded ? "Свернуть" : `Показать все (${findings.length})`}

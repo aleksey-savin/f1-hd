@@ -23,7 +23,7 @@ import { LONG_WORK_MS } from "./duration";
 const PREVIEW_DELAY = 400;
 
 /** Режимы формы: чем отличается набор полей и куда уходят отметки времени. */
-export const WORK_MODES = {
+const WORK_MODES = {
   add: {
     title: "Новая работа",
     time: "fact",
@@ -77,7 +77,12 @@ const toForm = (value) => (value ? utcToLocalForm(value) : "");
  * @param {string[]} input.ticketIds заявки, к которым привязывается работа
  * @param {string} input.currentUserId
  */
-export const useWorkForm = ({ mode, work = null, ticketIds, currentUserId }) => {
+export const useWorkForm = ({
+  mode,
+  work = null,
+  ticketIds,
+  currentUserId,
+}) => {
   const config = WORK_MODES[mode];
   const isPlan = config.time === "plan";
 

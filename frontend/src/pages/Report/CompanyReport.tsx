@@ -55,12 +55,18 @@ const CompanyReport = () => {
   }, [companyId]);
 
   const data =
-    s.data && !("subdivision" in s.data) ? (s.data as CompanyCardResponse) : null;
+    s.data && !("subdivision" in s.data)
+      ? (s.data as CompanyCardResponse)
+      : null;
   const filterActive = !isFullMonthRange(s.from, s.to);
 
   const toolbar = (
     <>
-      <MonthStepper from={s.from} to={s.to} onChange={(range) => s.setPeriod(range)} />
+      <MonthStepper
+        from={s.from}
+        to={s.to}
+        onChange={(range) => s.setPeriod(range)}
+      />
       <Button
         variant={filterActive ? "success" : "outline"}
         size="icon"
@@ -72,7 +78,9 @@ const CompanyReport = () => {
       </Button>
       {data && (
         <Button asChild variant="outline">
-          <Link to={`/companies/${data.company._id}`}>Открыть карточку компании</Link>
+          <Link to={`/companies/${data.company._id}`}>
+            Открыть карточку компании
+          </Link>
         </Button>
       )}
     </>
@@ -91,7 +99,7 @@ const CompanyReport = () => {
       <AlertMessage
         variant="danger"
         message={
-          <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+          <span className="flex flex-wrap items-center gap-3">
             {s.error}
             <Button variant="outline" size="xs" onClick={() => s.fetch()}>
               Повторить
@@ -115,13 +123,15 @@ const CompanyReport = () => {
       />
     );
   } else {
-    const subdivisionRows: StackedTimeRow[] = data.subdivisions.map((subdivision) => ({
-      key: subdivision._id,
-      name: subdivision.name,
-      onSite: subdivision.onSite.time,
-      remote: subdivision.remote.time,
-      routineTask: subdivision.routineTask.time,
-    }));
+    const subdivisionRows: StackedTimeRow[] = data.subdivisions.map(
+      (subdivision) => ({
+        key: subdivision._id,
+        name: subdivision.name,
+        onSite: subdivision.onSite.time,
+        remote: subdivision.remote.time,
+        routineTask: subdivision.routineTask.time,
+      }),
+    );
     if (data.unassigned && data.unassigned.totalTime > 0) {
       subdivisionRows.push({
         key: "__unassigned",
@@ -134,7 +144,7 @@ const CompanyReport = () => {
     }
 
     body = (
-      <div className={cn("tw:transition-opacity", s.isLoading && "tw:opacity-60")}>
+      <div className={cn("transition-opacity", s.isLoading && "opacity-60")}>
         {data.scopeLimited && (
           <ScopeNote>
             Вы видите данные своих подразделений — итог по компании целиком
@@ -142,14 +152,18 @@ const CompanyReport = () => {
           </ScopeNote>
         )}
 
-        <KpiRow totals={data.totals} prev={data.prev.totals} busy={s.isLoading} />
+        <KpiRow
+          totals={data.totals}
+          prev={data.prev.totals}
+          busy={s.isLoading}
+        />
 
         {subdivisionRows.length > 0 && (
           <>
             <Eyebrow count={data.subdivisions.length} action={<ClassLegend />}>
               Время по подразделениям
             </Eyebrow>
-            <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+            <div className="rounded-xl border border-border bg-card p-5">
               <StackedTimeBars rows={subdivisionRows} />
               <AttributionNote diagnostics={data.diagnostics} />
             </div>
@@ -157,14 +171,14 @@ const CompanyReport = () => {
             <Eyebrow
               count={data.subdivisions.length}
               action={
-                <span className="tw:text-sm tw:font-normal tw:text-faint">
+                <span className="text-sm font-normal text-faint">
                   строка ведёт в карточку подразделения
                 </span>
               }
             >
               Сводка по подразделениям
             </Eyebrow>
-            <div className="tw:overflow-x-auto tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-2 tw:py-1.5">
+            <div className="overflow-x-auto rounded-xl border border-border bg-card px-2 py-1.5">
               <SubdivisionsTable
                 subdivisions={data.subdivisions}
                 unassigned={data.unassigned}
@@ -179,11 +193,11 @@ const CompanyReport = () => {
           </>
         )}
 
-        <div className="tw:grid tw:gap-x-6 tw:lg:grid-cols-2">
+        <div className="grid gap-x-6 lg:grid-cols-2">
           <CategorySection categories={data.byCategory} />
           <div>
             <Eyebrow count={data.executors.length}>Кто обслуживал</Eyebrow>
-            <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+            <div className="rounded-xl border border-border bg-card p-5">
               <ShareBars
                 unit="ms"
                 rows={data.executors.map((executor) => ({
@@ -206,11 +220,11 @@ const CompanyReport = () => {
       title={data?.company.alias ?? "Компания"}
       subtitle={
         data && (
-          <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-2">
+          <span className="flex flex-wrap items-center gap-x-2">
             {data.company.fullTitle}
             {data.company.subdivisionsCount > 0 && (
               <>
-                <span className="tw:text-faint">·</span>
+                <span className="text-faint">·</span>
                 {data.company.subdivisionsCount} подразделений
               </>
             )}

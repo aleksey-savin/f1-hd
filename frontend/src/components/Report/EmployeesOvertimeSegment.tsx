@@ -21,7 +21,7 @@ import { formatMinutes, formatMoney } from "./work-format";
 const HINT = "к прошлому периоду";
 
 const Panel = ({ children }: { children: ReactNode }) => (
-  <section className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+  <section className="rounded-xl border border-border bg-card p-5">
     {children}
   </section>
 );
@@ -53,8 +53,8 @@ const EmployeesOvertimeSegment = ({
   );
 
   return (
-    <div className={cn("tw:transition-opacity", busy && "tw:opacity-60")}>
-      <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-4 tw:xl:gap-4">
+    <div className={cn("transition-opacity", busy && "opacity-60")}>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
         <StatTile
           label="Переработки"
           busy={busy}
@@ -104,26 +104,26 @@ const EmployeesOvertimeSegment = ({
         <AlertMessage
           variant="warning"
           message={
-            <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1">
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span>
-                <b className="tw:font-semibold">
+                <b className="font-semibold">
                   {missing.length === 1
                     ? "У сотрудника не задана ставка переработок"
                     : `У ${missing.length} сотрудников не задана ставка переработок`}
                 </b>
                 <br />
-                <span className="tw:text-muted-foreground tw:tabular-nums">
+                <span className="text-muted-foreground tabular-nums">
                   {missing
                     .map(
                       (row) =>
                         `${row.employee.lastName} ${row.employee.firstName} (${formatMinutes(row.overtime.roundedMinutes)})`,
                     )
                     .join(", ")}{" "}
-                  — {formatMinutes(missingMinutes)} переработок не попали в доплату.
-                  Ставка задаётся в карточке сотрудника.
+                  — {formatMinutes(missingMinutes)} переработок не попали в
+                  доплату. Ставка задаётся в карточке сотрудника.
                 </span>
               </span>
-              <Button asChild variant="outline" size="xs" className="tw:ms-auto">
+              <Button asChild variant="outline" size="xs" className="ms-auto">
                 <Link to="/users">Открыть пользователей</Link>
               </Button>
             </span>
@@ -134,15 +134,15 @@ const EmployeesOvertimeSegment = ({
       <Eyebrow
         count={totals.employeesCount}
         action={
-          <span className="tw:text-sm tw:font-normal tw:text-faint">
+          <span className="text-sm font-normal text-faint">
             строка ведёт в отчёт сотрудника
           </span>
         }
       >
         Переработки за период
       </Eyebrow>
-      <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card">
-        <div className="tw:hidden tw:overflow-x-auto tw:px-2 tw:py-1.5 tw:md:block">
+      <div className="rounded-xl border border-border bg-card">
+        <div className="hidden overflow-x-auto px-2 py-1.5 md:block">
           <EmployeesTable
             variant="overtime"
             employees={data.employees}
@@ -150,7 +150,7 @@ const EmployeesOvertimeSegment = ({
             currentUserId={currentUserId}
           />
         </div>
-        <div className="tw:md:hidden">
+        <div className="md:hidden">
           <EmployeesCards
             variant="overtime"
             employees={data.employees}

@@ -153,7 +153,7 @@ const ActionDialog = ({
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent
-        className={action === "close" ? "tw:sm:max-w-2xl" : undefined}
+        className={action === "close" ? "sm:max-w-2xl" : undefined}
       >
         <form onSubmit={submit}>
           {/* Ни темы, ни номера: карточка заявки осталась на фоне, и диалогу
@@ -162,7 +162,7 @@ const ActionDialog = ({
             <DialogTitle>{TITLES[action]}</DialogTitle>
           </DialogHeader>
 
-          <div className="tw:mt-3">
+          <div className="mt-3">
             {action === "takeToWork" && (
               <>
                 <SwitchField
@@ -183,7 +183,7 @@ const ActionDialog = ({
             )}
 
             {action === "join" && (
-              <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+              <p className="my-0 text-sm text-muted-foreground">
                 Вы будете добавлены к ответственным и начнёте получать
                 уведомления по заявке.
               </p>
@@ -194,7 +194,7 @@ const ActionDialog = ({
                 <RiErrorWarningLine />
                 <AlertDescription>
                   <span>Заявку пока нельзя закрыть:</span>
-                  <ul className="tw:my-0 tw:list-disc tw:ps-4">
+                  <ul className="my-0 list-disc ps-4">
                     {blockers.map((reason) => (
                       <li key={reason}>{reason}</li>
                     ))}
@@ -222,7 +222,7 @@ const ActionDialog = ({
                 </Field>
                 <Alert variant="warning">
                   <AlertDescription>
-                    <ul className="tw:my-0 tw:list-disc tw:ps-4">
+                    <ul className="my-0 list-disc ps-4">
                       <li>Сообщение уйдёт инициатору заявки.</li>
                       <li>
                         Из ответственных будут удалены те, кто не указал работы
@@ -277,8 +277,8 @@ const ActionDialog = ({
                 не меняла: интерфейс обещал то, чего не делает. */}
             {action === "requestHelp" && (
               <>
-                <div className="tw:mb-4 tw:text-sm">
-                  <span className="tw:text-muted-foreground">
+                <div className="mb-4 text-sm">
+                  <span className="text-muted-foreground">
                     Сейчас ведут заявку:{" "}
                   </span>
                   {personNames(ticket.responsibles) || "никто"}
@@ -303,11 +303,11 @@ const ActionDialog = ({
                     }}
                   />
                   {helpers.length > 0 && (
-                    <div className="tw:mt-2 tw:flex tw:flex-wrap tw:gap-1.5">
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                       {helpers.map((user) => (
                         <span
                           key={user._id}
-                          className="tw:inline-flex tw:items-center tw:gap-1 tw:rounded-full tw:border tw:border-border-soft tw:bg-accent tw:py-0.5 tw:ps-2.5 tw:pe-1 tw:text-sm tw:font-medium"
+                          className="inline-flex items-center gap-1 rounded-full border border-border-soft bg-accent py-0.5 ps-2.5 pe-1 text-sm font-medium"
                         >
                           {personName(user)}
                           <Button
@@ -315,7 +315,7 @@ const ActionDialog = ({
                             variant="ghost"
                             size="icon-xs"
                             aria-label={`Убрать ${personName(user)}`}
-                            className="tw:size-5 tw:text-faint tw:hover:text-destructive"
+                            className="size-5 text-faint hover:text-destructive"
                             onClick={() =>
                               setHelpers((prev) =>
                                 prev.filter(
@@ -335,7 +335,7 @@ const ActionDialog = ({
             )}
           </div>
 
-          <DialogFooter className="tw:mt-2">
+          <DialogFooter className="mt-2">
             <Button type="button" variant="ghost" onClick={onClose}>
               {blockers.length > 0 ? "Закрыть" : "Отмена"}
             </Button>

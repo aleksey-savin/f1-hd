@@ -211,8 +211,7 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
       };
     }),
   // Совместимость с легаси-потребителями (вкладка карточки инвентаря).
-  applyFilter: () =>
-    set((state) => ({ filteredList: recompute(state) })),
+  applyFilter: () => set((state) => ({ filteredList: recompute(state) })),
   // Patch one already-loaded row in place (no network) so the table reflects a
   // panel action without a full refetch (полный refetch дёргает isLoading).
   patchRow: (recordId, patch) =>

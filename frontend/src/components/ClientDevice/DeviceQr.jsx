@@ -73,7 +73,7 @@ const DeviceQr = ({ id, size = 72, className = "" }) => {
     // зона: без неё сканеру не за что зацепить границу кода. Классы tw —
     // компонент общий для легаси-карточки и мигрированного списка.
     <span
-      className={`tw:inline-flex tw:flex-none tw:rounded-md tw:bg-white tw:p-2 ${className}`}
+      className={`inline-flex flex-none rounded-md bg-white p-2 ${className}`}
       title="QR на страницу устройства"
     >
       <span style={{ width: size, height: size, lineHeight: 0 }} ref={ref} />

@@ -9,9 +9,7 @@ const deviceModelFilter = (state) => {
     .filter((item) => {
       // Фасет «Тип устройства» — объект {_id, name}
       if (state.deviceType) {
-        return (
-          String(item.deviceTypeId?._id) === String(state.deviceType._id)
-        );
+        return String(item.deviceTypeId?._id) === String(state.deviceType._id);
       }
       return true;
     })

@@ -503,7 +503,7 @@ const ClientDeviceForm = ({ title }) => {
     onInlineCreate: setInlineKind,
   };
 
-  if (loading) return <Spinner className="tw:min-h-64" />;
+  if (loading) return <Spinner className="min-h-64" />;
 
   const deviceStep = (
     <DeviceFields
@@ -549,7 +549,7 @@ const ClientDeviceForm = ({ title }) => {
             { key: "tech", title: "Сеть и система", body: techStep },
           ]}
         />
-        <div className="tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:justify-end tw:gap-2.5 tw:border-t tw:border-border-soft tw:bg-background tw:px-6 tw:py-3">
+        <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2.5 border-t border-border-soft bg-background px-6 py-3">
           <Button variant="ghost" onClick={handleClose} disabled={saving}>
             Отмена
           </Button>
@@ -572,7 +572,7 @@ const ClientDeviceForm = ({ title }) => {
   // ── Создание: мастер со сводкой ──
   return (
     <>
-      <h1 className="tw:my-0 tw:mb-4 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
+      <h1 className="my-0 mb-4 pr-10 text-2xl font-semibold tracking-tight">
         {title}
       </h1>
 
@@ -583,14 +583,14 @@ const ClientDeviceForm = ({ title }) => {
         onStepClick={goToStep}
       />
 
-      <div className="tw:mt-6 tw:flex tw:flex-col tw:gap-6 tw:md:flex-row">
-        <div className="tw:min-w-0 tw:flex-1">
+      <div className="mt-6 flex flex-col gap-6 md:flex-row">
+        <div className="min-w-0 flex-1">
           {step === 0 && deviceStep}
           {step === 1 && placementStep}
           {step === 2 && purchaseStep}
           {step === 3 && techStep}
         </div>
-        <div className="tw:md:w-72 tw:md:flex-none">
+        <div className="md:w-72 md:flex-none">
           <FormSummary
             form={form}
             deviceKind={deviceKind}
@@ -599,13 +599,13 @@ const ClientDeviceForm = ({ title }) => {
         </div>
       </div>
 
-      {errorAlert && <div className="tw:mt-4">{errorAlert}</div>}
+      {errorAlert && <div className="mt-4">{errorAlert}</div>}
 
-      <div className="tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:gap-2.5 tw:border-t tw:border-border-soft tw:bg-background tw:px-6 tw:py-3">
+      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center gap-2.5 border-t border-border-soft bg-background px-6 py-3">
         <Button variant="ghost" onClick={handleClose} disabled={saving}>
           Отмена
         </Button>
-        <div className="tw:ms-auto tw:flex tw:gap-2">
+        <div className="ms-auto flex gap-2">
           {step > 0 && (
             <Button
               variant="outline"
@@ -646,7 +646,7 @@ const ClientDeviceForm = ({ title }) => {
           navigate(`/inventory/client-devices/${id}`, { replace: true });
         }}
       >
-        <DialogContent className="tw:sm:max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Подключить к мониторингу?</DialogTitle>
             <DialogDescription>

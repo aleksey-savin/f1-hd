@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 // Конструктор кастомных полей (форма-опросник) — общий с картой (CustomFieldsView
 // показывает то же самое в чтении). Контролируемый: value + onChange. Каждое поле
 // несёт транзиентный `_key` для drag/ключей (бэкенд его игнорирует по strict-схеме).
-export type EditableCustomField = {
+type EditableCustomField = {
   _key?: string;
   name?: string;
   type?: string;
@@ -35,7 +35,7 @@ const hasOptions = (type?: string) =>
   type === "select" || type === "multiselect";
 
 const CF_INPUT =
-  "tw:h-9 tw:w-full tw:appearance-none tw:rounded-lg tw:border tw:border-input tw:bg-card tw:px-3 tw:text-sm tw:text-foreground tw:outline-none tw:placeholder:text-faint tw:focus-visible:border-ring tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50";
+  "h-9 w-full appearance-none rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none placeholder:text-faint focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/50";
 
 const FieldRow = ({
   field,
@@ -62,34 +62,34 @@ const FieldRow = ({
       value={field}
       dragListener={false}
       dragControls={controls}
-      className="tw:flex tw:gap-2.5 tw:rounded-xl tw:border tw:border-border tw:bg-accent/40 tw:p-3.5"
+      className="flex gap-2.5 rounded-xl border border-border bg-accent/40 p-3.5"
     >
       <span
         onPointerDown={(event) => controls.start(event)}
         style={{ touchAction: "none" }}
         aria-hidden
         title="Перетащить"
-        className="tw:mt-2 tw:inline-grid tw:size-5 tw:flex-none tw:cursor-grab tw:place-items-start tw:justify-center tw:text-faint tw:active:cursor-grabbing tw:[&_svg]:size-4"
+        className="mt-2 inline-grid size-5 flex-none cursor-grab place-items-start justify-center text-faint active:cursor-grabbing [&_svg]:size-4"
       >
         <RiDraggable />
       </span>
 
-      <div className="tw:min-w-0 tw:flex-1">
-        <div className="tw:flex tw:flex-wrap tw:gap-2.5">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap gap-2.5">
           <input
             value={field.name ?? ""}
             onChange={(event) => onPatch({ name: event.target.value })}
             placeholder="Название поля"
             aria-label="Название поля"
-            className={cn(CF_INPUT, "tw:min-w-40 tw:flex-1 tw:font-medium")}
+            className={cn(CF_INPUT, "min-w-40 flex-1 font-medium")}
           />
-          <div className="tw:relative tw:flex-none">
+          <div className="relative flex-none">
             <select
               value={field.type ?? "text"}
               onChange={(event) => changeType(event.target.value)}
               aria-label="Тип поля"
               className={
-                "tw:h-9 tw:w-52 tw:cursor-pointer tw:appearance-none tw:rounded-lg tw:border tw:border-input tw:bg-card tw:pr-8 tw:pl-3 tw:text-sm tw:font-medium tw:text-foreground tw:outline-none tw:focus-visible:border-ring tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+                "h-9 w-52 cursor-pointer appearance-none rounded-lg border border-input bg-card pr-8 pl-3 text-sm font-medium text-foreground outline-none focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/50"
               }
             >
               {TYPE_OPTIONS.map((option) => (
@@ -100,19 +100,19 @@ const FieldRow = ({
             </select>
             <RiArrowDownSLine
               aria-hidden
-              className="tw:pointer-events-none tw:absolute tw:top-1/2 tw:right-2.5 tw:size-4 tw:-translate-y-1/2 tw:text-faint"
+              className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 text-faint"
             />
           </div>
         </div>
 
         {hasOptions(field.type) ? (
-          <div className="tw:mt-3">
-            <div className="tw:mb-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+          <div className="mt-3">
+            <div className="mb-2 text-xs font-bold tracking-wider text-faint uppercase">
               Опции
             </div>
-            <div className="tw:grid tw:gap-2">
+            <div className="grid gap-2">
               {options.map((option, index) => (
-                <div key={index} className="tw:flex tw:items-center tw:gap-2">
+                <div key={index} className="flex items-center gap-2">
                   <input
                     value={option}
                     onChange={(event) =>
@@ -124,7 +124,7 @@ const FieldRow = ({
                     }
                     placeholder="Значение опции"
                     aria-label="Значение опции"
-                    className={cn(CF_INPUT, "tw:flex-1")}
+                    className={cn(CF_INPUT, "flex-1")}
                   />
                   <button
                     type="button"
@@ -137,7 +137,7 @@ const FieldRow = ({
                     }
                     title="Удалить опцию"
                     aria-label="Удалить опцию"
-                    className="tw:inline-grid tw:size-8 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-md tw:border-0 tw:bg-transparent tw:text-faint tw:outline-none tw:hover:bg-accent tw:hover:text-destructive tw:[&_svg]:size-4"
+                    className="inline-grid size-8 flex-none cursor-pointer appearance-none place-items-center rounded-md border-0 bg-transparent text-faint outline-none hover:bg-accent hover:text-destructive [&_svg]:size-4"
                   >
                     <RiCloseLine />
                   </button>
@@ -147,13 +147,13 @@ const FieldRow = ({
             <button
               type="button"
               onClick={() => onPatch({ options: [...options, ""] })}
-              className="tw:mt-2 tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1.5 tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:font-semibold tw:text-accent-text tw:outline-none tw:hover:underline tw:[&_svg]:size-4"
+              className="mt-2 inline-flex cursor-pointer appearance-none items-center gap-1.5 border-0 bg-transparent p-0 text-sm font-semibold text-accent-text outline-none hover:underline [&_svg]:size-4"
             >
               <RiAddLine /> Опция
             </button>
           </div>
         ) : (
-          <div className="tw:mt-2 tw:text-sm tw:text-muted-foreground">
+          <div className="mt-2 text-sm text-muted-foreground">
             Свободный ввод — заполняется при создании заявки.
           </div>
         )}
@@ -164,7 +164,7 @@ const FieldRow = ({
         onClick={onRemove}
         title="Удалить поле"
         aria-label="Удалить поле"
-        className="tw:mt-1 tw:inline-grid tw:size-8 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:self-start tw:rounded-md tw:border-0 tw:bg-transparent tw:text-faint tw:outline-none tw:hover:bg-accent tw:hover:text-destructive tw:[&_svg]:size-[18px]"
+        className="mt-1 inline-grid size-8 flex-none cursor-pointer appearance-none place-items-center self-start rounded-md border-0 bg-transparent text-faint outline-none hover:bg-accent hover:text-destructive [&_svg]:size-[18px]"
       >
         <RiDeleteBinLine />
       </button>
@@ -179,8 +179,15 @@ const CustomFieldsEditor = ({
   value?: EditableCustomField[];
   onChange: (fields: EditableCustomField[]) => void;
 }) => {
-  const patch = (key: string | undefined, updates: Partial<EditableCustomField>) =>
-    onChange(value.map((field) => (field._key === key ? { ...field, ...updates } : field)));
+  const patch = (
+    key: string | undefined,
+    updates: Partial<EditableCustomField>,
+  ) =>
+    onChange(
+      value.map((field) =>
+        field._key === key ? { ...field, ...updates } : field,
+      ),
+    );
 
   const remove = (key: string | undefined) =>
     onChange(value.filter((field) => field._key !== key));
@@ -199,7 +206,7 @@ const CustomFieldsEditor = ({
           axis="y"
           values={value}
           onReorder={onChange}
-          className="tw:grid tw:gap-2.5"
+          className="grid gap-2.5"
         >
           {value.map((field) => (
             <FieldRow
@@ -214,7 +221,7 @@ const CustomFieldsEditor = ({
       <button
         type="button"
         onClick={add}
-        className="tw:mt-2.5 tw:inline-flex tw:h-10 tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1.5 tw:rounded-lg tw:border tw:border-dashed tw:border-border tw:bg-transparent tw:px-4 tw:text-sm tw:font-semibold tw:text-accent-text tw:outline-none tw:hover:bg-accent tw:[&_svg]:size-4"
+        className="mt-2.5 inline-flex h-10 cursor-pointer appearance-none items-center gap-1.5 rounded-lg border border-dashed border-border bg-transparent px-4 text-sm font-semibold text-accent-text outline-none hover:bg-accent [&_svg]:size-4"
       >
         <RiAddLine /> Новое поле
       </button>

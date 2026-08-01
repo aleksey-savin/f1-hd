@@ -19,7 +19,7 @@ import ScheduleEditor, {
   emptyDay,
 } from "@/components/app/ScheduleEditor";
 
-import Select from "../../UI/Select";
+import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import useOffcanvasStore from "../../store/offcanvas";
 import timezones from "../../store/timezones";
 import { orgTimezone, tzCity } from "../../util/timezone-display";
@@ -104,9 +104,7 @@ const CompanyForm = () => {
   const [schedule, setSchedule] = useState(initSchedule(company?.workSchedule));
   // Пояс, в котором читается график: пусто = как в организации. У клиента с
   // филиалами в разных поясах каждый филиал переопределяет его у себя
-  const [timezone, setTimezone] = useState(
-    () => timezones.find((zone) => zone.value === company?.timezone) || null,
-  );
+  const [timezone, setTimezone] = useState(() => company?.timezone || null);
 
   const [step, setStep] = useState(0);
   const [maxReached, setMaxReached] = useState(isEdit ? LAST : 0);
@@ -186,7 +184,7 @@ const CompanyForm = () => {
       linkToMap: form.linkToMap.trim(),
       responsibles: responsibles.map((resp) => resp._id),
       workSchedule: schedule,
-      timezone: timezone?.value || null,
+      timezone: timezone || null,
       ...(isEdit
         ? {
             clientsSideResponsibles: clientsSideResponsibles.map(
@@ -215,7 +213,7 @@ const CompanyForm = () => {
     if (index === 0) {
       return (
         <div>
-          <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+          <div className="grid gap-x-3 md:grid-cols-2">
             <Field label="Короткое наименование" htmlFor="alias" required>
               <Input
                 id="alias"
@@ -250,20 +248,21 @@ const CompanyForm = () => {
             required
             hint="Сотрудники, ведущие эту компанию, — видят её в своих списках и заявках."
           >
-            <Select
+            <MultiCombobox
               id="responsibles"
               placeholder="Выберите сотрудников"
-              closeMenuOnSelect={false}
-              isClearable
-              isSearchable
-              isMulti
-              value={responsibles}
-              options={responsiblesList}
-              getOptionLabel={(option) =>
-                `${option.lastName} ${option.firstName}`
+              value={(responsibles || []).map((user) => String(user._id))}
+              options={toOptions(responsiblesList, {
+                value: (option) => String(option._id),
+                label: (option) => `${option.lastName} ${option.firstName}`,
+              })}
+              onChange={(ids) =>
+                setResponsibles(
+                  responsiblesList.filter((option) =>
+                    ids.includes(String(option._id)),
+                  ),
+                )
               }
-              getOptionValue={(option) => option._id}
-              onChange={(selected) => setResponsibles(selected || [])}
             />
           </Field>
           {isEdit && (
@@ -272,21 +271,22 @@ const CompanyForm = () => {
               htmlFor="clientsSideResponsibles"
               hint="Выбор из сотрудников компании."
             >
-              <Select
+              <MultiCombobox
                 id="clientsSideResponsibles"
                 placeholder="Выберите сотрудников"
-                closeMenuOnSelect={false}
-                isClearable
-                isSearchable
-                isMulti
-                value={clientsSideResponsibles}
-                options={company?.employees || []}
-                getOptionLabel={(option) =>
-                  `${option.lastName} ${option.firstName}`
-                }
-                getOptionValue={(option) => option._id}
-                onChange={(selected) =>
-                  setClientsSideResponsibles(selected || [])
+                value={(clientsSideResponsibles || []).map((user) =>
+                  String(user._id),
+                )}
+                options={toOptions(company?.employees || [], {
+                  value: (option) => String(option._id),
+                  label: (option) => `${option.lastName} ${option.firstName}`,
+                })}
+                onChange={(ids) =>
+                  setClientsSideResponsibles(
+                    (company?.employees || []).filter((option) =>
+                      ids.includes(String(option._id)),
+                    ),
+                  )
                 }
               />
             </Field>
@@ -299,10 +299,10 @@ const CompanyForm = () => {
       return (
         <div>
           <Field label="Телефоны">
-            <div className="tw:grid tw:gap-2">
+            <div className="grid gap-2">
               {phones.map((row) => (
-                <div key={row.key} className="tw:flex tw:items-center tw:gap-1.5">
-                  <div className="tw:min-w-0 tw:flex-1">
+                <div key={row.key} className="flex items-center gap-1.5">
+                  <div className="min-w-0 flex-1">
                     <PhoneInput
                       id={row.key}
                       name={row.key}
@@ -316,7 +316,7 @@ const CompanyForm = () => {
                       onClick={() => removePhone(row.key)}
                       title="Убрать телефон"
                       aria-label="Убрать телефон"
-                      className="tw:grid tw:size-8 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:transition-colors tw:hover:bg-accent tw:hover:text-destructive"
+                      className="grid size-8 flex-none cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-transparent text-faint transition-colors hover:bg-accent hover:text-destructive"
                     >
                       <RiCloseLine size={16} />
                     </button>
@@ -327,7 +327,7 @@ const CompanyForm = () => {
             <button
               type="button"
               onClick={addPhone}
-              className="tw:mt-2 tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1.5 tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:font-semibold tw:text-accent-text tw:hover:underline"
+              className="mt-2 inline-flex cursor-pointer appearance-none items-center gap-1.5 border-0 bg-transparent p-0 text-sm font-semibold text-accent-text hover:underline"
             >
               <RiAddLine size={15} /> Ещё телефон
             </button>
@@ -365,13 +365,14 @@ const CompanyForm = () => {
               : `Пусто — как в организации: ${tzCity(orgTimezone())}.`
           }
         >
-          <Select
-            isClearable
-            isSearchable
+          <Combobox
+            ariaLabel="Часовой пояс компании"
             placeholder={`Как в организации — ${tzCity(orgTimezone())}`}
             options={timezones}
             value={timezone}
-            onChange={(next) => setTimezone(next || null)}
+            onChange={setTimezone}
+            clearable
+            clearLabel={`Как в организации — ${tzCity(orgTimezone())}`}
           />
         </Field>
         <ScheduleEditor schedule={schedule} onChange={setSchedule} />
@@ -381,22 +382,22 @@ const CompanyForm = () => {
 
   return (
     <div>
-      <h1 className="tw:my-0 tw:mb-4 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
+      <h1 className="my-0 mb-4 pr-10 text-2xl font-semibold tracking-tight">
         {isEdit ? "Изменить компанию" : "Новая компания"}
       </h1>
 
       {isEdit ? (
         // Правка — плоская форма без шагов
-        <div className="tw:space-y-1">
+        <div className="space-y-1">
           {STEPS.map((meta, index) => (
             <section
               key={meta.label}
-              className="tw:border-t tw:border-border-soft tw:py-5 tw:first:border-t-0 tw:first:pt-1"
+              className="border-t border-border-soft py-5 first:border-t-0 first:pt-1"
             >
-              <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
+              <h3 className="my-0 text-base font-semibold tracking-tight">
                 {STEP_META[index].title}
               </h3>
-              <p className="tw:mt-0.5 tw:mb-4 tw:text-sm tw:text-muted-foreground">
+              <p className="mt-0.5 mb-4 text-sm text-muted-foreground">
                 {STEP_META[index].desc}
               </p>
               {stepBody(index)}
@@ -412,24 +413,24 @@ const CompanyForm = () => {
             maxReached={maxReached}
             onStepClick={handleStepClick}
           />
-          <div className="tw:mt-6 tw:flex tw:flex-col tw:gap-6 tw:md:flex-row">
-            <div className="tw:min-w-0 tw:flex-1">
-              <div className="tw:mb-4">
-                <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
+          <div className="mt-6 flex flex-col gap-6 md:flex-row">
+            <div className="min-w-0 flex-1">
+              <div className="mb-4">
+                <h3 className="my-0 text-base font-semibold tracking-tight">
                   {STEP_META[step].title}
                 </h3>
-                <p className="tw:mt-0.5 tw:mb-0 tw:text-sm tw:text-muted-foreground">
+                <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
                   {STEP_META[step].desc}
                 </p>
               </div>
               {stepBody(step)}
               {attempted && stepError(step) && (
-                <p className="tw:mt-2 tw:mb-0 tw:text-sm tw:text-destructive">
+                <p className="mt-2 mb-0 text-sm text-destructive">
                   {stepError(step)}
                 </p>
               )}
             </div>
-            <div className="tw:md:w-72 tw:md:flex-none">
+            <div className="md:w-72 md:flex-none">
               <FormSummary
                 form={form}
                 phones={phones}
@@ -443,12 +444,12 @@ const CompanyForm = () => {
       )}
 
       {fetcher.data && fetcher.data.error && (
-        <div className="tw:mt-4">
+        <div className="mt-4">
           <AlertMessage variant="danger" message={fetcher.data.message} />
         </div>
       )}
 
-      <div className="tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:gap-2.5 tw:border-t tw:border-border-soft tw:bg-background tw:px-6 tw:py-3">
+      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center gap-2.5 border-t border-border-soft bg-background px-6 py-3">
         <Button
           type="button"
           variant="ghost"
@@ -457,7 +458,7 @@ const CompanyForm = () => {
         >
           Отмена
         </Button>
-        <div className="tw:ml-auto tw:flex tw:items-center tw:gap-2.5">
+        <div className="ml-auto flex items-center gap-2.5">
           {isEdit ? (
             <Button type="button" onClick={handleSubmit} disabled={saving}>
               <RiCheckLine /> Сохранить

@@ -38,7 +38,7 @@ import AttachmentChip from "./View/AttachmentChip";
  * Порядок — новыми вверх, поле ввода сверху: чаще нужно последнее, а не первое.
  */
 
-const ENTRY = "tw:flex tw:gap-2.5 tw:py-3";
+const ENTRY = "flex gap-2.5 py-3";
 
 const initials = (person) =>
   `${person?.lastName?.[0] ?? ""}${person?.firstName?.[0] ?? ""}`.toUpperCase() ||
@@ -52,10 +52,10 @@ const Attachment = ({ attachment }) => (
     href={`${import.meta.env.VITE_API_ADDRESS}/uploads/${attachment.name}`}
     target="_blank"
     rel="noreferrer"
-    className="tw:mt-1.5 tw:me-1.5 tw:inline-flex tw:max-w-full tw:items-center tw:gap-1.5 tw:rounded-lg tw:border tw:border-border tw:px-2 tw:py-1 tw:text-xs tw:text-muted-foreground tw:no-underline tw:hover:bg-accent"
+    className="mt-1.5 me-1.5 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground no-underline hover:bg-accent"
   >
     <RiAttachment2 size={13} aria-hidden />
-    <span className="tw:truncate">
+    <span className="truncate">
       {attachment.originalName || attachment.name}
     </span>
   </a>
@@ -66,21 +66,21 @@ const CommentEntry = ({ comment, divided }) => {
   const author = comment.createdBy;
 
   return (
-    <div className={cn(ENTRY, divided && "tw:border-t tw:border-border-soft")}>
-      <span className="tw:grid tw:size-7 tw:flex-none tw:place-items-center tw:rounded-full tw:border tw:border-border tw:bg-accent tw:text-xs tw:font-semibold tw:text-muted-foreground">
+    <div className={cn(ENTRY, divided && "border-t border-border-soft")}>
+      <span className="grid size-7 flex-none place-items-center rounded-full border border-border bg-accent text-xs font-semibold text-muted-foreground">
         {initials(author)}
       </span>
-      <div className="tw:min-w-0 tw:flex-1">
-        <div className="tw:flex tw:items-baseline tw:gap-2 tw:text-sm">
-          <b className="tw:font-semibold">{personName(author) || "—"}</b>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2 text-sm">
+          <b className="font-semibold">{personName(author) || "—"}</b>
           <span
-            className="tw:ms-auto tw:flex-none tw:text-xs tw:text-faint tw:tabular-nums"
+            className="ms-auto flex-none text-xs text-faint tabular-nums"
             title={formatDate(comment.createdAt)}
           >
             {formatTime(comment.createdAt)}
           </span>
         </div>
-        <p className="tw:my-0.5 tw:text-sm tw:leading-relaxed tw:whitespace-pre-wrap">
+        <p className="my-0.5 text-sm leading-relaxed whitespace-pre-wrap">
           {comment.content}
         </p>
         {comment.attachments?.map((attachment) => (
@@ -91,14 +91,14 @@ const CommentEntry = ({ comment, divided }) => {
             <button
               type="button"
               onClick={() => setShowQuoted((value) => !value)}
-              className="tw:mt-1 tw:cursor-pointer tw:appearance-none tw:border-0 tw:bg-transparent tw:p-0 tw:text-xs tw:text-faint tw:hover:text-muted-foreground"
+              className="mt-1 cursor-pointer appearance-none border-0 bg-transparent p-0 text-xs text-faint hover:text-muted-foreground"
             >
               {showQuoted
                 ? "▾ Скрыть цитируемую переписку"
                 : "▸ Показать цитируемую переписку"}
             </button>
             {showQuoted && (
-              <p className="tw:mt-1 tw:mb-0 tw:border-s tw:border-border tw:ps-3 tw:text-xs tw:whitespace-pre-wrap tw:text-muted-foreground">
+              <p className="mt-1 mb-0 border-s border-border ps-3 text-xs whitespace-pre-wrap text-muted-foreground">
                 {comment.quotedText}
               </p>
             )}
@@ -134,27 +134,27 @@ const EventEntry = ({ event, ticketNum, divided }) => {
   };
 
   return (
-    <div className={cn(ENTRY, divided && "tw:border-t tw:border-border-soft")}>
+    <div className={cn(ENTRY, divided && "border-t border-border-soft")}>
       <span
         className={cn(
-          "tw:grid tw:size-7 tw:flex-none tw:place-items-center tw:rounded-full tw:border",
+          "grid size-7 flex-none place-items-center rounded-full border",
           EVENT_TONE_CLASS[meta.tone],
         )}
       >
         <Icon size={15} aria-hidden />
       </span>
-      <div className="tw:min-w-0 tw:flex-1">
-        <div className="tw:flex tw:items-baseline tw:gap-2 tw:text-sm">
-          <b className="tw:font-semibold">{eventLabel(event)}</b>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2 text-sm">
+          <b className="font-semibold">{eventLabel(event)}</b>
           <span
-            className="tw:ms-auto tw:flex-none tw:text-xs tw:text-faint tw:tabular-nums"
+            className="ms-auto flex-none text-xs text-faint tabular-nums"
             title={formatDate(event.createdAt)}
           >
             {formatTime(event.createdAt)}
           </span>
         </div>
         {personName(event.user) && (
-          <div className="tw:text-xs tw:text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {personName(event.user)}
           </div>
         )}
@@ -162,12 +162,12 @@ const EventEntry = ({ event, ticketNum, divided }) => {
         {/* Файлы события — чипами: по ним файл открывается прямо из ленты, не
             возвращаясь к описанию. Больше двух сворачиваем, как везде */}
         {event.files?.length > 0 && event.kind !== "attachmentRemoved" && (
-          <div className="tw:mt-1.5 tw:flex tw:flex-wrap tw:gap-1.5">
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
             {event.files.slice(0, 2).map((file) => (
               <AttachmentChip key={file.name} attachment={file} compact />
             ))}
             {event.files.length > 2 && (
-              <span className="tw:self-center tw:text-xs tw:text-faint">
+              <span className="self-center text-xs text-faint">
                 ещё {event.files.length - 2}
               </span>
             )}
@@ -175,7 +175,7 @@ const EventEntry = ({ event, ticketNum, divided }) => {
         )}
         {event.kind === "attachmentRemoved" && event.files?.[0] && (
           // Удалённый файл не открыть — только назвать
-          <div className="tw:mt-1 tw:text-xs tw:text-faint">
+          <div className="mt-1 text-xs text-faint">
             «{event.files[0].originalName || event.files[0].name}»
           </div>
         )}
@@ -186,33 +186,26 @@ const EventEntry = ({ event, ticketNum, divided }) => {
               type="button"
               onClick={expand}
               className={cn(
-                "tw:mt-1.5 tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1 tw:border-0 tw:bg-transparent tw:p-0 tw:text-xs tw:hover:underline",
-                event.technical.failed > 0
-                  ? "tw:text-warning"
-                  : "tw:text-faint",
+                "mt-1.5 inline-flex cursor-pointer appearance-none items-center gap-1 border-0 bg-transparent p-0 text-xs hover:underline",
+                event.technical.failed > 0 ? "text-warning" : "text-faint",
               )}
             >
               {expanded ? "▾" : "▸"} {summary}
             </button>
             {expanded && (
-              <ul className="tw:mt-1.5 tw:mb-0 tw:list-none tw:space-y-1 tw:border-s tw:border-border tw:ps-3">
+              <ul className="mt-1.5 mb-0 list-none space-y-1 border-s border-border ps-3">
                 {(entries ?? []).map((entry) => (
-                  <li
-                    key={entry._id}
-                    className="tw:text-xs tw:text-muted-foreground"
-                  >
-                    <span className="tw:text-faint tw:tabular-nums">
+                  <li key={entry._id} className="text-xs text-muted-foreground">
+                    <span className="text-faint tabular-nums">
                       {formatTime(entry.createdAt)}
                     </span>{" "}
                     {entry.event}
                   </li>
                 ))}
                 {entries?.length === 0 && (
-                  <li className="tw:text-xs tw:text-faint">Записей нет</li>
+                  <li className="text-xs text-faint">Записей нет</li>
                 )}
-                {!entries && (
-                  <li className="tw:text-xs tw:text-faint">Загрузка…</li>
-                )}
+                {!entries && <li className="text-xs text-faint">Загрузка…</li>}
               </ul>
             )}
           </>
@@ -310,12 +303,12 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
   let lastDay = null;
 
   return (
-    <div className="tw:flex tw:max-h-[calc(100dvh-160px)] tw:flex-col tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card">
-      <div className="tw:flex tw:items-center tw:gap-2 tw:border-b tw:border-border-soft tw:px-4 tw:py-2.5">
-        <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+    <div className="flex max-h-[calc(100dvh-160px)] flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex items-center gap-2 border-b border-border-soft px-4 py-2.5">
+        <span className="text-xs font-bold tracking-wider text-faint uppercase">
           Хроника
         </span>
-        <span className="tw:ms-auto">
+        <span className="ms-auto">
           <Segmented
             ariaLabel="Что показывать в хронике"
             options={[
@@ -331,7 +324,7 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
       {canComment && (
         <form
           onSubmit={submit}
-          className="tw:border-b tw:border-border-soft tw:px-4 tw:py-3"
+          className="border-b border-border-soft px-4 py-3"
         >
           <Textarea
             ref={textarea}
@@ -340,19 +333,19 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
             placeholder="Написать комментарий…"
             onChange={(changeEvent) => setContent(changeEvent.target.value)}
           />
-          <div className="tw:mt-2 tw:flex tw:items-center tw:gap-2">
+          <div className="mt-2 flex items-center gap-2">
             <input
               ref={fileInput}
               id="chronicle-files"
               type="file"
               multiple
-              className="tw:hidden"
+              className="hidden"
               onChange={(changeEvent) =>
                 setFiles([...(changeEvent.target.files ?? [])])
               }
             />
             <Button asChild variant="outline" size="xs">
-              <label htmlFor="chronicle-files" className="tw:cursor-pointer">
+              <label htmlFor="chronicle-files" className="cursor-pointer">
                 <RiAttachment2 />
                 {files.length > 0 ? `Файлов: ${files.length}` : "Файл"}
               </label>
@@ -360,7 +353,7 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
             <Button
               type="submit"
               size="xs"
-              className="tw:ms-auto"
+              className="ms-auto"
               disabled={isLoading || !content.trim()}
             >
               <RiSendPlaneLine />
@@ -370,9 +363,9 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
         </form>
       )}
 
-      <div className="tw:flex-1 tw:overflow-y-auto tw:px-4 tw:pb-3">
+      <div className="flex-1 overflow-y-auto px-4 pb-3">
         {feed.length === 0 && (
-          <p className="tw:my-6 tw:text-center tw:text-sm tw:text-muted-foreground">
+          <p className="my-6 text-center text-sm text-muted-foreground">
             {mode === "comments"
               ? "Переписки пока нет"
               : "По заявке пока ничего не происходило"}
@@ -385,9 +378,9 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
           return (
             <div key={item.key}>
               {showDay && (
-                <div className="tw:flex tw:items-center tw:gap-2.5 tw:pt-3 tw:pb-1 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+                <div className="flex items-center gap-2.5 pt-3 pb-1 text-xs font-bold tracking-wider text-faint uppercase">
                   {dayLabel(item.at)}
-                  <span className="tw:h-px tw:flex-1 tw:bg-border-soft" />
+                  <span className="h-px flex-1 bg-border-soft" />
                 </div>
               )}
               {/* Разделитель между записями — только внутри дня: у первой

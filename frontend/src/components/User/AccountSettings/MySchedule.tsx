@@ -34,10 +34,10 @@ const range = (from: string, to: string) =>
   from === to ? humanDate(from) : `${humanDate(from)} — ${humanDate(to)}`;
 
 const STATUS_TONE: Record<Absence["status"], string> = {
-  pending: "tw:text-warning",
-  approved: "tw:text-accent-text",
-  rejected: "tw:text-muted-foreground",
-  cancelled: "tw:text-faint",
+  pending: "text-warning",
+  approved: "text-accent-text",
+  rejected: "text-muted-foreground",
+  cancelled: "text-faint",
 };
 
 const STATUS_LABEL: Record<Absence["status"], string> = {
@@ -78,7 +78,8 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
           headers: { Authorization: "Bearer " + token },
         }),
       ]);
-      if (!scheduleResponse.ok) throw new Error(String(scheduleResponse.status));
+      if (!scheduleResponse.ok)
+        throw new Error(String(scheduleResponse.status));
       setData(await scheduleResponse.json());
       if (absenceResponse.ok) {
         const payload = await absenceResponse.json();
@@ -161,7 +162,7 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
         hint="По нему считается ваш рабочий день"
         htmlFor="my-tz"
       >
-        <div className="tw:w-64">
+        <div className="w-64">
           <Combobox
             id="my-tz"
             options={tzOptions}
@@ -189,20 +190,20 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
       </SettingRow>
 
       {data.hasPersonalSchedule && (
-        <div className="tw:px-4 tw:pb-4">
+        <div className="px-4 pb-4">
           <ScheduleView schedule={data.schedule} />
         </div>
       )}
 
-      <div className="tw:border-t tw:border-border-soft tw:px-4 tw:py-3.5">
-        <div className="tw:mb-2.5 tw:flex tw:items-center tw:gap-2">
-          <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+      <div className="border-t border-border-soft px-4 py-3.5">
+        <div className="mb-2.5 flex items-center gap-2">
+          <span className="text-xs font-bold tracking-wider text-faint uppercase">
             Мои отсутствия
           </span>
           <Button
             variant="outline"
             size="sm"
-            className="tw:ml-auto"
+            className="ml-auto"
             onClick={() => setFormOpen(true)}
           >
             <RiAddFill />
@@ -211,7 +212,7 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
         </div>
 
         {visible.length === 0 ? (
-          <p className="tw:my-2 tw:text-sm tw:text-muted-foreground">
+          <p className="my-2 text-sm text-muted-foreground">
             Отпусков, отгулов и больничных пока не записано. Запрос уйдёт на
             согласование — до решения календарь не меняется.
           </p>
@@ -221,10 +222,10 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
             return (
               <div
                 key={absence._id}
-                className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1 tw:border-t tw:border-border-soft tw:py-2.5 tw:text-sm tw:first:border-t-0"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-soft py-2.5 text-sm first:border-t-0"
               >
                 <span
-                  className="tw:grid tw:h-6 tw:min-w-8 tw:place-items-center tw:rounded-md tw:px-1.5 tw:text-xs tw:font-bold"
+                  className="grid h-6 min-w-8 place-items-center rounded-md px-1.5 text-xs font-bold"
                   style={{
                     color: meta?.color,
                     background:
@@ -239,20 +240,20 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
                 >
                   {meta?.short}
                 </span>
-                <span className="tw:min-w-0">
-                  <span className="tw:font-medium">{absence.typeLabel}</span>
-                  <span className="tw:text-muted-foreground">
+                <span className="min-w-0">
+                  <span className="font-medium">{absence.typeLabel}</span>
+                  <span className="text-muted-foreground">
                     {" · "}
                     {range(absence.from, absence.to)}
                   </span>
                   {absence.status === "rejected" && absence.decisionComment && (
-                    <span className="tw:block tw:text-xs tw:text-muted-foreground">
+                    <span className="block text-xs text-muted-foreground">
                       Причина: {absence.decisionComment}
                     </span>
                   )}
                 </span>
                 <span
-                  className={`tw:ms-auto tw:text-xs ${STATUS_TONE[absence.status]}`}
+                  className={`ms-auto text-xs ${STATUS_TONE[absence.status]}`}
                 >
                   {STATUS_LABEL[absence.status]}
                   {absence.decidedBy &&

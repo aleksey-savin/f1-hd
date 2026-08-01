@@ -509,22 +509,6 @@ exports.revokePro32 = async (req, res, next) => {
   }
 };
 
-exports.getAuthed = async (req, res, next) => {
-  try {
-    const authData = await getAuthData(req);
-    const authedUser = await User.findById(authData.userId);
-    if (!authedUser) {
-      return next(new AppError(`Authed user not found`, 404));
-    }
-    res.status(200).json({
-      message: "Auth data fetched",
-      authedUser: authedUser,
-    });
-  } catch (error) {
-    next(new AppError(`Failed to fetch authedUser`, 500, true, error));
-  }
-};
-
 exports.getCanPerformTicketsUsers = async (req, res, next) => {
   try {
     const users = await User.find({
@@ -567,85 +551,6 @@ exports.getKnowledgeBaseModerators = async (req, res, next) => {
         true,
         error,
       ),
-    );
-  }
-};
-
-exports.getUsersWithWorkplaces = async (req, res, next) => {
-  try {
-    const { userId } = await getAuthData(req);
-    const authedUser = await User.findById(userId);
-
-    // Получаем всех активных пользователей (отключённые — сами или вместе с
-    // компанией — в выборку не попадают)
-    const allUsers = await User.find({
-      isActive: true,
-      "company.isActive": { $ne: false },
-    }).sort({ lastName: 1 });
-
-    // Фильтруем пользователей по правам доступа
-    const filteredUsers = allUsers.filter((user) => {
-      if (
-        authedUser.responsibleForCompanies
-          .map((company) => company._id.toString())
-          .includes(user.company._id.toString()) ||
-        authedUser.permissions.canAdministrateTickets ||
-        authedUser.isAdmin
-      ) {
-        return user;
-      }
-    });
-
-    // Получаем рабочие места для всех пользователей
-    const userIds = filteredUsers.map((user) => user._id);
-    const workplaces = await Location.find({
-      type: "workplace",
-      assignedUser: { $in: userIds },
-      isActive: true,
-    });
-
-    // Создаем map для быстрого поиска рабочих мест
-    const workplaceMap = {};
-    workplaces.forEach((workplace) => {
-      workplaceMap[workplace.assignedUser.toString()] = workplace;
-    });
-
-    // Формируем результат с информацией о рабочих местах
-    const usersWithWorkplaces = filteredUsers.map((user) => {
-      const workplace = workplaceMap[user._id.toString()];
-
-      return {
-        _id: user._id,
-        lastName: user.lastName,
-        firstName: user.firstName,
-        fullName: `${user.firstName} ${user.lastName || ""}`.trim(),
-        profileImagePath: user.profileImagePath,
-        company: { _id: user.company._id, alias: user.company.alias },
-        role: user.role,
-        position: user.position,
-        email: user.email,
-        phone: user.phone,
-        workplace: workplace
-          ? {
-              _id: workplace._id,
-              name: workplace.name,
-              description: workplace.description,
-            }
-          : null,
-        isServiceAccount: user.isServiceAccount,
-        isAdmin: user.isAdmin,
-        isEndUser: user.isEndUser,
-        createdAt: user.createdAt,
-      };
-    });
-
-    res.status(200).json({
-      message: "Users with workplaces fetched",
-      users: usersWithWorkplaces,
-    });
-  } catch (error) {
-    next(
-      new AppError(`Failed to fetch users with workplaces`, 500, true, error),
     );
   }
 };
@@ -1123,88 +1028,6 @@ exports.delete = async (req, res, next) => {
   }
 };
 
-exports.createWorkplacesForExistingUsers = async (req, res, next) => {
-  try {
-    // Получаем всех активных пользователей
-    const users = await User.find({ isActive: true });
-
-    let created = 0;
-    let skipped = 0;
-    let errors = [];
-
-    for (const user of users) {
-      try {
-        // Проверяем, есть ли уже рабочее место у пользователя
-        const existingWorkplace = await Location.findOne({
-          type: "workplace",
-          assignedUser: user._id,
-          isActive: true,
-        });
-
-        if (existingWorkplace) {
-          skipped++;
-          continue;
-        }
-
-        // Создаем рабочее место
-        const workplaceName =
-          `Рабочее место - ${user.firstName} ${user.lastName || ""}`.trim();
-
-        const workplace = new Location({
-          name: workplaceName,
-          type: "workplace",
-          description: `Рабочее место сотрудника ${user.firstName} ${user.lastName || ""}`,
-          company: user.company._id,
-          subdivision: user.subdivision || null,
-          assignedUser: user._id,
-          defaultResponsible: user._id,
-          isActive: true,
-          isAccessible: true,
-          securityLevel: "internal",
-          createdBy: req.userId || user._id,
-        });
-
-        await workplace.save();
-        created++;
-
-        console.log(
-          `Рабочее место создано для ${user.email}: ${workplace.name}`,
-        );
-      } catch (userError) {
-        errors.push({
-          userId: user._id,
-          email: user.email,
-          error: userError.message,
-        });
-        console.error(
-          `Ошибка создания рабочего места для ${user.email}:`,
-          userError,
-        );
-      }
-    }
-
-    res.status(200).json({
-      message: "Процесс создания рабочих мест завершен",
-      statistics: {
-        totalUsers: users.length,
-        created,
-        skipped,
-        errors: errors.length,
-      },
-      errors: errors.length > 0 ? errors : undefined,
-    });
-  } catch (error) {
-    next(
-      new AppError(
-        "Failed to create workplaces for existing users",
-        500,
-        true,
-        error,
-      ),
-    );
-  }
-};
-
 exports.changePassword = async (req, res, next) => {
   try {
     const { password, repeatedPassword, sendPassword } = req.body;
@@ -1534,30 +1357,6 @@ exports.getWorkStatuses = async (req, res, next) => {
     res.status(200).json({ message: "Work statuses fetched", users });
   } catch (error) {
     next(new AppError(`Failed to fetch work statuses`, 500, true, error));
-  }
-};
-
-exports.disableChangelogNotification = async (req, res, next) => {
-  try {
-    const { userId } = await getAuthData(req);
-    const user = await User.findById(userId);
-
-    user.notifications.changelogUpdate = false;
-
-    await user.save();
-
-    res.status(201).json({
-      message: "User notifications updated successfully!",
-    });
-  } catch (error) {
-    next(
-      new AppError(
-        `Failed to disable changelog notification`,
-        500,
-        true,
-        error,
-      ),
-    );
   }
 };
 

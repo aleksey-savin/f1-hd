@@ -112,7 +112,7 @@ const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
       <AlertMessage
         variant="danger"
         message={
-          <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+          <span className="flex flex-wrap items-center gap-3">
             {s.error}
             <Button variant="outline" size="xs" onClick={() => s.fetch()}>
               Повторить
@@ -131,14 +131,14 @@ const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
         }
       />
     ) : (
-      <div className="tw:space-y-6">
-        <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:md:grid-cols-3 tw:xl:grid-cols-5">
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           {[0, 1, 2, 3, 4].map((index) => (
-            <Skeleton key={index} className="tw:h-20 tw:rounded-xl" />
+            <Skeleton key={index} className="h-20 rounded-xl" />
           ))}
         </div>
-        <Skeleton className="tw:h-80 tw:rounded-xl" />
-        <Skeleton className="tw:h-64 tw:rounded-xl" />
+        <Skeleton className="h-80 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
       </div>
     );
   } else if (data.data.length === 0) {
@@ -159,7 +159,9 @@ const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
           s.selectedCompanies.includes(companyTrends.company._id),
         )
       : baseOrder.slice(0, 5);
-    const shownIds = new Set(shown.map((companyTrends) => companyTrends.company._id));
+    const shownIds = new Set(
+      shown.map((companyTrends) => companyTrends.company._id),
+    );
     const others = baseOrder.filter(
       (companyTrends) => !shownIds.has(companyTrends.company._id),
     );
@@ -220,22 +222,22 @@ const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
     const minIndex = metricValues.indexOf(Math.min(...metricValues));
 
     const legend = (
-      <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-4 tw:gap-y-1">
+      <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {series.map((line) => (
           <span
             key={line.dataKey}
-            className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-sm tw:text-muted-foreground"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
           >
             {line.dashed ? (
               <span
                 aria-hidden
-                className="tw:w-3"
+                className="w-3"
                 style={{ borderTop: "2px dashed var(--faint)" }}
               />
             ) : (
               <span
                 aria-hidden
-                className="tw:size-2.5 tw:rounded-xs"
+                className="size-2.5 rounded-xs"
                 style={{ background: line.color }}
               />
             )}
@@ -246,12 +248,12 @@ const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
     );
 
     body = (
-      <div className={cn("tw:transition-opacity", s.isLoading && "tw:opacity-60")}>
+      <div className={cn("transition-opacity", s.isLoading && "opacity-60")}>
         {s.error && (
           <AlertMessage
             variant="danger"
             message={
-              <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+              <span className="flex flex-wrap items-center gap-3">
                 {s.error}
                 <Button variant="outline" size="xs" onClick={() => s.fetch()}>
                   Повторить
@@ -269,7 +271,7 @@ const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
 
         <Eyebrow
           action={
-            <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+            <span className="flex flex-wrap items-center gap-3">
               {legend}
               <ChipMultiCombobox
                 placeholder="Компании: топ-5"
@@ -287,12 +289,13 @@ const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
         >
           {metric.label} {GROUPING_TITLE[s.grouping]}
         </Eyebrow>
-        <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+        <div className="rounded-xl border border-border bg-card p-5">
           {aggregated.length > 0 && (
-            <div className="tw:mb-3.5 tw:text-xs tw:text-faint tw:tabular-nums">
+            <div className="mb-3.5 text-xs text-faint tabular-nums">
               в среднем {formatMetric(average)} за период · макс —{" "}
-              {aggregated[maxIndex]?.label} ({formatMetric(metricValues[maxIndex] ?? 0)})
-              · мин — {aggregated[minIndex]?.label} (
+              {aggregated[maxIndex]?.label} (
+              {formatMetric(metricValues[maxIndex] ?? 0)}) · мин —{" "}
+              {aggregated[minIndex]?.label} (
               {formatMetric(metricValues[minIndex] ?? 0)})
             </div>
           )}
@@ -305,7 +308,7 @@ const TrendsSegment = ({ segment }: { segment: ReactNode }) => {
         </div>
 
         <Eyebrow count={aggregated.length}>По периодам</Eyebrow>
-        <div className="tw:overflow-x-auto tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-2 tw:py-1.5">
+        <div className="overflow-x-auto rounded-xl border border-border bg-card px-2 py-1.5">
           <TrendsTable periods={aggregated} />
         </div>
       </div>

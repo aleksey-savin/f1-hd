@@ -24,7 +24,11 @@ const SORT = {
 const SORT_KEY_BY_LABEL = Object.fromEntries(
   Object.entries(SORT).map(([key, option]) => [option.label, key]),
 );
-const SORTING_OPTIONS = [SORT.finished_desc, SORT.finished_asc, SORT.created_desc];
+const SORTING_OPTIONS = [
+  SORT.finished_desc,
+  SORT.finished_asc,
+  SORT.created_desc,
+];
 
 const EMPTY_FILTERS = {
   from: "",

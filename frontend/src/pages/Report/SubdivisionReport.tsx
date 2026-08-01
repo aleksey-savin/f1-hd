@@ -61,12 +61,18 @@ const SubdivisionReport = () => {
   }, [companyId, subdivisionId]);
 
   const data =
-    s.data && "subdivision" in s.data ? (s.data as SubdivisionCardResponse) : null;
+    s.data && "subdivision" in s.data
+      ? (s.data as SubdivisionCardResponse)
+      : null;
   const filterActive = !isFullMonthRange(s.from, s.to);
 
   const toolbar = (
     <>
-      <MonthStepper from={s.from} to={s.to} onChange={(range) => s.setPeriod(range)} />
+      <MonthStepper
+        from={s.from}
+        to={s.to}
+        onChange={(range) => s.setPeriod(range)}
+      />
       <Button
         variant={filterActive ? "success" : "outline"}
         size="icon"
@@ -92,7 +98,7 @@ const SubdivisionReport = () => {
       <AlertMessage
         variant="danger"
         message={
-          <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+          <span className="flex flex-wrap items-center gap-3">
             {s.error}
             <Button variant="outline" size="xs" onClick={() => s.fetch()}>
               Повторить
@@ -125,17 +131,18 @@ const SubdivisionReport = () => {
     }));
 
     body = (
-      <div className={cn("tw:transition-opacity", s.isLoading && "tw:opacity-60")}>
+      <div className={cn("transition-opacity", s.isLoading && "opacity-60")}>
         {data.access === "partial" && (
           <ScopeNote>
-            Отчёт открыт вам как руководителю подразделения «{data.subdivision.name}» —
-            в нём работы по заявкам его сотрудников и вложенных подразделений.
-            Полный отчёт по компании доступен ответственным лицам.
+            Отчёт открыт вам как руководителю подразделения «
+            {data.subdivision.name}» — в нём работы по заявкам его сотрудников и
+            вложенных подразделений. Полный отчёт по компании доступен
+            ответственным лицам.
           </ScopeNote>
         )}
 
         {data.subdivision.childrenCount > 0 && (
-          <div className="tw:mb-5 tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-5 tw:py-3.5">
+          <div className="mb-5 rounded-xl border border-border bg-card px-5 py-3.5">
             <SwitchField
               id="subdivision-descendants"
               label="Считать вместе с вложенными подразделениями"
@@ -146,20 +153,24 @@ const SubdivisionReport = () => {
           </div>
         )}
 
-        <KpiRow totals={data.totals} prev={data.prev.totals} busy={s.isLoading} />
+        <KpiRow
+          totals={data.totals}
+          prev={data.prev.totals}
+          busy={s.isLoading}
+        />
 
         {childRows.length > 0 && (
           <>
             <Eyebrow count={childRows.length} action={<ClassLegend />}>
               Время по вложенным подразделениям
             </Eyebrow>
-            <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+            <div className="rounded-xl border border-border bg-card p-5">
               <StackedTimeBars rows={childRows} />
               <AttributionNote diagnostics={data.diagnostics} />
             </div>
 
             <Eyebrow count={childRows.length}>Сводка по вложенным</Eyebrow>
-            <div className="tw:overflow-x-auto tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-2 tw:py-1.5">
+            <div className="overflow-x-auto rounded-xl border border-border bg-card px-2 py-1.5">
               <SubdivisionsTable
                 subdivisions={data.children}
                 unassigned={null}
@@ -174,11 +185,11 @@ const SubdivisionReport = () => {
           </>
         )}
 
-        <div className="tw:grid tw:gap-x-6 tw:lg:grid-cols-2">
+        <div className="grid gap-x-6 lg:grid-cols-2">
           <CategorySection categories={data.byCategory} />
           <div>
             <Eyebrow count={data.byApplicant.length}>Кто обращался</Eyebrow>
-            <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+            <div className="rounded-xl border border-border bg-card p-5">
               <ShareBars
                 rows={data.byApplicant.map((applicant) => ({
                   key: applicant._id ?? "unknown",
@@ -190,10 +201,11 @@ const SubdivisionReport = () => {
                 // По оси не время, а число заявок
                 unit="count"
               />
-              <p className="tw:mt-3 tw:mb-0 tw:text-xs tw:text-faint">
+              <p className="mt-3 mb-0 text-xs text-faint">
                 Значение — сколько заявок закрыто за период (
-                {data.totals.totalTickets} {declOfTickets(data.totals.totalTickets)}{" "}
-                всего). Это заявители со стороны клиента, а не наши исполнители.
+                {data.totals.totalTickets}{" "}
+                {declOfTickets(data.totals.totalTickets)} всего). Это заявители
+                со стороны клиента, а не наши исполнители.
               </p>
             </div>
           </div>
@@ -209,18 +221,18 @@ const SubdivisionReport = () => {
       title={data?.subdivision.name ?? "Подразделение"}
       subtitle={
         data && (
-          <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-2">
+          <span className="flex flex-wrap items-center gap-x-2">
             {data.company.alias}
             {data.subdivision.manager && (
               <>
-                <span className="tw:text-faint">·</span>
+                <span className="text-faint">·</span>
                 руководитель {data.subdivision.manager.lastName}{" "}
                 {data.subdivision.manager.firstName}
               </>
             )}
             {data.subdivision.usersCount > 0 && (
               <>
-                <span className="tw:text-faint">·</span>
+                <span className="text-faint">·</span>
                 {data.subdivision.usersCount} пользователей
               </>
             )}

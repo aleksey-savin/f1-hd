@@ -4,7 +4,8 @@ import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
-import Select from "../../UI/Select";
+import { MultiCombobox, toOptions } from "@/components/app/Combobox";
+
 import useTicketCategoryFilterStore from "../../store/lists/ticket-categories";
 import { AuthedUserContext } from "../../store/authed-user-context";
 
@@ -91,20 +92,21 @@ const TicketCategoryFilter = () => {
         label="Пользователи"
         htmlFor="filter-users"
         hint="Категории, доступные выбранным пользователям"
-        className="tw:mt-2"
+        className="mt-2"
       >
-        <Select
+        <MultiCombobox
           id="filter-users"
           placeholder="Выберите пользователей..."
-          value={filterStore.users || []}
-          options={userOptions}
-          isMulti
-          isClearable
-          isSearchable
-          closeMenuOnSelect={false}
-          getOptionLabel={(option) => option.name}
-          getOptionValue={(option) => option._id}
-          onChange={usersChangeHandler}
+          value={(filterStore.users || []).map((item) => String(item._id))}
+          options={toOptions(userOptions, {
+            value: (option) => String(option._id),
+            label: (option) => option.name,
+          })}
+          onChange={(ids) =>
+            usersChangeHandler(
+              userOptions.filter((option) => ids.includes(String(option._id))),
+            )
+          }
         />
       </Field>
       {showFinances && (
@@ -112,20 +114,25 @@ const TicketCategoryFilter = () => {
           label="Услуги"
           htmlFor="filter-plans"
           hint="Категории, привязанные к выбранным услугам"
-          className="tw:mt-2"
+          className="mt-2"
         >
-          <Select
+          <MultiCombobox
             id="filter-plans"
             placeholder="Выберите услуги..."
-            value={filterStore.servicePlans || []}
-            options={planOptions}
-            isMulti
-            isClearable
-            isSearchable
-            closeMenuOnSelect={false}
-            getOptionLabel={(option) => option.title}
-            getOptionValue={(option) => option._id}
-            onChange={plansChangeHandler}
+            value={(filterStore.servicePlans || []).map((item) =>
+              String(item._id),
+            )}
+            options={toOptions(planOptions, {
+              value: (option) => String(option._id),
+              label: (option) => option.title,
+            })}
+            onChange={(ids) =>
+              plansChangeHandler(
+                planOptions.filter((option) =>
+                  ids.includes(String(option._id)),
+                ),
+              )
+            }
           />
         </Field>
       )}

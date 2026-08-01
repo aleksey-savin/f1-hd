@@ -120,7 +120,11 @@ export const ticketActions = (
   // секции у чек-листа нет, пока в нём ничего нет. «Составить», а не
   // «Добавить»: список сочиняют, а не привязывают готовый
   if (canPerformTickets && !closed && !(ticket.checklist?.length > 0)) {
-    push({ key: "makeChecklist", label: "Составить чек-лист", group: "ticket" });
+    push({
+      key: "makeChecklist",
+      label: "Составить чек-лист",
+      group: "ticket",
+    });
   }
   // «Сохранить как шаблон» живёт в форме заявки — там же, где заполняют поля,
   // из которых шаблон и собирается

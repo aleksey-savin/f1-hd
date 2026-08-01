@@ -137,8 +137,8 @@ const PrefsNotifications = ({ prefs }) => {
 
   const emailOn = !!notify.byEmail.isActive;
   const telegramOn = !!notify.byTelegram.isActive;
-  const dimEmail = emailOn ? "tw:py-3" : "tw:py-3 tw:opacity-60";
-  const dimTelegram = telegramOn ? "tw:py-3" : "tw:py-3 tw:opacity-60";
+  const dimEmail = emailOn ? "py-3" : "py-3 opacity-60";
+  const dimTelegram = telegramOn ? "py-3" : "py-3 opacity-60";
 
   const emailHealth = sending
     ? { state: "busy", title: "Отправляем письмо…" }
@@ -151,9 +151,9 @@ const PrefsNotifications = ({ prefs }) => {
 
   return (
     <SectionForm buildPayload={buildPayload}>
-      <div className="tw:px-5 tw:pt-4">
+      <div className="px-5 pt-4">
         <SubLabel>Категории событий</SubLabel>
-        <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+        <p className="my-0 text-sm text-muted-foreground">
           Выключенная категория исчезает из личных настроек сотрудников.
         </p>
       </div>
@@ -162,7 +162,7 @@ const PrefsNotifications = ({ prefs }) => {
           key={key}
           title={label}
           htmlFor={`prefs-cat-${key}`}
-          className="tw:py-3"
+          className="py-3"
         >
           <Switch
             id={`prefs-cat-${key}`}
@@ -172,13 +172,13 @@ const PrefsNotifications = ({ prefs }) => {
         </SettingRow>
       ))}
 
-      <div className="tw:px-5 tw:pt-4">
+      <div className="px-5 pt-4">
         <SubLabel>Канал: почта (SMTP)</SubLabel>
       </div>
       <SettingRow
         title="Отправлять почтовые уведомления"
         htmlFor="prefs-email-enabled"
-        className="tw:py-3"
+        className="py-3"
       >
         <Switch
           id="prefs-email-enabled"
@@ -197,7 +197,7 @@ const PrefsNotifications = ({ prefs }) => {
               onClick={sendTestEmail}
             >
               <RiMailSendLine
-                className={sending ? "tw:animate-pulse" : undefined}
+                className={sending ? "animate-pulse" : undefined}
               />
               Отправить тестовое письмо
             </Button>
@@ -219,7 +219,7 @@ const PrefsNotifications = ({ prefs }) => {
         htmlFor="prefs-smtp-from-name"
         className={dimEmail}
       >
-        <div className="tw:flex tw:items-center tw:gap-2 tw:max-md:flex-col tw:max-md:items-stretch">
+        <div className="flex items-center gap-2 max-md:flex-col max-md:items-stretch">
           <Input
             id="prefs-smtp-from-name"
             type="text"
@@ -229,7 +229,7 @@ const PrefsNotifications = ({ prefs }) => {
             onChange={(event) =>
               patch("byEmail", "sendFromName", event.target.value)
             }
-            className="tw:w-40 tw:max-md:w-full"
+            className="w-40 max-md:w-full"
           />
           <Input
             type="text"
@@ -239,20 +239,20 @@ const PrefsNotifications = ({ prefs }) => {
             onChange={(event) =>
               patch("byEmail", "sendFromEmail", event.target.value)
             }
-            className="tw:w-56 tw:max-md:w-full"
+            className="w-56 max-md:w-full"
             aria-label="Email отправителя"
           />
         </div>
       </SettingRow>
 
-      <div className="tw:px-5 tw:pt-4">
+      <div className="px-5 pt-4">
         <SubLabel>Канал: Telegram</SubLabel>
       </div>
       <SettingRow
         title="Отправлять Telegram-уведомления"
         hint="Личные сообщения от бота."
         htmlFor="prefs-tg-enabled"
-        className="tw:py-3"
+        className="py-3"
       >
         <Switch
           id="prefs-tg-enabled"
@@ -271,8 +271,10 @@ const PrefsNotifications = ({ prefs }) => {
           type="text"
           disabled={!telegramOn}
           value={notify.byTelegram.chatId || ""}
-          onChange={(event) => patch("byTelegram", "chatId", event.target.value)}
-          className="tw:w-56 tw:max-md:w-full"
+          onChange={(event) =>
+            patch("byTelegram", "chatId", event.target.value)
+          }
+          className="w-56 max-md:w-full"
         />
       </SettingRow>
       <SettingRow
@@ -289,7 +291,7 @@ const PrefsNotifications = ({ prefs }) => {
           onChange={(event) =>
             patch("byTelegram", "messageThreadId", event.target.value)
           }
-          className="tw:w-40 tw:max-md:w-full"
+          className="w-40 max-md:w-full"
         />
       </SettingRow>
       <SettingRow

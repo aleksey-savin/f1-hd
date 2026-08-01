@@ -33,15 +33,15 @@ const ClientTime = ({ clientTimezone, always = false, now, className }) => {
     <span
       title={info.title}
       className={cn(
-        "tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:whitespace-nowrap tw:tabular-nums",
-        info.isNight ? "tw:text-warning" : "tw:text-muted-foreground",
+        "inline-flex items-center gap-1 text-sm whitespace-nowrap tabular-nums",
+        info.isNight ? "text-warning" : "text-muted-foreground",
         className,
       )}
     >
       {info.isNight ? (
-        <RiMoonLine aria-hidden className="tw:flex-none" />
+        <RiMoonLine aria-hidden className="flex-none" />
       ) : (
-        <RiTimeLine aria-hidden className="tw:flex-none" />
+        <RiTimeLine aria-hidden className="flex-none" />
       )}
       <span>
         {info.city} · {info.localTime}

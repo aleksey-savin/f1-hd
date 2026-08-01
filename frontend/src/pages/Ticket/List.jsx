@@ -31,8 +31,6 @@ import { queueLabel } from "../../util/ticket-queues";
 // тулбаре, долгий тап на мобилке.
 
 // Опции фасетов собираем из самой выборки — отдельного каталога тут не нужно.
-// Форма опции чистая: у объекта-опции не должно быть ключа `options`, иначе
-// react-select видит пустую группу и пишет «No options».
 const facetOptions = (list, extract) => {
   const map = new Map();
   for (const ticket of list) {
@@ -216,7 +214,7 @@ const Tickets = () => {
           }
         />
       )}
-      <span className="tw:hidden tw:md:contents">
+      <span className="hidden md:contents">
         <ChipMultiCombobox
           placeholder="Компании"
           searchPlaceholder="Найти компанию…"

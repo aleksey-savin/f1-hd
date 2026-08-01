@@ -41,8 +41,8 @@ const Profile = ({ user }) => {
 
   return (
     <fetcher.Form method="post">
-      <div className="tw:p-5">
-        <div className="tw:mb-5 tw:flex tw:flex-wrap tw:items-center tw:gap-4">
+      <div className="p-5">
+        <div className="mb-5 flex flex-wrap items-center gap-4">
           {profileImage ? (
             // span с background-image, а не <img>: глобальный автоскейл
             // картинок тикетов (index.css) перебивает размеры <img>
@@ -50,26 +50,26 @@ const Profile = ({ user }) => {
               role="img"
               aria-label="Фото профиля"
               style={{ backgroundImage: `url("${profileImage}")` }}
-              className="tw:size-16 tw:flex-none tw:rounded-full tw:bg-cover tw:bg-center"
+              className="size-16 flex-none rounded-full bg-cover bg-center"
             />
           ) : (
             <span
               aria-hidden
-              className="tw:grid tw:size-16 tw:flex-none tw:place-items-center tw:rounded-full tw:bg-accent tw:text-xl tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+              className="grid size-16 flex-none place-items-center rounded-full bg-accent text-xl font-semibold text-muted-foreground inset-ring inset-ring-border"
             >
               {initials}
             </span>
           )}
-          <div className="tw:min-w-0">
-            <div className="tw:text-xl tw:leading-snug tw:font-semibold tw:tracking-tight">
+          <div className="min-w-0">
+            <div className="text-xl leading-snug font-semibold tracking-tight">
               {user.firstName} {user.lastName}
             </div>
-            <div className="tw:text-sm tw:text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
               {roleLabel}
               {user.company?.alias ? ` · ${user.company.alias}` : ""}
             </div>
           </div>
-          <div className="tw:ms-auto tw:max-md:ms-0 tw:max-md:w-full">
+          <div className="ms-auto max-md:ms-0 max-md:w-full">
             <ImageUpload
               userId={user._id.toString()}
               setProfileImage={setProfileImage}
@@ -78,7 +78,7 @@ const Profile = ({ user }) => {
         </div>
 
         <input type="hidden" name="id" value={user._id} />
-        <div className="tw:grid tw:gap-x-4 tw:md:grid-cols-2">
+        <div className="grid gap-x-4 md:grid-cols-2">
           <Field label="Имя" htmlFor="firstName" required>
             <Input
               required
@@ -115,7 +115,7 @@ const Profile = ({ user }) => {
             />
           </Field>
         </div>
-        <Field label="Должность" htmlFor="position" className="tw:mb-1">
+        <Field label="Должность" htmlFor="position" className="mb-1">
           <Input
             id="position"
             name="position"
@@ -124,7 +124,7 @@ const Profile = ({ user }) => {
           />
         </Field>
       </div>
-      <div className="tw:flex tw:justify-end tw:border-t tw:border-border-soft tw:px-5 tw:py-3">
+      <div className="flex justify-end border-t border-border-soft px-5 py-3">
         <Button
           type="submit"
           name="intent"

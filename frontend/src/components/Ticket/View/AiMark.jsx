@@ -113,7 +113,7 @@ const AiMark = ({
           title={`${hint} — нажмите, если что-то не так`}
           aria-label={`${hint} — сообщить об ошибке`}
           className={cn(
-            "ai-mark tw:appearance-none tw:border-0 tw:bg-transparent tw:p-0 tw:outline-none",
+            "ai-mark appearance-none border-0 bg-transparent p-0 outline-none",
             className,
           )}
         >
@@ -125,25 +125,25 @@ const AiMark = ({
         open={open}
         onOpenChange={(value) => (value ? setOpen(true) : close())}
       >
-        <DialogContent className="tw:sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
 
-          <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">{hint}</p>
+          <p className="my-0 text-sm text-muted-foreground">{hint}</p>
 
           {/* Причина обязательна: из «не понравилось» правила не составить */}
-          <div className="tw:flex tw:flex-wrap tw:gap-2">
+          <div className="flex flex-wrap gap-2">
             {REASONS.map((item) => (
               <button
                 key={item.value}
                 type="button"
                 onClick={() => setReason(item.value)}
                 className={cn(
-                  "tw:cursor-pointer tw:appearance-none tw:rounded-full tw:border tw:px-2.5 tw:py-0.5 tw:text-xs tw:outline-none",
+                  "cursor-pointer appearance-none rounded-full border px-2.5 py-0.5 text-xs outline-none",
                   reason === item.value
-                    ? "tw:border-primary/40 tw:bg-primary/8 tw:text-accent-text"
-                    : "tw:border-transparent tw:bg-accent tw:text-foreground tw:hover:border-primary/30",
+                    ? "border-primary/40 bg-primary/8 text-accent-text"
+                    : "border-transparent bg-accent text-foreground hover:border-primary/30",
                 )}
               >
                 {item.label}
@@ -156,10 +156,10 @@ const AiMark = ({
             onChange={(event) => setText(event.target.value)}
             placeholder="Что неверно и как правильно"
             rows={4}
-            className="tw:text-sm"
+            className="text-sm"
           />
 
-          <p className="tw:my-0 tw:text-xs tw:text-muted-foreground">
+          <p className="my-0 text-xs text-muted-foreground">
             Замечание попадёт в хронику заявки и в правила ИИ для {scope} — их
             видит вся команда, а включает администратор.
           </p>

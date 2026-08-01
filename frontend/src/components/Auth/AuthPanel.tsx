@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 /** Единственный «лист» на экране: форма или итоговое сообщение. */
 export const AuthPanel = ({ children }: { children: ReactNode }) => (
-  <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-6 tw:lg:p-8">
+  <div className="rounded-xl border border-border bg-card p-6 lg:p-8">
     {children}
   </div>
 );
@@ -22,14 +22,8 @@ export const AuthHeading = ({
   lede?: ReactNode;
 }) => (
   <>
-    <h1 className="tw:mb-0 tw:text-2xl tw:font-bold tw:tracking-tight">
-      {title}
-    </h1>
-    {lede && (
-      <p className="tw:mt-2 tw:mb-0 tw:text-sm tw:text-muted-foreground">
-        {lede}
-      </p>
-    )}
+    <h1 className="mb-0 text-2xl font-bold tracking-tight">{title}</h1>
+    {lede && <p className="mt-2 mb-0 text-sm text-muted-foreground">{lede}</p>}
   </>
 );
 
@@ -43,10 +37,10 @@ export const AuthTile = ({
 }) => (
   <div
     className={cn(
-      "tw:mb-4 tw:flex tw:size-10 tw:items-center tw:justify-center tw:rounded-xl",
+      "mb-4 flex size-10 items-center justify-center rounded-xl",
       tone === "success"
-        ? "tw:bg-primary/15 tw:text-accent-text"
-        : "tw:bg-warning/15 tw:text-warning",
+        ? "bg-primary/15 text-accent-text"
+        : "bg-warning/15 text-warning",
     )}
   >
     {children}
@@ -65,23 +59,23 @@ export const WaysIn = ({ title, ways }: { title: string; ways: Way[] }) => {
   if (!visible.length) return null;
 
   const rowClass =
-    "tw:-mx-2 tw:flex tw:h-9 tw:items-center tw:justify-between tw:gap-3 tw:rounded-lg tw:px-2 tw:text-sm tw:text-foreground tw:no-underline tw:transition-colors tw:hover:bg-accent tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:outline-none";
+    "-mx-2 flex h-9 items-center justify-between gap-3 rounded-lg px-2 text-sm text-foreground no-underline transition-colors hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/50 outline-none";
 
   return (
-    <div className="tw:mt-6 tw:border-t tw:border-border-soft tw:pt-4">
-      <div className="tw:mb-1 tw:text-xs tw:font-semibold tw:tracking-wider tw:text-faint tw:uppercase">
+    <div className="mt-6 border-t border-border-soft pt-4">
+      <div className="mb-1 text-xs font-semibold tracking-wider text-faint uppercase">
         {title}
       </div>
       {visible.map((way) =>
         way.to ? (
           <Link key={way.label} to={way.to} className={rowClass}>
             <span>{way.label}</span>
-            <RiArrowRightSLine className="tw:text-faint" aria-hidden />
+            <RiArrowRightSLine className="text-faint" aria-hidden />
           </Link>
         ) : (
           <a key={way.label} href={way.href} className={rowClass}>
             <span>{way.label}</span>
-            <RiArrowRightSLine className="tw:text-faint" aria-hidden />
+            <RiArrowRightSLine className="text-faint" aria-hidden />
           </a>
         ),
       )}

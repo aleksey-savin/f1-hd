@@ -15,12 +15,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { RiRefreshLine } from "react-icons/ri";
 import { Button } from "@/components/ui/button";
 import AppBanner from "@/components/app/AppBanner";
-// import Pro32Connect from "../components/Integrations/Pro32Connect/Pro32Connect";
-
-import Container from "react-bootstrap/Container";
-import Card from "react-bootstrap/Card";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
+import { cn } from "@/lib/utils";
 
 import Transitions from "../animations/Transition";
 
@@ -127,20 +122,29 @@ const RootLayout = () => {
           {/* <Pro32Connect /> */}
           {userData.backgroundImagePath && (
             <div
-              className="background-container"
+              // Декоративный слой обоев под контентом. top-14 — высота бара
+              // оболочки, без зазора-полосы; pointer-events-none обязателен:
+              // fixed-слой рисуется поверх статического контента и иначе
+              // съедает клики.
+              className="pointer-events-none fixed inset-x-0 top-14 bottom-0 bg-cover bg-center bg-no-repeat"
               style={{
                 backgroundImage: `url("${import.meta.env.VITE_API_ADDRESS}/uploads/${userData.backgroundImagePath}")`,
               }}
             />
           )}
-          <Container
-            fluid
+          {/* Контентная область оболочки. Ширина 1920 и отступ под фиксированный
+              бар — стилем: ни того, ни другого нет во встроенной сетке tw.
+              has-ws-rail резервирует место под свёрнутый рейл статусов
+              (правило в index.css). */}
+          <div
             style={{ maxWidth: "1920px", paddingTop: "80px" }}
-            className={`px-5 pb-5${
-              isLoggedIn && !userData?.isEndUser && !userData?.hideWorkStatus
-                ? " has-ws-rail"
-                : ""
-            }`}
+            className={cn(
+              "mx-auto w-full px-12 pb-12",
+              isLoggedIn &&
+                !userData?.isEndUser &&
+                !userData?.hideWorkStatus &&
+                "has-ws-rail",
+            )}
           >
             {appVersion !== import.meta.env.VITE_VERSION &&
               !versionDismissed && (
@@ -149,12 +153,12 @@ const RootLayout = () => {
                   icon={<RiRefreshLine />}
                   title="Доступна новая версия"
                   onDismiss={() => setVersionDismissed(true)}
-                  className="tw:mx-auto tw:w-full tw:max-w-7xl tw:mb-6"
+                  className="mx-auto w-full max-w-7xl mb-6"
                   action={
                     <Button
                       size="sm"
                       onClick={() => window.location.reload()}
-                      className="tw:max-md:w-full"
+                      className="max-md:w-full"
                     >
                       <RiRefreshLine /> Обновить
                     </Button>
@@ -165,17 +169,16 @@ const RootLayout = () => {
                 </AppBanner>
               )}
 
-            <Row>
-              <Col>
-                {/* Мигрированные на tailwind/shadcn маршруты живут прямо на
-                    канве, без bootstrap-Card: заголовок страницы — на канве,
-                    панель — у самого списка (согласованный макет, см.
-                    docs/ux-ui-guide.md → раздел миграции). Список путей
-                    пополняется по фазам; maxWidth — контентная ширина
-                    страницы (её tw:max-w-*) + горизонтальный p-4 листа. */}
+            <div>
+              <div>
+                {/* Страницы живут прямо на канве: заголовок — на канве, панель —
+                    у самого списка (согласованный макет, см.
+                    docs/ux-ui-guide.md → раздел миграции). maxWidth — контентная
+                    ширина страницы (её max-w-*) + горизонтальный p-4 листа;
+                    он нужен только под фоновой картинкой. */}
                 {(() => {
                   const MIGRATED_ROUTES = [
-                    // Главная: ролевой лендинг, PageShell tw:max-w-7xl + 2×24.
+                    // Главная: ролевой лендинг, PageShell max-w-7xl + 2×24.
                     // «/» — точным совпадением, иначе префикс поймал бы вообще
                     // всё остальное приложение.
                     { path: "/dashboard", maxWidth: 1328 },
@@ -197,7 +200,7 @@ const RootLayout = () => {
                     // Вендоры: карточка (max-w-4xl, со слэшем) матчится
                     // раньше списка (max-w-7xl) — порядок в .find важен
                     { path: "/inventory/vendors/", maxWidth: 944 },
-                    // ListWrapper: tw:max-w-7xl (1280) + 2×24
+                    // ListWrapper: max-w-7xl (1280) + 2×24
                     { path: "/inventory/vendors", maxWidth: 1328 },
                     { path: "/inventory/device-attributes", maxWidth: 1328 },
                     // Поставщики: карточка (max-w-4xl, со слэшем) матчится
@@ -229,7 +232,7 @@ const RootLayout = () => {
                     { path: "/ticket-categories", maxWidth: 1328 },
                     // Компании: формы add/update — в шторке списка (та же
                     // ширина); карточка /companies/:id — с рейлом-якорем
-                    // (tw:max-w-5xl, со слэшем) — идёт ПОСЛЕ форм списка,
+                    // (max-w-5xl, со слэшем) — идёт ПОСЛЕ форм списка,
                     // но ДО точного «/companies»
                     { path: "/companies/add", maxWidth: 1328 },
                     { path: "/companies/update", maxWidth: 1328 },
@@ -238,7 +241,7 @@ const RootLayout = () => {
                     // Шаблоны: карточка (max-w-4xl, со слэшем) матчится раньше
                     // списка (max-w-7xl) — порядок в .find важен
                     { path: "/ticket-templates/", maxWidth: 944 },
-                    // ListWrapper: tw:max-w-7xl (1280) + 2×24
+                    // ListWrapper: max-w-7xl (1280) + 2×24
                     { path: "/ticket-templates", maxWidth: 1328 },
                     // Регламенты: карточка (со слэшем) матчится раньше списка
                     { path: "/routine-tasks/", maxWidth: 944 },
@@ -253,10 +256,10 @@ const RootLayout = () => {
                     // списка, но ДО точного «/users», иначе перехватила бы их.
                     { path: "/users/add", maxWidth: 1328 },
                     { path: "/users/update", maxWidth: 1328 },
-                    // карточка с рейлом-якорем: tw:max-w-5xl (1024) + 2×24
+                    // карточка с рейлом-якорем: max-w-5xl (1024) + 2×24
                     { path: "/users/", maxWidth: 1072 },
                     { path: "/users", maxWidth: 1328, exact: true },
-                    // страница: tw:max-w-4xl (896) + 2×24
+                    // страница: max-w-4xl (896) + 2×24
                     { path: "/my-account", maxWidth: 944 },
                     // Архив заявок: список ListWrapper (max-w-7xl), вложенных
                     // маршрутов нет
@@ -268,8 +271,11 @@ const RootLayout = () => {
                     // Настройки системы: рейл + секции, как «Мой аккаунт»
                     { path: "/preferences", maxWidth: 944 },
                     // Отчёт «Компании»: сводка и карточки — один каркас
-                    // PageShell tw:max-w-7xl (1280) + 2×24
+                    // PageShell max-w-7xl (1280) + 2×24
                     { path: "/report/companies", maxWidth: 1328 },
+                    // «Диапазоны сетей»: тот же каркас — пять колонок реестра
+                    // укладываются в 1280 без переносов
+                    { path: "/report/networks", maxWidth: 1328 },
                     // «Согласование работ»: карточка отчёта (max-w-5xl + 2×24)
                     // матчится раньше конвейера — со слэшем, как у карточек
                     // сущностей под общим префиксом
@@ -288,6 +294,9 @@ const RootLayout = () => {
                   ];
                   // Страница ошибок живёт на канве при любом pathname —
                   // ширина как у карточки (944)
+                  // Страница ошибок живёт на канве при любом pathname — ширина
+                  // как у карточки (944). Незнакомый путь до сюда не доходит:
+                  // его ловит errorElement и поднимает тот же флаг.
                   const migrated = routeErrorActive
                     ? { maxWidth: 944 }
                     : MIGRATED_ROUTES.find((r) =>
@@ -295,72 +304,59 @@ const RootLayout = () => {
                           ? location.pathname === r.path
                           : location.pathname.startsWith(r.path),
                       );
-                  if (!migrated) return null;
                   return (
                     <div
-                      /* position-relative — паритет с легаси-Card: контент
-                         рисуется поверх fixed-слоя фоновой картинки.
-                         При заданной фоновой картинке контент лежит на «листе»
+                      /* relative — контент рисуется поверх fixed-слоя фоновой
+                         картинки. При заданной картинке он лежит на «листе»
                          цвета канвы (content sheet on wallpaper), и лист
                          обнимает контент по его maxWidth, а не тянется на всю
                          ширину: пустых полей-«карточек» нет, обои видны по
                          бокам. Без картинки лист не рисуется вовсе. */
-                      className={`position-relative${
-                        userData.backgroundImagePath
-                          ? " rounded-4 border p-4 mx-auto w-100"
-                          : ""
-                      }`}
+                      className={cn(
+                        "relative",
+                        userData.backgroundImagePath &&
+                          "mx-auto w-full rounded-2xl border bg-card p-4",
+                      )}
                       style={{
                         minHeight: "calc(100svh - 104px)",
                         ...(userData.backgroundImagePath
-                          ? {
-                              background: "var(--bs-body-bg)",
-                              maxWidth: migrated.maxWidth,
-                            }
+                          ? { maxWidth: migrated?.maxWidth ?? 1328 }
                           : {}),
                       }}
                     >
                       <Outlet />
                     </div>
                   );
-                })() || (
-                  <Card
-                    className="shadow"
-                    style={{
-                      minHeight: "calc(100svh - 104px)",
-                    }}
-                  >
-                    <Card.Body>
-                      <Outlet />
-                    </Card.Body>
-                  </Card>
-                )}
-              </Col>
-            </Row>
+                })()}
+              </div>
+            </div>
             <Footer />
-          </Container>
+          </div>
         </BrowserView>
       </Transitions>
       <MobileView>
         {isLoggedIn ? (
-          <div className="mobile-shell">
+          <div className="mobile-shell fixed inset-0 flex flex-col overflow-hidden">
             <NavigationBar embedded />
             {/* Лента статусов сотрудников: flex-элемент шелла, не fixed */}
             {!userData?.isEndUser && !userData?.hideWorkStatus && (
               <WorkStatusBar variant="strip" />
             )}
-            <main className="mobile-shell__scroll" ref={mobileScrollRef}>
-              <Container className="pt-3">
+            <main
+              className="mobile-shell__scroll min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+              ref={mobileScrollRef}
+            >
+              <div className="mx-auto w-full px-3 pt-3">
                 <Outlet />
                 <Footer />
-              </Container>
+              </div>
             </main>
             <MobileBottomNavbar />
           </div>
         ) : (
-          <Container className="py-4">
+          <div className="mx-auto w-full px-3 py-6">
             <Outlet />
-          </Container>
+          </div>
         )}
       </MobileView>
       <Toaster />

@@ -63,9 +63,7 @@ const ScheduledWorks = () => {
           work.planningToStart &&
           new Date(work.planningToStart) >= dayStart,
       )
-      .sort(
-        (a, b) => new Date(a.planningToStart) - new Date(b.planningToStart),
-      )
+      .sort((a, b) => new Date(a.planningToStart) - new Date(b.planningToStart))
       .slice(0, ROWS);
   }, [works, userId]);
 
@@ -78,7 +76,7 @@ const ScheduledWorks = () => {
         action={
           <Link
             to="/archive?view=works"
-            className="tw:text-sm tw:font-medium tw:text-accent-text tw:no-underline"
+            className="text-sm font-medium text-accent-text no-underline"
           >
             Все работы →
           </Link>
@@ -87,31 +85,31 @@ const ScheduledWorks = () => {
         Запланировано
       </Eyebrow>
       <Panel>
-        <div className="tw:-mx-5 tw:-my-5">
+        <div className="-mx-5 -my-5">
           {upcoming.map((work) => {
             const ticket = work.tickets?.[0];
             return (
               <div
                 key={work._id}
-                className="tw:flex tw:gap-3 tw:border-b tw:border-border-soft tw:px-5 tw:py-2.5 tw:last:border-b-0"
+                className="flex gap-3 border-b border-border-soft px-5 py-2.5 last:border-b-0"
               >
-                <span className="tw:w-20 tw:flex-none tw:text-sm tw:tabular-nums">
-                  <span className="tw:block tw:font-semibold">
+                <span className="w-20 flex-none text-sm tabular-nums">
+                  <span className="block font-semibold">
                     {whenLabel(work.planningToStart)}
                   </span>
-                  <span className="tw:block tw:text-xs tw:text-faint">
+                  <span className="block text-xs text-faint">
                     {formatTime(work.planningToStart)}
                   </span>
                 </span>
-                <span className="tw:min-w-0 tw:flex-1">
-                  <span className="tw:block tw:truncate tw:text-sm tw:font-medium">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
                     {work.visitRequired ? "Выезд" : "Удалённо"}
                     {work.company?.alias ? ` · ${work.company.alias}` : ""}
                   </span>
                   {ticket && (
                     <Link
                       to={`/tickets/${ticket.num}`}
-                      className="tw:block tw:truncate tw:text-sm tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+                      className="block truncate text-sm text-muted-foreground no-underline hover:text-foreground"
                     >
                       {ticket.title}
                     </Link>

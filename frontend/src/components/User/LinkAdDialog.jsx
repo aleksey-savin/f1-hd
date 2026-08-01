@@ -12,16 +12,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { InsideOverlayContext } from "@/components/app/overlay-context";
 import useToastStore from "@/store/toast-store";
 
-import Select from "../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import { getLocalStorageData } from "../../util/auth";
 
 // Связать/отвязать учётную запись пользователя с Active Directory. Логины берём
 // из логов активности компании (уникальные по GUID, ещё не привязанные). Шлём
-// на action компании (linkUserToAD / unlinkUserFromAD) — как легаси. UI/Select
-// внутри radix-диалога работает через InsideOverlayContext (инлайн-меню).
+// на action компании (linkUserToAD / unlinkUserFromAD) — как легаси.
 const API = import.meta.env.VITE_API_ADDRESS;
 
 const LinkAdDialog = ({ user, open, onOpenChange }) => {
@@ -72,7 +70,12 @@ const LinkAdDialog = ({ user, open, onOpenChange }) => {
   useEffect(() => {
     const wasActive = prevState.current !== "idle";
     prevState.current = fetcher.state;
-    if (wasActive && fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
+    if (
+      wasActive &&
+      fetcher.state === "idle" &&
+      fetcher.data &&
+      !fetcher.data.error
+    ) {
       onOpenChange(false);
       setSelected(null);
       useToastStore
@@ -105,74 +108,83 @@ const LinkAdDialog = ({ user, open, onOpenChange }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <InsideOverlayContext.Provider value={true}>
-          <DialogHeader>
-            <DialogTitle>
-              {isLinked ? "Отвязать от Active Directory" : "Связать с Active Directory"}
-            </DialogTitle>
-            <DialogDescription>
-              {user.lastName} {user.firstName}
-              {user.email ? ` · ${user.email}` : ""}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogHeader>
+          <DialogTitle>
+            {isLinked
+              ? "Отвязать от Active Directory"
+              : "Связать с Active Directory"}
+          </DialogTitle>
+          <DialogDescription>
+            {user.lastName} {user.firstName}
+            {user.email ? ` · ${user.email}` : ""}
+          </DialogDescription>
+        </DialogHeader>
 
-          {fetcher.data?.error && (
-            <p className="tw:my-0 tw:text-sm tw:text-destructive">
-              {fetcher.data.message || "Не удалось выполнить действие"}
+        {fetcher.data?.error && (
+          <p className="my-0 text-sm text-destructive">
+            {fetcher.data.message || "Не удалось выполнить действие"}
+          </p>
+        )}
+
+        {isLinked ? (
+          <div className="flex flex-col gap-2 text-sm">
+            <p className="my-0 text-muted-foreground">
+              Записи логов с этим GUID перестанут быть привязаны к пользователю.
             </p>
-          )}
+            <code className="rounded-md border border-border bg-accent px-2.5 py-1.5 font-mono text-xs break-all text-muted-foreground">
+              {user.activeDirectoryObjectGUID}
+            </code>
+          </div>
+        ) : (
+          <div>
+            <Combobox
+              ariaLabel="AD-логин"
+              placeholder={
+                loading
+                  ? "Загрузка…"
+                  : logins.length
+                    ? "Выберите AD-логин"
+                    : "Нет доступных AD-логинов"
+              }
+              loading={loading}
+              disabled={loading || logins.length === 0}
+              options={toOptions(logins, {
+                value: (option) => option.activeDirectoryObjectGUID,
+                label: (option) =>
+                  `${option.firstName || ""} ${option.lastName || ""} (${option.activeDirectoryLogin})`.trim(),
+              })}
+              value={selected?.activeDirectoryObjectGUID ?? null}
+              onChange={(guid) =>
+                setSelected(
+                  logins.find(
+                    (option) => option.activeDirectoryObjectGUID === guid,
+                  ) || null,
+                )
+              }
+              clearable
+              clearLabel="Не выбран"
+            />
+            <p className="mt-2 mb-0 text-xs text-muted-foreground">
+              После связывания записи логов с этим GUID привяжутся к
+              пользователю.
+            </p>
+          </div>
+        )}
 
-          {isLinked ? (
-            <div className="tw:flex tw:flex-col tw:gap-2 tw:text-sm">
-              <p className="tw:my-0 tw:text-muted-foreground">
-                Записи логов с этим GUID перестанут быть привязаны к пользователю.
-              </p>
-              <code className="tw:rounded-md tw:border tw:border-border tw:bg-accent tw:px-2.5 tw:py-1.5 tw:font-mono tw:text-xs tw:break-all tw:text-muted-foreground">
-                {user.activeDirectoryObjectGUID}
-              </code>
-            </div>
-          ) : (
-            <div>
-              <Select
-                placeholder={
-                  loading
-                    ? "Загрузка…"
-                    : logins.length
-                      ? "Выберите AD-логин"
-                      : "Нет доступных AD-логинов"
-                }
-                isClearable
-                isSearchable
-                isDisabled={loading || logins.length === 0}
-                options={logins}
-                getOptionLabel={(option) =>
-                  `${option.firstName || ""} ${option.lastName || ""} (${option.activeDirectoryLogin})`.trim()
-                }
-                getOptionValue={(option) => option.activeDirectoryObjectGUID}
-                value={selected}
-                onChange={setSelected}
-              />
-              <p className="tw:mt-2 tw:mb-0 tw:text-xs tw:text-muted-foreground">
-                После связывания записи логов с этим GUID привяжутся к пользователю.
-              </p>
-            </div>
-          )}
-
-          <DialogFooter className="tw:mt-4">
-            <DialogClose asChild>
-              <Button variant="ghost" type="button">
-                Отмена
-              </Button>
-            </DialogClose>
-            <Button
-              variant={isLinked ? "destructive" : "default"}
-              onClick={submit}
-              disabled={busy || (!isLinked && !selected)}
-            >
-              <RiShieldCheckLine /> {isLinked ? "Отвязать" : "Связать"}
+        <DialogFooter className="mt-4">
+          <DialogClose asChild>
+            <Button variant="ghost" type="button">
+              Отмена
             </Button>
-          </DialogFooter>
-        </InsideOverlayContext.Provider>
+          </DialogClose>
+          <Button
+            variant={isLinked ? "destructive" : "default"}
+            onClick={submit}
+            disabled={busy || (!isLinked && !selected)}
+          >
+            <RiShieldCheckLine /> {isLinked ? "Отвязать" : "Связать"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

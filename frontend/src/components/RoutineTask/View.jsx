@@ -123,58 +123,56 @@ const ViewRoutineTask = ({ task }) => {
     .join(" · ");
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
+    <div className="mx-auto w-full max-w-4xl">
       <Link
         to="/routine-tasks"
-        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
       >
         <RiArrowLeftSLine /> Регламенты
       </Link>
 
       {/* Hero */}
-      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <span
           aria-hidden
-          className="tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:rounded-2xl tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border tw:[&_svg]:size-6"
+          className="grid size-14 flex-none place-items-center rounded-2xl bg-accent text-muted-foreground inset-ring inset-ring-border [&_svg]:size-6"
         >
           <RiCalendarScheduleLine />
         </span>
-        <div className="tw:min-w-0 tw:flex-1">
-          <h1 className="tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight">
+        <div className="min-w-0 flex-1">
+          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight">
             {title}
           </h1>
-          <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5 tw:text-base">
-            <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-muted-foreground">
-              <span className="tw:size-1.5 tw:rounded-full tw:bg-faint" />
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-base">
+            <span className="inline-flex items-center gap-2 text-muted-foreground">
+              <span className="size-1.5 rounded-full bg-faint" />
               {category?.title ?? "Без категории"}
             </span>
-            <span className="tw:text-faint">·</span>
-            <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-muted-foreground">
+            <span className="text-faint">·</span>
+            <span className="inline-flex items-center gap-2 text-muted-foreground">
               {company?.alias ?? "—"}
             </span>
-            <span className="tw:text-faint">·</span>
+            <span className="text-faint">·</span>
             <span
               className={cn(
-                "tw:inline-flex tw:items-center tw:gap-2",
-                isActive
-                  ? "tw:font-medium tw:text-accent-text"
-                  : "tw:text-faint",
+                "inline-flex items-center gap-2",
+                isActive ? "font-medium text-accent-text" : "text-faint",
               )}
             >
               <span
                 className={cn(
-                  "tw:size-1.5 tw:rounded-full",
-                  isActive ? "tw:bg-primary" : "tw:bg-faint",
+                  "size-1.5 rounded-full",
+                  isActive ? "bg-primary" : "bg-faint",
                 )}
               />
               {isActive ? "Активно" : "На паузе"}
             </span>
             {sourceTemplate?._id && (
               <>
-                <span className="tw:text-faint">·</span>
+                <span className="text-faint">·</span>
                 <Link
                   to={`/ticket-templates/${sourceTemplate._id}`}
-                  className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-muted-foreground tw:no-underline tw:hover:text-foreground tw:[&_svg]:size-4 tw:[&_svg]:text-faint"
+                  className="inline-flex items-center gap-1.5 text-muted-foreground no-underline hover:text-foreground [&_svg]:size-4 [&_svg]:text-faint"
                 >
                   <RiLinkM /> из шаблона «{sourceTemplate.title}»
                 </Link>
@@ -183,7 +181,7 @@ const ViewRoutineTask = ({ task }) => {
           </div>
         </div>
         {canManage && (
-          <div className="tw:flex tw:flex-none tw:flex-wrap tw:items-center tw:gap-2">
+          <div className="flex flex-none flex-wrap items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -219,66 +217,66 @@ const ViewRoutineTask = ({ task }) => {
       {/* Расписание */}
       <Eyebrow>Расписание</Eyebrow>
       <Panel>
-        <div className="tw:flex tw:items-center tw:gap-3 tw:py-1">
+        <div className="flex items-center gap-3 py-1">
           <span
             className={cn(
-              "tw:grid tw:size-10 tw:flex-none tw:place-items-center tw:rounded-xl tw:[&_svg]:size-5",
+              "grid size-10 flex-none place-items-center rounded-xl [&_svg]:size-5",
               isActive
-                ? "tw:bg-primary/15 tw:text-accent-text"
-                : "tw:bg-accent tw:text-faint",
+                ? "bg-primary/15 text-accent-text"
+                : "bg-accent text-faint",
             )}
           >
             <RiTimeLine />
           </span>
           <div
             className={cn(
-              "tw:text-lg tw:font-semibold tw:tracking-tight",
-              !isActive && "tw:text-muted-foreground",
+              "text-lg font-semibold tracking-tight",
+              !isActive && "text-muted-foreground",
             )}
           >
             {describeCron(cronSchedule)}
           </div>
         </div>
         <div
-          className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-2 tw:pt-3"
+          className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-2 pt-3"
           style={{ borderTop: "1px dashed var(--border)" }}
         >
-          <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+          <span className="text-xs font-bold tracking-wider text-faint uppercase">
             cron
           </span>
-          <code className="tw:rounded-md tw:border tw:border-border tw:bg-accent tw:px-2.5 tw:py-1 tw:font-mono tw:text-sm tw:whitespace-nowrap tw:text-muted-foreground">
+          <code className="rounded-md border border-border bg-accent px-2.5 py-1 font-mono text-sm whitespace-nowrap text-muted-foreground">
             {cronSchedule || "—"}
           </code>
         </div>
-        <div className="tw:mt-3 tw:flex tw:items-center tw:gap-2.5 tw:border-t tw:border-border-soft tw:pt-3 tw:text-base">
-          <RiTimeLine className="tw:size-4 tw:text-faint" />
+        <div className="mt-3 flex items-center gap-2.5 border-t border-border-soft pt-3 text-base">
+          <RiTimeLine className="size-4 text-faint" />
           {isActive && nextRun ? (
-            <span className="tw:text-muted-foreground">
+            <span className="text-muted-foreground">
               Ближайший запуск:{" "}
-              <b className="tw:font-medium tw:text-foreground tw:tabular-nums">
+              <b className="font-medium text-foreground tabular-nums">
                 {formatCronRun(nextRun)}
               </b>{" "}
-              <span className="tw:text-faint">· {relativeToNow(nextRun)}</span>
+              <span className="text-faint">· {relativeToNow(nextRun)}</span>
             </span>
           ) : (
-            <span className="tw:text-faint">
+            <span className="text-faint">
               На паузе — запуски приостановлены до включения.
             </span>
           )}
         </div>
-        <div className="tw:mt-2.5 tw:flex tw:items-start tw:gap-2 tw:border-t tw:border-border-soft tw:pt-3 tw:text-sm tw:text-faint tw:[&_svg]:size-4 tw:[&_svg]:shrink-0 tw:[&_svg]:translate-y-0.5">
+        <div className="mt-2.5 flex items-start gap-2 border-t border-border-soft pt-3 text-sm text-faint [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:translate-y-0.5">
           <RiCornerDownRightLine />
           <span>
             Создаёт заявку в категории{" "}
-            <b className="tw:font-medium tw:text-muted-foreground">
+            <b className="font-medium text-muted-foreground">
               {category?.title ?? "—"}
             </b>{" "}
             от{" "}
-            <b className="tw:font-medium tw:text-muted-foreground">
+            <b className="font-medium text-muted-foreground">
               {applicant?.firstName ?? "—"}
             </b>{" "}
             для{" "}
-            <b className="tw:font-medium tw:text-muted-foreground">
+            <b className="font-medium text-muted-foreground">
               {company?.alias ?? "—"}
             </b>
           </span>
@@ -312,13 +310,13 @@ const ViewRoutineTask = ({ task }) => {
       {/* Чек-лист — только показ: правится в общей форме регламента */}
       {(checklist.length > 0 || canManage) && (
         // group — карандаш правки проявляется при наведении на всю секцию
-        <div className="tw:group tw:mt-6">
-          <div className="tw:mb-2.5 tw:flex tw:items-center tw:gap-2">
-            <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+        <div className="group mt-6">
+          <div className="mb-2.5 flex items-center gap-2">
+            <span className="text-xs font-bold tracking-wider text-faint uppercase">
               Чек-лист
             </span>
             {checklist.length > 0 && (
-              <span className="tw:text-xs tw:font-bold tw:text-faint tw:tabular-nums">
+              <span className="text-xs font-bold text-faint tabular-nums">
                 · {checklist.length}
               </span>
             )}
@@ -327,7 +325,7 @@ const ViewRoutineTask = ({ task }) => {
                  секции чек-листа. Пустая секция называет, что создаёт;
                  заполненная — карандаш: это второй вход в ту же форму. */
               (checklist.length ? (
-                <span className="tw:ml-auto">
+                <span className="ml-auto">
                   <SectionEditLink
                     to="update#checklist"
                     label="Чек-лист"
@@ -335,12 +333,7 @@ const ViewRoutineTask = ({ task }) => {
                   />
                 </span>
               ) : (
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="tw:ml-auto"
-                >
+                <Button asChild variant="outline" size="sm" className="ml-auto">
                   <Link to="update#checklist" onClick={offcanvas.setShow}>
                     <RiAddLine /> Добавить чек-лист
                   </Link>
@@ -357,7 +350,7 @@ const ViewRoutineTask = ({ task }) => {
                 items={checklist}
               />
             ) : (
-              <div className="tw:text-sm tw:text-muted-foreground">
+              <div className="text-sm text-muted-foreground">
                 Чек-листа пока нет — добавьте пункты, они попадут в создаваемые
                 по расписанию заявки.
               </div>
@@ -367,7 +360,7 @@ const ViewRoutineTask = ({ task }) => {
       )}
 
       {metaBits && (
-        <div className="tw:mt-5 tw:border-t tw:border-border-soft tw:pt-3.5 tw:text-sm tw:text-faint tw:tabular-nums">
+        <div className="mt-5 border-t border-border-soft pt-3.5 text-sm text-faint tabular-nums">
           {metaBits}
         </div>
       )}
@@ -390,17 +383,17 @@ const ViewRoutineTask = ({ task }) => {
           </AlertDialogHeader>
 
           {isActive && nextRun && (
-            <label className="tw:flex tw:cursor-pointer tw:items-start tw:gap-3 tw:rounded-xl tw:border tw:border-input tw:p-3.5">
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-input p-3.5">
               <Checkbox
                 checked={skipNext}
                 onCheckedChange={(value) => setSkipNext(!!value)}
-                className="tw:mt-0.5"
+                className="mt-0.5"
               />
               <span>
-                <span className="tw:block tw:text-sm tw:font-semibold">
+                <span className="block text-sm font-semibold">
                   Пропустить ближайшее плановое срабатывание
                 </span>
-                <span className="tw:block tw:text-xs tw:text-muted-foreground">
+                <span className="block text-xs text-muted-foreground">
                   {formatCronRun(nextRun)} — иначе создастся ещё одна заявка
                 </span>
               </span>

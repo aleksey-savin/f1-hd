@@ -7,14 +7,13 @@ import FormWrapper from "@/components/app/FormWrapper";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
-import Select from "../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import AddDeviceAttributeModal from "./AddDeviceAttributeModal";
 import { valueTypeLabel } from "../DeviceAttribute/value-types";
 
 // Форма атрибута типа — отдельная шторка с карточки типа (добавить/изменить).
 // Выбор атрибута из общего каталога + флаги «Обязательный» / «Расширяемый»
 // (последний — только для «выбора из списка»). Сабмит идёт скрытыми полями
-// (Select неуправляем через `name`). FormSheet уже даёт InsideOverlayContext —
 // меню Select рисуется инлайн.
 const AttributeForm = ({ title }) => {
   const loaderData = useLoaderData();
@@ -35,9 +34,9 @@ const AttributeForm = ({ title }) => {
   );
   const [showModal, setShowModal] = useState(false);
 
-  // Чистая форма для react-select: БЕЗ ключа `options` — у каталожного атрибута
-  // это поле есть (значения select-типа), и react-select принял бы такую опцию
-  // за пустую ГРУППУ → «No options». Оставляем только нужное для метки/логики.
+  // Оставляем только нужное для подписи и логики: у каталожного атрибута есть
+  // собственное поле `options` (значения select-типа), и тащить его в список
+  // выбора незачем.
   const selectOptions = availableAttributes.map((a) => ({
     _id: a._id,
     name: a.name,
@@ -81,33 +80,33 @@ const AttributeForm = ({ title }) => {
       />
 
       {deviceType?.name && (
-        <p className="tw:-mt-2 tw:mb-5 tw:text-sm tw:text-muted-foreground">
+        <p className="-mt-2 mb-5 text-sm text-muted-foreground">
           Тип: {deviceType.name}
         </p>
       )}
 
       <Field label="Атрибут" htmlFor="attributeId" required>
-        <Select
+        <Combobox
           id="attributeId"
-          value={selected}
-          onChange={(option) => setAttributeId(option?._id || "")}
-          options={options}
+          value={attributeId || null}
+          onChange={(id) => setAttributeId(id || "")}
+          options={toOptions(options, {
+            value: (option) => String(option._id),
+            label: (option) =>
+              `${option.name}${option.unit ? ` (${option.unit})` : ""}${
+                option.valueType ? ` · ${valueTypeLabel(option.valueType)}` : ""
+              }`,
+          })}
           placeholder="Выберите из каталога атрибутов…"
-          isClearable
-          isSearchable
-          getOptionLabel={(option) =>
-            `${option.name}${option.unit ? ` (${option.unit})` : ""}${
-              option.valueType ? ` · ${valueTypeLabel(option.valueType)}` : ""
-            }`
-          }
-          getOptionValue={(option) => option._id}
+          clearable
+          clearLabel="Не выбран"
         />
       </Field>
 
       <button
         type="button"
         onClick={() => setShowModal(true)}
-        className="tw:-mt-1.5 tw:mb-2 tw:inline-flex tw:cursor-pointer tw:items-center tw:gap-1 tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:font-semibold tw:text-accent-text tw:hover:underline"
+        className="-mt-1.5 mb-2 inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm font-semibold text-accent-text hover:underline"
       >
         <RiAddLine size={15} /> Новый атрибут
       </button>

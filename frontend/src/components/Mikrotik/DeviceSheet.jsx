@@ -44,28 +44,28 @@ import useMikrotikDeviceFilterStore, {
 } from "../../store/lists/mikrotik-devices";
 import { formatDate, formatShortDate } from "../../util/format-date";
 
-const dash = <span className="tw:text-faint">—</span>;
+const dash = <span className="text-faint">—</span>;
 
 // Микро-метка секции шторки.
 const SectionLabel = ({ children }) => (
-  <div className="tw:mt-5 tw:mb-1.5 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+  <div className="mt-5 mb-1.5 text-xs font-bold tracking-wider text-faint uppercase">
     {children}
   </div>
 );
 
 // Строка «подпись · значение» шторки (+ копирование с тостом).
 const Prop = ({ label, mono, copy, children }) => (
-  <div className="tw:flex tw:items-start tw:gap-3 tw:border-t tw:border-border-soft tw:py-2 tw:first:border-t-0">
-    <div className="tw:w-36 tw:flex-none tw:pt-px tw:text-sm tw:text-muted-foreground">
+  <div className="flex items-start gap-3 border-t border-border-soft py-2 first:border-t-0">
+    <div className="w-36 flex-none pt-px text-sm text-muted-foreground">
       {label}
     </div>
     <div
       className={cn(
-        "tw:flex tw:min-w-0 tw:flex-1 tw:items-center tw:gap-1.5 tw:text-sm",
-        mono && "tw:font-mono",
+        "flex min-w-0 flex-1 items-center gap-1.5 text-sm",
+        mono && "font-mono",
       )}
     >
-      <span className="tw:min-w-0 tw:truncate">{children ?? dash}</span>
+      <span className="min-w-0 truncate">{children ?? dash}</span>
       {copy && (
         <button
           type="button"
@@ -83,7 +83,7 @@ const Prop = ({ label, mono, copy, children }) => (
                   .showToast("danger", "Не удалось скопировать"),
             );
           }}
-          className="tw:grid tw:size-6 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-md tw:border-0 tw:bg-transparent tw:p-0 tw:text-faint tw:transition-colors tw:hover:bg-accent tw:hover:text-muted-foreground"
+          className="grid size-6 flex-none cursor-pointer appearance-none place-items-center rounded-md border-0 bg-transparent p-0 text-faint transition-colors hover:bg-accent hover:text-muted-foreground"
         >
           <RiFileCopyLine size={13} />
         </button>
@@ -165,40 +165,41 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
           if (!open) onClose();
         }}
       >
-        <SheetContent side="right" className="tw:w-11/12 tw:max-w-md">
+        <SheetContent side="right" className="w-11/12 max-w-md">
           {row && (
             <>
-              <div className="tw:flex tw:items-center tw:gap-3 tw:px-5 tw:pt-4 tw:pr-10">
+              <div className="flex items-center gap-3 px-5 pt-4 pr-10">
                 <DeviceTile row={row} />
-                <div className="tw:min-w-0">
-                  <SheetTitle className="tw:my-0 tw:truncate tw:text-lg tw:leading-snug tw:font-semibold tw:tracking-tight">
+                <div className="min-w-0">
+                  <SheetTitle className="my-0 truncate text-lg leading-snug font-semibold tracking-tight">
                     {row.displayName}
                   </SheetTitle>
-                  <div className="tw:truncate tw:text-sm tw:text-muted-foreground">
-                    {[row.type, row.company?.name].filter(Boolean).join(" · ") ||
-                      "Устройство Mikrotik"}
+                  <div className="truncate text-sm text-muted-foreground">
+                    {[row.type, row.company?.name]
+                      .filter(Boolean)
+                      .join(" · ") || "Устройство Mikrotik"}
                   </div>
                 </div>
               </div>
 
-              <div className="tw:flex-1 tw:overflow-y-auto tw:px-5 tw:pb-4">
+              <div className="flex-1 overflow-y-auto px-5 pb-4">
                 {/* Статус: слово с точкой + длительность; детали — приглушённо */}
                 <div
                   className={cn(
-                    "tw:mt-3.5 tw:flex tw:items-center tw:gap-2 tw:font-semibold",
+                    "mt-3.5 flex items-center gap-2 font-semibold",
                     statusMeta.text,
                   )}
                 >
                   <span
                     className={cn(
-                      "tw:size-2 tw:rounded-full",
+                      "size-2 rounded-full",
                       statusMeta.dot,
-                      status === "online" && "tw:ring-3 tw:ring-primary/20",
+                      status === "online" && "ring-3 ring-primary/20",
                     )}
                   />
                   {statusMeta.label}
                   {status === "offline" && row.offlineSince && (
-                    <span className="tw:font-semibold">
+                    <span className="font-semibold">
                       ·{" "}
                       {formatDurationShort(
                         Date.now() - new Date(row.offlineSince).getTime(),
@@ -206,7 +207,7 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
                     </span>
                   )}
                 </div>
-                <div className="tw:mt-0.5 tw:ps-4 tw:text-sm tw:text-muted-foreground">
+                <div className="mt-0.5 ps-4 text-sm text-muted-foreground">
                   {status === "offline" && row.offlineSince && (
                     <>с {formatDate(row.offlineSince)} · </>
                   )}
@@ -217,7 +218,7 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
                       : "ещё не проверялось"}
                 </div>
                 {status === "offline" && row.lastError && (
-                  <div className="tw:mt-0.5 tw:ps-4 tw:font-mono tw:text-xs tw:text-faint">
+                  <div className="mt-0.5 ps-4 font-mono text-xs text-faint">
                     {row.lastError}
                   </div>
                 )}
@@ -225,16 +226,12 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
                   <Link
                     to={`/tickets/${row.alertTicket.num}`}
                     onClick={onClose}
-                    className="tw:mt-2.5 tw:flex tw:items-center tw:gap-2.5 tw:rounded-lg tw:border tw:border-border-soft tw:bg-accent/40 tw:px-3 tw:py-2 tw:text-sm tw:text-muted-foreground tw:no-underline tw:transition-colors tw:hover:bg-accent"
+                    className="mt-2.5 flex items-center gap-2.5 rounded-lg border border-border-soft bg-accent/40 px-3 py-2 text-sm text-muted-foreground no-underline transition-colors hover:bg-accent"
                   >
-                    <RiPulseLine
-                      size={15}
-                      aria-hidden
-                      className="tw:flex-none"
-                    />
-                    <span className="tw:min-w-0 tw:truncate">
+                    <RiPulseLine size={15} aria-hidden className="flex-none" />
+                    <span className="min-w-0 truncate">
                       Заявка{" "}
-                      <b className="tw:font-semibold tw:text-accent-text">
+                      <b className="font-semibold text-accent-text">
                         №{row.alertTicket.num}
                       </b>{" "}
                       о недоступности
@@ -245,19 +242,19 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
                     <RiExternalLinkLine
                       size={13}
                       aria-hidden
-                      className="tw:ms-auto tw:flex-none tw:text-faint"
+                      className="ms-auto flex-none text-faint"
                     />
                   </Link>
                 )}
 
                 <SectionLabel>Прошивка и безопасность</SectionLabel>
-                <div className="tw:text-sm">
-                  <span className="tw:font-mono tw:font-semibold">
+                <div className="text-sm">
+                  <span className="font-mono font-semibold">
                     RouterOS{" "}
                     {firmware?.installedVersion || row.currentFirmware || "—"}
                   </span>
                   {firmware?.channel && (
-                    <span className="tw:text-faint">
+                    <span className="text-faint">
                       {" "}
                       · ветка {firmware.channel}
                     </span>
@@ -265,31 +262,31 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
                 </div>
                 {firmware?.vulnerable ? (
                   <>
-                    <div className="tw:mt-1 tw:flex tw:items-center tw:gap-1.5 tw:text-sm tw:font-semibold tw:text-warning">
+                    <div className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-warning">
                       <RiShieldFlashLine size={14} aria-hidden />
                       {firmware.cves.length === 1
                         ? "1 уязвимость"
                         : `Уязвимости: ${firmware.cves.length}`}{" "}
                       · исправлены в {firmware.latestVersion}
                     </div>
-                    <div className="tw:mt-1">
+                    <div className="mt-1">
                       {firmware.cves.slice(0, 3).map((cve) => (
                         <div
                           key={cve.id}
-                          className="tw:flex tw:items-baseline tw:gap-2 tw:border-t tw:border-border-soft tw:py-1.5 tw:text-sm tw:first:border-t-0"
+                          className="flex items-baseline gap-2 border-t border-border-soft py-1.5 text-sm first:border-t-0"
                         >
-                          <span className="tw:font-mono">{cve.id}</span>
+                          <span className="font-mono">{cve.id}</span>
                           <span
                             className={cn(
-                              "tw:flex-none tw:font-semibold tw:whitespace-nowrap",
+                              "flex-none font-semibold whitespace-nowrap",
                               cve.score >= 9
-                                ? "tw:text-destructive"
-                                : "tw:text-warning",
+                                ? "text-destructive"
+                                : "text-warning",
                             )}
                           >
                             {cve.score} {cve.severity?.toLowerCase()}
                           </span>
-                          <span className="tw:min-w-0 tw:truncate tw:text-xs tw:text-faint">
+                          <span className="min-w-0 truncate text-xs text-faint">
                             {cve.description}
                           </span>
                         </div>
@@ -297,14 +294,14 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
                     </div>
                   </>
                 ) : firmware?.updateAvailable ? (
-                  <div className="tw:mt-1 tw:text-sm tw:text-muted-foreground">
+                  <div className="mt-1 text-sm text-muted-foreground">
                     Доступно обновление до{" "}
-                    <span className="tw:font-mono tw:font-semibold tw:text-foreground">
+                    <span className="font-mono font-semibold text-foreground">
                       {firmware.latestVersion}
                     </span>
                   </div>
                 ) : firmware ? (
-                  <div className="tw:mt-1 tw:text-sm tw:text-faint">
+                  <div className="mt-1 text-sm text-faint">
                     Актуальная версия ветки.
                   </div>
                 ) : null}
@@ -315,16 +312,16 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
                     ongoing: status === "offline",
                   })}
                 />
-                <div className="tw:mt-1.5 tw:text-sm">
+                <div className="mt-1.5 text-sm">
                   <span
                     className={cn(
-                      "tw:tabular-nums",
+                      "tabular-nums",
                       uptimeToneClass(row.uptime30d),
                     )}
                   >
                     {formatUptime(row.uptime30d) || "—"}
                   </span>
-                  <span className="tw:text-faint">
+                  <span className="text-faint">
                     {" "}
                     · полный отчёт — на странице устройства
                   </span>
@@ -371,13 +368,13 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
                     <Link
                       to={`/inventory/client-devices/${row.clientDeviceId}`}
                       onClick={onClose}
-                      className="tw:inline-flex tw:items-center tw:gap-1 tw:font-semibold tw:text-accent-text tw:no-underline tw:hover:underline"
+                      className="inline-flex items-center gap-1 font-semibold text-accent-text no-underline hover:underline"
                     >
                       Открыть карточку{" "}
                       <RiExternalLinkLine size={12} aria-hidden />
                     </Link>
                   ) : (
-                    <span className="tw:text-faint">не связана</span>
+                    <span className="text-faint">не связана</span>
                   )}
                 </Prop>
                 <Prop label="В мониторинге с">
@@ -389,7 +386,7 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
                 <SectionLabel>Конфигурации</SectionLabel>
                 <Prop label="Экспорт">
                   {exportSchedule || (
-                    <span className="tw:text-faint">по расписанию выключен</span>
+                    <span className="text-faint">по расписанию выключен</span>
                   )}
                 </Prop>
                 <Prop label="Последняя копия">
@@ -397,8 +394,8 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
                 </Prop>
               </div>
 
-              <div className="tw:flex tw:gap-2 tw:border-t tw:border-border-soft tw:px-5 tw:py-3.5">
-                <Button asChild className="tw:flex-1">
+              <div className="flex gap-2 border-t border-border-soft px-5 py-3.5">
+                <Button asChild className="flex-1">
                   <Link
                     to={`/devices/mikrotik/records/${row.recordId}`}
                     onClick={onClose}

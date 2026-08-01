@@ -24,11 +24,7 @@ import useViewTicketStore from "../../../store/view-ticket";
 import { getLocalStorageData } from "../../../util/auth";
 
 import AttachmentChip from "./AttachmentChip";
-import {
-  attachmentKind,
-  attachmentName,
-  fileUrl,
-} from "./attachment-utils";
+import { attachmentKind, attachmentName, fileUrl } from "./attachment-utils";
 
 /**
  * Вложения заявки — лента в подвале секции «Описание», а не своя секция.
@@ -129,11 +125,11 @@ export const useAttachments = (ticket) => {
         id="ticket-attachment-input"
         type="file"
         multiple
-        className="tw:hidden"
+        className="hidden"
         onChange={upload}
       />
       <Button asChild variant="outline" size="xs" disabled={uploading}>
-        <label htmlFor="ticket-attachment-input" className="tw:cursor-pointer">
+        <label htmlFor="ticket-attachment-input" className="cursor-pointer">
           <RiAttachment2 />
           {uploading ? "Загрузка…" : "Прикрепить"}
         </label>
@@ -170,9 +166,7 @@ const AttachmentStrip = ({
 
   if (!attachments.length) return null;
 
-  const audio = attachments.filter(
-    (item) => attachmentKind(item) === "audio",
-  );
+  const audio = attachments.filter((item) => attachmentKind(item) === "audio");
   const files = attachments.filter((item) => attachmentKind(item) !== "audio");
   const shown = expanded ? files : files.slice(0, VISIBLE_LIMIT);
 
@@ -208,9 +202,9 @@ const AttachmentStrip = ({
   };
 
   return (
-    <div className="tw:mt-4 tw:border-t tw:border-border-soft tw:pt-3.5">
-      <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
-        <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-xs tw:text-faint">
+    <div className="mt-4 border-t border-border-soft pt-3.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-xs text-faint">
           <RiAttachment2 size={14} />
           {attachments.length}{" "}
           {attachments.length === 1
@@ -236,7 +230,7 @@ const AttachmentStrip = ({
             type="button"
             variant="outline"
             size="xs"
-            className="tw:border-dashed tw:text-muted-foreground"
+            className="border-dashed text-muted-foreground"
             onClick={() => setExpanded(true)}
           >
             Показать все ({files.length})
@@ -248,9 +242,9 @@ const AttachmentStrip = ({
       {audio.map((attachment) => {
         const speech = attachment.speechToText;
         return (
-          <div key={attachment.name} className="tw:mt-2">
-            <div className="tw:flex tw:items-center tw:gap-2">
-              <span className="tw:min-w-0 tw:flex-1">
+          <div key={attachment.name} className="mt-2">
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1">
                 <audio
                   controls
                   preload="none"
@@ -259,7 +253,7 @@ const AttachmentStrip = ({
                   // звонка никому не нужна — «⋮»-меню плеера убираем целиком
                   controlsList="nodownload noplaybackrate"
                   disablePictureInPicture
-                  className="tw:h-9 tw:w-full"
+                  className="h-9 w-full"
                 />
               </span>
 
@@ -315,7 +309,7 @@ const AttachmentStrip = ({
                   size="icon-xs"
                   title="Удалить запись"
                   aria-label="Удалить запись"
-                  className="tw:text-faint tw:hover:text-destructive"
+                  className="text-faint hover:text-destructive"
                   onClick={() => onRemove(attachment)}
                 >
                   <RiDeleteBinLine />
@@ -326,12 +320,12 @@ const AttachmentStrip = ({
             {/* Фоновое распознавание (звонок пришёл письмом) — иначе непонятно,
                 почему расшифровки ещё нет */}
             {speech?.status === "pending" && (
-              <p className="tw:mt-1 tw:mb-0 tw:text-xs tw:text-faint">
+              <p className="mt-1 mb-0 text-xs text-faint">
                 ИИ распознаёт запись…
               </p>
             )}
             {speech?.status === "error" && (
-              <p className="tw:mt-1 tw:mb-0 tw:text-xs tw:text-faint">
+              <p className="mt-1 mb-0 text-xs text-faint">
                 Не удалось распознать
               </p>
             )}
@@ -340,7 +334,7 @@ const AttachmentStrip = ({
                 Пересказ звонка живёт только в описании заявки — второй его
                 экземпляр здесь превращал одну мысль в три */}
             {openText === attachment.name && speech?.text && (
-              <p className="tw:mt-2 tw:mb-0 tw:border-s tw:border-border tw:ps-3 tw:text-sm tw:whitespace-pre-wrap tw:text-muted-foreground">
+              <p className="mt-2 mb-0 border-s border-border ps-3 text-sm whitespace-pre-wrap text-muted-foreground">
                 {speech.text}
               </p>
             )}
@@ -349,9 +343,9 @@ const AttachmentStrip = ({
       })}
 
       <Dialog open={Boolean(preview)} onOpenChange={() => setPreview(null)}>
-        <DialogContent className="tw:sm:max-w-4xl">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle className="tw:truncate">
+            <DialogTitle className="truncate">
               {attachmentName(preview)}
             </DialogTitle>
           </DialogHeader>
@@ -359,7 +353,7 @@ const AttachmentStrip = ({
             <img
               src={fileUrl(preview.name)}
               alt={attachmentName(preview)}
-              className="tw:max-h-[70dvh] tw:w-full tw:object-contain"
+              className="max-h-[70dvh] w-full object-contain"
             />
           )}
         </DialogContent>

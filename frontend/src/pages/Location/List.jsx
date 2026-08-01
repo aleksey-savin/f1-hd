@@ -28,7 +28,6 @@ import FormSheet from "@/components/app/FormSheet";
 import SearchBar from "@/components/app/SearchBar";
 import Spinner from "@/components/app/Spinner";
 import { DeleteDialog } from "@/components/app/DeleteItem";
-import { InsideOverlayContext } from "@/components/app/overlay-context";
 
 import Tree from "../../components/Location/Tree";
 import PreviewSheet from "../../components/Location/PreviewSheet";
@@ -118,7 +117,8 @@ const LocationList = () => {
     setSelectedId(null);
     // Подразделение привязано к компании — сбрасываем, чтобы фасет из прежней
     // компании не фильтровал новую в ноль
-    if (filterStore.subdivision) filterStore.updateFilter({ subdivision: null });
+    if (filterStore.subdivision)
+      filterStore.updateFilter({ subdivision: null });
     filterStore.setSelectedCompanies([companyId]);
     filterStore.fetch(companyId);
     // Выбор компании живёт в URL — deep-link и перезагрузка возвращают её же
@@ -136,7 +136,8 @@ const LocationList = () => {
       .filter(Boolean)[0];
     const userCompanyId = authedUser.company?._id;
     const isKnown = (id) =>
-      id && companyOptions.some((option) => String(option.value) === String(id));
+      id &&
+      companyOptions.some((option) => String(option.value) === String(id));
     selectCompany(
       (isKnown(urlCompanyId) && urlCompanyId) ||
         (isKnown(userCompanyId) && userCompanyId) ||
@@ -152,10 +153,7 @@ const LocationList = () => {
   // зависимость — location.key: redirect после удаления ведёт на тот же
   // pathname. Только на самом списке, чтобы не дёргать под шторкой.
   useEffect(() => {
-    if (
-      appLocation.pathname === "/inventory/locations" &&
-      selectedCompanyId
-    ) {
+    if (appLocation.pathname === "/inventory/locations" && selectedCompanyId) {
       filterStore.fetch();
     }
   }, [appLocation.key]);
@@ -179,7 +177,11 @@ const LocationList = () => {
   );
   const selectedNode = selectedId ? byId.get(String(selectedId)) || null : null;
   useEffect(() => {
-    if (selectedId && originalList.length > 0 && !byId.has(String(selectedId))) {
+    if (
+      selectedId &&
+      originalList.length > 0 &&
+      !byId.has(String(selectedId))
+    ) {
       setSelectedId(null);
     }
   }, [byId, selectedId, originalList.length]);
@@ -222,22 +224,22 @@ const LocationList = () => {
   const addTo = `add?company=${selectedCompanyId || ""}`;
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-7xl">
+    <div className="mx-auto w-full max-w-7xl">
       {/* Шапка: заголовок + счётчик; поиск, чип компании (обязательный
           контекст), чип «Рабочие места», «Добавить» */}
-      <div className="tw:mb-4 tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-3">
-        <div className="tw:flex tw:items-baseline tw:gap-2">
-          <h1 className="tw:my-0 tw:text-4xl tw:leading-none tw:font-semibold tw:tracking-tight">
+      <div className="mb-4 flex flex-wrap items-center gap-x-2.5 gap-y-3">
+        <div className="flex items-baseline gap-2">
+          <h1 className="my-0 text-4xl leading-none font-semibold tracking-tight">
             Расположения
           </h1>
-          <span className="tw:text-2xl tw:leading-none tw:font-medium tw:text-faint tw:tabular-nums">
+          <span className="text-2xl leading-none font-medium text-faint tabular-nums">
             {filteredList.length}
           </span>
         </div>
-        <div className="tw:ms-auto tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+        <div className="ms-auto flex flex-wrap items-center gap-2.5">
           <SearchBar
             onChange={(event) => filterStore.fullTextSearch(event.target.value)}
-            className="tw:w-80 tw:max-md:order-last tw:max-md:w-full"
+            className="w-80 max-md:order-last max-md:w-full"
           />
           {/* Компаний может быть много — комбобокс с поиском */}
           <ChipCombobox
@@ -268,7 +270,7 @@ const LocationList = () => {
           <Button asChild title="Новое расположение">
             <Link to={addTo} onClick={offcanvas.setShow}>
               <RiAddFill />
-              <span className="tw:max-sm:hidden">Новое расположение</span>
+              <span className="max-sm:hidden">Новое расположение</span>
             </Link>
           </Button>
         </div>
@@ -277,12 +279,12 @@ const LocationList = () => {
       {/* Применённые Sheet-фасеты — липкая плашка снимаемых бейджей над
           деревом (компания/«Рабочие места» видны чипами, тут не дублируются) */}
       {hasActiveFilters && (
-        <div className="tw:sticky tw:top-14 tw:z-30 tw:mb-3 tw:max-md:top-0">
-          <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-1.5 tw:rounded-xl tw:border tw:border-border tw:bg-card/85 tw:px-2.5 tw:py-1.5 tw:backdrop-blur-md">
+        <div className="sticky top-14 z-30 mb-3 max-md:top-0">
+          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card/85 px-2.5 py-1.5 backdrop-blur-md">
             <RiFilter3Line
               size={15}
               aria-hidden
-              className="tw:ms-1 tw:flex-none tw:text-accent-text"
+              className="ms-1 flex-none text-accent-text"
             />
             {activeFilters.map((appliedFilter) => (
               <button
@@ -290,7 +292,7 @@ const LocationList = () => {
                 type="button"
                 onClick={appliedFilter.onRemove}
                 title="Снять фильтр"
-                className="tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1 tw:rounded-full tw:border-0 tw:bg-primary/15 tw:px-2.5 tw:py-1 tw:text-sm tw:font-medium tw:text-accent-text tw:outline-none tw:hover:bg-primary/25 tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+                className="inline-flex cursor-pointer appearance-none items-center gap-1 rounded-full border-0 bg-primary/15 px-2.5 py-1 text-sm font-medium text-accent-text outline-none hover:bg-primary/25 focus-visible:ring-4 focus-visible:ring-ring/50"
               >
                 {appliedFilter.label}
                 <RiCloseLine size={14} aria-hidden />
@@ -299,7 +301,7 @@ const LocationList = () => {
             <Button
               variant="ghost"
               size="xs"
-              className="tw:ms-auto"
+              className="ms-auto"
               onClick={filterStore.resetFilter}
             >
               Сбросить
@@ -310,17 +312,17 @@ const LocationList = () => {
 
       {noData && filterStore.isLoading && <Spinner />}
       {noData && !filterStore.isLoading && (
-        <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card">
-          <div className="tw:flex tw:flex-col tw:items-center tw:gap-1.5 tw:px-6 tw:py-16 tw:text-center">
-            <RiMapPinLine size={44} aria-hidden className="tw:mb-1 tw:text-faint" />
-            <div className="tw:text-lg tw:font-semibold">
+        <div className="rounded-xl border border-border bg-card">
+          <div className="flex flex-col items-center gap-1.5 px-6 py-16 text-center">
+            <RiMapPinLine size={44} aria-hidden className="mb-1 text-faint" />
+            <div className="text-lg font-semibold">
               В выбранной компании нет расположений
             </div>
-            <p className="tw:my-0 tw:max-w-md tw:text-base tw:text-muted-foreground">
+            <p className="my-0 max-w-md text-base text-muted-foreground">
               Добавьте первое — например здание или офис, а внутри — этажи и
               помещения.
             </p>
-            <Button asChild className="tw:mt-3">
+            <Button asChild className="mt-3">
               <Link to={addTo} onClick={offcanvas.setShow}>
                 <RiAddFill /> Новое расположение
               </Link>
@@ -329,8 +331,8 @@ const LocationList = () => {
         </div>
       )}
       {filteredEmpty && (
-        <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card">
-          <div className="tw:px-6 tw:py-10 tw:text-center tw:text-sm tw:text-muted-foreground">
+        <div className="rounded-xl border border-border bg-card">
+          <div className="px-6 py-10 text-center text-sm text-muted-foreground">
             Ничего не нашлось. Измените запрос, сбросьте фильтры или включите
             «Рабочие места».
           </div>
@@ -344,22 +346,20 @@ const LocationList = () => {
         />
       )}
 
-      {/* Sheet-фильтр по основным параметрам (тип/статус/доступность/
-          подразделение); UI/Select внутри — на инлайн-меню */}
+      {/* Sheet-фильтр по основным параметрам: тип, статус, доступность,
+          подразделение */}
       <Sheet
         open={filterOffcanvas.isActive}
         onOpenChange={(open) => {
           if (!open) filterOffcanvas.handleClose();
         }}
       >
-        <SheetContent side="left" className="tw:w-5/6 tw:max-w-sm">
-          <SheetHeader className="tw:border-b tw:border-border">
-            <SheetTitle className="tw:text-base">Фильтр</SheetTitle>
+        <SheetContent side="left" className="w-5/6 max-w-sm">
+          <SheetHeader className="border-b border-border">
+            <SheetTitle className="text-base">Фильтр</SheetTitle>
           </SheetHeader>
-          <div className="tw:flex-1 tw:overflow-y-auto tw:px-4 tw:pb-4">
-            <InsideOverlayContext.Provider value={true}>
-              <LocationFilter />
-            </InsideOverlayContext.Provider>
+          <div className="flex-1 overflow-y-auto px-4 pb-4">
+            <LocationFilter />
           </div>
         </SheetContent>
       </Sheet>

@@ -5,7 +5,7 @@ import SettingRow from "@/components/app/SettingRow";
 import { SubLabel } from "@/components/app/Panel";
 import ScheduleEditor, { emptyDay } from "@/components/app/ScheduleEditor";
 
-import Select from "../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import SectionForm from "./SectionForm";
 
 // «Финансы» (видна при включённом модуле): резервный график и период
@@ -60,7 +60,7 @@ const PrefsOvertime = ({ prefs }) => {
         title="График работы по умолчанию"
         hint="Применяется, если график не задан в тарифе или компании; время вне графика и в нерабочие дни считается переработкой."
       />
-      <div className="tw:px-5 tw:pb-4">
+      <div className="px-5 pb-4">
         <ScheduleEditor schedule={schedule} onChange={setSchedule} />
       </div>
       <SettingRow
@@ -68,28 +68,28 @@ const PrefsOvertime = ({ prefs }) => {
         title="Период тарификации по умолчанию"
         hint="Минимальный тарифицируемый отрезок работы, если не задан в подключённой к компании услуге."
       >
-        <div className="tw:w-44 tw:max-md:w-full">
-          <Select
+        <div className="w-44 max-md:w-full">
+          {/* Значение периода числовое, а Combobox говорит строками —
+              переводим на границе, стор остаётся с числом */}
+          <Combobox
             id="prefs-overtime-period"
-            closeMenuOnSelect
-            value={TARIFFING_OPTIONS.find(
-              (option) => option.value === Number(tariffingPeriod),
-            )}
-            options={TARIFFING_OPTIONS}
-            getOptionLabel={(option) => option.label}
-            getOptionValue={(option) => option.value}
-            onChange={(option) => setTariffingPeriod(option?.value ?? 15)}
+            value={String(Number(tariffingPeriod))}
+            options={toOptions(TARIFFING_OPTIONS, {
+              value: (option) => String(option.value),
+              label: (option) => option.label,
+            })}
+            onChange={(value) => setTariffingPeriod(Number(value) || 15)}
           />
         </div>
       </SettingRow>
 
-      <div className="tw:px-5 tw:pt-4">
+      <div className="px-5 pt-4">
         <SubLabel>Оплата переработок</SubLabel>
       </div>
       <SettingRow
         title="Коэффициент в будни"
         hint="Доплата = часы × ставка × коэффициент; на величину переработки не влияет."
-        className="tw:py-3"
+        className="py-3"
       >
         <Input
           type="number"
@@ -97,18 +97,18 @@ const PrefsOvertime = ({ prefs }) => {
           step="0.1"
           value={weekdayCoefficient}
           onChange={(event) => setWeekdayCoefficient(event.target.value)}
-          className="tw:w-24 tw:text-right"
+          className="w-24 text-right"
           aria-label="Коэффициент оплаты в будни"
         />
       </SettingRow>
-      <SettingRow title="Коэффициент в выходные" className="tw:py-3">
+      <SettingRow title="Коэффициент в выходные" className="py-3">
         <Input
           type="number"
           min="0"
           step="0.1"
           value={weekendCoefficient}
           onChange={(event) => setWeekendCoefficient(event.target.value)}
-          className="tw:w-24 tw:text-right"
+          className="w-24 text-right"
           aria-label="Коэффициент оплаты в выходные"
         />
       </SettingRow>

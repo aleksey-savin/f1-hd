@@ -115,7 +115,12 @@ export type TeamScheduleResponse = {
 };
 
 export type UserScheduleResponse = {
-  user: { _id: string; firstName: string; lastName: string; position: string | null };
+  user: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    position: string | null;
+  };
   timezone: string;
   organizationTimezone: string | null;
   schedule: WeekSchedule;

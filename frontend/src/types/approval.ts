@@ -150,46 +150,6 @@ export type ReportRow = {
   updatedAt: string;
 };
 
-export type TimelineEvent = {
-  at: string;
-  actor: "contractor" | "customer" | "system";
-  by: Actor | null;
-  action:
-    | "submitted"
-    | "resubmitted"
-    | "approved"
-    | "declined"
-    | "autoApproved"
-    | "reminded"
-    | "invoiced"
-    | "paid"
-    | "archived";
-  scope: "report" | "subdivision";
-  subdivision: string | null;
-  subdivisionName?: string;
-  comment: string;
-};
-
-export type ReportWork = {
-  _id: string;
-  description: string;
-  startedAt: string;
-  finishedAt: string;
-  withinPlan: boolean;
-  finishedBy?: { firstName?: string; lastName?: string };
-  tickets: {
-    _id: string;
-    num: number;
-    categoryId?: string;
-    applicantId?: { firstName?: string; lastName?: string };
-  }[];
-};
-
-export type ReportCard = ReportRow & {
-  works: ReportWork[];
-  timeline: TimelineEvent[];
-};
-
 export type StageStat = {
   count: number;
   total: number;

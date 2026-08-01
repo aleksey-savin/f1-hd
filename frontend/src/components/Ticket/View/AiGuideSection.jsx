@@ -70,21 +70,19 @@ const SourceRow = ({ source }) => {
       href={`/knowledge-base/${source._id}`}
       target="_blank"
       rel="noreferrer"
-      className="tw:flex tw:items-center tw:gap-2.5 tw:rounded-lg tw:px-2 tw:py-1.5 tw:text-foreground tw:no-underline tw:transition-colors tw:hover:bg-accent tw:hover:text-foreground"
+      className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-foreground no-underline transition-colors hover:bg-accent hover:text-foreground"
     >
       <TypeIcon
         size={16}
         aria-hidden
         title={typeMeta.label}
-        className="tw:flex-none tw:text-faint"
+        className="flex-none text-faint"
       />
-      <span className="tw:min-w-0 tw:flex-1 tw:truncate tw:text-sm">
-        {source.title}
-      </span>
+      <span className="min-w-0 flex-1 truncate text-sm">{source.title}</span>
       <RiExternalLinkLine
         size={14}
         aria-hidden
-        className="tw:flex-none tw:text-faint"
+        className="flex-none text-faint"
       />
     </a>
   );
@@ -221,11 +219,11 @@ const AiGuideSection = () => {
       </Eyebrow>
       <Panel>
         {status === "idle" && (
-          <div className="tw:flex tw:items-start tw:gap-2.5 tw:text-sm tw:text-muted-foreground">
+          <div className="flex items-start gap-2.5 text-sm text-muted-foreground">
             <RiSparkling2Line
               size={16}
               aria-hidden
-              className="tw:mt-0.5 tw:flex-none tw:text-faint"
+              className="mt-0.5 flex-none text-faint"
             />
             <span>
               Руководство не собрано. ИИ прочитает заявку, переписку, базу
@@ -235,22 +233,22 @@ const AiGuideSection = () => {
         )}
 
         {status === "pending" && (
-          <div className="tw:flex tw:items-center tw:gap-2.5 tw:text-sm tw:text-muted-foreground">
+          <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
             <RiSparkling2Line
               size={16}
               aria-hidden
-              className="tw:flex-none tw:animate-pulse tw:text-accent-text"
+              className="flex-none animate-pulse text-accent-text"
             />
             Читаем заявку и базу знаний…
           </div>
         )}
 
         {status === "error" && (
-          <div className="tw:flex tw:items-start tw:gap-2.5 tw:rounded-lg tw:bg-destructive/10 tw:px-3 tw:py-2.5 tw:text-sm tw:text-destructive">
+          <div className="flex items-start gap-2.5 rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
             <RiErrorWarningLine
               size={16}
               aria-hidden
-              className="tw:mt-0.5 tw:flex-none"
+              className="mt-0.5 flex-none"
             />
             <span>
               Не удалось собрать руководство
@@ -263,7 +261,7 @@ const AiGuideSection = () => {
         )}
 
         {requestError && status !== "error" && status !== "pending" && (
-          <div className="tw:mt-2 tw:text-sm tw:text-destructive">
+          <div className="mt-2 text-sm text-destructive">
             Не удалось отправить запрос. Проверьте соединение и попробуйте
             снова.
           </div>
@@ -272,14 +270,14 @@ const AiGuideSection = () => {
         {status === "ready" && (
           <>
             {isQuestions && (
-              <div className="tw:mb-3 tw:flex tw:items-start tw:gap-2.5 tw:text-sm tw:text-warning">
+              <div className="mb-3 flex items-start gap-2.5 text-sm text-warning">
                 <RiQuestionLine
                   size={16}
                   aria-hidden
-                  className="tw:mt-0.5 tw:flex-none"
+                  className="mt-0.5 flex-none"
                 />
                 <span>
-                  <b className="tw:font-semibold">
+                  <b className="font-semibold">
                     Не хватает данных, чтобы предложить решение.
                   </b>{" "}
                   Уточните у заявителя вопросы ниже.
@@ -288,7 +286,7 @@ const AiGuideSection = () => {
             )}
 
             {aiGuide.summary && (
-              <p className="tw:mt-0 tw:mb-3.5 tw:text-[0.9375rem] tw:leading-relaxed">
+              <p className="mt-0 mb-3.5 text-[0.9375rem] leading-relaxed">
                 {aiGuide.summary}
               </p>
             )}
@@ -326,19 +324,19 @@ const AiGuideSection = () => {
                   {isQuestions ? "Что спросить" : "Шаги решения"}
                 </SubLabel>
 
-                <ol className="tw:m-0 tw:list-none tw:p-0">
+                <ol className="m-0 list-none p-0">
                   {visible.map((item, index) => (
                     <li
                       key={index}
                       className={cn(
-                        "tw:group tw:flex tw:items-start tw:gap-2.5 tw:rounded-lg tw:py-1 tw:transition-colors",
-                        isQuestions && "tw:hover:bg-accent/60",
+                        "group flex items-start gap-2.5 rounded-lg py-1 transition-colors",
+                        isQuestions && "hover:bg-accent/60",
                       )}
                     >
-                      <span className="tw:min-w-4.5 tw:flex-none tw:pt-0.5 tw:text-sm tw:text-faint tw:tabular-nums">
+                      <span className="min-w-4.5 flex-none pt-0.5 text-sm text-faint tabular-nums">
                         {index + 1}.
                       </span>
-                      <span className="tw:min-w-0 tw:flex-1 tw:text-sm tw:leading-relaxed">
+                      <span className="min-w-0 flex-1 text-sm leading-relaxed">
                         {item.text}
                       </span>
                       {/* Из десяти вопросов обычно нужны два — «+» дописывает
@@ -349,7 +347,7 @@ const AiGuideSection = () => {
                           size="icon-xs"
                           title="Дописать вопрос в комментарий"
                           aria-label="Дописать вопрос в комментарий"
-                          className="tw:flex-none tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100"
+                          className="flex-none text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
                           onClick={() => askOne(item)}
                         >
                           <RiAddLine />
@@ -363,7 +361,7 @@ const AiGuideSection = () => {
                   <Button
                     variant="ghost"
                     size="xs"
-                    className="tw:mt-1"
+                    className="mt-1"
                     onClick={() => setShowAll(true)}
                   >
                     Показать все {items.length}
@@ -373,9 +371,9 @@ const AiGuideSection = () => {
             )}
 
             {sources.length > 0 && (
-              <div className="tw:mt-4">
+              <div className="mt-4">
                 <SubLabel count={sources.length}>Источники</SubLabel>
-                <div className="tw:-mx-2">
+                <div className="-mx-2">
                   {sources.map((source) => (
                     <SourceRow key={source._id} source={source} />
                   ))}
@@ -384,7 +382,7 @@ const AiGuideSection = () => {
             )}
 
             {/* Тихая атрибуция: свежесть руководства и видел ли ИИ переписку */}
-            <div className="tw:mt-3.5 tw:flex tw:flex-wrap tw:gap-x-2.5 tw:gap-y-1 tw:border-t tw:border-border-soft tw:pt-2.5 tw:text-xs tw:text-faint">
+            <div className="mt-3.5 flex flex-wrap gap-x-2.5 gap-y-1 border-t border-border-soft pt-2.5 text-xs text-faint">
               {(aiGuide.provider || aiGuide.model) && (
                 <span>
                   {[aiGuide.provider, aiGuide.model]

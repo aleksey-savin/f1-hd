@@ -37,7 +37,9 @@ const companySheetRows = (data: CompaniesSummaryResponse) =>
 const fileName = (data: CompaniesSummaryResponse, extension: string) =>
   `companies_${data.period.from}_${data.period.to}.${extension}`;
 
-export const exportAnalyticsToExcel = async (data: CompaniesSummaryResponse) => {
+export const exportAnalyticsToExcel = async (
+  data: CompaniesSummaryResponse,
+) => {
   const XLSX = await import("xlsx");
   const workbook = XLSX.utils.book_new();
 
@@ -59,9 +61,7 @@ const toCsvSection = (
   return [
     `# ${title}`,
     headers.join(","),
-    ...rows.map((row) =>
-      headers.map((header) => `"${row[header]}"`).join(","),
-    ),
+    ...rows.map((row) => headers.map((header) => `"${row[header]}"`).join(",")),
     "",
   ];
 };

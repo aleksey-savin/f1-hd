@@ -11,7 +11,7 @@ const toCoord = (value) => {
   return Number.isFinite(num) ? num : null;
 };
 
-export function getCompanyCoords(company) {
+function getCompanyCoords(company) {
   const { latitude, longitude } = company?.locationSettings ?? {};
   if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
     return { lat: latitude, lon: longitude };

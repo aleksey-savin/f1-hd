@@ -1,10 +1,10 @@
 import { cn } from "@/lib/utils";
 
 const TONE_BG = {
-  ok: "tw:bg-primary/75",
-  warn: "tw:bg-warning",
-  down: "tw:bg-destructive",
-  none: "tw:bg-border",
+  ok: "bg-primary/75",
+  warn: "bg-warning",
+  down: "bg-destructive",
+  none: "bg-border",
 };
 
 // Лента доступности (язык статус-пейджей): сегмент = окно времени. В строке
@@ -17,8 +17,8 @@ const UptimeBar = ({ segments, size = "sm", className }) => {
     <div
       aria-hidden
       className={cn(
-        "tw:flex tw:items-center",
-        size === "lg" ? "tw:h-6 tw:gap-1" : "tw:h-3.5 tw:gap-0.5",
+        "flex items-center",
+        size === "lg" ? "h-6 gap-1" : "h-3.5 gap-0.5",
         className,
       )}
     >
@@ -27,11 +27,10 @@ const UptimeBar = ({ segments, size = "sm", className }) => {
           key={index}
           className={cn(
             size === "lg"
-              ? "tw:h-5 tw:min-w-0 tw:flex-1 tw:rounded-xs"
-              : "tw:h-3.5 tw:w-0.5 tw:flex-none tw:rounded-full",
+              ? "h-5 min-w-0 flex-1 rounded-xs"
+              : "h-3.5 w-0.5 flex-none rounded-full",
             TONE_BG[segment.tone] || TONE_BG.none,
-            segment.pulse &&
-              "tw:animate-pulse tw:motion-reduce:animate-none",
+            segment.pulse && "animate-pulse motion-reduce:animate-none",
           )}
         />
       ))}

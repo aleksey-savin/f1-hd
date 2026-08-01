@@ -208,21 +208,6 @@ exports.getAllCompanies = async (req, res, next) => {
 };
 
 // Get location hierarchy
-exports.getHierarchy = async (req, res, next) => {
-  try {
-    const { companyId } = req.query;
-    // req.user в приложении не существует — авторизованного берём из токена
-    // (getAuthData), как во всех прочих контроллерах.
-    const authedUser = await getAuthData(req);
-    const targetCompanyId = companyId || authedUser.company?._id;
-
-    const hierarchy = await Location.getHierarchy(targetCompanyId);
-    res.status(200).json(hierarchy);
-  } catch (error) {
-    next(new AppError("Failed to fetch location hierarchy", 500, true, error));
-  }
-};
-
 // Get one location by ID — питает карточку расположения: сама локация,
 // цепочка предков (крошки), вложенные с числом устройств и устройства «здесь».
 exports.getOne = async (req, res, next) => {
@@ -789,25 +774,6 @@ exports.delete = async (req, res, next) => {
 };
 
 // Get workplaces for a specific user
-exports.getUserWorkplaces = async (req, res, next) => {
-  try {
-    const { userId } = req.params;
-
-    const workplaces = await Location.getUserWorkplaces(userId);
-
-    res.status(200).json(workplaces);
-  } catch (error) {
-    next(
-      new AppError(
-        `Failed to fetch workplaces for user ${req.params.userId}`,
-        500,
-        true,
-        error,
-      ),
-    );
-  }
-};
-
 // Окружение заявителя: рабочее место + цепочка вверх (здание→этаж→помещение→
 // рабочее место) с техникой и дочерними узлами на каждом уровне, плюс личная
 // техника пользователя. Питает zoom-виджет «Окружение» в карточке заявки.

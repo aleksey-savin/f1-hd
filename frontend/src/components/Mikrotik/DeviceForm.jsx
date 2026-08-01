@@ -25,7 +25,7 @@ import { SubLabel } from "@/components/app/Panel";
 import useOffcanvasStore from "@/store/offcanvas";
 import useToastStore from "@/store/toast-store";
 
-import Select from "../../UI/Select";
+import Combobox from "@/components/app/Combobox";
 import SetupHelp, { genPassword, parseKnock } from "./SetupHelp";
 import { getLocalStorageData } from "../../util/auth";
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
@@ -41,9 +41,6 @@ const EMPTY_FORM = {
   knockSequence: "",
   jumpRecordId: "",
 };
-
-const findOption = (options, value) =>
-  options.find((option) => option.value === value) || null;
 
 // Форма устройства мониторинга (создание и правка — одна). Сабмит — живая
 // проверка подключения (verify-on-save); после успешной проверки создание
@@ -381,18 +378,18 @@ const DeviceForm = () => {
 
     return (
       <div>
-        <div className="tw:mx-auto tw:mt-2 tw:grid tw:size-12 tw:place-items-center tw:rounded-full tw:bg-primary/15 tw:text-accent-text">
+        <div className="mx-auto mt-2 grid size-12 place-items-center rounded-full bg-primary/15 text-accent-text">
           <RiCheckLine size={24} aria-hidden />
         </div>
-        <div className="tw:mt-2.5 tw:text-center tw:text-lg tw:font-semibold">
+        <div className="mt-2.5 text-center text-lg font-semibold">
           {isEdit ? "Параметры сохранены" : "Устройство подключено"}
         </div>
-        <div className="tw:mt-0.5 tw:text-center tw:text-sm tw:text-muted-foreground">
+        <div className="mt-0.5 text-center text-sm text-muted-foreground">
           {record.name || "Устройство"} отвечает по API-SSL · мониторинг
           включён, проверка каждые 5 минут
         </div>
 
-        <div className="tw:mt-4 tw:rounded-xl tw:border tw:border-border-soft tw:bg-accent/40 tw:px-4 tw:py-1">
+        <div className="mt-4 rounded-xl border border-border-soft bg-accent/40 px-4 py-1">
           {[
             ["Имя (identity)", record.name, true],
             ["Плата", record.boardName],
@@ -402,13 +399,13 @@ const DeviceForm = () => {
           ].map(([label, value, mono]) => (
             <div
               key={label}
-              className="tw:flex tw:items-baseline tw:gap-3 tw:border-t tw:border-border tw:py-2 tw:text-sm tw:first:border-t-0"
+              className="flex items-baseline gap-3 border-t border-border py-2 text-sm first:border-t-0"
             >
-              <span className="tw:w-36 tw:flex-none tw:text-muted-foreground">
+              <span className="w-36 flex-none text-muted-foreground">
                 {label}
               </span>
-              <span className={mono ? "tw:font-mono" : undefined}>
-                {value ?? <span className="tw:text-faint">—</span>}
+              <span className={mono ? "font-mono" : undefined}>
+                {value ?? <span className="text-faint">—</span>}
               </span>
             </div>
           ))}
@@ -416,12 +413,12 @@ const DeviceForm = () => {
 
         {showInventory && (
           <>
-            <SubLabel className="tw:mt-5">Инвентарь</SubLabel>
+            <SubLabel className="mt-5">Инвентарь</SubLabel>
             {linkState ? (
-              <div className="tw:flex tw:items-center tw:gap-2.5 tw:rounded-xl tw:border tw:border-border tw:px-4 tw:py-3 tw:text-sm">
+              <div className="flex items-center gap-2.5 rounded-xl border border-border px-4 py-3 text-sm">
                 <RiCheckLine
                   aria-hidden
-                  className="tw:flex-none tw:text-accent-text"
+                  className="flex-none text-accent-text"
                 />
                 <span>
                   {linkState === "created"
@@ -434,22 +431,22 @@ const DeviceForm = () => {
             ) : !inventory ? (
               // Пришли с карточки, но связать не удалось — запись создана,
               // связь можно поставить с карточки повторно.
-              <div className="tw:rounded-xl tw:border tw:border-destructive/40 tw:bg-destructive/10 tw:px-4 tw:py-3 tw:text-sm">
+              <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
                 {linkError}
               </div>
             ) : (
-              <div className="tw:rounded-xl tw:border tw:border-border tw:px-4 tw:py-3.5">
-                <div className="tw:flex tw:items-center tw:gap-3">
-                  <span className="tw:grid tw:size-10 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground">
+              <div className="rounded-xl border border-border px-4 py-3.5">
+                <div className="flex items-center gap-3">
+                  <span className="grid size-10 flex-none place-items-center rounded-lg bg-accent text-muted-foreground">
                     <RiArchive2Line size={18} aria-hidden />
                   </span>
-                  <div className="tw:min-w-0 tw:flex-1">
+                  <div className="min-w-0 flex-1">
                     {candidate ? (
                       <>
-                        <div className="tw:text-sm tw:font-semibold">
+                        <div className="text-sm font-semibold">
                           Найдена карточка с этим серийным номером
                         </div>
-                        <div className="tw:truncate tw:text-sm tw:text-muted-foreground">
+                        <div className="truncate text-sm text-muted-foreground">
                           {[
                             [candidate.vendorName, candidate.modelName]
                               .filter(Boolean)
@@ -464,14 +461,14 @@ const DeviceForm = () => {
                         </div>
                       </>
                     ) : (
-                      <div className="tw:text-sm tw:text-muted-foreground">
+                      <div className="text-sm text-muted-foreground">
                         Карточки с таким серийным номером в инвентаре нет —
                         можно создать её из считанных данных.
                       </div>
                     )}
                   </div>
                 </div>
-                <div className="tw:mt-3 tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   {candidate ? (
                     <Button size="sm" disabled={linkBusy} onClick={handleLink}>
                       {linkBusy ? "Связываем…" : "Связать карточку"}
@@ -497,12 +494,12 @@ const DeviceForm = () => {
                     Пропустить
                   </Button>
                   {linkError && (
-                    <span className="tw:text-sm tw:text-destructive">
+                    <span className="text-sm text-destructive">
                       {linkError}
                     </span>
                   )}
                 </div>
-                <div className="tw:mt-2 tw:text-xs tw:text-faint">
+                <div className="mt-2 text-xs text-faint">
                   Связь включает живой статус устройства в «Окружении»,
                   «Технике» и на карточке инвентаря.
                 </div>
@@ -511,7 +508,7 @@ const DeviceForm = () => {
           </>
         )}
 
-        <div className="tw:mt-5 tw:flex tw:justify-end tw:gap-2 tw:border-t tw:border-border-soft tw:pt-4">
+        <div className="mt-5 flex justify-end gap-2 border-t border-border-soft pt-4">
           {linkState && result.record?._id && (
             <Button asChild variant="ghost">
               <Link
@@ -531,7 +528,7 @@ const DeviceForm = () => {
   // ── Форма ──
   return (
     <form onSubmit={submitHandler}>
-      <div className="tw:mb-4 tw:text-lg tw:font-semibold">
+      <div className="mb-4 text-lg font-semibold">
         {isEdit ? "Изменить устройство" : "Новое устройство"}
       </div>
 
@@ -539,15 +536,15 @@ const DeviceForm = () => {
 
       {/* Подключение карточки из инвентаря: с чем свяжемся — видно до сабмита */}
       {targetDevice && (
-        <div className="tw:mb-4 tw:flex tw:items-center tw:gap-3 tw:rounded-xl tw:border tw:border-border tw:bg-accent tw:px-3.5 tw:py-3">
-          <span className="tw:grid tw:size-10 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-card tw:text-muted-foreground">
+        <div className="mb-4 flex items-center gap-3 rounded-xl border border-border bg-accent px-3.5 py-3">
+          <span className="grid size-10 flex-none place-items-center rounded-lg bg-card text-muted-foreground">
             <RiArchive2Line size={18} aria-hidden />
           </span>
-          <div className="tw:min-w-0">
-            <div className="tw:text-sm tw:font-semibold">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold">
               Подключаем карточку из инвентаря
             </div>
-            <div className="tw:truncate tw:text-sm tw:text-muted-foreground">
+            <div className="truncate text-sm text-muted-foreground">
               {[
                 targetDevice.title,
                 targetDevice.inventoryNumber
@@ -565,27 +562,28 @@ const DeviceForm = () => {
       {targetDevice ? (
         // Компания и название — из карточки: запись принадлежит той же
         // компании, а имя устройства уже названо в инвентаре.
-        <div className="tw:mb-3 tw:text-sm tw:text-muted-foreground">
+        <div className="mb-3 text-sm text-muted-foreground">
           Компания и название берутся из карточки устройства.
         </div>
       ) : !isLinked ? (
-        <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+        <div className="grid gap-x-3 md:grid-cols-2">
           <Field label="Компания" htmlFor="mikrotik-company" required>
-            <Select
+            <Combobox
               id="mikrotik-company"
               options={companyOptions}
-              value={findOption(companyOptions, form.companyId)}
-              onChange={(option) =>
+              value={form.companyId || null}
+              onChange={(value) =>
                 // Смена компании сбрасывает мост: кандидаты фильтруются по
                 // компании, чужой мост не должен уехать в сабмит.
                 setForm((prev) => ({
                   ...prev,
-                  companyId: option ? option.value : "",
+                  companyId: value || "",
                   jumpRecordId: "",
                 }))
               }
               placeholder="Выберите компанию"
-              isClearable
+              clearable
+              clearLabel="Не выбрана"
             />
           </Field>
           <Field
@@ -603,13 +601,13 @@ const DeviceForm = () => {
           </Field>
         </div>
       ) : (
-        <div className="tw:mb-3 tw:text-sm tw:text-muted-foreground">
+        <div className="mb-3 text-sm text-muted-foreground">
           Компания и название управляются связанной карточкой инвентаря.
         </div>
       )}
 
-      <SubLabel className="tw:mt-2">Подключение</SubLabel>
-      <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+      <SubLabel className="mt-2">Подключение</SubLabel>
+      <div className="grid gap-x-3 md:grid-cols-2">
         <Field label="Хост" htmlFor="mikrotik-host" required>
           <Input
             id="mikrotik-host"
@@ -617,7 +615,7 @@ const DeviceForm = () => {
             value={form.host}
             onChange={changeHandler}
             placeholder="IP или домен"
-            className="tw:font-mono"
+            className="font-mono"
             autoFocus={!isEdit}
           />
         </Field>
@@ -628,7 +626,7 @@ const DeviceForm = () => {
             type="number"
             value={form.port}
             onChange={changeHandler}
-            className="tw:font-mono"
+            className="font-mono"
           />
         </Field>
         <Field
@@ -655,14 +653,14 @@ const DeviceForm = () => {
               : undefined
           }
         >
-          <div className="tw:flex tw:gap-1.5">
+          <div className="flex gap-1.5">
             <Input
               id="mikrotik-password"
               name="password"
               type={showPassword ? "text" : "password"}
               value={form.password}
               onChange={changeHandler}
-              className="tw:min-w-0 tw:flex-1 tw:font-mono"
+              className="min-w-0 flex-1 font-mono"
             />
             <Button
               type="button"
@@ -702,7 +700,7 @@ const DeviceForm = () => {
             type="number"
             value={form.sshPort}
             onChange={changeHandler}
-            className="tw:font-mono"
+            className="font-mono"
           />
         </Field>
         {!form.jumpRecordId && (
@@ -717,7 +715,7 @@ const DeviceForm = () => {
               value={form.knockSequence}
               onChange={changeHandler}
               placeholder="например, 22000 22111 22222"
-              className="tw:font-mono"
+              className="font-mono"
             />
           </Field>
         )}
@@ -732,14 +730,14 @@ const DeviceForm = () => {
       />
       {jumpEnabled && (
         <Field label="Мост" htmlFor="mikrotik-jump-record">
-          <Select
+          <Combobox
             id="mikrotik-jump-record"
             options={jumpOptions}
-            value={findOption(jumpOptions, form.jumpRecordId)}
-            onChange={(option) =>
+            value={form.jumpRecordId || null}
+            onChange={(value) =>
               setForm((prev) => ({
                 ...prev,
-                jumpRecordId: option ? option.value : "",
+                jumpRecordId: value || "",
               }))
             }
             placeholder={
@@ -749,7 +747,8 @@ const DeviceForm = () => {
                   : "Нет доступных устройств в компании"
                 : "Сначала выберите компанию"
             }
-            isClearable
+            clearable
+            clearLabel="Без транзита"
           />
         </Field>
       )}
@@ -765,8 +764,8 @@ const DeviceForm = () => {
         jumpSelected={Boolean(form.jumpRecordId)}
       />
 
-      <div className="tw:mt-5 tw:flex tw:items-center tw:gap-2 tw:border-t tw:border-border-soft tw:pt-4">
-        <div className="tw:min-w-0 tw:flex-1 tw:text-xs tw:text-faint">
+      <div className="mt-5 flex items-center gap-2 border-t border-border-soft pt-4">
+        <div className="min-w-0 flex-1 text-xs text-faint">
           Перед сохранением проверим подключение к устройству.
         </div>
         <Button

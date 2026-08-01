@@ -23,7 +23,7 @@ import WorkTimeBars from "./WorkTimeBars";
 export const CardMonogram = ({ name }: { name: string }) => (
   <span
     aria-hidden
-    className="tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:rounded-2xl tw:bg-accent tw:text-base tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+    className="grid size-14 flex-none place-items-center rounded-2xl bg-accent text-base font-semibold text-muted-foreground inset-ring inset-ring-border"
   >
     {monogramFor(name)}
   </span>
@@ -34,19 +34,19 @@ export const CardCrumbs = ({
 }: {
   items: { label: string; to?: string }[];
 }) => (
-  <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-1.5 tw:text-sm tw:text-muted-foreground">
+  <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
     {items.map((item, index) => (
-      <span key={item.label} className="tw:inline-flex tw:items-center tw:gap-1.5">
-        {index > 0 && <span className="tw:text-faint">/</span>}
+      <span key={item.label} className="inline-flex items-center gap-1.5">
+        {index > 0 && <span className="text-faint">/</span>}
         {item.to ? (
           <Link
             to={item.to}
-            className="tw:text-muted-foreground tw:no-underline tw:hover:text-foreground tw:hover:underline"
+            className="text-muted-foreground no-underline hover:text-foreground hover:underline"
           >
             {index === 0 ? `‹ ${item.label}` : item.label}
           </Link>
         ) : (
-          <span className="tw:text-faint">{item.label}</span>
+          <span className="text-faint">{item.label}</span>
         )}
       </span>
     ))}
@@ -58,20 +58,24 @@ export const CardCrumbs = ({
  * поэтому у суженного доступа объяснение стоит выше цифр.
  */
 export const ScopeNote = ({ children }: { children: ReactNode }) => (
-  <div className="tw:mb-5 tw:flex tw:items-start tw:gap-3 tw:rounded-xl tw:border tw:border-dashed tw:border-border tw:bg-card tw:px-4 tw:py-3">
+  <div className="mb-5 flex items-start gap-3 rounded-xl border border-dashed border-border bg-card px-4 py-3">
     <RiInformationLine
       size={18}
       aria-hidden
-      className="tw:mt-0.5 tw:flex-none tw:text-muted-foreground"
+      className="mt-0.5 flex-none text-muted-foreground"
     />
-    <div className="tw:text-sm tw:text-muted-foreground">{children}</div>
+    <div className="text-sm text-muted-foreground">{children}</div>
   </div>
 );
 
-export const CategorySection = ({ categories }: { categories: CategoryRow[] }) => (
+export const CategorySection = ({
+  categories,
+}: {
+  categories: CategoryRow[];
+}) => (
   <div>
     <Eyebrow count={categories.length}>По категориям заявок</Eyebrow>
-    <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+    <div className="rounded-xl border border-border bg-card p-5">
       <ShareBars
         unit="ms"
         rows={categories.map((category) => ({
@@ -87,7 +91,8 @@ export const CategorySection = ({ categories }: { categories: CategoryRow[] }) =
 export const MonthsSection = ({ months }: { months: MonthPoint[] }) => {
   const withData = months.filter((month) => month.totalWorks > 0);
   const average = withData.length
-    ? withData.reduce((sum, month) => sum + month.totalTime, 0) / withData.length
+    ? withData.reduce((sum, month) => sum + month.totalTime, 0) /
+      withData.length
     : 0;
   const peak = withData.reduce<MonthPoint | null>(
     (best, month) => (!best || month.totalTime > best.totalTime ? month : best),
@@ -99,15 +104,16 @@ export const MonthsSection = ({ months }: { months: MonthPoint[] }) => {
       <Eyebrow
         action={
           peak && (
-            <span className="tw:text-sm tw:font-normal tw:text-faint">
-              в среднем {Math.round(average / 3_600_000)} ч · макс — {peak.label}
+            <span className="text-sm font-normal text-faint">
+              в среднем {Math.round(average / 3_600_000)} ч · макс —{" "}
+              {peak.label}
             </span>
           )
         }
       >
         Динамика за 12 месяцев
       </Eyebrow>
-      <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         <WorkTimeBars
           bars={months.map((month) => ({
             key: month.month,
@@ -136,8 +142,9 @@ export const AttributionNote = ({
     return null;
   }
   return (
-    <p className="tw:mt-3 tw:mb-0 tw:text-xs tw:text-faint">
-      Работа отнесена к подразделению заявителя. {diagnostics.mixedSubdivisionWorks}{" "}
+    <p className="mt-3 mb-0 text-xs text-faint">
+      Работа отнесена к подразделению заявителя.{" "}
+      {diagnostics.mixedSubdivisionWorks}{" "}
       {diagnostics.mixedSubdivisionWorks === 1 ? "работа" : "работ"} за период
       закрывали заявки разных подразделений — учтены по самой ранней заявке.
     </p>
@@ -145,13 +152,13 @@ export const AttributionNote = ({
 };
 
 export const CardSkeleton = () => (
-  <div className="tw:space-y-6">
-    <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-4 tw:xl:gap-4">
+  <div className="space-y-6">
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
       {[0, 1, 2, 3].map((index) => (
-        <Skeleton key={index} className="tw:h-28 tw:rounded-xl" />
+        <Skeleton key={index} className="h-28 rounded-xl" />
       ))}
     </div>
-    <Skeleton className="tw:h-64 tw:rounded-xl" />
-    <Skeleton className="tw:h-72 tw:rounded-xl" />
+    <Skeleton className="h-64 rounded-xl" />
+    <Skeleton className="h-72 rounded-xl" />
   </div>
 );

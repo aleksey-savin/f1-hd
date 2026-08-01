@@ -37,10 +37,9 @@ import Field from "@/components/app/Field";
 import AlertMessage from "@/components/app/AlertMessage";
 import Spinner from "@/components/app/Spinner";
 import { monogramFor } from "@/components/app/monogram";
-import { InsideOverlayContext } from "@/components/app/overlay-context";
 import { cn } from "@/lib/utils";
 
-import Select from "../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import { getLocalStorageData } from "../../util/auth";
 import { plural } from "../../util/plural";
 import {
@@ -96,15 +95,15 @@ const accountMatches = (account, query) => {
 
 // Метка блока внутри шторки (uppercase, как eyebrow карточек)
 const BlockLabel = ({ children, count, hint }) => (
-  <div className="tw:mb-2 tw:flex tw:items-baseline tw:gap-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+  <div className="mb-2 flex items-baseline gap-2 text-xs font-bold tracking-wider text-faint uppercase">
     {children}
     {count != null && (
-      <span className="tw:font-semibold tw:tracking-normal tw:tabular-nums">
+      <span className="font-semibold tracking-normal tabular-nums">
         · {count}
       </span>
     )}
     {hint && (
-      <span className="tw:ms-auto tw:font-normal tw:tracking-normal tw:normal-case">
+      <span className="ms-auto font-normal tracking-normal normal-case">
         {hint}
       </span>
     )}
@@ -154,7 +153,11 @@ const CompanyLogsOffcanvas = ({
     }
   };
 
-  const loadLogs = async ({ nextPage = 1, query = queryRef.current, append = false } = {}) => {
+  const loadLogs = async ({
+    nextPage = 1,
+    query = queryRef.current,
+    append = false,
+  } = {}) => {
     if (append) setLoadingMore(true);
     else setLoading(true);
     try {
@@ -282,29 +285,29 @@ const CompanyLogsOffcanvas = ({
           onInteractOutside={
             isMobile ? undefined : (event) => event.preventDefault()
           }
-          className="tw:inset-x-auto tw:left-1/2 tw:h-[90dvh] tw:w-full tw:max-w-4xl tw:-translate-x-1/2 tw:gap-0 tw:rounded-t-2xl tw:border tw:border-b-0 tw:border-border tw:p-0"
+          className="inset-x-auto left-1/2 h-[90dvh] w-full max-w-4xl -translate-x-1/2 gap-0 rounded-t-2xl border border-b-0 border-border p-0"
         >
-          <div className="tw:flex tw:h-full tw:flex-col">
-            <div className="tw:flex tw:items-baseline tw:gap-2.5 tw:px-6 tw:pt-4 tw:pb-2 tw:pr-12">
-              <SheetTitle className="tw:my-0 tw:text-lg tw:font-semibold tw:tracking-tight">
+          <div className="flex h-full flex-col">
+            <div className="flex items-baseline gap-2.5 px-6 pt-4 pb-2 pr-12">
+              <SheetTitle className="my-0 text-lg font-semibold tracking-tight">
                 Лог активности — {company.alias}
               </SheetTitle>
-              <span className="tw:text-sm tw:text-faint tw:tabular-nums">
+              <span className="text-sm text-faint tabular-nums">
                 · {total} {plural(total, "событие", "события", "событий")}
               </span>
-              <SheetDescription className="tw:sr-only">
+              <SheetDescription className="sr-only">
                 Кто за каким компьютером и журнал входов
               </SheetDescription>
             </div>
 
             {/* Поиск зафиксирован вне скролл-зоны — не пропадает при листании;
                 фильтрует и карту (мгновенно), и журнал (серверно) */}
-            <div className="tw:flex tw:gap-2 tw:border-b tw:border-border-soft tw:px-6 tw:pb-3.5">
-              <span className="tw:relative tw:min-w-0 tw:flex-1">
+            <div className="flex gap-2 border-b border-border-soft px-6 pb-3.5">
+              <span className="relative min-w-0 flex-1">
                 <RiSearchLine
                   size={16}
                   aria-hidden
-                  className="tw:absolute tw:top-1/2 tw:left-3 tw:-translate-y-1/2 tw:text-faint"
+                  className="absolute top-1/2 left-3 -translate-y-1/2 text-faint"
                 />
                 <Input
                   type="search"
@@ -312,7 +315,7 @@ const CompanyLogsOffcanvas = ({
                   placeholder="Найти пользователя или компьютер…"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  className="tw:ps-9"
+                  className="ps-9"
                 />
               </span>
               <Button
@@ -327,22 +330,22 @@ const CompanyLogsOffcanvas = ({
               </Button>
             </div>
 
-            <div className="tw:min-h-0 tw:flex-1 tw:overflow-y-auto tw:px-6 tw:pb-6">
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
               {/* Карта «кто за каким компьютером» — ответ на главный вопрос */}
-              <div className="tw:mt-4">
+              <div className="mt-4">
                 <BlockLabel
                   count={visibleAccounts.length || undefined}
                   hint="по последнему входу учётки"
                 >
                   Кто за каким компьютером
                 </BlockLabel>
-                <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-4 tw:py-1.5">
+                <div className="rounded-xl border border-border bg-card px-4 py-1.5">
                   {accounts.length === 0 ? (
-                    <div className="tw:py-2.5 tw:text-sm tw:text-muted-foreground">
+                    <div className="py-2.5 text-sm text-muted-foreground">
                       AD-агент ещё не приносил событий.
                     </div>
                   ) : visibleAccounts.length === 0 ? (
-                    <div className="tw:py-2.5 tw:text-sm tw:text-muted-foreground">
+                    <div className="py-2.5 text-sm text-muted-foreground">
                       Ничего не нашлось. Измените запрос.
                     </div>
                   ) : (
@@ -354,56 +357,56 @@ const CompanyLogsOffcanvas = ({
                       return (
                         <div
                           key={account.activeDirectoryObjectGUID}
-                          className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1 tw:border-t tw:border-border-soft tw:py-2.5 tw:first:border-t-0"
+                          className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-soft py-2.5 first:border-t-0"
                         >
                           <span
                             aria-hidden
                             className={cn(
-                              "tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-full tw:bg-accent tw:text-xs tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border",
-                              !displayName && "tw:font-mono tw:text-[10px]",
+                              "grid size-9 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border",
+                              !displayName && "font-mono text-[10px]",
                             )}
                           >
                             {displayName ? monogramFor(displayName) : "AD"}
                           </span>
-                          <span className="tw:min-w-0 tw:flex-1">
-                            <span className="tw:block tw:truncate tw:text-[15px] tw:leading-tight tw:font-semibold">
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[15px] leading-tight font-semibold">
                               {account.user ? (
                                 <Link
                                   to={`/users/${account.user._id}`}
                                   onClick={onHide}
-                                  className="tw:text-accent-text tw:no-underline tw:hover:underline"
+                                  className="text-accent-text no-underline hover:underline"
                                 >
                                   {displayName}
                                 </Link>
                               ) : (
                                 displayName || (
-                                  <span className="tw:font-mono tw:text-sm tw:font-medium">
+                                  <span className="font-mono text-sm font-medium">
                                     {account.activeDirectoryLogin}
                                   </span>
                                 )
                               )}
                             </span>
-                            <span className="tw:block tw:truncate tw:font-mono tw:text-xs tw:text-faint">
+                            <span className="block truncate font-mono text-xs text-faint">
                               {displayName && account.activeDirectoryLogin}
                               {!account.user && (
-                                <span className="tw:font-sans tw:text-warning">
+                                <span className="font-sans text-warning">
                                   {displayName ? " · " : ""}
                                   не связана с пользователем
                                 </span>
                               )}
                             </span>
                           </span>
-                          <span className="tw:flex tw:w-60 tw:flex-none tw:items-center tw:gap-2.5 tw:max-md:w-auto">
+                          <span className="flex w-60 flex-none items-center gap-2.5 max-md:w-auto">
                             <RiComputerLine
                               size={17}
                               aria-hidden
-                              className="tw:flex-none tw:text-faint"
+                              className="flex-none text-faint"
                             />
-                            <span className="tw:min-w-0">
-                              <span className="tw:block tw:truncate tw:font-mono tw:text-sm tw:font-semibold">
+                            <span className="min-w-0">
+                              <span className="block truncate font-mono text-sm font-semibold">
                                 {account.computerName || "—"}
                               </span>
-                              <span className="tw:block tw:text-xs tw:text-faint tw:tabular-nums">
+                              <span className="block text-xs text-faint tabular-nums">
                                 вход {dayLabel(account.lastSeenAt)}{" "}
                                 {formatTime(account.lastSeenAt)}
                               </span>
@@ -413,7 +416,7 @@ const CompanyLogsOffcanvas = ({
                             /* Гнездо действий постоянной ширины: у «Связать» и
                                иконки отвязки разная ширина — без фиксации
                                колонка компьютеров плыла по строкам */
-                            <span className="tw:flex tw:w-28 tw:flex-none tw:items-center tw:justify-end">
+                            <span className="flex w-28 flex-none items-center justify-end">
                               {account.user ? (
                                 <button
                                   type="button"
@@ -421,7 +424,7 @@ const CompanyLogsOffcanvas = ({
                                   aria-label={`Отвязать учётку ${account.activeDirectoryLogin}`}
                                   disabled={busyUnlink || busyLink}
                                   onClick={() => setUnlinkAccount(account)}
-                                  className="tw:grid tw:size-8 tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:transition-colors tw:hover:bg-accent tw:hover:text-muted-foreground"
+                                  className="grid size-8 cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-transparent text-faint transition-colors hover:bg-accent hover:text-muted-foreground"
                                 >
                                   <RiUserUnfollowLine size={16} />
                                 </button>
@@ -445,13 +448,13 @@ const CompanyLogsOffcanvas = ({
               </div>
 
               {/* Журнал входов — история, без кнопок */}
-              <div className="tw:mt-5">
+              <div className="mt-5">
                 <BlockLabel>Журнал входов</BlockLabel>
-                <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-4 tw:py-1.5">
+                <div className="rounded-xl border border-border bg-card px-4 py-1.5">
                   {loading ? (
-                    <Spinner className="tw:min-h-40" size={32} />
+                    <Spinner className="min-h-40" size={32} />
                   ) : logs.length === 0 ? (
-                    <div className="tw:py-2.5 tw:text-sm tw:text-muted-foreground">
+                    <div className="py-2.5 text-sm text-muted-foreground">
                       {queryRef.current
                         ? "Ничего не нашлось. Измените запрос."
                         : "Журнал пуст."}
@@ -463,47 +466,47 @@ const CompanyLogsOffcanvas = ({
                         return (
                           <div
                             key={log._id}
-                            className="tw:flex tw:items-center tw:gap-3.5 tw:border-t tw:border-border-soft tw:py-2 tw:first:border-t-0"
+                            className="flex items-center gap-3.5 border-t border-border-soft py-2 first:border-t-0"
                           >
                             <span
-                              className="tw:w-24 tw:flex-none tw:text-sm tw:text-muted-foreground tw:tabular-nums"
+                              className="w-24 flex-none text-sm text-muted-foreground tabular-nums"
                               title={formatDate(log.createdAt)}
                             >
                               {formatTime(log.createdAt)}{" "}
-                              <span className="tw:text-xs tw:text-faint">
+                              <span className="text-xs text-faint">
                                 {dayLabel(log.createdAt)}
                               </span>
                             </span>
-                            <span className="tw:min-w-0 tw:flex-1 tw:truncate tw:text-sm">
+                            <span className="min-w-0 flex-1 truncate text-sm">
                               <span
                                 className={cn(
-                                  "tw:font-medium",
-                                  !name && "tw:font-mono",
+                                  "font-medium",
+                                  !name && "font-mono",
                                 )}
                               >
                                 {name || log.activeDirectoryLogin}
                               </span>
                               {name && (
-                                <span className="tw:ms-2 tw:font-mono tw:text-xs tw:text-faint">
+                                <span className="ms-2 font-mono text-xs text-faint">
                                   {log.activeDirectoryLogin}
                                 </span>
                               )}
                               {log.computerName && (
-                                <span className="tw:text-muted-foreground tw:md:hidden">
+                                <span className="text-muted-foreground md:hidden">
                                   {" "}
                                   · {log.computerName}
                                 </span>
                               )}
                             </span>
-                            <span className="tw:hidden tw:w-48 tw:flex-none tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground tw:md:flex">
+                            <span className="hidden w-48 flex-none items-center gap-2 text-sm text-muted-foreground md:flex">
                               {log.computerName && (
                                 <>
                                   <RiComputerLine
                                     size={15}
                                     aria-hidden
-                                    className="tw:flex-none tw:text-faint"
+                                    className="flex-none text-faint"
                                   />
-                                  <span className="tw:truncate tw:font-mono tw:text-[13px]">
+                                  <span className="truncate font-mono text-[13px]">
                                     {log.computerName}
                                   </span>
                                 </>
@@ -514,16 +517,18 @@ const CompanyLogsOffcanvas = ({
                       })}
 
                       {hasMore && (
-                        <div className="tw:flex tw:flex-col tw:items-center tw:gap-1.5 tw:border-t tw:border-border-soft tw:py-3.5">
+                        <div className="flex flex-col items-center gap-1.5 border-t border-border-soft py-3.5">
                           <Button
                             variant="outline"
                             size="sm"
                             disabled={loadingMore}
-                            onClick={() => loadLogs({ nextPage: page + 1, append: true })}
+                            onClick={() =>
+                              loadLogs({ nextPage: page + 1, append: true })
+                            }
                           >
                             {loadingMore ? "Загрузка…" : "Показать ещё"}
                           </Button>
-                          <span className="tw:text-xs tw:text-faint tw:tabular-nums">
+                          <span className="text-xs text-faint tabular-nums">
                             Показано {logs.length} из {total}
                           </span>
                         </div>
@@ -544,69 +549,72 @@ const CompanyLogsOffcanvas = ({
           if (!open) setLinkAccount(null);
         }}
       >
-        <DialogContent className="tw:max-w-md" aria-describedby={undefined}>
-          <InsideOverlayContext.Provider value={true}>
-            <DialogHeader>
-              <DialogTitle>Связать с пользователем</DialogTitle>
-            </DialogHeader>
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Связать с пользователем</DialogTitle>
+          </DialogHeader>
 
-            {linkFetcher.data?.error && (
-              <AlertMessage
-                variant="danger"
-                message={
-                  linkFetcher.data.message || "Не удалось связать учётку"
-                }
-              />
-            )}
+          {linkFetcher.data?.error && (
+            <AlertMessage
+              variant="danger"
+              message={linkFetcher.data.message || "Не удалось связать учётку"}
+            />
+          )}
 
-            {linkAccount && (
-              <div className="tw:rounded-xl tw:border tw:border-border-soft tw:bg-accent/40 tw:px-4 tw:py-3 tw:text-sm">
-                <div className="tw:font-medium">
-                  {adName(linkAccount) || "AD-учётка"}
-                  <span className="tw:ms-2 tw:font-mono tw:text-xs tw:font-normal tw:text-muted-foreground">
-                    {linkAccount.activeDirectoryLogin}
-                  </span>
-                </div>
-                <div className="tw:mt-0.5 tw:font-mono tw:text-xs tw:text-faint">
-                  GUID: {linkAccount.activeDirectoryObjectGUID}
-                </div>
+          {linkAccount && (
+            <div className="rounded-xl border border-border-soft bg-accent/40 px-4 py-3 text-sm">
+              <div className="font-medium">
+                {adName(linkAccount) || "AD-учётка"}
+                <span className="ms-2 font-mono text-xs font-normal text-muted-foreground">
+                  {linkAccount.activeDirectoryLogin}
+                </span>
               </div>
-            )}
+              <div className="mt-0.5 font-mono text-xs text-faint">
+                GUID: {linkAccount.activeDirectoryObjectGUID}
+              </div>
+            </div>
+          )}
 
-            <form onSubmit={submitLink}>
-              <Field
-                label="Пользователь"
-                required
-                hint="Все записи входов этой учётки будут привязаны к выбранному пользователю."
+          <form onSubmit={submitLink}>
+            <Field
+              label="Пользователь"
+              required
+              hint="Все записи входов этой учётки будут привязаны к выбранному пользователю."
+            >
+              <Combobox
+                ariaLabel="Пользователь компании"
+                placeholder="Выберите пользователя компании"
+                options={toOptions(company.employees || [], {
+                  value: (option) => String(option._id),
+                  label: (option) =>
+                    `${option.lastName || ""} ${option.firstName || ""}`.trim(),
+                })}
+                value={linkUser?._id ? String(linkUser._id) : null}
+                onChange={(id) =>
+                  setLinkUser(
+                    (company.employees || []).find(
+                      (option) => String(option._id) === id,
+                    ) || null,
+                  )
+                }
+                clearable
+                clearLabel="Не выбран"
+              />
+            </Field>
+
+            <DialogFooter className="mt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setLinkAccount(null)}
               >
-                <Select
-                  placeholder="Выберите пользователя компании"
-                  isClearable
-                  isSearchable
-                  options={company.employees || []}
-                  value={linkUser}
-                  onChange={(next) => setLinkUser(next || null)}
-                  getOptionLabel={(option) =>
-                    `${option.lastName || ""} ${option.firstName || ""}`.trim()
-                  }
-                  getOptionValue={(option) => option._id}
-                />
-              </Field>
-
-              <DialogFooter className="tw:mt-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setLinkAccount(null)}
-                >
-                  Отмена
-                </Button>
-                <Button type="submit" disabled={busyLink || !linkUser}>
-                  {busyLink ? "Связывание…" : "Связать"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </InsideOverlayContext.Provider>
+                Отмена
+              </Button>
+              <Button type="submit" disabled={busyLink || !linkUser}>
+                {busyLink ? "Связывание…" : "Связать"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -637,7 +645,7 @@ const CompanyLogsOffcanvas = ({
               }
             />
           )}
-          <AlertDialogFooter className="tw:mt-4">
+          <AlertDialogFooter className="mt-4">
             <AlertDialogCancel type="button">Отмена</AlertDialogCancel>
             <Button
               variant="warning"

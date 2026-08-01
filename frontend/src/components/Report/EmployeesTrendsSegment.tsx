@@ -84,7 +84,11 @@ const METRICS: readonly Metric[] = [
   },
 ] as const;
 
-const EmployeesTrendsSegment = ({ approvedOnly }: { approvedOnly: boolean }) => {
+const EmployeesTrendsSegment = ({
+  approvedOnly,
+}: {
+  approvedOnly: boolean;
+}) => {
   const s = useEmployeesTrendStore();
 
   useEffect(() => {
@@ -96,7 +100,7 @@ const EmployeesTrendsSegment = ({ approvedOnly }: { approvedOnly: boolean }) => 
       <AlertMessage
         variant="danger"
         message={
-          <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+          <span className="flex flex-wrap items-center gap-3">
             {s.error}
             <Button variant="outline" size="xs" onClick={() => s.fetch()}>
               Повторить
@@ -105,13 +109,13 @@ const EmployeesTrendsSegment = ({ approvedOnly }: { approvedOnly: boolean }) => 
         }
       />
     ) : (
-      <div className="tw:space-y-6">
-        <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:md:grid-cols-3 tw:xl:grid-cols-5">
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           {[0, 1, 2, 3, 4].map((index) => (
-            <Skeleton key={index} className="tw:h-24 tw:rounded-xl" />
+            <Skeleton key={index} className="h-24 rounded-xl" />
           ))}
         </div>
-        <Skeleton className="tw:h-72 tw:rounded-xl" />
+        <Skeleton className="h-72 rounded-xl" />
       </div>
     );
   }
@@ -189,7 +193,7 @@ const EmployeesTrendsSegment = ({ approvedOnly }: { approvedOnly: boolean }) => 
     metric.isTime ? formatMinutes(value) : String(value);
 
   return (
-    <div className={cn("tw:transition-opacity", s.isLoading && "tw:opacity-60")}>
+    <div className={cn("transition-opacity", s.isLoading && "opacity-60")}>
       <MetricCards
         metrics={cards}
         active={s.metric}
@@ -199,7 +203,7 @@ const EmployeesTrendsSegment = ({ approvedOnly }: { approvedOnly: boolean }) => 
       <Eyebrow
         action={
           !ofEmployee && (
-            <span className="tw:text-sm tw:font-normal tw:text-faint">
+            <span className="text-sm font-normal text-faint">
               по команде целиком — по людям эта метрика не раскладывается
             </span>
           )
@@ -207,7 +211,7 @@ const EmployeesTrendsSegment = ({ approvedOnly }: { approvedOnly: boolean }) => 
       >
         {metric.label} по месяцам
       </Eyebrow>
-      <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+      <div className="rounded-xl border border-border bg-card p-5">
         {/* Отчёт считает в минутах, а график по умолчанию — в миллисекундах:
             единицы задаём форматтерами, ось короче тултипа */}
         <TrendsChart
@@ -223,17 +227,17 @@ const EmployeesTrendsSegment = ({ approvedOnly }: { approvedOnly: boolean }) => 
       </div>
 
       <Eyebrow count={months.length}>По месяцам</Eyebrow>
-      <div className="tw:overflow-x-auto tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-2 tw:py-1.5">
+      <div className="overflow-x-auto rounded-xl border border-border bg-card px-2 py-1.5">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Месяц</TableHead>
-              <TableHead className="tw:text-right">Отработано</TableHead>
-              <TableHead className="tw:text-right">Δ</TableHead>
-              <TableHead className="tw:text-right">Переработки</TableHead>
-              <TableHead className="tw:text-right">Работы</TableHead>
-              <TableHead className="tw:text-right">Заявки</TableHead>
-              <TableHead className="tw:text-right">Выезды</TableHead>
+              <TableHead className="text-right">Отработано</TableHead>
+              <TableHead className="text-right">Δ</TableHead>
+              <TableHead className="text-right">Переработки</TableHead>
+              <TableHead className="text-right">Работы</TableHead>
+              <TableHead className="text-right">Заявки</TableHead>
+              <TableHead className="text-right">Выезды</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -242,32 +246,34 @@ const EmployeesTrendsSegment = ({ approvedOnly }: { approvedOnly: boolean }) => 
               const delta = previous ? month.minutes - previous.minutes : null;
               return (
                 <TableRow key={month.month}>
-                  <TableCell className="tw:whitespace-nowrap">{month.label}</TableCell>
-                  <TableCell className="tw:text-right tw:font-semibold tw:tabular-nums">
+                  <TableCell className="whitespace-nowrap">
+                    {month.label}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
                     {formatMinutes(month.minutes)}
                   </TableCell>
                   <TableCell
                     className={cn(
-                      "tw:text-right tw:tabular-nums",
-                      delta === null && "tw:text-faint",
+                      "text-right tabular-nums",
+                      delta === null && "text-faint",
                       delta !== null &&
-                        (delta >= 0 ? "tw:text-accent-text" : "tw:text-destructive"),
+                        (delta >= 0 ? "text-accent-text" : "text-destructive"),
                     )}
                   >
                     {delta === null
                       ? "—"
                       : `${delta >= 0 ? "↑" : "↓"} ${formatMinutes(Math.abs(delta))}`}
                   </TableCell>
-                  <TableCell className="tw:text-right tw:tabular-nums">
+                  <TableCell className="text-right tabular-nums">
                     {formatMinutes(month.overtimeMinutes)}
                   </TableCell>
-                  <TableCell className="tw:text-right tw:tabular-nums">
+                  <TableCell className="text-right tabular-nums">
                     {month.worksCount}
                   </TableCell>
-                  <TableCell className="tw:text-right tw:tabular-nums">
+                  <TableCell className="text-right tabular-nums">
                     {month.ticketsFinished}
                   </TableCell>
-                  <TableCell className="tw:text-right tw:tabular-nums">
+                  <TableCell className="text-right tabular-nums">
                     {month.onSite.count}
                   </TableCell>
                 </TableRow>

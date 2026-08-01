@@ -11,13 +11,13 @@ const pluralItems = (n) => {
 };
 
 const Row = ({ label, value, accent }) => (
-  <div className="tw:flex tw:gap-3 tw:border-t tw:border-border-soft tw:py-2 tw:first:border-t-0 tw:first:pt-0">
-    <span className="tw:flex-none tw:text-xs tw:text-faint">{label}</span>
+  <div className="flex gap-3 border-t border-border-soft py-2 first:border-t-0 first:pt-0">
+    <span className="flex-none text-xs text-faint">{label}</span>
     <span
       className={
         accent
-          ? "tw:ml-auto tw:text-right tw:text-sm tw:font-medium tw:text-accent-text"
-          : "tw:ml-auto tw:text-right tw:text-sm tw:text-foreground"
+          ? "ml-auto text-right text-sm font-medium text-accent-text"
+          : "ml-auto text-right text-sm text-foreground"
       }
     >
       {value}
@@ -27,8 +27,8 @@ const Row = ({ label, value, accent }) => (
 
 const Summary = ({ form, cronSchedule, checklistCount = 0, reached = 0 }) => {
   return (
-    <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-4">
-      <div className="tw:mb-2.5 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-2.5 text-xs font-bold tracking-wider text-faint uppercase">
         Сводка
       </div>
       <Row label="Тема" value={form.title?.trim() || "—"} />
@@ -42,7 +42,9 @@ const Summary = ({ form, cronSchedule, checklistCount = 0, reached = 0 }) => {
             value={
               form.responsibles?.length
                 ? form.responsibles
-                    .map((r) => `${r.lastName || ""} ${r.firstName || ""}`.trim())
+                    .map((r) =>
+                      `${r.lastName || ""} ${r.firstName || ""}`.trim(),
+                    )
                     .join(", ")
                 : "—"
             }

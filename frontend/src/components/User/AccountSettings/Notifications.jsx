@@ -62,10 +62,10 @@ const CATEGORIES = [
 ];
 
 const channelHeader = (Icon, full, short) => (
-  <span className="tw:flex tw:w-20 tw:flex-none tw:items-center tw:justify-center tw:gap-1.5 tw:text-xs tw:font-semibold tw:tracking-wider tw:text-muted-foreground tw:uppercase tw:max-md:w-14">
+  <span className="flex w-20 flex-none items-center justify-center gap-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase max-md:w-14">
     <Icon size={14} aria-hidden />
-    <span className="tw:max-md:hidden">{full}</span>
-    <span className="tw:md:hidden">{short}</span>
+    <span className="max-md:hidden">{full}</span>
+    <span className="md:hidden">{short}</span>
   </span>
 );
 
@@ -100,15 +100,14 @@ const Notifications = ({ user, initialPrefs }) => {
     !user.telegramBot?.isActive || !initialPrefs.telegramNotifications;
   const emailDisabled = !initialPrefs.emailNotifications;
 
-  const toggle = (key) =>
-    setValues((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggle = (key) => setValues((prev) => ({ ...prev, [key]: !prev[key] }));
 
   if (visibleCategories.length === 0) {
     return (
       <AlertMessage
         variant="warning"
         message="Уведомления отключены в глобальных настройках приложения. Для их активации обратитесь к администратору."
-        className="tw:m-5"
+        className="m-5"
       />
     );
   }
@@ -132,12 +131,12 @@ const Notifications = ({ user, initialPrefs }) => {
         </Fragment>
       ))}
 
-      <div className="tw:px-5 tw:pt-4">
+      <div className="px-5 pt-4">
         {!initialPrefs.telegramNotifications && (
           <AlertMessage
             variant="warning"
             message="Telegram-уведомления отключены в глобальных настройках приложения. Для их активации обратитесь к администратору."
-            className="tw:my-0 tw:mb-3"
+            className="my-0 mb-3"
           />
         )}
         {initialPrefs.telegramNotifications && !user.telegramBot?.isActive && (
@@ -148,36 +147,36 @@ const Notifications = ({ user, initialPrefs }) => {
                 Для отправки Telegram-уведомлений подключите бота в разделе{" "}
                 <a
                   href="#integrations"
-                  className="tw:font-medium tw:text-accent-text tw:underline"
+                  className="font-medium text-accent-text underline"
                 >
                   Интеграции
                 </a>
                 .
               </>
             }
-            className="tw:my-0 tw:mb-3"
+            className="my-0 mb-3"
           />
         )}
         {!initialPrefs.emailNotifications && (
           <AlertMessage
             variant="warning"
             message="Email-уведомления отключены в глобальных настройках приложения. Для их активации обратитесь к администратору."
-            className="tw:my-0 tw:mb-3"
+            className="my-0 mb-3"
           />
         )}
       </div>
 
-      <div className="tw:flex tw:items-center tw:px-5 tw:pt-1 tw:pb-2.5">
-        <span className="tw:flex-1" />
+      <div className="flex items-center px-5 pt-1 pb-2.5">
+        <span className="flex-1" />
         {channelHeader(RiTelegramLine, "Telegram", "TG")}
         {channelHeader(RiMailLine, "E-mail", "Mail")}
       </div>
       {visibleCategories.map((category) => (
         <div
           key={category.name}
-          className="tw:flex tw:items-center tw:border-t tw:border-border-soft tw:px-5 tw:py-3.5"
+          className="flex items-center border-t border-border-soft px-5 py-3.5"
         >
-          <span className="tw:min-w-0 tw:flex-1 tw:pe-2 tw:text-base">
+          <span className="min-w-0 flex-1 pe-2 text-base">
             {category.label}
           </span>
           {["tg", "email"].map((channel) => {
@@ -186,10 +185,10 @@ const Notifications = ({ user, initialPrefs }) => {
             return (
               <span
                 key={channel}
-                className="tw:grid tw:w-20 tw:flex-none tw:place-items-center tw:max-md:w-14"
+                className="grid w-20 flex-none place-items-center max-md:w-14"
               >
                 <Checkbox
-                  className={cn("tw:size-5", disabled && "tw:opacity-40")}
+                  className={cn("size-5", disabled && "opacity-40")}
                   checked={values[key]}
                   disabled={disabled}
                   onCheckedChange={() => toggle(key)}
@@ -203,7 +202,7 @@ const Notifications = ({ user, initialPrefs }) => {
         </div>
       ))}
 
-      <div className="tw:flex tw:justify-end tw:border-t tw:border-border-soft tw:px-5 tw:py-3">
+      <div className="flex justify-end border-t border-border-soft px-5 py-3">
         <Button
           type="submit"
           name="intent"

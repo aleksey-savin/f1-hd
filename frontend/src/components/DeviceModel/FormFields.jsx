@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Field from "@/components/app/Field";
 
-import Select from "../../UI/Select";
+import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 
 // Поля модели устройства. Рендерят `name`-атрибуты (и скрытые поля) для сабмита
 // со страницы (react-router action) и сообщают агрегированное состояние через
@@ -57,32 +57,34 @@ const DeviceModelFormFields = ({
         />
       ))}
 
-      <div className="tw:grid tw:gap-x-4 tw:sm:grid-cols-2">
+      <div className="grid gap-x-4 sm:grid-cols-2">
         <Field label="Тип устройства" htmlFor="deviceTypeId" required>
-          <Select
+          <Combobox
             id="deviceTypeId"
-            value={deviceTypes.find((dt) => dt._id === deviceTypeId) || null}
-            onChange={(option) => setDeviceTypeId(option?._id || "")}
-            options={deviceTypes}
+            value={deviceTypeId || null}
+            onChange={(id) => setDeviceTypeId(id || "")}
+            options={toOptions(deviceTypes, {
+              value: (option) => String(option._id),
+              label: (option) => option.name,
+            })}
             placeholder="Выберите тип устройства…"
-            isClearable
-            isSearchable
-            getOptionLabel={(option) => option.name}
-            getOptionValue={(option) => option._id}
+            clearable
+            clearLabel="Не выбран"
           />
         </Field>
 
         <Field label="Производитель" htmlFor="vendorId" required>
-          <Select
+          <Combobox
             id="vendorId"
-            value={vendors.find((v) => v._id === vendorId) || null}
-            onChange={(option) => setVendorId(option?._id || "")}
-            options={vendors}
+            value={vendorId || null}
+            onChange={(id) => setVendorId(id || "")}
+            options={toOptions(vendors, {
+              value: (option) => String(option._id),
+              label: (option) => option.name,
+            })}
             placeholder="Выберите производителя…"
-            isClearable
-            isSearchable
-            getOptionLabel={(option) => option.name}
-            getOptionValue={(option) => option._id}
+            clearable
+            clearLabel="Не выбран"
           />
         </Field>
       </div>
@@ -109,24 +111,16 @@ const DeviceModelFormFields = ({
           htmlFor="compatibleWithModelIds"
           hint="Модели, с которыми совместима данная."
         >
-          <Select
+          <MultiCombobox
             id="compatibleWithModelIds"
-            value={deviceModels.filter((dm) =>
-              compatibleWithModelIds.includes(dm._id),
-            )}
-            onChange={(options) =>
-              setCompatibleWithModelIds((options || []).map((o) => o._id))
-            }
-            options={deviceModels}
+            value={compatibleWithModelIds.map((id) => String(id))}
+            onChange={setCompatibleWithModelIds}
+            options={toOptions(deviceModels, {
+              value: (option) => String(option._id),
+              label: (option) =>
+                `${option.vendorId?.name || "—"} ${option.name || ""} · ${option.deviceTypeId?.name || "—"}`,
+            })}
             placeholder="Выберите совместимые модели…"
-            isClearable
-            isSearchable
-            isMulti
-            closeMenuOnSelect={false}
-            getOptionLabel={(option) =>
-              `${option.vendorId?.name || "—"} ${option.name || ""} · ${option.deviceTypeId?.name || "—"}`
-            }
-            getOptionValue={(option) => option._id}
           />
         </Field>
       )}

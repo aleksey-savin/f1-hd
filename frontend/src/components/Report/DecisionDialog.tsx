@@ -69,10 +69,10 @@ const DecisionDialog = ({
         </AlertDialogHeader>
 
         {!approve && (
-          <div className="tw:mt-1">
+          <div className="mt-1">
             <Label
               htmlFor="decision-reason"
-              className="tw:mb-1.5 tw:text-sm tw:font-semibold"
+              className="mb-1.5 text-sm font-semibold"
             >
               Причина
             </Label>
@@ -93,8 +93,7 @@ const DecisionDialog = ({
             // Разрушающее действие красит саму кнопку — цветом на диалоге
             // говорим ровно об одном
             className={cn(
-              !approve &&
-                "tw:bg-destructive tw:text-white tw:hover:bg-destructive/90",
+              !approve && "bg-destructive text-white hover:bg-destructive/90",
             )}
             onClick={(event) => {
               event.preventDefault();

@@ -61,7 +61,7 @@ import { getLocalStorageData } from "../../util/auth";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 
-const dash = <span className="tw:text-faint">—</span>;
+const dash = <span className="text-faint">—</span>;
 
 // Страница записи мониторинга — общая для инвентарных и standalone устройств:
 // hero со статусом и охватом, секции «Подключение» / «Прошивка и безопасность»
@@ -132,10 +132,7 @@ const MikrotikRecordPage = () => {
       const response = await deleteRecord(row.recordId);
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        showToast(
-          "danger",
-          data.message || "Не удалось удалить устройство",
-        );
+        showToast("danger", data.message || "Не удалось удалить устройство");
         return;
       }
       showToast("success", data.message || "Устройство удалено из мониторинга");
@@ -146,33 +143,33 @@ const MikrotikRecordPage = () => {
   };
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-5xl">
+    <div className="mx-auto w-full max-w-5xl">
       <Link
         to="/devices/mikrotik"
-        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
       >
         <RiArrowLeftSLine /> Мониторинг Mikrotik
       </Link>
 
       {/* ── Hero ── */}
-      <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <DeviceTile row={row} size="lg" />
-        <div className="tw:min-w-0 tw:flex-1">
-          <h1 className="tw:my-0 tw:truncate tw:text-3xl tw:font-semibold tw:tracking-tight">
+        <div className="min-w-0 flex-1">
+          <h1 className="my-0 truncate text-3xl font-semibold tracking-tight">
             {row.displayName}
           </h1>
-          <div className="tw:mt-1.5 tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-1 tw:text-sm">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm">
             <span
               className={cn(
-                "tw:inline-flex tw:items-center tw:gap-1.5 tw:font-semibold",
+                "inline-flex items-center gap-1.5 font-semibold",
                 statusMeta.text,
               )}
             >
               <span
                 className={cn(
-                  "tw:size-2 tw:rounded-full",
+                  "size-2 rounded-full",
                   statusMeta.dot,
-                  status === "online" && "tw:ring-4 tw:ring-primary/20",
+                  status === "online" && "ring-4 ring-primary/20",
                 )}
               />
               {statusMeta.label}
@@ -186,12 +183,12 @@ const MikrotikRecordPage = () => {
                 </>
               )}
             </span>
-            <span className="tw:text-muted-foreground">
+            <span className="text-muted-foreground">
               {[row.type, row.company?.name, row.location?.name]
                 .filter(Boolean)
                 .join(" · ")}
             </span>
-            <span className="tw:text-muted-foreground tw:tabular-nums">
+            <span className="text-muted-foreground tabular-nums">
               {row.uptime30d != null && (
                 <>
                   {row.uptime30d.toLocaleString("ru-RU", {
@@ -206,7 +203,7 @@ const MikrotikRecordPage = () => {
           </div>
         </div>
         {canManage && (
-          <div className="tw:flex tw:gap-2">
+          <div className="flex gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" aria-label="Ещё действия">
@@ -245,16 +242,16 @@ const MikrotikRecordPage = () => {
 
       {/* Статусные детали: ошибка и заявка эпизода */}
       {status === "offline" && (row.lastError || row.alertTicket) && (
-        <div className="tw:mt-3 tw:flex tw:flex-wrap tw:items-center tw:gap-x-4 tw:gap-y-1 tw:text-sm tw:text-muted-foreground">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
           {row.lastError && (
-            <span className="tw:font-mono tw:text-xs tw:text-faint">
+            <span className="font-mono text-xs text-faint">
               {row.lastError}
             </span>
           )}
           {row.alertTicket && (
             <Link
               to={`/tickets/${row.alertTicket.num}`}
-              className="tw:inline-flex tw:items-center tw:gap-1.5 tw:font-medium tw:text-accent-text tw:no-underline tw:hover:underline"
+              className="inline-flex items-center gap-1.5 font-medium text-accent-text no-underline hover:underline"
             >
               <RiPulseLine size={14} aria-hidden />
               Заявка №{row.alertTicket.num} о недоступности
@@ -266,24 +263,26 @@ const MikrotikRecordPage = () => {
       {/* ── Подключение ── */}
       <Eyebrow id="connection">Подключение</Eyebrow>
       <Panel>
-        <div className="tw:grid tw:gap-x-8 tw:md:grid-cols-2">
+        <div className="grid gap-x-8 md:grid-cols-2">
           <div>
             <PropRow
               icon={<RiGlobalLine size={17} />}
               label="Хост · порт API-SSL"
               copy={row.host ? { value: row.host, label: "Хост" } : undefined}
             >
-              <span className="tw:font-mono tw:text-sm">
-                {row.host ? `${row.host}${row.port ? `:${row.port}` : ""}` : dash}
+              <span className="font-mono text-sm">
+                {row.host
+                  ? `${row.host}${row.port ? `:${row.port}` : ""}`
+                  : dash}
               </span>
             </PropRow>
             <PropRow icon={<RiTerminalBoxLine size={17} />} label="SSH-порт">
-              <span className="tw:font-mono tw:text-sm">
+              <span className="font-mono text-sm">
                 {record.credentials?.sshPort ?? 22}
               </span>
             </PropRow>
             <PropRow icon={<RiUserLine size={17} />} label="Пользователь">
-              <span className="tw:font-mono tw:text-sm">
+              <span className="font-mono text-sm">
                 {record.credentials?.user || dash}
               </span>
             </PropRow>
@@ -301,7 +300,7 @@ const MikrotikRecordPage = () => {
                   {row.model?.name &&
                     row.boardName &&
                     row.model.name !== row.boardName && (
-                      <span className="tw:text-muted-foreground">
+                      <span className="text-muted-foreground">
                         {" "}
                         · {row.boardName}
                       </span>
@@ -320,7 +319,7 @@ const MikrotikRecordPage = () => {
                   : undefined
               }
             >
-              <span className="tw:font-mono tw:text-sm">
+              <span className="font-mono text-sm">
                 {row.serialNumber || dash}
               </span>
             </PropRow>
@@ -336,7 +335,7 @@ const MikrotikRecordPage = () => {
               {row.clientDeviceId ? (
                 <Link
                   to={`/inventory/client-devices/${row.clientDeviceId}`}
-                  className="tw:inline-flex tw:items-center tw:gap-1 tw:font-semibold tw:text-accent-text tw:no-underline tw:hover:underline"
+                  className="inline-flex items-center gap-1 font-semibold text-accent-text no-underline hover:underline"
                 >
                   {row.inventory?.modelName || row.model?.name || "Открыть"}
                   {row.inventory?.inventoryNumber &&
@@ -344,7 +343,7 @@ const MikrotikRecordPage = () => {
                   <RiExternalLinkLine size={12} aria-hidden />
                 </Link>
               ) : (
-                <span className="tw:text-muted-foreground">не связана</span>
+                <span className="text-muted-foreground">не связана</span>
               )}
             </PropRow>
             <PropRow
@@ -356,7 +355,7 @@ const MikrotikRecordPage = () => {
           </div>
         </div>
         {status !== "disabled" && row.lastCheckedAt && (
-          <div className="tw:mt-3 tw:border-t tw:border-border-soft tw:pt-2.5 tw:text-xs tw:text-faint">
+          <div className="mt-3 border-t border-border-soft pt-2.5 text-xs text-faint">
             Проверка каждые 5 минут · последняя — {formatAgo(row.lastCheckedAt)}
           </div>
         )}
@@ -365,39 +364,39 @@ const MikrotikRecordPage = () => {
       {/* ── Прошивка и безопасность ── */}
       <Eyebrow id="firmware">Прошивка и безопасность</Eyebrow>
       <Panel>
-        <div className="tw:text-base">
-          <span className="tw:font-mono tw:font-semibold">
+        <div className="text-base">
+          <span className="font-mono font-semibold">
             RouterOS {firmware?.installedVersion || row.currentFirmware || "—"}
           </span>
           {firmware?.channel && (
-            <span className="tw:text-faint"> · ветка {firmware.channel}</span>
+            <span className="text-faint"> · ветка {firmware.channel}</span>
           )}
         </div>
         {firmware?.vulnerable ? (
           <>
-            <div className="tw:mt-1.5 tw:flex tw:items-center tw:gap-1.5 tw:text-sm tw:font-semibold tw:text-warning">
+            <div className="mt-1.5 flex items-center gap-1.5 text-sm font-semibold text-warning">
               <RiShieldFlashLine size={15} aria-hidden />
               {firmware.cves.length === 1
                 ? "1 уязвимость"
                 : `Уязвимости: ${firmware.cves.length}`}{" "}
               · исправлены в {firmware.latestVersion}
             </div>
-            <div className="tw:mt-1.5">
+            <div className="mt-1.5">
               {firmware.cves.map((cve) => (
                 <div
                   key={cve.id}
-                  className="tw:flex tw:items-baseline tw:gap-2.5 tw:border-t tw:border-border-soft tw:py-1.5 tw:text-sm tw:first:border-t-0"
+                  className="flex items-baseline gap-2.5 border-t border-border-soft py-1.5 text-sm first:border-t-0"
                 >
-                  <span className="tw:flex-none tw:font-mono">{cve.id}</span>
+                  <span className="flex-none font-mono">{cve.id}</span>
                   <span
                     className={cn(
-                      "tw:flex-none tw:font-semibold tw:whitespace-nowrap",
-                      cve.score >= 9 ? "tw:text-destructive" : "tw:text-warning",
+                      "flex-none font-semibold whitespace-nowrap",
+                      cve.score >= 9 ? "text-destructive" : "text-warning",
                     )}
                   >
                     {cve.score} {cve.severity?.toLowerCase()}
                   </span>
-                  <span className="tw:min-w-0 tw:truncate tw:text-muted-foreground">
+                  <span className="min-w-0 truncate text-muted-foreground">
                     {cve.description}
                   </span>
                 </div>
@@ -405,9 +404,9 @@ const MikrotikRecordPage = () => {
             </div>
           </>
         ) : firmware?.updateAvailable ? (
-          <div className="tw:mt-1.5 tw:text-sm tw:text-muted-foreground">
+          <div className="mt-1.5 text-sm text-muted-foreground">
             Доступно обновление до{" "}
-            <span className="tw:font-mono tw:font-semibold tw:text-foreground">
+            <span className="font-mono font-semibold text-foreground">
               {firmware.latestVersion}
             </span>{" "}
             ·{" "}
@@ -415,18 +414,18 @@ const MikrotikRecordPage = () => {
               href="https://mikrotik.com/download/changelogs"
               target="_blank"
               rel="noreferrer"
-              className="tw:font-medium tw:text-accent-text tw:no-underline tw:hover:underline"
+              className="font-medium text-accent-text no-underline hover:underline"
             >
               чейнджлог
             </a>
           </div>
         ) : firmware ? (
-          <div className="tw:mt-1.5 tw:text-sm tw:text-faint">
+          <div className="mt-1.5 text-sm text-faint">
             Актуальная версия ветки. Известных уязвимостей ≥ порога из настроек
             нет.
           </div>
         ) : (
-          <div className="tw:mt-1.5 tw:text-sm tw:text-faint">
+          <div className="mt-1.5 text-sm text-faint">
             Версия прошивки ещё не считана.
           </div>
         )}
@@ -441,34 +440,30 @@ const MikrotikRecordPage = () => {
       </Eyebrow>
       <Panel>
         {activeAddresses.length === 0 ? (
-          <div className="tw:text-sm tw:text-faint">
-            Активных адресов не считано.
-          </div>
+          <div className="text-sm text-faint">Активных адресов не считано.</div>
         ) : (
           <>
-            <div className="tw:flex tw:gap-3.5 tw:border-b tw:border-border-soft tw:pb-1.5 tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
-              <span className="tw:w-44 tw:flex-none">Адрес</span>
-              <span className="tw:hidden tw:w-36 tw:flex-none tw:md:block">
-                Сеть
-              </span>
-              <span className="tw:w-32 tw:flex-none">Интерфейс</span>
-              <span className="tw:flex-1">Комментарий</span>
+            <div className="flex gap-3.5 border-b border-border-soft pb-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
+              <span className="w-44 flex-none">Адрес</span>
+              <span className="hidden w-36 flex-none md:block">Сеть</span>
+              <span className="w-32 flex-none">Интерфейс</span>
+              <span className="flex-1">Комментарий</span>
             </div>
             {activeAddresses.map((address) => (
               <div
                 key={address._id || address.address}
-                className="tw:flex tw:items-baseline tw:gap-3.5 tw:border-b tw:border-border-soft tw:py-2 tw:text-sm tw:last:border-b-0"
+                className="flex items-baseline gap-3.5 border-b border-border-soft py-2 text-sm last:border-b-0"
               >
-                <span className="tw:w-44 tw:flex-none tw:font-mono">
+                <span className="w-44 flex-none font-mono">
                   {address.address}
                 </span>
-                <span className="tw:hidden tw:w-36 tw:flex-none tw:font-mono tw:text-muted-foreground tw:md:block">
+                <span className="hidden w-36 flex-none font-mono text-muted-foreground md:block">
                   {address.network}
                 </span>
-                <span className="tw:w-32 tw:flex-none tw:truncate tw:text-muted-foreground">
+                <span className="w-32 flex-none truncate text-muted-foreground">
                   {address.interface}
                 </span>
-                <span className="tw:min-w-0 tw:flex-1 tw:truncate tw:text-faint">
+                <span className="min-w-0 flex-1 truncate text-faint">
                   {[
                     address.comment,
                     address.dynamic === "true" ? "динамический" : null,
@@ -490,7 +485,7 @@ const MikrotikRecordPage = () => {
         />
       )}
 
-      <div className="tw:mt-6 tw:border-t tw:border-border-soft tw:pt-3 tw:text-xs tw:text-faint">
+      <div className="mt-6 border-t border-border-soft pt-3 text-xs text-faint">
         Данные снимаются с устройства при каждой проверке. Точность границ
         эпизодов — до 5 минут.
       </div>

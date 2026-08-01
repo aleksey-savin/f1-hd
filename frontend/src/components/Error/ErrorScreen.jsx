@@ -11,9 +11,9 @@ const CAT_CROP = {
 };
 
 const TECH_DOT = {
-  muted: "tw:bg-faint",
-  warning: "tw:bg-warning",
-  destructive: "tw:bg-destructive",
+  muted: "bg-faint",
+  warning: "bg-warning",
+  destructive: "bg-destructive",
 };
 
 /**
@@ -38,50 +38,45 @@ const ErrorScreen = ({
 
   return (
     <div
-      className="tw:flex tw:flex-col tw:items-center tw:justify-center tw:px-4 tw:text-center"
+      className="flex flex-col items-center justify-center px-4 text-center"
       style={{ minHeight: "62svh" }}
     >
       <div
         aria-hidden="true"
-        className="tw:flex tw:items-center tw:justify-center tw:gap-1 tw:text-8xl tw:leading-none tw:font-extrabold tw:tracking-tighter tw:text-faint tw:tabular-nums tw:select-none tw:md:text-9xl"
+        className="flex items-center justify-center gap-1 text-8xl leading-none font-extrabold tracking-tighter text-faint tabular-nums select-none md:text-9xl"
       >
         {code ? (
           <>
             <span>{code[0]}</span>
             <span
-              className="tw:err-cat-settle"
+              className="err-cat-settle"
               style={{ ...CAT_CROP, height: "0.92em" }}
             />
             <span>{code[1]}</span>
           </>
         ) : (
-          <span
-            className="tw:err-cat-settle tw:h-28 tw:md:h-32"
-            style={CAT_CROP}
-          />
+          <span className="err-cat-settle h-28 md:h-32" style={CAT_CROP} />
         )}
       </div>
-      <h1 className="tw:mt-5 tw:mb-0 tw:text-xl tw:font-semibold tw:text-balance">
-        {title}
-      </h1>
-      <p className="tw:mt-2 tw:mb-0 tw:max-w-md tw:text-sm tw:leading-relaxed tw:text-pretty tw:text-muted-foreground">
+      <h1 className="mt-5 mb-0 text-xl font-semibold text-balance">{title}</h1>
+      <p className="mt-2 mb-0 max-w-md text-sm leading-relaxed text-pretty text-muted-foreground">
         {body}
       </p>
       {actions && (
-        <div className="tw:mt-6 tw:flex tw:flex-wrap tw:justify-center tw:gap-2.5">
+        <div className="mt-6 flex flex-wrap justify-center gap-2.5">
           {actions}
         </div>
       )}
       {auto && (
-        <div className="tw:mt-4 tw:flex tw:items-center tw:gap-2 tw:text-xs tw:text-muted-foreground">
-          <span className="tw:err-pulse tw:size-2 tw:rounded-full tw:bg-primary" />
+        <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="err-pulse size-2 rounded-full bg-primary" />
           {auto}
         </div>
       )}
       {tech && (
-        <div className="tw:mt-7 tw:flex tw:items-center tw:gap-2 tw:text-xs tw:text-faint tw:tabular-nums">
+        <div className="mt-7 flex items-center gap-2 text-xs text-faint tabular-nums">
           <span
-            className={`tw:size-1.5 tw:rounded-full ${TECH_DOT[tech.tone ?? "muted"]}`}
+            className={`size-1.5 rounded-full ${TECH_DOT[tech.tone ?? "muted"]}`}
           />
           {tech.text}
         </div>

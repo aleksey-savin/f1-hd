@@ -8,7 +8,7 @@ import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 import Segmented from "@/components/app/Segmented";
 
-import Select from "../../UI/Select";
+import Combobox from "@/components/app/Combobox";
 import { getLocalStorageData } from "../../util/auth";
 import { TYPE_LABEL, TYPE_ICON } from "./type-meta";
 
@@ -206,7 +206,7 @@ const LocationFormFields = ({
 
   // Опции родителя: та же компания, без себя и потомков, с учётом допустимых
   // типов; подпись — крошка пути. Текущий родитель всегда присутствует, иначе
-  // react-select не покажет выбор и сабмит может его обнулить.
+  // поле покажет плейсхолдер вместо выбранного, а сабмит его обнулит.
   const parentOptions = useMemo(() => {
     if (!location.company) return [];
     const byId = new Map(parentLocations.map((l) => [String(l._id), l]));
@@ -248,9 +248,6 @@ const LocationFormFields = ({
     initialLocation,
   ]);
 
-  const findOption = (options, value) =>
-    options.find((o) => o.value === value) || null;
-
   const isBuilding = location.type === "building";
   const isWorkplace = location.type === "workplace";
 
@@ -275,31 +272,32 @@ const LocationFormFields = ({
         />
       )}
 
-      <div className="tw:grid tw:gap-x-4 tw:sm:grid-cols-2">
+      <div className="grid gap-x-4 sm:grid-cols-2">
         <Field label="Компания" htmlFor="company" required>
-          <Select
+          <Combobox
             id="company"
             placeholder="Выберите компанию"
             options={companyOptions}
-            value={findOption(companyOptions, location.company)}
-            onChange={(o) => {
-              setField("company", o ? o.value : "");
+            value={location.company || null}
+            onChange={(value) => {
+              setField("company", value || "");
               setField("subdivision", "");
               setField("parent", "");
             }}
-            isDisabled={lockCompany}
+            disabled={lockCompany}
           />
         </Field>
 
         <Field label="Подразделение" htmlFor="subdivision">
-          <Select
+          <Combobox
             id="subdivision"
             placeholder="Выберите подразделение"
             options={subdivisionOptions}
-            value={findOption(subdivisionOptions, location.subdivision)}
-            onChange={(o) => setField("subdivision", o ? o.value : "")}
-            isDisabled={!location.company}
-            isClearable
+            value={location.subdivision || null}
+            onChange={(value) => setField("subdivision", value || "")}
+            disabled={!location.company}
+            clearable
+            clearLabel="Без подразделения"
           />
         </Field>
       </div>
@@ -335,7 +333,7 @@ const LocationFormFields = ({
         htmlFor="parent"
         hint="Где это расположение находится в иерархии: здание → этаж → помещение → рабочее место."
       >
-        <Select
+        <Combobox
           id="parent"
           placeholder={
             isBuilding
@@ -343,18 +341,19 @@ const LocationFormFields = ({
               : "Выберите родительское расположение"
           }
           options={parentOptions}
-          value={findOption(parentOptions, location.parent)}
-          onChange={(o) => setField("parent", o ? o.value : "")}
-          isDisabled={!location.company || isBuilding}
-          isClearable
+          value={location.parent || null}
+          onChange={(value) => setField("parent", value || "")}
+          disabled={!location.company || isBuilding}
+          clearable
+          clearLabel="Не выбрано"
         />
       </Field>
 
       {/* Условное поле: только для рабочего места (за ним закрепляется
           сотрудник — ответственный за технику на этом месте) */}
       {isWorkplace && (
-        <div className="tw:mb-4 tw:rounded-xl tw:bg-primary/5 tw:p-3 tw:inset-ring tw:inset-ring-border-soft">
-          <div className="tw:mb-2 tw:inline-flex tw:items-center tw:gap-1.5 tw:text-[11px] tw:font-bold tw:tracking-wider tw:text-accent-text tw:uppercase">
+        <div className="mb-4 rounded-xl bg-primary/5 p-3 inset-ring inset-ring-border-soft">
+          <div className="mb-2 inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-accent-text uppercase">
             <RiUser3Line size={13} aria-hidden /> Для рабочего места
           </div>
           <Field
@@ -362,15 +361,16 @@ const LocationFormFields = ({
             htmlFor="assignedUser"
             required
             hint="Кабинет закрепляется за сотрудником — он ответственный за технику на этом месте."
-            className="tw:mb-0"
+            className="mb-0"
           >
-            <Select
+            <Combobox
               id="assignedUser"
               placeholder="Выберите сотрудника"
               options={userOptions}
-              value={findOption(userOptions, location.assignedUser)}
-              onChange={(o) => setField("assignedUser", o ? o.value : "")}
-              isClearable
+              value={location.assignedUser || null}
+              onChange={(value) => setField("assignedUser", value || "")}
+              clearable
+              clearLabel="Не закреплено"
             />
           </Field>
         </div>

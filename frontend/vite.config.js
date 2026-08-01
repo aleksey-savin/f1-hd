@@ -38,23 +38,15 @@ export default defineConfig(({ command }) => ({
           // Vendor chunk for third-party libraries
           vendor: ["react", "react-dom", "react-router"],
           // UI libraries chunk
-          ui: ["react-bootstrap", "bootstrap", "react-icons", "framer-motion"],
-          // Calendar and date utilities
-          calendar: [
-            "@fullcalendar/core",
-            "@fullcalendar/daygrid",
-            "@fullcalendar/list",
-            "@fullcalendar/react",
-            "date-fns",
-            "date-fns-tz",
-            "react-datepicker",
-          ],
+          ui: ["react-icons", "framer-motion"],
+          // Date utilities
+          dates: ["date-fns", "date-fns-tz"],
           // Form and input utilities
-          forms: ["react-select", "react-image-crop"],
+          forms: ["react-image-crop"],
           // Editor and rich text
           editor: ["dompurify"],
           // Utilities
-          utils: ["pad", "prop-types", "zustand"],
+          utils: ["zustand"],
         },
         // Optimize asset filenames for better caching
         assetFileNames: (assetInfo) => {
@@ -77,16 +69,7 @@ export default defineConfig(({ command }) => ({
   },
   // Optimize dependencies
   optimizeDeps: {
-    include: [
-      "react",
-      "react-dom",
-      "react-router",
-      "react-bootstrap",
-      "bootstrap",
-      "date-fns",
-      "zustand",
-      "pad",
-    ],
+    include: ["react", "react-dom", "react-router", "date-fns", "zustand"],
   },
   // Configure CSS preprocessing
   css: {

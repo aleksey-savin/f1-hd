@@ -41,7 +41,7 @@ const PrefsModules = ({ prefs }) => {
       <SettingRow
         title="База знаний"
         htmlFor="prefs-module-kb"
-        className="tw:py-3"
+        className="py-3"
       >
         <Switch
           id="prefs-module-kb"
@@ -52,7 +52,7 @@ const PrefsModules = ({ prefs }) => {
       <SettingRow
         title="Учёт времени"
         htmlFor="prefs-module-time"
-        className="tw:py-3"
+        className="py-3"
       >
         <Switch
           id="prefs-module-time"
@@ -64,7 +64,7 @@ const PrefsModules = ({ prefs }) => {
         title="Учёт финансов"
         hint="Работает поверх учёта времени."
         htmlFor="prefs-module-finances"
-        className={modules.timeTracking ? "tw:py-3" : "tw:py-3 tw:opacity-60"}
+        className={modules.timeTracking ? "py-3" : "py-3 opacity-60"}
       >
         <Switch
           id="prefs-module-finances"
@@ -76,7 +76,7 @@ const PrefsModules = ({ prefs }) => {
       <SettingRow
         title="Учёт техники"
         htmlFor="prefs-module-inventory"
-        className="tw:py-3"
+        className="py-3"
       >
         <Switch
           id="prefs-module-inventory"
@@ -84,8 +84,8 @@ const PrefsModules = ({ prefs }) => {
           onCheckedChange={(value) => toggle("inventory", value)}
         />
       </SettingRow>
-      <div className="tw:mx-5 tw:my-3 tw:flex tw:items-start tw:gap-2.5 tw:rounded-lg tw:bg-primary/10 tw:px-4 tw:py-3 tw:text-sm tw:text-accent-text">
-        <RiInformationLine size={16} aria-hidden className="tw:mt-0.5 tw:flex-none" />
+      <div className="mx-5 my-3 flex items-start gap-2.5 rounded-lg bg-primary/10 px-4 py-3 text-sm text-accent-text">
+        <RiInformationLine size={16} aria-hidden className="mt-0.5 flex-none" />
         Выключенный модуль скрывает свои разделы у всех пользователей и свои
         секции на этой странице.
       </div>

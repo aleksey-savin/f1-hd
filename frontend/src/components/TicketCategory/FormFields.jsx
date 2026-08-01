@@ -5,12 +5,12 @@ import { Textarea } from "@/components/ui/textarea";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
-import Select from "../../UI/Select";
+import { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import useInitialPrefsStore from "../../store/prefs";
 
-// Поля категории заявок. UI/Select со `name` кладёт значения в FormData
-// скрытыми input'ами (multi → getAll в экшене страницы); SwitchField — скрытым
-// "true"/"false". Блок «Услуги» и «в рамках тарифа» — только при активном
+// Поля категории заявок. MultiCombobox с `name` кладёт значения в FormData
+// скрытыми input'ами по одному на значение (getAll в экшене страницы);
+// SwitchField — скрытым "true"/"false". Блок «Услуги» и «в рамках тарифа» — только при активном
 // модуле финансов (как в легаси-форме).
 const TicketCategoryFormFields = ({
   ticketCategory,
@@ -69,37 +69,41 @@ const TicketCategoryFormFields = ({
         htmlFor="users"
         hint="Кому доступна категория при создании заявки"
       >
-        <Select
+        <MultiCombobox
           id="users"
           name="users"
           placeholder="Выберите пользователей"
-          closeMenuOnSelect={false}
-          isClearable
-          isSearchable
-          isMulti
-          value={users}
-          options={usersList}
-          getOptionLabel={(option) => `${option.lastName} ${option.firstName}`}
-          getOptionValue={(option) => option._id}
-          onChange={(selected) => setUsers(selected || [])}
+          value={(users || []).map((user) => String(user._id))}
+          options={toOptions(usersList, {
+            value: (option) => String(option._id),
+            label: (option) => `${option.lastName} ${option.firstName}`,
+          })}
+          onChange={(ids) =>
+            setUsers(
+              usersList.filter((option) => ids.includes(String(option._id))),
+            )
+          }
         />
       </Field>
       {financesActive && (
         <>
           <Field label="Услуги" htmlFor="servicePlans">
-            <Select
+            <MultiCombobox
               id="servicePlans"
               name="servicePlans"
               placeholder="Выберите услуги"
-              closeMenuOnSelect={false}
-              isClearable
-              isSearchable
-              isMulti
-              value={servicePlans}
-              options={servicePlanOptions}
-              getOptionLabel={(option) => option.title}
-              getOptionValue={(option) => option._id}
-              onChange={(selected) => setServicePlans(selected || [])}
+              value={(servicePlans || []).map((plan) => String(plan._id))}
+              options={toOptions(servicePlanOptions, {
+                value: (option) => String(option._id),
+                label: (option) => option.title,
+              })}
+              onChange={(ids) =>
+                setServicePlans(
+                  servicePlanOptions.filter((option) =>
+                    ids.includes(String(option._id)),
+                  ),
+                )
+              }
             />
           </Field>
           <SwitchField

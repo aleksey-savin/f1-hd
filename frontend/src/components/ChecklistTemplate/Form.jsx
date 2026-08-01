@@ -90,7 +90,7 @@ const ChecklistTemplateForm = ({ title }) => {
       </Field>
 
       <Field label="Пункты" required>
-        <div className="tw:rounded-xl tw:border tw:border-border tw:p-3">
+        <div className="rounded-xl border border-border p-3">
           <Checklist
             mode="edit"
             items={items}

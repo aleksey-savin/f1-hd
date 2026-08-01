@@ -14,7 +14,7 @@ const getFullName = (person) =>
   "Без имени";
 
 const iconLinkClass =
-  "tw:grid tw:size-8 tw:flex-none tw:cursor-pointer tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:no-underline tw:transition-colors tw:hover:bg-border-soft tw:hover:text-foreground";
+  "grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-faint no-underline transition-colors hover:bg-border-soft hover:text-foreground";
 
 const PersonRow = ({ person }) => {
   const name = getFullName(person);
@@ -22,27 +22,27 @@ const PersonRow = ({ person }) => {
   const profileId = person.id?._id || person.id;
 
   return (
-    <div className="tw:flex tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:py-2.5 tw:first:border-t-0">
+    <div className="flex items-center gap-3 border-t border-border-soft py-2.5 first:border-t-0">
       <span
         aria-hidden
         className={cn(
-          "tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-full tw:bg-accent tw:text-xs tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border",
-          inactive && "tw:opacity-60",
+          "grid size-9 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border",
+          inactive && "opacity-60",
         )}
       >
         {monogramFor(name)}
       </span>
-      <div className="tw:min-w-0 tw:flex-1">
+      <div className="min-w-0 flex-1">
         <div
           className={cn(
-            "tw:truncate tw:text-[15px] tw:leading-tight tw:font-medium",
-            inactive && "tw:text-muted-foreground",
+            "truncate text-[15px] leading-tight font-medium",
+            inactive && "text-muted-foreground",
           )}
         >
           {profileId ? (
             <Link
               to={`/users/${profileId}`}
-              className="tw:text-inherit tw:no-underline tw:hover:underline"
+              className="text-inherit no-underline hover:underline"
             >
               {name}
             </Link>
@@ -50,12 +50,12 @@ const PersonRow = ({ person }) => {
             name
           )}
         </div>
-        <div className="tw:truncate tw:text-[13px] tw:text-muted-foreground">
+        <div className="truncate text-[13px] text-muted-foreground">
           {person.position || "—"}
-          {inactive && <span className="tw:text-faint"> · отключён</span>}
+          {inactive && <span className="text-faint"> · отключён</span>}
         </div>
       </div>
-      <div className="tw:flex tw:flex-none tw:items-center tw:gap-0.5">
+      <div className="flex flex-none items-center gap-0.5">
         {person.email && (
           <a
             href={`mailto:${person.email}`}
@@ -85,15 +85,13 @@ const Group = ({ title, people }) => (
   <>
     <SubLabel count={people?.length || undefined}>{title}</SubLabel>
     {people && people.length > 0 ? (
-      <div className="tw:mb-1">
+      <div className="mb-1">
         {people.map((person) => (
           <PersonRow key={person._id || person.id} person={person} />
         ))}
       </div>
     ) : (
-      <div className="tw:mb-1 tw:pb-1 tw:text-sm tw:text-muted-foreground">
-        Не указаны
-      </div>
+      <div className="mb-1 pb-1 text-sm text-muted-foreground">Не указаны</div>
     )}
   </>
 );
@@ -106,7 +104,7 @@ const ResponsiblesSection = ({ company, id }) => (
         title="Со стороны клиента"
         people={company.clientsSideResponsibles}
       />
-      <div className="tw:mt-4">
+      <div className="mt-4">
         <Group title="Со стороны исполнителя" people={company.responsibles} />
       </div>
     </Panel>

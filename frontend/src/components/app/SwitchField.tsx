@@ -32,8 +32,8 @@ const SwitchField = ({
   return (
     <div
       className={cn(
-        "tw:flex tw:items-start tw:gap-3 tw:py-3",
-        divider && "tw:border-t tw:border-border-soft",
+        "flex items-start gap-3 py-3",
+        divider && "border-t border-border-soft",
         className,
       )}
     >
@@ -42,15 +42,12 @@ const SwitchField = ({
         checked={checked}
         onCheckedChange={onCheckedChange}
         disabled={disabled}
-        className="tw:mt-0.5"
+        className="mt-0.5"
       />
-      <Label
-        htmlFor={id}
-        className="tw:grid tw:gap-0.5 tw:text-base tw:font-medium"
-      >
+      <Label htmlFor={id} className="grid gap-0.5 text-base font-medium">
         {label}
         {hint && (
-          <span className="tw:text-sm tw:font-normal tw:text-muted-foreground">
+          <span className="text-sm font-normal text-muted-foreground">
             {hint}
           </span>
         )}

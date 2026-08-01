@@ -20,9 +20,15 @@ import { cn } from "@/lib/utils";
 
 import CategoryFixDialog from "../../components/Report/CategoryFixDialog";
 import EmptyReport from "../../components/Report/EmptyReport";
-import PipelineRail, { STAGES, plural } from "../../components/Report/PipelineRail";
+import PipelineRail, {
+  STAGES,
+  plural,
+} from "../../components/Report/PipelineRail";
 import PageShell from "@/components/app/PageShell";
-import { formatMinutes, formatMoney } from "../../components/Report/work-format";
+import {
+  formatMinutes,
+  formatMoney,
+} from "../../components/Report/work-format";
 import usePolling from "../../hooks/use-polling";
 import useApprovalStore from "../../store/reports/approval";
 import type { PreviewRow, ReportRow } from "../../types/approval";
@@ -47,7 +53,7 @@ const monthOf = (iso: string) => (iso ? String(iso).slice(0, 7) : "");
 // Выравнивание числовых колонок задаётся ОДНОЙ строкой и подставляется и в
 // шапку, и в ячейку: пока классы писались по отдельности, они разъезжались —
 // заголовок прижимался к одному краю колонки, значение к другому
-const NUM = "tw:text-right tw:tabular-nums";
+const NUM = "text-right tabular-nums";
 
 const Approval = () => {
   const store = useApprovalStore();
@@ -132,7 +138,8 @@ const Approval = () => {
         `${API}/api/approval/unrelated/${row.company._id}/${row.month}`,
         { headers: { Authorization: "Bearer " + token } },
       );
-      if (!response.ok) throw new Error("Не удалось загрузить работы вне услуг");
+      if (!response.ok)
+        throw new Error("Не удалось загрузить работы вне услуг");
       const payload = await response.json();
       setFixQueue(payload.works || []);
     } catch (error) {
@@ -166,7 +173,7 @@ const Approval = () => {
     <AlertMessage
       variant="danger"
       message={
-        <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+        <span className="flex flex-wrap items-center gap-3">
           {store.error}
           <Button variant="outline" size="xs" onClick={() => store.fetch()}>
             Повторить
@@ -182,13 +189,13 @@ const Approval = () => {
         {store.error ? (
           errorBanner
         ) : (
-          <div className="tw:space-y-6">
-            <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-5 tw:xl:gap-4">
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-5 xl:gap-4">
               {[0, 1, 2, 3, 4].map((index) => (
-                <Skeleton key={index} className="tw:h-32 tw:rounded-xl" />
+                <Skeleton key={index} className="h-32 rounded-xl" />
               ))}
             </div>
-            <Skeleton className="tw:h-72 tw:rounded-xl" />
+            <Skeleton className="h-72 rounded-xl" />
           </div>
         )}
       </PageShell>
@@ -211,13 +218,14 @@ const Approval = () => {
   // ровно как в отчёте «Компании»
   if (data.scope.isClientView) {
     const awaiting = (data.reports || []).filter(
-      (row) => row.canDecide || (row.parts || []).some((part) => part.canDecide),
+      (row) =>
+        row.canDecide || (row.parts || []).some((part) => part.canDecide),
     );
     const awaitingIds = new Set(awaiting.map((row) => row._id));
 
     return (
       <PageShell title="Согласование работ" toolbar={toolbar}>
-        <div className={cn("tw:space-y-1", store.isLoading && "tw:opacity-60")}>
+        <div className={cn("space-y-1", store.isLoading && "opacity-60")}>
           {errorBanner}
           <ClientSummary
             awaiting={awaiting}
@@ -236,7 +244,7 @@ const Approval = () => {
 
   return (
     <PageShell title="Согласование работ" toolbar={toolbar}>
-      <div className={cn("tw:space-y-1", store.isLoading && "tw:opacity-60")}>
+      <div className={cn("space-y-1", store.isLoading && "opacity-60")}>
         {errorBanner}
         {actionError && <AlertMessage variant="danger" message={actionError} />}
 
@@ -253,11 +261,13 @@ const Approval = () => {
             type="button"
             onClick={() => store.setStage("declined")}
             className={cn(
-              "tw:mt-2 tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2 tw:rounded-lg tw:border-0 tw:bg-transparent tw:px-1 tw:py-1 tw:text-sm tw:font-semibold tw:outline-none tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
-              stage === "declined" ? "tw:text-destructive" : "tw:text-muted-foreground",
+              "mt-2 inline-flex cursor-pointer appearance-none items-center gap-2 rounded-lg border-0 bg-transparent px-1 py-1 text-sm font-semibold outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
+              stage === "declined"
+                ? "text-destructive"
+                : "text-muted-foreground",
             )}
           >
-            <RiAlertLine className="tw:text-destructive" />
+            <RiAlertLine className="text-destructive" />
             Отклонено клиентом: {data.stages.declined?.count} на{" "}
             {formatMoney(data.stages.declined?.total || 0)}
           </button>
@@ -347,7 +357,7 @@ const PreviewTable = ({
     <>
       <Eyebrow count={rows.length}>Превью</Eyebrow>
 
-      <div className="tw:space-y-5">
+      <div className="space-y-5">
         {months.map(([month, companies]) => {
           const monthRows = [...companies.values()].flat();
           const totals = monthRows.reduce(
@@ -363,32 +373,32 @@ const PreviewTable = ({
           return (
             <div
               key={month}
-              className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card"
+              className="overflow-hidden rounded-xl border border-border bg-card"
             >
-              <div className="tw:border-b tw:border-border tw:px-4 tw:py-2.5 tw:text-xs tw:font-bold tw:tracking-wider tw:text-muted-foreground tw:uppercase">
+              <div className="border-b border-border px-4 py-2.5 text-xs font-bold tracking-wider text-muted-foreground uppercase">
                 {formatMonthLabel(month)}
               </div>
-              <div className="tw:px-2 tw:py-1.5">
+              <div className="px-2 py-1.5">
                 {/* table-fixed: колонки берут ширину из шапки, поэтому шапка и
                     тело не разъезжаются, а длинное название услуги переносится
                     вместо растягивания таблицы */}
-                <Table className="tw:table-fixed">
+                <Table className="table-fixed">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Услуга</TableHead>
-                      <TableHead className={cn("tw:w-28 tw:whitespace-normal", NUM)}>
+                      <TableHead className={cn("w-28 whitespace-normal", NUM)}>
                         Часы
                       </TableHead>
-                      <TableHead className={cn("tw:w-32 tw:whitespace-normal", NUM)}>
+                      <TableHead className={cn("w-32 whitespace-normal", NUM)}>
                         В тарифе
                       </TableHead>
-                      <TableHead className={cn("tw:w-32 tw:whitespace-normal", NUM)}>
+                      <TableHead className={cn("w-32 whitespace-normal", NUM)}>
                         Сверх тарифа
                       </TableHead>
-                      <TableHead className={cn("tw:w-32 tw:whitespace-normal", NUM)}>
+                      <TableHead className={cn("w-32 whitespace-normal", NUM)}>
                         Итого
                       </TableHead>
-                      <TableHead className="tw:w-56" />
+                      <TableHead className="w-56" />
                     </TableRow>
                   </TableHeader>
                   {[...companies.values()].map((companyRows) => {
@@ -396,17 +406,17 @@ const PreviewTable = ({
                     const blocked = companyRows[0].unrelatedWorksCount > 0;
                     return (
                       <TableBody key={company._id}>
-                        <TableRow className="tw:bg-accent tw:hover:bg-accent">
+                        <TableRow className="bg-accent hover:bg-accent">
                           <TableCell
                             colSpan={6}
-                            className="tw:py-2 tw:font-semibold tw:whitespace-normal"
+                            className="py-2 font-semibold whitespace-normal"
                           >
                             {company.fullTitle || company.alias}
                             {blocked && (
                               <Button
                                 size="xs"
                                 variant="outline"
-                                className="tw:ms-3 tw:text-warning"
+                                className="ms-3 text-warning"
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   onUnrelated(companyRows[0]);
@@ -430,12 +440,12 @@ const PreviewTable = ({
                             <TableRow
                               key={key}
                               onClick={() => onOpen(row)}
-                              className="tw:cursor-pointer"
+                              className="cursor-pointer"
                             >
-                              <TableCell className="tw:whitespace-normal tw:ps-6">
+                              <TableCell className="whitespace-normal ps-6">
                                 {row.servicePlan.title}
                                 {row.approval.required && (
-                                  <div className="tw:text-sm tw:text-warning">
+                                  <div className="text-sm text-warning">
                                     согласование с клиентом
                                     {row.approval.bySubdivisions &&
                                       ", по филиалам"}
@@ -453,11 +463,11 @@ const PreviewTable = ({
                                   ? formatMoney(row.additionalPrice)
                                   : "—"}
                               </TableCell>
-                              <TableCell className={cn(NUM, "tw:font-semibold")}>
+                              <TableCell className={cn(NUM, "font-semibold")}>
                                 {formatMoney(row.total)}
                               </TableCell>
                               <TableCell
-                                className="tw:text-right tw:whitespace-nowrap"
+                                className="text-right whitespace-nowrap"
                                 onClick={(event) => event.stopPropagation()}
                               >
                                 <Button
@@ -482,16 +492,20 @@ const PreviewTable = ({
                     );
                   })}
                   <TableFooter>
-                    <TableRow className="tw:text-base tw:font-semibold">
+                    <TableRow className="text-base font-semibold">
                       <TableCell>Итого за месяц</TableCell>
                       <TableCell className={NUM}>
                         {formatMinutes(totals.minutes)}
                       </TableCell>
-                      <TableCell className={NUM}>{formatMoney(totals.price)}</TableCell>
+                      <TableCell className={NUM}>
+                        {formatMoney(totals.price)}
+                      </TableCell>
                       <TableCell className={NUM}>
                         {formatMoney(totals.additional)}
                       </TableCell>
-                      <TableCell className={NUM}>{formatMoney(totals.total)}</TableCell>
+                      <TableCell className={NUM}>
+                        {formatMoney(totals.total)}
+                      </TableCell>
                       <TableCell />
                     </TableRow>
                   </TableFooter>
@@ -532,18 +546,19 @@ const ClientSummary = ({
         hint="Все отчёты по вашим услугам согласованы. Новый появится здесь, как только исполнитель его пришлёт."
       />
     ) : (
-      <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-4">
+      <div className="rounded-xl border border-border bg-card px-4">
         {awaiting.map((row) => (
           <div
             key={row._id}
-            className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-5 tw:gap-y-2 tw:border-t tw:border-border-soft tw:py-3.5 tw:first:border-t-0"
+            className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border-soft py-3.5 first:border-t-0"
           >
-            <div className="tw:min-w-56 tw:flex-1">
-              <div className="tw:font-semibold">
+            <div className="min-w-56 flex-1">
+              <div className="font-semibold">
                 {row.servicePlan?.title} · {row.period}
               </div>
-              <div className="tw:mt-0.5 tw:text-sm tw:text-muted-foreground">
-                {row.worksCount} {plural(row.worksCount, ["работа", "работы", "работ"])}
+              <div className="mt-0.5 text-sm text-muted-foreground">
+                {row.worksCount}{" "}
+                {plural(row.worksCount, ["работа", "работы", "работ"])}
                 {row.attempt > 1 && ` · попытка ${row.attempt}`}
                 {" · "}
                 {(row.parts || []).some((part) => part.canDecide)
@@ -558,12 +573,12 @@ const ClientSummary = ({
             </div>
             {/* Итог договора руководителю филиала не показывается — у него
                 своя часть и только деньги за нерабочее время */}
-            <div className="tw:text-end tw:tabular-nums">
-              <div className="tw:text-lg tw:font-semibold">
+            <div className="text-end tabular-nums">
+              <div className="text-lg font-semibold">
                 {formatMoney(row.total ?? row.additionalPrice ?? 0)}
               </div>
               {row.total == null && (
-                <div className="tw:text-xs tw:text-muted-foreground">
+                <div className="text-xs text-muted-foreground">
                   сверх тарифа
                 </div>
               )}
@@ -584,13 +599,13 @@ const ClientSummary = ({
         hint="Согласованные отчёты остаются в этом списке — по ним всегда видно, кто и когда поставил подпись."
       />
     ) : (
-      <div className="tw:overflow-x-auto tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-2 tw:py-1.5">
+      <div className="overflow-x-auto rounded-xl border border-border bg-card px-2 py-1.5">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Период</TableHead>
               <TableHead>Услуга</TableHead>
-              <TableHead className={cn("tw:w-36 tw:whitespace-normal", NUM)}>
+              <TableHead className={cn("w-36 whitespace-normal", NUM)}>
                 Сумма
               </TableHead>
               <TableHead>Состояние</TableHead>
@@ -601,15 +616,15 @@ const ClientSummary = ({
               <TableRow
                 key={row._id}
                 onClick={() => onOpen(row._id)}
-                className="tw:cursor-pointer"
+                className="cursor-pointer"
               >
-                <TableCell className="tw:whitespace-nowrap">
+                <TableCell className="whitespace-nowrap">
                   {row.period}
                 </TableCell>
-                <TableCell className="tw:whitespace-normal">
+                <TableCell className="whitespace-normal">
                   {row.servicePlan?.title}
                 </TableCell>
-                <TableCell className={cn(NUM, "tw:font-semibold")}>
+                <TableCell className={cn(NUM, "font-semibold")}>
                   {formatMoney(row.total ?? row.additionalPrice ?? 0)}
                 </TableCell>
                 <TableCell>
@@ -627,20 +642,18 @@ const ClientSummary = ({
 /** Срок по договору: не дата сама по себе, а сколько дней осталось. */
 const Deadline = ({ at }: { at?: string | null }) => {
   if (!at) return null;
-  const days = Math.ceil(
-    (new Date(at).getTime() - Date.now()) / 86400000,
-  );
+  const days = Math.ceil((new Date(at).getTime() - Date.now()) / 86400000);
   return (
-    <div className="tw:text-sm tw:whitespace-nowrap tw:text-muted-foreground">
+    <div className="text-sm whitespace-nowrap text-muted-foreground">
       до {formatShortDate(at)} ·{" "}
       <b
         className={cn(
-          "tw:font-semibold",
+          "font-semibold",
           days <= 0
-            ? "tw:text-destructive"
+            ? "text-destructive"
             : days <= 2
-              ? "tw:text-warning"
-              : "tw:text-foreground",
+              ? "text-warning"
+              : "text-foreground",
         )}
       >
         {days <= 0
@@ -660,16 +673,16 @@ const Deadline = ({ at }: { at?: string | null }) => {
 const ClientStateCell = ({ row }: { row: ReportRow }) => {
   if (row.status === "declined") {
     return (
-      <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-destructive">
-        <span className="tw:size-2 tw:rounded-full tw:bg-destructive tw:ring-4 tw:ring-destructive/20" />
+      <span className="inline-flex items-center gap-2 text-sm font-semibold text-destructive">
+        <span className="size-2 rounded-full bg-destructive ring-4 ring-destructive/20" />
         Отклонён — вернулся исполнителю
       </span>
     );
   }
   if (row.status === "pendingApproval") {
     return (
-      <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground">
-        <span className="tw:size-2 tw:rounded-full tw:bg-info tw:ring-4 tw:ring-info/20" />
+      <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="size-2 rounded-full bg-info ring-4 ring-info/20" />
         {row.awaiting?.kind === "subdivisions"
           ? `Ждём подразделения: подписано ${row.awaiting.approved} из ${row.awaiting.total}`
           : `Ждём подписи${row.awaiting?.name ? ` · ${row.awaiting.name}` : ""}`}
@@ -678,18 +691,18 @@ const ClientStateCell = ({ row }: { row: ReportRow }) => {
   }
   if (row.approval?.autoApprovedAt) {
     return (
-      <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground">
-        <span className="tw:size-2 tw:rounded-full tw:bg-faint tw:ring-4 tw:ring-faint/20" />
+      <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="size-2 rounded-full bg-faint ring-4 ring-faint/20" />
         Согласовано автоматически
-        <span className="tw:text-faint">
+        <span className="text-faint">
           · {formatShortDate(row.approval.autoApprovedAt)} · срок вышел
         </span>
       </span>
     );
   }
   return (
-    <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-accent-text">
-      <span className="tw:size-2 tw:rounded-full tw:bg-primary tw:ring-4 tw:ring-primary/20" />
+    <span className="inline-flex items-center gap-2 text-sm font-semibold text-accent-text">
+      <span className="size-2 rounded-full bg-primary ring-4 ring-primary/20" />
       Согласовано
     </span>
   );
@@ -724,14 +737,14 @@ const ReportsTable = ({
   return (
     <>
       <Eyebrow count={rows.length}>{label}</Eyebrow>
-      <div className="tw:overflow-x-auto tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-2 tw:py-1.5">
+      <div className="overflow-x-auto rounded-xl border border-border bg-card px-2 py-1.5">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Компания и услуга</TableHead>
               <TableHead>Период</TableHead>
               <TableHead>Состояние</TableHead>
-              <TableHead className={cn("tw:w-36 tw:whitespace-normal", NUM)}>
+              <TableHead className={cn("w-36 whitespace-normal", NUM)}>
                 Сумма
               </TableHead>
             </TableRow>
@@ -741,29 +754,29 @@ const ReportsTable = ({
               <TableRow
                 key={row._id}
                 onClick={() => onOpen(row._id)}
-                className="tw:cursor-pointer"
+                className="cursor-pointer"
               >
-                <TableCell className="tw:font-medium">
+                <TableCell className="font-medium">
                   {row.company?.alias}
-                  <div className="tw:text-sm tw:font-normal tw:text-muted-foreground">
+                  <div className="text-sm font-normal text-muted-foreground">
                     {row.servicePlan?.title}
                     {row.attempt > 1 && ` · попытка ${row.attempt}`}
                   </div>
                 </TableCell>
-                <TableCell className="tw:whitespace-nowrap">
+                <TableCell className="whitespace-nowrap">
                   {row.period}
                 </TableCell>
                 <TableCell>
                   <StateCell row={row} />
                 </TableCell>
-                <TableCell className={cn(NUM, "tw:font-semibold")}>
+                <TableCell className={cn(NUM, "font-semibold")}>
                   {formatMoney(row.total)}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
           <TableFooter>
-            <TableRow className="tw:text-base tw:font-semibold">
+            <TableRow className="text-base font-semibold">
               <TableCell colSpan={3}>Итого</TableCell>
               <TableCell className={NUM}>{formatMoney(total)}</TableCell>
             </TableRow>
@@ -782,11 +795,11 @@ const StateCell = ({ row }: { row: ReportRow }) => {
   if (row.status === "declined") {
     const declined = row.parts?.find((part) => part.status === "declined");
     return (
-      <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-destructive">
-        <span className="tw:size-2 tw:rounded-full tw:bg-destructive tw:ring-4 tw:ring-destructive/20" />
+      <span className="inline-flex items-center gap-2 text-sm font-semibold text-destructive">
+        <span className="size-2 rounded-full bg-destructive ring-4 ring-destructive/20" />
         Отклонён
         {declined?.decidedBy && (
-          <span className="tw:font-normal tw:text-muted-foreground">
+          <span className="font-normal text-muted-foreground">
             · {declined.decidedBy.lastName} {declined.decidedBy.firstName}
           </span>
         )}
@@ -797,15 +810,15 @@ const StateCell = ({ row }: { row: ReportRow }) => {
   if (row.status === "pendingApproval") {
     const deadline = row.approval?.deadlineAt;
     return (
-      <span className="tw:flex tw:flex-col tw:gap-0.5">
-        <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-info">
-          <span className="tw:size-2 tw:rounded-full tw:bg-info tw:ring-4 tw:ring-info/20" />
+      <span className="flex flex-col gap-0.5">
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-info">
+          <span className="size-2 rounded-full bg-info ring-4 ring-info/20" />
           {row.awaiting?.kind === "subdivisions"
             ? `Филиалы: подписано ${row.awaiting.approved} из ${row.awaiting.total}`
             : row.awaiting?.name || "Ждём подписи"}
         </span>
         {deadline && (
-          <span className="tw:text-xs tw:text-faint tw:tabular-nums">
+          <span className="text-xs text-faint tabular-nums">
             автоподпись {formatShortDate(deadline)}
           </span>
         )}
@@ -815,8 +828,8 @@ const StateCell = ({ row }: { row: ReportRow }) => {
 
   if (row.status === "awaitingPayment") {
     return (
-      <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground">
-        <span className="tw:size-2 tw:rounded-full tw:bg-warning tw:ring-4 tw:ring-warning/20" />
+      <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="size-2 rounded-full bg-warning ring-4 ring-warning/20" />
         Счёт {row.invoice?.number ? `№ ${row.invoice.number}` : "выставлен"}
         {row.invoice?.date && ` от ${formatShortDate(row.invoice.date)}`}
       </span>
@@ -825,11 +838,11 @@ const StateCell = ({ row }: { row: ReportRow }) => {
 
   if (row.status === "paid") {
     return (
-      <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-accent-text">
-        <span className="tw:size-2 tw:rounded-full tw:bg-primary tw:ring-4 tw:ring-primary/20" />
+      <span className="inline-flex items-center gap-2 text-sm font-semibold text-accent-text">
+        <span className="size-2 rounded-full bg-primary ring-4 ring-primary/20" />
         Оплачен
         {row.invoice?.fullyPaidAt && (
-          <span className="tw:font-normal tw:text-muted-foreground">
+          <span className="font-normal text-muted-foreground">
             · {formatShortDate(row.invoice.fullyPaidAt)}
           </span>
         )}
@@ -838,8 +851,8 @@ const StateCell = ({ row }: { row: ReportRow }) => {
   }
 
   return (
-    <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-accent-text">
-      <span className="tw:size-2 tw:rounded-full tw:bg-primary tw:ring-4 tw:ring-primary/20" />
+    <span className="inline-flex items-center gap-2 text-sm font-semibold text-accent-text">
+      <span className="size-2 rounded-full bg-primary ring-4 ring-primary/20" />
       {row.approval?.autoApprovedAt ? "Согласован по сроку" : "Утверждён"}
     </span>
   );

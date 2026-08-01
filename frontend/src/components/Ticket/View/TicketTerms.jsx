@@ -156,9 +156,9 @@ const Block = ({ block }) => {
     return (
       <div>
         {block.title && (
-          <h4 className="tw:mb-1 tw:text-sm tw:font-semibold">{block.title}</h4>
+          <h4 className="mb-1 text-sm font-semibold">{block.title}</h4>
         )}
-        <p className="tw:my-0 tw:text-sm tw:leading-relaxed">{block.text}</p>
+        <p className="my-0 text-sm leading-relaxed">{block.text}</p>
       </div>
     );
   }
@@ -168,12 +168,12 @@ const Block = ({ block }) => {
   return (
     <div>
       {block.title && (
-        <h4 className="tw:mb-1 tw:text-sm tw:font-semibold">{block.title}</h4>
+        <h4 className="mb-1 text-sm font-semibold">{block.title}</h4>
       )}
       <List
         className={cn(
-          "tw:my-0 tw:flex tw:flex-col tw:gap-1 tw:ps-5 tw:text-sm tw:leading-relaxed",
-          block.kind === "steps" ? "tw:list-decimal" : "tw:list-disc",
+          "my-0 flex flex-col gap-1 ps-5 text-sm leading-relaxed",
+          block.kind === "steps" ? "list-decimal" : "list-disc",
         )}
       >
         {block.items.map((item, index) => (
@@ -226,17 +226,15 @@ const Reference = ({ ticket, item, onClose, canSaveNote }) => {
   };
 
   return (
-    <article className="tw:mt-3 tw:overflow-hidden tw:rounded-xl tw:border tw:border-primary/30 tw:bg-primary/4">
-      <div className="tw:flex tw:flex-wrap tw:items-baseline tw:gap-2 tw:px-4 tw:pt-3 tw:pb-2">
-        <h3 className="tw:my-0 tw:text-base tw:font-semibold">{item.term}</h3>
-        <span className="tw:text-xs tw:text-muted-foreground">справка ИИ</span>
+    <article className="mt-3 overflow-hidden rounded-xl border border-primary/30 bg-primary/4">
+      <div className="flex flex-wrap items-baseline gap-2 px-4 pt-3 pb-2">
+        <h3 className="my-0 text-base font-semibold">{item.term}</h3>
+        <span className="text-xs text-muted-foreground">справка ИИ</span>
       </div>
 
-      <div className="tw:flex tw:flex-col tw:gap-3.5 tw:px-4 tw:pb-1">
+      <div className="flex flex-col gap-3.5 px-4 pb-1">
         {reference.summary && (
-          <p className="tw:my-0 tw:text-sm tw:leading-relaxed">
-            {reference.summary}
-          </p>
+          <p className="my-0 text-sm leading-relaxed">{reference.summary}</p>
         )}
         {visible.map((block, index) => (
           <Block key={index} block={block} />
@@ -245,7 +243,7 @@ const Reference = ({ ticket, item, onClose, canSaveNote }) => {
           <button
             type="button"
             onClick={() => setFull(true)}
-            className="tw:cursor-pointer tw:appearance-none tw:self-start tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:text-muted-foreground tw:underline tw:decoration-border tw:underline-offset-4 tw:outline-none tw:hover:text-foreground"
+            className="cursor-pointer appearance-none self-start border-0 bg-transparent p-0 text-sm text-muted-foreground underline decoration-border underline-offset-4 outline-none hover:text-foreground"
           >
             Показать целиком
           </button>
@@ -255,21 +253,21 @@ const Reference = ({ ticket, item, onClose, canSaveNote }) => {
       {/* Документация — всегда на виду: справка пересказывает, а отвечает она.
           Ссылки прошли живую проверку на бэкенде: модель их охотно выдумывает */}
       {!!reference.links?.length && (
-        <div className="tw:mt-3 tw:border-t tw:border-border-soft tw:px-4 tw:pt-3">
-          <h4 className="tw:mb-2 tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
+        <div className="mt-3 border-t border-border-soft px-4 pt-3">
+          <h4 className="mb-2 text-xs font-semibold tracking-wide text-faint uppercase">
             Официальная документация
           </h4>
-          <div className="tw:flex tw:flex-wrap tw:gap-2">
+          <div className="flex flex-wrap gap-2">
             {reference.links.map((link) => (
               <a
                 key={link.url}
                 href={link.url}
                 target="_blank"
                 rel="noreferrer"
-                className="tw:inline-flex tw:items-center tw:gap-1.5 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:px-2.5 tw:py-1 tw:text-xs tw:text-muted-foreground tw:no-underline tw:hover:border-primary/30 tw:hover:text-accent-text"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground no-underline hover:border-primary/30 hover:text-accent-text"
               >
                 {link.title}
-                <span className="tw:text-faint">{link.host}</span>
+                <span className="text-faint">{link.host}</span>
                 <RiExternalLinkLine size={12} aria-hidden />
               </a>
             ))}
@@ -277,8 +275,8 @@ const Reference = ({ ticket, item, onClose, canSaveNote }) => {
         </div>
       )}
 
-      <div className="tw:mt-3 tw:flex tw:flex-wrap tw:items-center tw:gap-3 tw:px-4 tw:pt-3 tw:pb-3.5">
-        <span className="tw:flex-1 tw:text-xs tw:text-muted-foreground">
+      <div className="mt-3 flex flex-wrap items-center gap-3 px-4 pt-3 pb-3.5">
+        <span className="flex-1 text-xs text-muted-foreground">
           Ссылки и факты собрал ИИ — человеком не проверено.
         </span>
         {canSaveNote && (
@@ -404,10 +402,10 @@ const TicketTerms = ({ openTerm, onOpenTerm, canSaveNote }) => {
       disabled={busyTerm === item.term}
       onClick={() => openReference(item)}
       className={cn(
-        "tw:cursor-pointer tw:appearance-none tw:rounded-full tw:border tw:px-2.5 tw:py-0.5 tw:text-xs tw:outline-none",
+        "cursor-pointer appearance-none rounded-full border px-2.5 py-0.5 text-xs outline-none",
         item.term === openTerm
-          ? "tw:border-primary/40 tw:bg-primary/8 tw:text-accent-text"
-          : "tw:border-transparent tw:bg-accent tw:text-foreground tw:hover:border-primary/30 tw:hover:text-accent-text",
+          ? "border-primary/40 bg-primary/8 text-accent-text"
+          : "border-transparent bg-accent text-foreground hover:border-primary/30 hover:text-accent-text",
       )}
     >
       {busyTerm === item.term ? "Читаем…" : item.term}
@@ -416,12 +414,12 @@ const TicketTerms = ({ openTerm, onOpenTerm, canSaveNote }) => {
 
   return (
     <>
-      <div className="tw:mt-2.5 tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:text-sm">
+      <div className="mt-2.5 flex flex-wrap items-center gap-2 text-sm">
         {status === "ready" && items.length ? (
           <>
             {!!added.length && (
-              <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-xs tw:text-faint">
-                <RiSparkling2Line size={13} className="tw:text-accent-text" />
+              <span className="inline-flex items-center gap-1.5 text-xs text-faint">
+                <RiSparkling2Line size={13} className="text-accent-text" />
                 Ещё в теме
               </span>
             )}
@@ -430,19 +428,19 @@ const TicketTerms = ({ openTerm, onOpenTerm, canSaveNote }) => {
               type="button"
               disabled={analyzing}
               onClick={analyze}
-              className="tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1 tw:border-0 tw:bg-transparent tw:p-0 tw:text-xs tw:text-muted-foreground tw:outline-none tw:hover:text-foreground"
+              className="inline-flex cursor-pointer appearance-none items-center gap-1 border-0 bg-transparent p-0 text-xs text-muted-foreground outline-none hover:text-foreground"
             >
               <RiRefreshLine
                 size={13}
-                className={analyzing ? "tw:animate-spin" : undefined}
+                className={analyzing ? "animate-spin" : undefined}
               />
               разобрать заново
             </button>
           </>
         ) : (
           <>
-            <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-xs tw:text-faint">
-              <RiSparkling2Line size={13} className="tw:text-accent-text" />
+            <span className="inline-flex items-center gap-1.5 text-xs text-faint">
+              <RiSparkling2Line size={13} className="text-accent-text" />
               Понятия в заявке
             </span>
             <Button
@@ -453,7 +451,7 @@ const TicketTerms = ({ openTerm, onOpenTerm, canSaveNote }) => {
             >
               {analyzing ? "Разбираем…" : "Разобрать"}
             </Button>
-            <span className="tw:text-xs tw:text-faint">
+            <span className="text-xs text-faint">
               ИИ выделит предмет заявки и даст справку по нему
             </span>
           </>
@@ -461,12 +459,12 @@ const TicketTerms = ({ openTerm, onOpenTerm, canSaveNote }) => {
       </div>
 
       {(error || (status === "error" && terms.error)) && (
-        <p className="tw:mt-1.5 tw:mb-0 tw:text-xs tw:text-destructive">
+        <p className="mt-1.5 mb-0 text-xs text-destructive">
           {error || terms.error}
         </p>
       )}
       {status === "ready" && !items.length && (
-        <p className="tw:mt-1.5 tw:mb-0 tw:text-xs tw:text-muted-foreground">
+        <p className="mt-1.5 mb-0 text-xs text-muted-foreground">
           Предметных понятий в заявке не нашлось.
         </p>
       )}

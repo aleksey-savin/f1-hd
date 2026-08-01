@@ -12,43 +12,48 @@ const money = (value) => formatPrice(Math.round(Number(value) || 0));
 const PackagesEditor = ({ packages, onChange }) => {
   const update = (index, field, value) =>
     onChange(
-      packages.map((pkg, i) => (i === index ? { ...pkg, [field]: value } : pkg)),
+      packages.map((pkg, i) =>
+        i === index ? { ...pkg, [field]: value } : pkg,
+      ),
     );
   const remove = (index) => onChange(packages.filter((_, i) => i !== index));
   const add = () => onChange([...packages, { hours: 0, pricePerHour: 0 }]);
 
   return (
     <div>
-      <div className="tw:mb-2 tw:flex tw:items-center tw:justify-between">
-        <span className="tw:text-sm tw:font-semibold tw:text-muted-foreground">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-semibold text-muted-foreground">
           Пакеты часов
         </span>
         <Button type="button" variant="outline" size="sm" onClick={add}>
           <RiAddLine /> Новый пакет
         </Button>
       </div>
-      <div className="tw:grid tw:gap-2">
+      <div className="grid gap-2">
         {packages.map((pkg, index) => {
-          const total = (Number(pkg.hours) || 0) * (Number(pkg.pricePerHour) || 0);
+          const total =
+            (Number(pkg.hours) || 0) * (Number(pkg.pricePerHour) || 0);
           return (
             <div
               key={index}
-              className="tw:flex tw:flex-wrap tw:items-end tw:gap-x-4 tw:gap-y-3 tw:rounded-xl tw:border tw:border-border-soft tw:bg-accent/40 tw:p-3"
+              className="flex flex-wrap items-end gap-x-4 gap-y-3 rounded-xl border border-border-soft bg-accent/40 p-3"
             >
-              <label className="tw:grid tw:gap-1">
-                <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+              <label className="grid gap-1">
+                <span className="text-xs font-bold tracking-wider text-faint uppercase">
                   Часов
                 </span>
                 <Input
                   type="number"
                   min={1}
                   value={pkg.hours}
-                  onChange={(event) => update(index, "hours", event.target.value)}
-                  className="tw:h-9 tw:w-24 tw:tabular-nums"
+                  onChange={(event) =>
+                    update(index, "hours", event.target.value)
+                  }
+                  className="h-9 w-24 tabular-nums"
                 />
               </label>
-              <label className="tw:grid tw:gap-1">
-                <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+              <label className="grid gap-1">
+                <span className="text-xs font-bold tracking-wider text-faint uppercase">
                   Ставка, ₽/ч
                 </span>
                 <Input
@@ -58,14 +63,14 @@ const PackagesEditor = ({ packages, onChange }) => {
                   onChange={(event) =>
                     update(index, "pricePerHour", event.target.value)
                   }
-                  className="tw:h-9 tw:w-28 tw:tabular-nums"
+                  className="h-9 w-28 tabular-nums"
                 />
               </label>
-              <div className="tw:ml-auto tw:text-right">
-                <div className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+              <div className="ml-auto text-right">
+                <div className="text-xs font-bold tracking-wider text-faint uppercase">
                   Итого
                 </div>
-                <div className="tw:text-lg tw:font-bold tw:text-accent-text tw:tabular-nums">
+                <div className="text-lg font-bold text-accent-text tabular-nums">
                   {money(total)}
                 </div>
               </div>
@@ -76,7 +81,7 @@ const PackagesEditor = ({ packages, onChange }) => {
                 onClick={() => remove(index)}
                 aria-label="Удалить пакет"
                 title="Удалить пакет"
-                className="tw:text-faint"
+                className="text-faint"
               >
                 <RiDeleteBinLine />
               </Button>

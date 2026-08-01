@@ -22,7 +22,7 @@ const VendorItem = ({ item }) => {
           {isMikrotikManagementEnabled && (
             <>
               {" · "}
-              <span className="tw:text-accent-text">управление прошивками</span>
+              <span className="text-accent-text">управление прошивками</span>
             </>
           )}
         </>

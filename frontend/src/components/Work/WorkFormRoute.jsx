@@ -45,14 +45,14 @@ const WorkFormRoute = ({ mode }) => {
       submitDisabled={!form.isValid}
     >
       {mode === "confirm" && work && (
-        <div className="tw:mb-4 tw:flex tw:gap-2.5 tw:rounded-lg tw:border tw:border-border tw:bg-secondary tw:p-3">
-          <p className="tw:m-0 tw:text-sm tw:text-muted-foreground">
+        <div className="mb-4 flex gap-2.5 rounded-lg border border-border bg-secondary p-3">
+          <p className="m-0 text-sm text-muted-foreground">
             Запланировано на {formatDate(work.planningToStart)}
             {work.executor?.lastName
               ? ` · ${work.executor.lastName} ${work.executor.firstName?.[0] ?? ""}.`
               : ""}
-            . <b className="tw:text-foreground">Поправьте время</b>, если
-            работали иначе: доплата считается по фактическому.
+            . <b className="text-foreground">Поправьте время</b>, если работали
+            иначе: доплата считается по фактическому.
           </p>
         </div>
       )}

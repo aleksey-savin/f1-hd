@@ -8,19 +8,49 @@ import type {
 // Пивоты «Динамики» по загруженным данным (все — чистые функции без запросов).
 
 // Пять метрик динамики — те же, что в легаси-режиме «Анализ трендов»
-export type TrendsMetric = {
-  key: "totalTime" | "totalTickets" | "onSiteCount" | "remoteCount" | "routineTime";
+type TrendsMetric = {
+  key:
+    | "totalTime"
+    | "totalTickets"
+    | "onSiteCount"
+    | "remoteCount"
+    | "routineTime";
   label: string;
   isTime: boolean;
   of: (totals: ReportTotals) => number;
 };
 
 export const TRENDS_METRICS: readonly TrendsMetric[] = [
-  { key: "totalTime", label: "Время работ", isTime: true, of: (t) => t.totalTime },
-  { key: "totalTickets", label: "Заявки", isTime: false, of: (t) => t.totalTickets },
-  { key: "onSiteCount", label: "Выезды", isTime: false, of: (t) => t.onSite.count },
-  { key: "remoteCount", label: "Удалённо", isTime: false, of: (t) => t.remote.count },
-  { key: "routineTime", label: "Регламентные", isTime: true, of: (t) => t.routineTask.time },
+  {
+    key: "totalTime",
+    label: "Время работ",
+    isTime: true,
+    of: (t) => t.totalTime,
+  },
+  {
+    key: "totalTickets",
+    label: "Заявки",
+    isTime: false,
+    of: (t) => t.totalTickets,
+  },
+  {
+    key: "onSiteCount",
+    label: "Выезды",
+    isTime: false,
+    of: (t) => t.onSite.count,
+  },
+  {
+    key: "remoteCount",
+    label: "Удалённо",
+    isTime: false,
+    of: (t) => t.remote.count,
+  },
+  {
+    key: "routineTime",
+    label: "Регламентные",
+    isTime: true,
+    of: (t) => t.routineTask.time,
+  },
 ] as const;
 
 export type AggregatedPeriod = {

@@ -21,7 +21,12 @@ const DeviceRow = ({ row, onOpen }) => {
   const statusMeta = STATUS_META[status] || STATUS_META.offline;
   const dimmed = status === "disabled";
 
-  const meta = [row.type, row.company?.name, row.model?.name, row.location?.name]
+  const meta = [
+    row.type,
+    row.company?.name,
+    row.model?.name,
+    row.location?.name,
+  ]
     .filter(Boolean)
     .join(" · ");
 
@@ -42,49 +47,47 @@ const DeviceRow = ({ row, onOpen }) => {
       type="button"
       onClick={onOpen}
       className={cn(
-        "tw:group tw:relative tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-3 tw:border-0 tw:bg-transparent tw:px-4 tw:py-2.5 tw:text-left tw:text-foreground tw:transition-colors tw:before:absolute tw:before:top-0 tw:before:right-5 tw:before:left-5 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden tw:hover:bg-accent/60 tw:md:gap-4 tw:md:px-5",
-        dimmed && "tw:opacity-60",
+        "group relative flex w-full cursor-pointer appearance-none items-center gap-3 border-0 bg-transparent px-4 py-2.5 text-left text-foreground transition-colors before:absolute before:top-0 before:right-5 before:left-5 before:h-px before:bg-border-soft first:before:hidden hover:bg-accent/60 md:gap-4 md:px-5",
+        dimmed && "opacity-60",
       )}
     >
-      <DeviceTile row={row} size="sm" className="tw:md:size-10" />
+      <DeviceTile row={row} size="sm" className="md:size-10" />
 
-      <span className="tw:min-w-0 tw:flex-1">
-        <span className="tw:block tw:truncate tw:font-medium">
-          {row.displayName}
-        </span>
-        <span className="tw:block tw:truncate tw:text-sm tw:text-muted-foreground">
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium">{row.displayName}</span>
+        <span className="block truncate text-sm text-muted-foreground">
           {meta || "—"}
         </span>
       </span>
 
-      <span className="tw:hidden tw:w-44 tw:flex-none tw:lg:block">
-        <span className="tw:block tw:truncate tw:font-mono tw:text-sm">
-          {row.host || <span className="tw:text-faint">—</span>}
+      <span className="hidden w-44 flex-none lg:block">
+        <span className="block truncate font-mono text-sm">
+          {row.host || <span className="text-faint">—</span>}
         </span>
         {row.jump && (
-          <span className="tw:block tw:truncate tw:text-xs tw:text-faint">
+          <span className="block truncate text-xs text-faint">
             через {row.jump.name || "устройство"}
           </span>
         )}
       </span>
 
-      <span className="tw:hidden tw:w-28 tw:flex-none tw:md:block">
-        <span className="tw:block tw:truncate tw:font-mono tw:text-sm">
-          {installedVersion || <span className="tw:text-faint">—</span>}
+      <span className="hidden w-28 flex-none md:block">
+        <span className="block truncate font-mono text-sm">
+          {installedVersion || <span className="text-faint">—</span>}
         </span>
         {firmware?.vulnerable ? (
-          <span className="tw:flex tw:items-center tw:gap-1 tw:text-xs tw:font-semibold tw:text-warning">
+          <span className="flex items-center gap-1 text-xs font-semibold text-warning">
             <RiShieldFlashLine size={12} aria-hidden />
             уязвимость
           </span>
         ) : firmware?.updateAvailable ? (
-          <span className="tw:block tw:truncate tw:text-xs tw:text-faint">
+          <span className="block truncate text-xs text-faint">
             → {firmware.latestVersion}
           </span>
         ) : null}
       </span>
 
-      <span className="tw:hidden tw:w-40 tw:flex-none tw:md:block">
+      <span className="hidden w-40 flex-none md:block">
         <UptimeBar
           segments={daySegments(row.uptimeDays, {
             ongoing: status === "offline",
@@ -92,37 +95,35 @@ const DeviceRow = ({ row, onOpen }) => {
         />
         <span
           className={cn(
-            "tw:block tw:text-xs tw:tabular-nums",
+            "block text-xs tabular-nums",
             uptimeToneClass(row.uptime30d),
           )}
         >
           {uptimeText || "—"}
           {uptimeText && monitoredDays != null && monitoredDays < 30 && (
-            <span className="tw:text-faint"> · {monitoredDays} дн</span>
+            <span className="text-faint"> · {monitoredDays} дн</span>
           )}
         </span>
       </span>
 
-      <span className="tw:w-auto tw:flex-none tw:text-right tw:md:w-32 tw:md:text-left">
+      <span className="w-auto flex-none text-right md:w-32 md:text-left">
         <span
           className={cn(
-            "tw:flex tw:items-center tw:justify-end tw:gap-1.5 tw:text-sm tw:font-semibold tw:md:justify-start",
+            "flex items-center justify-end gap-1.5 text-sm font-semibold md:justify-start",
             statusMeta.text,
           )}
         >
-          <span
-            className={cn("tw:size-2 tw:rounded-full", statusMeta.dot)}
-          />
+          <span className={cn("size-2 rounded-full", statusMeta.dot)} />
           {statusMeta.label}
         </span>
         {offlineFor && (
-          <span className="tw:block tw:text-xs tw:text-muted-foreground tw:md:ps-3.5">
+          <span className="block text-xs text-muted-foreground md:ps-3.5">
             {offlineFor}
           </span>
         )}
       </span>
 
-      <span className="tw:hidden tw:w-4 tw:flex-none tw:text-faint tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100 tw:md:block">
+      <span className="hidden w-4 flex-none text-faint opacity-0 transition-opacity group-hover:opacity-100 md:block">
         <RiArrowRightSLine size={16} aria-hidden />
       </span>
     </button>

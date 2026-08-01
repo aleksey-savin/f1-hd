@@ -58,16 +58,16 @@ const TicketTemplateItem = ({ item }) => {
     <span
       className={
         accessAccent
-          ? "tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-medium tw:text-accent-text tw:max-md:hidden"
-          : "tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-medium tw:text-faint tw:max-md:hidden"
+          ? "inline-flex items-center gap-2 text-sm font-medium text-accent-text max-md:hidden"
+          : "inline-flex items-center gap-2 text-sm font-medium text-faint max-md:hidden"
       }
     >
       <span
         aria-hidden
         className={
           accessAccent
-            ? "tw:size-1.5 tw:rounded-full tw:bg-primary"
-            : "tw:size-1.5 tw:rounded-full tw:bg-faint"
+            ? "size-1.5 rounded-full bg-primary"
+            : "size-1.5 rounded-full bg-faint"
         }
       />
       {accessLabel}
@@ -78,7 +78,7 @@ const TicketTemplateItem = ({ item }) => {
     <ListRow
       item={item}
       itemTitle="ticketTemplate"
-      monogram={<RiFileList3Line className="tw:size-6" />}
+      monogram={<RiFileList3Line className="size-6" />}
       title={title}
       meta={meta}
       trailing={trailing}

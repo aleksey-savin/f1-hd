@@ -113,16 +113,16 @@ const TicketRow = ({
   return (
     <div
       className={cn(
-        "longpress-target tw:group tw:relative tw:flex tw:items-center tw:transition-colors",
-        "tw:before:absolute tw:before:top-0 tw:before:right-5 tw:before:left-5 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden",
-        isSelected ? "tw:bg-primary/10" : "tw:hover:bg-accent/60",
+        "longpress-target group relative flex items-center transition-colors",
+        "before:absolute before:top-0 before:right-5 before:left-5 before:h-px before:bg-border-soft first:before:hidden",
+        isSelected ? "bg-primary/10" : "hover:bg-accent/60",
       )}
       {...(pressProps || {})}
     >
       {/* Жёлоб чекбокса: место занято всегда, иначе строка дёргается по
           наведению, а правый край списка перестаёт быть ровным */}
       {selectable && (
-        <span className="tw:flex tw:w-9 tw:flex-none tw:justify-center tw:ps-4 tw:md:ps-5">
+        <span className="flex w-9 flex-none justify-center ps-4 md:ps-5">
           {/* Переключаем по onClick, а не onCheckedChange: нужен shiftKey для
               диапазона, а два обработчика дали бы двойное переключение */}
           <Checkbox
@@ -130,10 +130,10 @@ const TicketRow = ({
             aria-label={`Выбрать заявку № ${num}`}
             onClick={(event) => onToggle(ticket._id, { range: event.shiftKey })}
             className={cn(
-              "tw:transition-opacity",
+              "transition-opacity",
               selectionActive || isSelected
-                ? "tw:opacity-100"
-                : "tw:opacity-0 tw:group-hover:opacity-60 tw:focus-visible:opacity-100",
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-60 focus-visible:opacity-100",
             )}
           />
         </span>
@@ -143,67 +143,67 @@ const TicketRow = ({
         to={`/tickets/${num}`}
         onClick={handleOpen}
         className={cn(
-          "tw:flex tw:min-w-0 tw:flex-1 tw:flex-col tw:gap-0.5 tw:py-3 tw:pe-2 tw:text-foreground tw:no-underline tw:outline-none tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:md:flex-row tw:md:items-center tw:md:gap-4 tw:md:py-2.5",
-          selectable ? "tw:ps-2" : "tw:ps-4 tw:md:ps-5",
+          "flex min-w-0 flex-1 flex-col gap-0.5 py-3 pe-2 text-foreground no-underline outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50 md:flex-row md:items-center md:gap-4 md:py-2.5",
+          selectable ? "ps-2" : "ps-4 md:ps-5",
         )}
       >
         {/* мобайл: номер, возраст и состояние */}
-        <span className="tw:flex tw:items-center tw:gap-1.5 tw:text-xs tw:text-muted-foreground tw:tabular-nums tw:md:hidden">
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums md:hidden">
           № {num}
           {routineTask && (
             <RiRepeat2Line
               size={12}
               aria-label="Создана регламентом"
-              className="tw:text-faint"
+              className="text-faint"
             />
           )}
-          <span className="tw:text-faint">· {createdShort(createdAt)}</span>
-          <TicketStateText tone={state.tone} className="tw:ms-auto tw:text-xs">
+          <span className="text-faint">· {createdShort(createdAt)}</span>
+          <TicketStateText tone={state.tone} className="ms-auto text-xs">
             {state.label}
           </TicketStateText>
         </span>
 
         {/* десктоп: номер */}
-        <span className="tw:hidden tw:w-16 tw:flex-none tw:items-center tw:gap-1 tw:font-medium tw:text-muted-foreground tw:tabular-nums tw:md:flex">
+        <span className="hidden w-16 flex-none items-center gap-1 font-medium text-muted-foreground tabular-nums md:flex">
           {num}
           {routineTask && (
             <RiRepeat2Line
               size={13}
               aria-label="Создана регламентом"
               title="Создана регламентом"
-              className="tw:text-faint"
+              className="text-faint"
             />
           )}
         </span>
 
         {/* тема и мета — всегда двумя строками */}
-        <span className="tw:min-w-0 tw:flex-1">
-          <span className="tw:block tw:truncate tw:font-medium">{title}</span>
-          <span className="tw:hidden tw:truncate tw:text-sm tw:text-muted-foreground tw:md:block">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{title}</span>
+          <span className="hidden truncate text-sm text-muted-foreground md:block">
             {meta || "—"}
           </span>
         </span>
 
         {/* десктоп: ответственные */}
-        <span className="tw:hidden tw:w-36 tw:flex-none tw:truncate tw:text-sm tw:text-muted-foreground tw:lg:block">
+        <span className="hidden w-36 flex-none truncate text-sm text-muted-foreground lg:block">
           {responsibleNames(responsibles) || "—"}
         </span>
 
         {/* десктоп: создана */}
         <span
-          className="tw:hidden tw:w-28 tw:flex-none tw:text-end tw:text-xs tw:text-faint tw:whitespace-nowrap tw:tabular-nums tw:xl:block"
+          className="hidden w-28 flex-none text-end text-xs text-faint whitespace-nowrap tabular-nums xl:block"
           title={createdAt ? `создана ${formatDate(createdAt)}` : undefined}
         >
           {createdText(createdAt)}
         </span>
 
         {/* десктоп: состояние и срок */}
-        <span className="tw:hidden tw:w-40 tw:flex-none tw:flex-col tw:items-end tw:md:flex">
+        <span className="hidden w-40 flex-none flex-col items-end md:flex">
           <TicketStateText tone={state.tone}>{state.label}</TicketStateText>
           <span
             className={cn(
-              "tw:text-xs tw:whitespace-nowrap tw:tabular-nums",
-              overdue ? "tw:text-destructive" : "tw:text-faint",
+              "text-xs whitespace-nowrap tabular-nums",
+              overdue ? "text-destructive" : "text-faint",
             )}
           >
             {deadlineText(deadline)}
@@ -211,12 +211,12 @@ const TicketRow = ({
         </span>
 
         {/* мобайл: компания, инициатор и срок */}
-        <span className="tw:flex tw:items-center tw:gap-2 tw:text-xs tw:text-muted-foreground tw:md:hidden">
-          <span className="tw:min-w-0 tw:truncate">{meta || "—"}</span>
+        <span className="flex items-center gap-2 text-xs text-muted-foreground md:hidden">
+          <span className="min-w-0 truncate">{meta || "—"}</span>
           <span
             className={cn(
-              "tw:ms-auto tw:flex-none tw:tabular-nums",
-              overdue ? "tw:text-destructive" : "tw:text-faint",
+              "ms-auto flex-none tabular-nums",
+              overdue ? "text-destructive" : "text-faint",
             )}
           >
             {deadlineText(deadline)}
@@ -226,7 +226,7 @@ const TicketRow = ({
 
       {/* «⋯» — идиома строки списка приложения; состав тот же, что был в
           легаси-меню «Действия» */}
-      <span className="tw:flex tw:w-9 tw:flex-none tw:justify-center tw:pe-2 tw:md:pe-3">
+      <span className="flex w-9 flex-none justify-center pe-2 md:pe-3">
         {hasMenu && (
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
@@ -235,7 +235,7 @@ const TicketRow = ({
                 size="icon-sm"
                 aria-label="Действия"
                 title="Действия"
-                className="tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:data-[state=open]:opacity-100 tw:pointer-coarse:opacity-100"
+                className="text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
               >
                 <RiMoreLine />
               </Button>

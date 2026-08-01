@@ -9,7 +9,7 @@ import SettingRow from "@/components/app/SettingRow";
 import HealthRow from "@/components/app/HealthRow";
 import { SubLabel } from "@/components/app/Panel";
 
-import Select from "../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
 import AiRules from "./AiRules";
@@ -312,17 +312,10 @@ const PrefsAi = ({ prefs }) => {
 
   const aiOn = !!ai.isActive;
   const speechOn = aiOn && !!speech.isActive;
-  const dim = aiOn ? "tw:py-3" : "tw:py-3 tw:opacity-60";
-  const dimSpeech = speechOn ? "tw:py-3" : "tw:py-3 tw:opacity-60";
+  const dim = aiOn ? "py-3" : "py-3 opacity-60";
+  const dimSpeech = speechOn ? "py-3" : "py-3 opacity-60";
 
-  const chatModelValue = providerConf.model
-    ? { id: providerConf.model, name: providerConf.model }
-    : null;
   const chatModelOptions = withCurrent(models, providerConf.model);
-
-  const speechModelValue = speechConf.model
-    ? { id: speechConf.model, name: speechConf.model }
-    : null;
   const speechModelOptions = withCurrent(speechModels, speechConf.model);
 
   const chatHealth = aiChecking
@@ -359,18 +352,13 @@ const PrefsAi = ({ prefs }) => {
           htmlFor="prefs-ai-provider"
           className={dim}
         >
-          <div className="tw:w-56 tw:max-md:w-full">
-            <Select
+          <div className="w-56 max-md:w-full">
+            <Combobox
               id="prefs-ai-provider"
-              closeMenuOnSelect
-              isDisabled={!aiOn}
-              value={PROVIDERS.find((option) => option.value === provider)}
+              disabled={!aiOn}
+              value={provider}
               options={PROVIDERS}
-              getOptionLabel={(option) => option.label}
-              getOptionValue={(option) => option.value}
-              onChange={(option) =>
-                patchTop({ provider: option?.value || "openai" })
-              }
+              onChange={(value) => patchTop({ provider: value || "openai" })}
             />
           </div>
         </SettingRow>
@@ -390,7 +378,7 @@ const PrefsAi = ({ prefs }) => {
               onChange={(event) =>
                 patchProvider(provider, { baseUrl: event.target.value })
               }
-              className="tw:w-72 tw:max-md:w-full"
+              className="w-72 max-md:w-full"
             />
           </SettingRow>
         )}
@@ -419,7 +407,7 @@ const PrefsAi = ({ prefs }) => {
             onChange={(event) =>
               patchProvider(provider, { apiKey: event.target.value })
             }
-            className="tw:w-72 tw:max-md:w-full"
+            className="w-72 max-md:w-full"
             autoComplete="new-password"
           />
         </SettingRow>
@@ -437,7 +425,7 @@ const PrefsAi = ({ prefs }) => {
               onChange={(event) =>
                 patchProvider(provider, { folderId: event.target.value })
               }
-              className="tw:w-72 tw:max-md:w-full"
+              className="w-72 max-md:w-full"
             />
           </SettingRow>
         )}
@@ -454,20 +442,19 @@ const PrefsAi = ({ prefs }) => {
           htmlFor="prefs-ai-model"
           className={dim}
         >
-          <div className="tw:flex tw:items-center tw:gap-2">
-            <div className="tw:w-64 tw:max-md:w-full">
-              <Select
+          <div className="flex items-center gap-2">
+            <div className="w-64 max-md:w-full">
+              <Combobox
                 id="prefs-ai-model"
                 placeholder="— загрузите список —"
-                closeMenuOnSelect
-                isSearchable
-                isDisabled={!aiOn}
-                value={chatModelValue}
-                options={chatModelOptions}
-                getOptionLabel={(option) => option.name}
-                getOptionValue={(option) => option.id}
-                onChange={(option) =>
-                  patchProvider(provider, { model: option?.id || "" })
+                disabled={!aiOn}
+                value={providerConf.model || null}
+                options={toOptions(chatModelOptions, {
+                  value: (option) => option.id,
+                  label: (option) => option.name,
+                })}
+                onChange={(value) =>
+                  patchProvider(provider, { model: value || "" })
                 }
               />
             </div>
@@ -480,7 +467,7 @@ const PrefsAi = ({ prefs }) => {
               aria-label="Обновить список моделей"
             >
               <RiRefreshLine
-                className={modelsBusy ? "tw:animate-spin" : undefined}
+                className={modelsBusy ? "animate-spin" : undefined}
               />
             </Button>
           </div>
@@ -499,7 +486,7 @@ const PrefsAi = ({ prefs }) => {
                 }
               >
                 <RiRefreshLine
-                  className={aiChecking ? "tw:animate-spin" : undefined}
+                  className={aiChecking ? "animate-spin" : undefined}
                 />
                 Проверить
               </Button>
@@ -507,14 +494,14 @@ const PrefsAi = ({ prefs }) => {
           />
         )}
 
-        <div className="tw:px-5 tw:pt-4">
+        <div className="px-5 pt-4">
           <SubLabel>Распознавание речи</SubLabel>
         </div>
         <SettingRow
           title="Расшифровывать аудио из заявок"
           hint="Голосовые сообщения и записи звонков — в текст."
           htmlFor="prefs-speech-enabled"
-          className={aiOn ? "tw:py-3" : "tw:py-3 tw:opacity-60"}
+          className={aiOn ? "py-3" : "py-3 opacity-60"}
         >
           <Switch
             id="prefs-speech-enabled"
@@ -528,20 +515,13 @@ const PrefsAi = ({ prefs }) => {
           htmlFor="prefs-speech-provider"
           className={dimSpeech}
         >
-          <div className="tw:w-56 tw:max-md:w-full">
-            <Select
+          <div className="w-56 max-md:w-full">
+            <Combobox
               id="prefs-speech-provider"
-              closeMenuOnSelect
-              isDisabled={!speechOn}
-              value={SPEECH_PROVIDERS.find(
-                (option) => option.value === speech.provider,
-              )}
+              disabled={!speechOn}
+              value={speech.provider}
               options={SPEECH_PROVIDERS}
-              getOptionLabel={(option) => option.label}
-              getOptionValue={(option) => option.value}
-              onChange={(option) =>
-                patchSpeech({ provider: option?.value || "openai" })
-              }
+              onChange={(value) => patchSpeech({ provider: value || "openai" })}
             />
           </div>
         </SettingRow>
@@ -583,7 +563,7 @@ const PrefsAi = ({ prefs }) => {
               onChange={(event) =>
                 patchSpeechLocal({ baseUrl: event.target.value })
               }
-              className="tw:w-72 tw:max-md:w-full"
+              className="w-72 max-md:w-full"
             />
           </SettingRow>
         )}
@@ -632,7 +612,7 @@ const PrefsAi = ({ prefs }) => {
               onChange={(event) =>
                 patchSpeechConf({ apiKey: event.target.value })
               }
-              className="tw:w-72 tw:max-md:w-full"
+              className="w-72 max-md:w-full"
               autoComplete="new-password"
             />
           </SettingRow>
@@ -652,7 +632,7 @@ const PrefsAi = ({ prefs }) => {
               onChange={(event) =>
                 patchSpeechYandex({ folderId: event.target.value })
               }
-              className="tw:w-72 tw:max-md:w-full"
+              className="w-72 max-md:w-full"
             />
           </SettingRow>
         )}
@@ -670,21 +650,18 @@ const PrefsAi = ({ prefs }) => {
             htmlFor="prefs-speech-model"
             className={dimSpeech}
           >
-            <div className="tw:flex tw:items-center tw:gap-2">
-              <div className="tw:w-64 tw:max-md:w-full">
-                <Select
+            <div className="flex items-center gap-2">
+              <div className="w-64 max-md:w-full">
+                <Combobox
                   id="prefs-speech-model"
                   placeholder="— загрузите список —"
-                  closeMenuOnSelect
-                  isSearchable
-                  isDisabled={!speechOn}
-                  value={speechModelValue}
-                  options={speechModelOptions}
-                  getOptionLabel={(option) => option.name}
-                  getOptionValue={(option) => option.id}
-                  onChange={(option) =>
-                    patchSpeechConf({ model: option?.id || "" })
-                  }
+                  disabled={!speechOn}
+                  value={speechConf.model || null}
+                  options={toOptions(speechModelOptions, {
+                    value: (option) => option.id,
+                    label: (option) => option.name,
+                  })}
+                  onChange={(value) => patchSpeechConf({ model: value || "" })}
                 />
               </div>
               <Button
@@ -696,7 +673,7 @@ const PrefsAi = ({ prefs }) => {
                 aria-label="Обновить список моделей распознавания"
               >
                 <RiRefreshLine
-                  className={speechBusy ? "tw:animate-spin" : undefined}
+                  className={speechBusy ? "animate-spin" : undefined}
                 />
               </Button>
             </div>
@@ -723,7 +700,7 @@ const PrefsAi = ({ prefs }) => {
                 }
               >
                 <RiRefreshLine
-                  className={speechChecking ? "tw:animate-spin" : undefined}
+                  className={speechChecking ? "animate-spin" : undefined}
                 />
                 Проверить
               </Button>

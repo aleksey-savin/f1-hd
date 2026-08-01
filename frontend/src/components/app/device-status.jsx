@@ -55,37 +55,33 @@ export const DEVICE_STATUS_LABELS = Object.fromEntries(
   Object.entries(DEVICE_STATUS_META).map(([code, meta]) => [code, meta.label]),
 );
 
-/** Синтетический «производитель»: бакет самосборной техники без модели. */
-export const CUSTOM_VENDOR_BUCKET = "__custom__";
-export const CUSTOM_VENDOR_LABEL = "Кастомная сборка";
-
-export const TONE_TEXT = {
-  ok: "tw:text-accent-text",
-  warn: "tw:text-warning",
-  info: "tw:text-info",
-  bad: "tw:text-destructive",
-  off: "tw:text-faint",
+const TONE_TEXT = {
+  ok: "text-accent-text",
+  warn: "text-warning",
+  info: "text-info",
+  bad: "text-destructive",
+  off: "text-faint",
 };
 export const TONE_DOT = {
-  ok: "tw:bg-primary",
-  warn: "tw:bg-warning",
-  info: "tw:bg-info",
-  bad: "tw:bg-destructive",
-  off: "tw:bg-faint",
+  ok: "bg-primary",
+  warn: "bg-warning",
+  info: "bg-info",
+  bad: "bg-destructive",
+  off: "bg-faint",
 };
 
 /** Цветной статус-текст с точкой — язык статус-борда, не заливной бейдж. */
 export const DeviceStatusText = ({ tone = "off", className, children }) => (
   <span
     className={cn(
-      "tw:inline-flex tw:items-center tw:gap-1.5 tw:text-xs tw:font-medium tw:whitespace-nowrap",
+      "inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap",
       TONE_TEXT[tone],
       className,
     )}
   >
     <span
       aria-hidden
-      className={cn("tw:size-1.5 tw:flex-none tw:rounded-full", TONE_DOT[tone])}
+      className={cn("size-1.5 flex-none rounded-full", TONE_DOT[tone])}
     />
     {children}
   </span>

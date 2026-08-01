@@ -55,7 +55,7 @@ const SupplierFormFields = ({ supplier, onChange }) => {
         />
       </Field>
 
-      <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+      <div className="grid gap-x-3 md:grid-cols-2">
         <Field label="Телефон" htmlFor="supplier-phone">
           <Input
             id="supplier-phone"
@@ -77,7 +77,7 @@ const SupplierFormFields = ({ supplier, onChange }) => {
         </Field>
       </div>
 
-      <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+      <div className="grid gap-x-3 md:grid-cols-2">
         <Field label="Сайт" htmlFor="supplier-website">
           <Input
             id="supplier-website"
@@ -98,7 +98,7 @@ const SupplierFormFields = ({ supplier, onChange }) => {
         </Field>
       </div>
 
-      <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+      <div className="grid gap-x-3 md:grid-cols-2">
         <Field
           label="ИНН"
           htmlFor="supplier-inn"
@@ -111,7 +111,7 @@ const SupplierFormFields = ({ supplier, onChange }) => {
             value={values.inn}
             onChange={set("inn")}
             placeholder="7701234567"
-            className="tw:font-mono"
+            className="font-mono"
           />
         </Field>
         <Field label="КПП" htmlFor="supplier-kpp" hint="9 цифр, у ИП его нет">
@@ -122,7 +122,7 @@ const SupplierFormFields = ({ supplier, onChange }) => {
             value={values.kpp}
             onChange={set("kpp")}
             placeholder="770101001"
-            className="tw:font-mono"
+            className="font-mono"
           />
         </Field>
       </div>

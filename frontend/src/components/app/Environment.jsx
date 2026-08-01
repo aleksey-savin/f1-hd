@@ -59,10 +59,10 @@ const SUBJECT_TEXT = {
 
 // Uppercase-метка секции внутри сцены (в духе Eyebrow/SubLabel).
 const SectionLabel = ({ count, children }) => (
-  <div className="tw:mt-5 tw:mb-2.5 tw:flex tw:items-center tw:gap-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+  <div className="mt-5 mb-2.5 flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
     {children}
     {count != null && (
-      <span className="tw:font-semibold tw:tracking-normal tw:tabular-nums">
+      <span className="font-semibold tracking-normal tabular-nums">
         · {count}
       </span>
     )}
@@ -73,26 +73,26 @@ const SectionLabel = ({ count, children }) => (
 const NoteLine = ({ icon: Icon = RiHistoryLine, className, children }) => (
   <div
     className={cn(
-      "tw:flex tw:items-center tw:gap-2.5 tw:rounded-lg tw:border tw:border-border-soft tw:bg-accent/50 tw:px-3.5 tw:py-2.5 tw:text-sm tw:text-muted-foreground",
+      "flex items-center gap-2.5 rounded-lg border border-border-soft bg-accent/50 px-3.5 py-2.5 text-sm text-muted-foreground",
       className,
     )}
   >
-    <Icon size={16} className="tw:flex-none tw:text-faint" />
+    <Icon size={16} className="flex-none text-faint" />
     <span>{children}</span>
   </div>
 );
 
 // Пустое состояние по канону карточек: приглушённая иконка, заголовок, абзац.
 const EmptyState = ({ icon: Icon, title, children }) => (
-  <div className="tw:flex tw:flex-col tw:items-center tw:px-5 tw:pt-6 tw:pb-1 tw:text-center">
+  <div className="flex flex-col items-center px-5 pt-6 pb-1 text-center">
     <span
       aria-hidden
-      className="tw:grid tw:size-12 tw:place-items-center tw:rounded-xl tw:bg-accent tw:text-faint tw:inset-ring tw:inset-ring-border"
+      className="grid size-12 place-items-center rounded-xl bg-accent text-faint inset-ring inset-ring-border"
     >
       <Icon size={22} />
     </span>
-    <div className="tw:mt-3.5 tw:text-base tw:font-semibold">{title}</div>
-    <p className="tw:mx-auto tw:mt-1.5 tw:mb-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
+    <div className="mt-3.5 text-base font-semibold">{title}</div>
+    <p className="mx-auto mt-1.5 mb-0 max-w-md text-sm text-muted-foreground">
       {children}
     </p>
   </div>
@@ -128,19 +128,19 @@ const EnvLevel = ({
 
   return (
     <div>
-      <div className="tw:group tw:flex tw:items-center tw:gap-3.5 tw:pr-14">
+      <div className="group flex items-center gap-3.5 pr-14">
         <span
           aria-hidden
-          className="tw:grid tw:size-11 tw:flex-none tw:place-items-center tw:rounded-xl tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+          className="grid size-11 flex-none place-items-center rounded-xl bg-accent text-muted-foreground inset-ring inset-ring-border"
         >
           <Icon size={22} />
         </span>
-        <div className="tw:min-w-0">
-          <div className="tw:text-[11px] tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold tracking-wide text-faint uppercase">
             {isCompany ? "Компания" : TYPE_LABEL[node.type] || node.type}
           </div>
-          <div className="tw:flex tw:min-w-0 tw:items-center tw:gap-1">
-            <span className="tw:truncate tw:text-lg tw:leading-snug tw:font-semibold tw:tracking-tight">
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="truncate text-lg leading-snug font-semibold tracking-tight">
               {node.name}
             </span>
             {!isCompany && (
@@ -148,16 +148,14 @@ const EnvLevel = ({
                 to={`/inventory/locations/${node._id}`}
                 title="Открыть карточку расположения"
                 aria-label="Открыть карточку расположения"
-                className="tw:grid tw:size-6 tw:flex-none tw:place-items-center tw:rounded-md tw:text-faint tw:no-underline tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100 tw:hover:bg-accent tw:hover:text-muted-foreground tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100"
+                className="grid size-6 flex-none place-items-center rounded-md text-faint no-underline opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-muted-foreground focus-visible:opacity-100 pointer-coarse:opacity-100"
               >
                 <RiExternalLinkLine size={14} />
               </Link>
             )}
           </div>
           {sub && (
-            <div className="tw:truncate tw:text-sm tw:text-muted-foreground">
-              {sub}
-            </div>
+            <div className="truncate text-sm text-muted-foreground">{sub}</div>
           )}
         </div>
       </div>
@@ -167,7 +165,7 @@ const EnvLevel = ({
           <SectionLabel count={children.length}>
             {isCompany ? node.childrenLabel || "Здания" : "Внутри"}
           </SectionLabel>
-          <div className="tw:flex tw:flex-wrap tw:gap-2">
+          <div className="flex flex-wrap gap-2">
             {visibleChildren.map((child) => {
               const isCurrent = chainIds?.has(String(child._id));
               const meta = [
@@ -185,21 +183,19 @@ const EnvLevel = ({
                   onClick={() => onSelectChild(child)}
                   title={`Открыть: ${child.name}`}
                   className={cn(
-                    "tw:flex tw:min-w-40 tw:cursor-pointer tw:appearance-none tw:flex-col tw:items-start tw:gap-0.5 tw:rounded-lg tw:border tw:border-border-soft tw:bg-background tw:px-3 tw:py-2 tw:text-left tw:transition-colors tw:hover:border-primary/50 tw:hover:bg-accent",
+                    "flex min-w-40 cursor-pointer appearance-none flex-col items-start gap-0.5 rounded-lg border border-border-soft bg-background px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-accent",
                     isCurrent &&
-                      "tw:border-primary/60 tw:inset-ring tw:inset-ring-primary/60",
+                      "border-primary/60 inset-ring inset-ring-primary/60",
                   )}
                 >
-                  <span className="tw:text-sm tw:font-medium">
-                    {child.name}
-                  </span>
-                  <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-1.5 tw:text-xs tw:text-muted-foreground tw:tabular-nums">
+                  <span className="text-sm font-medium">{child.name}</span>
+                  <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground tabular-nums">
                     {meta}
                     {isCurrent && (
-                      <span className="tw:inline-flex tw:items-center tw:gap-1 tw:font-semibold tw:text-accent-text">
+                      <span className="inline-flex items-center gap-1 font-semibold text-accent-text">
                         <span
                           aria-hidden
-                          className="tw:size-1.5 tw:rounded-full tw:bg-primary tw:ring-3 tw:ring-primary/20"
+                          className="size-1.5 rounded-full bg-primary ring-3 ring-primary/20"
                         />
                         здесь
                       </span>
@@ -210,13 +206,15 @@ const EnvLevel = ({
             })}
           </div>
           {children.length > CELLS_COLLAPSED && (
-            <div className="tw:mt-2">
+            <div className="mt-2">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowAllCells((prev) => !prev)}
               >
-                {showAllCells ? "Свернуть" : `Показать все (${children.length})`}
+                {showAllCells
+                  ? "Свернуть"
+                  : `Показать все (${children.length})`}
               </Button>
             </div>
           )}
@@ -229,7 +227,7 @@ const EnvLevel = ({
             Техника на этом уровне
           </SectionLabel>
           {devices.length > 0 ? (
-            <div className="tw:grid tw:gap-2 tw:sm:grid-cols-2 tw:xl:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {devices.map((device) => (
                 <EnvironmentDeviceTile
                   key={device._id}
@@ -240,7 +238,7 @@ const EnvLevel = ({
               ))}
             </div>
           ) : (
-            <div className="tw:text-sm tw:text-faint">
+            <div className="text-sm text-faint">
               Здесь нет закреплённой техники.
             </div>
           )}
@@ -270,7 +268,13 @@ const Environment = ({
   const { isLoading, error, sendRequest } = useHttp();
   const { isLoading: isDiving, sendRequest: fetchNode } = useHttp();
 
-  const mode = deviceId ? "device" : userId ? "user" : companyId ? "company" : null;
+  const mode = deviceId
+    ? "device"
+    : userId
+      ? "user"
+      : companyId
+        ? "company"
+        : null;
   const texts = SUBJECT_TEXT[subject] || SUBJECT_TEXT.applicant;
 
   const [env, setEnv] = useState(null);
@@ -437,7 +441,7 @@ const Environment = ({
       </NoteLine>
     );
   }
-  if (isLoading) return <Spinner className="tw:min-h-64" />;
+  if (isLoading) return <Spinner className="min-h-64" />;
   if (error || !env) {
     return (
       <NoteLine icon={RiMapPin2Line}>
@@ -454,27 +458,27 @@ const Environment = ({
   const canZoomIn = safeIndex < maxIndex;
   const canZoomOut = safeIndex > 0;
   const zoomBtnClass =
-    "tw:grid tw:size-9 tw:cursor-pointer tw:appearance-none tw:place-items-center tw:border-0 tw:bg-transparent tw:p-0 tw:text-muted-foreground tw:transition-colors tw:hover:bg-accent tw:hover:text-foreground tw:disabled:cursor-default tw:disabled:opacity-40 tw:disabled:hover:bg-transparent tw:max-md:size-11";
+    "grid size-9 cursor-pointer appearance-none place-items-center border-0 bg-transparent p-0 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent max-md:size-11";
 
   return (
     <div>
       {mode === "device" && env.device?.deleted && (
-        <NoteLine className="tw:mb-3">
+        <NoteLine className="mb-3">
           Устройство удалено из учёта — показано его последнее расположение.
         </NoteLine>
       )}
 
       {hasChain ? (
-        <div className="tw:flex tw:items-stretch tw:gap-4 tw:max-md:flex-col tw:max-md:gap-0">
+        <div className="flex items-stretch gap-4 max-md:flex-col max-md:gap-0">
           {/* Линейка глубины: вертикальная на десктопе, лента чипов на мобайле */}
           <div
             role="group"
             aria-label="Уровни окружения"
-            className="tw:relative tw:flex tw:flex-none tw:flex-col tw:justify-center tw:gap-0.5 tw:py-2 tw:max-md:flex-row tw:max-md:justify-start tw:max-md:gap-1.5 tw:max-md:overflow-x-auto tw:max-md:py-0 tw:max-md:pb-3"
+            className="relative flex flex-none flex-col justify-center gap-0.5 py-2 max-md:flex-row max-md:justify-start max-md:gap-1.5 max-md:overflow-x-auto max-md:py-0 max-md:pb-3"
           >
             <span
               aria-hidden
-              className="tw:absolute tw:inset-y-5 tw:w-0.5 tw:rounded-full tw:bg-border tw:max-md:hidden"
+              className="absolute inset-y-5 w-0.5 rounded-full bg-border max-md:hidden"
               style={{ left: 13 }}
             />
             {path.map((node, i) => {
@@ -486,27 +490,27 @@ const Environment = ({
                   onClick={() => navigate(i)}
                   title={node.name}
                   className={cn(
-                    "tw:relative tw:flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2.5 tw:rounded-lg tw:border-0 tw:bg-transparent tw:px-1.5 tw:py-1.5 tw:text-sm tw:font-medium tw:text-muted-foreground tw:transition-colors tw:hover:text-foreground",
-                    "tw:max-md:flex-none tw:max-md:rounded-full tw:max-md:border tw:max-md:border-input tw:max-md:bg-background tw:max-md:px-3",
+                    "relative flex cursor-pointer appearance-none items-center gap-2.5 rounded-lg border-0 bg-transparent px-1.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+                    "max-md:flex-none max-md:rounded-full max-md:border max-md:border-input max-md:bg-background max-md:px-3",
                     on &&
-                      "tw:font-semibold tw:text-accent-text tw:max-md:border-transparent tw:max-md:bg-primary/15",
+                      "font-semibold text-accent-text max-md:border-transparent max-md:bg-primary/15",
                   )}
                 >
                   <span
                     aria-hidden
                     className={cn(
-                      "tw:size-3 tw:flex-none tw:rounded-full tw:border-2 tw:border-border tw:bg-background tw:transition-colors tw:max-md:size-2.5",
+                      "size-3 flex-none rounded-full border-2 border-border bg-background transition-colors max-md:size-2.5",
                       on &&
-                        "tw:border-primary tw:bg-primary tw:ring-4 tw:ring-primary/20 tw:max-md:ring-0",
+                        "border-primary bg-primary ring-4 ring-primary/20 max-md:ring-0",
                     )}
                   />
-                  <span className="tw:max-w-36 tw:truncate">{node.name}</span>
+                  <span className="max-w-36 truncate">{node.name}</span>
                 </button>
               );
             })}
           </div>
 
-          <div className="tw:flex tw:min-w-0 tw:flex-1 tw:flex-col tw:gap-2.5">
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
             <div
               ref={stageRef}
               tabIndex={0}
@@ -515,8 +519,8 @@ const Environment = ({
               aria-label="Окружение. Колесо мыши или стрелки вверх/вниз меняют масштаб."
               onKeyDown={onStageKeyDown}
               className={cn(
-                "tw:relative tw:overflow-x-hidden tw:overflow-y-auto tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5",
-                path.length > 1 && "tw:min-h-80",
+                "relative overflow-x-hidden overflow-y-auto rounded-xl border border-border bg-card p-5",
+                path.length > 1 && "min-h-80",
               )}
               style={{
                 ...PLAN_GRID_STYLE,
@@ -525,7 +529,7 @@ const Environment = ({
               }}
             >
               {path.length > 1 && (
-                <div className="tw:absolute tw:top-3.5 tw:right-3.5 tw:z-10 tw:flex tw:flex-col tw:overflow-hidden tw:rounded-lg tw:border tw:border-border tw:bg-background">
+                <div className="absolute top-3.5 right-3.5 z-10 flex flex-col overflow-hidden rounded-lg border border-border bg-background">
                   <button
                     type="button"
                     onClick={() => navigate(safeIndex + 1)}
@@ -536,7 +540,7 @@ const Environment = ({
                   >
                     <RiZoomInLine size={17} />
                   </button>
-                  <span aria-hidden className="tw:h-px tw:bg-border-soft" />
+                  <span aria-hidden className="h-px bg-border-soft" />
                   <button
                     type="button"
                     onClick={() => navigate(safeIndex - 1)}
@@ -550,7 +554,11 @@ const Environment = ({
                 </div>
               )}
 
-              <AnimatePresence mode="wait" custom={dirRef.current} initial={false}>
+              <AnimatePresence
+                mode="wait"
+                custom={dirRef.current}
+                initial={false}
+              >
                 <motion.div
                   key={current._id}
                   custom={dirRef.current}
@@ -574,7 +582,7 @@ const Environment = ({
               </AnimatePresence>
             </div>
             {path.length > 1 && (
-              <div className="tw:text-center tw:text-xs tw:text-faint tw:max-md:hidden">
+              <div className="text-center text-xs text-faint max-md:hidden">
                 Колесо мыши или ↑ / ↓ — масштаб · клик по расположению — переход
                 внутрь · клик по технике — карточка
               </div>
@@ -582,7 +590,7 @@ const Environment = ({
           </div>
         </div>
       ) : mode === "device" ? (
-        <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+        <div className="rounded-xl border border-border bg-card p-5">
           <EmptyState
             icon={RiMapPin2Line}
             title="Устройство не привязано к расположению"
@@ -591,7 +599,7 @@ const Environment = ({
             карточка.
           </EmptyState>
           {env.device && (
-            <div className="tw:mx-auto tw:mt-5 tw:max-w-sm">
+            <div className="mx-auto mt-5 max-w-sm">
               <EnvironmentDeviceTile
                 device={env.device}
                 showLocation
@@ -602,12 +610,12 @@ const Environment = ({
           )}
         </div>
       ) : mode === "company" ? (
-        <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+        <div className="rounded-xl border border-border bg-card p-5">
           <EmptyState icon={RiBuilding2Line} title="Зданий пока нет">
             Здесь появится физическая структура компании — здания, помещения и
             техника, — когда расположения заведут в учёте.
           </EmptyState>
-          <div className="tw:mt-4 tw:pb-2 tw:text-center">
+          <div className="mt-4 pb-2 text-center">
             <Button asChild variant="outline">
               <Link to="/inventory/locations">
                 <RiExternalLinkLine /> Открыть раздел «Расположения»
@@ -616,18 +624,21 @@ const Environment = ({
           </div>
         </div>
       ) : (
-        <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
-          <EmptyState icon={RiMapPin2Line} title="Рабочее место не сопоставлено">
+        <div className="rounded-xl border border-border bg-card p-5">
+          <EmptyState
+            icon={RiMapPin2Line}
+            title="Рабочее место не сопоставлено"
+          >
             {texts.noWorkplace}
             {personal.length > 0 &&
               " Показана техника, закреплённая лично за ним."}
           </EmptyState>
           {personal.length > 0 && (
-            <div className="tw:mt-5">
+            <div className="mt-5">
               <SectionLabel count={personal.length}>
                 Закреплено лично
               </SectionLabel>
-              <div className="tw:grid tw:gap-2 tw:sm:grid-cols-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 {personal.map((device) => (
                   <EnvironmentDeviceTile
                     key={device._id}

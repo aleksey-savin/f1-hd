@@ -23,31 +23,31 @@ const WorkStatusText = ({
   return (
     <span
       className={cn(
-        "tw:inline-flex tw:items-center tw:gap-1.5 tw:text-sm tw:whitespace-nowrap tw:tabular-nums",
-        !open && "tw:text-faint",
+        "inline-flex items-center gap-1.5 text-sm whitespace-nowrap tabular-nums",
+        !open && "text-faint",
         className,
       )}
     >
       <span
         aria-hidden
         className={cn(
-          "tw:size-2 tw:flex-none tw:rounded-full",
+          "size-2 flex-none rounded-full",
           status.unknown
-            ? "tw:bg-transparent tw:inset-ring tw:inset-ring-faint"
-            : "tw:bg-current",
-          halo && open && "tw:ring-4 tw:ring-primary/20",
+            ? "bg-transparent inset-ring inset-ring-faint"
+            : "bg-current",
+          halo && open && "ring-4 ring-primary/20",
         )}
         style={open ? { color: "var(--ws-st-office)" } : undefined}
       />
       {open ? (
         <span>
           <span
-            className="tw:font-medium"
+            className="font-medium"
             style={{ color: "var(--ws-st-office)" }}
           >
             открыто
           </span>
-          <span className="tw:text-muted-foreground"> · {text}</span>
+          <span className="text-muted-foreground"> · {text}</span>
         </span>
       ) : (
         text

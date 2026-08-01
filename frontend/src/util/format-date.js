@@ -1,4 +1,3 @@
-import { format, parseISO } from "date-fns";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
 
 import { getLocalStorageData } from "./auth";
@@ -116,17 +115,6 @@ export const formatDayMonthTime = (date) =>
         minute: "2-digit",
       });
 
-// «июль 2026 г.» / «июль» — заголовки месячных периодов. Суффикс « г.» даёт
-// CLDR; где он мешает вёрстке, его режут на месте (components/app/MonthStepper).
-export const formatMonthYear = (date) =>
-  isEmpty(date)
-    ? null
-    : new Date(date).toLocaleDateString("ru", {
-        timeZone: tz(),
-        month: "long",
-        year: "numeric",
-      });
-
 /**
  * «июль 2026» из строки «2026-07».
  *
@@ -143,14 +131,6 @@ export const formatMonthLabel = (month) => {
     year: "numeric",
   });
 };
-
-export const formatMonth = (date) =>
-  isEmpty(date)
-    ? null
-    : new Date(date).toLocaleDateString("ru", {
-        timeZone: tz(),
-        month: "long",
-      });
 
 // «только что» / «2 мин назад» / «3 ч назад», для старого — полная дата.
 // Формат «протухающих» статусов: мониторинг Mikrotik, состояние почтовых
@@ -213,14 +193,28 @@ export const toDateInputValue = (date = new Date()) => {
 
 /* ── <input type="datetime-local"> ↔ UTC (симметричная пара в бизнес-таймзоне) ── */
 
+// Настенное время в бизнес-таймзоне строкой «YYYY-MM-DDTHH:mm».
+//
+// Собираем сами, а не через date-fns/format: toZonedTime уже вернул Date, у
+// которого локальные геттеры показывают нужную зону, и остаётся только
+// разложить их с ведущими нулями. Конвенция дат (docs/datetime-conventions.md)
+// предпочитает Intl и голый JS там, где date-fns не добавляет смысла.
+const toWallTime = (date) => {
+  const d = toZonedTime(date, tz());
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(
+    d.getHours(),
+  )}:${p(d.getMinutes())}`;
+};
+
 // Значение для <input type="datetime-local">: настенное время инстанта в
 // бизнес-таймзоне. Пара к localToUtc (обратное преобразование при сохранении).
 export const toDateTimeLocal = (date = new Date()) =>
-  format(toZonedTime(new Date(date), tz()), "yyyy-MM-dd'T'HH:mm");
+  toWallTime(new Date(date));
 
 // То же для ISO-строки с бэка (исторический альяс toDateTimeLocal).
 export const utcToLocalForm = (utcDateString) =>
-  format(toZonedTime(parseISO(utcDateString), tz()), "yyyy-MM-dd'T'HH:mm");
+  toWallTime(new Date(utcDateString));
 
 export const localToUtc = (localDateString) => {
   return fromZonedTime(new Date(localDateString), tz()).toISOString();

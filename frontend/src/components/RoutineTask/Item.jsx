@@ -24,24 +24,24 @@ const RoutineTaskItem = ({ item }) => {
     .join(" · ");
 
   const trailing = (
-    <span className="tw:flex tw:flex-col tw:items-end tw:gap-0.5 tw:max-md:hidden">
+    <span className="flex flex-col items-end gap-0.5 max-md:hidden">
       <span
         className={cn(
-          "tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-medium",
-          isActive ? "tw:text-accent-text" : "tw:text-faint",
+          "inline-flex items-center gap-2 text-sm font-medium",
+          isActive ? "text-accent-text" : "text-faint",
         )}
       >
         <span
           aria-hidden
           className={cn(
-            "tw:size-1.5 tw:rounded-full",
-            isActive ? "tw:bg-primary" : "tw:bg-faint",
+            "size-1.5 rounded-full",
+            isActive ? "bg-primary" : "bg-faint",
           )}
         />
         {isActive ? "Активно" : "На паузе"}
       </span>
       {isActive && nextRun && (
-        <span className="tw:text-xs tw:text-faint tw:tabular-nums">
+        <span className="text-xs text-faint tabular-nums">
           след. {formatCronRun(nextRun)}
         </span>
       )}
@@ -52,7 +52,7 @@ const RoutineTaskItem = ({ item }) => {
     <ListRow
       item={item}
       itemTitle="routineTask"
-      monogram={<RiCalendarScheduleLine className="tw:size-6" />}
+      monogram={<RiCalendarScheduleLine className="size-6" />}
       title={title}
       meta={meta}
       trailing={trailing}

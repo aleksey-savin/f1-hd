@@ -51,18 +51,18 @@ import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { AuthedUserContext } from "../../store/authed-user-context";
 
-const dash = <span className="tw:text-faint">—</span>;
+const dash = <span className="text-faint">—</span>;
 const fmtDate = (value) => (value ? formatShortDate(value) : null);
 const userName = (u) =>
   u ? [u.firstName, u.lastName].filter(Boolean).join(" ") : null;
 
 // Микро-подпись + значение в панели «Основное».
 const Detail = ({ label, children, className }) => (
-  <div className={cn("tw:min-w-0", className)}>
-    <div className="tw:mb-0.5 tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
+  <div className={cn("min-w-0", className)}>
+    <div className="mb-0.5 text-xs font-semibold tracking-wide text-faint uppercase">
       {label}
     </div>
-    <div className="tw:text-[15px] tw:leading-relaxed tw:break-words">
+    <div className="text-[15px] leading-relaxed break-words">
       {children || dash}
     </div>
   </div>
@@ -83,7 +83,7 @@ const AttrActions = ({ link, label, index, count, onMove }) => {
             size="icon-sm"
             aria-label="Действия"
             title="Действия"
-            className="tw:flex-none tw:text-faint"
+            className="flex-none text-faint"
           >
             <RiMoreLine />
           </Button>
@@ -142,22 +142,22 @@ const ModelRow = ({ model }) => {
   return (
     <Link
       to={`/inventory/device-models/${model._id}`}
-      className="tw:group tw:relative tw:flex tw:items-center tw:gap-3.5 tw:px-4 tw:py-2.5 tw:text-inherit tw:no-underline tw:transition-colors tw:hover:bg-accent tw:before:absolute tw:before:top-0 tw:before:right-4 tw:before:left-16 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden"
+      className="group relative flex items-center gap-3.5 px-4 py-2.5 text-inherit no-underline transition-colors hover:bg-accent before:absolute before:top-0 before:right-4 before:left-16 before:h-px before:bg-border-soft first:before:hidden"
     >
-      <span className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:overflow-hidden tw:rounded-lg tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border">
+      <span className="grid size-9 flex-none place-items-center overflow-hidden rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border">
         {thumb ? (
-          <img src={thumb} alt="" className="listrow-thumb" />
+          <img src={thumb} alt="" className="size-full object-cover" />
         ) : (
           <RiComputerLine size={18} />
         )}
       </span>
-      <div className="tw:min-w-0 tw:flex-1">
-        <div className="tw:truncate tw:text-base tw:font-medium">{title}</div>
-        <div className="tw:truncate tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-base font-medium">{title}</div>
+        <div className="truncate text-sm text-muted-foreground tabular-nums">
           {meta}
         </div>
       </div>
-      <RiArrowRightSLine aria-hidden className="tw:flex-none tw:text-faint" />
+      <RiArrowRightSLine aria-hidden className="flex-none text-faint" />
     </Link>
   );
 };
@@ -350,10 +350,8 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
     .filter(Boolean)
     .join(" · ");
 
-  const bold = (n) => (
-    <b className="tw:font-semibold tw:text-foreground">{n}</b>
-  );
-  const sep = <span className="tw:text-faint">·</span>;
+  const bold = (n) => <b className="font-semibold text-foreground">{n}</b>;
+  const sep = <span className="text-faint">·</span>;
 
   // Формы — вложенные маршруты карточки (шторка на месте): правка типа и
   // новая модель не уводят со страницы; после создания модели форма сама
@@ -365,54 +363,52 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
   const filteredEmpty = !modelsEmpty && filteredModels.length === 0;
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
+    <div className="mx-auto w-full max-w-4xl">
       <Link
         to="/inventory/device-types"
-        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
       >
         <RiArrowLeftSLine /> Типы устройств
       </Link>
 
       {/* Hero */}
-      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <span
           aria-hidden
           className={cn(
-            "tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:rounded-2xl tw:text-2xl tw:font-semibold tw:inset-ring tw:inset-ring-border",
+            "grid size-14 flex-none place-items-center rounded-2xl text-2xl font-semibold inset-ring inset-ring-border",
             isActive
-              ? "tw:bg-accent tw:text-muted-foreground"
-              : "tw:bg-accent/50 tw:text-faint",
+              ? "bg-accent text-muted-foreground"
+              : "bg-accent/50 text-faint",
           )}
         >
           {monogramFor(name)}
         </span>
-        <div className="tw:min-w-0 tw:flex-1">
+        <div className="min-w-0 flex-1">
           <h1
             className={cn(
-              "tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:break-words",
-              !isActive && "tw:text-muted-foreground",
+              "my-0 text-3xl leading-tight font-semibold tracking-tight break-words",
+              !isActive && "text-muted-foreground",
             )}
           >
             {name}
           </h1>
-          <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <span
               className={cn(
-                "tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold",
-                isActive ? "tw:text-accent-text" : "tw:text-muted-foreground",
+                "inline-flex items-center gap-2 text-sm font-semibold",
+                isActive ? "text-accent-text" : "text-muted-foreground",
               )}
             >
               <span
                 className={cn(
-                  "tw:size-2 tw:rounded-full",
-                  isActive
-                    ? "tw:bg-primary tw:ring-4 tw:ring-primary/20"
-                    : "tw:bg-faint",
+                  "size-2 rounded-full",
+                  isActive ? "bg-primary ring-4 ring-primary/20" : "bg-faint",
                 )}
               />
               {isActive ? "Активен" : "Отключён"}
             </span>
-            <span className="tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+            <span className="text-sm text-muted-foreground tabular-nums">
               {sep} {kinds} {sep} {bold(attrCount)}{" "}
               {plural(attrCount, "атрибут", "атрибута", "атрибутов")} {sep}{" "}
               {bold(models.length)}{" "}
@@ -421,7 +417,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
           </div>
         </div>
         {canManage && (
-          <div className="tw:flex tw:flex-none tw:items-center tw:gap-2">
+          <div className="flex flex-none items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -454,24 +450,24 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
       {/* Основное */}
       <Eyebrow>Основное</Eyebrow>
       <Panel>
-        <div className="tw:grid tw:gap-x-6 tw:gap-y-4 tw:sm:grid-cols-2">
+        <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
           <Detail label="Назначение">{kinds}</Detail>
           <Detail label="Префикс инв. номера">
             {inventoryPrefix ? (
-              <span className="tw:font-mono">{inventoryPrefix}</span>
+              <span className="font-mono">{inventoryPrefix}</span>
             ) : null}
           </Detail>
         </div>
         {isSpecial && attachableToTypeIds.length > 0 && (
-          <div className="tw:mt-4">
-            <div className="tw:mb-1.5 tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
+          <div className="mt-4">
+            <div className="mb-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
               Прикрепляется к типам
             </div>
-            <div className="tw:flex tw:flex-wrap tw:gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {attachableToTypeIds.map((type) => (
                 <span
                   key={type._id}
-                  className="tw:inline-flex tw:items-center tw:rounded-full tw:border tw:border-border-soft tw:bg-accent tw:px-2.5 tw:py-1 tw:text-sm tw:font-medium"
+                  className="inline-flex items-center rounded-full border border-border-soft bg-accent px-2.5 py-1 text-sm font-medium"
                 >
                   {type.name}
                 </span>
@@ -482,11 +478,11 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
       </Panel>
 
       {/* Атрибуты — управляемая секция (добавить · изменить · порядок · удалить) */}
-      <div className="tw:mt-6 tw:mb-2.5 tw:flex tw:items-center tw:justify-between tw:gap-3">
-        <div className="tw:flex tw:items-center tw:gap-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+      <div className="mt-6 mb-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
           Атрибуты
           {attrCount > 0 && (
-            <span className="tw:font-semibold tw:tracking-normal tw:tabular-nums">
+            <span className="font-semibold tracking-normal tabular-nums">
               · {attrCount}
             </span>
           )}
@@ -502,21 +498,19 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
 
       {attrCount === 0 ? (
         <Panel>
-          <div className="tw:flex tw:flex-col tw:items-center tw:gap-2 tw:px-6 tw:py-8 tw:text-center">
+          <div className="flex flex-col items-center gap-2 px-6 py-8 text-center">
             <RiPriceTag3Line
               size={40}
               aria-hidden
-              className="tw:mb-1 tw:text-faint"
+              className="mb-1 text-faint"
             />
-            <div className="tw:text-base tw:font-semibold">
-              У типа нет атрибутов
-            </div>
-            <p className="tw:my-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
+            <div className="text-base font-semibold">У типа нет атрибутов</div>
+            <p className="my-0 max-w-md text-sm text-muted-foreground">
               Добавьте атрибуты — они станут характеристиками конфигураций
               моделей этого типа.
             </p>
             {canManage && (
-              <Button asChild className="tw:mt-2">
+              <Button asChild className="mt-2">
                 <Link to="attributes/add" onClick={offcanvas.setShow}>
                   <RiAddFill /> Добавить атрибут
                 </Link>
@@ -546,35 +540,35 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={onDrop(index)}
                 className={cn(
-                  "tw:relative tw:flex tw:items-center tw:gap-3 tw:border-b tw:border-border-soft tw:py-3 tw:last:border-b-0",
-                  draggingId === link._id && "tw:opacity-50",
+                  "relative flex items-center gap-3 border-b border-border-soft py-3 last:border-b-0",
+                  draggingId === link._id && "opacity-50",
                   // индикатор места вставки — акцентная линия по верху строки
                   overId === link._id &&
-                    "tw:before:absolute tw:before:inset-x-0 tw:before:-top-px tw:before:z-10 tw:before:h-0.5 tw:before:rounded-full tw:before:bg-primary",
+                    "before:absolute before:inset-x-0 before:-top-px before:z-10 before:h-0.5 before:rounded-full before:bg-primary",
                 )}
               >
                 {canManage && (
                   <RiDraggable
                     aria-hidden
-                    className="tw:flex-none tw:cursor-grab tw:text-faint"
+                    className="flex-none cursor-grab text-faint"
                   />
                 )}
-                <div className="tw:min-w-0 tw:flex-1">
-                  <div className="tw:text-[15px] tw:font-medium">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[15px] font-medium">
                     {meta?.name || "Атрибут"}
                     {meta?.unit && (
-                      <span className="tw:font-normal tw:text-faint">
+                      <span className="font-normal text-faint">
                         {" "}
                         ({meta.unit})
                       </span>
                     )}
                   </div>
                   {options.length > 0 && (
-                    <div className="tw:mt-1.5 tw:flex tw:flex-wrap tw:gap-1">
+                    <div className="mt-1.5 flex flex-wrap gap-1">
                       {options.map((option) => (
                         <span
                           key={option.value}
-                          className="tw:rounded-md tw:bg-accent tw:px-1.5 tw:py-0.5 tw:text-xs tw:text-muted-foreground"
+                          className="rounded-md bg-accent px-1.5 py-0.5 text-xs text-muted-foreground"
                         >
                           {option.label}
                         </span>
@@ -582,11 +576,11 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
                     </div>
                   )}
                 </div>
-                <span className="tw:flex-none tw:text-sm tw:text-muted-foreground">
+                <span className="flex-none text-sm text-muted-foreground">
                   {valueTypeLabel(meta?.valueType)}
                 </span>
                 {link.required && (
-                  <span className="tw:flex-none tw:rounded-full tw:bg-primary/15 tw:px-2 tw:py-0.5 tw:text-xs tw:font-semibold tw:text-accent-text">
+                  <span className="flex-none rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-accent-text">
                     обязательный
                   </span>
                 )}
@@ -606,11 +600,11 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
       )}
 
       {/* Модели устройств этого типа */}
-      <div className="tw:mt-6 tw:mb-2.5 tw:flex tw:items-center tw:justify-between tw:gap-3">
-        <div className="tw:flex tw:items-center tw:gap-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+      <div className="mt-6 mb-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
           Модели устройств
           {models.length > 0 && (
-            <span className="tw:font-semibold tw:tracking-normal tw:tabular-nums">
+            <span className="font-semibold tracking-normal tabular-nums">
               · {models.length}
             </span>
           )}
@@ -626,21 +620,17 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
 
       {modelsEmpty ? (
         <Panel>
-          <div className="tw:flex tw:flex-col tw:items-center tw:gap-2 tw:px-6 tw:py-9 tw:text-center">
-            <RiComputerLine
-              size={40}
-              aria-hidden
-              className="tw:mb-1 tw:text-faint"
-            />
-            <div className="tw:text-base tw:font-semibold">
+          <div className="flex flex-col items-center gap-2 px-6 py-9 text-center">
+            <RiComputerLine size={40} aria-hidden className="mb-1 text-faint" />
+            <div className="text-base font-semibold">
               Моделей этого типа пока нет
             </div>
-            <p className="tw:my-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
+            <p className="my-0 max-w-md text-sm text-muted-foreground">
               Добавьте первую модель — она появится здесь и в общем списке
               моделей.
             </p>
             {canManage && (
-              <Button asChild className="tw:mt-2">
+              <Button asChild className="mt-2">
                 <Link to={addModelTo} onClick={offcanvas.setShow}>
                   <RiAddFill /> Новая модель
                 </Link>
@@ -650,11 +640,11 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
         </Panel>
       ) : (
         <>
-          <div className="tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+          <div className="mb-3 flex flex-wrap items-center gap-2.5">
             <SearchBar
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              className="tw:w-full tw:sm:w-64"
+              className="w-full sm:w-64"
             />
             {/* Чип показываем, как только есть хотя бы один вендор (у большинства
                 типов модели одного производителя — но фильтр должен быть виден,
@@ -671,12 +661,12 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
           </div>
           {filteredEmpty ? (
             <Panel>
-              <div className="tw:px-2 tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground">
+              <div className="px-2 py-6 text-center text-sm text-muted-foreground">
                 Ничего не нашлось. Измените запрос или фильтр.
               </div>
             </Panel>
           ) : (
-            <div className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:py-1.5">
+            <div className="overflow-hidden rounded-xl border border-border bg-card py-1.5">
               {filteredModels.map((model) => (
                 <ModelRow key={model._id} model={model} />
               ))}
@@ -686,7 +676,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
       )}
 
       {metaBits && (
-        <div className="tw:mt-6 tw:border-t tw:border-border-soft tw:pt-3.5 tw:text-xs tw:text-faint tw:tabular-nums">
+        <div className="mt-6 border-t border-border-soft pt-3.5 text-xs text-faint tabular-nums">
           {metaBits}
         </div>
       )}

@@ -11,7 +11,7 @@ import { API } from "../pages/Auth/session";
  * адрес уже занят.
  */
 
-export type CompanyResolution = {
+type CompanyResolution = {
   status: "known" | "unknown";
   company: { title: string } | null;
   /** У адреса уже есть учётная запись — регистрация ему не нужна. */

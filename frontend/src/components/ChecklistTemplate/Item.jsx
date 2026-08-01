@@ -13,11 +13,11 @@ import { plural } from "../../util/plural";
  */
 const Bind = ({ icon: Icon, children, dashed = false }) => (
   <span
-    className={`tw:inline-flex tw:items-center tw:gap-1 tw:rounded-md tw:border tw:border-border-soft tw:px-1.5 tw:py-0.5 tw:text-xs tw:text-muted-foreground ${
-      dashed ? "tw:border-dashed" : "tw:bg-secondary"
+    className={`inline-flex items-center gap-1 rounded-md border border-border-soft px-1.5 py-0.5 text-xs text-muted-foreground ${
+      dashed ? "border-dashed" : "bg-secondary"
     }`}
   >
-    {Icon && <Icon size={11} className="tw:text-faint" />}
+    {Icon && <Icon size={11} className="text-faint" />}
     {children}
   </span>
 );
@@ -34,7 +34,7 @@ const ChecklistTemplateItem = ({ item }) => {
       title={title}
       dimmed={!isActive || !bound}
       meta={
-        <span className="tw:mt-1 tw:flex tw:flex-wrap tw:gap-1.5">
+        <span className="mt-1 flex flex-wrap gap-1.5">
           {categories.map((category) => (
             <Bind key={category._id} icon={RiPriceTag3Line}>
               {category.title}
@@ -54,7 +54,7 @@ const ChecklistTemplateItem = ({ item }) => {
         </span>
       }
       trailing={
-        <span className="tw:flex-none tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+        <span className="flex-none text-sm text-muted-foreground tabular-nums">
           {items.length} {plural(items.length, "пункт", "пункта", "пунктов")}
         </span>
       }

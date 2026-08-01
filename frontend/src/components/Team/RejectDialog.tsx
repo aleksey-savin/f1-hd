@@ -55,15 +55,15 @@ const RejectDialog = ({ request, open, onOpenChange, onConfirm }: Props) => {
           <AlertDialogTitle>Отклонить запрос</AlertDialogTitle>
           <AlertDialogDescription>
             {request ? fullName(request.user) : ""}
-            {request ? ` — ${request.typeLabel.toLowerCase()}` : ""}. Причина уйдёт
-            заявителю уведомлением.
+            {request ? ` — ${request.typeLabel.toLowerCase()}` : ""}. Причина
+            уйдёт заявителю уведомлением.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="tw:mt-1">
+        <div className="mt-1">
           <Label
             htmlFor="reject-reason"
-            className="tw:mb-1.5 tw:text-sm tw:font-semibold"
+            className="mb-1.5 text-sm font-semibold"
           >
             Причина
           </Label>

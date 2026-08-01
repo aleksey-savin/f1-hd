@@ -15,7 +15,7 @@ const DeviceAttributeItem = ({ item }) => {
       dimmed={!isActive}
       meta={
         <>
-          <span className="tw:font-mono tw:text-base">{code}</span>
+          <span className="font-mono text-base">{code}</span>
           {" · "}
           {valueTypeLabel(valueType)}
           {unit && ` (${unit})`}

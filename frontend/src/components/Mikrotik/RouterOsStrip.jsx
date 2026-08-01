@@ -77,8 +77,8 @@ const RouterOsStrip = () => {
   return (
     <>
       {/* Нижний отступ ряда задаёт обёртка topContent страницы списка */}
-      <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-1.5 tw:px-1 tw:text-sm tw:text-faint">
-        <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:uppercase">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-1 text-sm text-faint">
+        <span className="text-xs font-bold tracking-wider uppercase">
           RouterOS
         </span>
         {visible.map((key) => {
@@ -89,17 +89,17 @@ const RouterOsStrip = () => {
               key={key}
               type="button"
               onClick={() => setOpenKey(key)}
-              className="tw:inline-flex tw:h-8 tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2 tw:rounded-full tw:border tw:border-border tw:bg-card tw:px-3 tw:text-sm tw:text-muted-foreground tw:transition-colors tw:hover:bg-accent"
+              className="inline-flex h-8 cursor-pointer appearance-none items-center gap-2 rounded-full border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-accent"
             >
-              <span className="tw:font-mono tw:font-semibold tw:text-foreground">
+              <span className="font-mono font-semibold text-foreground">
                 {BRANCH_LABEL[key]} {channel.version}
               </span>
               {behind > 0 ? (
-                <span className="tw:font-semibold tw:text-warning tw:tabular-nums">
+                <span className="font-semibold text-warning tabular-nums">
                   отстают {behind}
                 </span>
               ) : (
-                <span className="tw:text-faint">все актуальны</span>
+                <span className="text-faint">все актуальны</span>
               )}
             </button>
           );
@@ -107,12 +107,12 @@ const RouterOsStrip = () => {
         {hasError && (
           <RiErrorWarningLine
             aria-hidden
-            className="tw:text-warning"
+            className="text-warning"
             title="Не удалось обновить данные о версиях или уязвимостях — показаны сохранённые."
           />
         )}
         {newestFetch && (
-          <span className="tw:ms-auto tw:hidden tw:text-xs tw:md:block">
+          <span className="ms-auto hidden text-xs md:block">
             релизы и CVE-база — от {formatShortDate(newestFetch)}
           </span>
         )}
@@ -124,18 +124,20 @@ const RouterOsStrip = () => {
           if (!next) setOpenKey(null);
         }}
       >
-        <SheetContent side="right" className="tw:w-11/12 tw:max-w-md">
+        <SheetContent side="right" className="w-11/12 max-w-md">
           {open && (
             <>
-              <div className="tw:border-b tw:border-border-soft tw:px-5 tw:pt-4 tw:pb-3.5">
-                <SheetTitle className="tw:my-0 tw:pr-8 tw:text-lg tw:font-semibold">
-                  RouterOS <span className="tw:font-mono">{open.version}</span>{" "}
-                  <span className="tw:text-muted-foreground">
+              <div className="border-b border-border-soft px-5 pt-4 pb-3.5">
+                <SheetTitle className="my-0 pr-8 text-lg font-semibold">
+                  RouterOS <span className="font-mono">{open.version}</span>{" "}
+                  <span className="text-muted-foreground">
                     · {BRANCH_LABEL[openKey]}
                   </span>
                 </SheetTitle>
-                <div className="tw:mt-1 tw:text-sm tw:text-muted-foreground">
-                  {open.releasedAt && <>Вышла {formatDate(open.releasedAt)} · </>}
+                <div className="mt-1 text-sm text-muted-foreground">
+                  {open.releasedAt && (
+                    <>Вышла {formatDate(open.releasedAt)} · </>
+                  )}
                   {openStats?.total > 0 ? (
                     <>
                       устройств на ветке: {openStats.total}
@@ -151,19 +153,19 @@ const RouterOsStrip = () => {
                   href="https://mikrotik.com/download/changelogs"
                   target="_blank"
                   rel="noreferrer"
-                  className="tw:mt-1.5 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-semibold tw:text-accent-text tw:no-underline tw:hover:underline"
+                  className="mt-1.5 inline-flex items-center gap-1 text-sm font-semibold text-accent-text no-underline hover:underline"
                 >
                   Открыть на mikrotik.com{" "}
                   <RiExternalLinkLine size={13} aria-hidden />
                 </a>
               </div>
-              <div className="tw:flex-1 tw:overflow-y-auto tw:px-5 tw:py-4">
+              <div className="flex-1 overflow-y-auto px-5 py-4">
                 {open.changelog ? (
-                  <pre className="tw:my-0 tw:font-mono tw:text-xs tw:leading-relaxed tw:whitespace-pre-wrap tw:text-muted-foreground">
+                  <pre className="my-0 font-mono text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
                     {open.changelog}
                   </pre>
                 ) : (
-                  <div className="tw:text-sm tw:text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     Чейнджлог недоступен.
                   </div>
                 )}

@@ -42,7 +42,7 @@ const AlertMessage = ({
     <Alert
       id="info-alert"
       variant={VARIANT_MAP[variant] ?? "light"}
-      className={cn("tw:my-3", className)}
+      className={cn("my-3", className)}
     >
       <AlertDescription>{message}</AlertDescription>
     </Alert>

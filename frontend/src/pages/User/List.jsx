@@ -127,7 +127,7 @@ const Users = () => {
       />
       {/* компания и группировка — быстрый доступ на десктопе; на мобайле они
           живут в фильтр-шторке (display:contents прячет обёртку из флекса) */}
-      <span className="tw:hidden tw:md:contents">
+      <span className="hidden md:contents">
         <ChipCombobox
           placeholder="Компания"
           allLabel="Все компании"
@@ -141,9 +141,9 @@ const Users = () => {
             onClick={() => s.toggleGroupBySubdivision()}
             title="Группировать по подразделению"
             className={cn(
-              "tw:inline-flex tw:h-10 tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2 tw:rounded-full tw:border tw:border-input tw:bg-transparent tw:px-4 tw:text-sm tw:font-semibold tw:whitespace-nowrap tw:text-muted-foreground tw:transition-colors tw:outline-none tw:hover:bg-accent tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+              "inline-flex h-10 cursor-pointer appearance-none items-center gap-2 rounded-full border border-input bg-transparent px-4 text-sm font-semibold whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/50",
               grouped &&
-                "tw:border-transparent tw:bg-primary/15 tw:text-accent-text tw:hover:bg-primary/20",
+                "border-transparent bg-primary/15 text-accent-text hover:bg-primary/20",
             )}
           >
             <RiStackLine size={15} aria-hidden />

@@ -22,20 +22,18 @@ export const FormHeader = ({ title, subtitle, onHeight, children }) => (
     ref={(node) => {
       if (node) onHeight?.(node.offsetHeight);
     }}
-    className="tw:sticky tw:top-0 tw:z-10 tw:-mx-6 tw:-mt-5 tw:mb-3 tw:border-b tw:border-border-soft tw:bg-background tw:px-6 tw:pt-5 tw:pb-3"
+    className="sticky top-0 z-10 -mx-6 -mt-5 mb-3 border-b border-border-soft bg-background px-6 pt-5 pb-3"
   >
-    <h1 className="tw:my-0 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
+    <h1 className="my-0 pr-10 text-2xl font-semibold tracking-tight">
       {title}
     </h1>
     {subtitle && (
-      <p className="tw:mt-1 tw:mb-0 tw:text-sm tw:text-muted-foreground">
-        {subtitle}
-      </p>
+      <p className="mt-1 mb-0 text-sm text-muted-foreground">{subtitle}</p>
     )}
     {/* Тихий контрол при заголовке — вход «Из шаблона» у новой заявки: он
         задаёт заготовку всей формы, а не правит одно поле, поэтому стоит в
         шапке, а не полем среди прочих */}
-    {children && <div className="tw:mt-3">{children}</div>}
+    {children && <div className="mt-3">{children}</div>}
   </div>
 );
 
@@ -72,9 +70,9 @@ export const FormSections = ({
   }, [location.hash, scroller, keys]);
 
   return (
-    <div className="tw:flex tw:items-start tw:gap-7">
+    <div className="flex items-start gap-7">
       {rail && sections.length > 1 && (
-        <BrowserView className="tw:contents">
+        <BrowserView className="contents">
           <AnchorRail
             sections={sections.map((section) => ({
               id: anchorId(section.key),
@@ -86,22 +84,22 @@ export const FormSections = ({
           />
         </BrowserView>
       )}
-      <div className="tw:min-w-0 tw:flex-1 tw:space-y-1">
+      <div className="min-w-0 flex-1 space-y-1">
         {sections.map((section) => (
           <section
             key={section.key}
             id={anchorId(section.key)}
-            className="tw:border-t tw:border-border-soft tw:py-5 tw:first:border-t-0 tw:first:pt-1"
+            className="border-t border-border-soft py-5 first:border-t-0 first:pt-1"
           >
-            <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
+            <h3 className="my-0 text-base font-semibold tracking-tight">
               {section.title}
             </h3>
             {section.desc && (
-              <p className="tw:mt-0.5 tw:mb-0 tw:text-sm tw:text-muted-foreground">
+              <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
                 {section.desc}
               </p>
             )}
-            <div className="tw:mt-4">{section.body}</div>
+            <div className="mt-4">{section.body}</div>
           </section>
         ))}
       </div>

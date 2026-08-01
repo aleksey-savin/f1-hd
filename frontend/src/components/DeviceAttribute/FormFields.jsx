@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
-import Select from "../../UI/Select";
+import Combobox from "@/components/app/Combobox";
 import { VALUE_TYPES } from "./value-types";
 
 // Поля атрибута устройства. Рендерят `name`-атрибуты (для сабмита со страницы
@@ -42,8 +42,8 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
     notifyChange({ code, name: newName, valueType, unit, options, isActive });
   };
 
-  const valueTypeChangeHandler = (option) => {
-    const newValueType = option?.value ?? "string";
+  const valueTypeChangeHandler = (value) => {
+    const newValueType = value ?? "string";
     setValueType(newValueType);
     notifyChange({
       code,
@@ -92,7 +92,7 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
 
   return (
     <>
-      <div className="tw:grid tw:gap-x-4 tw:md:grid-cols-2">
+      <div className="grid gap-x-4 md:grid-cols-2">
         <Field
           label="Код"
           htmlFor="code"
@@ -127,13 +127,10 @@ const DeviceAttributeFormFields = ({ attribute, onChange }) => {
           />
         </Field>
         <Field label="Тип данных" htmlFor="valueType" required>
-          <Select
+          <Combobox
             id="valueType"
-            closeMenuOnSelect
-            value={VALUE_TYPES.filter((type) => type.value === valueType)}
+            value={valueType}
             options={VALUE_TYPES}
-            getOptionLabel={(type) => type.label}
-            getOptionValue={(type) => type.value}
             onChange={valueTypeChangeHandler}
           />
           <input type="hidden" name="valueType" value={valueType} />

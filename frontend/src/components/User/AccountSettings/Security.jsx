@@ -70,10 +70,7 @@ const Security = ({ user }) => {
 
   return (
     <>
-      <SettingRow
-        title="Пароль"
-        hint="Используется для входа вместе с email."
-      >
+      <SettingRow title="Пароль" hint="Используется для входа вместе с email.">
         <Button type="button" variant="outline" size="sm" onClick={openDialog}>
           Сменить пароль
         </Button>
@@ -117,10 +114,10 @@ const Security = ({ user }) => {
               <AlertMessage
                 variant="danger"
                 message="Пароли не совпадают."
-                className="tw:my-2"
+                className="my-2"
               />
             )}
-            <DialogFooter className="tw:mt-4">
+            <DialogFooter className="mt-4">
               <Button
                 type="button"
                 variant="ghost"

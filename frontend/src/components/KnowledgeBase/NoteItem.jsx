@@ -8,9 +8,9 @@ import { formatShortDate } from "../../util/format-date";
 import { getNoteFlags, getNoteTypeMeta } from "../../util/knowledgeNoteTypes";
 
 const TONE_CLASS = {
-  danger: "tw:text-destructive",
-  warning: "tw:text-warning",
-  faint: "tw:text-faint",
+  danger: "text-destructive",
+  warning: "text-warning",
+  faint: "text-faint",
 };
 
 // Строка списка заметок в рейле (и в плоском списке на мобилке).
@@ -47,12 +47,12 @@ const NoteItem = ({
   ].filter(Boolean);
 
   const rowClass = cn(
-    "tw:relative tw:flex tw:items-start tw:gap-2.5 tw:py-2.5 tw:pe-3.5 tw:text-foreground tw:no-underline tw:transition-colors",
-    "tw:before:absolute tw:before:top-0 tw:before:right-3.5 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden",
-    nested ? "tw:ps-8 tw:before:left-8" : "tw:ps-3.5 tw:before:left-3.5",
-    isActive ? "tw:bg-primary/10" : "tw:hover:bg-accent/60",
-    selectable && "tw:cursor-pointer",
-    note.archivedAt && "tw:text-muted-foreground",
+    "relative flex items-start gap-2.5 py-2.5 pe-3.5 text-foreground no-underline transition-colors",
+    "before:absolute before:top-0 before:right-3.5 before:h-px before:bg-border-soft first:before:hidden",
+    nested ? "ps-8 before:left-8" : "ps-3.5 before:left-3.5",
+    isActive ? "bg-primary/10" : "hover:bg-accent/60",
+    selectable && "cursor-pointer",
+    note.archivedAt && "text-muted-foreground",
   );
 
   // Полоса выбранной строки — односторонняя граница инлайном: без preflight
@@ -63,22 +63,22 @@ const NoteItem = ({
 
   const body = (
     <>
-      <span className="tw:min-w-0 tw:flex-1">
+      <span className="min-w-0 flex-1">
         <span
           className={cn(
-            "tw:block tw:truncate tw:text-base tw:leading-snug",
-            isActive ? "tw:font-semibold" : "tw:font-medium",
+            "block truncate text-base leading-snug",
+            isActive ? "font-semibold" : "font-medium",
           )}
         >
           {note.title}
         </span>
-        <span className="tw:block tw:truncate tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+        <span className="block truncate text-sm text-muted-foreground tabular-nums">
           {meta.join(" · ")}
         </span>
       </span>
 
       {flags.length > 0 && (
-        <span className="tw:mt-0.5 tw:flex tw:flex-none tw:items-center tw:gap-1.5">
+        <span className="mt-0.5 flex flex-none items-center gap-1.5">
           {flags.map(({ key, icon: Icon, tone, title }) => (
             <Icon
               key={key}
@@ -100,7 +100,7 @@ const NoteItem = ({
         style={rowStyle}
         onClick={() => onToggleSelected(note._id)}
       >
-        <span className="tw:mt-0.5 tw:flex-none">
+        <span className="mt-0.5 flex-none">
           <Checkbox
             checked={isSelected}
             aria-label={`Выделить заметку «${note.title}»`}
@@ -111,7 +111,7 @@ const NoteItem = ({
         <Link
           to={`/knowledge-base/${note._id}`}
           onClick={(event) => event.stopPropagation()}
-          className="tw:flex tw:min-w-0 tw:flex-1 tw:items-start tw:gap-2.5 tw:text-inherit tw:no-underline"
+          className="flex min-w-0 flex-1 items-start gap-2.5 text-inherit no-underline"
         >
           {body}
         </Link>
@@ -120,14 +120,18 @@ const NoteItem = ({
   }
 
   return (
-    <Link to={`/knowledge-base/${note._id}`} className={rowClass} style={rowStyle}>
+    <Link
+      to={`/knowledge-base/${note._id}`}
+      className={rowClass}
+      style={rowStyle}
+    >
       <TypeIcon
         size={18}
         aria-hidden
         title={typeMeta.label}
         className={cn(
-          "tw:mt-0.5 tw:flex-none",
-          isActive ? "tw:text-accent-text" : "tw:text-faint",
+          "mt-0.5 flex-none",
+          isActive ? "text-accent-text" : "text-faint",
         )}
       />
       {body}

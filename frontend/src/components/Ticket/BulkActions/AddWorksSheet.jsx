@@ -65,10 +65,10 @@ const AddWorksForm = ({ selectedItems, onHide, onConfirm }) => {
 
   return (
     <>
-      <h1 className="tw:my-0 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
+      <h1 className="my-0 pr-10 text-2xl font-semibold tracking-tight">
         Новая работа
       </h1>
-      <p className="tw:mt-1 tw:mb-5 tw:text-sm tw:text-muted-foreground">
+      <p className="mt-1 mb-5 text-sm text-muted-foreground">
         Одна работа будет привязана к {selectedItems.length}{" "}
         {selectedItems.length === 1 ? "заявке" : "заявкам"}
         {selectedItems[0]?.company?.alias
@@ -76,9 +76,13 @@ const AddWorksForm = ({ selectedItems, onHide, onConfirm }) => {
           : ""}
       </p>
 
-      <WorkFormFields form={form} performers={performers} canPickPerformer={isAdmin} />
+      <WorkFormFields
+        form={form}
+        performers={performers}
+        canPickPerformer={isAdmin}
+      />
 
-      <div className="tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:justify-end tw:gap-2.5 tw:bg-background tw:px-6 tw:py-3">
+      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2.5 bg-background px-6 py-3">
         <Button type="button" variant="ghost" onClick={onHide}>
           Отмена
         </Button>

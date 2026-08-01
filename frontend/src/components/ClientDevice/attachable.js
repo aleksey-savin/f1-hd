@@ -40,7 +40,9 @@ export function describeDevice(d = {}) {
   const ident =
     d.inventoryNumber || (d.serialNumber ? `SN ${d.serialNumber}` : "");
   const title =
-    [typeName, vendorModel].filter(Boolean).join(" · ") || ident || "Устройство";
+    [typeName, vendorModel].filter(Boolean).join(" · ") ||
+    ident ||
+    "Устройство";
   const statusLabel = STATUS_LABELS[d.status] || d.status || "";
 
   return {

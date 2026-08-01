@@ -93,7 +93,7 @@ const Login = () => {
         />
       )}
 
-      <Form method="post" className="tw:mt-5">
+      <Form method="post" className="mt-5">
         <Field label="Рабочая почта" htmlFor="email" required>
           <Input
             id="email"
@@ -118,7 +118,7 @@ const Login = () => {
           />
         </Field>
 
-        <Button type="submit" disabled={submitting} className="tw:mt-1 tw:w-full">
+        <Button type="submit" disabled={submitting} className="mt-1 w-full">
           {submitting ? "Вход…" : "Войти"}
         </Button>
       </Form>

@@ -79,7 +79,15 @@ const rowMeta = (data) => {
 
 // Один узел дерева: клик по строке — предпросмотр (шторка справа), шеврон —
 // развернуть/свернуть, «+» у контейнеров — добавить вложенное.
-const TreeNode = ({ node, depth, isExpanded, onToggle, onSelect, selectedId, canManage }) => {
+const TreeNode = ({
+  node,
+  depth,
+  isExpanded,
+  onToggle,
+  onSelect,
+  selectedId,
+  canManage,
+}) => {
   const offcanvas = useOffcanvasStore();
   const { data, children } = node;
   const hasChildren = children.length > 0;
@@ -103,8 +111,8 @@ const TreeNode = ({ node, depth, isExpanded, onToggle, onSelect, selectedId, can
           }
         }}
         className={cn(
-          "tw:group tw:flex tw:cursor-pointer tw:items-center tw:gap-2 tw:rounded-lg tw:px-2.5 tw:py-2 tw:transition-colors",
-          selected ? "tw:bg-primary/10" : "tw:hover:bg-accent",
+          "group flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 transition-colors",
+          selected ? "bg-primary/10" : "hover:bg-accent",
         )}
       >
         {hasChildren ? (
@@ -116,30 +124,34 @@ const TreeNode = ({ node, depth, isExpanded, onToggle, onSelect, selectedId, can
               event.stopPropagation();
               onToggle(data._id);
             }}
-            className="tw:grid tw:size-6 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-md tw:border-0 tw:bg-transparent tw:p-0 tw:text-faint tw:hover:bg-accent tw:hover:text-foreground"
+            className="grid size-6 flex-none cursor-pointer appearance-none place-items-center rounded-md border-0 bg-transparent p-0 text-faint hover:bg-accent hover:text-foreground"
           >
             {expanded ? <RiArrowDownSLine /> : <RiArrowRightSLine />}
           </button>
         ) : (
-          <span aria-hidden className="tw:size-6 tw:flex-none" />
+          <span aria-hidden className="size-6 flex-none" />
         )}
 
-        <Icon size={16} aria-hidden className="tw:flex-none tw:text-muted-foreground" />
+        <Icon
+          size={16}
+          aria-hidden
+          className="flex-none text-muted-foreground"
+        />
 
-        <div className="tw:min-w-0 tw:flex-1">
+        <div className="min-w-0 flex-1">
           <div
             className={cn(
-              "tw:truncate tw:text-[15px] tw:font-medium",
-              selected && "tw:text-accent-text",
+              "truncate text-[15px] font-medium",
+              selected && "text-accent-text",
             )}
           >
             {data.name || "Без названия"}
           </div>
           {/* На узких экранах мета — второй строкой под названием */}
           {meta && (
-            <div className="tw:truncate tw:text-sm tw:text-muted-foreground tw:tabular-nums tw:sm:hidden">
+            <div className="truncate text-sm text-muted-foreground tabular-nums sm:hidden">
               {data.isPublic && (
-                <span className="tw:font-medium tw:text-accent-text">
+                <span className="font-medium text-accent-text">
                   общедоступное ·{" "}
                 </span>
               )}
@@ -148,9 +160,9 @@ const TreeNode = ({ node, depth, isExpanded, onToggle, onSelect, selectedId, can
           )}
         </div>
 
-        <span className="tw:flex-none tw:text-sm tw:text-muted-foreground tw:tabular-nums tw:max-sm:hidden">
+        <span className="flex-none text-sm text-muted-foreground tabular-nums max-sm:hidden">
           {data.isPublic && (
-            <span className="tw:font-medium tw:text-accent-text">
+            <span className="font-medium text-accent-text">
               общедоступное ·{" "}
             </span>
           )}
@@ -164,7 +176,7 @@ const TreeNode = ({ node, depth, isExpanded, onToggle, onSelect, selectedId, can
             size="icon-sm"
             title="Новое вложенное расположение"
             aria-label="Новое вложенное расположение"
-            className="tw:flex-none tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100"
+            className="flex-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
             onClick={(event) => event.stopPropagation()}
           >
             <Link
@@ -178,7 +190,7 @@ const TreeNode = ({ node, depth, isExpanded, onToggle, onSelect, selectedId, can
       </div>
 
       {hasChildren && expanded && (
-        <div className="tw:ml-5 tw:border-l tw:border-border-soft tw:pl-3">
+        <div className="ml-5 border-l border-border-soft pl-3">
           {children.map((child) => (
             <TreeNode
               key={child.data._id}
@@ -234,7 +246,7 @@ const Tree = ({ items = [], selectedId = null, onSelect }) => {
   return (
     <>
       {allParentIds.length > 0 && (
-        <div className="tw:mb-2 tw:flex tw:justify-end">
+        <div className="mb-2 flex justify-end">
           <Button
             variant="ghost"
             size="sm"
@@ -252,7 +264,7 @@ const Tree = ({ items = [], selectedId = null, onSelect }) => {
           </Button>
         </div>
       )}
-      <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-2">
+      <div className="rounded-xl border border-border bg-card p-2">
         {roots.map((node) => (
           <TreeNode
             key={node.data._id}

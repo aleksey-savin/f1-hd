@@ -1,6 +1,5 @@
 import { type ReactNode } from "react";
 
-import { InsideOverlayContext } from "@/components/app/overlay-context";
 import {
   Sheet,
   SheetContent,
@@ -11,7 +10,6 @@ import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
 
 // Sheet-фильтр страницы отчёта — та же шторка, что у списков (разметка блока
 // фильтра ListWrapper); открывается общим store/mobile-filter-offcanvas.
-// InsideOverlayContext обязателен для модальных обёрток со своими порталами.
 const FilterSheet = ({ children }: { children: ReactNode }) => {
   const filterOffcanvas = useMobileFilterOffcanvasStore();
 
@@ -22,15 +20,11 @@ const FilterSheet = ({ children }: { children: ReactNode }) => {
         if (!open) filterOffcanvas.handleClose();
       }}
     >
-      <SheetContent side="left" className="tw:w-5/6 tw:max-w-sm">
-        <SheetHeader className="tw:border-b tw:border-border">
-          <SheetTitle className="tw:text-base">Фильтр</SheetTitle>
+      <SheetContent side="left" className="w-5/6 max-w-sm">
+        <SheetHeader className="border-b border-border">
+          <SheetTitle className="text-base">Фильтр</SheetTitle>
         </SheetHeader>
-        <div className="tw:flex-1 tw:overflow-y-auto tw:px-4 tw:pb-4">
-          <InsideOverlayContext.Provider value={true}>
-            {children}
-          </InsideOverlayContext.Provider>
-        </div>
+        <div className="flex-1 overflow-y-auto px-4 pb-4">{children}</div>
       </SheetContent>
     </Sheet>
   );

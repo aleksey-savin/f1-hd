@@ -27,12 +27,12 @@ import { ThemeContext } from "../store/theme-context";
 // с сегментом темы, «Мой аккаунт» и «Выйти».
 const itemClass = ({ isActive } = {}) =>
   cn(
-    "tw:flex tw:w-full tw:items-center tw:gap-3 tw:rounded-xl tw:px-3 tw:py-2.5 tw:text-base tw:font-medium tw:text-foreground tw:no-underline tw:transition-colors tw:hover:bg-accent",
-    isActive && "tw:bg-primary/15 tw:text-accent-text tw:hover:bg-primary/15",
+    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-base font-medium text-foreground no-underline transition-colors hover:bg-accent",
+    isActive && "bg-primary/15 text-accent-text hover:bg-primary/15",
   );
 
-const iconClass = "tw:flex-none tw:text-muted-foreground";
-const activeIconClass = "tw:flex-none tw:text-accent-text";
+const iconClass = "flex-none text-muted-foreground";
+const activeIconClass = "flex-none text-accent-text";
 
 const NavDrawer = ({ open, onOpenChange, items }) => {
   const {
@@ -57,20 +57,15 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
 
   const close = () => onOpenChange(false);
 
-  const changeTheme = (value) => {
-    if (value === theme) return;
-    setTheme(value);
-    // Легаси-CSS до эндшпиля подхватывает тему только с перезагрузкой
-    window.location.reload();
-  };
+  const changeTheme = (value) => setTheme(value);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="left"
-        className="tw:flex tw:w-5/6 tw:max-w-sm tw:flex-col tw:gap-0 tw:p-0"
+        className="flex w-5/6 max-w-sm flex-col gap-0 p-0"
       >
-        <div className="tw:flex tw:items-center tw:gap-3 tw:border-b tw:border-border-soft tw:p-4 tw:pr-12">
+        <div className="flex items-center gap-3 border-b border-border-soft p-4 pr-12">
           {workStatusAvailable ? (
             <WorkStatusAvatar
               size={44}
@@ -82,26 +77,24 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
           ) : (
             <span
               aria-hidden
-              className="tw:grid tw:size-11 tw:flex-none tw:place-items-center tw:rounded-full tw:bg-accent tw:text-base tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+              className="grid size-11 flex-none place-items-center rounded-full bg-accent text-base font-semibold text-muted-foreground inset-ring inset-ring-border"
             >
               {initials}
             </span>
           )}
-          <div className="tw:min-w-0">
-            <SheetTitle className="tw:truncate tw:text-base tw:leading-tight tw:font-semibold">
+          <div className="min-w-0">
+            <SheetTitle className="truncate text-base leading-tight font-semibold">
               {firstName} {lastName}
             </SheetTitle>
-            <div className="tw:text-xs tw:text-muted-foreground">
-              {roleLabel}
-            </div>
+            <div className="text-xs text-muted-foreground">{roleLabel}</div>
           </div>
         </div>
 
         <nav
           aria-label="Основная навигация"
-          className="tw:min-h-0 tw:flex-1 tw:overflow-y-auto tw:p-2.5"
+          className="min-h-0 flex-1 overflow-y-auto p-2.5"
         >
-          <div className="tw:px-2 tw:pt-1 tw:pb-1.5 tw:text-xs tw:font-semibold tw:tracking-wider tw:text-faint tw:uppercase">
+          <div className="px-2 pt-1 pb-1.5 text-xs font-semibold tracking-wider text-faint uppercase">
             Навигация
           </div>
           {items.map((item) =>
@@ -110,28 +103,28 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
                 <CollapsibleTrigger
                   className={cn(
                     itemClass(),
-                    "tw:group tw:cursor-pointer tw:appearance-none tw:border-0 tw:bg-transparent tw:text-left",
+                    "group cursor-pointer appearance-none border-0 bg-transparent text-left",
                   )}
                 >
                   <item.icon size={18} aria-hidden className={iconClass} />
-                  <span className="tw:min-w-0 tw:flex-1">{item.label}</span>
+                  <span className="min-w-0 flex-1">{item.label}</span>
                   <RiArrowDownSLine
                     size={17}
                     aria-hidden
-                    className="tw:text-faint tw:transition-transform tw:group-data-[state=open]:rotate-180"
+                    className="text-faint transition-transform group-data-[state=open]:rotate-180"
                   />
                 </CollapsibleTrigger>
-                <CollapsibleContent className="tw:ps-4">
+                <CollapsibleContent className="ps-4">
                   {item.groups.map((group, groupIndex) => (
                     <div
                       key={group.label ?? groupIndex}
                       className={cn(
                         groupIndex > 0 &&
-                          "tw:mt-1 tw:border-t tw:border-border-soft tw:pt-1",
+                          "mt-1 border-t border-border-soft pt-1",
                       )}
                     >
                       {group.label && (
-                        <div className="tw:px-3 tw:pt-2 tw:pb-1 tw:text-xs tw:font-semibold tw:tracking-wider tw:text-faint tw:uppercase">
+                        <div className="px-3 pt-2 pb-1 text-xs font-semibold tracking-wider text-faint uppercase">
                           {group.label}
                         </div>
                       )}
@@ -182,12 +175,12 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
           )}
         </nav>
 
-        <div className="tw:border-t tw:border-border-soft tw:p-3 tw:pb-4">
+        <div className="border-t border-border-soft p-3 pb-4">
           <ThemeSegment
             theme={theme}
             onChange={changeTheme}
             showLabels={false}
-            className="tw:mb-2 tw:flex"
+            className="mb-2 flex"
           />
           <NavLink to="/my-account" onClick={close} className={itemClass}>
             <RiUserSettingsLine size={18} aria-hidden className={iconClass} />
@@ -204,13 +197,13 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
               type="submit"
               className={cn(
                 itemClass(),
-                "tw:cursor-pointer tw:appearance-none tw:border-0 tw:bg-transparent tw:text-left tw:text-destructive tw:hover:bg-destructive/10",
+                "cursor-pointer appearance-none border-0 bg-transparent text-left text-destructive hover:bg-destructive/10",
               )}
             >
               <RiLogoutBoxRLine
                 size={18}
                 aria-hidden
-                className="tw:flex-none tw:text-destructive"
+                className="flex-none text-destructive"
               />
               Выйти
             </button>

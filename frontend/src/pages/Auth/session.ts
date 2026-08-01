@@ -7,7 +7,7 @@ export const API = import.meta.env.VITE_API_ADDRESS;
 /** Статусы, которые формы показывают на месте, а не роняют в error boundary. */
 export const INLINE_STATUSES = [400, 401, 403, 404, 409, 422, 429];
 
-export type AuthResponse = {
+type AuthResponse = {
   token: string;
   expiryDate: string;
   userId: string;
@@ -30,7 +30,6 @@ const SESSION_KEYS = [
   "canSeeAllTickets",
   "canSeeWorksReport",
   "canSeeAnalytics",
-  "canUpdateChangelog",
   "userName",
   "contactsTel",
   "contactsEmail",

@@ -106,7 +106,7 @@ const FormWrapper = ({
         }
       >
         {header ?? (
-          <h1 className="tw:my-0 tw:mb-5 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
+          <h1 className="my-0 mb-5 pr-10 text-2xl font-semibold tracking-tight">
             {title}
           </h1>
         )}
@@ -120,7 +120,7 @@ const FormWrapper = ({
           <AlertMessage variant="success" message={data.message} />
         )}
         {children}
-        <div className="tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:justify-end tw:gap-2.5 tw:border-t tw:border-border-soft tw:bg-background tw:px-6 tw:py-3">
+        <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2.5 border-t border-border-soft bg-background px-6 py-3">
           <Button type="button" variant="ghost" onClick={close}>
             Отмена
           </Button>

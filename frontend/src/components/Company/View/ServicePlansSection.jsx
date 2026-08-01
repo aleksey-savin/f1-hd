@@ -35,10 +35,9 @@ import { Eyebrow, Panel } from "@/components/app/Panel";
 import Field from "@/components/app/Field";
 import AlertMessage from "@/components/app/AlertMessage";
 import AttachFields, { emptyAttach } from "../../ServicePlan/AttachFields";
-import { InsideOverlayContext } from "@/components/app/overlay-context";
 import useOffcanvasStore from "@/store/offcanvas";
 
-import Select from "../../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import {
   formatCalendarDate,
   toDateInputValue,
@@ -90,7 +89,13 @@ const planPrice = (tariff) => {
   return { value: "—" };
 };
 
-const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }) => {
+const ServicePlansSection = ({
+  company,
+  plans,
+  servicePlansList,
+  canManage,
+  id,
+}) => {
   const fetcher = useFetcher();
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
@@ -220,10 +225,10 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
       </Eyebrow>
       <Panel>
         {plans.length === 0 ? (
-          <div className="tw:mx-auto tw:flex tw:max-w-md tw:flex-col tw:items-center tw:gap-2 tw:py-6 tw:text-center">
-            <RiContractLine size={36} aria-hidden className="tw:text-faint" />
-            <div className="tw:font-semibold">Услуги не подключены</div>
-            <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+          <div className="mx-auto flex max-w-md flex-col items-center gap-2 py-6 text-center">
+            <RiContractLine size={36} aria-hidden className="text-faint" />
+            <div className="font-semibold">Услуги не подключены</div>
+            <p className="my-0 text-sm text-muted-foreground">
               Подключите компании услугу из каталога — от неё считаются
               тарификация и отчёты.
             </p>
@@ -231,7 +236,7 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
               <Button
                 size="sm"
                 variant="outline"
-                className="tw:mt-1"
+                className="mt-1"
                 onClick={openAdd}
               >
                 <RiAddLine /> Добавить услугу
@@ -245,28 +250,28 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
             return (
               <div
                 key={plan._id}
-                className="tw:group tw:flex tw:flex-wrap tw:items-center tw:gap-x-4 tw:gap-y-1 tw:border-t tw:border-border-soft tw:py-3 tw:first:border-t-0 tw:first:pt-0 tw:last:pb-0"
+                className="group flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border-soft py-3 first:border-t-0 first:pt-0 last:pb-0"
               >
-                <div className="tw:min-w-0 tw:flex-1">
-                  <div className="tw:text-[15px] tw:leading-snug tw:font-medium">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[15px] leading-snug font-medium">
                     <Link
                       to={`/finances/service-plans/${plan._id}`}
-                      className="tw:text-accent-text tw:no-underline tw:hover:underline"
+                      className="text-accent-text no-underline hover:underline"
                     >
                       {plan.title}
                     </Link>
                   </div>
-                  <div className="tw:mt-0.5 tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-0.5 tw:text-[13px] tw:text-muted-foreground">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[13px] text-muted-foreground">
                     <span>{tariffTypeName(tariff?.type) || "—"}</span>
                     {plan.isActiveSince && (
-                      <span className="tw:tabular-nums">
-                        <span className="tw:text-faint">·</span> с{" "}
+                      <span className="tabular-nums">
+                        <span className="text-faint">·</span> с{" "}
                         {formatCalendarDate(plan.isActiveSince)}
                       </span>
                     )}
                     {plan.customerApprovalRequired && (
-                      <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:font-medium tw:text-warning">
-                        <span className="tw:size-1.5 tw:rounded-full tw:bg-warning" />
+                      <span className="inline-flex items-center gap-1.5 font-medium text-warning">
+                        <span className="size-1.5 rounded-full bg-warning" />
                         {/* Кто подписывает — часть условия, а не деталь:
                             без согласующего отчёт будет некому согласовать */}
                         согласование
@@ -278,11 +283,11 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
                     )}
                   </div>
                 </div>
-                <div className="tw:flex tw:flex-none tw:items-center tw:gap-1">
-                  <span className="tw:text-[15px] tw:font-bold tw:tabular-nums">
+                <div className="flex flex-none items-center gap-1">
+                  <span className="text-[15px] font-bold tabular-nums">
                     {price.value}
                     {price.per && (
-                      <span className="tw:font-semibold tw:text-muted-foreground">
+                      <span className="font-semibold text-muted-foreground">
                         {price.per}
                       </span>
                     )}
@@ -295,7 +300,7 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
                           size="icon-sm"
                           aria-label="Действия"
                           title="Действия"
-                          className="tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:max-md:opacity-100 tw:data-[state=open]:opacity-100"
+                          className="text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-md:opacity-100 data-[state=open]:opacity-100"
                         >
                           <RiMoreLine />
                         </Button>
@@ -326,137 +331,140 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
         open={Boolean(editPlan)}
         onOpenChange={(open) => !open && setEditPlan(null)}
       >
-        <DialogContent className="tw:max-w-lg" aria-describedby={undefined}>
-          <InsideOverlayContext.Provider value={true}>
-            <DialogHeader>
-              <DialogTitle>Условия подключения</DialogTitle>
-            </DialogHeader>
+        <DialogContent className="max-w-lg" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Условия подключения</DialogTitle>
+          </DialogHeader>
 
-            {fetcher.data?.error && (
-              <AlertMessage variant="danger" message={fetcher.data.error} />
-            )}
+          {fetcher.data?.error && (
+            <AlertMessage variant="danger" message={fetcher.data.error} />
+          )}
 
-            <form onSubmit={submitEdit}>
-              <div className="tw:mb-4 tw:rounded-lg tw:border tw:border-border tw:bg-accent tw:px-3.5 tw:py-2.5">
-                <div className="tw:font-semibold">{editPlan?.title}</div>
-                <div className="tw:text-sm tw:text-muted-foreground">
-                  {tariffTypeName(tariffOf(editPlan || {})?.type) || "—"}
-                </div>
+          <form onSubmit={submitEdit}>
+            <div className="mb-4 rounded-lg border border-border bg-accent px-3.5 py-2.5">
+              <div className="font-semibold">{editPlan?.title}</div>
+              <div className="text-sm text-muted-foreground">
+                {tariffTypeName(tariffOf(editPlan || {})?.type) || "—"}
               </div>
+            </div>
 
-              <AttachFields
-                idPrefix="edit-attach"
-                companyId={company._id}
-                value={attach}
-                onChange={setAttach}
-              />
+            <AttachFields
+              idPrefix="edit-attach"
+              companyId={company._id}
+              value={attach}
+              onChange={setAttach}
+            />
 
-              <DialogFooter className="tw:mt-4">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setEditPlan(null)}
-                >
-                  Отмена
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={
-                    busy || (attach.customerApprovalRequired && !attach.approver)
-                  }
-                >
-                  {busy ? "Сохранение…" : "Сохранить"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </InsideOverlayContext.Provider>
+            <DialogFooter className="mt-4">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setEditPlan(null)}
+              >
+                Отмена
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  busy || (attach.customerApprovalRequired && !attach.approver)
+                }
+              >
+                {busy ? "Сохранение…" : "Сохранить"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="tw:max-w-lg" aria-describedby={undefined}>
-          <InsideOverlayContext.Provider value={true}>
-            <DialogHeader>
-              <DialogTitle>Добавить услугу</DialogTitle>
-            </DialogHeader>
+        <DialogContent className="max-w-lg" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Добавить услугу</DialogTitle>
+          </DialogHeader>
 
-            {fetcher.data?.error && (
-              <AlertMessage
-                variant="danger"
-                message={
-                  <>
-                    <div>{fetcher.data.error}</div>
-                    {fetcher.data.duplicates?.length > 0 && (
-                      <ul className="tw:my-1 tw:ps-5">
-                        {fetcher.data.duplicates.map((duplicate) => (
-                          <li key={duplicate._id}>{duplicate.title}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </>
+          {fetcher.data?.error && (
+            <AlertMessage
+              variant="danger"
+              message={
+                <>
+                  <div>{fetcher.data.error}</div>
+                  {fetcher.data.duplicates?.length > 0 && (
+                    <ul className="my-1 ps-5">
+                      {fetcher.data.duplicates.map((duplicate) => (
+                        <li key={duplicate._id}>{duplicate.title}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              }
+            />
+          )}
+
+          <form onSubmit={submitAdd}>
+            <Field label="Услуга" required>
+              <Combobox
+                ariaLabel="Услуга"
+                placeholder="Выберите услугу"
+                options={toOptions(attachOptions, {
+                  value: (option) => String(option._id),
+                  label: (option) => option.title,
+                })}
+                value={newPlan?._id ? String(newPlan._id) : null}
+                onChange={(id) =>
+                  setNewPlan(
+                    attachOptions.find((option) => String(option._id) === id) ||
+                      null,
+                  )
                 }
+                clearable
+                clearLabel="Не выбрана"
               />
-            )}
+            </Field>
+            <AttachFields
+              companyId={company._id}
+              value={attach}
+              onChange={setAttach}
+            />
 
-            <form onSubmit={submitAdd}>
-              <Field label="Услуга" required>
-                <Select
-                  placeholder="Выберите услугу"
-                  isClearable
-                  isSearchable
-                  options={attachOptions}
-                  value={newPlan}
-                  onChange={(next) => setNewPlan(next || null)}
-                  getOptionLabel={(option) => option.title}
-                  getOptionValue={(option) => option._id}
-                />
-              </Field>
-              <AttachFields
-                companyId={company._id}
-                value={attach}
-                onChange={setAttach}
-              />
+            {/* Ветка создания: нужной услуги нет в каталоге */}
+            <div className="mb-3.5 flex items-center gap-3 text-xs font-bold tracking-wider text-faint uppercase">
+              <span className="h-px flex-1 bg-border-soft" />
+              или
+              <span className="h-px flex-1 bg-border-soft" />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={openWizard}
+            >
+              <RiAddLine /> Новая услуга
+            </Button>
+            <p className="mt-2 mb-0 text-sm text-muted-foreground">
+              Откроется мастер услуги; после сохранения она будет подключена «
+              {company.alias}» с указанными выше датой и согласованием.
+            </p>
 
-              {/* Ветка создания: нужной услуги нет в каталоге */}
-              <div className="tw:mb-3.5 tw:flex tw:items-center tw:gap-3 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
-                <span className="tw:h-px tw:flex-1 tw:bg-border-soft" />
-                или
-                <span className="tw:h-px tw:flex-1 tw:bg-border-soft" />
-              </div>
+            <DialogFooter className="mt-4">
               <Button
                 type="button"
-                variant="outline"
-                className="tw:w-full"
-                onClick={openWizard}
+                variant="ghost"
+                onClick={() => setAddOpen(false)}
               >
-                <RiAddLine /> Новая услуга
+                Отмена
               </Button>
-              <p className="tw:mt-2 tw:mb-0 tw:text-sm tw:text-muted-foreground">
-                Откроется мастер услуги; после сохранения она будет подключена
-                «{company.alias}» с указанными выше датой и согласованием.
-              </p>
-
-              <DialogFooter className="tw:mt-4">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setAddOpen(false)}
-                >
-                  Отмена
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={
-                    busy ||
-                    !newPlan ||
-                    (attach.customerApprovalRequired && !attach.approver)
-                  }
-                >
-                  {busy ? "Сохранение…" : "Сохранить"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </InsideOverlayContext.Provider>
+              <Button
+                type="submit"
+                disabled={
+                  busy ||
+                  !newPlan ||
+                  (attach.customerApprovalRequired && !attach.approver)
+                }
+              >
+                {busy ? "Сохранение…" : "Сохранить"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -473,7 +481,7 @@ const ServicePlansSection = ({ company, plans, servicePlansList, canManage, id }
               Услуга будет откреплена от компании. Это действие нельзя отменить.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="tw:mt-4">
+          <AlertDialogFooter className="mt-4">
             <AlertDialogCancel type="button">Отмена</AlertDialogCancel>
             <Button variant="destructive" onClick={confirmDetach}>
               <RiLinkUnlinkM /> Открепить

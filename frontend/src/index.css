@@ -1,8 +1,7 @@
+/* Шрифт (Inter) и сброс полей задаёт @layer base в styles/tailwind.css —
+   здесь только сглаживание и плавная смена темы. Правило про font-family тут
+   было бы вредным: index.css не в слое и перебил бы базовый слой. */
 body {
-  margin: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
-    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -16,694 +15,59 @@ code {
   --transition-duration: 0.3s;
 }
 
+/* Тема переключается классом .dark без перезагрузки страницы, поэтому переход
+   цвета виден — и должен быть плавным. */
 body {
   transition:
     background-color var(--transition-duration) ease,
     color var(--transition-duration) ease;
 }
 
-.navbar {
-  transition: background-color var(--transition-duration) ease;
+/* Тач-экран подсвечивает тапнутый элемент своим прямоугольником поверх нашего
+   :active — гасим. Утилиты для -webkit-tap-highlight-color нет. */
+.tap-none {
+  -webkit-tap-highlight-color: transparent;
 }
 
-.background-container {
-  position: fixed;
-  top: 56px; /* высота бара оболочки (tw:h-14, Фаза 2) — без зазора-полосы */
-  left: 0;
-  width: 100%;
-  height: calc(100vh - 56px);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  /* Декоративный слой: fixed рисуется поверх СТАТИЧЕСКОГО контента и без
-     этого свойства съедает клики (легаси спасала position:relative у Card). */
-  pointer-events: none;
-}
-
-.rdw-editor-wrapper {
-  border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
-  border-color: #ced4da;
-  height: auto !important;
-  z-index: 1;
-}
-
-.editor-toolbar {
-  border: none !important;
-  z-index: 1;
-}
-
-.rdw-option-wrapper {
-  min-width: 25px !important;
-  min-height: 25px !important;
-}
-
-.rdw-editor-main {
-  border-color: black;
-  height: 15rem !important;
-  padding: 0.5rem !important;
-}
-
-.templateSelect {
-  position: relative;
-  z-index: 100;
-}
-
-.templateSelect > div {
-  z-index: 100;
-}
-
-/* ticket hmtl-description modal image autoscale */
-img {
+/* Картинки внутри ЧУЖОГО html — описания заявки, письма, заметки базы знаний:
+   там встречаются жёсткие width/height из почтового клиента, и без ужимания
+   такая картинка распирает колонку. Правило скоуплено на .md-doc: прежняя
+   редакция висела на голом `img` со звёздочками !important и перебивала
+   размеры любых картинок приложения (из-за неё превью и аватары приходилось
+   рисовать фоном на div). */
+.md-doc img {
   max-width: 100%;
   max-height: 100%;
-  width: auto !important;
-  height: auto !important;
+  width: auto;
+  height: auto;
   object-fit: scale-down;
 }
 
-/* костыль просмотр заявки выбор ответственного по работам */
-.col-md-2 > div:nth-child(2) > input:nth-child(2) {
-  position: fixed !important;
-}
-
-/* Выравниваем badge в одну линию с текстом */
-.nav-link svg {
-  margin-top: -0.2rem;
-}
-
-.btn svg,
-.badge svg {
-  margin-top: -0.25rem;
-}
-
-/* Кнопки/бейджи с flex-вёрсткой (d-flex/d-inline-flex + align-items-center) уже
-   центрируют иконку по тексту — для них хак -0.25rem выше вреден (задирает
-   иконку вверх). Возвращаем margin в ноль именно для flex-вариантов. */
-.btn.d-flex svg,
-.btn.d-inline-flex svg,
-.badge.d-flex svg,
-.badge.d-inline-flex svg {
-  margin-top: 0;
-}
-
-h1 svg {
-  margin-top: -0.45rem;
-}
-
-/* Табы просмотра заявки: не переносим на новую строку (особенно на мобильных),
-   а делаем горизонтальную прокрутку без видимого скроллбара */
-.scrollable-tabs.nav-tabs {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
-}
-
-.scrollable-tabs.nav-tabs::-webkit-scrollbar {
-  display: none; /* Chrome, Safari */
-}
-
-.scrollable-tabs .nav-item {
-  flex-shrink: 0;
-}
-
-.scrollable-tabs .nav-link {
-  white-space: nowrap;
-}
-
-/* ===== Страница пользователя (User/View): hero, табы, карточки ===== */
-
-/* Шапка-«личность»: закрепляет, чей это профиль, над табами */
-.account-hero {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1.25rem 1.5rem;
-  padding: 1.5rem 1.75rem;
-  /* Совпадает с обычными карточками страницы (border-0 shadow-sm):
-     тот же фон/радиус/тень — поэтому надёжно тёмный в тёмной теме.
-     --bs-tertiary-bg в этой теме двоится и резолвится в светлый — не годится. */
-  border-radius: var(--bs-border-radius);
-  background-color: var(--bs-card-bg);
-  background-image: radial-gradient(
-    130% 150% at 0% 0%,
-    rgba(var(--bs-primary-rgb), 0.14),
-    transparent 55%
-  );
-  box-shadow: var(--bs-box-shadow-sm);
-  overflow: hidden;
-}
-
-/* Аватар рисуем фоном на <div>: глобальное правило
-   img{ width:auto!important; height:auto!important } ломает фикс. размер */
-.account-avatar {
-  flex: 0 0 auto;
-  width: 104px;
-  height: 104px;
-  border-radius: 50%;
-  background-color: var(--bs-secondary-bg);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  box-shadow:
-    0 0 0 4px var(--bs-card-bg),
-    0 0 0 6px var(--bs-success);
-}
-.account-avatar--off {
-  box-shadow:
-    0 0 0 4px var(--bs-card-bg),
-    0 0 0 6px var(--bs-border-color);
-  filter: grayscale(0.45);
-}
-
-/* Компактный аватар в карточке списка пользователей (User/Item) */
-.user-mini-avatar {
-  flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background-color: var(--bs-secondary-bg);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  box-shadow:
-    0 0 0 2px var(--bs-card-bg),
-    0 0 0 4px var(--bs-success);
-}
-.user-mini-avatar--off {
-  box-shadow:
-    0 0 0 2px var(--bs-card-bg),
-    0 0 0 4px var(--bs-border-color);
-  filter: grayscale(0.4);
-}
-
-/* Поле «иконка + значение» в карточке списка пользователей.
-   Отдельный класс — чтобы иконка надёжно центрировалась по тексту (flex),
-   без точечных margin-хаков как у .btn svg / .badge svg. */
-.user-item-field {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-}
-.user-item-field > svg {
-  flex: 0 0 auto;
-  font-size: 1.1rem;
-  color: var(--bs-secondary-color);
-}
-.user-item-field > span {
-  min-width: 0;
-  word-break: break-word;
-}
-
-/* Строка «возможность/уведомление»: статус-иконка + подпись */
-.cap-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--bs-border-color);
-  line-height: 1.3;
-}
-.cap-row:last-child {
-  border-bottom: 0;
-}
-.cap-row__icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  margin-top: 0.05rem;
-  font-size: 1.05rem;
-}
-.cap-row--on {
-  color: var(--bs-body-color);
-}
-.cap-row--on .cap-row__icon {
-  color: var(--bs-success);
-}
-.cap-row--off {
-  color: var(--bs-secondary-color);
-}
-/* Не выдано → красный крест (явный «нет») */
-.cap-row--off .cap-row__icon {
-  color: var(--bs-danger);
-}
-/* Модуль отключён целиком → крест приглушаем, как и всю группу (не красный) */
-.cap-rows--disabled .cap-row--off .cap-row__icon {
-  color: var(--bs-secondary-color);
-  opacity: 0.55;
-}
-
-/* Группа возможностей: заголовок карточки со статусом модуля */
-.cap-card-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-.cap-card-title svg {
-  color: var(--bs-primary);
-}
-
-/* Контактная строка профиля: иконка-плашка + подпись/значение */
-.contact-row {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  padding: 0.65rem 0;
-  border-bottom: 1px solid var(--bs-border-color);
-}
-.contact-row:last-child {
-  border-bottom: 0;
-}
-.contact-row__icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 0.7rem;
-  background: rgba(var(--bs-primary-rgb), 0.12);
-  color: var(--bs-primary);
-  font-size: 1.15rem;
-}
-.contact-row__label {
-  font-size: 0.75rem;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--bs-secondary-color);
-}
-.contact-row__value {
-  font-weight: 500;
-  word-break: break-word;
-}
-
-/* Иконки разделов и контактных плашек на странице компании (во всех вкладках) —
-   фирменным success-цветом: в тёмной теме базовый primary (#375a7f) почти не
-   виден. Скоуп .company-view-tabs (обёртка вокруг <Tabs>) покрывает контент
-   панелей; страницы профиля с теми же классами не затрагиваем. */
-.company-view-tabs .contact-row__icon {
-  background: rgba(var(--bs-success-rgb), 0.12);
-  color: var(--bs-success);
-}
-.company-view-tabs .cap-card-title svg {
-  color: var(--bs-success);
-}
-
-@media (max-width: 575.98px) {
-  .account-hero {
-    flex-direction: column;
-    text-align: center;
-    padding: 1.5rem 1rem;
-  }
-}
-
-/* Кнопка-действие внутри цветного алерта. Стандартные варианты кнопок не
-   гарантируют контраст на фоне алерта (светлая тема — бледный фон с тёмным
-   текстом, тёмная — сплошной цвет с белым), поэтому рисуем кнопку цветом
-   текста самого алерта — она контрастна ровно настолько же, насколько текст. */
-.alert .alert-action-btn,
-.alert .alert-action-btn:hover,
-.alert .alert-action-btn:active {
-  color: inherit;
-  border-color: currentColor;
-}
-.alert .alert-action-btn {
-  background-color: transparent;
-}
-.alert .alert-action-btn:hover,
-.alert .alert-action-btn:active {
-  background-color: rgba(var(--bs-emphasis-color-rgb), 0.15);
-}
-
-/* ===== Панель управления устройством Mikrotik (правый Offcanvas) ===== */
-/* Шире дефолтных 400px — чтобы 3-колоночная таблица адресов и список копий
-   помещались без горизонтального скролла. Задаём через bootstrap-переменную
-   (иначе `.offcanvas-end { width: var(--bs-offcanvas-width) }` перебивает голый
-   `width`). На узких экранах не выходит за вьюпорт. */
-.offcanvas.mikrotik-panel.offcanvas-end {
-  --bs-offcanvas-width: min(760px, 100vw);
-}
-
-/* ===== Лента доступности Mikrotik (отчёт + мини-полоска в превью) ===== */
-/* Сегменты пропорциональны длительности (flex-grow = мс). Статусные цвета берём
-   из активной сборки Bootstrap (--bs-success/--bs-danger корректны в обеих
-   темах), а нейтральный трек — локальной переменной: светлый дефолт здесь,
-   тёмный переопределяется в css/dark-theme.css (Darkly не выставляет
-   data-bs-theme, на «тёмные» --bs-* полагаться нельзя). */
-.mikrotik-uptime {
-  --uptime-track: rgba(33, 37, 41, 0.12);
-  display: flex;
-  width: 100%;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--uptime-track);
-}
-.mikrotik-uptime__seg {
-  min-width: 0;
-}
-.mikrotik-uptime__seg--up {
-  background: var(--bs-success);
-}
-.mikrotik-uptime__seg--down {
-  background: var(--bs-danger);
-  /* Короткий простой на длинном окне не должен исчезать. */
-  min-width: 3px;
-}
-.mikrotik-uptime__seg--idle {
-  background: transparent;
-}
-/* Идущий прямо сейчас простой мягко пульсирует. */
-.mikrotik-uptime__seg--ongoing {
-  animation: mikrotik-uptime-pulse 2s ease-in-out infinite;
-}
-@keyframes mikrotik-uptime-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.55;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .mikrotik-uptime__seg--ongoing {
-    animation: none;
-  }
-}
-
-/* Превью-фото в плитке ListRow (thumbSrc): глобальное
-   img{width/height:auto!important} выше иначе не даёт снимку заполнить плитку.
-   Специфичность класса перебивает селектор элемента. */
-.listrow-thumb {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover;
-}
-
-/* ===== Дерево структуры компании (Company/View → SubdivisionTree) ===== */
-
-/* Тема (Darkly) не выставляет data-bs-theme=dark, поэтому --bs-secondary-bg/
-   --bs-tertiary-bg резолвятся в светлые, а --bs-primary — слишком тёмный навель.
-   Цвета дерева вынесены в переменные --org-* со светлыми дефолтами здесь и
-   переопределяются для тёмной темы в css/dark-theme.css (грузится только в
-   тёмном режиме). */
-.org-structure,
-.org-subdivision-offcanvas {
-  --org-hover: rgba(var(--bs-emphasis-color-rgb), 0.05);
-  --org-selected-bg: rgba(var(--bs-primary-rgb), 0.1);
-  --org-selected-border: rgba(var(--bs-primary-rgb), 0.35);
-  --org-accent: var(--bs-primary);
-  --org-chip-bg: rgba(var(--bs-emphasis-color-rgb), 0.06);
-  --org-chip-fg: var(--bs-secondary-color);
-  --org-chip-border: var(--bs-border-color);
-}
-
-/* Обёртка дерева: при экстремальной глубине/длинных бейджах — горизонтальная
-   прокрутка вместо ломки вёрстки. */
-.org-tree-wrap {
-  border: 1px solid var(--org-chip-border);
-  border-radius: var(--bs-border-radius);
-  padding: 0.5rem;
-  overflow-x: auto;
-}
-
-/* Строка узла — кликабельна целиком (открывает offcanvas с деталями). */
-.org-tree__row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid transparent;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  user-select: none;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease;
-}
-.org-tree__row:hover {
-  background-color: var(--org-hover);
-}
-.org-tree__row:focus-visible {
-  outline: 2px solid var(--org-accent);
-  outline-offset: -2px;
-}
-.org-tree__row--selected {
-  background-color: var(--org-selected-bg);
-  border-color: var(--org-selected-border);
-}
-.org-tree__row--selected:hover {
-  background-color: var(--org-selected-bg);
-}
-
-/* Шеврон разворота — отдельная кнопка (клик не открывает offcanvas). */
-.org-tree__toggle {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
-  padding: 0;
-  border: 0;
-  border-radius: 0.35rem;
-  background: transparent;
-  color: var(--bs-secondary-color);
-  font-size: 1.15rem;
-  line-height: 1;
-  cursor: pointer;
-}
-.org-tree__toggle:hover {
-  background-color: var(--org-hover);
-  color: var(--bs-body-color);
-}
-.org-tree__toggle--leaf {
-  cursor: default;
-  pointer-events: none;
-}
-
-/* Название не растягивается — бейджи идут сразу после него, а не у правого края. */
-.org-tree__name {
-  flex: 0 1 auto;
-  min-width: 0;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.org-tree__name--empty {
-  font-style: italic;
-  font-weight: 400;
-  color: var(--bs-secondary-color);
-}
-
-/* Бейджи руководителя / числа сотрудников — подложка/текст из --org-*. */
-.org-tree__badge {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  max-width: 16rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  background-color: var(--org-chip-bg);
-  color: var(--org-chip-fg);
-}
-.org-tree__badge svg {
-  flex: 0 0 auto;
-}
-.org-tree__badge-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.org-tree__badge--manager svg {
-  color: var(--org-accent);
-}
-.org-tree__badge--count svg {
-  color: var(--bs-secondary-color);
-}
-
-/* Подсказка «откроется панель» — у правого края, появляется на ховере/выборе. */
-.org-tree__open-hint {
-  flex: 0 0 auto;
-  margin-left: auto;
-  color: var(--bs-secondary-color);
-  font-size: 1.1rem;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.org-tree__row:hover .org-tree__open-hint,
-.org-tree__row:focus-visible .org-tree__open-hint,
-.org-tree__row--selected .org-tree__open-hint {
-  opacity: 0.7;
-}
-
-/* Вложенность: один фиксированный отступ + направляющая линия на уровень.
-   Линейный отступ за счёт вложенности DOM (без quadratic marginLeft). */
-.org-tree__children {
-  margin-left: 0.75rem;
-  padding-left: 0.85rem;
-  border-left: 1px solid var(--org-chip-border);
-}
-
-/* Чип дочернего подразделения в offcanvas + хлебные крошки. */
-.org-tree__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  max-width: 100%;
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--org-chip-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--bs-body-color);
-  font-size: 0.85rem;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease;
-}
-.org-tree__chip:hover {
-  border-color: var(--org-accent);
-  background-color: var(--org-hover);
-}
-.org-tree__chip svg {
-  flex: 0 0 auto;
-  color: var(--org-accent);
-}
-.org-tree__chip-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.25rem;
-  padding: 0 0.35rem;
-  border-radius: 999px;
-  background-color: var(--org-chip-bg);
-  color: var(--org-chip-fg);
-  font-size: 0.75rem;
-}
-
-.org-tree__breadcrumb {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  margin-bottom: 0.15rem;
-  font-size: 0.8rem;
-  line-height: 1.2;
-}
-.org-tree__crumb-wrap {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-}
-.org-tree__crumb {
-  max-width: 12rem;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--bs-secondary-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.org-tree__crumb:hover {
-  color: var(--org-accent);
-  text-decoration: underline;
-}
-.org-tree__crumb-sep {
-  margin: 0 0.35rem;
-  color: var(--bs-secondary-color);
-}
-
-/* Список сотрудников в offcanvas: имя + должность во вторую строку (читаемо,
-   как .contact-row/.cap-row), без обрезки имён. */
-.org-people {
-  display: flex;
-  flex-direction: column;
-}
-.org-person {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--org-chip-border);
-}
-.org-person:last-child {
-  border-bottom: 0;
-}
-.org-person__icon {
-  flex: 0 0 auto;
-  margin-top: 0.15rem;
-  color: var(--bs-secondary-color);
-}
-.org-person__body {
-  min-width: 0;
-}
-.org-person__role {
-  font-size: 0.8rem;
-  color: var(--bs-secondary-color);
-}
-
-/* Offcanvas деталей подразделения — комфортная ширина для списка сотрудников. */
-.org-subdivision-offcanvas.offcanvas-end {
-  --bs-offcanvas-width: min(440px, 92vw);
-}
-
 /* ===================================================================
-   Мобильная навигация 2026: нескроллящийся app-shell + плавающий
-   таб-бар «остров» + переработанное бургер-меню (offcanvas).
-   Токены темизируются как префиксы --org- и --ai-: light-дефолты здесь,
-   dark-переопределения — в css/dark-theme.css (грузится только в dark).
+   Мобильная навигация: нескроллящийся app-shell + плавающий таб-бар
+   «остров» + панель массовых действий.
+
+   Раскладка, цвета и типографика этих блоков живут КЛАССАМИ в своих
+   компонентах (Root.jsx, Navbar.jsx, MobileBottomNavbar.jsx,
+   app/MobileActionBar.jsx). Здесь остаётся только то, чему нет утилиты:
+   env(safe-area), @supports, :has()-связки и фолбэк высоты.
    =================================================================== */
 
-/* Каркас: фиксированная флекс-колонка на весь вьюпорт. body не скроллится
-   → на iOS Safari fixed-панелям нечего «отрывать» при инерции скролла. */
+/* Высота шелла — двумя объявлениями подряд, классом так не выразить: dvh
+   трекает адресную строку iOS, vh остаётся фолбэком для старых движков. */
 .mobile-shell {
-  position: fixed;
-  inset: 0;
-  height: 100vh; /* фолбэк для старых движков */
-  height: 100dvh; /* динамический вьюпорт: трекает адресную строку iOS */
-  display: flex;
-  flex-direction: column;
-  overflow: hidden; /* сам shell не скроллится */
-
-  /* Токены навигации — от токенов новой системы (styles/tailwind.css):
-     они сами переключаются классом .dark, dark-переопределения не нужны
-     (в dark-theme.css блок удалён при переезде Фазы 2). */
-  --nav-border: var(--border);
-  --tabbar-surface: color-mix(in srgb, var(--card) 88%, transparent);
-  --tabbar-border: var(--border);
-  --tab-active: var(--primary);
-  --tab-active-rgb: 0, 188, 140;
-  --tab-inactive: var(--muted-foreground);
+  height: 100vh;
+  height: 100dvh;
 }
 
-/* Встроенный верхний бар (NavigationBar embedded) — в потоке, не fixed.
-   Safe-area-паддинги здесь (env() в tw-утилитах — произвольное значение). */
+/* Верхний бар в потоке, не fixed: вырез экрана — только здесь. */
 .mobile-shell__header {
-  flex: 0 0 auto;
   padding-top: calc(0.5rem + env(safe-area-inset-top));
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--nav-border);
 }
 
-/* Единственный скролл-контейнер на мобайле. */
+/* Зазор под плавающим островом: его высота + отступ снизу + вырез. */
 .mobile-shell__scroll {
-  flex: 1 1 auto;
-  min-height: 0; /* критично: позволяет флекс-ребёнку скроллиться */
-  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  /* зазор под плавающий остров: высота + отступ снизу + safe-area */
   padding-bottom: calc(84px + env(safe-area-inset-bottom));
 }
 
@@ -717,101 +81,31 @@ body:has(.mobile-shell),
   overscroll-behavior: none;
 }
 
-/* --- Нижний таб-бар «Плавающий остров» ------------------------------
-   position:absolute внутри fixed-shell (не fixed относительно body),
-   поэтому дрейф структурно невозможен, а контент реально скроллится под
-   островом → backdrop-filter blur осмыслен. */
-.mobile-tabbar {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: calc(10px + env(safe-area-inset-bottom));
-  z-index: 3;
-  display: flex;
-  justify-content: space-around;
-  align-items: stretch;
-  min-height: 60px;
-  padding: 4px 6px;
-  background: var(--tabbar-surface);
-  border: 1px solid var(--tabbar-border);
-  border-radius: 22px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
-  transition: opacity 0.15s ease;
-}
-@supports (backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px)) {
-  .mobile-tabbar {
-    -webkit-backdrop-filter: blur(16px) saturate(1.4);
-    backdrop-filter: blur(16px) saturate(1.4);
-  }
-}
-
-.mobile-tabbar__tab {
-  position: relative;
-  flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  min-height: 52px; /* тач-таргет ≥44px */
-  padding: 4px;
-  color: var(--tab-inactive);
-  text-decoration: none;
-  transition: color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-.mobile-tabbar__tab.is-active {
-  color: var(--tab-active);
-}
-.mobile-tabbar__icon {
-  position: relative;
-  z-index: 1;
-  font-size: 1.45rem;
-  line-height: 1;
-}
-.mobile-tabbar__label {
-  position: relative;
-  z-index: 1;
-  max-width: 100%;
-  font-size: 0.7rem;
-  line-height: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Скользящая пилюля активной вкладки (framer-motion layoutId).
-   Центрируем через равные inset, а НЕ через transform: layoutId-анимация
-   framer сама управляет transform и перетёрла бы translateX(-50%). */
-.mobile-tabbar__pill {
-  position: absolute;
-  inset: 4px 8px;
-  z-index: 0;
-  border-radius: 14px;
-  background: rgba(var(--tab-active-rgb), 0.16);
-}
-.mobile-tabbar__tab:focus-visible {
-  outline: 2px solid var(--tab-active);
-  outline-offset: -2px;
-  border-radius: 14px;
-}
-
-/* --- Контекстная панель массовых действий ---------------------------
-   Пока выделены заявки, панель занимает место острова навигации: тот же
-   бокс, поверхность и скругление. На экране всегда ровно один плавающий
-   объект, поэтому «бутерброд» из двух плашек невозможен структурно. */
+/* --- Плавающий остров: таб-бар и панель массовых действий ------------
+   Оба стоят на одном месте и в одном боксе — geometry общая. absolute
+   внутри fixed-shell (не fixed относительно body), поэтому дрейф на iOS
+   структурно невозможен, а контент реально скроллится под островом →
+   backdrop-filter осмыслен.
+   Скругление 22 и тень — вне сетки; поверхность, границы и внутренние
+   отступы задаются классами в компонентах. */
+.mobile-tabbar,
 .mobile-actionbar {
   position: absolute;
   left: 12px;
   right: 12px;
   bottom: calc(10px + env(safe-area-inset-bottom));
-  z-index: 4; /* над островом, который уходит в visibility: hidden */
-  padding: 0 0.35rem 0.35rem;
-  background: var(--tabbar-surface);
-  border: 1px solid var(--tabbar-border);
   border-radius: 22px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
 }
+.mobile-tabbar {
+  z-index: 3;
+  transition: opacity 0.15s ease;
+}
+.mobile-actionbar {
+  z-index: 4; /* над островом, который уходит в visibility: hidden */
+}
 @supports (backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px)) {
+  .mobile-tabbar,
   .mobile-actionbar {
     -webkit-backdrop-filter: blur(16px) saturate(1.4);
     backdrop-filter: blur(16px) saturate(1.4);
@@ -832,392 +126,57 @@ body:has(.mobile-shell),
   padding-bottom: calc(132px + env(safe-area-inset-bottom));
 }
 
-/* Строка статуса: счётчик выделения, а по тапу в заблокированное действие —
-   причина блокировки (на тач-экране hover-тултипа нет). */
-.mobile-actionbar__status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0 0.25rem 0 0.65rem;
-  border-bottom: 1px solid var(--tabbar-border);
-}
-.mobile-actionbar__count {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--bs-body-color);
-}
-.mobile-actionbar__hint {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0.5rem 0;
-  font-size: 0.78rem;
-  line-height: 1.25;
-  color: var(--bs-body-color);
-}
-.mobile-actionbar__hint svg {
-  flex: 0 0 auto;
-  margin-top: 0.1rem;
-  font-size: 1rem;
-  color: var(--bs-warning);
-}
-.mobile-actionbar__cancel {
-  flex: 0 0 auto;
-  align-self: stretch;
-  min-height: 44px;
-  min-width: 44px;
-  padding: 0 0.5rem;
-  border: 0;
-  background: none;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--tab-active);
-  -webkit-tap-highlight-color: transparent;
-}
-.mobile-actionbar__cancel:focus-visible {
-  outline: 2px solid var(--tab-active);
-  outline-offset: -2px;
-  border-radius: 14px;
-}
-
-/* Ряд действий повторяет геометрию вкладок острова: тач-таргет ≥44px и
-   подпись под иконкой — смысл несёт подпись, а не цвет. Поэтому цветом
-   выделено ровно одно действие — «Удалить». */
-.mobile-actionbar__actions {
-  display: flex;
-  align-items: stretch;
-}
-.mobile-actionbar__action {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  min-height: 56px;
-  padding: 4px 2px;
-  border: 0;
-  border-radius: 14px;
-  background: none;
-  color: var(--bs-body-color);
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    opacity 0.15s ease,
-    background-color 0.15s ease;
-}
-.mobile-actionbar__action:active {
-  background: rgba(var(--tab-active-rgb), 0.16);
-}
-.mobile-actionbar__action.is-danger {
-  color: var(--bs-danger);
-}
-/* Заблокированное действие приглушено, но остаётся нажимаемым: тап должен
-   показать причину, а не молчать. */
-.mobile-actionbar__action.is-blocked {
-  opacity: 0.35;
-}
-.mobile-actionbar__action:focus-visible {
-  outline: 2px solid var(--tab-active);
-  outline-offset: -2px;
-}
-.mobile-actionbar__icon {
-  font-size: 1.45rem;
-  line-height: 1;
-}
-.mobile-actionbar__label {
-  max-width: 100%;
-  font-size: 0.64rem;
-  line-height: 1.1;
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .mobile-tabbar,
-  .mobile-actionbar__action {
+  .mobile-tabbar {
     transition: none;
   }
 }
 
-/* Легаси-бургер (.drawer-*) удалён: мобильное меню — Sheet (NavDrawer.jsx),
-   Фаза 2 миграции. */
-
-/* ============================================================
-   Персональный отчёт (/finances/personal-report)
-   Цвета серий: --pr-chart-work / --pr-chart-ot — общие для
-   графика, полос нагрузки и календаря; пара валидирована на
-   светлой поверхности, тёмная тема переопределяет переработку
-   в css/dark-theme.css.
-   ============================================================ */
-:root {
-  --pr-chart-work: #3498db;
-  --pr-chart-ot: #f39c12;
-}
-
-.pr-loading {
-  opacity: 0.55;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-}
-
-.pr-num {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.pr-ot-text {
-  color: var(--pr-chart-ot);
-}
-
-/* --- KPI-карты --- */
-.pr-kpi__label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--bs-secondary-color);
-}
-.pr-kpi__value {
-  font-size: 1.6rem;
-  font-weight: 600;
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-}
-.pr-kpi__value--ot {
-  color: var(--pr-chart-ot);
-}
-.pr-kpi__foot {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  min-height: 1.2em;
-}
-.pr-kpi__delta {
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-}
-.pr-kpi__sub {
-  font-size: 0.75rem;
-  color: var(--bs-secondary-color);
-}
-
-/* --- Расчётный листок --- */
-.payslip__row {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.45rem 0;
-  border-bottom: 1px dashed var(--bs-border-color);
-}
-.payslip__formula {
-  font-size: 0.75rem;
-  color: var(--bs-secondary-color);
-  font-variant-numeric: tabular-nums;
-}
-.payslip__amount {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  text-align: right;
-}
-.payslip__total {
-  border-bottom: none;
-  border-top: 2px solid var(--bs-border-color);
-  margin-top: 0.25rem;
-  font-weight: 600;
-}
-.payslip__grand {
-  border-bottom: none;
-  font-weight: 700;
-  font-size: 1.05rem;
-}
-
-/* --- Нагрузка по компаниям --- */
-.pr-load-table__bar-col {
-  width: 28%;
-  min-width: 140px;
-}
-.pr-loadbar {
-  display: flex;
-  height: 10px;
-  border-radius: 5px;
-  background: var(--bs-tertiary-bg);
-  overflow: hidden;
-}
-.pr-loadbar__work {
-  background: var(--pr-chart-work);
-}
-.pr-loadbar__ot {
-  background: var(--pr-chart-ot);
-}
-.pr-legend-swatch {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-}
-.pr-legend-swatch--work {
-  background: var(--pr-chart-work);
-}
-.pr-legend-swatch--ot {
-  background: var(--pr-chart-ot);
-}
-
-/* --- Календарь занятости --- */
-.wcal-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-}
-.wcal-grid--head {
-  margin-bottom: 4px;
-}
-.wcal-weekday {
-  text-align: center;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--bs-secondary-color);
-}
-.wcal-day {
-  position: relative;
-  min-height: 44px;
-  border-radius: 6px;
-  padding: 4px 6px;
-  background: var(--bs-tertiary-bg);
-}
-.wcal-day--blank {
-  background: transparent;
-}
-.wcal-day__num {
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-}
-.wcal-day--off .wcal-day__num {
-  color: var(--bs-secondary-color);
-  opacity: 0.7;
-}
-.wcal-day--outside {
-  opacity: 0.35;
-}
-.wcal-day--today {
-  outline: 2px solid var(--pr-chart-work);
-  outline-offset: -2px;
-}
-.wcal-day__ot {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--pr-chart-ot);
-}
-/* Интенсивность: один синий, ступени прозрачности поверх tertiary-bg */
-.wcal-int-1 {
-  background: rgba(52, 152, 219, 0.18);
-}
-.wcal-int-2 {
-  background: rgba(52, 152, 219, 0.38);
-}
-.wcal-int-3 {
-  background: rgba(52, 152, 219, 0.6);
-}
-.wcal-int-4 {
-  background: rgba(52, 152, 219, 0.85);
-}
-.wcal-int-3 .wcal-day__num,
-.wcal-int-4 .wcal-day__num {
-  color: #fff;
-}
-.wcal-legend {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  background: var(--bs-tertiary-bg);
-}
-.wcal-legend--ot {
-  border-radius: 50%;
-  background: var(--pr-chart-ot);
-}
-
 /* ==================== Статусы присутствия сотрудников ====================
-   Темизация — СОБСТВЕННЫМИ токенами: light-дефолты здесь, тёмные
-   переопределения в src/css/dark-theme.css (паттерн .mobile-shell/--org-*).
-   Переменные Bootstrap 5.3 (--bs-secondary-bg, --bs-border-color, …) НЕ
-   используем: тёмная сборка не выставляет data-bs-theme, и на :root они
-   остаются светлыми (см. заметку про text-body-emphasis). */
+   Темизация — СОБСТВЕННЫМИ токенами: тёмные значения даёт класс .dark, как у
+   остальной системы. */
 :root {
   --ws-surface: #fff;
   --ws-avatar-bg: #e3e7ea;
   --ws-avatar-fg: #495057;
   --ws-line: rgba(0, 0, 0, 0.12);
 }
-
-/* Кругляш с кольцом цвета статуса (--ws-color задаётся инлайном из каталога)
-   и эмодзи-бейджем. Фото — фоном, в обход глобального img{auto!important}.
-   Бейдж масштабируется от размера кругляша, но не мельче читаемого минимума. */
-.ws-avatar {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  border-radius: 50%;
-  background-color: var(--ws-avatar-bg);
-  background-size: cover;
-  background-position: center;
-  color: var(--ws-avatar-fg);
-  font-weight: 700;
-  line-height: 1;
-  box-shadow: 0 0 0 2px var(--ws-color);
-  margin: 2px;
+.dark {
+  --ws-surface: #1d2024;
+  --ws-avatar-bg: #2a2f35;
+  --ws-avatar-fg: #dee2e6;
+  --ws-line: rgba(255, 255, 255, 0.12);
 }
+
+/* Кольцо цвета статуса: --ws-color приезжает инлайном из каталога статусов,
+   утилитой такое не задать. Остальная раскладка кругляша — классами. */
+.ws-avatar {
+  box-shadow: 0 0 0 2px var(--ws-color);
+}
+
+/* Бейдж масштабируется ОТ РАЗМЕРА КРУГЛЯША (em), но не мельче читаемого
+   минимума: max() от em и px в сетке нет. Смещение на пол-пикселя — оптическое
+   центрирование: цветные эмодзи-глифы (Noto/Segoe) прижаты в своих метриках
+   влево-вниз. */
 .ws-avatar__badge {
-  position: absolute;
   right: -8px;
   bottom: -7px;
   width: max(21px, 1.65em);
   height: max(21px, 1.65em);
-  border-radius: 50%;
-  background-color: var(--ws-surface);
-  border: 1px solid var(--ws-line);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   font-size: max(13.5px, 1.05em);
-  line-height: 1;
-  /* Оптическое центрирование: цветные эмодзи-глифы (Noto/Segoe) прижаты в
-     своих метриках влево-вниз — компенсируем паддингом. */
   padding-left: 1.5px;
   padding-bottom: 1px;
 }
 
-/* Пульсирующая зелёная точка «живых» данных (как LiveUpdateIndicator) */
-.ws-live {
-  position: relative;
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--bs-success);
-  flex: none;
-}
+/* Пульсирующая точка «живых» данных: расходящееся кольцо — псевдоэлемент с
+   анимацией, ни ::after, ни @keyframes утилитами не задаются. Сама точка —
+   классами в WorkStatusBar.jsx. */
 .ws-live::after {
   content: "";
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  border: 1px solid var(--bs-success);
+  border: 1px solid var(--primary);
   opacity: 0;
   animation: ws-pulse 2.4s ease-out infinite;
 }
@@ -1235,36 +194,13 @@ body:has(.mobile-shell),
   }
 }
 
-/* Меню «Мой статус» в навбаре */
-.ws-menu-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-.ws-menu-item__label {
-  flex: 1;
-  text-align: left;
-}
-.ws-menu-item__check {
-  font-weight: 700;
-}
-/* .ws-menu-note / .ws-nav-chip удалены: меню статусов — Popover навбара
-   (WorkStatusSwitcher на tw), Фаза 2 миграции. */
-
-/* ---- Бар статусов: разметка и стили — tw в WorkStatusBar.jsx (перенос
-   согласованного мокапа, Фаза 2+). Здесь остаются только вещи вне tw-сетки:
-   резерв места под свёрнутый рейл и тонкие/скрытые скроллбары. */
-/* Резерв места под свёрнутый рейл статусов. КЛАДЁМ В СЛОЙ bootstrap: для
-   important-деклараций слои перебивают unlayered, а .px-5 контейнера — тоже
-   important и живёт в layer(bootstrap) (см. css/*-theme.css). Только в том же
-   слое спецификация в два класса берёт верх над .px-5 (один класс). Вне слоя
-   правило проигрывало по каскаду — контент легаси лез вправо под рейл. */
-@layer bootstrap {
-  @media (min-width: 992px) {
-    .container-fluid.has-ws-rail {
-      padding-right: 92px !important; /* свёрнутый рейл 72px + воздух */
-    }
+/* Резерв места под свёрнутый рейл статусов (разметка бара — классами в
+   WorkStatusBar.jsx). Правило НЕ в слое: нелоённый CSS сильнее любого слоя,
+   поэтому оно перебивает px-12 контейнера оболочки из layer(utilities) без
+   !important. */
+@media (min-width: 992px) {
+  .has-ws-rail {
+    padding-right: 92px; /* свёрнутый рейл 72px + воздух */
   }
 }
 .ws-rail-scroll {
@@ -1294,16 +230,6 @@ body:has(.mobile-shell),
    они non-modal (см. ui/dropdown-menu.tsx). */
 html {
   overflow-y: scroll;
-}
-
-/* ВРЕМЕННО (до миграции легаси): гасим горизонтальный вылет за правый край.
-   На немигрированных страницах вёрстка местами шире вьюпорта и «уезжает»
-   вправо (заметно с обычным, не оверлейным скроллбаром). `clip` (не `hidden`)
-   не создаёт скролл-контейнер — не ломает `position: sticky`, порталы
-   (Sheet/Dialog fixed) и внутренние `overflow-x: auto` области новых страниц.
-   Убрать, когда легаси-раскладки уедут на tw. */
-body {
-  overflow-x: clip;
 }
 body[data-scroll-locked] {
   padding-right: 0 !important;

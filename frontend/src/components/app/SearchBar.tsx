@@ -5,9 +5,9 @@ import { RiSearchLine } from "react-icons/ri";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-// tw-двойник UI/SearchBar.jsx. Передайте `value` — поле станет управляемым и
-// будет очищаться вместе с фильтром; с одним `defaultValue` сброс фильтра
-// оставляет запрос в поле.
+// Поиск с иконкой — один на приложение. Передайте `value`, и поле станет
+// управляемым: будет очищаться вместе с фильтром. С одним `defaultValue` сброс
+// фильтра оставляет запрос в поле.
 const SearchBar = ({
   onChange,
   size,
@@ -30,12 +30,12 @@ const SearchBar = ({
   return (
     <form
       onSubmit={(event) => event.preventDefault()}
-      className={cn("tw:relative", className)}
+      className={cn("relative", className)}
     >
       <RiSearchLine
         size={16}
         aria-hidden
-        className="tw:absolute tw:top-1/2 tw:left-3 tw:-translate-y-1/2 tw:text-faint"
+        className="absolute top-1/2 left-3 -translate-y-1/2 text-faint"
       />
       <Input
         id="search-bar"
@@ -43,8 +43,8 @@ const SearchBar = ({
         placeholder={placeholder}
         className={cn(
           // Поиск живёт в шапке на канве — фон панели, иначе сливается
-          "tw:bg-card tw:pl-9 tw:text-sm",
-          size === "lg" ? "tw:h-11" : "tw:h-10",
+          "bg-card pl-9 text-sm",
+          size === "lg" ? "h-11" : "h-10",
         )}
         {...(controlled ? { value } : { defaultValue: defaultValue || "" })}
         onChange={onChange}

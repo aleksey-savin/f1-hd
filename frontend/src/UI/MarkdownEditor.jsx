@@ -1,14 +1,15 @@
 import { useContext, useEffect, useRef } from "react";
 
-import Editor from "@toast-ui/editor";
-import "@toast-ui/editor/dist/toastui-editor.css";
-import "@toast-ui/editor/dist/theme/toastui-editor-dark.css";
-
 import { ThemeContext } from "../store/theme-context";
 
 // Тонкая обёртка над ванильным Toast UI Editor (markdown-нативный редактор).
 // Ванильный пакет не зависит от React, поэтому совместим с React 19 (в отличие
 // от устаревшей @toast-ui/react-editor).
+//
+// Пакет и его css грузятся ДИНАМИЧЕСКИ, в момент монтирования: редактор — самая
+// тяжёлая зависимость приложения, а нужен на четырёх экранах (заявка, шаблон,
+// регламент, заметка базы знаний). Статический импорт клал его в главный чанк,
+// который грузят все, включая клиента с одной заявкой.
 //
 // Формат наружу выбирает вызывающий:
 //   "markdown" (по умолчанию) — база знаний, шаблон заявки, регламент;
@@ -38,43 +39,56 @@ const MarkdownEditor = ({
   onReadyRef.current = onReady;
 
   useEffect(() => {
-    const editor = new Editor({
-      el: elRef.current,
-      height,
-      theme: isDark ? "dark" : "default",
-      initialEditType: "wysiwyg",
-      previewStyle: "vertical",
-      hideModeSwitch,
-      usageStatistics: false,
-      autofocus: false,
-      // В html-режиме initialValue отдаём отдельно: initialValue конструктора
-      // трактуется как markdown, и готовая разметка приехала бы в редактор
-      // текстом с тегами.
-      initialValue: isHtml ? "" : initialValue || "",
-      toolbarItems: [
-        ["heading", "bold", "italic", "strike"],
-        ["hr", "quote"],
-        ["ul", "ol", "task"],
-        ["table", "link"],
-        ["code", "codeblock"],
-      ],
-    });
+    // Размонтирование может обогнать загрузку чанка — тогда создавать редактор
+    // уже некуда и незачем.
+    let cancelled = false;
 
-    if (isHtml && initialValue) editor.setHTML(initialValue, false);
+    (async () => {
+      const [module] = await Promise.all([
+        import("@toast-ui/editor"),
+        import("@toast-ui/editor/dist/toastui-editor.css"),
+        import("@toast-ui/editor/dist/theme/toastui-editor-dark.css"),
+      ]);
+      if (cancelled || !elRef.current) return;
 
-    editor.on("change", () => {
-      onChangeRef.current?.(
-        isHtml ? editor.getHTML() : editor.getMarkdown(),
-      );
-    });
+      const Editor = module.default ?? module;
+      const editor = new Editor({
+        el: elRef.current,
+        height,
+        theme: isDark ? "dark" : "default",
+        initialEditType: "wysiwyg",
+        previewStyle: "vertical",
+        hideModeSwitch,
+        usageStatistics: false,
+        autofocus: false,
+        // В html-режиме initialValue отдаём отдельно: initialValue конструктора
+        // трактуется как markdown, и готовая разметка приехала бы в редактор
+        // текстом с тегами.
+        initialValue: isHtml ? "" : initialValue || "",
+        toolbarItems: [
+          ["heading", "bold", "italic", "strike"],
+          ["hr", "quote"],
+          ["ul", "ol", "task"],
+          ["table", "link"],
+          ["code", "codeblock"],
+        ],
+      });
 
-    editorRef.current = editor;
-    // Отдаём инстанс наружу: вызывающий код фокусирует редактор и прокручивает
-    // его к нужному блоку (вход в правку двойным кликом по тексту).
-    onReadyRef.current?.(editor);
+      if (isHtml && initialValue) editor.setHTML(initialValue, false);
+
+      editor.on("change", () => {
+        onChangeRef.current?.(isHtml ? editor.getHTML() : editor.getMarkdown());
+      });
+
+      editorRef.current = editor;
+      // Отдаём инстанс наружу: вызывающий код фокусирует редактор и прокручивает
+      // его к нужному блоку (вход в правку двойным кликом по тексту).
+      onReadyRef.current?.(editor);
+    })();
 
     return () => {
-      editor.destroy();
+      cancelled = true;
+      editorRef.current?.destroy();
       editorRef.current = null;
     };
     // Создаём один раз: initialValue/height фиксируются при монтировании,
@@ -92,7 +106,10 @@ const MarkdownEditor = ({
   // height="auto" (мобайл) — редактор растёт по содержимому, скроллит страница,
   // поэтому обёртке высоту не навязываем.
   return (
-    <div ref={elRef} style={height === "auto" ? undefined : { height: "100%" }} />
+    <div
+      ref={elRef}
+      style={height === "auto" ? undefined : { height: "100%" }}
+    />
   );
 };
 

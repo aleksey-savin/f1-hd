@@ -344,16 +344,16 @@ const ViewTicket = () => {
   };
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-8xl">
+    <div className="mx-auto w-full max-w-8xl">
       <Link
         to="/tickets"
-        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
       >
         <RiArrowLeftSLine /> Заявки
       </Link>
 
       {ticket.isArchived && (
-        <Alert variant="warning" className="tw:mb-4">
+        <Alert variant="warning" className="mb-4">
           <RiErrorWarningLine />
           <AlertDescription>
             Заявка в архиве и привязана к отчёту за период — правка и новые
@@ -363,15 +363,15 @@ const ViewTicket = () => {
       )}
 
       {/* HERO */}
-      <div className="tw:mb-6 tw:flex tw:flex-wrap tw:items-start tw:gap-x-5 tw:gap-y-3">
-        <div className="tw:min-w-0 tw:flex-1">
+      <div className="mb-6 flex flex-wrap items-start gap-x-5 gap-y-3">
+        <div className="min-w-0 flex-1">
           {/* Номер, статус и срок — одной строкой над темой: разнесённые по
               разным строкам, они читались как три независимых сообщения */}
           {/* Разделительных «·» здесь нет: текстовая точка сидит на высоте
               строчных, а точка статуса — по центру строки, и рядом они читаются
               как две разные точки. Разделяет расстояние */}
-          <div className="tw:flex tw:flex-wrap tw:items-baseline tw:gap-x-4 tw:gap-y-1 tw:text-sm">
-            <span className="tw:font-semibold tw:text-muted-foreground tw:tabular-nums">
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+            <span className="font-semibold text-muted-foreground tabular-nums">
               № {ticket.num}
             </span>
             <TicketStateText tone={state.tone} strong>
@@ -380,23 +380,23 @@ const ViewTicket = () => {
             {/* Просрочка — второй знак рядом со статусом, а не вместо него;
                 слово и срок одного цвета, чтобы читались одной мыслью */}
             {overdue ? (
-              <span className="tw:text-destructive">
-                <span className="tw:font-semibold">просрочена</span> ·{" "}
+              <span className="text-destructive">
+                <span className="font-semibold">просрочена</span> ·{" "}
                 {deadlineText(ticket.deadline)}
               </span>
             ) : (
-              <span className="tw:text-muted-foreground">
+              <span className="text-muted-foreground">
                 {deadlineText(ticket.deadline)}
               </span>
             )}
           </div>
-          <h1 className="tw:mt-1.5 tw:mb-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:break-words">
+          <h1 className="mt-1.5 mb-0 text-3xl leading-tight font-semibold tracking-tight break-words">
             {ticket.title}
             {/* Третье место, где ИИ заполнил поле заявки вместо человека:
                 заявитель темы не пишет, а она уезжает в список, в письмо,
                 в Telegram и в отчёты */}
             {!isEndUser && ticket.aiTitle?.status === "processed" && (
-              <span className="tw:ms-1.5 tw:align-middle">
+              <span className="ms-1.5 align-middle">
                 <AiMark
                   ticketId={ticket._id}
                   target="title"
@@ -409,7 +409,7 @@ const ViewTicket = () => {
           </h1>
         </div>
 
-        <div className="tw:flex tw:flex-none tw:items-center tw:gap-2">
+        <div className="flex flex-none items-center gap-2">
           {primary && (
             <Button onClick={() => pickAction(primary.key)}>
               {primary.label}
@@ -433,7 +433,7 @@ const ViewTicket = () => {
               {/* Сплошной список: групп на пять пунктов не бывает, а
                   заголовки съедали половину высоты меню. Разрушающее —
                   последним и отбито разделителем */}
-              <DropdownMenuContent align="end" className="tw:w-56">
+              <DropdownMenuContent align="end" className="w-56">
                 {menu.map((item, index) => (
                   <div key={item.key}>
                     {item.danger && index > 0 && <DropdownMenuSeparator />}
@@ -459,7 +459,7 @@ const ViewTicket = () => {
         !hasChecklist &&
         !checklistEdit &&
         !ticket.routineTask && (
-          <div className="tw:mb-5">
+          <div className="mb-5">
             <TemplateOffer
               ticketNum={ticket.num}
               templates={templates}
@@ -469,14 +469,14 @@ const ViewTicket = () => {
         )}
 
       {/* КАРКАС */}
-      <div className="tw:flex tw:items-start tw:gap-6">
-        <BrowserView className="tw:contents">
+      <div className="flex items-start gap-6">
+        <BrowserView className="contents">
           <AnchorRail sections={railSections} ariaLabel="Разделы карточки" />
         </BrowserView>
 
         {/* -mt-6 гасит верхний отступ первой метки секции (у Eyebrow он mt-6):
             иначе колонка секций начинается на 24px ниже рейла и хроники */}
-        <div className="tw:-mt-6 tw:flex tw:min-w-0 tw:flex-1 tw:flex-col tw:gap-5">
+        <div className="-mt-6 flex min-w-0 flex-1 flex-col gap-5">
           <DescriptionSection
             ticket={ticket}
             canEdit={permissions.canEditTickets && !ticket.isArchived}
@@ -494,7 +494,7 @@ const ViewTicket = () => {
 
           {ticket.customFields?.length > 0 && (
             <Section>
-              <span id="ticket-fields" className="tw:block tw:scroll-mt-28" />
+              <span id="ticket-fields" className="block scroll-mt-28" />
               <CustomFieldsView fields={ticket.customFields} />
             </Section>
           )}
@@ -520,100 +520,100 @@ const ViewTicket = () => {
               явным режимом, чтобы рука, привыкшая отмечать, не промахнулась
               по «удалить». */}
           {(hasChecklist || checklistEdit) && (
-          <Section>
-            <Eyebrow
-              id="ticket-checklist"
-              count={ticket.checklist?.length || undefined}
-              action={
-                canEditChecklist && (
-                  <SectionEditButton
-                    label="Чек-лист"
-                    editing={checklistEdit}
-                    onToggle={() => setChecklistEdit((prev) => !prev)}
-                  />
-                )
-              }
-            >
-              Чек-лист
-            </Eyebrow>
-            <Panel>
-              {/* Откуда список: в 96 % случаев это регламент, и пункты для
+            <Section>
+              <Eyebrow
+                id="ticket-checklist"
+                count={ticket.checklist?.length || undefined}
+                action={
+                  canEditChecklist && (
+                    <SectionEditButton
+                      label="Чек-лист"
+                      editing={checklistEdit}
+                      onToggle={() => setChecklistEdit((prev) => !prev)}
+                    />
+                  )
+                }
+              >
+                Чек-лист
+              </Eyebrow>
+              <Panel>
+                {/* Откуда список: в 96 % случаев это регламент, и пункты для
                   будущих заявок правятся там, а не здесь */}
-              {(ticket.routineTask?.title ||
-                (canEditChecklist && templates)) && (
-                <p className="tw:mt-0 tw:mb-3 tw:flex tw:items-center tw:gap-1.5 tw:border-b tw:border-border-soft tw:pb-2.5 tw:text-xs tw:text-muted-foreground">
-                  <RiRepeat2Line size={14} className="tw:text-faint" />
-                  {ticket.routineTask?.title ? (
-                    <>
-                      Из регламента{" "}
-                      <Link
-                        to={`/routine-tasks/${ticket.routineTask._id}`}
-                        className="tw:text-accent-text tw:no-underline tw:hover:underline"
-                      >
-                        «{ticket.routineTask.title}»
-                      </Link>
-                    </>
-                  ) : (
-                    "Чек-лист заявки"
-                  )}
-                  {/* Кнопка появляется, только когда есть из чего выбирать;
+                {(ticket.routineTask?.title ||
+                  (canEditChecklist && templates)) && (
+                  <p className="mt-0 mb-3 flex items-center gap-1.5 border-b border-border-soft pb-2.5 text-xs text-muted-foreground">
+                    <RiRepeat2Line size={14} className="text-faint" />
+                    {ticket.routineTask?.title ? (
+                      <>
+                        Из регламента{" "}
+                        <Link
+                          to={`/routine-tasks/${ticket.routineTask._id}`}
+                          className="text-accent-text no-underline hover:underline"
+                        >
+                          «{ticket.routineTask.title}»
+                        </Link>
+                      </>
+                    ) : (
+                      "Чек-лист заявки"
+                    )}
+                    {/* Кнопка появляется, только когда есть из чего выбирать;
                       у регламентной заявки список — часть определения задания,
                       и шаблоны его не подменяют (сервер отдаёт пустой matched) */}
-                  {!ticket.routineTask && canEditChecklist && (
-                    <TemplatePicker
-                      templates={templates}
-                      hasChecks={checklistHasChecks}
-                      onApply={applyTemplate}
-                      onClear={() => applyTemplate({ items: [], title: "" })}
-                      trigger={
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className="tw:ms-auto tw:text-muted-foreground"
-                        >
-                          Ещё чек-листы ·{" "}
-                          {(templates?.matched?.length ?? 0) +
-                            (templates?.others?.length ?? 0)}
-                        </Button>
-                      }
-                    />
-                  )}
-                </p>
-              )}
-              {checklistEdit ? (
-                <Checklist
-                  key="edit"
-                  mode="edit"
-                  items={ticket.checklist ?? []}
-                  showHeader={false}
-                  framed={false}
-                  onChange={saveChecklist}
-                />
-              ) : ticket.checklist?.length ? (
-                <Checklist
-                  key="run"
-                  mode="run"
-                  items={ticket.checklist}
-                  showHeader={false}
-                  framed={false}
-                  canCheck={mine && !ticket.isArchived}
-                  mandatoryGuard
-                  onToggle={(item, checked) =>
-                    checklistFetcher.submit(
-                      {
-                        intent: "updateChecklistItem",
-                        itemId: item._id,
-                        itemDescription: item.description,
-                        itemChecked: checked,
-                        ticketNum: ticket.num,
-                      },
-                      { method: "POST", action: `/tickets/${ticket.num}` },
-                    )
-                  }
-                />
-              ) : null}
-            </Panel>
-          </Section>
+                    {!ticket.routineTask && canEditChecklist && (
+                      <TemplatePicker
+                        templates={templates}
+                        hasChecks={checklistHasChecks}
+                        onApply={applyTemplate}
+                        onClear={() => applyTemplate({ items: [], title: "" })}
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            className="ms-auto text-muted-foreground"
+                          >
+                            Ещё чек-листы ·{" "}
+                            {(templates?.matched?.length ?? 0) +
+                              (templates?.others?.length ?? 0)}
+                          </Button>
+                        }
+                      />
+                    )}
+                  </p>
+                )}
+                {checklistEdit ? (
+                  <Checklist
+                    key="edit"
+                    mode="edit"
+                    items={ticket.checklist ?? []}
+                    showHeader={false}
+                    framed={false}
+                    onChange={saveChecklist}
+                  />
+                ) : ticket.checklist?.length ? (
+                  <Checklist
+                    key="run"
+                    mode="run"
+                    items={ticket.checklist}
+                    showHeader={false}
+                    framed={false}
+                    canCheck={mine && !ticket.isArchived}
+                    mandatoryGuard
+                    onToggle={(item, checked) =>
+                      checklistFetcher.submit(
+                        {
+                          intent: "updateChecklistItem",
+                          itemId: item._id,
+                          itemDescription: item.description,
+                          itemChecked: checked,
+                          ticketNum: ticket.num,
+                        },
+                        { method: "POST", action: `/tickets/${ticket.num}` },
+                      )
+                    }
+                  />
+                ) : null}
+              </Panel>
+            </Section>
           )}
 
           {showWorks && (
@@ -628,7 +628,7 @@ const ViewTicket = () => {
           )}
 
           {showEnvironment && (
-            <Section className={environmentEmpty ? "tw:hidden" : undefined}>
+            <Section className={environmentEmpty ? "hidden" : undefined}>
               <Eyebrow id="ticket-environment">Окружение</Eyebrow>
               <Environment
                 userId={ticket.applicant?._id}
@@ -641,7 +641,7 @@ const ViewTicket = () => {
           {showKnowledge && <KnowledgeSection ticket={ticket} />}
         </div>
 
-        <div className="tw:sticky tw:top-20 tw:hidden tw:w-96 tw:flex-none tw:xl:block">
+        <div className="sticky top-20 hidden w-96 flex-none xl:block">
           <Chronicle
             ticket={ticket}
             events={events}
@@ -651,7 +651,7 @@ const ViewTicket = () => {
       </div>
 
       {/* На узких экранах хроника идёт последней секцией */}
-      <div className="tw:mt-5 tw:xl:hidden">
+      <div className="mt-5 xl:hidden">
         <Chronicle
           ticket={ticket}
           events={events}

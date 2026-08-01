@@ -9,9 +9,9 @@ import { cn } from "@/lib/utils";
 // (см. «Глобальный автоскейл <img>» в docs/ux-ui-guide.md).
 
 const WORD_SIZE = {
-  sm: "tw:text-base",
-  default: "tw:text-lg",
-  lg: "tw:text-xl",
+  sm: "text-base",
+  default: "text-lg",
+  lg: "text-xl",
 } as const;
 
 const LOGO_HEIGHT = { sm: 28, default: 32, lg: 32 } as const;
@@ -42,7 +42,7 @@ const BrandMark = ({
   }
 
   return (
-    <span className={cn("tw:inline-flex tw:items-center tw:gap-2.5", className)}>
+    <span className={cn("inline-flex items-center gap-2.5", className)}>
       {mark && (
         <img
           src="/logo.png"
@@ -53,11 +53,11 @@ const BrandMark = ({
       )}
       <span
         className={cn(
-          "tw:font-bold tw:tracking-tight tw:text-foreground",
+          "font-bold tracking-tight text-foreground",
           WORD_SIZE[size],
         )}
       >
-        Help<span className="tw:text-primary">Desk</span>
+        Help<span className="text-primary">Desk</span>
       </span>
     </span>
   );

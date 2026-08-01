@@ -2,13 +2,14 @@ import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
-import Select from "../../UI/Select";
+import Combobox from "@/components/app/Combobox";
+
 import useUserFilterStore from "../../store/lists/users";
 import useInitialPrefs from "../../store/prefs";
 
 // Sheet-фильтр адресной книги. Набор (Все/Сотрудники/Клиенты) — сегментом над
 // списком; здесь — компания (ключевой фасет), присутствие, активность и
-// параметры аккаунта. UI/Select внутри шторки работает через InsideOverlayContext.
+// параметры аккаунта.
 const ACTIVITY_OPTIONS = [
   { value: "any", label: "Любая" },
   { value: "currentMonth", label: "В этом месяце" },
@@ -28,16 +29,14 @@ const UserFilter = () => {
   return (
     <FilterContainer resetFilterHandler={s.resetFilter}>
       <Field label="Компания" htmlFor="filter-company">
-        <Select
+        <Combobox
           id="filter-company"
           placeholder="Все компании"
-          isClearable
-          closeMenuOnSelect
-          value={companyOption}
+          clearable
+          clearLabel="Все компании"
+          value={companyOption?.value ?? null}
           options={s.companyOptions}
-          getOptionLabel={(option) => option.label}
-          getOptionValue={(option) => option.value}
-          onChange={(option) => s.setCompany(option?.value ?? null)}
+          onChange={(value) => s.setCompany(value)}
         />
       </Field>
 
@@ -65,21 +64,14 @@ const UserFilter = () => {
       <Field
         label="Последняя активность"
         htmlFor="filter-activity"
-        className="tw:mt-2"
+        className="mt-2"
       >
-        <Select
+        <Combobox
           id="filter-activity"
           placeholder="Любая"
-          closeMenuOnSelect
-          value={ACTIVITY_OPTIONS.filter(
-            (option) => option.value === (s.activity || "any"),
-          )}
+          value={s.activity || "any"}
           options={ACTIVITY_OPTIONS}
-          getOptionLabel={(option) => option.label}
-          getOptionValue={(option) => option.value}
-          onChange={(option) =>
-            s.updateFilter({ activity: option?.value ?? "any" })
-          }
+          onChange={(value) => s.updateFilter({ activity: value ?? "any" })}
         />
       </Field>
 

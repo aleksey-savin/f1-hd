@@ -24,10 +24,7 @@ import { cn } from "@/lib/utils";
 
 import { getLocalStorageData } from "../../../util/auth";
 import { plural } from "../../../util/plural";
-import {
-  dismissOffer,
-  isOfferDismissed,
-} from "../../../util/checklist-offer";
+import { dismissOffer, isOfferDismissed } from "../../../util/checklist-offer";
 
 /**
  * Шаблоны чек-листов в заявке: строка источника с «Ещё чек-листы», предложка
@@ -71,11 +68,11 @@ export const useChecklistTemplates = (ticketNum, canEdit) => {
 const Bind = ({ icon: Icon, children, dashed = false }) => (
   <span
     className={cn(
-      "tw:inline-flex tw:items-center tw:gap-1 tw:rounded-md tw:border tw:border-border-soft tw:px-1.5 tw:py-0.5 tw:text-xs tw:text-muted-foreground",
-      dashed ? "tw:border-dashed" : "tw:bg-secondary",
+      "inline-flex items-center gap-1 rounded-md border border-border-soft px-1.5 py-0.5 text-xs text-muted-foreground",
+      dashed ? "border-dashed" : "bg-secondary",
     )}
   >
-    {Icon && <Icon size={11} className="tw:text-faint" />}
+    {Icon && <Icon size={11} className="text-faint" />}
     {children}
   </span>
 );
@@ -85,15 +82,13 @@ const TemplateOption = ({ template, active, onPick }) => (
     type="button"
     onClick={() => onPick(template)}
     className={cn(
-      "tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-start tw:gap-2.5 tw:rounded-lg tw:border-0 tw:bg-transparent tw:px-2.5 tw:py-2 tw:text-left tw:hover:bg-accent",
-      active && "tw:bg-accent",
+      "flex w-full cursor-pointer appearance-none items-start gap-2.5 rounded-lg border-0 bg-transparent px-2.5 py-2 text-left hover:bg-accent",
+      active && "bg-accent",
     )}
   >
-    <span className="tw:min-w-0 tw:flex-1">
-      <span className="tw:block tw:text-sm tw:font-medium">
-        {template.title}
-      </span>
-      <span className="tw:mt-1 tw:flex tw:flex-wrap tw:gap-1.5">
+    <span className="min-w-0 flex-1">
+      <span className="block text-sm font-medium">{template.title}</span>
+      <span className="mt-1 flex flex-wrap gap-1.5">
         {(template.categories || []).map((category) => (
           <Bind key={category._id ?? category} icon={RiPriceTag3Line}>
             {category.title ?? "категория"}
@@ -110,12 +105,10 @@ const TemplateOption = ({ template, active, onPick }) => (
           )}
       </span>
     </span>
-    <span className="tw:flex-none tw:text-xs tw:text-faint tw:tabular-nums">
+    <span className="flex-none text-xs text-faint tabular-nums">
       {template.items?.length ?? 0}
     </span>
-    {active && (
-      <RiCheckLine className="tw:flex-none tw:text-accent-text" size={15} />
-    )}
+    {active && <RiCheckLine className="flex-none text-accent-text" size={15} />}
   </button>
 );
 
@@ -154,10 +147,10 @@ export const TemplatePicker = ({
     <>
       <Popover open={open} onOpenChange={setOpen} modal={false}>
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-        <PopoverContent align="start" className="tw:w-96 tw:p-1.5">
+        <PopoverContent align="start" className="w-96 p-1.5">
           {matched.length > 0 && (
             <>
-              <p className="tw:m-0 tw:px-2.5 tw:pt-2 tw:pb-1.5 tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
+              <p className="m-0 px-2.5 pt-2 pb-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
                 Подходят этой заявке
               </p>
               {matched.map((template) => (
@@ -173,7 +166,7 @@ export const TemplatePicker = ({
 
           {others.length > 0 && (
             <>
-              <p className="tw:m-0 tw:mt-1 tw:border-t tw:border-border-soft tw:px-2.5 tw:pt-2.5 tw:pb-1.5 tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
+              <p className="m-0 mt-1 border-t border-border-soft px-2.5 pt-2.5 pb-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
                 Остальные
               </p>
               {others.map((template) => (
@@ -194,7 +187,7 @@ export const TemplatePicker = ({
                 setOpen(false);
                 onClear();
               }}
-              className="tw:mt-1 tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:border-0 tw:border-t tw:border-border-soft tw:bg-transparent tw:px-2.5 tw:py-2.5 tw:text-left tw:text-sm tw:text-muted-foreground tw:hover:text-foreground"
+              className="mt-1 flex w-full cursor-pointer appearance-none border-0 border-t border-border-soft bg-transparent px-2.5 py-2.5 text-left text-sm text-muted-foreground hover:text-foreground"
             >
               Убрать чек-лист
             </button>
@@ -203,15 +196,13 @@ export const TemplatePicker = ({
       </Popover>
 
       <Dialog open={Boolean(pending)} onOpenChange={() => setPending(null)}>
-        <DialogContent className="tw:sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              Сменить чек-лист на «{pending?.title}»?
-            </DialogTitle>
+            <DialogTitle>Сменить чек-лист на «{pending?.title}»?</DialogTitle>
           </DialogHeader>
-          <p className="tw:m-0 tw:text-sm tw:text-muted-foreground">
-            Совпадающие по названию пункты сохранят отметки. Остальные отмеченные
-            пункты исчезнут вместе с тем, кто и когда их выполнил.
+          <p className="m-0 text-sm text-muted-foreground">
+            Совпадающие по названию пункты сохранят отметки. Остальные
+            отмеченные пункты исчезнут вместе с тем, кто и когда их выполнил.
           </p>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPending(null)}>
@@ -257,25 +248,23 @@ export const TemplateOffer = ({ ticketNum, templates, onApply }) => {
       : null;
 
   return (
-    <div className="tw:flex tw:items-center tw:gap-3 tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-4 tw:py-3">
-      <span className="tw:grid tw:size-7 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-primary/10 tw:text-accent-text">
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+      <span className="grid size-7 flex-none place-items-center rounded-lg bg-primary/10 text-accent-text">
         <RiListCheck2 size={15} />
       </span>
-      <span className="tw:min-w-0 tw:flex-1">
-        <p className="tw:m-0 tw:text-sm tw:text-muted-foreground">
+      <span className="min-w-0 flex-1">
+        <p className="m-0 text-sm text-muted-foreground">
           Есть чек-лист{" "}
-          <span className="tw:font-medium tw:text-foreground">
-            «{best.title}»
-          </span>
+          <span className="font-medium text-foreground">«{best.title}»</span>
         </p>
-        <p className="tw:mt-0.5 tw:mb-0 tw:text-xs tw:text-faint">
+        <p className="mt-0.5 mb-0 text-xs text-faint">
           {best.items?.length ?? 0}{" "}
           {plural(best.items?.length ?? 0, "пункт", "пункта", "пунктов")}
           {basis ? ` · ${basis}` : ""}
           {rest > 0 && ` · ещё ${rest} подходит`}
         </p>
       </span>
-      <span className="tw:flex tw:flex-none tw:gap-1.5">
+      <span className="flex flex-none gap-1.5">
         <Button
           variant="ghost"
           size="xs"

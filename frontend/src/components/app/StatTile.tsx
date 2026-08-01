@@ -22,14 +22,14 @@ export const StatTileDelta = ({
   /** Единица дельты: доли сравниваются в пунктах, а не в процентах от процента. */
   unit?: string;
 }) => (
-  <div className="tw:mt-1.5 tw:text-sm tw:tabular-nums">
+  <div className="mt-1.5 text-sm tabular-nums">
     {percentage === null || direction === "flat" ? (
-      <span className="tw:font-semibold tw:text-faint">—</span>
+      <span className="font-semibold text-faint">—</span>
     ) : (
       <span
         className={cn(
-          "tw:font-semibold",
-          direction === "up" ? "tw:text-accent-text" : "tw:text-destructive",
+          "font-semibold",
+          direction === "up" ? "text-accent-text" : "text-destructive",
         )}
       >
         {percentage > 0 ? "+" : ""}
@@ -37,7 +37,7 @@ export const StatTileDelta = ({
         {unit}
       </span>
     )}{" "}
-    <span className="tw:text-faint">{hint}</span>
+    <span className="text-faint">{hint}</span>
   </div>
 );
 
@@ -62,25 +62,21 @@ const StatTile = ({
 }) => (
   <div
     className={cn(
-      "tw:flex tw:flex-col tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-4 tw:transition-opacity",
-      busy && "tw:opacity-60",
+      "flex flex-col rounded-xl border border-border bg-card p-4 transition-opacity",
+      busy && "opacity-60",
       className,
     )}
   >
-    <div className="tw:text-sm tw:font-medium tw:text-muted-foreground">
-      {label}
-    </div>
+    <div className="text-sm font-medium text-muted-foreground">{label}</div>
     {value != null && (
-      <div className="tw:mt-2 tw:text-3xl tw:leading-none tw:font-bold tw:tracking-tight tw:tabular-nums">
+      <div className="mt-2 text-3xl leading-none font-bold tracking-tight tabular-nums">
         {value}
       </div>
     )}
     {children}
     {delta}
     {footer != null && (
-      <div className="tw:mt-1.5 tw:text-xs tw:text-faint tw:tabular-nums">
-        {footer}
-      </div>
+      <div className="mt-1.5 text-xs text-faint tabular-nums">{footer}</div>
     )}
   </div>
 );

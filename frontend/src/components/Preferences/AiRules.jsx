@@ -98,31 +98,31 @@ const AiRules = () => {
 
   return (
     <>
-      <div className="tw:px-5 tw:pt-4">
+      <div className="px-5 pt-4">
         <SubLabel>Правила от сотрудников</SubLabel>
       </div>
 
       {rules.length === 0 ? (
-        <p className="tw:px-5 tw:pb-4 tw:text-sm tw:text-muted-foreground">
+        <p className="px-5 pb-4 text-sm text-muted-foreground">
           Замечаний пока нет. Они появляются, когда кто-то нажимает на метку ИИ
           в карточке заявки и объясняет, что модель поняла неверно.
         </p>
       ) : (
         <>
-          <p className="tw:px-5 tw:pb-1 tw:text-sm tw:text-muted-foreground">
+          <p className="px-5 pb-1 text-sm text-muted-foreground">
             Включённое правило уходит в запрос к модели по своей категории и
             компании. Выключенное лежит на виду у команды, но на ответы не
             влияет.
           </p>
-          <ul className="tw:m-0 tw:list-none tw:p-0">
+          <ul className="m-0 list-none p-0">
             {rules.map((rule) => (
               <li
                 key={rule._id}
-                className="tw:flex tw:items-start tw:gap-3 tw:border-t tw:border-border-soft tw:px-5 tw:py-3"
+                className="flex items-start gap-3 border-t border-border-soft px-5 py-3"
               >
-                <div className="tw:min-w-0 tw:flex-1">
-                  <p className="tw:my-0 tw:text-sm">{rule.text}</p>
-                  <p className="tw:mt-1 tw:mb-0 tw:text-xs tw:text-faint">
+                <div className="min-w-0 flex-1">
+                  <p className="my-0 text-sm">{rule.text}</p>
+                  <p className="mt-1 mb-0 text-xs text-faint">
                     {TARGET_LABEL[rule.target] || rule.target} ·{" "}
                     {REASON_LABEL[rule.reason] || rule.reason}
                     {rule.category?.title ? ` · ${rule.category.title}` : ""}
@@ -131,7 +131,7 @@ const AiRules = () => {
                     {rule.ticketNum && (
                       <Link
                         to={`/tickets/${rule.ticketNum}`}
-                        className="tw:text-faint tw:hover:text-accent-text"
+                        className="text-faint hover:text-accent-text"
                       >
                         заявка № {rule.ticketNum}
                       </Link>

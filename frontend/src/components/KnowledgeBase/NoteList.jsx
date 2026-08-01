@@ -29,22 +29,22 @@ const FolderRow = ({ group, expanded, onToggle }) => {
       type="button"
       aria-expanded={expanded}
       onClick={onToggle}
-      className="tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2 tw:border-0 tw:bg-transparent tw:px-3.5 tw:py-2.5 tw:text-start tw:text-base tw:font-semibold tw:text-foreground tw:transition-colors tw:hover:bg-accent/60 tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:focus-visible:outline-none"
+      className="flex w-full cursor-pointer appearance-none items-center gap-2 border-0 bg-transparent px-3.5 py-2.5 text-start text-base font-semibold text-foreground transition-colors hover:bg-accent/60 focus-visible:ring-4 focus-visible:ring-ring/50 focus-visible:outline-none"
     >
       <RiArrowRightSLine
         size={16}
         aria-hidden
         className={cn(
-          "tw:flex-none tw:text-faint tw:transition-transform tw:motion-reduce:transition-none",
-          expanded && "tw:rotate-90",
+          "flex-none text-faint transition-transform motion-reduce:transition-none",
+          expanded && "rotate-90",
         )}
       />
-      <span className="tw:min-w-0 tw:truncate">{group.title}</span>
-      <span className="tw:flex-none tw:text-faint tw:tabular-nums">
+      <span className="min-w-0 truncate">{group.title}</span>
+      <span className="flex-none text-faint tabular-nums">
         · {group.notes.length}
       </span>
       {unapproved > 0 && (
-        <span className="tw:ms-auto tw:flex-none tw:text-sm tw:font-normal tw:text-faint tw:tabular-nums">
+        <span className="ms-auto flex-none text-sm font-normal text-faint tabular-nums">
           {unapproved}{" "}
           {plural(unapproved, "не проверена", "не проверены", "не проверено")}
         </span>
@@ -54,9 +54,9 @@ const FolderRow = ({ group, expanded, onToggle }) => {
 };
 
 const EmptyState = ({ message }) => (
-  <div className="tw:flex tw:flex-col tw:items-center tw:gap-1.5 tw:px-5 tw:py-12 tw:text-center">
-    <RiInboxLine size={32} aria-hidden className="tw:text-faint" />
-    <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">{message}</p>
+  <div className="flex flex-col items-center gap-1.5 px-5 py-12 text-center">
+    <RiInboxLine size={32} aria-hidden className="text-faint" />
+    <p className="my-0 text-sm text-muted-foreground">{message}</p>
   </div>
 );
 
@@ -147,7 +147,9 @@ const NoteList = ({ notes, flat = false, showCompanies }) => {
           key={group.key}
           // Разделитель между папками — сверху у каждой, кроме первой
           style={
-            index > 0 ? { borderTop: "1px solid var(--border-soft)" } : undefined
+            index > 0
+              ? { borderTop: "1px solid var(--border-soft)" }
+              : undefined
           }
         >
           <FolderRow

@@ -9,7 +9,6 @@ import SwitchField from "@/components/app/SwitchField";
 import Segmented from "@/components/app/Segmented";
 import WizardStepper from "@/components/app/WizardStepper";
 import AlertMessage from "@/components/app/AlertMessage";
-import Combobox from "@/components/app/Combobox";
 import { FormHeader, FormSections } from "@/components/app/FormLayout";
 import { SubLabel } from "@/components/app/Panel";
 import ScheduleEditor, {
@@ -18,7 +17,7 @@ import ScheduleEditor, {
 } from "@/components/app/ScheduleEditor";
 import { cn } from "@/lib/utils";
 
-import Select from "../../UI/Select";
+import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import useOffcanvasStore from "../../store/offcanvas";
 import useInitialPrefs from "../../store/prefs";
 import timezones from "../../store/timezones";
@@ -72,8 +71,18 @@ const MODE_HINT = {
 // «отчёты за май 2026» — именительный падеж: список в родительном («мая»)
 // давал «отчёты за мая»
 const MONTHS_NOMINATIVE = [
-  "январь", "февраль", "март", "апрель", "май", "июнь",
-  "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+  "январь",
+  "февраль",
+  "март",
+  "апрель",
+  "май",
+  "июнь",
+  "июль",
+  "август",
+  "сентябрь",
+  "октябрь",
+  "ноябрь",
+  "декабрь",
 ];
 
 const workDay = () => ({ ...emptyDay(), isWorking: true, breakMinutes: 60 });
@@ -117,7 +126,9 @@ const initialSchedule = (user) => {
     remoteOnly: Boolean(user?.remoteOnly),
     timezone: user?.timezone || "",
     followProductionCalendar:
-      version?.followProductionCalendar ?? user?.followProductionCalendar ?? true,
+      version?.followProductionCalendar ??
+      user?.followProductionCalendar ??
+      true,
     week: week ? structuredClone(week) : defaultWeek(),
     hasPersonal: Boolean(week),
     // Новая версия по умолчанию не трогает прошлое
@@ -126,7 +137,11 @@ const initialSchedule = (user) => {
 };
 
 const UserForm = () => {
-  const { user, companiesList = [], categoriesList = [] } = useLoaderData() || {};
+  const {
+    user,
+    companiesList = [],
+    categoriesList = [],
+  } = useLoaderData() || {};
   const isEdit = !!user?._id;
 
   const authedUser = useContext(AuthedUserContext);
@@ -143,7 +158,9 @@ const UserForm = () => {
     authedUser.isAdmin || authedUser.permissions?.canManageWorkSchedules,
   );
   // Глобальная интеграция включена — ключ правят только у клиентов (как в легаси)
-  const prefsGetScreenActive = Boolean(getInitialPrefsData()?.getScreen?.isActive);
+  const prefsGetScreenActive = Boolean(
+    getInitialPrefsData()?.getScreen?.isActive,
+  );
   const { timezone: orgTimezone } = useInitialPrefs();
 
   const fetcher = useFetcher();
@@ -167,9 +184,11 @@ const UserForm = () => {
     subdivision: null,
     // Пусто = «как у подразделения»: копию не храним, переезд филиала
     // подхватится сам (каскад — services/clientTimezone)
-    timezone: timezones.find((zone) => zone.value === user?.timezone) || null,
+    timezone: user?.timezone || null,
     categories: (user?.categories || [])
-      .map((category) => categoriesList.find((item) => item._id === category._id))
+      .map((category) =>
+        categoriesList.find((item) => item._id === category._id),
+      )
       .filter(Boolean),
     responsibleForCompanies: (user?.responsibleForCompanies || [])
       .map((item) => companiesList.find((c) => c._id === String(item.id)))
@@ -177,7 +196,10 @@ const UserForm = () => {
     permissions: { ...emptyPermissions(), ...(user?.permissions || {}) },
     notify: user?.notify
       ? {
-          byTelegram: { ...emptyNotify().byTelegram, ...user.notify.byTelegram },
+          byTelegram: {
+            ...emptyNotify().byTelegram,
+            ...user.notify.byTelegram,
+          },
           byEmail: { ...emptyNotify().byEmail, ...user.notify.byEmail },
         }
       : emptyNotify(),
@@ -267,7 +289,8 @@ const UserForm = () => {
         return isService ? "Укажите наименование" : "Укажите имя";
       if (!isService && !form.lastName.trim()) return "Укажите фамилию";
       if (!form.email.trim()) return "Укажите email";
-      if (!isEdit && !isService && !form.password.trim()) return "Задайте пароль";
+      if (!isEdit && !isService && !form.password.trim())
+        return "Задайте пароль";
       return null;
     }
     if (key === "org" && !form.company) return "Выберите компанию";
@@ -365,10 +388,13 @@ const UserForm = () => {
       subdivision: form.subdivision?._id || null,
       // У сотрудников пояс правится в карточке графика — оттуда и семантика
       // «как в организации»; здесь поле только для клиентов
-      ...(isStaff ? {} : { timezone: form.timezone?.value || null }),
+      ...(isStaff ? {} : { timezone: form.timezone || null }),
       categories: isStaff ? form.categories.map((c) => c._id) : [],
       responsibleForCompanies: isStaff
-        ? form.responsibleForCompanies.map((c) => ({ id: c._id, alias: c.alias }))
+        ? form.responsibleForCompanies.map((c) => ({
+            id: c._id,
+            alias: c.alias,
+          }))
         : [],
       permissions: isStaff ? form.permissions : clientPermissions(),
     };
@@ -379,7 +405,8 @@ const UserForm = () => {
     }
     if (canEditFinances && isStaff) {
       payload.finances = {
-        salary: form.finances.salary === "" ? null : Number(form.finances.salary),
+        salary:
+          form.finances.salary === "" ? null : Number(form.finances.salary),
         overtimeHourlyRate:
           form.finances.overtimeHourlyRate === ""
             ? null
@@ -416,7 +443,10 @@ const UserForm = () => {
       ...prev,
       notify: {
         ...prev.notify,
-        [channel]: { ...prev.notify[channel], [key]: !prev.notify[channel][key] },
+        [channel]: {
+          ...prev.notify[channel],
+          [key]: !prev.notify[channel][key],
+        },
       },
     }));
   };
@@ -430,23 +460,23 @@ const UserForm = () => {
       <div
         key={module.key}
         className={cn(
-          "tw:mb-3 tw:rounded-xl tw:border tw:border-border tw:p-4",
-          off && "tw:opacity-60",
+          "mb-3 rounded-xl border border-border p-4",
+          off && "opacity-60",
         )}
       >
-        <div className="tw:flex tw:items-center tw:gap-2">
-          <span className="tw:text-sm tw:font-semibold">{module.label}</span>
-          <span className="tw:text-xs tw:text-faint tw:tabular-nums">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">{module.label}</span>
+          <span className="text-xs text-faint tabular-nums">
             {off ? "выключен" : `${granted} из ${module.caps.length}`}
           </span>
           {master && (
-            <span className="tw:ms-auto">
+            <span className="ms-auto">
               <SwitchField
                 id={`master-${module.key}`}
                 checked={!!values[master]}
                 onCheckedChange={() => toggle(master)}
                 label="Модуль"
-                className="tw:py-0"
+                className="py-0"
               />
             </span>
           )}
@@ -459,36 +489,42 @@ const UserForm = () => {
                 checked={!!values[cap.key]}
                 onCheckedChange={() => toggle(cap.key)}
                 label={cap.label}
-                className="tw:py-2"
+                className="py-2"
               />
               {cap.key === "canPerformTickets" && values[cap.key] && (
-                <div className="tw:mb-2 tw:rounded-xl tw:border tw:border-border tw:bg-accent tw:p-3">
+                <div className="mb-2 rounded-xl border border-border bg-accent p-3">
                   <Field label="Категории заявок" htmlFor="u-categories">
-                    <Select
+                    <MultiCombobox
                       id="u-categories"
                       placeholder="Выберите категории"
-                      isMulti
-                      isClearable
-                      isSearchable
-                      closeMenuOnSelect={false}
-                      value={form.categories}
-                      options={categoriesList}
-                      getOptionLabel={(option) => option.title}
-                      getOptionValue={(option) => option._id}
-                      onChange={(value) => setField("categories", value || [])}
+                      value={(form.categories || []).map((item) =>
+                        String(item._id),
+                      )}
+                      options={toOptions(categoriesList, {
+                        value: (option) => String(option._id),
+                        label: (option) => option.title,
+                      })}
+                      onChange={(ids) =>
+                        setField(
+                          "categories",
+                          categoriesList.filter((option) =>
+                            ids.includes(String(option._id)),
+                          ),
+                        )
+                      }
                     />
                   </Field>
-                  <div className="tw:flex tw:gap-4 tw:text-sm tw:font-semibold">
+                  <div className="flex gap-4 text-sm font-semibold">
                     <button
                       type="button"
-                      className="tw:cursor-pointer tw:appearance-none tw:border-0 tw:bg-transparent tw:p-0 tw:text-accent-text"
+                      className="cursor-pointer appearance-none border-0 bg-transparent p-0 text-accent-text"
                       onClick={() => setField("categories", categoriesList)}
                     >
                       Добавить все
                     </button>
                     <button
                       type="button"
-                      className="tw:cursor-pointer tw:appearance-none tw:border-0 tw:bg-transparent tw:p-0 tw:text-accent-text"
+                      className="cursor-pointer appearance-none border-0 bg-transparent p-0 text-accent-text"
                       onClick={() => setField("categories", [])}
                     >
                       Очистить
@@ -516,7 +552,10 @@ const UserForm = () => {
 
   const personStep = (
     <>
-      <Field label="Тип аккаунта" hint="От типа зависят доступные разделы формы.">
+      <Field
+        label="Тип аккаунта"
+        hint="От типа зависят доступные разделы формы."
+      >
         <Segmented
           options={ACCOUNT_KINDS}
           value={kind}
@@ -534,7 +573,7 @@ const UserForm = () => {
           />
         </Field>
       ) : (
-        <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           <Field label="Фамилия" required htmlFor="u-lastName">
             <Input
               id="u-lastName"
@@ -552,7 +591,7 @@ const UserForm = () => {
         </div>
       )}
 
-      <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <Field label="Email" required htmlFor="u-email">
           <Input
             id="u-email"
@@ -586,7 +625,7 @@ const UserForm = () => {
       {!isEdit && !isService && (
         <>
           <Field label="Пароль" required htmlFor="u-password">
-            <div className="tw:flex tw:gap-2">
+            <div className="flex gap-2">
               <Input
                 id="u-password"
                 value={form.password}
@@ -639,34 +678,47 @@ const UserForm = () => {
 
   const orgStep = (
     <>
-      <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <Field label="Компания" required htmlFor="u-company">
-          <Select
+          <Combobox
             id="u-company"
             placeholder="Выберите компанию"
-            isSearchable
-            value={form.company}
-            options={companiesList}
-            getOptionLabel={(option) => option.alias}
-            getOptionValue={(option) => option._id}
-            onChange={(value) => {
-              setField("company", value);
+            value={form.company?._id ? String(form.company._id) : null}
+            options={toOptions(companiesList, {
+              value: (option) => String(option._id),
+              label: (option) => option.alias,
+            })}
+            onChange={(id) => {
+              setField(
+                "company",
+                companiesList.find((option) => String(option._id) === id) ||
+                  null,
+              );
               setField("subdivision", null);
             }}
           />
         </Field>
         <Field label="Подразделение" htmlFor="u-subdivision">
-          <Select
+          <Combobox
             id="u-subdivision"
-            placeholder={form.company ? "Выберите подразделение" : "Сначала компания"}
-            isSearchable
-            isClearable
-            isDisabled={!form.company || subdivisions.length === 0}
-            value={form.subdivision}
-            options={subdivisions}
-            getOptionLabel={(option) => option.name}
-            getOptionValue={(option) => option._id}
-            onChange={(value) => setField("subdivision", value)}
+            placeholder={
+              form.company ? "Выберите подразделение" : "Сначала компания"
+            }
+            disabled={!form.company || subdivisions.length === 0}
+            value={form.subdivision?._id ? String(form.subdivision._id) : null}
+            options={toOptions(subdivisions, {
+              value: (option) => String(option._id),
+              label: (option) => option.name,
+            })}
+            onChange={(id) =>
+              setField(
+                "subdivision",
+                subdivisions.find((option) => String(option._id) === id) ||
+                  null,
+              )
+            }
+            clearable
+            clearLabel="Без подразделения"
           />
         </Field>
       </div>
@@ -680,14 +732,14 @@ const UserForm = () => {
               : `Пусто — как у подразделения: ${tzCity(inheritedZone)}.`
           }
         >
-          <Select
+          <Combobox
             id="u-timezone"
-            isClearable
-            isSearchable
             placeholder={`Как у подразделения — ${tzCity(inheritedZone)}`}
             options={timezones}
             value={form.timezone}
             onChange={(value) => setField("timezone", value)}
+            clearable
+            clearLabel={`Как у подразделения — ${tzCity(inheritedZone)}`}
           />
         </Field>
       )}
@@ -698,18 +750,24 @@ const UserForm = () => {
           htmlFor="u-responsible"
           hint="Определяет, чьи заявки и людей видит сотрудник."
         >
-          <Select
+          <MultiCombobox
             id="u-responsible"
             placeholder="Выберите компании"
-            isMulti
-            isClearable
-            isSearchable
-            closeMenuOnSelect={false}
-            value={form.responsibleForCompanies}
-            options={companiesList}
-            getOptionLabel={(option) => option.alias}
-            getOptionValue={(option) => option._id}
-            onChange={(value) => setField("responsibleForCompanies", value || [])}
+            value={(form.responsibleForCompanies || []).map((item) =>
+              String(item._id),
+            )}
+            options={toOptions(companiesList, {
+              value: (option) => String(option._id),
+              label: (option) => option.alias,
+            })}
+            onChange={(ids) =>
+              setField(
+                "responsibleForCompanies",
+                companiesList.filter((option) =>
+                  ids.includes(String(option._id)),
+                ),
+              )
+            }
           />
         </Field>
       )}
@@ -791,8 +849,8 @@ const UserForm = () => {
       {/* «Не ведётся» — человека нет ни в календаре, ни в автоматике:
           расписание и всё, что от него зависит, показывать незачем */}
       {schedule.workTimeMode === "none" ? (
-        <div className="tw:rounded-lg tw:border tw:border-dashed tw:border-border tw:px-4 tw:py-6 tw:text-center">
-          <p className="tw:mx-auto tw:mb-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
+        <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
+          <p className="mx-auto mb-0 max-w-md text-sm text-muted-foreground">
             Рабочее время не ведётся: сотрудник не показывается в календаре
             команды, статус по графику не меняется, заявки на отсутствие ему не
             нужны. Прежний график сохранится — если вернуть учёт, он снова
@@ -814,8 +872,8 @@ const UserForm = () => {
 
           <div
             className={cn(
-              "tw:mt-4",
-              isFreeMode ? "tw:max-w-sm" : "tw:grid tw:gap-3 tw:md:grid-cols-2",
+              "mt-4",
+              isFreeMode ? "max-w-sm" : "grid gap-3 md:grid-cols-2",
             )}
           >
             <Field
@@ -849,7 +907,7 @@ const UserForm = () => {
                   inputMode="numeric"
                   value={currentBreak}
                   onChange={(event) => setBreak(event.target.value)}
-                  className="tw:tabular-nums"
+                  className="tabular-nums"
                 />
               </Field>
             )}
@@ -868,7 +926,7 @@ const UserForm = () => {
             />
           )}
 
-          <div className="tw:mt-5 tw:border-t tw:border-border-soft tw:pt-4">
+          <div className="mt-5 border-t border-border-soft pt-4">
             {!isFreeMode && <SubLabel>Недельный график</SubLabel>}
             <Field
               label="Действует с"
@@ -882,7 +940,7 @@ const UserForm = () => {
               <Input
                 id="u-effective-from"
                 type="date"
-                className="tw:max-w-3xs"
+                className="max-w-3xs"
                 value={schedule.effectiveFrom}
                 onChange={(event) =>
                   patchSchedule({ effectiveFrom: event.target.value })
@@ -894,9 +952,9 @@ const UserForm = () => {
                 у сотрудника свой, и по нему же считается его день */}
             {!isFreeMode && (
               <>
-                <p className="tw:mb-2 tw:text-sm tw:text-muted-foreground">
+                <p className="mb-2 text-sm text-muted-foreground">
                   Время указывается по часовому поясу сотрудника —{" "}
-                  <span className="tw:font-medium tw:text-foreground">
+                  <span className="font-medium text-foreground">
                     {scheduleTzHint}
                   </span>
                   . В календаре и отчётах у каждого свой день, поясá не
@@ -910,7 +968,7 @@ const UserForm = () => {
             )}
 
             {!isFreeMode && backdated && (
-              <div className="tw:mt-4">
+              <div className="mt-4">
                 <AlertMessage
                   variant="warning"
                   message={`Дата в прошлом: отчёты за ${backdated} пересчитаются по новому графику. Если месяц уже согласован, суммы в нём изменятся.`}
@@ -943,14 +1001,14 @@ const UserForm = () => {
 
   const rightsStep = (
     <>
-      <div className="tw:mb-4 tw:rounded-xl tw:border tw:border-border tw:p-4">
+      <div className="mb-4 rounded-xl border border-border p-4">
         <SwitchField
           id="u-isAdmin"
           checked={form.isAdmin}
           onCheckedChange={(value) => setField("isAdmin", value)}
           label="Администратор"
           hint="Полный доступ ко всему порталу — переключатели ниже теряют смысл."
-          className="tw:py-0"
+          className="py-0"
         />
       </div>
       {PERMISSION_MODULES.map((module) =>
@@ -961,37 +1019,37 @@ const UserForm = () => {
 
   const extraStep = (
     <>
-      <div className="tw:mb-2 tw:text-sm tw:font-semibold">Уведомления</div>
+      <div className="mb-2 text-sm font-semibold">Уведомления</div>
       {notifyDirty && (
-        <div className="tw:mb-3">
+        <div className="mb-3">
           <AlertMessage
             variant="warning"
             message="Это личные настройки пользователя — при сохранении его выбор будет перезаписан."
           />
         </div>
       )}
-      <div className="tw:mb-5 tw:overflow-x-auto tw:rounded-xl tw:border tw:border-border">
-        <table className="tw:w-full tw:text-sm">
+      <div className="mb-5 overflow-x-auto rounded-xl border border-border">
+        <table className="w-full text-sm">
           <thead>
-            <tr className="tw:text-xs tw:font-bold tw:tracking-wide tw:text-faint tw:uppercase">
-              <th className="tw:p-3 tw:text-left">Событие</th>
-              <th className="tw:p-3">Telegram</th>
-              <th className="tw:p-3">Email</th>
+            <tr className="text-xs font-bold tracking-wide text-faint uppercase">
+              <th className="p-3 text-left">Событие</th>
+              <th className="p-3">Telegram</th>
+              <th className="p-3">Email</th>
             </tr>
           </thead>
           <tbody>
             {NOTIFY_EVENTS.map((event) => (
-              <tr key={event.key} className="tw:border-t tw:border-border-soft">
-                <td className="tw:p-3 tw:font-medium">{event.label}</td>
+              <tr key={event.key} className="border-t border-border-soft">
+                <td className="p-3 font-medium">{event.label}</td>
                 {["byTelegram", "byEmail"].map((channel) => (
-                  <td key={channel} className="tw:p-3">
-                    <div className="tw:flex tw:justify-center">
+                  <td key={channel} className="p-3">
+                    <div className="flex justify-center">
                       <SwitchField
                         id={`n-${channel}-${event.key}`}
                         checked={!!form.notify[channel][event.key]}
                         onCheckedChange={() => toggleNotify(channel, event.key)}
                         label=""
-                        className="tw:py-0"
+                        className="py-0"
                       />
                     </div>
                   </td>
@@ -1004,45 +1062,46 @@ const UserForm = () => {
 
       {canEditFinances && isStaff && (
         <>
-          <div className="tw:mt-5 tw:mb-2 tw:text-sm tw:font-semibold">
-            Финансы
-          </div>
-          <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
-          <Field
-            label="Оклад, ₽/мес"
-            htmlFor="u-salary"
-            hint="Отображается в персональном отчёте сотрудника."
-          >
-            <Input
-              id="u-salary"
-              type="number"
-              min="0"
-              step="1"
-              value={form.finances.salary}
-              onChange={(event) =>
-                setField("finances", { ...form.finances, salary: event.target.value })
-              }
-            />
-          </Field>
-          <Field
-            label="Ставка переработок, ₽/час"
-            htmlFor="u-overtime"
-            hint="Доплата = часы × ставка × коэффициент из настроек."
-          >
-            <Input
-              id="u-overtime"
-              type="number"
-              min="0"
-              step="1"
-              value={form.finances.overtimeHourlyRate}
-              onChange={(event) =>
-                setField("finances", {
-                  ...form.finances,
-                  overtimeHourlyRate: event.target.value,
-                })
-              }
-            />
-          </Field>
+          <div className="mt-5 mb-2 text-sm font-semibold">Финансы</div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field
+              label="Оклад, ₽/мес"
+              htmlFor="u-salary"
+              hint="Отображается в персональном отчёте сотрудника."
+            >
+              <Input
+                id="u-salary"
+                type="number"
+                min="0"
+                step="1"
+                value={form.finances.salary}
+                onChange={(event) =>
+                  setField("finances", {
+                    ...form.finances,
+                    salary: event.target.value,
+                  })
+                }
+              />
+            </Field>
+            <Field
+              label="Ставка переработок, ₽/час"
+              htmlFor="u-overtime"
+              hint="Доплата = часы × ставка × коэффициент из настроек."
+            >
+              <Input
+                id="u-overtime"
+                type="number"
+                min="0"
+                step="1"
+                value={form.finances.overtimeHourlyRate}
+                onChange={(event) =>
+                  setField("finances", {
+                    ...form.finances,
+                    overtimeHourlyRate: event.target.value,
+                  })
+                }
+              />
+            </Field>
           </div>
         </>
       )}
@@ -1115,19 +1174,19 @@ const UserForm = () => {
             maxReached={maxReached}
             onStepClick={handleStepClick}
           />
-          <div className="tw:mt-6 tw:flex tw:flex-col tw:gap-6 tw:md:flex-row">
-            <div className="tw:min-w-0 tw:flex-1">
-              <h3 className="tw:my-0 tw:mb-4 tw:text-base tw:font-semibold tw:tracking-tight">
+          <div className="mt-6 flex flex-col gap-6 md:flex-row">
+            <div className="min-w-0 flex-1">
+              <h3 className="my-0 mb-4 text-base font-semibold tracking-tight">
                 {titles[stepKeys[step]]}
               </h3>
               {bodyFor(stepKeys[step])}
               {attempted && stepError(stepKeys[step]) && (
-                <p className="tw:mt-2 tw:mb-0 tw:text-sm tw:text-destructive">
+                <p className="mt-2 mb-0 text-sm text-destructive">
                   {stepError(stepKeys[step])}
                 </p>
               )}
             </div>
-            <div className="tw:md:w-72 tw:md:flex-none">
+            <div className="md:w-72 md:flex-none">
               <FormSummary
                 form={form}
                 kind={kind}
@@ -1139,14 +1198,19 @@ const UserForm = () => {
       )}
 
       {fetcher.data && fetcher.data.error && (
-        <div className="tw:mt-4">
+        <div className="mt-4">
           <AlertMessage variant="danger" message={fetcher.data.message} />
         </div>
       )}
 
       {/* Ряд кнопок — как у app/FormWrapper: обе справа, без иконок */}
-      <div className="tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:justify-end tw:gap-2.5 tw:bg-background tw:px-6 tw:py-3">
-        <Button type="button" variant="ghost" onClick={handleClose} disabled={saving}>
+      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2.5 bg-background px-6 py-3">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleClose}
+          disabled={saving}
+        >
           Отмена
         </Button>
         {isEdit ? (

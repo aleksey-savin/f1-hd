@@ -38,7 +38,7 @@ import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { AuthedUserContext } from "../../store/authed-user-context";
 
-const dash = <span className="tw:text-faint">—</span>;
+const dash = <span className="text-faint">—</span>;
 // createdAt/updatedAt — инстанты: единый формат в бизнес-таймзоне.
 const fmtDate = (value) => (value ? formatShortDate(value) : null);
 const userName = (u) =>
@@ -62,11 +62,11 @@ const formatAttrValue = (meta, value) => {
 
 // Строка «микро-подпись + значение» в панели «Основное».
 const Detail = ({ label, children, className }) => (
-  <div className={cn("tw:min-w-0", className)}>
-    <div className="tw:mb-0.5 tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
+  <div className={cn("min-w-0", className)}>
+    <div className="mb-0.5 text-xs font-semibold tracking-wide text-faint uppercase">
       {label}
     </div>
-    <div className="tw:text-[15px] tw:leading-relaxed tw:break-words">
+    <div className="text-[15px] leading-relaxed break-words">
       {children || dash}
     </div>
   </div>
@@ -86,7 +86,7 @@ const ConfigActions = ({ config, label }) => {
             size="icon-sm"
             aria-label="Действия"
             title="Действия"
-            className="tw:flex-none tw:text-faint"
+            className="flex-none text-faint"
           >
             <RiMoreLine />
           </Button>
@@ -118,13 +118,11 @@ const ConfigActions = ({ config, label }) => {
 // объяснение, главное действие (гайд).
 const EmptyConfigs = ({ title, hint, children }) => (
   <Panel>
-    <div className="tw:flex tw:flex-col tw:items-center tw:gap-2 tw:px-6 tw:py-9 tw:text-center">
-      <RiStackLine size={40} aria-hidden className="tw:mb-1 tw:text-faint" />
-      <div className="tw:text-base tw:font-semibold">{title}</div>
-      <p className="tw:my-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
-        {hint}
-      </p>
-      {children && <div className="tw:mt-2">{children}</div>}
+    <div className="flex flex-col items-center gap-2 px-6 py-9 text-center">
+      <RiStackLine size={40} aria-hidden className="mb-1 text-faint" />
+      <div className="text-base font-semibold">{title}</div>
+      <p className="my-0 max-w-md text-sm text-muted-foreground">{hint}</p>
+      {children && <div className="mt-2">{children}</div>}
     </div>
   </Panel>
 );
@@ -228,38 +226,40 @@ const ViewDeviceModel = ({
     .join(" · ");
 
   // Счётчики статус-строки — жирные tabular, разделитель — приглушённая точка.
-  const bold = (n) => (
-    <b className="tw:font-semibold tw:text-foreground">{n}</b>
-  );
-  const sep = <span className="tw:text-faint">·</span>;
+  const bold = (n) => <b className="font-semibold text-foreground">{n}</b>;
+  const sep = <span className="text-faint">·</span>;
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
+    <div className="mx-auto w-full max-w-4xl">
       {/* Хлебные крошки — возврат к списку (не кнопкой в действиях) */}
       <Link
         to="/inventory/device-models"
-        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
       >
         <RiArrowLeftSLine /> Модели устройств
       </Link>
 
       {/* Hero */}
-      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <span
           aria-hidden
-          className="tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:overflow-hidden tw:rounded-2xl tw:bg-accent tw:text-2xl tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+          className="grid size-14 flex-none place-items-center overflow-hidden rounded-2xl bg-accent text-2xl text-muted-foreground inset-ring inset-ring-border"
         >
           {photos[0] ? (
-            <img src={photoUrl(photos[0])} alt="" className="listrow-thumb" />
+            <img
+              src={photoUrl(photos[0])}
+              alt=""
+              className="size-full object-cover"
+            />
           ) : (
             <RiComputerLine />
           )}
         </span>
-        <div className="tw:min-w-0 tw:flex-1">
-          <h1 className="tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:break-words">
+        <div className="min-w-0 flex-1">
+          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight break-words">
             {title}
           </h1>
-          <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             {/* Тип — ссылка на его карточку (навигация вверх по иерархии:
                 модель принадлежит типу; так с карточки созданной модели
                 можно вернуться к типу) */}
@@ -267,18 +267,18 @@ const ViewDeviceModel = ({
               <Link
                 to={`/inventory/device-types/${typeId}`}
                 title="Открыть тип устройства"
-                className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-accent-text tw:no-underline tw:hover:underline"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-accent-text no-underline hover:underline"
               >
-                <span className="tw:size-2 tw:rounded-full tw:bg-primary tw:ring-4 tw:ring-primary/20" />
+                <span className="size-2 rounded-full bg-primary ring-4 ring-primary/20" />
                 {typeName || "Тип не указан"}
               </Link>
             ) : (
-              <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-accent-text">
-                <span className="tw:size-2 tw:rounded-full tw:bg-primary tw:ring-4 tw:ring-primary/20" />
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-accent-text">
+                <span className="size-2 rounded-full bg-primary ring-4 ring-primary/20" />
                 Тип не указан
               </span>
             )}
-            <span className="tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+            <span className="text-sm text-muted-foreground tabular-nums">
               {sep} {bold(configCount)}{" "}
               {plural(
                 configCount,
@@ -302,7 +302,7 @@ const ViewDeviceModel = ({
           </div>
         </div>
         {canManage && (
-          <div className="tw:flex tw:flex-none tw:items-center tw:gap-2">
+          <div className="flex flex-none items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -337,12 +337,12 @@ const ViewDeviceModel = ({
           вверх по иерархии: модель принадлежит вендору и типу) */}
       <Eyebrow>Основное</Eyebrow>
       <Panel>
-        <div className="tw:grid tw:gap-x-6 tw:gap-y-4 tw:sm:grid-cols-2">
+        <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
           <Detail label="Производитель">
             {vendorId ? (
               <Link
                 to={`/inventory/vendors/${vendorId}`}
-                className="tw:font-medium tw:text-accent-text tw:no-underline tw:hover:underline"
+                className="font-medium text-accent-text no-underline hover:underline"
               >
                 {vendorName}
               </Link>
@@ -354,7 +354,7 @@ const ViewDeviceModel = ({
             {typeId ? (
               <Link
                 to={`/inventory/device-types/${typeId}`}
-                className="tw:font-medium tw:text-accent-text tw:no-underline tw:hover:underline"
+                className="font-medium text-accent-text no-underline hover:underline"
               >
                 {typeName}
               </Link>
@@ -363,7 +363,7 @@ const ViewDeviceModel = ({
             )}
           </Detail>
         </div>
-        <Detail label="Примечания" className="tw:mt-4">
+        <Detail label="Примечания" className="mt-4">
           {deviceModel.notes}
         </Detail>
       </Panel>
@@ -383,7 +383,7 @@ const ViewDeviceModel = ({
           <Eyebrow count={photos.length || undefined}>Фотографии</Eyebrow>
           <Panel>
             {canManage && (
-              <p className="tw:mt-0 tw:mb-3.5 tw:text-sm tw:text-muted-foreground">
+              <p className="mt-0 mb-3.5 text-sm text-muted-foreground">
                 Каталожные снимки модели. Их показывают все устройства этой
                 модели, у которых нет собственных фотографий.
               </p>
@@ -400,11 +400,11 @@ const ViewDeviceModel = ({
       )}
 
       {/* Конфигурации */}
-      <div className="tw:mt-6 tw:mb-2.5 tw:flex tw:items-center tw:justify-between tw:gap-3">
-        <div className="tw:flex tw:items-center tw:gap-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+      <div className="mt-6 mb-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
           Конфигурации
           {configCount > 0 && (
-            <span className="tw:font-semibold tw:tracking-normal tw:tabular-nums">
+            <span className="font-semibold tracking-normal tabular-nums">
               · {configCount}
             </span>
           )}
@@ -446,38 +446,38 @@ const ViewDeviceModel = ({
           )}
         </EmptyConfigs>
       ) : (
-        <div className="tw:grid tw:gap-3.5 tw:sm:grid-cols-2">
+        <div className="grid gap-3.5 sm:grid-cols-2">
           {configurations.map((config, index) => {
             const rows = buildRows(config);
             const label = summaryOf(rows) || `Конфигурация ${index + 1}`;
             return (
               <section
                 key={config._id}
-                className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card"
+                className="overflow-hidden rounded-xl border border-border bg-card"
               >
-                <div className="tw:flex tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-border-soft tw:px-4 tw:py-2.5">
-                  <span className="tw:inline-flex tw:min-w-0 tw:items-center tw:gap-2 tw:text-[15px] tw:font-semibold">
-                    <RiCpuLine className="tw:flex-none tw:text-accent-text" />
-                    <span className="tw:truncate">{label}</span>
+                <div className="flex items-center justify-between gap-2 border-b border-border-soft px-4 py-2.5">
+                  <span className="inline-flex min-w-0 items-center gap-2 text-[15px] font-semibold">
+                    <RiCpuLine className="flex-none text-accent-text" />
+                    <span className="truncate">{label}</span>
                   </span>
                   {canManage && <ConfigActions config={config} label={label} />}
                 </div>
-                <div className="tw:px-4 tw:py-1">
+                <div className="px-4 py-1">
                   {rows.length === 0 ? (
-                    <div className="tw:py-2 tw:text-sm tw:text-muted-foreground">
+                    <div className="py-2 text-sm text-muted-foreground">
                       Без характеристик
                     </div>
                   ) : (
                     rows.map((r) => (
                       <div
                         key={r.id}
-                        className="tw:flex tw:items-center tw:justify-between tw:gap-4 tw:border-b tw:border-border-soft tw:py-2 tw:text-sm tw:last:border-b-0"
+                        className="flex items-center justify-between gap-4 border-b border-border-soft py-2 text-sm last:border-b-0"
                       >
-                        <span className="tw:text-muted-foreground">
+                        <span className="text-muted-foreground">
                           {r.name}
                           {r.unit ? `, ${r.unit}` : ""}
                         </span>
-                        <span className="tw:ms-auto tw:text-right tw:font-mono tw:font-semibold tw:tabular-nums">
+                        <span className="ms-auto text-right font-mono font-semibold tabular-nums">
                           {r.value}
                         </span>
                       </div>
@@ -492,7 +492,7 @@ const ViewDeviceModel = ({
 
       {/* Мета-подвал: создано/обновлено (бывшая панель «Служебное») */}
       {metaBits && (
-        <div className="tw:mt-6 tw:border-t tw:border-border-soft tw:pt-3.5 tw:text-xs tw:text-faint tw:tabular-nums">
+        <div className="mt-6 border-t border-border-soft pt-3.5 text-xs text-faint tabular-nums">
           {metaBits}
         </div>
       )}

@@ -15,7 +15,6 @@ export interface IUserPermissions {
   canManageKnowledgeBase: boolean;
   canSeeKnowledgeBase: boolean;
   canManageRoutineTasks: boolean;
-  canUpdateChangelog: boolean;
   canManageTicketTemplates: boolean;
   // time tracking module
   canUseTimeTrackingModule: boolean;
@@ -110,7 +109,6 @@ export interface IUser {
   notifications?: {
     lastAction?: string;
     pending?: boolean;
-    changelogUpdate?: boolean;
     resetToken?: string;
     password?: string;
   };

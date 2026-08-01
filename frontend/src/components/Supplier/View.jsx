@@ -40,7 +40,7 @@ import useToastStore from "../../store/toast-store";
 import { formatCalendarDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 
-const dash = <span className="tw:text-faint">—</span>;
+const dash = <span className="text-faint">—</span>;
 
 const money = (value) =>
   value || value === 0 ? `${Number(value).toLocaleString("ru-RU")} ₽` : null;
@@ -66,23 +66,23 @@ const Delivery = ({ delivery, defaultOpen }) => {
   const count = delivery.positions.length;
 
   return (
-    <div className="tw:border-t tw:border-border-soft tw:py-3 tw:first:border-t-0">
+    <div className="border-t border-border-soft py-3 first:border-t-0">
       <button
         type="button"
         onClick={() => setOpen((previous) => !previous)}
-        className="tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-3.5 tw:border-0 tw:bg-transparent tw:p-0 tw:text-left tw:text-foreground"
+        className="flex w-full cursor-pointer appearance-none items-center gap-3.5 border-0 bg-transparent p-0 text-left text-foreground"
       >
         <span
           aria-hidden
-          className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground"
+          className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-muted-foreground"
         >
           <RiShoppingCart2Line size={17} />
         </span>
-        <span className="tw:min-w-0 tw:flex-1">
-          <span className="tw:block tw:truncate tw:font-medium">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">
             {delivery.document || "Без документа"}
           </span>
-          <span className="tw:block tw:truncate tw:text-sm tw:text-muted-foreground">
+          <span className="block truncate text-sm text-muted-foreground">
             {[
               delivery.purchasedAt
                 ? formatCalendarDate(delivery.purchasedAt)
@@ -94,52 +94,52 @@ const Delivery = ({ delivery, defaultOpen }) => {
               .join(" · ")}
           </span>
         </span>
-        <span className="tw:flex-none tw:font-semibold tw:tabular-nums">
+        <span className="flex-none font-semibold tabular-nums">
           {money(delivery.total) || dash}
         </span>
         <RiArrowRightSLine
           aria-hidden
           className={cn(
-            "tw:flex-none tw:text-faint tw:transition-transform",
-            open && "tw:rotate-90",
+            "flex-none text-faint transition-transform",
+            open && "rotate-90",
           )}
         />
       </button>
 
       {open && (
-        <div className="tw:mt-2.5 tw:ml-12 tw:border-l tw:border-border-soft tw:pl-3.5">
+        <div className="mt-2.5 ml-12 border-l border-border-soft pl-3.5">
           {delivery.positions.map((position) => {
             const state = warranty(position.warrantyExpirationDate);
             return (
               <Link
                 key={position._id}
                 to={`/inventory/client-devices/${position._id}`}
-                className="tw:flex tw:items-center tw:gap-2.5 tw:py-1.5 tw:text-sm tw:text-foreground tw:no-underline tw:hover:text-accent-text"
+                className="flex items-center gap-2.5 py-1.5 text-sm text-foreground no-underline hover:text-accent-text"
               >
                 <span
                   className={cn(
-                    "tw:flex-none tw:rounded-md tw:border tw:px-1.5 tw:font-mono tw:text-xs",
+                    "flex-none rounded-md border px-1.5 font-mono text-xs",
                     position.inventoryNumber
-                      ? "tw:border-border-soft tw:bg-accent tw:font-semibold"
-                      : "tw:border-border tw:text-faint",
+                      ? "border-border-soft bg-accent font-semibold"
+                      : "border-border text-faint",
                   )}
                 >
                   {position.inventoryNumber || "нет №"}
                 </span>
-                <span className="tw:min-w-0 tw:flex-1 tw:truncate">
+                <span className="min-w-0 flex-1 truncate">
                   {[position.vendorName, position.name]
                     .filter(Boolean)
                     .join(" ")}
                   {position.isComponent && (
-                    <span className="tw:text-faint"> · комплектующее</span>
+                    <span className="text-faint"> · комплектующее</span>
                   )}
                 </span>
                 {position.price != null && (
-                  <span className="tw:hidden tw:flex-none tw:tabular-nums tw:text-muted-foreground tw:sm:block">
+                  <span className="hidden flex-none tabular-nums text-muted-foreground sm:block">
                     {money(position.price)}
                   </span>
                 )}
-                <span className="tw:hidden tw:w-56 tw:flex-none tw:md:block">
+                <span className="hidden w-56 flex-none md:block">
                   <DeviceStatusText tone={state.tone}>
                     {state.text}
                   </DeviceStatusText>
@@ -199,7 +199,7 @@ const ViewSupplier = ({ supplier = {} }) => {
       icon: <RiGlobalLine size={17} />,
       label: "ИНН · КПП",
       value: (
-        <span className="tw:font-mono">
+        <span className="font-mono">
           {[supplier.inn, supplier.kpp].filter(Boolean).join(" · ")}
         </span>
       ),
@@ -208,7 +208,7 @@ const ViewSupplier = ({ supplier = {} }) => {
       icon: <RiFileList2Line size={17} />,
       label: "Заметки",
       value: (
-        <span className="tw:font-normal tw:whitespace-pre-line">
+        <span className="font-normal whitespace-pre-line">
           {supplier.notes}
         </span>
       ),
@@ -216,35 +216,35 @@ const ViewSupplier = ({ supplier = {} }) => {
   ].filter(Boolean);
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
+    <div className="mx-auto w-full max-w-4xl">
       <Link
         to="/inventory/suppliers"
-        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
       >
         <RiArrowLeftSLine /> Поставщики
       </Link>
 
-      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <span
           aria-hidden
-          className="tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:rounded-2xl tw:bg-accent tw:text-xl tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+          className="grid size-14 flex-none place-items-center rounded-2xl bg-accent text-xl font-semibold text-muted-foreground inset-ring inset-ring-border"
         >
           {monogramFor(supplier.name || "")}
         </span>
-        <div className="tw:min-w-0 tw:flex-1">
-          <h1 className="tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight">
+        <div className="min-w-0 flex-1">
+          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight">
             {supplier.name}
           </h1>
-          <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-4 tw:gap-y-1.5">
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
             <DeviceStatusText
               tone={supplier.isActive ? "ok" : "off"}
-              className="tw:text-sm"
+              className="text-sm"
             >
               {supplier.isActive ? "Активен" : "Отключён"}
             </DeviceStatusText>
             {supplier.deviceCount > 0 ? (
-              <span className="tw:text-sm tw:text-muted-foreground">
-                <b className="tw:font-semibold tw:text-foreground tw:tabular-nums">
+              <span className="text-sm text-muted-foreground">
+                <b className="font-semibold text-foreground tabular-nums">
                   {supplier.deviceCount}
                 </b>{" "}
                 {plural(
@@ -253,26 +253,26 @@ const ViewSupplier = ({ supplier = {} }) => {
                   "устройства",
                   "устройств",
                 )}{" "}
-                <span className="tw:text-faint">·</span>{" "}
-                <b className="tw:font-semibold tw:text-foreground tw:tabular-nums">
+                <span className="text-faint">·</span>{" "}
+                <b className="font-semibold text-foreground tabular-nums">
                   {money(supplier.totalSpent)}
                 </b>
                 {supplier.lastPurchaseAt && (
                   <>
                     {" "}
-                    <span className="tw:text-faint">·</span> последняя поставка{" "}
+                    <span className="text-faint">·</span> последняя поставка{" "}
                     {formatCalendarDate(supplier.lastPurchaseAt)}
                   </>
                 )}
               </span>
             ) : (
-              <span className="tw:text-sm tw:text-faint">закупок нет</span>
+              <span className="text-sm text-faint">закупок нет</span>
             )}
           </div>
         </div>
 
         {canManage && (
-          <div className="tw:flex tw:flex-none tw:items-center tw:gap-2">
+          <div className="flex flex-none items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -329,7 +329,7 @@ const ViewSupplier = ({ supplier = {} }) => {
               </PropRow>
             ))
           ) : (
-            <p className="tw:my-1 tw:text-sm tw:text-muted-foreground">
+            <p className="my-1 text-sm text-muted-foreground">
               Контакты не заполнены. Телефон и почта нужны, когда наступит
               гарантийный случай.
             </p>
@@ -340,7 +340,7 @@ const ViewSupplier = ({ supplier = {} }) => {
       <Eyebrow count={deliveries.length || undefined}>Поставки</Eyebrow>
       <Panel>
         {deliveries.length === 0 ? (
-          <p className="tw:my-1 tw:text-sm tw:text-muted-foreground">
+          <p className="my-1 text-sm text-muted-foreground">
             Закупок нет. Поставка появится здесь, когда у устройства укажут
             этого поставщика.
           </p>

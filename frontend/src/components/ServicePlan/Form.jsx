@@ -14,7 +14,7 @@ import SwitchField from "@/components/app/SwitchField";
 import WizardStepper from "@/components/app/WizardStepper";
 import AlertMessage from "@/components/app/AlertMessage";
 
-import Select from "../../UI/Select";
+import { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import useOffcanvasStore from "../../store/offcanvas";
 
 import Tariffing from "./Tariffing";
@@ -199,11 +199,11 @@ const ServicePlanForm = ({ title, attach = null }) => {
     if (step === 0) {
       return (
         <div>
-          <div className="tw:mb-4">
-            <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
+          <div className="mb-4">
+            <h3 className="my-0 text-base font-semibold tracking-tight">
               Основное
             </h3>
-            <p className="tw:mt-0.5 tw:mb-0 tw:text-sm tw:text-muted-foreground">
+            <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
               Название услуги и к каким категориям заявок она относится
             </p>
           </div>
@@ -216,19 +216,23 @@ const ServicePlanForm = ({ title, attach = null }) => {
             />
           </Field>
           <Field label="Категории заявок" htmlFor="ticketCategories" required>
-            <Select
+            <MultiCombobox
               id="ticketCategories"
               placeholder="Выберите категории заявок"
-              closeMenuOnSelect={false}
-              isClearable
-              isSearchable
-              isMulti
-              value={form.ticketCategories}
-              options={ticketCategories}
-              getOptionLabel={(option) => option.title}
-              getOptionValue={(option) => option._id}
-              onChange={(selected) =>
-                setField("ticketCategories", selected || [])
+              value={(form.ticketCategories || []).map((item) =>
+                String(item._id),
+              )}
+              options={toOptions(ticketCategories, {
+                value: (option) => String(option._id),
+                label: (option) => option.title,
+              })}
+              onChange={(ids) =>
+                setField(
+                  "ticketCategories",
+                  ticketCategories.filter((option) =>
+                    ids.includes(String(option._id)),
+                  ),
+                )
               }
             />
           </Field>
@@ -249,11 +253,11 @@ const ServicePlanForm = ({ title, attach = null }) => {
 
     return (
       <div>
-        <div className="tw:mb-4">
-          <h3 className="tw:my-0 tw:text-base tw:font-semibold tw:tracking-tight">
+        <div className="mb-4">
+          <h3 className="my-0 text-base font-semibold tracking-tight">
             График оказания
           </h3>
-          <p className="tw:mt-0.5 tw:mb-0 tw:text-sm tw:text-muted-foreground">
+          <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
             Когда услуга доступна
           </p>
         </div>
@@ -267,13 +271,13 @@ const ServicePlanForm = ({ title, attach = null }) => {
           hint="Услуга оказывается в те же часы, что и работает компания"
         />
         {form.companyWorkSchedule ? (
-          <div className="tw:mt-2 tw:flex tw:items-center tw:gap-2 tw:rounded-xl tw:border tw:border-border-soft tw:bg-accent/40 tw:px-4 tw:py-3 tw:text-sm tw:text-muted-foreground">
-            <RiTimeLine className="tw:flex-none tw:text-faint" />
+          <div className="mt-2 flex items-center gap-2 rounded-xl border border-border-soft bg-accent/40 px-4 py-3 text-sm text-muted-foreground">
+            <RiTimeLine className="flex-none text-faint" />
             Часы оказания берутся из графика работы компании — отдельное
             расписание не задаётся.
           </div>
         ) : (
-          <div className="tw:mt-1">
+          <div className="mt-1">
             <ScheduleEditor schedule={schedule} onChange={setSchedule} />
           </div>
         )}
@@ -283,7 +287,7 @@ const ServicePlanForm = ({ title, attach = null }) => {
 
   return (
     <div>
-      <h1 className="tw:my-0 tw:mb-4 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
+      <h1 className="my-0 mb-4 pr-10 text-2xl font-semibold tracking-tight">
         {title}
       </h1>
 
@@ -295,16 +299,16 @@ const ServicePlanForm = ({ title, attach = null }) => {
         onStepClick={handleStepClick}
       />
 
-      <div className="tw:mt-6 tw:flex tw:flex-col tw:gap-6 tw:md:flex-row">
-        <div className="tw:min-w-0 tw:flex-1">
+      <div className="mt-6 flex flex-col gap-6 md:flex-row">
+        <div className="min-w-0 flex-1">
           {renderStep()}
           {attempted && stepError(step) && (
-            <p className="tw:mt-2 tw:mb-0 tw:text-sm tw:text-destructive">
+            <p className="mt-2 mb-0 text-sm text-destructive">
               {stepError(step)}
             </p>
           )}
         </div>
-        <div className="tw:md:w-72 tw:md:flex-none">
+        <div className="md:w-72 md:flex-none">
           <Summary
             form={{ ...form, schedule }}
             packages={hourPackages}
@@ -315,12 +319,12 @@ const ServicePlanForm = ({ title, attach = null }) => {
       </div>
 
       {fetcher.data && fetcher.data.error && (
-        <div className="tw:mt-4">
+        <div className="mt-4">
           <AlertMessage variant="danger" message={fetcher.data.message} />
         </div>
       )}
 
-      <div className="tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:gap-2.5 tw:border-t tw:border-border-soft tw:bg-background tw:px-6 tw:py-3">
+      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center gap-2.5 border-t border-border-soft bg-background px-6 py-3">
         <Button
           type="button"
           variant="ghost"
@@ -329,7 +333,7 @@ const ServicePlanForm = ({ title, attach = null }) => {
         >
           Отмена
         </Button>
-        <div className="tw:ml-auto tw:flex tw:items-center tw:gap-2.5">
+        <div className="ml-auto flex items-center gap-2.5">
           {step > 0 && (
             <Button
               type="button"

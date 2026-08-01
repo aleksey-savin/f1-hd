@@ -65,31 +65,33 @@ import LinkAdDialog from "./LinkAdDialog";
 
 const ticketState = (state) =>
   state === "Новая" || state === "Не в работе"
-    ? "tw:text-warning"
+    ? "text-warning"
     : state === "В работе"
-      ? "tw:text-info"
-      : "tw:text-faint";
+      ? "text-info"
+      : "text-faint";
 const ticketDot = (state) =>
   state === "Новая" || state === "Не в работе"
-    ? "tw:bg-warning"
+    ? "bg-warning"
     : state === "В работе"
-      ? "tw:bg-info"
-      : "tw:bg-faint";
+      ? "bg-info"
+      : "bg-faint";
 
 const StatusText = ({ on, onText = "Подключён", offText = "Не подключён" }) => (
   <span
     className={cn(
-      "tw:inline-flex tw:items-center tw:gap-1.5 tw:text-sm tw:font-semibold",
-      on ? "tw:text-accent-text" : "tw:text-faint",
+      "inline-flex items-center gap-1.5 text-sm font-semibold",
+      on ? "text-accent-text" : "text-faint",
     )}
   >
-    <span className={cn("tw:size-2 tw:rounded-full", on ? "tw:bg-primary" : "tw:bg-faint")} />
+    <span
+      className={cn("size-2 rounded-full", on ? "bg-primary" : "bg-faint")}
+    />
     {on ? onText : offText}
   </span>
 );
 
 const Pill = ({ children }) => (
-  <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:rounded-full tw:border tw:border-border tw:bg-accent tw:px-2.5 tw:py-1 tw:text-sm tw:font-medium tw:text-muted-foreground">
+  <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-accent px-2.5 py-1 text-sm font-medium text-muted-foreground">
     {children}
   </span>
 );
@@ -98,14 +100,14 @@ const Pill = ({ children }) => (
 const Cap = ({ on, children }) => (
   <div
     className={cn(
-      "tw:flex tw:items-center tw:gap-2 tw:py-0.5 tw:text-sm",
-      on ? "tw:text-foreground" : "tw:text-faint",
+      "flex items-center gap-2 py-0.5 text-sm",
+      on ? "text-foreground" : "text-faint",
     )}
   >
     {on ? (
-      <RiCheckLine className="tw:size-4 tw:flex-none tw:text-primary" />
+      <RiCheckLine className="size-4 flex-none text-primary" />
     ) : (
-      <RiCloseLine className="tw:size-4 tw:flex-none tw:text-faint" />
+      <RiCloseLine className="size-4 flex-none text-faint" />
     )}
     {children}
   </div>
@@ -210,12 +212,36 @@ const ViewUser = ({ user, tickets }) => {
 
   const notifyRows = notify
     ? [
-        { label: "Новая заявка", tg: notify.byTelegram?.newTicket, em: notify.byEmail?.newTicket },
-        { label: "Статус ответственного", tg: notify.byTelegram?.respStateUpdate, em: notify.byEmail?.respStateUpdate },
-        { label: "Изменение статуса заявки", tg: notify.byTelegram?.ticketStateUpdate, em: notify.byEmail?.ticketStateUpdate },
-        { label: "Изменение срока", tg: notify.byTelegram?.ticketDeadlineUpdate, em: notify.byEmail?.ticketDeadlineUpdate },
-        { label: "Новые комментарии", tg: notify.byTelegram?.ticketNewComment, em: notify.byEmail?.ticketNewComment },
-        { label: "Запланированные работы", tg: notify.byTelegram?.scheduledWorks, em: notify.byEmail?.scheduledWorks },
+        {
+          label: "Новая заявка",
+          tg: notify.byTelegram?.newTicket,
+          em: notify.byEmail?.newTicket,
+        },
+        {
+          label: "Статус ответственного",
+          tg: notify.byTelegram?.respStateUpdate,
+          em: notify.byEmail?.respStateUpdate,
+        },
+        {
+          label: "Изменение статуса заявки",
+          tg: notify.byTelegram?.ticketStateUpdate,
+          em: notify.byEmail?.ticketStateUpdate,
+        },
+        {
+          label: "Изменение срока",
+          tg: notify.byTelegram?.ticketDeadlineUpdate,
+          em: notify.byEmail?.ticketDeadlineUpdate,
+        },
+        {
+          label: "Новые комментарии",
+          tg: notify.byTelegram?.ticketNewComment,
+          em: notify.byEmail?.ticketNewComment,
+        },
+        {
+          label: "Запланированные работы",
+          tg: notify.byTelegram?.scheduledWorks,
+          em: notify.byEmail?.scheduledWorks,
+        },
       ]
     : [];
   const tgConnected = Boolean(telegramBot?.isActive);
@@ -248,59 +274,73 @@ const ViewUser = ({ user, tickets }) => {
     ...(showSchedule ? [{ id: "schedule", label: "График работы" }] : []),
     ...(showTech ? [{ id: "tech", label: "Техника" }] : []),
     { id: "tickets", label: "Заявки" },
-    ...(categories.length > 0 ? [{ id: "categories", label: "Категории" }] : []),
+    ...(categories.length > 0
+      ? [{ id: "categories", label: "Категории" }]
+      : []),
     ...(responsibleForCompanies.length > 0
       ? [{ id: "responsible", label: "Ответственность" }]
       : []),
     ...(canSeeFinances ? [{ id: "finances", label: "Финансы" }] : []),
-    ...(showPermissions ? [{ id: "permissions", label: "Права и доступ" }] : []),
+    ...(showPermissions
+      ? [{ id: "permissions", label: "Права и доступ" }]
+      : []),
     ...(showNotify ? [{ id: "notifications", label: "Уведомления" }] : []),
   ];
 
   return (
     // max-w-5xl: рейл 192px + зазор 28px + колонка секций ≈ 804px
-    <div className="tw:mx-auto tw:w-full tw:max-w-5xl">
+    <div className="mx-auto w-full max-w-5xl">
       <Link
         to="/users"
-        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
       >
         <RiArrowLeftSLine /> Пользователи
       </Link>
 
       {/* HERO */}
-      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-x-5 tw:gap-y-4">
-        <CardAvatar user={user} ringColor={presence.ringColor} canEdit={canManageUsers} />
-        <div className="tw:min-w-0 tw:flex-1">
-          <h1 className="tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:break-words">
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-4">
+        <CardAvatar
+          user={user}
+          ringColor={presence.ringColor}
+          canEdit={canManageUsers}
+        />
+        <div className="min-w-0 flex-1">
+          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight break-words">
             {fullName}
           </h1>
           {position && (
-            <div className="tw:mt-1 tw:text-base tw:text-muted-foreground">{position}</div>
+            <div className="mt-1 text-base text-muted-foreground">
+              {position}
+            </div>
           )}
-          <div className="tw:mt-2.5 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5 tw:text-sm">
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
             {presence.visible && (
-              <PresenceText presence={presence} className="tw:font-semibold" />
+              <PresenceText presence={presence} className="font-semibold" />
             )}
-            <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-muted-foreground">
-              <RiVipCrownLine className="tw:size-4 tw:text-faint" />
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <RiVipCrownLine className="size-4 text-faint" />
               {accountType}
-              {isAdmin && <span className="tw:text-accent-text">· Администратор</span>}
+              {isAdmin && (
+                <span className="text-accent-text">· Администратор</span>
+              )}
             </span>
             {company?.alias && (
-              <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-muted-foreground">
-                <RiBuilding2Line className="tw:size-4 tw:text-faint" />
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <RiBuilding2Line className="size-4 text-faint" />
                 <Link
                   to={`/companies/${company._id}`}
-                  className="tw:text-accent-text tw:no-underline tw:hover:underline"
+                  className="text-accent-text no-underline hover:underline"
                 >
                   {company.alias}
                 </Link>
-                {subdivision?.name && <span className="tw:text-faint">· {subdivision.name}</span>}
+                {subdivision?.name && (
+                  <span className="text-faint">· {subdivision.name}</span>
+                )}
               </span>
             )}
             {!isActive && (
-              <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:font-semibold tw:text-destructive">
-                <span className="tw:size-2 tw:rounded-full tw:bg-destructive" />
+              <span className="inline-flex items-center gap-1.5 font-semibold text-destructive">
+                <span className="size-2 rounded-full bg-destructive" />
                 Отключён
               </span>
             )}
@@ -310,15 +350,20 @@ const ViewUser = ({ user, tickets }) => {
           /* На мобильном имя не делит строку с кнопками (flex-basis имени — 0,
              перенос сам не случается, и длинное имя уезжает под кнопки):
              блок действий занимает свою строку во всю ширину, с sm — как был */
-          <div className="tw:flex tw:w-full tw:items-center tw:gap-2 tw:sm:w-auto tw:sm:flex-none">
-            <Button asChild className="tw:flex-1 tw:sm:flex-none">
+          <div className="flex w-full items-center gap-2 sm:w-auto sm:flex-none">
+            <Button asChild className="flex-1 sm:flex-none">
               <Link to="update" onClick={offcanvas.setShow}>
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="Действия" title="Действия">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Действия"
+                  title="Действия"
+                >
                   <RiMoreLine />
                 </Button>
               </DropdownMenuTrigger>
@@ -339,7 +384,10 @@ const ViewUser = ({ user, tickets }) => {
                   {isActive ? "Отключить" : "Включить"}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}>
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => setDeleteOpen(true)}
+                >
                   <RiDeleteBinLine /> Удалить
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -350,382 +398,446 @@ const ViewUser = ({ user, tickets }) => {
 
       {/* Разделы одним скроллом; слева — липкий рейл-якорь (только десктоп:
           на мобайле window не скроллится, рейл не рендерится) */}
-      <div className="tw:flex tw:items-start tw:gap-7">
-        <BrowserView className="tw:contents">
+      <div className="flex items-start gap-7">
+        <BrowserView className="contents">
           {/* mt-6 — под встроенный отступ первой метки секции (Eyebrow),
               иначе рейл висит выше заголовка «Контакты и доступ» */}
           <AnchorRail
             sections={railSections}
             ariaLabel="Разделы карточки"
-            className="tw:mt-6"
+            className="mt-6"
           />
         </BrowserView>
-        <div className="tw:min-w-0 tw:flex-1">
-
-      {/* Контакты и доступ */}
-      <Eyebrow id="contacts">Контакты и доступ</Eyebrow>
-      <Panel>
-        <PropRow
-          icon={<RiMailLine size={17} />}
-          label="Почта"
-          copy={email ? { value: email, label: "Почта" } : undefined}
-        >
-          {email ? (
-            <a href={`mailto:${email}`} className="tw:text-accent-text tw:no-underline tw:hover:underline">
-              {email}
-            </a>
-          ) : (
-            <span className="tw:font-normal tw:text-faint">—</span>
-          )}
-        </PropRow>
-        <PropRow
-          icon={<RiPhoneLine size={17} />}
-          label="Телефон"
-          copy={phone ? { value: phone, label: "Телефон" } : undefined}
-        >
-          {phone ? (
-            <a href={`tel:${phone}`} className="tw:text-accent-text tw:no-underline tw:tabular-nums tw:hover:underline">
-              {phone}
-            </a>
-          ) : (
-            <span className="tw:font-normal tw:text-faint">—</span>
-          )}
-        </PropRow>
-        <PropRow icon={<RiTelegramLine size={17} />} label="Telegram-бот">
-          <StatusText on={tgConnected} />
-        </PropRow>
-        <PropRow icon={<RiShieldCheckLine size={17} />} label="Active Directory">
-          <StatusText on={adLinked} onText="Связан" offText="Не связан" />
-        </PropRow>
-        <PropRow icon={<RiRemoteControlLine size={17} />} label="PRO32 Connect">
-          <StatusText
-            on={Boolean(getScreen?.hasApi)}
-            onText="Подключён"
-            offText="Не подключён"
-          />
-        </PropRow>
-      </Panel>
-
-      {/* Организация + Активность */}
-      <div
-        id="org"
-        className="tw:mt-6 tw:grid tw:gap-4 tw:scroll-mt-28 tw:md:grid-cols-2"
-      >
-        <div>
-          <SubLabel>Организация</SubLabel>
+        <div className="min-w-0 flex-1">
+          {/* Контакты и доступ */}
+          <Eyebrow id="contacts">Контакты и доступ</Eyebrow>
           <Panel>
-            <PropRow icon={<RiBuilding2Line size={17} />} label="Компания">
-              {company?.alias ? (
-                <Link to={`/companies/${company._id}`} className="tw:text-accent-text tw:no-underline tw:hover:underline">
-                  {company.alias}
-                </Link>
-              ) : (
-                <span className="tw:font-normal tw:text-faint">—</span>
-              )}
-            </PropRow>
-            <PropRow icon={<RiGroupLine size={17} />} label="Подразделение">
-              {subdivision?.name ? (
-                <span>
-                  {subdivision.name}
-                  {managerName && (
-                    <span className="tw:font-normal tw:text-faint">
-                      {" · рук. "}
-                      <Link
-                        to={`/users/${subdivision.manager._id}`}
-                        className="tw:text-accent-text tw:no-underline tw:hover:underline"
-                      >
-                        {managerName}
-                      </Link>
-                    </span>
-                  )}
-                </span>
-              ) : (
-                <span className="tw:font-normal tw:text-faint">—</span>
-              )}
-            </PropRow>
-            {/* Эффективный пояс: где человек находится сейчас — чтобы не
-                звонить заявителю в его ночь. Показываем всегда, в том числе
-                унаследованный от подразделения или компании */}
-            {clientTimezone?.timezone && (
-              <PropRow icon={<RiTimeLine size={17} />} label="Часовой пояс">
-                <span className="tw:inline-flex tw:flex-wrap tw:items-center tw:gap-x-2">
-                  <ClientTime clientTimezone={clientTimezone} always />
-                  {clientTimezone.source !== "user" && (
-                    <span className="tw:font-normal tw:text-faint">
-                      {clientTimezone.source === "subdivision"
-                        ? `как у «${clientTimezone.sourceName}»`
-                        : clientTimezone.source === "company"
-                          ? "как у компании"
-                          : "как в организации"}
-                    </span>
-                  )}
-                </span>
-              </PropRow>
-            )}
-            {role && (
-              <PropRow icon={<RiPriceTag3Line size={17} />} label="Роль">
-                {role}
-              </PropRow>
-            )}
-          </Panel>
-        </div>
-        <div>
-          <SubLabel>Активность</SubLabel>
-          <Panel>
-            <PropRow icon={<RiLoginCircleLine size={17} />} label="Последний вход">
-              {lastLogin ? (
-                <span className="tw:tabular-nums">{formatDate(lastLogin)}</span>
-              ) : (
-                <span className="tw:font-normal tw:text-faint">никогда</span>
-              )}
-            </PropRow>
-            <PropRow icon={<RiTicket2Line size={17} />} label="Последняя заявка">
-              {relativeDay(lastActivityAt) ? (
-                <span className="tw:tabular-nums">{relativeDay(lastActivityAt)}</span>
-              ) : (
-                <span className="tw:font-normal tw:text-faint">нет обращений</span>
-              )}
-            </PropRow>
-            <PropRow icon={<RiTimeLine size={17} />} label="В системе с">
-              <span className="tw:tabular-nums">
-                {formatShortDate(createdAt) || "—"}
-              </span>
-            </PropRow>
-          </Panel>
-        </div>
-      </div>
-
-      {/* Техника: список с фасетами + окружение (общая шторка устройства) */}
-      {showSchedule && (
-        /* version — отметка последней правки пользователя: форма сохранила
-           график, роутер ревалидировал loader, секция перечитала данные */
-        <WorkScheduleSection
-          id="schedule"
-          userId={user._id}
-          version={user.updatedAt}
-        />
-      )}
-
-      {showTech && <TechSection id="tech" userId={user._id} subject="user" />}
-
-      {/* Недавние заявки */}
-      <Eyebrow id="tickets" count={ticketList.length}>
-        Недавние заявки
-      </Eyebrow>
-      <Panel>
-        {ticketList.length > 0 ? (
-          <>
-            <div className="tw:flex tw:flex-col">
-              {ticketList.slice(0, 8).map((ticket) => (
-                <Link
-                  key={ticket._id}
-                  to={`/tickets/${ticket.num}`}
-                  className="tw:flex tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:py-2.5 tw:text-foreground tw:no-underline tw:first:border-t-0 tw:hover:bg-accent/40"
+            <PropRow
+              icon={<RiMailLine size={17} />}
+              label="Почта"
+              copy={email ? { value: email, label: "Почта" } : undefined}
+            >
+              {email ? (
+                <a
+                  href={`mailto:${email}`}
+                  className="text-accent-text no-underline hover:underline"
                 >
-                  <span className="tw:w-16 tw:flex-none tw:text-sm tw:font-semibold tw:text-accent-text tw:tabular-nums">
-                    №{ticket.num}
-                  </span>
-                  <span className="tw:min-w-0 tw:flex-1 tw:truncate tw:text-sm">{ticket.title}</span>
-                  <span className="tw:flex-none tw:text-xs tw:text-faint tw:tabular-nums">
-                    {formatShortDate(ticket.createdAt)}
-                  </span>
-                  <span
-                    className={cn(
-                      "tw:inline-flex tw:flex-none tw:items-center tw:gap-1.5 tw:text-xs tw:font-semibold",
-                      ticketState(ticket.state),
-                    )}
-                  >
-                    <span className={cn("tw:size-1.5 tw:rounded-full", ticketDot(ticket.state))} />
-                    {ticket.state}
-                  </span>
-                </Link>
-              ))}
-            </div>
-            {ticketList.length > 8 && (
-              <Link
-                to={`/tickets?applicant=${user._id}`}
-                className="tw:mt-3 tw:inline-block tw:text-sm tw:font-semibold tw:text-accent-text tw:no-underline tw:hover:underline"
-              >
-                Все заявки ({ticketList.length}) →
-              </Link>
-            )}
-          </>
-        ) : (
-          <div className="tw:py-2 tw:text-sm tw:text-muted-foreground">Заявок пока нет.</div>
-        )}
-      </Panel>
-
-      {/* Категории и ответственность — общий app/PillPanel: нейтральные пилюли
-          в свёрнутом «облаке» с «Показать все (N)» при переполнении */}
-      {categories.length > 0 && (
-        <PillPanel
-          id="categories"
-          label="Категории заявок"
-          items={[...categories].sort((a, b) =>
-            (a.title || "").localeCompare(b.title || ""),
-          )}
-        />
-      )}
-      {responsibleForCompanies.length > 0 && (
-        <PillPanel
-          id="responsible"
-          label="Ответственный за компании"
-          items={responsibleForCompanies}
-          getKey={(item, index) => String(item.id ?? item._id ?? index)}
-        />
-      )}
-
-      {/* Финансы (по правам) */}
-      {canSeeFinances && (
-        <>
-          <Eyebrow id="finances">Финансы</Eyebrow>
-          <Panel>
-            <PropRow icon={<RiMoneyDollarCircleLine size={17} />} label="Оклад">
-              {finances.salary != null ? (
-                `${formatPrice(finances.salary)}/мес`
+                  {email}
+                </a>
               ) : (
-                <span className="tw:font-normal tw:text-faint">не задан</span>
+                <span className="font-normal text-faint">—</span>
               )}
             </PropRow>
-            <PropRow icon={<RiTimeLine size={17} />} label="Ставка переработок">
-              {finances.overtimeHourlyRate != null ? (
-                `${formatPrice(finances.overtimeHourlyRate)}/час`
+            <PropRow
+              icon={<RiPhoneLine size={17} />}
+              label="Телефон"
+              copy={phone ? { value: phone, label: "Телефон" } : undefined}
+            >
+              {phone ? (
+                <a
+                  href={`tel:${phone}`}
+                  className="text-accent-text no-underline tabular-nums hover:underline"
+                >
+                  {phone}
+                </a>
               ) : (
-                <span className="tw:font-normal tw:text-faint">не задана</span>
+                <span className="font-normal text-faint">—</span>
               )}
+            </PropRow>
+            <PropRow icon={<RiTelegramLine size={17} />} label="Telegram-бот">
+              <StatusText on={tgConnected} />
+            </PropRow>
+            <PropRow
+              icon={<RiShieldCheckLine size={17} />}
+              label="Active Directory"
+            >
+              <StatusText on={adLinked} onText="Связан" offText="Не связан" />
+            </PropRow>
+            <PropRow
+              icon={<RiRemoteControlLine size={17} />}
+              label="PRO32 Connect"
+            >
+              <StatusText
+                on={Boolean(getScreen?.hasApi)}
+                onText="Подключён"
+                offText="Не подключён"
+              />
             </PropRow>
           </Panel>
-        </>
-      )}
 
-      {/* Права и доступ (для управляющих пользователями) */}
-      {showPermissions && (
-        <>
-          <Eyebrow id="permissions">Права и доступ</Eyebrow>
-          <Panel>
-            <div className="tw:mb-4 tw:flex tw:flex-wrap tw:gap-2">
-              <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:rounded-full tw:bg-primary/15 tw:px-2.5 tw:py-1 tw:text-sm tw:font-semibold tw:text-accent-text">
-                <RiVipCrownLine className="tw:size-3.5" />
-                {isAdmin ? "Администратор" : accountType}
-              </span>
-              {isAdmin && <Pill>{accountType}</Pill>}
-            </div>
-            {isEndUser ? (
-              <div className="tw:grid tw:gap-x-6 tw:gap-y-1 tw:sm:grid-cols-2">
-                {clientCaps.map((cap) => (
-                  <Cap key={cap.label} on={cap.on}>
-                    {cap.label}
-                  </Cap>
-                ))}
-              </div>
-            ) : (
-            <div className="tw:grid tw:gap-x-6 tw:gap-y-4 tw:sm:grid-cols-2">
-              {modules.map((module) => {
-                const disabled = module.master === false;
-                // Показываем только выданные способности — «что человек может»;
-                // полный список с отказами живёт в форме правки.
-                const granted = module.caps.filter((cap) => cap.on);
-                return (
-                  <div key={module.label} className={cn(disabled && "tw:opacity-50")}>
-                    <div className="tw:mb-2 tw:flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold">
-                      <span className="tw:text-muted-foreground tw:[&_svg]:size-4">{module.icon}</span>
-                      {module.label}
-                      {module.master !== undefined && (
-                        <span
-                          className={cn(
-                            "tw:ml-auto tw:text-xs tw:font-bold tw:tracking-wide tw:uppercase",
-                            module.master ? "tw:text-accent-text" : "tw:text-faint",
-                          )}
-                        >
-                          {module.master ? "Включён" : "Отключён"}
+          {/* Организация + Активность */}
+          <div id="org" className="mt-6 grid gap-4 scroll-mt-28 md:grid-cols-2">
+            <div>
+              <SubLabel>Организация</SubLabel>
+              <Panel>
+                <PropRow icon={<RiBuilding2Line size={17} />} label="Компания">
+                  {company?.alias ? (
+                    <Link
+                      to={`/companies/${company._id}`}
+                      className="text-accent-text no-underline hover:underline"
+                    >
+                      {company.alias}
+                    </Link>
+                  ) : (
+                    <span className="font-normal text-faint">—</span>
+                  )}
+                </PropRow>
+                <PropRow icon={<RiGroupLine size={17} />} label="Подразделение">
+                  {subdivision?.name ? (
+                    <span>
+                      {subdivision.name}
+                      {managerName && (
+                        <span className="font-normal text-faint">
+                          {" · рук. "}
+                          <Link
+                            to={`/users/${subdivision.manager._id}`}
+                            className="text-accent-text no-underline hover:underline"
+                          >
+                            {managerName}
+                          </Link>
                         </span>
                       )}
-                    </div>
-                    {disabled ? (
-                      <Cap on={false}>Модуль недоступен</Cap>
-                    ) : granted.length > 0 ? (
-                      granted.map((cap) => (
-                        <Cap key={cap.label} on>
-                          {cap.label}
-                        </Cap>
-                      ))
-                    ) : (
-                      <div className="tw:py-0.5 tw:text-sm tw:text-faint">
-                        Нет выданных прав
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                    </span>
+                  ) : (
+                    <span className="font-normal text-faint">—</span>
+                  )}
+                </PropRow>
+                {/* Эффективный пояс: где человек находится сейчас — чтобы не
+                звонить заявителю в его ночь. Показываем всегда, в том числе
+                унаследованный от подразделения или компании */}
+                {clientTimezone?.timezone && (
+                  <PropRow icon={<RiTimeLine size={17} />} label="Часовой пояс">
+                    <span className="inline-flex flex-wrap items-center gap-x-2">
+                      <ClientTime clientTimezone={clientTimezone} always />
+                      {clientTimezone.source !== "user" && (
+                        <span className="font-normal text-faint">
+                          {clientTimezone.source === "subdivision"
+                            ? `как у «${clientTimezone.sourceName}»`
+                            : clientTimezone.source === "company"
+                              ? "как у компании"
+                              : "как в организации"}
+                        </span>
+                      )}
+                    </span>
+                  </PropRow>
+                )}
+                {role && (
+                  <PropRow icon={<RiPriceTag3Line size={17} />} label="Роль">
+                    {role}
+                  </PropRow>
+                )}
+              </Panel>
             </div>
-            )}
-          </Panel>
-        </>
-      )}
+            <div>
+              <SubLabel>Активность</SubLabel>
+              <Panel>
+                <PropRow
+                  icon={<RiLoginCircleLine size={17} />}
+                  label="Последний вход"
+                >
+                  {lastLogin ? (
+                    <span className="tabular-nums">
+                      {formatDate(lastLogin)}
+                    </span>
+                  ) : (
+                    <span className="font-normal text-faint">никогда</span>
+                  )}
+                </PropRow>
+                <PropRow
+                  icon={<RiTicket2Line size={17} />}
+                  label="Последняя заявка"
+                >
+                  {relativeDay(lastActivityAt) ? (
+                    <span className="tabular-nums">
+                      {relativeDay(lastActivityAt)}
+                    </span>
+                  ) : (
+                    <span className="font-normal text-faint">
+                      нет обращений
+                    </span>
+                  )}
+                </PropRow>
+                <PropRow icon={<RiTimeLine size={17} />} label="В системе с">
+                  <span className="tabular-nums">
+                    {formatShortDate(createdAt) || "—"}
+                  </span>
+                </PropRow>
+              </Panel>
+            </div>
+          </div>
 
-      {/* Уведомления (для управляющих пользователями) */}
-      {showNotify && (
-        <>
-          <Eyebrow id="notifications">Уведомления</Eyebrow>
+          {/* Техника: список с фасетами + окружение (общая шторка устройства) */}
+          {showSchedule && (
+            /* version — отметка последней правки пользователя: форма сохранила
+           график, роутер ревалидировал loader, секция перечитала данные */
+            <WorkScheduleSection
+              id="schedule"
+              userId={user._id}
+              version={user.updatedAt}
+            />
+          )}
+
+          {showTech && (
+            <TechSection id="tech" userId={user._id} subject="user" />
+          )}
+
+          {/* Недавние заявки */}
+          <Eyebrow id="tickets" count={ticketList.length}>
+            Недавние заявки
+          </Eyebrow>
           <Panel>
-            <div className="tw:overflow-x-auto">
-              <table className="tw:w-full tw:text-sm">
-                <thead>
-                  <tr className="tw:text-xs tw:font-bold tw:tracking-wide tw:text-faint tw:uppercase">
-                    <th className="tw:py-2 tw:text-left tw:font-bold">Событие</th>
-                    <th className="tw:px-3 tw:py-2 tw:font-bold">
-                      <span className="tw:inline-flex tw:items-center tw:gap-1.5">
-                        <RiTelegramLine className="tw:size-4 tw:text-muted-foreground" /> Telegram
+            {ticketList.length > 0 ? (
+              <>
+                <div className="flex flex-col">
+                  {ticketList.slice(0, 8).map((ticket) => (
+                    <Link
+                      key={ticket._id}
+                      to={`/tickets/${ticket.num}`}
+                      className="flex items-center gap-3 border-t border-border-soft py-2.5 text-foreground no-underline first:border-t-0 hover:bg-accent/40"
+                    >
+                      <span className="w-16 flex-none text-sm font-semibold text-accent-text tabular-nums">
+                        №{ticket.num}
                       </span>
-                    </th>
-                    <th className="tw:px-3 tw:py-2 tw:font-bold">
-                      <span className="tw:inline-flex tw:items-center tw:gap-1.5">
-                        <RiMailLine className="tw:size-4 tw:text-muted-foreground" /> Email
+                      <span className="min-w-0 flex-1 truncate text-sm">
+                        {ticket.title}
                       </span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {notifyRows.map((row) => (
-                    <tr key={row.label} className="tw:border-t tw:border-border-soft">
-                      <td className="tw:py-2 tw:font-medium">{row.label}</td>
-                      <td className="tw:px-3 tw:py-2 tw:text-center">
-                        {row.tg && tgConnected ? (
-                          <RiCheckLine className="tw:mx-auto tw:size-4.5 tw:text-primary" />
-                        ) : (
-                          <RiCloseLine className="tw:mx-auto tw:size-4.5 tw:text-faint" />
+                      <span className="flex-none text-xs text-faint tabular-nums">
+                        {formatShortDate(ticket.createdAt)}
+                      </span>
+                      <span
+                        className={cn(
+                          "inline-flex flex-none items-center gap-1.5 text-xs font-semibold",
+                          ticketState(ticket.state),
                         )}
-                      </td>
-                      <td className="tw:px-3 tw:py-2 tw:text-center">
-                        {row.em ? (
-                          <RiCheckLine className="tw:mx-auto tw:size-4.5 tw:text-primary" />
-                        ) : (
-                          <RiCloseLine className="tw:mx-auto tw:size-4.5 tw:text-faint" />
-                        )}
-                      </td>
-                    </tr>
+                      >
+                        <span
+                          className={cn(
+                            "size-1.5 rounded-full",
+                            ticketDot(ticket.state),
+                          )}
+                        />
+                        {ticket.state}
+                      </span>
+                    </Link>
                   ))}
-                </tbody>
-              </table>
-            </div>
-            {!tgConnected && (
-              <p className="tw:mt-3 tw:mb-0 tw:text-xs tw:text-faint">
-                Telegram-бот не подключён — сообщения в Telegram не отправляются.
-              </p>
+                </div>
+                {ticketList.length > 8 && (
+                  <Link
+                    to={`/tickets?applicant=${user._id}`}
+                    className="mt-3 inline-block text-sm font-semibold text-accent-text no-underline hover:underline"
+                  >
+                    Все заявки ({ticketList.length}) →
+                  </Link>
+                )}
+              </>
+            ) : (
+              <div className="py-2 text-sm text-muted-foreground">
+                Заявок пока нет.
+              </div>
             )}
           </Panel>
-        </>
-      )}
 
+          {/* Категории и ответственность — общий app/PillPanel: нейтральные пилюли
+          в свёрнутом «облаке» с «Показать все (N)» при переполнении */}
+          {categories.length > 0 && (
+            <PillPanel
+              id="categories"
+              label="Категории заявок"
+              items={[...categories].sort((a, b) =>
+                (a.title || "").localeCompare(b.title || ""),
+              )}
+            />
+          )}
+          {responsibleForCompanies.length > 0 && (
+            <PillPanel
+              id="responsible"
+              label="Ответственный за компании"
+              items={responsibleForCompanies}
+              getKey={(item, index) => String(item.id ?? item._id ?? index)}
+            />
+          )}
+
+          {/* Финансы (по правам) */}
+          {canSeeFinances && (
+            <>
+              <Eyebrow id="finances">Финансы</Eyebrow>
+              <Panel>
+                <PropRow
+                  icon={<RiMoneyDollarCircleLine size={17} />}
+                  label="Оклад"
+                >
+                  {finances.salary != null ? (
+                    `${formatPrice(finances.salary)}/мес`
+                  ) : (
+                    <span className="font-normal text-faint">не задан</span>
+                  )}
+                </PropRow>
+                <PropRow
+                  icon={<RiTimeLine size={17} />}
+                  label="Ставка переработок"
+                >
+                  {finances.overtimeHourlyRate != null ? (
+                    `${formatPrice(finances.overtimeHourlyRate)}/час`
+                  ) : (
+                    <span className="font-normal text-faint">не задана</span>
+                  )}
+                </PropRow>
+              </Panel>
+            </>
+          )}
+
+          {/* Права и доступ (для управляющих пользователями) */}
+          {showPermissions && (
+            <>
+              <Eyebrow id="permissions">Права и доступ</Eyebrow>
+              <Panel>
+                <div className="mb-4 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1 text-sm font-semibold text-accent-text">
+                    <RiVipCrownLine className="size-3.5" />
+                    {isAdmin ? "Администратор" : accountType}
+                  </span>
+                  {isAdmin && <Pill>{accountType}</Pill>}
+                </div>
+                {isEndUser ? (
+                  <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                    {clientCaps.map((cap) => (
+                      <Cap key={cap.label} on={cap.on}>
+                        {cap.label}
+                      </Cap>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                    {modules.map((module) => {
+                      const disabled = module.master === false;
+                      // Показываем только выданные способности — «что человек может»;
+                      // полный список с отказами живёт в форме правки.
+                      const granted = module.caps.filter((cap) => cap.on);
+                      return (
+                        <div
+                          key={module.label}
+                          className={cn(disabled && "opacity-50")}
+                        >
+                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                            <span className="text-muted-foreground [&_svg]:size-4">
+                              {module.icon}
+                            </span>
+                            {module.label}
+                            {module.master !== undefined && (
+                              <span
+                                className={cn(
+                                  "ml-auto text-xs font-bold tracking-wide uppercase",
+                                  module.master
+                                    ? "text-accent-text"
+                                    : "text-faint",
+                                )}
+                              >
+                                {module.master ? "Включён" : "Отключён"}
+                              </span>
+                            )}
+                          </div>
+                          {disabled ? (
+                            <Cap on={false}>Модуль недоступен</Cap>
+                          ) : granted.length > 0 ? (
+                            granted.map((cap) => (
+                              <Cap key={cap.label} on>
+                                {cap.label}
+                              </Cap>
+                            ))
+                          ) : (
+                            <div className="py-0.5 text-sm text-faint">
+                              Нет выданных прав
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Panel>
+            </>
+          )}
+
+          {/* Уведомления (для управляющих пользователями) */}
+          {showNotify && (
+            <>
+              <Eyebrow id="notifications">Уведомления</Eyebrow>
+              <Panel>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-xs font-bold tracking-wide text-faint uppercase">
+                        <th className="py-2 text-left font-bold">Событие</th>
+                        <th className="px-3 py-2 font-bold">
+                          <span className="inline-flex items-center gap-1.5">
+                            <RiTelegramLine className="size-4 text-muted-foreground" />{" "}
+                            Telegram
+                          </span>
+                        </th>
+                        <th className="px-3 py-2 font-bold">
+                          <span className="inline-flex items-center gap-1.5">
+                            <RiMailLine className="size-4 text-muted-foreground" />{" "}
+                            Email
+                          </span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {notifyRows.map((row) => (
+                        <tr
+                          key={row.label}
+                          className="border-t border-border-soft"
+                        >
+                          <td className="py-2 font-medium">{row.label}</td>
+                          <td className="px-3 py-2 text-center">
+                            {row.tg && tgConnected ? (
+                              <RiCheckLine className="mx-auto size-4.5 text-primary" />
+                            ) : (
+                              <RiCloseLine className="mx-auto size-4.5 text-faint" />
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {row.em ? (
+                              <RiCheckLine className="mx-auto size-4.5 text-primary" />
+                            ) : (
+                              <RiCloseLine className="mx-auto size-4.5 text-faint" />
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {!tgConnected && (
+                  <p className="mt-3 mb-0 text-xs text-faint">
+                    Telegram-бот не подключён — сообщения в Telegram не
+                    отправляются.
+                  </p>
+                )}
+              </Panel>
+            </>
+          )}
         </div>
       </div>
 
       {/* Диалоги */}
-      <DeleteDialog item={{ ...user, title: fullName }} open={deleteOpen} onOpenChange={setDeleteOpen} />
+      <DeleteDialog
+        item={{ ...user, title: fullName }}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+      />
       {!isServiceAccount && (
-        <ResetPasswordDialog user={user} open={resetOpen} onOpenChange={setResetOpen} />
+        <ResetPasswordDialog
+          user={user}
+          open={resetOpen}
+          onOpenChange={setResetOpen}
+        />
       )}
-      <ToggleActiveDialog user={user} open={toggleOpen} onOpenChange={setToggleOpen} />
+      <ToggleActiveDialog
+        user={user}
+        open={toggleOpen}
+        onOpenChange={setToggleOpen}
+      />
       {canManageCompanies && company && (
         <LinkAdDialog user={user} open={adOpen} onOpenChange={setAdOpen} />
       )}

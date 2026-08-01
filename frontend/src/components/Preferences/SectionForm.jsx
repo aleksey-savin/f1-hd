@@ -31,11 +31,11 @@ const SectionForm = ({ buildPayload, disabled = false, children }) => {
   return (
     <>
       {children}
-      <div className="tw:flex tw:justify-end tw:border-t tw:border-border-soft tw:px-5 tw:py-3">
+      <div className="flex justify-end border-t border-border-soft px-5 py-3">
         <Button
           onClick={submitHandler}
           disabled={disabled || fetcher.state !== "idle"}
-          className="tw:max-md:w-full"
+          className="max-md:w-full"
         >
           {fetcher.state !== "idle" ? "Сохранение…" : "Сохранить"}
         </Button>

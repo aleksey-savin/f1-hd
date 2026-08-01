@@ -22,7 +22,11 @@ const ROWS = 5;
 // «12 дней» — сколько заявка молчит. Считаем по последнему движению, а не по
 // созданию: заявка недельной давности, где вчера был комментарий, живая.
 const lastMovedAt = (ticket) => {
-  const stamps = [ticket.updatedAt, ticket.latestComment?.createdAt, ticket.createdAt]
+  const stamps = [
+    ticket.updatedAt,
+    ticket.latestComment?.createdAt,
+    ticket.createdAt,
+  ]
     .filter(Boolean)
     .map((value) => new Date(value).getTime());
   return stamps.length ? Math.max(...stamps) : null;
@@ -65,7 +69,8 @@ const StaffTickets = () => {
   );
 
   const unassigned = useMemo(
-    () => (seesOthers ? tickets.filter((t) => !(t.responsibles ?? []).length) : []),
+    () =>
+      seesOthers ? tickets.filter((t) => !(t.responsibles ?? []).length) : [],
     [tickets, seesOthers],
   );
 
@@ -102,7 +107,7 @@ const StaffTickets = () => {
             action={
               <Link
                 to="/tickets"
-                className="tw:text-sm tw:font-medium tw:text-accent-text tw:no-underline"
+                className="text-sm font-medium text-accent-text no-underline"
               >
                 Все заявки →
               </Link>
@@ -111,7 +116,7 @@ const StaffTickets = () => {
             На мне
           </Eyebrow>
           <Panel>
-            <div className="tw:-mx-5 tw:-my-5">
+            <div className="-mx-5 -my-5">
               {mine.slice(0, ROWS).map((ticket) => (
                 <TicketRow
                   key={ticket._id}
@@ -130,7 +135,7 @@ const StaffTickets = () => {
           <Eyebrow
             count={unassigned.length}
             action={
-              <span className="tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+              <span className="text-sm text-muted-foreground tabular-nums">
                 от людей {fromPeople.length} · от мониторинга{" "}
                 {fromMachines.length}
               </span>
@@ -139,7 +144,7 @@ const StaffTickets = () => {
             Без ответственного
           </Eyebrow>
           <Panel>
-            <div className="tw:-mx-5 tw:-my-5">
+            <div className="-mx-5 -my-5">
               {/* Сначала то, за чем стоит человек: машинные заявки разбирают
                   пачкой и не срочно. */}
               {[...fromPeople, ...fromMachines].slice(0, ROWS).map((ticket) => (
@@ -161,14 +166,14 @@ const StaffTickets = () => {
         <section>
           <Eyebrow count={stale.length}>Давно без движения</Eyebrow>
           <Panel>
-            <div className="tw:-mx-5 tw:-my-5">
+            <div className="-mx-5 -my-5">
               {stale.map((ticket) => (
                 <TicketRow
                   key={ticket._id}
                   ticket={ticket}
                   meta={companyMeta(ticket)}
                   trailing={
-                    <span className="tw:text-destructive">
+                    <span className="text-destructive">
                       {silenceText(ticket)}
                     </span>
                   }

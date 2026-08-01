@@ -34,7 +34,7 @@ export const photoUrl = (photo) =>
  * `img { width/height: auto !important }` в `index.css` перебил бы любые размеры
  * (см. docs/ux-ui-guide.md, «Инфраструктура»).
  */
-export const PhotoViewer = ({ photos, index, onIndexChange, onClose }) => {
+const PhotoViewer = ({ photos, index, onIndexChange, onClose }) => {
   const isOpen = index !== null && photos.length > 0;
   const safeIndex = isOpen ? Math.min(index, photos.length - 1) : 0;
   const current = isOpen ? photos[safeIndex] : null;
@@ -62,12 +62,12 @@ export const PhotoViewer = ({ photos, index, onIndexChange, onClose }) => {
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="tw:sm:max-w-4xl">
-        <DialogTitle className="tw:sr-only">
+      <DialogContent className="sm:max-w-4xl">
+        <DialogTitle className="sr-only">
           {current.originalName || "Фото"}
         </DialogTitle>
 
-        <div className="tw:relative">
+        <div className="relative">
           <div
             role="img"
             aria-label={current.originalName || "Фото"}
@@ -81,7 +81,7 @@ export const PhotoViewer = ({ photos, index, onIndexChange, onClose }) => {
               if (Math.abs(delta) > 40) step(delta < 0 ? 1 : -1);
               touchStart.current = null;
             }}
-            className="tw:rounded-lg tw:bg-accent tw:bg-contain tw:bg-center tw:bg-no-repeat"
+            className="rounded-lg bg-accent bg-contain bg-center bg-no-repeat"
             // Высота кадра — явная: контейнер диалога её не задаёт, а
             // background-размеру нужна опора (как у графиков отчётов).
             style={{
@@ -97,7 +97,7 @@ export const PhotoViewer = ({ photos, index, onIndexChange, onClose }) => {
                 size="icon"
                 aria-label="Предыдущее фото"
                 onClick={() => step(-1)}
-                className="tw:absolute tw:top-1/2 tw:left-2 tw:-translate-y-1/2 tw:bg-background/80"
+                className="absolute top-1/2 left-2 -translate-y-1/2 bg-background/80"
               >
                 <RiArrowLeftSLine />
               </Button>
@@ -106,7 +106,7 @@ export const PhotoViewer = ({ photos, index, onIndexChange, onClose }) => {
                 size="icon"
                 aria-label="Следующее фото"
                 onClick={() => step(1)}
-                className="tw:absolute tw:top-1/2 tw:right-2 tw:-translate-y-1/2 tw:bg-background/80"
+                className="absolute top-1/2 right-2 -translate-y-1/2 bg-background/80"
               >
                 <RiArrowRightSLine />
               </Button>
@@ -114,12 +114,12 @@ export const PhotoViewer = ({ photos, index, onIndexChange, onClose }) => {
           )}
         </div>
 
-        <div className="tw:flex tw:items-center tw:gap-3 tw:text-sm tw:text-muted-foreground">
-          <span className="tw:min-w-0 tw:flex-1 tw:truncate">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate">
             {current.originalName}
           </span>
           {photos.length > 1 && (
-            <span className="tw:flex-none tw:font-mono tw:tabular-nums">
+            <span className="flex-none font-mono tabular-nums">
               {safeIndex + 1} / {photos.length}
             </span>
           )}
@@ -230,7 +230,7 @@ const PhotoGallery = ({
       {error && <AlertMessage variant="danger" message={error} />}
 
       {isInherited && (
-        <p className="tw:mt-0 tw:mb-3 tw:text-sm tw:text-muted-foreground">
+        <p className="mt-0 mb-3 text-sm text-muted-foreground">
           Показаны фотографии модели
           {inherited.title ? ` ${inherited.title}` : ""}.
           {canManage
@@ -240,7 +240,7 @@ const PhotoGallery = ({
       )}
 
       <div
-        className="tw:grid tw:gap-3"
+        className="grid gap-3"
         // auto-fill/minmax встроенной сеткой tw не выражается, а произвольных
         // значений в классах не пишем (см. docs/ux-ui-guide.md) — инлайном.
         style={{ gridTemplateColumns: "repeat(auto-fill, minmax(7rem, 1fr))" }}
@@ -248,14 +248,14 @@ const PhotoGallery = ({
         {shown.map((photo, index) => (
           <div
             key={photo._id}
-            className="tw:group tw:relative tw:aspect-square tw:overflow-hidden tw:rounded-lg tw:bg-accent"
+            className="group relative aspect-square overflow-hidden rounded-lg bg-accent"
           >
             <button
               type="button"
               onClick={() => setViewerIndex(index)}
               title="Открыть в полном размере"
               aria-label={`Открыть фото ${photo.originalName || ""}`}
-              className="tw:block tw:size-full tw:cursor-zoom-in tw:appearance-none tw:border-0 tw:bg-cover tw:bg-center tw:p-0 tw:transition-transform tw:group-hover:scale-105"
+              className="block size-full cursor-zoom-in appearance-none border-0 bg-cover bg-center p-0 transition-transform group-hover:scale-105"
               style={{ backgroundImage: `url(${photoUrl(photo)})` }}
             />
             {canManage && !isInherited && (
@@ -264,7 +264,7 @@ const PhotoGallery = ({
                 onClick={() => setPendingDelete(photo)}
                 title="Удалить фото"
                 aria-label={`Удалить фото ${photo.originalName || ""}`}
-                className="tw:absolute tw:top-1.5 tw:right-1.5 tw:grid tw:size-8 tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-background/85 tw:text-muted-foreground tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100 tw:hover:text-destructive tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100"
+                className="absolute top-1.5 right-1.5 grid size-8 cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-background/85 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100 pointer-coarse:opacity-100"
               >
                 <RiDeleteBinLine size={16} />
               </button>
@@ -285,8 +285,8 @@ const PhotoGallery = ({
               if (!isFull) upload(event.dataTransfer.files);
             }}
             className={cn(
-              "tw:aspect-square tw:rounded-lg tw:transition-colors",
-              isDragging ? "tw:bg-primary/10" : "tw:bg-transparent",
+              "aspect-square rounded-lg transition-colors",
+              isDragging ? "bg-primary/10" : "bg-transparent",
             )}
             // Пунктир задаём инлайном: без preflight классы border-dashed
             // рисуют бокс по всем сторонам (см. docs/ux-ui-guide.md).
@@ -298,24 +298,22 @@ const PhotoGallery = ({
               type="button"
               onClick={() => inputRef.current?.click()}
               disabled={isUploading}
-              className="tw:flex tw:size-full tw:cursor-pointer tw:appearance-none tw:flex-col tw:items-center tw:justify-center tw:gap-1 tw:border-0 tw:bg-transparent tw:text-muted-foreground tw:hover:text-foreground tw:disabled:cursor-default"
+              className="flex size-full cursor-pointer appearance-none flex-col items-center justify-center gap-1 border-0 bg-transparent text-muted-foreground hover:text-foreground disabled:cursor-default"
             >
               {isUploading ? (
                 <Spinner />
               ) : (
                 <>
                   <RiAddLine size={22} aria-hidden />
-                  <span className="tw:text-sm tw:font-medium">Новое фото</span>
-                  <span className="tw:text-xs tw:text-faint">
-                    или перетащите
-                  </span>
+                  <span className="text-sm font-medium">Новое фото</span>
+                  <span className="text-xs text-faint">или перетащите</span>
                 </>
               )}
             </button>
             <input
               ref={inputRef}
               type="file"
-              className="tw:hidden"
+              className="hidden"
               accept={ACCEPT}
               multiple
               onChange={(event) => upload(event.target.files)}
@@ -325,7 +323,7 @@ const PhotoGallery = ({
       </div>
 
       {canManage && (
-        <p className="tw:mt-2.5 tw:mb-0 tw:text-sm tw:text-muted-foreground">
+        <p className="mt-2.5 mb-0 text-sm text-muted-foreground">
           {isFull
             ? `Загружено ${MAX_PHOTOS} фото — предел. Удалите лишние, чтобы добавить новые.`
             : `JPEG, PNG, WebP или HEIC, до ${MAX_FILE_SIZE_MB} МБ. Не больше ${MAX_PHOTOS} фото.`}

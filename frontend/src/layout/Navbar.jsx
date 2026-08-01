@@ -48,9 +48,9 @@ import { buildMenu } from "./Navigation/menu";
 // Классы пункта бара; активный — корпусный цвет + полужирный, иконка бирюзой
 const navItemClass = (isActive = false) =>
   cn(
-    "tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2 tw:rounded-lg tw:border-0 tw:bg-transparent tw:px-2.5 tw:py-1.5 tw:text-sm tw:font-medium tw:whitespace-nowrap tw:text-muted-foreground tw:no-underline tw:transition-colors tw:outline-none",
-    "tw:hover:bg-accent tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
-    isActive && "tw:font-semibold tw:text-foreground",
+    "inline-flex cursor-pointer appearance-none items-center gap-2 rounded-lg border-0 bg-transparent px-2.5 py-1.5 text-sm font-medium whitespace-nowrap text-muted-foreground no-underline transition-colors outline-none",
+    "hover:bg-accent hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50",
+    isActive && "font-semibold text-foreground",
   );
 
 const Brand = ({ size = "default" }) => {
@@ -60,7 +60,7 @@ const Brand = ({ size = "default" }) => {
     <NavLink
       to="/"
       aria-label="HelpDesk — на главную"
-      className="tw:inline-flex tw:flex-none tw:items-center tw:no-underline"
+      className="inline-flex flex-none items-center no-underline"
     >
       <BrandMark logo={contacts?.logo} size={size} />
     </NavLink>
@@ -75,23 +75,23 @@ const SectionDropdown = ({ item }) => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button type="button" className={navItemClass()}>
-          <item.icon size={16} aria-hidden className="tw:opacity-85" />
+          <item.icon size={16} aria-hidden className="opacity-85" />
           {item.shortLabel ?? item.label}
-          <RiArrowDownSLine size={14} aria-hidden className="tw:opacity-60" />
+          <RiArrowDownSLine size={14} aria-hidden className="opacity-60" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="tw:min-w-56">
+      <DropdownMenuContent align="start" className="min-w-56">
         {item.groups.map((group, groupIndex) => (
           <div key={group.label ?? groupIndex}>
             {groupIndex > 0 && <DropdownMenuSeparator />}
             {group.label && (
-              <DropdownMenuLabel className="tw:text-xs tw:font-semibold tw:tracking-wider tw:text-muted-foreground tw:uppercase">
+              <DropdownMenuLabel className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 {group.label}
               </DropdownMenuLabel>
             )}
             {group.items.map((child) => (
               <DropdownMenuItem key={child.key} asChild>
-                <NavLink to={child.to} className="tw:no-underline">
+                <NavLink to={child.to} className="no-underline">
                   <child.icon size={16} aria-hidden />
                   {child.label}
                 </NavLink>
@@ -109,12 +109,7 @@ const ThemeDropdown = () => {
   const current =
     THEME_OPTIONS.find((option) => option.value === theme) ?? THEME_OPTIONS[2];
 
-  const changeTheme = (value) => {
-    if (value === theme) return;
-    setTheme(value);
-    // Легаси-CSS до эндшпиля подхватывает тему только с перезагрузкой
-    window.location.reload();
-  };
+  const changeTheme = (value) => setTheme(value);
 
   return (
     <DropdownMenu>
@@ -132,7 +127,7 @@ const ThemeDropdown = () => {
         <DropdownMenuRadioGroup value={theme} onValueChange={changeTheme}>
           {THEME_OPTIONS.map(({ value, label, Icon }) => (
             <DropdownMenuRadioItem key={value} value={value}>
-              <Icon size={16} aria-hidden className="tw:me-1" />
+              <Icon size={16} aria-hidden className="me-1" />
               {label}
             </DropdownMenuRadioItem>
           ))}
@@ -146,21 +141,20 @@ const ThemeDropdown = () => {
 // системы» (только админам — переехали из «Администрирования») + «Выйти»
 const UserMenu = ({ trigger, align = "end" }) => {
   const [open, setOpen] = useState(false);
-  const { isAdmin, isEndUser, hideWorkStatus } =
-    useContext(AuthedUserContext);
+  const { isAdmin, isEndUser, hideWorkStatus } = useContext(AuthedUserContext);
   const workStatusAvailable = !isEndUser && !hideWorkStatus;
 
   const menuItemClass =
-    "tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2.5 tw:rounded-md tw:border-0 tw:bg-transparent tw:px-2.5 tw:py-1.5 tw:text-left tw:text-sm tw:text-foreground tw:no-underline tw:outline-none tw:hover:bg-accent tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50";
+    "flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left text-sm text-foreground no-underline outline-none hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/50";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent align={align} className="tw:w-64 tw:p-1.5">
+      <PopoverContent align={align} className="w-64 p-1.5">
         {workStatusAvailable && (
           <>
             <WorkStatusSwitcher />
-            <div className="tw:mx-2 tw:my-1.5 tw:h-px tw:bg-border-soft" />
+            <div className="mx-2 my-1.5 h-px bg-border-soft" />
           </>
         )}
         <NavLink
@@ -171,7 +165,7 @@ const UserMenu = ({ trigger, align = "end" }) => {
           <RiUserSettingsLine
             size={16}
             aria-hidden
-            className="tw:text-muted-foreground"
+            className="text-muted-foreground"
           />
           Мой аккаунт
         </NavLink>
@@ -184,18 +178,18 @@ const UserMenu = ({ trigger, align = "end" }) => {
             <RiSettings3Line
               size={16}
               aria-hidden
-              className="tw:text-muted-foreground"
+              className="text-muted-foreground"
             />
             Настройки системы
           </NavLink>
         )}
-        <div className="tw:mx-2 tw:my-1.5 tw:h-px tw:bg-border-soft" />
+        <div className="mx-2 my-1.5 h-px bg-border-soft" />
         <Form action="/logout" method="POST">
           <button
             type="submit"
             className={cn(
               menuItemClass,
-              "tw:text-destructive tw:hover:bg-destructive/10",
+              "text-destructive hover:bg-destructive/10",
             )}
           >
             <RiLogoutBoxRLine size={16} aria-hidden />
@@ -248,7 +242,7 @@ const NavigationBar = ({ embedded = false }) => {
     <button
       type="button"
       aria-label="Меню пользователя"
-      className="tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2 tw:rounded-full tw:border-0 tw:bg-transparent tw:py-1 tw:ps-1 tw:pe-2 tw:text-sm tw:font-medium tw:whitespace-nowrap tw:text-foreground tw:outline-none tw:hover:bg-accent tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+      className="inline-flex cursor-pointer appearance-none items-center gap-2 rounded-full border-0 bg-transparent py-1 ps-1 pe-2 text-sm font-medium whitespace-nowrap text-foreground outline-none hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/50"
     >
       {workStatusAvailable ? (
         <WorkStatusAvatar
@@ -261,22 +255,22 @@ const NavigationBar = ({ embedded = false }) => {
       ) : (
         <span
           aria-hidden
-          className="tw:grid tw:size-7.5 tw:flex-none tw:place-items-center tw:rounded-full tw:bg-accent tw:text-xs tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+          className="grid size-7.5 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border"
         >
           {initials}
         </span>
       )}
-      <span className="tw:max-lg:hidden">
+      <span className="max-lg:hidden">
         {firstName} {lastName}
       </span>
-      <RiArrowDownSLine size={14} aria-hidden className="tw:opacity-60" />
+      <RiArrowDownSLine size={14} aria-hidden className="opacity-60" />
     </button>
   );
 
   // --- Мобильный shell: статичный флекс-ребёнок, а не fixed (см. гайд) ---
   if (embedded) {
     return (
-      <header className="mobile-shell__header tw:flex tw:items-center tw:gap-1.5 tw:bg-card tw:px-2.5">
+      <header className="mobile-shell__header flex flex-none items-center gap-1.5 border-b border-border bg-card px-2.5 pb-2">
         {isLoggedIn && (
           <Button
             variant="ghost"
@@ -289,13 +283,13 @@ const NavigationBar = ({ embedded = false }) => {
         )}
         <Brand size="sm" />
         {isLoggedIn && workStatusAvailable && (
-          <div className="tw:ms-auto">
+          <div className="ms-auto">
             <UserMenu
               trigger={
                 <button
                   type="button"
                   aria-label="Мой статус и аккаунт"
-                  className="tw:inline-grid tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-full tw:border-0 tw:bg-transparent tw:p-0.5 tw:outline-none tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+                  className="inline-grid cursor-pointer appearance-none place-items-center rounded-full border-0 bg-transparent p-0.5 outline-none focus-visible:ring-4 focus-visible:ring-ring/50"
                 >
                   <WorkStatusAvatar
                     size={32}
@@ -325,11 +319,11 @@ const NavigationBar = ({ embedded = false }) => {
   // статусов (1020), ниже модалок (1045+).
   return (
     <header
-      className="tw:fixed tw:inset-x-0 tw:top-0 tw:border-b tw:border-border tw:bg-card"
+      className="fixed inset-x-0 top-0 border-b border-border bg-card"
       style={{ zIndex: 1030 }}
     >
       <div
-        className="tw:mx-auto tw:flex tw:h-14 tw:items-center tw:gap-1.5 tw:px-6"
+        className="mx-auto flex h-14 items-center gap-1.5 px-6"
         style={{ maxWidth: "1920px" }}
       >
         {isLoggedIn && (
@@ -337,20 +331,20 @@ const NavigationBar = ({ embedded = false }) => {
             variant="ghost"
             size="icon-sm"
             aria-label="Меню"
-            className="tw:xl:hidden"
+            className="xl:hidden"
             onClick={() => setDrawerOpen(true)}
           >
             <RiMenuLine size={19} />
           </Button>
         )}
-        <div className="tw:me-3">
+        <div className="me-3">
           <Brand />
         </div>
 
         {isLoggedIn && (
           <nav
             aria-label="Основная навигация"
-            className="tw:flex tw:min-w-0 tw:items-center tw:gap-0.5 tw:max-xl:hidden"
+            className="flex min-w-0 items-center gap-0.5 max-xl:hidden"
           >
             {menuItems.map((item) =>
               item.groups ? (
@@ -367,8 +361,8 @@ const NavigationBar = ({ embedded = false }) => {
                         size={16}
                         aria-hidden
                         className={cn(
-                          "tw:opacity-85",
-                          isActive && "tw:text-accent-text tw:opacity-100",
+                          "opacity-85",
+                          isActive && "text-accent-text opacity-100",
                         )}
                       />
                       {item.shortLabel ?? item.label}
@@ -381,7 +375,7 @@ const NavigationBar = ({ embedded = false }) => {
         )}
 
         {isLoggedIn && (
-          <div className="tw:ms-auto tw:flex tw:flex-none tw:items-center tw:gap-1">
+          <div className="ms-auto flex flex-none items-center gap-1">
             <ThemeDropdown />
             <UserMenu trigger={userTrigger} />
           </div>

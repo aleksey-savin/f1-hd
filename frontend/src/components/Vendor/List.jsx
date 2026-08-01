@@ -24,7 +24,7 @@ const List = ({ items = [] }) => {
             label="Отключённые"
             count={disabled.length}
             tone="off"
-            className="tw:border-t tw:border-border-soft tw:mt-1.5"
+            className="border-t border-border-soft mt-1.5"
           />
           <div>
             {disabled.map((item) => (

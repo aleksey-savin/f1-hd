@@ -92,10 +92,10 @@ const Public = () => {
 
   if (!data) {
     return (
-      <div className="tw:mx-auto tw:w-full tw:max-w-7xl tw:space-y-4 tw:p-4">
-        <Skeleton className="tw:h-20 tw:rounded-xl" />
-        <Skeleton className="tw:h-40 tw:rounded-xl" />
-        <Skeleton className="tw:h-64 tw:rounded-xl" />
+      <div className="mx-auto w-full max-w-7xl space-y-4 p-4">
+        <Skeleton className="h-20 rounded-xl" />
+        <Skeleton className="h-40 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
       </div>
     );
   }
@@ -105,31 +105,31 @@ const Public = () => {
     : null;
 
   return (
-    <div className="tw:min-h-svh tw:bg-background">
+    <div className="min-h-svh bg-background">
       {/* Шапка вместо оболочки приложения: чей отчёт, кому адресован и до
           какого числа живёт ссылка — три вопроса, с которых начинают */}
-      <header className="tw:border-b tw:border-border tw:bg-card">
-        <div className="tw:mx-auto tw:flex tw:w-full tw:max-w-7xl tw:flex-wrap tw:items-baseline tw:gap-x-3 tw:gap-y-1 tw:px-4 tw:py-3">
-          <b className="tw:font-semibold">Отчёт на согласование</b>
+      <header className="border-b border-border bg-card">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3">
+          <b className="font-semibold">Отчёт на согласование</b>
           {viewer && (
-            <span className="tw:text-sm tw:text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               для вас, {viewer}
             </span>
           )}
           {data.expiresAt && (
-            <span className="tw:ms-auto tw:text-sm tw:text-faint">
+            <span className="ms-auto text-sm text-faint">
               ссылка действует до {formatShortDate(data.expiresAt)}
             </span>
           )}
         </div>
       </header>
 
-      <main className="tw:mx-auto tw:w-full tw:max-w-7xl tw:px-4 tw:pt-4 tw:pb-2">
+      <main className="mx-auto w-full max-w-7xl px-4 pt-4 pb-2">
         {/* Ссылка уже использована или подпись ждут не от вас: карточку
             показываем, кнопок решения не даём — сервер их всё равно отклонит */}
         {!data.canDecide && (
-          <div className="tw:mb-4 tw:flex tw:items-center tw:gap-2 tw:rounded-lg tw:border tw:border-border tw:bg-accent tw:px-3.5 tw:py-2.5 tw:text-sm tw:text-muted-foreground">
-            <RiCheckLine className="tw:flex-none" />
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-accent px-3.5 py-2.5 text-sm text-muted-foreground">
+            <RiCheckLine className="flex-none" />
             {data.decides === "subdivision"
               ? "Ваша часть отчёта уже решена — отчёт открыт для просмотра."
               : "Сейчас решение не за вами: отчёт ждёт подписи руководителей подразделений."}
@@ -192,22 +192,20 @@ const Message = ({
   title: string;
   body: string;
 }) => (
-  <div className="tw:flex tw:min-h-svh tw:flex-col tw:items-center tw:justify-center tw:bg-background tw:px-4 tw:text-center">
+  <div className="flex min-h-svh flex-col items-center justify-center bg-background px-4 text-center">
     <span
       aria-hidden
       className={cn(
-        "tw:grid tw:size-14 tw:place-items-center tw:rounded-full tw:text-2xl",
+        "grid size-14 place-items-center rounded-full text-2xl",
         tone === "success"
-          ? "tw:bg-primary/15 tw:text-accent-text"
-          : "tw:bg-warning/15 tw:text-warning",
+          ? "bg-primary/15 text-accent-text"
+          : "bg-warning/15 text-warning",
       )}
     >
       {icon}
     </span>
-    <h1 className="tw:mt-5 tw:mb-0 tw:text-xl tw:font-semibold tw:text-balance">
-      {title}
-    </h1>
-    <p className="tw:mt-2 tw:mb-0 tw:max-w-md tw:text-sm tw:leading-relaxed tw:text-pretty tw:text-muted-foreground">
+    <h1 className="mt-5 mb-0 text-xl font-semibold text-balance">{title}</h1>
+    <p className="mt-2 mb-0 max-w-md text-sm leading-relaxed text-pretty text-muted-foreground">
       {body}
     </p>
   </div>

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Field from "@/components/app/Field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import Select from "@/UI/Select";
+import Combobox from "@/components/app/Combobox";
 import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
 import useTeamScheduleStore from "@/store/team/schedule";
 import { getLocalStorageData } from "@/util/auth";
@@ -45,13 +45,17 @@ const ScheduleFilter = () => {
       .then((payload) => {
         const list = payload?.companies ?? payload ?? [];
         setCompanies(
-          (Array.isArray(list) ? list : []).map((item: Record<string, string>) => ({
-            value: String(item._id),
-            label: item.alias || item.fullTitle || "Без названия",
-          })),
+          (Array.isArray(list) ? list : []).map(
+            (item: Record<string, string>) => ({
+              value: String(item._id),
+              label: item.alias || item.fullTitle || "Без названия",
+            }),
+          ),
         );
       })
-      .catch((error) => console.warn("Компании для фильтра не загрузились:", error));
+      .catch((error) =>
+        console.warn("Компании для фильтра не загрузились:", error),
+      );
   }, []);
 
   const apply = () => {
@@ -67,8 +71,12 @@ const ScheduleFilter = () => {
   };
 
   return (
-    <div className="tw:pt-4">
-      <Field label="Сотрудник" htmlFor="team-search" hint="Имя, фамилия или должность">
+    <div className="pt-4">
+      <Field
+        label="Сотрудник"
+        htmlFor="team-search"
+        hint="Имя, фамилия или должность"
+      >
         <Input
           id="team-search"
           value={search}
@@ -79,18 +87,19 @@ const ScheduleFilter = () => {
       </Field>
 
       <Field label="Компания" htmlFor="team-company">
-        <Select
+        <Combobox
           id="team-company"
           options={companies}
-          value={companies.find((item) => item.value === company) ?? null}
-          onChange={(option: Option | null) => setCompany(option?.value ?? null)}
+          value={company ?? null}
+          onChange={setCompany}
           placeholder="Все компании"
-          isClearable
+          clearable
+          clearLabel="Все компании"
         />
       </Field>
 
-      <div className="tw:mt-5 tw:flex tw:gap-2.5">
-        <Button className="tw:flex-1" onClick={apply}>
+      <div className="mt-5 flex gap-2.5">
+        <Button className="flex-1" onClick={apply}>
           Применить
         </Button>
         <Button variant="outline" onClick={reset}>

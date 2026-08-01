@@ -49,9 +49,7 @@ const employeeBars = (data: EmployeesSummaryResponse): StackedTimeRow[] => {
 };
 
 const Panel = ({ children }: { children: ReactNode }) => (
-  <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
-    {children}
-  </div>
+  <div className="rounded-xl border border-border bg-card p-5">{children}</div>
 );
 
 const EmployeesStatsSegment = ({
@@ -74,8 +72,8 @@ const EmployeesStatsSegment = ({
       : null;
 
   return (
-    <div className={cn("tw:transition-opacity", busy && "tw:opacity-60")}>
-      <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-4 tw:xl:gap-4">
+    <div className={cn("transition-opacity", busy && "opacity-60")}>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
         <StatTile
           label="Отработано"
           busy={busy}
@@ -148,7 +146,7 @@ const EmployeesStatsSegment = ({
         <StackedTimeBars rows={employeeBars(data)} unit="minutes" />
       </Panel>
 
-      <div className="tw:grid tw:gap-x-6 tw:lg:grid-cols-2">
+      <div className="grid gap-x-6 lg:grid-cols-2">
         <div>
           <Eyebrow count={data.byCompany.length}>По компаниям</Eyebrow>
           <Panel>
@@ -178,15 +176,15 @@ const EmployeesStatsSegment = ({
       <Eyebrow
         count={totals.employeesCount}
         action={
-          <span className="tw:text-sm tw:font-normal tw:text-faint">
+          <span className="text-sm font-normal text-faint">
             строка ведёт в отчёт сотрудника
           </span>
         }
       >
         Сводка за период
       </Eyebrow>
-      <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card">
-        <div className="tw:hidden tw:overflow-x-auto tw:px-2 tw:py-1.5 tw:md:block">
+      <div className="rounded-xl border border-border bg-card">
+        <div className="hidden overflow-x-auto px-2 py-1.5 md:block">
           <EmployeesTable
             variant="stats"
             employees={data.employees}
@@ -194,7 +192,7 @@ const EmployeesStatsSegment = ({
             currentUserId={currentUserId}
           />
         </div>
-        <div className="tw:md:hidden">
+        <div className="md:hidden">
           <EmployeesCards
             variant="stats"
             employees={data.employees}

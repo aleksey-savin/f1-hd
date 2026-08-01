@@ -25,7 +25,7 @@ import { formatMinutes, formatMoney, fullName, initials } from "./work-format";
 // Строка ведёт в отчёт сотрудника, своя помечена «Вы»; сотрудники без работ
 // свёрнуты — они не должны отодвигать данные.
 
-export type EmployeesTableVariant = "stats" | "overtime";
+type EmployeesTableVariant = "stats" | "overtime";
 
 type SortKey =
   | "name"
@@ -98,15 +98,15 @@ const EmployeesTable = ({
   }) => {
     const isActive = sort.key === columnKey;
     return (
-      <TableHead className={cn("tw:whitespace-nowrap", numeric && "tw:text-right")}>
+      <TableHead className={cn("whitespace-nowrap", numeric && "text-right")}>
         <button
           type="button"
           onClick={() =>
             setSort({ key: columnKey, desc: isActive ? !sort.desc : true })
           }
           className={cn(
-            "tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-0.5 tw:border-0 tw:bg-transparent tw:p-0 tw:text-xs tw:font-semibold tw:whitespace-nowrap tw:outline-none tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
-            isActive ? "tw:text-foreground" : "tw:text-muted-foreground",
+            "inline-flex cursor-pointer appearance-none items-center gap-0.5 border-0 bg-transparent p-0 text-xs font-semibold whitespace-nowrap outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50",
+            isActive ? "text-foreground" : "text-muted-foreground",
           )}
         >
           {children}
@@ -114,7 +114,7 @@ const EmployeesTable = ({
             <RiArrowDownSLine
               size={14}
               aria-hidden
-              className={cn("tw:transition-transform", !sort.desc && "tw:rotate-180")}
+              className={cn("transition-transform", !sort.desc && "rotate-180")}
             />
           )}
         </button>
@@ -127,7 +127,7 @@ const EmployeesTable = ({
     const canExpand = variant === "stats" && (row.byCompany?.length ?? 0) > 0;
     return (
       <TableCell>
-        <span className="tw:flex tw:items-center tw:gap-1.5">
+        <span className="flex items-center gap-1.5">
           {canExpand ? (
             <button
               type="button"
@@ -141,36 +141,36 @@ const EmployeesTable = ({
                 event.stopPropagation();
                 toggle(row.employee._id);
               }}
-              className="tw:grid tw:size-5 tw:flex-none tw:cursor-pointer tw:place-items-center tw:appearance-none tw:rounded tw:border-0 tw:bg-transparent tw:p-0 tw:text-faint tw:outline-none tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+              className="grid size-5 flex-none cursor-pointer place-items-center appearance-none rounded border-0 bg-transparent p-0 text-faint outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50"
             >
               <RiArrowRightSLine
                 size={15}
                 aria-hidden
                 className={cn(
-                  "tw:transition-transform",
-                  expanded.has(row.employee._id) && "tw:rotate-90",
+                  "transition-transform",
+                  expanded.has(row.employee._id) && "rotate-90",
                 )}
               />
             </button>
           ) : (
-            <span className="tw:size-5 tw:flex-none" />
+            <span className="size-5 flex-none" />
           )}
-          <span className="tw:grid tw:size-8 tw:flex-none tw:place-items-center tw:rounded-full tw:bg-accent tw:text-xs tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border">
+          <span className="grid size-8 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border">
             {initials(row.employee)}
           </span>
-          <span className="tw:min-w-0">
-            <span className="tw:flex tw:items-center tw:gap-2 tw:font-medium">
-              <span className="tw:truncate">{fullName(row.employee)}</span>
+          <span className="min-w-0">
+            <span className="flex items-center gap-2 font-medium">
+              <span className="truncate">{fullName(row.employee)}</span>
               {isMe && (
-                <span className="tw:flex-none tw:rounded-full tw:bg-primary tw:px-2 tw:py-px tw:text-[0.6875rem] tw:font-semibold tw:text-white">
+                <span className="flex-none rounded-full bg-primary px-2 py-px text-[0.6875rem] font-semibold text-white">
                   Вы
                 </span>
               )}
               {!row.employee.isActive && (
-                <span className="tw:flex-none tw:text-xs tw:text-faint">уволен</span>
+                <span className="flex-none text-xs text-faint">уволен</span>
               )}
             </span>
-            <span className="tw:block tw:truncate tw:text-xs tw:text-faint">
+            <span className="block truncate text-xs text-faint">
               {row.employee.position || "Должность не указана"}
             </span>
           </span>
@@ -191,7 +191,7 @@ const EmployeesTable = ({
               <Th columnKey="worksCount">Работы</Th>
               <Th columnKey="ticketsFinished">Заявки</Th>
               <TableHead
-                className="tw:text-right tw:whitespace-nowrap"
+                className="text-right whitespace-nowrap"
                 title="Выезды / удалённые / регламентные"
               >
                 Выезд · удал. · регл.
@@ -203,20 +203,20 @@ const EmployeesTable = ({
             <>
               <Th columnKey="totalMinutes">Отработано</Th>
               <TableHead
-                className="tw:text-right tw:whitespace-nowrap"
+                className="text-right whitespace-nowrap"
                 title="Норма по производственному календарю и личному графику, минус подтверждённые отсутствия"
               >
                 Норма
               </TableHead>
-              <TableHead className="tw:text-right tw:whitespace-nowrap">Δ</TableHead>
+              <TableHead className="text-right whitespace-nowrap">Δ</TableHead>
               <Th columnKey="overtime">Переработки</Th>
-              <TableHead className="tw:text-right tw:whitespace-nowrap">
+              <TableHead className="text-right whitespace-nowrap">
                 Будни / выходные
               </TableHead>
               <Th columnKey="pay">К доплате</Th>
             </>
           )}
-          <TableHead className="tw:w-6" />
+          <TableHead className="w-6" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -227,34 +227,40 @@ const EmployeesTable = ({
           return (
             <Fragment key={row.employee._id}>
               <TableRow
-                onClick={() => navigate(`/finances/employees/${row.employee._id}`)}
+                onClick={() =>
+                  navigate(`/finances/employees/${row.employee._id}`)
+                }
                 className={cn(
-                  "tw:cursor-pointer",
-                  isMe && "tw:bg-primary/7 tw:hover:bg-primary/12",
+                  "cursor-pointer",
+                  isMe && "bg-primary/7 hover:bg-primary/12",
                 )}
               >
                 {personCell(row)}
 
                 {variant === "stats" ? (
                   <>
-                    <TableCell className="tw:text-right tw:tabular-nums">
+                    <TableCell className="text-right tabular-nums">
                       {row.worksCount}
                     </TableCell>
-                    <TableCell className="tw:text-right tw:tabular-nums">
+                    <TableCell className="text-right tabular-nums">
                       {row.ticketsFinished}
                     </TableCell>
-                    <TableCell className="tw:text-right tw:whitespace-nowrap tw:text-muted-foreground tw:tabular-nums">
-                      {[row.onSite.count, row.remote.count, row.routineTask.count]
+                    <TableCell className="text-right whitespace-nowrap text-muted-foreground tabular-nums">
+                      {[
+                        row.onSite.count,
+                        row.remote.count,
+                        row.routineTask.count,
+                      ]
                         .map((count) => (count === 0 ? "—" : count))
                         .join(" · ")}
                     </TableCell>
-                    <TableCell className="tw:text-right tw:font-semibold tw:tabular-nums">
+                    <TableCell className="text-right font-semibold tabular-nums">
                       {formatMinutes(row.totalMinutes)}
                     </TableCell>
-                    <TableCell className="tw:text-right tw:tabular-nums">
+                    <TableCell className="text-right tabular-nums">
                       {utilization === null ? (
                         <span
-                          className="tw:text-xs tw:text-warning"
+                          className="text-xs text-warning"
                           title="Личный график не задан — сравнивать не с чем"
                         >
                           нет графика
@@ -262,8 +268,9 @@ const EmployeesTable = ({
                       ) : (
                         <span
                           className={cn(
-                            utilization >= 90 && "tw:font-semibold tw:text-accent-text",
-                            utilization < 60 && "tw:text-faint",
+                            utilization >= 90 &&
+                              "font-semibold text-accent-text",
+                            utilization < 60 && "text-faint",
                           )}
                           title={`Отработано к норме ${formatMinutes(row.normMinutes)}`}
                         >
@@ -274,10 +281,10 @@ const EmployeesTable = ({
                   </>
                 ) : (
                   <>
-                    <TableCell className="tw:text-right tw:font-semibold tw:tabular-nums">
+                    <TableCell className="text-right font-semibold tabular-nums">
                       {formatMinutes(row.totalMinutes)}
                     </TableCell>
-                    <TableCell className="tw:text-right tw:tabular-nums">
+                    <TableCell className="text-right tabular-nums">
                       {row.hasPersonalSchedule ? (
                         <span
                           title={`${row.workingDays} рабочих дней · пояс ${row.timezone}`}
@@ -286,65 +293,68 @@ const EmployeesTable = ({
                         </span>
                       ) : (
                         <span
-                          className="tw:text-xs tw:text-warning"
+                          className="text-xs text-warning"
                           title="Переработки считаются по окну обслуживания клиента, как до появления графиков"
                         >
                           нет графика
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="tw:text-right tw:tabular-nums">
+                    <TableCell className="text-right tabular-nums">
                       {row.hasPersonalSchedule ? (
                         <span
                           className={cn(
                             row.totalMinutes - row.normMinutes >= 0
-                              ? "tw:font-semibold tw:text-accent-text"
-                              : "tw:text-muted-foreground",
+                              ? "font-semibold text-accent-text"
+                              : "text-muted-foreground",
                           )}
                         >
                           {row.totalMinutes - row.normMinutes > 0 ? "+" : ""}
                           {formatMinutes(row.totalMinutes - row.normMinutes)}
                         </span>
                       ) : (
-                        <span className="tw:text-faint">—</span>
+                        <span className="text-faint">—</span>
                       )}
                     </TableCell>
                     <TableCell
                       className={cn(
-                        "tw:text-right tw:tabular-nums",
-                        overtime === 0 && "tw:text-faint",
+                        "text-right tabular-nums",
+                        overtime === 0 && "text-faint",
                       )}
                     >
                       {formatMinutes(overtime)}
                     </TableCell>
-                    <TableCell className="tw:text-right tw:whitespace-nowrap tw:text-faint tw:tabular-nums">
+                    <TableCell className="text-right whitespace-nowrap text-faint tabular-nums">
                       {overtime === 0
                         ? "—"
                         : `${formatMinutes(row.overtime.weekdayMinutes)} / ${formatMinutes(row.overtime.weekendMinutes)}`}
                     </TableCell>
-                    <TableCell className="tw:text-right tw:tabular-nums">
+                    <TableCell className="text-right tabular-nums">
                       {row.payroll.missingRate && overtime > 0 ? (
-                        <span className="tw:text-warning">нет ставки</span>
+                        <span className="text-warning">нет ставки</span>
                       ) : row.payroll.overtimePay ? (
-                        <b className="tw:font-semibold">
+                        <b className="font-semibold">
                           {formatMoney(row.payroll.overtimePay)}
                         </b>
                       ) : (
-                        <span className="tw:text-faint">—</span>
+                        <span className="text-faint">—</span>
                       )}
                     </TableCell>
                   </>
                 )}
 
-                <TableCell className="tw:text-faint">
+                <TableCell className="text-faint">
                   <RiArrowRightSLine size={16} aria-hidden />
                 </TableCell>
               </TableRow>
 
               {variant === "stats" && expanded.has(row.employee._id) && (
-                <TableRow className="tw:hover:bg-transparent">
-                  <TableCell colSpan={COLUMNS_COUNT.stats} className="tw:py-3 tw:ps-12">
-                    <div className="tw:mb-2 tw:text-xs tw:tracking-wide tw:text-faint tw:uppercase">
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={COLUMNS_COUNT.stats}
+                    className="py-3 ps-12"
+                  >
+                    <div className="mb-2 text-xs tracking-wide text-faint uppercase">
                       Компании сотрудника за период
                     </div>
                     <ShareBars
@@ -363,17 +373,20 @@ const EmployeesTable = ({
         })}
 
         {idle.length > 0 && (
-          <TableRow className="tw:hover:bg-transparent">
-            <TableCell colSpan={COLUMNS_COUNT[variant]} className="tw:py-2">
+          <TableRow className="hover:bg-transparent">
+            <TableCell colSpan={COLUMNS_COUNT[variant]} className="py-2">
               <button
                 type="button"
                 onClick={() => setShowIdle((current) => !current)}
-                className="tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1.5 tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:text-muted-foreground tw:outline-none tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+                className="inline-flex cursor-pointer appearance-none items-center gap-1.5 border-0 bg-transparent p-0 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50"
               >
                 <RiArrowRightSLine
                   size={15}
                   aria-hidden
-                  className={cn("tw:transition-transform", showIdle && "tw:rotate-90")}
+                  className={cn(
+                    "transition-transform",
+                    showIdle && "rotate-90",
+                  )}
                 />
                 {showIdle
                   ? "Скрыть сотрудников без работ"
@@ -388,23 +401,23 @@ const EmployeesTable = ({
           <TableCell>Итого</TableCell>
           {variant === "stats" ? (
             <>
-              <TableCell className="tw:text-right tw:tabular-nums">
+              <TableCell className="text-right tabular-nums">
                 {totals.worksCount}
               </TableCell>
-              <TableCell className="tw:text-right tw:tabular-nums">
+              <TableCell className="text-right tabular-nums">
                 {totals.ticketsFinished}
               </TableCell>
-              <TableCell className="tw:text-right tw:whitespace-nowrap tw:text-muted-foreground tw:tabular-nums">
+              <TableCell className="text-right whitespace-nowrap text-muted-foreground tabular-nums">
                 {[
                   totals.onSite.count,
                   totals.remote.count,
                   totals.routineTask.count,
                 ].join(" · ")}
               </TableCell>
-              <TableCell className="tw:text-right tw:font-semibold tw:tabular-nums">
+              <TableCell className="text-right font-semibold tabular-nums">
                 {formatMinutes(totals.totalMinutes)}
               </TableCell>
-              <TableCell className="tw:text-right tw:tabular-nums">
+              <TableCell className="text-right tabular-nums">
                 {totals.normMinutes > 0
                   ? `${Math.round((totals.totalMinutes / totals.normMinutes) * 100)}%`
                   : "—"}
@@ -412,25 +425,25 @@ const EmployeesTable = ({
             </>
           ) : (
             <>
-              <TableCell className="tw:text-right tw:font-semibold tw:tabular-nums">
+              <TableCell className="text-right font-semibold tabular-nums">
                 {formatMinutes(totals.totalMinutes)}
               </TableCell>
-              <TableCell className="tw:text-right tw:tabular-nums">
+              <TableCell className="text-right tabular-nums">
                 {formatMinutes(totals.normMinutes)}
               </TableCell>
-              <TableCell className="tw:text-right tw:tabular-nums">
+              <TableCell className="text-right tabular-nums">
                 {/* Δ по итогу считаем от нормы: у кого графика нет, норма нулевая
                     и в сумму не входит — сноска о них живёт под таблицей */}
                 {formatMinutes(totals.totalMinutes - totals.normMinutes)}
               </TableCell>
-              <TableCell className="tw:text-right tw:tabular-nums">
+              <TableCell className="text-right tabular-nums">
                 {formatMinutes(totals.overtime.roundedMinutes)}
               </TableCell>
-              <TableCell className="tw:text-right tw:whitespace-nowrap tw:text-faint tw:tabular-nums">
+              <TableCell className="text-right whitespace-nowrap text-faint tabular-nums">
                 {formatMinutes(totals.overtime.weekdayMinutes)} /{" "}
                 {formatMinutes(totals.overtime.weekendMinutes)}
               </TableCell>
-              <TableCell className="tw:text-right tw:tabular-nums">
+              <TableCell className="text-right tabular-nums">
                 {formatMoney(totals.overtimePaySum)}
               </TableCell>
             </>

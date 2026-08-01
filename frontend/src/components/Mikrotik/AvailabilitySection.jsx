@@ -84,36 +84,33 @@ const AvailabilitySection = ({ recordId }) => {
         Доступность
       </Eyebrow>
       <Panel>
-        <div className="tw:grid tw:grid-cols-2 tw:gap-2.5 tw:md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
           {stats.map((stat) => (
             <div
               key={stat.label}
-              className="tw:rounded-xl tw:border tw:border-border-soft tw:bg-accent/40 tw:px-3.5 tw:py-2.5"
+              className="rounded-xl border border-border-soft bg-accent/40 px-3.5 py-2.5"
             >
               <div
                 className={cn(
-                  "tw:text-xl tw:font-semibold tw:tabular-nums",
+                  "text-xl font-semibold tabular-nums",
                   stat.className,
                 )}
               >
                 {stat.value}
               </div>
-              <div className="tw:text-xs tw:text-muted-foreground">
-                {stat.label}
-              </div>
+              <div className="text-xs text-muted-foreground">{stat.label}</div>
             </div>
           ))}
         </div>
 
         {segments && (
           <>
-            <UptimeBar segments={segments} size="lg" className="tw:mt-4" />
-            <div className="tw:mt-1.5 tw:flex tw:items-baseline tw:justify-between tw:gap-2 tw:text-xs tw:text-faint">
+            <UptimeBar segments={segments} size="lg" className="mt-4" />
+            <div className="mt-1.5 flex items-baseline justify-between gap-2 text-xs text-faint">
               <span>
-                {report?.effectiveFrom &&
-                  formatShortDate(report.effectiveFrom)}
+                {report?.effectiveFrom && formatShortDate(report.effectiveFrom)}
               </span>
-              <span className="tw:hidden tw:md:block">
+              <span className="hidden md:block">
                 Точность границ — до 5 минут (интервал опроса)
               </span>
               <span>сейчас</span>
@@ -121,51 +118,49 @@ const AvailabilitySection = ({ recordId }) => {
           </>
         )}
 
-        <div className="tw:mt-4">
+        <div className="mt-4">
           {report && report.outages.length === 0 && (
-            <div className="tw:text-sm tw:text-faint">
+            <div className="text-sm text-faint">
               Инцидентов за период не было.
             </div>
           )}
           {report && report.outages.length > 0 && (
             <>
-              <div className="tw:flex tw:gap-3.5 tw:border-b tw:border-border-soft tw:pb-1.5 tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
-                <span className="tw:w-44 tw:flex-none">Начало</span>
-                <span className="tw:hidden tw:w-44 tw:flex-none tw:md:block">
-                  Конец
-                </span>
-                <span className="tw:flex-1">Длительность</span>
+              <div className="flex gap-3.5 border-b border-border-soft pb-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
+                <span className="w-44 flex-none">Начало</span>
+                <span className="hidden w-44 flex-none md:block">Конец</span>
+                <span className="flex-1">Длительность</span>
                 <span>Заявка</span>
               </div>
               {report.outages.map((outage) => (
                 <div
                   key={outage.id}
-                  className="tw:flex tw:items-baseline tw:gap-3.5 tw:border-b tw:border-border-soft tw:py-2 tw:text-sm tw:tabular-nums tw:last:border-b-0"
+                  className="flex items-baseline gap-3.5 border-b border-border-soft py-2 text-sm tabular-nums last:border-b-0"
                 >
-                  <span className="tw:w-44 tw:flex-none">
+                  <span className="w-44 flex-none">
                     {formatDate(outage.startedAt)}
                   </span>
-                  <span className="tw:hidden tw:w-44 tw:flex-none tw:md:block">
+                  <span className="hidden w-44 flex-none md:block">
                     {outage.ongoing ? (
-                      <span className="tw:font-semibold tw:text-destructive">
+                      <span className="font-semibold text-destructive">
                         продолжается
                       </span>
                     ) : (
                       formatDate(outage.endedAt)
                     )}
                   </span>
-                  <span className="tw:flex-1">
+                  <span className="flex-1">
                     {formatDurationShort(outage.durationMs)}
                   </span>
                   {outage.ticketNum ? (
                     <Link
                       to={`/tickets/${outage.ticketNum}`}
-                      className="tw:font-semibold tw:text-accent-text tw:no-underline tw:hover:underline"
+                      className="font-semibold text-accent-text no-underline hover:underline"
                     >
                       №{outage.ticketNum}
                     </Link>
                   ) : (
-                    <span className="tw:text-faint">—</span>
+                    <span className="text-faint">—</span>
                   )}
                 </div>
               ))}

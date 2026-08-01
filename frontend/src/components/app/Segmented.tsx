@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 type SegmentOption = { value: string; label: string; icon?: ReactNode };
 
 // Сегмент-контрол (single-select) — общий стиль с выбором темы: активный сегмент
-// tw:bg-primary/15 + accent-text. Для выбора из нескольких взаимоисключающих
+// bg-primary/15 + accent-text. Для выбора из нескольких взаимоисключающих
 // значений (тип тарификации, метод учёта, тип расположения). `stacked` —
 // иконка над подписью (компактно для 4–5 вариантов с иконками, влезает и на
 // мобайле). appearance/border/bg гасят дефолты кнопки (preflight выключен).
@@ -32,7 +32,7 @@ const Segmented = ({
       role="group"
       aria-label={ariaLabel}
       className={cn(
-        "tw:flex tw:gap-0.5 tw:rounded-lg tw:border tw:border-input tw:bg-transparent tw:p-0.5",
+        "flex gap-0.5 rounded-lg border border-input bg-transparent p-0.5",
         className,
       )}
     >
@@ -44,13 +44,13 @@ const Segmented = ({
           aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
           className={cn(
-            "tw:inline-flex tw:flex-1 tw:cursor-pointer tw:appearance-none tw:items-center tw:justify-center tw:rounded-md tw:border-0 tw:bg-transparent tw:font-semibold tw:text-muted-foreground tw:transition-colors tw:outline-none tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
-            "tw:disabled:pointer-events-none tw:disabled:cursor-not-allowed",
+            "inline-flex flex-1 cursor-pointer appearance-none items-center justify-center rounded-md border-0 bg-transparent font-semibold text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50",
+            "disabled:pointer-events-none disabled:cursor-not-allowed",
             stacked
-              ? "tw:flex-col tw:gap-1 tw:px-1.5 tw:py-2 tw:text-center tw:text-xs tw:leading-tight"
-              : "tw:gap-1.5 tw:px-3 tw:py-2 tw:text-sm",
+              ? "flex-col gap-1 px-1.5 py-2 text-center text-xs leading-tight"
+              : "gap-1.5 px-3 py-2 text-sm",
             value === option.value &&
-              "tw:bg-primary/15 tw:text-accent-text tw:hover:text-accent-text",
+              "bg-primary/15 text-accent-text hover:text-accent-text",
           )}
         >
           {option.icon}

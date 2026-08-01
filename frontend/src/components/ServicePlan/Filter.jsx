@@ -3,7 +3,8 @@ import { useMemo } from "react";
 import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
 
-import Select from "../../UI/Select";
+import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
+
 import useServicePlanFilterStore from "../../store/lists/service-plans";
 import { TARIFF_TYPES } from "./tariff-types";
 
@@ -43,8 +44,8 @@ const ServicePlanFilter = () => {
     );
   }, [items]);
 
-  const typeChangeHandler = (option) => {
-    filterStore.updateFilter({ ...filterStore, type: option?.value ?? "any" });
+  const typeChangeHandler = (value) => {
+    filterStore.updateFilter({ ...filterStore, type: value ?? "any" });
     filterStore.applyFilter();
   };
 
@@ -64,51 +65,54 @@ const ServicePlanFilter = () => {
   return (
     <FilterContainer resetFilterHandler={filterStore.resetFilter}>
       <Field label="Тип тарификации" htmlFor="filter-type">
-        <Select
+        <Combobox
           id="filter-type"
           placeholder="Любой"
-          closeMenuOnSelect
-          value={TYPE_SELECT_OPTIONS.filter(
-            (option) => option.value === (filterStore.type || "any"),
-          )}
+          value={filterStore.type || "any"}
           options={TYPE_SELECT_OPTIONS}
-          getOptionLabel={(option) => option.label}
-          getOptionValue={(option) => option.value}
           onChange={typeChangeHandler}
         />
       </Field>
-      <Field label="Компании" htmlFor="filter-companies" className="tw:mt-2">
-        <Select
+      <Field label="Компании" htmlFor="filter-companies" className="mt-2">
+        <MultiCombobox
           id="filter-companies"
           placeholder="Выберите компании..."
-          value={filterStore.companies || []}
-          options={companyOptions}
-          isMulti
-          isClearable
-          isSearchable
-          closeMenuOnSelect={false}
-          getOptionLabel={(option) => option.alias}
-          getOptionValue={(option) => option._id}
-          onChange={companiesChangeHandler}
+          value={(filterStore.companies || []).map((item) => String(item._id))}
+          options={toOptions(companyOptions, {
+            value: (option) => String(option._id),
+            label: (option) => option.alias,
+          })}
+          onChange={(ids) =>
+            companiesChangeHandler(
+              companyOptions.filter((option) =>
+                ids.includes(String(option._id)),
+              ),
+            )
+          }
         />
       </Field>
       <Field
         label="Категории заявок"
         htmlFor="filter-categories"
-        className="tw:mt-2"
+        className="mt-2"
       >
-        <Select
+        <MultiCombobox
           id="filter-categories"
           placeholder="Выберите категории..."
-          value={filterStore.ticketCategories || []}
-          options={categoryOptions}
-          isMulti
-          isClearable
-          isSearchable
-          closeMenuOnSelect={false}
-          getOptionLabel={(option) => option.title}
-          getOptionValue={(option) => option._id}
-          onChange={categoriesChangeHandler}
+          value={(filterStore.ticketCategories || []).map((item) =>
+            String(item._id),
+          )}
+          options={toOptions(categoryOptions, {
+            value: (option) => String(option._id),
+            label: (option) => option.title,
+          })}
+          onChange={(ids) =>
+            categoriesChangeHandler(
+              categoryOptions.filter((option) =>
+                ids.includes(String(option._id)),
+              ),
+            )
+          }
         />
       </Field>
     </FilterContainer>

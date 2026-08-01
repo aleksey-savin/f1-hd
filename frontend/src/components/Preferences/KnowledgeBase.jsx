@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import SettingRow from "@/components/app/SettingRow";
 
-import Select from "../../UI/Select";
+import { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
 
@@ -61,26 +61,25 @@ const PrefsKnowledgeBase = ({ prefs }) => {
         hint="Проверяют и одобряют заметки; разбирают очереди модерации."
         htmlFor="prefs-kb-moderators"
       >
-        <div className="tw:w-80 tw:max-md:w-full">
-          <Select
+        <div className="w-80 max-md:w-full">
+          <MultiCombobox
             id="prefs-kb-moderators"
             placeholder="Выберите модераторов"
-            isMulti
-            isClearable
-            isSearchable
-            value={moderators}
-            options={candidates}
-            getOptionLabel={(option) =>
-              `${option.lastName || ""} ${option.firstName || ""}`.trim()
-            }
-            getOptionValue={(option) => option._id}
-            onChange={(selected) =>
+            value={(moderators || []).map((user) => String(user._id))}
+            options={toOptions(candidates, {
+              value: (user) => String(user._id),
+              label: (user) =>
+                `${user.lastName || ""} ${user.firstName || ""}`.trim(),
+            })}
+            onChange={(ids) =>
               setModerators(
-                (selected || []).map((user) => ({
-                  _id: user._id,
-                  firstName: user.firstName,
-                  lastName: user.lastName,
-                })),
+                candidates
+                  .filter((user) => ids.includes(String(user._id)))
+                  .map((user) => ({
+                    _id: user._id,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                  })),
               )
             }
           />
@@ -103,16 +102,16 @@ const PrefsKnowledgeBase = ({ prefs }) => {
         hint="0 — проверка бессрочна."
         htmlFor="prefs-kb-approval-days"
       >
-        <div className="tw:flex tw:items-center tw:gap-2">
+        <div className="flex items-center gap-2">
           <Input
             id="prefs-kb-approval-days"
             type="number"
             min="0"
             value={approvalPeriodDays}
             onChange={(event) => setApprovalPeriodDays(event.target.value)}
-            className="tw:w-24 tw:text-right"
+            className="w-24 text-right"
           />
-          <span className="tw:text-sm tw:text-muted-foreground">дней</span>
+          <span className="text-sm text-muted-foreground">дней</span>
         </div>
       </SettingRow>
       <SettingRow
@@ -141,9 +140,9 @@ const PrefsKnowledgeBase = ({ prefs }) => {
       <SettingRow
         title="Предупреждать о продлении за"
         htmlFor="prefs-kb-expiry-days"
-        className={trackServiceExpiry ? "" : "tw:opacity-60"}
+        className={trackServiceExpiry ? "" : "opacity-60"}
       >
-        <div className="tw:flex tw:items-center tw:gap-2">
+        <div className="flex items-center gap-2">
           <Input
             id="prefs-kb-expiry-days"
             type="number"
@@ -151,9 +150,9 @@ const PrefsKnowledgeBase = ({ prefs }) => {
             disabled={!trackServiceExpiry}
             value={serviceExpiryDays}
             onChange={(event) => setServiceExpiryDays(event.target.value)}
-            className="tw:w-24 tw:text-right"
+            className="w-24 text-right"
           />
-          <span className="tw:text-sm tw:text-muted-foreground">дней</span>
+          <span className="text-sm text-muted-foreground">дней</span>
         </div>
       </SettingRow>
     </SectionForm>

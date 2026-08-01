@@ -29,7 +29,13 @@ const range = (from: string, to: string) =>
  * Чужой запрос, ждущий решения, — инлайн-алерт с автором и датой, а не пункт
  * «⋯»-меню: решение, спрятанное в меню, принимается вслепую.
  */
-const PendingAlert = ({ pending, canManage, onDecide, impactOf, total }: Props) => {
+const PendingAlert = ({
+  pending,
+  canManage,
+  onDecide,
+  impactOf,
+  total,
+}: Props) => {
   const [expanded, setExpanded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<PendingAbsence | null>(null);
@@ -54,14 +60,14 @@ const PendingAlert = ({ pending, canManage, onDecide, impactOf, total }: Props) 
 
   if (!expanded) {
     return (
-      <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-3.5 tw:gap-y-2.5 tw:rounded-xl tw:border tw:border-warning/45 tw:bg-warning/10 tw:px-4 tw:py-3 tw:text-sm">
-        <RiTimeLine className="tw:flex-none tw:text-warning" size={17} />
-        <span className="tw:min-w-0 tw:flex-1">
-          <b className="tw:font-semibold">
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 rounded-xl border border-warning/45 bg-warning/10 px-4 py-3 text-sm">
+        <RiTimeLine className="flex-none text-warning" size={17} />
+        <span className="min-w-0 flex-1">
+          <b className="font-semibold">
             {pending.length}{" "}
             {pending.length === 1 ? "запрос ждёт" : "запросов ждут"} решения
           </b>
-          <span className="tw:text-muted-foreground"> · {names}</span>
+          <span className="text-muted-foreground"> · {names}</span>
         </span>
         <Button variant="outline" size="sm" onClick={() => setExpanded(true)}>
           Показать
@@ -71,18 +77,18 @@ const PendingAlert = ({ pending, canManage, onDecide, impactOf, total }: Props) 
   }
 
   return (
-    <div className="tw:space-y-2.5">
+    <div className="space-y-2.5">
       {pending.map((item) => (
         <div
           key={item._id}
-          className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-3.5 tw:gap-y-2.5 tw:rounded-xl tw:border tw:border-warning/45 tw:bg-warning/10 tw:px-4 tw:py-3 tw:text-sm"
+          className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 rounded-xl border border-warning/45 bg-warning/10 px-4 py-3 text-sm"
         >
-          <RiTimeLine className="tw:flex-none tw:text-warning" size={17} />
-          <span className="tw:min-w-0 tw:flex-1">
-            <b className="tw:font-semibold">
+          <RiTimeLine className="flex-none text-warning" size={17} />
+          <span className="min-w-0 flex-1">
+            <b className="font-semibold">
               {fullName(item.user)} — {item.typeLabel.toLowerCase()}
             </b>
-            <span className="tw:block tw:text-xs tw:text-muted-foreground">
+            <span className="block text-xs text-muted-foreground">
               {range(item.from, item.to)}
               {item.comment ? ` · «${item.comment}»` : ""}
             </span>
@@ -90,7 +96,7 @@ const PendingAlert = ({ pending, canManage, onDecide, impactOf, total }: Props) 
               const left = impactOf?.(item._id);
               if (left === null || left === undefined || !total) return null;
               return (
-                <span className="tw:block tw:text-xs tw:font-semibold tw:text-warning">
+                <span className="block text-xs font-semibold text-warning">
                   Если подтвердить — останется работать {left} из {total}
                 </span>
               );
@@ -115,14 +121,16 @@ const PendingAlert = ({ pending, canManage, onDecide, impactOf, total }: Props) 
               </Button>
             </>
           ) : (
-            <span className="tw:text-xs tw:text-muted-foreground">на согласовании</span>
+            <span className="text-xs text-muted-foreground">
+              на согласовании
+            </span>
           )}
         </div>
       ))}
       <button
         type="button"
         onClick={() => setExpanded(false)}
-        className="tw:appearance-none tw:border-0 tw:bg-transparent tw:px-1 tw:text-xs tw:text-muted-foreground tw:underline"
+        className="appearance-none border-0 bg-transparent px-1 text-xs text-muted-foreground underline"
       >
         Свернуть
       </button>

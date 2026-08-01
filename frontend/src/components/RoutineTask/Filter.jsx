@@ -31,11 +31,11 @@ const STATUS_OPTIONS = [
 const LIST_LIMIT = 8;
 
 const Facet = ({ title, count, children }) => (
-  <div className="tw:border-b tw:border-border-soft tw:py-3.5 tw:first:pt-1 tw:last:border-b-0">
-    <div className="tw:mb-2.5 tw:flex tw:items-center tw:gap-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+  <div className="border-b border-border-soft py-3.5 first:pt-1 last:border-b-0">
+    <div className="mb-2.5 flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase">
       {title}
       {count > 0 && (
-        <span className="tw:font-bold tw:tracking-normal tw:text-accent-text tw:tabular-nums">
+        <span className="font-bold tracking-normal text-accent-text tabular-nums">
           {count}
         </span>
       )}
@@ -47,18 +47,15 @@ const Facet = ({ title, count, children }) => (
 const CheckRow = ({ id, checked, onToggle, label, count }) => (
   <label
     htmlFor={id}
-    className="tw:flex tw:cursor-pointer tw:items-center tw:gap-2.5 tw:py-1.5 tw:text-sm"
+    className="flex cursor-pointer items-center gap-2.5 py-1.5 text-sm"
   >
     <Checkbox id={id} checked={!!checked} onCheckedChange={onToggle} />
     <span
-      className={cn(
-        "tw:min-w-0 tw:flex-1 tw:truncate",
-        count === 0 && "tw:text-faint",
-      )}
+      className={cn("min-w-0 flex-1 truncate", count === 0 && "text-faint")}
     >
       {label}
     </span>
-    <span className="tw:text-xs tw:text-faint tw:tabular-nums">{count}</span>
+    <span className="text-xs text-faint tabular-nums">{count}</span>
   </label>
 );
 
@@ -73,7 +70,9 @@ const SearchableMultiFacet = ({
   const [query, setQuery] = useState("");
   const normalized = query.trim().toLowerCase();
   const matched = normalized
-    ? options.filter((option) => option.label.toLowerCase().includes(normalized))
+    ? options.filter((option) =>
+        option.label.toLowerCase().includes(normalized),
+      )
     : options;
   const shown = matched.slice(0, LIST_LIMIT);
   const remaining = matched.length - shown.length;
@@ -83,31 +82,31 @@ const SearchableMultiFacet = ({
 
   return (
     <Facet title={title} count={selectedValues.length}>
-      <div className="tw:relative tw:mb-2">
-        <RiSearchLine className="tw:pointer-events-none tw:absolute tw:top-1/2 tw:left-2.5 tw:size-4 tw:-translate-y-1/2 tw:text-faint" />
+      <div className="relative mb-2">
+        <RiSearchLine className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-faint" />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={placeholder}
-          className="tw:h-9 tw:w-full tw:appearance-none tw:rounded-md tw:border tw:border-input tw:bg-transparent tw:py-1 tw:pr-2 tw:pl-8 tw:text-sm tw:text-foreground tw:outline-none tw:placeholder:text-faint tw:focus-visible:border-ring tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+          className="h-9 w-full appearance-none rounded-md border border-input bg-transparent py-1 pr-2 pl-8 text-sm text-foreground outline-none placeholder:text-faint focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/50"
         />
       </div>
       {selected.length > 0 && (
-        <div className="tw:mb-2 tw:flex tw:flex-wrap tw:gap-1.5">
+        <div className="mb-2 flex flex-wrap gap-1.5">
           {selected.map((option) => (
             <button
               key={option.value}
               type="button"
               onClick={() => onToggle(option.value)}
-              className="tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1 tw:rounded-full tw:border-0 tw:bg-primary/15 tw:py-1 tw:pr-1.5 tw:pl-2.5 tw:text-xs tw:font-medium tw:text-accent-text tw:outline-none tw:hover:bg-primary/25"
+              className="inline-flex cursor-pointer appearance-none items-center gap-1 rounded-full border-0 bg-primary/15 py-1 pr-1.5 pl-2.5 text-xs font-medium text-accent-text outline-none hover:bg-primary/25"
             >
               {option.label}
-              <RiCloseLine className="tw:size-3.5" />
+              <RiCloseLine className="size-3.5" />
             </button>
           ))}
         </div>
       )}
-      <div className="tw:max-h-56 tw:overflow-y-auto">
+      <div className="max-h-56 overflow-y-auto">
         {shown.map((option) => (
           <CheckRow
             key={option.value}
@@ -119,11 +118,11 @@ const SearchableMultiFacet = ({
           />
         ))}
         {matched.length === 0 && (
-          <div className="tw:py-2 tw:text-sm tw:text-faint">Ничего не нашлось</div>
+          <div className="py-2 text-sm text-faint">Ничего не нашлось</div>
         )}
       </div>
       {remaining > 0 && (
-        <div className="tw:pt-1.5 tw:text-xs tw:text-faint">
+        <div className="pt-1.5 text-xs text-faint">
           + {remaining} ещё — уточните поиск
         </div>
       )}

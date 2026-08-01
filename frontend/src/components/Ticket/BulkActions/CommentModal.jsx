@@ -40,7 +40,7 @@ const CommentModal = ({ show, onHide, count, onConfirm }) => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="tw:mt-4">
+          <div className="mt-4">
             <Field label="Комментарий" htmlFor="bulk-comment" required>
               <Textarea
                 id="bulk-comment"

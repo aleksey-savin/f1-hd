@@ -40,7 +40,7 @@ import { cn } from "@/lib/utils";
 // Компонент контролируемый: run зовёт onToggle(item, checked), edit — onChange(items).
 // Форма пункта — надмножество нынешних заявки и регламента.
 
-export type ChecklistItemData = {
+type ChecklistItemData = {
   _id: string;
   description: string;
   checked?: boolean;
@@ -118,18 +118,18 @@ const formatWhen = (value?: string | Date | null): string => {
 };
 
 const ROW =
-  "tw:group tw:relative tw:flex tw:items-start tw:gap-3 tw:rounded-lg tw:px-1.5 tw:py-2.5 tw:transition-colors";
-// Разделитель между строками — фоновой линией (как в app/ListRow): голый tw:border-t
+  "group relative flex items-start gap-3 rounded-lg px-1.5 py-2.5 transition-colors";
+// Разделитель между строками — фоновой линией (как в app/ListRow): голый border-t
 // без preflight ненадёжен. Отступ слева — под чекбокс/ручку.
 const DIVIDER =
-  "tw:before:absolute tw:before:top-0 tw:before:right-1.5 tw:before:left-9 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden";
+  "before:absolute before:top-0 before:right-1.5 before:left-9 before:h-px before:bg-border-soft first:before:hidden";
 const ICON_BTN =
-  "tw:inline-grid tw:size-8 tw:place-items-center tw:appearance-none tw:rounded-md tw:border-0 tw:bg-transparent tw:text-faint tw:transition-colors tw:outline-none tw:hover:bg-accent tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:[&_svg]:size-4";
+  "inline-grid size-8 place-items-center appearance-none rounded-md border-0 bg-transparent text-faint transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50 [&_svg]:size-4";
 const KBD =
-  "tw:rounded tw:border tw:border-border tw:bg-accent tw:px-1.5 tw:py-0.5 tw:text-xs tw:font-semibold tw:text-muted-foreground";
+  "rounded border border-border bg-accent px-1.5 py-0.5 text-xs font-semibold text-muted-foreground";
 
 const EnterEsc = () => (
-  <span className="tw:mt-1.5 tw:flex tw:items-center tw:gap-1.5 tw:text-xs tw:text-faint">
+  <span className="mt-1.5 flex items-center gap-1.5 text-xs text-faint">
     <kbd className={KBD}>Enter</kbd> сохранить · <kbd className={KBD}>Esc</kbd>{" "}
     отменить
   </span>
@@ -192,7 +192,7 @@ const EditRow = ({
       className={cn(
         ROW,
         DIVIDER,
-        "tw:list-none tw:hover:bg-accent/60 tw:focus-visible:bg-accent/60 tw:outline-none",
+        "list-none hover:bg-accent/60 focus-visible:bg-accent/60 outline-none",
       )}
     >
       <span
@@ -200,12 +200,12 @@ const EditRow = ({
         style={{ touchAction: "none" }}
         title="Перетащить"
         aria-hidden
-        className="tw:mt-0.5 tw:inline-grid tw:size-5 tw:flex-none tw:cursor-grab tw:place-items-center tw:text-faint tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100 tw:group-focus-within:opacity-100 tw:active:cursor-grabbing tw:pointer-coarse:opacity-100 tw:[&_svg]:size-4"
+        className="mt-0.5 inline-grid size-5 flex-none cursor-grab place-items-center text-faint opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 active:cursor-grabbing pointer-coarse:opacity-100 [&_svg]:size-4"
       >
         <RiDraggable />
       </span>
 
-      <div className="tw:min-w-0 tw:flex-1">
+      <div className="min-w-0 flex-1">
         {editing ? (
           <>
             <input
@@ -222,7 +222,7 @@ const EditRow = ({
                 }
               }}
               onBlur={(e) => onCommit(e.currentTarget.value)}
-              className="tw:w-full tw:appearance-none tw:rounded-md tw:border tw:border-ring tw:bg-transparent tw:px-2 tw:py-1 tw:text-sm tw:text-foreground tw:outline-none tw:ring-4 tw:ring-ring/25"
+              className="w-full appearance-none rounded-md border border-ring bg-transparent px-2 py-1 text-sm text-foreground outline-none ring-4 ring-ring/25"
             />
             <EnterEsc />
           </>
@@ -230,7 +230,7 @@ const EditRow = ({
           <button
             type="button"
             onClick={onEdit}
-            className="tw:block tw:w-full tw:cursor-text tw:appearance-none tw:border-0 tw:bg-transparent tw:p-0 tw:text-left tw:text-sm tw:text-foreground"
+            className="block w-full cursor-text appearance-none border-0 bg-transparent p-0 text-left text-sm text-foreground"
           >
             {item.description}
             {item.mandatory && <MandatoryTag />}
@@ -238,13 +238,18 @@ const EditRow = ({
         )}
       </div>
 
-      <span className="tw:flex tw:flex-none tw:items-center tw:gap-0.5 tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100 tw:group-focus-within:opacity-100 tw:pointer-coarse:opacity-100">
+      <span className="flex flex-none items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100">
         <button
           type="button"
           onClick={onToggleMandatory}
-          title={item.mandatory ? "Сделать необязательным" : "Сделать обязательным"}
+          title={
+            item.mandatory ? "Сделать необязательным" : "Сделать обязательным"
+          }
           aria-pressed={item.mandatory}
-          className={cn(ICON_BTN, item.mandatory && "tw:text-warning tw:hover:text-warning")}
+          className={cn(
+            ICON_BTN,
+            item.mandatory && "text-warning hover:text-warning",
+          )}
         >
           {item.mandatory ? <RiFlag2Fill /> : <RiFlag2Line />}
         </button>
@@ -252,7 +257,7 @@ const EditRow = ({
           type="button"
           onClick={onDelete}
           title="Удалить"
-          className={cn(ICON_BTN, "tw:hover:text-destructive")}
+          className={cn(ICON_BTN, "hover:text-destructive")}
         >
           <RiDeleteBinLine />
         </button>
@@ -288,14 +293,14 @@ const RunRow = ({
       animate={{ opacity: 1, y: 0 }}
       exit={reduce ? { opacity: 0 } : { opacity: 0, height: 0 }}
       transition={{ duration: reduce ? 0 : 0.18 }}
-      className="tw:list-none"
+      className="list-none"
     >
       <label
         htmlFor={id}
         className={cn(
           ROW,
           DIVIDER,
-          interactive ? "tw:cursor-pointer tw:hover:bg-accent/60" : "tw:cursor-default",
+          interactive ? "cursor-pointer hover:bg-accent/60" : "cursor-default",
         )}
       >
         <Checkbox
@@ -303,20 +308,21 @@ const RunRow = ({
           checked={!!item.checked}
           disabled={!interactive}
           onCheckedChange={(v) => onToggle(item, v === true)}
-          className="tw:mt-0.5 tw:flex-none tw:disabled:opacity-100"
+          className="mt-0.5 flex-none disabled:opacity-100"
         />
-        <div className="tw:min-w-0 tw:flex-1">
+        <div className="min-w-0 flex-1">
           <div
             className={cn(
-              "tw:text-sm tw:text-foreground",
-              item.checked && "tw:text-muted-foreground tw:line-through tw:decoration-faint/70",
+              "text-sm text-foreground",
+              item.checked &&
+                "text-muted-foreground line-through decoration-faint/70",
             )}
           >
             {item.description}
             {item.mandatory && !item.checked && <MandatoryTag />}
           </div>
           {attribution && (
-            <div className="tw:mt-0.5 tw:text-xs tw:text-faint tw:tabular-nums">
+            <div className="mt-0.5 text-xs text-faint tabular-nums">
               {attribution}
             </div>
           )}
@@ -327,8 +333,8 @@ const RunRow = ({
 };
 
 const MandatoryTag = () => (
-  <span className="tw:ml-2 tw:inline-flex tw:items-center tw:gap-1.5 tw:align-middle tw:text-xs tw:font-semibold tw:text-warning">
-    <span className="tw:size-1.5 tw:rounded-full tw:bg-warning" />
+  <span className="ml-2 inline-flex items-center gap-1.5 align-middle text-xs font-semibold text-warning">
+    <span className="size-1.5 rounded-full bg-warning" />
     обязательно
   </span>
 );
@@ -355,10 +361,13 @@ const Checklist = ({
   );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [justToggled, setJustToggled] = useState<Set<string>>(() => new Set());
-  const [undo, setUndo] = useState<{ item: ChecklistItemData; index: number } | null>(
-    null,
+  const [undo, setUndo] = useState<{
+    item: ChecklistItemData;
+    index: number;
+  } | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
   );
-  const undoTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const addRef = useRef<HTMLInputElement>(null);
 
   // Ресинк из пропсов при их реальном изменении (ответ сервера после отметки/сохранения).
@@ -439,12 +448,15 @@ const Checklist = ({
 
   const commitEdit = (id: string, value: string) => {
     const v = value.trim();
-    if (v) emit(local.map((i) => (i._id === id ? { ...i, description: v } : i)));
+    if (v)
+      emit(local.map((i) => (i._id === id ? { ...i, description: v } : i)));
     setEditingId(null);
   };
 
   const toggleMandatory = (id: string) =>
-    emit(local.map((i) => (i._id === id ? { ...i, mandatory: !i.mandatory } : i)));
+    emit(
+      local.map((i) => (i._id === id ? { ...i, mandatory: !i.mandatory } : i)),
+    );
 
   const removeItem = (id: string) => {
     const index = local.findIndex((i) => i._id === id);
@@ -486,20 +498,22 @@ const Checklist = ({
   return (
     <section
       className={cn(
-        framed && "tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-3",
+        framed && "rounded-xl border border-border bg-card p-3",
         className,
       )}
     >
       {showHeader && (
-        <div className="tw:flex tw:items-center tw:gap-2 tw:px-1.5 tw:pt-0.5 tw:pb-2.5">
-          <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+        <div className="flex items-center gap-2 px-1.5 pt-0.5 pb-2.5">
+          <span className="text-xs font-bold tracking-wider text-faint uppercase">
             {title}
           </span>
-          <span className="tw:text-xs tw:font-bold tw:text-faint tw:tabular-nums">
-            {showCompletion ? `${done} / ${total}` : `${total} ${plural(total)}`}
+          <span className="text-xs font-bold text-faint tabular-nums">
+            {showCompletion
+              ? `${done} / ${total}`
+              : `${total} ${plural(total)}`}
           </span>
           {showCompletion && (
-            <span className="tw:ml-auto tw:text-sm tw:font-semibold tw:text-accent-text tw:tabular-nums">
+            <span className="ml-auto text-sm font-semibold text-accent-text tabular-nums">
               {pct}%
             </span>
           )}
@@ -511,7 +525,7 @@ const Checklist = ({
       {showCompletion && total > 0 && (
         <Progress
           value={pct}
-          className={cn("tw:mx-1.5 tw:mb-1 tw:h-1.5", !showHeader && "tw:mb-2")}
+          className={cn("mx-1.5 mb-1 h-1.5", !showHeader && "mb-2")}
         />
       )}
 
@@ -523,7 +537,7 @@ const Checklist = ({
             axis="y"
             values={local}
             onReorder={emit}
-            className="tw:m-0 tw:list-none tw:p-0"
+            className="m-0 list-none p-0"
           >
             <AnimatePresence initial={false}>
               {local.map((item) => (
@@ -543,16 +557,16 @@ const Checklist = ({
             </AnimatePresence>
           </Reorder.Group>
         ) : (
-          <div className="tw:py-6 tw:text-center">
-            <RiCheckboxMultipleLine className="tw:mx-auto tw:mb-2 tw:size-9 tw:text-faint" />
-            <div className="tw:text-sm tw:font-semibold">Пунктов пока нет</div>
-            <div className="tw:text-sm tw:text-muted-foreground">
+          <div className="py-6 text-center">
+            <RiCheckboxMultipleLine className="mx-auto mb-2 size-9 text-faint" />
+            <div className="text-sm font-semibold">Пунктов пока нет</div>
+            <div className="text-sm text-muted-foreground">
               Добавьте первый пункт списка.
             </div>
           </div>
         )
       ) : (
-        <ul className="tw:m-0 tw:list-none tw:p-0">
+        <ul className="m-0 list-none p-0">
           <AnimatePresence initial={false}>
             {local.map((item) => (
               <RunRow
@@ -572,8 +586,8 @@ const Checklist = ({
       {/* Поле добавления */}
       {(isEdit || canAdd) && (
         <div>
-          <div className="tw:flex tw:items-center tw:gap-2.5 tw:px-1.5 tw:pt-1.5">
-            <RiAddLine className="tw:size-4.5 tw:flex-none tw:text-faint" />
+          <div className="flex items-center gap-2.5 px-1.5 pt-1.5">
+            <RiAddLine className="size-4.5 flex-none text-faint" />
             <input
               ref={addRef}
               placeholder="Добавить пункт…"
@@ -585,10 +599,10 @@ const Checklist = ({
                   e.currentTarget.value = "";
                 }
               }}
-              className="tw:flex-1 tw:appearance-none tw:border-0 tw:bg-transparent tw:py-1 tw:text-sm tw:text-foreground tw:outline-none tw:placeholder:text-faint"
+              className="flex-1 appearance-none border-0 bg-transparent py-1 text-sm text-foreground outline-none placeholder:text-faint"
             />
           </div>
-          <div className="tw:flex tw:items-center tw:gap-1.5 tw:px-1.5 tw:pt-1.5 tw:text-xs tw:text-faint">
+          <div className="flex items-center gap-1.5 px-1.5 pt-1.5 text-xs text-faint">
             <kbd className={KBD}>Enter</kbd> добавить и продолжить
           </div>
         </div>
@@ -601,14 +615,14 @@ const Checklist = ({
             initial={reduce ? false : { opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="tw:mt-1 tw:flex tw:items-center tw:gap-3 tw:px-1.5 tw:py-2 tw:text-sm tw:text-muted-foreground"
+            className="mt-1 flex items-center gap-3 px-1.5 py-2 text-sm text-muted-foreground"
           >
-            <RiDeleteBinLine className="tw:size-4 tw:flex-none tw:text-faint" />
+            <RiDeleteBinLine className="size-4 flex-none text-faint" />
             <span>Пункт удалён</span>
             <button
               type="button"
               onClick={restore}
-              className="tw:ml-auto tw:inline-flex tw:items-center tw:gap-1.5 tw:appearance-none tw:rounded-md tw:border-0 tw:bg-transparent tw:px-1.5 tw:py-1 tw:text-sm tw:font-semibold tw:text-accent-text tw:outline-none tw:hover:bg-accent tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:[&_svg]:size-4"
+              className="ml-auto inline-flex items-center gap-1.5 appearance-none rounded-md border-0 bg-transparent px-1.5 py-1 text-sm font-semibold text-accent-text outline-none hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/50 [&_svg]:size-4"
             >
               <RiArrowGoBackLine /> Вернуть
             </button>
@@ -618,20 +632,24 @@ const Checklist = ({
 
       {/* Сноска про закрытие заявки */}
       {isRun && mandatoryGuard && mandatoryLeft > 0 && (
-        <div className="tw:mt-1 tw:flex tw:items-center tw:gap-2 tw:border-t tw:border-border-soft tw:px-1.5 tw:pt-3 tw:text-sm tw:text-warning">
-          <RiErrorWarningLine className="tw:size-4 tw:flex-none" />
+        <div className="mt-1 flex items-center gap-2 border-t border-border-soft px-1.5 pt-3 text-sm text-warning">
+          <RiErrorWarningLine className="size-4 flex-none" />
           {mandatoryLeft === 1
             ? "Не выполнен обязательный пункт"
             : "Не выполнены обязательные пункты"}{" "}
           — заявку нельзя закрыть
         </div>
       )}
-      {isRun && mandatoryGuard && mandatoryLeft === 0 && done === total && total > 0 && (
-        <div className="tw:mt-1 tw:flex tw:items-center tw:gap-2 tw:border-t tw:border-border-soft tw:px-1.5 tw:pt-3 tw:text-sm tw:text-accent-text">
-          <RiCheckLine className="tw:size-4 tw:flex-none" />
-          Все пункты выполнены — заявку можно закрыть
-        </div>
-      )}
+      {isRun &&
+        mandatoryGuard &&
+        mandatoryLeft === 0 &&
+        done === total &&
+        total > 0 && (
+          <div className="mt-1 flex items-center gap-2 border-t border-border-soft px-1.5 pt-3 text-sm text-accent-text">
+            <RiCheckLine className="size-4 flex-none" />
+            Все пункты выполнены — заявку можно закрыть
+          </div>
+        )}
     </section>
   );
 };

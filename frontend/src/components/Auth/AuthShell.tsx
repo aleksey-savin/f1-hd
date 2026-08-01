@@ -47,19 +47,19 @@ const Contact = ({
   // Одна разметка на две поверхности: на мобилке — нажимаемая строка с
   // иконкой, на десктопе — метка со значением на канве
   const className = cn(
-    "tw:flex tw:h-11 tw:items-center tw:gap-2.5 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:px-3 tw:text-sm tw:text-foreground tw:no-underline",
-    "tw:lg:h-auto tw:lg:block tw:lg:rounded-none tw:lg:border-0 tw:lg:bg-transparent tw:lg:px-0",
-    desktopOnly && "tw:hidden tw:lg:block",
+    "flex h-11 items-center gap-2.5 rounded-lg border border-border bg-card px-3 text-sm text-foreground no-underline",
+    "lg:h-auto lg:block lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0",
+    desktopOnly && "hidden lg:block",
   );
   const body = (
     <>
-      <span className="tw:text-faint tw:lg:hidden" aria-hidden>
+      <span className="text-faint lg:hidden" aria-hidden>
         {icon}
       </span>
-      <span className="tw:hidden tw:text-xs tw:font-semibold tw:tracking-wider tw:text-faint tw:uppercase tw:lg:block">
+      <span className="hidden text-xs font-semibold tracking-wider text-faint uppercase lg:block">
         {label}
       </span>
-      <span className="tw:lg:mt-0.5 tw:lg:block">{value}</span>
+      <span className="lg:mt-0.5 lg:block">{value}</span>
     </>
   );
 
@@ -84,7 +84,7 @@ const Clock = ({ timezone }: { timezone: string }) => {
   }
 
   return (
-    <span className="tw:text-sm tw:text-faint tw:tabular-nums">
+    <span className="text-sm text-faint tabular-nums">
       {tzCity(timezone)} · {time}
     </span>
   );
@@ -116,42 +116,42 @@ const AuthShell = ({
   return (
     // items-center на min-height-контейнере: если содержимое выше экрана,
     // контейнер просто растёт и центрирование ничего не режет
-    <div className="tw:flex tw:min-h-svh tw:items-center">
+    <div className="flex min-h-svh items-center">
       {/*
         Композиция ограничена по ширине и НЕ растягивается на весь экран: без
         этого на 1920 стойка уезжала к левому краю, лист — к правому, а между
         ними оставалась пустая половина экрана. Ряды тоже не тянутся (`auto`):
         служебная строка стоит под контактами, а не липнет к низу монитора.
       */}
-      <div className="tw:mx-auto tw:flex tw:w-full tw:max-w-6xl tw:flex-col tw:px-4 tw:py-5 tw:lg:grid tw:lg:grid-cols-5 tw:lg:gap-x-10 tw:lg:px-10 tw:lg:py-16">
+      <div className="mx-auto flex w-full max-w-6xl flex-col px-4 py-5 lg:grid lg:grid-cols-5 lg:gap-x-10 lg:px-10 lg:py-16">
         {/*
           Стойка — ОДНА ячейка сетки: пока лист пересекал две строки, его
           высота размазывалась по ним и отрывала марку от фразы под ней.
           На мобилке обёртка становится `display: contents`, и порядок
           «марка → форма → контакты» задаётся через order у самих блоков.
         */}
-        <div className="tw:contents tw:lg:col-span-2 tw:lg:flex tw:lg:flex-col">
+        <div className="contents lg:col-span-2 lg:flex lg:flex-col">
           {/* марка */}
-          <div className="tw:order-1 tw:flex tw:items-center tw:justify-between tw:gap-4">
+          <div className="order-1 flex items-center justify-between gap-4">
             <BrandMark logo={contacts.logo} size="lg" mark />
             <ThemeSegment
               theme={theme}
               onChange={changeTheme}
               showLabels={false}
-              className="tw:lg:hidden"
+              className="lg:hidden"
             />
           </div>
 
           {/* фраза, контакты и служебная строка */}
           <aside
             className={cn(
-              "tw:order-3 tw:flex tw:flex-col tw:pt-8",
+              "order-3 flex flex-col pt-8",
               // без подписи контакты подходят к марке ближе, чем нужно
-              contacts.title ? "tw:lg:pt-6" : "tw:lg:pt-10",
+              contacts.title ? "lg:pt-6" : "lg:pt-10",
             )}
           >
             {contacts.title && (
-              <p className="tw:mt-0 tw:mb-0 tw:hidden tw:max-w-xs tw:text-base tw:text-muted-foreground tw:lg:block">
+              <p className="mt-0 mb-0 hidden max-w-xs text-base text-muted-foreground lg:block">
                 {contacts.title}
               </p>
             )}
@@ -159,8 +159,8 @@ const AuthShell = ({
             {hasContacts && (
               <div
                 className={cn(
-                  "tw:flex tw:flex-col tw:gap-2 tw:lg:gap-4",
-                  contacts.title && "tw:lg:mt-8",
+                  "flex flex-col gap-2 lg:gap-4",
+                  contacts.title && "lg:mt-8",
                 )}
               >
                 {contacts.tel && (
@@ -185,13 +185,13 @@ const AuthShell = ({
               </div>
             )}
 
-            <div className="tw:mt-6 tw:flex tw:items-center tw:justify-center tw:gap-4 tw:lg:mt-10 tw:lg:justify-between">
+            <div className="mt-6 flex items-center justify-center gap-4 lg:mt-10 lg:justify-between">
               <Clock timezone={prefs.timezone} />
               <ThemeSegment
                 theme={theme}
                 onChange={changeTheme}
                 showLabels={false}
-                className="tw:hidden tw:lg:inline-flex"
+                className="hidden lg:inline-flex"
               />
             </div>
           </aside>
@@ -203,8 +203,8 @@ const AuthShell = ({
           целиком (см. обёртку выше), поэтому при переходе на регистрацию, где
           полей больше, блок слегка смещается — это принятое решение.
         */}
-        <main className="tw:order-2 tw:flex tw:justify-center tw:pt-8 tw:lg:col-span-3 tw:lg:items-start tw:lg:pt-0">
-          <div className="tw:w-full tw:max-w-sm">{children}</div>
+        <main className="order-2 flex justify-center pt-8 lg:col-span-3 lg:items-start lg:pt-0">
+          <div className="w-full max-w-sm">{children}</div>
         </main>
       </div>
     </div>

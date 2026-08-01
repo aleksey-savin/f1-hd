@@ -14,8 +14,18 @@ export const WORK_CLASSES: {
   plural: string;
   color: string;
 }[] = [
-  { key: "onSite", label: "Выезды", plural: "выездов", color: "var(--chart-1)" },
-  { key: "remote", label: "Удалённо", plural: "удалённых", color: "var(--chart-2)" },
+  {
+    key: "onSite",
+    label: "Выезды",
+    plural: "выездов",
+    color: "var(--chart-1)",
+  },
+  {
+    key: "remote",
+    label: "Удалённо",
+    plural: "удалённых",
+    color: "var(--chart-2)",
+  },
   {
     key: "routineTask",
     label: "Регламент",

@@ -179,7 +179,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="tw:sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>Новая комплектующая</DialogTitle>
@@ -191,7 +191,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
 
           {error && <AlertMessage variant="danger" message={error} />}
 
-          <div className="tw:my-4">
+          <div className="my-4">
             <Field label="Тип" htmlFor="component-type" required>
               <Combobox
                 id="component-type"
@@ -204,7 +204,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
               />
             </Field>
 
-            <div className="tw:grid tw:gap-x-3 tw:sm:grid-cols-2">
+            <div className="grid gap-x-3 sm:grid-cols-2">
               <Field label="Производитель" htmlFor="component-vendor">
                 <Combobox
                   id="component-vendor"
@@ -233,7 +233,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
               </Field>
             </div>
 
-            <div className="tw:grid tw:gap-x-3 tw:sm:grid-cols-2">
+            <div className="grid gap-x-3 sm:grid-cols-2">
               <Field label="Серийный номер" htmlFor="component-serial">
                 <Input
                   id="component-serial"
@@ -242,7 +242,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
                     setField("serialNumber", event.target.value)
                   }
                   placeholder="Если есть"
-                  className="tw:font-mono"
+                  className="font-mono"
                 />
               </Field>
               <Field label="Количество" htmlFor="component-quantity">

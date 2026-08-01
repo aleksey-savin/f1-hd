@@ -19,7 +19,9 @@ import NoteList from "./NoteList";
 const CompanyFolders = () => {
   const filteredList = useKnowledgeNotesStore((state) => state.filteredList);
   const openCompany = useKnowledgeNotesStore((state) => state.openCompany);
-  const setOpenCompany = useKnowledgeNotesStore((state) => state.setOpenCompany);
+  const setOpenCompany = useKnowledgeNotesStore(
+    (state) => state.setOpenCompany,
+  );
 
   const groups = useMemo(
     () => groupNotesByCompany(filteredList),
@@ -44,13 +46,17 @@ const CompanyFolders = () => {
     return (
       <>
         <div
-          className="tw:flex tw:items-center tw:gap-2 tw:px-3 tw:py-2"
+          className="flex items-center gap-2 px-3 py-2"
           style={{ borderBottom: "1px solid var(--border-soft)" }}
         >
-          <Button variant="ghost" size="sm" onClick={() => setOpenCompany(null)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setOpenCompany(null)}
+          >
             <RiArrowLeftLine /> Все компании
           </Button>
-          <span className="tw:ms-auto tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+          <span className="ms-auto text-sm text-muted-foreground tabular-nums">
             {active.title} · {active.notes.length}
           </span>
         </div>
@@ -72,19 +78,19 @@ const CompanyFolders = () => {
             key={group.key}
             type="button"
             onClick={() => setOpenCompany(group.key)}
-            className="tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-3 tw:border-0 tw:bg-transparent tw:px-4 tw:py-3 tw:text-start tw:text-foreground tw:transition-colors tw:hover:bg-accent/60"
+            className="flex w-full cursor-pointer appearance-none items-center gap-3 border-0 bg-transparent px-4 py-3 text-start text-foreground transition-colors hover:bg-accent/60"
             style={
               index > 0
                 ? { borderTop: "1px solid var(--border-soft)" }
                 : undefined
             }
           >
-            <span className="tw:min-w-0 tw:flex-1">
-              <span className="tw:block tw:truncate tw:text-base tw:font-medium">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-base font-medium">
                 {group.title}
               </span>
               {unapproved > 0 && (
-                <span className="tw:block tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+                <span className="block text-sm text-muted-foreground tabular-nums">
                   {unapproved}{" "}
                   {plural(
                     unapproved,
@@ -95,13 +101,13 @@ const CompanyFolders = () => {
                 </span>
               )}
             </span>
-            <span className="tw:flex-none tw:text-faint tw:tabular-nums">
+            <span className="flex-none text-faint tabular-nums">
               {group.notes.length}
             </span>
             <RiArrowRightSLine
               size={18}
               aria-hidden
-              className="tw:flex-none tw:text-faint"
+              className="flex-none text-faint"
             />
           </button>
         );

@@ -35,7 +35,11 @@ const Preferences = () => {
 
   const modules = prefs.modules || {};
   const sections = [
-    { id: "globals", label: "Основные", element: <PrefsGlobals prefs={prefs} /> },
+    {
+      id: "globals",
+      label: "Основные",
+      element: <PrefsGlobals prefs={prefs} />,
+    },
     {
       id: "tickets-collect",
       label: "Сбор заявок",
@@ -87,7 +91,7 @@ const Preferences = () => {
   ];
 
   const panels = (
-    <div className="tw:max-w-2xl tw:space-y-8">
+    <div className="max-w-2xl space-y-8">
       {sections.map(({ id, label, element }) => (
         <SettingsSection key={id} id={id} label={label}>
           {element}
@@ -97,12 +101,12 @@ const Preferences = () => {
   );
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
-      <h1 className="tw:my-0 tw:mb-5 tw:text-4xl tw:leading-none tw:font-semibold tw:tracking-tight">
+    <div className="mx-auto w-full max-w-4xl">
+      <h1 className="my-0 mb-5 text-4xl leading-none font-semibold tracking-tight">
         Настройки системы
       </h1>
       <BrowserView>
-        <div className="tw:flex tw:items-start tw:gap-7">
+        <div className="flex items-start gap-7">
           <AnchorRail
             sections={sections.map(({ id, label, rail }) => ({
               id,
@@ -110,7 +114,7 @@ const Preferences = () => {
             }))}
             ariaLabel="Разделы настроек"
           />
-          <div className="tw:min-w-0 tw:flex-1">{panels}</div>
+          <div className="min-w-0 flex-1">{panels}</div>
         </div>
       </BrowserView>
       <MobileView>{panels}</MobileView>

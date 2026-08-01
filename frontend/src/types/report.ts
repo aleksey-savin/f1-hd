@@ -26,9 +26,11 @@ export type ReportScope = {
     | "ownSubdivision"
   )[];
   /** Единственный доступный объект — открывается сразу, без списка из одной строки. */
-  defaultView:
-    | { level: "company" | "subdivision"; companyId: string; subdivisionId?: string }
-    | null;
+  defaultView: {
+    level: "company" | "subdivision";
+    companyId: string;
+    subdivisionId?: string;
+  } | null;
 };
 
 export type PeriodRange = { from: string; to: string };

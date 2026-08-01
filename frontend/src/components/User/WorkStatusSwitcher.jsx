@@ -42,7 +42,7 @@ const WorkStatusSwitcher = () => {
 
   return (
     <>
-      <div className="tw:px-2.5 tw:pt-1.5 tw:pb-1 tw:text-xs tw:font-semibold tw:tracking-wider tw:text-faint tw:uppercase">
+      <div className="px-2.5 pt-1.5 pb-1 text-xs font-semibold tracking-wider text-faint uppercase">
         Мой статус
       </div>
       {statuses.map((status) => (
@@ -52,22 +52,22 @@ const WorkStatusSwitcher = () => {
           disabled={busy}
           // appearance/border/bg — браузерные дефолты кнопки (preflight выключен)
           className={cn(
-            "tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2.5 tw:rounded-md tw:border-0 tw:bg-transparent tw:px-2.5 tw:py-1.5 tw:text-left tw:text-sm tw:text-foreground tw:outline-none tw:hover:bg-accent tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:disabled:opacity-60",
-            status.code === currentCode && "tw:bg-primary/10",
+            "flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left text-sm text-foreground outline-none hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/50 disabled:opacity-60",
+            status.code === currentCode && "bg-primary/10",
           )}
           onClick={() => {
             setNote("");
             submitStatus(status.code, "");
           }}
         >
-          <span aria-hidden className="tw:w-5 tw:text-center">
+          <span aria-hidden className="w-5 text-center">
             {status.emoji}
           </span>
-          <span className="tw:min-w-0 tw:flex-1">{status.label}</span>
+          <span className="min-w-0 flex-1">{status.label}</span>
           {status.code === currentCode && (
             <span
               aria-hidden
-              className="tw:font-semibold"
+              className="font-semibold"
               style={{ color: status.color }}
             >
               ✓
@@ -75,14 +75,14 @@ const WorkStatusSwitcher = () => {
           )}
         </button>
       ))}
-      <div className="tw:px-2.5 tw:pt-1.5 tw:pb-1">
+      <div className="px-2.5 pt-1.5 pb-1">
         <Input
           value={note}
           maxLength={100}
           placeholder="Например: за товаром у поставщика"
           aria-label="Заметка к статусу"
           disabled={busy}
-          className="tw:h-8 tw:text-sm"
+          className="h-8 text-sm"
           onChange={(event) => setNote(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -95,7 +95,7 @@ const WorkStatusSwitcher = () => {
           type="button"
           variant="outline"
           size="xs"
-          className="tw:mt-1.5 tw:w-full"
+          className="mt-1.5 w-full"
           disabled={busy}
           onClick={() => submitStatus(currentCode, note)}
         >

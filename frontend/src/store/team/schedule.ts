@@ -29,7 +29,9 @@ type ScheduleState = {
   setPeriod: (patch: { from: string; to: string }) => void;
   resetPeriod: () => void;
   setView: (view: ScheduleView) => void;
-  setFilter: (patch: Partial<Pick<ScheduleState, "company" | "subdivision" | "search">>) => void;
+  setFilter: (
+    patch: Partial<Pick<ScheduleState, "company" | "subdivision" | "search">>,
+  ) => void;
   resetFilter: () => void;
 };
 

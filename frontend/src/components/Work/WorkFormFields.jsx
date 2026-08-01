@@ -82,7 +82,9 @@ const WorkFormFields = ({
     retryPreview,
   } = form;
 
-  const minStart = limitWorksDateFrom ? toDateTimeLocal(limitWorksDateFrom) : "";
+  const minStart = limitWorksDateFrom
+    ? toDateTimeLocal(limitWorksDateFrom)
+    : "";
   const performerLabel = isPlan ? "Исполнитель" : "Кто выполнил";
   const performer = performers.find(
     (person) => String(person._id) === String(performerId),
@@ -111,14 +113,14 @@ const WorkFormFields = ({
     durationMs != null && durationMs > 0 ? durationMs / 60000 : null;
 
   return (
-    <div className="tw:flex tw:flex-col">
+    <div className="flex flex-col">
       <Field label="Тип работы">
         <Segmented
           ariaLabel="Тип работы"
           options={TYPE_OPTIONS}
           value={visitRequired ? "onSite" : "remote"}
           onChange={(value) => setVisitRequired(value === "onSite")}
-          className="tw:w-fit"
+          className="w-fit"
         />
       </Field>
 
@@ -140,7 +142,7 @@ const WorkFormFields = ({
         />
       </Field>
 
-      <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <Field
           label={isPlan ? "Планируемое начало" : "Начало"}
           htmlFor="work-started-at"
@@ -151,14 +153,14 @@ const WorkFormFields = ({
               : undefined
           }
         >
-          <div className="tw:flex tw:gap-2">
+          <div className="flex gap-2">
             <Input
               id="work-started-at"
               type="datetime-local"
               value={startedAt}
               min={minStart || undefined}
               onChange={(event) => setStartedAt(event.target.value)}
-              className="tw:min-w-0 tw:flex-1"
+              className="min-w-0 flex-1"
             />
             <Button
               type="button"
@@ -176,13 +178,11 @@ const WorkFormFields = ({
           required
           hint={
             isReversed ? (
-              <span className="tw:text-destructive">
-                Окончание раньше начала.
-              </span>
+              <span className="text-destructive">Окончание раньше начала.</span>
             ) : undefined
           }
         >
-          <div className="tw:flex tw:gap-2">
+          <div className="flex gap-2">
             <Input
               id="work-finished-at"
               type="datetime-local"
@@ -190,8 +190,8 @@ const WorkFormFields = ({
               min={startedAt || minStart || undefined}
               onChange={(event) => setFinishedAt(event.target.value)}
               className={cn(
-                "tw:min-w-0 tw:flex-1",
-                isReversed && "tw:border-destructive",
+                "min-w-0 flex-1",
+                isReversed && "border-destructive",
               )}
             />
             <Button
@@ -205,15 +205,15 @@ const WorkFormFields = ({
         </Field>
       </div>
 
-      <div className="tw:mb-4">
-        <div className="tw:flex tw:items-baseline tw:gap-3">
-          <span className="tw:text-sm tw:font-semibold tw:text-muted-foreground">
+      <div className="mb-4">
+        <div className="flex items-baseline gap-3">
+          <span className="text-sm font-semibold text-muted-foreground">
             Длительность
           </span>
           <span
             className={cn(
-              "tw:ml-auto tw:text-lg tw:font-semibold tw:tabular-nums",
-              isReversed && "tw:text-destructive",
+              "ml-auto text-lg font-semibold tabular-nums",
+              isReversed && "text-destructive",
             )}
           >
             {durationMs == null || isReversed
@@ -225,7 +225,7 @@ const WorkFormFields = ({
         {/* Чипы — основной способ задать длительность, поэтому размер обычной
             кнопки, а не мелкой: по ним целятся мышью и пальцем чаще, чем
             правят время руками */}
-        <div className="tw:mt-2.5 tw:flex tw:flex-wrap tw:gap-2">
+        <div className="mt-2.5 flex flex-wrap gap-2">
           {DURATION_CHIPS.map((minutes) => (
             <Button
               key={minutes}
@@ -234,9 +234,9 @@ const WorkFormFields = ({
               size="sm"
               onClick={() => setDuration(minutes)}
               className={cn(
-                "tw:rounded-full tw:px-4",
+                "rounded-full px-4",
                 activeChip === minutes &&
-                  "tw:border-primary tw:bg-primary/10 tw:font-semibold tw:text-accent-text",
+                  "border-primary bg-primary/10 font-semibold text-accent-text",
               )}
             >
               {formatDurationWords(minutes)}
@@ -245,13 +245,13 @@ const WorkFormFields = ({
         </div>
 
         {isLong && !isReversed && (
-          <p className="tw:mt-2 tw:mb-0 tw:flex tw:items-center tw:gap-1.5 tw:text-xs tw:text-warning">
+          <p className="mt-2 mb-0 flex items-center gap-1.5 text-xs text-warning">
             <RiTimeLine size={14} /> Дольше 12 часов — проверьте время.
           </p>
         )}
       </div>
 
-      <div className="tw:mb-4">
+      <div className="mb-4">
         <OutOfSchedulePanel
           preview={preview}
           isLoading={isPreviewLoading}
@@ -264,7 +264,7 @@ const WorkFormFields = ({
 
       {canPickPerformer ? (
         <Field label={performerLabel} htmlFor="work-performer" required>
-          <div className="tw:flex tw:gap-2">
+          <div className="flex gap-2">
             <Combobox
               id="work-performer"
               value={performerId || null}
@@ -275,17 +275,17 @@ const WorkFormFields = ({
               }))}
               onChange={(value) => setPerformerId(value ?? "")}
               placeholder="Выберите сотрудника"
-              className="tw:min-w-0 tw:flex-1"
+              className="min-w-0 flex-1"
             />
           </div>
         </Field>
       ) : (
         // Исполнителя всё равно проставит сервер — интерфейс это произносит,
         // а не молчит
-        <p className="tw:mb-4 tw:flex tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground">
-          <RiUserLine size={15} className="tw:text-faint" />
+        <p className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <RiUserLine size={15} className="text-faint" />
           {performerLabel} ·{" "}
-          <span className="tw:font-medium tw:text-foreground">
+          <span className="font-medium text-foreground">
             {performer ? `${performer.lastName} ${performer.firstName}` : "Вы"}
           </span>
         </p>

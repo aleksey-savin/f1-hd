@@ -30,8 +30,8 @@ const FleetStrip = ({
   if (!stages.length && !noInventoryNumber) return null;
 
   return (
-    <div className="tw:mb-3 tw:flex tw:items-center tw:gap-2 tw:px-1 tw:max-md:overflow-x-auto tw:max-md:pb-1 tw:md:flex-wrap">
-      <span className="tw:flex-none tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+    <div className="mb-3 flex items-center gap-2 px-1 max-md:overflow-x-auto max-md:pb-1 md:flex-wrap">
+      <span className="flex-none text-xs font-bold tracking-wider text-faint uppercase">
         Парк
       </span>
       {stages.map((status) => {
@@ -44,21 +44,21 @@ const FleetStrip = ({
             onClick={() => onToggle(status)}
             aria-pressed={active}
             className={cn(
-              "tw:inline-flex tw:h-8 tw:flex-none tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2 tw:rounded-full tw:border tw:px-3 tw:text-sm tw:transition-colors tw:outline-none tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+              "inline-flex h-8 flex-none cursor-pointer appearance-none items-center gap-2 rounded-full border px-3 text-sm transition-colors outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
               active
-                ? "tw:border-input tw:bg-accent tw:text-foreground"
-                : "tw:border-border tw:bg-card tw:text-muted-foreground tw:hover:bg-accent",
+                ? "border-input bg-accent text-foreground"
+                : "border-border bg-card text-muted-foreground hover:bg-accent",
             )}
           >
             <span
               aria-hidden
               className={cn(
-                "tw:size-1.5 tw:flex-none tw:rounded-full",
+                "size-1.5 flex-none rounded-full",
                 TONE_DOT[meta.tone],
               )}
             />
             {meta.label}
-            <span className="tw:font-semibold tw:text-foreground tw:tabular-nums">
+            <span className="font-semibold text-foreground tabular-nums">
               {statusCounts[status] || 0}
             </span>
           </button>
@@ -71,14 +71,14 @@ const FleetStrip = ({
           onClick={onToggleNoInventory}
           aria-pressed={noInventoryActive}
           className={cn(
-            "tw:inline-flex tw:h-8 tw:flex-none tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1.5 tw:rounded-full tw:border tw:px-3 tw:text-sm tw:transition-colors tw:outline-none tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:md:ms-auto",
+            "inline-flex h-8 flex-none cursor-pointer appearance-none items-center gap-1.5 rounded-full border px-3 text-sm transition-colors outline-none focus-visible:ring-4 focus-visible:ring-ring/50 md:ms-auto",
             noInventoryActive
-              ? "tw:border-input tw:bg-accent tw:text-foreground"
-              : "tw:border-transparent tw:bg-transparent tw:text-faint tw:hover:bg-accent",
+              ? "border-input bg-accent text-foreground"
+              : "border-transparent bg-transparent text-faint hover:bg-accent",
           )}
         >
           без инвентарного номера
-          <span className="tw:font-semibold tw:tabular-nums">
+          <span className="font-semibold tabular-nums">
             {noInventoryNumber}
           </span>
         </button>

@@ -24,7 +24,7 @@ import {
  * лога, а не для человека («запросил(а) помощь, изменён список ответственных»).
  * Исключение — «прочее»: вид неизвестен, и текст лучше, чем ничего.
  */
-export const EVENT_META = {
+const EVENT_META = {
   created: { icon: RiAddCircleLine, label: "Создана", tone: "muted" },
   processed: { icon: RiCheckboxCircleLine, label: "Обработана", tone: "muted" },
   taken: { icon: RiPlayCircleLine, label: "Принята в работу", tone: "ok" },
@@ -94,10 +94,10 @@ export const eventLabel = (event) => {
 };
 
 export const EVENT_TONE_CLASS = {
-  ok: "tw:text-accent-text tw:border-primary/35",
-  warn: "tw:text-warning tw:border-warning/35",
-  bad: "tw:text-destructive tw:border-destructive/35",
-  muted: "tw:text-faint tw:border-border-soft",
+  ok: "text-accent-text border-primary/35",
+  warn: "text-warning border-warning/35",
+  bad: "text-destructive border-destructive/35",
+  muted: "text-faint border-border-soft",
 };
 
 /** «6 уведомлений · 2 не доставлены» — свёрнутая группа служебных записей. */

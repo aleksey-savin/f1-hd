@@ -20,15 +20,21 @@ export async function loader({ params }) {
 
   const { token } = getLocalStorageData();
 
-  const [task, companies, serviceAccounts, categories, templates, ticketFormData] =
-    await Promise.all([
-      authGet(`routine-tasks/${params.id}`, token),
-      authGet("companies", token),
-      authGet("form-data/service-accounts", token),
-      authGet("ticket-categories", token),
-      authGet("ticket-templates", token),
-      authGet("tickets/form-data", token),
-    ]);
+  const [
+    task,
+    companies,
+    serviceAccounts,
+    categories,
+    templates,
+    ticketFormData,
+  ] = await Promise.all([
+    authGet(`routine-tasks/${params.id}`, token),
+    authGet("companies", token),
+    authGet("form-data/service-accounts", token),
+    authGet("ticket-categories", token),
+    authGet("ticket-templates", token),
+    authGet("tickets/form-data", token),
+  ]);
 
   return {
     task,

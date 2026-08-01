@@ -59,7 +59,11 @@ export const tzCity = (timezone) => {
  * смещения, а не идентификаторы: Europe/Volgograd и Europe/Moscow — разные
  * строки, но одно и то же настенное время, и сообщать о «другом поясе» не о чем.
  */
-export const tzOffsetMinutes = (timezone, base = orgTimezone(), at = new Date()) => {
+export const tzOffsetMinutes = (
+  timezone,
+  base = orgTimezone(),
+  at = new Date(),
+) => {
   try {
     const target = getTimezoneOffset(timezone, at);
     const from = getTimezoneOffset(base, at);
@@ -71,7 +75,7 @@ export const tzOffsetMinutes = (timezone, base = orgTimezone(), at = new Date())
 };
 
 /** Смещение словами: «+7 ч», «−3 ч 30 мин». */
-export const tzOffsetLabel = (minutes) => {
+const tzOffsetLabel = (minutes) => {
   if (!minutes) return "";
   const sign = minutes < 0 ? "−" : "+";
   const abs = Math.abs(minutes);
@@ -84,7 +88,7 @@ export const tzOffsetLabel = (minutes) => {
 };
 
 /** Настенное время в зоне клиента: «03:14». */
-export const tzLocalTime = (timezone, at = new Date()) => {
+const tzLocalTime = (timezone, at = new Date()) => {
   try {
     return formatInTimeZone(at, timezone, "HH:mm");
   } catch {
@@ -92,7 +96,7 @@ export const tzLocalTime = (timezone, at = new Date()) => {
   }
 };
 
-export const isNightAt = (timezone, at = new Date()) => {
+const isNightAt = (timezone, at = new Date()) => {
   try {
     const hour = Number(formatInTimeZone(at, timezone, "H"));
     return hour >= NIGHT_FROM || hour < NIGHT_TO;

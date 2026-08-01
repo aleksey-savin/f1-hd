@@ -214,34 +214,34 @@ const SetupHelp = ({
     setPresets((prev) => ({ ...prev, [key]: !prev[key] }));
 
   return (
-    <div className="tw:mt-1 tw:rounded-xl tw:border tw:border-dashed tw:border-border tw:px-4 tw:py-3">
+    <div className="mt-1 rounded-xl border border-dashed border-border px-4 py-3">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
-        className="tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-3 tw:border-0 tw:bg-transparent tw:p-0 tw:text-left tw:text-foreground"
+        className="flex w-full cursor-pointer appearance-none items-center gap-3 border-0 bg-transparent p-0 text-left text-foreground"
       >
-        <span className="tw:min-w-0 tw:flex-1">
-          <span className="tw:block tw:text-sm tw:font-medium">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">
             Инструкция по настройке устройства
           </span>
-          <span className="tw:block tw:text-xs tw:text-faint">
-            Готовые команды RouterOS: пользователь, сертификат для API-SSL,
-            port knocking.
+          <span className="block text-xs text-faint">
+            Готовые команды RouterOS: пользователь, сертификат для API-SSL, port
+            knocking.
           </span>
         </span>
         <RiArrowDownSLine
           aria-hidden
           className={cn(
-            "tw:flex-none tw:text-faint tw:transition-transform",
-            open && "tw:rotate-180",
+            "flex-none text-faint transition-transform",
+            open && "rotate-180",
           )}
         />
       </button>
 
       {open && (
-        <div className="tw:mt-3">
-          <div className="tw:mb-3 tw:flex tw:flex-wrap tw:gap-x-4 tw:gap-y-2">
+        <div className="mt-3">
+          <div className="mb-3 flex flex-wrap gap-x-4 gap-y-2">
             {PRESETS.map((preset) => {
               const disabled =
                 jumpSelected &&
@@ -252,8 +252,8 @@ const SetupHelp = ({
                 <label
                   key={preset.key}
                   className={cn(
-                    "tw:flex tw:cursor-pointer tw:items-center tw:gap-2 tw:text-sm",
-                    disabled && "tw:cursor-not-allowed tw:opacity-50",
+                    "flex cursor-pointer items-center gap-2 text-sm",
+                    disabled && "cursor-not-allowed opacity-50",
                   )}
                 >
                   <Checkbox
@@ -267,11 +267,11 @@ const SetupHelp = ({
             })}
           </div>
 
-          <div className="tw:mb-1 tw:flex tw:items-center tw:justify-between">
-            <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-xs font-bold tracking-wider text-faint uppercase">
               RouterOS
             </span>
-            <div className="tw:flex tw:gap-1.5">
+            <div className="flex gap-1.5">
               {effectivePresets.knock && (
                 <Button
                   type="button"
@@ -296,23 +296,23 @@ const SetupHelp = ({
           </div>
 
           {/* «Терминал» — тёмный в обеих темах */}
-          <div className="tw:max-h-96 tw:overflow-y-auto tw:rounded-lg tw:border tw:border-zinc-700 tw:bg-zinc-900 tw:p-2.5">
+          <div className="max-h-96 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 p-2.5">
             {commandLines.map((line, i) => {
               // Скопированная команда остаётся подсвеченной — видно, что уже
               // перенесено в терминал, а что ещё нет.
               const copied = isCommandLine(line) && copiedLines.has(line);
               return line.trim() === "" ? (
-                <div key={i} className="tw:h-2" />
+                <div key={i} className="h-2" />
               ) : (
-                <div key={i} className="tw:flex tw:items-start tw:gap-2">
+                <div key={i} className="flex items-start gap-2">
                   <code
                     className={cn(
-                      "tw:min-w-0 tw:flex-1 tw:font-mono tw:text-xs tw:leading-relaxed tw:break-words tw:whitespace-pre-wrap tw:transition-colors tw:duration-300",
+                      "min-w-0 flex-1 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap transition-colors duration-300",
                       isComment(line)
-                        ? "tw:text-zinc-500"
+                        ? "text-zinc-500"
                         : copied
-                          ? "tw:text-primary"
-                          : "tw:text-zinc-100",
+                          ? "text-primary"
+                          : "text-zinc-100",
                     )}
                   >
                     {line}
@@ -323,10 +323,10 @@ const SetupHelp = ({
                       onClick={() => copyLine(line)}
                       title="Скопировать строку"
                       className={cn(
-                        "tw:mt-0.5 tw:flex-none tw:cursor-pointer tw:appearance-none tw:border-0 tw:bg-transparent tw:p-0 tw:transition-colors",
+                        "mt-0.5 flex-none cursor-pointer appearance-none border-0 bg-transparent p-0 transition-colors",
                         copied
-                          ? "tw:text-primary"
-                          : "tw:text-zinc-500 tw:hover:text-zinc-200",
+                          ? "text-primary"
+                          : "text-zinc-500 hover:text-zinc-200",
                       )}
                     >
                       {copied ? (
@@ -341,10 +341,10 @@ const SetupHelp = ({
             })}
           </div>
 
-          <div className="tw:mt-1.5 tw:text-xs tw:text-faint">
+          <div className="mt-1.5 text-xs text-faint">
             Логин, пароль и порты подставлены из формы — knock-порты уже в поле
             Port knocking выше. Сертификат самоподписанный (TOFU),{" "}
-            <code className="tw:font-mono">/certificate sign</code> занимает
+            <code className="font-mono">/certificate sign</code> занимает
             ~минуту.
           </div>
         </div>

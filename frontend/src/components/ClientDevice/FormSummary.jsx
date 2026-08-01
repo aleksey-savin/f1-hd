@@ -2,15 +2,11 @@ import { DEVICE_STATUS_META } from "@/components/app/device-status";
 
 // Строка сводки: пока шаг не пройден — приглушённая подсказка, где это спросят.
 const Row = ({ label, value, pending }) => (
-  <div className="tw:flex tw:gap-2.5 tw:border-t tw:border-border-soft tw:py-1.5 tw:text-sm tw:first:border-t-0">
-    <span className="tw:w-24 tw:flex-none tw:text-muted-foreground">
-      {label}
-    </span>
+  <div className="flex gap-2.5 border-t border-border-soft py-1.5 text-sm first:border-t-0">
+    <span className="w-24 flex-none text-muted-foreground">{label}</span>
     <span
       className={
-        value
-          ? "tw:min-w-0 tw:flex-1 tw:font-medium"
-          : "tw:min-w-0 tw:flex-1 tw:text-faint"
+        value ? "min-w-0 flex-1 font-medium" : "min-w-0 flex-1 text-faint"
       }
     >
       {value || pending || "—"}
@@ -32,8 +28,8 @@ const FormSummary = ({ form, deviceKind, labels }) => {
           .join(" ") || null;
 
   return (
-    <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-4">
-      <div className="tw:mb-2.5 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-2.5 text-xs font-bold tracking-wider text-faint uppercase">
         Устройство
       </div>
       <Row label="Что заводим" value={identity} pending="шаг 1" />

@@ -1,21 +1,16 @@
 /*
- * Tailwind v4 + токены дизайн-системы (миграция с Bootstrap, 2026-07).
- * Значения — из согласованного макета справочника/статус-борда
- * (артефакт «Макет · Справочник “Вендоры”», v2).
+ * Tailwind v4 + токены дизайн-системы. Значения — из согласованного макета
+ * справочника/статус-борда (артефакт «Макет · Справочник “Вендоры”», v2).
  *
- * Период сосуществования с react-bootstrap:
- *  - все утилиты под префиксом tw: (tw:flex, tw:hover:bg-accent) — не
- *    пересекаются с bootstrap-утилитами (у тех !important);
- *  - preflight НЕ подключён: глобальным резетом остаётся bootstrap reboot,
- *    поэтому в tw-коде типографику и отступы задаём явно;
- *  - в эндшпиле: добавить preflight layer(base), снять префикс автозаменой,
- *    удалить блок html:root с --bs-* (см. docs/ux-ui-guide.md).
+ * Bootstrap удалён (эндшпиль миграции, 2026-08): глобальный резет теперь
+ * preflight, слоя layer(bootstrap) больше нет. Префикс  доживает до
+ * автозамены — она идёт отдельным проходом, чтобы визуальную правку можно было
+ * проверить до механической.
  */
-/* bootstrap — первый (самый слабый) слой: сюда попадает вендоренная тема из
-   css/{light,dark}-theme.css, чтобы reboot не перебивал tw-утилиты. */
-@layer bootstrap, theme, base, components, utilities;
-@import "tailwindcss/theme.css" layer(theme) prefix(tw);
-@import "tailwindcss/utilities.css" layer(utilities) prefix(tw);
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" layer(utilities);
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -26,9 +21,9 @@
  * тонкими границами без теней. Класс .dark на <html> ставит ThemeProvider.
  */
 /* background — БАЗОВАЯ ПОВЕРХНОСТЬ (сток-семантика shadcn: шторки, диалоги,
-   бегунок свитча), НЕ канва страницы. Канву (#f4f5f6 / #16181c) красит
-   оболочка: сейчас легаси #root/body css, после Фазы 2 — отдельный токен. */
+   бегунок свитча), НЕ канва страницы: её красит --canvas ниже. */
 :root {
+  --canvas: #f4f5f6;
   --background: #ffffff;
   --foreground: #1d2227;
   --card: #ffffff;
@@ -87,6 +82,7 @@
 }
 
 .dark {
+  --canvas: #16181c;
   --background: #1d2024;
   --foreground: #eceef0;
   --card: #1d2024;
@@ -175,6 +171,13 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  /* Кругляш присутствия: своя пара тонов — от --accent/--muted-foreground она
+     отличается намеренно (кругляш стоит на карточке и должен от неё
+     отделяться). Токены, а не произвольные значения в утилите. */
+  --color-ws-avatar: var(--ws-avatar-bg);
+  --color-ws-avatar-fg: var(--ws-avatar-fg);
+  --color-ws-surface: var(--ws-surface);
+  --color-ws-line: var(--ws-line);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -225,8 +228,8 @@
 
 /*
  * Точечные анимации строк списка (вместо глобальных fade-in/fade-out):
- * tw:row-flash — аккуратная временная подсветка изменённой строки,
- * tw:row-appear — появление созданной строки (fade-in + та же подсветка).
+ * row-flash — аккуратная временная подсветка изменённой строки,
+ * row-appear — появление созданной строки (fade-in + та же подсветка).
  * Keyframes только с from: по завершении элемент возвращается к обычным
  * стилям (hover и т.п. продолжают работать).
  */
@@ -254,8 +257,8 @@
 }
 
 /*
- * tw:env-aim — кольцо-пульс целевого устройства в виджете «Окружение» (заявка
- * по устройству): дважды при появлении, дальше статичное кольцо даёт tw:ring
+ * env-aim — кольцо-пульс целевого устройства в виджете «Окружение» (заявка
+ * по устройству): дважды при появлении, дальше статичное кольцо даёт ring
  * (анимация перекрывает его box-shadow только на время проигрывания).
  */
 @utility env-aim {
@@ -273,8 +276,8 @@
   }
 }
 /*
- * Страницы ошибок (components/Error/*): tw:err-cat-settle — кот-талисман
- * «устраивается» при появлении; tw:err-pulse — точка строки автоповтора
+ * Страницы ошибок (components/Error/*): err-cat-settle — кот-талисман
+ * «устраивается» при появлении; err-pulse — точка строки автоповтора
  * («проверим снова через 5 с»).
  */
 @utility err-cat-settle {
@@ -310,11 +313,10 @@
 }
 
 /*
- * Ловушка preflight №4: сгенерированные shadcn-компоненты пишут голый
- * `tw:border` и полагаются на preflight-правило `* { border-color: … }`.
- * Preflight выключен → цвет границы падал в currentColor (светлые рамки у
- * меню/поповеров в тёмной теме). Восстанавливаем ТОЛЬКО цвет; width/style
- * не трогаем — их задаёт bootstrap reboot и легаси-код.
+ * Сгенерированные shadcn-компоненты пишут голый `border` и полагаются на
+ * preflight-правило `* { border-color: … }`. Preflight подключён и задаёт
+ * currentColor — переопределяем на токен границы, иначе в тёмной теме рамки
+ * меню и поповеров получаются светлыми.
  */
 @layer base {
   *,
@@ -322,13 +324,44 @@
   ::after {
     border-color: var(--border);
   }
+
+  /* Канва приложения. На узком экране она белая: под контентом во всю ширину
+     серая подложка не видна, а полоса у краёв читается как сбой. */
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body,
+  #root {
+    background-color: var(--canvas);
+  }
+  @media (max-width: 767.98px) {
+    body,
+    #root {
+      background-color: var(--background);
+    }
+  }
+  html.dark body,
+  html.dark #root {
+    background-color: var(--canvas);
+  }
+
+  /* Inter — один шрифт на приложение (подключается в main.jsx,
+     @fontsource-variable/inter, кириллица включена). */
+  html {
+    font-family:
+      "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji",
+      "Segoe UI Emoji", "Segoe UI Symbol";
+  }
 }
 
 /*
- * На период сосуществования: radix-оверлеи и порталы shadcn должны быть выше
- * bootstrap-модалок/offcanvas (z-index 1045–1055) и легаси-тостов. Правило
- * без @layer, поэтому побеждает утилиту tw:z-50 из layer(utilities).
- * Удалить вместе с bootstrap в эндшпиле.
+ * Radix-оверлеи и порталы shadcn — выше бара оболочки (1030) и рейла статусов
+ * (1020). Правило без @layer, поэтому побеждает утилиту z-50 из
+ * layer(utilities).
  */
 [data-slot="dialog-overlay"],
 [data-slot="dialog-content"],
@@ -344,16 +377,3 @@
   z-index: 1100;
 }
 
-/*
- * Inter для всего приложения, включая легаси-bootstrap-экраны: специфичность
- * html:root (0,1,1) выше :root (0,1,0) вендоренных тем, поэтому порядок
- * загрузки css не важен. Сам шрифт подключается в main.jsx
- * (@fontsource-variable/inter, кириллица включена). Блок уходит вместе с
- * bootstrap в эндшпиле.
- */
-html:root {
-  --bs-font-sans-serif:
-    "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-    "Segoe UI Symbol";
-}

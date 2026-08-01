@@ -4,7 +4,8 @@ import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
-import Select from "../../UI/Select";
+import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
+
 import useDeviceTypeFilterStore from "../../store/lists/deviceTypes";
 import useDeviceAttributeFilterStore from "../../store/lists/deviceAttributes";
 import { KIND_OPTIONS } from "./kinds";
@@ -50,10 +51,10 @@ const DeviceTypeFilter = () => {
     filterStore.applyFilter();
   };
 
-  const kindChangeHandler = (option) => {
+  const kindChangeHandler = (value) => {
     filterStore.updateFilter({
       ...filterStore,
-      kind: option && option.value !== "all" ? option.value : null,
+      kind: value && value !== "all" ? value : null,
     });
     filterStore.applyFilter();
   };
@@ -66,17 +67,12 @@ const DeviceTypeFilter = () => {
         onCheckedChange={isActiveToggleHandler}
         label="Только активные"
       />
-      <Field label="Назначение" htmlFor="filter-kind" className="tw:mt-2">
-        <Select
+      <Field label="Назначение" htmlFor="filter-kind" className="mt-2">
+        <Combobox
           id="filter-kind"
           placeholder="Любое"
-          closeMenuOnSelect
-          value={KIND_SELECT_OPTIONS.filter(
-            (option) => option.value === (filterStore.kind || "all"),
-          )}
+          value={filterStore.kind || "all"}
           options={KIND_SELECT_OPTIONS}
-          getOptionLabel={(option) => option.label}
-          getOptionValue={(option) => option.value}
           onChange={kindChangeHandler}
         />
       </Field>
@@ -84,20 +80,23 @@ const DeviceTypeFilter = () => {
         label="Атрибуты"
         htmlFor="filter-attributes"
         hint="Типы, содержащие все выбранные атрибуты"
-        className="tw:mt-2"
+        className="mt-2"
       >
-        <Select
+        <MultiCombobox
           id="filter-attributes"
           placeholder="Выберите атрибуты..."
-          value={filterStore.attributes || []}
-          options={attributeOptions}
-          isMulti
-          isClearable
-          isSearchable
-          closeMenuOnSelect={false}
-          getOptionLabel={(option) => option.name}
-          getOptionValue={(option) => option._id}
-          onChange={attributesChangeHandler}
+          value={(filterStore.attributes || []).map((item) => String(item._id))}
+          options={toOptions(attributeOptions, {
+            value: (option) => String(option._id),
+            label: (option) => option.name,
+          })}
+          onChange={(ids) =>
+            attributesChangeHandler(
+              attributeOptions.filter((option) =>
+                ids.includes(String(option._id)),
+              ),
+            )
+          }
         />
       </Field>
     </FilterContainer>

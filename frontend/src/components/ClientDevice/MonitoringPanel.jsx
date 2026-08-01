@@ -18,9 +18,9 @@ import { formatDate } from "../../util/format-date";
 
 // Одна величина — одна плитка; подписи короткие, значения крупные.
 const Stat = ({ label, children }) => (
-  <div className="tw:min-w-24">
-    <div className="tw:text-xs tw:text-faint">{label}</div>
-    <div className="tw:mt-0.5 tw:text-base tw:font-semibold tw:tabular-nums">
+  <div className="min-w-24">
+    <div className="text-xs text-faint">{label}</div>
+    <div className="mt-0.5 text-base font-semibold tabular-nums">
       {children}
     </div>
   </div>
@@ -74,23 +74,23 @@ const MonitoringPanel = ({ device, canManage, onSynced }) => {
   // «Новое устройство» с привязкой к этой инвентарной карточке.
   if (!recordId) {
     return (
-      <div className="tw:flex tw:flex-col tw:items-center tw:gap-1.5 tw:px-5 tw:py-7 tw:text-center">
-        <RiPulseLine size={34} aria-hidden className="tw:mb-1 tw:text-faint" />
-        <div className="tw:text-base tw:font-semibold">
+      <div className="flex flex-col items-center gap-1.5 px-5 py-7 text-center">
+        <RiPulseLine size={34} aria-hidden className="mb-1 text-faint" />
+        <div className="text-base font-semibold">
           Устройство не подключено к мониторингу
         </div>
-        <p className="tw:my-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
+        <p className="my-0 max-w-md text-sm text-muted-foreground">
           Подключение проверит доступ по API, включит проверки связи каждые 5
           минут и хранение копий конфигурации.
         </p>
         {canManage ? (
-          <Button asChild variant="outline" className="tw:mt-3">
+          <Button asChild variant="outline" className="mt-3">
             <Link to={`/devices/mikrotik/add?clientDeviceId=${device._id}`}>
               Подключить к мониторингу
             </Link>
           </Button>
         ) : (
-          <div className="tw:mt-2 tw:text-sm tw:text-faint">
+          <div className="mt-2 text-sm text-faint">
             Недостаточно прав — обратитесь к администратору.
           </div>
         )}
@@ -98,7 +98,7 @@ const MonitoringPanel = ({ device, canManage, onSynced }) => {
     );
   }
 
-  if (isLoading && !row) return <Spinner className="tw:min-h-24" />;
+  if (isLoading && !row) return <Spinner className="min-h-24" />;
 
   const monitoringOff = row ? row.monitoringEnabled === false : false;
   const online = row?.status === "online";
@@ -132,18 +132,15 @@ const MonitoringPanel = ({ device, canManage, onSynced }) => {
   };
 
   return (
-    <div className="tw:space-y-4">
-      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-x-8 tw:gap-y-4">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
         <Stat label="Связь">
           {monitoringOff ? (
-            <DeviceStatusText tone="off" className="tw:text-sm">
+            <DeviceStatusText tone="off" className="text-sm">
               Мониторинг выключен
             </DeviceStatusText>
           ) : (
-            <DeviceStatusText
-              tone={online ? "ok" : "bad"}
-              className="tw:text-sm"
-            >
+            <DeviceStatusText tone={online ? "ok" : "bad"} className="text-sm">
               {online ? "В сети" : "Не в сети"}
             </DeviceStatusText>
           )}
@@ -152,22 +149,22 @@ const MonitoringPanel = ({ device, canManage, onSynced }) => {
           {row?.uptime30d != null ? (
             `${row.uptime30d.toFixed(1).replace(".", ",")} %`
           ) : (
-            <span className="tw:text-faint">—</span>
+            <span className="text-faint">—</span>
           )}
         </Stat>
         <Stat label="Прошивка">
-          <span className="tw:font-mono tw:text-sm">
+          <span className="font-mono text-sm">
             {firmware?.installedVersion || row?.currentFirmware || "—"}
           </span>
           {firmware?.updateAvailable && !firmware?.vulnerable && (
-            <span className="tw:ms-1.5 tw:text-xs tw:font-normal tw:text-faint">
+            <span className="ms-1.5 text-xs font-normal text-faint">
               → {firmware.latestVersion}
             </span>
           )}
         </Stat>
         {firmware?.vulnerable && (
           <Stat label="Уязвимости">
-            <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-sm tw:text-warning">
+            <span className="inline-flex items-center gap-1.5 text-sm text-warning">
               <RiShieldFlashLine size={14} aria-hidden />
               {firmware.cves?.length
                 ? `${firmware.cves.length} CVE`
@@ -176,11 +173,11 @@ const MonitoringPanel = ({ device, canManage, onSynced }) => {
           </Stat>
         )}
         <Stat label="Последняя связь">
-          <span className="tw:text-sm tw:font-medium">
+          <span className="text-sm font-medium">
             {row?.lastSuccessfulConnectionAt ? (
               formatDate(row.lastSuccessfulConnectionAt)
             ) : (
-              <span className="tw:text-faint">—</span>
+              <span className="text-faint">—</span>
             )}
           </span>
         </Stat>
@@ -190,33 +187,33 @@ const MonitoringPanel = ({ device, canManage, onSynced }) => {
         // Расхождение карточки с самим устройством: показываем ЧТО именно
         // разошлось — иначе предупреждение не подсказывает, что чинить. Значения
         // подставляет сервер (клиент шлёт только имена полей).
-        <div className="tw:rounded-lg tw:border tw:border-warning/40 tw:bg-warning/10 tw:px-3.5 tw:py-3 tw:text-sm">
-          <div className="tw:flex tw:items-start tw:gap-2.5">
+        <div className="rounded-lg border border-warning/40 bg-warning/10 px-3.5 py-3 text-sm">
+          <div className="flex items-start gap-2.5">
             <RiAlertLine
               size={16}
               aria-hidden
-              className="tw:mt-0.5 tw:flex-none tw:text-warning"
+              className="mt-0.5 flex-none text-warning"
             />
-            <div className="tw:min-w-0">
-              <div className="tw:font-medium">
+            <div className="min-w-0">
+              <div className="font-medium">
                 Данные карточки расходятся с устройством
               </div>
-              <ul className="tw:my-1.5 tw:list-none tw:space-y-0.5 tw:p-0">
+              <ul className="my-1.5 list-none space-y-0.5 p-0">
                 {reconciliation.mismatches.map((mismatch) => (
-                  <li key={mismatch.field} className="tw:text-muted-foreground">
+                  <li key={mismatch.field} className="text-muted-foreground">
                     {mismatch.label}: в карточке{" "}
-                    <span className="tw:font-mono">
+                    <span className="font-mono">
                       {mismatch.cardValue || "—"}
                     </span>
                     , на устройстве{" "}
-                    <span className="tw:font-mono tw:text-foreground">
+                    <span className="font-mono text-foreground">
                       {mismatch.deviceValue || "—"}
                     </span>
                   </li>
                 ))}
               </ul>
               {syncError && (
-                <div className="tw:mb-1.5 tw:text-destructive">{syncError}</div>
+                <div className="mb-1.5 text-destructive">{syncError}</div>
               )}
               {canManage && syncable.length > 0 && (
                 <Button

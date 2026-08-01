@@ -102,7 +102,10 @@ const useVendorFilterStore = create((set) => ({
   filteredList: [],
   fullTextSearch: (query) =>
     set((state) => ({
-      filteredList: sortList(state.sortBy, searchItems(query, vendorFilter(state))),
+      filteredList: sortList(
+        state.sortBy,
+        searchItems(query, vendorFilter(state)),
+      ),
     })),
   isLoading: false,
   fetch: async () => {

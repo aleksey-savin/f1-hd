@@ -25,7 +25,7 @@ import useMikrotikDeviceFilterStore, {
 
 // Порядок групп: проблемы всплывают наверх; внутри — выбранная сортировка.
 const GROUPS = [
-  { key: "offline", label: "Не в сети", labelClass: "tw:text-destructive" },
+  { key: "offline", label: "Не в сети", labelClass: "text-destructive" },
   { key: "online", label: "В сети" },
   { key: "disabled", label: "Мониторинг выключен", tone: "off" },
 ];
@@ -192,9 +192,9 @@ const MikrotikDevices = () => {
         topContent={
           // Ряд под шапкой: полоса RouterOS + «Диапазоны сетей» (переехали из
           // меню «Отчёты»; строка инструментов и без того плотная, а правый
-          // край этого ряда свободен). Страница отчёта пока легаси.
-          <div className="tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5">
-            <div className="tw:min-w-0 tw:flex-1">
+          // край этого ряда свободен).
+          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <div className="min-w-0 flex-1">
               <RouterOsStrip />
             </div>
             {canManage && (
@@ -202,7 +202,7 @@ const MikrotikDevices = () => {
                 asChild
                 variant="ghost"
                 size="sm"
-                className="tw:flex-none tw:text-muted-foreground"
+                className="flex-none text-muted-foreground"
               >
                 <Link to="/report/networks">
                   <RiDraftLine aria-hidden />

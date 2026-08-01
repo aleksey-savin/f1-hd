@@ -49,7 +49,10 @@ export async function loader({ params }) {
     );
   }
   if (!categoriesResponse.ok) {
-    if (categoriesResponse.status === 401 || categoriesResponse.status === 402) {
+    if (
+      categoriesResponse.status === 401 ||
+      categoriesResponse.status === 402
+    ) {
       return redirect("/auth");
     }
     throw Response.json(

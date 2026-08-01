@@ -123,7 +123,7 @@ const AssignUserDialog = ({ open, onOpenChange, device, onAssigned }) => {
           />
         </Field>
 
-        <DialogFooter className="tw:sm:justify-between">
+        <DialogFooter className="sm:justify-between">
           {hasUser ? (
             <Button
               variant="outline"
@@ -135,7 +135,7 @@ const AssignUserDialog = ({ open, onOpenChange, device, onAssigned }) => {
           ) : (
             <span />
           )}
-          <div className="tw:flex tw:gap-2">
+          <div className="flex gap-2">
             <Button
               variant="ghost"
               disabled={saving}

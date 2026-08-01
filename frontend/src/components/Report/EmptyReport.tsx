@@ -11,17 +11,13 @@ const EmptyReport = ({
   hint: ReactNode;
   action?: ReactNode;
 }) => (
-  <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card">
-    <div className="tw:flex tw:flex-col tw:items-center tw:gap-1.5 tw:px-6 tw:py-16 tw:text-center">
-      <RiInboxLine size={44} aria-hidden className="tw:mb-1 tw:text-faint" />
-      <div className="tw:text-lg tw:font-semibold">{title}</div>
-      <p className="tw:my-0 tw:max-w-md tw:text-base tw:text-muted-foreground">
-        {hint}
-      </p>
+  <div className="rounded-xl border border-border bg-card">
+    <div className="flex flex-col items-center gap-1.5 px-6 py-16 text-center">
+      <RiInboxLine size={44} aria-hidden className="mb-1 text-faint" />
+      <div className="text-lg font-semibold">{title}</div>
+      <p className="my-0 max-w-md text-base text-muted-foreground">{hint}</p>
       {action && (
-        <div className="tw:mt-3 tw:flex tw:flex-wrap tw:justify-center tw:gap-2">
-          {action}
-        </div>
+        <div className="mt-3 flex flex-wrap justify-center gap-2">{action}</div>
       )}
     </div>
   </div>

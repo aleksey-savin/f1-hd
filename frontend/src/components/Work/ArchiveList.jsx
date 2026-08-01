@@ -77,7 +77,7 @@ const WorksArchiveList = ({ segment }) => {
         to={s.to}
         onChange={(range) => s.updateFilter(range)}
       />
-      <span className="tw:hidden tw:md:contents">
+      <span className="hidden md:contents">
         <ChipMultiCombobox
           placeholder="Компании"
           searchPlaceholder="Найти компанию…"
@@ -108,11 +108,11 @@ const WorksArchiveList = ({ segment }) => {
         // Сводка только при заданном периоде: сумма «за всё время» бессмысленна
         // (и искажена битыми startedAt старых работ)
         s.from || s.to ? (
-          <div className="tw:mb-2 tw:flex tw:items-baseline tw:justify-end tw:gap-2 tw:px-1">
-            <span className="tw:text-sm tw:text-muted-foreground">
+          <div className="mb-2 flex items-baseline justify-end gap-2 px-1">
+            <span className="text-sm text-muted-foreground">
               Суммарное время выборки
             </span>
-            <span className="tw:font-semibold tw:tabular-nums">
+            <span className="font-semibold tabular-nums">
               {formatDuration(s.totalDurationMs)}
             </span>
           </div>

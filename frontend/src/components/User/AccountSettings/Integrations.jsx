@@ -73,18 +73,14 @@ const Integrations = ({ user }) => {
       <span
         aria-hidden
         className={cn(
-          "tw:me-1.5 tw:mb-px tw:inline-block tw:size-1.5 tw:rounded-full",
-          connected
-            ? "tw:bg-primary"
-            : awaitingLink
-              ? "tw:bg-warning"
-              : "tw:bg-faint",
+          "me-1.5 mb-px inline-block size-1.5 rounded-full",
+          connected ? "bg-primary" : awaitingLink ? "bg-warning" : "bg-faint",
         )}
       />
       <span
         className={cn(
-          "tw:font-medium",
-          connected ? "tw:text-accent-text" : "tw:text-muted-foreground",
+          "font-medium",
+          connected ? "text-accent-text" : "text-muted-foreground",
         )}
       >
         {connected

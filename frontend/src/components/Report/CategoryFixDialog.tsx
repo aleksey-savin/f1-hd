@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
-import Select from "@/UI/Select";
-import { InsideOverlayContext } from "@/components/app/overlay-context";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -103,99 +102,99 @@ const CategoryFixDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        {/* UI/Select внутри модального оверлея работает инлайн-меню */}
-        <InsideOverlayContext.Provider value={true}>
-          <DialogHeader>
-            <DialogTitle>
-              Категория заявки {ticket?.num}
-              {works.length > 1 && (
-                <span className="tw:ms-2 tw:text-sm tw:font-normal tw:text-muted-foreground tw:tabular-nums">
-                  {index + 1} из {works.length}
-                </span>
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              Выберите категорию, привязанную к нужной услуге, — работа сразу
-              попадёт в расчёт.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="tw:rounded-lg tw:border tw:border-border tw:bg-accent tw:px-3.5 tw:py-2.5 tw:text-sm">
-            <div className="tw:font-semibold">{ticket?.title || "Без темы"}</div>
-            <div className="tw:mt-1 tw:flex tw:flex-wrap tw:gap-x-3 tw:gap-y-0.5 tw:text-muted-foreground">
-              <span>Заявитель: {fullName(ticket?.applicantId)}</span>
-              <span>
-                Текущая категория:{" "}
-                <b className="tw:font-semibold tw:text-warning">
-                  {ticket?.categoryId?.title || "не указана"}
-                </b>
+        <DialogHeader>
+          <DialogTitle>
+            Категория заявки {ticket?.num}
+            {works.length > 1 && (
+              <span className="ms-2 text-sm font-normal text-muted-foreground tabular-nums">
+                {index + 1} из {works.length}
               </span>
-            </div>
-
-            {ticket?.description && (
-              <div className="tw:mt-2 tw:border-t tw:border-border-soft tw:pt-2">
-                <div className="tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
-                  Обращение
-                </div>
-                {/* Описание бывает длинным — ограничиваем высоту, чтобы диалог
-                    не разъезжался на весь экран */}
-                <div className="tw:mt-1 tw:max-h-32 tw:overflow-y-auto tw:break-words tw:whitespace-pre-line">
-                  {ticket.description}
-                </div>
-              </div>
             )}
+          </DialogTitle>
+          <DialogDescription>
+            Выберите категорию, привязанную к нужной услуге, — работа сразу
+            попадёт в расчёт.
+          </DialogDescription>
+        </DialogHeader>
 
-            {work.description && (
-              <div className="tw:mt-2 tw:border-t tw:border-border-soft tw:pt-2">
-                <div className="tw:text-xs tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
-                  Что сделали
-                </div>
-                <div className="tw:mt-1 tw:break-words">{work.description}</div>
-              </div>
-            )}
+        <div className="rounded-lg border border-border bg-accent px-3.5 py-2.5 text-sm">
+          <div className="font-semibold">{ticket?.title || "Без темы"}</div>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground">
+            <span>Заявитель: {fullName(ticket?.applicantId)}</span>
+            <span>
+              Текущая категория:{" "}
+              <b className="font-semibold text-warning">
+                {ticket?.categoryId?.title || "не указана"}
+              </b>
+            </span>
           </div>
 
-          <Select
-            id="unrelated-category"
-            placeholder="Новая категория"
-            options={categories.map((item: any) => ({
-              _id: item._id,
-              title: item.title,
-            }))}
-            getOptionLabel={(option: any) => option.title}
-            getOptionValue={(option: any) => option._id}
-            value={category}
-            onChange={setCategory}
-          />
+          {ticket?.description && (
+            <div className="mt-2 border-t border-border-soft pt-2">
+              <div className="text-xs font-semibold tracking-wide text-faint uppercase">
+                Обращение
+              </div>
+              {/* Описание бывает длинным — ограничиваем высоту, чтобы диалог
+                    не разъезжался на весь экран */}
+              <div className="mt-1 max-h-32 overflow-y-auto break-words whitespace-pre-line">
+                {ticket.description}
+              </div>
+            </div>
+          )}
 
-          {error && <div className="tw:text-sm tw:text-destructive">{error}</div>}
+          {work.description && (
+            <div className="mt-2 border-t border-border-soft pt-2">
+              <div className="text-xs font-semibold tracking-wide text-faint uppercase">
+                Что сделали
+              </div>
+              <div className="mt-1 break-words">{work.description}</div>
+            </div>
+          )}
+        </div>
 
-          <DialogFooter>
-            {works.length > 1 && index + 1 < works.length && (
-              <Button
-                variant="ghost"
-                disabled={busy}
-                onClick={() => {
-                  setCategory(null);
-                  setIndex(index + 1);
-                }}
-                className="tw:me-auto"
-              >
-                Пропустить
-              </Button>
-            )}
+        <Combobox
+          id="unrelated-category"
+          placeholder="Новая категория"
+          options={toOptions(categories as any[], {
+            value: (item) => String(item._id),
+            label: (item) => item.title,
+          })}
+          value={category?._id ? String(category._id) : null}
+          onChange={(id) =>
+            setCategory(
+              (categories as any[]).find((item) => String(item._id) === id) ??
+                null,
+            )
+          }
+        />
+
+        {error && <div className="text-sm text-destructive">{error}</div>}
+
+        <DialogFooter>
+          {works.length > 1 && index + 1 < works.length && (
             <Button
-              variant="outline"
+              variant="ghost"
               disabled={busy}
-              onClick={() => onOpenChange(false)}
+              onClick={() => {
+                setCategory(null);
+                setIndex(index + 1);
+              }}
+              className="me-auto"
             >
-              Закрыть
+              Пропустить
             </Button>
-            <Button disabled={busy || !category} onClick={save}>
-              Сохранить
-            </Button>
-          </DialogFooter>
-        </InsideOverlayContext.Provider>
+          )}
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+          >
+            Закрыть
+          </Button>
+          <Button disabled={busy || !category} onClick={save}>
+            Сохранить
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -38,9 +38,7 @@ const Companies = () => {
   const mineApplicable = useMemo(() => {
     const list = s.originalList ?? [];
     const mineCount = list.filter((company) =>
-      (company.responsibles ?? [])
-        .map(getResponsibleId)
-        .includes(String(myId)),
+      (company.responsibles ?? []).map(getResponsibleId).includes(String(myId)),
     ).length;
     return mineCount > 0 && mineCount < list.length;
   }, [s.originalList, myId]);

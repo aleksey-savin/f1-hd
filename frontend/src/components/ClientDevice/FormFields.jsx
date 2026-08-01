@@ -19,8 +19,8 @@ import { DEVICE_STATUS_OPTIONS } from "@/components/app/device-status";
 // стояла у самого поля, а не строкой под всей формой.
 
 // Поле-справочник с кнопкой «завести новое» рядом: список длинный, поэтому
-// Combobox (react-select внутри шторки обрезается прокруткой — см. гайд).
-export const CatalogField = ({
+// Combobox: длинный список внутри шторки (см. гайд).
+const CatalogField = ({
   id,
   label,
   required,
@@ -37,7 +37,7 @@ export const CatalogField = ({
   disabled,
 }) => (
   <Field label={label} htmlFor={id} required={required} hint={error || hint}>
-    <div className="tw:flex tw:gap-2">
+    <div className="flex gap-2">
       <Combobox
         id={id}
         value={value || null}
@@ -48,7 +48,7 @@ export const CatalogField = ({
         emptyText={emptyText}
         clearable
         disabled={disabled}
-        className={error ? "tw:border-destructive" : undefined}
+        className={error ? "border-destructive" : undefined}
       />
       {onAdd && (
         <Button
@@ -60,7 +60,7 @@ export const CatalogField = ({
           aria-label={addTitle}
           disabled={disabled}
           onClick={onAdd}
-          className="tw:flex-none"
+          className="flex-none"
         >
           <RiAddLine />
         </Button>
@@ -78,8 +78,8 @@ export const CatalogField = ({
 const SerialHint = ({ matches }) => {
   if (!matches?.length) return null;
   return (
-    <span className="tw:flex tw:items-start tw:gap-1.5 tw:text-warning">
-      <RiAlertLine size={14} aria-hidden className="tw:mt-0.5 tw:flex-none" />
+    <span className="flex items-start gap-1.5 text-warning">
+      <RiAlertLine size={14} aria-hidden className="mt-0.5 flex-none" />
       <span>
         Такой серийный номер уже есть:{" "}
         {matches.map((match, index) => (
@@ -88,7 +88,7 @@ const SerialHint = ({ matches }) => {
             <Link
               to={`/inventory/client-devices/${match._id}`}
               target="_blank"
-              className="tw:font-medium tw:text-warning tw:underline"
+              className="font-medium text-warning underline"
             >
               {[match.inventoryNumber, match.name, match.company]
                 .filter(Boolean)
@@ -128,7 +128,7 @@ export const DeviceFields = ({
       options={KIND_OPTIONS}
       value={deviceKind}
       onChange={onKindChange}
-      className="tw:mb-4"
+      className="mb-4"
     />
 
     <CatalogField
@@ -152,7 +152,7 @@ export const DeviceFields = ({
 
     {deviceKind === "branded" && (
       <>
-        <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+        <div className="grid gap-x-3 md:grid-cols-2">
           <CatalogField
             id="device-vendor"
             label="Производитель"
@@ -205,7 +205,7 @@ export const DeviceFields = ({
       </>
     )}
 
-    <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+    <div className="grid gap-x-3 md:grid-cols-2">
       <Field
         label="Инвентарный номер"
         htmlFor="device-inventory"
@@ -216,7 +216,7 @@ export const DeviceFields = ({
           value={values.inventoryNumber}
           onChange={(event) => onChange("inventoryNumber", event.target.value)}
           placeholder="Присвоим автоматически"
-          className="tw:font-mono"
+          className="font-mono"
         />
       </Field>
       <Field
@@ -229,7 +229,7 @@ export const DeviceFields = ({
           value={values.serialNumber}
           onChange={(event) => onChange("serialNumber", event.target.value)}
           placeholder="Введите, если есть"
-          className="tw:font-mono"
+          className="font-mono"
         />
       </Field>
     </div>
@@ -278,7 +278,7 @@ export const PlacementFields = ({
       disabled={!values.companyId}
     />
 
-    <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+    <div className="grid gap-x-3 md:grid-cols-2">
       <Field label="Учётный статус" htmlFor="device-status">
         <Combobox
           id="device-status"
@@ -313,7 +313,7 @@ export const PlacementFields = ({
             searchPlaceholder="Найти сотрудника…"
             emptyText="Нет подходящих сотрудников"
             disabled={!values.companyId}
-            className={errors.userId ? "tw:border-destructive" : undefined}
+            className={errors.userId ? "border-destructive" : undefined}
           />
         </Field>
       )}
@@ -329,7 +329,7 @@ export const PurchaseFields = ({
   onInlineCreate,
 }) => (
   <>
-    <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+    <div className="grid gap-x-3 md:grid-cols-2">
       <Field label="Дата приобретения" htmlFor="device-purchased">
         <Input
           id="device-purchased"
@@ -351,7 +351,7 @@ export const PurchaseFields = ({
       </Field>
     </div>
 
-    <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+    <div className="grid gap-x-3 md:grid-cols-2">
       <Field label="Документ" htmlFor="device-document">
         <Input
           id="device-document"
@@ -373,7 +373,7 @@ export const PurchaseFields = ({
       />
     </div>
 
-    <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+    <div className="grid gap-x-3 md:grid-cols-2">
       <Field label="Гарантия до" htmlFor="device-warranty">
         <Input
           id="device-warranty"
@@ -394,7 +394,7 @@ export const PurchaseFields = ({
  */
 export const TechFields = ({ values, onChange, mikrotikMode }) => (
   <>
-    <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+    <div className="grid gap-x-3 md:grid-cols-2">
       <Field
         label="Имя в сети"
         htmlFor="device-hostname"
@@ -409,7 +409,7 @@ export const TechFields = ({ values, onChange, mikrotikMode }) => (
           value={values.hostname}
           onChange={(event) => onChange("hostname", event.target.value)}
           placeholder="AG-WS001"
-          className="tw:font-mono"
+          className="font-mono"
         />
       </Field>
       {!mikrotikMode && (
@@ -428,14 +428,14 @@ export const TechFields = ({ values, onChange, mikrotikMode }) => (
 
     {!mikrotikMode && (
       <>
-        <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+        <div className="grid gap-x-3 md:grid-cols-2">
           <Field label="IP-адрес" htmlFor="device-ip">
             <Input
               id="device-ip"
               value={values.ipAddress}
               onChange={(event) => onChange("ipAddress", event.target.value)}
               placeholder="192.168.1.100"
-              className="tw:font-mono"
+              className="font-mono"
             />
           </Field>
           <Field label="MAC-адрес" htmlFor="device-mac">
@@ -444,11 +444,11 @@ export const TechFields = ({ values, onChange, mikrotikMode }) => (
               value={values.macAddress}
               onChange={(event) => onChange("macAddress", event.target.value)}
               placeholder="AA:BB:CC:DD:EE:FF"
-              className="tw:font-mono"
+              className="font-mono"
             />
           </Field>
         </div>
-        <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+        <div className="grid gap-x-3 md:grid-cols-2">
           <Field label="Последнее обслуживание" htmlFor="device-maintenance">
             <Input
               id="device-maintenance"

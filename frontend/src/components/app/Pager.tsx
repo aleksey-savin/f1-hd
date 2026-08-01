@@ -53,11 +53,11 @@ const Pager = ({
     <>
       <BrowserView>
         {totalPages > 1 && (
-          <div className="tw:mt-4 tw:flex tw:flex-wrap tw:items-center tw:gap-3 tw:px-1">
-            <span className="tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+          <div className="mt-4 flex flex-wrap items-center gap-3 px-1">
+            <span className="text-sm text-muted-foreground tabular-nums">
               Показаны {from}–{to} из {total}
             </span>
-            <div className="tw:ms-auto tw:flex tw:items-center tw:gap-1">
+            <div className="ms-auto flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon-sm"
@@ -69,11 +69,7 @@ const Pager = ({
               </Button>
               {pageList(page, totalPages).map((entry) =>
                 typeof entry === "string" ? (
-                  <span
-                    key={entry}
-                    aria-hidden
-                    className="tw:px-1 tw:text-faint"
-                  >
+                  <span key={entry} aria-hidden className="px-1 text-faint">
                     …
                   </span>
                 ) : (
@@ -83,9 +79,9 @@ const Pager = ({
                     onClick={() => onPage(entry)}
                     aria-current={entry === page ? "page" : undefined}
                     className={cn(
-                      "tw:inline-grid tw:h-8 tw:min-w-8 tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:px-2 tw:text-sm tw:font-semibold tw:text-muted-foreground tw:tabular-nums tw:transition-colors tw:outline-none tw:hover:bg-accent tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+                      "inline-grid h-8 min-w-8 cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-transparent px-2 text-sm font-semibold text-muted-foreground tabular-nums transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50",
                       entry === page &&
-                        "tw:bg-primary/15 tw:text-accent-text tw:hover:bg-primary/15 tw:hover:text-accent-text",
+                        "bg-primary/15 text-accent-text hover:bg-primary/15 hover:text-accent-text",
                     )}
                   >
                     {entry}
@@ -106,17 +102,13 @@ const Pager = ({
         )}
       </BrowserView>
       <MobileView>
-        <div className="tw:mt-3 tw:flex tw:flex-col tw:items-center tw:gap-2 tw:px-1">
+        <div className="mt-3 flex flex-col items-center gap-2 px-1">
           {loaded < total && (
-            <Button
-              variant="outline"
-              className="tw:w-full"
-              onClick={onLoadMore}
-            >
+            <Button variant="outline" className="w-full" onClick={onLoadMore}>
               Показать ещё
             </Button>
           )}
-          <span className="tw:text-sm tw:text-faint tw:tabular-nums">
+          <span className="text-sm text-faint tabular-nums">
             {loaded < total ? `Показаны ${loaded} из ${total}` : `Все ${total}`}
           </span>
         </div>

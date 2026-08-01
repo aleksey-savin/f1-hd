@@ -87,7 +87,8 @@ const AbsenceForm = ({
     () =>
       employees.map((item) => ({
         value: item.user._id,
-        label: `${item.user.lastName ?? ""} ${item.user.firstName ?? ""}`.trim(),
+        label:
+          `${item.user.lastName ?? ""} ${item.user.firstName ?? ""}`.trim(),
         hint: item.user.position ?? undefined,
       })),
     [employees],
@@ -161,10 +162,10 @@ const AbsenceForm = ({
 
   return (
     // Своего скролл-контейнера у формы нет намеренно: он обрезал бы инлайн-меню
-    // UI/Select (внутри шторки оно рисуется без портала) — прокрутку даёт сама
+    // Combobox — прокрутку даёт сама
     // FormSheet, и меню свободно раскрывается вниз
     <FormSheet open={open} onOpenChange={onOpenChange} title="Новое отсутствие">
-      <h1 className="tw:my-0 tw:mb-5 tw:pr-10 tw:text-2xl tw:font-semibold tw:tracking-tight">
+      <h1 className="my-0 mb-5 pr-10 text-2xl font-semibold tracking-tight">
         {canManage ? "Новое отсутствие" : "Запросить отсутствие"}
       </h1>
 
@@ -192,7 +193,7 @@ const AbsenceForm = ({
         />
       </Field>
 
-      <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <Field label="С" htmlFor="abs-from" required>
           <Input
             id="abs-from"
@@ -230,23 +231,35 @@ const AbsenceForm = ({
           message={
             <>
               <b>
-                {days} {plural(days, "рабочий день", "рабочих дня", "рабочих дней")}
+                {days}{" "}
+                {plural(days, "рабочий день", "рабочих дня", "рабочих дней")}
               </b>
               {selectedType?.reducesNorm ? (
                 <> · в эти дни человека не будет в календаре</>
               ) : (
-                <> · человек продолжает работать, в календаре останется доступным</>
+                <>
+                  {" "}
+                  · человек продолжает работать, в календаре останется доступным
+                </>
               )}
-              {!canManage && " · запрос уйдёт на согласование, до решения календарь не меняется"}
+              {!canManage &&
+                " · запрос уйдёт на согласование, до решения календарь не меняется"}
             </>
           }
         />
       )}
-      <div className="tw:sticky tw:bottom-0 tw:-mx-6 tw:mt-6 tw:flex tw:items-center tw:justify-end tw:gap-2.5 tw:bg-background tw:px-6 tw:py-3">
-        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2.5 bg-background px-6 py-3">
+        <Button
+          variant="ghost"
+          onClick={() => onOpenChange(false)}
+          disabled={saving}
+        >
           Отмена
         </Button>
-        <Button onClick={submit} disabled={saving || (showEmployeePicker && !userId)}>
+        <Button
+          onClick={submit}
+          disabled={saving || (showEmployeePicker && !userId)}
+        >
           <RiSaveLine />
           {saving ? "Сохранение…" : "Сохранить"}
         </Button>

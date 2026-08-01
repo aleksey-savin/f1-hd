@@ -24,9 +24,9 @@ const FilterContainer = ({
   return (
     <>
       {children}
-      <div className="tw:sticky tw:bottom-0 tw:z-10 tw:mt-4 tw:space-y-2 tw:bg-background/80 tw:py-2 tw:backdrop-blur">
+      <div className="sticky bottom-0 z-10 mt-4 space-y-2 bg-background/80 py-2 backdrop-blur">
         <MobileView>
-          <Button className="tw:w-full" onClick={filterOffcanvas.handleClose}>
+          <Button className="w-full" onClick={filterOffcanvas.handleClose}>
             Применить
           </Button>
         </MobileView>
@@ -36,7 +36,7 @@ const FilterContainer = ({
             «Применить». */}
         <Button
           variant="outline"
-          className="tw:w-full"
+          className="w-full"
           onClick={handleResetFilter}
         >
           Сбросить

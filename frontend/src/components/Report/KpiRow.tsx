@@ -30,14 +30,16 @@ const KpiRow = ({
   busy?: boolean;
   showAverage?: boolean;
 }) => {
-  const average = totals.totalWorks > 0 ? totals.totalTime / totals.totalWorks : 0;
-  const prevAverage = prev.totalWorks > 0 ? prev.totalTime / prev.totalWorks : 0;
+  const average =
+    totals.totalWorks > 0 ? totals.totalTime / totals.totalWorks : 0;
+  const prevAverage =
+    prev.totalWorks > 0 ? prev.totalTime / prev.totalWorks : 0;
 
   return (
     <div
       className={cn(
-        "tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:gap-4",
-        showAverage ? "tw:xl:grid-cols-4" : "tw:md:grid-cols-3",
+        "grid grid-cols-2 gap-3 xl:gap-4",
+        showAverage ? "xl:grid-cols-4" : "md:grid-cols-3",
       )}
     >
       <StatTile
@@ -83,7 +85,9 @@ const KpiRow = ({
           label="Среднее время"
           busy={busy}
           value={msToHMS(average)}
-          delta={<StatTileDelta {...deltaOf(average, prevAverage)} hint={HINT} />}
+          delta={
+            <StatTileDelta {...deltaOf(average, prevAverage)} hint={HINT} />
+          }
           footer={`по ${totals.totalWorks} ${worksDative(totals.totalWorks)}`}
         />
       )}

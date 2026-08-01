@@ -86,7 +86,7 @@ const NewPassword = () => {
           title="Ссылка больше не работает"
           lede="Она живёт сутки с момента запроса. Запросите новую — придёт свежее письмо."
         />
-        <Button asChild className="tw:mt-5 tw:w-full">
+        <Button asChild className="mt-5 w-full">
           <Link to="/auth/password">Запросить новую</Link>
         </Button>
         <WaysIn
@@ -103,7 +103,7 @@ const NewPassword = () => {
 
       {failure && <AlertMessage variant="danger" message={failure.message} />}
 
-      <Form method="post" className="tw:mt-5">
+      <Form method="post" className="mt-5">
         <Field
           label="Новый пароль"
           htmlFor="password"
@@ -121,7 +121,7 @@ const NewPassword = () => {
           />
         </Field>
 
-        <Button type="submit" disabled={submitting} className="tw:mt-1 tw:w-full">
+        <Button type="submit" disabled={submitting} className="mt-1 w-full">
           {submitting ? "Сохраняем…" : "Сохранить пароль"}
         </Button>
       </Form>

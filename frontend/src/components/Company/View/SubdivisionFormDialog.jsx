@@ -11,9 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
 import AlertMessage from "@/components/app/AlertMessage";
-import { InsideOverlayContext } from "@/components/app/overlay-context";
 
-import Select from "../../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import timezones from "../../../store/timezones";
 import { orgTimezone, tzCity } from "../../../util/timezone-display";
 
@@ -43,9 +42,7 @@ const SubdivisionFormDialog = ({
   // унаследованного значения не проставляем: филиал переедет — она протухнет.
   useEffect(() => {
     if (!open) return;
-    setTimezone(
-      timezones.find((zone) => zone.value === node?.timezone) || null,
-    );
+    setTimezone(node?.timezone || null);
   }, [open, node]);
 
   // Что подставится, если поле оставить пустым: пояс выбранного родителя,
@@ -69,86 +66,93 @@ const SubdivisionFormDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="tw:max-w-lg" aria-describedby={undefined}>
-        <InsideOverlayContext.Provider value={true}>
-          <DialogHeader>
-            <DialogTitle>
-              {isEdit ? "Изменить подразделение" : "Новое подразделение"}
-            </DialogTitle>
-          </DialogHeader>
+      <DialogContent className="max-w-lg" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>
+            {isEdit ? "Изменить подразделение" : "Новое подразделение"}
+          </DialogTitle>
+        </DialogHeader>
 
-          {fetcher.data?.error && (
-            <AlertMessage variant="danger" message={fetcher.data.error} />
-          )}
+        {fetcher.data?.error && (
+          <AlertMessage variant="danger" message={fetcher.data.error} />
+        )}
 
-          <form onSubmit={handleSubmit}>
-            <Field label="Название" required>
-              <Input name="name" required defaultValue={node?.name || ""} />
-            </Field>
-            <div className="tw:grid tw:gap-x-3.5 tw:md:grid-cols-2">
-              <Field label="Email">
-                <Input type="email" name="email" defaultValue={node?.email || ""} />
-              </Field>
-              <Field label="Телефон">
-                <Input name="phone" defaultValue={node?.phone || ""} />
-              </Field>
-            </div>
-            <Field label="Адрес">
-              <Input name="address" defaultValue={node?.address || ""} />
-            </Field>
-            <Field label="Ссылка на карту">
-              <Input name="linkToMap" defaultValue={node?.linkToMap || ""} />
-            </Field>
-            <Field label="Родительское подразделение">
-              <Select
-                isClearable
-                placeholder="Верхний уровень"
-                options={parentOptions}
-                value={parent}
-                onChange={(next) => setParent(next || null)}
-                getOptionLabel={(option) => option.name?.trim() || "Без названия"}
-                getOptionValue={(option) => option._id}
-                isDisabled={parentOptions.length === 0}
+        <form onSubmit={handleSubmit}>
+          <Field label="Название" required>
+            <Input name="name" required defaultValue={node?.name || ""} />
+          </Field>
+          <div className="grid gap-x-3.5 md:grid-cols-2">
+            <Field label="Email">
+              <Input
+                type="email"
+                name="email"
+                defaultValue={node?.email || ""}
               />
-              <input type="hidden" name="parentId" value={parent?._id || ""} />
             </Field>
-            <Field
-              label="Часовой пояс"
-              hint={
-                timezone
-                  ? "В нём живёт филиал: по нему считается его рабочее время и подсказка «который час у клиента»."
-                  : `Пусто — как ${parent ? "у родительского подразделения" : "у компании"}: ${tzCity(inheritedZone)}.`
+            <Field label="Телефон">
+              <Input name="phone" defaultValue={node?.phone || ""} />
+            </Field>
+          </div>
+          <Field label="Адрес">
+            <Input name="address" defaultValue={node?.address || ""} />
+          </Field>
+          <Field label="Ссылка на карту">
+            <Input name="linkToMap" defaultValue={node?.linkToMap || ""} />
+          </Field>
+          <Field label="Родительское подразделение">
+            <Combobox
+              ariaLabel="Родительское подразделение"
+              placeholder="Верхний уровень"
+              options={toOptions(parentOptions, {
+                value: (option) => String(option._id),
+                label: (option) => option.name?.trim() || "Без названия",
+              })}
+              value={parent?._id ? String(parent._id) : null}
+              onChange={(id) =>
+                setParent(
+                  parentOptions.find((option) => String(option._id) === id) ||
+                    null,
+                )
               }
-            >
-              <Select
-                isClearable
-                isSearchable
-                placeholder={`Как ${parent ? "у родительского" : "у компании"} — ${tzCity(inheritedZone)}`}
-                options={timezones}
-                value={timezone}
-                onChange={(next) => setTimezone(next || null)}
-              />
-              <input
-                type="hidden"
-                name="timezone"
-                value={timezone?.value || ""}
-              />
-            </Field>
+              disabled={parentOptions.length === 0}
+              clearable
+              clearLabel="Верхний уровень"
+            />
+            <input type="hidden" name="parentId" value={parent?._id || ""} />
+          </Field>
+          <Field
+            label="Часовой пояс"
+            hint={
+              timezone
+                ? "В нём живёт филиал: по нему считается его рабочее время и подсказка «который час у клиента»."
+                : `Пусто — как ${parent ? "у родительского подразделения" : "у компании"}: ${tzCity(inheritedZone)}.`
+            }
+          >
+            <Combobox
+              ariaLabel="Часовой пояс подразделения"
+              placeholder={`Как ${parent ? "у родительского" : "у компании"} — ${tzCity(inheritedZone)}`}
+              options={timezones}
+              value={timezone}
+              onChange={setTimezone}
+              clearable
+              clearLabel={`Как ${parent ? "у родительского" : "у компании"} — ${tzCity(inheritedZone)}`}
+            />
+            <input type="hidden" name="timezone" value={timezone || ""} />
+          </Field>
 
-            <DialogFooter className="tw:mt-1">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-              >
-                Отмена
-              </Button>
-              <Button type="submit" disabled={busy}>
-                {busy ? "Сохранение…" : "Сохранить"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </InsideOverlayContext.Provider>
+          <DialogFooter className="mt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+            >
+              Отмена
+            </Button>
+            <Button type="submit" disabled={busy}>
+              {busy ? "Сохранение…" : "Сохранить"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

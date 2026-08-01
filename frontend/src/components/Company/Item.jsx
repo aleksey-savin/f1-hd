@@ -44,16 +44,16 @@ const DELETE_MESSAGE =
   "Вы уверены? Все пользователи компании также будут удалены. Это действие нельзя отменить.";
 
 const contactClass =
-  "tw:inline-grid tw:size-8 tw:flex-none tw:cursor-pointer tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:no-underline tw:transition-colors tw:group-hover:text-muted-foreground tw:hover:bg-accent";
+  "inline-grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-faint no-underline transition-colors group-hover:text-muted-foreground hover:bg-accent";
 
 // Отключённая компания в списке — тихим форматом (как «график не указан»):
 // приглушённая строка, полая точка, слово вместо живого графика. Красный
 // статус — только в hero карточки.
 const InactiveStatus = () => (
-  <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-sm tw:whitespace-nowrap tw:text-faint">
+  <span className="inline-flex items-center gap-1.5 text-sm whitespace-nowrap text-faint">
     <span
       aria-hidden
-      className="tw:size-2 tw:flex-none tw:rounded-full tw:bg-transparent tw:inset-ring tw:inset-ring-faint"
+      className="size-2 flex-none rounded-full bg-transparent inset-ring inset-ring-faint"
     />
     отключена
   </span>
@@ -119,29 +119,29 @@ const CompanyItem = ({ item }) => {
         rel="noreferrer"
         onClick={stop}
         title={address}
-        className="tw:group/addr tw:hidden tw:w-72 tw:flex-none tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground tw:no-underline tw:transition-colors tw:hover:text-foreground tw:md:flex"
+        className="group/addr hidden w-72 flex-none items-center gap-2 text-sm text-muted-foreground no-underline transition-colors hover:text-foreground md:flex"
       >
         <RiMapPin2Line
           size={15}
           aria-hidden
-          className="tw:flex-none tw:text-faint tw:transition-colors tw:group-hover/addr:text-accent-text"
+          className="flex-none text-faint transition-colors group-hover/addr:text-accent-text"
         />
-        <span className="tw:min-w-0 tw:flex-1 tw:truncate tw:group-hover/addr:underline">
+        <span className="min-w-0 flex-1 truncate group-hover/addr:underline">
           {address}
         </span>
       </a>
     ) : (
       <span
         title={address}
-        className="tw:hidden tw:w-72 tw:flex-none tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground tw:md:flex"
+        className="hidden w-72 flex-none items-center gap-2 text-sm text-muted-foreground md:flex"
       >
-        <RiMapPin2Line size={15} aria-hidden className="tw:flex-none tw:text-faint" />
-        <span className="tw:min-w-0 tw:flex-1 tw:truncate">{address}</span>
+        <RiMapPin2Line size={15} aria-hidden className="flex-none text-faint" />
+        <span className="min-w-0 flex-1 truncate">{address}</span>
       </span>
     )
   ) : (
-    <span className="tw:hidden tw:w-72 tw:flex-none tw:items-center tw:gap-2 tw:text-sm tw:text-faint tw:md:flex">
-      <RiMapPin2Line size={15} aria-hidden className="tw:flex-none tw:opacity-45" />
+    <span className="hidden w-72 flex-none items-center gap-2 text-sm text-faint md:flex">
+      <RiMapPin2Line size={15} aria-hidden className="flex-none opacity-45" />
       Адрес не указан
     </span>
   );
@@ -150,37 +150,37 @@ const CompanyItem = ({ item }) => {
     <>
       <div
         className={cn(
-          "tw:group tw:relative tw:flex tw:cursor-pointer tw:items-center tw:gap-3 tw:px-5 tw:py-3.5 tw:transition-colors tw:md:gap-6",
-          "tw:before:absolute tw:before:top-0 tw:before:right-5 tw:before:left-20 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden",
-          "tw:hover:bg-accent/60",
-          inactive && "tw:opacity-70",
-          justCreated && "tw:row-appear",
-          justUpdated && "tw:row-flash",
+          "group relative flex cursor-pointer items-center gap-3 px-5 py-3.5 transition-colors md:gap-6",
+          "before:absolute before:top-0 before:right-5 before:left-20 before:h-px before:bg-border-soft first:before:hidden",
+          "hover:bg-accent/60",
+          inactive && "opacity-70",
+          justCreated && "row-appear",
+          justUpdated && "row-flash",
         )}
         onClick={() => (isMobile ? setContactOpen(true) : navigate(detailTo))}
       >
-        <CompanyLogo company={item} sizeClass="tw:size-13" />
+        <CompanyLogo company={item} sizeClass="size-13" />
 
         {/* название; десктоп — полное имя + счётчики, мобайл — адрес и график */}
-        <div className="tw:min-w-0 tw:flex-1">
-          <div className="tw:truncate tw:text-xl tw:leading-tight tw:font-medium">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xl leading-tight font-medium">
             {alias || "—"}
           </div>
           {/* усекается только юрлицо; счётчики закреплены в конце строки */}
-          <div className="tw:hidden tw:min-w-0 tw:gap-1 tw:text-sm tw:md:flex">
-            <span className="tw:min-w-0 tw:truncate tw:text-muted-foreground">
+          <div className="hidden min-w-0 gap-1 text-sm md:flex">
+            <span className="min-w-0 truncate text-muted-foreground">
               {fullTitle || "—"}
             </span>
             {counts && (
-              <span className="tw:flex-none tw:whitespace-nowrap tw:text-faint">
+              <span className="flex-none whitespace-nowrap text-faint">
                 · {counts}
               </span>
             )}
           </div>
-          <div className="tw:truncate tw:text-sm tw:text-muted-foreground tw:md:hidden">
-            {address || <span className="tw:text-faint">Адрес не указан</span>}
+          <div className="truncate text-sm text-muted-foreground md:hidden">
+            {address || <span className="text-faint">Адрес не указан</span>}
           </div>
-          <div className="tw:mt-0.5 tw:md:hidden">
+          <div className="mt-0.5 md:hidden">
             {inactive ? (
               <InactiveStatus />
             ) : (
@@ -192,7 +192,7 @@ const CompanyItem = ({ item }) => {
         {addressColumn}
 
         {/* десктоп: живой график работы (у отключённой — тихий статус) */}
-        <div className="tw:hidden tw:w-52 tw:flex-none tw:items-center tw:justify-end tw:lg:flex">
+        <div className="hidden w-52 flex-none items-center justify-end lg:flex">
           {inactive ? (
             <InactiveStatus />
           ) : (
@@ -204,12 +204,12 @@ const CompanyItem = ({ item }) => {
             у всех строк; такси при выбранном операторе, «⋯» по наведению
             и правам */}
         <div
-          className="tw:hidden tw:w-17 tw:flex-none tw:items-center tw:justify-end tw:gap-0.5 tw:md:flex"
+          className="hidden w-17 flex-none items-center justify-end gap-0.5 md:flex"
           onClick={stop}
         >
           {taxiAction && (
             <a
-              className={cn(contactClass, "tw:hover:text-warning")}
+              className={cn(contactClass, "hover:text-warning")}
               href={taxiAction.href}
               target="_blank"
               rel="noreferrer"
@@ -228,7 +228,7 @@ const CompanyItem = ({ item }) => {
                     size="icon-sm"
                     aria-label="Действия"
                     title="Действия"
-                    className="tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:data-[state=open]:opacity-100"
+                    className="text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
                   >
                     <RiMoreLine />
                   </Button>
@@ -261,7 +261,7 @@ const CompanyItem = ({ item }) => {
         <RiArrowRightSLine
           size={20}
           aria-hidden
-          className="tw:flex-none tw:text-faint tw:md:hidden"
+          className="flex-none text-faint md:hidden"
         />
       </div>
       <CompanyContactSheet

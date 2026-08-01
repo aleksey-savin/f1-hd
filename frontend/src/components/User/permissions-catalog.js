@@ -28,7 +28,6 @@ export const PERMISSION_MODULES = [
       { key: "canManageTicketCategories", label: "Категории заявок" },
       { key: "canManageRoutineTasks", label: "Регламенты" },
       { key: "canManageTicketTemplates", label: "Шаблоны заявок" },
-      { key: "canUpdateChangelog", label: "Записи в changelog" },
     ],
   },
   {
@@ -66,7 +65,10 @@ export const PERMISSION_MODULES = [
     master: "canUseFinancesModule",
     caps: [
       { key: "canManageServicePlans", label: "Управление услугами" },
-      { key: "canSeeGlobalFinancialReport", label: "Отчёты по оказанным услугам" },
+      {
+        key: "canSeeGlobalFinancialReport",
+        label: "Отчёты по оказанным услугам",
+      },
       { key: "canConfirmReportActions", label: "Утверждение отчётов" },
       { key: "canSeePersonalFinancialReport", label: "Персональный отчёт" },
     ],
@@ -130,7 +132,11 @@ export const ACCOUNT_KINDS = [
 ];
 
 export const kindOfUser = (user) =>
-  user?.isServiceAccount ? "service" : (user?.isEndUser ?? true) ? "client" : "staff";
+  user?.isServiceAccount
+    ? "service"
+    : (user?.isEndUser ?? true)
+      ? "client"
+      : "staff";
 
 // Обратное преобразование сегмента в флаги модели.
 export const kindToFlags = (kind, { isCloudTelephony = false } = {}) => ({

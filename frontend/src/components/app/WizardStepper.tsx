@@ -25,7 +25,7 @@ const WizardStepper = ({
   const last = steps.length - 1;
 
   return (
-    <div className={cn("tw:flex", className)}>
+    <div className={cn("flex", className)}>
       {steps.map((step, i) => {
         const done = i < current;
         const cur = i === current;
@@ -33,24 +33,21 @@ const WizardStepper = ({
         const go = clickable ? () => onStepClick?.(i) : undefined;
 
         return (
-          <div
-            key={step.label}
-            className="tw:relative tw:min-w-0 tw:flex-1 tw:text-center"
-          >
+          <div key={step.label} className="relative min-w-0 flex-1 text-center">
             {/* Половины линии-коннектора за кружком */}
             {i !== 0 && (
               <span
                 className={cn(
-                  "tw:absolute tw:top-4 tw:left-0 tw:h-0.5 tw:w-1/2",
-                  i <= current ? "tw:bg-primary" : "tw:bg-border",
+                  "absolute top-4 left-0 h-0.5 w-1/2",
+                  i <= current ? "bg-primary" : "bg-border",
                 )}
               />
             )}
             {i !== last && (
               <span
                 className={cn(
-                  "tw:absolute tw:top-4 tw:left-1/2 tw:h-0.5 tw:w-1/2",
-                  i < current ? "tw:bg-primary" : "tw:bg-border",
+                  "absolute top-4 left-1/2 h-0.5 w-1/2",
+                  i < current ? "bg-primary" : "bg-border",
                 )}
               />
             )}
@@ -60,28 +57,28 @@ const WizardStepper = ({
               disabled={!clickable}
               onClick={go}
               className={cn(
-                "tw:relative tw:z-10 tw:flex tw:w-full tw:flex-col tw:items-center tw:gap-1.5 tw:appearance-none tw:border-0 tw:bg-transparent tw:p-0 tw:outline-none",
-                clickable ? "tw:cursor-pointer" : "tw:cursor-default",
+                "relative z-10 flex w-full flex-col items-center gap-1.5 appearance-none border-0 bg-transparent p-0 outline-none",
+                clickable ? "cursor-pointer" : "cursor-default",
               )}
             >
               <span
                 className={cn(
-                  "tw:grid tw:size-8 tw:place-items-center tw:rounded-full tw:text-sm tw:font-semibold",
+                  "grid size-8 place-items-center rounded-full text-sm font-semibold",
                   done || cur
-                    ? "tw:bg-primary tw:text-white"
-                    : "tw:bg-accent tw:text-faint tw:inset-ring tw:inset-ring-border",
+                    ? "bg-primary text-white"
+                    : "bg-accent text-faint inset-ring inset-ring-border",
                 )}
               >
                 {done ? <RiCheckLine /> : i + 1}
               </span>
               <span
                 className={cn(
-                  "tw:px-1 tw:text-xs tw:leading-tight",
+                  "px-1 text-xs leading-tight",
                   cur
-                    ? "tw:font-semibold tw:text-accent-text"
+                    ? "font-semibold text-accent-text"
                     : done
-                      ? "tw:font-medium tw:text-muted-foreground"
-                      : "tw:font-medium tw:text-faint",
+                      ? "font-medium text-muted-foreground"
+                      : "font-medium text-faint",
                 )}
               >
                 {step.label}

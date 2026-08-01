@@ -66,8 +66,9 @@ const TicketTemplates = () => {
   };
 
   const categoryTitleOf = (id) =>
-    list.map((template) => template.categoryId).find((c) => c?._id?.toString() === id)
-      ?.title ?? id;
+    list
+      .map((template) => template.categoryId)
+      .find((c) => c?._id?.toString() === id)?.title ?? id;
 
   const activeFilters = [
     ...(filterStore.companies ?? []).map((id) => ({

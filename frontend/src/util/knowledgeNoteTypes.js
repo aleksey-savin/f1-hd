@@ -52,7 +52,7 @@ export const getNoteTypeMeta = (value) =>
 // approvedAt. Поля не переименовывали: переименование задело бы модель, крон
 // истечения проверки, настройки и deep-link'и, не дав ничего пользователю.
 // approved !== true: заметки без поля approved тоже считаем непроверенными.
-export const getApprovalMeta = (note) =>
+const getApprovalMeta = (note) =>
   note?.approved !== true
     ? { icon: RiErrorWarningLine, bg: "warning", label: "Не проверено" }
     : { icon: RiShieldCheckLine, bg: "success", label: "Проверено" };
@@ -76,7 +76,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Состояние доверия к заметке одной структурой: кто, когда и сколько ещё
 // действует проверка. Отсюда собирается «строка доверия» на странице заметки.
 // approvalPeriodDays = 0 → проверка бессрочна, срок не показываем.
-export const getVerificationSummary = (note, { approvalPeriodDays = 0 } = {}) => {
+export const getVerificationSummary = (
+  note,
+  { approvalPeriodDays = 0 } = {},
+) => {
   const meta = getApprovalMeta(note);
   const verified = note?.approved === true;
 

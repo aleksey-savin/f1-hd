@@ -47,21 +47,21 @@ const ChipSelect = ({
         <button
           type="button"
           className={cn(
-            "tw:inline-flex tw:h-10 tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2 tw:rounded-full tw:border tw:border-input tw:bg-transparent tw:px-4 tw:text-sm tw:font-semibold tw:whitespace-nowrap tw:text-muted-foreground tw:transition-colors tw:outline-none tw:hover:bg-accent tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+            "inline-flex h-10 cursor-pointer appearance-none items-center gap-2 rounded-full border border-input bg-transparent px-4 text-sm font-semibold whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/50",
             selected &&
-              "tw:border-transparent tw:bg-primary/15 tw:text-accent-text tw:hover:bg-primary/20",
+              "border-transparent bg-primary/15 text-accent-text hover:bg-primary/20",
             className,
           )}
         >
           <span
             aria-hidden
             className={cn(
-              "tw:size-1.5 tw:rounded-full tw:bg-faint",
-              selected && "tw:bg-primary",
+              "size-1.5 rounded-full bg-faint",
+              selected && "bg-primary",
             )}
           />
           {selected ? selected.label : placeholder}
-          <RiArrowDownSLine size={14} aria-hidden className="tw:opacity-60" />
+          <RiArrowDownSLine size={14} aria-hidden className="opacity-60" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">

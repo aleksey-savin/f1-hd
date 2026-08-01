@@ -1,10 +1,13 @@
-"use client"
+// ПРАВКА СГЕНЕРИРОВАННОГО КОДА: иконки переведены с lucide-react на
+// react-icons (Ri*) — в приложении один набор иконок, см. ux-ui-guide.
+// При перегенерации компонента CLI shadcn вернёт lucide — повторить замену.
+"use client";
 
-import * as React from "react"
-import { CheckIcon } from "lucide-react"
-import { Checkbox as CheckboxPrimitive } from "radix-ui"
+import * as React from "react";
+import { RiCheckLine } from "react-icons/ri";
+import { Checkbox as CheckboxPrimitive } from "radix-ui";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 function Checkbox({
   className,
@@ -14,19 +17,19 @@ function Checkbox({
     <CheckboxPrimitive.Root
       data-slot="checkbox"
       className={cn(
-        "tw:peer tw:size-4 tw:shrink-0 tw:rounded-[4px] tw:border tw:border-input tw:p-0 tw:shadow-xs tw:transition-shadow tw:outline-none tw:focus-visible:border-ring tw:focus-visible:ring-[3px] tw:focus-visible:ring-ring/50 tw:disabled:cursor-not-allowed tw:disabled:opacity-50 tw:aria-invalid:border-destructive tw:aria-invalid:ring-destructive/20 tw:data-[state=checked]:border-primary tw:data-[state=checked]:bg-primary tw:data-[state=checked]:text-primary-foreground tw:dark:bg-input/30 tw:dark:aria-invalid:ring-destructive/40 tw:dark:data-[state=checked]:bg-primary",
-        className
+        "peer size-4 shrink-0 rounded-[4px] border border-input p-0 shadow-xs transition-shadow outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:bg-input/30 dark:aria-invalid:ring-destructive/40 dark:data-[state=checked]:bg-primary",
+        className,
       )}
       {...props}
     >
       <CheckboxPrimitive.Indicator
         data-slot="checkbox-indicator"
-        className="tw:grid tw:place-content-center tw:text-current tw:transition-none"
+        className="grid place-content-center text-current transition-none"
       >
-        <CheckIcon className="tw:size-3.5" />
+        <RiCheckLine className="size-3.5" />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
-  )
+  );
 }
 
-export { Checkbox }
+export { Checkbox };

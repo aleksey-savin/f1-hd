@@ -3,10 +3,7 @@ import { useState, type ReactNode } from "react";
 import { isMobile } from "react-device-detect";
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import {
-  InsideOverlayContext,
-  OverlayScrollContext,
-} from "@/components/app/overlay-context";
+import { OverlayScrollContext } from "@/components/app/overlay-context";
 import { cn } from "@/lib/utils";
 
 // Нижняя шторка для форм (согласованный макет): на десктопе — колонка по центру
@@ -18,11 +15,11 @@ import { cn } from "@/lib/utils";
 // форма обязана быть одной ширины и со списка, и с карточки.
 const SIZES = {
   /** 672 — обычная форма в один столбец. */
-  md: "tw:max-w-2xl",
+  md: "max-w-2xl",
   /** 896 — мастер со сводкой справа. */
-  lg: "tw:max-w-4xl",
+  lg: "max-w-4xl",
   /** 1024 — форма с рейлом секций (рейл 192 + колонка полей). */
-  xl: "tw:max-w-5xl",
+  xl: "max-w-5xl",
 } as const;
 
 const FormSheet = ({
@@ -59,27 +56,24 @@ const FormSheet = ({
         aria-describedby={undefined}
         onInteractOutside={guardDesktopClose}
         className={cn(
-          "tw:overflow-hidden tw:rounded-t-2xl tw:border tw:border-b-0 tw:border-border",
+          "overflow-hidden rounded-t-2xl border border-b-0 border-border",
           isMobile
-            ? "tw:top-3.5 tw:h-auto"
+            ? "top-3.5 h-auto"
             : cn(
-                "tw:inset-x-auto tw:left-1/2 tw:w-full tw:-translate-x-1/2 tw:max-h-[92dvh]",
+                "inset-x-auto left-1/2 w-full -translate-x-1/2 max-h-[92dvh]",
                 SIZES[size],
               ),
         )}
       >
-        <SheetTitle className="tw:sr-only">{title}</SheetTitle>
-        {/* UI/Select внутри шторки переключается на инлайн-меню */}
-        <InsideOverlayContext.Provider value={true}>
-          <OverlayScrollContext.Provider value={scroller}>
-            <div
-              ref={setScroller}
-              className="tw:min-h-0 tw:flex-1 tw:overflow-y-auto tw:px-6 tw:pt-5 tw:pb-6"
-            >
-              {children}
-            </div>
-          </OverlayScrollContext.Provider>
-        </InsideOverlayContext.Provider>
+        <SheetTitle className="sr-only">{title}</SheetTitle>
+        <OverlayScrollContext.Provider value={scroller}>
+          <div
+            ref={setScroller}
+            className="min-h-0 flex-1 overflow-y-auto px-6 pt-5 pb-6"
+          >
+            {children}
+          </div>
+        </OverlayScrollContext.Provider>
       </SheetContent>
     </Sheet>
   );

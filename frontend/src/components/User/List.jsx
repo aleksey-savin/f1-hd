@@ -39,9 +39,7 @@ const List = ({ items = [], grouped = false }) => {
             label={key === NO_SUBDIVISION ? "Без подразделения" : key}
             count={groupItems.length}
             tone={key === NO_SUBDIVISION ? "off" : "on"}
-            className={
-              index > 0 ? "tw:mt-1.5 tw:border-t tw:border-border-soft" : ""
-            }
+            className={index > 0 ? "mt-1.5 border-t border-border-soft" : ""}
           />
           {groupItems.map((item) => (
             <Item key={item._id} item={item} />

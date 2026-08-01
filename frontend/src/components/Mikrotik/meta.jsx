@@ -7,23 +7,75 @@ import { cn } from "@/lib/utils";
 export const STATUS_META = {
   online: {
     label: "В сети",
-    text: "tw:text-accent-text",
-    dot: "tw:bg-primary",
+    text: "text-accent-text",
+    dot: "bg-primary",
   },
   offline: {
     label: "Не в сети",
-    text: "tw:text-destructive",
-    dot: "tw:bg-destructive",
+    text: "text-destructive",
+    dot: "bg-destructive",
   },
   disabled: {
     label: "Выключен",
-    text: "tw:text-faint",
-    dot: "tw:bg-faint",
+    text: "text-faint",
+    dot: "bg-faint",
   },
 };
 
+// Каталог причин пересечения диапазонов (ключ — overlap.kind с бэкенда):
+// повторившаяся сеть означает три разных факта, и подпись с тоном у каждого
+// свои. Каталог читают лента-сводки, заголовок группы и точка в строке
+// реестра — чтобы вторая копия правила не разъехалась с первой.
+//
+// Красный только у поломки: адрес физически занят двумя устройствами. Разные
+// маски — предупреждение: сеть поднимется, но перекрывает соседнюю. Общая сеть
+// тоном не выделяется вовсе — два конца GRE и management-VLAN на пачке
+// коммутаторов штатны, и красить их значило бы вернуть ту самую подсветку,
+// которая стояла у четверти строк и ничего не различала.
+export const OVERLAP_META = {
+  addressClash: {
+    label: "Адрес занят дважды",
+    short: "Занят дважды",
+    text: "text-destructive",
+    dot: "bg-destructive",
+  },
+  maskOverlap: {
+    label: "Сети вложены",
+    short: "Вложены",
+    text: "text-warning",
+    dot: "bg-warning",
+  },
+  sharedNetwork: {
+    label: "Общая сеть",
+    short: "Общая",
+    text: "text-muted-foreground",
+    dot: "bg-info",
+  },
+};
+
+/** Порядок причин — от поломки к норме, тот же, что в ответе бэкенда. */
+export const OVERLAP_ORDER = ["addressClash", "maskOverlap", "sharedNetwork"];
+
+/**
+ * Фраза под заголовком группы: называет ПРИЧИНУ конкретными значениями, а не
+ * повторяет подпись каталога. «172.16.40.1/30 занят на двух устройствах»
+ * проверяемо, «Адрес занят дважды» — нет.
+ */
+export const overlapReason = (overlap) => {
+  if (overlap.kind === "addressClash") {
+    return `${overlap.clashing.join(", ")} — на разных устройствах`;
+  }
+  if (overlap.kind === "maskOverlap") {
+    const [widest, ...rest] = overlap.masks;
+    return `/${widest} перекрывает ${rest.map((mask) => `/${mask}`).join(", ")}`;
+  }
+  return `одна сеть на ${overlap.deviceCount} ${
+    overlap.deviceCount === 1 ? "устройстве" : "устройствах"
+  }, адреса разные`;
+};
+
 // Иконка класса устройства: CHR — облако, остальные — роутер.
-export const deviceIcon = (row) => {
+const deviceIcon = (row) => {
   const board = String(row?.boardName || "").toLowerCase();
   if (board.startsWith("chr") || row?.type === "Cloud Hosted Router") {
     return RiCloudLine;
@@ -41,22 +93,22 @@ export const DeviceTile = ({ row, size = "md", className }) => {
     <span
       aria-hidden
       className={cn(
-        "tw:relative tw:grid tw:flex-none tw:place-items-center tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border",
+        "relative grid flex-none place-items-center bg-accent text-muted-foreground inset-ring inset-ring-border",
         size === "lg"
-          ? "tw:size-14 tw:rounded-2xl"
+          ? "size-14 rounded-2xl"
           : size === "sm"
-            ? "tw:size-9 tw:rounded-lg"
-            : "tw:size-11 tw:rounded-xl",
+            ? "size-9 rounded-lg"
+            : "size-11 rounded-xl",
         className,
       )}
     >
       <Icon size={size === "lg" ? 26 : size === "sm" ? 17 : 20} />
       <span
         className={cn(
-          "tw:absolute tw:rounded-full tw:border-2 tw:border-card",
+          "absolute rounded-full border-2 border-card",
           size === "lg"
-            ? "tw:-right-0.5 tw:-bottom-0.5 tw:size-3.5"
-            : "tw:-right-1 tw:-bottom-1 tw:size-3",
+            ? "-right-0.5 -bottom-0.5 size-3.5"
+            : "-right-1 -bottom-1 size-3",
           meta.dot,
         )}
       />
@@ -91,10 +143,10 @@ export const formatUptime = (pct) =>
 
 // Тон цифры доступности: тихая норма, янтарь < 99, красный < 95.
 export const uptimeToneClass = (pct) => {
-  if (pct == null) return "tw:text-faint";
-  if (pct < 95) return "tw:font-semibold tw:text-destructive";
-  if (pct < 99) return "tw:font-semibold tw:text-warning";
-  return "tw:text-muted-foreground";
+  if (pct == null) return "text-faint";
+  if (pct < 95) return "font-semibold text-destructive";
+  if (pct < 99) return "font-semibold text-warning";
+  return "text-muted-foreground";
 };
 
 const HOUR_MS = 60 * 60 * 1000;

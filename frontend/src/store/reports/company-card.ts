@@ -96,7 +96,8 @@ const useCompanyCardStore = create<CardState>()((set, get) => ({
   open: ({ companyId, subdivisionId = null, from, to }) => {
     const current = get();
     const changedTarget =
-      current.companyId !== companyId || current.subdivisionId !== subdivisionId;
+      current.companyId !== companyId ||
+      current.subdivisionId !== subdivisionId;
     set({
       companyId,
       subdivisionId,

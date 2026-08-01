@@ -172,8 +172,8 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
         ) : error ? (
           <AlertMessage variant="danger" message={error} />
         ) : (
-          <div className="tw:space-y-4">
-            <div className="tw:flex tw:flex-col">
+          <div className="space-y-4">
+            <div className="flex flex-col">
               <PropRow
                 icon={<RiTimeLine size={17} />}
                 label="Учёт рабочего времени"
@@ -182,7 +182,7 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
                   (mode) => mode.value === data.workTimeMode,
                 )?.label ?? "По графику"}
                 {data.remoteOnly && (
-                  <span className="tw:ml-2 tw:text-xs tw:font-normal tw:text-muted-foreground">
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
                     только удалённо
                   </span>
                 )}
@@ -195,7 +195,7 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
                   >
                     {data.timezone}
                     {!data.hasPersonalSchedule && (
-                      <span className="tw:ml-2 tw:text-xs tw:font-normal tw:text-faint">
+                      <span className="ml-2 text-xs font-normal text-faint">
                         как в организации
                       </span>
                     )}
@@ -219,7 +219,7 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
                     >
                       {data.workingDays}
                       {data.absenceDays > 0 && (
-                        <span className="tw:ml-2 tw:text-xs tw:font-normal tw:text-muted-foreground">
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
                           и {data.absenceDays} дн. отсутствия
                         </span>
                       )}
@@ -230,15 +230,15 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
             </div>
 
             {isUntracked ? (
-              <div className="tw:rounded-lg tw:border tw:border-dashed tw:border-border tw:px-4 tw:py-6 tw:text-center">
-                <p className="tw:mx-auto tw:mb-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
+                <p className="mx-auto mb-0 max-w-md text-sm text-muted-foreground">
                   Рабочее время не ведётся: в календаре команды сотрудника нет,
                   статус по графику не меняется.
                 </p>
               </div>
             ) : !showSchedule ? (
-              <div className="tw:rounded-lg tw:border tw:border-dashed tw:border-border tw:px-4 tw:py-6 tw:text-center">
-                <p className="tw:mx-auto tw:mb-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
+                <p className="mx-auto mb-0 max-w-md text-sm text-muted-foreground">
                   Свободный режим: расписания нет, статус сотрудник ставит сам —
                   любой, включая отпуск. В календаре команды он есть, плановых
                   дней у него не показывается.
@@ -246,14 +246,14 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
               </div>
             ) : data.hasPersonalSchedule ? (
               <div>
-                <p className="tw:mb-2 tw:text-xs tw:text-muted-foreground">
+                <p className="mb-2 text-xs text-muted-foreground">
                   Время — по часовому поясу сотрудника ({data.timezone})
                 </p>
                 <ScheduleView schedule={data.schedule} />
               </div>
             ) : (
-              <div className="tw:rounded-lg tw:border tw:border-dashed tw:border-border tw:px-4 tw:py-6 tw:text-center">
-                <p className="tw:mx-auto tw:mb-0 tw:max-w-md tw:text-sm tw:text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
+                <p className="mx-auto mb-0 max-w-md text-sm text-muted-foreground">
                   Личный график не задан — в календаре он показан по резервному
                   графику организации, а переработки в отчётах считаются по окну
                   обслуживания клиента.
@@ -263,8 +263,8 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
             )}
 
             {showSchedule && (data.versions?.length ?? 0) > 1 && (
-              <div className="tw:border-t tw:border-border-soft tw:pt-3.5">
-                <div className="tw:mb-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+              <div className="border-t border-border-soft pt-3.5">
+                <div className="mb-2 text-xs font-bold tracking-wider text-faint uppercase">
                   История графика
                 </div>
                 {[...data.versions]
@@ -276,18 +276,18 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
                   .map((version, index) => (
                     <div
                       key={version.effectiveFrom ?? "always"}
-                      className="tw:flex tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:py-2 tw:text-sm tw:first:border-t-0"
+                      className="flex items-center gap-3 border-t border-border-soft py-2 text-sm first:border-t-0"
                     >
-                      <span className="tw:w-28 tw:flex-none tw:text-muted-foreground tw:tabular-nums">
+                      <span className="w-28 flex-none text-muted-foreground tabular-nums">
                         {version.effectiveFrom
                           ? `с ${humanDate(version.effectiveFrom)}`
                           : "с самого начала"}
                       </span>
-                      <span className="tw:min-w-0 tw:flex-1 tw:truncate">
+                      <span className="min-w-0 flex-1 truncate">
                         {weekSummary(version.schedule)}
                       </span>
                       {index === 0 && (
-                        <span className="tw:flex-none tw:text-xs tw:text-accent-text">
+                        <span className="flex-none text-xs text-accent-text">
                           действует
                         </span>
                       )}
@@ -297,8 +297,8 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
             )}
 
             {!isUntracked && activeAbsences.length > 0 && (
-              <div className="tw:border-t tw:border-border-soft tw:pt-3.5">
-                <div className="tw:mb-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+              <div className="border-t border-border-soft pt-3.5">
+                <div className="mb-2 text-xs font-bold tracking-wider text-faint uppercase">
                   Отсутствия
                 </div>
                 {activeAbsences.map((absence) => {
@@ -306,10 +306,10 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
                   return (
                     <div
                       key={absence._id}
-                      className="tw:flex tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:py-2 tw:text-sm tw:first:border-t-0"
+                      className="flex items-center gap-3 border-t border-border-soft py-2 text-sm first:border-t-0"
                     >
                       <span
-                        className="tw:grid tw:h-6 tw:min-w-8 tw:place-items-center tw:rounded-md tw:px-1.5 tw:text-xs tw:font-bold"
+                        className="grid h-6 min-w-8 place-items-center rounded-md px-1.5 text-xs font-bold"
                         style={{
                           color: meta?.color,
                           background:
@@ -325,10 +325,8 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
                         {meta?.short}
                       </span>
                       <span>
-                        <span className="tw:font-medium">
-                          {absence.typeLabel}
-                        </span>
-                        <span className="tw:text-muted-foreground">
+                        <span className="font-medium">{absence.typeLabel}</span>
+                        <span className="text-muted-foreground">
                           {" · "}
                           {humanDate(absence.from)}
                           {absence.from !== absence.to &&
@@ -336,7 +334,7 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
                         </span>
                       </span>
                       {absence.status === "pending" && (
-                        <span className="tw:ml-auto tw:text-xs tw:text-warning">
+                        <span className="ml-auto text-xs text-warning">
                           на согласовании
                         </span>
                       )}

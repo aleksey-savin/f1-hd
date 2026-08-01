@@ -38,7 +38,9 @@ type NodeState = "done" | "wait" | "queued" | "declined" | "stuck";
 const OPEN_KEY = "approval-route-open";
 
 const fullName = (actor?: Actor | null) =>
-  actor ? `${actor.lastName || ""} ${actor.firstName || ""}`.trim() || "—" : "—";
+  actor
+    ? `${actor.lastName || ""} ${actor.firstName || ""}`.trim() || "—"
+    : "—";
 
 const shortName = (actor?: Actor | null) =>
   actor
@@ -110,31 +112,31 @@ const RouteEnd = ({
   state: NodeState;
   detail: ReactNode;
 }) => (
-  <div className="tw:flex tw:max-w-56 tw:flex-none tw:items-start tw:gap-2.5 tw:pt-1.5 tw:max-md:max-w-none">
+  <div className="flex max-w-56 flex-none items-start gap-2.5 pt-1.5 max-md:max-w-none">
     <span
       aria-hidden
       className={cn(
-        "tw:grid tw:size-8 tw:flex-none tw:place-items-center tw:rounded-full tw:text-xs tw:font-semibold",
-        state === "done" && "tw:bg-primary tw:text-primary-foreground",
-        state === "declined" && "tw:bg-destructive tw:text-white",
+        "grid size-8 flex-none place-items-center rounded-full text-xs font-semibold",
+        state === "done" && "bg-primary text-primary-foreground",
+        state === "declined" && "bg-destructive text-white",
         state !== "done" &&
           state !== "declined" &&
-          "tw:bg-accent tw:text-faint tw:inset-ring tw:inset-ring-border",
+          "bg-accent text-faint inset-ring inset-ring-border",
       )}
     >
       {actor ? initials(actor) : "—"}
     </span>
-    <span className="tw:flex tw:min-w-0 tw:flex-col">
-      <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+    <span className="flex min-w-0 flex-col">
+      <span className="text-xs font-bold tracking-wider text-faint uppercase">
         {role}
       </span>
-      <span className="tw:text-sm tw:leading-tight tw:font-semibold">
+      <span className="text-sm leading-tight font-semibold">
         {fullName(actor)}
       </span>
       <span
         className={cn(
-          "tw:text-xs tw:leading-tight tw:tabular-nums",
-          state === "done" ? "tw:text-accent-text" : "tw:text-muted-foreground",
+          "text-xs leading-tight tabular-nums",
+          state === "done" ? "text-accent-text" : "text-muted-foreground",
         )}
       >
         {detail}
@@ -147,7 +149,7 @@ const RouteEnd = ({
 const Wire = () => (
   <span
     aria-hidden
-    className="tw:mt-5 tw:h-px tw:min-w-4 tw:flex-1 tw:bg-border tw:max-md:my-1 tw:max-md:ms-4 tw:max-md:h-4 tw:max-md:w-px tw:max-md:min-w-0 tw:max-md:flex-none"
+    className="mt-5 h-px min-w-4 flex-1 bg-border max-md:my-1 max-md:ms-4 max-md:h-4 max-md:w-px max-md:min-w-0 max-md:flex-none"
   />
 );
 
@@ -206,14 +208,14 @@ const SignatureRoute = ({
   // Свёрнутая строка называет то, что мешает двигаться. Отказ и «некому
   // подписать» перебивают обычное ожидание: это не очередь, а остановка
   const summary = declined.length ? (
-    <span className="tw:font-semibold tw:text-destructive">
+    <span className="font-semibold text-destructive">
       {shortName(declined[0].decidedBy)} отклонил
       {declined.length > 1
         ? ` ${declined.length} ${plural(declined.length, ["часть", "части", "частей"])}`
         : ` «${declined[0].subdivisionName}»`}
     </span>
   ) : stuck.length ? (
-    <span className="tw:font-semibold tw:text-warning">
+    <span className="font-semibold text-warning">
       подписывать некому: {stuck.map((part) => part.subdivisionName).join(", ")}
     </span>
   ) : waiting.length ? (
@@ -225,7 +227,7 @@ const SignatureRoute = ({
         .join(", ")}
       {waiting.length > 2 && ` и ещё ${waiting.length - 2}`}
       {queued.length > 0 && (
-        <span className="tw:text-faint">
+        <span className="text-faint">
           {" · "}
           {queued.length} в очереди
         </span>
@@ -236,13 +238,11 @@ const SignatureRoute = ({
   );
 
   return (
-    <div className="tw:flex tw:items-start tw:max-md:flex-col tw:max-md:items-stretch">
+    <div className="flex items-start max-md:flex-col max-md:items-stretch">
       <RouteEnd
         // «Мы» понятно только нам. Клиент должен видеть, от кого пришёл
         // документ, — иначе первый узел маршрута ничего ему не сообщает
-        role={
-          isClientView ? report.contractor?.alias || "Исполнитель" : "Мы"
-        }
+        role={isClientView ? report.contractor?.alias || "Исполнитель" : "Мы"}
         actor={report.submittedBy}
         // В подборе отчёт ещё не отправлен — узел не может стоять подписанным:
         // маршрут показывает, КТО будет подписывать, а не притворяется, что
@@ -257,23 +257,23 @@ const SignatureRoute = ({
       <Wire />
 
       {hasFork && (
-        <div className="tw:min-w-0 tw:flex-1 tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card">
+        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
           <button
             type="button"
             onClick={toggle}
             aria-expanded={open}
-            className="tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-3 tw:border-0 tw:bg-transparent tw:px-3 tw:py-2 tw:text-start tw:text-inherit tw:outline-none tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+            className="flex w-full cursor-pointer appearance-none items-center gap-3 border-0 bg-transparent px-3 py-2 text-start text-inherit outline-none focus-visible:ring-4 focus-visible:ring-ring/50"
           >
-            <span className="tw:flex tw:min-w-0 tw:flex-1 tw:flex-col tw:gap-0.5">
-              <span className="tw:flex tw:flex-wrap tw:items-baseline tw:gap-x-2">
-                <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-xs font-bold tracking-wider text-faint uppercase">
                   Подразделения
                 </span>
-                <span className="tw:text-sm tw:font-semibold tw:tabular-nums">
+                <span className="text-sm font-semibold tabular-nums">
                   {signed} из {parts.length} подписали
                 </span>
               </span>
-              <span className="tw:truncate tw:text-xs tw:text-muted-foreground">
+              <span className="truncate text-xs text-muted-foreground">
                 {summary}
               </span>
             </span>
@@ -282,33 +282,33 @@ const SignatureRoute = ({
                 не меняется, а отказ виден мгновенно и свёрнутым */}
             <span
               aria-hidden
-              className="tw:flex tw:w-32 tw:flex-none tw:gap-[3px] tw:max-sm:w-20"
+              className="flex w-32 flex-none gap-[3px] max-sm:w-20"
             >
               {parts.map((part) => (
                 <span
                   key={part._id}
                   className={cn(
-                    "tw:h-1.5 tw:flex-1 tw:rounded-xs",
-                    partState(part) === "done" && "tw:bg-primary",
-                    partState(part) === "declined" && "tw:bg-destructive",
-                    partState(part) === "stuck" && "tw:bg-warning",
-                    partState(part) === "wait" && "tw:bg-border",
+                    "h-1.5 flex-1 rounded-xs",
+                    partState(part) === "done" && "bg-primary",
+                    partState(part) === "declined" && "bg-destructive",
+                    partState(part) === "stuck" && "bg-warning",
+                    partState(part) === "wait" && "bg-border",
                     // Очередь бледнее текущей волны: это ещё не ожидание
-                    partState(part) === "queued" && "tw:bg-border/40",
+                    partState(part) === "queued" && "bg-border/40",
                   )}
                 />
               ))}
             </span>
             <RiArrowDownSLine
               className={cn(
-                "tw:flex-none tw:text-faint tw:transition-transform",
-                open && "tw:rotate-180",
+                "flex-none text-faint transition-transform",
+                open && "rotate-180",
               )}
             />
           </button>
 
           {open && (
-            <div className="tw:border-t tw:border-border-soft tw:px-1 tw:py-1">
+            <div className="border-t border-border-soft px-1 py-1">
               {buildForest(parts).map(({ part, depth }) => (
                 <PartRow key={part._id} part={part} depth={depth} />
               ))}
@@ -318,10 +318,8 @@ const SignatureRoute = ({
           {/* Остаток без подразделения: своей подписи у него нет, и молчать об
               этом нельзя — иначе непонятно, куда делись его работы */}
           {open && remainder && (
-            <div className="tw:flex tw:flex-wrap tw:gap-x-2 tw:border-t tw:border-border-soft tw:bg-accent tw:px-3.5 tw:py-2 tw:text-xs tw:text-muted-foreground">
-              <b className="tw:font-semibold tw:text-foreground">
-                Без подразделения
-              </b>
+            <div className="flex flex-wrap gap-x-2 border-t border-border-soft bg-accent px-3.5 py-2 text-xs text-muted-foreground">
+              <b className="font-semibold text-foreground">Без подразделения</b>
               <span>
                 {remainder.worksCount}{" "}
                 {plural(remainder.worksCount, ["работа", "работы", "работ"])} ·
@@ -371,7 +369,7 @@ const PartRow = ({ part, depth }: { part: ReportPart; depth: number }) => {
 
   return (
     <div
-      className="tw:relative tw:grid tw:grid-cols-[1fr_auto] tw:items-baseline tw:gap-x-3 tw:rounded-lg tw:py-1.5 tw:pe-2.5"
+      className="relative grid grid-cols-[1fr_auto] items-baseline gap-x-3 rounded-lg py-1.5 pe-2.5"
       // Глубина через inline-стиль: классов на произвольный уровень не
       // нагенерируешь, а дерево бывает и трёхуровневым
       style={{ paddingInlineStart: `${10 + depth * 19}px` }}
@@ -379,28 +377,28 @@ const PartRow = ({ part, depth }: { part: ReportPart; depth: number }) => {
       {depth > 0 && (
         <span
           aria-hidden
-          className="tw:absolute tw:inset-y-0 tw:w-px tw:bg-border-soft"
+          className="absolute inset-y-0 w-px bg-border-soft"
           style={{ insetInlineStart: `${10 + (depth - 1) * 19 + 3}px` }}
         />
       )}
-      <span className="tw:flex tw:min-w-0 tw:items-baseline tw:gap-2">
+      <span className="flex min-w-0 items-baseline gap-2">
         <span
           aria-hidden
           className={cn(
-            "tw:size-1.5 tw:flex-none tw:-translate-y-px tw:rounded-full tw:ring-3",
-            state === "done" && "tw:bg-primary tw:ring-primary/20",
-            state === "declined" && "tw:bg-destructive tw:ring-destructive/20",
-            state === "stuck" && "tw:bg-warning tw:ring-warning/25",
-            state === "wait" && "tw:bg-border tw:ring-accent",
-            state === "queued" && "tw:bg-border/50 tw:ring-accent",
+            "size-1.5 flex-none -translate-y-px rounded-full ring-3",
+            state === "done" && "bg-primary ring-primary/20",
+            state === "declined" && "bg-destructive ring-destructive/20",
+            state === "stuck" && "bg-warning ring-warning/25",
+            state === "wait" && "bg-border ring-accent",
+            state === "queued" && "bg-border/50 ring-accent",
           )}
         />
         <span
           className={cn(
-            "tw:truncate tw:text-sm",
-            state === "done" && "tw:text-muted-foreground",
-            state === "queued" && "tw:text-muted-foreground",
-            state !== "done" && state !== "queued" && "tw:font-semibold",
+            "truncate text-sm",
+            state === "done" && "text-muted-foreground",
+            state === "queued" && "text-muted-foreground",
+            state !== "done" && state !== "queued" && "font-semibold",
           )}
         >
           {part.subdivisionName}
@@ -408,21 +406,19 @@ const PartRow = ({ part, depth }: { part: ReportPart; depth: number }) => {
       </span>
       <span
         className={cn(
-          "tw:text-xs tw:whitespace-nowrap tw:tabular-nums",
-          state === "done" && "tw:text-accent-text",
-          state === "declined" && "tw:font-semibold tw:text-destructive",
-          state === "stuck" && "tw:font-semibold tw:text-warning",
-          state === "wait" && "tw:text-muted-foreground",
-          state === "queued" && "tw:text-faint",
+          "text-xs whitespace-nowrap tabular-nums",
+          state === "done" && "text-accent-text",
+          state === "declined" && "font-semibold text-destructive",
+          state === "stuck" && "font-semibold text-warning",
+          state === "wait" && "text-muted-foreground",
+          state === "queued" && "text-faint",
         )}
       >
         {meta}
       </span>
-      <span className="tw:col-start-1 tw:ps-3.5 tw:text-xs tw:text-faint">
-        {who}
-      </span>
+      <span className="col-start-1 ps-3.5 text-xs text-faint">{who}</span>
       {part.status === "declined" && part.comment && (
-        <q className="tw:col-span-2 tw:ps-3.5 tw:text-xs tw:text-destructive">
+        <q className="col-span-2 ps-3.5 text-xs text-destructive">
           {part.comment}
         </q>
       )}

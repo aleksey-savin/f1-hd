@@ -109,7 +109,6 @@ const userSchema = new Schema(
       canManageKnowledgeBase: { type: Boolean, default: false }, // может создавать/редактировать заметки базы знаний
       canSeeKnowledgeBase: { type: Boolean, default: false }, // может просматривать базу знаний
       canManageRoutineTasks: { type: Boolean, default: false }, // может управлять регламентными заданиями
-      canUpdateChangelog: { type: Boolean, default: false }, // может создавать записи в changelog
       canManageTicketTemplates: { type: Boolean, default: false }, // может управлять шаблонами заявок
       // time tracking module
       canUseTimeTrackingModule: { type: Boolean, default: false },
@@ -261,7 +260,6 @@ const userSchema = new Schema(
     notifications: {
       lastAction: String,
       pending: Boolean,
-      changelogUpdate: Boolean,
       resetToken: String,
       password: String,
     },

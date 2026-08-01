@@ -33,7 +33,9 @@ import SubdivisionUsersDialog from "./SubdivisionUsersDialog";
 // диалоги поверх. Данные мутируют fetcher-интенты прежнего action
 // (/companies/:id), loader ревалидируется сам — шторка живёт по live-дереву.
 const byName = (a, b) =>
-  (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase(), "ru");
+  (a.name || "")
+    .toLowerCase()
+    .localeCompare((b.name || "").toLowerCase(), "ru");
 
 // Поиск узла по id с цепочкой предков (для крошек шторки). null — узла больше
 // нет (удалили) — шторка закроется сама.
@@ -109,7 +111,7 @@ const TreeNode = ({ node, isExpanded, onToggle, onOpen, forceExpand }) => {
             onOpen(node);
           }
         }}
-        className="tw:group tw:flex tw:cursor-pointer tw:items-center tw:gap-1.5 tw:rounded-lg tw:px-1.5 tw:py-1.5 tw:transition-colors tw:hover:bg-accent"
+        className="group flex cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-accent"
       >
         {hasChildren ? (
           <button
@@ -120,24 +122,28 @@ const TreeNode = ({ node, isExpanded, onToggle, onOpen, forceExpand }) => {
               event.stopPropagation();
               onToggle(node._id);
             }}
-            className="tw:grid tw:size-6 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-md tw:border-0 tw:bg-transparent tw:p-0 tw:text-faint tw:hover:bg-border-soft tw:hover:text-foreground"
+            className="grid size-6 flex-none cursor-pointer appearance-none place-items-center rounded-md border-0 bg-transparent p-0 text-faint hover:bg-border-soft hover:text-foreground"
           >
-            {expanded ? <RiArrowDownSLine size={16} /> : <RiArrowRightSLine size={16} />}
+            {expanded ? (
+              <RiArrowDownSLine size={16} />
+            ) : (
+              <RiArrowRightSLine size={16} />
+            )}
           </button>
         ) : (
-          <span className="tw:size-6 tw:flex-none" aria-hidden />
+          <span className="size-6 flex-none" aria-hidden />
         )}
         <span
           className={cn(
-            "tw:min-w-0 tw:truncate tw:text-sm tw:font-medium",
-            !node.name?.trim() && "tw:text-muted-foreground tw:italic",
+            "min-w-0 truncate text-sm font-medium",
+            !node.name?.trim() && "text-muted-foreground italic",
           )}
         >
           {node.name?.trim() || "Без названия"}
         </span>
         {employeeCount > 0 && (
           <span
-            className="tw:flex-none tw:text-xs tw:text-faint tw:tabular-nums"
+            className="flex-none text-xs text-faint tabular-nums"
             title="Сотрудников в подразделении"
           >
             · {employeeCount}
@@ -147,16 +153,16 @@ const TreeNode = ({ node, isExpanded, onToggle, onOpen, forceExpand }) => {
             числе унаследованный, показывает шторка */}
         <ClientTime
           clientTimezone={node.clientTimezone}
-          className="tw:flex-none tw:text-xs"
+          className="flex-none text-xs"
         />
         <RiArrowRightSLine
           aria-hidden
-          className="tw:ml-auto tw:flex-none tw:text-faint tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100"
+          className="ml-auto flex-none text-faint opacity-0 transition-opacity group-hover:opacity-100"
         />
       </div>
 
       {hasChildren && expanded && (
-        <div className="tw:ml-4 tw:border-l tw:border-border-soft tw:pl-2.5">
+        <div className="ml-4 border-l border-border-soft pl-2.5">
           {children.map((child) => (
             <TreeNode
               key={child._id}
@@ -273,10 +279,10 @@ const SubdivisionsSection = ({ company, canManage, id }) => {
       </Eyebrow>
       <Panel>
         {total === 0 ? (
-          <div className="tw:mx-auto tw:flex tw:max-w-md tw:flex-col tw:items-center tw:gap-2 tw:py-6 tw:text-center">
-            <RiNodeTree size={36} aria-hidden className="tw:text-faint" />
-            <div className="tw:font-semibold">Подразделений пока нет</div>
-            <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+          <div className="mx-auto flex max-w-md flex-col items-center gap-2 py-6 text-center">
+            <RiNodeTree size={36} aria-hidden className="text-faint" />
+            <div className="font-semibold">Подразделений пока нет</div>
+            <p className="my-0 text-sm text-muted-foreground">
               Структура помогает раскладывать сотрудников по отделам и филиалам
               — от неё живут фильтры и шторка-справка.
             </p>
@@ -284,7 +290,7 @@ const SubdivisionsSection = ({ company, canManage, id }) => {
               <Button
                 size="sm"
                 variant="outline"
-                className="tw:mt-1"
+                className="mt-1"
                 onClick={() => openCreate()}
               >
                 <RiAddLine /> Новое подразделение
@@ -293,11 +299,11 @@ const SubdivisionsSection = ({ company, canManage, id }) => {
           </div>
         ) : (
           <>
-            <div className="tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
               <SearchBar
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="tw:w-64 tw:max-md:w-full"
+                className="w-64 max-md:w-full"
               />
               <Button
                 variant="ghost"
@@ -317,7 +323,7 @@ const SubdivisionsSection = ({ company, canManage, id }) => {
             </div>
 
             {roots.length > 0 ? (
-              <div className="tw:-mx-1.5">
+              <div className="-mx-1.5">
                 {roots.map((node) => (
                   <TreeNode
                     key={node._id}
@@ -330,7 +336,7 @@ const SubdivisionsSection = ({ company, canManage, id }) => {
                 ))}
               </div>
             ) : (
-              <div className="tw:py-2 tw:text-sm tw:text-muted-foreground">
+              <div className="py-2 text-sm text-muted-foreground">
                 Ничего не нашлось. Измените запрос.
               </div>
             )}
@@ -385,7 +391,7 @@ const SubdivisionsSection = ({ company, canManage, id }) => {
               Вы уверены? Это действие нельзя отменить.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="tw:mt-4">
+          <AlertDialogFooter className="mt-4">
             <AlertDialogCancel type="button">Отмена</AlertDialogCancel>
             <Button variant="destructive" onClick={confirmDelete}>
               Удалить

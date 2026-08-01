@@ -34,7 +34,10 @@ const DeviceModelListPage = () => {
       (filterStore.originalList || [])
         .map((model) => model.deviceTypeId)
         .filter(Boolean)
-        .map((type) => [String(type._id), { value: type._id, label: type.name }]),
+        .map((type) => [
+          String(type._id),
+          { value: type._id, label: type.name },
+        ]),
     ).values(),
   ].sort((a, b) => (a.label || "").localeCompare(b.label || ""));
 

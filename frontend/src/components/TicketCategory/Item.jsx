@@ -22,7 +22,7 @@ const TicketCategoryItem = ({ item }) => {
       planCount > 0 &&
       `${planCount} ${plural(planCount, "услуга", "услуги", "услуг")}`,
     alwaysWithinPlan && (
-      <span key="plan" className="tw:text-accent-text">
+      <span key="plan" className="text-accent-text">
         всегда в рамках тарифа
       </span>
     ),

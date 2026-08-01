@@ -20,37 +20,35 @@ const TicketRow = ({ ticket, meta, trailing }) => {
   return (
     <Link
       to={`/tickets/${ticket.num}`}
-      className="tw:relative tw:flex tw:flex-col tw:gap-0.5 tw:px-4 tw:py-2.5 tw:text-foreground tw:no-underline tw:transition-colors tw:before:absolute tw:before:top-0 tw:before:right-4 tw:before:left-4 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden tw:hover:bg-accent/60 tw:hover:text-foreground tw:md:flex-row tw:md:items-center tw:md:gap-3 tw:md:px-5"
+      className="relative flex flex-col gap-0.5 px-4 py-2.5 text-foreground no-underline transition-colors before:absolute before:top-0 before:right-4 before:left-4 before:h-px before:bg-border-soft first:before:hidden hover:bg-accent/60 hover:text-foreground md:flex-row md:items-center md:gap-3 md:px-5"
     >
       {/* мобайл: номер и статус одной строкой над темой */}
-      <div className="tw:flex tw:items-baseline tw:gap-2 tw:text-xs tw:text-muted-foreground tw:tabular-nums tw:md:hidden">
+      <div className="flex items-baseline gap-2 text-xs text-muted-foreground tabular-nums md:hidden">
         <span>№ {ticket.num}</span>
-        <TicketStateText tone={tone} className="tw:ms-auto tw:text-xs">
+        <TicketStateText tone={tone} className="ms-auto text-xs">
           {label}
         </TicketStateText>
       </div>
 
-      <div className="tw:hidden tw:w-16 tw:flex-none tw:text-sm tw:font-medium tw:text-muted-foreground tw:tabular-nums tw:md:block">
+      <div className="hidden w-16 flex-none text-sm font-medium text-muted-foreground tabular-nums md:block">
         {ticket.num}
       </div>
 
-      <div className="tw:min-w-0 tw:flex-1">
-        <div className="tw:truncate tw:text-sm tw:font-medium">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium">
           {ticket.title || "Без темы"}
         </div>
         {meta && (
-          <div className="tw:truncate tw:text-sm tw:text-muted-foreground">
-            {meta}
-          </div>
+          <div className="truncate text-sm text-muted-foreground">{meta}</div>
         )}
       </div>
 
-      <div className="tw:hidden tw:w-32 tw:flex-none tw:md:block">
+      <div className="hidden w-32 flex-none md:block">
         <TicketStateText tone={tone}>{label}</TicketStateText>
       </div>
 
       {trailing != null && (
-        <div className="tw:flex-none tw:text-sm tw:text-muted-foreground tw:tabular-nums tw:md:text-right">
+        <div className="flex-none text-sm text-muted-foreground tabular-nums md:text-right">
           {trailing}
         </div>
       )}

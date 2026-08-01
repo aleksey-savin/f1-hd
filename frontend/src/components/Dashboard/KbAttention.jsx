@@ -26,7 +26,8 @@ const KbAttention = () => {
 
   const queues = MODERATION_FILTERS.filter(
     (queue) =>
-      (!queue.needsSecretsScan || scanForSecrets) && counts?.[queue.countKey] > 0,
+      (!queue.needsSecretsScan || scanForSecrets) &&
+      counts?.[queue.countKey] > 0,
   );
   if (queues.length === 0) return null;
 
@@ -34,22 +35,22 @@ const KbAttention = () => {
     <section>
       <Eyebrow>База знаний ждёт внимания</Eyebrow>
       <Panel>
-        <div className="tw:flex tw:flex-wrap tw:gap-2">
+        <div className="flex flex-wrap gap-2">
           {queues.map((queue) => (
             <Link
               key={queue.mode}
               to={`/knowledge-base?moderation=${queue.mode}`}
-              className="tw:inline-flex tw:items-baseline tw:gap-2 tw:rounded-full tw:border tw:border-border tw:px-3 tw:py-1.5 tw:text-sm tw:text-muted-foreground tw:no-underline tw:transition-colors tw:hover:border-primary tw:hover:text-muted-foreground"
+              className="inline-flex items-baseline gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground no-underline transition-colors hover:border-primary hover:text-muted-foreground"
             >
               {queue.label}
               <span
                 className={
-                  "tw:font-semibold tw:tabular-nums " +
+                  "font-semibold tabular-nums " +
                   // Найденные учётные данные — единственная очередь, где цифра
                   // означает риск, а не объём работы.
                   (queue.mode === "flagged-secrets"
-                    ? "tw:text-destructive"
-                    : "tw:text-foreground")
+                    ? "text-destructive"
+                    : "text-foreground")
                 }
               >
                 {counts[queue.countKey]}

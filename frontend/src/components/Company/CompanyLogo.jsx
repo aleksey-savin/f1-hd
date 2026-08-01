@@ -8,8 +8,8 @@ const CompanyLogo = ({
   company,
   /** Переопределение картинки (превью после загрузки на карточке). */
   src,
-  sizeClass = "tw:size-13",
-  textClass = "tw:text-lg",
+  sizeClass = "size-13",
+  textClass = "text-lg",
   className,
 }) => {
   const logoSrc =
@@ -25,9 +25,9 @@ const CompanyLogo = ({
         role="img"
         aria-label={company?.alias}
         className={cn(
-          // tw:block обязателен: вне flex-контейнера (обёртка HeroLogo)
+          // block обязателен: вне flex-контейнера (обёртка HeroLogo)
           // инлайновый span игнорирует size-* и плитка схлопывается в ноль
-          "tw:block tw:flex-none tw:rounded-xl tw:bg-cover tw:bg-center tw:inset-ring tw:inset-ring-border",
+          "block flex-none rounded-xl bg-cover bg-center inset-ring inset-ring-border",
           sizeClass,
           className,
         )}
@@ -40,7 +40,7 @@ const CompanyLogo = ({
     <span
       aria-hidden
       className={cn(
-        "tw:grid tw:flex-none tw:place-items-center tw:rounded-xl tw:bg-accent tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border",
+        "grid flex-none place-items-center rounded-xl bg-accent font-semibold text-muted-foreground inset-ring inset-ring-border",
         sizeClass,
         textClass,
         className,

@@ -52,14 +52,14 @@ const MailChannelFields = ({
         htmlFor={`${idPrefix}-host`}
         className={className}
       >
-        <div className="tw:flex tw:items-center tw:gap-2 tw:max-md:flex-col tw:max-md:items-stretch">
+        <div className="flex items-center gap-2 max-md:flex-col max-md:items-stretch">
           <Input
             id={`${idPrefix}-host`}
             type="text"
             disabled={disabled}
             value={value.host || ""}
             onChange={(event) => onChange({ host: event.target.value })}
-            className="tw:w-56 tw:max-md:w-full"
+            className="w-56 max-md:w-full"
           />
           <Input
             type="number"
@@ -68,7 +68,7 @@ const MailChannelFields = ({
             disabled={disabled}
             value={value.port ?? defaults.ssl}
             onChange={(event) => onChange({ port: event.target.value })}
-            className="tw:w-24 tw:text-right tw:max-md:w-full"
+            className="w-24 text-right max-md:w-full"
             aria-label={isSmtp ? "Порт SMTP-сервера" : "Порт IMAP-сервера"}
           />
         </div>
@@ -76,14 +76,12 @@ const MailChannelFields = ({
 
       <SettingRow title="Шифрование" className={className}>
         <Segmented
-          ariaLabel={
-            isSmtp ? "Режим шифрования SMTP" : "Режим шифрования IMAP"
-          }
+          ariaLabel={isSmtp ? "Режим шифрования SMTP" : "Режим шифрования IMAP"}
           options={SECURITY_OPTIONS}
           value={value.security || "ssl"}
           onChange={changeSecurity}
           disabled={disabled}
-          className="tw:w-72 tw:max-md:w-full"
+          className="w-72 max-md:w-full"
         />
       </SettingRow>
 
@@ -119,7 +117,7 @@ const MailChannelFields = ({
                 disabled={disabled}
                 value={value.user || ""}
                 onChange={(event) => onChange({ user: event.target.value })}
-                className="tw:w-72 tw:max-md:w-full"
+                className="w-72 max-md:w-full"
               />
             </SettingRow>
           )}
@@ -142,7 +140,7 @@ const MailChannelFields = ({
               placeholder={passwordIsSet ? "••••••••  (задан)" : ""}
               value={value.password || ""}
               onChange={(event) => onChange({ password: event.target.value })}
-              className="tw:w-72 tw:max-md:w-full"
+              className="w-72 max-md:w-full"
             />
           </SettingRow>
         </>

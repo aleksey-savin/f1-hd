@@ -1,10 +1,10 @@
-import Select from "../../UI/Select";
-import { NOTE_TYPES, getNoteTypeMeta } from "../../util/knowledgeNoteTypes";
+import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
+import { NOTE_TYPES } from "../../util/knowledgeNoteTypes";
 import { bindingLabel } from "../../util/knowledgeNoteBindings";
 import { BindingPillList, EmptyPill, TypePill } from "./BindingPills";
 
 const Label = ({ children }) => (
-  <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+  <span className="text-xs font-bold tracking-wider text-faint uppercase">
     {children}
   </span>
 );
@@ -27,17 +27,10 @@ const NoteProperties = ({
   onCompaniesChange,
   onUsersChange,
 }) => {
-  const multi = {
-    closeMenuOnSelect: false,
-    isClearable: true,
-    isSearchable: true,
-    isMulti: true,
-  };
-
   return (
-    <div className="tw:mt-4">
+    <div className="mt-4">
       <div
-        className="tw:flex tw:min-h-16 tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-2 tw:py-3"
+        className="flex min-h-16 flex-wrap items-center gap-x-2.5 gap-y-2 py-3"
         style={{
           borderTop: "1px solid var(--border)",
           borderBottom: "1px solid var(--border)",
@@ -45,16 +38,12 @@ const NoteProperties = ({
       >
         <Label>Тип</Label>
         {isEditing ? (
-          <div className="tw:w-48">
-            <Select
-              aria-label="Тип заметки"
+          <div className="w-48">
+            <Combobox
               placeholder="Тип"
-              isSearchable={false}
-              value={getNoteTypeMeta(type)}
+              value={type || null}
               options={NOTE_TYPES}
-              getOptionLabel={(option) => option.label}
-              getOptionValue={(option) => option.value}
-              onChange={(selected) => onTypeChange(selected?.value || "info")}
+              onChange={(value) => onTypeChange(value || "info")}
             />
           </div>
         ) : (
@@ -64,40 +53,58 @@ const NoteProperties = ({
         <Label>Привязки</Label>
         {isEditing ? (
           <>
-            <div className="tw:min-w-52 tw:flex-1">
-              <Select
-                {...multi}
-                aria-label="Компании"
+            <div className="min-w-52 flex-1">
+              <MultiCombobox
+                ariaLabel="Компании"
                 placeholder="Компании"
-                value={companies}
-                options={formData.companies || []}
-                getOptionLabel={(option) => bindingLabel("company", option)}
-                getOptionValue={(option) => option._id}
-                onChange={(selected) => onCompaniesChange(selected || [])}
+                value={(companies || []).map((item) => String(item._id))}
+                options={toOptions(formData.companies || [], {
+                  value: (option) => String(option._id),
+                  label: (option) => bindingLabel("company", option),
+                })}
+                onChange={(ids) =>
+                  onCompaniesChange(
+                    (formData.companies || []).filter((option) =>
+                      ids.includes(String(option._id)),
+                    ),
+                  )
+                }
               />
             </div>
-            <div className="tw:min-w-52 tw:flex-1">
-              <Select
-                {...multi}
-                aria-label="Категории заявок"
+            <div className="min-w-52 flex-1">
+              <MultiCombobox
+                ariaLabel="Категории заявок"
                 placeholder="Категории заявок"
-                value={categories}
-                options={formData.categories || []}
-                getOptionLabel={(option) => bindingLabel("category", option)}
-                getOptionValue={(option) => option._id}
-                onChange={(selected) => onCategoriesChange(selected || [])}
+                value={(categories || []).map((item) => String(item._id))}
+                options={toOptions(formData.categories || [], {
+                  value: (option) => String(option._id),
+                  label: (option) => bindingLabel("category", option),
+                })}
+                onChange={(ids) =>
+                  onCategoriesChange(
+                    (formData.categories || []).filter((option) =>
+                      ids.includes(String(option._id)),
+                    ),
+                  )
+                }
               />
             </div>
-            <div className="tw:min-w-52 tw:flex-1">
-              <Select
-                {...multi}
-                aria-label="Пользователи"
+            <div className="min-w-52 flex-1">
+              <MultiCombobox
+                ariaLabel="Пользователи"
                 placeholder="Пользователи"
-                value={users}
-                options={formData.users || []}
-                getOptionLabel={(option) => bindingLabel("user", option)}
-                getOptionValue={(option) => option._id}
-                onChange={(selected) => onUsersChange(selected || [])}
+                value={(users || []).map((item) => String(item._id))}
+                options={toOptions(formData.users || [], {
+                  value: (option) => String(option._id),
+                  label: (option) => bindingLabel("user", option),
+                })}
+                onChange={(ids) =>
+                  onUsersChange(
+                    (formData.users || []).filter((option) =>
+                      ids.includes(String(option._id)),
+                    ),
+                  )
+                }
               />
             </div>
           </>
@@ -116,7 +123,7 @@ const NoteProperties = ({
       </div>
 
       {isEditing && (
-        <p className="tw:mt-2 tw:mb-0 tw:text-sm tw:text-muted-foreground">
+        <p className="mt-2 mb-0 text-sm text-muted-foreground">
           Привязки определяют, кто видит заметку и в каких заявках она появится.
           Заметка без привязок видна всем сотрудникам.
         </p>

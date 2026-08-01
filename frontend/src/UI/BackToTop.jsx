@@ -1,76 +1,45 @@
 import { useState, useEffect } from "react";
 import { isBrowser } from "react-device-detect";
-
-import Button from "react-bootstrap/Button";
-
 import { RiArrowUpLine } from "react-icons/ri";
 
+import { Button } from "@/components/ui/button";
+
+/**
+ * Круглая кнопка «наверх» у нижнего правого угла — только десктоп.
+ *
+ * На мобайле её нет вовсе: там скроллится `.mobile-shell__scroll`, а не window
+ * (см. «Мобильная навигация» в docs/ux-ui-guide.md), и слушать window
+ * бессмысленно. Гейт стоит и на подписке, и на отрисовке.
+ *
+ * z-index — легаси-шкала оболочки: выше бара (1030), ниже radix-оверлеев
+ * (1100). Встроенная сетка tw заканчивается на 50, поэтому значение инлайном —
+ * как у бара в layout/Root.jsx.
+ */
 const BackToTop = () => {
   const [isVisible, setIsVisible] = useState(false);
 
-  // Toggle visibility based on scroll position
-  const toggleVisibility = () => {
-    if (window.scrollY > 300) {
-      setIsVisible(true);
-    } else {
-      setIsVisible(false);
-    }
-  };
-
-  // Scroll to top when the component is clicked
-  const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
-
   useEffect(() => {
-    // На мобайле скроллится .mobile-shell__scroll, а не window — виджет не нужен.
     if (!isBrowser) return;
 
-    // Add scroll event listener
-    window.addEventListener("scroll", toggleVisibility);
+    const toggleVisibility = () => setIsVisible(window.scrollY > 300);
 
-    // Clean up the event listener on component unmount
-    return () => {
-      window.removeEventListener("scroll", toggleVisibility);
-    };
+    window.addEventListener("scroll", toggleVisibility);
+    return () => window.removeEventListener("scroll", toggleVisibility);
   }, []);
 
-  if (!isBrowser) return null;
+  if (!isBrowser || !isVisible) return null;
 
   return (
-    <div>
-      {isVisible && (
-        <Button
-          variant="success"
-          className="z-3"
-          onClick={scrollToTop}
-          style={styles.backToTopButton}
-        >
-          <RiArrowUpLine />
-        </Button>
-      )}
-    </div>
+    <Button
+      size="icon-lg"
+      aria-label="Наверх"
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      className="fixed right-5 bottom-5 rounded-full shadow-lg"
+      style={{ zIndex: 1040 }}
+    >
+      <RiArrowUpLine className="size-5" />
+    </Button>
   );
-};
-
-// Basic styles for the button
-const styles = {
-  backToTopButton: {
-    position: "fixed",
-    bottom: isBrowser ? "1.25rem" : "6.25rem",
-    right: "1.25rem",
-    width: "3.125rem",
-    height: "3.125rem",
-    fontSize: "1.5rem",
-    borderRadius: "50%",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
 };
 
 export default BackToTop;

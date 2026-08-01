@@ -36,23 +36,21 @@ const PageShell = ({
   <div
     // 1600 нет во встроенной сетке tailwind, а произвольные значения в классах
     // гайд запрещает — ширину задаём стилем
-    className={wide ? "tw:mx-auto tw:w-full" : "tw:mx-auto tw:w-full tw:max-w-7xl"}
+    className={wide ? "mx-auto w-full" : "mx-auto w-full max-w-7xl"}
     style={wide ? { maxWidth: 1600 } : undefined}
   >
-    {breadcrumb && <div className="tw:mb-3">{breadcrumb}</div>}
-    <div className="tw:mb-4 tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-3">
+    {breadcrumb && <div className="mb-3">{breadcrumb}</div>}
+    <div className="mb-4 flex flex-wrap items-center gap-x-2.5 gap-y-3">
       {icon}
       <div>
-        <h1 className="tw:my-0 tw:text-4xl tw:leading-none tw:font-semibold tw:tracking-tight">
+        <h1 className="my-0 text-4xl leading-none font-semibold tracking-tight">
           {title}
         </h1>
         {subtitle && (
-          <div className="tw:mt-1.5 tw:text-sm tw:text-muted-foreground">
-            {subtitle}
-          </div>
+          <div className="mt-1.5 text-sm text-muted-foreground">{subtitle}</div>
         )}
       </div>
-      <div className="tw:ms-auto tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+      <div className="ms-auto flex flex-wrap items-center gap-2.5">
         {toolbar}
       </div>
     </div>

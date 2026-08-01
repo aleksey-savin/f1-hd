@@ -67,7 +67,7 @@ import NewComponentDialog from "./NewComponentDialog";
 import QrDialog from "./QrDialog";
 import TicketsPanel from "./TicketsPanel";
 
-const dash = <span className="tw:text-faint">—</span>;
+const dash = <span className="text-faint">—</span>;
 
 // Ярлык секции: та же форма, что у «Изменить» в шапке, открытая сразу на своей
 // секции (см. docs/ux-ui-guide.md, «Одно поле — одно место правки»).
@@ -101,11 +101,11 @@ const warrantyState = (value) => {
 
 // Пара «подпись — значение» в две колонки (характеристики конфигурации).
 const SpecRow = ({ label, children }) => (
-  <div className="tw:flex tw:items-baseline tw:gap-3 tw:border-t tw:border-border-soft tw:py-2 tw:first:border-t-0 tw:md:[&:nth-child(2)]:border-t-0">
-    <span className="tw:w-44 tw:flex-none tw:text-sm tw:text-muted-foreground">
+  <div className="flex items-baseline gap-3 border-t border-border-soft py-2 first:border-t-0 md:[&:nth-child(2)]:border-t-0">
+    <span className="w-44 flex-none text-sm text-muted-foreground">
       {label}
     </span>
-    <span className="tw:min-w-0 tw:flex-1 tw:font-medium">{children}</span>
+    <span className="min-w-0 flex-1 font-medium">{children}</span>
   </div>
 );
 
@@ -238,20 +238,20 @@ const ViewClientDevice = ({ device = {} }) => {
 
   return (
     <>
-      <div className="tw:mx-auto tw:w-full tw:max-w-5xl">
+      <div className="mx-auto w-full max-w-5xl">
         {/* Возврат к списку — крошками, а не кнопкой в действиях */}
         <Link
           to="/inventory/client-devices"
-          className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+          className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
         >
           <RiArrowLeftSLine /> Устройства
         </Link>
 
         {/* Hero */}
-        <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
+        <div className="flex flex-wrap items-start gap-4">
           <span
             aria-hidden
-            className="tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:overflow-hidden tw:rounded-2xl tw:bg-accent tw:text-2xl tw:text-muted-foreground tw:inset-ring tw:inset-ring-border tw:bg-cover tw:bg-center"
+            className="grid size-14 flex-none place-items-center overflow-hidden rounded-2xl bg-accent text-2xl text-muted-foreground inset-ring inset-ring-border bg-cover bg-center"
             style={
               heroPhoto ? { backgroundImage: `url(${heroPhoto})` } : undefined
             }
@@ -259,13 +259,13 @@ const ViewClientDevice = ({ device = {} }) => {
             {!heroPhoto && <TypeIcon />}
           </span>
 
-          <div className="tw:min-w-0 tw:flex-1">
-            <h1 className="tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight">
+          <div className="min-w-0 flex-1">
+            <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight">
               {title}
             </h1>
 
-            <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-2">
-              <span className="tw:text-sm tw:text-muted-foreground">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="text-sm text-muted-foreground">
                 {isCustom
                   ? [type?.name, "собственная сборка"]
                       .filter(Boolean)
@@ -278,10 +278,10 @@ const ViewClientDevice = ({ device = {} }) => {
                 onClick={() => setQrOpen(true)}
                 title="Показать QR-код"
                 className={cn(
-                  "tw:inline-flex tw:cursor-pointer tw:items-center tw:gap-1.5 tw:rounded-md tw:border tw:px-2 tw:py-0.5 tw:font-mono tw:text-xs tw:font-semibold tw:tracking-wide tw:transition-colors",
+                  "inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-xs font-semibold tracking-wide transition-colors",
                   device.inventoryNumber
-                    ? "tw:border-border-soft tw:bg-accent tw:text-foreground tw:hover:border-input"
-                    : "tw:bg-transparent tw:font-sans tw:font-normal tw:text-faint",
+                    ? "border-border-soft bg-accent text-foreground hover:border-input"
+                    : "bg-transparent font-sans font-normal text-faint",
                 )}
                 style={
                   device.inventoryNumber
@@ -290,30 +290,30 @@ const ViewClientDevice = ({ device = {} }) => {
                 }
               >
                 {device.inventoryNumber || "нет №"}
-                <RiQrCodeLine size={11} aria-hidden className="tw:opacity-55" />
+                <RiQrCodeLine size={11} aria-hidden className="opacity-55" />
               </button>
             </div>
 
-            <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-4 tw:gap-y-1.5">
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
               {status && (
-                <DeviceStatusText tone={status.tone} className="tw:text-sm">
+                <DeviceStatusText tone={status.tone} className="text-sm">
                   {status.label}
                 </DeviceStatusText>
               )}
               {warranty && (
                 <span
                   className={cn(
-                    "tw:text-sm",
+                    "text-sm",
                     warranty.tone === "warn"
-                      ? "tw:text-warning"
-                      : "tw:text-muted-foreground",
+                      ? "text-warning"
+                      : "text-muted-foreground",
                   )}
                 >
                   Гарантия {warranty.text}
                 </span>
               )}
               {mikro && (
-                <DeviceStatusText tone={mikro.tone} className="tw:text-sm">
+                <DeviceStatusText tone={mikro.tone} className="text-sm">
                   {mikro.label}
                 </DeviceStatusText>
               )}
@@ -323,10 +323,10 @@ const ViewClientDevice = ({ device = {} }) => {
             {parent && (
               <Link
                 to={`/inventory/client-devices/${parent._id}`}
-                className="tw:mt-2.5 tw:inline-flex tw:items-center tw:gap-2 tw:rounded-lg tw:bg-accent tw:px-2.5 tw:py-1.5 tw:text-sm tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+                className="mt-2.5 inline-flex items-center gap-2 rounded-lg bg-accent px-2.5 py-1.5 text-sm text-muted-foreground no-underline hover:text-foreground"
               >
                 <RiStackLine size={15} aria-hidden />В составе:{" "}
-                <span className="tw:font-medium tw:text-accent-text">
+                <span className="font-medium text-accent-text">
                   {[
                     parent.deviceModelId?.name || parent.deviceTypeId?.name,
                     parent.inventoryNumber,
@@ -339,7 +339,7 @@ const ViewClientDevice = ({ device = {} }) => {
             )}
           </div>
 
-          <div className="tw:flex tw:flex-none tw:items-center tw:gap-2">
+          <div className="flex flex-none items-center gap-2">
             {/* QR — отдельная кнопка, а не пункт меню: код открывают часто и
                 не глядя в списки действий */}
             <Button
@@ -384,15 +384,15 @@ const ViewClientDevice = ({ device = {} }) => {
         </div>
 
         {/* Секции одним скроллом; слева — липкий рейл-якорь (только десктоп) */}
-        <div className="tw:flex tw:items-start tw:gap-7">
-          <BrowserView className="tw:contents">
+        <div className="flex items-start gap-7">
+          <BrowserView className="contents">
             <AnchorRail
               sections={railSections}
               ariaLabel="Разделы карточки"
-              className="tw:mt-6"
+              className="mt-6"
             />
           </BrowserView>
-          <div className="tw:min-w-0 tw:flex-1">
+          <div className="min-w-0 flex-1">
             <Section>
               <Eyebrow
                 id="placement"
@@ -422,7 +422,7 @@ const ViewClientDevice = ({ device = {} }) => {
                   {device.companyId ? (
                     <Link
                       to={`/companies/${device.companyId._id}`}
-                      className="tw:text-foreground tw:no-underline tw:hover:text-accent-text"
+                      className="text-foreground no-underline hover:text-accent-text"
                     >
                       {refName(device.companyId)}
                     </Link>
@@ -438,14 +438,14 @@ const ViewClientDevice = ({ device = {} }) => {
                     <>
                       <Link
                         to={`/inventory/locations/${device.locationId._id}`}
-                        className="tw:text-foreground tw:no-underline tw:hover:text-accent-text"
+                        className="text-foreground no-underline hover:text-accent-text"
                       >
                         {device.locationId.name}
                       </Link>
                       {device.locationPath?.length > 1 && (
                         // Путь целиком: «Серверная» без здания не отвечает на
                         // вопрос «куда ехать».
-                        <span className="tw:mt-0.5 tw:block tw:truncate tw:text-xs tw:font-normal tw:text-faint">
+                        <span className="mt-0.5 block truncate text-xs font-normal text-faint">
                           {device.locationPath
                             .map((node) => node.name)
                             .join(" › ")}
@@ -460,7 +460,7 @@ const ViewClientDevice = ({ device = {} }) => {
                   {device.userId ? (
                     <Link
                       to={`/users/${device.userId._id}`}
-                      className="tw:text-foreground tw:no-underline tw:hover:text-accent-text"
+                      className="text-foreground no-underline hover:text-accent-text"
                     >
                       {[device.userId.lastName, device.userId.firstName]
                         .filter(Boolean)
@@ -503,7 +503,7 @@ const ViewClientDevice = ({ device = {} }) => {
                     <>
                       <Link
                         to={`/inventory/device-types/${type._id}`}
-                        className="tw:text-foreground tw:no-underline tw:hover:text-accent-text"
+                        className="text-foreground no-underline hover:text-accent-text"
                       >
                         {type.name}
                       </Link>
@@ -512,7 +512,7 @@ const ViewClientDevice = ({ device = {} }) => {
                           {" · "}
                           <Link
                             to={`/inventory/device-models/${model._id}`}
-                            className="tw:text-foreground tw:no-underline tw:hover:text-accent-text"
+                            className="text-foreground no-underline hover:text-accent-text"
                           >
                             {[vendor?.name, model.name]
                               .filter(Boolean)
@@ -538,9 +538,7 @@ const ViewClientDevice = ({ device = {} }) => {
                   }
                 >
                   {device.inventoryNumber ? (
-                    <span className="tw:font-mono">
-                      {device.inventoryNumber}
-                    </span>
+                    <span className="font-mono">{device.inventoryNumber}</span>
                   ) : (
                     dash
                   )}
@@ -555,7 +553,7 @@ const ViewClientDevice = ({ device = {} }) => {
                   }
                 >
                   {device.serialNumber ? (
-                    <span className="tw:font-mono">{device.serialNumber}</span>
+                    <span className="font-mono">{device.serialNumber}</span>
                   ) : (
                     dash
                   )}
@@ -570,7 +568,7 @@ const ViewClientDevice = ({ device = {} }) => {
                   {configuration?.name ? ` · ${configuration.name}` : ""}
                 </Eyebrow>
                 <Panel>
-                  <div className="tw:grid tw:gap-x-8 tw:md:grid-cols-2">
+                  <div className="grid gap-x-8 md:grid-cols-2">
                     {specs.map((entry) => (
                       <SpecRow
                         key={entry.attributeId?._id || entry.attributeId?.code}
@@ -612,7 +610,7 @@ const ViewClientDevice = ({ device = {} }) => {
                   label="Имя в сети"
                 >
                   {device.hostname ? (
-                    <span className="tw:font-mono">{device.hostname}</span>
+                    <span className="font-mono">{device.hostname}</span>
                   ) : (
                     dash
                   )}
@@ -627,14 +625,14 @@ const ViewClientDevice = ({ device = {} }) => {
                   }
                 >
                   {device.ipAddress ? (
-                    <span className="tw:font-mono">{device.ipAddress}</span>
+                    <span className="font-mono">{device.ipAddress}</span>
                   ) : (
                     dash
                   )}
                 </PropRow>
                 <PropRow icon={<RiGlobalLine size={17} />} label="MAC-адрес">
                   {device.macAddress ? (
-                    <span className="tw:font-mono">{device.macAddress}</span>
+                    <span className="font-mono">{device.macAddress}</span>
                   ) : (
                     dash
                   )}
@@ -650,14 +648,14 @@ const ViewClientDevice = ({ device = {} }) => {
                     icon={<RiFingerprintLine size={17} />}
                     label="ID машины (агент)"
                   >
-                    <span className="tw:font-mono tw:text-sm">
+                    <span className="font-mono text-sm">
                       {device.machineId}
                     </span>
                   </PropRow>
                 )}
                 {device.notes && (
                   <PropRow icon={<RiFileList2Line size={17} />} label="Заметки">
-                    <span className="tw:font-normal tw:whitespace-pre-line">
+                    <span className="font-normal whitespace-pre-line">
                       {device.notes}
                     </span>
                   </PropRow>
@@ -698,7 +696,7 @@ const ViewClientDevice = ({ device = {} }) => {
                     <AlertMessage variant="danger" message={detachError} />
                   )}
                   {components.length === 0 ? (
-                    <p className="tw:my-1 tw:text-sm tw:text-muted-foreground">
+                    <p className="my-1 text-sm text-muted-foreground">
                       Комплектующие не прикреплены. «Прикрепить» добавит в
                       сборку свободное устройство этой компании.
                     </p>
@@ -723,29 +721,29 @@ const ViewClientDevice = ({ device = {} }) => {
                       return (
                         <div
                           key={component._id}
-                          className="tw:flex tw:items-center tw:gap-3.5 tw:border-t tw:border-border-soft tw:py-2.5 tw:first:border-t-0"
+                          className="flex items-center gap-3.5 border-t border-border-soft py-2.5 first:border-t-0"
                         >
                           <Link
                             to={`/inventory/client-devices/${component._id}`}
-                            className="tw:flex tw:min-w-0 tw:flex-1 tw:items-center tw:gap-3 tw:text-foreground tw:no-underline"
+                            className="flex min-w-0 flex-1 items-center gap-3 text-foreground no-underline"
                           >
                             <span
                               aria-hidden
-                              className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground"
+                              className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-muted-foreground"
                             >
                               <ComponentIcon size={17} />
                             </span>
-                            <span className="tw:min-w-0">
-                              <span className="tw:block tw:truncate tw:font-medium">
+                            <span className="min-w-0">
+                              <span className="block truncate font-medium">
                                 {name}
                                 {component.quantity > 1 && (
-                                  <span className="tw:font-normal tw:text-faint">
+                                  <span className="font-normal text-faint">
                                     {" "}
                                     × {component.quantity}
                                   </span>
                                 )}
                               </span>
-                              <span className="tw:block tw:truncate tw:text-sm tw:text-muted-foreground">
+                              <span className="block truncate text-sm text-muted-foreground">
                                 {[
                                   componentType,
                                   component.inventoryNumber,
@@ -758,19 +756,19 @@ const ViewClientDevice = ({ device = {} }) => {
                               </span>
                             </span>
                           </Link>
-                          <span className="tw:hidden tw:w-48 tw:flex-none tw:text-sm tw:lg:block">
+                          <span className="hidden w-48 flex-none text-sm lg:block">
                             {componentWarranty ? (
                               <span
                                 className={cn(
                                   componentWarranty.tone === "warn"
-                                    ? "tw:text-warning"
-                                    : "tw:text-muted-foreground",
+                                    ? "text-warning"
+                                    : "text-muted-foreground",
                                 )}
                               >
                                 Гарантия {componentWarranty.text}
                               </span>
                             ) : (
-                              <span className="tw:text-faint">
+                              <span className="text-faint">
                                 Гарантия не указана
                               </span>
                             )}
@@ -783,7 +781,7 @@ const ViewClientDevice = ({ device = {} }) => {
                               aria-label="Открепить от сборки"
                               disabled={detachingId === component._id}
                               onClick={() => detachComponent(component._id)}
-                              className="tw:flex-none tw:text-faint"
+                              className="flex-none text-faint"
                             >
                               <RiLinkUnlink />
                             </Button>
@@ -847,7 +845,7 @@ const ViewClientDevice = ({ device = {} }) => {
                   {warranty ? (
                     <span
                       className={
-                        warranty.tone === "warn" ? "tw:text-warning" : undefined
+                        warranty.tone === "warn" ? "text-warning" : undefined
                       }
                     >
                       {warranty.text}
@@ -913,7 +911,7 @@ const ViewClientDevice = ({ device = {} }) => {
               </>
             )}
 
-            <div className="tw:mt-6 tw:border-t tw:border-border-soft tw:pt-3.5 tw:text-sm tw:text-faint">
+            <div className="mt-6 border-t border-border-soft pt-3.5 text-sm text-faint">
               {device.createdBy && (
                 <>
                   Завёл{" "}

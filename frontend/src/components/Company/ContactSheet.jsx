@@ -41,13 +41,13 @@ const copyToClipboard = (text, label) => {
 };
 
 const channelClass =
-  "tw:flex tw:items-center tw:gap-2 tw:rounded-xl tw:border tw:border-border tw:p-1.5";
+  "flex items-center gap-2 rounded-xl border border-border p-1.5";
 const channelLinkClass =
-  "tw:flex tw:min-w-0 tw:flex-1 tw:items-center tw:gap-3 tw:rounded-lg tw:p-2 tw:text-foreground tw:no-underline tw:active:bg-accent";
+  "flex min-w-0 flex-1 items-center gap-3 rounded-lg p-2 text-foreground no-underline active:bg-accent";
 const channelIconClass =
-  "tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-primary/15 tw:text-primary";
+  "grid size-9 flex-none place-items-center rounded-lg bg-primary/15 text-primary";
 const copyBtnClass =
-  "tw:grid tw:size-9 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:transition-colors tw:active:bg-accent";
+  "grid size-9 flex-none cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-transparent text-faint transition-colors active:bg-accent";
 
 const CompanyContactSheet = ({ item, open, onOpenChange }) => {
   const { taxi } = useInitialPrefs();
@@ -74,35 +74,33 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="tw:max-h-[85dvh] tw:gap-0 tw:overflow-y-auto tw:rounded-t-2xl tw:border tw:border-b-0 tw:border-border tw:p-5 tw:pb-7"
+        className="max-h-[85dvh] gap-0 overflow-y-auto rounded-t-2xl border border-b-0 border-border p-5 pb-7"
       >
-        <SheetTitle className="tw:sr-only">{alias || "Компания"}</SheetTitle>
-        <SheetDescription className="tw:sr-only">
+        <SheetTitle className="sr-only">{alias || "Компания"}</SheetTitle>
+        <SheetDescription className="sr-only">
           Адрес, дорога и телефоны
         </SheetDescription>
 
-        <div className="tw:mb-5 tw:flex tw:items-center tw:gap-4 tw:pr-8">
+        <div className="mb-5 flex items-center gap-4 pr-8">
           <CompanyLogo
             company={item}
-            sizeClass="tw:size-15"
-            textClass="tw:text-xl"
-            className="tw:rounded-2xl"
+            sizeClass="size-15"
+            textClass="text-xl"
+            className="rounded-2xl"
           />
-          <div className="tw:min-w-0">
-            <div className="tw:truncate tw:text-lg tw:font-semibold">
-              {alias || "—"}
-            </div>
+          <div className="min-w-0">
+            <div className="truncate text-lg font-semibold">{alias || "—"}</div>
             {fullTitle && (
-              <div className="tw:truncate tw:text-sm tw:text-muted-foreground">
+              <div className="truncate text-sm text-muted-foreground">
                 {fullTitle}
               </div>
             )}
-            <div className="tw:mt-1">
+            <div className="mt-1">
               {inactive ? (
-                <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-sm tw:text-faint">
+                <span className="inline-flex items-center gap-1.5 text-sm text-faint">
                   <span
                     aria-hidden
-                    className="tw:size-2 tw:flex-none tw:rounded-full tw:bg-transparent tw:inset-ring tw:inset-ring-faint"
+                    className="size-2 flex-none rounded-full bg-transparent inset-ring inset-ring-faint"
                   />
                   отключена
                 </span>
@@ -116,7 +114,7 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
           </div>
         </div>
 
-        <div className="tw:flex tw:flex-col tw:gap-2">
+        <div className="flex flex-col gap-2">
           {address && (
             <div className={channelClass}>
               {linkToMap ? (
@@ -129,27 +127,23 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
                   <span className={channelIconClass}>
                     <RiMapPin2Line size={19} />
                   </span>
-                  <span className="tw:min-w-0">
-                    <span className="tw:block tw:text-xs tw:text-faint">
+                  <span className="min-w-0">
+                    <span className="block text-xs text-faint">
                       Адрес · тап — карта
                     </span>
-                    <span className="tw:block tw:truncate tw:font-medium">
+                    <span className="block truncate font-medium">
                       {address}
                     </span>
                   </span>
                 </a>
               ) : (
-                <span
-                  className={cn(channelLinkClass, "tw:active:bg-transparent")}
-                >
+                <span className={cn(channelLinkClass, "active:bg-transparent")}>
                   <span className={channelIconClass}>
                     <RiMapPin2Line size={19} />
                   </span>
-                  <span className="tw:min-w-0">
-                    <span className="tw:block tw:text-xs tw:text-faint">
-                      Адрес
-                    </span>
-                    <span className="tw:block tw:truncate tw:font-medium">
+                  <span className="min-w-0">
+                    <span className="block text-xs text-faint">Адрес</span>
+                    <span className="block truncate font-medium">
                       {address}
                     </span>
                   </span>
@@ -175,29 +169,26 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
                 onClick={() => openTaxi(taxiAction)}
                 className={cn(
                   channelLinkClass,
-                  "tw:cursor-pointer tw:border-0 tw:bg-transparent tw:text-start",
+                  "cursor-pointer border-0 bg-transparent text-start",
                 )}
               >
                 <span
-                  className={cn(
-                    channelIconClass,
-                    "tw:bg-warning/15 tw:text-warning",
-                  )}
+                  className={cn(channelIconClass, "bg-warning/15 text-warning")}
                 >
                   <RiTaxiLine size={19} />
                 </span>
-                <span className="tw:min-w-0">
-                  <span className="tw:block tw:text-xs tw:text-faint">
+                <span className="min-w-0">
+                  <span className="block text-xs text-faint">
                     {taxiAction.label} · {taxiAction.routeText}
                   </span>
-                  <span className="tw:block tw:truncate tw:font-medium">
+                  <span className="block truncate font-medium">
                     {taxiAction.orderText}
                   </span>
                 </span>
                 <RiArrowRightSLine
                   size={18}
                   aria-hidden
-                  className="tw:ms-auto tw:flex-none tw:text-faint"
+                  className="ms-auto flex-none text-faint"
                 />
               </button>
             </div>
@@ -209,11 +200,9 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
                 <span className={channelIconClass}>
                   <RiPhoneLine size={19} />
                 </span>
-                <span className="tw:min-w-0">
-                  <span className="tw:block tw:text-xs tw:text-faint">
-                    Позвонить
-                  </span>
-                  <span className="tw:block tw:truncate tw:font-medium tw:tabular-nums">
+                <span className="min-w-0">
+                  <span className="block text-xs text-faint">Позвонить</span>
+                  <span className="block truncate font-medium tabular-nums">
                     {phone}
                   </span>
                 </span>
@@ -230,7 +219,7 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
           ))}
 
           {!hasChannels && (
-            <p className="tw:my-0 tw:rounded-xl tw:border tw:border-dashed tw:border-border tw:p-4 tw:text-center tw:text-sm tw:text-muted-foreground">
+            <p className="my-0 rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
               Адрес и телефоны не указаны
             </p>
           )}
@@ -239,7 +228,7 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
         <Link
           to={`/companies/${_id}`}
           onClick={() => onOpenChange(false)}
-          className="tw:mt-4 tw:flex tw:h-11 tw:items-center tw:justify-center tw:gap-2 tw:rounded-lg tw:bg-primary tw:font-semibold tw:text-primary-foreground tw:no-underline tw:active:bg-primary/90"
+          className="mt-4 flex h-11 items-center justify-center gap-2 rounded-lg bg-primary font-semibold text-primary-foreground no-underline active:bg-primary/90"
         >
           Открыть карточку
           <RiArrowRightLine size={18} />

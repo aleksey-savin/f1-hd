@@ -12,18 +12,18 @@ import {
   deviceIcon,
 } from "./device-status";
 
-const dash = <span className="tw:text-faint">—</span>;
+const dash = <span className="text-faint">—</span>;
 
 // Микро-подпись + значение (как в предпросмотре расположений).
 const Info = ({ label, mono, wide, children }) => (
-  <div className={cn("tw:min-w-0", wide && "tw:col-span-2")}>
-    <div className="tw:mb-0.5 tw:text-[11px] tw:font-semibold tw:tracking-wide tw:text-faint tw:uppercase">
+  <div className={cn("min-w-0", wide && "col-span-2")}>
+    <div className="mb-0.5 text-[11px] font-semibold tracking-wide text-faint uppercase">
       {label}
     </div>
     <div
       className={cn(
-        "tw:text-sm tw:leading-relaxed tw:break-words",
-        mono && "tw:font-mono tw:text-xs tw:leading-loose",
+        "text-sm leading-relaxed break-words",
+        mono && "font-mono text-xs leading-loose",
       )}
     >
       {children || dash}
@@ -51,53 +51,53 @@ const EnvironmentDeviceSheet = ({
         if (!open) onClose();
       }}
     >
-      <SheetContent side="right" className="tw:w-11/12 tw:max-w-md tw:gap-0">
+      <SheetContent side="right" className="w-11/12 max-w-md gap-0">
         {device && (
           <>
-            <div className="tw:min-h-0 tw:flex-1 tw:overflow-y-auto tw:px-5 tw:pt-4 tw:pb-4">
-              <div className="tw:flex tw:items-center tw:gap-3 tw:pr-8">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-4">
+              <div className="flex items-center gap-3 pr-8">
                 <span
                   aria-hidden
-                  className="tw:grid tw:size-10 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+                  className="grid size-10 flex-none place-items-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border"
                 >
                   {Icon && <Icon size={19} />}
                 </span>
-                <SheetTitle className="tw:my-0 tw:text-lg tw:leading-snug tw:font-semibold tw:tracking-tight tw:break-words">
+                <SheetTitle className="my-0 text-lg leading-snug font-semibold tracking-tight break-words">
                   {device.name}
                 </SheetTitle>
               </div>
 
               {isTarget && (
-                <div className="tw:mt-4 tw:flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-accent-text">
-                  <RiFocus3Line size={15} className="tw:flex-none" />
+                <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-accent-text">
+                  <RiFocus3Line size={15} className="flex-none" />
                   Заявка об этом устройстве
                 </div>
               )}
               {device.isPersonal && (
                 <div
                   className={cn(
-                    "tw:flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-warning",
-                    isTarget ? "tw:mt-1.5" : "tw:mt-4",
+                    "flex items-center gap-2 text-sm font-semibold text-warning",
+                    isTarget ? "mt-1.5" : "mt-4",
                   )}
                 >
-                  <RiStarFill size={14} className="tw:flex-none" />
+                  <RiStarFill size={14} className="flex-none" />
                   {personalLabel}
                 </div>
               )}
 
-              <div className="tw:mt-5 tw:grid tw:grid-cols-2 tw:gap-x-4 tw:gap-y-3.5">
+              <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3.5">
                 <Info label="Тип">{device.typeName}</Info>
                 <Info label="Производитель">{device.vendorName}</Info>
                 <Info label="Статус">
                   {status && (
-                    <DeviceStatusText tone={status.tone} className="tw:text-sm">
+                    <DeviceStatusText tone={status.tone} className="text-sm">
                       {status.label}
                     </DeviceStatusText>
                   )}
                 </Info>
                 {mikro && (
                   <Info label="Mikrotik">
-                    <DeviceStatusText tone={mikro.tone} className="tw:text-sm">
+                    <DeviceStatusText tone={mikro.tone} className="text-sm">
                       {mikro.label}
                     </DeviceStatusText>
                   </Info>
@@ -120,7 +120,7 @@ const EnvironmentDeviceSheet = ({
               </div>
             </div>
 
-            <div className="tw:grid tw:gap-2 tw:border-t tw:border-border-soft tw:px-5 tw:py-4">
+            <div className="grid gap-2 border-t border-border-soft px-5 py-4">
               <Button asChild>
                 <Link to={`/inventory/client-devices/${device._id}`}>
                   <RiExternalLinkLine /> Открыть карточку устройства

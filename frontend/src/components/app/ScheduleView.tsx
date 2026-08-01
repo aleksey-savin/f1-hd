@@ -26,55 +26,57 @@ const ScheduleView = ({
   today?: string;
   className?: string;
 }) => (
-  <div className={cn("tw:grid tw:grid-cols-7 tw:gap-1.5", className)}>
-    {(SCHEDULE_DAYS as [string, string, string][]).map(([label, key, short]) => {
-      const day = schedule?.[key];
-      const off = !day?.isWorking;
-      return (
-        <div
-          key={key}
-          title={
-            off
-              ? `${label}: выходной`
-              : day?.is24hours
-                ? `${label}: круглосуточно`
-                : `${label}: ${day?.start}–${day?.end}` +
-                  (day?.breakMinutes ? `, перерыв ${day.breakMinutes} мин` : "")
-          }
-          className={cn(
-            "tw:rounded-lg tw:border tw:border-border-soft tw:px-1 tw:py-2 tw:text-center",
-            off ? "tw:bg-muted" : "tw:bg-background",
-            today === key && "tw:border-primary",
-          )}
-        >
-          {/* Короткая подпись — из каталога дней: обрезка полной по две буквы
-              давала «Че», «Пя», «Су», «Во» */}
-          <div className="tw:text-xs tw:tracking-wide tw:text-faint tw:uppercase">
-            {short}
-          </div>
+  <div className={cn("grid grid-cols-7 gap-1.5", className)}>
+    {(SCHEDULE_DAYS as [string, string, string][]).map(
+      ([label, key, short]) => {
+        const day = schedule?.[key];
+        const off = !day?.isWorking;
+        return (
           <div
-            className={cn(
-              "tw:mt-1 tw:text-xs tw:tabular-nums",
+            key={key}
+            title={
               off
-                ? "tw:text-faint"
-                : "tw:font-semibold tw:text-foreground",
+                ? `${label}: выходной`
+                : day?.is24hours
+                  ? `${label}: круглосуточно`
+                  : `${label}: ${day?.start}–${day?.end}` +
+                    (day?.breakMinutes
+                      ? `, перерыв ${day.breakMinutes} мин`
+                      : "")
+            }
+            className={cn(
+              "rounded-lg border border-border-soft px-1 py-2 text-center",
+              off ? "bg-muted" : "bg-background",
+              today === key && "border-primary",
             )}
           >
-            {off ? (
-              "—"
-            ) : day?.is24hours ? (
-              "24 ч"
-            ) : (
-              <>
-                {day?.start}
-                <br />
-                {day?.end}
-              </>
-            )}
+            {/* Короткая подпись — из каталога дней: обрезка полной по две буквы
+              давала «Че», «Пя», «Су», «Во» */}
+            <div className="text-xs tracking-wide text-faint uppercase">
+              {short}
+            </div>
+            <div
+              className={cn(
+                "mt-1 text-xs tabular-nums",
+                off ? "text-faint" : "font-semibold text-foreground",
+              )}
+            >
+              {off ? (
+                "—"
+              ) : day?.is24hours ? (
+                "24 ч"
+              ) : (
+                <>
+                  {day?.start}
+                  <br />
+                  {day?.end}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      );
-    })}
+        );
+      },
+    )}
   </div>
 );
 

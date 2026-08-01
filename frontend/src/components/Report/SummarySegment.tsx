@@ -60,7 +60,7 @@ const companyBarRows = (companies: CompanyRow[]): StackedTimeRow[] => {
 
 // Панель-обёртка таблиц: горизонтальный скролл внутри, страница не «плывёт»
 const TablePanel = ({ children }: { children: ReactNode }) => (
-  <div className="tw:overflow-x-auto tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-2 tw:py-1.5">
+  <div className="overflow-x-auto rounded-xl border border-border bg-card px-2 py-1.5">
     {children}
   </div>
 );
@@ -82,7 +82,11 @@ const SummarySegment = ({ segment }: { segment: ReactNode }) => {
   const toolbar = (
     <>
       {segment}
-      <MonthStepper from={s.from} to={s.to} onChange={(range) => s.setPeriod(range)} />
+      <MonthStepper
+        from={s.from}
+        to={s.to}
+        onChange={(range) => s.setPeriod(range)}
+      />
       <Button
         variant={filterActive ? "success" : "outline"}
         size="icon"
@@ -100,7 +104,7 @@ const SummarySegment = ({ segment }: { segment: ReactNode }) => {
     <AlertMessage
       variant="danger"
       message={
-        <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+        <span className="flex flex-wrap items-center gap-3">
           {s.error}
           <Button variant="outline" size="xs" onClick={() => s.fetch()}>
             Повторить
@@ -116,14 +120,14 @@ const SummarySegment = ({ segment }: { segment: ReactNode }) => {
       errorBanner
     ) : (
       // Первая загрузка — скелет раскладки
-      <div className="tw:space-y-6">
-        <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-4 tw:xl:gap-4">
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
           {[0, 1, 2, 3].map((index) => (
-            <Skeleton key={index} className="tw:h-28 tw:rounded-xl" />
+            <Skeleton key={index} className="h-28 rounded-xl" />
           ))}
         </div>
-        <Skeleton className="tw:h-72 tw:rounded-xl" />
-        <Skeleton className="tw:h-64 tw:rounded-xl" />
+        <Skeleton className="h-72 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
       </div>
     );
   } else if (data.scope.kind === "none") {
@@ -151,22 +155,26 @@ const SummarySegment = ({ segment }: { segment: ReactNode }) => {
     );
   } else {
     body = (
-      <div className={cn("tw:transition-opacity", s.isLoading && "tw:opacity-60")}>
+      <div className={cn("transition-opacity", s.isLoading && "opacity-60")}>
         {errorBanner}
 
-        <KpiRow totals={data.totals} prev={data.prev.totals} busy={s.isLoading} />
+        <KpiRow
+          totals={data.totals}
+          prev={data.prev.totals}
+          busy={s.isLoading}
+        />
 
         <Eyebrow count={data.companies.length} action={<ClassLegend />}>
           Время по компаниям
         </Eyebrow>
-        <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+        <div className="rounded-xl border border-border bg-card p-5">
           <StackedTimeBars rows={companyBarRows(data.companies)} />
         </div>
 
         <Eyebrow
           count={data.companies.length}
           action={
-            <span className="tw:text-sm tw:font-normal tw:text-faint">
+            <span className="text-sm font-normal text-faint">
               строка ведёт в карточку компании
             </span>
           }

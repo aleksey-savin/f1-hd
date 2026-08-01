@@ -82,9 +82,9 @@ import { cn } from "@/lib/utils";
  * закрепиться.
  */
 export const EmptySection = ({ icon: Icon, hint }) => (
-  <div className="tw:flex tw:items-center tw:gap-2.5 tw:text-sm tw:text-muted-foreground">
-    <Icon size={16} aria-hidden className="tw:flex-none tw:text-faint" />
-    <span className="tw:min-w-0 tw:flex-1">{hint}</span>
+  <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+    <Icon size={16} aria-hidden className="flex-none text-faint" />
+    <span className="min-w-0 flex-1">{hint}</span>
   </div>
 );
 
@@ -182,7 +182,7 @@ export const DescriptionSection = ({
           // Кегль крупнее остальных секций: это единственный текст на карточке,
           // который читают целиком, а не сканируют.
           <div
-            className="md-doc tw:max-h-96 tw:overflow-auto tw:text-xl tw:leading-relaxed tw:break-words"
+            className="md-doc max-h-96 overflow-auto text-xl leading-relaxed break-words"
             onClick={showAi ? pickFromText : undefined}
             onKeyDown={
               showAi
@@ -195,9 +195,7 @@ export const DescriptionSection = ({
             dangerouslySetInnerHTML={{ __html: html }}
           />
         ) : (
-          <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
-            Нет описания
-          </p>
+          <p className="my-0 text-sm text-muted-foreground">Нет описания</p>
         )}
         {/* Сама метка дописана в конец текста выше — здесь только форма
             замечания, которую она открывает */}
@@ -226,12 +224,15 @@ export const DescriptionSection = ({
 
       {ticket.htmlDescription && (
         <Dialog open={showOriginal} onOpenChange={setShowOriginal}>
-          <DialogContent className="tw:sm:max-w-4xl">
+          <DialogContent className="sm:max-w-4xl">
             <DialogHeader>
               <DialogTitle>Оригинал письма</DialogTitle>
             </DialogHeader>
             <div
-              className="tw:max-h-[70dvh] tw:overflow-y-auto tw:text-sm"
+              // md-doc — не только типографика: там же ужимание картинок из
+              // чужого html (index.css), иначе письмо с широким скриншотом
+              // распирает диалог
+              className="md-doc max-h-[70dvh] overflow-y-auto text-sm"
               dangerouslySetInnerHTML={clean(ticket.htmlDescription)}
             />
             <DialogFooter>
@@ -249,24 +250,24 @@ export const DescriptionSection = ({
 /* ─────────────── Заявка (свойства) ─────────────── */
 
 const PropRow = ({ icon, label, children, action }) => (
-  <div className="tw:flex tw:items-start tw:gap-3 tw:border-t tw:border-border-soft tw:py-2.5 tw:first:border-t-0 tw:first:pt-0">
-    <span className="tw:grid tw:size-8 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground">
+  <div className="flex items-start gap-3 border-t border-border-soft py-2.5 first:border-t-0 first:pt-0">
+    <span className="grid size-8 flex-none place-items-center rounded-lg bg-accent text-muted-foreground">
       {icon}
     </span>
-    <span className="tw:w-28 tw:flex-none tw:pt-1.5 tw:text-sm tw:text-muted-foreground">
+    <span className="w-28 flex-none pt-1.5 text-sm text-muted-foreground">
       {label}
     </span>
-    <span className="tw:min-w-0 tw:flex-1 tw:pt-1 tw:text-sm tw:leading-snug">
-      {children || <span className="tw:text-faint">—</span>}
+    <span className="min-w-0 flex-1 pt-1 text-sm leading-snug">
+      {children || <span className="text-faint">—</span>}
     </span>
-    {action && <span className="tw:flex-none">{action}</span>}
+    {action && <span className="flex-none">{action}</span>}
   </div>
 );
 
 const Pill = ({ className, children }) => (
   <span
     className={cn(
-      "tw:me-1.5 tw:mb-1.5 tw:inline-flex tw:items-center tw:rounded-full tw:border tw:border-border-soft tw:bg-accent tw:px-2.5 tw:py-0.5 tw:text-sm tw:font-medium",
+      "me-1.5 mb-1.5 inline-flex items-center rounded-full border border-border-soft bg-accent px-2.5 py-0.5 text-sm font-medium",
       className,
     )}
   >
@@ -280,7 +281,7 @@ const Pill = ({ className, children }) => (
 const EntityLink = ({ to, children }) => (
   <Link
     to={to}
-    className="tw:font-medium tw:text-foreground tw:no-underline tw:hover:text-accent-text tw:hover:underline"
+    className="font-medium text-foreground no-underline hover:text-accent-text hover:underline"
   >
     {children}
   </Link>
@@ -336,7 +337,7 @@ export const FactsSection = ({
                   size="icon-xs"
                   title={taxiAction.title}
                   aria-label="Вызвать такси"
-                  className="tw:text-warning tw:hover:text-warning"
+                  className="text-warning hover:text-warning"
                   onClick={() => openTaxi(taxiAction)}
                 >
                   <RiTaxiLine />
@@ -355,7 +356,7 @@ export const FactsSection = ({
             </>
           }
         >
-          <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-x-2 tw:gap-y-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {/* Имя — ссылка на карточку: раньше из заявки нельзя было попасть ни
                 к клиенту, ни к людям, и путь лежал через поиск в справочнике */}
             {ticket.company?._id ? (
@@ -418,7 +419,7 @@ export const FactsSection = ({
             ticket.realSender
           )}
           {applicant?.position && (
-            <span className="tw:text-muted-foreground">
+            <span className="text-muted-foreground">
               {" · "}
               {applicant.position}
             </span>
@@ -431,9 +432,9 @@ export const FactsSection = ({
                 <Link
                   key={user._id}
                   to={`/users/${user._id}`}
-                  className="tw:no-underline"
+                  className="no-underline"
                 >
-                  <Pill className="tw:hover:border-primary tw:hover:text-accent-text">
+                  <Pill className="hover:border-primary hover:text-accent-text">
                     {user.lastName} {user.firstName}
                   </Pill>
                 </Link>
@@ -447,14 +448,14 @@ export const FactsSection = ({
               пустая строка выглядела бы как «категории нет» */}
           {!ticket.category?.title &&
             ticket.aiCategory?.status === "pending" && (
-              <span className="tw:text-muted-foreground">
+              <span className="text-muted-foreground">
                 ИИ подбирает категорию…
               </span>
             )}
           {/* Подобранная категория — второе место, где ИИ заполнил поле заявки:
               ошибка в ней уводит подбор заметок и отчёты */}
           {!isEndUser && ticket.aiCategory?.status === "processed" && (
-            <span className="tw:ms-1.5">
+            <span className="ms-1.5">
               <AiMark
                 ticketId={ticket._id}
                 target="category"
@@ -468,16 +469,16 @@ export const FactsSection = ({
 
         {computer?.name && (
           <PropRow icon={<RiComputerLine size={16} />} label="Компьютер">
-            <span className="tw:font-mono tw:text-sm">{computer.name}</span>
+            <span className="font-mono text-sm">{computer.name}</span>
             {computer.activeDirectoryLogin && (
-              <span className="tw:text-muted-foreground">
+              <span className="text-muted-foreground">
                 {" ("}
                 {computer.activeDirectoryLogin}
                 {")"}
               </span>
             )}
             {computer.lastSeenAt && (
-              <span className="tw:block tw:text-xs tw:text-faint">
+              <span className="block text-xs text-faint">
                 вход {formatDate(computer.lastSeenAt)}
               </span>
             )}
@@ -485,7 +486,7 @@ export const FactsSection = ({
         )}
 
         <PropRow icon={<RiHistoryLine size={16} />} label="Создана">
-          <span className="tw:text-muted-foreground">
+          <span className="text-muted-foreground">
             {formatDate(ticket.createdAt)}
             {ticket.source ? ` · ${ticket.source}` : ""}
           </span>
@@ -504,9 +505,9 @@ export const FactsSection = ({
  * (`controllers/work.js`), иначе кнопка обещает больше, чем разрешено.
  */
 const WorkRow = ({ ticket, children, menu }) => (
-  <div className="tw:group tw:flex tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:py-2.5 tw:text-sm tw:first:border-t-0">
+  <div className="group flex items-center gap-3 border-t border-border-soft py-2.5 text-sm first:border-t-0">
     {children}
-    <span className="tw:flex tw:w-7 tw:flex-none tw:justify-end">
+    <span className="flex w-7 flex-none justify-end">
       {!ticket.isArchived && menu}
     </span>
   </div>
@@ -537,7 +538,7 @@ const WorkMenu = ({ items }) => {
           size="icon-xs"
           aria-label="Действия с работой"
           title="Действия"
-          className="tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:data-[state=open]:opacity-100 tw:pointer-coarse:opacity-100"
+          className="text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
         >
           <RiMoreLine />
         </Button>
@@ -629,7 +630,7 @@ export const WorksSection = ({
         {works.length === 0 ? (
           <EmptySection icon={RiToolsLine} hint={emptyWorksHint(ticket)} />
         ) : (
-          <div className="tw:-my-1">
+          <div className="-my-1">
             {scheduled.map((work) => (
               <WorkRow
                 key={work._id}
@@ -651,14 +652,14 @@ export const WorksSection = ({
                   />
                 }
               >
-                <span className="tw:w-32 tw:flex-none tw:truncate tw:text-muted-foreground">
+                <span className="w-32 flex-none truncate text-muted-foreground">
                   {work.executor?.lastName} {work.executor?.firstName?.[0]}.
                 </span>
-                <span className="tw:min-w-0 tw:flex-1 tw:truncate">
+                <span className="min-w-0 flex-1 truncate">
                   {work.visitRequired ? "Выезд" : "Удалённо"} ·{" "}
                   {formatDate(work.planningToStart)}
                 </span>
-                <span className="tw:flex-none tw:text-xs tw:text-muted-foreground">
+                <span className="flex-none text-xs text-muted-foreground">
                   запланировано
                 </span>
               </WorkRow>
@@ -676,10 +677,10 @@ export const WorksSection = ({
                   />
                 }
               >
-                <span className="tw:w-32 tw:flex-none tw:truncate tw:text-muted-foreground">
+                <span className="w-32 flex-none truncate text-muted-foreground">
                   {work.finishedBy?.lastName} {work.finishedBy?.firstName?.[0]}.
                 </span>
-                <span className="tw:min-w-0 tw:flex-1 tw:truncate">
+                <span className="min-w-0 flex-1 truncate">
                   {work.visitRequired ? "Выезд" : "Удалённо"}
                   {work.description ? ` · ${work.description}` : ""}
                 </span>
@@ -688,7 +689,7 @@ export const WorksSection = ({
                     правам, что и в форме (её решает сервер) */}
                 {work.outOfSchedule && (
                   <span
-                    className="tw:flex-none tw:text-xs tw:text-warning tw:tabular-nums"
+                    className="flex-none text-xs text-warning tabular-nums"
                     title="Время вне графика обслуживания"
                   >
                     доп. оплата
@@ -697,7 +698,7 @@ export const WorksSection = ({
                       : ""}
                   </span>
                 )}
-                <span className="tw:flex-none tw:font-semibold tw:tabular-nums">
+                <span className="flex-none font-semibold tabular-nums">
                   {msToHMS(
                     new Date(work.finishedAt) - new Date(work.startedAt),
                   )}
@@ -734,7 +735,7 @@ const DeleteWorkDialog = ({ work, ticketNum, onClose }) => {
             отменить.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className="tw:mt-4">
+        <AlertDialogFooter className="mt-4">
           <AlertDialogCancel type="button">Отмена</AlertDialogCancel>
           <Button
             variant="destructive"

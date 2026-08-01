@@ -5,13 +5,17 @@ import { OFF_COLOR, PLANNED_COLOR } from "./calendar";
 
 const Dot = ({ color, hollow }: { color: string; hollow?: boolean }) => (
   <span
-    className={hollow ? "tw:block tw:size-2.5 tw:rounded-full tw:border tw:border-dashed" : "tw:block tw:size-2.5 tw:rounded-full"}
+    className={
+      hollow
+        ? "block size-2.5 rounded-full border border-dashed"
+        : "block size-2.5 rounded-full"
+    }
     style={hollow ? { borderColor: color } : { background: color }}
   />
 );
 
 const Item = ({ children }: { children: React.ReactNode }) => (
-  <span className="tw:inline-flex tw:items-center tw:gap-2">{children}</span>
+  <span className="inline-flex items-center gap-2">{children}</span>
 );
 
 /**
@@ -26,7 +30,7 @@ const Legend = () => {
   const vacation = ABSENCE_TYPES.find((type) => type.code === "vacation");
 
   return (
-    <div className="tw:flex tw:flex-wrap tw:gap-x-5 tw:gap-y-2.5 tw:px-1 tw:pt-3.5 tw:text-xs tw:text-muted-foreground">
+    <div className="flex flex-wrap gap-x-5 gap-y-2.5 px-1 pt-3.5 text-xs text-muted-foreground">
       <Item>
         <Dot color={PLANNED_COLOR} />
         по графику работает
@@ -34,7 +38,7 @@ const Legend = () => {
       {live.map((status) => (
         <Item key={status.code}>
           <Dot color={status.color} />
-          {status.label} <span className="tw:text-faint">(сегодня)</span>
+          {status.label} <span className="text-faint">(сегодня)</span>
         </Item>
       ))}
       {ABSENCE_TYPES.filter((type) => type.reducesNorm)

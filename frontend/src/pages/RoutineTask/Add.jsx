@@ -21,17 +21,23 @@ export async function loader({ request }) {
   const { token } = getLocalStorageData();
   const fromTemplate = new URL(request.url).searchParams.get("fromTemplate");
 
-  const [companies, serviceAccounts, categories, templates, ticketFormData, prefillTemplate] =
-    await Promise.all([
-      authGet("companies", token),
-      authGet("form-data/service-accounts", token),
-      authGet("ticket-categories", token),
-      authGet("ticket-templates", token),
-      authGet("tickets/form-data", token),
-      fromTemplate
-        ? authGet(`ticket-templates/${fromTemplate}`, token)
-        : Promise.resolve(null),
-    ]);
+  const [
+    companies,
+    serviceAccounts,
+    categories,
+    templates,
+    ticketFormData,
+    prefillTemplate,
+  ] = await Promise.all([
+    authGet("companies", token),
+    authGet("form-data/service-accounts", token),
+    authGet("ticket-categories", token),
+    authGet("ticket-templates", token),
+    authGet("tickets/form-data", token),
+    fromTemplate
+      ? authGet(`ticket-templates/${fromTemplate}`, token)
+      : Promise.resolve(null),
+  ]);
 
   return {
     task: {},

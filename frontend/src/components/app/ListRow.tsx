@@ -101,22 +101,22 @@ const ListRow = ({
   return (
     <div
       className={cn(
-        "tw:group tw:relative tw:flex tw:items-center tw:gap-4 tw:px-5 tw:py-4 tw:transition-colors",
-        "tw:before:absolute tw:before:top-0 tw:before:right-5 tw:before:left-24 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden",
-        "tw:hover:bg-accent/60",
-        clickable && "tw:cursor-pointer",
-        justCreated && "tw:row-appear",
-        justUpdated && "tw:row-flash",
+        "group relative flex items-center gap-4 px-5 py-4 transition-colors",
+        "before:absolute before:top-0 before:right-5 before:left-24 before:h-px before:bg-border-soft first:before:hidden",
+        "hover:bg-accent/60",
+        clickable && "cursor-pointer",
+        justCreated && "row-appear",
+        justUpdated && "row-flash",
       )}
       onClick={clickable ? handleRowClick : undefined}
     >
       <span
         aria-hidden
         className={cn(
-          "tw:grid tw:size-15 tw:flex-none tw:place-items-center tw:overflow-hidden tw:rounded-xl tw:text-xl tw:font-semibold",
+          "grid size-15 flex-none place-items-center overflow-hidden rounded-xl text-xl font-semibold",
           dimmed
-            ? "tw:text-faint"
-            : "tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border",
+            ? "text-faint"
+            : "bg-accent text-muted-foreground inset-ring inset-ring-border",
         )}
       >
         {thumbSrc ? (
@@ -124,37 +124,37 @@ const ListRow = ({
             src={thumbSrc}
             alt=""
             loading="lazy"
-            // listrow-thumb: заполняет плитку (перебивает глобальный
-            // img{width/height:auto!important} специфичностью класса)
-            className="listrow-thumb"
+            // size-full перебивает preflight-правило `img { height: auto }`:
+            // утилиты лежат в слое выше base
+            className="size-full object-cover"
           />
         ) : (
           monogram
         )}
       </span>
-      <div className="tw:min-w-0 tw:flex-1">
+      <div className="min-w-0 flex-1">
         <div
           className={cn(
-            "tw:truncate tw:text-2xl tw:leading-snug tw:font-medium",
-            dimmed && "tw:text-muted-foreground",
+            "truncate text-2xl leading-snug font-medium",
+            dimmed && "text-muted-foreground",
           )}
         >
           {title}
         </div>
         {meta && (
-          <div className="tw:truncate tw:text-lg tw:text-muted-foreground tw:tabular-nums">
+          <div className="truncate text-lg text-muted-foreground tabular-nums">
             {meta}
           </div>
         )}
       </div>
       {(trailing || canManage) && (
-        <div className="tw:ml-auto tw:flex tw:flex-none tw:items-center tw:gap-2">
+        <div className="ml-auto flex flex-none items-center gap-2">
           {trailing && (
             <span onClick={(e) => e.stopPropagation()}>{trailing}</span>
           )}
           {canManage && (
             <div
-              className="tw:flex tw:flex-none tw:items-center"
+              className="flex flex-none items-center"
               onClick={(e) => e.stopPropagation()}
             >
               <DropdownMenu>
@@ -164,7 +164,7 @@ const ListRow = ({
                     size="icon-sm"
                     aria-label="Действия"
                     title="Действия"
-                    className="tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:data-[state=open]:opacity-100 tw:pointer-coarse:opacity-100"
+                    className="text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
                   >
                     <RiMoreLine />
                   </Button>

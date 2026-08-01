@@ -21,7 +21,7 @@ import { toDateInputValue } from "../../util/format-date";
 
 const API = import.meta.env.VITE_API_ADDRESS;
 
-export type AttachValue = {
+type AttachValue = {
   isActiveSince: string;
   customerApprovalRequired: boolean;
   approver: { _id: string; firstName?: string; lastName?: string } | null;

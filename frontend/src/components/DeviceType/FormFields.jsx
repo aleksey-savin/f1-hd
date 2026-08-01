@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
-import Select from "../../UI/Select";
+import { MultiCombobox, toOptions } from "@/components/app/Combobox";
 
 // Поля типа устройства. Рендерят `name`-атрибуты для сабмита со страницы
 // (react-router action) и сообщают агрегированное состояние через onChange для
@@ -132,29 +132,30 @@ const DeviceTypeFormFields = ({
           htmlFor="attachableToTypeIds"
           required
           hint="Можно выбрать несколько типов устройств"
-          className="tw:mt-3"
+          className="mt-3"
         >
-          <Select
+          <MultiCombobox
             id="attachableToTypeIds"
             name="attachableToTypeIds"
-            value={attachableToTypeIds}
-            onChange={(selectedOptions) =>
-              setAttachableToTypeIds(selectedOptions || [])
-            }
-            options={availableDeviceTypes}
-            placeholder="Выберите типы устройств..."
             required
-            isClearable
-            isSearchable
-            isMulti
-            closeMenuOnSelect={false}
-            getOptionLabel={(option) => `${option.name}`}
-            getOptionValue={(option) => option._id}
+            value={(attachableToTypeIds || []).map((item) => String(item._id))}
+            onChange={(ids) =>
+              setAttachableToTypeIds(
+                availableDeviceTypes.filter((option) =>
+                  ids.includes(String(option._id)),
+                ),
+              )
+            }
+            options={toOptions(availableDeviceTypes, {
+              value: (option) => String(option._id),
+              label: (option) => option.name,
+            })}
+            placeholder="Выберите типы устройств..."
           />
         </Field>
       )}
 
-      <p className="tw:mt-3 tw:flex tw:items-start tw:gap-2 tw:rounded-lg tw:bg-accent tw:px-3.5 tw:py-2.5 tw:text-sm tw:text-muted-foreground">
+      <p className="mt-3 flex items-start gap-2 rounded-lg bg-accent px-3.5 py-2.5 text-sm text-muted-foreground">
         Атрибуты типа настраиваются на его карточке — добавляются, меняются и
         сортируются отдельно.
       </p>

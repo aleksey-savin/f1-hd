@@ -59,10 +59,13 @@ const ResetPasswordDialog = ({ user, open, onOpenChange }) => {
             Новый пароль для {user.lastName} {user.firstName}.
           </DialogDescription>
         </DialogHeader>
-        <div className="tw:flex tw:flex-col tw:gap-3">
-          {error && <p className="tw:my-0 tw:text-sm tw:text-destructive">{error}</p>}
-          <div className="tw:grid tw:gap-1.5">
-            <Label htmlFor="rp-pass" className="tw:text-sm tw:font-semibold tw:text-muted-foreground">
+        <div className="flex flex-col gap-3">
+          {error && <p className="my-0 text-sm text-destructive">{error}</p>}
+          <div className="grid gap-1.5">
+            <Label
+              htmlFor="rp-pass"
+              className="text-sm font-semibold text-muted-foreground"
+            >
               Новый пароль
             </Label>
             <Input
@@ -73,8 +76,11 @@ const ResetPasswordDialog = ({ user, open, onOpenChange }) => {
               onChange={(event) => setPassword(event.target.value)}
             />
           </div>
-          <div className="tw:grid tw:gap-1.5">
-            <Label htmlFor="rp-repeat" className="tw:text-sm tw:font-semibold tw:text-muted-foreground">
+          <div className="grid gap-1.5">
+            <Label
+              htmlFor="rp-repeat"
+              className="text-sm font-semibold text-muted-foreground"
+            >
               Пароль ещё раз
             </Label>
             <Input
@@ -84,12 +90,15 @@ const ResetPasswordDialog = ({ user, open, onOpenChange }) => {
               onChange={(event) => setRepeat(event.target.value)}
             />
           </div>
-          <label className="tw:flex tw:cursor-pointer tw:items-center tw:gap-3 tw:text-sm tw:font-medium">
-            <Switch checked={send} onCheckedChange={(value) => setSend(!!value)} />
+          <label className="flex cursor-pointer items-center gap-3 text-sm font-medium">
+            <Switch
+              checked={send}
+              onCheckedChange={(value) => setSend(!!value)}
+            />
             Отправить учётные данные на email
           </label>
         </div>
-        <DialogFooter className="tw:mt-4">
+        <DialogFooter className="mt-4">
           <DialogClose asChild>
             <Button variant="ghost" type="button">
               Отмена

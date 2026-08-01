@@ -95,7 +95,7 @@ const PasswordRequest = () => {
         <AlertMessage variant="danger" message={result.message} />
       )}
 
-      <Form method="post" className="tw:mt-5">
+      <Form method="post" className="mt-5">
         <Field label="Рабочая почта" htmlFor="email" required>
           <Input
             id="email"
@@ -110,7 +110,7 @@ const PasswordRequest = () => {
           />
         </Field>
 
-        <Button type="submit" disabled={submitting} className="tw:mt-1 tw:w-full">
+        <Button type="submit" disabled={submitting} className="mt-1 w-full">
           {submitting ? "Отправляем…" : "Отправить ссылку"}
         </Button>
       </Form>

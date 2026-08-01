@@ -7,7 +7,8 @@ import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 import Segmented from "@/components/app/Segmented";
 
-import Select from "../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
+
 import useLocationFilterStore from "../../store/lists/locations";
 import { TYPE_LABEL, TYPE_ICON } from "./type-meta";
 
@@ -54,7 +55,7 @@ const LocationFilter = () => {
 
   return (
     <FilterContainer resetFilterHandler={filterStore.resetFilter}>
-      <Field label="Статус" className="tw:mb-4">
+      <Field label="Статус" className="mb-4">
         <Segmented
           ariaLabel="Статус"
           options={STATUS_OPTIONS}
@@ -63,8 +64,8 @@ const LocationFilter = () => {
         />
       </Field>
 
-      <Field label="Тип расположения" className="tw:mb-4">
-        <div className="tw:grid tw:gap-0.5">
+      <Field label="Тип расположения" className="mb-4">
+        <div className="grid gap-0.5">
           {TYPE_KEYS.map((type) => {
             const Icon = TYPE_ICON[type];
             const id = `filter-type-${type}`;
@@ -72,7 +73,7 @@ const LocationFilter = () => {
               <Label
                 key={type}
                 htmlFor={id}
-                className="tw:flex tw:cursor-pointer tw:items-center tw:gap-2.5 tw:rounded-md tw:px-1.5 tw:py-2 tw:text-sm tw:font-normal tw:hover:bg-accent"
+                className="flex cursor-pointer items-center gap-2.5 rounded-md px-1.5 py-2 text-sm font-normal hover:bg-accent"
               >
                 <Checkbox
                   id={id}
@@ -82,7 +83,7 @@ const LocationFilter = () => {
                 <Icon
                   size={16}
                   aria-hidden
-                  className="tw:flex-none tw:text-muted-foreground"
+                  className="flex-none text-muted-foreground"
                 />
                 {TYPE_LABEL[type]}
               </Label>
@@ -91,22 +92,32 @@ const LocationFilter = () => {
         </div>
       </Field>
 
-      <Field label="Подразделение" htmlFor="filter-subdivision" className="tw:mb-4">
-        <Select
+      <Field
+        label="Подразделение"
+        htmlFor="filter-subdivision"
+        className="mb-4"
+      >
+        <Combobox
           id="filter-subdivision"
           placeholder="Любое"
-          isClearable
-          closeMenuOnSelect
+          clearable
+          clearLabel="Любое"
           value={
-            subdivisionOptions.find(
-              (option) => option._id === filterStore.subdivision?._id,
-            ) || null
+            filterStore.subdivision?._id
+              ? String(filterStore.subdivision._id)
+              : null
           }
-          options={subdivisionOptions}
-          getOptionLabel={(option) => option.name}
-          getOptionValue={(option) => option._id}
-          onChange={(option) =>
-            filterStore.updateFilter({ subdivision: option || null })
+          options={toOptions(subdivisionOptions, {
+            value: (option) => String(option._id),
+            label: (option) => option.name,
+          })}
+          onChange={(id) =>
+            filterStore.updateFilter({
+              subdivision:
+                subdivisionOptions.find(
+                  (option) => String(option._id) === id,
+                ) || null,
+            })
           }
         />
       </Field>

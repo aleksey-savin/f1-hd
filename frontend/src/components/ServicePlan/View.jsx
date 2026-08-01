@@ -98,23 +98,23 @@ const ViewServicePlan = ({ servicePlan }) => {
     type === "hourPackage" && packagesNonWorkingCalcMethod === "coefficient" ? (
       <>
         Нерабочее время: коэффициент{" "}
-        <b className="tw:font-semibold tw:text-foreground tw:tabular-nums">
+        <b className="font-semibold text-foreground tabular-nums">
           ×{packagesNonWorkingCoefficient}
         </b>
       </>
     ) : (
       <>
         Нерабочее время:{" "}
-        <b className="tw:font-semibold tw:text-foreground tw:tabular-nums">
+        <b className="font-semibold text-foreground tabular-nums">
           {money(pricePerHourNonWorking)}/ч
         </b>
       </>
     );
 
   const periodLabel = (
-    <div className="tw:text-sm tw:text-muted-foreground">
+    <div className="text-sm text-muted-foreground">
       Период тарификации{" "}
-      <b className="tw:font-semibold tw:text-foreground tw:tabular-nums">
+      <b className="font-semibold text-foreground tabular-nums">
         {tariffingPeriod} мин
       </b>
     </div>
@@ -125,49 +125,49 @@ const ViewServicePlan = ({ servicePlan }) => {
     // остальные стороны получают дефолтную ширину и рисуется лишний бокс —
     // разделитель задаём только сверху, инлайном
     <div
-      className="tw:mt-3 tw:flex tw:items-center tw:gap-2 tw:pt-3 tw:text-sm tw:text-muted-foreground"
+      className="mt-3 flex items-center gap-2 pt-3 text-sm text-muted-foreground"
       style={{ borderTop: "1px dashed var(--border)" }}
     >
-      <RiTimeLine className="tw:text-faint" />
+      <RiTimeLine className="text-faint" />
       <span>{nonWorking}</span>
     </div>
   );
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
+    <div className="mx-auto w-full max-w-4xl">
       {/* Хлебные крошки — возврат к списку (не кнопкой в действиях) */}
       <Link
         to="/finances/service-plans"
-        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
       >
         <RiArrowLeftSLine /> Услуги
       </Link>
 
       {/* Hero */}
-      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <span
           aria-hidden
-          className="tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:rounded-2xl tw:bg-accent tw:text-2xl tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+          className="grid size-14 flex-none place-items-center rounded-2xl bg-accent text-2xl text-muted-foreground inset-ring inset-ring-border"
         >
           <RiFileList2Line />
         </span>
-        <div className="tw:min-w-0 tw:flex-1">
-          <h1 className="tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight">
+        <div className="min-w-0 flex-1">
+          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight">
             {title}
           </h1>
-          <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5">
-            <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-accent-text">
-              <span className="tw:size-2 tw:rounded-full tw:bg-primary tw:ring-4 tw:ring-primary/20" />
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-accent-text">
+              <span className="size-2 rounded-full bg-primary ring-4 ring-primary/20" />
               {tariffTypeName(type) || "Тарификация"}
             </span>
-            <span className="tw:text-sm tw:text-muted-foreground">
-              <span className="tw:text-faint">·</span>{" "}
-              <b className="tw:font-semibold tw:text-foreground tw:tabular-nums">
+            <span className="text-sm text-muted-foreground">
+              <span className="text-faint">·</span>{" "}
+              <b className="font-semibold text-foreground tabular-nums">
                 {companyCount}
               </b>{" "}
               {plural(companyCount, "компания", "компании", "компаний")}{" "}
-              <span className="tw:text-faint">·</span>{" "}
-              <b className="tw:font-semibold tw:text-foreground tw:tabular-nums">
+              <span className="text-faint">·</span>{" "}
+              <b className="font-semibold text-foreground tabular-nums">
                 {categoryCount}
               </b>{" "}
               {plural(categoryCount, "категория", "категории", "категорий")}
@@ -175,7 +175,7 @@ const ViewServicePlan = ({ servicePlan }) => {
           </div>
         </div>
         {canManage && (
-          <div className="tw:flex tw:flex-none tw:items-center tw:gap-2">
+          <div className="flex flex-none items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -208,30 +208,28 @@ const ViewServicePlan = ({ servicePlan }) => {
       {/* Тарификация */}
       <Eyebrow>Тарификация</Eyebrow>
       <Panel>
-        <div className="tw:flex tw:flex-wrap tw:items-baseline tw:justify-between tw:gap-3">
-          <div className="tw:text-sm tw:font-semibold tw:text-muted-foreground">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div className="text-sm font-semibold text-muted-foreground">
             {tariffTypeName(type)}
           </div>
           {periodLabel}
         </div>
 
         {type === "hourPackage" && (
-          <div className="tw:mt-3 tw:grid tw:gap-2">
+          <div className="mt-3 grid gap-2">
             {hourPackages.map((pkg, index) => (
               <div
                 key={index}
-                className="tw:flex tw:items-center tw:gap-4 tw:rounded-xl tw:border tw:border-border-soft tw:bg-accent/40 tw:px-4 tw:py-3"
+                className="flex items-center gap-4 rounded-xl border border-border-soft bg-accent/40 px-4 py-3"
               >
-                <span className="tw:min-w-16 tw:text-base tw:font-bold tw:text-accent-text tw:tabular-nums">
+                <span className="min-w-16 text-base font-bold text-accent-text tabular-nums">
                   {pkg.hours} ч
                 </span>
-                <span className="tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+                <span className="text-sm text-muted-foreground tabular-nums">
                   {money(pkg.pricePerHour)}/ч
                 </span>
-                <span className="tw:ml-auto tw:text-base tw:font-bold tw:tabular-nums">
-                  <span className="tw:mr-1.5 tw:font-medium tw:text-faint">
-                    =
-                  </span>
+                <span className="ml-auto text-base font-bold tabular-nums">
+                  <span className="mr-1.5 font-medium text-faint">=</span>
                   {money(pkg.hours * pkg.pricePerHour)}
                 </span>
               </div>
@@ -240,15 +238,15 @@ const ViewServicePlan = ({ servicePlan }) => {
         )}
 
         {type === "fixedPrice" && (
-          <div className="tw:mt-3 tw:text-4xl tw:font-bold tw:tracking-tight tw:tabular-nums">
+          <div className="mt-3 text-4xl font-bold tracking-tight tabular-nums">
             {money(fixedPrice)}
           </div>
         )}
 
         {type === "hourly" && (
-          <div className="tw:mt-3 tw:text-4xl tw:font-bold tw:tracking-tight tw:tabular-nums">
+          <div className="mt-3 text-4xl font-bold tracking-tight tabular-nums">
             {money(pricePerHour)}
-            <span className="tw:ml-1 tw:text-lg tw:font-semibold tw:text-muted-foreground">
+            <span className="ml-1 text-lg font-semibold text-muted-foreground">
               /ч
             </span>
           </div>
@@ -261,12 +259,12 @@ const ViewServicePlan = ({ servicePlan }) => {
       <Eyebrow>График оказания услуги</Eyebrow>
       <Panel>
         {companyWorkSchedule ? (
-          <div className="tw:flex tw:items-center tw:gap-2 tw:text-sm tw:text-muted-foreground">
-            <RiTimeLine className="tw:text-faint" />
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <RiTimeLine className="text-faint" />
             Согласно графику работы компании
           </div>
         ) : (
-          <div className="tw:grid tw:grid-cols-7 tw:gap-2 tw:max-md:grid-cols-4">
+          <div className="grid grid-cols-7 gap-2 max-md:grid-cols-4">
             {WEEK.map(([label, key]) => {
               const day = customProvisionSchedule?.[key];
               const working = day?.isWorking;
@@ -280,18 +278,18 @@ const ViewServicePlan = ({ servicePlan }) => {
                   key={key}
                   className={
                     working
-                      ? "tw:rounded-lg tw:border tw:border-border-soft tw:bg-accent/40 tw:px-2 tw:py-2 tw:text-center"
-                      : "tw:rounded-lg tw:border tw:border-border-soft tw:px-2 tw:py-2 tw:text-center"
+                      ? "rounded-lg border border-border-soft bg-accent/40 px-2 py-2 text-center"
+                      : "rounded-lg border border-border-soft px-2 py-2 text-center"
                   }
                 >
-                  <div className="tw:text-[0.65rem] tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+                  <div className="text-[0.65rem] font-bold tracking-wider text-faint uppercase">
                     {label}
                   </div>
                   <div
                     className={
                       working
-                        ? "tw:mt-1 tw:text-sm tw:font-semibold tw:tabular-nums"
-                        : "tw:mt-1 tw:text-sm tw:font-medium tw:text-faint"
+                        ? "mt-1 text-sm font-semibold tabular-nums"
+                        : "mt-1 text-sm font-medium text-faint"
                     }
                   >
                     {text}
@@ -320,7 +318,7 @@ const ViewServicePlan = ({ servicePlan }) => {
       />
 
       {metaBits && (
-        <div className="tw:mt-5 tw:border-t tw:border-border-soft tw:pt-3.5 tw:text-xs tw:text-faint tw:tabular-nums">
+        <div className="mt-5 border-t border-border-soft pt-3.5 text-xs text-faint tabular-nums">
           {metaBits}
         </div>
       )}

@@ -18,11 +18,11 @@ const PasswordInput = ({
   const [shown, setShown] = React.useState(false);
 
   return (
-    <div className="tw:relative">
+    <div className="relative">
       <Input
         {...props}
         type={shown ? "text" : "password"}
-        className={cn("tw:pe-10", className)}
+        className={cn("pe-10", className)}
       />
       <button
         type="button"
@@ -31,7 +31,7 @@ const PasswordInput = ({
         onClick={() => setShown((value) => !value)}
         // appearance/border/bg/p-0 — preflight выключен, дефолты кнопки
         // никто не сбрасывает
-        className="tw:absolute tw:end-1 tw:top-1 tw:inline-flex tw:size-8 tw:cursor-pointer tw:appearance-none tw:items-center tw:justify-center tw:rounded-md tw:border-0 tw:bg-transparent tw:p-0 tw:text-faint tw:transition-colors tw:outline-none tw:hover:text-foreground tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+        className="absolute end-1 top-1 inline-flex size-8 cursor-pointer appearance-none items-center justify-center rounded-md border-0 bg-transparent p-0 text-faint transition-colors outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50"
       >
         {shown ? <RiEyeLine size={17} /> : <RiEyeOffLine size={17} />}
       </button>

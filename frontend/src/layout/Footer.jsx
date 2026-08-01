@@ -1,5 +1,4 @@
 import { useContext } from "react";
-import { Link } from "react-router";
 import { isBrowser } from "react-device-detect";
 
 import { cn } from "@/lib/utils";
@@ -8,7 +7,7 @@ import { AuthedUserContext } from "../store/authed-user-context";
 import { getLocalStorageData } from "../util/auth";
 
 // Футер оболочки: контакты компании и служебная строка. Лёгкий текст на канве
-// (без легаси-карточек). ОБЯЗАТЕЛЬНО tw:relative: фоновая картинка (fixed
+// (без легаси-карточек). ОБЯЗАТЕЛЬНО relative: фоновая картинка (fixed
 // .background-container) рисуется поверх статического контента — без
 // позиционирования футер под ней исчезает. При заданной картинке текст канвы
 // нечитаем — футер получает подложку-«лист» цвета канвы (как контент в Root).
@@ -27,7 +26,7 @@ const Footer = () => {
       <a
         key="tel"
         href={`tel:${contacts.tel}`}
-        className="tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="text-muted-foreground no-underline hover:text-foreground"
       >
         {contacts.tel}
       </a>
@@ -36,7 +35,7 @@ const Footer = () => {
       <a
         key="email"
         href={`mailto:${contacts.email}`}
-        className="tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="text-muted-foreground no-underline hover:text-foreground"
       >
         {contacts.email}
       </a>
@@ -47,22 +46,18 @@ const Footer = () => {
   return (
     <footer
       className={cn(
-        "tw:relative tw:mt-6 tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground",
+        "relative mt-6 py-6 text-center text-sm text-muted-foreground",
         sheet
-          ? "tw:mx-auto tw:w-fit tw:max-w-full tw:rounded-2xl tw:border tw:border-border tw:px-8"
-          : "tw:border-t tw:border-border-soft",
+          ? "mx-auto w-fit max-w-full rounded-2xl border border-border bg-card px-8"
+          : "border-t border-border-soft",
       )}
-      style={sheet ? { background: "var(--bs-body-bg)" } : undefined}
     >
       {contactItems.length > 0 && (
-        <div className="tw:mb-2 tw:flex tw:flex-wrap tw:items-center tw:justify-center tw:gap-x-2.5 tw:gap-y-1">
+        <div className="mb-2 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1">
           {contactItems.map((item, index) => (
-            <span
-              key={index}
-              className="tw:inline-flex tw:items-center tw:gap-2.5"
-            >
+            <span key={index} className="inline-flex items-center gap-2.5">
               {index > 0 && (
-                <span aria-hidden className="tw:text-faint">
+                <span aria-hidden className="text-faint">
                   ·
                 </span>
               )}
@@ -71,14 +66,7 @@ const Footer = () => {
           ))}
         </div>
       )}
-      <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-center tw:gap-x-2.5 tw:gap-y-1 tw:text-faint">
-        <Link
-          to="/changelog"
-          className="tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
-        >
-          Changelog
-        </Link>
-        <span aria-hidden>·</span>
+      <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-faint">
         <span>© {new Date().getFullYear()} F1Lab Helpdesk</span>
         <span aria-hidden>·</span>
         <span>Версия {import.meta.env.VITE_VERSION}</span>

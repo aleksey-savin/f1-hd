@@ -34,7 +34,7 @@ const UnrelatedWorks = ({
         )}
         footnote={
           <>
-            <b className="tw:font-semibold">
+            <b className="font-semibold">
               Пока эти работы здесь, отчёт не сформировать.
             </b>{" "}
             Категория их заявок не входит ни в одну услугу компании — смените её

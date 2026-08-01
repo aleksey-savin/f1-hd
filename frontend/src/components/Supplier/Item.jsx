@@ -35,11 +35,11 @@ const SupplierItem = ({ item }) => {
       meta={contacts || (isActive ? "контакты не указаны" : "отключён")}
       trailing={
         deviceCount > 0 ? (
-          <span className="tw:hidden tw:text-right tw:sm:block">
-            <span className="tw:block tw:font-semibold tw:tabular-nums">
+          <span className="hidden text-right sm:block">
+            <span className="block font-semibold tabular-nums">
               {money(totalSpent) || "—"}
             </span>
-            <span className="tw:block tw:text-sm tw:text-muted-foreground">
+            <span className="block text-sm text-muted-foreground">
               {deviceCount}{" "}
               {plural(deviceCount, "устройство", "устройства", "устройств")}
               {deliveryCount > 0 && (
@@ -51,13 +51,13 @@ const SupplierItem = ({ item }) => {
               )}
             </span>
             {lastPurchaseAt && (
-              <span className="tw:block tw:text-xs tw:text-faint">
+              <span className="block text-xs text-faint">
                 последняя — {formatCalendarDate(lastPurchaseAt)}
               </span>
             )}
           </span>
         ) : (
-          <span className="tw:hidden tw:text-sm tw:text-faint tw:sm:block">
+          <span className="hidden text-sm text-faint sm:block">
             закупок нет
           </span>
         )

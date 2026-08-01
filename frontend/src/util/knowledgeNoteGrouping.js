@@ -9,11 +9,11 @@
 // Заметка, привязанная к нескольким компаниям, попадает в каждую из них — иначе
 // в списке своей компании сотрудник её не найдёт.
 
-export const GLOBAL_GROUP_KEY = "__global";
+const GLOBAL_GROUP_KEY = "__global";
 const GLOBAL_GROUP_TITLE = "Общие";
 
 // Уникальные алиасы компаний заметки (прямых и через пользователей)
-export const companyAliases = (note) => {
+const companyAliases = (note) => {
   const aliases = new Set();
   (note.companies || []).forEach((company) => {
     if (company?.alias) {

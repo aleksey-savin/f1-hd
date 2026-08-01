@@ -24,18 +24,18 @@ const MonthCalendar = ({ data, onSelectDay }: Props) => {
   const total = data.employees.length;
 
   return (
-    <div className="tw:grid tw:grid-cols-7 tw:gap-px tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-border-soft">
+    <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border-soft">
       {DOW_SHORT.map((label) => (
         <div
           key={label}
-          className="tw:bg-card tw:px-2.5 tw:py-2 tw:text-center tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase"
+          className="bg-card px-2.5 py-2 text-center text-xs font-bold tracking-wider text-faint uppercase"
         >
           {label}
         </div>
       ))}
 
       {Array.from({ length: leading }, (_, index) => (
-        <div key={`blank-${index}`} className="tw:bg-muted/50" />
+        <div key={`blank-${index}`} className="bg-muted/50" />
       ))}
 
       {dates.map((calDay) => {
@@ -54,17 +54,17 @@ const MonthCalendar = ({ data, onSelectDay }: Props) => {
             type="button"
             onClick={() => onSelectDay(dateKey)}
             className={cn(
-              "tw:flex tw:min-h-26 tw:appearance-none tw:flex-col tw:gap-1.5 tw:border-0 tw:px-2.5 tw:py-2 tw:text-left",
-              off ? "tw:bg-muted" : "tw:bg-card",
-              "tw:hover:bg-accent",
-              isToday && "tw:inset-ring-2 tw:inset-ring-primary",
+              "flex min-h-26 appearance-none flex-col gap-1.5 border-0 px-2.5 py-2 text-left",
+              off ? "bg-muted" : "bg-card",
+              "hover:bg-accent",
+              isToday && "inset-ring-2 inset-ring-primary",
             )}
           >
-            <span className="tw:flex tw:w-full tw:items-baseline tw:gap-1.5">
+            <span className="flex w-full items-baseline gap-1.5">
               <span
                 className={cn(
-                  "tw:text-sm tw:font-semibold tw:tabular-nums",
-                  off ? "tw:text-faint" : "tw:text-foreground",
+                  "text-sm font-semibold tabular-nums",
+                  off ? "text-faint" : "text-foreground",
                 )}
               >
                 {dayNumber(dateKey)}
@@ -72,21 +72,21 @@ const MonthCalendar = ({ data, onSelectDay }: Props) => {
               {meta?.title && (
                 <span
                   className={cn(
-                    "tw:truncate tw:text-xs",
-                    holiday ? "tw:text-destructive" : "tw:text-warning",
+                    "truncate text-xs",
+                    holiday ? "text-destructive" : "text-warning",
                   )}
                 >
                   {meta.title}
                 </span>
               )}
               {isToday && (
-                <span className="tw:ms-auto tw:text-xs tw:font-bold tw:tracking-wide tw:text-primary tw:uppercase">
+                <span className="ms-auto text-xs font-bold tracking-wide text-primary uppercase">
                   сегодня
                 </span>
               )}
             </span>
 
-            <span className="tw:flex tw:flex-wrap tw:gap-1">
+            <span className="flex flex-wrap gap-1">
               {data.employees.map((member) => {
                 const day = member.days.find((item) => item.date === dateKey);
                 if (!day) return null;
@@ -96,8 +96,8 @@ const MonthCalendar = ({ data, onSelectDay }: Props) => {
                     key={member.user._id}
                     title={dot.title}
                     className={cn(
-                      "tw:block tw:size-2.5 tw:rounded-full",
-                      dot.hollow && "tw:border tw:border-dashed",
+                      "block size-2.5 rounded-full",
+                      dot.hollow && "border border-dashed",
                     )}
                     style={
                       dot.hollow
@@ -112,10 +112,10 @@ const MonthCalendar = ({ data, onSelectDay }: Props) => {
             {!off && absent > 0 && (
               <span
                 className={cn(
-                  "tw:mt-auto tw:text-xs tw:tabular-nums",
+                  "mt-auto text-xs tabular-nums",
                   isThin(working, total)
-                    ? "tw:font-semibold tw:text-warning"
-                    : "tw:text-muted-foreground",
+                    ? "font-semibold text-warning"
+                    : "text-muted-foreground",
                 )}
               >
                 работают {working} из {total}

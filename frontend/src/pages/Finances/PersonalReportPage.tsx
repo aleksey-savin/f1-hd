@@ -24,7 +24,10 @@ import PageShell from "@/components/app/PageShell";
 import ShareBars from "../../components/Report/ShareBars";
 import WorkTimeBars from "../../components/Report/WorkTimeBars";
 import { deltaOf } from "../../components/Report/delta";
-import { formatMinutes, formatMoney } from "../../components/Report/work-format";
+import {
+  formatMinutes,
+  formatMoney,
+} from "../../components/Report/work-format";
 import { useAuthedUser } from "../../store/authed-user";
 import usePersonalReportStore from "../../store/reports/personal-report";
 import { isFullMonthRange } from "../../util/period";
@@ -36,7 +39,7 @@ const HINT = "к прошлому периоду";
 const MONTH_SHORT = new Intl.DateTimeFormat("ru-RU", { month: "short" });
 
 const Panel = ({ children }: { children: ReactNode }) => (
-  <section className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+  <section className="rounded-xl border border-border bg-card p-5">
     {children}
   </section>
 );
@@ -67,7 +70,11 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
 
   const toolbar = (
     <>
-      <MonthStepper from={s.from} to={s.to} onChange={(range) => s.setPeriod(range)} />
+      <MonthStepper
+        from={s.from}
+        to={s.to}
+        onChange={(range) => s.setPeriod(range)}
+      />
       <Button
         variant={filterActive ? "success" : "outline"}
         size="icon"
@@ -84,7 +91,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
     <AlertMessage
       variant="danger"
       message={
-        <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+        <span className="flex flex-wrap items-center gap-3">
           {s.error}
           <Button variant="outline" size="xs" onClick={() => s.fetch()}>
             Повторить
@@ -106,15 +113,15 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
     body = s.error ? (
       errorBanner
     ) : (
-      <div className="tw:space-y-6">
-        <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-5 tw:xl:gap-4">
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5 xl:gap-4">
           {[0, 1, 2, 3, 4].map((index) => (
-            <Skeleton key={index} className="tw:h-28 tw:rounded-xl" />
+            <Skeleton key={index} className="h-28 rounded-xl" />
           ))}
         </div>
-        <div className="tw:grid tw:gap-5 tw:lg:grid-cols-2">
-          <Skeleton className="tw:h-56 tw:rounded-xl" />
-          <Skeleton className="tw:h-56 tw:rounded-xl" />
+        <div className="grid gap-5 lg:grid-cols-2">
+          <Skeleton className="h-56 rounded-xl" />
+          <Skeleton className="h-56 rounded-xl" />
         </div>
       </div>
     );
@@ -167,17 +174,20 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
     const peak = [...data.byMonth].sort((a, b) => b.minutes - a.minutes)[0];
 
     body = (
-      <div className={cn("tw:transition-opacity", s.isLoading && "tw:opacity-60")}>
+      <div className={cn("transition-opacity", s.isLoading && "opacity-60")}>
         {errorBanner}
 
-        <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:xl:grid-cols-5 tw:xl:gap-4">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5 xl:gap-4">
           <StatTile
             label="Отработано"
             busy={s.isLoading}
             value={formatMinutes(totals.totalMinutes)}
             delta={
               <StatTileDelta
-                {...deltaOf(totals.totalMinutes, prevPeriod.totals.totalMinutes)}
+                {...deltaOf(
+                  totals.totalMinutes,
+                  prevPeriod.totals.totalMinutes,
+                )}
                 hint={HINT}
               />
             }
@@ -207,7 +217,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
             busy={s.isLoading}
             value={
               data.payroll.overtimePay == null ? (
-                <span className="tw:text-warning">нет ставки</span>
+                <span className="text-warning">нет ставки</span>
               ) : (
                 formatMoney(data.payroll.overtimePay)
               )
@@ -254,7 +264,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
 
         {/* Финансовая часть — сразу под плитками: с ней приходят чаще, чем со
             статистикой */}
-        <div className="tw:grid tw:gap-5 tw:lg:grid-cols-2">
+        <div className="grid gap-5 lg:grid-cols-2">
           <div>
             <Eyebrow>Расчёт за месяц</Eyebrow>
             <Panel>
@@ -275,7 +285,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
         <Eyebrow>Структура работ</Eyebrow>
         <Panel>
           <ClassBar classes={totals} />
-          <div className="tw:mt-5 tw:grid tw:gap-6 tw:border-t tw:border-border-soft tw:pt-4.5 tw:lg:grid-cols-2">
+          <div className="mt-5 grid gap-6 border-t border-border-soft pt-4.5 lg:grid-cols-2">
             <div>
               <SubLabel count={data.byCompany.length}>По компаниям</SubLabel>
               <ShareBars
@@ -301,12 +311,15 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
           </div>
         </Panel>
 
-        <div className="tw:grid tw:gap-5 tw:lg:grid-cols-2">
+        <div className="grid gap-5 lg:grid-cols-2">
           <div>
             <Eyebrow>Время по дням</Eyebrow>
             <Panel>
-              <WorkTimeBars bars={dayBars} tickEvery={dayBars.length > 20 ? 6 : 2} />
-              <p className="tw:mt-3 tw:mb-0 tw:text-xs tw:text-faint tw:tabular-nums">
+              <WorkTimeBars
+                bars={dayBars}
+                tickEvery={dayBars.length > 20 ? 6 : 2}
+              />
+              <p className="mt-3 mb-0 text-xs text-faint tabular-nums">
                 {data.byDay.filter((day) => day.minutes > 0).length} дней с
                 работами · переработка показана янтарной частью столбика
               </p>
@@ -316,7 +329,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
             <Eyebrow>Динамика за 12 месяцев</Eyebrow>
             <Panel>
               <WorkTimeBars bars={monthBars} />
-              <p className="tw:mt-3 tw:mb-0 tw:text-xs tw:text-faint tw:tabular-nums">
+              <p className="mt-3 mb-0 text-xs text-faint tabular-nums">
                 в среднем {formatMinutes(monthlyAverage)} в месяц
                 {peak && peak.minutes > 0
                   ? ` · максимум ${formatMinutes(peak.minutes)}`
@@ -327,8 +340,8 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
         </div>
 
         <Eyebrow count={data.works.length}>Работы за период</Eyebrow>
-        <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card">
-          <div className="tw:hidden tw:overflow-x-auto tw:px-2 tw:py-1.5 tw:md:block">
+        <div className="rounded-xl border border-border bg-card">
+          <div className="hidden overflow-x-auto px-2 py-1.5 md:block">
             <PersonalWorksTable
               works={data.works}
               totalMinutes={totals.totalMinutes}
@@ -336,7 +349,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
               approvedCount={approvedCount}
             />
           </div>
-          <div className="tw:md:hidden">
+          <div className="md:hidden">
             <PersonalWorksCards works={data.works} />
           </div>
         </div>
@@ -370,7 +383,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
         canSeeSummary ? (
           <Link
             to="/finances/employees"
-            className="tw:inline-flex tw:items-center tw:gap-0.5 tw:text-sm tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+            className="inline-flex items-center gap-0.5 text-sm text-muted-foreground no-underline hover:text-foreground"
           >
             <RiArrowLeftSLine size={16} aria-hidden />
             Сотрудники

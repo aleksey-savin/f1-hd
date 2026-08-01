@@ -1487,39 +1487,139 @@ exports.getAvailability = async (req, res, next) => {
   }
 };
 
-// Aggregates IP addresses across all managed devices and flags duplicate
-// networks (unchanged logic, now sourced from the per-device records).
+// Sorting IP strings lexically puts "46.x" after "192.x" and "10.0.0.1" before
+// "1.0.0.10" — compare by octets instead. The mask is the low-order part of the
+// key so /30 and /24 on the same address keep a stable order.
+const addressSortKey = (value) => {
+  const [ip = "", mask = ""] = String(value || "").split("/");
+  const octets = ip.split(".").map((part) => Number(part) || 0);
+  while (octets.length < 4) octets.push(0);
+  return (
+    octets.slice(0, 4).reduce((acc, part) => acc * 256 + part, 0) * 64 +
+    (Number(mask) || 0)
+  );
+};
+
+const byAddress = (a, b) => addressSortKey(a) - addressSortKey(b);
+
+// Overlapping networks are ranked by how much they demand attention, so the
+// page reads top-down and stops being interesting at a predictable point.
+const OVERLAP_RANK = { addressClash: 0, maskOverlap: 1, sharedNetwork: 2 };
+
+// The fleet-wide IP plan: every address of every managed record, plus a
+// breakdown of which networks overlap and why.
+//
+// Disabled addresses are returned too (the previous `disabled === "false"`
+// filter hid them everywhere): a disabled address is an ordinary spare, and it
+// matters when working out why a tunnel refuses to come up. They take no part
+// in overlap detection — a disabled address collides with nothing.
+//
+// Empty sub-documents (an `_id` and nothing else — the poller creates them;
+// there are 36 in the live data) are skipped: that is not an address.
+//
+// Overlaps carry a REASON, because one repeated `network` string covers three
+// unrelated facts:
+//   addressClash  — two devices hold the same address. Broken.
+//   maskOverlap   — one network, several masks (/24 swallowing a /30). Broken.
+//   sharedNetwork — different addresses, shared network: the two ends of a GRE
+//                   tunnel, a management VLAN across a stack of switches, one
+//                   upstream ISP subnet. Normally fine.
+// On live data 14 networks repeat and 3 of them are faults, while the previous
+// report highlighted all 34 rows identically — that is, told them apart not at
+// all.
 exports.networksReport = async (req, res, next) => {
   try {
-    const records = await Mikrotik.find({}).sort({ name: 1 });
+    const records = await Mikrotik.find({})
+      .select("_id name addresses")
+      .sort({ name: 1 })
+      .lean();
 
-    let entries = [];
-
+    const entries = [];
     for (const record of records) {
-      for (const address of record.addresses) {
-        if (address.disabled === "false") {
-          entries.push({
-            id: address._id,
-            address: address.address,
-            network: address.network,
-            interface: address.interface,
-            deviceName: record.name,
-            comment: address.comment,
-            duplicated: false,
-          });
-        }
+      for (const address of record.addresses || []) {
+        if (!address.address) continue;
+        entries.push({
+          id: String(address._id),
+          recordId: String(record._id),
+          deviceName: record.name || "",
+          address: address.address,
+          network: address.network || "",
+          interface: address.interface || "",
+          comment: address.comment || "",
+          disabled: address.disabled === "true",
+        });
       }
     }
 
-    entries.forEach((entry) => {
-      const isDuplicated =
-        entries.filter(({ network }) => network === entry.network).length > 1;
-      if (isDuplicated) {
-        entry.duplicated = true;
-      }
-    });
+    const byNetwork = new Map();
+    for (const entry of entries) {
+      if (entry.disabled || !entry.network) continue;
+      const group = byNetwork.get(entry.network);
+      if (group) group.push(entry);
+      else byNetwork.set(entry.network, [entry]);
+    }
 
-    res.status(200).json({ entries });
+    const overlaps = [];
+    for (const [network, group] of byNetwork) {
+      if (group.length < 2) continue;
+
+      const timesSeen = new Map();
+      for (const entry of group) {
+        timesSeen.set(entry.address, (timesSeen.get(entry.address) || 0) + 1);
+      }
+      const clashing = [...timesSeen.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([address]) => address)
+        .sort(byAddress);
+
+      const masks = [
+        ...new Set(
+          group.map((entry) => entry.address.split("/")[1]).filter(Boolean),
+        ),
+      ].sort((a, b) => Number(a) - Number(b));
+
+      const kind = clashing.length
+        ? "addressClash"
+        : masks.length > 1
+          ? "maskOverlap"
+          : "sharedNetwork";
+
+      // The flat list carries the same reason, so a row in the registry can
+      // show its dot without the client rebuilding the grouping.
+      for (const entry of group) entry.overlap = kind;
+
+      overlaps.push({
+        network,
+        kind,
+        clashing,
+        masks,
+        deviceCount: new Set(group.map((entry) => entry.deviceName)).size,
+        addresses: [...group].sort((a, b) => byAddress(a.address, b.address)),
+      });
+    }
+
+    overlaps.sort(
+      (a, b) =>
+        OVERLAP_RANK[a.kind] - OVERLAP_RANK[b.kind] ||
+        byAddress(a.network, b.network),
+    );
+
+    entries.sort(
+      (a, b) =>
+        byAddress(a.address, b.address) ||
+        a.deviceName.localeCompare(b.deviceName, "ru"),
+    );
+
+    res.status(200).json({
+      entries,
+      overlaps,
+      totals: {
+        devices: new Set(entries.map((entry) => entry.deviceName)).size,
+        addresses: entries.length,
+        disabled: entries.filter((entry) => entry.disabled).length,
+        networks: byNetwork.size,
+      },
+    });
   } catch (error) {
     next(new AppError("Failed to generate networks report", 500, true, error));
   }

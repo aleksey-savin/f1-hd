@@ -58,16 +58,23 @@ const TrendsChart = ({
   axisFormatter?: (value: number) => string;
 }) => {
   const config = Object.fromEntries(
-    series.map((line) => [line.dataKey, { label: line.label, color: line.color }]),
+    series.map((line) => [
+      line.dataKey,
+      { label: line.label, color: line.color },
+    ]),
   ) satisfies ChartConfig;
 
   const formatValue = (value: number) =>
-    valueFormatter ? valueFormatter(value) : isTime ? msToHMS(value) : String(value);
+    valueFormatter
+      ? valueFormatter(value)
+      : isTime
+        ? msToHMS(value)
+        : String(value);
 
   return (
     <ChartContainer
       config={config}
-      className="tw:aspect-auto tw:w-full"
+      className="aspect-auto w-full"
       style={{ height: 280 }}
     >
       <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
@@ -108,14 +115,14 @@ const TrendsChart = ({
                 <>
                   <span
                     aria-hidden
-                    className="tw:mt-0.5 tw:size-2.5 tw:shrink-0 tw:rounded-xs"
+                    className="mt-0.5 size-2.5 shrink-0 rounded-xs"
                     style={{ background: item.color }}
                   />
-                  <span className="tw:flex tw:flex-1 tw:items-center tw:justify-between tw:gap-4 tw:leading-none">
-                    <span className="tw:text-muted-foreground">
+                  <span className="flex flex-1 items-center justify-between gap-4 leading-none">
+                    <span className="text-muted-foreground">
                       {config[name as string]?.label ?? name}
                     </span>
-                    <span className="tw:font-medium tw:text-foreground tw:tabular-nums">
+                    <span className="font-medium text-foreground tabular-nums">
                       {formatValue(Number(value))}
                     </span>
                   </span>

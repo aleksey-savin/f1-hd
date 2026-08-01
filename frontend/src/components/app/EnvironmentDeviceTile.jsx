@@ -33,55 +33,59 @@ const EnvironmentDeviceTile = ({
           : "Открыть карточку устройства"
       }
       className={cn(
-        "tw:flex tw:min-w-0 tw:cursor-pointer tw:appearance-none tw:items-start tw:gap-2.5 tw:rounded-lg tw:border tw:border-border-soft tw:bg-background tw:p-3 tw:text-left tw:transition-colors tw:hover:border-input tw:hover:bg-accent",
-        isTarget && "tw:border-primary/60 tw:ring-2 tw:ring-primary/35 tw:env-aim",
+        "flex min-w-0 cursor-pointer appearance-none items-start gap-2.5 rounded-lg border border-border-soft bg-background p-3 text-left transition-colors hover:border-input hover:bg-accent",
+        isTarget && "border-primary/60 ring-2 ring-primary/35 env-aim",
       )}
     >
       <span
         aria-hidden
-        className="tw:grid tw:size-9 tw:flex-none tw:place-items-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+        className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border"
       >
         <Icon size={17} />
       </span>
-      <span className="tw:block tw:min-w-0 tw:flex-1">
+      <span className="block min-w-0 flex-1">
         <span
-          className="tw:flex tw:items-center tw:gap-1.5 tw:text-sm tw:leading-snug tw:font-medium"
+          className="flex items-center gap-1.5 text-sm leading-snug font-medium"
           title={device.name}
         >
-          <span className="tw:min-w-0 tw:truncate">{device.name}</span>
+          <span className="min-w-0 truncate">{device.name}</span>
           {device.isPersonal && (
             <RiStarFill
               size={13}
-              className="tw:flex-none tw:text-warning"
+              className="flex-none text-warning"
               title="Закреплено лично"
             />
           )}
           {isTarget && (
             <RiFocus3Line
               size={14}
-              className="tw:flex-none tw:text-accent-text"
+              className="flex-none text-accent-text"
               title="Заявка об этом устройстве"
             />
           )}
         </span>
         {(device.typeName || device.vendorName) && (
-          <span className="tw:block tw:truncate tw:text-xs tw:text-muted-foreground">
+          <span className="block truncate text-xs text-muted-foreground">
             {[device.typeName, device.vendorName].filter(Boolean).join(" · ")}
           </span>
         )}
         {showLocation && device.locationName && (
-          <span className="tw:flex tw:items-center tw:gap-1 tw:text-xs tw:text-faint">
-            <RiMapPin2Line size={12} className="tw:flex-none" />
-            <span className="tw:truncate">{device.locationName}</span>
+          <span className="flex items-center gap-1 text-xs text-faint">
+            <RiMapPin2Line size={12} className="flex-none" />
+            <span className="truncate">{device.locationName}</span>
           </span>
         )}
         {(status || mikro) && (
-          <span className="tw:mt-1 tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-0.5">
+          <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
             {status && (
-              <DeviceStatusText tone={status.tone}>{status.label}</DeviceStatusText>
+              <DeviceStatusText tone={status.tone}>
+                {status.label}
+              </DeviceStatusText>
             )}
             {mikro && (
-              <DeviceStatusText tone={mikro.tone}>{mikro.label}</DeviceStatusText>
+              <DeviceStatusText tone={mikro.tone}>
+                {mikro.label}
+              </DeviceStatusText>
             )}
           </span>
         )}

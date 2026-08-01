@@ -19,7 +19,7 @@ export function Section({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={cn("tw:group", className)}>{children}</div>;
+  return <div className={cn("group", className)}>{children}</div>;
 }
 
 /**
@@ -55,7 +55,7 @@ export function SectionEditLink({
       variant="ghost"
       // icon-xs — вровень с `xs`-кнопками секции («Выдать», «Прикрепить»)
       size="icon-xs"
-      className="tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100"
+      className="text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
     >
       <Link to={to} onClick={onClick} aria-label={`Изменить: ${label}`}>
         <RiEdit2Line />
@@ -100,7 +100,7 @@ export function SectionEditButton({
       size="icon-xs"
       onClick={onToggle}
       aria-label={`Изменить: ${label}`}
-      className="tw:text-faint tw:opacity-0 tw:group-hover:opacity-100 tw:focus-visible:opacity-100 tw:pointer-coarse:opacity-100"
+      className="text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
     >
       <RiEdit2Line />
     </Button>
@@ -110,7 +110,7 @@ export function SectionEditButton({
 // Панель-секция: тонкая граница на канве, без тени (язык статус-борда).
 export function Panel({ children }: { children: ReactNode }) {
   return (
-    <section className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-5">
+    <section className="rounded-xl border border-border bg-card p-5">
       {children}
     </section>
   );
@@ -135,18 +135,18 @@ export function Eyebrow({
     <div
       id={id}
       className={cn(
-        "tw:mt-6 tw:mb-2.5 tw:flex tw:items-center tw:gap-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase",
-        id && "tw:scroll-mt-28",
+        "mt-6 mb-2.5 flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase",
+        id && "scroll-mt-28",
       )}
     >
       {children}
       {count != null && (
-        <span className="tw:font-semibold tw:tracking-normal tw:tabular-nums">
+        <span className="font-semibold tracking-normal tabular-nums">
           · {count}
         </span>
       )}
       {action != null && (
-        <span className="tw:ms-auto tw:flex tw:items-center tw:gap-2 tw:font-normal tw:tracking-normal tw:normal-case">
+        <span className="ms-auto flex items-center gap-2 font-normal tracking-normal normal-case">
           {action}
         </span>
       )}
@@ -171,18 +171,18 @@ export function SubLabel({
   return (
     <div
       className={cn(
-        "tw:mb-2.5 tw:flex tw:items-center tw:gap-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase",
+        "mb-2.5 flex items-center gap-2 text-xs font-bold tracking-wider text-faint uppercase",
         className,
       )}
     >
       {children}
       {count != null && (
-        <span className="tw:font-semibold tw:tracking-normal tw:tabular-nums">
+        <span className="font-semibold tracking-normal tabular-nums">
           · {count}
         </span>
       )}
       {action != null && (
-        <span className="tw:ms-auto tw:flex tw:items-center tw:gap-2 tw:font-normal tw:tracking-normal tw:normal-case">
+        <span className="ms-auto flex items-center gap-2 font-normal tracking-normal normal-case">
           {action}
         </span>
       )}

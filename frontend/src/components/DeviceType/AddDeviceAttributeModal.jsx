@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import AlertMessage from "@/components/app/AlertMessage";
-import { InsideOverlayContext } from "@/components/app/overlay-context";
 
 import DeviceAttributeFormFields from "../DeviceAttribute/FormFields";
 import { getLocalStorageData } from "../../util/auth";
@@ -123,26 +122,19 @@ const AddDeviceAttributeModal = ({ show, onHide, onAttributeCreated }) => {
         if (!open) handleClose();
       }}
     >
-      <DialogContent className="tw:sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Новый атрибут устройства</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           {error && (
-            <AlertMessage
-              variant="danger"
-              message={error}
-              className="tw:mt-0"
-            />
+            <AlertMessage variant="danger" message={error} className="mt-0" />
           )}
-          {/* UI/Select внутри диалога — инлайн-меню без портала */}
-          <InsideOverlayContext.Provider value={true}>
-            <DeviceAttributeFormFields
-              attribute={null}
-              onChange={handleFormChange}
-            />
-          </InsideOverlayContext.Provider>
-          <DialogFooter className="tw:mt-4">
+          <DeviceAttributeFormFields
+            attribute={null}
+            onChange={handleFormChange}
+          />
+          <DialogFooter className="mt-4">
             <Button type="button" variant="ghost" onClick={handleClose}>
               Отмена
             </Button>

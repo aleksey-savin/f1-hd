@@ -17,7 +17,9 @@ import WorkStatusText from "../WorkStatusText";
 const WEEK = SCHEDULE_DAYS.map(([, key, short]) => [short, key]);
 
 const toMinutes = (value) => {
-  const [hours, minutes] = String(value || "").split(":").map(Number);
+  const [hours, minutes] = String(value || "")
+    .split(":")
+    .map(Number);
   return Number.isFinite(hours) && Number.isFinite(minutes)
     ? hours * 60 + minutes
     : null;
@@ -50,13 +52,13 @@ const ScheduleSection = ({ workSchedule, hasSchedule, timezone, id }) => {
       <Eyebrow id={id}>График работы</Eyebrow>
       <Panel>
         {!hasSchedule ? (
-          <div className="tw:text-sm tw:text-muted-foreground">
+          <div className="text-sm text-muted-foreground">
             График не указан — укажите его в форме компании, и карточка начнёт
             показывать живой статус «открыто/закрыто».
           </div>
         ) : (
           <>
-            <div className="tw:mb-3.5 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1">
+            <div className="mb-3.5 flex flex-wrap items-center gap-x-3 gap-y-1">
               <WorkStatusText
                 workSchedule={workSchedule}
                 timezone={timezone}
@@ -69,10 +71,10 @@ const ScheduleSection = ({ workSchedule, hasSchedule, timezone, id }) => {
                   source: timezone ? "company" : "global",
                 }}
                 always
-                className="tw:text-xs"
+                className="text-xs"
               />
             </div>
-            <div className="tw:grid tw:grid-cols-7 tw:gap-2 tw:max-md:grid-cols-4">
+            <div className="grid grid-cols-7 gap-2 max-md:grid-cols-4">
               {WEEK.map(([label, key]) => {
                 const day = workSchedule?.[key];
                 const working = day?.isWorking;
@@ -86,27 +88,27 @@ const ScheduleSection = ({ workSchedule, hasSchedule, timezone, id }) => {
                   <div
                     key={key}
                     className={cn(
-                      "tw:relative tw:rounded-lg tw:border tw:px-2 tw:py-2 tw:pb-3 tw:text-center",
+                      "relative rounded-lg border px-2 py-2 pb-3 text-center",
                       working
-                        ? "tw:border-border-soft tw:bg-accent/40"
-                        : "tw:border-border-soft",
-                      isToday && "tw:border-primary/45 tw:bg-primary/10",
+                        ? "border-border-soft bg-accent/40"
+                        : "border-border-soft",
+                      isToday && "border-primary/45 bg-primary/10",
                     )}
                   >
                     <div
                       className={cn(
-                        "tw:text-[0.65rem] tw:font-bold tw:tracking-wider tw:uppercase",
-                        isToday ? "tw:text-accent-text" : "tw:text-faint",
+                        "text-[0.65rem] font-bold tracking-wider uppercase",
+                        isToday ? "text-accent-text" : "text-faint",
                       )}
                     >
                       {label}
                     </div>
                     <div
                       className={cn(
-                        "tw:mt-1 tw:text-sm",
+                        "mt-1 text-sm",
                         working
-                          ? "tw:font-semibold tw:tabular-nums"
-                          : "tw:font-medium tw:text-faint",
+                          ? "font-semibold tabular-nums"
+                          : "font-medium text-faint",
                       )}
                     >
                       {text}
@@ -116,10 +118,10 @@ const ScheduleSection = ({ workSchedule, hasSchedule, timezone, id }) => {
                         role="img"
                         aria-label={`Прошло ${Math.round(today.progress)}% рабочего дня`}
                         title={`Прошло ${Math.round(today.progress)}% рабочего дня`}
-                        className="tw:absolute tw:inset-x-2 tw:bottom-1 tw:h-0.5 tw:overflow-hidden tw:rounded-full tw:bg-primary/20"
+                        className="absolute inset-x-2 bottom-1 h-0.5 overflow-hidden rounded-full bg-primary/20"
                       >
                         <div
-                          className="tw:h-full tw:rounded-full"
+                          className="h-full rounded-full"
                           style={{
                             width: `${today.progress}%`,
                             background: "var(--ws-st-office)",

@@ -23,12 +23,6 @@ router.get(
   personalReportController.getSummary,
 );
 
-router.get(
-  "/report-employees",
-  isAuth,
-  canSeeGlobalFinancialReport,
-  personalReportController.getReportEmployees,
-);
 
 router.get(
   "/employees-summary",

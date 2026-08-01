@@ -6,8 +6,8 @@ import useInitialPrefsStore from "../../store/prefs";
 import { getVerificationSummary } from "../../util/knowledgeNoteTypes";
 
 const TONE_CLASS = {
-  success: "tw:text-accent-text",
-  warning: "tw:text-warning",
+  success: "text-accent-text",
+  warning: "text-warning",
 };
 
 // Состояние заметки — предложение, а не плашка. Ценность базы знаний в том, что
@@ -21,8 +21,8 @@ const VerificationLine = ({ note, isEditing = false }) => {
 
   if (isEditing) {
     return (
-      <p className="tw:my-0 tw:flex tw:items-center tw:gap-1.5 tw:text-sm tw:text-muted-foreground">
-        <RiEditLine size={16} aria-hidden className="tw:flex-none" />
+      <p className="my-0 flex items-center gap-1.5 text-sm text-muted-foreground">
+        <RiEditLine size={16} aria-hidden className="flex-none" />
         <span>Сохранение снимет отметку «Проверено»</span>
       </p>
     );
@@ -58,17 +58,17 @@ const VerificationLine = ({ note, isEditing = false }) => {
   const tone = summary.expiresSoon ? "warning" : summary.bg;
 
   return (
-    <p className="tw:my-0 tw:flex tw:flex-wrap tw:items-center tw:gap-1.5 tw:text-sm">
+    <p className="my-0 flex flex-wrap items-center gap-1.5 text-sm">
       <Icon
         size={16}
         aria-hidden
-        className={cn("tw:flex-none", TONE_CLASS[tone])}
+        className={cn("flex-none", TONE_CLASS[tone])}
       />
-      <span className={cn("tw:font-semibold", TONE_CLASS[tone])}>
+      <span className={cn("font-semibold", TONE_CLASS[tone])}>
         {summary.label}
       </span>
       {parts.length > 0 && (
-        <span className="tw:text-muted-foreground">· {parts.join(" · ")}</span>
+        <span className="text-muted-foreground">· {parts.join(" · ")}</span>
       )}
     </p>
   );

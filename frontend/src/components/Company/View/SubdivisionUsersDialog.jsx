@@ -10,9 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import Field from "@/components/app/Field";
 import AlertMessage from "@/components/app/AlertMessage";
-import { InsideOverlayContext } from "@/components/app/overlay-context";
 
-import Select from "../../../UI/Select";
+import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 
 // Состав подразделения: руководитель + сотрудники. Человек может состоять
 // только в одном подразделении — занятые в других помечаются и недоступны
@@ -24,7 +23,13 @@ const sortByName = (a, b) =>
 
 const formatUserName = (user) => `${user.lastName} ${user.firstName}`;
 
-const SubdivisionUsersDialog = ({ open, onOpenChange, node, company, fetcher }) => {
+const SubdivisionUsersDialog = ({
+  open,
+  onOpenChange,
+  node,
+  company,
+  fetcher,
+}) => {
   const [manager, setManager] = useState(null);
   const [users, setUsers] = useState([]);
 
@@ -80,59 +85,68 @@ const SubdivisionUsersDialog = ({ open, onOpenChange, node, company, fetcher }) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="tw:max-w-lg" aria-describedby={undefined}>
-        <InsideOverlayContext.Provider value={true}>
-          <DialogHeader>
-            <DialogTitle>
-              Состав — {node.name?.trim() || "Без названия"}
-            </DialogTitle>
-          </DialogHeader>
+      <DialogContent className="max-w-lg" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>
+            Состав — {node.name?.trim() || "Без названия"}
+          </DialogTitle>
+        </DialogHeader>
 
-          {fetcher.data?.error && (
-            <AlertMessage variant="danger" message={fetcher.data.error} />
-          )}
+        {fetcher.data?.error && (
+          <AlertMessage variant="danger" message={fetcher.data.error} />
+        )}
 
-          <form onSubmit={handleSubmit}>
-            <Field label="Руководитель">
-              <Select
-                isClearable
-                placeholder="Не назначен"
-                options={options}
-                value={manager}
-                onChange={handleManagerChange}
-                getOptionLabel={getOptionLabel}
-                getOptionValue={(option) => option._id}
-                isOptionDisabled={isOptionDisabled}
-              />
-            </Field>
-            <Field label="Сотрудники">
-              <Select
-                isMulti
-                closeMenuOnSelect={false}
-                placeholder="Выберите сотрудников"
-                options={options}
-                value={users}
-                onChange={(next) => setUsers(next || [])}
-                getOptionLabel={getOptionLabel}
-                getOptionValue={(option) => option._id}
-                isOptionDisabled={isOptionDisabled}
-              />
-            </Field>
+        <form onSubmit={handleSubmit}>
+          <Field label="Руководитель">
+            <Combobox
+              ariaLabel="Руководитель подразделения"
+              placeholder="Не назначен"
+              options={toOptions(options, {
+                value: (option) => String(option._id),
+                label: getOptionLabel,
+                disabled: isOptionDisabled,
+              })}
+              value={manager?._id ? String(manager._id) : null}
+              onChange={(id) =>
+                handleManagerChange(
+                  options.find((option) => String(option._id) === id) || null,
+                )
+              }
+              clearable
+              clearLabel="Не назначен"
+            />
+          </Field>
+          <Field label="Сотрудники">
+            <MultiCombobox
+              ariaLabel="Сотрудники подразделения"
+              placeholder="Выберите сотрудников"
+              options={toOptions(options, {
+                value: (option) => String(option._id),
+                label: getOptionLabel,
+                disabled: isOptionDisabled,
+              })}
+              value={(users || []).map((user) => String(user._id))}
+              onChange={(ids) =>
+                setUsers(
+                  options.filter((option) => ids.includes(String(option._id))),
+                )
+              }
+            />
+          </Field>
 
-            <DialogFooter className="tw:mt-1">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-              >
-                Отмена
-              </Button>
-              <Button type="submit" disabled={busy}>
-                {busy ? "Сохранение…" : "Сохранить"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </InsideOverlayContext.Provider>
+          <DialogFooter className="mt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+            >
+              Отмена
+            </Button>
+            <Button type="submit" disabled={busy}>
+              {busy ? "Сохранение…" : "Сохранить"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

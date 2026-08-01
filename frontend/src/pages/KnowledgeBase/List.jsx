@@ -58,17 +58,17 @@ const Placeholder = ({ canManage }) => {
   );
 
   return (
-    <div className="tw:flex tw:flex-col tw:items-center tw:gap-2 tw:px-6 tw:py-24 tw:text-center">
-      <RiBookOpenLine size={48} aria-hidden className="tw:mb-1 tw:text-faint" />
-      <div className="tw:text-lg tw:font-semibold">
+    <div className="flex flex-col items-center gap-2 px-6 py-24 text-center">
+      <RiBookOpenLine size={48} aria-hidden className="mb-1 text-faint" />
+      <div className="text-lg font-semibold">
         {count} {plural(count, "заметка", "заметки", "заметок")} о клиентах и
         наших порядках
       </div>
-      <p className="tw:my-0 tw:max-w-md tw:text-base tw:text-muted-foreground">
+      <p className="my-0 max-w-md text-base text-muted-foreground">
         Выберите заметку в списке или найдите по тексту — поиск идёт по
         заголовку, содержимому, компаниям и категориям.
       </p>
-      <div className="tw:mt-3 tw:flex tw:flex-wrap tw:justify-center tw:gap-2">
+      <div className="mt-3 flex flex-wrap justify-center gap-2">
         {canManage && (
           <Button asChild>
             <Link to="/knowledge-base/add">
@@ -142,9 +142,9 @@ const KnowledgeBaseList = () => {
   return (
     <>
       <BrowserView>
-        <div className="tw:mx-auto tw:flex tw:w-full tw:max-w-7xl tw:items-start tw:gap-6">
+        <div className="mx-auto flex w-full max-w-7xl items-start gap-6">
           <KnowledgeBaseExplorer />
-          <div className="tw:min-w-0 tw:flex-1">
+          <div className="min-w-0 flex-1">
             {atRoot ? <Placeholder canManage={canManage} /> : <Outlet />}
           </div>
         </div>

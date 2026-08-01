@@ -50,17 +50,17 @@ const PersonalWorksTable = ({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="tw:whitespace-nowrap">Когда</TableHead>
-            <TableHead className="tw:whitespace-nowrap">Компания</TableHead>
+            <TableHead className="whitespace-nowrap">Когда</TableHead>
+            <TableHead className="whitespace-nowrap">Компания</TableHead>
             <TableHead>Заявка и описание</TableHead>
-            <TableHead className="tw:whitespace-nowrap">Вид</TableHead>
-            <TableHead className="tw:text-right tw:whitespace-nowrap">
+            <TableHead className="whitespace-nowrap">Вид</TableHead>
+            <TableHead className="text-right whitespace-nowrap">
               Длительность
             </TableHead>
-            <TableHead className="tw:text-right tw:whitespace-nowrap">
+            <TableHead className="text-right whitespace-nowrap">
               Переработка
             </TableHead>
-            <TableHead className="tw:whitespace-nowrap">Согласование</TableHead>
+            <TableHead className="whitespace-nowrap">Согласование</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -69,15 +69,15 @@ const PersonalWorksTable = ({
             const muted = status.key === "preview" || status.key === "none";
             return (
               <TableRow key={work._id}>
-                <TableCell className="tw:whitespace-nowrap tw:tabular-nums">
+                <TableCell className="whitespace-nowrap tabular-nums">
                   {formatDayMonthTime(work.startedAt)}–
                   {formatTime(work.finishedAt)}
                 </TableCell>
-                <TableCell className="tw:whitespace-nowrap">
+                <TableCell className="whitespace-nowrap">
                   {work.company?.alias ?? "—"}
                 </TableCell>
-                <TableCell className="tw:min-w-64">
-                  <span className="tw:flex tw:flex-wrap tw:items-baseline tw:gap-x-2">
+                <TableCell className="min-w-64">
+                  <span className="flex flex-wrap items-baseline gap-x-2">
                     {work.tickets.map((ticket) => (
                       <Link
                         key={ticket._id}
@@ -85,52 +85,55 @@ const PersonalWorksTable = ({
                         target="_blank"
                         rel="noreferrer"
                         onClick={(event) => event.stopPropagation()}
-                        className="tw:font-semibold tw:text-accent-text tw:no-underline tw:tabular-nums tw:hover:underline"
+                        className="font-semibold text-accent-text no-underline tabular-nums hover:underline"
                       >
                         №{ticket.num}
                       </Link>
                     ))}
-                    <span className="tw:line-clamp-1 tw:text-muted-foreground">
+                    <span className="line-clamp-1 text-muted-foreground">
                       {work.description || "без описания"}
                     </span>
                   </span>
                 </TableCell>
-                <TableCell className="tw:whitespace-nowrap">
-                  <span className="tw:inline-flex tw:items-center tw:gap-2">
+                <TableCell className="whitespace-nowrap">
+                  <span className="inline-flex items-center gap-2">
                     <span
                       aria-hidden
-                      className="tw:size-2 tw:flex-none tw:rounded-xs"
+                      className="size-2 flex-none rounded-xs"
                       style={{ background: classColor(work) }}
                     />
                     {WORK_CLASS_LABEL[work.workClass]}
                   </span>
                 </TableCell>
-                <TableCell className="tw:text-right tw:font-semibold tw:tabular-nums">
+                <TableCell className="text-right font-semibold tabular-nums">
                   {formatMinutes(work.durationMinutes)}
                 </TableCell>
                 <TableCell
                   className={cn(
-                    "tw:text-right tw:tabular-nums",
+                    "text-right tabular-nums",
                     work.overtime.roundedMinutes > 0
-                      ? "tw:text-warning"
-                      : "tw:text-faint",
+                      ? "text-warning"
+                      : "text-faint",
                   )}
                 >
                   {work.overtime.roundedMinutes > 0
                     ? formatMinutes(work.overtime.roundedMinutes)
                     : "—"}
                 </TableCell>
-                <TableCell className="tw:whitespace-nowrap">
+                <TableCell className="whitespace-nowrap">
                   <span
                     className={cn(
-                      "tw:inline-flex tw:items-center tw:gap-2",
-                      muted ? "tw:text-muted-foreground" : "tw:text-accent-text",
+                      "inline-flex items-center gap-2",
+                      muted ? "text-muted-foreground" : "text-accent-text",
                     )}
                   >
                     <span
                       aria-hidden
-                      className="tw:size-2 tw:flex-none tw:rounded-full"
-                      style={{ background: status.color, opacity: muted ? 0.5 : 1 }}
+                      className="size-2 flex-none rounded-full"
+                      style={{
+                        background: status.color,
+                        opacity: muted ? 0.5 : 1,
+                      }}
                     />
                     {status.label}
                   </span>
@@ -143,28 +146,28 @@ const PersonalWorksTable = ({
           <TableRow>
             <TableCell>Итого</TableCell>
             <TableCell />
-            <TableCell className="tw:text-muted-foreground tw:tabular-nums">
+            <TableCell className="text-muted-foreground tabular-nums">
               {works.length} работ
             </TableCell>
             <TableCell />
-            <TableCell className="tw:text-right tw:font-semibold tw:tabular-nums">
+            <TableCell className="text-right font-semibold tabular-nums">
               {formatMinutes(totalMinutes)}
             </TableCell>
-            <TableCell className="tw:text-right tw:tabular-nums">
+            <TableCell className="text-right tabular-nums">
               {formatMinutes(overtimeMinutes)}
             </TableCell>
-            <TableCell className="tw:text-faint tw:tabular-nums">
+            <TableCell className="text-faint tabular-nums">
               {approvedCount} из {works.length} утверждены
             </TableCell>
           </TableRow>
         </TableFooter>
       </Table>
       {shown < works.length && (
-        <div className="tw:px-2 tw:pt-3">
+        <div className="px-2 pt-3">
           <Button
             variant="ghost"
             size="sm"
-            className="tw:text-accent-text"
+            className="text-accent-text"
             onClick={() => setShown((current) => current + PAGE)}
           >
             Показать ещё {Math.min(PAGE, works.length - shown)} из{" "}

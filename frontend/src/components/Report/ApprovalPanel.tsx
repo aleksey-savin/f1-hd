@@ -22,7 +22,7 @@ const ApprovalPanel = ({
 
   if (total === 0) {
     return (
-      <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+      <p className="my-0 text-sm text-muted-foreground">
         За период нет работ, попадающих в биллинг.
       </p>
     );
@@ -30,12 +30,12 @@ const ApprovalPanel = ({
 
   return (
     <>
-      <div className="tw:flex tw:h-4.5 tw:gap-0.5">
+      <div className="flex h-4.5 gap-0.5">
         {rows.map((status) => (
           <span
             key={status.key}
             title={`${status.label} — ${byStatus[status.key]?.count}`}
-            className="tw:block tw:h-full tw:rounded-xs tw:last:rounded-e"
+            className="block h-full rounded-xs last:rounded-e"
             style={{
               width: `${((byStatus[status.key]?.count ?? 0) / total) * 100}%`,
               background: status.color,
@@ -47,16 +47,16 @@ const ApprovalPanel = ({
           />
         ))}
       </div>
-      <div className="tw:mt-3.5 tw:flex tw:flex-col tw:gap-2 tw:text-sm tw:tabular-nums">
+      <div className="mt-3.5 flex flex-col gap-2 text-sm tabular-nums">
         {rows.map((status) => (
           <div
             key={status.key}
-            className="tw:flex tw:items-baseline tw:justify-between tw:gap-4"
+            className="flex items-baseline justify-between gap-4"
           >
-            <span className="tw:inline-flex tw:items-center tw:gap-2">
+            <span className="inline-flex items-center gap-2">
               <span
                 aria-hidden
-                className="tw:size-2.5 tw:flex-none tw:rounded-xs"
+                className="size-2.5 flex-none rounded-xs"
                 style={{
                   background: status.color,
                   opacity:
@@ -65,16 +65,14 @@ const ApprovalPanel = ({
               />
               {status.label}
             </span>
-            <span className="tw:text-muted-foreground">
+            <span className="text-muted-foreground">
               {byStatus[status.key]?.count} ·{" "}
               {formatMinutes(byStatus[status.key]?.minutes ?? 0)}
             </span>
           </div>
         ))}
       </div>
-      {note && (
-        <p className="tw:mt-3.5 tw:mb-0 tw:text-xs tw:text-faint">{note}</p>
-      )}
+      {note && <p className="mt-3.5 mb-0 text-xs text-faint">{note}</p>}
     </>
   );
 };

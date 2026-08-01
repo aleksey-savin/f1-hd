@@ -22,7 +22,7 @@ import {
  * просрочена. Просрочку несёт срок (красным) и, где есть место, отдельное слово
  * рядом со статусом.
  */
-export const TICKET_STATE_TONE = {
+const TICKET_STATE_TONE = {
   Новая: "warn",
   "Не в работе": "warn",
   "На согласовании": "warn",
@@ -31,26 +31,26 @@ export const TICKET_STATE_TONE = {
   Закрыта: "off",
 };
 
-export const TONE_TEXT = {
-  warn: "tw:text-warning",
-  bad: "tw:text-destructive",
-  normal: "tw:text-muted-foreground",
-  off: "tw:text-faint",
+const TONE_TEXT = {
+  warn: "text-warning",
+  bad: "text-destructive",
+  normal: "text-muted-foreground",
+  off: "text-faint",
 };
 
 // Те же тона, но для шапки карточки: «норма» звучит в полный голос
-export const TONE_TEXT_STRONG = {
-  warn: "tw:text-warning",
-  bad: "tw:text-destructive",
-  normal: "tw:text-foreground",
-  off: "tw:text-muted-foreground",
+const TONE_TEXT_STRONG = {
+  warn: "text-warning",
+  bad: "text-destructive",
+  normal: "text-foreground",
+  off: "text-muted-foreground",
 };
 
 export const TONE_DOT = {
-  warn: "tw:bg-warning",
-  bad: "tw:bg-destructive",
-  normal: "tw:bg-faint",
-  off: "tw:bg-faint",
+  warn: "bg-warning",
+  bad: "bg-destructive",
+  normal: "bg-faint",
+  off: "bg-faint",
 };
 
 /** Просрочена — дедлайн в прошлом и заявка ещё не завершена. */
@@ -120,16 +120,16 @@ export const TicketStateText = ({
 }) => (
   <span
     className={cn(
-      "tw:text-sm tw:whitespace-nowrap",
+      "text-sm whitespace-nowrap",
       strong ? TONE_TEXT_STRONG[tone] : TONE_TEXT[tone],
-      strong && "tw:font-semibold",
+      strong && "font-semibold",
       className,
     )}
   >
     <span
       aria-hidden
       className={cn(
-        "tw:me-1.5 tw:inline-block tw:size-1.5 tw:rounded-full tw:align-middle",
+        "me-1.5 inline-block size-1.5 rounded-full align-middle",
         TONE_DOT[tone],
       )}
     />

@@ -50,7 +50,7 @@ const TicketLink = ({ ticket }) => (
     target="_blank"
     rel="noopener noreferrer"
     title={ticket.title}
-    className="tw:font-medium tw:text-accent-text tw:tabular-nums tw:no-underline tw:hover:underline"
+    className="font-medium text-accent-text tabular-nums no-underline hover:underline"
   >
     {ticket.num}
   </a>
@@ -71,17 +71,19 @@ const WorkArchiveItem = ({ work }) => {
   const mobileMeta = [work.company?.alias, executorName(work.finishedBy)]
     .filter(Boolean)
     .join(" · ");
-  const mobileNums = (work.tickets || []).map((ticket) => ticket.num).join(" · ");
+  const mobileNums = (work.tickets || [])
+    .map((ticket) => ticket.num)
+    .join(" · ");
 
   const duration = (
     <span
-      className={isLong ? "tw:font-semibold tw:text-warning" : "tw:font-semibold"}
+      className={isLong ? "font-semibold text-warning" : "font-semibold"}
       title={isLong ? "Длительность больше 12 часов" : undefined}
     >
       {isLong && (
         <span
           aria-hidden
-          className="tw:me-1.5 tw:inline-block tw:size-1.5 tw:rounded-full tw:bg-warning"
+          className="me-1.5 inline-block size-1.5 rounded-full bg-warning"
           style={{ verticalAlign: "2px" }}
         />
       )}
@@ -90,46 +92,44 @@ const WorkArchiveItem = ({ work }) => {
   );
 
   return (
-    <div className="tw:relative tw:flex tw:flex-col tw:gap-0.5 tw:px-4 tw:py-3 tw:before:absolute tw:before:top-0 tw:before:right-5 tw:before:left-5 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden tw:md:flex-row tw:md:items-center tw:md:gap-4 tw:md:px-5 tw:md:py-2.5">
+    <div className="relative flex flex-col gap-0.5 px-4 py-3 before:absolute before:top-0 before:right-5 before:left-5 before:h-px before:bg-border-soft first:before:hidden md:flex-row md:items-center md:gap-4 md:px-5 md:py-2.5">
       {/* мобайл: №№ заявок + длительность */}
-      <div className="tw:flex tw:items-baseline tw:gap-1 tw:text-xs tw:text-muted-foreground tw:tabular-nums tw:md:hidden">
+      <div className="flex items-baseline gap-1 text-xs text-muted-foreground tabular-nums md:hidden">
         <span>{mobileNums ? `№ ${mobileNums}` : "без заявки"}</span>
-        <span className="tw:ms-auto tw:text-sm">{duration}</span>
+        <span className="ms-auto text-sm">{duration}</span>
       </div>
 
       {/* десктоп: колонка №-ссылок */}
-      <div className="tw:hidden tw:w-20 tw:flex-none tw:flex-col tw:gap-0.5 tw:text-sm tw:leading-tight tw:md:flex">
+      <div className="hidden w-20 flex-none flex-col gap-0.5 text-sm leading-tight md:flex">
         {(work.tickets || []).map((ticket) => (
           <TicketLink key={ticket._id} ticket={ticket} />
         ))}
-        {!work.tickets?.length && <span className="tw:text-faint">—</span>}
+        {!work.tickets?.length && <span className="text-faint">—</span>}
       </div>
 
       {/* описание + мета */}
-      <div className="tw:min-w-0 tw:flex-1">
-        <div className="tw:truncate tw:font-medium">
-          {work.description || "—"}
-        </div>
-        <div className="tw:hidden tw:truncate tw:text-sm tw:text-muted-foreground tw:md:block">
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium">{work.description || "—"}</div>
+        <div className="hidden truncate text-sm text-muted-foreground md:block">
           {desktopMeta || "—"}
         </div>
       </div>
 
       {/* десктоп: исполнитель */}
-      <div className="tw:hidden tw:w-42 tw:flex-none tw:truncate tw:text-sm tw:text-muted-foreground tw:lg:block">
+      <div className="hidden w-42 flex-none truncate text-sm text-muted-foreground lg:block">
         {executorName(work.finishedBy)}
       </div>
 
       {/* десктоп: длительность + дата завершения */}
-      <div className="tw:hidden tw:w-44 tw:flex-none tw:text-right tw:tabular-nums tw:md:block">
-        <div className="tw:text-sm">{duration}</div>
-        <div className="tw:text-xs tw:text-faint">
+      <div className="hidden w-44 flex-none text-right tabular-nums md:block">
+        <div className="text-sm">{duration}</div>
+        <div className="text-xs text-faint">
           завершена {formatShortDate(work.finishedAt)}
         </div>
       </div>
 
       {/* мобайл: компания · исполнитель */}
-      <div className="tw:truncate tw:text-sm tw:text-muted-foreground tw:md:hidden">
+      <div className="truncate text-sm text-muted-foreground md:hidden">
         {mobileMeta || "—"}
       </div>
     </div>

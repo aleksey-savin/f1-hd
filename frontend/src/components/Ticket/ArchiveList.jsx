@@ -22,7 +22,12 @@ import ArchiveItem from "./ArchiveItem";
 const formatBadgeDate = (isoDay) => isoDay.split("-").reverse().join(".");
 
 // Фасеты-списки, которые принимаются из адреса через запятую.
-const URL_LIST_FACETS = ["companies", "applicants", "responsibles", "categories"];
+const URL_LIST_FACETS = [
+  "companies",
+  "applicants",
+  "responsibles",
+  "categories",
+];
 
 const TicketsArchiveList = ({ segment }) => {
   const s = useClosedTicketsStore();
@@ -104,7 +109,7 @@ const TicketsArchiveList = ({ segment }) => {
         to={s.to}
         onChange={(range) => s.updateFilter(range)}
       />
-      <span className="tw:hidden tw:md:contents">
+      <span className="hidden md:contents">
         <ChipMultiCombobox
           placeholder="Компании"
           searchPlaceholder="Найти компанию…"

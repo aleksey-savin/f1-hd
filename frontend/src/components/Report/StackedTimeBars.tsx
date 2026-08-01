@@ -55,7 +55,7 @@ const StackedTimeBars = ({
   return (
     <ChartContainer
       config={chartConfig}
-      className="tw:aspect-auto tw:w-full"
+      className="aspect-auto w-full"
       style={{ height: data.length * ROW_HEIGHT + 12 }}
     >
       <BarChart
@@ -84,15 +84,15 @@ const StackedTimeBars = ({
                   <>
                     <span
                       aria-hidden
-                      className="tw:mt-0.5 tw:size-2.5 tw:shrink-0 tw:rounded-xs"
+                      className="mt-0.5 size-2.5 shrink-0 rounded-xs"
                       style={{ background: item.color }}
                     />
-                    <span className="tw:flex tw:flex-1 tw:items-center tw:justify-between tw:gap-4 tw:leading-none">
-                      <span className="tw:text-muted-foreground">
+                    <span className="flex flex-1 items-center justify-between gap-4 leading-none">
+                      <span className="text-muted-foreground">
                         {chartConfig[name as keyof typeof chartConfig]?.label ??
                           name}
                       </span>
-                      <span className="tw:font-medium tw:text-foreground tw:tabular-nums">
+                      <span className="font-medium text-foreground tabular-nums">
                         {format(Number(value))}
                       </span>
                     </span>
@@ -124,7 +124,7 @@ const StackedTimeBars = ({
             position="right"
             offset={8}
             formatter={(value) => format(Number(value))}
-            className="tw:fill-muted-foreground"
+            className="fill-muted-foreground"
             fontSize={12}
           />
         </Bar>

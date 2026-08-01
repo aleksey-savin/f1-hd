@@ -232,20 +232,42 @@ export const parseCronToState = (cron) => {
   const s = defaultScheduleState();
 
   if (/^\*\/\d+$/.test(mi) && ho === "*" && dom === "*" && dow === "*") {
-    return { ...s, freq: "minutes", everyUnit: "minutes", everyN: +mi.split("/")[1] };
+    return {
+      ...s,
+      freq: "minutes",
+      everyUnit: "minutes",
+      everyN: +mi.split("/")[1],
+    };
   }
   if (mi === "0" && /^\*\/\d+$/.test(ho) && dom === "*" && dow === "*") {
-    return { ...s, freq: "minutes", everyUnit: "hours", everyN: +ho.split("/")[1] };
+    return {
+      ...s,
+      freq: "minutes",
+      everyUnit: "hours",
+      everyN: +ho.split("/")[1],
+    };
   }
   if (isN(mi) && ho === "*" && dom === "*" && dow === "*") {
     return { ...s, freq: "hourly", minute: +mi };
   }
   if (isN(mi) && isN(ho)) {
     if (dom === "*" && dow === "*") {
-      return { ...s, freq: "daily", minute: +mi, hour: +ho, weekdaysOnly: false };
+      return {
+        ...s,
+        freq: "daily",
+        minute: +mi,
+        hour: +ho,
+        weekdaysOnly: false,
+      };
     }
     if (dom === "*" && dow === "1-5") {
-      return { ...s, freq: "daily", minute: +mi, hour: +ho, weekdaysOnly: true };
+      return {
+        ...s,
+        freq: "daily",
+        minute: +mi,
+        hour: +ho,
+        weekdaysOnly: true,
+      };
     }
     if (dom === "*" && /^[0-7](,[0-7])*$/.test(dow)) {
       const days = [];

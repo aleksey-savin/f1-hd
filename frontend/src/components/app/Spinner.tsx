@@ -15,15 +15,12 @@ const Spinner = ({
     <div
       role="status"
       aria-label="Загрузка"
-      className={cn(
-        "tw:flex tw:min-h-[50vh] tw:items-center tw:justify-center",
-        className,
-      )}
+      className={cn("flex min-h-[50vh] items-center justify-center", className)}
     >
       <RiLoader4Line
         size={size}
         aria-hidden
-        className="tw:animate-spin tw:text-primary"
+        className="animate-spin text-primary"
       />
     </div>
   );

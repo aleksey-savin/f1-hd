@@ -28,24 +28,22 @@ const Field = ({
   children: ReactNode;
 }) => {
   return (
-    <div className={cn("tw:mb-4", className)}>
+    <div className={cn("mb-4", className)}>
       <Label
         htmlFor={htmlFor}
-        className="tw:mb-1.5 tw:text-sm tw:font-semibold tw:text-muted-foreground"
+        className="mb-1.5 text-sm font-semibold text-muted-foreground"
       >
         {label}
-        {required && <span className="tw:text-destructive">*</span>}
+        {required && <span className="text-destructive">*</span>}
       </Label>
       {children}
       {error ? (
-        <p role="alert" className="tw:mt-1.5 tw:mb-0 tw:text-sm tw:text-destructive">
+        <p role="alert" className="mt-1.5 mb-0 text-sm text-destructive">
           {error}
         </p>
       ) : (
         hint && (
-          <p className="tw:mt-1.5 tw:mb-0 tw:text-sm tw:text-muted-foreground">
-            {hint}
-          </p>
+          <p className="mt-1.5 mb-0 text-sm text-muted-foreground">{hint}</p>
         )
       )}
     </div>

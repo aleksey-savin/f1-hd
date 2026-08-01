@@ -42,7 +42,7 @@ const ArchiveItem = ({ ticket }) => {
       size={13}
       aria-label="Создана регламентом"
       title="Создана регламентом"
-      className="tw:ms-1 tw:inline tw:text-faint"
+      className="ms-1 inline text-faint"
       style={{ verticalAlign: "-2px" }}
     />
   );
@@ -52,52 +52,52 @@ const ArchiveItem = ({ ticket }) => {
       href={`/tickets/${ticket.num}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="tw:group tw:relative tw:flex tw:flex-col tw:gap-0.5 tw:px-4 tw:py-3 tw:text-foreground tw:no-underline tw:transition-colors tw:before:absolute tw:before:top-0 tw:before:right-5 tw:before:left-5 tw:before:h-px tw:before:bg-border-soft tw:first:before:hidden tw:hover:bg-accent/60 tw:hover:text-foreground tw:md:flex-row tw:md:items-center tw:md:gap-4 tw:md:px-5 tw:md:py-2.5"
+      className="group relative flex flex-col gap-0.5 px-4 py-3 text-foreground no-underline transition-colors before:absolute before:top-0 before:right-5 before:left-5 before:h-px before:bg-border-soft first:before:hidden hover:bg-accent/60 hover:text-foreground md:flex-row md:items-center md:gap-4 md:px-5 md:py-2.5"
     >
       {/* мобайл: № + дата закрытия */}
-      <div className="tw:flex tw:items-baseline tw:gap-1 tw:text-xs tw:text-muted-foreground tw:tabular-nums tw:md:hidden">
+      <div className="flex items-baseline gap-1 text-xs text-muted-foreground tabular-nums md:hidden">
         <span>№ {ticket.num}</span>
         {routineMark}
-        <span className="tw:ms-auto tw:text-faint">
+        <span className="ms-auto text-faint">
           закрыта {formatShortDate(ticket.finishedAt)}
         </span>
       </div>
 
       {/* десктоп: колонка номера */}
-      <div className="tw:hidden tw:w-20 tw:flex-none tw:font-medium tw:text-muted-foreground tw:tabular-nums tw:md:block">
+      <div className="hidden w-20 flex-none font-medium text-muted-foreground tabular-nums md:block">
         {ticket.num}
         {routineMark}
       </div>
 
       {/* тема + мета */}
-      <div className="tw:min-w-0 tw:flex-1">
-        <div className="tw:truncate tw:font-medium">{ticket.title}</div>
-        <div className="tw:hidden tw:truncate tw:text-sm tw:text-muted-foreground tw:md:block">
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium">{ticket.title}</div>
+        <div className="hidden truncate text-sm text-muted-foreground md:block">
           {desktopMeta || "—"}
         </div>
-        <div className="tw:truncate tw:text-sm tw:text-muted-foreground tw:md:hidden">
+        <div className="truncate text-sm text-muted-foreground md:hidden">
           {mobileMeta || "—"}
         </div>
       </div>
 
       {/* десктоп: ответственные */}
-      <div className="tw:hidden tw:w-42 tw:flex-none tw:truncate tw:text-sm tw:text-muted-foreground tw:lg:block">
+      <div className="hidden w-42 flex-none truncate text-sm text-muted-foreground lg:block">
         {responsibleNames(ticket.responsibles)}
       </div>
 
       {/* десктоп: даты */}
-      <div className="tw:hidden tw:w-44 tw:flex-none tw:text-right tw:tabular-nums tw:md:block">
-        <div className="tw:text-sm">
-          <span className="tw:text-xs tw:text-muted-foreground">закрыта </span>
+      <div className="hidden w-44 flex-none text-right tabular-nums md:block">
+        <div className="text-sm">
+          <span className="text-xs text-muted-foreground">закрыта </span>
           {formatShortDate(ticket.finishedAt)}
         </div>
-        <div className="tw:text-xs tw:text-faint">
+        <div className="text-xs text-faint">
           создана {formatShortDate(ticket.createdAt)}
         </div>
       </div>
 
       {/* десктоп: ↗ по наведению */}
-      <div className="tw:hidden tw:w-5 tw:flex-none tw:justify-end tw:text-muted-foreground tw:opacity-0 tw:transition-opacity tw:group-hover:opacity-100 tw:md:flex">
+      <div className="hidden w-5 flex-none justify-end text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 md:flex">
         <RiExternalLinkLine size={15} aria-hidden />
       </div>
     </a>

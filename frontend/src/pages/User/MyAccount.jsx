@@ -29,7 +29,7 @@ const MyAccount = () => {
   const railSections = buildSections(showSchedule);
 
   const sections = (
-    <div className="tw:max-w-2xl tw:space-y-8">
+    <div className="max-w-2xl space-y-8">
       <SettingsSection id="profile" label="Профиль">
         <Profile user={user} />
       </SettingsSection>
@@ -57,14 +57,14 @@ const MyAccount = () => {
   return (
     // max-w-4xl (896px) = рейл 192px + зазор 28px + колонка панелей 672px:
     // блок настроек целиком центрируется, поля слева и справа равные
-    <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
-      <h1 className="tw:my-0 tw:mb-5 tw:text-4xl tw:leading-none tw:font-semibold tw:tracking-tight">
+    <div className="mx-auto w-full max-w-4xl">
+      <h1 className="my-0 mb-5 text-4xl leading-none font-semibold tracking-tight">
         Мой аккаунт
       </h1>
       <BrowserView>
-        <div className="tw:flex tw:items-start tw:gap-7">
+        <div className="flex items-start gap-7">
           <AnchorRail sections={railSections} ariaLabel="Разделы настроек" />
-          <div className="tw:min-w-0 tw:flex-1">{sections}</div>
+          <div className="min-w-0 flex-1">{sections}</div>
         </div>
       </BrowserView>
       <MobileView>{sections}</MobileView>

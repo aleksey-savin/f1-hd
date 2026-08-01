@@ -20,21 +20,21 @@ const NoteHero = ({
   const archived = !!note?.archivedAt;
 
   return (
-    <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
+    <div className="flex flex-wrap items-start gap-4">
       <span
         aria-hidden
         title={typeMeta.label}
         className={cn(
-          "tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:rounded-2xl tw:text-2xl",
+          "grid size-14 flex-none place-items-center rounded-2xl text-2xl",
           archived
-            ? "tw:text-faint"
-            : "tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border",
+            ? "text-faint"
+            : "bg-accent text-muted-foreground inset-ring inset-ring-border",
         )}
       >
         <TypeIcon />
       </span>
 
-      <div className="tw:min-w-0 tw:flex-1">
+      <div className="min-w-0 flex-1">
         {isEditing ? (
           <input
             type="text"
@@ -46,14 +46,14 @@ const NoteHero = ({
             // Метрики совпадают с h1 ниже; рамка только снизу — поле не должно
             // выглядеть «коробкой» посреди документа (preflight выключен,
             // поэтому appearance/border/bg задаём явно)
-            className="tw:w-full tw:appearance-none tw:border-0 tw:bg-transparent tw:p-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:text-foreground tw:outline-none tw:placeholder:text-faint"
+            className="w-full appearance-none border-0 bg-transparent p-0 text-3xl leading-tight font-semibold tracking-tight text-foreground outline-none placeholder:text-faint"
             style={{ borderBottom: "1px solid var(--border)" }}
           />
         ) : (
           <h1
             className={cn(
-              "tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:break-words",
-              archived && "tw:text-muted-foreground",
+              "my-0 text-3xl leading-tight font-semibold tracking-tight break-words",
+              archived && "text-muted-foreground",
             )}
           >
             {note?.title}
@@ -61,9 +61,9 @@ const NoteHero = ({
         )}
 
         {!isNew && (
-          <div className="tw:mt-2">
+          <div className="mt-2">
             {archived && !isEditing ? (
-              <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+              <p className="my-0 text-sm text-muted-foreground">
                 В архиве — только для чтения
               </p>
             ) : (
@@ -74,9 +74,7 @@ const NoteHero = ({
       </div>
 
       {actions && (
-        <div className="tw:flex tw:flex-none tw:items-center tw:gap-2">
-          {actions}
-        </div>
+        <div className="flex flex-none items-center gap-2">{actions}</div>
       )}
     </div>
   );

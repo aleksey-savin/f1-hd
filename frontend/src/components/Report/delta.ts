@@ -6,7 +6,8 @@ export type Delta = {
 };
 
 export const deltaOf = (current: number, previous: number): Delta => {
-  if (!previous || previous <= 0) return { direction: "flat", percentage: null };
+  if (!previous || previous <= 0)
+    return { direction: "flat", percentage: null };
   const percentage = Math.round(((current - previous) / previous) * 100);
   return {
     direction: percentage > 0 ? "up" : percentage < 0 ? "down" : "flat",

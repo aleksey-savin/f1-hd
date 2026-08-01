@@ -32,7 +32,7 @@ const CloseModal = ({ show, onHide, count, onConfirm }) => {
 
   return (
     <Dialog open={show} onOpenChange={(open) => !open && close()}>
-      <DialogContent className="tw:sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <form onSubmit={submitHandler}>
           <DialogHeader>
             <DialogTitle>Закрыть заявки</DialogTitle>
@@ -41,7 +41,7 @@ const CloseModal = ({ show, onHide, count, onConfirm }) => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="tw:mt-4">
+          <div className="mt-4">
             <Field label="Результат выполнения" htmlFor="bulk-closing" required>
               <Textarea
                 id="bulk-closing"
@@ -55,7 +55,7 @@ const CloseModal = ({ show, onHide, count, onConfirm }) => {
             </Field>
             <Alert variant="warning">
               <AlertDescription>
-                <ul className="tw:my-0 tw:list-disc tw:ps-4">
+                <ul className="my-0 list-disc ps-4">
                   <li>
                     Это сообщение будет отправлено инициаторам выбранных заявок.
                   </li>
@@ -68,7 +68,7 @@ const CloseModal = ({ show, onHide, count, onConfirm }) => {
             </Alert>
           </div>
 
-          <DialogFooter className="tw:mt-4">
+          <DialogFooter className="mt-4">
             <Button type="button" variant="ghost" onClick={close}>
               Отмена
             </Button>

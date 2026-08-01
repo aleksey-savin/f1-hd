@@ -16,7 +16,7 @@ import SettingRow from "@/components/app/SettingRow";
 import { SubLabel } from "@/components/app/Panel";
 import Segmented from "@/components/app/Segmented";
 
-import Select from "../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import useToastStore from "../../store/toast-store";
 import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
@@ -121,9 +121,12 @@ const PrefsIntegrations = ({ prefs }) => {
         ),
       )
       .catch(() => {});
-    fetch(`${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`, {
-      headers,
-    })
+    fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`,
+      {
+        headers,
+      },
+    )
       .then((response) => (response.ok ? response.json() : []))
       .then((data) => setAccounts(Array.isArray(data) ? data : []))
       .catch(() => {});
@@ -133,18 +136,16 @@ const PrefsIntegrations = ({ prefs }) => {
     categories.find((option) => option.value === categoryId) || null;
 
   const categorySelect = (id, value, onChange, disabled) => (
-    <div className="tw:w-64 tw:max-md:w-full">
-      <Select
+    <div className="w-64 max-md:w-full">
+      <Combobox
         id={id}
         placeholder="Без категории"
-        closeMenuOnSelect
-        isClearable
-        isDisabled={disabled}
-        value={categoryOption(value)}
+        clearable
+        clearLabel="Без категории"
+        disabled={disabled}
+        value={categoryOption(value)?.value ?? null}
         options={categories}
-        getOptionLabel={(option) => option.label}
-        getOptionValue={(option) => option.value}
-        onChange={(option) => onChange(option?.value || null)}
+        onChange={(next) => onChange(next || null)}
       />
     </div>
   );
@@ -152,7 +153,7 @@ const PrefsIntegrations = ({ prefs }) => {
   // Строки гаснут при выключенной интеграции; строки авто-заявок — ещё и при
   // выключенном собственном свитче блока
   const dim = (blockOn = true) =>
-    mikrotikOn && blockOn ? "tw:py-3" : "tw:py-3 tw:opacity-60";
+    mikrotikOn && blockOn ? "py-3" : "py-3 opacity-60";
 
   return (
     <SectionForm
@@ -177,14 +178,14 @@ const PrefsIntegrations = ({ prefs }) => {
         },
       })}
     >
-      <div className="tw:px-5 tw:pt-4">
+      <div className="px-5 pt-4">
         <SubLabel>PRO32 Connect</SubLabel>
       </div>
       <SettingRow
         title="Удалённое подключение к клиентам"
         hint="Кнопка подключения к компьютеру клиента в заявке. Сессию создаёт пользователь своим API-ключом — каждому нужно завести ключ и указать его в форме пользователя."
         htmlFor="prefs-pro32"
-        className="tw:py-3"
+        className="py-3"
       >
         <Switch
           id="prefs-pro32"
@@ -195,44 +196,44 @@ const PrefsIntegrations = ({ prefs }) => {
       <SettingRow
         title="Подключённые пользователи"
         hint="У кого задан персональный API-ключ. «Отключить» стирает ключ — для повторного подключения понадобится новый."
-        className="tw:py-3"
+        className="py-3"
       />
-      <div className="tw:mx-5 tw:mb-4 tw:overflow-hidden tw:rounded-lg tw:border tw:border-border-soft">
+      <div className="mx-5 mb-4 overflow-hidden rounded-lg border border-border-soft">
         {connected.map((user) => (
           <div
             key={user._id}
-            className="tw:flex tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:px-3.5 tw:py-1.5 tw:first:border-t-0"
+            className="flex items-center gap-3 border-t border-border-soft px-3.5 py-1.5 first:border-t-0"
           >
             <span
               className={
                 user.isActive === false
-                  ? "tw:min-w-0 tw:flex-1 tw:truncate tw:text-sm tw:opacity-60"
-                  : "tw:min-w-0 tw:flex-1 tw:truncate tw:text-sm"
+                  ? "min-w-0 flex-1 truncate text-sm opacity-60"
+                  : "min-w-0 flex-1 truncate text-sm"
               }
             >
               {user.lastName} {user.firstName}
               {user.company?.alias && (
-                <span className="tw:text-muted-foreground">
+                <span className="text-muted-foreground">
                   {" "}
                   · {user.company.alias}
                 </span>
               )}
               {user.isActive === false && (
-                <span className="tw:text-muted-foreground"> · отключён</span>
+                <span className="text-muted-foreground"> · отключён</span>
               )}
             </span>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setRevokeTarget(user)}
-              className="tw:flex-none tw:text-destructive tw:hover:text-destructive"
+              className="flex-none text-destructive hover:text-destructive"
             >
               Отключить
             </Button>
           </div>
         ))}
         {connected.length === 0 && (
-          <div className="tw:px-3.5 tw:py-3 tw:text-sm tw:text-muted-foreground">
+          <div className="px-3.5 py-3 text-sm text-muted-foreground">
             Ни у кого не подключено — ключи заводятся в форме пользователя.
           </div>
         )}
@@ -271,14 +272,14 @@ const PrefsIntegrations = ({ prefs }) => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="tw:px-5 tw:pt-4">
+      <div className="px-5 pt-4">
         <SubLabel>Mikrotik</SubLabel>
       </div>
       <SettingRow
         title="Мониторинг и управление устройствами Mikrotik"
         hint="Опрос устройств, конфигурации, прошивки и авто-заявки. Выключено — раздел «Мониторинг» скрыт, фоновые задачи остановлены."
         htmlFor="prefs-mikrotik-enabled"
-        className="tw:py-3"
+        className="py-3"
       >
         <Switch
           id="prefs-mikrotik-enabled"
@@ -292,25 +293,22 @@ const PrefsIntegrations = ({ prefs }) => {
         htmlFor="prefs-mikrotik-applicant"
         className={dim()}
       >
-        <div className="tw:w-72 tw:max-md:w-full">
-          <Select
+        <div className="w-72 max-md:w-full">
+          <Combobox
             id="prefs-mikrotik-applicant"
             placeholder="Выберите сервисный аккаунт"
-            closeMenuOnSelect
-            isSearchable
-            isDisabled={!mikrotikOn}
-            value={
-              applicant
-                ? accounts.find((account) => account._id === applicant._id) ||
-                  applicant
-                : null
+            disabled={!mikrotikOn}
+            value={applicant?._id ? String(applicant._id) : null}
+            options={toOptions(accounts, {
+              value: (account) => String(account._id),
+              label: (account) =>
+                `${account.lastName || ""} ${account.firstName || ""}`.trim(),
+            })}
+            onChange={(id) =>
+              setApplicant(
+                accounts.find((account) => String(account._id) === id) || null,
+              )
             }
-            options={accounts}
-            getOptionLabel={(option) =>
-              `${option.lastName || ""} ${option.firstName || ""}`.trim()
-            }
-            getOptionValue={(option) => option._id}
-            onChange={(option) => setApplicant(option || null)}
           />
         </div>
       </SettingRow>
@@ -334,7 +332,7 @@ const PrefsIntegrations = ({ prefs }) => {
         htmlFor="prefs-mikrotik-threshold"
         className={dim(offline.isActive)}
       >
-        <div className="tw:flex tw:items-center tw:gap-2">
+        <div className="flex items-center gap-2">
           <Input
             id="prefs-mikrotik-threshold"
             type="number"
@@ -347,9 +345,9 @@ const PrefsIntegrations = ({ prefs }) => {
                 thresholdMinutes: event.target.value,
               }))
             }
-            className="tw:w-24 tw:text-right"
+            className="w-24 text-right"
           />
-          <span className="tw:text-sm tw:text-muted-foreground">мин</span>
+          <span className="text-sm text-muted-foreground">мин</span>
         </div>
       </SettingRow>
       <SettingRow
@@ -431,7 +429,8 @@ const PrefsIntegrations = ({ prefs }) => {
         {categorySelect(
           "prefs-mikrotik-security-category",
           security.categoryId,
-          (categoryId) => setSecurity((current) => ({ ...current, categoryId })),
+          (categoryId) =>
+            setSecurity((current) => ({ ...current, categoryId })),
           !mikrotikOn || !security.isActive,
         )}
       </SettingRow>

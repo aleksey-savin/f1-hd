@@ -1,7 +1,8 @@
 import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
 
-import Select from "../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
+
 import useDeviceModelFilterStore from "../../store/lists/deviceModels";
 
 // Sheet-фильтр каталога моделей (кнопка «Фильтр» в строке инструментов).
@@ -46,41 +47,45 @@ const DeviceModelFilter = () => {
   return (
     <FilterContainer resetFilterHandler={filterStore.resetFilter}>
       <Field label="Тип устройства" htmlFor="filter-device-type">
-        <Select
+        <Combobox
           id="filter-device-type"
           placeholder="Любой тип"
-          isClearable
-          closeMenuOnSelect
+          clearable
+          clearLabel="Любой тип"
           value={
-            typeOptions.find(
-              (option) => option._id === filterStore.deviceType?._id,
-            ) || null
+            filterStore.deviceType?._id
+              ? String(filterStore.deviceType._id)
+              : null
           }
-          options={typeOptions}
-          getOptionLabel={(option) => option.name}
-          getOptionValue={(option) => option._id}
-          onChange={typeChangeHandler}
+          options={toOptions(typeOptions, {
+            value: (option) => String(option._id),
+            label: (option) => option.name,
+          })}
+          onChange={(id) =>
+            typeChangeHandler(
+              typeOptions.find((option) => String(option._id) === id) || null,
+            )
+          }
         />
       </Field>
-      <Field
-        label="Производитель"
-        htmlFor="filter-vendor"
-        className="tw:mt-2"
-      >
-        <Select
+      <Field label="Производитель" htmlFor="filter-vendor" className="mt-2">
+        <Combobox
           id="filter-vendor"
           placeholder="Любой производитель"
-          isClearable
-          closeMenuOnSelect
+          clearable
+          clearLabel="Любой производитель"
           value={
-            vendorOptions.find(
-              (option) => option._id === filterStore.vendor?._id,
-            ) || null
+            filterStore.vendor?._id ? String(filterStore.vendor._id) : null
           }
-          options={vendorOptions}
-          getOptionLabel={(option) => option.name}
-          getOptionValue={(option) => option._id}
-          onChange={vendorChangeHandler}
+          options={toOptions(vendorOptions, {
+            value: (option) => String(option._id),
+            label: (option) => option.name,
+          })}
+          onChange={(id) =>
+            vendorChangeHandler(
+              vendorOptions.find((option) => String(option._id) === id) || null,
+            )
+          }
         />
       </Field>
     </FilterContainer>

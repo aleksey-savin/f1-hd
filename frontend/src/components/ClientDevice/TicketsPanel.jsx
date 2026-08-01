@@ -55,7 +55,7 @@ const TicketsPanel = ({ deviceId, onEmpty }) => {
     };
   }, [deviceId, onEmpty]);
 
-  if (isLoading) return <Spinner className="tw:min-h-24" />;
+  if (isLoading) return <Spinner className="min-h-24" />;
 
   const tickets = data?.tickets || [];
   if (!tickets.length) return null;
@@ -66,37 +66,34 @@ const TicketsPanel = ({ deviceId, onEmpty }) => {
         <Link
           key={ticket._id}
           to={`/tickets/${ticket._id}`}
-          className="tw:flex tw:items-center tw:gap-3.5 tw:border-t tw:border-border-soft tw:py-2.5 tw:text-foreground tw:no-underline tw:first:border-t-0 tw:hover:text-accent-text"
+          className="flex items-center gap-3.5 border-t border-border-soft py-2.5 text-foreground no-underline first:border-t-0 hover:text-accent-text"
         >
-          <span className="tw:w-16 tw:flex-none tw:font-mono tw:text-sm tw:font-semibold tw:text-muted-foreground">
+          <span className="w-16 flex-none font-mono text-sm font-semibold text-muted-foreground">
             №{ticket.num}
           </span>
-          <span
-            className="tw:min-w-0 tw:flex-1 tw:truncate"
-            title={ticket.title}
-          >
+          <span className="min-w-0 flex-1 truncate" title={ticket.title}>
             {ticket.title}
           </span>
           {ticket.isAuto && (
             <span
               title="Заявка создана мониторингом"
-              className="tw:flex-none tw:rounded-md tw:border tw:border-border tw:px-1.5 tw:text-xs tw:font-semibold tw:text-faint"
+              className="flex-none rounded-md border border-border px-1.5 text-xs font-semibold text-faint"
             >
               авто
             </span>
           )}
-          <span className="tw:hidden tw:w-32 tw:flex-none tw:md:block">
+          <span className="hidden w-32 flex-none md:block">
             <DeviceStatusText tone={STATE_TONE[ticket.state] || "info"}>
               {ticket.state}
             </DeviceStatusText>
           </span>
-          <span className="tw:hidden tw:w-24 tw:flex-none tw:text-sm tw:text-faint tw:sm:block">
+          <span className="hidden w-24 flex-none text-sm text-faint sm:block">
             {formatShortDate(ticket.createdAt)}
           </span>
         </Link>
       ))}
       {data.total > tickets.length && (
-        <div className="tw:border-t tw:border-border-soft tw:pt-2.5 tw:text-sm tw:text-faint">
+        <div className="border-t border-border-soft pt-2.5 text-sm text-faint">
           Показаны последние {tickets.length} из {data.total}
         </div>
       )}

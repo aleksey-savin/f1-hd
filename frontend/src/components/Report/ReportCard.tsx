@@ -38,7 +38,7 @@ const TARIFF_LABEL: Record<string, string> = {
   fixedPrice: "Фиксированная оплата",
 };
 
-export type DecisionInput = {
+type DecisionInput = {
   approve: boolean;
   comment: string;
   subdivisionId?: string;
@@ -83,7 +83,9 @@ const ReportCard = ({
 
   const terms = report.terms || {};
   const calc = report.calc || {};
-  const pendingParts = (report.parts || []).filter((part: any) => part.canDecide);
+  const pendingParts = (report.parts || []).filter(
+    (part: any) => part.canDecide,
+  );
   const blocked = (report.unrelatedWorks || []).length > 0;
   const canDecide = Boolean(onDecision) && report.canDecide;
   // Руководителю филиала сервер не отдаёт ни итога договора, ни ставок — он
@@ -130,7 +132,7 @@ const ReportCard = ({
   ) ? (
     <>
       Строки с пометкой{" "}
-      <b className="tw:font-semibold tw:text-accent-text">согласовано</b> уже
+      <b className="font-semibold text-accent-text">согласовано</b> уже
       подписаны руководителями подчинённых подразделений.
     </>
   ) : undefined;
@@ -156,51 +158,51 @@ const ReportCard = ({
   );
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-7xl">
+    <div className="mx-auto w-full max-w-7xl">
       {breadcrumb}
 
-      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <span
           aria-hidden
-          className="tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:rounded-2xl tw:bg-accent tw:text-lg tw:font-semibold tw:text-muted-foreground tw:inset-ring tw:inset-ring-border"
+          className="grid size-14 flex-none place-items-center rounded-2xl bg-accent text-lg font-semibold text-muted-foreground inset-ring inset-ring-border"
         >
           {monogramFor(report.company?.alias || "")}
         </span>
-        <div className="tw:min-w-0 tw:flex-1">
-          <h1 className="tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight">
+        <div className="min-w-0 flex-1">
+          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight">
             {report.company?.alias}
           </h1>
-          <div className="tw:mt-1.5 tw:text-sm tw:text-muted-foreground">
+          <div className="mt-1.5 text-sm text-muted-foreground">
             {report.servicePlan?.title} · {report.period}
             {report.attempt > 1 && ` · попытка ${report.attempt}`}
           </div>
           <StatusLine report={report} isPreview={isPreview} />
         </div>
-        <div className="tw:flex tw:flex-none tw:flex-wrap tw:items-center tw:gap-2">
+        <div className="flex flex-none flex-wrap items-center gap-2">
           {actions}
           {canDecide && !decisionBar && decisionButtons()}
         </div>
       </div>
 
       {!isPreview && !isClientView && (
-        <div className="tw:mt-4">
+        <div className="mt-4">
           <ReportLifecycle report={report} />
         </div>
       )}
 
       {error && (
-        <div className="tw:mt-4">
+        <div className="mt-4">
           <AlertMessage variant="danger" message={error} />
         </div>
       )}
 
       {onDecision &&
         pendingParts.map((part: any) => (
-          <div key={part._id} className="tw:mt-4">
+          <div key={part._id} className="mt-4">
             <AlertMessage
               variant="info"
               message={
-                <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+                <span className="flex flex-wrap items-center gap-3">
                   Часть «{part.subdivisionName}» ждёт вашего решения:{" "}
                   {part.worksCount} работ
                   {part.additionalPrice > 0 &&
@@ -245,7 +247,7 @@ const ReportCard = ({
           <Eyebrow
             count={report.unrelatedWorks.length}
             action={
-              <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:text-sm tw:font-semibold tw:text-warning">
+              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-warning">
                 <RiAlertLine />
                 блокируют утверждение отчёта
               </span>
@@ -268,14 +270,13 @@ const ReportCard = ({
           <Panel>
             <SignatureRoute report={report} isClientView={isClientView} />
             {report.approval?.deadlineAt ? (
-              <div className="tw:mt-3 tw:border-t tw:border-border-soft tw:pt-3 tw:text-sm tw:text-muted-foreground">
-                Ответить нужно до{" "}
-                {formatShortDate(report.approval.deadlineAt)}. Без ответа отчёт
-                будет согласован автоматически.
+              <div className="mt-3 border-t border-border-soft pt-3 text-sm text-muted-foreground">
+                Ответить нужно до {formatShortDate(report.approval.deadlineAt)}.
+                Без ответа отчёт будет согласован автоматически.
               </div>
             ) : report.status === "declined" ? (
-              <div className="tw:mt-3 tw:border-t tw:border-border-soft tw:pt-3 tw:text-sm tw:text-muted-foreground">
-                <b className="tw:font-semibold tw:text-warning">
+              <div className="mt-3 border-t border-border-soft pt-3 text-sm text-muted-foreground">
+                <b className="font-semibold text-warning">
                   Автоподпись приостановлена, пока отчёт на правке.
                 </b>{" "}
                 Отсчёт возобновится с повторной отправки.
@@ -290,56 +291,68 @@ const ReportCard = ({
           нечего, у него урезаны сами данные */}
       {!overtimeOnly && (
         <>
-      <Eyebrow>Условия расчёта</Eyebrow>
-      <Panel>
-        <div className="tw:grid tw:gap-x-7 tw:md:grid-cols-2">
-          <Term label="Тип тарификации" value={TARIFF_LABEL[terms.type] || "—"} />
-          <Term
-            label="Период тарификации"
-            value={terms.tariffingPeriod ? `${terms.tariffingPeriod} минут` : "—"}
-          />
-          {terms.type === "hourPackage" && terms.packageBasis && (
-            <Term
-              label="Пакет часов"
-              value={
-                terms.packageBasis.mode === "overflow"
-                  ? `${terms.packageBasis.hours} ч + сверх по ${formatMoney(terms.packageBasis.pricePerHour)}/ч`
-                  : `${terms.packageBasis.hours} ч · ${formatMoney(
-                      terms.packageBasis.hours * terms.packageBasis.pricePerHour,
-                    )}`
-              }
-            />
-          )}
-          {terms.type === "fixedPrice" && (
-            <Term label="Фиксированная оплата" value={formatMoney(terms.fixedPrice)} />
-          )}
-          {terms.type === "hourly" && (
-            <Term
-              label="Стоимость в рабочее время"
-              value={`${formatMoney(terms.pricePerHour)} / час`}
-            />
-          )}
-          <Term
-            label="Стоимость в нерабочее время"
-            value={
-              terms.pricePerHourNonWorking
-                ? `${formatMoney(terms.pricePerHourNonWorking)} / час`
-                : "—"
-            }
-          />
-          <Term label="Работ в отчёте" value={String(report.worksCount ?? 0)} />
-          <Term
-            label="Согласование"
-            value={
-              terms.approval?.required
-                ? terms.approval?.bySubdivisions
-                  ? "С клиентом, по подразделениям"
-                  : "С клиентом"
-                : "Не требуется"
-            }
-          />
-        </div>
-      </Panel>
+          <Eyebrow>Условия расчёта</Eyebrow>
+          <Panel>
+            <div className="grid gap-x-7 md:grid-cols-2">
+              <Term
+                label="Тип тарификации"
+                value={TARIFF_LABEL[terms.type] || "—"}
+              />
+              <Term
+                label="Период тарификации"
+                value={
+                  terms.tariffingPeriod ? `${terms.tariffingPeriod} минут` : "—"
+                }
+              />
+              {terms.type === "hourPackage" && terms.packageBasis && (
+                <Term
+                  label="Пакет часов"
+                  value={
+                    terms.packageBasis.mode === "overflow"
+                      ? `${terms.packageBasis.hours} ч + сверх по ${formatMoney(terms.packageBasis.pricePerHour)}/ч`
+                      : `${terms.packageBasis.hours} ч · ${formatMoney(
+                          terms.packageBasis.hours *
+                            terms.packageBasis.pricePerHour,
+                        )}`
+                  }
+                />
+              )}
+              {terms.type === "fixedPrice" && (
+                <Term
+                  label="Фиксированная оплата"
+                  value={formatMoney(terms.fixedPrice)}
+                />
+              )}
+              {terms.type === "hourly" && (
+                <Term
+                  label="Стоимость в рабочее время"
+                  value={`${formatMoney(terms.pricePerHour)} / час`}
+                />
+              )}
+              <Term
+                label="Стоимость в нерабочее время"
+                value={
+                  terms.pricePerHourNonWorking
+                    ? `${formatMoney(terms.pricePerHourNonWorking)} / час`
+                    : "—"
+                }
+              />
+              <Term
+                label="Работ в отчёте"
+                value={String(report.worksCount ?? 0)}
+              />
+              <Term
+                label="Согласование"
+                value={
+                  terms.approval?.required
+                    ? terms.approval?.bySubdivisions
+                      ? "С клиентом, по подразделениям"
+                      : "С клиентом"
+                    : "Не требуется"
+                }
+              />
+            </div>
+          </Panel>
         </>
       )}
 
@@ -347,7 +360,7 @@ const ReportCard = ({
           «в нерабочее» вычисляемые, и резать их разными подразделениями
           означало бы показывать два разных отчёта рядом */}
       {subdivisions.length > 1 && (
-        <div className="tw:mt-7 tw:mb-1 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-2">
+        <div className="mt-7 mb-1 flex flex-wrap items-center gap-x-3 gap-y-2">
           <ChipSelect
             placeholder="Подразделение"
             allLabel="Все подразделения"
@@ -359,7 +372,7 @@ const ReportCard = ({
             onChange={setSubdivision}
           />
           {chosen && (
-            <span className="tw:text-sm tw:text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               Итоги под таблицами — по этому подразделению; «Итог» ниже остаётся
               по отчёту целиком.
             </span>
@@ -385,7 +398,7 @@ const ReportCard = ({
               <Eyebrow
                 count={overtimeWorks.length}
                 action={
-                  <span className="tw:text-sm tw:font-normal tw:text-faint">
+                  <span className="text-sm font-normal text-faint">
                     оплачиваются сверх тарифа
                   </span>
                 }
@@ -404,7 +417,7 @@ const ReportCard = ({
             count={worktimeWorks.length}
             action={
               terms.type === "hourPackage" ? (
-                <span className="tw:text-sm tw:font-normal tw:text-faint">
+                <span className="text-sm font-normal text-faint">
                   входят в пакет часов
                 </span>
               ) : undefined
@@ -420,7 +433,7 @@ const ReportCard = ({
         </>
       )}
 
-      <div className="tw:grid tw:gap-x-6 tw:lg:grid-cols-2">
+      <div className="grid gap-x-6 lg:grid-cols-2">
         <div>
           <Eyebrow>Итог</Eyebrow>
           <Panel>
@@ -445,66 +458,70 @@ const ReportCard = ({
                 />
                 {/* Пустое место на месте суммы читалось бы как сбой — говорим,
                     почему её здесь нет и кто её увидит */}
-                <div className="tw:mt-2 tw:border-t tw:border-border-soft tw:pt-2 tw:text-xs tw:text-muted-foreground">
-                  Итог по отчёту подписывает ответственный со стороны компании
-                  — в вашей части показаны только работы вне графика
-                  обслуживания, которые оплачиваются дополнительно.
+                <div className="mt-2 border-t border-border-soft pt-2 text-xs text-muted-foreground">
+                  Итог по отчёту подписывает ответственный со стороны компании —
+                  в вашей части показаны только работы вне графика обслуживания,
+                  которые оплачиваются дополнительно.
                 </div>
               </>
             )}
             {!overtimeOnly && (
               <>
-            <CalcRow
-              label={
-                terms.type === "hourPackage" && terms.packageBasis
-                  ? `Пакет ${terms.packageBasis.hours} ч`
-                  : TARIFF_LABEL[terms.type] || "Оплата"
-              }
-              // Основание берётся из расчёта: при превышении клиент остаётся на
-              // текущем пакете и доплачивает по его ставке, пока это дешевле
-              // фиксированной цены следующего
-              hint={
-                terms.type === "hourPackage" && terms.packageBasis
-                  ? terms.packageBasis.mode === "overflow"
-                    ? `сверх пакета по ${formatMoney(terms.packageBasis.pricePerHour)}/ч — так дешевле следующего`
-                    : `израсходовано ${Math.round(
-                        ((calc.workingTimeMinutes || 0) /
-                          60 /
-                          terms.packageBasis.hours) *
-                          100,
-                      )} %`
-                  : undefined
-              }
-              value={formatMoney(calc.price || 0)}
-            />
-            {(calc.overtimeMinutes || 0) > 0 && (
-              <CalcRow
-                label="В нерабочее время"
-                hint={`${(report.overtimeWorks || []).length} работ · ${formatMinutes(
-                  calc.overtimeMinutes,
-                )}`}
-                value={formatMoney(calc.additionalPrice || 0)}
-              />
-            )}
-            <CalcRow label="Итого" value={formatMoney(calc.total || 0)} total />
-            </>
+                <CalcRow
+                  label={
+                    terms.type === "hourPackage" && terms.packageBasis
+                      ? `Пакет ${terms.packageBasis.hours} ч`
+                      : TARIFF_LABEL[terms.type] || "Оплата"
+                  }
+                  // Основание берётся из расчёта: при превышении клиент остаётся на
+                  // текущем пакете и доплачивает по его ставке, пока это дешевле
+                  // фиксированной цены следующего
+                  hint={
+                    terms.type === "hourPackage" && terms.packageBasis
+                      ? terms.packageBasis.mode === "overflow"
+                        ? `сверх пакета по ${formatMoney(terms.packageBasis.pricePerHour)}/ч — так дешевле следующего`
+                        : `израсходовано ${Math.round(
+                            ((calc.workingTimeMinutes || 0) /
+                              60 /
+                              terms.packageBasis.hours) *
+                              100,
+                          )} %`
+                      : undefined
+                  }
+                  value={formatMoney(calc.price || 0)}
+                />
+                {(calc.overtimeMinutes || 0) > 0 && (
+                  <CalcRow
+                    label="В нерабочее время"
+                    hint={`${(report.overtimeWorks || []).length} работ · ${formatMinutes(
+                      calc.overtimeMinutes,
+                    )}`}
+                    value={formatMoney(calc.additionalPrice || 0)}
+                  />
+                )}
+                <CalcRow
+                  label="Итого"
+                  value={formatMoney(calc.total || 0)}
+                  total
+                />
+              </>
             )}
           </Panel>
         </div>
-        <div className={cn(isPreview && "tw:hidden")}>
+        <div className={cn(isPreview && "hidden")}>
           <Eyebrow count={report.timeline?.length || 0}>История</Eyebrow>
           <Panel>
             {(report.timeline || []).map((event: any, index: number) => (
               <div
                 key={index}
-                className="tw:flex tw:gap-3 tw:border-t tw:border-border-soft tw:py-2 tw:text-sm tw:first:border-t-0 tw:first:pt-0"
+                className="flex gap-3 border-t border-border-soft py-2 text-sm first:border-t-0 first:pt-0"
               >
-                <span className="tw:w-20 tw:flex-none tw:text-faint tw:tabular-nums">
+                <span className="w-20 flex-none text-faint tabular-nums">
                   {formatShortDate(event.at)}
                 </span>
                 <span
                   className={cn(
-                    event.actor === "system" && "tw:text-muted-foreground",
+                    event.actor === "system" && "text-muted-foreground",
                   )}
                 >
                   {eventLabel(event)}
@@ -518,8 +535,8 @@ const ReportCard = ({
       {/* Липкая полоса решения: страница по ссылке длинная и без навигации —
           возвращаться к шапке за кнопкой человек не станет */}
       {canDecide && decisionBar && (
-        <div className="tw:sticky tw:bottom-0 tw:z-10 tw:-mx-4 tw:mt-6 tw:flex tw:flex-wrap tw:items-center tw:gap-3 tw:border-t tw:border-border tw:bg-card tw:px-4 tw:py-3 tw:shadow-[0_-6px_16px_-12px_rgba(0,0,0,0.5)]">
-          <p className="tw:my-0 tw:min-w-40 tw:flex-1 tw:text-sm tw:text-muted-foreground">
+        <div className="sticky bottom-0 z-10 -mx-4 mt-6 flex flex-wrap items-center gap-3 border-t border-border bg-card px-4 py-3 shadow-[0_-6px_16px_-12px_rgba(0,0,0,0.5)]">
+          <p className="my-0 min-w-40 flex-1 text-sm text-muted-foreground">
             {report.approval?.deadlineAt
               ? `${formatShortDate(report.approval.deadlineAt)} отчёт будет согласован автоматически.`
               : ""}
@@ -557,13 +574,19 @@ const ReportCard = ({
 };
 
 /** Состояние фразой с точкой: у него есть автор и дата — бейджа мало. */
-const StatusLine = ({ report, isPreview }: { report: any; isPreview: boolean }) => {
+const StatusLine = ({
+  report,
+  isPreview,
+}: {
+  report: any;
+  isPreview: boolean;
+}) => {
   if (isPreview) {
     return (
-      <span className="tw:mt-2 tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold tw:text-info">
-        <span className="tw:size-2 tw:rounded-full tw:bg-info tw:ring-4 tw:ring-info/20" />
+      <span className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-info">
+        <span className="size-2 rounded-full bg-info ring-4 ring-info/20" />
         Превью
-        <span className="tw:font-normal tw:text-muted-foreground">
+        <span className="font-normal text-muted-foreground">
           · отчёт ещё не сформирован
         </span>
       </span>
@@ -591,33 +614,33 @@ const StatusLine = ({ report, isPreview }: { report: any; isPreview: boolean }) 
   return (
     <span
       className={cn(
-        "tw:mt-2 tw:inline-flex tw:items-center tw:gap-2 tw:text-sm tw:font-semibold",
-        state.tone === "info" && "tw:text-info",
-        state.tone === "destructive" && "tw:text-destructive",
-        state.tone === "primary" && "tw:text-accent-text",
-        state.tone === "warning" && "tw:text-warning",
-        state.tone === "faint" && "tw:text-faint",
+        "mt-2 inline-flex items-center gap-2 text-sm font-semibold",
+        state.tone === "info" && "text-info",
+        state.tone === "destructive" && "text-destructive",
+        state.tone === "primary" && "text-accent-text",
+        state.tone === "warning" && "text-warning",
+        state.tone === "faint" && "text-faint",
       )}
     >
       <span
         className={cn(
-          "tw:size-2 tw:rounded-full",
-          state.tone === "info" && "tw:bg-info tw:ring-4 tw:ring-info/20",
+          "size-2 rounded-full",
+          state.tone === "info" && "bg-info ring-4 ring-info/20",
           state.tone === "destructive" &&
-            "tw:bg-destructive tw:ring-4 tw:ring-destructive/20",
-          state.tone === "primary" && "tw:bg-primary tw:ring-4 tw:ring-primary/20",
-          state.tone === "warning" && "tw:bg-warning tw:ring-4 tw:ring-warning/20",
-          state.tone === "faint" && "tw:bg-faint tw:ring-4 tw:ring-faint/20",
+            "bg-destructive ring-4 ring-destructive/20",
+          state.tone === "primary" && "bg-primary ring-4 ring-primary/20",
+          state.tone === "warning" && "bg-warning ring-4 ring-warning/20",
+          state.tone === "faint" && "bg-faint ring-4 ring-faint/20",
         )}
       />
       {report.approval?.autoApprovedAt && report.status === "approved"
         ? "Согласован по сроку"
         : state.label}
       {who && (
-        <span className="tw:font-normal tw:text-muted-foreground">· {who}</span>
+        <span className="font-normal text-muted-foreground">· {who}</span>
       )}
       {report.status === "awaitingPayment" && report.invoice?.number && (
-        <span className="tw:font-normal tw:text-muted-foreground">
+        <span className="font-normal text-muted-foreground">
           · счёт № {report.invoice.number}
         </span>
       )}
@@ -626,9 +649,9 @@ const StatusLine = ({ report, isPreview }: { report: any; isPreview: boolean }) 
 };
 
 const Term = ({ label, value }: { label: string; value: string }) => (
-  <div className="tw:flex tw:items-baseline tw:justify-between tw:gap-4 tw:border-t tw:border-border-soft tw:py-2 tw:text-sm tw:first:border-t-0">
-    <span className="tw:text-muted-foreground">{label}</span>
-    <span className="tw:text-right tw:font-semibold tw:tabular-nums">{value}</span>
+  <div className="flex items-baseline justify-between gap-4 border-t border-border-soft py-2 text-sm first:border-t-0">
+    <span className="text-muted-foreground">{label}</span>
+    <span className="text-right font-semibold tabular-nums">{value}</span>
   </div>
 );
 
@@ -645,17 +668,14 @@ const CalcRow = ({
 }) => (
   <div
     className={cn(
-      "tw:flex tw:items-baseline tw:gap-3 tw:border-t tw:py-2 tw:text-sm tw:first:border-t-0",
-      total ? "tw:border-border tw:font-semibold" : "tw:border-border-soft",
+      "flex items-baseline gap-3 border-t py-2 text-sm first:border-t-0",
+      total ? "border-border font-semibold" : "border-border-soft",
     )}
   >
     <span>{label}</span>
-    {hint && <span className="tw:text-xs tw:text-muted-foreground">{hint}</span>}
+    {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
     <span
-      className={cn(
-        "tw:ms-auto tw:font-semibold tw:tabular-nums",
-        total && "tw:text-base",
-      )}
+      className={cn("ms-auto font-semibold tabular-nums", total && "text-base")}
     >
       {value}
     </span>

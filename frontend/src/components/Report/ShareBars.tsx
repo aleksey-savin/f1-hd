@@ -13,7 +13,7 @@ import { formatMinutes } from "./work-format";
 // объединения отчётов они оказались на одной странице, поэтому единица стала
 // пропом, а компонент — общим. Длинный список сворачивается.
 
-export type ShareBarRow = {
+type ShareBarRow = {
   key: string;
   label: string;
   value: number;
@@ -36,9 +36,7 @@ const ShareBars = ({
   const [expanded, setExpanded] = useState(false);
 
   if (rows.length === 0) {
-    return (
-      <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">{emptyText}</p>
-    );
+    return <p className="my-0 text-sm text-muted-foreground">{emptyText}</p>;
   }
 
   const format =
@@ -52,31 +50,28 @@ const ShareBars = ({
 
   return (
     <>
-      <div className="tw:flex tw:flex-col tw:gap-2.5">
+      <div className="flex flex-col gap-2.5">
         {shown.map((row) => (
           <div
             key={row.key}
-            className="tw:grid tw:grid-cols-[1fr_5rem_3.5rem] tw:items-center tw:gap-3"
+            className="grid grid-cols-[1fr_5rem_3.5rem] items-center gap-3"
           >
             <span
-              className={cn(
-                "tw:truncate tw:text-sm",
-                row.muted && "tw:text-faint",
-              )}
+              className={cn("truncate text-sm", row.muted && "text-faint")}
               title={row.label}
             >
               {row.label}
             </span>
-            <span className="tw:h-2 tw:overflow-hidden tw:rounded-full tw:bg-muted">
+            <span className="h-2 overflow-hidden rounded-full bg-muted">
               <span
-                className="tw:block tw:h-full tw:rounded-full tw:bg-chart-1"
+                className="block h-full rounded-full bg-chart-1"
                 style={{
                   width: `${(row.value / max) * 100}%`,
                   opacity: row.muted ? 0.35 : 0.85,
                 }}
               />
             </span>
-            <span className="tw:text-right tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+            <span className="text-right text-sm text-muted-foreground tabular-nums">
               {format(row.value)}
             </span>
           </div>
@@ -86,7 +81,7 @@ const ShareBars = ({
         <Button
           variant="ghost"
           size="xs"
-          className="tw:mt-3 tw:text-accent-text"
+          className="mt-3 text-accent-text"
           onClick={() => setExpanded((current) => !current)}
         >
           {expanded ? "Свернуть" : `Показать все ${rows.length}`}

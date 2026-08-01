@@ -4,6 +4,8 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import { RiErrorWarningLine, RiLoader4Line } from "react-icons/ri";
 
+import { cn } from "@/lib/utils";
+
 // Сколько показывать причину блокировки, прежде чем вернуть строку статуса.
 const HINT_MS = 4000;
 
@@ -71,7 +73,7 @@ const MobileActionBar = ({
     <AnimatePresence>
       {show && (
         <motion.div
-          className="mobile-actionbar"
+          className="mobile-actionbar border border-border bg-card/88 px-1.5 pb-1.5"
           role="toolbar"
           aria-label={ariaLabel}
           initial={{ y: 24, opacity: 0 }}
@@ -83,12 +85,12 @@ const MobileActionBar = ({
               : { type: "spring", stiffness: 420, damping: 34 }
           }
         >
-          <div className="mobile-actionbar__status">
+          <div className="flex items-center justify-between gap-2 border-b border-border pr-1 pl-2.5">
             <AnimatePresence mode="wait" initial={false}>
               {hint ? (
                 <motion.p
                   key="hint"
-                  className="mobile-actionbar__hint"
+                  className="my-0 flex min-w-0 flex-1 items-start gap-1.5 py-2 text-xs leading-tight [&>svg]:mt-0.5 [&>svg]:flex-none [&>svg]:text-warning"
                   role="status"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -101,7 +103,7 @@ const MobileActionBar = ({
               ) : (
                 <motion.div
                   key="status"
-                  className="mobile-actionbar__count"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -110,7 +112,7 @@ const MobileActionBar = ({
                   <span>{statusText}</span>
                   {isLoading && (
                     <RiLoader4Line
-                      className="tw:animate-spin"
+                      className="animate-spin"
                       role="status"
                       aria-label="Обновление данных"
                     />
@@ -125,7 +127,7 @@ const MobileActionBar = ({
             {onCancel && (
               <button
                 type="button"
-                className="mobile-actionbar__cancel"
+                className="tap-none min-h-11 min-w-11 flex-none cursor-pointer appearance-none self-stretch border-0 bg-transparent px-2 text-sm font-semibold text-primary focus-visible:rounded-xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
                 onClick={onCancel}
                 disabled={isLoading}
               >
@@ -134,7 +136,10 @@ const MobileActionBar = ({
             )}
           </div>
 
-          <div className="mobile-actionbar__actions">
+          {/* Ряд действий повторяет геометрию вкладок острова: тач-таргет ≥44px
+              и подпись под иконкой — смысл несёт подпись, а не цвет. Поэтому
+              цветом выделено ровно одно действие, разрушающее. */}
+          <div className="flex items-stretch">
             {actions.map(({ key, icon: Icon, label, reason, danger }) => {
               const blocked = !!reason;
 
@@ -142,9 +147,13 @@ const MobileActionBar = ({
                 <button
                   key={key}
                   type="button"
-                  className={`mobile-actionbar__action${
-                    blocked ? " is-blocked" : ""
-                  }${danger ? " is-danger" : ""}`}
+                  className={cn(
+                    "tap-none flex min-h-14 flex-1 cursor-pointer appearance-none flex-col items-center justify-center gap-1 rounded-xl border-0 bg-transparent px-0.5 py-1 transition-[opacity,background-color] motion-reduce:transition-none active:bg-primary/15 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary",
+                    danger ? "text-destructive" : "text-foreground",
+                    // Заблокированное приглушено, но остаётся нажимаемым: тап
+                    // должен показать причину, а не промолчать
+                    blocked && "opacity-35",
+                  )}
                   aria-disabled={blocked || isLoading}
                   onClick={() => {
                     if (isLoading) return;
@@ -152,8 +161,10 @@ const MobileActionBar = ({
                     onPick(key);
                   }}
                 >
-                  <Icon className="mobile-actionbar__icon" aria-hidden="true" />
-                  <span className="mobile-actionbar__label">{label}</span>
+                  <Icon className="size-6" aria-hidden="true" />
+                  <span className="max-w-full text-center text-xs leading-tight break-words">
+                    {label}
+                  </span>
                 </button>
               );
             })}

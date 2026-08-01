@@ -27,7 +27,7 @@ const COLLAPSED_ROWS = 7;
 const NO_SUBDIVISION = "__none__";
 
 const iconLinkClass =
-  "tw:grid tw:size-8 tw:flex-none tw:cursor-pointer tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:no-underline tw:transition-colors tw:hover:bg-border-soft tw:hover:text-foreground";
+  "grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-faint no-underline transition-colors hover:bg-border-soft hover:text-foreground";
 
 const EmployeesSection = ({ company, id }) => {
   const navigate = useNavigate();
@@ -62,7 +62,9 @@ const EmployeesSection = ({ company, id }) => {
     if (subdivisionFilter === NO_SUBDIVISION) {
       list = list.filter((user) => !user.subdivision?.name);
     } else if (subdivisionFilter) {
-      list = list.filter((user) => user.subdivision?.name === subdivisionFilter);
+      list = list.filter(
+        (user) => user.subdivision?.name === subdivisionFilter,
+      );
     }
     if (query) {
       list = list.filter((user) =>
@@ -122,21 +124,21 @@ const EmployeesSection = ({ company, id }) => {
       </Eyebrow>
       <Panel>
         {employees.length === 0 ? (
-          <div className="tw:mx-auto tw:flex tw:max-w-md tw:flex-col tw:items-center tw:gap-2 tw:py-6 tw:text-center">
-            <RiGroupLine size={36} aria-hidden className="tw:text-faint" />
-            <div className="tw:font-semibold">Сотрудников пока нет</div>
-            <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+          <div className="mx-auto flex max-w-md flex-col items-center gap-2 py-6 text-center">
+            <RiGroupLine size={36} aria-hidden className="text-faint" />
+            <div className="font-semibold">Сотрудников пока нет</div>
+            <p className="my-0 text-sm text-muted-foreground">
               Пользователи компании заводятся в разделе «Пользователи» — там же
               они привязываются к компании и подразделению.
             </p>
           </div>
         ) : (
           <>
-            <div className="tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
               <SearchBar
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="tw:w-72 tw:max-md:w-full"
+                className="w-72 max-md:w-full"
               />
               {subdivisionOptions.length > 1 && (
                 <ChipSelect
@@ -165,25 +167,25 @@ const EmployeesSection = ({ company, id }) => {
                           openRow(user);
                         }
                       }}
-                      className="tw:group tw:flex tw:cursor-pointer tw:items-center tw:gap-3 tw:border-t tw:border-border-soft tw:py-2.5 tw:transition-colors tw:first:border-t-0 tw:hover:bg-accent/60"
+                      className="group flex cursor-pointer items-center gap-3 border-t border-border-soft py-2.5 transition-colors first:border-t-0 hover:bg-accent/60"
                     >
                       <UserAvatar
                         user={user}
-                        sizeClass="tw:size-9"
-                        textClass="tw:text-xs"
+                        sizeClass="size-9"
+                        textClass="text-xs"
                       />
-                      <div className="tw:min-w-0 tw:flex-1">
-                        <div className="tw:truncate tw:text-[15px] tw:leading-tight tw:font-medium">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[15px] leading-tight font-medium">
                           {user.lastName} {user.firstName}
                         </div>
-                        <div className="tw:truncate tw:text-[13px] tw:text-muted-foreground">
+                        <div className="truncate text-[13px] text-muted-foreground">
                           {[user.position, user.subdivision?.name]
                             .filter(Boolean)
                             .join(" · ") || "—"}
                         </div>
                       </div>
                       <div
-                        className="tw:hidden tw:flex-none tw:items-center tw:gap-0.5 tw:md:flex"
+                        className="hidden flex-none items-center gap-0.5 md:flex"
                         onClick={(event) => event.stopPropagation()}
                       >
                         {user.email && (
@@ -214,7 +216,7 @@ const EmployeesSection = ({ company, id }) => {
                             : "Обращений не было"
                         }
                         className={cn(
-                          "tw:hidden tw:w-24 tw:flex-none tw:text-right tw:text-xs tw:text-faint tw:tabular-nums tw:md:block",
+                          "hidden w-24 flex-none text-right text-xs text-faint tabular-nums md:block",
                         )}
                       >
                         {lastSeen || "—"}
@@ -222,14 +224,14 @@ const EmployeesSection = ({ company, id }) => {
                       <RiArrowRightSLine
                         size={18}
                         aria-hidden
-                        className="tw:flex-none tw:text-faint tw:md:hidden"
+                        className="flex-none text-faint md:hidden"
                       />
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="tw:py-2 tw:text-sm tw:text-muted-foreground">
+              <div className="py-2 text-sm text-muted-foreground">
                 Ничего не нашлось. Измените запрос или сбросьте фильтр.
               </div>
             )}
@@ -237,7 +239,7 @@ const EmployeesSection = ({ company, id }) => {
             <button
               type="button"
               onClick={openAllUsers}
-              className="tw:mt-3.5 tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1 tw:border-0 tw:bg-transparent tw:p-0 tw:text-sm tw:font-semibold tw:text-accent-text tw:outline-none tw:hover:underline"
+              className="mt-3.5 inline-flex cursor-pointer appearance-none items-center gap-1 border-0 bg-transparent p-0 text-sm font-semibold text-accent-text outline-none hover:underline"
             >
               Все сотрудники ({employees.length}) →
             </button>

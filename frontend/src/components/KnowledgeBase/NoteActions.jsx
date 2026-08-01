@@ -89,7 +89,10 @@ const NoteActions = ({
               </DropdownMenuItem>
             )}
             {!note.pendingDeletion && (
-              <DropdownMenuItem variant="destructive" onSelect={onSendToDeletion}>
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={onSendToDeletion}
+              >
                 <RiDeleteBinLine /> Отправить на удаление
               </DropdownMenuItem>
             )}

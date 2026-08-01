@@ -40,9 +40,7 @@ const CompanyFilter = () => {
       });
     });
     return {
-      options: [...byId.values()].sort((a, b) =>
-        a.name.localeCompare(b.name),
-      ),
+      options: [...byId.values()].sort((a, b) => a.name.localeCompare(b.name)),
       withoutCount: without,
     };
   }, [s.originalList]);
@@ -50,20 +48,18 @@ const CompanyFilter = () => {
   const row = (key, checked, onToggle, label, count) => (
     <label
       key={key}
-      className="tw:flex tw:cursor-pointer tw:items-center tw:gap-2.5 tw:py-1.5 tw:text-sm"
+      className="flex cursor-pointer items-center gap-2.5 py-1.5 text-sm"
     >
       <Checkbox checked={checked} onCheckedChange={onToggle} />
-      <span className="tw:min-w-0 tw:flex-1 tw:truncate">{label}</span>
-      <span className="tw:flex-none tw:text-sm tw:text-faint tw:tabular-nums">
-        {count}
-      </span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="flex-none text-sm text-faint tabular-nums">{count}</span>
     </label>
   );
 
   return (
     <FilterContainer resetFilterHandler={s.resetFilter}>
       <Field label="Ответственный">
-        <div className="tw:flex tw:flex-col">
+        <div className="flex flex-col">
           {options.map((resp) =>
             row(
               resp.id,

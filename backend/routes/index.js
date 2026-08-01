@@ -11,7 +11,6 @@ const {
 // Internal routes
 const appVersionRoutes = require("./internal/appVersion");
 const authRoutes = require("./internal/auth");
-const changelogRoutes = require("./internal/changelog");
 const commentRoutes = require("./internal/comment");
 const companyRoutes = require("./internal/company");
 const formDataRoutes = require("./internal/formData");
@@ -23,7 +22,6 @@ const reportRoutes = require("./internal/report");
 const routineTaskRoutes = require("./internal/routineTask");
 const ticketRoutes = require("./internal/ticket");
 const ticketCategoryRoutes = require("./internal/ticketCategory");
-const ticketLogRoutes = require("./internal/ticketLog");
 const ticketTemplateRoutes = require("./internal/ticketTemplate");
 const checklistTemplateRoutes = require("./internal/checklistTemplate");
 const teamRoutes = require("./internal/team");
@@ -62,7 +60,6 @@ const publicRoutes = express.Router();
 // Mount internal routes
 internalRoutes.use("/", appVersionRoutes);
 internalRoutes.use("/", authRoutes);
-internalRoutes.use("/", changelogRoutes);
 internalRoutes.use("/", commentRoutes);
 internalRoutes.use("/", companyRoutes);
 internalRoutes.use("/", formDataRoutes);
@@ -74,7 +71,6 @@ internalRoutes.use("/", reportRoutes);
 internalRoutes.use("/", routineTaskRoutes);
 internalRoutes.use("/", ticketRoutes);
 internalRoutes.use("/", ticketCategoryRoutes);
-internalRoutes.use("/", ticketLogRoutes);
 internalRoutes.use("/", ticketTemplateRoutes);
 internalRoutes.use("/", checklistTemplateRoutes);
 // Графики работы, производственный календарь и отсутствия. Модулем «Учёт

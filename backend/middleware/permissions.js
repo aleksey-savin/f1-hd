@@ -283,22 +283,6 @@ module.exports.canManageRoutineTasks = async (req, res, next) => {
   next();
 };
 
-module.exports.canUpdateChangeLog = async (req, res, next) => {
-  const { userId } = await getAuthData(req);
-  const authedUser = await User.findById(userId);
-  const { permissions, isAdmin } = authedUser;
-  if (!permissions.canUpdateChangelog && !isAdmin) {
-    const error = new Error("Недостаточно прав для изменения Changelog");
-    error.statusCode = 403;
-    return res.status(error.statusCode).json({
-      error: true,
-      status: error.statusCode,
-      message: error.message,
-    });
-  }
-  next();
-};
-
 // time tracking module
 module.exports.canUseTimeTrackingModule = async (req, res, next) => {
   const { userId } = await getAuthData(req);

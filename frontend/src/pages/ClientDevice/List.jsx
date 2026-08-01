@@ -194,10 +194,10 @@ const ClientDevices = () => {
           // Детали в выдаче — объясняем расхождение: лента парка считает только
           // самостоятельные единицы, а счётчик у заголовка — всё найденное.
           store.componentsCount > 0 && (
-            <div className="tw:mb-3 tw:flex tw:items-center tw:gap-2 tw:px-1 tw:text-sm tw:text-muted-foreground">
-              <RiBox3Line size={15} aria-hidden className="tw:text-faint" />
+            <div className="mb-3 flex items-center gap-2 px-1 text-sm text-muted-foreground">
+              <RiBox3Line size={15} aria-hidden className="text-faint" />
               Найдено {store.total} · из них{" "}
-              <b className="tw:font-semibold tw:text-foreground">
+              <b className="font-semibold text-foreground">
                 {store.componentsCount}{" "}
                 {plural(
                   store.componentsCount,
@@ -206,7 +206,7 @@ const ClientDevices = () => {
                   "в составе сборок",
                 )}
               </b>
-              <span className="tw:text-faint tw:max-md:hidden">
+              <span className="text-faint max-md:hidden">
                 — лента парка считает только самостоятельные единицы
               </span>
             </div>

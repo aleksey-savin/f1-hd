@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 
-import Select from "../../UI/Select";
+import Combobox from "@/components/app/Combobox";
 
 // Форма конфигурации модели: динамические поля по атрибутам типа устройства.
 // Сабмит идёт скрытым `values` (JSON), поэтому контролы неуправляемы через
@@ -51,15 +51,13 @@ const DeviceConfigurationForm = ({ title }) => {
     switch (attrData.valueType) {
       case "boolean":
         return (
-          <div className="tw:flex tw:h-10 tw:items-center tw:gap-2.5">
+          <div className="flex h-10 items-center gap-2.5">
             <Switch
               id={inputId}
               checked={value === true || value === "true"}
-              onCheckedChange={(checked) =>
-                handleValueChange(attrId, checked)
-              }
+              onCheckedChange={(checked) => handleValueChange(attrId, checked)}
             />
-            <span className="tw:text-sm tw:text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               {value === true || value === "true" ? "Да" : "Нет"}
             </span>
           </div>
@@ -78,19 +76,14 @@ const DeviceConfigurationForm = ({ title }) => {
 
       case "select":
         return (
-          <Select
+          <Combobox
             id={inputId}
-            value={
-              (attrData.options || []).find((o) => o.value === value) || null
-            }
-            onChange={(option) =>
-              handleValueChange(attrId, option?.value || "")
-            }
+            value={value || null}
+            onChange={(next) => handleValueChange(attrId, next || "")}
             options={attrData.options || []}
             placeholder="Выберите…"
-            isClearable
-            getOptionLabel={(option) => option.label}
-            getOptionValue={(option) => option.value}
+            clearable
+            clearLabel="Не выбрано"
           />
         );
 
@@ -129,7 +122,11 @@ const DeviceConfigurationForm = ({ title }) => {
       title={title}
       successTo={`/inventory/device-models/${deviceModel?._id}`}
     >
-      <input type="hidden" name="deviceModelId" value={deviceModel?._id || ""} />
+      <input
+        type="hidden"
+        name="deviceModelId"
+        value={deviceModel?._id || ""}
+      />
       <input
         type="hidden"
         name="values"
@@ -138,7 +135,7 @@ const DeviceConfigurationForm = ({ title }) => {
         )}
       />
 
-      <p className="tw:-mt-2 tw:mb-5 tw:text-sm tw:text-muted-foreground">
+      <p className="-mt-2 mb-5 text-sm text-muted-foreground">
         {subtitle}
         {typeName ? ` · ${typeName}` : ""}
       </p>
@@ -149,7 +146,7 @@ const DeviceConfigurationForm = ({ title }) => {
           message="У типа устройства нет характеристик. Сначала добавьте атрибуты к типу устройства, затем создавайте конфигурации."
         />
       ) : (
-        <div className="tw:grid tw:gap-x-4 tw:sm:grid-cols-2">
+        <div className="grid gap-x-4 sm:grid-cols-2">
           {attributes.map((attr) => {
             const attrData =
               typeof attr.attributeId === "object" ? attr.attributeId : null;
@@ -165,7 +162,7 @@ const DeviceConfigurationForm = ({ title }) => {
                   <>
                     {attrData.name || "Атрибут"}
                     {attrData.unit && (
-                      <span className="tw:font-normal tw:text-faint">
+                      <span className="font-normal text-faint">
                         {" "}
                         ({attrData.unit})
                       </span>

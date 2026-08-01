@@ -166,7 +166,10 @@ const useUserFilterStore = create((set, get) => ({
   },
 
   toggleGroupBySubdivision: () => {
-    set((state) => ({ groupBySubdivision: !state.groupBySubdivision, page: 1 }));
+    set((state) => ({
+      groupBySubdivision: !state.groupBySubdivision,
+      page: 1,
+    }));
     doFetch(get, set);
   },
 

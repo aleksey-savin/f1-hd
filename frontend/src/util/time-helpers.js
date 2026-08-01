@@ -1,22 +1,17 @@
-import pad from "pad";
-
 // Длительность «ЧЧ:ММ» из миллисекунд. Таймзоно-агностично: это интервал, а не
 // момент времени. Расписания и «следующее выполнение» живут в util/cron.js.
+//
+// Часы НЕ обрезаются по суткам: 30 часов работ за месяц — это «30:00», а не
+// «06:00».
 export const msToHMS = (ms) => {
-  // 1- Convert to seconds:
-  let seconds = ms / 1000;
-  // 2- Extract hours:
-  const hours = parseInt(seconds / 3600); // 3,600 seconds in 1 hour
-  seconds = seconds % 3600; // seconds remaining after extracting hours
-  // 3- Extract minutes:
-  const minutes = parseInt(seconds / 60); // 60 seconds in 1 minute
-  // 4- Keep only seconds not extracted to minutes:
-  seconds = seconds % 60;
+  // trunc, а не floor: прежняя редакция считала через parseInt, и на
+  // отрицательном интервале floor дал бы другой результат
+  const totalMinutes = Math.trunc(ms / 60000);
+  const hours = Math.trunc(totalMinutes / 60);
+  const minutes = Math.abs(totalMinutes % 60);
 
-  const humanized = [
-    pad(2, hours.toString(), "0"),
-    pad(2, minutes.toString(), "0"),
+  return [
+    String(hours).padStart(2, "0"),
+    String(minutes).padStart(2, "0"),
   ].join(":");
-
-  return humanized;
 };

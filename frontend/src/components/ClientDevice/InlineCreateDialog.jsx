@@ -324,7 +324,7 @@ const InlineCreateDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={config.size === "lg" ? "tw:sm:max-w-2xl" : undefined}
+        className={config.size === "lg" ? "sm:max-w-2xl" : undefined}
       >
         <form onSubmit={submitHandler}>
           <DialogHeader>
@@ -334,12 +334,12 @@ const InlineCreateDialog = ({
           {error && <AlertMessage variant="danger" message={error} />}
 
           <div
-            className="tw:my-4 tw:overflow-y-auto"
+            className="my-4 overflow-y-auto"
             // Длинная форма справочника (тип устройства с атрибутами) не должна
             // выпихивать кнопки за экран; vh встроенной сеткой не выражается.
             style={{ maxHeight: "60vh" }}
           >
-            {ready ? renderBody() : <Spinner className="tw:min-h-32" />}
+            {ready ? renderBody() : <Spinner className="min-h-32" />}
           </div>
 
           <DialogFooter>

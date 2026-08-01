@@ -20,7 +20,7 @@ import { Panel, Eyebrow } from "@/components/app/Panel";
 import Field from "@/components/app/Field";
 import useToastStore from "@/store/toast-store";
 
-import Select from "../../UI/Select";
+import Combobox, { toOptions } from "@/components/app/Combobox";
 import ConfirmDialog from "./ConfirmDialog";
 import { formatSchedule } from "./meta";
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
@@ -45,9 +45,6 @@ const WEEKDAY_OPTIONS = [
 
 const TRIGGER_LABEL = { manual: "вручную", scheduled: "по расписанию" };
 const STORAGE_LABEL = { s3: "облако", local: "локально" };
-
-const findOption = (options, value) =>
-  options.find((option) => option.value === value) || null;
 
 const formatBytes = (bytes) => {
   if (bytes == null) return "—";
@@ -220,31 +217,31 @@ const ConfigsSection = ({ recordId, initialSchedule }) => {
       <Panel>
         {/* Расписание: сводка ↔ правка на месте */}
         {!editing ? (
-          <div className="tw:flex tw:items-center tw:gap-2.5 tw:border-b tw:border-border-soft tw:pb-3 tw:text-sm">
+          <div className="flex items-center gap-2.5 border-b border-border-soft pb-3 text-sm">
             <RiCalendar2Line
               size={16}
               aria-hidden
-              className="tw:flex-none tw:text-faint"
+              className="flex-none text-faint"
             />
-            <span className="tw:min-w-0 tw:flex-1 tw:truncate">
+            <span className="min-w-0 flex-1 truncate">
               {scheduleText ? (
                 <>
                   Экспорт {scheduleText} · хранить {schedule?.keepLast ?? 10}{" "}
                   {(schedule?.keepLast ?? 10) === 1 ? "копию" : "копий"}
                   {schedule?.nextRunAt && (
-                    <span className="tw:text-faint">
+                    <span className="text-faint">
                       {" "}
                       · следующий запуск {formatDate(schedule.nextRunAt)}
                     </span>
                   )}
                 </>
               ) : (
-                <span className="tw:text-muted-foreground">
+                <span className="text-muted-foreground">
                   Экспорт по расписанию выключен.
                 </span>
               )}
               {schedule?.lastError && (
-                <span className="tw:block tw:truncate tw:text-xs tw:text-destructive">
+                <span className="block truncate text-xs text-destructive">
                   Последний запуск с ошибкой: {schedule.lastError}
                 </span>
               )}
@@ -254,17 +251,17 @@ const ConfigsSection = ({ recordId, initialSchedule }) => {
             </Button>
           </div>
         ) : (
-          <div className="tw:border-b tw:border-border-soft tw:pb-4">
-            <div className="tw:grid tw:gap-x-3 tw:md:grid-cols-2">
+          <div className="border-b border-border-soft pb-4">
+            <div className="grid gap-x-3 md:grid-cols-2">
               <Field label="Периодичность" htmlFor="schedule-frequency">
-                <Select
+                <Combobox
                   id="schedule-frequency"
                   options={FREQUENCY_OPTIONS}
-                  value={findOption(FREQUENCY_OPTIONS, draft.frequency)}
-                  onChange={(option) =>
+                  value={draft.frequency || "off"}
+                  onChange={(value) =>
                     setDraft((prev) => ({
                       ...prev,
-                      frequency: option?.value || "off",
+                      frequency: value || "off",
                     }))
                   }
                 />
@@ -286,14 +283,18 @@ const ConfigsSection = ({ recordId, initialSchedule }) => {
               )}
               {draft.frequency === "weekly" && (
                 <Field label="День недели" htmlFor="schedule-weekday">
-                  <Select
+                  {/* День недели числовой — переводим на границе виджета */}
+                  <Combobox
                     id="schedule-weekday"
-                    options={WEEKDAY_OPTIONS}
-                    value={findOption(WEEKDAY_OPTIONS, draft.weekday)}
-                    onChange={(option) =>
+                    options={toOptions(WEEKDAY_OPTIONS, {
+                      value: (option) => String(option.value),
+                      label: (option) => option.label,
+                    })}
+                    value={String(draft.weekday ?? 1)}
+                    onChange={(value) =>
                       setDraft((prev) => ({
                         ...prev,
-                        weekday: option?.value ?? 1,
+                        weekday: value === null ? 1 : Number(value),
                       }))
                     }
                   />
@@ -338,7 +339,7 @@ const ConfigsSection = ({ recordId, initialSchedule }) => {
                 </Field>
               )}
             </div>
-            <div className="tw:flex tw:justify-end tw:gap-2">
+            <div className="flex justify-end gap-2">
               <Button
                 variant="ghost"
                 size="sm"
@@ -359,7 +360,7 @@ const ConfigsSection = ({ recordId, initialSchedule }) => {
 
         {/* Копии */}
         {artifacts.length === 0 ? (
-          <div className="tw:pt-3 tw:text-sm tw:text-faint">
+          <div className="pt-3 text-sm text-faint">
             Сохранённых копий пока нет — запустите экспорт или включите
             расписание.
           </div>
@@ -367,20 +368,20 @@ const ConfigsSection = ({ recordId, initialSchedule }) => {
           artifacts.map((artifact) => (
             <div
               key={artifact.id}
-              className="tw:flex tw:items-center tw:gap-3.5 tw:border-b tw:border-border-soft tw:py-2 tw:text-sm tw:last:border-b-0"
+              className="flex items-center gap-3.5 border-b border-border-soft py-2 text-sm last:border-b-0"
             >
-              <span className="tw:min-w-0 tw:flex-1 tw:truncate tw:tabular-nums">
+              <span className="min-w-0 flex-1 truncate tabular-nums">
                 {formatDate(artifact.createdAt)}
-                <span className="tw:text-faint">
+                <span className="text-faint">
                   {" "}
                   · {TRIGGER_LABEL[artifact.trigger] || artifact.trigger} ·{" "}
                   {STORAGE_LABEL[artifact.storage] || artifact.storage}
                 </span>
               </span>
-              <span className="tw:w-20 tw:flex-none tw:text-muted-foreground tw:tabular-nums">
+              <span className="w-20 flex-none text-muted-foreground tabular-nums">
                 {formatBytes(artifact.size)}
               </span>
-              <span className="tw:flex tw:flex-none tw:gap-1.5">
+              <span className="flex flex-none gap-1.5">
                 <Button
                   variant="outline"
                   size="icon-sm"
@@ -403,7 +404,7 @@ const ConfigsSection = ({ recordId, initialSchedule }) => {
             </div>
           ))
         )}
-        <div className="tw:pt-3 tw:text-xs tw:text-faint">
+        <div className="pt-3 text-xs text-faint">
           Скачивание — по коду из письма, код действует 10 минут.
         </div>
       </Panel>
@@ -415,7 +416,7 @@ const ConfigsSection = ({ recordId, initialSchedule }) => {
           if (!open) setDownload(null);
         }}
       >
-        <DialogContent className="tw:max-w-sm">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Скачивание конфигурации</DialogTitle>
             <DialogDescription>
@@ -435,20 +436,18 @@ const ConfigsSection = ({ recordId, initialSchedule }) => {
                   prev ? { ...prev, code: event.target.value } : prev,
                 )
               }
-              className="tw:font-mono tw:tracking-widest"
+              className="font-mono tracking-widest"
               placeholder="000000"
             />
           </Field>
           {download?.error && (
-            <div className="tw:text-sm tw:text-destructive">
-              {download.error}
-            </div>
+            <div className="text-sm text-destructive">{download.error}</div>
           )}
-          <DialogFooter className="tw:mt-2 tw:items-center">
+          <DialogFooter className="mt-2 items-center">
             <Button
               variant="ghost"
               size="sm"
-              className="tw:me-auto"
+              className="me-auto"
               onClick={() => startDownload(download.artifact)}
             >
               Отправить новый код

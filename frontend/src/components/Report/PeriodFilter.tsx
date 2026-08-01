@@ -28,7 +28,7 @@ const PeriodFilter = ({
 }) => (
   <FilterContainer resetFilterHandler={onReset}>
     <Field label="Период" htmlFor={`${idPrefix}-period-from`}>
-      <div className="tw:grid tw:grid-cols-2 tw:gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <Input
           id={`${idPrefix}-period-from`}
           type="date"

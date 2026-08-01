@@ -18,14 +18,14 @@ const ListGroupLabel = ({
   return (
     <div
       className={cn(
-        "tw:flex tw:items-baseline tw:gap-2 tw:px-5 tw:pt-5 tw:pb-2.5 tw:text-base tw:font-semibold tw:tracking-widest tw:uppercase",
-        tone === "on" ? "tw:text-accent-text" : "tw:text-faint",
+        "flex items-baseline gap-2 px-5 pt-5 pb-2.5 text-base font-semibold tracking-widest uppercase",
+        tone === "on" ? "text-accent-text" : "text-faint",
         className,
       )}
     >
       {label}
       {count !== undefined && (
-        <span className="tw:font-semibold tw:tracking-normal tw:text-faint tw:tabular-nums">
+        <span className="font-semibold tracking-normal text-faint tabular-nums">
           · {count}
         </span>
       )}

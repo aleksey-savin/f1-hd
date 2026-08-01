@@ -4,12 +4,12 @@ import { cn } from "@/lib/utils";
 import { plural } from "../../util/plural";
 
 const Row = ({ label, value, muted }) => (
-  <div className="tw:flex tw:items-baseline tw:justify-between tw:gap-3 tw:border-t tw:border-border-soft tw:py-2.5 tw:text-sm tw:first:border-t-0">
-    <dt className="tw:flex-none tw:text-muted-foreground">{label}</dt>
+  <div className="flex items-baseline justify-between gap-3 border-t border-border-soft py-2.5 text-sm first:border-t-0">
+    <dt className="flex-none text-muted-foreground">{label}</dt>
     <dd
       className={cn(
-        "tw:m-0 tw:text-right tw:font-semibold tw:tabular-nums",
-        muted ? "tw:font-normal tw:text-faint" : "tw:text-foreground",
+        "m-0 text-right font-semibold tabular-nums",
+        muted ? "font-normal text-faint" : "text-foreground",
       )}
     >
       {value}
@@ -43,26 +43,26 @@ const Summary = ({ form, reached }) => {
   const showAccess = reached >= 3;
 
   return (
-    <aside className="tw:rounded-xl tw:border tw:border-border tw:bg-accent/40 tw:p-4 tw:md:sticky tw:md:top-3">
-      <div className="tw:mb-3 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+    <aside className="rounded-xl border border-border bg-accent/40 p-4 md:sticky md:top-3">
+      <div className="mb-3 text-xs font-bold tracking-wider text-faint uppercase">
         Сводка
       </div>
-      <div className="tw:mb-3 tw:flex tw:items-center tw:gap-2.5">
-        <span className="tw:grid tw:size-10 tw:flex-none tw:place-items-center tw:rounded-xl tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border tw:[&_svg]:size-5">
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="grid size-10 flex-none place-items-center rounded-xl bg-accent text-muted-foreground inset-ring inset-ring-border [&_svg]:size-5">
           <RiFileList3Line />
         </span>
         <div
           className={cn(
-            "tw:text-sm tw:leading-tight",
+            "text-sm leading-tight",
             form.title
-              ? "tw:font-semibold tw:text-foreground"
-              : "tw:font-medium tw:text-faint",
+              ? "font-semibold text-foreground"
+              : "font-medium text-faint",
           )}
         >
           {form.title || "Новый шаблон"}
         </div>
       </div>
-      <dl className="tw:m-0">
+      <dl className="m-0">
         <Row
           label="Категория"
           value={form.category?.title || "—"}

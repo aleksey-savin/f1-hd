@@ -29,7 +29,8 @@ export const plural = (count: number, forms: [string, string, string]) => {
   const mod10 = count % 10;
   const mod100 = count % 100;
   if (mod10 === 1 && mod100 !== 11) return forms[0];
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return forms[1];
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20))
+    return forms[1];
   return forms[2];
 };
 
@@ -115,7 +116,7 @@ const PipelineRail = ({
     aria-label="Стадии конвейера"
     // На узком экране плитки уходят в горизонтальную прокрутку со снапом:
     // сжимать деньги до нечитаемого нельзя
-    className="tw:-mx-1 tw:flex tw:items-stretch tw:overflow-x-auto tw:px-1 tw:pb-1 tw:max-lg:snap-x"
+    className="-mx-1 flex items-stretch overflow-x-auto px-1 pb-1 max-lg:snap-x"
   >
     {STAGES.map((stage, index) => {
       const stat = stages[stage.key] || { count: 0, total: 0 };
@@ -124,11 +125,11 @@ const PipelineRail = ({
       const isTerminal = stage.key === "paid";
 
       return (
-        <div key={stage.key} className="tw:contents">
+        <div key={stage.key} className="contents">
           {index > 0 && (
             <span
               aria-hidden
-              className="tw:grid tw:w-5 tw:flex-none tw:place-items-center tw:self-center tw:text-faint"
+              className="grid w-5 flex-none place-items-center self-center text-faint"
             >
               <RiArrowRightSLine size={16} />
             </span>
@@ -139,20 +140,20 @@ const PipelineRail = ({
             aria-selected={isActive}
             onClick={() => onSelect(stage.key)}
             className={cn(
-              "tw:flex tw:min-w-0 tw:flex-1 tw:cursor-pointer tw:appearance-none tw:flex-col tw:gap-0.5 tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-4 tw:text-left tw:outline-none tw:transition-colors tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50 tw:max-lg:min-w-56 tw:max-lg:flex-none tw:max-lg:snap-start",
+              "flex min-w-0 flex-1 cursor-pointer appearance-none flex-col gap-0.5 rounded-xl border border-border bg-card p-4 text-left outline-none transition-colors focus-visible:ring-4 focus-visible:ring-ring/50 max-lg:min-w-56 max-lg:flex-none max-lg:snap-start",
               // Ширина у всех плиток равная — рейл читается как один ряд;
               // у терминальной просто нечего показывать под подписью
-              isTerminal && "tw:justify-center",
-              isActive && "tw:border-primary tw:ring-1 tw:ring-primary tw:ring-inset",
+              isTerminal && "justify-center",
+              isActive && "border-primary ring-1 ring-primary ring-inset",
             )}
           >
             <span
               className={cn(
-                "tw:flex tw:items-start tw:text-xs tw:font-bold tw:tracking-wider tw:uppercase",
+                "flex items-start text-xs font-bold tracking-wider uppercase",
                 // Две строки под подпись резервируем только там, где под ней
                 // ещё есть цифры
-                !isTerminal && "tw:min-h-8",
-                isActive ? "tw:text-accent-text" : "tw:text-muted-foreground",
+                !isTerminal && "min-h-8",
+                isActive ? "text-accent-text" : "text-muted-foreground",
               )}
             >
               {stage.label}
@@ -162,19 +163,19 @@ const PipelineRail = ({
                 влияют и никуда не ведут, поэтому плитка несёт только подпись */}
             {!isTerminal && (
               <>
-                <span className="tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight tw:tabular-nums">
+                <span className="text-3xl leading-tight font-semibold tracking-tight tabular-nums">
                   {formatMoney(stat.total)}
                 </span>
-                <span className="tw:text-sm tw:text-muted-foreground tw:tabular-nums">
+                <span className="text-sm text-muted-foreground tabular-nums">
                   {countLabel(stat)}
                 </span>
                 <span
                   className={cn(
-                    "tw:mt-1 tw:text-xs tw:tabular-nums",
-                    clock?.tone === "warning" && "tw:font-semibold tw:text-warning",
+                    "mt-1 text-xs tabular-nums",
+                    clock?.tone === "warning" && "font-semibold text-warning",
                     clock?.tone === "destructive" &&
-                      "tw:font-semibold tw:text-destructive",
-                    (!clock || clock.tone === "muted") && "tw:text-faint",
+                      "font-semibold text-destructive",
+                    (!clock || clock.tone === "muted") && "text-faint",
                   )}
                 >
                   {/* Неразрывный пробел держит высоту плиток ровной */}

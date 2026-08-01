@@ -27,7 +27,7 @@ const Spark = ({ values, active }: { values: number[]; active: boolean }) => {
       viewBox="0 0 120 34"
       preserveAspectRatio="none"
       aria-hidden
-      className="tw:h-8 tw:w-24 tw:flex-none"
+      className="h-8 w-24 flex-none"
     >
       <polyline
         points={points}
@@ -57,7 +57,7 @@ const MetricCards = ({
   active: string;
   onSelect: (key: string) => void;
 }) => (
-  <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:md:grid-cols-3 tw:xl:grid-cols-5">
+  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
     {metrics.map((metric) => {
       const isActive = metric.key === active;
       return (
@@ -67,24 +67,24 @@ const MetricCards = ({
           aria-pressed={isActive}
           onClick={() => onSelect(metric.key)}
           className={cn(
-            "tw:flex tw:cursor-pointer tw:appearance-none tw:flex-col tw:gap-1 tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-3.5 tw:text-left tw:transition-colors tw:outline-none tw:hover:bg-accent/50 tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+            "flex cursor-pointer appearance-none flex-col gap-1 rounded-xl border border-border bg-card p-3.5 text-left transition-colors outline-none hover:bg-accent/50 focus-visible:ring-4 focus-visible:ring-ring/50",
             isActive &&
-              "tw:border-primary tw:ring-1 tw:ring-primary tw:ring-inset tw:hover:bg-card",
+              "border-primary ring-1 ring-primary ring-inset hover:bg-card",
           )}
         >
-          <span className="tw:text-sm tw:font-medium tw:text-muted-foreground">
+          <span className="text-sm font-medium text-muted-foreground">
             {metric.label}
           </span>
-          <span className="tw:flex tw:items-end tw:justify-between tw:gap-2">
+          <span className="flex items-end justify-between gap-2">
             <span
               className={cn(
-                "tw:text-lg tw:leading-none tw:font-bold tw:tabular-nums",
+                "text-lg leading-none font-bold tabular-nums",
                 metric.change.percentage === null ||
                   metric.change.direction === "flat"
-                  ? "tw:text-faint"
+                  ? "text-faint"
                   : metric.change.direction === "up"
-                    ? "tw:text-accent-text"
-                    : "tw:text-destructive",
+                    ? "text-accent-text"
+                    : "text-destructive",
               )}
             >
               {metric.change.percentage === null ||

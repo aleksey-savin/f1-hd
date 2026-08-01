@@ -84,43 +84,43 @@ const ReportLifecycle = ({ report }: { report: ReportRow }) => {
   };
 
   return (
-    <div className="tw:flex tw:flex-wrap tw:items-center tw:text-sm">
+    <div className="flex flex-wrap items-center text-sm">
       {ORDER.map((key, index) => {
         const state = stateOf(key, index);
         const detail = detailOf(key);
         return (
-          <div key={key} className="tw:contents">
+          <div key={key} className="contents">
             {index > 0 && (
               <span
                 aria-hidden
-                className="tw:mx-2 tw:h-px tw:w-5 tw:flex-none tw:bg-border tw:max-sm:mx-1 tw:max-sm:w-2"
+                className="mx-2 h-px w-5 flex-none bg-border max-sm:mx-1 max-sm:w-2"
               />
             )}
-            <span className="tw:flex tw:items-center tw:gap-1.5 tw:py-1">
+            <span className="flex items-center gap-1.5 py-1">
               <span
                 aria-hidden
                 className={cn(
-                  "tw:grid tw:size-4 tw:flex-none tw:place-items-center tw:rounded-full tw:text-xs",
-                  state === "done" && "tw:bg-primary tw:text-primary-foreground",
+                  "grid size-4 flex-none place-items-center rounded-full text-xs",
+                  state === "done" && "bg-primary text-primary-foreground",
                   state === "current" &&
-                    "tw:bg-transparent tw:inset-ring-2 tw:inset-ring-primary",
+                    "bg-transparent inset-ring-2 inset-ring-primary",
                   state === "future" &&
-                    "tw:bg-accent tw:text-faint tw:inset-ring tw:inset-ring-border",
+                    "bg-accent text-faint inset-ring inset-ring-border",
                 )}
               >
                 {state === "done" && <RiCheckLine size={10} />}
               </span>
               <span
                 className={cn(
-                  "tw:whitespace-nowrap",
-                  state === "done" && "tw:text-muted-foreground",
-                  state === "current" && "tw:font-semibold tw:text-accent-text",
-                  state === "future" && "tw:text-faint",
+                  "whitespace-nowrap",
+                  state === "done" && "text-muted-foreground",
+                  state === "current" && "font-semibold text-accent-text",
+                  state === "future" && "text-faint",
                 )}
               >
                 {LABELS[key]}
                 {detail && (
-                  <span className="tw:tabular-nums tw:opacity-85"> · {detail}</span>
+                  <span className="tabular-nums opacity-85"> · {detail}</span>
                 )}
               </span>
             </span>

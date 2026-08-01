@@ -36,7 +36,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import FormSheet from "@/components/app/FormSheet";
-import { InsideOverlayContext } from "@/components/app/overlay-context";
 import SearchBar from "@/components/app/SearchBar";
 import Spinner from "@/components/app/Spinner";
 import useOffcanvasStore from "@/store/offcanvas";
@@ -74,16 +73,12 @@ const EmptyState = ({
   hint: ReactNode;
   children?: ReactNode;
 }) => (
-  <div className="tw:flex tw:flex-col tw:items-center tw:gap-1.5 tw:px-6 tw:py-16 tw:text-center">
-    <Icon size={44} aria-hidden className="tw:mb-1 tw:text-faint" />
-    <div className="tw:text-lg tw:font-semibold">{title}</div>
-    <p className="tw:my-0 tw:max-w-md tw:text-base tw:text-muted-foreground">
-      {hint}
-    </p>
+  <div className="flex flex-col items-center gap-1.5 px-6 py-16 text-center">
+    <Icon size={44} aria-hidden className="mb-1 text-faint" />
+    <div className="text-lg font-semibold">{title}</div>
+    <p className="my-0 max-w-md text-base text-muted-foreground">{hint}</p>
     {children && (
-      <div className="tw:mt-3 tw:flex tw:flex-wrap tw:justify-center tw:gap-2">
-        {children}
-      </div>
+      <div className="mt-3 flex flex-wrap justify-center gap-2">{children}</div>
     )}
   </div>
 );
@@ -245,12 +240,12 @@ const ListWrapper = ({
   const titleBlock = (
     // items-baseline: при разных кеглях заголовка и счётчика центрирование
     // по середине строки выглядит «съехавшим» — равняем по базовой линии
-    <div className="tw:flex tw:items-baseline tw:gap-2">
-      <h1 className="tw:my-0 tw:flex tw:items-center tw:gap-2 tw:text-4xl tw:leading-none tw:font-semibold tw:tracking-tight">
+    <div className="flex items-baseline gap-2">
+      <h1 className="my-0 flex items-center gap-2 text-4xl leading-none font-semibold tracking-tight">
         {title()}
       </h1>
       {showSortAndCount && (
-        <span className="tw:text-2xl tw:leading-none tw:font-medium tw:text-faint tw:tabular-nums">
+        <span className="text-2xl leading-none font-medium text-faint tabular-nums">
           {headerCount}
         </span>
       )}
@@ -262,11 +257,11 @@ const ListWrapper = ({
       <DropdownMenuTrigger asChild>
         {/* Короткая подпись (`shortLabel` у опции) — для узкой строки
             инструментов: «Сначала новые» вытесняет из ряда сегмент набора */}
-        <Button variant="ghost" className="tw:font-medium">
-          <span className="tw:hidden tw:sm:inline">
+        <Button variant="ghost" className="font-medium">
+          <span className="hidden sm:inline">
             {filterStore.sortBy?.label ?? "Сортировка"}
           </span>
-          <span className="tw:sm:hidden">
+          <span className="sm:hidden">
             {filterStore.sortBy?.shortLabel ??
               filterStore.sortBy?.label ??
               "Сортировка"}
@@ -374,19 +369,19 @@ const ListWrapper = ({
   );
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-7xl">
+    <div className="mx-auto w-full max-w-7xl">
       <BrowserView>
-        <div className="tw:mb-4 tw:flex tw:flex-wrap tw:items-center tw:gap-x-2.5 tw:gap-y-3">
+        <div className="mb-4 flex flex-wrap items-center gap-x-2.5 gap-y-3">
           {backButton}
           {titleBlock}
-          <div className="tw:ms-auto tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+          <div className="ms-auto flex flex-wrap items-center gap-2.5">
             {refreshButton}
             <SearchBar
               key={searchResetKey}
               onChange={searchHandler}
               defaultValue={defaultSearchValue}
               placeholder={searchPlaceholder}
-              className="tw:w-80"
+              className="w-80"
             />
             {sortDropdown}
             {toolbar}
@@ -396,12 +391,12 @@ const ListWrapper = ({
         </div>
       </BrowserView>
       <MobileView>
-        <div className="tw:mb-3 tw:flex tw:items-center tw:gap-2">
+        <div className="mb-3 flex items-center gap-2">
           {backButton}
           {titleBlock}
-          <div className="tw:ms-auto">{addButton(true)}</div>
+          <div className="ms-auto">{addButton(true)}</div>
         </div>
-        <div className="tw:mb-3">
+        <div className="mb-3">
           <SearchBar
             key={searchResetKey}
             onChange={searchHandler}
@@ -411,10 +406,10 @@ const ListWrapper = ({
           />
         </div>
         {(toolbar || filter || showSortAndCount) && (
-          <div className="tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
             {toolbar}
             {filterButton}
-            <div className="tw:ms-auto">{sortDropdown}</div>
+            <div className="ms-auto">{sortDropdown}</div>
           </div>
         )}
       </MobileView>
@@ -427,15 +422,12 @@ const ListWrapper = ({
             if (!open) filterOffcanvas.handleClose();
           }}
         >
-          <SheetContent side="left" className="tw:w-5/6 tw:max-w-sm">
-            <SheetHeader className="tw:border-b tw:border-border">
-              <SheetTitle className="tw:text-base">Фильтр</SheetTitle>
+          <SheetContent side="left" className="w-5/6 max-w-sm">
+            <SheetHeader className="border-b border-border">
+              <SheetTitle className="text-base">Фильтр</SheetTitle>
             </SheetHeader>
-            <div className="tw:flex-1 tw:overflow-y-auto tw:px-4 tw:pb-4">
-              {/* UI/Select внутри шторки переключается на инлайн-меню */}
-              <InsideOverlayContext.Provider value={true}>
-                {filter}
-              </InsideOverlayContext.Provider>
+            <div className="flex-1 overflow-y-auto px-4 pb-4">
+              {filter}
             </div>
           </SheetContent>
         </Sheet>
@@ -447,7 +439,7 @@ const ListWrapper = ({
       {hasActiveFilters && (
         // Sentinel — в потоке ПЕРЕД sticky-обёрткой: его уход за порог и
         // означает «плашка прилипла»
-        <div aria-hidden ref={stuckSentinelRef} className="tw:h-px tw:-mb-px" />
+        <div aria-hidden ref={stuckSentinelRef} className="h-px -mb-px" />
       )}
       {hasActiveFilters && (
         // top-14 = высота навбара: при скролле плашка приклеивается к нему
@@ -456,23 +448,23 @@ const ListWrapper = ({
         // плашек друг на друге не бывает.
         <div
           className={cn(
-            "tw:z-30 tw:mb-3",
-            selection ? "tw:relative" : "tw:sticky tw:top-14 tw:max-md:top-0",
+            "z-30 mb-3",
+            selection ? "relative" : "sticky top-14 max-md:top-0",
           )}
         >
           <div
             className={cn(
-              "tw:flex tw:flex-wrap tw:items-center tw:gap-1.5 tw:rounded-xl tw:border tw:border-border tw:bg-card/85 tw:px-2.5 tw:py-1.5 tw:backdrop-blur-md",
-              "tw:transition-[border-radius,border-color] tw:duration-200",
+              "flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card/85 px-2.5 py-1.5 backdrop-blur-md",
+              "transition-[border-radius,border-color] duration-200",
               !selection &&
                 filtersStuck &&
-                "tw:rounded-t-none tw:border-t-transparent",
+                "rounded-t-none border-t-transparent",
             )}
           >
             <RiFilter3Line
               size={15}
               aria-hidden
-              className="tw:ms-1 tw:flex-none tw:text-accent-text"
+              className="ms-1 flex-none text-accent-text"
             />
             {activeFilters.map((appliedFilter) => (
               <button
@@ -480,7 +472,7 @@ const ListWrapper = ({
                 type="button"
                 onClick={appliedFilter.onRemove}
                 title="Снять фильтр"
-                className="tw:inline-flex tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-1 tw:rounded-full tw:border-0 tw:bg-primary/15 tw:px-2.5 tw:py-1 tw:text-sm tw:font-medium tw:text-accent-text tw:outline-none tw:hover:bg-primary/25 tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+                className="inline-flex cursor-pointer appearance-none items-center gap-1 rounded-full border-0 bg-primary/15 px-2.5 py-1 text-sm font-medium text-accent-text outline-none hover:bg-primary/25 focus-visible:ring-4 focus-visible:ring-ring/50"
               >
                 {appliedFilter.label}
                 <RiCloseLine size={14} aria-hidden />
@@ -489,7 +481,7 @@ const ListWrapper = ({
             <Button
               variant="ghost"
               size="xs"
-              className="tw:ms-auto"
+              className="ms-auto"
               onClick={resetFiltersHandler}
             >
               Сбросить
@@ -499,7 +491,7 @@ const ListWrapper = ({
       )}
       {/* Пока данные есть — список стоит на месте: фоновый рефетч и навигация
           в шторку НЕ подменяют его спиннером. Никаких глобальных fade-обёрток —
-          движение точечное, на уровне строк (tw:row-appear / tw:row-flash в
+          движение точечное, на уровне строк (row-appear / row-flash в
           ListRow). Спиннер — только у первой загрузки, когда показывать нечего.
           Пустые состояния предлагают действие (гайд): сброс/открытие фильтра
           при отфильтрованном в ноль списке, «Добавить …» при пустых данных. */}
@@ -508,8 +500,8 @@ const ListWrapper = ({
           служит разделителем. Внутрь панели её положить нельзя — там
           overflow-hidden (клип ховера по скруглению), а он ломает sticky. */}
       {!noData && !filteredEmpty && selection && (
-        <div className="tw:sticky tw:top-14 tw:z-30 tw:max-md:top-0">
-          <div className="tw:rounded-t-xl tw:border tw:border-border tw:bg-card">
+        <div className="sticky top-14 z-30 max-md:top-0">
+          <div className="rounded-t-xl border border-border bg-card">
             {selection}
           </div>
         </div>
@@ -517,10 +509,10 @@ const ListWrapper = ({
       {!noData && (
         <div
           className={cn(
-            "tw:overflow-hidden tw:border tw:border-border tw:bg-card tw:pb-1.5",
+            "overflow-hidden border border-border bg-card pb-1.5",
             selection && !filteredEmpty
-              ? "tw:rounded-b-xl tw:border-t-0"
-              : "tw:rounded-xl",
+              ? "rounded-b-xl border-t-0"
+              : "rounded-xl",
           )}
         >
           {filteredEmpty ? (
@@ -546,7 +538,7 @@ const ListWrapper = ({
       {!noData && !filteredEmpty && belowList}
       {noData && isLoading && <Spinner />}
       {noData && !isLoading && (
-        <div className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:pb-1.5">
+        <div className="overflow-hidden rounded-xl border border-border bg-card pb-1.5">
           <EmptyState
             icon={RiInboxLine}
             title={emptyTitle ?? "Список пуст"}

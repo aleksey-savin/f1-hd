@@ -79,7 +79,9 @@ const TeamCalendar = () => {
    */
   const impactOf = useMemo(() => {
     if (!data) return () => null;
-    const availByDate = new Map(data.availability.map((day) => [day.date, day]));
+    const availByDate = new Map(
+      data.availability.map((day) => [day.date, day]),
+    );
     return (requestId: string) => {
       const request = data.pending.find((item) => item._id === requestId);
       if (!request || !request.away) return null;
@@ -135,7 +137,7 @@ const TeamCalendar = () => {
       </Button>
       <Button onClick={() => setAbsenceOpen(true)}>
         <RiAddFill />
-        <span className="tw:max-sm:hidden">Отсутствие</span>
+        <span className="max-sm:hidden">Отсутствие</span>
       </Button>
     </>
   );
@@ -146,7 +148,7 @@ const TeamCalendar = () => {
       <AlertMessage
         variant="danger"
         message={
-          <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+          <span className="flex flex-wrap items-center gap-3">
             {store.error}
             <Button variant="outline" size="sm" onClick={() => store.fetch()}>
               Повторить
@@ -155,21 +157,27 @@ const TeamCalendar = () => {
         }
       />
     ) : (
-      <div className="tw:space-y-4">
-        <Skeleton className="tw:h-14 tw:rounded-xl" />
-        <Skeleton className="tw:h-96 tw:rounded-xl" />
+      <div className="space-y-4">
+        <Skeleton className="h-14 rounded-xl" />
+        <Skeleton className="h-96 rounded-xl" />
       </div>
     );
   } else {
     body = (
-      <div className={cn("tw:transition-opacity", store.isLoading && "tw:opacity-60")}>
+      <div
+        className={cn("transition-opacity", store.isLoading && "opacity-60")}
+      >
         {store.error && (
           <AlertMessage
             variant="danger"
             message={
-              <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+              <span className="flex flex-wrap items-center gap-3">
                 {store.error}
-                <Button variant="outline" size="sm" onClick={() => store.fetch()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => store.fetch()}
+                >
                   Повторить
                 </Button>
               </span>
@@ -178,15 +186,18 @@ const TeamCalendar = () => {
         )}
 
         {dips.length > 0 && store.view !== "today" && (
-          <div className="tw:mb-4 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3.5 tw:gap-y-2 tw:rounded-xl tw:border tw:border-warning/45 tw:bg-warning/10 tw:px-4 tw:py-3 tw:text-sm">
-            <span className="tw:text-warning">⚠</span>
-            <span className="tw:min-w-0 tw:flex-1">
-              <b className="tw:font-semibold">
+          <div className="mb-4 flex flex-wrap items-center gap-x-3.5 gap-y-2 rounded-xl border border-warning/45 bg-warning/10 px-4 py-3 text-sm">
+            <span className="text-warning">⚠</span>
+            <span className="min-w-0 flex-1">
+              <b className="font-semibold">
                 {dips.length === 1
                   ? `${humanDay(dips[0].date)} числа работают ${dips[0].working} из ${data.employees.length}`
                   : `${humanDay(dips[0].date)}–${humanDay(dips[dips.length - 1].date)} числа работают ${Math.min(...dips.map((d) => d.working))} из ${data.employees.length}`}
               </b>
-              <span className="tw:text-muted-foreground"> · отсутствия накладываются</span>
+              <span className="text-muted-foreground">
+                {" "}
+                · отсутствия накладываются
+              </span>
             </span>
             {store.view !== "planning" && (
               <Button
@@ -201,7 +212,7 @@ const TeamCalendar = () => {
         )}
 
         {(data.calendar.missingYears?.length ?? 0) > 0 && (
-          <div className="tw:mb-5">
+          <div className="mb-5">
             <AlertMessage
               variant="warning"
               message={`Производственный календарь на ${data.calendar.missingYears.join(" и ")} год не издан: праздники и переносы не учтены, нерабочими показаны только суббота и воскресенье. Планировать отпуска на этот период можно, но норму дней он покажет неточно.`}
@@ -210,7 +221,7 @@ const TeamCalendar = () => {
         )}
 
         {data.pending.length > 0 && (
-          <div className="tw:mb-5">
+          <div className="mb-5">
             <PendingAlert
               pending={data.pending}
               canManage={data.canManage}
@@ -222,8 +233,8 @@ const TeamCalendar = () => {
         )}
 
         {data.employees.length === 0 ? (
-          <div className="tw:rounded-xl tw:border tw:border-border tw:bg-card tw:px-5 tw:py-12 tw:text-center">
-            <p className="tw:mx-auto tw:mb-3 tw:max-w-md tw:text-sm tw:text-muted-foreground">
+          <div className="rounded-xl border border-border bg-card px-5 py-12 text-center">
+            <p className="mx-auto mb-3 max-w-md text-sm text-muted-foreground">
               Под выбранные условия не попал ни один сотрудник. Измените период
               или сбросьте фильтры.
             </p>
@@ -235,8 +246,10 @@ const TeamCalendar = () => {
           <TodayView data={data} />
         ) : store.view === "planning" ? (
           <>
-            <Eyebrow count={data.employees.length}>Планирование отсутствий</Eyebrow>
-            <div className="tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card">
+            <Eyebrow count={data.employees.length}>
+              Планирование отсутствий
+            </Eyebrow>
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
               <PlanningGrid data={data} />
             </div>
           </>
@@ -254,17 +267,18 @@ const TeamCalendar = () => {
     <>
       {data.period.todayInPeriod && data.totals.workingToday !== null ? (
         <>
-          сегодня работают {data.totals.workingToday} из {data.totals.employeesCount}
-          <span className="tw:px-1.5 tw:text-faint">·</span>
-          к клиенту могут выехать {data.totals.canVisitToday}
+          сегодня работают {data.totals.workingToday} из{" "}
+          {data.totals.employeesCount}
+          <span className="px-1.5 text-faint">·</span>к клиенту могут выехать{" "}
+          {data.totals.canVisitToday}
         </>
       ) : (
         <>{data.totals.employeesCount} сотрудников</>
       )}
       {data.totals.noScheduleCount > 0 && (
         <>
-          <span className="tw:px-1.5 tw:text-faint">·</span>
-          <span className="tw:text-warning">
+          <span className="px-1.5 text-faint">·</span>
+          <span className="text-warning">
             без графика: {data.totals.noScheduleCount}
           </span>
         </>
@@ -280,29 +294,29 @@ const TeamCalendar = () => {
 
       {/* Применённый фильтр всегда виден: снимаемые бейджи над содержимым */}
       {filterActive && (
-        <div className="tw:mb-4 tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           {store.search && (
             <button
               type="button"
               onClick={() => store.setFilter({ search: "" })}
-              className="tw:inline-flex tw:appearance-none tw:items-center tw:gap-1.5 tw:rounded-full tw:border tw:border-border tw:bg-card tw:px-3 tw:py-1 tw:text-xs tw:text-foreground"
+              className="inline-flex appearance-none items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-foreground"
             >
-              Сотрудник: {store.search} <span className="tw:text-faint">✕</span>
+              Сотрудник: {store.search} <span className="text-faint">✕</span>
             </button>
           )}
           {store.company && (
             <button
               type="button"
               onClick={() => store.setFilter({ company: null })}
-              className="tw:inline-flex tw:appearance-none tw:items-center tw:gap-1.5 tw:rounded-full tw:border tw:border-border tw:bg-card tw:px-3 tw:py-1 tw:text-xs tw:text-foreground"
+              className="inline-flex appearance-none items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs text-foreground"
             >
-              Компания выбрана <span className="tw:text-faint">✕</span>
+              Компания выбрана <span className="text-faint">✕</span>
             </button>
           )}
           <button
             type="button"
             onClick={() => store.resetFilter()}
-            className="tw:appearance-none tw:border-0 tw:bg-transparent tw:text-xs tw:text-muted-foreground tw:underline"
+            className="appearance-none border-0 bg-transparent text-xs text-muted-foreground underline"
           >
             Сбросить
           </button>

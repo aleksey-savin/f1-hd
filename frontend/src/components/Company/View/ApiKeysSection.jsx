@@ -41,7 +41,7 @@ const maskKey = (key) =>
   key.length <= 8 ? key : `${key.slice(0, 4)}••••${key.slice(-4)}`;
 
 const iconBtnClass =
-  "tw:grid tw:size-8 tw:flex-none tw:cursor-pointer tw:appearance-none tw:place-items-center tw:rounded-lg tw:border-0 tw:bg-transparent tw:text-faint tw:transition-colors tw:hover:bg-border-soft tw:hover:text-foreground";
+  "grid size-8 flex-none cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-transparent text-faint transition-colors hover:bg-border-soft hover:text-foreground";
 
 const ApiKeysSection = ({ company, id }) => {
   const fetcher = useFetcher();
@@ -108,17 +108,17 @@ const ApiKeysSection = ({ company, id }) => {
       </Eyebrow>
       <Panel>
         {keys.length === 0 ? (
-          <div className="tw:mx-auto tw:flex tw:max-w-md tw:flex-col tw:items-center tw:gap-2 tw:py-6 tw:text-center">
-            <RiKey2Line size={36} aria-hidden className="tw:text-faint" />
-            <div className="tw:font-semibold">Ключей пока нет</div>
-            <p className="tw:my-0 tw:text-sm tw:text-muted-foreground">
+          <div className="mx-auto flex max-w-md flex-col items-center gap-2 py-6 text-center">
+            <RiKey2Line size={36} aria-hidden className="text-faint" />
+            <div className="font-semibold">Ключей пока нет</div>
+            <p className="my-0 text-sm text-muted-foreground">
               API-ключ нужен внешним интеграциям (1С, мониторинг), чтобы
               создавать заявки от имени компании.
             </p>
             <Button
               size="sm"
               variant="outline"
-              className="tw:mt-1"
+              className="mt-1"
               onClick={openCreate}
             >
               <RiAddLine /> Создать ключ
@@ -129,22 +129,22 @@ const ApiKeysSection = ({ company, id }) => {
             <div
               key={apiKey._id}
               className={cn(
-                "tw:group tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5 tw:border-t tw:border-border-soft tw:py-2.5 tw:first:border-t-0 tw:first:pt-0 tw:last:pb-0",
+                "group flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-border-soft py-2.5 first:border-t-0 first:pt-0 last:pb-0",
               )}
             >
               <span
                 className={cn(
-                  "tw:min-w-0 tw:flex-1 tw:truncate tw:text-[15px] tw:font-medium tw:md:min-w-40 tw:md:flex-none tw:md:basis-48",
-                  !apiKey.isActive && "tw:text-muted-foreground",
+                  "min-w-0 flex-1 truncate text-[15px] font-medium md:min-w-40 md:flex-none md:basis-48",
+                  !apiKey.isActive && "text-muted-foreground",
                 )}
               >
                 {apiKey.name}
               </span>
-              <span className="tw:flex tw:min-w-0 tw:items-center tw:gap-0.5 tw:max-md:order-3 tw:max-md:w-full">
+              <span className="flex min-w-0 items-center gap-0.5 max-md:order-3 max-md:w-full">
                 <code
                   className={cn(
-                    "tw:min-w-0 tw:truncate tw:rounded-md tw:bg-accent tw:px-2 tw:py-0.5 tw:font-mono tw:text-xs tw:text-muted-foreground",
-                    !apiKey.isActive && "tw:text-faint",
+                    "min-w-0 truncate rounded-md bg-accent px-2 py-0.5 font-mono text-xs text-muted-foreground",
+                    !apiKey.isActive && "text-faint",
                   )}
                 >
                   {visibleKeys[apiKey._id] ? apiKey.key : maskKey(apiKey.key)}
@@ -152,7 +152,9 @@ const ApiKeysSection = ({ company, id }) => {
                 <button
                   type="button"
                   onClick={() => toggleVisibility(apiKey._id)}
-                  title={visibleKeys[apiKey._id] ? "Скрыть ключ" : "Показать ключ"}
+                  title={
+                    visibleKeys[apiKey._id] ? "Скрыть ключ" : "Показать ключ"
+                  }
                   aria-label={
                     visibleKeys[apiKey._id] ? "Скрыть ключ" : "Показать ключ"
                   }
@@ -174,21 +176,21 @@ const ApiKeysSection = ({ company, id }) => {
                   <RiFileCopyLine size={15} />
                 </button>
               </span>
-              <span className="tw:ms-auto tw:flex-none tw:text-xs tw:text-faint tw:tabular-nums tw:max-md:hidden">
+              <span className="ms-auto flex-none text-xs text-faint tabular-nums max-md:hidden">
                 создан {formatShortDate(apiKey.createdAt) || "—"}
               </span>
               <span
                 className={cn(
-                  "tw:inline-flex tw:w-22 tw:flex-none tw:items-center tw:gap-1.5 tw:text-[13px] tw:font-semibold",
-                  apiKey.isActive ? "tw:text-accent-text" : "tw:text-faint",
+                  "inline-flex w-22 flex-none items-center gap-1.5 text-[13px] font-semibold",
+                  apiKey.isActive ? "text-accent-text" : "text-faint",
                 )}
               >
                 <span
                   className={cn(
-                    "tw:size-1.5 tw:rounded-full",
+                    "size-1.5 rounded-full",
                     apiKey.isActive
-                      ? "tw:bg-primary"
-                      : "tw:bg-transparent tw:inset-ring tw:inset-ring-faint",
+                      ? "bg-primary"
+                      : "bg-transparent inset-ring inset-ring-faint",
                   )}
                 />
                 {apiKey.isActive ? "Активен" : "Отключён"}
@@ -200,7 +202,7 @@ const ApiKeysSection = ({ company, id }) => {
                 aria-label={`Удалить ключ ${apiKey.name}`}
                 className={cn(
                   iconBtnClass,
-                  "tw:opacity-0 tw:group-hover:opacity-100 tw:hover:text-destructive tw:focus-visible:opacity-100 tw:max-md:opacity-100",
+                  "opacity-0 group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100 max-md:opacity-100",
                 )}
               >
                 <RiDeleteBinLine size={15} />
@@ -211,7 +213,7 @@ const ApiKeysSection = ({ company, id }) => {
       </Panel>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="tw:max-w-md" aria-describedby={undefined}>
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Создать API-ключ</DialogTitle>
           </DialogHeader>
@@ -234,7 +236,7 @@ const ApiKeysSection = ({ company, id }) => {
               />
             </Field>
 
-            <DialogFooter className="tw:mt-1">
+            <DialogFooter className="mt-1">
               <Button
                 type="button"
                 variant="ghost"
@@ -264,7 +266,7 @@ const ApiKeysSection = ({ company, id }) => {
               отменить.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="tw:mt-4">
+          <AlertDialogFooter className="mt-4">
             <AlertDialogCancel type="button">Отмена</AlertDialogCancel>
             <Button variant="destructive" onClick={confirmDelete}>
               <RiDeleteBinLine /> Удалить

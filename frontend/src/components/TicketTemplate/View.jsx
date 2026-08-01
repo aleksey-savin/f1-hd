@@ -98,45 +98,43 @@ const ViewTicketTemplate = ({ template }) => {
     .join(" · ");
 
   return (
-    <div className="tw:mx-auto tw:w-full tw:max-w-4xl">
+    <div className="mx-auto w-full max-w-4xl">
       {/* Крошки — возврат к списку */}
       <Link
         to="/ticket-templates"
-        className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
       >
         <RiArrowLeftSLine /> Шаблоны заявок
       </Link>
 
       {/* Hero */}
-      <div className="tw:flex tw:flex-wrap tw:items-start tw:gap-4">
+      <div className="flex flex-wrap items-start gap-4">
         <span
           aria-hidden
-          className="tw:grid tw:size-14 tw:flex-none tw:place-items-center tw:rounded-2xl tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border tw:[&_svg]:size-6"
+          className="grid size-14 flex-none place-items-center rounded-2xl bg-accent text-muted-foreground inset-ring inset-ring-border [&_svg]:size-6"
         >
           <RiFileList3Line />
         </span>
-        <div className="tw:min-w-0 tw:flex-1">
-          <h1 className="tw:my-0 tw:text-3xl tw:leading-tight tw:font-semibold tw:tracking-tight">
+        <div className="min-w-0 flex-1">
+          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight">
             {title}
           </h1>
-          <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:gap-x-3 tw:gap-y-1.5 tw:text-base">
-            <span className="tw:inline-flex tw:items-center tw:gap-2 tw:text-muted-foreground">
-              <span className="tw:size-1.5 tw:rounded-full tw:bg-faint" />
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-base">
+            <span className="inline-flex items-center gap-2 text-muted-foreground">
+              <span className="size-1.5 rounded-full bg-faint" />
               {categoryId?.title ?? "Без категории"}
             </span>
-            <span className="tw:text-faint">·</span>
+            <span className="text-faint">·</span>
             <span
               className={cn(
-                "tw:inline-flex tw:items-center tw:gap-2",
-                accessAccent
-                  ? "tw:font-medium tw:text-accent-text"
-                  : "tw:text-faint",
+                "inline-flex items-center gap-2",
+                accessAccent ? "font-medium text-accent-text" : "text-faint",
               )}
             >
               <span
                 className={cn(
-                  "tw:size-1.5 tw:rounded-full",
-                  accessAccent ? "tw:bg-primary" : "tw:bg-faint",
+                  "size-1.5 rounded-full",
+                  accessAccent ? "bg-primary" : "bg-faint",
                 )}
               />
               {accessLabel}
@@ -144,7 +142,7 @@ const ViewTicketTemplate = ({ template }) => {
           </div>
         </div>
         {canManage && (
-          <div className="tw:flex tw:flex-none tw:flex-wrap tw:items-center tw:gap-2">
+          <div className="flex flex-none flex-wrap items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -205,13 +203,13 @@ const ViewTicketTemplate = ({ template }) => {
           определение, а не выполнение. */}
       {(checklist.length > 0 || canManage) && (
         // group — карандаш правки проявляется при наведении на всю секцию
-        <div className="tw:group tw:mt-6">
-          <div className="tw:mb-2.5 tw:flex tw:items-center tw:gap-2">
-            <span className="tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+        <div className="group mt-6">
+          <div className="mb-2.5 flex items-center gap-2">
+            <span className="text-xs font-bold tracking-wider text-faint uppercase">
               Чек-лист
             </span>
             {checklist.length > 0 && (
-              <span className="tw:text-xs tw:font-bold tw:text-faint tw:tabular-nums">
+              <span className="text-xs font-bold text-faint tabular-nums">
                 · {checklist.length}
               </span>
             )}
@@ -220,7 +218,7 @@ const ViewTicketTemplate = ({ template }) => {
                  секции чек-листа. Пустая секция называет, что создаёт;
                  заполненная — карандаш: это второй вход в ту же форму. */
               (checklist.length ? (
-                <span className="tw:ml-auto">
+                <span className="ml-auto">
                   <SectionEditLink
                     to="update#checklist"
                     label="Чек-лист"
@@ -228,12 +226,7 @@ const ViewTicketTemplate = ({ template }) => {
                   />
                 </span>
               ) : (
-                <Button
-                  asChild
-                  variant="outline"
-                  size="sm"
-                  className="tw:ml-auto"
-                >
+                <Button asChild variant="outline" size="sm" className="ml-auto">
                   <Link to="update#checklist" onClick={offcanvas.setShow}>
                     <RiAddLine /> Добавить чек-лист
                   </Link>
@@ -250,7 +243,7 @@ const ViewTicketTemplate = ({ template }) => {
                 items={checklist}
               />
             ) : (
-              <div className="tw:text-sm tw:text-muted-foreground">
+              <div className="text-sm text-muted-foreground">
                 Чек-листа пока нет — добавьте пункты, они попадут в заявки,
                 созданные по шаблону.
               </div>
@@ -264,8 +257,8 @@ const ViewTicketTemplate = ({ template }) => {
         <>
           <Eyebrow>Доступ</Eyebrow>
           <Panel>
-            <div className="tw:inline-flex tw:items-center tw:gap-2 tw:text-base tw:font-medium tw:text-accent-text">
-              <span className="tw:size-2 tw:rounded-full tw:bg-primary" />
+            <div className="inline-flex items-center gap-2 text-base font-medium text-accent-text">
+              <span className="size-2 rounded-full bg-primary" />
               Доступен всем сотрудникам
             </div>
           </Panel>
@@ -292,7 +285,7 @@ const ViewTicketTemplate = ({ template }) => {
         <>
           <Eyebrow>Доступ</Eyebrow>
           <Panel>
-            <div className="tw:text-sm tw:text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
               Личный шаблон — виден только вам и тем, у кого есть право
               управления шаблонами.
             </div>
@@ -301,7 +294,7 @@ const ViewTicketTemplate = ({ template }) => {
       )}
 
       {metaBits && (
-        <div className="tw:mt-5 tw:border-t tw:border-border-soft tw:pt-3.5 tw:text-sm tw:text-faint tw:tabular-nums">
+        <div className="mt-5 border-t border-border-soft pt-3.5 text-sm text-faint tabular-nums">
           {metaBits}
         </div>
       )}

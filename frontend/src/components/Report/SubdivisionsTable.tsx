@@ -50,7 +50,10 @@ const flatten = (rows: SubdivisionRow[]) => {
   // Узлы, чей родитель не попал в выборку (нет данных у ветки выше), — корнями,
   // иначе они пропали бы из таблицы целиком
   for (const row of rows) {
-    if (!ordered.includes(row) && (!row.parentId || !known.has(String(row.parentId)))) {
+    if (
+      !ordered.includes(row) &&
+      (!row.parentId || !known.has(String(row.parentId)))
+    ) {
       ordered.push(row);
     }
   }
@@ -76,13 +79,13 @@ const SubdivisionsTable = ({
       <TableHeader>
         <TableRow>
           <TableHead>Подразделение</TableHead>
-          <TableHead className="tw:text-right">Заявки</TableHead>
-          <TableHead className="tw:text-right">Работы</TableHead>
-          <TableHead className="tw:text-right">Выезды</TableHead>
-          <TableHead className="tw:text-right">Удалённо</TableHead>
-          <TableHead className="tw:text-right">Регламент</TableHead>
-          <TableHead className="tw:text-right tw:whitespace-nowrap">Время</TableHead>
-          <TableHead className="tw:w-6" />
+          <TableHead className="text-right">Заявки</TableHead>
+          <TableHead className="text-right">Работы</TableHead>
+          <TableHead className="text-right">Выезды</TableHead>
+          <TableHead className="text-right">Удалённо</TableHead>
+          <TableHead className="text-right">Регламент</TableHead>
+          <TableHead className="text-right whitespace-nowrap">Время</TableHead>
+          <TableHead className="w-6" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -90,30 +93,32 @@ const SubdivisionsTable = ({
           <TableRow
             key={row._id}
             onClick={onOpen ? () => onOpen(row._id) : undefined}
-            className={cn(onOpen && "tw:cursor-pointer")}
+            className={cn(onOpen && "cursor-pointer")}
           >
             <TableCell>
               <span
-                className="tw:flex tw:items-center tw:gap-2"
-                style={{ paddingInlineStart: (row.depth - minDepth) * NAME_INDENT }}
+                className="flex items-center gap-2"
+                style={{
+                  paddingInlineStart: (row.depth - minDepth) * NAME_INDENT,
+                }}
               >
                 {row.depth > minDepth && (
-                  <span aria-hidden className="tw:text-faint">
+                  <span aria-hidden className="text-faint">
                     └
                   </span>
                 )}
-                <span className="tw:truncate tw:font-medium">{row.name}</span>
+                <span className="truncate font-medium">{row.name}</span>
                 {row.subtree.totalTime !== row.totalTime && (
-                  <span className="tw:text-xs tw:text-faint tw:whitespace-nowrap">
+                  <span className="text-xs text-faint whitespace-nowrap">
                     с вложенными {msToHMS(row.subtree.totalTime)}
                   </span>
                 )}
               </span>
             </TableCell>
-            <TableCell className="tw:text-right tw:tabular-nums">
+            <TableCell className="text-right tabular-nums">
               {row.totalTickets}
             </TableCell>
-            <TableCell className="tw:text-right tw:tabular-nums">
+            <TableCell className="text-right tabular-nums">
               {row.totalWorks}
             </TableCell>
             <CountTimeCell count={row.onSite.count} time={row.onSite.time} />
@@ -122,29 +127,29 @@ const SubdivisionsTable = ({
               count={row.routineTask.count}
               time={row.routineTask.time}
             />
-            <TableCell className="tw:text-right tw:font-semibold tw:tabular-nums">
+            <TableCell className="text-right font-semibold tabular-nums">
               {msToHMS(row.totalTime)}
             </TableCell>
-            <TableCell className="tw:text-faint">
+            <TableCell className="text-faint">
               {onOpen && <RiArrowRightSLine size={16} aria-hidden />}
             </TableCell>
           </TableRow>
         ))}
 
         {unassigned && unassigned.totalWorks > 0 && (
-          <TableRow className="tw:hover:bg-transparent">
+          <TableRow className="hover:bg-transparent">
             <TableCell>
-              <span className="tw:flex tw:items-center tw:gap-2 tw:text-muted-foreground">
+              <span className="flex items-center gap-2 text-muted-foreground">
                 Без подразделения
-                <span className="tw:text-xs tw:text-faint">
+                <span className="text-xs text-faint">
                   заявитель не привязан к филиалу
                 </span>
               </span>
             </TableCell>
-            <TableCell className="tw:text-right tw:tabular-nums tw:text-muted-foreground">
+            <TableCell className="text-right tabular-nums text-muted-foreground">
               {unassigned.totalTickets}
             </TableCell>
-            <TableCell className="tw:text-right tw:tabular-nums tw:text-muted-foreground">
+            <TableCell className="text-right tabular-nums text-muted-foreground">
               {unassigned.totalWorks}
             </TableCell>
             <CountTimeCell
@@ -159,7 +164,7 @@ const SubdivisionsTable = ({
               count={unassigned.routineTask.count}
               time={unassigned.routineTask.time}
             />
-            <TableCell className="tw:text-right tw:font-medium tw:tabular-nums tw:text-muted-foreground">
+            <TableCell className="text-right font-medium tabular-nums text-muted-foreground">
               {msToHMS(unassigned.totalTime)}
             </TableCell>
             <TableCell />
@@ -169,19 +174,25 @@ const SubdivisionsTable = ({
       <TableFooter>
         <TableRow>
           <TableCell>Итого</TableCell>
-          <TableCell className="tw:text-right tw:tabular-nums">
+          <TableCell className="text-right tabular-nums">
             {totals.totalTickets}
           </TableCell>
-          <TableCell className="tw:text-right tw:tabular-nums">
+          <TableCell className="text-right tabular-nums">
             {totals.totalWorks}
           </TableCell>
-          <CountTimeCell count={totals.onSite.count} time={totals.onSite.time} />
-          <CountTimeCell count={totals.remote.count} time={totals.remote.time} />
+          <CountTimeCell
+            count={totals.onSite.count}
+            time={totals.onSite.time}
+          />
+          <CountTimeCell
+            count={totals.remote.count}
+            time={totals.remote.time}
+          />
           <CountTimeCell
             count={totals.routineTask.count}
             time={totals.routineTask.time}
           />
-          <TableCell className="tw:text-right tw:font-semibold tw:tabular-nums">
+          <TableCell className="text-right font-semibold tabular-nums">
             {msToHMS(totals.totalTime)}
           </TableCell>
           <TableCell />

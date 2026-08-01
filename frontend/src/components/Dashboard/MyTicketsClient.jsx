@@ -111,7 +111,7 @@ const MyTicketsClient = () => {
             )}
             <Link
               to={`/archive?${archiveParams}`}
-              className="tw:text-sm tw:font-medium tw:text-accent-text tw:no-underline"
+              className="text-sm font-medium text-accent-text no-underline"
             >
               Все закрытые →
             </Link>
@@ -122,7 +122,7 @@ const MyTicketsClient = () => {
       </Eyebrow>
 
       <Panel>
-        <div className="tw:-mx-5 tw:-my-5">
+        <div className="-mx-5 -my-5">
           {mine.slice(0, OPEN_LIMIT).map((ticket) => (
             <TicketRow
               key={ticket._id}
@@ -136,9 +136,9 @@ const MyTicketsClient = () => {
 
           {visibleClosed.length > 0 && (
             <>
-              <div className="tw:border-t tw:border-border-soft tw:bg-accent/45 tw:px-5 tw:py-2 tw:text-xs tw:font-bold tw:tracking-wider tw:text-faint tw:uppercase">
+              <div className="border-t border-border-soft bg-accent/45 px-5 py-2 text-xs font-bold tracking-wider text-faint uppercase">
                 Закрыты за 30 дней
-                <span className="tw:font-semibold tw:tracking-normal tw:tabular-nums">
+                <span className="font-semibold tracking-normal tabular-nums">
                   {" "}
                   · {closedTotal}
                 </span>

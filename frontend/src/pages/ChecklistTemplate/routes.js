@@ -40,17 +40,14 @@ const post = async (path, payload) => {
   }
 
   return response.json();
-}
+};
 
 export async function addChecklistTemplateAction({ request }) {
   return post("/checklist-templates/add", await request.json());
 }
 
 export async function updateChecklistTemplateAction({ request, params }) {
-  return post(
-    `/checklist-templates/update/${params.id}`,
-    await request.json(),
-  );
+  return post(`/checklist-templates/update/${params.id}`, await request.json());
 }
 
 export async function deleteChecklistTemplateAction({ request }) {

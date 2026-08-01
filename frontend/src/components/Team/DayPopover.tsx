@@ -52,16 +52,16 @@ const DayPopover = ({ data, dateKey, onClose, onAddAbsence }: Props) => {
     return (
       <div
         key={row.member.user._id}
-        className="tw:flex tw:items-center tw:gap-2.5 tw:px-1 tw:py-1.5 tw:text-sm"
+        className="flex items-center gap-2.5 px-1 py-1.5 text-sm"
       >
         <span
-          className="tw:size-2 tw:flex-none tw:rounded-full"
+          className="size-2 flex-none rounded-full"
           style={{ background: dot.color }}
         />
-        <span className="tw:min-w-0 tw:flex-1 tw:truncate">
+        <span className="min-w-0 flex-1 truncate">
           {fullName(row.member.user)}
         </span>
-        <span className="tw:flex-none tw:text-xs tw:text-faint">{label}</span>
+        <span className="flex-none text-xs text-faint">{label}</span>
       </div>
     );
   };
@@ -73,7 +73,7 @@ const DayPopover = ({ data, dateKey, onClose, onAddAbsence }: Props) => {
           <DialogTitle>
             {longDate(dateKey)}
             {isToday && (
-              <span className="tw:ms-2 tw:text-xs tw:font-bold tw:tracking-wide tw:text-primary tw:uppercase">
+              <span className="ms-2 text-xs font-bold tracking-wide text-primary uppercase">
                 сегодня
               </span>
             )}
@@ -85,21 +85,19 @@ const DayPopover = ({ data, dateKey, onClose, onAddAbsence }: Props) => {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="tw:max-h-96 tw:overflow-y-auto">
+        <div className="max-h-96 overflow-y-auto">
           {working.map(line)}
-          {away.length > 0 && (
-            <div className="tw:my-2 tw:h-px tw:bg-border-soft" />
-          )}
+          {away.length > 0 && <div className="my-2 h-px bg-border-soft" />}
           {away.map(line)}
           {offDuty.length > 0 && (
             <>
-              <div className="tw:my-2 tw:h-px tw:bg-border-soft" />
+              <div className="my-2 h-px bg-border-soft" />
               {offDuty.map(line)}
             </>
           )}
         </div>
 
-        <div className="tw:flex tw:justify-end tw:gap-2.5 tw:border-t tw:border-border-soft tw:pt-3.5">
+        <div className="flex justify-end gap-2.5 border-t border-border-soft pt-3.5">
           <Button variant="ghost" onClick={onClose}>
             Закрыть
           </Button>

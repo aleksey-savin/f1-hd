@@ -42,7 +42,9 @@ const ApprovalReport = () => {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [stageForm, setStageForm] = useState<"invoice" | "payment" | null>(null);
+  const [stageForm, setStageForm] = useState<"invoice" | "payment" | null>(
+    null,
+  );
   const [invoice, setInvoice] = useState({
     number: "",
     date: toDateInputValue(new Date()),
@@ -113,7 +115,7 @@ const ApprovalReport = () => {
 
   if (error && !report) {
     return (
-      <div className="tw:mx-auto tw:w-full tw:max-w-7xl">
+      <div className="mx-auto w-full max-w-7xl">
         <AlertMessage variant="danger" message={error} />
       </div>
     );
@@ -121,10 +123,10 @@ const ApprovalReport = () => {
 
   if (!report) {
     return (
-      <div className="tw:mx-auto tw:w-full tw:max-w-7xl tw:space-y-4">
-        <Skeleton className="tw:h-20 tw:rounded-xl" />
-        <Skeleton className="tw:h-40 tw:rounded-xl" />
-        <Skeleton className="tw:h-64 tw:rounded-xl" />
+      <div className="mx-auto w-full max-w-7xl space-y-4">
+        <Skeleton className="h-20 rounded-xl" />
+        <Skeleton className="h-40 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
       </div>
     );
   }
@@ -183,7 +185,9 @@ const ApprovalReport = () => {
             if (ok) navigate("/finances/approval");
           }}
         >
-          {report.approval?.required ? "Отправить на согласование" : "Утвердить"}
+          {report.approval?.required
+            ? "Отправить на согласование"
+            : "Утвердить"}
         </Button>
       )}
     </>
@@ -209,7 +213,7 @@ const ApprovalReport = () => {
         breadcrumb={
           <Link
             to="/finances/approval"
-            className="tw:mb-4 tw:inline-flex tw:items-center tw:gap-1 tw:text-sm tw:font-medium tw:text-muted-foreground tw:no-underline tw:hover:text-foreground"
+            className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
           >
             <RiArrowLeftSLine /> Согласование работ
           </Link>
@@ -223,14 +227,16 @@ const ApprovalReport = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {stageForm === "invoice" ? "Выставить счёт" : "Подтвердить оплату"}
+              {stageForm === "invoice"
+                ? "Выставить счёт"
+                : "Подтвердить оплату"}
             </DialogTitle>
           </DialogHeader>
 
           {stageForm === "invoice" ? (
-            <div className="tw:grid tw:gap-3 tw:sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="inv-number" className="tw:mb-1.5 tw:text-sm">
+                <Label htmlFor="inv-number" className="mb-1.5 text-sm">
                   Номер счёта
                 </Label>
                 <Input
@@ -242,7 +248,7 @@ const ApprovalReport = () => {
                 />
               </div>
               <div>
-                <Label htmlFor="inv-date" className="tw:mb-1.5 tw:text-sm">
+                <Label htmlFor="inv-date" className="mb-1.5 text-sm">
                   Дата счёта
                 </Label>
                 <Input
@@ -257,7 +263,7 @@ const ApprovalReport = () => {
             </div>
           ) : (
             <div>
-              <Label htmlFor="paid-at" className="tw:mb-1.5 tw:text-sm">
+              <Label htmlFor="paid-at" className="mb-1.5 text-sm">
                 Дата полной оплаты
               </Label>
               <Input
@@ -274,12 +280,16 @@ const ApprovalReport = () => {
               Отмена
             </Button>
             <Button
-              disabled={busy || (stageForm === "invoice" && !invoice.number.trim())}
+              disabled={
+                busy || (stageForm === "invoice" && !invoice.number.trim())
+              }
               onClick={async () => {
                 const ok =
                   stageForm === "invoice"
                     ? await post(`/api/approval/reports/${id}/invoice`, invoice)
-                    : await post(`/api/approval/reports/${id}/payment`, { paidAt });
+                    : await post(`/api/approval/reports/${id}/payment`, {
+                        paidAt,
+                      });
                 if (ok) setStageForm(null);
               }}
             >

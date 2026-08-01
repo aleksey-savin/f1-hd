@@ -41,7 +41,8 @@ const TemplateTiles = ({ heading = null }) => {
           `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates`,
           { headers: { Authorization: "Bearer " + token } },
         );
-        if (!response.ok) throw new Error(`ticket-templates ${response.status}`);
+        if (!response.ok)
+          throw new Error(`ticket-templates ${response.status}`);
         setTemplates(await response.json());
       } catch (error) {
         // Блок необязательный: не загрузился — остаётся одна карточка «Другой
@@ -85,7 +86,7 @@ const TemplateTiles = ({ heading = null }) => {
         </Eyebrow>
       ) : (
         templates.length >= SEARCH_FROM && (
-          <div className="tw:mb-2.5 tw:flex tw:justify-end">
+          <div className="mb-2.5 flex justify-end">
             <SearchBar
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -95,21 +96,21 @@ const TemplateTiles = ({ heading = null }) => {
         )
       )}
 
-      <div className="tw:grid tw:grid-cols-2 tw:gap-3 tw:lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {visible.map((template) => (
           <Link
             key={template._id}
             to={`/tickets/add?template=${template._id}`}
-            className="tw:flex tw:flex-col tw:gap-2 tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-4 tw:text-foreground tw:no-underline tw:transition-colors tw:hover:border-primary tw:hover:bg-accent tw:hover:text-foreground"
+            className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 text-foreground no-underline transition-colors hover:border-primary hover:bg-accent hover:text-foreground"
           >
-            <span className="tw:flex tw:size-9 tw:items-center tw:justify-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border-soft">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border-soft">
               <RiFileList3Line size={17} aria-hidden />
             </span>
-            <span className="tw:text-sm tw:font-semibold tw:leading-snug">
+            <span className="text-sm font-semibold leading-snug">
               {templateTitle(template)}
             </span>
             {template.categoryId?.title && (
-              <span className="tw:text-xs tw:text-faint">
+              <span className="text-xs text-faint">
                 {template.categoryId.title}
               </span>
             )}
@@ -120,20 +121,20 @@ const TemplateTiles = ({ heading = null }) => {
             подходит не каждому вопросу, и тупика тут быть не должно. */}
         <Link
           to="/tickets/add"
-          className="tw:flex tw:flex-col tw:gap-2 tw:rounded-xl tw:border tw:border-dashed tw:border-border tw:bg-card tw:p-4 tw:text-foreground tw:no-underline tw:transition-colors tw:hover:border-primary tw:hover:bg-accent tw:hover:text-foreground"
+          className="flex flex-col gap-2 rounded-xl border border-dashed border-border bg-card p-4 text-foreground no-underline transition-colors hover:border-primary hover:bg-accent hover:text-foreground"
         >
-          <span className="tw:flex tw:size-9 tw:items-center tw:justify-center tw:rounded-lg tw:bg-accent tw:text-muted-foreground tw:inset-ring tw:inset-ring-border-soft">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border-soft">
             <RiAddLine size={17} aria-hidden />
           </span>
-          <span className="tw:text-sm tw:font-semibold tw:leading-snug tw:text-muted-foreground">
+          <span className="text-sm font-semibold leading-snug text-muted-foreground">
             Другой вопрос
           </span>
-          <span className="tw:text-xs tw:text-faint">Опишите своими словами</span>
+          <span className="text-xs text-faint">Опишите своими словами</span>
         </Link>
       </div>
 
       {templates.length >= SEARCH_FROM && visible.length === 0 && (
-        <div className="tw:mt-3 tw:text-sm tw:text-muted-foreground">
+        <div className="mt-3 text-sm text-muted-foreground">
           Ничего не нашлось. Измените запрос или заведите заявку своими словами.
         </div>
       )}

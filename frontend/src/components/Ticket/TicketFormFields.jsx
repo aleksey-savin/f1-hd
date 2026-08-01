@@ -52,9 +52,8 @@ const iconFor = (name) => {
 /**
  * Вложения заявки: лента чипов и кнопка выбора.
  *
- * Своя, а не легаси `UI/FileUpload`: та на react-bootstrap и ЗАМЕНЯЕТ выбранную
- * пачку при повторном выборе вместо того, чтобы дописать, — второй заход терял
- * первый.
+ * Повторный выбор ДОПИСЫВАЕТ файлы к пачке, а не заменяет её: прежний загрузчик
+ * заменял, и второй заход терял первый.
  */
 const AttachmentsField = ({ files, setFiles }) => {
   const pickerRef = useRef(null);
@@ -89,31 +88,28 @@ const AttachmentsField = ({ files, setFiles }) => {
       label="Вложения"
       hint={
         rejected.length ? (
-          <span className="tw:text-destructive">{rejected.join(" · ")}</span>
+          <span className="text-destructive">{rejected.join(" · ")}</span>
         ) : (
           "До 100 МБ на файл. Картинки, документы, архивы, аудио."
         )
       }
     >
-      <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {files.map((file, index) => {
           const Icon = iconFor(file.name);
           return (
             <span
               key={`${file.name}-${index}`}
-              className="tw:inline-flex tw:h-8 tw:max-w-full tw:items-center tw:gap-1.5 tw:rounded-lg tw:border tw:border-border-soft tw:bg-secondary tw:px-2 tw:text-sm"
+              className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-lg border border-border-soft bg-secondary px-2 text-sm"
             >
-              <Icon
-                size={15}
-                className="tw:flex-none tw:text-muted-foreground"
-              />
-              <span className="tw:truncate">{file.name}</span>
+              <Icon size={15} className="flex-none text-muted-foreground" />
+              <span className="truncate">{file.name}</span>
               <button
                 type="button"
                 aria-label={`Убрать «${file.name}»`}
                 onClick={() => remove(index)}
                 // appearance/bg/border/p-0 явно: preflight выключен
-                className="tw:appearance-none tw:rounded-sm tw:border-0 tw:bg-transparent tw:p-0 tw:text-faint tw:hover:text-foreground"
+                className="appearance-none rounded-sm border-0 bg-transparent p-0 text-faint hover:text-foreground"
               >
                 <RiCloseLine size={15} />
               </button>
@@ -213,7 +209,7 @@ export const ticketFormSections = ({ form, formData = {} }) => {
       >
         {/* Обёртка даёт рамку и радиус, собственный бордер редактора снят
             в index.css (.md-editor) — общий приём с шаблоном и регламентом */}
-        <div className="md-editor tw:overflow-hidden tw:rounded-lg tw:border tw:border-input">
+        <div className="md-editor overflow-hidden rounded-lg border border-input">
           <MarkdownEditor
             initialValue={description}
             onChange={setDescription}
@@ -241,7 +237,7 @@ export const ticketFormSections = ({ form, formData = {} }) => {
         hint={
           errorOf("category") ??
           (category?.description ? (
-            <span className="tw:line-clamp-3" title={category.description}>
+            <span className="line-clamp-3" title={category.description}>
               {category.description}
             </span>
           ) : undefined)
@@ -261,7 +257,7 @@ export const ticketFormSections = ({ form, formData = {} }) => {
         />
       </Field>
 
-      <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <Field
           label="Компания"
           htmlFor="ticket-company"
@@ -310,7 +306,7 @@ export const ticketFormSections = ({ form, formData = {} }) => {
         </Field>
       </div>
 
-      <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         <Field
           label="Ответственные"
           htmlFor="ticket-responsibles"
@@ -338,7 +334,7 @@ export const ticketFormSections = ({ form, formData = {} }) => {
       </div>
 
       {config.state && (
-        <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           <Field label="Статус" htmlFor="ticket-state">
             <Combobox
               id="ticket-state"
@@ -362,7 +358,7 @@ export const ticketFormSections = ({ form, formData = {} }) => {
   // «на лету» больше нет — за год им не воспользовались ни разу, показываясь
   // при этом на каждом создании. Секция приходит вместе с содержимым.
   const fieldsSection = customFields.length > 0 && (
-    <div className="tw:grid tw:gap-3 tw:md:grid-cols-2">
+    <div className="grid gap-3 md:grid-cols-2">
       {customFields.map((field, index) => {
         const patch = (value) =>
           setCustomFields(
@@ -420,5 +416,3 @@ export const ticketFormSections = ({ form, formData = {} }) => {
   }
   return sections;
 };
-
-export default ticketFormSections;

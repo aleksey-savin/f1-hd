@@ -42,21 +42,19 @@ const personTitle = (user, status) =>
 const GroupHeading = ({ status, count, className }) => (
   <p
     className={cn(
-      "tw:my-0 tw:flex tw:items-baseline tw:gap-1.5 tw:text-xs tw:font-bold tw:tracking-wider tw:whitespace-nowrap tw:uppercase",
+      "my-0 flex items-baseline gap-1.5 text-xs font-bold tracking-wider whitespace-nowrap uppercase",
       className,
     )}
     style={{ color: status.color }}
   >
     {status.emoji} {status.label}
-    <span className="tw:font-semibold tw:tracking-normal tw:text-faint">
-      · {count}
-    </span>
+    <span className="font-semibold tracking-normal text-faint">· {count}</span>
   </p>
 );
 
 // Строка сотрудника в развёрнутом виде: имя, статус текстом, время, заметка
 const PersonRow = ({ user, status }) => (
-  <div className="tw:flex tw:min-h-12 tw:items-center tw:gap-2.5 tw:px-3.5 tw:py-1 tw:transition-colors tw:hover:bg-accent">
+  <div className="flex min-h-12 items-center gap-2.5 px-3.5 py-1 transition-colors hover:bg-accent">
     <WorkStatusAvatar
       size={38}
       firstName={user.firstName}
@@ -64,24 +62,21 @@ const PersonRow = ({ user, status }) => (
       profileImagePath={user.profileImagePath}
       workStatus={user.workStatus}
     />
-    <span className="tw:min-w-0 tw:flex-1 tw:leading-snug">
-      <span className="tw:block tw:truncate tw:text-sm tw:font-semibold">
+    <span className="min-w-0 flex-1 leading-snug">
+      <span className="block truncate text-sm font-semibold">
         {user.lastName} {user.firstName}
       </span>
-      <span
-        className="tw:block tw:truncate tw:text-xs"
-        style={{ color: status.color }}
-      >
+      <span className="block truncate text-xs" style={{ color: status.color }}>
         {status.label}
         {user.workStatus?.updatedAt && (
-          <span className="tw:text-muted-foreground tw:tabular-nums">
+          <span className="text-muted-foreground tabular-nums">
             {" "}
             · {sinceLabel(user.workStatus.updatedAt)}
           </span>
         )}
       </span>
       {user.workStatus?.note && (
-        <span className="tw:block tw:truncate tw:text-xs tw:text-muted-foreground">
+        <span className="block truncate text-xs text-muted-foreground">
           {user.workStatus.note}
         </span>
       )}
@@ -154,26 +149,29 @@ const WorkStatusBar = ({ variant = "rail" }) => {
 
   if (variant === "strip") {
     return (
-      <div className="tw:flex-none tw:border-b tw:border-border tw:bg-card">
+      <div className="flex-none border-b border-border bg-card">
         <button
           type="button"
           aria-expanded={open}
           aria-label="Статусы сотрудников"
           onClick={toggle}
-          className="tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2.5 tw:border-0 tw:bg-transparent tw:px-3 tw:py-1.5 tw:outline-none tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50"
+          className="flex w-full cursor-pointer appearance-none items-center gap-2.5 border-0 bg-transparent px-3 py-1.5 outline-none focus-visible:ring-4 focus-visible:ring-ring/50"
         >
-          <span className="ws-live" aria-hidden="true" />
-          <span className="tw:relative tw:min-w-0 tw:flex-1">
-            <span className="ws-strip-scroll tw:flex tw:items-center tw:gap-2.5 tw:overflow-x-auto tw:py-1 tw:pe-6">
+          <span
+            className="ws-live relative inline-block size-2 flex-none rounded-full bg-primary"
+            aria-hidden="true"
+          />
+          <span className="relative min-w-0 flex-1">
+            <span className="ws-strip-scroll flex items-center gap-2.5 overflow-x-auto py-1 pe-6">
               {groups.map((group, groupIndex) => (
                 <span
                   key={group.status.code}
-                  className="tw:flex tw:flex-none tw:items-center tw:gap-1"
+                  className="flex flex-none items-center gap-1"
                 >
                   {groupIndex > 0 && (
                     <span
                       aria-hidden
-                      className="tw:me-1.5 tw:h-5 tw:w-px tw:flex-none tw:bg-border"
+                      className="me-1.5 h-5 w-px flex-none bg-border"
                     />
                   )}
                   {group.users.map((user) => (
@@ -191,32 +189,32 @@ const WorkStatusBar = ({ variant = "rail" }) => {
             </span>
             <span
               aria-hidden
-              className="tw:pointer-events-none tw:absolute tw:inset-y-0 tw:right-0 tw:w-8 tw:bg-gradient-to-r tw:from-transparent tw:to-card"
+              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent to-card"
             />
           </span>
           <RiArrowDownSLine
             size={17}
             aria-hidden
             className={cn(
-              "tw:flex-none tw:text-muted-foreground tw:transition-transform",
-              open && "tw:rotate-180",
+              "flex-none text-muted-foreground transition-transform",
+              open && "rotate-180",
             )}
           />
         </button>
 
         {open && (
-          <div className="tw:flex tw:max-h-72 tw:flex-col tw:gap-3 tw:overflow-y-auto tw:px-3 tw:pt-1 tw:pb-3">
+          <div className="flex max-h-72 flex-col gap-3 overflow-y-auto px-3 pt-1 pb-3">
             {groups.map((group) => (
               <div key={group.status.code}>
                 <GroupHeading
                   status={group.status}
                   count={group.users.length}
-                  className="tw:mb-1.5"
+                  className="mb-1.5"
                 />
                 {group.users.map((user) => (
                   <div
                     key={user._id}
-                    className="tw:mb-1.5 tw:flex tw:items-center tw:gap-2 tw:rounded-lg tw:border tw:border-border-soft tw:bg-background tw:px-2 tw:py-1.5 tw:last:mb-0"
+                    className="mb-1.5 flex items-center gap-2 rounded-lg border border-border-soft bg-background px-2 py-1.5 last:mb-0"
                   >
                     <WorkStatusAvatar
                       size={26}
@@ -226,14 +224,14 @@ const WorkStatusBar = ({ variant = "rail" }) => {
                       workStatus={user.workStatus}
                       showBadge={false}
                     />
-                    <span className="tw:text-sm tw:font-semibold tw:whitespace-nowrap">
+                    <span className="text-sm font-semibold whitespace-nowrap">
                       {user.lastName} {user.firstName}
                     </span>
-                    <span className="tw:min-w-0 tw:flex-1 tw:truncate tw:text-xs tw:text-muted-foreground">
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                       {user.workStatus?.note}
                     </span>
                     {user.workStatus?.updatedAt && (
-                      <span className="tw:flex-none tw:border-s tw:border-border-soft tw:ps-2 tw:text-xs tw:whitespace-nowrap tw:text-muted-foreground tw:tabular-nums">
+                      <span className="flex-none border-s border-border-soft ps-2 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
                         {sinceLabel(user.workStatus.updatedAt)}
                       </span>
                     )}
@@ -250,8 +248,8 @@ const WorkStatusBar = ({ variant = "rail" }) => {
   return (
     <aside
       className={cn(
-        "tw:fixed tw:inset-y-0 tw:right-0 tw:flex tw:flex-col tw:overflow-hidden tw:border-l tw:border-border tw:bg-card tw:pt-16 tw:transition-[width] tw:duration-300 tw:max-lg:hidden",
-        open ? "tw:w-84 tw:shadow-2xl" : "tw:w-18",
+        "fixed inset-y-0 right-0 flex flex-col overflow-hidden border-l border-border bg-card pt-16 transition-[width] duration-300 max-lg:hidden",
+        open ? "w-84 shadow-2xl" : "w-18",
       )}
       style={{ zIndex: 1020 }}
     >
@@ -261,28 +259,35 @@ const WorkStatusBar = ({ variant = "rail" }) => {
         onClick={toggle}
         title={open ? "Свернуть" : "Статусы сотрудников"}
         className={cn(
-          "tw:flex tw:w-full tw:cursor-pointer tw:appearance-none tw:items-center tw:gap-2.5 tw:border-0 tw:bg-transparent tw:text-left tw:outline-none tw:focus-visible:ring-4 tw:focus-visible:ring-ring/50",
+          "flex w-full cursor-pointer appearance-none items-center gap-2.5 border-0 bg-transparent text-left outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
           open
-            ? "tw:min-h-12 tw:border-b tw:border-border-soft tw:px-3.5 tw:py-2"
-            : "tw:justify-center tw:px-1.5 tw:py-2",
+            ? "min-h-12 border-b border-border-soft px-3.5 py-2"
+            : "justify-center px-1.5 py-2",
         )}
       >
         <span
           aria-hidden
-          className="tw:grid tw:size-6.5 tw:flex-none tw:place-items-center tw:rounded-md tw:text-muted-foreground tw:transition-transform tw:duration-300 tw:hover:bg-accent"
+          className="grid size-6.5 flex-none place-items-center rounded-md text-muted-foreground transition-transform duration-300 hover:bg-accent"
         >
           <RiArrowLeftSLine
             size={16}
-            className={cn("tw:transition-transform tw:duration-300", open && "tw:rotate-180")}
+            className={cn(
+              "transition-transform duration-300",
+              open && "rotate-180",
+            )}
           />
         </span>
         {open && (
-          <span className="tw:min-w-0 tw:flex-1">
-            <span className="tw:flex tw:items-center tw:gap-1.5 tw:text-xs tw:font-bold tw:tracking-wider tw:text-muted-foreground tw:uppercase">
-              <span className="ws-live" aria-hidden="true" /> Сотрудники
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase">
+              <span
+                className="ws-live relative inline-block size-2 flex-none rounded-full bg-primary"
+                aria-hidden="true"
+              />{" "}
+              Сотрудники
             </span>
             {summary && (
-              <span className="tw:block tw:truncate tw:text-xs tw:text-muted-foreground tw:tabular-nums">
+              <span className="block truncate text-xs text-muted-foreground tabular-nums">
                 {summary}
               </span>
             )}
@@ -290,21 +295,20 @@ const WorkStatusBar = ({ variant = "rail" }) => {
         )}
       </button>
 
-      <div className="ws-rail-scroll tw:min-h-0 tw:flex-1 tw:overflow-x-hidden tw:overflow-y-auto tw:pt-1 tw:pb-2.5">
+      <div className="ws-rail-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-1 pb-2.5">
         <TooltipProvider delayDuration={150}>
           {groups.map((group, groupIndex) => (
             <div
               key={group.status.code}
               className={cn(
-                groupIndex > 0 &&
-                  "tw:mt-1.5 tw:border-t tw:border-border-soft tw:pt-2",
+                groupIndex > 0 && "mt-1.5 border-t border-border-soft pt-2",
               )}
             >
               {open && (
                 <GroupHeading
                   status={group.status}
                   count={group.users.length}
-                  className="tw:mb-1 tw:px-4"
+                  className="mb-1 px-4"
                 />
               )}
               {open
@@ -318,7 +322,7 @@ const WorkStatusBar = ({ variant = "rail" }) => {
                 : group.users.map((user) => (
                     <Tooltip key={user._id}>
                       <TooltipTrigger asChild>
-                        <div className="tw:flex tw:justify-center tw:px-1.5 tw:py-1">
+                        <div className="flex justify-center px-1.5 py-1">
                           <WorkStatusAvatar
                             size={38}
                             firstName={user.firstName}
@@ -339,7 +343,7 @@ const WorkStatusBar = ({ variant = "rail" }) => {
       </div>
 
       {open && lastUpdatedAt && (
-        <div className="tw:flex-none tw:truncate tw:border-t tw:border-border-soft tw:px-4 tw:py-2 tw:text-xs tw:whitespace-nowrap tw:text-muted-foreground tw:tabular-nums">
+        <div className="flex-none truncate border-t border-border-soft px-4 py-2 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           {/* Про ночной сброс писать больше нельзя: днём статусы ведёт
               автоматика по графику (services/workStatusAuto) */}
           Обновлено {sinceLabel(lastUpdatedAt).replace(/^с /, "в ")} · статусы
