@@ -77,20 +77,34 @@ module.exports.allowedToViewTicket = async (req, res, next) => {
     ticket.applicantId?.toString() === authedUser._id.toString() ||
     ticket.applicant._id?.toString() === authedUser._id.toString();
 
-  const canSeeAllCompanyTickets =
+  // Автор заявки. Обязателен: список (controllers/ticket.js, ветка «остальные
+  // пользователи») пускает по responsibles ИЛИ createdBy ИЛИ applicantId, и без
+  // этой строки сотрудник, заведший заявку за клиента, видел бы её в списке и
+  // получал 403 по клику.
+  const isCreator = ticket.createdBy?.toString() === authedUser._id.toString();
+
+  const canSeeAllCompanyTickets = Boolean(
     permissions?.canSeeAllCompanyTickets &&
-    authedUser.company._id.toString() === ticket.company?._id?.toString();
+      authedUser.company?._id &&
+      authedUser.company._id.toString() === ticket.company?._id?.toString(),
+  );
 
-  const canSeeAllTickets = authedUser.permissions.canSeeAllTickets;
+  const canSeeAllTickets = Boolean(authedUser.permissions.canSeeAllTickets);
 
-  if (
-    !authedUser.isAdmin &&
-    authedUser.permissions.canAdministrateTickets &&
-    !isResp &&
-    !isApplicant &&
-    !canSeeAllCompanyTickets &&
-    !canSeeAllTickets
-  ) {
+  // Список допусков, а не условие отказа: в прежней записи `canAdministrateTickets`
+  // стоял в отказе БЕЗ отрицания, то есть отказ срабатывал только у того, у кого
+  // это право ЕСТЬ. У клиента его нет никогда — и он открывал любую заявку в базе
+  // вместе с перепиской, контактами заявителя и списком вложений.
+  const allowedToView =
+    authedUser.isAdmin ||
+    Boolean(authedUser.permissions.canAdministrateTickets) ||
+    isResp ||
+    isApplicant ||
+    isCreator ||
+    canSeeAllCompanyTickets ||
+    canSeeAllTickets;
+
+  if (!allowedToView) {
     req.isAuth = false;
     const error = new Error("Недостаточно прав для просмотра страницы");
     error.statusCode = 403;

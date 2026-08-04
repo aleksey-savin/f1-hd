@@ -14,6 +14,12 @@ const logger = require("../utils/logger");
 
 const TOKEN = process.env.TG_TOKEN;
 
+// Общий секрет с бэкендом идёт заголовком, а не в строке запроса: query
+// целиком пишется в access.log nginx и в winston, то есть токен оседал в
+// журналах на каждом вызове. Бэкенд (middleware/isTelegramBot.js) пока
+// принимает обе формы — правка сюда и туда едет одним деплоем.
+const tgApiHeaders = () => ({ "X-TG-Token": process.env.TG_API_TOKEN });
+
 function sleep(milliseconds) {
   const date = Date.now();
   let currentDate = null;
@@ -89,8 +95,8 @@ exports.launchTgBot = async () => {
     const authorizeBot = async (msg, userId) => {
       try {
         const response = await fetch(
-          `http://backend:8080/api/tg/auth?api_token=${process.env.TG_API_TOKEN}&chatId=${msg.chat.id}&userId=${userId}`,
-          { method: "POST" },
+          `http://backend:8080/api/tg/auth?chatId=${msg.chat.id}&userId=${userId}`,
+          { method: "POST", headers: tgApiHeaders() },
         );
 
         return response;
@@ -107,7 +113,8 @@ exports.launchTgBot = async () => {
         if (msg.chat.id.toString() !== globalChat) {
           logger.log("info", `Fetching tickets`);
           const response = await fetch(
-            `http://backend:8080/api/tg/tickets/all-opened?api_token=${process.env.TG_API_TOKEN}&chat_id=${msg.chat.id}`,
+            `http://backend:8080/api/tg/tickets/all-opened?chat_id=${msg.chat.id}`,
+            { headers: tgApiHeaders() },
           );
           const responseJSON = await response.json();
 
@@ -125,7 +132,8 @@ exports.launchTgBot = async () => {
     const getCompanies = async (msg) => {
       try {
         const response = await fetch(
-          `http://backend:8080/api/tg/tickets/all-opened?api_token=${process.env.TG_API_TOKEN}&chat_id=${msg.chat.id}`,
+          `http://backend:8080/api/tg/tickets/all-opened?chat_id=${msg.chat.id}`,
+          { headers: tgApiHeaders() },
         );
         const { tickets } = await response.json();
 
@@ -565,8 +573,8 @@ exports.launchTgBot = async () => {
 
           try {
             const response = await fetch(
-              `http://backend:8080/api/tg/set-work-status?api_token=${process.env.TG_API_TOKEN}&tgUserId=${ctx.from.id}&code=${encodeURIComponent(code)}`,
-              { method: "POST" },
+              `http://backend:8080/api/tg/set-work-status?tgUserId=${ctx.from.id}&code=${encodeURIComponent(code)}`,
+              { method: "POST", headers: tgApiHeaders() },
             );
             const data = await response.json().catch(() => ({}));
             ok = response.ok;

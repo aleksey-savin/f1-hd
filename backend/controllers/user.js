@@ -415,14 +415,25 @@ exports.getScopeCompanies = async (req, res, next) => {
   }
 };
 
+// Всё, что не должно покидать бэкенд ни в одной ветке карточки. `notifications`
+// — не настройки уведомлений (это `notify`), а исходящая очередь для почтового
+// крона: туда `auth.js#forgotPassword` кладёт СЫРОЙ токен восстановления (в
+// `resetToken` лежит лишь его sha256), а `changePassword` — `jwt.sign(пароль)`,
+// то есть base64 пароля без ключа. Пока поле уезжало наружу, любой сотрудник
+// мог запросить восстановление на почту администратора, прочитать токен из
+// карточки и сменить ему пароль. Ветка клиента вдобавок отдавала собственный
+// документ вообще без выборки — вместе с bcrypt-хешем.
+const HIDDEN_USER_FIELDS =
+  "-password -resetToken -resetTokenExpiration -verifyToken -verifyTokenExpiration -notifications";
+
 exports.getOne = async (req, res, next) => {
   try {
-    const { userId } = await await getAuthData(req);
+    const { userId } = await getAuthData(req);
 
-    const authedUser = await User.findById(userId);
+    const authedUser = await User.findById(userId).select(HIDDEN_USER_FIELDS);
 
     const user = await User.findById(req.params.id)
-      .select("-password -resetToken -resetTokenExpiration ")
+      .select(HIDDEN_USER_FIELDS)
       .populate({
         path: "subdivision",
         select: "_id name timezone parent",
@@ -1028,18 +1039,50 @@ exports.delete = async (req, res, next) => {
   }
 };
 
+// Одна ручка обслуживает два разных действия: «меняю себе» и «сбрасываю
+// сотруднику». Права поэтому проверяются здесь, а не на маршруте: повесить
+// canManageUsers на роут значило бы отобрать у людей смену собственного пароля.
+// До этой проверки роут стоял под одним isAuth и брал adressata из URL, так что
+// любая из 676 клиентских учёток могла назначить пароль администратору.
 exports.changePassword = async (req, res, next) => {
   try {
     const { password, repeatedPassword, sendPassword } = req.body;
 
+    const authedUser = await getAuthData(req);
+    const isSelf = String(req.params.id) === String(authedUser.userId);
+
+    if (
+      !isSelf &&
+      !authedUser.isAdmin &&
+      !authedUser.permissions?.canManageUsers
+    ) {
+      return next(
+        new AppError("Недостаточно прав для смены чужого пароля", 403),
+      );
+    }
+
     const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return next(new AppError("Учётная запись не найдена", 404));
+    }
 
     if (password !== repeatedPassword) {
       return next(new AppError(`Пароли не совпадают`, 401));
     }
 
+    // Длину здесь не проверяли вовсе, хотя восстановление по почте её требует —
+    // короткий пароль заходил через эту дверь мимо общего правила
+    if (!password || password.length < 6) {
+      return next(new AppError("Минимальная длина пароля - 6 символов", 400));
+    }
+
     const hashedPassword = await bcrypt.hash(password, 12);
     user.password = hashedPassword;
+    // ВРЕМЕННО. jwt.sign(строка) — это base64 строки, а не шифр: пароль лежит в
+    // БД обратимо, чтобы почтовый крон вложил его в письмо. Наружу это больше не
+    // уезжает (см. HIDDEN_USER_FIELDS в getOne), но само хранение уйдёт вместе с
+    // письмом-паролем: его заменяет письмо со ссылкой установки пароля.
     user.notifications = {
       lastAction: "change password",
       password: jwt.sign(password, process.env.JWT_SECRET),
@@ -1154,7 +1197,6 @@ exports.addProfileImage = async (req, res, next) => {
 exports.updateMyAccount = async (req, res, next) => {
   try {
     const {
-      id,
       firstName,
       lastName,
       email,
@@ -1166,7 +1208,15 @@ exports.updateMyAccount = async (req, res, next) => {
       timezone,
     } = req.body;
 
-    const user = await User.findById(id);
+    // Ручка правит ТОЛЬКО свою учётку, поэтому и адресат берётся из сеанса.
+    // Раньше id приходил телом запроса на роуте под одним лишь isAuth — то есть
+    // любой вошедший мог переписать чужую почту (а следом получить на неё
+    // восстановление пароля) и перевесить на себя привязку телеграм-бота.
+    const user = await User.findById(req.userId);
+
+    if (!user) {
+      return next(new AppError("Учётная запись не найдена", 404));
+    }
 
     // Часовой пояс человек правит сам: он про него знает лучше, а от пояса
     // зависят и его сутки в календаре, и границы его смены
@@ -1205,7 +1255,7 @@ exports.updateMyAccount = async (req, res, next) => {
         id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
-        email: user.lastName,
+        email: user.email,
         phone: user.phone,
         position: user.position,
         categories: user.categories,
@@ -1216,7 +1266,7 @@ exports.updateMyAccount = async (req, res, next) => {
   } catch (error) {
     next(
       new AppError(
-        `Failed to update user account with id ${req.body.id}`,
+        `Failed to update user account with id ${req.userId}`,
         500,
         true,
         error,
