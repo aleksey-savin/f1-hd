@@ -1,4 +1,3 @@
-const imaps = require("imap-simple");
 const nodemailer = require("nodemailer");
 
 const {
@@ -8,6 +7,7 @@ const {
   describeMailError,
   mailboxLogin,
 } = require("./transport");
+const { connectMailbox } = require("./imapConnect");
 const { MAILBOX, SMTP, recordOk, recordError } = require("./health");
 const logger = require("../../utils/logger");
 const { guardRecipient } = require("../../utils/mailGuard");
@@ -47,9 +47,12 @@ const checkMailbox = async (mailbox = {}) => {
 
   let connection;
   try {
-    connection = await imaps.connect(config);
-    // Сокетные ошибки imap-simple эмитит асинхронно; без слушателя Node роняет
-    // весь процесс, а try/catch вокруг await такое не ловит.
+    // connectMailbox вместо imaps.connect: тот оставляет сорвавшееся соединение
+    // без слушателя 'error' и роняет процесс (см. ./imapConnect).
+    connection = await connectMailbox(config, { module: "mailCheck" });
+    // Второй слой: сокетные ошибки уже установленного соединения ImapSimple
+    // эмитит асинхронно; без слушателя Node роняет весь процесс, а try/catch
+    // вокруг await такое не ловит.
     connection.on("error", (error) =>
       logger.log("warn", "IMAP check connection error (ignored)", {
         module: "mailCheck",

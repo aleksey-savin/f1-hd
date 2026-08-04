@@ -6,9 +6,8 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
 
-# Extract version from package.json and set as env variable
-RUN export NPM_PACKAGE_VERSION=$(node -p "require('./package.json').version") && \
-    echo "VITE_VERSION=$NPM_PACKAGE_VERSION" > .env
+# App version is injected by vite.config.js straight from package.json — no .env
+# here: in dev the whole /app is shadowed by the bind mount anyway.
 
 RUN pnpm install
 

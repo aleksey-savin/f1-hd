@@ -11,10 +11,9 @@ ARG VITE_TEST_ENV
 
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 
-# Extract version from package.json and create .env.production with all variables
-RUN export NPM_PACKAGE_VERSION=$(node -p "require('./package.json').version") && \
-    echo "VITE_VERSION=$NPM_PACKAGE_VERSION" > .env.production && \
-    echo "VITE_API_ADDRESS=$VITE_API_ADDRESS" >> .env.production && \
+# Create .env.production with build-time variables. No version here: it is
+# injected by vite.config.js straight from package.json — a single source.
+RUN echo "VITE_API_ADDRESS=$VITE_API_ADDRESS" > .env.production && \
     echo "VITE_TG_BOT_NAME=$VITE_TG_BOT_NAME" >> .env.production && \
     echo "VITE_TEST_ENV=$VITE_TEST_ENV" >> .env.production
 

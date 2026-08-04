@@ -73,6 +73,20 @@ pnpm install
 pnpm run dev
 ```
 
+#### Sync the dev database with production
+
+```bash
+./sync-dev-db.sh
+```
+
+Runs straight from the host shell. The dump is read from production over SSH
+(routed through the jump host automatically when prod is not reachable
+directly) and restored into the local database over `localhost:27017` — no
+docker needed on this side, just `mongodb-database-tools`
+(`sudo dnf install mongodb-database-tools`). Production is never written to and
+the `preferences` collection is left untouched; `./sync-dev-db.sh --help` lists
+the options.
+
 ### Production
 
 ```bash

@@ -31,6 +31,7 @@ const {
   buildImapConfig,
   describeMailError,
 } = require("../services/mail/transport");
+const { connectMailbox } = require("../services/mail/imapConnect");
 const {
   MAILBOX,
   recordOk,
@@ -330,13 +331,17 @@ exports.handleNewEmails = async () => {
 
     // logger.log("info", "Starting email processing", emailContext);
 
-    connection = await imaps.connect(config);
+    // connectMailbox вместо imaps.connect: тот оставляет сорвавшееся соединение
+    // без слушателя 'error' и роняет процесс (см. services/mail/imapConnect).
+    connection = await connectMailbox(config, context);
 
-    // ImapSimple — EventEmitter: сокетные ошибки (read ETIMEDOUT, ECONNRESET)
-    // он эмитит АСИНХРОННО — между командами, в keepalive или уже после end().
-    // Без слушателя 'error' Node роняет весь процесс ("Emitted 'error' event
-    // on ImapSimple instance"), а try/catch вокруг await такое не ловит.
-    // Логируем и продолжаем: недочитанная почта догонится следующим краном.
+    // Второй слой той же защиты. ImapSimple — отдельный EventEmitter, и
+    // сокетные ошибки установленного соединения (read ETIMEDOUT, ECONNRESET) он
+    // перевыбрасывает на себе АСИНХРОННО — между командами, в keepalive или уже
+    // после end(). Без слушателя 'error' Node роняет весь процесс ("Emitted
+    // 'error' event on ImapSimple instance"), а try/catch вокруг await такое не
+    // ловит. Логируем и продолжаем: недочитанная почта догонится следующим
+    // краном.
     connection.on("error", (imapError) => {
       logger.log("warn", "IMAP connection error (ignored)", {
         ...context,
