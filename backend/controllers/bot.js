@@ -268,6 +268,53 @@ exports.config = async (req, res, next) => {
 };
 
 /**
+ * Включить табло в этом чате — команда `/status_board` в группе команды.
+ *
+ * Гейт здесь, а не в боте, и это принципиально: прежний бот сам читал
+ * `sender.isAdmin` из документа пользователя, то есть держал собственное
+ * суждение о правах — мимо ролей, мимо `effectivePermissions`, и после переезда
+ * на роли оно бы тихо разошлось с действительностью. Кто администратор, знает
+ * бэкенд; сервис только пересказывает, кто нажал.
+ */
+exports.statusBoardSetup = async (req, res, next) => {
+  try {
+    const { chatId, messageThreadId } = req.body || {};
+
+    if (!chatId || !String(chatId).startsWith("-")) {
+      return next(
+        new AppError("Табло включается в групповом чате, а не в личном", 400),
+      );
+    }
+
+    await Preferences.updateOne(
+      {},
+      {
+        $set: {
+          "notify.byTelegram.chatId": String(chatId),
+          "notify.byTelegram.messageThreadId": messageThreadId
+            ? String(messageThreadId)
+            : "",
+          "statusBoard.isActive": true,
+          // Табло пересоздаётся в новом месте: прежнее сообщение осталось в
+          // другом чате или ветке и обновляться больше не должно.
+          "statusBoard.messageId": null,
+        },
+      },
+    );
+
+    logger.log("info", "Табло статусов включено из Telegram", {
+      module: "bot",
+      chatId: String(chatId),
+      by: req.auth.userId,
+    });
+
+    res.status(200).json({ message: "Табло включено" });
+  } catch (error) {
+    next(new AppError("Не удалось включить табло", 500, true, error));
+  }
+};
+
+/**
  * Табло опубликовано или переехало.
  *
  * `messageId` остаётся в `Preferences`, а не уезжает в локальную базу

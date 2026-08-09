@@ -9,7 +9,7 @@ const authController = require("@/controllers/auth");
 const isTelegramBot = require("@/middleware/isTelegramBot");
 const attachTelegramActor = require("@/middleware/attachTelegramActor");
 const fileUpload = require("@/middleware/fileUpload");
-const { isNotClient } = require("@/middleware/permissions");
+const { isNotClient, isAdmin } = require("@/middleware/permissions");
 
 const router = express.Router();
 
@@ -116,6 +116,17 @@ router.post(
   attachTelegramActor,
   isNotClient,
   userController.setWorkStatus,
+);
+
+/**
+ * Включение табло — единственное действие бота, требующее администратора.
+ * Гейт штатный: `isAdmin` из `middleware/permissions`, тот же, что на вебе.
+ */
+router.post(
+  "/status-board/setup",
+  attachTelegramActor,
+  isAdmin,
+  botController.statusBoardSetup,
 );
 
 module.exports = router;

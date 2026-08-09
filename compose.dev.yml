@@ -51,7 +51,30 @@ services:
     depends_on:
       - mongodb
       - backend
+
+  # Замена telegram-bot. Под профилем НАМЕРЕННО: два отправщика на одну очередь
+  # означают гонку за уведомление и, при неудачном порядке, дубль в чате.
+  # Поднимать вместо старого, а не рядом:
+  #   docker compose stop telegram-bot
+  #   docker compose --profile tg-next up -d --build tg-service
+  tg-service:
+    profiles: ["tg-next"]
+    build:
+      context: ./tg-service
+      dockerfile: Dockerfile
+    volumes:
+      - ./tg-service:/app
+      - /app/node_modules
+      - tg_service_data:/app/data
+    environment:
+      BACKEND_URL: http://backend:8080
+    env_file:
+      - .env.dev
+    depends_on:
+      - backend
+
 volumes:
+  tg_service_data:
   hd_data:
     external: true
   hd_uploads:
