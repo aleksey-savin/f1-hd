@@ -25,6 +25,7 @@ const path = require("path");
 const mongoose = require("mongoose");
 
 const { PERMISSION_KEYS } = require("@/utils/permissions");
+const { syncCatalogue } = require("./syncRoleCatalogue");
 const { permissionsToStatements } = require("@/auth/access");
 const { ORG_SLUG } = require("@/services/permissions");
 
@@ -195,36 +196,10 @@ const run = async () => {
 
   // --- запись --------------------------------------------------------------
 
-  for (const role of roles) {
-    const permission = JSON.stringify(
-      permissionsToStatements(
-        Object.fromEntries(role.permissions.map((key) => [key, true])),
-      ),
-    );
-    await db.collection("organizationRole").updateOne(
-      { organizationId: orgId, role: role.key },
-      {
-        $set: {
-          permission,
-          // Название и описание — отдельные поля: ключ роли неизменяем, потому
-          // что членство хранит роль именно им.
-          title: role.title,
-          description: role.description || "",
-          // Кому роль предлагать в форме человека. Вывести из прав нельзя:
-          // «Клиент: руководитель» даёт учёт времени и отчёты по работам —
-          // права не клиентские, а роль клиентская.
-          audience: role.audience === "client" ? "client" : "staff",
-          updatedAt: new Date(),
-        },
-        $setOnInsert: {
-          organizationId: orgId,
-          role: role.key,
-          createdAt: new Date(),
-        },
-      },
-      { upsert: true },
-    );
-  }
+  // Тот же код, что и у `syncRoleCatalogue.js`: каталог обязан выглядеть
+  // одинаково, кем бы его ни записали. Второй копии этих полей быть не должно
+  // — разъехавшийся `audience` или потерянное описание нашлись бы нескоро.
+  await syncCatalogue(db, orgId, roles, { permissionsToStatements });
   console.log(`\nРолей в каталоге: ${roles.length}`);
 
   let assigned = 0;

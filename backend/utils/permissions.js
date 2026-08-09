@@ -24,6 +24,7 @@ const PERMISSION_KEYS = [
   "canManageCompanies",
   "canManageUsers",
   "canManageRoles",
+  "canImpersonateUsers",
   "canManageTicketCategories",
   "canManageKnowledgeBase",
   "canSeeKnowledgeBase",

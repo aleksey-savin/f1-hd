@@ -13,6 +13,8 @@ const {
 } = require("../services/authPassword");
 const { getAuth } = require("../auth/bootstrap");
 const {
+  listForUser,
+  revokeById,
   revokeAllForUser,
   revokeOthersForUser,
 } = require("../services/authSessions");
@@ -506,6 +508,20 @@ exports.getOne = async (req, res, next) => {
         roles: await namedRoles(user._id),
         permissions: (await effectivePermissions(user)).permissions,
       };
+
+      /**
+       * Причина и срок отключения — ТОЛЬКО тем, кто ведёт учётные записи.
+       * Из общего ответа они вырезаны чёрным списком: это заметка одного
+       * администратора другому («уволен, передал дела»), и человеку, который
+       * смотрит сам себя, её видеть незачем.
+       */
+      if (req.auth.can({ user: ["manage"] })) {
+        const ban = await User.findById(user._id)
+          .select("banReason banExpires")
+          .lean();
+        payload.banReason = ban?.banReason || null;
+        payload.banExpires = ban?.banExpires || null;
+      }
       if (!canManageFinances(req) && !isSelf) {
         // Оклад и ставка видны только самому сотруднику и фин. менеджерам
         delete payload.finances;
@@ -1059,20 +1075,40 @@ exports.update = async (req, res, next) => {
  * не спрашивает — это отдельный экран со своим макетом. Просроченный бан
  * снимает сам плагин при попытке входа.
  */
+/**
+ * Отключение и включение учётной записи.
+ *
+ * Причина и срок пишутся здесь же: без причины через месяц никто не помнит, за
+ * что человек отключён, а без срока временное отключение приходится помнить и
+ * снимать руками. Оба поля жили в модели с переезда на better-auth и до сих
+ * пор ничем не заполнялись.
+ */
 exports.toggleActive = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
 
     if (!user) {
-      return next(new AppError(`User ${req.params.id} not found`, 404));
+      return next(new AppError("Учётная запись не найдена", 404));
     }
 
-    const banned = !user.banned;
-    user.banned = banned;
-    if (!banned) {
-      user.banReason = undefined;
-      user.banExpires = undefined;
+    // Направление приходит явно: у «отключить» и «включить» разные тела, и
+    // вычислять его инверсией значит зависеть от того, что видела вкладка.
+    const banned =
+      req.body?.banned === undefined ? !user.banned : Boolean(req.body.banned);
+
+    const until = req.body?.banExpires ? new Date(req.body.banExpires) : null;
+    if (until && Number.isNaN(until.getTime())) {
+      return next(new AppError("Неверная дата окончания", 400));
     }
+    if (until && until <= new Date()) {
+      return next(new AppError("Срок отключения уже прошёл", 400));
+    }
+
+    user.banned = banned;
+    user.banReason = banned
+      ? String(req.body?.banReason || "").trim() || undefined
+      : undefined;
+    user.banExpires = banned ? until || undefined : undefined;
     await user.save();
 
     if (banned) {
@@ -1082,9 +1118,50 @@ exports.toggleActive = async (req, res, next) => {
     res.status(200).json({
       message: banned ? "Учётная запись отключена" : "Учётная запись включена",
       banned,
+      banReason: user.banReason || null,
+      banExpires: user.banExpires || null,
     });
   } catch (error) {
-    next(new AppError(`Failed to toggle user active status`, 500, true, error));
+    next(new AppError("Не удалось изменить доступ", 500, true, error));
+  }
+};
+
+/**
+ * Чужие сеансы — карточка человека. Тот же список, что и свой, но без отметки
+ * «это устройство»: чужую вкладку от своей не отличить и незачем.
+ */
+exports.sessions = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id).select("_id");
+    if (!user) {
+      return next(new AppError("Учётная запись не найдена", 404));
+    }
+    res.status(200).json({ sessions: await listForUser(user._id) });
+  } catch (error) {
+    next(new AppError("Не удалось получить список сеансов", 500, true, error));
+  }
+};
+
+/** Завершить один чужой сеанс. */
+exports.revokeSession = async (req, res, next) => {
+  try {
+    const removed = await revokeById(req.params.id, req.params.sessionId);
+    if (!removed) {
+      return next(new AppError("Сеанс не найден", 404));
+    }
+    res.status(200).json({ message: "Сеанс завершён" });
+  } catch (error) {
+    next(new AppError("Не удалось завершить сеанс", 500, true, error));
+  }
+};
+
+/** Завершить все сеансы человека — не отключая саму учётную запись. */
+exports.revokeAllSessions = async (req, res, next) => {
+  try {
+    const count = await revokeAllForUser(req.params.id);
+    res.status(200).json({ message: "Сеансы завершены", count });
+  } catch (error) {
+    next(new AppError("Не удалось завершить сеансы", 500, true, error));
   }
 };
 

@@ -30,6 +30,16 @@ const INDEXES = [
     { expiresAt: 1 },
     { expireAfterSeconds: 0, name: "ttl" },
   ],
+
+  // Одноразовые коды входа под пользователем. Уникальность — потому что код и
+  // есть ключ; TTL — потому что своей уборки у нас нет, а протухший код,
+  // лежащий вечно, это лишний живой токен сеанса рядом с ним.
+  ["impersonationCodes", { code: 1 }, { unique: true, name: "code" }],
+  [
+    "impersonationCodes",
+    { expiresAt: 1 },
+    { expireAfterSeconds: 0, name: "ttl" },
+  ],
 ];
 
 const run = async () => {
@@ -44,7 +54,12 @@ const run = async () => {
   }
 
   console.log("\nИтог:");
-  for (const collection of ["authSessions", "authAccounts", "authVerifications"]) {
+  for (const collection of [
+    "authSessions",
+    "authAccounts",
+    "authVerifications",
+    "impersonationCodes",
+  ]) {
     const names = (await db.collection(collection).indexes()).map((index) => index.name);
     console.log(`  ${collection}: ${names.join(", ")}`);
   }

@@ -2,6 +2,12 @@ const Preferences = require("@/models/preferences");
 
 const { AppError } = require("@/middleware/errorHandling");
 const { getAuth, getFromNodeHeaders } = require("@/auth/bootstrap");
+const { SESSION_MAX_MS } = require("@/services/impersonation");
+const {
+  listForUser,
+  revokeById,
+  revokeOthersForUser,
+} = require("@/services/authSessions");
 const { checkBreached, policy } = require("@/services/passwordPolicy");
 const { isModerator } = require("@/helpers/knowledgeNoteVisibility");
 const {
@@ -119,6 +125,18 @@ exports.getMe = async (req, res, next) => {
       // Идентификатор текущего сеанса нужен разделу «Активные сеансы», чтобы
       // пометить «это устройство».
       sessionId: session?.id || null,
+      /**
+       * Подмена — состояние ВКЛАДКИ, а не человека, поэтому едет вместе с
+       * профилем: полосу «вы под учётной записью такого-то» рисует оболочка, и
+       * узнать об этом ей больше неоткуда.
+       */
+      impersonation: session?.impersonatedBy
+        ? {
+            until: new Date(
+              new Date(session.createdAt).getTime() + SESSION_MAX_MS,
+            ),
+          }
+        : null,
     });
   } catch (error) {
     next(new AppError("Не удалось получить профиль", 500, true, error));
@@ -165,6 +183,52 @@ exports.checkPassword = async (req, res, next) => {
     return res.status(200).json({ ok: true, checked: breach.checked });
   } catch (error) {
     next(new AppError("Не удалось проверить пароль", 500, true, error));
+  }
+};
+
+/**
+ * Свои сеансы — раздел «Безопасность».
+ *
+ * Отвечает на вопрос «меня взломали?», за которым туда и приходят. Токены в
+ * ответе не участвуют: строку опознаёт `id`, а гасит её сервер по своему
+ * сопоставлению.
+ */
+exports.sessions = async (req, res, next) => {
+  try {
+    res.status(200).json({
+      sessions: await listForUser(req.auth.user._id, req.auth.session?.token),
+    });
+  } catch (error) {
+    next(new AppError("Не удалось получить список сеансов", 500, true, error));
+  }
+};
+
+/** Завершить один свой сеанс. Чужой не завершится: фильтр включает владельца. */
+exports.revokeSession = async (req, res, next) => {
+  try {
+    const removed = await revokeById(req.auth.user._id, req.params.id);
+    if (!removed) {
+      return next(new AppError("Сеанс не найден", 404));
+    }
+    res.status(200).json({ message: "Сеанс завершён" });
+  } catch (error) {
+    next(new AppError("Не удалось завершить сеанс", 500, true, error));
+  }
+};
+
+/**
+ * «Выйти на всех остальных устройствах». Текущая вкладка остаётся живой —
+ * иначе действие выкидывало бы того, кто его нажал, и читалось бы как выход.
+ */
+exports.revokeOtherSessions = async (req, res, next) => {
+  try {
+    const count = await revokeOthersForUser(
+      req.auth.user._id,
+      req.auth.session?.token,
+    );
+    res.status(200).json({ message: "Остальные сеансы завершены", count });
+  } catch (error) {
+    next(new AppError("Не удалось завершить сеансы", 500, true, error));
   }
 };
 

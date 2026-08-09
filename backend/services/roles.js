@@ -392,7 +392,7 @@ const assign = async (userId, keys, can) => {
     .collection("users")
     .updateOne(
       { _id: new mongoose.Types.ObjectId(String(userId)) },
-      { $set: { isAdmin: shouldBeAdmin } },
+      { $set: { isAdmin: shouldBeAdmin, role: pluginRole(statements) } },
     );
 
   return {
@@ -401,6 +401,20 @@ const assign = async (userId, keys, can) => {
     permissions: statementsToPermissions(statements),
   };
 };
+
+/**
+ * Роль в системе прав ПЛАГИНА — отдельная от наших ролей и почти всегда «user».
+ *
+ * Плагин `admin` решает, пускать ли к своим ручкам, по полю `user.role`, и это
+ * единственное, зачем поле осталось: прежний текстовый ярлык («Клиент» у 376
+ * человек, пусто у 325) смысла не нёс. Наш словарь в эту систему не
+ * транслируется — из всех её действий нам нужно ровно одно, подмена.
+ *
+ * Отсюда `impersonator` вместо `admin`: штатная роль плагина открыла бы заодно
+ * смену чужих паролей и заведение пользователей мимо наших правил.
+ */
+const pluginRole = (statements) =>
+  statements?.user?.includes("impersonate") ? "impersonator" : "user";
 
 /**
  * Права, которые нельзя выдать иначе как вместе со всем порталом.
@@ -440,6 +454,7 @@ module.exports = {
   assign,
   ensureMember,
   gaps,
+  pluginRole,
   rolesOfMember,
   namedRoles,
   slugify,

@@ -81,6 +81,7 @@
         "canManageCompanies",
         "canManageUsers",
         "canManageRoles",
+        "canImpersonateUsers",
         "canManageTicketCategories",
         "canManageKnowledgeBase",
         "canSeeKnowledgeBase",
@@ -332,6 +333,16 @@
           "canSeePersonalFinancialReport"
         ]
       ]
+    },
+    {
+      "key": "second-line",
+      "title": "Поддержка второй линии",
+      "audience": "staff",
+      "description": "Добавляется ПОВЕРХ инженерной роли и даёт одно: вход под пользователем. Отдельной ролью, а не правом внутри «Инженера», потому что смотреть портал чужими глазами нужно не каждому",
+      "permissions": [
+        "canImpersonateUsers"
+      ],
+      "matches": []
     },
     {
       "key": "works-accounting",

@@ -26,6 +26,7 @@ import {
   RiTimeLine,
   RiUserFollowLine,
   RiUserUnfollowLine,
+  RiSpyLine,
   RiVipCrownLine,
 } from "react-icons/ri";
 
@@ -54,6 +55,8 @@ import useInitialPrefs from "../../store/prefs";
 import { getPresence } from "./presence";
 import PresenceText from "./PresenceText";
 import { CLIENT_PERMISSIONS, PERMISSION_MODULES } from "./permissions-catalog";
+import SessionList from "./SessionList";
+import ImpersonateDialog from "./ImpersonateDialog";
 import { relativeDay } from "../../util/relative-time";
 import { formatDate, formatShortDate } from "../../util/format-date";
 import { formatPrice } from "../../util/format-string";
@@ -121,12 +124,15 @@ const ViewUser = ({ user, tickets }) => {
   const can = useCan();
   const canManageUsers = can({ user: ["manage"] });
   const canManageCompanies = can({ company: ["manage"] });
+  // Вход под пользователем — своё право, а не следствие управления людьми.
+  const canImpersonate = can({ user: ["impersonate"] });
   const { modules: appModules } = useInitialPrefs();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [toggleOpen, setToggleOpen] = useState(false);
   const [adOpen, setAdOpen] = useState(false);
+  const [impersonateOpen, setImpersonateOpen] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -149,6 +155,8 @@ const ViewUser = ({ user, tickets }) => {
     isCloudTelephony,
     isAdmin,
     banned,
+    banReason,
+    banExpires,
     telegramBot,
     getScreen,
     activeDirectoryObjectGUID,
@@ -346,6 +354,20 @@ const ViewUser = ({ user, tickets }) => {
               <span className="inline-flex items-center gap-1.5 font-semibold text-destructive">
                 <span className="size-2 rounded-full bg-destructive" />
                 Отключён
+                {/* Причина и срок читаются в той же строке, что и сам факт:
+                    отдельная плашка ниже требовала бы её искать, а вопрос
+                    «за что и до каких пор» возникает сразу за «отключён». */}
+                {(banReason || banExpires) && (
+                  <span className="font-normal text-muted-foreground">
+                    ·{" "}
+                    {[
+                      banReason,
+                      banExpires ? `до ${formatDate(banExpires)}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </span>
+                )}
               </span>
             )}
           </div>
@@ -383,6 +405,20 @@ const ViewUser = ({ user, tickets }) => {
                     {adLinked ? "Отвязать от AD" : "Связать с AD"}
                   </DropdownMenuItem>
                 )}
+                {/* Под администратором и под служебной учёткой войти нельзя —
+                    пункт не показываем вовсе: погашенный он только просил бы
+                    объяснений. Отключённая учётка сеанса тоже не даёт. */}
+                {canImpersonate &&
+                  !isServiceAccount &&
+                  !isAdmin &&
+                  !banned &&
+                  !isSelf && (
+                    <DropdownMenuItem
+                      onSelect={() => setImpersonateOpen(true)}
+                    >
+                      <RiSpyLine /> Войти под пользователем
+                    </DropdownMenuItem>
+                  )}
                 <DropdownMenuItem onSelect={() => setToggleOpen(true)}>
                   {banned ? <RiUserFollowLine /> : <RiUserUnfollowLine />}
                   {banned ? "Включить" : "Отключить"}
@@ -779,6 +815,13 @@ const ViewUser = ({ user, tickets }) => {
                   </div>
                 )}
               </Panel>
+
+              {/* Где эта учётная запись открыта прямо сейчас. Отдельной
+                  панелью, а не внутри прав: права отвечают «что можно»,
+                  сеансы — «откуда заходят», и объединять их незачем. */}
+              <Panel>
+                <SessionList userId={user._id} />
+              </Panel>
             </>
           )}
 
@@ -864,6 +907,13 @@ const ViewUser = ({ user, tickets }) => {
       />
       {canManageCompanies && company && (
         <LinkAdDialog user={user} open={adOpen} onOpenChange={setAdOpen} />
+      )}
+      {canImpersonate && (
+        <ImpersonateDialog
+          user={user}
+          open={impersonateOpen}
+          onOpenChange={setImpersonateOpen}
+        />
       )}
 
       <FormSheet

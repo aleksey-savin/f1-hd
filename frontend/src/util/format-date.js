@@ -146,6 +146,22 @@ export const formatAgo = (value) => {
   return formatDate(value);
 };
 
+/**
+ * Сколько осталось: «через 12 минут», «через 3 ч». Зеркало `formatAgo` для
+ * будущих моментов — срок сеанса подмены и подобные обратные отсчёты.
+ * Прошедший момент — «вот-вот»: отрицательные значения в интерфейсе не нужны.
+ */
+export const formatIn = (value) => {
+  if (!value) return null;
+  const diff = new Date(value).getTime() - Date.now();
+  if (diff <= 60 * 1000) return "вот-вот";
+  if (diff < 60 * 60 * 1000) return `через ${Math.round(diff / 60000)} мин`;
+  if (diff < 24 * 60 * 60 * 1000) {
+    return `через ${Math.round(diff / 3600000)} ч`;
+  }
+  return formatDate(value);
+};
+
 /* ── Сравнение ДНЕЙ (а не моментов) ── */
 
 /**

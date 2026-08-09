@@ -26,6 +26,11 @@ export const PERMISSION_MODULES = [
       { key: "canManageCompanies", label: "Управление компаниями" },
       { key: "canManageUsers", label: "Управление пользователями" },
       { key: "canManageRoles", label: "Управление ролями" },
+      {
+        key: "canImpersonateUsers",
+        label: "Вход под пользователем",
+        hint: "Открыть портал глазами человека — ссылкой в другой браузер. Под администратором войти нельзя.",
+      },
       { key: "canManageTicketCategories", label: "Категории заявок" },
       { key: "canManageRoutineTasks", label: "Регламенты" },
       { key: "canManageTicketTemplates", label: "Шаблоны заявок" },

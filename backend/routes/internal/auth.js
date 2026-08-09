@@ -5,6 +5,7 @@ const { formatInTimeZone, getTimezoneOffset } = require("date-fns-tz");
 const { DEFAULT_TIMEZONE } = require("@/utils/datetime");
 
 const authController = require("@/controllers/auth");
+const impersonationController = require("@/controllers/impersonation");
 const isTelegramBot = require("@/middleware/isTelegramBot");
 const logger = require("@/utils/logger");
 
@@ -125,6 +126,31 @@ const loginLinkLimiter = rateLimit({
       message: "Если такой адрес есть, письмо со ссылкой отправлено.",
     }),
 });
+
+/**
+ * Обмен кода подмены на сеанс. Без авторизации по определению: ссылку
+ * открывают в чистом браузере, где сессии ещё нет.
+ *
+ * Лимитер по IP и жёсткий: код 43 символа из криптостойкого генератора,
+ * подобрать его нельзя, но ручка не должна становиться бесплатным способом
+ * дёргать базу. Шесть попыток за десять минут — ровно столько живёт сам код.
+ */
+const impersonationClaimLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 6,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: true,
+    message: "Слишком много попыток. Попробуйте позже.",
+  },
+});
+
+router.post(
+  "/impersonate/claim",
+  impersonationClaimLimiter,
+  impersonationController.claim,
+);
 
 // Саморегистрация (`/signup`, `/signup/company-by-email`) и первый запуск
 // (`/first-launch`) удалены: учётки заводит ИТ-отдел вместе с AD и почтой, а

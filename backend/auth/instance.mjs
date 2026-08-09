@@ -10,6 +10,7 @@ import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { admin, bearer, magicLink, organization } from "better-auth/plugins";
 import { createAccessControl, role } from "better-auth/plugins/access";
+import { defaultAc, userAc } from "better-auth/plugins/admin/access";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { verifyPassword } from "better-auth/crypto";
 import { toNodeHandler, fromNodeHeaders } from "better-auth/node";
@@ -192,6 +193,38 @@ export function createAuth({ db, client, config, hooks, statement }) {
       admin({
         bannedUserMessage:
           "Учётная запись отключена. Обратитесь к администратору.",
+
+        /**
+         * СВОЙ НАБОР РОЛЕЙ ПЛАГИНА, и штатной `admin` среди них нет намеренно.
+         *
+         * У плагина своя система прав, отдельная от нашей, и роль `admin` в ней
+         * открывает разом всё: `set-user-password`, `create-user`,
+         * `remove-user`, `ban-user`. Ручки смонтированы публично под
+         * `/api/auth/admin/*`, то есть проставить кому-то `user.role = "admin"`
+         * значит отдать ему эти операции МИМО наших гейтов и нашей бизнес-логики
+         * — а `create-user` вдобавок пишет пользователя нативным драйвером, без
+         * валидации Mongoose и без компании, членства и рабочего места.
+         *
+         * Нам от плагина нужно ровно одно действие — подмена. Роль
+         * `impersonator` даёт только его; всё остальное остаётся закрытым для
+         * всех, включая администраторов, которые те же операции делают нашими
+         * ручками.
+         */
+        roles: {
+          user: userAc,
+          impersonator: defaultAc.newRole({ user: ["impersonate"] }),
+        },
+        defaultRole: "user",
+        /**
+         * Пусто — и защиту «нельзя войти под администратором» мы делаем сами.
+         * Плагин узнаёт администратора по СВОЕМУ полю `user.role`, а у нас его
+         * значение теперь означает совсем другое (гейт подмены). Наш признак —
+         * `isAdmin`, зеркало роли полного доступа; проверка живёт в
+         * `controllers/impersonation.js`.
+         */
+        adminRoles: [],
+        // Час — согласованный срок: столько живёт сеанс под чужой учёткой.
+        impersonationSessionDuration: 60 * 60,
       }),
 
       // Роли. ОДНА организация = вся установка: `organizationId` во всех

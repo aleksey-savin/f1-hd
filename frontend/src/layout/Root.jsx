@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useRevalidator } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
-import { Outlet, useLoaderData, useSubmit } from "react-router";
+import { Outlet, useLoaderData, useNavigate, useSubmit } from "react-router";
 
 import {
   AuthedUserContext,
@@ -12,7 +12,9 @@ import NavigationBar from "./Navbar";
 import Footer from "./Footer";
 import WorkStatusBar from "../components/User/WorkStatusBar";
 import { Toaster } from "@/components/ui/sonner";
-import { RiRefreshLine } from "react-icons/ri";
+import { RiRefreshLine, RiSpyLine } from "react-icons/ri";
+
+import { formatIn } from "@/util/format-date";
 import { Button } from "@/components/ui/button";
 import AppBanner from "@/components/app/AppBanner";
 import { cn } from "@/lib/utils";
@@ -151,7 +153,16 @@ const DEFAULT_SHEET_WIDTH = 1328;
 
 const RootLayout = () => {
   const { token } = getLocalStorageData();
-  const { appVersion, userData, prefs } = useLoaderData();
+  const { appVersion, userData, prefs, impersonation } = useLoaderData();
+  const navigate = useNavigate();
+  const impersonatedName =
+    `${userData.lastName || ""} ${userData.firstName || ""}`.trim() ||
+    userData.email;
+  // «через 54 минуты» вместо времени окончания: считать разницу в уме, глядя
+  // на чужой портал, — лишняя работа.
+  const impersonationEnds = impersonation?.until
+    ? formatIn(impersonation.until)
+    : "меньше чем через час";
 
   const initialPrefs = useInitialPrefsStore();
 
@@ -309,6 +320,34 @@ const RootLayout = () => {
                   ним: так он ровно по ширине карточки страницы. Когда листа
                   нет (нет обоев), ограничиваем его сами — иначе растянулся бы
                   на всю рабочую область. */}
+              {/* Работа под чужой учётной записью — состояние, о котором надо
+                  помнить постоянно, поэтому полоса видна на каждой странице и
+                  не закрывается. «Выйти» здесь — обычный выход: своя вкладка
+                  администратора всё это время цела, возвращаться некуда. */}
+              {impersonation && (
+                <AppBanner
+                  tone="warning"
+                  icon={<RiSpyLine />}
+                  title={`Вы под учётной записью: ${impersonatedName}`}
+                  className={cn(
+                    "mb-4",
+                    !userData.backgroundImagePath && "mx-auto w-full max-w-7xl",
+                  )}
+                  action={
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate("/logout")}
+                      className="max-md:w-full"
+                    >
+                      Выйти
+                    </Button>
+                  }
+                >
+                  Сеанс завершится сам {impersonationEnds}. Всё, что вы здесь
+                  сделаете, будет записано на этого человека.
+                </AppBanner>
+              )}
               {versionMismatch && (
                 <AppBanner
                   tone="warning"

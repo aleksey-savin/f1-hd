@@ -101,6 +101,10 @@ export async function action({ request }) {
   }
 
   if (intent === "toggle-active") {
+    // Причина и срок приходят только при отключении: при включении оба поля в
+    // форме отсутствуют, и сервер их же и стирает.
+    const banned = data.get("banned") === "true";
+    const untilDay = data.get("banExpires");
     const response = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/users/toggle-active/${id}`,
       {
@@ -109,6 +113,14 @@ export async function action({ request }) {
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
         },
+        body: JSON.stringify({
+          banned,
+          banReason: banned ? data.get("banReason") || "" : "",
+          // Конец дня, а не полночь: «отключён до 15 августа» человек читает
+          // как «включая пятнадцатое».
+          banExpires:
+            banned && untilDay ? new Date(`${untilDay}T23:59:59`) : null,
+        }),
       },
     );
 

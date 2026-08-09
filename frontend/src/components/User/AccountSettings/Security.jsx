@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
 import PasswordPolicyField from "@/components/app/PasswordPolicyField";
 import SettingRow from "@/components/app/SettingRow";
+import SessionList from "@/components/User/SessionList";
 import { verdictAllows } from "@/lib/password";
 import useToastStore from "@/store/toast-store";
 
@@ -86,6 +87,13 @@ const Security = ({ user }) => {
           Сменить пароль
         </Button>
       </SettingRow>
+
+      {/* Список устройств — ответ на «меня взломали?», за которым в
+          «Безопасность» и приходят. Показываем всем, включая клиентов: это
+          вопрос про свою учётную запись, а не про портал. */}
+      <div className="mt-4">
+        <SessionList self />
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

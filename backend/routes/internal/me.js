@@ -28,6 +28,18 @@ router.get("/me", requireAuth, meController.getMe);
 // — не ошибка, но и не операция.
 router.post("/logout", requireAuth, meController.logout);
 
+/**
+ * Свои сеансы. Всем, включая клиентов: «где я залогинен» — вопрос про свою
+ * учётную запись, а не про портал, и ответ на него не зависит от роли.
+ */
+router.get("/me/sessions", requireAuth, meController.sessions);
+router.delete("/me/sessions/:id", requireAuth, meController.revokeSession);
+router.post(
+  "/me/sessions/revoke-others",
+  requireAuth,
+  meController.revokeOtherSessions,
+);
+
 // Живая проверка пароля для формы: длина плюс списки утечек.
 //
 // БЕЗ requireAuth намеренно. Пароль задают и без сеанса — на странице по

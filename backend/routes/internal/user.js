@@ -1,10 +1,12 @@
 const Router = require("express");
 const router = new Router();
 const userController = require("@/controllers/user");
+const impersonationController = require("@/controllers/impersonation");
 
 const isAuth = require("@/middleware/isAuth");
 const {
   canManageUsers,
+  canImpersonateUsers,
   canManageWorkSchedules,
   isNotClient,
   isAdmin,
@@ -97,6 +99,34 @@ router.post(
   isAuth,
   canManageUsers,
   userController.toggleActive,
+);
+
+// Чужие сеансы — часть работы с учётной записью, поэтому под тем же правом.
+router.get(
+  "/users/:id/sessions",
+  isAuth,
+  canManageUsers,
+  userController.sessions,
+);
+router.delete(
+  "/users/:id/sessions/:sessionId",
+  isAuth,
+  canManageUsers,
+  userController.revokeSession,
+);
+router.post(
+  "/users/:id/sessions/revoke-all",
+  isAuth,
+  canManageUsers,
+  userController.revokeAllSessions,
+);
+
+// Вход под пользователем — СВОЁ право: вести учётки и ходить под ними разные
+// вещи, и второе даётся точечно.
+router.post(
+  "/users/:id/impersonate",
+  canImpersonateUsers,
+  impersonationController.start,
 );
 router.post("/users/reset-password/:id", isAuth, userController.changePassword);
 // Права — внутри контроллера, по той же причине, что и у смены пароля: «своё»

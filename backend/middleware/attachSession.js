@@ -2,6 +2,8 @@ const User = require("@/models/user");
 const { getAuth, getFromNodeHeaders } = require("@/auth/bootstrap");
 const { effectivePermissions } = require("@/services/permissions");
 const { authorizeFor } = require("@/auth/bootstrap");
+const { revokeById } = require("@/services/authSessions");
+const { SESSION_MAX_MS } = require("@/services/impersonation");
 
 /**
  * Единственное место, где решается «кто это». Ставится ОДИН РАЗ на весь /api и
@@ -34,6 +36,21 @@ module.exports = async (req, res, next) => {
     const user = await User.findById(identity.userId);
     if (!user) {
       return next();
+    }
+
+    /**
+     * СРОК СЕАНСА ПОДМЕНЫ СЧИТАЕМ САМИ, а не полагаемся на `expiresAt`.
+     *
+     * Почему не хватает `expiresAt` — в `services/impersonation.js`, там же
+     * лежит и сама константа. Просроченный сеанс гасим: иначе он остался бы
+     * висеть в списке устройств человека.
+     */
+    if (identity.session?.impersonatedBy) {
+      const startedAt = new Date(identity.session.createdAt || 0).getTime();
+      if (Date.now() - startedAt > SESSION_MAX_MS) {
+        await revokeById(user._id, identity.session.id);
+        return next();
+      }
     }
 
     // Отключённая учётка, отключённая компания и служебный аккаунт не дают

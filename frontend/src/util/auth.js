@@ -67,6 +67,8 @@ export async function authDataLoader() {
       permissions: me.permissions,
       prefs: { ...me.prefs, modules: me.modules },
       sessionId: me.sessionId,
+      // Подмена — состояние вкладки: полосу о ней рисует оболочка.
+      impersonation: me.impersonation || null,
     };
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {

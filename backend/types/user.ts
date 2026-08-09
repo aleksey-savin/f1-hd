@@ -23,6 +23,7 @@ export interface IUserPermissions {
   canManageCompanies: boolean;
   canManageUsers: boolean;
   canManageRoles: boolean;
+  canImpersonateUsers: boolean;
   canManageTicketCategories: boolean;
   canManageKnowledgeBase: boolean;
   canSeeKnowledgeBase: boolean;

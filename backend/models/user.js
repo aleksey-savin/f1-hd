@@ -127,6 +127,9 @@ const userSchema = new Schema(
       canManageCompanies: { type: Boolean, default: false },
       canManageUsers: { type: Boolean, default: false },
       canManageRoles: { type: Boolean, default: false },
+      // Вход под пользователем. Право СВОЁ, а не производное от управления
+      // людьми: вести учётки и ходить под ними — разные вещи.
+      canImpersonateUsers: { type: Boolean, default: false },
       canManageTicketCategories: { type: Boolean, default: false },
       canManageKnowledgeBase: { type: Boolean, default: false }, // может создавать/редактировать заметки базы знаний
       canSeeKnowledgeBase: { type: Boolean, default: false }, // может просматривать базу знаний
