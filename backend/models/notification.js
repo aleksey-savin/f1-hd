@@ -74,7 +74,8 @@ notificationSchema.index({ instrument: 1, sent: 1, failed: 1, leaseUntil: 1 });
  * двадцати местах, где создаются уведомления (middleware/notifications.js,
  * services/*Notifications.js, контроллер Mikrotik): «без исключений» иначе не
  * гарантировать — новое место создания просто забудут прикрыть.
- * Дублирующая защита стоит у отправщика (telegram-bot).
+ * Дублирующая защита стоит у отправщиков: `services/mail/send.js` для почты,
+ * `util/chatGuard.ts` в tg-service для телеграма.
  */
 const guardDocument = (doc) => {
   if (!doc || doc.instrument !== "email") {

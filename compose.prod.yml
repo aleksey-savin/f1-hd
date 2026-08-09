@@ -138,35 +138,31 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  telegram-bot:
+  # Заменил telegram-bot. Разница видна прямо здесь: нет доступа к MongoDB, нет
+  # ключей шифрования, нет почтовых секретов — только токен бота, общий секрет с
+  # бэкендом и его адрес. И `.env.prod` целиком ему больше не отдаётся.
+  tg-service:
     build:
-      context: ./telegram-bot
+      context: ./tg-service
       dockerfile: Dockerfile.prod
-    container_name: hd-telegram-bot-prod
+    container_name: hd-tg-service-prod
     restart: unless-stopped
-    env_file:
-      - .env.prod
     environment:
       NODE_ENV: production
-      TG_API_TOKEN: ${TG_API_TOKEN}
       TG_TOKEN: ${TG_TOKEN}
-      MONGODB_USERNAME: ${MONGODB_USERNAME}
-      MONGODB_PASSWORD: ${MONGODB_PASSWORD}
-      MONGODB_DATABASE: ${MONGODB_DATABASE}
+      TG_API_TOKEN: ${TG_API_TOKEN}
       BACKEND_URL: http://backend:8080
+      ADDRESS: ${API_URL}
+    volumes:
+      # Что доставлено, что нарисовано на табло, где остановился диалог.
+      - tg_service_data:/app/data
     networks:
       - hd-network
     depends_on:
-      mongodb:
-        condition: service_healthy
       backend:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "process.exit(0)"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    # Настоящая проверка живёт в образе (Dockerfile.prod): у прежнего бота здесь
+    # стояло `node -e "process.exit(0)"`, то есть контейнер был здоров всегда.
     deploy:
       resources:
         limits:
@@ -188,6 +184,9 @@ volumes:
     external: true
   hd_uploads:
     external: true
+  # Не external: том создаётся на месте и принадлежит этой установке. Потерять
+  # его не страшно — в худшем случае одно уведомление уйдёт повторно.
+  tg_service_data:
 
 networks:
   hd-network:

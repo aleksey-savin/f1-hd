@@ -1714,7 +1714,7 @@ exports.requestDownloadCode = async (req, res, next) => {
       expiresAt: new Date(Date.now() + DOWNLOAD_CODE_TTL_MS),
     });
 
-    // Queue the email (delivered by the telegram-bot mailer worker).
+    // Queue the email (delivered by the mail outbox cron, services/mail/outbox).
     await new Notification({
       instrument: "email",
       to: { email: user.email },

@@ -1,11 +1,11 @@
 const Preferences = require("../../models/preferences");
 
 // Запись состояния почтового канала. Пишут трое — крон сбора, ручная проверка
-// из настроек и telegram-bot при отправке уведомлений; читает строка состояния
+// из настроек и services/mail/outbox при отправке уведомлений; читает строка
 // в секции настроек.
 //
 // ВНИМАНИЕ: файл существует в двух точных копиях — backend/services/mail и
-// telegram-bot/services/mail. Менять синхронно.
+// telegram-bot/services/mail; копия ушла вместе с ботом, файл теперь один.
 const MAILBOX = "mailbox.health";
 const SMTP = "notify.byEmail.health";
 

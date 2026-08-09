@@ -73,7 +73,7 @@ show_help() {
     echo "  --keep-dump           Keep the downloaded dump archive after a successful sync"
     echo "  --from-archive FILE   Restore from an existing dump archive instead of"
     echo "                        downloading a fresh one (never touches production)"
-    echo "  --no-restart          Do not restart backend/telegram-bot containers afterwards"
+    echo "  --no-restart          Do not restart backend/tg-service containers afterwards"
     echo "  -h, --help            Show this help"
     echo ""
     echo "Requirements:"
@@ -467,11 +467,11 @@ fi
 
 if $RESTART_SERVICES; then
     if command -v docker >/dev/null 2>&1; then
-        log_info "Restarting backend and telegram-bot to drop cached state..."
-        docker compose restart backend telegram-bot >/dev/null 2>&1 \
-            || log_warning "Could not restart backend/telegram-bot (are they running?)"
+        log_info "Restarting backend and tg-service to drop cached state..."
+        docker compose restart backend tg-service >/dev/null 2>&1 \
+            || log_warning "Could not restart backend/tg-service (are they running?)"
     else
-        log_warning "docker is not available: restart backend/telegram-bot yourself to drop cached state"
+        log_warning "docker is not available: restart backend/tg-service yourself to drop cached state"
     fi
 fi
 

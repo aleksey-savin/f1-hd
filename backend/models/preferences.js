@@ -6,7 +6,7 @@ const { DEFAULT_OVERTIME_SCHEDULE } = require("../utils/overtimeDefaults");
 const Schema = mongoose.Schema;
 
 // Здоровье внешнего почтового канала — единый контракт для приёма и отправки.
-// Пишут трое: крон сбора (backend), отправка уведомлений (telegram-bot) и ручная
+// Пишут трое: крон сбора, отправка уведомлений (services/mail/outbox) и ручная
 // проверка из настроек; читает строка состояния в секции (app/HealthRow).
 // lastMessageAt — когда канал последний раз реально сработал: забрал письмо
 // (приём) или отправил его (отправка), в отличие от lastOkAt («связь есть»).
@@ -67,8 +67,8 @@ const preferencesSchema = new Schema({
   identifyApplicant: { type: Boolean, default: false },
   checkPhoneNumber: { type: Boolean, default: false },
   deadline: { type: Number, default: 10 },
-  // Политика повторов недоставленных уведомлений — константы бота
-  // (telegram-bot/utils/retryPolicy.js), из настроек убрана осознанно
+  // Политика повторов недоставленных уведомлений — константы
+  // (utils/retryPolicy.js), из настроек убрана осознанно
   notify: {
     personal: {
       newTicket: { type: Boolean, default: false },
@@ -88,7 +88,7 @@ const preferencesSchema = new Schema({
     },
     // Канал отправки (SMTP). Транспорт задаётся так же, как у ящика-приёмника;
     // authMethod "none" — внутренний релей, принимающий почту без пароля.
-    // pass — шифртекст secretBox. Письма шлёт telegram-bot, он же пишет health.
+    // pass — шифртекст secretBox. Письма шлёт services/mail/outbox, он же health.
     byEmail: {
       isActive: { type: Boolean, default: false },
       host: { type: String, default: "" },

@@ -6,7 +6,7 @@ const { decryptSecret, isEncrypted } = require("../crypto/secretBox");
 // в emailHandling (993/tls:true) и в nodemailer-обёртке (только secure).
 //
 // ВНИМАНИЕ: файл существует в двух точных копиях — backend/services/mail и
-// telegram-bot/services/mail (письма отправляет бот, письма забирает бэкенд).
+// telegram-bot/services/mail; копия ушла вместе с ботом, файл теперь один.
 // Менять синхронно, как REPLY_MARKER.
 
 // Дефолтные порты по режиму. Их же подставляет форма настроек при смене режима,

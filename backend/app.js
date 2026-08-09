@@ -37,6 +37,9 @@ const {
   createScheduledWorkNotifications,
 } = require("./middleware/notifications");
 
+// Разбор очереди писем. Раньше жил в telegram-bot — см. services/mail/outbox.
+const { sendPendingEmails } = require("./services/mail/outbox");
+
 const { scheduleLogsCleanup } = require("./middleware/cleanupLogs");
 const {
   runMikrotikHealthCheck,
@@ -361,6 +364,18 @@ guardedCron(
   () => runWorkStatusAuto(),
   120000,
 );
+
+/**
+ * Отправка почтовых уведомлений. Переехало из telegram-bot вместе с самой
+ * почтой: очередь всегда лежала здесь, а разбирал её бот — только потому, что
+ * там крутился крон. Ценой была удалённая машина с почтовым паролем и ключом
+ * его расшифровки.
+ *
+ * Каждые 20 секунд, как и было. `guardedCron` не даёт прогонам наслаиваться:
+ * SMTP отвечает не мгновенно, и на большой пачке следующий тик приходит раньше
+ * конца предыдущего — прежний крон бота от этого ничем не был защищён.
+ */
+guardedCron("mail outbox", "*/20 * * * * *", sendPendingEmails, 110000);
 
 // Refresh connectivity status of monitored Mikrotik devices every 5 minutes.
 guardedCron(

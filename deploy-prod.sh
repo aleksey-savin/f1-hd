@@ -197,7 +197,7 @@ show_status() {
 
     echo ""
     log_info "Service health:"
-    for service in mongodb backend frontend telegram-bot; do
+    for service in mongodb backend frontend tg-service; do
         if docker compose -f compose.prod.yml ps $service | grep -q "healthy"; then
             log_success "$service: healthy"
         elif docker compose -f compose.prod.yml ps $service | grep -q "Up"; then
@@ -334,7 +334,7 @@ case "${1:-deploy}" in
         show_resources
         ;;
     "health")
-        for service in mongodb backend frontend telegram-bot; do
+        for service in mongodb backend frontend tg-service; do
             wait_for_health "$service" || true
         done
         ;;

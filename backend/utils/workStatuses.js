@@ -1,6 +1,7 @@
 // Каталог статусов присутствия сотрудников.
-// Держать в синхронизации три копии: backend/utils/workStatuses.js,
-// telegram-bot/utils/workStatuses.js, frontend/src/util/work-statuses.js
+// Держать в синхронизации две копии: backend/utils/workStatuses.js и
+// frontend/src/util/work-statuses.js. Третьей, в отправщике телеграма, больше
+// нет: tg-service берёт каталог с сервера через GET /api/bot/config
 // (у фронта дополнительно поле color с токеном --ws-st-*).
 // Порядок массива задаёт порядок групп на Telegram-табло и в баре статусов.
 //

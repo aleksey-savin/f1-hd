@@ -1,6 +1,6 @@
 // Каталог статусов присутствия сотрудников.
 // Держать в синхронизации три копии: backend/utils/workStatuses.js,
-// telegram-bot/utils/workStatuses.js, frontend/src/util/work-statuses.js —
+// frontend/src/util/work-statuses.js —
 // синхронизация касается кодов, подписей, порядка и полей kind/manual/visit.
 // Порядок массива задаёт порядок групп в баре статусов и на Telegram-табло.
 //
