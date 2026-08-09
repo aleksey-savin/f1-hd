@@ -279,6 +279,49 @@ exports.update = async (req, res, next) => {
     let secretsJustEnabled = false;
     let serviceJustEnabled = false;
 
+    /**
+     * Требование второго фактора к администраторам.
+     *
+     * ВКЛЮЧИТЬ ЕГО МОЖЕТ ТОЛЬКО ТОТ, У КОГО ФАКТОР УЖЕ ЕСТЬ. Отсрочка спасает
+     * не всегда: если за её срок никто из администраторов так и не настроил
+     * приложение, требование вступает в силу и войти не может НИКТО — включая
+     * тех, кто мог бы его снять. Так и вышло на стенде: оборвавшийся тест
+     * оставил флаг включённым с истёкшей отсрочкой, и вход администраторам
+     * закрылся полностью.
+     *
+     * Правило гарантирует, что хотя бы одна учётная запись с полным доступом
+     * всегда пройдёт. Оно же стоит на сбросе чужого фактора — по той же
+     * причине: цепочка рвётся в слабейшем звене.
+     */
+    if (has("twoFactorPolicy")) {
+      const wanted = Boolean(body.twoFactorPolicy?.requireForAdmins);
+
+      // Проверяем ЛЮБОЕ сохранение с включённым требованием, а не только
+      // переход «выкл→вкл»: иначе администратор без фактора, попавший внутрь
+      // во время отсрочки, продлевал бы её себе бесконечно.
+      if (wanted) {
+        const { isEnabledFor } = require("@/services/twoFactor");
+        if (!(await isEnabledFor(req.auth.user._id))) {
+          return next(
+            new AppError(
+              "Сначала включите второй фактор у себя: иначе требование закроет вход и вам тоже",
+              400,
+            ),
+          );
+        }
+      }
+
+      const grace = body.twoFactorPolicy?.graceUntil
+        ? new Date(body.twoFactorPolicy.graceUntil)
+        : null;
+      preferences.twoFactorPolicy = {
+        requireForAdmins: wanted,
+        // Отсрочка живёт только вместе с требованием; выключили — обнуляем,
+        // чтобы повторное включение не подхватило вчерашнюю дату.
+        graceUntil: wanted ? grace : null,
+      };
+    }
+
     // «Основные»
     if (has("timezone")) preferences.timezone = body.timezone;
     if (has("htmlTicketDesc")) preferences.htmlTicketDesc = body.htmlTicketDesc;

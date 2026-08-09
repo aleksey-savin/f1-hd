@@ -12,9 +12,13 @@ import NavigationBar from "./Navbar";
 import Footer from "./Footer";
 import WorkStatusBar from "../components/User/WorkStatusBar";
 import { Toaster } from "@/components/ui/sonner";
-import { RiRefreshLine, RiSpyLine } from "react-icons/ri";
+import {
+  RiRefreshLine,
+  RiShieldKeyholeLine,
+  RiSpyLine,
+} from "react-icons/ri";
 
-import { formatIn } from "@/util/format-date";
+import { formatDate, formatIn } from "@/util/format-date";
 import { Button } from "@/components/ui/button";
 import AppBanner from "@/components/app/AppBanner";
 import { cn } from "@/lib/utils";
@@ -153,7 +157,8 @@ const DEFAULT_SHEET_WIDTH = 1328;
 
 const RootLayout = () => {
   const { token } = getLocalStorageData();
-  const { appVersion, userData, prefs, impersonation } = useLoaderData();
+  const { appVersion, userData, prefs, impersonation, twoFactorPolicy } =
+    useLoaderData();
   const navigate = useNavigate();
   const impersonatedName =
     `${userData.lastName || ""} ${userData.firstName || ""}`.trim() ||
@@ -346,6 +351,33 @@ const RootLayout = () => {
                 >
                   Сеанс завершится сам {impersonationEnds}. Всё, что вы здесь
                   сделаете, будет записано на этого человека.
+                </AppBanner>
+              )}
+              {/* Требование второго фактора уже включено, но отсрочка ещё не
+                  вышла: полоса называет дату, потому что после неё вход
+                  закроется, и узнать об этом на экране входа — поздно. */}
+              {twoFactorPolicy && (
+                <AppBanner
+                  tone="warning"
+                  icon={<RiShieldKeyholeLine />}
+                  title="Настройте вход по коду из приложения"
+                  className={cn(
+                    "mb-4",
+                    !userData.backgroundImagePath && "mx-auto w-full max-w-7xl",
+                  )}
+                  action={
+                    <Button
+                      size="sm"
+                      onClick={() => navigate("/my-account#security")}
+                      className="max-md:w-full"
+                    >
+                      Настроить
+                    </Button>
+                  }
+                >
+                  {twoFactorPolicy.requiredUntil
+                    ? `Администраторам он обязателен. После ${formatDate(twoFactorPolicy.requiredUntil)} вход без него закроется.`
+                    : "Администраторам он обязателен — вход без него уже закрывается."}
                 </AppBanner>
               )}
               {versionMismatch && (

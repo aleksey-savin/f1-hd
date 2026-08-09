@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const storage = require("../services/storage");
+const logger = require("../utils/logger");
 const { runWorkStatusAuto } = require("../services/workStatusAuto");
 
 const getAuthData = require("../middleware/getAuthData");
@@ -12,6 +13,10 @@ const {
   PasswordPolicyError,
 } = require("../services/authPassword");
 const { getAuth } = require("../auth/bootstrap");
+const {
+  isEnabledFor: isTwoFactorEnabledFor,
+  reset: resetTwoFactorFor,
+} = require("@/services/twoFactor");
 const {
   listForUser,
   revokeById,
@@ -48,6 +53,7 @@ const {
 const { invite } = require("@/services/invitation");
 const {
   ensureMember,
+  removeMembership,
   assign: assignRoles,
   namedRoles,
 } = require("@/services/roles");
@@ -1155,6 +1161,56 @@ exports.revokeSession = async (req, res, next) => {
   }
 };
 
+/**
+ * Сброс второго фактора — когда телефон потерян, а резервные коды не сохранены.
+ *
+ * САМ СБРАСЫВАЮЩИЙ ОБЯЗАН ИМЕТЬ ВТОРОЙ ФАКТОР. Без этого правила цепочка
+ * рвётся в слабейшем звене: администратор без двухфакторки становится способом
+ * снять её у любого, и защита стоит ровно столько, сколько стоит самая слабая
+ * административная учётка.
+ *
+ * Проверка на сервере, а не только в интерфейсе: пункт меню можно не показать,
+ * но ручка обязана отказать сама.
+ */
+exports.resetTwoFactor = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id).select(
+      "_id firstName lastName email",
+    );
+    if (!user) {
+      return next(new AppError("Учётная запись не найдена", 404));
+    }
+
+    if (!(await isTwoFactorEnabledFor(req.auth.user._id))) {
+      return next(
+        new AppError(
+          "Сначала включите двухфакторку у себя: сбрасывать чужую защиту, не имея своей, нельзя",
+          403,
+        ),
+      );
+    }
+
+    const had = await resetTwoFactorFor(user._id);
+    if (!had) {
+      return next(new AppError("У этого человека второй фактор не включён", 400));
+    }
+
+    // Единственная операция, которая ОСЛАБЛЯЕТ чужую защиту, — она обязана
+    // быть видимой в журнале.
+    logger.warn("Двухфакторка сброшена администратором", {
+      module: "user",
+      targetId: String(user._id),
+      targetEmail: user.email,
+      byId: String(req.auth.user._id),
+      byEmail: req.auth.user.email,
+    });
+
+    res.status(200).json({ message: "Двухфакторка сброшена" });
+  } catch (error) {
+    next(new AppError("Не удалось сбросить двухфакторку", 500, true, error));
+  }
+};
+
 /** Завершить все сеансы человека — не отключая саму учётную запись. */
 exports.revokeAllSessions = async (req, res, next) => {
   try {
@@ -1175,6 +1231,24 @@ exports.delete = async (req, res, next) => {
     if (!user) {
       return next(new AppError("Учётная запись не найдена", 404));
     }
+
+    /**
+     * Следы в коллекциях авторизации удаляются ВМЕСТЕ с человеком.
+     *
+     * Раньше не удалялись вовсе, и осиротевшее членство оставалось навсегда:
+     * `usage()` считает носителей роли по строкам `member`, поэтому удалённые
+     * люди продолжали числиться в роли — на стенде так набежало шесть лишних.
+     * Заодно уходят сеансы, пароль и секрет второго фактора: документов без
+     * владельца в этих коллекциях быть не должно.
+     */
+    await removeMembership(user._id);
+    await revokeAllForUser(user._id);
+    await mongoose.connection.db
+      .collection("authAccounts")
+      .deleteMany({ $or: [{ userId: String(user._id) }, { userId: user._id }] });
+    await mongoose.connection.db
+      .collection("authTwoFactors")
+      .deleteMany({ $or: [{ userId: String(user._id) }, { userId: user._id }] });
 
     {
       const company = await Company.findById(user.company._id);

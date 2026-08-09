@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { Link, Outlet, useNavigate } from "react-router";
+import { Link, Outlet, useNavigate, useRevalidator } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
   RiArrowLeftSLine,
@@ -57,6 +57,7 @@ import PresenceText from "./PresenceText";
 import { CLIENT_PERMISSIONS, PERMISSION_MODULES } from "./permissions-catalog";
 import SessionList from "./SessionList";
 import ImpersonateDialog from "./ImpersonateDialog";
+import { TwoFactorReset } from "./TwoFactorRow";
 import { relativeDay } from "../../util/relative-time";
 import { formatDate, formatShortDate } from "../../util/format-date";
 import { formatPrice } from "../../util/format-string";
@@ -120,6 +121,9 @@ const Cap = ({ on, children }) => (
 const ViewUser = ({ user, tickets }) => {
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
+  // Сброс фактора меняет карточку — перечитываем загрузчик, иначе строка
+  // осталась бы «Включён» до перезагрузки страницы.
+  const revalidator = useRevalidator();
   const authedUser = useContext(AuthedUserContext);
   const can = useCan();
   const canManageUsers = can({ user: ["manage"] });
@@ -133,6 +137,7 @@ const ViewUser = ({ user, tickets }) => {
   const [toggleOpen, setToggleOpen] = useState(false);
   const [adOpen, setAdOpen] = useState(false);
   const [impersonateOpen, setImpersonateOpen] = useState(false);
+  const [tfResetOpen, setTfResetOpen] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -155,6 +160,7 @@ const ViewUser = ({ user, tickets }) => {
     isCloudTelephony,
     isAdmin,
     banned,
+    twoFactorEnabled,
     banReason,
     banExpires,
     telegramBot,
@@ -820,6 +826,30 @@ const ViewUser = ({ user, tickets }) => {
                   панелью, а не внутри прав: права отвечают «что можно»,
                   сеансы — «откуда заходят», и объединять их незачем. */}
               <Panel>
+                <div className="mb-4 flex flex-wrap items-center gap-2.5">
+                  <span className="text-[15px] font-medium">
+                    Вход по коду из приложения
+                  </span>
+                  <span
+                    className={
+                      twoFactorEnabled
+                        ? "rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-accent-text"
+                        : "rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-muted-foreground"
+                    }
+                  >
+                    {twoFactorEnabled ? "Включён" : "Выключен"}
+                  </span>
+                  {twoFactorEnabled && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-auto"
+                      onClick={() => setTfResetOpen(true)}
+                    >
+                      Сбросить
+                    </Button>
+                  )}
+                </div>
                 <SessionList userId={user._id} />
               </Panel>
             </>
@@ -908,6 +938,12 @@ const ViewUser = ({ user, tickets }) => {
       {canManageCompanies && company && (
         <LinkAdDialog user={user} open={adOpen} onOpenChange={setAdOpen} />
       )}
+      <TwoFactorReset
+        user={user}
+        open={tfResetOpen}
+        onOpenChange={setTfResetOpen}
+        onDone={() => revalidator.revalidate()}
+      />
       {canImpersonate && (
         <ImpersonateDialog
           user={user}

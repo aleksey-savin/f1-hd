@@ -23,7 +23,18 @@ const signInViaBetterAuth = async (req, res, email, password) => {
   });
 
   if (!response.ok) {
-    return null;
+    /**
+     * Отказ ХУКА, а не ошибка сервера.
+     *
+     * Наши правила отказа живут в `databaseHooks.session.create.before`
+     * (`auth/hooks.js#sessionRefusal`) — там же, где их видят все способы
+     * входа. Оттуда они возвращаются обычным ответом с текстом, и потерять
+     * этот текст нельзя: администратор, которому закрыли вход требованием
+     * второго фактора, иначе увидит «Не удалось создать сеанс» и не поймёт
+     * ничего.
+     */
+    const body = await response.json().catch(() => ({}));
+    return { refused: body?.message || null };
   }
 
   // getSetCookie отдаёт КАЖДУЮ куку отдельной строкой; конкатенация через
@@ -81,12 +92,40 @@ exports.login = async (req, res, next) => {
     // ни одна cookie наружу не уходила и ни одной строки в authSessions не
     // появлялось.
     const issued = await signInViaBetterAuth(req, res, email, password);
-    if (!issued) {
+    if (issued?.refused !== undefined) {
+      // 401, а не 403: форма входа показывает инлайн только статусы из своего
+      // списка, 403 уронил бы её в error boundary.
       return next(
-        new AppError("Не удалось создать сеанс", 500, true, null, {
-          attemptedEmail: email,
-        }),
+        new AppError(
+          issued.refused || "Не удалось создать сеанс",
+          401,
+          true,
+          null,
+          { attemptedEmail: email },
+        ),
       );
+    }
+
+    /**
+     * ВТОРОЙ ФАКТОР: верный пароль НЕ ЗАКАНЧИВАЕТСЯ СЕАНСОМ.
+     *
+     * Плагин `twoFactor` перехватывает вход после проверки пароля, удаляет
+     * только что созданный сеанс и отвечает `{ twoFactorRedirect: true }`.
+     * Токена в ответе нет вовсе — ни в теле, ни в заголовке.
+     *
+     * Ветка общая, поэтому необработанной она ломает вход ВСЕМ, а не только
+     * тем, у кого фактор включён: форма положила бы в хранилище пустой токен и
+     * ушла в приложение без сеанса. `lastLogin` здесь тоже не трогаем — человек
+     * ещё не вошёл.
+     *
+     * Состояние проверки уехало подписанной cookie (её перенёс
+     * `signInViaBetterAuth`), поэтому второй шаг ничего передавать не должен.
+     */
+    if (issued.twoFactorRedirect) {
+      return res.status(200).json({
+        twoFactorRequired: true,
+        methods: issued.twoFactorMethods || ["totp"],
+      });
     }
 
     user.lastLogin = new Date();
@@ -118,6 +157,82 @@ exports.login = async (req, res, next) => {
         attemptedEmail: req.body.email,
       }),
     );
+  }
+};
+
+/**
+ * Второй шаг входа: код из приложения или резервный код.
+ *
+ * Своя ручка поверх плагина по той же причине, что и `/api/login`: форма ждёт
+ * один и тот же ответ (токен, срок, профиль) от обоих шагов, а `lastLogin`
+ * ставится там, где вход действительно состоялся. Плюс лимитер: перебор
+ * шестизначного кода — реальная атака, а не теоретическая.
+ */
+exports.verifyTwoFactor = async (req, res, next) => {
+  const { code, backup } = req.body;
+
+  try {
+    /**
+     * Через `auth.api`, а не через `auth.handler(new Request(...))`: собранный
+     * руками запрос не проходит защиту от CSRF — better-auth требует заголовок
+     * `Origin` на любом запросе с cookie и отвечает «Missing or null Origin».
+     * Пробрасывать же заголовки исходного запроса целиком — то, что делают все
+     * остальные наши обёртки над библиотекой.
+     *
+     * Cookie с состоянием проверки прислал браузер: без неё плагин не знает,
+     * чей вход подтверждают.
+     */
+    const verify = backup
+      ? getAuth().api.verifyBackupCode
+      : getAuth().api.verifyTOTP;
+
+    const response = await verify({
+      body: { code: String(code || "") },
+      headers: getFromNodeHeaders()(req.headers),
+      asResponse: true,
+    });
+
+    if (!response.ok) {
+      return next(
+        new AppError(
+          backup ? "Неверный резервный код" : "Неверный код",
+          401,
+          true,
+        ),
+      );
+    }
+
+    const cookies = response.headers.getSetCookie?.() || [];
+    if (cookies.length) {
+      res.setHeader("Set-Cookie", cookies);
+    }
+    const bearer = response.headers.get("set-auth-token");
+    if (bearer) {
+      res.setHeader("set-auth-token", bearer);
+      res.setHeader("Access-Control-Expose-Headers", "set-auth-token");
+    }
+
+    const body = await response.json().catch(() => ({}));
+    const userId = body?.user?.id || body?.session?.userId;
+    const user = userId ? await User.findById(userId) : null;
+    if (!user) {
+      return next(new AppError("Не удалось завершить вход", 500));
+    }
+
+    user.lastLogin = new Date();
+    await user.save();
+
+    res.status(200).json({
+      token: bearer || null,
+      expiryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      userId: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      isAdmin: user.isAdmin,
+    });
+  } catch (error) {
+    next(new AppError("Не удалось завершить вход", 500, true, error));
   }
 };
 

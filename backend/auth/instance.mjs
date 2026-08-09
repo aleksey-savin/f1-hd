@@ -8,7 +8,13 @@
 
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
-import { admin, bearer, magicLink, organization } from "better-auth/plugins";
+import {
+  admin,
+  bearer,
+  magicLink,
+  organization,
+  twoFactor,
+} from "better-auth/plugins";
 import { createAccessControl, role } from "better-auth/plugins/access";
 import { defaultAc, userAc } from "better-auth/plugins/admin/access";
 import { APIError, createAuthMiddleware } from "better-auth/api";
@@ -190,6 +196,36 @@ export function createAuth({ db, client, config, hooks, statement }) {
       // (`has-permission.mjs`) динамические роли читаются только когда задан
       // `ac`, а он появляется вместе со словарём прав. Без него это четыре
       // пустые коллекции и никакого поведения.
+      /**
+       * Второй фактор — приложение с кодом (TOTP). По умолчанию выключен,
+       * включает человек сам.
+       *
+       * ГЛАВНЫЙ ЭФФЕКТ НЕ В САМОМ ФАКТОРЕ: с этим плагином `signInEmail` на
+       * верный пароль перестаёт возвращать сеанс и отвечает
+       * `{ twoFactorRedirect: true }`. Ветка обработана в `/api/login`; без неё
+       * вход ломается У ВСЕХ, включая тех, у кого фактор не включён.
+       *
+       * Состояние проверки живёт в подписанной cookie, а не в теле, поэтому
+       * `/api/login` обязан переносить `Set-Cookie` — он это и делал ради
+       * обычной сессионной куки.
+       */
+      twoFactor({
+        issuer: config.totpIssuer,
+        // Включение ОБЯЗАНО подтверждаться кодом. Плагин умеет и без этого, но
+        // человек с неверно настроенным приложением запирает себя снаружи и
+        // идёт к администратору — один лишний экран дешевле.
+        skipVerificationOnEnable: false,
+        totpOptions: { digits: 6, period: 30 },
+        backupCodeOptions: { amount: 10, length: 8 },
+        /**
+         * Имя коллекции задаётся ТОЛЬКО через schema: опция `twoFactorTable`
+         * в этой версии плагина игнорируется — `opts` собирается из константы
+         * (`plugins/two-factor/index.mjs`). Префикс тот же, что у остальных
+         * коллекций better-auth: по имени видно владельца.
+         */
+        schema: { twoFactor: { modelName: "authTwoFactors" } },
+      }),
+
       admin({
         bannedUserMessage:
           "Учётная запись отключена. Обратитесь к администратору.",

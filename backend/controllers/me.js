@@ -130,6 +130,15 @@ exports.getMe = async (req, res, next) => {
        * профилем: полосу «вы под учётной записью такого-то» рисует оболочка, и
        * узнать об этом ей больше неоткуда.
        */
+      /**
+       * Требование второго фактора: полосу «настройте до …» рисует оболочка,
+       * а решает всё равно сервер (`auth/hooks.js#sessionRefusal`). Здесь
+       * только то, что нужно показать словами.
+       */
+      twoFactorPolicy:
+        user.isAdmin && !user.twoFactorEnabled && preferences?.twoFactorPolicy?.requireForAdmins
+          ? { requiredUntil: preferences.twoFactorPolicy.graceUntil || null }
+          : null,
       impersonation: session?.impersonatedBy
         ? {
             until: new Date(

@@ -171,6 +171,38 @@ router.post(
   authController.login,
 );
 
+/**
+ * Второй шаг входа.
+ *
+ * ПЕРЕБОР КОДА ОГРАНИЧИВАЕТ НЕ ЭТОТ ЛИМИТЕР, а сам плагин: он считает попытки
+ * на КАЖДУЮ проверку отдельно (`2fa-attempts-…` в `authVerifications`, пять
+ * попыток) и после пятой требует начать вход заново. Это верная гранулярность
+ * — попытка привязана к конкретному входу, а не к адресу.
+ *
+ * Свой лимитер здесь только против объёма запросов. Ключ — cookie проверки, а
+ * не IP: в офисе за одним NAT все сотрудники приходят с одного адреса, и пять
+ * чужих опечаток заперли бы вход всей компании на десять минут. IP остаётся
+ * запасным ключом для запросов вообще без cookie — таких, которые проверять
+ * нечем.
+ */
+const twoFactorLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const cookie = String(req.headers.cookie || "");
+    const match = cookie.match(/(?:^|;\s*)[\w.-]*two_factor=([^;]+)/);
+    return match ? `2fa:${match[1]}` : `ip:${req.ip}`;
+  },
+  message: {
+    error: true,
+    message: "Слишком много попыток. Начните вход заново.",
+  },
+});
+
+router.post("/login/two-factor", twoFactorLimiter, authController.verifyTwoFactor);
+
 // Вход по ссылке из письма — только клиентам; гейт и одинаковый ответ на
 // любой адрес живут в контроллере.
 router.post(

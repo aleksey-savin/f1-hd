@@ -135,7 +135,7 @@ const sendResetPassword = async ({ user, token }) => {
 const sessionRefusal = async (userId) => {
   const User = require("@/models/user");
   const user = await User.findById(userId)
-    .select("isServiceAccount company.isActive")
+    .select("isServiceAccount isAdmin twoFactorEnabled company.isActive")
     .lean();
 
   if (!user) return "Учётная запись не найдена";
@@ -145,6 +145,32 @@ const sessionRefusal = async (userId) => {
   if (user.company?.isActive === false) {
     return "Учётная запись отключена. Обратитесь к администратору.";
   }
+
+  /**
+   * Обязательный второй фактор у администраторов.
+   *
+   * Проверка живёт ЗДЕСЬ, а не в контроллере входа, по той же причине, что и
+   * остальные наши правила отказа: способов войти несколько (пароль, ссылка из
+   * письма, подмена, что появится дальше), и правило, записанное в одном из
+   * них, остальные обходят молча.
+   *
+   * До конца отсрочки не отказываем: иначе включение требования запирает
+   * снаружи того, кто его включил.
+   */
+  if (user.isAdmin && !user.twoFactorEnabled) {
+    const Preferences = require("@/models/preferences");
+    const prefs = await Preferences.findOne({})
+      .select("twoFactorPolicy")
+      .lean();
+    const policy = prefs?.twoFactorPolicy;
+    const graceOver =
+      !policy?.graceUntil || new Date(policy.graceUntil) < new Date();
+
+    if (policy?.requireForAdmins && graceOver) {
+      return "Для администраторов обязателен вход по коду из приложения. Обратитесь к другому администратору.";
+    }
+  }
+
   return null;
 };
 

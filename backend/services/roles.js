@@ -347,6 +347,22 @@ const namedRoles = async (userId) => {
   }));
 };
 
+/**
+ * Снять членство — вместе с удалением человека.
+ *
+ * Без этого строка в `member` остаётся навсегда, а `usage()` считает по ней
+ * носителей роли: удалённые продолжали числиться, и «сколько человек носит
+ * роль» врало тем сильнее, чем дольше живёт установка.
+ */
+const removeMembership = async (userId) => {
+  const orgId = await orgIdOrThrow();
+  const { deletedCount } = await members().deleteMany({
+    organizationId: orgId,
+    userId: String(userId),
+  });
+  return deletedCount;
+};
+
 /** Назначить человеку набор ролей (полная замена, не добавление). */
 const assign = async (userId, keys, can) => {
   const orgId = await orgIdOrThrow();
@@ -453,6 +469,7 @@ module.exports = {
   remove,
   assign,
   ensureMember,
+  removeMembership,
   gaps,
   pluginRole,
   rolesOfMember,

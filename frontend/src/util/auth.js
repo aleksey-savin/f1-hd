@@ -69,6 +69,8 @@ export async function authDataLoader() {
       sessionId: me.sessionId,
       // Подмена — состояние вкладки: полосу о ней рисует оболочка.
       impersonation: me.impersonation || null,
+      // Непустое = требование включено, а фактора у человека ещё нет.
+      twoFactorPolicy: me.twoFactorPolicy || null,
     };
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {

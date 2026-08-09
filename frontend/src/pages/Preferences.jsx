@@ -6,6 +6,7 @@ import SettingsSection from "@/components/app/SettingsSection";
 import AnchorRail from "@/components/app/AnchorRail";
 
 import PrefsGlobals from "../components/Preferences/Globals";
+import PrefsSecurity from "../components/Preferences/Security";
 import PrefsTicketsCollect from "../components/Preferences/TicketsCollect";
 import PrefsNotifications from "../components/Preferences/Notifications";
 import PrefsModules from "../components/Preferences/Modules";
@@ -61,6 +62,11 @@ const Preferences = () => {
       id: "integrations",
       label: "Интеграции",
       element: <PrefsIntegrations prefs={prefs} />,
+    },
+    {
+      id: "security",
+      label: "Безопасность",
+      element: <PrefsSecurity prefs={prefs} />,
     },
     { id: "modules", label: "Модули", element: <PrefsModules prefs={prefs} /> },
     ...(modules.knowledgeBase?.isActive

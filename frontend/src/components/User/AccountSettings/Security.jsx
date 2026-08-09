@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useFetcher } from "react-router";
+import { useFetcher, useRevalidator } from "react-router";
 
 import {
   Dialog,
@@ -15,6 +15,7 @@ import Field from "@/components/app/Field";
 import PasswordPolicyField from "@/components/app/PasswordPolicyField";
 import SettingRow from "@/components/app/SettingRow";
 import SessionList from "@/components/User/SessionList";
+import TwoFactorRow from "@/components/User/TwoFactorRow";
 import { verdictAllows } from "@/lib/password";
 import useToastStore from "@/store/toast-store";
 
@@ -29,6 +30,9 @@ import useToastStore from "@/store/toast-store";
  */
 const Security = ({ user }) => {
   const fetcher = useFetcher();
+  // Включение и выключение фактора меняет профиль — перечитываем загрузчик,
+  // иначе строка осталась бы в прежнем состоянии до перезагрузки страницы.
+  const revalidator = useRevalidator();
 
   const [open, setOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -87,6 +91,15 @@ const Security = ({ user }) => {
           Сменить пароль
         </Button>
       </SettingRow>
+
+      {/* Второй фактор — всем, включая клиентов: это свойство своей учётной
+          записи. Но именно СТРОКОЙ, а не приглашением: подсказка объясняет,
+          что это, и не уговаривает. */}
+      <TwoFactorRow
+        enabled={Boolean(user.twoFactorEnabled)}
+        email={user.email}
+        onChanged={() => revalidator.revalidate()}
+      />
 
       {/* Список устройств — ответ на «меня взломали?», за которым в
           «Безопасность» и приходят. Показываем всем, включая клиентов: это
