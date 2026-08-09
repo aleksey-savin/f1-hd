@@ -6,6 +6,7 @@ const { getAuth, getFromNodeHeaders } = require("../auth/bootstrap");
 // Проверка пароля без создания сеанса — там же, где и его запись: обе
 // операции работают с credential-аккаунтом и обе обходят обёртки плагинов.
 const { verifyUserPassword } = require("../services/authPassword");
+const { bindChat } = require("../services/telegramActor");
 
 /**
  * Создание сеанса с переносом заголовков better-auth на наш ответ.
@@ -239,34 +240,40 @@ exports.verifyTwoFactor = async (req, res, next) => {
 /**
  * Привязка телеграм-чата к учётке. К авторизации отношения не имеет: вызывает
  * бот со своим общим секретом (middleware/isTelegramBot).
+ *
+ * ПОЛЕЗНАЯ НАГРУЗКА `/start` — ОДНОРАЗОВЫЙ КОД, а не `user._id`. Почему именно
+ * так — в `services/telegramPairing`: идентификатор пользователя не секрет и
+ * приезжает в браузер в каждой заявке, так что прежняя схема позволяла привязать
+ * свой телеграм к чужой учётке, зная один ObjectId.
+ *
+ * Имя параметра остаётся `userId`, пока бот не переписан: он шлёт содержимое
+ * `/start` под этим именем и меняется отдельным релизом. Читаем оба.
  */
 exports.authTelegram = async (req, res, next) => {
-  const { userId, chatId } = req.query;
-
   try {
-    const user = await User.findById(userId);
+    const { chatId } = req.query;
+    const code = req.query.code || req.query.userId;
 
-    if (!user) {
-      return next(new AppError("Пользователь не найден", 401));
+    const result = await bindChat({ code, chatId });
+
+    if (!result.ok) {
+      // Формулировки разные, статус один: подсказывать снаружи, чем именно не
+      // подошла попытка, незачем.
+      const message =
+        result.reason === "group-chat"
+          ? "Бота подключают в личном чате, а не в группе"
+          : result.reason === "denied"
+            ? "Учётная запись отключена"
+            : "Ссылка устарела. Откройте «Мой аккаунт → Интеграции» и нажмите «Подключить» ещё раз";
+      return next(new AppError(message, 400));
     }
-
-    user.telegramBot.isActive = true;
-    user.telegramBot.chatId = chatId;
-
-    await user.save();
 
     res.status(200).json({
       message: "Telegram-бот успешно подключен!",
+      firstName: result.user.firstName,
     });
   } catch (error) {
-    next(
-      new AppError(
-        `Failed to auth Telegram for user ${req.query.userId}`,
-        500,
-        true,
-        error,
-      ),
-    );
+    next(new AppError("Не удалось подключить Telegram", 500, true, error));
   }
 };
 

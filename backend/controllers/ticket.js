@@ -8,6 +8,9 @@ const Preferences = require("../models//preferences");
 
 const { Ticket } = require("../models/ticket");
 const { isStaleVersion, sendConflict } = require("../helpers/ticketVersion");
+const {
+  resolveActor: resolveTelegramActor,
+} = require("../services/telegramActor");
 const { deriveTicketTitle } = require("../helpers/deriveTicketTitle");
 const { resolveGetScreenApiKey } = require("../helpers/getScreenKey");
 const User = require("../models//user");
@@ -2296,21 +2299,28 @@ exports.getAllOpenedTg = async (req, res, next) => {
   const contextLogger = logger.addNoAuthContext(req);
   try {
     contextLogger.log("info", "Fetching all opened tickets from Telegram");
-    const chatId = req.query.chat_id;
-    if (!chatId) {
+    /**
+     * Актора разрешает `services/telegramActor` — тот же код, что и у
+     * браузерного сеанса собирает `req.auth`.
+     *
+     * До этого здесь стояло `User.findOne(...)` без проверки результата, а
+     * ниже — `req.auth.can(...)`, которого на маршруте с одним лишь
+     * `isTelegramBot` не существует: ручка отвечала 500 на КАЖДЫЙ вызов с тех
+     * пор, как права переехали на роли. Плюс непривязанный чат ронял
+     * деструктуризацию `null`.
+     */
+    const actor = await resolveTelegramActor(req.query.chat_id);
+    if (!actor) {
       return next(
-        new AppError(`Для обработки запроса требуется корректный chatId`, 401),
+        new AppError(
+          `Telegram не привязан к учётной записи. Привяжите его в «Мой аккаунт»`,
+          401,
+        ),
       );
     }
-    const user = await User.findOne({ "telegramBot.chatId": chatId });
 
-    const { _id: userId, isAdmin, permissions } = user;
-
-    Date.prototype.minusDays = function (days) {
-      let date = new Date(this.valueOf());
-      date.setDate(date.getDate() - days);
-      return date;
-    };
+    const user = actor.user;
+    const userId = user._id;
 
     const allTickets = await Ticket.find({ isClosed: false })
       .populate({
@@ -2336,16 +2346,19 @@ exports.getAllOpenedTg = async (req, res, next) => {
     let tickets = [];
 
     if (
-      req.auth.can({
+      actor.can({
         ticket: { actions: ["administrate", "readAll"], connector: "OR" },
       })
     ) {
       // Пользователи с ролью администратор
       tickets = allTickets;
-    } else if (req.auth.can({ ticket: ["readCompany"] })) {
+    } else if (actor.can({ ticket: ["readCompany"] })) {
       // Пользователи с разрешением на просмотр всех заявок Компании
+      // Сравнение строками: `_id` — это ObjectId, и `===` между двумя
+      // объектами всегда ложь, то есть ветка не срабатывала никогда.
       tickets = allTickets.filter(
-        (ticket) => ticket.company._id === user.company._id,
+        (ticket) =>
+          String(ticket.company?._id) === String(user.company?._id),
       );
     } else {
       // Остальные пользователи

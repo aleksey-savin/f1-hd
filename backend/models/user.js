@@ -298,9 +298,16 @@ const userSchema = new Schema(
     verifyTokenExpiration: Date,
     resetToken: String,
     resetTokenExpiration: Date,
+    // Привязка телеграма. `chatId` — идентификатор ЛИЧНОГО чата, он же id
+    // пользователя в Telegram. Ставится только обменом одноразового кода
+    // (`services/telegramActor#bindChat`) и снимается владельцем; из тела
+    // запроса не принимается — иначе на чужой чат можно указать себе сам.
     telegramBot: {
       isActive: { type: Boolean, default: false },
       chatId: { type: String, default: "" },
+      // Когда привязали. Раньше о привязке не оставалось ничего: ни времени, ни
+      // следа, и захват учётки был бы невидим и нереконструируем.
+      linkedAt: { type: Date, default: null },
     },
     // Статус присутствия («в офисе», «на выезде»…). updatedAt ставится вручную
     // при смене статуса — от него считается футер «Обновлено» Telegram-табло.

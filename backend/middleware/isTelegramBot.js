@@ -4,11 +4,15 @@ const { AppError } = require("./errorHandling");
 const logger = require("../utils/logger");
 
 /**
- * Общий секрет между бэкендом и telegram-bot. Заголовок, а не query: строка
- * запроса целиком попадает в `access.log` nginx (`$request` в `log_format
- * main`) и в наши winston-логи, то есть токен оседал в двух журналах на каждом
- * вызове. Query поддерживаем как переходную форму — бот и бэкенд деплоятся
- * одним `deploy-prod.sh`, но дев-стенд и прод могут разъехаться по времени.
+ * Общий секрет между бэкендом и telegram-bot. Заголовок, и только заголовок:
+ * строка запроса целиком попадает в `access.log` nginx (`$request` в
+ * `log_format main`) и в наши winston-логи, то есть при передаче через query
+ * токен оседал в двух журналах на каждом вызове.
+ *
+ * Переходная поддержка `?api_token=` СНЯТА: бот шлёт заголовок всеми четырьмя
+ * вызовами (`telegram-bot/middleware/tgBotApi.js:99,117,136,577`), а пока
+ * запасная дорога открыта, любой токен, утёкший в старый `access.log`,
+ * остаётся рабочим ключом.
  */
 const HEADER = "x-tg-token";
 
@@ -23,7 +27,7 @@ const tokensMatch = (expected, received) => {
 module.exports = (req, res, next) => {
   const contextLogger = logger.addNoAuthContext(req);
   const expected = process.env.TG_API_TOKEN;
-  const received = req.get(HEADER) || req.query.api_token;
+  const received = req.get(HEADER);
 
   // Раньше здесь было `process.env.TG_API_TOKEN === apiToken`: при незаданной
   // переменной запрос без токена давал `undefined === undefined`, то есть
@@ -36,13 +40,6 @@ module.exports = (req, res, next) => {
   if (!received || !tokensMatch(expected, received)) {
     contextLogger.log("error", "Некорректный токен");
     return next(new AppError("Некорректный токен", 401));
-  }
-
-  if (!req.get(HEADER)) {
-    contextLogger.log(
-      "warn",
-      "Токен бота пришёл в query — обновите telegram-bot до передачи заголовка",
-    );
   }
 
   next();

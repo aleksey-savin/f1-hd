@@ -9,6 +9,10 @@ const {
   revokeOthersForUser,
 } = require("@/services/authSessions");
 const { checkBreached, policy } = require("@/services/passwordPolicy");
+const {
+  issue: issuePairingCode,
+  CODE_TTL_MS: PAIRING_CODE_TTL_MS,
+} = require("@/services/telegramPairing");
 const { isModerator } = require("@/helpers/knowledgeNoteVisibility");
 const {
   getModerationCounts,
@@ -238,6 +242,26 @@ exports.revokeOtherSessions = async (req, res, next) => {
     res.status(200).json({ message: "Остальные сеансы завершены", count });
   } catch (error) {
     next(new AppError("Не удалось завершить сеансы", 500, true, error));
+  }
+};
+
+/**
+ * Код для привязки телеграма. Выдаётся ТОЛЬКО на себя: учётку берём из сеанса,
+ * а не из параметра, иначе ручка сама стала бы способом привязать чужую.
+ *
+ * Открытым код существует ровно в этом ответе; в базе лежит его хеш.
+ */
+exports.telegramPairingCode = async (req, res, next) => {
+  try {
+    const { code, expiresAt } = await issuePairingCode(req.auth.user._id);
+    res.status(200).json({
+      code,
+      expiresAt,
+      // Минуты жизни нужны интерфейсу, чтобы объяснить отказ на той стороне.
+      ttlMinutes: Math.round(PAIRING_CODE_TTL_MS / 60000),
+    });
+  } catch (error) {
+    next(new AppError("Не удалось подготовить привязку", 500, true, error));
   }
 };
 

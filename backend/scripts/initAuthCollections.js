@@ -40,6 +40,14 @@ const INDEXES = [
     { expiresAt: 1 },
     { expireAfterSeconds: 0, name: "ttl" },
   ],
+
+  // Одноразовые коды привязки телеграма — устройство то же и по той же причине.
+  ["telegramPairingCodes", { code: 1 }, { unique: true, name: "code" }],
+  [
+    "telegramPairingCodes",
+    { expiresAt: 1 },
+    { expireAfterSeconds: 0, name: "ttl" },
+  ],
 ];
 
 const run = async () => {
@@ -59,6 +67,7 @@ const run = async () => {
     "authAccounts",
     "authVerifications",
     "impersonationCodes",
+    "telegramPairingCodes",
   ]) {
     const names = (await db.collection(collection).indexes()).map((index) => index.name);
     console.log(`  ${collection}: ${names.join(", ")}`);

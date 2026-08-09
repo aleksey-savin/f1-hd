@@ -5,14 +5,20 @@ import { RiTelegramLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
 import SettingRow from "@/components/app/SettingRow";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import useToastStore from "../../../store/toast-store";
 
 // Секция «Интеграции»: Telegram-бот. Статус — цветной текст с точкой (язык
-// статус-борда), не бейдж. «Подключить» ведёт в бота с deep-link на userId —
-// привязку подтверждает сам бот (/start → /api/tg/auth), поэтому после клика
-// страница поллит loader ревалидацией, пока статус не станет «Подключён».
+// статус-борда), не бейдж. «Подключить» ведёт в бота с deep-link на ОДНОРАЗОВЫЙ
+// КОД — привязку подтверждает сам бот (/start → /api/tg/auth), поэтому после
+// клика страница поллит loader ревалидацией, пока статус не станет «Подключён».
 // «Отключить» — router-action (intent integrations-update очищает chatId).
+//
+// В ссылке был `user._id`, и это была дыра: идентификатор не секрет (он приезжает
+// в браузер в каждой заявке), поэтому `/start <чужой id>` привязывал чужую
+// учётку к своему телеграму. Теперь код берётся с сервера на каждый клик, живёт
+// пятнадцать минут и обменивается один раз — см. backend/services/telegramPairing.
 const POLL_INTERVAL_MS = 4000;
 const POLL_TIMEOUT_MS = 2 * 60 * 1000;
 
@@ -24,6 +30,47 @@ const Integrations = ({ user }) => {
 
   const connected = !!user.telegramBot?.isActive;
   const [awaitingLink, setAwaitingLink] = useState(false);
+  const [pairing, setPairing] = useState(false);
+
+  /**
+   * Код берётся на КАЖДЫЙ клик и живёт пятнадцать минут: держать его заранее
+   * негде — выписанный код это живой ключ к учётной записи, и выписывать его
+   * при каждом открытии страницы значило бы плодить ключи, которых никто не
+   * просил.
+   */
+  const connect = async () => {
+    if (pairing) return;
+    setPairing(true);
+
+    // Вкладку открываем СИНХРОННО, до запроса: открытую после `await` браузер
+    // уже не считает следствием клика и блокирует как всплывающую.
+    const target = window.open("", "_blank");
+
+    try {
+      const { code } = await api("/api/me/telegram/pairing-code", {
+        method: "POST",
+      });
+      const url = `https://t.me/${import.meta.env.VITE_TG_BOT_NAME}?start=${code}`;
+
+      if (target) {
+        // Обратную ссылку рвём ДО перехода, пока вкладка ещё about:blank и
+        // своя: с живым `opener` открытая страница может переписать нашу
+        // вкладку. У прежней разметки это делал `rel="noreferrer"`.
+        target.opener = null;
+        target.location = url;
+      } else {
+        // Блокировщик всплывающих окон: уходим текущей вкладкой. Телеграм
+        // откроется приложением, а вернувшись, человек увидит уже «Подключён».
+        window.location.href = url;
+      }
+      setAwaitingLink(true);
+    } catch (error) {
+      target?.close();
+      showToast("danger", error?.message || "Не удалось подготовить привязку");
+    } finally {
+      setPairing(false);
+    }
+  };
 
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data?.message) {
@@ -118,15 +165,13 @@ const Integrations = ({ user }) => {
           </Button>
         </fetcher.Form>
       ) : (
-        <Button asChild variant="outline" size="sm">
-          <a
-            href={`https://t.me/${import.meta.env.VITE_TG_BOT_NAME}?start=${user._id}`}
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => setAwaitingLink(true)}
-          >
-            Подключить
-          </a>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={connect}
+          disabled={pairing}
+        >
+          Подключить
         </Button>
       )}
     </SettingRow>

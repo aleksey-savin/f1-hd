@@ -40,6 +40,27 @@ router.post(
   meController.revokeOtherSessions,
 );
 
+/**
+ * Код для привязки телеграма. Лимитер скромный: коды одноразовые и живут
+ * пятнадцать минут, так что каждый лишний выписанный — это лишний живой ключ к
+ * учётной записи, пусть и на её же владельца. Пять на попытку подключения с
+ * запасом хватает, а накопить их пачку не даёт.
+ */
+const telegramPairingLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.auth?.userId || req.ip),
+});
+
+router.post(
+  "/me/telegram/pairing-code",
+  requireAuth,
+  telegramPairingLimiter,
+  meController.telegramPairingCode,
+);
+
 // Живая проверка пароля для формы: длина плюс списки утечек.
 //
 // БЕЗ requireAuth намеренно. Пароль задают и без сеанса — на странице по

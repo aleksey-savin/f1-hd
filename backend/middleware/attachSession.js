@@ -1,7 +1,6 @@
 const User = require("@/models/user");
 const { getAuth, getFromNodeHeaders } = require("@/auth/bootstrap");
-const { effectivePermissions } = require("@/services/permissions");
-const { authorizeFor } = require("@/auth/bootstrap");
+const { buildAuthContext, isDeniedAccount } = require("@/services/authContext");
 const { revokeById } = require("@/services/authSessions");
 const { SESSION_MAX_MS } = require("@/services/impersonation");
 
@@ -54,38 +53,14 @@ module.exports = async (req, res, next) => {
     }
 
     // Отключённая учётка, отключённая компания и служебный аккаунт не дают
-    // доступа даже с валидным токеном — как и раньше в isAuth. Компания
-    // остаётся отдельной проверкой: у better-auth нет понятия «организация
-    // отключила сотрудника», это прикладное правило.
-    if (user.banned || user.company?.isActive === false || user.isServiceAccount) {
+    // доступа даже с валидным токеном — как и раньше в isAuth. Основания
+    // отказа общие для всех способов входа и живут в services/authContext,
+    // чтобы телеграм-актор не смог начать пускать тех, кого не пускает браузер.
+    if (isDeniedAccount(user)) {
       return next();
     }
 
-    // Роли разрешаются ОДИН РАЗ на запрос: штатный hasPermission плагина ходит
-    // в базу за всеми ролями организации при каждом вызове, а проверок на
-    // запрос бывает несколько. Само решение принимает всё равно функция
-    // better-auth (`authorizeFor`), своей логики прав у нас нет.
-    const { statements, permissions } = await effectivePermissions(user);
-    const isAdmin = Boolean(user.isAdmin);
-
-    req.auth = {
-      userId: user._id.toString(),
-      user,
-      permissions,
-      statements,
-      /**
-       * `can({ ticket: ["delete"] })` — тот же запрос, что понимает плагин.
-       * Администратор проходит везде: это не право, а признак учётной записи.
-       */
-      can: (request) => isAdmin || authorizeFor(statements)(request),
-      isAdmin,
-      isEndUser: user.isEndUser !== false,
-      session: identity.session,
-      // Форма, которую сорок раз ждёт код через getAuthData: тот же плоский
-      // объект пользователя плюс userId. Отличие одно — permissions здесь
-      // ЭФФЕКТИВНЫЕ и всегда полные.
-      legacy: { ...user.toObject(), userId: user._id.toString(), permissions },
-    };
+    req.auth = await buildAuthContext(user, identity.session);
     // ~52 маршрута читают req.userId напрямую — сохраняем.
     req.userId = req.auth.userId;
 

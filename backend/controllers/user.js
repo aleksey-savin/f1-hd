@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const storage = require("../services/storage");
 const logger = require("../utils/logger");
 const { runWorkStatusAuto } = require("../services/workStatusAuto");
+const { resolveActor: resolveTelegramActor } = require("../services/telegramActor");
 
 const getAuthData = require("../middleware/getAuthData");
 const {
@@ -1626,9 +1627,29 @@ exports.updateMyAccount = async (req, res, next) => {
         }
       }
     }
-    // telegramBot приходит только целым объектом из «Интеграций» (отключение
-    // бота); при прочих intent'ах поле не присылается и привязка не трогается.
-    user.telegramBot = telegramBot ? telegramBot : user.telegramBot;
+    /**
+     * ОТСЮДА ПРИВЯЗКУ МОЖНО ТОЛЬКО СНЯТЬ.
+     *
+     * Раньше здесь стояло `user.telegramBot = telegramBot`, то есть объект
+     * принимался из тела запроса целиком, а ручка защищена одним лишь
+     * `isAuth`. Любой вошедший мог прислать себе чужой `chatId` — и получить
+     * два последствия сразу: свои уведомления по заявкам в чужой чат и второй
+     * документ с тем же `chatId`, после чего бот (`findOne` без уникального
+     * индекса) начинал выбирать между двумя учётками произвольно.
+     *
+     * Комментарий на этом месте утверждал, что «telegramBot приходит только
+     * целым объектом из Интеграций». Это было правдой про наш интерфейс и
+     * ничего не значило про запрос: форму присылает клиент.
+     *
+     * Привязка теперь ставится единственным путём — обменом одноразового кода
+     * в `services/telegramActor#bindChat`. Здесь остаётся ровно отключение, и
+     * `chatId` из запроса не читается вовсе.
+     */
+    if (telegramBot) {
+      user.set("telegramBot.isActive", false);
+      user.set("telegramBot.chatId", "");
+      user.set("telegramBot.linkedAt", null);
+    }
 
     await user.save();
 
@@ -1714,15 +1735,18 @@ exports.setWorkStatus = async (req, res, next) => {
 // Смена статуса тапом по инлайн-кнопке под Telegram-табло. Сотрудник
 // определяется по личному chat id (равен telegram user id в приватном чате).
 // Заметка при этом очищается — она описывала предыдущий статус.
+//
+// Актора разрешает `services/telegramActor`, а не запрос своими руками: там же
+// живут проверки `banned`, отключённой компании и служебной учётки, которых
+// здесь не было вовсе — отключённый сотрудник продолжал менять свой статус.
+// Заодно уходит `String(tgUserId || "")`: пустая строка совпадала с дефолтным
+// `chatId: ""` непривязанных учёток.
 exports.setWorkStatusFromTelegram = async (req, res, next) => {
   try {
-    const { tgUserId, code } = req.query;
+    const { code } = req.query;
 
-    const user = await User.findOne({
-      "telegramBot.chatId": String(tgUserId || ""),
-      "telegramBot.isActive": true,
-    });
-    if (!user) {
+    const actor = await resolveTelegramActor(req.query.tgUserId);
+    if (!actor) {
       return next(
         new AppError(
           "Telegram не привязан к учётной записи. Привяжите его в «Мой аккаунт»",
@@ -1731,6 +1755,7 @@ exports.setWorkStatusFromTelegram = async (req, res, next) => {
         ),
       );
     }
+    const user = actor.user;
     if (user.isEndUser || user.isServiceAccount) {
       return next(
         new AppError("Статусы доступны только сотрудникам", 403, true),
