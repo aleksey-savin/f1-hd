@@ -25,7 +25,7 @@ exports.getSummary = async (req, res, next) => {
     let targetUserId = authData.userId;
     if (requestedUserId && requestedUserId !== String(authData.userId)) {
       const canSeeOthers =
-        authData.isAdmin || authData.permissions?.canSeeGlobalFinancialReport;
+        req.auth.can({ finances: ["readGlobalReport"] });
       if (!canSeeOthers) {
         return next(
           new AppError(

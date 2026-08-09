@@ -16,10 +16,7 @@ exports.getCompanies = async (req, res, next) => {
       companies = await Company.find({
         _id: authedUser.company._id,
       }).sort({ alias: 1 });
-    } else if (
-      authedUser.permissions.canAdministrateTickets ||
-      authedUser.isAdmin
-    ) {
+    } else if (req.auth.can({ ticket: ["administrate"] })) {
       companies = await Company.find({}).sort({ alias: 1 });
     } else {
       companies = await Company.find({
@@ -43,7 +40,7 @@ exports.getServiceAccounts = async (req, res, next) => {
   try {
     const users = await User.find({
       isServiceAccount: true,
-      isActive: true,
+      banned: { $ne: true },
     });
     const shortenedUsersList = users.map((user) => ({
       _id: user._id,

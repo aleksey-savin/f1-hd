@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useState } from "react";
 
 import {
   RiAttachment2,
@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 
 import useHttp from "../../../hooks/use-http";
-import { AuthedUserContext } from "../../../store/authed-user-context";
 import useInitialPrefsStore from "../../../store/prefs";
 import useToastStore from "../../../store/toast-store";
 import useViewTicketStore from "../../../store/view-ticket";
@@ -25,6 +24,7 @@ import { getLocalStorageData } from "../../../util/auth";
 
 import AttachmentChip from "./AttachmentChip";
 import { attachmentKind, attachmentName, fileUrl } from "./attachment-utils";
+import { useCan } from "@/store/authed-user";
 
 /**
  * Вложения заявки — лента в подвале секции «Описание», а не своя секция.
@@ -49,7 +49,7 @@ const VISIBLE_LIMIT = 4;
 
 export const useAttachments = (ticket) => {
   const { token } = getLocalStorageData();
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
   const { showToast } = useToastStore();
   const store = useViewTicketStore();
   const { sendRequest } = useHttp();
@@ -59,11 +59,11 @@ export const useAttachments = (ticket) => {
 
   const { ai } = useInitialPrefsStore();
 
-  const canUpload = !ticket.isArchived && permissions?.canPerformTickets;
-  const canDelete = !ticket.isArchived && permissions?.canAdministrateTickets;
+  const canUpload = !ticket.isArchived && can({ ticket: ["perform"] });
+  const canDelete = !ticket.isArchived && can({ ticket: ["administrate"] });
   const canTranscribe =
     !ticket.isArchived &&
-    permissions?.canPerformTickets &&
+    can({ ticket: ["perform"] }) &&
     ai?.speechToText?.isActive;
 
   const sync = (next) =>

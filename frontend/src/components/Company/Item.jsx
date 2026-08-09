@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { canManageEntity } from "@/components/app/entity-permissions";
-import { useAuthedUser } from "@/store/authed-user";
+import { useAuthedUser, useCan } from "@/store/authed-user";
 import useOffcanvasStore from "@/store/offcanvas";
 import useInitialPrefs from "@/store/prefs";
 import { cn } from "@/lib/utils";
@@ -79,9 +79,10 @@ const CompanyItem = ({ item }) => {
   const offcanvas = useOffcanvasStore();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
-  const { _id: authedId, permissions } = useAuthedUser();
+  const { _id: authedId } = useAuthedUser();
+  const can = useCan();
   const { taxi } = useInitialPrefs();
-  const canManage = canManageEntity("company", permissions, item, authedId);
+  const canManage = canManageEntity("company", can, item, authedId);
 
   const detailTo = `/companies/${_id}`;
   const updateTo = `update/${_id}`;

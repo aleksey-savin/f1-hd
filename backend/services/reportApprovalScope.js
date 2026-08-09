@@ -3,6 +3,7 @@ const Subdivision = require("@/models/subdivision");
 
 const { allPartsApproved } = require("@/services/reportApproval");
 const { buildSubdivisionIndex } = require("@/services/subdivisionTree");
+const { canFor } = require("@/services/permissions");
 
 /**
  * Кто и что видит в «Согласовании работ».
@@ -123,11 +124,12 @@ const emptyScope = (isClientView) =>
 
 const resolveReportApprovalScope = async (authedUser) => {
   const userId = authedUser.userId || idOf(authedUser._id);
-  const isAdmin = Boolean(authedUser.isAdmin);
-  const permissions = authedUser.permissions || {};
+  // Права спрашиваем у словаря, а не читаем флаг из документа: с ролями флага
+  // там нет. Скоуп остаётся нашим — право открывает раздел, скоуп решает объём.
+  const can = await canFor(authedUser);
 
   if (!authedUser.isEndUser) {
-    if (!isAdmin && !permissions.canSeeGlobalFinancialReport) {
+    if (!can({ finances: ["readGlobalReport"] })) {
       return emptyScope(false);
     }
     return withPredicates({
@@ -139,7 +141,7 @@ const resolveReportApprovalScope = async (authedUser) => {
     });
   }
 
-  if (!isAdmin && !permissions.canApproveWorkReports) {
+  if (!can({ workReport: ["approve"] })) {
     return emptyScope(true);
   }
 

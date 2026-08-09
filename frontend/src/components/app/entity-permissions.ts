@@ -1,11 +1,11 @@
 // Кто может управлять сущностью списка (Изменить/Удалить в «⋯»-меню).
 // Матрица перенесена из легаси UI/ItemCard.jsx — используется и карточками,
 // и строками списков.
-type Permissions = Record<string, boolean>;
+import type { Can } from "@/lib/access";
 
 export function canManageEntity(
   itemTitle: string | undefined,
-  permissions: Permissions,
+  can: Can,
   item: { createdBy?: unknown },
   userId?: string,
 ): boolean {
@@ -17,26 +17,28 @@ export function canManageEntity(
     case "supplier":
     case "deviceAttribute":
     case "location":
-      return !!permissions.canManageClientDevices;
+      return !!can({ clientDevice: ["manage"] });
     case "company":
-      return !!permissions.canManageCompanies;
+      return !!can({ company: ["manage"] });
     case "routineTask":
-      return !!permissions.canManageRoutineTasks;
+      return !!can({ routineTask: ["manage"] });
     case "servicePlan":
-      return !!permissions.canManageServicePlans;
+      return !!can({ servicePlan: ["manage"] });
     case "ticket":
-      return !!(permissions.canEditTickets || permissions.canDeleteTickets);
+      return !!(can({ ticket: ["update"] }) || can({ ticket: ["delete"] }));
     case "ticketCategory":
-      return !!permissions.canManageTicketCategories;
+      return !!can({ ticketCategory: ["manage"] });
     // Шаблоны чек-листов правит тот же, кто администрирует заявки — как и
     // маршрут на бэкенде (routes/internal/checklistTemplate.js)
     case "checklistTemplate":
-      return !!permissions.canAdministrateTickets;
+      return !!can({ ticket: ["administrate"] });
     case "user":
-      return !!permissions.canManageUsers;
+      return !!can({ user: ["manage"] });
+    case "role":
+      return !!can({ role: ["manage"] });
     case "ticketTemplate":
       return !!(
-        permissions.canManageTicketTemplates ||
+        can({ ticketTemplate: ["manage"] }) ||
         (item.createdBy != null && String(item.createdBy) === userId)
       );
     default:

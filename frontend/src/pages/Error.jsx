@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect } from "react";
 import { useNavigate, useRouteError } from "react-router";
 
 import useRouteErrorStore from "../store/route-error";
+import { clearSession } from "./Auth/session";
 
 import NotFound from "../components/Error/404";
 import Forbidden from "../components/Error/403";
@@ -29,9 +30,12 @@ const Error = () => {
     return () => setRouteError(false);
   }, [setRouteError]);
 
-  // Недействительный или протухший токен — не страница, а вход заново.
+  // Недействительный или отозванный сеанс — не страница, а вход заново.
+  // clearSession обязателен: без него следующий заход утыкался в тот же
+  // мёртвый токен и снова оказывался здесь.
   useEffect(() => {
     if (status === 401) {
+      clearSession();
       navigate("/auth");
     }
   }, [status, navigate]);

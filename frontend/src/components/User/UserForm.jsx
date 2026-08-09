@@ -1,10 +1,11 @@
 import { useContext, useEffect, useState } from "react";
 import { useFetcher, useLoaderData, useNavigate } from "react-router";
-import { RiDiceLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
+import PasswordPolicyField from "@/components/app/PasswordPolicyField";
+import PermissionModules from "./PermissionModules";
 import SwitchField from "@/components/app/SwitchField";
 import Segmented from "@/components/app/Segmented";
 import WizardStepper from "@/components/app/WizardStepper";
@@ -16,6 +17,7 @@ import ScheduleEditor, {
   SCHEDULE_DAYS,
 } from "@/components/app/ScheduleEditor";
 import { cn } from "@/lib/utils";
+import { verdictAllows } from "@/lib/password";
 
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import useOffcanvasStore from "../../store/offcanvas";
@@ -32,12 +34,12 @@ import {
   CLIENT_PERMISSIONS,
   CLIENT_PERMISSION_KEYS,
   NOTIFY_EVENTS,
-  PERMISSION_MODULES,
   WORK_TIME_MODES,
   kindOfUser,
   kindToFlags,
 } from "./permissions-catalog";
 import FormSummary from "./FormSummary";
+import { useCan } from "@/store/authed-user";
 
 // Форма пользователя: создание — визард со сводкой, правка — плоские секции
 // (конвенция ux-ui-guide). Набор шагов зависит от типа аккаунта: клиенту не
@@ -51,9 +53,6 @@ const emptyNotify = () => ({
   byTelegram: Object.fromEntries(NOTIFY_EVENTS.map((e) => [e.key, true])),
   byEmail: Object.fromEntries(NOTIFY_EVENTS.map((e) => [e.key, true])),
 });
-
-const randomPassword = () =>
-  `${Math.random().toString(36).slice(-10)}${Math.random().toString(36).slice(-4)}`;
 
 /* ---------- график работы ---------- */
 // График сотрудника правится ЗДЕСЬ, а не отдельным редактором на карточке:
@@ -145,17 +144,19 @@ const UserForm = () => {
   const isEdit = !!user?._id;
 
   const authedUser = useContext(AuthedUserContext);
+
+  const can = useCan();
   const canEditFinances = Boolean(
-    authedUser.isAdmin || authedUser.permissions?.canSeeGlobalFinancialReport,
+    authedUser.isAdmin || can({ finances: ["readGlobalReport"] }),
   );
   // Правка пользователя и правка графика — разные права. У кого есть только
   // второе (офис-менеджер, ведущий графики), форма открывается одной секцией
   // «График работы» и уходит своим endpoint'ом (см. pages/User/Update.jsx).
   const canManageUsers = Boolean(
-    authedUser.isAdmin || authedUser.permissions?.canManageUsers,
+    authedUser.isAdmin || can({ user: ["manage"] }),
   );
   const canManageSchedule = Boolean(
-    authedUser.isAdmin || authedUser.permissions?.canManageWorkSchedules,
+    authedUser.isAdmin || can({ workSchedule: ["manage"] }),
   );
   // Глобальная интеграция включена — ключ правят только у клиентов (как в легаси)
   const prefsGetScreenActive = Boolean(
@@ -168,6 +169,9 @@ const UserForm = () => {
   const offcanvas = useOffcanvasStore();
 
   const [kind, setKind] = useState(kindOfUser(user));
+  // Вердикт по паролю живёт рядом с формой: шаг «Человек» не пускает дальше,
+  // пока пароль не пройдёт те же проверки, что и на сервере.
+  const [passwordVerdict, setPasswordVerdict] = useState({ kind: "idle" });
   const [form, setForm] = useState({
     firstName: user?.firstName || "",
     lastName: user?.lastName || "",
@@ -176,7 +180,7 @@ const UserForm = () => {
     position: user?.position || "",
     password: "",
     sendPassword: false,
-    isActive: user?.isActive ?? true,
+    isActive: !user?.banned,
     workStatusEnabled: user ? !user.hideWorkStatus : true,
     isCloudTelephony: !!user?.isCloudTelephony,
     isAdmin: !!user?.isAdmin,
@@ -289,8 +293,13 @@ const UserForm = () => {
         return isService ? "Укажите наименование" : "Укажите имя";
       if (!isService && !form.lastName.trim()) return "Укажите фамилию";
       if (!form.email.trim()) return "Укажите email";
-      if (!isEdit && !isService && !form.password.trim())
-        return "Задайте пароль";
+      if (!isEdit && !isService) {
+        if (!form.password.trim()) return "Задайте пароль";
+        // Причина отказа уже написана под полем — сюда её не дублируем, иначе
+        // человек читает одно и то же дважды и разными словами.
+        if (!verdictAllows(passwordVerdict))
+          return "Пароль не подходит — см. подсказку под полем";
+      }
       return null;
     }
     if (key === "org" && !form.company) return "Выберите компанию";
@@ -382,7 +391,9 @@ const UserForm = () => {
       position: isService ? "" : form.position,
       ...kindToFlags(kind, { isCloudTelephony: form.isCloudTelephony }),
       isAdmin: isStaff ? form.isAdmin : false,
-      isActive: form.isActive,
+      // Форма говорит «Активен», база хранит обратное — переворачиваем здесь,
+      // в единственной точке, а не заводим в интерфейсе слово «бан».
+      banned: !form.isActive,
       hideWorkStatus: !form.workStatusEnabled,
       company: form.company?._id || null,
       subdivision: form.subdivision?._id || null,
@@ -451,89 +462,52 @@ const UserForm = () => {
     }));
   };
 
-  const moduleBlock = (module, values, toggle) => {
-    const master = module.master;
-    const off = master ? !values[master] : false;
-    const granted = module.caps.filter((cap) => values[cap.key]).length;
-
+  /**
+   * Блок «Категории заявок» живёт только у исполнителя и только в форме
+   * человека: у роли категорий нет, это свойство конкретной учётной записи.
+   * Поэтому он приходит в общую матрицу пропом, а не переезжает в неё.
+   */
+  const categoriesUnderPerform = (cap) => {
+    if (cap.key !== "canPerformTickets" || !form.permissions[cap.key]) {
+      return null;
+    }
     return (
-      <div
-        key={module.key}
-        className={cn(
-          "mb-3 rounded-xl border border-border p-4",
-          off && "opacity-60",
-        )}
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">{module.label}</span>
-          <span className="text-xs text-faint tabular-nums">
-            {off ? "выключен" : `${granted} из ${module.caps.length}`}
-          </span>
-          {master && (
-            <span className="ms-auto">
-              <SwitchField
-                id={`master-${module.key}`}
-                checked={!!values[master]}
-                onCheckedChange={() => toggle(master)}
-                label="Модуль"
-                className="py-0"
-              />
-            </span>
-          )}
+      <div className="mb-2 rounded-xl border border-border bg-accent p-3">
+        <Field label="Категории заявок" htmlFor="u-categories">
+          <MultiCombobox
+            id="u-categories"
+            placeholder="Выберите категории"
+            value={(form.categories || []).map((item) => String(item._id))}
+            options={toOptions(categoriesList, {
+              value: (option) => String(option._id),
+              label: (option) => option.title,
+            })}
+            onChange={(ids) =>
+              setField(
+                "categories",
+                categoriesList.filter((option) =>
+                  ids.includes(String(option._id)),
+                ),
+              )
+            }
+          />
+        </Field>
+        <div className="flex gap-4 text-sm font-semibold">
+          <button
+            type="button"
+            className="cursor-pointer appearance-none border-0 bg-transparent p-0 text-accent-text"
+            onClick={() => setField("categories", categoriesList)}
+          >
+            Добавить все
+          </button>
+          <button
+            type="button"
+            className="cursor-pointer appearance-none border-0 bg-transparent p-0 text-accent-text"
+            onClick={() => setField("categories", [])}
+          >
+            Очистить
+          </button>
         </div>
-        {!off &&
-          module.caps.map((cap) => (
-            <div key={cap.key}>
-              <SwitchField
-                id={`perm-${cap.key}`}
-                checked={!!values[cap.key]}
-                onCheckedChange={() => toggle(cap.key)}
-                label={cap.label}
-                className="py-2"
-              />
-              {cap.key === "canPerformTickets" && values[cap.key] && (
-                <div className="mb-2 rounded-xl border border-border bg-accent p-3">
-                  <Field label="Категории заявок" htmlFor="u-categories">
-                    <MultiCombobox
-                      id="u-categories"
-                      placeholder="Выберите категории"
-                      value={(form.categories || []).map((item) =>
-                        String(item._id),
-                      )}
-                      options={toOptions(categoriesList, {
-                        value: (option) => String(option._id),
-                        label: (option) => option.title,
-                      })}
-                      onChange={(ids) =>
-                        setField(
-                          "categories",
-                          categoriesList.filter((option) =>
-                            ids.includes(String(option._id)),
-                          ),
-                        )
-                      }
-                    />
-                  </Field>
-                  <div className="flex gap-4 text-sm font-semibold">
-                    <button
-                      type="button"
-                      className="cursor-pointer appearance-none border-0 bg-transparent p-0 text-accent-text"
-                      onClick={() => setField("categories", categoriesList)}
-                    >
-                      Добавить все
-                    </button>
-                    <button
-                      type="button"
-                      className="cursor-pointer appearance-none border-0 bg-transparent p-0 text-accent-text"
-                      onClick={() => setField("categories", [])}
-                    >
-                      Очистить
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
       </div>
     );
   };
@@ -624,28 +598,23 @@ const UserForm = () => {
 
       {!isEdit && !isService && (
         <>
-          <Field label="Пароль" required htmlFor="u-password">
-            <div className="flex gap-2">
-              <Input
-                id="u-password"
-                value={form.password}
-                onChange={(event) => setField("password", event.target.value)}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setField("password", randomPassword())}
-              >
-                <RiDiceLine /> Сгенерировать
-              </Button>
-            </div>
-          </Field>
+          <PasswordPolicyField
+            id="u-password"
+            label="Пароль"
+            value={form.password}
+            onChange={(value) => setField("password", value)}
+            onVerdictChange={setPasswordVerdict}
+          />
+          {/* Пароль письмом больше не уходит: вместо него ссылка, по которой
+              человек задаёт свой. Заданный здесь остаётся запасным входом на
+              случай, если письмо не дойдёт. */}
           <SwitchField
             id="u-sendPassword"
             checked={form.sendPassword}
             onCheckedChange={(value) => setField("sendPassword", value)}
-            label="Отправить учётные данные на email"
-            hint="Письмо с логином и паролем уйдёт сразу после создания."
+            label="Отправить ссылку для смены пароля"
+            hint="Человек получит письмо и задаст пароль сам. Пароль из поля выше в письмо не попадёт."
+            divider
           />
         </>
       )}
@@ -665,7 +634,7 @@ const UserForm = () => {
         checked={form.isActive}
         onCheckedChange={(value) => setField("isActive", value)}
         label="Активен"
-        hint="Выключенный не сможет войти в систему."
+        hint="Выключенный не сможет войти, а открытые сеансы завершатся."
         divider
       />
 
@@ -1011,9 +980,11 @@ const UserForm = () => {
           className="py-0"
         />
       </div>
-      {PERMISSION_MODULES.map((module) =>
-        moduleBlock(module, form.permissions, togglePerm),
-      )}
+      <PermissionModules
+        values={form.permissions}
+        onToggle={togglePerm}
+        renderExtra={categoriesUnderPerform}
+      />
     </>
   );
 

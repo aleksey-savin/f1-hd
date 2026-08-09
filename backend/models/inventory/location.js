@@ -157,7 +157,8 @@ locationSchema.virtual("fullPath").get(async function () {
 });
 
 // Pre-save middleware to handle parent-child relationships
-locationSchema.pre("save", async function (next) {
+// Mongoose 9: middleware без `next`; ошибка пробрасывается броском.
+locationSchema.pre("save", async function () {
   // Initialize arrays if they're undefined
   if (!this.children) {
     this.children = [];
@@ -165,13 +166,9 @@ locationSchema.pre("save", async function (next) {
 
   // If this location has a parent, add this location to parent's children
   if (this.parent && this.isNew) {
-    try {
-      await this.model("Location").findByIdAndUpdate(this.parent, {
-        $addToSet: { children: this._id },
-      });
-    } catch (error) {
-      return next(error);
-    }
+    await this.model("Location").findByIdAndUpdate(this.parent, {
+      $addToSet: { children: this._id },
+    });
   }
 
   // If parent changed, update relationships
@@ -192,33 +189,25 @@ locationSchema.pre("save", async function (next) {
       });
     }
   }
-
-  next();
 });
 
 // Pre-remove middleware to clean up relationships
 locationSchema.pre(
   "deleteOne",
   { document: true, query: false },
-  async function (next) {
-    try {
-      // Remove this location from parent's children array
-      if (this.parent) {
-        await this.model("Location").findByIdAndUpdate(this.parent, {
-          $pull: { children: this._id },
-        });
-      }
-
-      // Update children to have no parent or reassign to this location's parent
-      await this.model("Location").updateMany(
-        { parent: this._id },
-        { $set: { parent: this.parent } },
-      );
-
-      next();
-    } catch (error) {
-      next(error);
+  async function () {
+    // Remove this location from parent's children array
+    if (this.parent) {
+      await this.model("Location").findByIdAndUpdate(this.parent, {
+        $pull: { children: this._id },
+      });
     }
+
+    // Update children to have no parent or reassign to this location's parent
+    await this.model("Location").updateMany(
+      { parent: this._id },
+      { $set: { parent: this.parent } },
+    );
   },
 );
 

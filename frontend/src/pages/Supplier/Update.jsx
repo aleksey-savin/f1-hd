@@ -1,16 +1,15 @@
-import { useContext } from "react";
 
 import Form from "../../components/Supplier/Form";
 import InlineForbidden from "../../components/Error/InlineForbidden";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
+import { useCan } from "@/store/authed-user";
 
 const UpdateSupplierPage = () => {
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
 
   if (
-    !permissions.canUseInventoryModule ||
-    !permissions.canManageClientDevices
+    !can({ inventory: ["use"] }) ||
+    !can({ clientDevice: ["manage"] })
   ) {
     return <InlineForbidden right="Управление устройствами" />;
   }

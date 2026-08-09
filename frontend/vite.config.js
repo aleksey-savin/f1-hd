@@ -36,6 +36,24 @@ export default defineConfig(({ command }) => ({
       usePolling: true,
     },
     port: 3000,
+    // Дев становится same-origin, как прод (там фронт и API за одним nginx).
+    // Без этого httpOnly-cookie сеанса потребовала бы `SameSite=None; Secure`,
+    // то есть TLS на localhost. Заодно исчезает нужда в CORS на деве.
+    //
+    // Цель — ИМЯ СЕРВИСА в docker-сети, а не localhost: dev-сервер Vite
+    // работает ВНУТРИ контейнера (compose.dev.yml монтирует ./frontend:/app).
+    // `changeOrigin: false` — чтобы до better-auth дошёл исходный Origin и
+    // сверился с trustedOrigins.
+    proxy: {
+      "/api": {
+        target: process.env.VITE_PROXY_TARGET || "http://backend:8080",
+        changeOrigin: false,
+      },
+      "/uploads": {
+        target: process.env.VITE_PROXY_TARGET || "http://backend:8080",
+        changeOrigin: false,
+      },
+    },
   },
   build: {
     // Enable source maps for debugging in production

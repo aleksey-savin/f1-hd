@@ -9,6 +9,7 @@ import useInitialPrefsStore from "../../store/prefs";
 import useTicketFilterStore from "../../store/lists/tickets";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { MultiCombobox } from "@/components/app/Combobox";
+import { useCan } from "@/store/authed-user";
 
 // Sheet-фильтр списка заявок — один для десктопа и мобайла. Здесь живёт всё, что
 // трогают редко; набор «Все | Мои» и чип компаний остаются на экране, поля
@@ -51,14 +52,15 @@ const TicketFilter = ({
   responsibleOptions = [],
   categoryOptions = [],
 }) => {
-  const { isAdmin, permissions, isEndUser } = useContext(AuthedUserContext);
+  const { isAdmin, isEndUser } = useContext(AuthedUserContext);
+  const can = useCan();
   const { modules } = useInitialPrefsStore();
   const store = useTicketFilterStore();
 
   const canSeeResponsiblesFacet =
     isAdmin ||
-    permissions.canAdministrateTickets ||
-    permissions.canSeeAllTickets;
+    can({ ticket: ["administrate"] }) ||
+    can({ ticket: ["readAll"] });
 
   return (
     <FilterContainer resetFilterHandler={store.resetFilter}>

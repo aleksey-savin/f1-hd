@@ -13,16 +13,12 @@ const { AppError } = require("../middleware/errorHandling");
 const { previewWork } = require("../services/workPreview");
 
 /**
- * Право видеть суммы и условия тарифа. `isAdmin` здесь обязателен: во всех
- * гейтах приложения (middleware/permissions.js) он есть, и админ без явно
- * проставленных финансовых флагов иначе не видел бы предварительной доплаты.
+ * Право видеть суммы и условия тарифа: нужны И модуль финансов, И общий
+ * финансовый отчёт — внутри одного ресурса действия складываются по И.
+ * Администратор проходит: это заложено в `req.auth.can`, как и во всех гейтах.
  */
-const canSeeMoney = ({ isAdmin, permissions }) =>
-  Boolean(
-    isAdmin ||
-      (permissions?.canUseFinancesModule &&
-        permissions?.canSeeGlobalFinancialReport),
-  );
+const canSeeMoney = (req) =>
+  req.auth.can({ finances: ["use", "readGlobalReport"] });
 
 /**
  * Работа не тарифицируется, если ХОТЬ ОДНА её заявка льготной категории.
@@ -83,9 +79,9 @@ exports.getAllScheduled = async (req, res, next) => {
 
     let filteredWorks = [];
 
-    if (isAdmin || permissions.canSeeAllTickets) {
+    if (req.auth.can({ ticket: ["readAll"] })) {
       filteredWorks = scheduledWorks;
-    } else if (permissions.canSeeAllCompanyTickets) {
+    } else if (req.auth.can({ ticket: ["readCompany"] })) {
       filteredWorks = scheduledWorks.filter(
         (work) => work.company.toString() === company._id.toString(),
       );
@@ -210,7 +206,7 @@ exports.preview = async (req, res, next) => {
       ticketIds: tickets,
       startedAt,
       finishedAt,
-      canSeeMoney: canSeeMoney(authData),
+      canSeeMoney: canSeeMoney(req),
     });
 
     res.status(200).json(result);

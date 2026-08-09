@@ -115,10 +115,10 @@ const CompanyLogsOffcanvas = ({
   onHide,
   companyId,
   company = {},
-  permissions = {},
+  can,
   initialSearchQuery = "",
 }) => {
-  const canManage = permissions.canManageCompanies;
+  const canManage = can({ company: ["manage"] });
 
   const linkFetcher = useFetcher({ key: "linkUser" });
   const unlinkFetcher = useFetcher({ key: "unlinkUser" });

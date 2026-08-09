@@ -32,6 +32,7 @@ import { bindingLabel } from "../../util/knowledgeNoteBindings";
 
 import NoteList from "./NoteList";
 import NoteBulkActionBar from "./NoteBulkActionBar";
+import { useCan } from "@/store/authed-user";
 import KnowledgeBaseFilter, {
   ModerationMenu,
   isFilterActive,
@@ -157,8 +158,9 @@ const useAppliedFilters = () => {
 //
 // На мобилке эту роль играет pages/KnowledgeBase/List.jsx поверх ListWrapper.
 const KnowledgeBaseExplorer = () => {
-  const { isAdmin, permissions } = useContext(AuthedUserContext);
-  const canManage = isAdmin || permissions?.canManageKnowledgeBase;
+  const { isAdmin } = useContext(AuthedUserContext);
+  const can = useCan();
+  const canManage = isAdmin || can({ knowledgeBase: ["manage"] });
 
   const store = useKnowledgeNotesStore();
   const { filteredList, searchTerm, fullTextSearch, resetFilter } = store;

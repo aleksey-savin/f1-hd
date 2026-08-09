@@ -36,6 +36,7 @@ const {
   notifyDecision,
 } = require("@/services/reportApprovalNotifications");
 const { resolveTimezone } = require("@/utils/datetime");
+const { permissionFilter } = require("@/services/permissions");
 
 /**
  * Жизненный цикл отчёта по услуге: формирование → согласование клиентом →
@@ -433,7 +434,7 @@ const managersOfParts = async (parts) => {
   if (managerIds.length === 0) {
     return [];
   }
-  return User.find({ _id: { $in: managerIds }, isActive: true })
+  return User.find({ _id: { $in: managerIds }, banned: { $ne: true } })
     .select("firstName lastName email telegramBot notify")
     .lean();
 };
@@ -453,7 +454,7 @@ const pendingApprovers = async (report) => {
   if (!finalId) {
     return [];
   }
-  return User.find({ _id: finalId, isActive: true })
+  return User.find({ _id: finalId, banned: { $ne: true } })
     .select("firstName lastName email telegramBot notify")
     .lean();
 };
@@ -474,7 +475,7 @@ const assertApprovalRoute = async (report, attachment) => {
   if (!finalId) {
     problems.push("не назначен согласующий со стороны клиента");
   } else {
-    const approver = await User.findOne({ _id: finalId, isActive: true })
+    const approver = await User.findOne({ _id: finalId, banned: { $ne: true } })
       .select("_id")
       .lean();
     if (!approver) {
@@ -500,7 +501,7 @@ const assertApprovalRoute = async (report, attachment) => {
       const managerIds = nodes.map((node) => node.manager).filter(Boolean);
       const active = await User.find({
         _id: { $in: managerIds },
-        isActive: true,
+        banned: { $ne: true },
       })
         .select("_id")
         .lean();
@@ -539,12 +540,11 @@ const assertApprovalRoute = async (report, attachment) => {
  */
 const contractorRecipients = async (report) =>
   User.find({
-    isActive: true,
+    banned: { $ne: true },
     isEndUser: { $ne: true },
     $or: [
       { _id: report.createdBy },
-      { isAdmin: true },
-      { "permissions.canSeeGlobalFinancialReport": true },
+      ...(await permissionFilter("canSeeGlobalFinancialReport")).$or,
     ],
   })
     .select("firstName lastName email telegramBot notify")

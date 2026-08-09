@@ -245,6 +245,7 @@ const RootLayout = () => {
         ...defaultAuthedUser,
         ...userData,
         permissions: userData?.permissions || defaultAuthedUser.permissions,
+        statements: userData?.statements || defaultAuthedUser.statements,
       }}
     >
       {isLoggedIn && (

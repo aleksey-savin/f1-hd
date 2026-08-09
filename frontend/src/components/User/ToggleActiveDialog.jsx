@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 // Диалог закрываем на сабмите — иначе модальный radix оставляет залипший
 // pointer-events при редиректе.
 const ToggleActiveDialog = ({ user, open, onOpenChange }) => {
-  const isActive = user.isActive;
+  // `banned` вместо `isActive`: полярность обратная, отсутствие поля = работает
+  const isActive = !user.banned;
   const Icon = isActive ? RiUserUnfollowLine : RiUserFollowLine;
 
   return (
@@ -30,7 +31,7 @@ const ToggleActiveDialog = ({ user, open, onOpenChange }) => {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {isActive
-                ? "Пользователь потеряет доступ к системе."
+                ? "Открытые сеансы завершатся сразу — на всех устройствах."
                 : "Доступ к системе будет восстановлен."}
             </AlertDialogDescription>
           </AlertDialogHeader>

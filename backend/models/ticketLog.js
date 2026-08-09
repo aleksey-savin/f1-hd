@@ -43,9 +43,8 @@ const ticketLogSchema = new Schema(
     { timestamps: true }
 );
 
-ticketLogSchema.pre('validate', function assignKind(next) {
+ticketLogSchema.pre('validate', function assignKind() {
     if (!this.kind) this.kind = classify(this.event);
-    next();
 });
 
 module.exports = mongoose.model('TicketLog', ticketLogSchema);

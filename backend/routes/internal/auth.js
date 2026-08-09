@@ -69,22 +69,6 @@ const authLimiter = rateLimit({
   },
 });
 
-// Подсказка компании дёргается по ходу набора адреса, поэтому у неё свой
-// счётчик: общий authLimiter — одно хранилище на вход, регистрацию и
-// восстановление, и десяток подсказок закрыл бы человеку сам вход.
-const signupLookupLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: async (req, res, _next, options) => {
-    res.status(options.statusCode).json({
-      error: true,
-      message: "Слишком много запросов. Подождите немного.",
-    });
-  },
-});
-
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // limit to 10 login attempts per hour per IP+email combination
@@ -118,30 +102,16 @@ const loginLimiter = rateLimit({
   skipSuccessfulRequests: true, // Don't count successful logins against the limit
 });
 
-router.post(
-  "/signup",
-  authLimiter,
-  authValidation.signup,
-  runValidation,
-  authController.signup,
-);
-
-router.post(
-  "/signup/company-by-email",
-  signupLookupLimiter,
-  authValidation.companyByEmail,
-  runValidation,
-  authController.companyByEmail,
-);
-
-router.post(
-  "/first-launch",
-  authLimiter,
-  authValidation.firstLaunch,
-  runValidation,
-  authController.firstLaunch,
-);
-
+// Саморегистрация (`/signup`, `/signup/company-by-email`) и первый запуск
+// (`/first-launch`) удалены: учётки заводит ИТ-отдел вместе с AD и почтой, а
+// три неавторизованных эндпоинта — лишняя поверхность (один из них уже был
+// дырой в проде). Первый запуск делает сид при старте.
+//
+// Восстановление пароля (`/forgot-password`, `/reset-password`,
+// `/validate-reset-token/:token`) переехало на ручки better-auth
+// `/api/auth/request-password-reset` и `/api/auth/reset-password`. Вместе с
+// ним ушла механика `resetToken` + sha256 и хранение сырого токена в
+// `user.notifications` — источник дыры, а не только она сама.
 router.post(
   "/login",
   authLimiter,
@@ -149,26 +119,6 @@ router.post(
   authValidation.login,
   runValidation,
   authController.login,
-);
-router.put(
-  "/forgot-password",
-  authLimiter,
-  authValidation.forgotPassword,
-  runValidation,
-  authController.forgotPassword,
-);
-router.post(
-  "/reset-password",
-  authLimiter,
-  authValidation.resetPassword,
-  runValidation,
-  authController.resetPassword,
-);
-router.get(
-  "/validate-reset-token/:token",
-  authValidation.validateResetToken,
-  runValidation,
-  authController.validateResetToken,
 );
 
 // routes for telegram bot

@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
+    "@radix-ui/react-slider": "^1.4.7",
     "@sentry/react": "^9.15.0",
     "@tailwindcss/vite": "^4.3.2",
     "@toast-ui/editor": "^3.2.2",

@@ -130,7 +130,7 @@ const canSetStatusManually = (user, code) => {
   if (user?.remoteOnly && code === "office") return false;
   if (meta.manual) return true;
   if (user?.workTimeMode === "free") return true;
-  return Boolean(user?.isAdmin || user?.permissions?.canManageWorkSchedules);
+  return Boolean(user?.isAdmin || user?.can({ workSchedule: ["manage"] }));
 };
 
 /** Статусы для переключателя конкретного человека. */

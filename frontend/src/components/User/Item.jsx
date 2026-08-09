@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { canManageEntity } from "@/components/app/entity-permissions";
-import { useAuthedUser } from "@/store/authed-user";
+import { useAuthedUser, useCan } from "@/store/authed-user";
 import useOffcanvasStore from "@/store/offcanvas";
 import { cn } from "@/lib/utils";
 
@@ -52,7 +52,7 @@ const UserItem = ({ item }) => {
     email,
     phone,
     isEndUser,
-    isActive,
+    banned,
     lastActivityAt,
     createdAt,
     updatedAt,
@@ -62,8 +62,9 @@ const UserItem = ({ item }) => {
   const offcanvas = useOffcanvasStore();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
-  const { _id: authedId, permissions } = useAuthedUser();
-  const canManage = canManageEntity("user", permissions, item, authedId);
+  const { _id: authedId } = useAuthedUser();
+  const can = useCan();
+  const canManage = canManageEntity("user", can, item, authedId);
 
   const fullName = `${lastName} ${firstName}`.trim();
   const detailTo = `/users/${_id}`;
@@ -105,7 +106,7 @@ const UserItem = ({ item }) => {
           justCreated && "row-appear",
           justUpdated && "row-flash",
           // приглушаем и отключённых, и людей отключённых компаний
-          (!isActive || item.company?.isActive === false) && "opacity-70",
+          (banned || item.company?.isActive === false) && "opacity-70",
         )}
         onClick={() => (isMobile ? setContactOpen(true) : navigate(detailTo))}
       >

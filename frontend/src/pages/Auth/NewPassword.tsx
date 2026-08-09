@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Form,
   Link,
@@ -9,8 +10,12 @@ import {
 import { RiLinkUnlinkM } from "react-icons/ri";
 
 import AlertMessage from "@/components/app/AlertMessage";
-import Field from "@/components/app/Field";
-import PasswordInput from "@/components/app/PasswordInput";
+import PasswordPolicyField from "@/components/app/PasswordPolicyField";
+import {
+  MIN_LENGTH,
+  verdictAllows,
+  type PasswordVerdict,
+} from "@/lib/password";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -19,23 +24,20 @@ import {
   AuthTile,
   WaysIn,
 } from "../../components/Auth/AuthPanel";
-import { API, INLINE_STATUSES, inlineError } from "./session";
+import { API, OFFLINE_FAILURE, authFailure } from "./session";
 
-const MIN_LENGTH = 6;
+// Своего числа здесь нет: минимум приходит из `lib/password`, который держит
+// его в одном месте со всеми формами пароля. Проверка в экшене — страховка на
+// случай отправки в обход поля (без JS, автозаполнением).
 
-export async function loader({ params }: { params: { token?: string } }) {
+export async function loader() {
   document.title = "Новый пароль";
 
-  try {
-    const response = await fetch(
-      `${API}/api/validate-reset-token/${params.token}`,
-    );
-    return { valid: response.ok };
-  } catch {
-    // Сетевой сбой — не повод объявлять ссылку мёртвой: пусть человек
-    // попробует сохранить, сервер ответит по существу
-    return { valid: true };
-  }
+  // Предпроверки ссылки больше нет: ручка `/api/validate-reset-token/:token`
+  // удалена вместе с легаси-механикой. Она к тому же была без лимитера, то
+  // есть позволяла перебирать токен в течение суток его жизни. Годность
+  // ссылки теперь выясняется при отправке — сервер отвечает по существу.
+  return { valid: true };
 }
 
 export async function action({
@@ -49,20 +51,24 @@ export async function action({
   const password = String(data.get("password") || "");
 
   if (password.length < MIN_LENGTH) {
-    return { message: `Пароль не короче ${MIN_LENGTH} символов.` };
+    return { message: `Пароль не короче ${MIN_LENGTH} знаков.` };
   }
 
-  const response = await fetch(`${API}/api/reset-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token: params.token, password }),
-  });
+  // Штатная ручка better-auth: она же гасит все сеансы этого человека
+  // (`revokeSessionsOnPasswordReset`) и делает токен одноразовым.
+  let response: Response;
+  try {
+    response = await fetch(`${API}/api/auth/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: params.token, newPassword: password }),
+    });
+  } catch {
+    return { message: OFFLINE_FAILURE.message };
+  }
 
   if (!response.ok) {
-    if (!INLINE_STATUSES.includes(response.status)) {
-      throw response;
-    }
-    const failure = await inlineError(response, "Не удалось сменить пароль.");
+    const failure = await authFailure(response, "Не удалось сменить пароль.");
     return { message: failure.message };
   }
 
@@ -75,6 +81,9 @@ const NewPassword = () => {
   const failure = useActionData() as { message: string } | undefined;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
+
+  const [password, setPassword] = useState("");
+  const [verdict, setVerdict] = useState<PasswordVerdict>({ kind: "idle" });
 
   if (!valid) {
     return (
@@ -103,25 +112,24 @@ const NewPassword = () => {
 
       {failure && <AlertMessage variant="danger" message={failure.message} />}
 
-      <Form method="post" className="mt-5">
-        <Field
-          label="Новый пароль"
-          htmlFor="password"
-          required
-          hint={`Не короче ${MIN_LENGTH} символов`}
-        >
-          <PasswordInput
-            id="password"
-            name="password"
-            required
-            minLength={MIN_LENGTH}
-            autoComplete="new-password"
-            autoFocus
-            aria-invalid={failure ? true : undefined}
-          />
-        </Field>
+      <Form method="post" className="mt-5 flex flex-col gap-4">
+        {/* Поле — то же, что во всех местах, где задают пароль: живой вердикт
+            и генератор. Здесь оно нужнее всего — рядом нет администратора,
+            который объяснит, почему дата рождения не подходит. */}
+        <PasswordPolicyField
+          id="password"
+          value={password}
+          onChange={setPassword}
+          onVerdictChange={setVerdict}
+          autoFocus
+        />
+        <input type="hidden" name="password" value={password} />
 
-        <Button type="submit" disabled={submitting} className="mt-1 w-full">
+        <Button
+          type="submit"
+          disabled={submitting || !verdictAllows(verdict)}
+          className="w-full"
+        >
           {submitting ? "Сохраняем…" : "Сохранить пароль"}
         </Button>
       </Form>

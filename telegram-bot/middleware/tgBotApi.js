@@ -260,7 +260,7 @@ exports.launchTgBot = async () => {
                 ? { message_thread_id: msg.message_thread_id }
                 : {};
 
-            if (!sender || !sender.isActive || !sender.isAdmin) {
+            if (!sender || sender.banned || !sender.isAdmin) {
               await bot.sendMessage(
                 msg.chat.id,
                 "Настраивать табло может только администратор с привязанным Telegram",

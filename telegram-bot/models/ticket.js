@@ -323,22 +323,21 @@ const ticketSchema = new Schema(
   { timestamps: true },
 );
 
-ticketSchema.pre("save", async function (next) {
-  try {
-    if (this.isNew) {
-      const counter = await Counter.findByIdAndUpdate(
-        "ticketNum",
-        { $inc: { seq: 1 } },
-        {
-          new: true,
-          upsert: true,
-        },
-      );
-      this.num = counter.seq;
-    }
-    next();
-  } catch (error) {
-    next(error);
+// Mongoose 9 убрал колбэк-стиль: middleware больше не получает `next`, и
+// прежняя запись падала с «TypeError: next is not a function», то есть заявка
+// из телеграма не создавалась вовсе. Ошибка теперь пробрасывается броском —
+// в асинхронном хуке `next(error)` делал ровно то же самое.
+ticketSchema.pre("save", async function () {
+  if (this.isNew) {
+    const counter = await Counter.findByIdAndUpdate(
+      "ticketNum",
+      { $inc: { seq: 1 } },
+      {
+        new: true,
+        upsert: true,
+      },
+    );
+    this.num = counter.seq;
   }
 });
 

@@ -51,6 +51,7 @@ import MarkdownViewer from "../../UI/MarkdownViewer";
 import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { AuthedUserContext } from "../../store/authed-user-context";
+import { useCan } from "@/store/authed-user";
 
 const personName = (person) =>
   person && (person.firstName || person.lastName)
@@ -61,8 +62,9 @@ const ViewRoutineTask = ({ task }) => {
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
   const { showToast } = useToastStore();
-  const { _id: userId, permissions } = useContext(AuthedUserContext);
-  const canManage = canManageEntity("routineTask", permissions, task, userId);
+  const { _id: userId } = useContext(AuthedUserContext);
+  const can = useCan();
+  const canManage = canManageEntity("routineTask", can, task, userId);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Ручной запуск «создать заявку сейчас».

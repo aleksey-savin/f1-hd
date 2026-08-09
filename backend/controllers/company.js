@@ -43,8 +43,7 @@ exports.getAll = async (req, res, next) => {
         authedUser.responsibleForCompanies
           .map((company) => company._id.toString())
           .includes(company._id.toString()) ||
-        authedUser.permissions.canAdministrateTickets ||
-        authedUser.isAdmin
+        req.auth.can({ ticket: ["administrate"] })
       ) {
         return company;
       }
@@ -80,8 +79,8 @@ exports.getOne = async (req, res, next) => {
     const company = await Company.findById(req.params.id)
       .populate({
         path: "employees",
-        match: { isActive: true },
-        select: "_id firstName lastName email phone position role isActive",
+        match: { banned: { $ne: true } },
+        select: "_id firstName lastName email phone position role banned",
         populate: {
           path: "subdivision",
           select: "name",
@@ -110,13 +109,13 @@ exports.getOne = async (req, res, next) => {
       .select("name email phone address linkToMap manager users parent timezone")
       .populate({
         path: "manager",
-        select: "firstName lastName email position role isActive",
-        match: { isActive: true },
+        select: "firstName lastName email position role banned",
+        match: { banned: { $ne: true } },
       })
       .populate({
         path: "users",
-        select: "firstName lastName email position role isActive",
-        match: { isActive: true },
+        select: "firstName lastName email position role banned",
+        match: { banned: { $ne: true } },
       })
       .lean();
 
@@ -199,7 +198,7 @@ exports.getOne = async (req, res, next) => {
 
     let servicePlans = [];
 
-    if (authedUser.permissions.canUseFinancesModule) {
+    if (req.auth.can({ finances: ["use"] })) {
       // ObjectIds from the Mongoose document (see employees note above).
       const planIds = company.servicePlans.map((plan) => plan._id);
       const planDocs = await ServicePlan.find({ _id: { $in: planIds } }).lean();
@@ -849,13 +848,13 @@ exports.addSubdivision = async (req, res, next) => {
     await subdivision.populate([
       {
         path: "users",
-        select: "firstName lastName email position role isActive",
-        match: { isActive: true },
+        select: "firstName lastName email position role banned",
+        match: { banned: { $ne: true } },
       },
       {
         path: "manager",
-        select: "firstName lastName email position role isActive",
-        match: { isActive: true },
+        select: "firstName lastName email position role banned",
+        match: { banned: { $ne: true } },
       },
       {
         path: "subdivisions",
@@ -967,13 +966,13 @@ exports.updateSubdivision = async (req, res, next) => {
     await subdivision.populate([
       {
         path: "users",
-        select: "firstName lastName email position role isActive",
-        match: { isActive: true },
+        select: "firstName lastName email position role banned",
+        match: { banned: { $ne: true } },
       },
       {
         path: "manager",
-        select: "firstName lastName email position role isActive",
-        match: { isActive: true },
+        select: "firstName lastName email position role banned",
+        match: { banned: { $ne: true } },
       },
       {
         path: "subdivisions",
@@ -1154,13 +1153,13 @@ exports.updateSubdivisionUsers = async (req, res, next) => {
       await subdivision.populate([
         {
           path: "users",
-          select: "firstName lastName email position role isActive",
-          match: { isActive: true },
+          select: "firstName lastName email position role banned",
+          match: { banned: { $ne: true } },
         },
         {
           path: "manager",
-          select: "firstName lastName email position role isActive",
-          match: { isActive: true },
+          select: "firstName lastName email position role banned",
+          match: { banned: { $ne: true } },
         },
       ]);
 

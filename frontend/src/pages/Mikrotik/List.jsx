@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { RiDraftLine } from "react-icons/ri";
@@ -18,7 +18,7 @@ import DeviceSheet from "../../components/Mikrotik/DeviceSheet";
 import RouterOsStrip from "../../components/Mikrotik/RouterOsStrip";
 
 import usePolling from "../../hooks/use-polling";
-import { AuthedUserContext } from "../../store/authed-user-context";
+import { useCan } from "@/store/authed-user";
 import useMikrotikDeviceFilterStore, {
   rowStatus,
 } from "../../store/lists/mikrotik-devices";
@@ -38,8 +38,8 @@ const optionLabel = (options, value) =>
 // шагом после проверки); строки группируются по статусу, обновляются тихим
 // поллингом каждые 15 с; клик по строке — шторка-превью справа.
 const MikrotikDevices = () => {
-  const { permissions } = useContext(AuthedUserContext);
-  const canManage = permissions.canManageMikrotikDevices;
+  const can = useCan();
+  const canManage = can({ mikrotik: ["manageDevices"] });
   const filterStore = useMikrotikDeviceFilterStore();
   const [searchParams, setSearchParams] = useSearchParams();
 

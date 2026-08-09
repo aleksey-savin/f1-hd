@@ -36,7 +36,7 @@ import { Eyebrow, Panel } from "@/components/app/Panel";
 import AnchorRail from "@/components/app/AnchorRail";
 import PropRow from "@/components/app/PropRow";
 import TechSection from "@/components/app/TechSection";
-import { useAuthedUser } from "@/store/authed-user";
+import { useCan } from "@/store/authed-user";
 import useInitialPrefs from "@/store/prefs";
 import useOffcanvasStore from "@/store/offcanvas";
 import useToastStore from "@/store/toast-store";
@@ -91,7 +91,7 @@ const ViewCompany = ({
   servicePlansList = [],
   stats = null,
 }) => {
-  const { permissions } = useAuthedUser();
+  const can = useCan();
   const { modules, taxi } = useInitialPrefs();
   const offcanvas = useOffcanvasStore();
   const navigate = useNavigate();
@@ -119,11 +119,11 @@ const ViewCompany = ({
     window.scrollTo(0, 0);
   }, []);
 
-  const canManage = permissions.canManageCompanies;
+  const canManage = can({ company: ["manage"] });
   const showFinances =
-    modules?.finances?.isActive && permissions.canUseFinancesModule;
+    modules?.finances?.isActive && can({ finances: ["use"] });
   const showTech =
-    modules?.inventory?.isActive && permissions.canUseInventoryModule;
+    modules?.inventory?.isActive && can({ inventory: ["use"] });
   const isActive = company.isActive !== false;
 
   const employeesCount = company.employees?.length || 0;
@@ -390,7 +390,7 @@ const ViewCompany = ({
               company={company}
               plans={servicePlans}
               servicePlansList={servicePlansList}
-              canManage={permissions.canManageServicePlans}
+              canManage={can({ servicePlan: ["manage"] })}
               id="company-plans"
             />
           )}
@@ -440,7 +440,7 @@ const ViewCompany = ({
           onHide={() => setLogsOpen(false)}
           companyId={company._id}
           company={company}
-          permissions={permissions}
+          can={can}
           initialSearchQuery=""
         />
       )}

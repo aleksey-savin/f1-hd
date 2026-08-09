@@ -10,6 +10,7 @@ import { formatShortDate } from "../../util/format-date";
 import { toIsoDay } from "../../util/period";
 import { createdText } from "../Ticket/ticket-state";
 import TicketRow from "./TicketRow";
+import { useCan } from "@/store/authed-user";
 
 /**
  * «Мои заявки» на главной клиента: открытые сверху, закрытые за месяц под
@@ -29,11 +30,12 @@ const OPEN_LIMIT = 6;
 const CLOSED_LIMIT = 3;
 
 const MyTicketsClient = () => {
-  const { _id: userId, permissions } = useContext(AuthedUserContext);
+  const { _id: userId } = useContext(AuthedUserContext);
+  const can = useCan();
   const openTickets = useDashboardTicketsStore((state) => state.tickets);
   const loaded = useDashboardTicketsStore((state) => state.loaded);
 
-  const canSeeCompany = !!permissions?.canSeeAllCompanyTickets;
+  const canSeeCompany = !!can({ ticket: ["readCompany"] });
   const [scope, setScope] = useState("mine");
   const [closed, setClosed] = useState([]);
   const [closedTotal, setClosedTotal] = useState(0);

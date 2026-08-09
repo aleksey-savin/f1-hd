@@ -1,4 +1,4 @@
-import { useContext, useMemo } from "react";
+import { useMemo } from "react";
 
 import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
@@ -7,17 +7,17 @@ import SwitchField from "@/components/app/SwitchField";
 import { MultiCombobox, toOptions } from "@/components/app/Combobox";
 
 import useTicketCategoryFilterStore from "../../store/lists/ticket-categories";
-import { AuthedUserContext } from "../../store/authed-user-context";
+import { useCan } from "@/store/authed-user";
 
 // Sheet-фильтр справочника. Применённое видно в липкой плашке бейджей
 // ListWrapper. Фасеты «Пользователи»/«Услуги» храним объектами {_id, name} —
 // опции собираем из загруженных категорий (originalList). Блок услуг и «в
 // рамках тарифа» — только при доступе к модулю финансов.
 const TicketCategoryFilter = () => {
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
   const filterStore = useTicketCategoryFilterStore();
   const items = filterStore.originalList || [];
-  const showFinances = permissions.canUseFinancesModule;
+  const showFinances = can({ finances: ["use"] });
 
   const userOptions = useMemo(() => {
     const map = new Map();

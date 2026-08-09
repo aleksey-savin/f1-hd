@@ -1,5 +1,8 @@
 import { redirect } from "react-router";
 
+import { api, ApiError } from "@/lib/api";
+import { clearSession } from "@/pages/Auth/session";
+
 export function getTokenDuration() {
   const storedExpiryDate = localStorage.getItem("expiryDate");
   const expiryDate = new Date(storedExpiryDate);
@@ -36,52 +39,55 @@ export function getLocalStorageData() {
   };
 }
 
+/**
+ * Загрузчик корня. Наличие токена в localStorage больше НЕ считается признаком
+ * сеанса: сеанс живёт на сервере, а с переходом на httpOnly-cookie клиент его
+ * и не увидит. Единственный честный вопрос — у сервера, и задаёт его `/api/me`.
+ *
+ * Прежняя версия дёргала `/api/users/:id` и `/api/preferences-initial` и НЕ
+ * проверяла `response.ok`: отклонённый сервером токен превращался в
+ * `userData = { error: true, ... }`, попадал в контекст как пользователь без
+ * `_id` и прав, и приложение рисовало «залогиненную» оболочку со всем
+ * выключенным вместо того, чтобы отправить на вход.
+ */
 export async function authDataLoader() {
-  const { userId, token } = getLocalStorageData();
+  try {
+    const [appVersion, me] = await Promise.all([
+      api("/api/app-version"),
+      api("/api/me"),
+    ]);
 
-  if (!token || !userId) {
-    return redirect("/auth");
-  }
-
-  const appVersionResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/app-version`,
-  );
-
-  if (!appVersionResponse.ok) {
-    throw appVersionResponse;
-  }
-
-  const appV = await appVersionResponse.json();
-
-  const userDataResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
+    return {
+      appVersion,
+      userData: {
+        ...me.user,
+        permissions: me.permissions,
+        statements: me.statements,
       },
-    },
-  );
-
-  const preferencesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
-
-  return {
-    appVersion: appV,
-    prefs: await preferencesResponse.json(),
-    userData: await userDataResponse.json(),
-  };
+      permissions: me.permissions,
+      prefs: { ...me.prefs, modules: me.modules },
+      sessionId: me.sessionId,
+    };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      return redirect("/auth");
+    }
+    throw error;
+  }
 }
 
-export function checkAuthLoader() {
-  const { token, expiryDate } = getLocalStorageData();
-
-  if (!token || !expiryDate) {
-    return redirect("/auth");
+/**
+ * Выход. Гасит СЕРВЕРНЫЙ сеанс, а не полагается на то, что клиент забудет
+ * токен: до появления серверных сессий выход был `localStorage.removeItem`, и
+ * выданный токен жил свои четырнадцать дней.
+ */
+export async function logoutLoader() {
+  try {
+    await api("/api/logout", { method: "POST" });
+  } catch {
+    // Сеанс мог уже истечь или быть отозван администратором — на клиенте это
+    // всё равно выход.
   }
+  clearSession();
+  return redirect("/auth");
 }

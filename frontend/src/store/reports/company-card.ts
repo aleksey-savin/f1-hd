@@ -52,7 +52,7 @@ const doFetch = async (get: Getter, set: Setter) => {
     const path = subdivisionId
       ? `${API}/api/report/companies/${companyId}/subdivisions/${subdivisionId}`
       : `${API}/api/report/companies/${companyId}`;
-    const url = new URL(path);
+    const url = new URL(path, window.location.origin);
     const params = new URLSearchParams({ from, to });
     if (subdivisionId && !includeDescendants) {
       params.set("includeDescendants", "false");

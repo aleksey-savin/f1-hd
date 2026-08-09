@@ -6,6 +6,7 @@ import useInitialPrefsStore from "../../store/prefs";
 import useDashboardTicketsStore from "../../store/dashboard-tickets";
 import { getLocalStorageData } from "../../util/auth";
 import { monthRange } from "../../util/period";
+import { useCan } from "@/store/authed-user";
 
 /**
  * Ряд KPI сотрудника: сколько на мне, сколько ничейных, сколько переработал.
@@ -23,19 +24,20 @@ const asHours = (minutes) => {
 };
 
 const StaffKpis = () => {
-  const { _id: userId, isAdmin, permissions } = useContext(AuthedUserContext);
+  const { _id: userId, isAdmin } = useContext(AuthedUserContext);
+  const can = useCan();
   const modules = useInitialPrefsStore((state) => state.modules);
   const tickets = useDashboardTicketsStore((state) => state.tickets);
 
   const canSeeOvertime =
     !!modules?.finances?.isActive &&
     (isAdmin ||
-      !!permissions?.canSeePersonalFinancialReport ||
-      !!permissions?.canSeeGlobalFinancialReport);
+      !!can({ finances: ["readPersonalReport"] }) ||
+      !!can({ finances: ["readGlobalReport"] }));
   const seesOthers =
     isAdmin ||
-    !!permissions?.canAdministrateTickets ||
-    !!permissions?.canSeeAllTickets;
+    !!can({ ticket: ["administrate"] }) ||
+    !!can({ ticket: ["readAll"] });
 
   const [overtime, setOvertime] = useState(null);
 

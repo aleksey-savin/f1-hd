@@ -13,6 +13,7 @@ import useOffcanvasStore from "../../store/offcanvas";
 
 import { ticketFormSections } from "./TicketFormFields";
 import { useTicketForm } from "./use-ticket-form";
+import { useCan } from "@/store/authed-user";
 
 /**
  * Форма заявки как вложенный маршрут — одна на все режимы: «Новая заявка»,
@@ -38,7 +39,8 @@ const TicketFormRoute = ({ mode }) => {
 
   const offcanvas = useOffcanvasStore();
   const { token } = getLocalStorageData();
-  const { isEndUser, permissions } = useContext(AuthedUserContext);
+  const { isEndUser } = useContext(AuthedUserContext);
+  const can = useCan();
 
   // Прямая ссылка на форму открывает шторку сама: без этого /tickets/42/update
   // рисовал пустой экран — шторка ждала setShow, который делала только ссылка
@@ -51,7 +53,7 @@ const TicketFormRoute = ({ mode }) => {
     ticket,
     formData,
     isEndUser: !!isEndUser,
-    canPerformTickets: !!permissions?.canPerformTickets,
+    canPerformTickets: !!can({ ticket: ["perform"] }),
   });
 
   const [templateId, setTemplateId] = useState("");
@@ -88,7 +90,7 @@ const TicketFormRoute = ({ mode }) => {
 
   // Прямая ссылка на правку без прав раньше рисовала пустую шторку — теперь
   // она объясняет, что происходит (гайд, «Ошибки и гейты прав»)
-  if (mode !== "add" && !permissions?.canEditTickets) {
+  if (mode !== "add" && !can({ ticket: ["update"] })) {
     return (
       <>
         <FormHeader title={form.config.title} />

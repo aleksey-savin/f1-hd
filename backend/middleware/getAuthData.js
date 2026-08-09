@@ -1,20 +1,25 @@
-const jwt = require("jsonwebtoken");
-
-const logger = require("../utils/logger");
-
-const User = require("../models/user");
-
-module.exports = async (req) => {
-  const authHeader = req.get("Authorization");
-  if (!authHeader) {
-    return logger.log(
-      "error",
-      "Для обработки запроса требуется заголовок с токеном",
-    );
-  }
-  const token = authHeader.split(" ")[1];
-  const decodedToken = jwt.decode(token, process.env.JWT_SECRET);
-  const user = await User.findById(decodedToken.userId);
-  const authedUser = { ...user.toObject(), userId: user._id.toString() };
-  return authedUser;
-};
+/**
+ * СОВМЕСТИМОСТЬ. Читалка готового результата `attachSession`.
+ *
+ * Раньше здесь был собственный разбор токена — причём `jwt.decode` вместо
+ * `jwt.verify`: подпись не проверялась, `exp` игнорировался, а секрет вторым
+ * аргументом молча выбрасывался, потому что у `decode` там опции, а не ключ.
+ * Спасало лишь то, что `isAuth` успевал отработать раньше на том же маршруте.
+ * Плюс каждый вызов заново поднимал полный документ пользователя, а вызовов на
+ * один запрос бывало три-пять.
+ *
+ * Теперь личность считается один раз в `attachSession`, а это — читалка,
+ * чтобы 134 вызова в 22 контроллерах не переписывать разом.
+ *
+ * Отличий от прежнего поведения два, оба в безопасную сторону:
+ *   • `permissions` теперь ЭФФЕКТИВНЫЕ и всегда полные — раньше отсутствующий
+ *     в документе ключ давал `undefined`;
+ *   • при отсутствии заголовка возвращается `null`, а не результат
+ *     `logger.log(...)` — прежний код отдавал объект логгера, и обращение к
+ *     `.userId` роняло запрос в 500 вместо честного 401.
+ *
+ * НОВЫЙ КОД ПИШЕТ `req.auth` НАПРЯМУЮ. Файл удаляется, когда счётчик
+ *   grep -rn 'getAuthData(req)' --include='*.js' backend | wc -l
+ * дойдёт до нуля.
+ */
+module.exports = async (req) => (req.auth ? req.auth.legacy : null);

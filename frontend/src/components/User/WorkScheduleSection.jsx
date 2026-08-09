@@ -84,7 +84,7 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
   const authedUser = useContext(AuthedUserContext);
   const offcanvas = useOffcanvasStore();
   const canManage = Boolean(
-    authedUser?.isAdmin || authedUser?.permissions?.canManageWorkSchedules,
+    authedUser?.isAdmin || authedUser?.can({ workSchedule: ["manage"] }),
   );
 
   const [data, setData] = useState(null);

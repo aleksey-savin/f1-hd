@@ -167,23 +167,12 @@ exports.get = async (req, res, next) => {
  */
 exports.getAuth = async (req, res, next) => {
   try {
-    const usersCount = await User.countDocuments();
-
-    if (usersCount === 0) {
-      return res.status(200).json({ firstLaunch: true });
-    }
-
-    const [preferences, selfSignupCompany] = await Promise.all([
-      Preferences.findOne({}),
-      // регистрация возможна, только если есть кому опознать домен
-      Company.exists({
-        isActive: { $ne: false },
-        "emailDomains.0": { $exists: true },
-      }),
-    ]);
+    // Флаги `firstLaunch` и `selfSignupIsActive` больше не отдаются: веб-форма
+    // первого запуска и саморегистрация удалены. Первый администратор
+    // заводится сидом при старте, остальных заводит ИТ-отдел.
+    const preferences = await Preferences.findOne({});
 
     return res.status(200).json({
-      firstLaunch: false,
       contacts: {
         title: preferences?.contacts?.title || "",
         tel: preferences?.contacts?.tel || "",
@@ -194,7 +183,6 @@ exports.getAuth = async (req, res, next) => {
       timezone: preferences?.timezone || "",
       // без почты ссылку на смену пароля отправить нечем — путь прячется
       emailIsActive: preferences?.notify?.byEmail?.isActive || false,
-      selfSignupIsActive: Boolean(selfSignupCompany),
     });
   } catch (error) {
     next(

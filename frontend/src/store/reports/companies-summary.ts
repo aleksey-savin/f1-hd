@@ -38,7 +38,7 @@ const doFetch = async (get: Getter, set: Setter) => {
   const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/report/companies`);
+    const url = new URL(`${API}/api/report/companies`, window.location.origin);
     url.search = new URLSearchParams({ from, to }).toString();
     const response = await fetch(url, {
       headers: { Authorization: "Bearer " + token },

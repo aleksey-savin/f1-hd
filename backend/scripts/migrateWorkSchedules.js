@@ -196,7 +196,7 @@ const run = async () => {
   );
 
   // 5. Что осталось заполнить руками
-  const staff = { isEndUser: false, isServiceAccount: { $ne: true }, isActive: true };
+  const staff = { isEndUser: false, isServiceAccount: { $ne: true }, banned: { $ne: true } };
   const [total, noSchedule, noTimezone] = await Promise.all([
     User.countDocuments(staff),
     User.countDocuments({ ...staff, workSchedules: { $in: [null, []] } }),

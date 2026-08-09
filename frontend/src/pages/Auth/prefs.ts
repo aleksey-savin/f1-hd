@@ -1,9 +1,7 @@
-// Настройки, которые видит человек ДО входа: бренд, контакты поддержки и два
-// флага доступности путей. Отдаёт `GET /api/preferences-auth` (без isAuth).
+// Настройки, которые видит человек ДО входа: бренд и контакты поддержки.
+// Отдаёт `GET /api/preferences-auth` (без авторизации).
 
 export type AuthPrefs = {
-  /** В базе ноль пользователей — приложение ещё не настроено. */
-  firstLaunch: boolean;
   contacts: {
     /** Подпись под маркой; задаётся в «Настройках → Основные». */
     title: string;
@@ -15,8 +13,6 @@ export type AuthPrefs = {
   timezone: string;
   /** Почта выключена — ссылку на смену пароля отправить нечем. */
   emailIsActive: boolean;
-  /** Нет ни одной активной компании с доменами — регистрации не бывает. */
-  selfSignupIsActive: boolean;
 };
 
 /**
@@ -25,9 +21,7 @@ export type AuthPrefs = {
  * себя без ответа сервера — просто беднее.
  */
 export const FALLBACK_PREFS: AuthPrefs = {
-  firstLaunch: false,
   contacts: { title: "", tel: "", email: "", address: "", logo: "" },
   timezone: "",
   emailIsActive: false,
-  selfSignupIsActive: false,
 };

@@ -1,18 +1,17 @@
-import { useContext } from "react";
 
 import ListRow from "@/components/app/ListRow";
 import { monogramFor } from "@/components/app/monogram";
 
-import { AuthedUserContext } from "../../store/authed-user-context";
 import { plural } from "../../util/plural";
+import { useCan } from "@/store/authed-user";
 
 const TicketCategoryItem = ({ item }) => {
   const { title, isActive, alwaysWithinPlan, users, servicePlans } = item;
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
 
   const userCount = users?.length || 0;
   const planCount = servicePlans?.length || 0;
-  const showPlans = permissions.canUseFinancesModule;
+  const showPlans = can({ finances: ["use"] });
 
   const metaParts = [
     userCount > 0

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Outlet, useActionData, useNavigate } from "react-router";
 import {
   RiArrowLeftSLine,
@@ -34,11 +34,11 @@ import { DeviceStatusText } from "@/components/app/device-status";
 import { monogramFor } from "@/components/app/monogram";
 import { cn } from "@/lib/utils";
 
-import { AuthedUserContext } from "../../store/authed-user-context";
 import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { formatCalendarDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
+import { useCan } from "@/store/authed-user";
 
 const dash = <span className="text-faint">—</span>;
 
@@ -162,10 +162,10 @@ const Delivery = ({ delivery, defaultOpen }) => {
 const ViewSupplier = ({ supplier = {} }) => {
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
   const { showToast } = useToastStore();
   const actionData = useActionData();
-  const canManage = Boolean(permissions.canManageClientDevices);
+  const canManage = Boolean(can({ clientDevice: ["manage"] }));
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {

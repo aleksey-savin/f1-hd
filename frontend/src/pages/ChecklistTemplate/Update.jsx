@@ -1,13 +1,12 @@
-import { useContext } from "react";
 
 import InlineForbidden from "../../components/Error/InlineForbidden";
 import Form from "../../components/ChecklistTemplate/Form";
-import { AuthedUserContext } from "../../store/authed-user-context";
+import { useCan } from "@/store/authed-user";
 
 const UpdateChecklistTemplatePage = () => {
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
 
-  if (!permissions.canAdministrateTickets) {
+  if (!can({ ticket: ["administrate"] })) {
     return <InlineForbidden right="Администрирование заявок" />;
   }
 

@@ -15,8 +15,7 @@ exports.getAll = async (req, res, next) => {
         authedUser.categories
           .map((category) => category._id.toString())
           .includes(category._id.toString()) ||
-        authedUser.permissions.canAdministrateTickets ||
-        authedUser.isAdmin
+        req.auth.can({ ticket: ["administrate"] })
       ) {
         return category;
       }

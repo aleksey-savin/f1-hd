@@ -1,5 +1,16 @@
 import type { Types } from "mongoose";
 
+/**
+ * Список обязан совпадать с `permissions` в `models/user.js` и с
+ * `PERMISSION_KEYS` в `utils/permissions.js`. Совпадение схемы со списком
+ * сторожит `assertPermissionKeysMatch` при загрузке модели; этот тип проверить
+ * автоматически нельзя (у бэкенда `checkJs: false`, а модель — JS), поэтому
+ * правится руками вместе с ними.
+ *
+ * До 2026-08 он тихо врал: содержал canManageDeviceModels, canManageDeviceTypes
+ * и canManageDeviceAttributes, которых в схеме нет, и не содержал
+ * canManageWorkSchedules с canApproveWorkReports, которые есть и гейтят.
+ */
 export interface IUserPermissions {
   // tickets workflow
   canPerformTickets: boolean;
@@ -11,6 +22,7 @@ export interface IUserPermissions {
   // basic portal administration
   canManageCompanies: boolean;
   canManageUsers: boolean;
+  canManageRoles: boolean;
   canManageTicketCategories: boolean;
   canManageKnowledgeBase: boolean;
   canSeeKnowledgeBase: boolean;
@@ -21,12 +33,10 @@ export interface IUserPermissions {
   canAvoidWorks: boolean;
   canSeeWorksReport: boolean;
   canSeeAnalytics: boolean;
+  canManageWorkSchedules: boolean;
   // inventory module
   canUseInventoryModule: boolean;
   canManageClientDevices: boolean;
-  canManageDeviceModels: boolean;
-  canManageDeviceTypes: boolean;
-  canManageDeviceAttributes: boolean;
   canManageMikrotikDevices: boolean;
   canManageMikrotikConfigs: boolean;
   // finances module
@@ -35,6 +45,7 @@ export interface IUserPermissions {
   canSeeGlobalFinancialReport: boolean;
   canConfirmReportActions: boolean;
   canSeePersonalFinancialReport: boolean;
+  canApproveWorkReports: boolean;
 }
 
 export interface IUserTelegramNotify {
@@ -69,6 +80,8 @@ export type WorkStatusCode =
 
 export interface IUser {
   email: string;
+  /** Подтверждён ли адрес. Существующим проставлено true миграцией. */
+  emailVerified: boolean;
   phone: string;
   firstName: string;
   lastName: string;
@@ -79,6 +92,11 @@ export interface IUser {
   company?: { _id?: Types.ObjectId; alias?: string };
   subdivision?: Types.ObjectId;
   responsibleForCompanies?: { id?: Types.ObjectId; alias?: string }[];
+  /**
+   * До миграции — текстовый ярлык («Клиент» у 376, пусто у 325, одна осмысленная
+   * запись). На этапе 4 становится списком кодов ролей доступа через запятую:
+   * это родное поле плагина `admin`, и из него же читается каталог `Role`.
+   */
   role?: string;
   categories?: { _id?: Types.ObjectId; title?: string }[];
   isAdmin: boolean;
@@ -93,7 +111,18 @@ export interface IUser {
   };
   notify: { byTelegram: IUserTelegramNotify; byEmail: IUserEmailNotify };
   password: string;
-  isActive: boolean;
+  /** Ставится плагином twoFactor better-auth. */
+  twoFactorEnabled: boolean;
+  /**
+   * Отключение учётки (плагин `admin` better-auth). Полярность ОБРАТНАЯ
+   * остальным сущностям: `true` значит «не работает», а отсутствие поля —
+   * «работает». Отсюда фильтры `{ banned: { $ne: true } }`.
+   */
+  banned: boolean;
+  /** Видит только администратор в карточке; человеку не показывается. */
+  banReason?: string;
+  /** Пусто = бессрочно. Просроченный бан плагин снимает сам при входе. */
+  banExpires?: Date;
   lastLogin?: Date;
   verifyToken?: string;
   verifyTokenExpiration?: Date;

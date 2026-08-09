@@ -16,7 +16,7 @@
     "@aws-sdk/lib-storage": "^3.1065.0",
     "axios": "^1.7.2",
     "express": "^4.19.2",
-    "mongoose": "^6.12.7",
+    "mongoose": "^9.9.1",
     "mongoose-increment": "^2.0.0",
     "node-cron": "^3.0.3",
     "node-telegram-bot-api": "^0.63.0",

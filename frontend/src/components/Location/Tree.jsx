@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useContext } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router";
 
 import {
@@ -14,9 +14,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import useOffcanvasStore from "../../store/offcanvas";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import { TYPE_LABEL, TYPE_ICON, CHILD_CAPABLE } from "./type-meta";
 import { plural } from "../../util/plural";
+import { useCan } from "@/store/authed-user";
 
 const TYPE_ORDER = { building: 0, floor: 1, room: 2, workplace: 3, storage: 4 };
 
@@ -214,8 +214,8 @@ const TreeNode = ({
 // разворачивание — только шевроном.
 const Tree = ({ items = [], selectedId = null, onSelect }) => {
   const roots = useMemo(() => buildForest(items), [items]);
-  const { permissions } = useContext(AuthedUserContext);
-  const canManage = permissions.canManageClientDevices;
+  const can = useCan();
+  const canManage = can({ clientDevice: ["manage"] });
 
   const [collapsedIds, setCollapsedIds] = useState(() => new Set());
 

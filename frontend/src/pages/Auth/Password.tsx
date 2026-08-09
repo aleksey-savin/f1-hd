@@ -14,7 +14,7 @@ import {
   type Way,
 } from "../../components/Auth/AuthPanel";
 import { useAuthPrefs } from "./Layout";
-import { API, INLINE_STATUSES, inlineError } from "./session";
+import { API, OFFLINE_FAILURE, authFailure } from "./session";
 
 type Result =
   | { sent: true; email: string }
@@ -29,19 +29,26 @@ export async function action({ request }: { request: Request }) {
   const data = await request.formData();
   const email = String(data.get("email") || "").trim();
 
-  // Ровно один запрос: прежний экшен слал его дважды — уходило два письма и
-  // выписывалось два токена, из которых работал последний
-  const response = await fetch(`${API}/api/forgot-password`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
+  // Штатная ручка better-auth. Прежняя `/api/forgot-password` удалена вместе
+  // со своей механикой: она отвечала честным 404 «пользователь не найден»,
+  // то есть работала проверялкой чужих адресов, и парковала СЫРОЙ токен
+  // восстановления в документе пользователя.
+  //
+  // Ответ здесь одинаковый независимо от того, существует адрес или нет —
+  // поэтому экран всегда показывает «письмо отправлено».
+  let response: Response;
+  try {
+    response = await fetch(`${API}/api/auth/request-password-reset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+  } catch {
+    return { sent: false, message: OFFLINE_FAILURE.message, email };
+  }
 
   if (!response.ok) {
-    if (!INLINE_STATUSES.includes(response.status)) {
-      throw response;
-    }
-    const failure = await inlineError(response, "Не удалось отправить письмо.");
+    const failure = await authFailure(response, "Не удалось отправить письмо.");
     return { sent: false, message: failure.message, email };
   }
 

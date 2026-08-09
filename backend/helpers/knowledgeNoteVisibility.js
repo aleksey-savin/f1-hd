@@ -23,6 +23,10 @@ const getAccessibleCompanyIds = (authedUser) => {
 // (категории / компании / связанные пользователи) с их доступом.
 // Заметка без связей считается общей и видна всем сотрудникам.
 // kbConfig = { hideNotApproved, moderatorIds } — настройки модерации из Preferences.
+// Здесь СОЗНАТЕЛЬНО читается плоская карта прав, а не `can({...})`: функция
+// вызывается в цикле по заметкам, а `permissions` в `authedUser` — уже
+// ЭФФЕКТИВНЫЕ права (attachSession разрешил роли один раз на запрос). Перевод
+// на `canFor` дал бы чтение из базы на каждую заметку и ни одного нового ответа.
 const canViewNote = (note, authedUser, kbConfig = {}) => {
   const { isAdmin, permissions } = authedUser;
   const { hideNotApproved = false } = kbConfig;

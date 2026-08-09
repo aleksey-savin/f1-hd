@@ -206,7 +206,7 @@ const PrefsIntegrations = ({ prefs }) => {
           >
             <span
               className={
-                user.isActive === false
+                user.banned
                   ? "min-w-0 flex-1 truncate text-sm opacity-60"
                   : "min-w-0 flex-1 truncate text-sm"
               }
@@ -218,7 +218,7 @@ const PrefsIntegrations = ({ prefs }) => {
                   · {user.company.alias}
                 </span>
               )}
-              {user.isActive === false && (
+              {user.banned && (
                 <span className="text-muted-foreground"> · отключён</span>
               )}
             </span>

@@ -59,7 +59,7 @@ const doFetch = async (get: Getter, set: Setter) => {
       params.set("startDate", startDate);
       params.set("endDate", endDate);
     }
-    const url = new URL(`${API}/api/report/companies/trends`);
+    const url = new URL(`${API}/api/report/companies/trends`, window.location.origin);
     url.search = params.toString();
     const response = await fetch(url, {
       headers: { Authorization: "Bearer " + token },

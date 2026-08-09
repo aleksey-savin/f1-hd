@@ -28,7 +28,7 @@ import {
   mikrotikStatus,
 } from "@/components/app/device-status";
 import { cn } from "@/lib/utils";
-import { useAuthedUser } from "@/store/authed-user";
+import { useAuthedUser, useCan } from "@/store/authed-user";
 import useOffcanvasStore from "@/store/offcanvas";
 
 import QrDialog from "./QrDialog";
@@ -86,10 +86,9 @@ const InventoryTag = ({ number, onOpenQr }) => (
 const DeviceRow = ({ device }) => {
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
-  const { _id: userId, permissions } = useAuthedUser();
-  const canManage = canManageEntity(
-    "clientDevice",
-    permissions,
+  const { _id: userId } = useAuthedUser();
+  const can = useCan();
+  const canManage = canManageEntity("clientDevice", can,
     device,
     userId,
   );

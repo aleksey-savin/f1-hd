@@ -1,13 +1,13 @@
-import { useContext, useEffect } from "react";
+import { useEffect } from "react";
 import { useSearchParams } from "react-router";
 
 import Segmented from "@/components/app/Segmented";
 
 import TicketsArchiveList from "../components/Ticket/ArchiveList";
 import WorksArchiveList from "../components/Work/ArchiveList";
-import { AuthedUserContext } from "../store/authed-user-context";
 import useInitialPrefs from "../store/prefs";
 import { getLocalStorageData } from "../util/auth";
+import { useCan } from "@/store/authed-user";
 
 // «Архив» — одна страница на две сущности истории: закрытые заявки и
 // выполненные работы (бывший «Отчёт по работам»). Активный сегмент несёт
@@ -20,14 +20,14 @@ import { getLocalStorageData } from "../util/auth";
 // и для конечных пользователей).
 
 const Archive = () => {
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
   const { modules } = useInitialPrefs();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const worksAvailable =
     !!modules?.timeTracking?.isActive &&
-    !!permissions?.canUseTimeTrackingModule &&
-    !!permissions?.canSeeWorksReport;
+    !!can({ timeTracking: ["use"] }) &&
+    !!can({ work: ["readReport"] });
 
   const view =
     worksAvailable && searchParams.get("view") === "works"

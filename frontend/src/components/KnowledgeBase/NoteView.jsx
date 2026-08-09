@@ -23,6 +23,7 @@ import NoteProperties from "./NoteProperties";
 import PendingRequestAlert from "./PendingRequestAlert";
 import SecretsAlert from "./SecretsAlert";
 import VerifyModal from "./VerifyModal";
+import { useCan } from "@/store/authed-user";
 
 const API = import.meta.env.VITE_API_ADDRESS;
 
@@ -47,8 +48,10 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
   const filterUsers = useKnowledgeNotesStore((state) => state.users);
   const filterCategories = useKnowledgeNotesStore((state) => state.categories);
 
-  const { isAdmin, permissions } = useContext(AuthedUserContext);
-  const canManage = isAdmin || permissions?.canManageKnowledgeBase;
+  const { isAdmin } = useContext(AuthedUserContext);
+
+  const can = useCan();
+  const canManage = isAdmin || can({ knowledgeBase: ["manage"] });
   const isModerator = useInitialPrefsStore(
     (state) => state.knowledgeBase.isModerator,
   );

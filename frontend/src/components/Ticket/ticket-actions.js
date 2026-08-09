@@ -24,10 +24,10 @@ const isResponsible = (ticket, userId) =>
  *
  * @returns {string[]} причины человеческим языком; пусто — можно закрывать.
  */
-export const closeBlockers = (ticket, { works = [], permissions = {} }) => {
+export const closeBlockers = (ticket, { works = [], can }) => {
   const reasons = [];
   const worksRequired =
-    permissions.canUseTimeTrackingModule && !permissions.canAvoidWorks;
+    can({ timeTracking: ["use"] }) && !can({ work: ["avoid"] });
 
   if (worksRequired && !works.some((work) => work.finishedAt)) {
     reasons.push("По заявке не указаны работы");
@@ -55,7 +55,7 @@ const worksMissing = (ticket, options) =>
  */
 export const ticketActions = (
   ticket,
-  { userId, permissions, isAdmin, isEndUser, works = [] },
+  { userId, can, isAdmin, isEndUser, works = [] },
 ) => {
   const none = { primary: null, menu: [] };
   if (!ticket || isEndUser) return none;
@@ -63,12 +63,10 @@ export const ticketActions = (
   // В архиве заявка привязана к отчёту за период — правки и работы запрещены
   if (ticket.isArchived) return none;
 
-  const {
-    canPerformTickets,
-    canAdministrateTickets,
-    canEditTickets,
-    canDeleteTickets,
-  } = permissions ?? {};
+  const canPerformTickets = can({ ticket: ["perform"] });
+  const canAdministrateTickets = can({ ticket: ["administrate"] });
+  const canEditTickets = can({ ticket: ["update"] });
+  const canDeleteTickets = can({ ticket: ["delete"] });
 
   const mine = isResponsible(ticket, userId);
   const noResponsibles = (ticket.responsibles?.length ?? 0) === 0;
@@ -86,7 +84,7 @@ export const ticketActions = (
   } else if (state === "В работе" && mine) {
     // Пока работ нет, «Закрыть» всё равно упрётся в запрет — предлагаем то,
     // чего не хватает, а не действие, которое не сработает
-    primary = worksMissing(ticket, { works, permissions })
+    primary = worksMissing(ticket, { works, can })
       ? { key: "addWork", label: "Указать работы" }
       : { key: "close", label: "Закрыть заявку" };
   } else if (

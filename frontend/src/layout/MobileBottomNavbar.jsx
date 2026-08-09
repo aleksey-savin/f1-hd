@@ -14,9 +14,11 @@ import {
 import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../store/authed-user-context";
+import { useCan } from "@/store/authed-user";
 
 const MobileBottomNavbar = () => {
-  const { isEndUser, isAdmin, permissions } = useContext(AuthedUserContext);
+  const { isEndUser, isAdmin } = useContext(AuthedUserContext);
+  const can = useCan();
   const { pathname } = useLocation();
   const reduceMotion = useReducedMotion();
 
@@ -38,7 +40,7 @@ const MobileBottomNavbar = () => {
       label: "Компании",
     },
     !isEndUser &&
-      (isAdmin || permissions?.canSeeKnowledgeBase) && {
+      (isAdmin || can({ knowledgeBase: ["read"] })) && {
         to: "/knowledge-base",
         icon: RiBookOpenLine,
         label: "База",

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFetcher, useLoaderData, useNavigate } from "react-router";
 
 import {
@@ -21,7 +21,6 @@ import { FormHeader, FormSections } from "@/components/app/FormLayout";
 import Spinner from "@/components/app/Spinner";
 import WizardStepper from "@/components/app/WizardStepper";
 
-import { AuthedUserContext } from "../../store/authed-user-context";
 import useOffcanvasStore from "../../store/offcanvas";
 import { getLocalStorageData } from "../../util/auth";
 import {
@@ -33,6 +32,7 @@ import {
 import FormSummary from "./FormSummary";
 import InlineCreateDialog from "./InlineCreateDialog";
 import useAssignableUsers, { userOptionLabel } from "./useAssignableUsers";
+import { useCan } from "@/store/authed-user";
 
 const STEPS = [
   { key: "device", label: "Устройство" },
@@ -100,7 +100,7 @@ const ClientDeviceForm = ({ title }) => {
   const fetcher = useFetcher();
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
 
   const [form, setForm] = useState({
     companyId: refId(data?.companyId),
@@ -263,6 +263,7 @@ const ClientDeviceForm = ({ title }) => {
     const timer = setTimeout(() => {
       const url = new URL(
         `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/serial-check`,
+        window.location.origin,
       );
       url.searchParams.set("value", value);
       if (data?._id) url.searchParams.set("excludeId", data._id);
@@ -666,7 +667,7 @@ const ClientDeviceForm = ({ title }) => {
               Позже
             </Button>
             <Button
-              disabled={!permissions.canManageMikrotikDevices}
+              disabled={!can({ mikrotik: ["manageDevices"] })}
               onClick={() =>
                 navigate(`/devices/mikrotik/add?clientDeviceId=${connectOffer}`)
               }

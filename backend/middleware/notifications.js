@@ -13,6 +13,7 @@ const Work = require("../models/work");
 const Company = require("../models/company");
 const Subdivision = require("../models/subdivision");
 const { logAiTicketEvent } = require("../services/aiTicketLog");
+const { permissionFilter } = require("@/services/permissions");
 const {
   resolveClientTimezone,
   formatClientTimeLabel,
@@ -780,8 +781,8 @@ exports.createTicketNotifications = async () => {
         try {
           // notifying managers
           const managers = await User.find({
-            "permissions.canAdministrateTickets": true,
-            isActive: true,
+            ...(await permissionFilter("canAdministrateTickets")),
+            banned: { $ne: true },
           });
 
           for (let user of managers) {
@@ -1632,221 +1633,19 @@ exports.createCommentNotifications = async () => {
   }
 };
 
-exports.createUserNotifications = async () => {
-  const prefs = await withMongoRetry(
-    () => Preferences.findOne({}),
-    "loading preferences for user notifications",
-  );
-
-  if (!prefs?.notify?.byEmail?.isActive) {
-    logger.log(
-      "debug",
-      "Skipping user notifications because email notifications are disabled",
-    );
-    return;
-  }
-
-  const users = await withMongoRetry(
-    () =>
-      User.find({
-        "notifications.pending": true,
-      })
-        .sort({ updatedAt: 1 })
-        .limit(NOTIFICATION_BATCH_SIZE),
-    "loading pending user notifications",
-  );
-
-  for (let user of users) {
-    try {
-      const lastAction = user.notifications.lastAction;
-
-      const decodedPassword = jwt.decode(
-        user.notifications.password,
-        process.env.JWT_SECRET,
-      );
-
-      switch (lastAction) {
-        case "new user":
-          //-----------------------------------------------
-          //-------------------- EMAIL --------------------
-          //-----------------------------------------------
-
-          // notifying user
-          try {
-            const newUserNotification = new Notification({
-              instrument: "email",
-              to: {
-                email: user.email,
-              },
-              title: `Создана учётная запись F1Lab Helpdesk`,
-              text: `
-                        <div>
-                            <p>${user.firstName},</p>
-                            <p>Мы создали для Вас учётную запись на портале F1Lab Helpdesk.</p>
-                            <p>
-                                Адрес: ${process.env.ADDRESS}/ <br>
-                                Логин: ${user.email}<br>
-                                Пароль: ${decodedPassword}
-                            </p>
-                            <p>Вы получили это письмо, т.к. являетесь сотрудником ${user.company.alias} или другой организации связанной с ${user.company.alias}.</p>
-                            <p>
-                                С уважением,<br></br>Команда F1Lab
-                            </p>
-                        </div>
-                    `,
-            });
-            await newUserNotification.save();
-            user.notifications.pending = false;
-            user.notifications.password = "";
-
-            await user.save();
-            break;
-          } catch (error) {
-            logger.log(
-              "notification",
-              "Failed to create new user notification to user's email",
-              {
-                error: error.message,
-                stack: error.stack,
-              },
-            );
-          }
-          break;
-
-        case "verify account":
-          //-----------------------------------------------
-          //-------------------- EMAIL --------------------
-          //-----------------------------------------------
-
-          // notifying user
-          try {
-            const newUserNotification = new Notification({
-              instrument: "email",
-              to: {
-                email: user.email,
-              },
-              title: `Создана учётная запись F1Lab Helpdesk`,
-              text: `
-                          <div>
-                              <p>${user.firstName},</p>
-                              <p>Вы создали учётную запись на портале F1Lab Helpdesk.</p>
-                              <p>Для её активации пройдите по ссылке: ${process.env.ADDRESS}/verify/${lastAction.verifyToken}</p>
-                              <p>Вы получили это письмо, т.к. являетесь сотрудником ${user.company.alias} или другой организации связанной с ${user.company.alias}.</p>
-                              <p>
-                                  С уважением,<br></br>Команда F1Lab
-                              </p>
-                          </div>
-                      `,
-            });
-            await newUserNotification.save();
-            user.notifications.pending = false;
-            user.notifications.password = "";
-
-            await user.save();
-            break;
-          } catch (error) {
-            logger.log(
-              "notification",
-              "Failed to create email notification to verify user's account",
-              {
-                error: error.message,
-                stack: error.stack,
-              },
-            );
-          }
-          break;
-
-        case "change password":
-          //-----------------------------------------------
-          //-------------------- EMAIL --------------------
-          //-----------------------------------------------
-
-          // notifying user
-          try {
-            const changePasswordNotification = new Notification({
-              instrument: "email",
-              to: {
-                email: user.email,
-              },
-              title: `Изменён пароль F1Lab Helpdesk`,
-              text: `
-                        <div>
-                        <p>${user.firstName},</p>
-                        <p>Пароль Вашей учётной записи на портале F1Lab Helpdesk был изменён.</p>
-                        <p>
-                            Адрес: ${process.env.ADDRESS}/ <br>
-                            Логин: ${user.email}<br>
-                            Новый пароль: ${decodedPassword}
-                        </p>
-                        <p>Вы получили это письмо, т.к. являетесь сотрудником ${user.company.alias} или другой организации связанной с ${user.company.alias}.</p>
-                        <p>
-                            С уважением,<br></br>Команда F1Lab
-                        </p>
-                    </div>
-                    `,
-            });
-            await changePasswordNotification.save();
-            user.notifications.pending = false;
-            user.notifications.password = "";
-            await user.save();
-            break;
-          } catch (error) {
-            logger.log(
-              "notification",
-              "Failed to create email notification for user's password update",
-              {
-                error: error.message,
-                stack: error.stack,
-              },
-            );
-          }
-          break;
-
-        case "forgot-password":
-          try {
-            const resetUrl = `${process.env.ADDRESS}/reset-password/${user.notifications.resetToken}`;
-            const resetPasswordNotification = new Notification({
-              instrument: "email",
-              to: {
-                email: user.email,
-              },
-              title: `Восстановление доступу к порталу F1Lab Helpdesk`,
-              text: `
-                        <div>
-                        <p>${user.firstName},</p>
-                        <p>Сбросить пароль можно пройдя по <a href=${resetUrl} target=_blank>ссылке</a>.</p>
-                        <p>Ссылка действительна 24 часа</p>
-                        <p>С уважением,<br></br>Команда F1Lab</p>
-                    </div>
-                    `,
-            });
-            await resetPasswordNotification.save();
-            user.notifications.pending = false;
-            user.notifications.resetToken = "";
-            await user.save();
-            break;
-          } catch (error) {
-            logger.log(
-              "notification",
-              "Failed to create email notification to reset user's password",
-              {
-                error: error.message,
-                stack: error.stack,
-              },
-            );
-          }
-      }
-    } catch (error) {
-      logger.log("notification", "Failed to process user notification", {
-        userId: user._id,
-        userEmail: user.email,
-        lastAction: user.notifications?.lastAction,
-        error: error.message,
-        stack: error.stack,
-      });
-    }
-  }
-};
+/**
+ * Пользовательские уведомления (заведение учётки, смена пароля, подтверждение
+ * адреса) удалены целиком.
+ *
+ * Все три ветки рассылали ПАРОЛЬ В ОТКРЫТОМ ВИДЕ: он лежал в
+ * `user.notifications.password` как `jwt.sign(строка)` — то есть base64, а не
+ * шифр, — и крон доставал его обратно через `jwt.decode`. Теперь заведение
+ * учётки и админский сброс отправляют человеку штатную ссылку установки
+ * пароля (`requestPasswordReset`), письмо которой ставит в очередь
+ * `auth/hooks.js#sendResetPassword`, а пароль в базе не хранится вовсе.
+ *
+ * Ветка `forgot-password` ушла раньше — вместе с легаси-восстановлением.
+ */
 
 exports.createScheduledWorkNotifications = async () => {
   const prefs = await withMongoRetry(

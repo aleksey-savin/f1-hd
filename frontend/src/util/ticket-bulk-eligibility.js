@@ -10,7 +10,7 @@ const isResponsible = (ticket, userId) =>
 
 // Принять в работу: все заявки в статусе «Не в работе», и текущий пользователь —
 // ответственный (либо у заявки нет ответственных и есть право canPerformTickets).
-export const takeToWorkReason = (selectedItems, { userId, permissions }) => {
+export const takeToWorkReason = (selectedItems, { userId, can }) => {
   if (!selectedItems.length) return "Не выбрано ни одной заявки";
 
   const wrongState = selectedItems.filter((t) => t.state !== "Не в работе");
@@ -22,7 +22,7 @@ export const takeToWorkReason = (selectedItems, { userId, permissions }) => {
     const hasNoResponsibles = (t.responsibles?.length ?? 0) === 0;
     return !(
       isResponsible(t, userId) ||
-      (hasNoResponsibles && permissions.canPerformTickets)
+      (hasNoResponsibles && can({ ticket: ["perform"] }))
     );
   });
   if (notAllowed.length) {
@@ -54,7 +54,7 @@ export const addWorksReason = (selectedItems) => {
 // Закрыть: все заявки в работе, текущий пользователь — ответственный, и соблюдено
 // правило о работах (есть завершённые работы, либо право закрывать без работ,
 // либо модуль учёта времени отключён).
-export const closeReason = (selectedItems, { userId, permissions }) => {
+export const closeReason = (selectedItems, { userId, can }) => {
   if (!selectedItems.length) return "Не выбрано ни одной заявки";
 
   const wrongState = selectedItems.filter((t) => t.state !== "В работе");
@@ -67,7 +67,7 @@ export const closeReason = (selectedItems, { userId, permissions }) => {
     return `Вы не ответственны за заявки: ${numbers(notResponsible)}`;
   }
 
-  if (permissions.canAvoidWorks || !permissions.canUseTimeTrackingModule) {
+  if (can({ work: ["avoid"] }) || !can({ timeTracking: ["use"] })) {
     return null;
   }
 

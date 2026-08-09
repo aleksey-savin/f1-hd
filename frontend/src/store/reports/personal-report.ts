@@ -38,7 +38,7 @@ const doFetch = async (get: Getter, set: Setter) => {
   const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/finances/personal-report-summary`);
+    const url = new URL(`${API}/api/finances/personal-report-summary`, window.location.origin);
     url.search = new URLSearchParams({
       from,
       to,

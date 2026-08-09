@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { RiCloseLine, RiErrorWarningLine } from "react-icons/ri";
 
@@ -18,9 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 import useTicketAction from "../../../hooks/use-ticket-action";
-import { AuthedUserContext } from "../../../store/authed-user-context";
 import { localToUtc, utcToLocalForm } from "../../../util/format-date";
 import { closeBlockers } from "../ticket-actions";
+import { useCan } from "@/store/authed-user";
 
 /**
  * Диалоги действий над заявкой — одним компонентом вместо семи почти одинаковых
@@ -72,7 +72,7 @@ const ActionDialog = ({
   // useTicketAction, а не голый useFetcher: 409 (устаревшая версия) и 422
   // (правило процесса) сервер называет словами — обёртка показывает их тостом
   const fetcher = useTicketAction();
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
   const [takeOver, setTakeOver] = useState(false);
   const [text, setText] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -133,7 +133,7 @@ const ActionDialog = ({
   // Закрытие держат те же правила, что и раньше: без работ его не примет и
   // бэкенд, а обязательные пункты чек-листа — договорённость процесса
   const blockers =
-    action === "close" ? closeBlockers(ticket, { works, permissions }) : [];
+    action === "close" ? closeBlockers(ticket, { works, can }) : [];
   const noWorks = blockers[0] === "По заявке не указаны работы";
 
   // Кого можно позвать: те, кто ведёт заявки, минус уже ответственные и минус

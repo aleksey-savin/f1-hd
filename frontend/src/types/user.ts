@@ -13,6 +13,13 @@ export type AuthedUser = {
   position?: string;
   isAdmin?: boolean;
   isEndUser?: boolean;
+  /**
+   * Плоская карта прав. Остаётся для мест, где ключи и подписи идут парами:
+   * список галочек в форме пользователя, каталог прав. Для решений «показать
+   * или нет» есть `useCan()` — он говорит тем же словарём, что и сервер.
+   */
   permissions: Record<string, boolean>;
+  /** Словарь прав с сервера: `{ ticket: ["delete"], … }`. Питает `useCan()`. */
+  statements?: Record<string, string[]>;
   workStatus?: { code: string; note: string; updatedAt: string | null };
 };

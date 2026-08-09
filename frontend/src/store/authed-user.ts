@@ -1,6 +1,7 @@
-import { useContext } from "react";
+import { useContext, useMemo } from "react";
 
 import { AuthedUserContext } from "@/store/authed-user-context";
+import { makeCan, type Can, type Statements } from "@/lib/access";
 import type { AuthedUser } from "@/types/user";
 
 // Типобезопасный доступ к авторизованному пользователю.
@@ -15,4 +16,23 @@ export function useAuthedUser(): AuthedUser {
   // as unknown as: значение приходит из JS-стора, его вывод типа опирается на
   // частичный дефолт и заведомо уже реального объекта — приводим осознанно.
   return useContext(AuthedUserContext) as unknown as AuthedUser;
+}
+
+/**
+ * Права текущего человека тем же словарём, что и на сервере:
+ * `can({ ticket: ["delete"] })`.
+ *
+ * Интерфейс решает, что ПОКАЗАТЬ; доступ всё равно даёт сервер. Список ресурсов
+ * и действий приходит в `statements` из `/api/me` — своего словаря на клиенте
+ * нет, иначе два списка разошлись бы на первой же правке прав.
+ */
+export function useCan(): Can {
+  const user = useContext(AuthedUserContext) as unknown as {
+    statements?: Statements;
+    isAdmin?: boolean;
+  };
+  return useMemo(
+    () => makeCan(user?.statements, Boolean(user?.isAdmin)),
+    [user?.statements, user?.isAdmin],
+  );
 }

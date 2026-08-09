@@ -10,6 +10,7 @@ const {
 
 // Internal routes
 const appVersionRoutes = require("./internal/appVersion");
+const meRoutes = require("./internal/me");
 const authRoutes = require("./internal/auth");
 const commentRoutes = require("./internal/comment");
 const companyRoutes = require("./internal/company");
@@ -19,6 +20,7 @@ const getScreenRoutes = require("./internal/pro32Connect");
 const knowledgeNoteRoutes = require("./internal/knowledgeNote");
 const preferencesRoutes = require("./internal/preferences");
 const reportRoutes = require("./internal/report");
+const roleRoutes = require("./internal/role");
 const routineTaskRoutes = require("./internal/routineTask");
 const ticketRoutes = require("./internal/ticket");
 const ticketCategoryRoutes = require("./internal/ticketCategory");
@@ -57,8 +59,24 @@ const internalRoutes = express.Router();
 const externalRoutes = express.Router();
 const publicRoutes = express.Router();
 
+// Личность устанавливается ОДИН РАЗ на всю группу и до всех маршрутов, включая
+// неавторизованные: attachSession ничего не запрещает, он только наполняет
+// req.auth. Раньше личность поднималась заново в каждом гейте и в каждом
+// контроллере — до четырёх чтений `users` на запрос.
+//
+// Это же чинит давнюю мину: гейты модулей смонтированы НИЖЕ, до внутреннего
+// isAuth, и на анонимном запросе к /finances или /inventory прежний код падал
+// в 500 вместо 401, разыменовывая пользователя, которого не нашёл.
+const attachSession = require("@/middleware/attachSession");
+
+internalRoutes.use(attachSession);
+// Внешние маршруты живут на своих удостоверениях (X-API-Key, токен в ссылке),
+// но сессия им не мешает: если она есть, ею можно пользоваться.
+externalRoutes.use(attachSession);
+
 // Mount internal routes
 internalRoutes.use("/", appVersionRoutes);
+internalRoutes.use("/", meRoutes);
 internalRoutes.use("/", authRoutes);
 internalRoutes.use("/", commentRoutes);
 internalRoutes.use("/", companyRoutes);
@@ -68,6 +86,7 @@ internalRoutes.use("/", getScreenRoutes);
 internalRoutes.use("/", knowledgeNoteRoutes);
 internalRoutes.use("/", preferencesRoutes);
 internalRoutes.use("/", reportRoutes);
+internalRoutes.use("/", roleRoutes);
 internalRoutes.use("/", routineTaskRoutes);
 internalRoutes.use("/", ticketRoutes);
 internalRoutes.use("/", ticketCategoryRoutes);

@@ -46,7 +46,7 @@ exports.createTicket = async (req, res, next) => {
     } else if (userEmail) {
       applicant = await User.findOne({
         email: userEmail,
-        isActive: true,
+        banned: { $ne: true },
         "company.isActive": { $ne: false },
       });
     }

@@ -18,12 +18,21 @@ const { checkRoutineTasks } = require("./middleware/routineTasks");
 
 const { internal, external, public } = require("./routes/index");
 
+const { initAuth, authRequestHandler } = require("./auth/bootstrap");
+
+// Сколько обратных прокси стоит перед бэкендом. ЧИСЛО, не `true`:
+// express-rate-limit@7 при `true` бросает ERR_ERL_PERMISSIVE_TRUST_PROXY и
+// валит стартап. Ноль по умолчанию — сегодняшнее поведение (req.ip = прямой
+// пир). Значение для прода надо ЗАМЕРИТЬ по числу адресов в X-Forwarded-For
+// реального запроса, а не угадать: занижение делает лимитер попыток входа
+// общим на всех, завышение позволяет клиенту подделать свой адрес.
+const TRUST_PROXY_HOPS = Number(process.env.TRUST_PROXY_HOPS || 0);
+
 const { handleNewEmails } = require("./middleware/emailHandling");
 
 const {
   createTicketNotifications,
   createCommentNotifications,
-  createUserNotifications,
   createScheduledWorkNotifications,
 } = require("./middleware/notifications");
 
@@ -58,10 +67,19 @@ const { DEFAULT_TIMEZONE } = require("./utils/datetime");
 const PORT = process.env.PORT || 8080;
 const app = express();
 
+app.set("trust proxy", TRUST_PROXY_HOPS);
+
 // Performance and monitoring middleware
 app.use(requestIdMiddleware);
 app.use(performanceMonitor);
 app.use(compressionMiddleware);
+
+// better-auth ЧИТАЕТ СЫРОЕ ТЕЛО — регистрируется строго ДО express.json(),
+// иначе тот его съест и запросы к /api/auth/* будут висеть до таймаута без
+// внятной ошибки. Проверка после правок: POST на /api/auth/sign-in/email с
+// заведомо неверным паролем должен отвечать 401 быстрее секунды.
+// Express 5 требует именованный splat: "*" больше не валидный шаблон.
+app.all("/api/auth/*splat", authRequestHandler);
 
 // Body parsing with size limits
 app.use(express.json({ limit: "50mb" }));
@@ -110,21 +128,7 @@ app.get("/uploads/:name", async (req, res) => {
   }
 });
 
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "OPTIONS, GET, POST, PUT, PATCH, DELETE",
-  );
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Accept, Content-Type, Authorization",
-  );
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
+app.use(require("./middleware/cors"));
 
 // API routes with caching for read-only endpoints
 app.use("/api", internal);
@@ -146,7 +150,14 @@ mongoose
   .connect(
     `mongodb://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@mongodb:27017/${process.env.MONGODB_DATABASE}?authSource=admin`,
   )
-  .then(() => {
+  .then(async () => {
+    // Инстанс better-auth собирается на УЖЕ открытом соединении mongoose —
+    // отсюда и порядок: сначала connect, потом initAuth, и только затем listen,
+    // чтобы к первому запросу хендлер /api/auth/* был готов.
+    await initAuth();
+    // Пустая база → администратор, компания и настройки. Идемпотентно: на
+    // непустой не делает ничего. Заменяет удалённую ручку /api/first-launch.
+    await require("./services/bootstrapSeed").seedFirstLaunch();
     app.listen(PORT, () => {
       logger.log("info", `Server started on port ${PORT}`);
       initializeMonitoring();
@@ -229,7 +240,6 @@ cron.schedule("*/10 * * * * *", async () => {
     const notificationJobs = [
       ["ticket notifications", createTicketNotifications],
       ["comment notifications", createCommentNotifications],
-      ["user notifications", createUserNotifications],
       ["scheduled work notifications", createScheduledWorkNotifications],
     ];
 

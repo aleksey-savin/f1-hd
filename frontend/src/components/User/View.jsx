@@ -62,6 +62,7 @@ import CardAvatar from "./CardAvatar";
 import ResetPasswordDialog from "./ResetPasswordDialog";
 import ToggleActiveDialog from "./ToggleActiveDialog";
 import LinkAdDialog from "./LinkAdDialog";
+import { useCan } from "@/store/authed-user";
 
 const ticketState = (state) =>
   state === "Новая" || state === "Не в работе"
@@ -117,8 +118,9 @@ const ViewUser = ({ user, tickets }) => {
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
   const authedUser = useContext(AuthedUserContext);
-  const canManageUsers = authedUser.permissions?.canManageUsers;
-  const canManageCompanies = authedUser.permissions?.canManageCompanies;
+  const can = useCan();
+  const canManageUsers = can({ user: ["manage"] });
+  const canManageCompanies = can({ company: ["manage"] });
   const { modules: appModules } = useInitialPrefs();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -146,7 +148,7 @@ const ViewUser = ({ user, tickets }) => {
     isServiceAccount,
     isCloudTelephony,
     isAdmin,
-    isActive,
+    banned,
     telegramBot,
     getScreen,
     activeDirectoryObjectGUID,
@@ -261,7 +263,7 @@ const ViewUser = ({ user, tickets }) => {
     !isServiceAccount &&
     !isCloudTelephony &&
     Boolean(appModules?.inventory?.isActive) &&
-    Boolean(authedUser.permissions?.canUseInventoryModule);
+    Boolean(can({ inventory: ["use"] }));
 
   // График работы — только у сотрудников: у клиентов и служебных аккаунтов
   // нет ни нормы часов, ни отсутствий
@@ -338,7 +340,7 @@ const ViewUser = ({ user, tickets }) => {
                 )}
               </span>
             )}
-            {!isActive && (
+            {banned && (
               <span className="inline-flex items-center gap-1.5 font-semibold text-destructive">
                 <span className="size-2 rounded-full bg-destructive" />
                 Отключён
@@ -380,8 +382,8 @@ const ViewUser = ({ user, tickets }) => {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onSelect={() => setToggleOpen(true)}>
-                  {isActive ? <RiUserUnfollowLine /> : <RiUserFollowLine />}
-                  {isActive ? "Отключить" : "Включить"}
+                  {banned ? <RiUserFollowLine /> : <RiUserUnfollowLine />}
+                  {banned ? "Включить" : "Отключить"}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

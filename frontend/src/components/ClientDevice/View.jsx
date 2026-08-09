@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useNavigate, useRevalidator } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
@@ -54,7 +54,6 @@ import {
 } from "@/components/app/device-status";
 import { cn } from "@/lib/utils";
 
-import { AuthedUserContext } from "../../store/authed-user-context";
 import useOffcanvasStore from "../../store/offcanvas";
 import { getLocalStorageData } from "../../util/auth";
 import { formatCalendarDate } from "../../util/format-date";
@@ -66,6 +65,7 @@ import MonitoringPanel from "./MonitoringPanel";
 import NewComponentDialog from "./NewComponentDialog";
 import QrDialog from "./QrDialog";
 import TicketsPanel from "./TicketsPanel";
+import { useCan } from "@/store/authed-user";
 
 const dash = <span className="text-faint">—</span>;
 
@@ -125,9 +125,9 @@ const ViewClientDevice = ({ device = {} }) => {
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const offcanvas = useOffcanvasStore();
-  const { permissions } = useContext(AuthedUserContext);
-  const canManage = Boolean(permissions.canManageClientDevices);
-  const canManageMikrotik = Boolean(permissions.canManageMikrotikDevices);
+  const can = useCan();
+  const canManage = Boolean(can({ clientDevice: ["manage"] }));
+  const canManageMikrotik = Boolean(can({ mikrotik: ["manageDevices"] }));
 
   const [qrOpen, setQrOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);

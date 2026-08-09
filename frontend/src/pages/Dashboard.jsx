@@ -17,6 +17,7 @@ import { AuthedUserContext } from "../store/authed-user-context";
 import useDashboardTicketsStore from "../store/dashboard-tickets";
 import useInitialPrefsStore from "../store/prefs";
 import { getLocalStorageData } from "../util/auth";
+import { useCan } from "@/store/authed-user";
 
 /**
  * Главная — ролевой лендинг.
@@ -72,10 +73,11 @@ const DashboardClient = () => {
 };
 
 const DashboardStaff = () => {
-  const { isAdmin, permissions } = useContext(AuthedUserContext);
+  const { isAdmin } = useContext(AuthedUserContext);
+  const can = useCan();
   // Заготовки сотруднику — под правом администрирования заявок: остальным они
   // не инструмент, а лишний ряд плиток над тем, за чем сюда пришли.
-  const showTemplates = isAdmin || !!permissions?.canAdministrateTickets;
+  const showTemplates = isAdmin || !!can({ ticket: ["administrate"] });
 
   return (
     <>

@@ -23,6 +23,7 @@ import AddWorksSheet from "./BulkActions/AddWorksSheet";
 import CloseModal from "./BulkActions/CloseModal";
 import CommentModal from "./BulkActions/CommentModal";
 import TakeToWorkModal from "./BulkActions/TakeToWorkModal";
+import { useCan } from "@/store/authed-user";
 
 // Действия над выбранными заявками. Панель показывается всё время, пока включён
 // режим выбора (а не только когда что-то выбрано): человек вошёл в режим
@@ -41,42 +42,43 @@ const TicketBulkActionBar = ({
   onClose,
   onDelete,
 }) => {
-  const { _id: userId, permissions } = useContext(AuthedUserContext);
+  const { _id: userId } = useContext(AuthedUserContext);
+  const can = useCan();
   const [openModal, setOpenModal] = useState(null);
 
   const count = selectedItems.length;
-  const context = { userId, permissions };
+  const context = { userId, can };
   const closeModal = () => setOpenModal(null);
 
   const empty = count === 0 ? "Выберите заявки" : null;
 
   const actions = [
-    permissions.canPerformTickets && {
+    can({ ticket: ["perform"] }) && {
       key: "takeToWork",
       icon: RiPlayCircleLine,
       label: "В работу",
       reason: empty ?? takeToWorkReason(selectedItems, context),
     },
-    permissions.canPerformTickets && {
+    can({ ticket: ["perform"] }) && {
       key: "comment",
       icon: RiChat3Line,
       label: "Комментарий",
       reason: empty ?? commentReason(selectedItems),
     },
-    permissions.canPerformTickets &&
-      permissions.canUseTimeTrackingModule && {
+    can({ ticket: ["perform"] }) &&
+      can({ timeTracking: ["use"] }) && {
         key: "works",
         icon: RiToolsLine,
         label: "Работы",
         reason: empty ?? addWorksReason(selectedItems),
       },
-    permissions.canPerformTickets && {
+    can({ ticket: ["perform"] }) && {
       key: "close",
       icon: RiCheckboxCircleLine,
       label: "Закрыть",
       reason: empty ?? closeReason(selectedItems, context),
     },
-    permissions.canDeleteTickets && {
+    can({ ticket: ["delete"] }) && {
       key: "delete",
       icon: RiDeleteBinLine,
       label: "Удалить",

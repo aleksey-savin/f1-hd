@@ -1,0 +1,343 @@
+{
+  "_": [
+    "Каталог ролей: ДАННЫЕ, а не код. Правится руками, лежит в репозитории и",
+    "переезжает на прод вместе с ним — там же и применяется assignRoles.js.",
+    "",
+    "`key` — НЕИЗМЕНЯЕМЫЙ ключ роли. Именно его хранит `member.role`, поэтому",
+    "менять его нельзя: переименование ключа оставит людей без прав молча.",
+    "`title` — то, что видит человек; правится свободно, в том числе из UI.",
+    "",
+    "`matches` — подписи наборов прав, которые эта роль поглощает. Каждая подпись",
+    "это отсортированный по порядку utils/permissions.js список включённых прав.",
+    "Слияние нескольких подписей в одну роль — осознанное решение человека, и",
+    "оно видно здесь глазами: assignRoles.js печатает, кто что при этом получит.",
+    "",
+    "Пользователь, чья подпись не описана НИ ОДНОЙ ролью, останавливает скрипт.",
+    "Это защита от расхождения дева и прода: на проде наборы могли уйти вперёд."
+  ],
+  "roles": [
+    {
+      "key": "client",
+      "title": "Клиент",
+      "description": "Заявки только свои",
+      "permissions": [],
+      "matches": [
+        [],
+        [
+          "canAvoidWorks"
+        ]
+      ],
+      "_note": [
+        "Одинокий canAvoidWorks — ошибка раздачи, а не роль: он стоял у клиента",
+        "(главный бухгалтер), который заявок не выполняет вовсе. Поглощаем",
+        "подписью, право не даём."
+      ]
+    },
+    {
+      "key": "client-company",
+      "title": "Клиент: все заявки компании",
+      "description": "Видит заявки всех сотрудников своей компании",
+      "permissions": [
+        "canSeeAllCompanyTickets"
+      ],
+      "matches": [
+        [
+          "canSeeAllCompanyTickets"
+        ]
+      ]
+    },
+    {
+      "key": "client-manager",
+      "title": "Клиент: руководитель",
+      "description": "Заявки компании плюс отчёт по работам",
+      "permissions": [
+        "canSeeAllCompanyTickets",
+        "canUseTimeTrackingModule",
+        "canSeeWorksReport"
+      ],
+      "matches": [
+        [
+          "canSeeAllCompanyTickets",
+          "canUseTimeTrackingModule",
+          "canSeeWorksReport"
+        ]
+      ]
+    },
+    {
+      "key": "admin",
+      "title": "Администратор",
+      "description": "Полный доступ. Гейты пропускают администратора и без прав — набор влияет на меню",
+      "permissions": [
+        "canPerformTickets",
+        "canAdministrateTickets",
+        "canSeeAllTickets",
+        "canEditTickets",
+        "canDeleteTickets",
+        "canManageCompanies",
+        "canManageUsers",
+        "canManageRoles",
+        "canManageTicketCategories",
+        "canManageKnowledgeBase",
+        "canSeeKnowledgeBase",
+        "canManageRoutineTasks",
+        "canManageTicketTemplates",
+        "canUseTimeTrackingModule",
+        "canAvoidWorks",
+        "canSeeWorksReport",
+        "canSeeAnalytics",
+        "canManageWorkSchedules",
+        "canUseInventoryModule",
+        "canManageClientDevices",
+        "canManageMikrotikDevices",
+        "canManageMikrotikConfigs",
+        "canUseFinancesModule",
+        "canManageServicePlans",
+        "canSeeGlobalFinancialReport",
+        "canConfirmReportActions",
+        "canSeePersonalFinancialReport",
+        "canApproveWorkReports"
+      ],
+      "matches": [
+        [
+          "canPerformTickets",
+          "canAdministrateTickets",
+          "canSeeAllCompanyTickets",
+          "canSeeAllTickets",
+          "canEditTickets",
+          "canDeleteTickets",
+          "canManageCompanies",
+          "canManageUsers",
+          "canManageTicketCategories",
+          "canManageKnowledgeBase",
+          "canSeeKnowledgeBase",
+          "canManageRoutineTasks",
+          "canManageTicketTemplates",
+          "canUseTimeTrackingModule",
+          "canSeeWorksReport",
+          "canSeeAnalytics",
+          "canUseInventoryModule",
+          "canManageClientDevices",
+          "canManageMikrotikDevices",
+          "canManageMikrotikConfigs",
+          "canUseFinancesModule",
+          "canManageServicePlans",
+          "canSeeGlobalFinancialReport",
+          "canConfirmReportActions"
+        ],
+        [
+          "canPerformTickets",
+          "canAdministrateTickets",
+          "canSeeAllTickets",
+          "canEditTickets",
+          "canDeleteTickets",
+          "canManageCompanies",
+          "canManageUsers",
+          "canManageTicketCategories",
+          "canManageKnowledgeBase",
+          "canSeeKnowledgeBase",
+          "canManageRoutineTasks",
+          "canManageTicketTemplates",
+          "canUseTimeTrackingModule",
+          "canSeeWorksReport",
+          "canSeeAnalytics",
+          "canUseInventoryModule",
+          "canManageClientDevices",
+          "canManageMikrotikDevices",
+          "canManageMikrotikConfigs",
+          "canUseFinancesModule",
+          "canManageServicePlans",
+          "canSeeGlobalFinancialReport",
+          "canConfirmReportActions"
+        ],
+        [
+          "canPerformTickets",
+          "canAdministrateTickets",
+          "canSeeAllTickets",
+          "canEditTickets",
+          "canDeleteTickets",
+          "canManageCompanies",
+          "canManageUsers",
+          "canManageTicketCategories",
+          "canManageKnowledgeBase",
+          "canSeeKnowledgeBase",
+          "canManageRoutineTasks",
+          "canManageTicketTemplates",
+          "canUseTimeTrackingModule",
+          "canSeeWorksReport",
+          "canSeeAnalytics",
+          "canUseInventoryModule",
+          "canManageClientDevices",
+          "canManageMikrotikDevices",
+          "canUseFinancesModule",
+          "canManageServicePlans",
+          "canSeeGlobalFinancialReport"
+        ],
+        [
+          "canPerformTickets",
+          "canAdministrateTickets",
+          "canSeeAllTickets",
+          "canEditTickets",
+          "canDeleteTickets",
+          "canManageCompanies",
+          "canManageUsers",
+          "canManageTicketCategories",
+          "canManageKnowledgeBase",
+          "canSeeKnowledgeBase",
+          "canManageRoutineTasks",
+          "canUseTimeTrackingModule",
+          "canSeeWorksReport",
+          "canUseInventoryModule",
+          "canManageClientDevices",
+          "canManageMikrotikDevices",
+          "canUseFinancesModule",
+          "canManageServicePlans",
+          "canSeeGlobalFinancialReport"
+        ]
+      ]
+    },
+    {
+      "key": "engineer",
+      "title": "Инженер",
+      "description": "Заявки, учёт времени, техника клиентов",
+      "permissions": [
+        "canPerformTickets",
+        "canUseTimeTrackingModule",
+        "canUseInventoryModule",
+        "canManageClientDevices",
+        "canManageMikrotikDevices"
+      ],
+      "matches": [
+        [
+          "canPerformTickets"
+        ],
+        [
+          "canPerformTickets",
+          "canUseTimeTrackingModule"
+        ],
+        [
+          "canUseTimeTrackingModule",
+          "canUseInventoryModule",
+          "canManageClientDevices",
+          "canManageMikrotikDevices"
+        ]
+      ]
+    },
+    {
+      "key": "engineer-noworks",
+      "title": "Инженер: закрытие без работ",
+      "description": "Инженер, которому можно закрыть заявку без записи о работе",
+      "permissions": [
+        "canPerformTickets",
+        "canUseTimeTrackingModule",
+        "canAvoidWorks",
+        "canUseInventoryModule",
+        "canManageClientDevices",
+        "canManageMikrotikDevices"
+      ],
+      "matches": [
+        [
+          "canPerformTickets",
+          "canUseTimeTrackingModule",
+          "canAvoidWorks"
+        ]
+      ]
+    },
+    {
+      "key": "engineer-lead",
+      "title": "Ведущий инженер",
+      "description": "Инженер плюс все заявки, база знаний, регламенты и конфигурации Mikrotik",
+      "permissions": [
+        "canPerformTickets",
+        "canSeeAllTickets",
+        "canManageKnowledgeBase",
+        "canSeeKnowledgeBase",
+        "canManageRoutineTasks",
+        "canUseTimeTrackingModule",
+        "canUseInventoryModule",
+        "canManageClientDevices",
+        "canManageMikrotikDevices",
+        "canManageMikrotikConfigs"
+      ],
+      "matches": [
+        [
+          "canSeeAllTickets",
+          "canManageRoutineTasks",
+          "canUseTimeTrackingModule",
+          "canUseInventoryModule",
+          "canManageClientDevices",
+          "canManageMikrotikDevices"
+        ],
+        [
+          "canPerformTickets",
+          "canManageKnowledgeBase",
+          "canSeeKnowledgeBase",
+          "canManageRoutineTasks",
+          "canUseTimeTrackingModule",
+          "canUseInventoryModule",
+          "canManageClientDevices",
+          "canManageMikrotikDevices",
+          "canManageMikrotikConfigs"
+        ]
+      ]
+    },
+    {
+      "key": "engineer-lead-finance",
+      "title": "Ведущий инженер: финансы",
+      "description": "Ведущий инженер плюс финансовый модуль и личный финансовый отчёт",
+      "permissions": [
+        "canPerformTickets",
+        "canSeeAllTickets",
+        "canManageKnowledgeBase",
+        "canSeeKnowledgeBase",
+        "canUseTimeTrackingModule",
+        "canUseInventoryModule",
+        "canManageClientDevices",
+        "canManageMikrotikDevices",
+        "canUseFinancesModule",
+        "canSeePersonalFinancialReport"
+      ],
+      "matches": [
+        [
+          "canPerformTickets",
+          "canSeeAllTickets",
+          "canManageKnowledgeBase",
+          "canSeeKnowledgeBase",
+          "canUseTimeTrackingModule",
+          "canUseInventoryModule",
+          "canManageClientDevices",
+          "canManageMikrotikDevices",
+          "canUseFinancesModule",
+          "canSeePersonalFinancialReport"
+        ],
+        [
+          "canPerformTickets",
+          "canSeeAllCompanyTickets",
+          "canSeeAllTickets",
+          "canManageKnowledgeBase",
+          "canSeeKnowledgeBase",
+          "canUseTimeTrackingModule",
+          "canUseInventoryModule",
+          "canManageClientDevices",
+          "canManageMikrotikDevices",
+          "canUseFinancesModule",
+          "canSeePersonalFinancialReport"
+        ]
+      ]
+    },
+    {
+      "key": "works-accounting",
+      "title": "Учёт работ",
+      "description": "Учёт времени и отчёт по работам без доступа к заявкам",
+      "permissions": [
+        "canUseTimeTrackingModule",
+        "canSeeWorksReport"
+      ],
+      "matches": [
+        [
+          "canUseTimeTrackingModule",
+          "canSeeWorksReport"
+        ]
+      ]
+    }
+  ]
+}

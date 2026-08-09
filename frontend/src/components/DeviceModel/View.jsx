@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Link,
   Outlet,
@@ -36,7 +36,7 @@ import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
-import { AuthedUserContext } from "../../store/authed-user-context";
+import { useCan } from "@/store/authed-user";
 
 const dash = <span className="text-faint">—</span>;
 // createdAt/updatedAt — инстанты: единый формат в бизнес-таймзоне.
@@ -137,8 +137,8 @@ const ViewDeviceModel = ({
   const offcanvas = useOffcanvasStore();
   const { showToast } = useToastStore();
   const actionData = useActionData();
-  const { permissions } = useContext(AuthedUserContext);
-  const canManage = permissions.canManageClientDevices;
+  const can = useCan();
+  const canManage = can({ clientDevice: ["manage"] });
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Карточку всегда открываем от начала: иначе hero прячется под фиксированным

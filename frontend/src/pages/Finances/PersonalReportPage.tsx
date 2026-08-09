@@ -28,7 +28,7 @@ import {
   formatMinutes,
   formatMoney,
 } from "../../components/Report/work-format";
-import { useAuthedUser } from "../../store/authed-user";
+import { useAuthedUser, useCan } from "../../store/authed-user";
 import usePersonalReportStore from "../../store/reports/personal-report";
 import { isFullMonthRange } from "../../util/period";
 
@@ -49,6 +49,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
   const s = usePersonalReportStore();
   const filterOffcanvas = useMobileFilterOffcanvasStore();
   const authedUser = useAuthedUser();
+  const can = useCan();
 
   // Свой отчёт запрашиваем без userId — сервер возьмёт из токена
   const targetUserId = own || !userId ? null : userId;
@@ -65,7 +66,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
   const isOwn = own || !userId || userId === authedUser?._id;
   // Сводная доступна только с полным правом — только им и показываем возврат
   const canSeeSummary = Boolean(
-    authedUser?.isAdmin || authedUser?.permissions?.canSeeGlobalFinancialReport,
+    can({ finances: ["readGlobalReport"] }),
   );
 
   const toolbar = (

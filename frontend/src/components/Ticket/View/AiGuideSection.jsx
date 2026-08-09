@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useFetcher } from "react-router";
 import {
@@ -17,11 +17,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import useHttp from "../../../hooks/use-http";
-import { AuthedUserContext } from "../../../store/authed-user-context";
 import useViewTicketStore from "../../../store/view-ticket";
 import { getLocalStorageData } from "../../../util/auth";
 import { formatDate } from "../../../util/format-date";
 import { getNoteTypeMeta } from "../../../util/knowledgeNoteTypes";
+import { useCan } from "@/store/authed-user";
 
 /**
  * Руководство ИИ по заявке.
@@ -90,7 +90,7 @@ const SourceRow = ({ source }) => {
 
 const AiGuideSection = () => {
   const { token } = getLocalStorageData();
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
 
   const ticket = useViewTicketStore((state) => state.ticket);
   const updateTicket = useViewTicketStore((state) => state.updateTicket);
@@ -109,8 +109,8 @@ const AiGuideSection = () => {
   const isQuestions = aiGuide?.kind === "questions";
   const busy = isLoading || status === "pending";
 
-  const canGenerate = permissions?.canPerformTickets && !ticket?.isArchived;
-  const canEditChecklist = permissions?.canEditTickets && !ticket?.isArchived;
+  const canGenerate = can({ ticket: ["perform"] }) && !ticket?.isArchived;
+  const canEditChecklist = can({ ticket: ["update"] }) && !ticket?.isArchived;
 
   const applyGuide = (guide) => {
     const current = useViewTicketStore.getState().ticket;
@@ -297,7 +297,7 @@ const AiGuideSection = () => {
                   count={items.length}
                   action={
                     isQuestions
-                      ? permissions?.canPerformTickets && (
+                      ? can({ ticket: ["perform"] }) && (
                           <Button variant="outline" size="xs" onClick={askAll}>
                             <RiSendPlaneLine /> Спросить заявителя
                           </Button>
@@ -341,7 +341,7 @@ const AiGuideSection = () => {
                       </span>
                       {/* Из десяти вопросов обычно нужны два — «+» дописывает
                           в черновик именно этот */}
-                      {isQuestions && permissions?.canPerformTickets && (
+                      {isQuestions && can({ ticket: ["perform"] }) && (
                         <Button
                           variant="ghost"
                           size="icon-xs"

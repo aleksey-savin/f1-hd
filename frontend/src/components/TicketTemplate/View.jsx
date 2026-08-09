@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import MarkdownViewer from "../../UI/MarkdownViewer";
 import useOffcanvasStore from "../../store/offcanvas";
 import { AuthedUserContext } from "../../store/authed-user-context";
+import { useCan } from "@/store/authed-user";
 
 const pluralFields = (n) => {
   const m10 = n % 10;
@@ -49,10 +50,9 @@ const personName = (person) =>
 const ViewTicketTemplate = ({ template }) => {
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
-  const { _id: userId, permissions } = useContext(AuthedUserContext);
-  const canManage = canManageEntity(
-    "ticketTemplate",
-    permissions,
+  const { _id: userId } = useContext(AuthedUserContext);
+  const can = useCan();
+  const canManage = canManageEntity("ticketTemplate", can,
     template,
     userId,
   );

@@ -44,7 +44,7 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
 
   const staff = await User.find({
     ...(userIds ? { _id: { $in: userIds } } : {}),
-    isActive: true,
+    banned: { $ne: true },
     isEndUser: false,
     isServiceAccount: false,
     isCloudTelephony: false,

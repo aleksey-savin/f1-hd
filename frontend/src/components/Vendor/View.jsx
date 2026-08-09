@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Outlet, useActionData, useNavigate } from "react-router";
 
 import {
@@ -31,7 +31,7 @@ import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
-import { AuthedUserContext } from "../../store/authed-user-context";
+import { useCan } from "@/store/authed-user";
 
 const fmtDate = (value) => (value ? formatShortDate(value) : null);
 const userName = (u) =>
@@ -85,8 +85,8 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
   const offcanvas = useOffcanvasStore();
   const { showToast } = useToastStore();
   const actionData = useActionData();
-  const { permissions } = useContext(AuthedUserContext);
-  const canManage = permissions.canManageClientDevices;
+  const can = useCan();
+  const canManage = can({ clientDevice: ["manage"] });
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
   // Свёрнутый/раскрытый набор групп (по id типа). Малый каталог — всё раскрыто.

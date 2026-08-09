@@ -25,6 +25,7 @@ export const PERMISSION_MODULES = [
     caps: [
       { key: "canManageCompanies", label: "Управление компаниями" },
       { key: "canManageUsers", label: "Управление пользователями" },
+      { key: "canManageRoles", label: "Управление ролями" },
       { key: "canManageTicketCategories", label: "Категории заявок" },
       { key: "canManageRoutineTasks", label: "Регламенты" },
       { key: "canManageTicketTemplates", label: "Шаблоны заявок" },

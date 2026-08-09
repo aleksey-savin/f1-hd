@@ -61,7 +61,10 @@ const doFetch = async (get, set, { silent = false, append = false } = {}) => {
   const { token } = getLocalStorageData();
   if (!silent) set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/users`);
+    // База обязательна: VITE_API_ADDRESS теперь пуст (фронт и API на одном
+    // origin), а `new URL("/api/users")` без базы БРОСАЕТ «Invalid URL».
+    // Абсолютному адресу база не мешает — он её перекрывает.
+    const url = new URL(`${API}/api/users`, window.location.origin);
     url.search = buildParams(get()).toString();
     const response = await fetch(url, {
       headers: { Authorization: "Bearer " + token },

@@ -19,7 +19,8 @@ import { FALLBACK_PREFS, type AuthPrefs } from "./prefs";
 
 /** Старые адреса режимов: на них ведут закладки и редирект выхода. */
 const LEGACY_MODES: Record<string, string> = {
-  signup: "/auth/signup",
+  // Саморегистрации больше нет — старая закладка ведёт на вход.
+  signup: "/auth",
   "forgot-password": "/auth/password",
   login: "/auth",
 };
@@ -53,16 +54,8 @@ export async function loader({ request }: { request: Request }) {
     // молчим намеренно: см. FALLBACK_PREFS
   }
 
-  // Первый запуск — состояние оболочки, а не отдельная ветка внутри экранов:
-  // на пустой базе форме входа не с чем работать. Редирект только по
-  // настоящему булеву — иначе моргающий бэкенд закольцует переходы
-  if (prefs.firstLaunch === true && path !== "/auth/setup") {
-    return redirect("/auth/setup");
-  }
-  if (prefs.firstLaunch === false && path === "/auth/setup") {
-    return redirect("/auth");
-  }
-
+  // Экрана первого запуска больше нет: администратор и компания заводятся
+  // сидом при старте бэкенда, а неавторизованная ручка провижининга удалена.
   return prefs;
 }
 

@@ -14,13 +14,15 @@ const {
 const { resolveOvertimeSettings } = require("../services/workOvertime");
 const { runWorkStatusAuto } = require("../services/workStatusAuto");
 const logger = require("../utils/logger");
+const { permissionFilter, canFor } = require("@/services/permissions");
 
 // Календарные даты лежат UTC-полночью и ходят строками YYYY-MM-DD
 const toUtcMidnight = (key) => new Date(`${key}T00:00:00.000Z`);
 const keyOf = (date) => toDateKey(new Date(date));
 
-const canManage = (user) =>
-  Boolean(user?.isAdmin || user?.permissions?.canManageWorkSchedules);
+// Права автора запроса, а не флаг из его документа: с ролями флага там нет.
+const canManage = async (user) =>
+  (await canFor(user))({ workSchedule: ["manage"] });
 
 const shortName = (user) =>
   `${user.lastName || ""} ${(user.firstName || "").slice(0, 1)}.`.trim();
@@ -145,7 +147,7 @@ exports.add = async (req, res, next) => {
 
     const targetId = req.body.user || userId;
     const isSelf = String(targetId) === String(userId);
-    const manager = canManage(author);
+    const manager = await canManage(author);
 
     if (!isSelf && !manager) {
       return next(
@@ -285,7 +287,7 @@ exports.cancel = async (req, res, next) => {
       return next(new AppError("Отсутствие не найдено", 404));
     }
     const isOwn = String(absence.requestedBy) === String(userId);
-    if (!isOwn && !canManage(author)) {
+    if (!isOwn && !(await canManage(author))) {
       return next(new AppError("Отозвать можно только свой запрос", 403));
     }
     if (absence.status === "cancelled") {
@@ -347,9 +349,9 @@ const notifyManagers = async (doc) => {
   const preferences = await Preferences.findOne({}).lean();
   const tz = resolveTimezone(preferences);
   const managers = await User.find({
-    isActive: true,
+    banned: { $ne: true },
     isEndUser: false,
-    $or: [{ isAdmin: true }, { "permissions.canManageWorkSchedules": true }],
+    ...(await permissionFilter("canManageWorkSchedules")),
   })
     .select("firstName lastName telegramBot notify email")
     .lean();

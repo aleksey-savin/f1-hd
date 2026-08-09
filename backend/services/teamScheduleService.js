@@ -17,6 +17,7 @@ const {
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
 const timezone = require("dayjs/plugin/timezone");
+const { canFor } = require("@/services/permissions");
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -83,7 +84,7 @@ const buildTeamSchedule = async ({
   const query = {
     isEndUser: false,
     isServiceAccount: false,
-    isActive: true,
+    banned: { $ne: true },
     workTimeMode: { $ne: "none" },
   };
   if (companyId) {
@@ -268,7 +269,9 @@ const buildTeamSchedule = async ({
     availability: [...availability.values()],
     employees: rows,
     pending,
-    canManage: Boolean(viewer?.isAdmin || viewer?.permissions?.canManageWorkSchedules),
+    canManage: viewer
+      ? (await canFor(viewer))({ workSchedule: ["manage"] })
+      : false,
   };
 };
 

@@ -77,6 +77,7 @@ import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import useViewTicketStore from "../../store/view-ticket";
 import { getLocalStorageData } from "../../util/auth";
+import { useCan } from "@/store/authed-user";
 
 // Карточка заявки: hero (номер · тема · статус фразой · одно действие по
 // состоянию и «⋯») → слева секции с липким рейлом-якорем, справа хроника.
@@ -119,7 +120,8 @@ const ViewTicket = () => {
   const checklistFetcher = useFetcher();
   const { modules, ai } = useInitialPrefsStore();
   const authedUser = useContext(AuthedUserContext);
-  const { _id: userId, permissions, isEndUser, isAdmin } = authedUser;
+  const { _id: userId, isEndUser, isAdmin } = authedUser;
+  const can = useCan();
 
   const { showToast } = useToastStore();
 
@@ -197,7 +199,7 @@ const ViewTicket = () => {
   );
   const { primary, menu } = ticketActions(ticket, {
     userId,
-    permissions,
+    can,
     isAdmin,
     isEndUser,
     works,
@@ -236,8 +238,8 @@ const ViewTicket = () => {
   );
 
   const canPerform =
-    permissions.canPerformTickets && mine && !ticket.isArchived;
-  const canEditChecklist = permissions.canEditTickets && !ticket.isArchived;
+    can({ ticket: ["perform"] }) && mine && !ticket.isArchived;
+  const canEditChecklist = can({ ticket: ["update"] }) && !ticket.isArchived;
   const hasChecklist = ticket.checklist?.length > 0;
 
   // Шаблоны чек-листов, подходящие этой заявке: ранжирование («побеждает самый
@@ -276,13 +278,13 @@ const ViewTicket = () => {
   };
 
   const showWorks =
-    modules.timeTracking?.isActive && permissions.canUseTimeTrackingModule;
+    modules.timeTracking?.isActive && can({ timeTracking: ["use"] });
   const showEnvironment =
     !isEndUser &&
     modules.inventory?.isActive &&
-    permissions.canUseInventoryModule;
+    can({ inventory: ["use"] });
   const showKnowledge =
-    modules.knowledgeBase?.isActive && permissions.canSeeKnowledgeBase;
+    modules.knowledgeBase?.isActive && can({ knowledgeBase: ["read"] });
   const showAi = !isEndUser && ai?.isActive;
 
   const railSections = useMemo(
@@ -479,7 +481,7 @@ const ViewTicket = () => {
         <div className="-mt-6 flex min-w-0 flex-1 flex-col gap-5">
           <DescriptionSection
             ticket={ticket}
-            canEdit={permissions.canEditTickets && !ticket.isArchived}
+            canEdit={can({ ticket: ["update"] }) && !ticket.isArchived}
             uploadAction={attachments.uploadAction}
             attachments={
               <AttachmentStrip
@@ -502,7 +504,7 @@ const ViewTicket = () => {
           <FactsSection
             ticket={ticket}
             company={company}
-            canEdit={permissions.canEditTickets && !ticket.isArchived}
+            canEdit={can({ ticket: ["update"] }) && !ticket.isArchived}
             onShowLogs={
               !isEndUser ? (query) => setLogsQuery(query ?? "") : undefined
             }
@@ -645,7 +647,7 @@ const ViewTicket = () => {
           <Chronicle
             ticket={ticket}
             events={events}
-            canComment={!ticket.isArchived && !!permissions.canPerformTickets}
+            canComment={!ticket.isArchived && !!can({ ticket: ["perform"] })}
           />
         </div>
       </div>
@@ -655,7 +657,7 @@ const ViewTicket = () => {
         <Chronicle
           ticket={ticket}
           events={events}
-          canComment={!ticket.isArchived && !!permissions.canPerformTickets}
+          canComment={!ticket.isArchived && !!can({ ticket: ["perform"] })}
         />
       </div>
 
@@ -679,7 +681,7 @@ const ViewTicket = () => {
         onHide={() => setLogsQuery(null)}
         companyId={company?._id}
         company={company}
-        permissions={permissions}
+        can={can}
         initialSearchQuery={logsQuery ?? ""}
       />
 

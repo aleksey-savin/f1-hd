@@ -2,7 +2,18 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-type SegmentOption = { value: string; label: string; icon?: ReactNode };
+type SegmentOption = {
+  value: string;
+  label: string;
+  icon?: ReactNode;
+  /**
+   * Гасит ОДИН сегмент. Само погасшее состояние и есть сообщение «этой дороги
+   * нет» — отдельный абзац-предупреждение рядом не нужен, причину кладём в
+   * `title`.
+   */
+  disabled?: boolean;
+  title?: string;
+};
 
 // Сегмент-контрол (single-select) — общий стиль с выбором темы: активный сегмент
 // bg-primary/15 + accent-text. Для выбора из нескольких взаимоисключающих
@@ -40,12 +51,16 @@ const Segmented = ({
         <button
           key={option.value}
           type="button"
-          disabled={disabled}
+          disabled={disabled || option.disabled}
+          title={option.title}
           aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
           className={cn(
             "inline-flex flex-1 cursor-pointer appearance-none items-center justify-center rounded-md border-0 bg-transparent font-semibold text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50",
-            "disabled:pointer-events-none disabled:cursor-not-allowed",
+            // Не pointer-events-none: погасший сегмент должен показывать `title`
+            // с причиной, а событий он и так не получает — кнопка нативно
+            // disabled. Гасим только подсветку под курсором.
+            "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-muted-foreground",
             stacked
               ? "flex-col gap-1 px-1.5 py-2 text-center text-xs leading-tight"
               : "gap-1.5 px-3 py-2 text-sm",

@@ -4,7 +4,11 @@
 
 export const API = import.meta.env.VITE_API_ADDRESS;
 
-/** Статусы, которые формы показывают на месте, а не роняют в error boundary. */
+/**
+ * Статусы, у которых сервер объясняет причину словами, — их показывают как
+ * есть. Пред-авторизационные экраны не роняют в error boundary НИЧЕГО (см.
+ * `authFailure`), но остальным формам список по-прежнему нужен.
+ */
 export const INLINE_STATUSES = [400, 401, 403, 404, 409, 422, 429];
 
 type AuthResponse = {
@@ -44,14 +48,20 @@ const SESSION_KEYS = [
  * из localStorage форматтеры дат (`orgTimezone`) и виджеты контактов ещё до
  * того, как отработает загрузчик корня.
  */
-export async function storeSession(data: AuthResponse) {
-  localStorage.setItem("token", data.token);
+export async function storeSession(data: AuthResponse, response?: Response) {
+  // Сеанс живёт на сервере, и браузер уже получил его cookie. Токен в
+  // localStorage — переходный транспорт для экранов, ещё не переехавших на
+  // api()-клиент: они шлют его заголовком, плагин `bearer` принимает.
+  // Приоритет у заголовка `set-auth-token`; поле `token` тела — то же
+  // значение, оставлено ради совместимости и уйдёт вместе с bearer.
+  const token = response?.headers.get("set-auth-token") || data.token;
+  localStorage.setItem("token", token);
   localStorage.setItem("expiryDate", new Date(data.expiryDate).toISOString());
   localStorage.setItem("userId", String(data.userId));
 
   try {
     const response = await fetch(`${API}/api/preferences-initial`, {
-      headers: { Authorization: "Bearer " + data.token },
+      headers: { Authorization: "Bearer " + token },
     });
     if (!response.ok) return;
 
@@ -98,3 +108,46 @@ export async function inlineError(response: Response, fallback: string) {
     locked: Boolean(data?.locked),
   };
 }
+
+export type AuthFailure = { message: string; locked: boolean };
+
+/**
+ * Неудача пред-авторизационного экрана — ВСЕГДА на месте, ничего не бросаем.
+ *
+ * Экран ошибки предлагает «вернуться» и «на главную», а человеку, который не
+ * может войти, возвращаться некуда: обе дороги ведут обратно сюда же, зато
+ * введённый адрес теряется. Поэтому 500 и оборванная сеть остаются на форме
+ * плашкой — как и 401.
+ *
+ * Сообщение сервера показываем, только когда он объяснил причину по-русски и
+ * по существу (наш `AppError` со списком статусов). У 500 текст свой: «Login
+ * failed» из журнала человеку ничего не говорит и выглядит как его вина.
+ */
+export async function authFailure(
+  response: Response,
+  fallback: string,
+): Promise<AuthFailure> {
+  if (INLINE_STATUSES.includes(response.status)) {
+    return inlineError(response, fallback);
+  }
+
+  console.error("auth: сервер ответил", response.status, await responseText(response));
+
+  return {
+    message:
+      "Сервер не смог обработать запрос. Попробуйте ещё раз через минуту — если повторится, сообщите в поддержку.",
+    locked: false,
+  };
+}
+
+/** Разрыв связи, а не ответ сервера: `fetch` бросает, и это тоже не повод уходить с экрана. */
+export const OFFLINE_FAILURE: AuthFailure = {
+  message: "Нет связи с сервером. Проверьте подключение и попробуйте снова.",
+  locked: false,
+};
+
+const responseText = async (response: Response) =>
+  response
+    .clone()
+    .text()
+    .catch(() => "");

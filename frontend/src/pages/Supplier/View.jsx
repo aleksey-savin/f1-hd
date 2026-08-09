@@ -1,18 +1,17 @@
-import { useContext } from "react";
 import { redirect, useLoaderData } from "react-router";
 
 import ViewSupplier from "../../components/Supplier/View";
 import Forbidden from "../../components/Error/403";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
+import { useCan } from "@/store/authed-user";
 
 const ViewSupplierPage = () => {
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
   const supplier = useLoaderData();
 
   if (
-    !permissions.canUseInventoryModule ||
-    !permissions.canManageClientDevices
+    !can({ inventory: ["use"] }) ||
+    !can({ clientDevice: ["manage"] })
   ) {
     return <Forbidden />;
   }

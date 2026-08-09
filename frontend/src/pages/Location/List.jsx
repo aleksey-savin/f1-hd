@@ -39,6 +39,7 @@ import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
+import { useCan } from "@/store/authed-user";
 
 const TYPE_ORDER = { building: 0, floor: 1, room: 2, workplace: 3, storage: 4 };
 
@@ -56,6 +57,7 @@ const LocationList = () => {
   const offcanvas = useOffcanvasStore();
   const { showToast } = useToastStore();
   const authedUser = useContext(AuthedUserContext);
+  const can = useCan();
 
   const [selectedId, setSelectedId] = useState(null);
   const [deleteItem, setDeleteItem] = useState(null);
@@ -369,7 +371,7 @@ const LocationList = () => {
         node={selectedNode}
         ancestors={ancestors}
         childNodes={childNodes}
-        canManage={authedUser.permissions?.canManageClientDevices}
+        canManage={can({ clientDevice: ["manage"] })}
         onClose={() => setSelectedId(null)}
         onNavigate={(node) => setSelectedId(node._id)}
         onDelete={(node) => {

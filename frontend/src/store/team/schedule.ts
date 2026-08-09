@@ -48,7 +48,7 @@ const doFetch = async (get: Getter, set: Setter) => {
   const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/team/schedule`);
+    const url = new URL(`${API}/api/team/schedule`, window.location.origin);
     url.search = new URLSearchParams({
       from,
       to,

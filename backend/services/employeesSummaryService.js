@@ -233,7 +233,7 @@ const buildEmployeesSummary = async ({
       approvedOnly,
     }),
     // Тот же набор, что отдаёт селектор сотрудников отчёта
-    User.find({ isActive: true, isEndUser: false, isServiceAccount: false })
+    User.find({ banned: { $ne: true }, isEndUser: false, isServiceAccount: false })
       .select(
         "firstName lastName position finances timezone workSchedule followProductionCalendar",
       )
@@ -268,7 +268,7 @@ const buildEmployeesSummary = async ({
   if (formerIds.length) {
     const formerEmployees = await User.find({ _id: { $in: formerIds } })
       .select(
-        "firstName lastName position finances isActive timezone workSchedule followProductionCalendar",
+        "firstName lastName position finances banned timezone workSchedule followProductionCalendar",
       )
       .lean();
     for (const employee of formerEmployees) {
@@ -357,7 +357,7 @@ const buildEmployeesSummary = async ({
         firstName: employee.firstName,
         lastName: employee.lastName,
         position: employee.position ?? null,
-        isActive: employee.isActive !== false,
+        isActive: !employee.banned,
       },
       ...summary,
       // Норма и отсутствия — то, без чего «отработано» не с чем сравнивать

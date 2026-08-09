@@ -459,22 +459,19 @@ const ticketSchema = new Schema(
   { timestamps: true },
 );
 
-ticketSchema.pre("save", async function (next) {
-  try {
-    if (this.isNew) {
-      const counter = await Counter.findByIdAndUpdate(
-        "ticketNum",
-        { $inc: { seq: 1 } },
-        {
-          new: true,
-          upsert: true,
-        },
-      );
-      this.num = counter.seq;
-    }
-    next();
-  } catch (error) {
-    next(error);
+// Mongoose 9: middleware без `next`. Ошибка пробрасывается броском — прежний
+// `next(error)` в асинхронном хуке делал ровно то же самое.
+ticketSchema.pre("save", async function () {
+  if (this.isNew) {
+    const counter = await Counter.findByIdAndUpdate(
+      "ticketNum",
+      { $inc: { seq: 1 } },
+      {
+        new: true,
+        upsert: true,
+      },
+    );
+    this.num = counter.seq;
   }
 });
 
@@ -515,9 +512,8 @@ ticketSchema.index({ "applicant._id": 1, createdAt: -1 }); // For latest-ticket-
 // e-mail, регламент, Mikrotik). Пометку «новая» ставим в pre-save (в post-save
 // isNew уже сброшен), а обновление User делаем fire-and-forget: его сбой не
 // должен ронять создание заявки.
-ticketSchema.pre("save", function markTicketAsNew(next) {
+ticketSchema.pre("save", function markTicketAsNew() {
   this.$locals.wasNew = this.isNew;
-  next();
 });
 ticketSchema.post("save", function touchApplicantActivity(doc) {
   if (!doc.$locals || !doc.$locals.wasNew) return;

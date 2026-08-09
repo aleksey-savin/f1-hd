@@ -1,10 +1,8 @@
-import { redirect } from "react-router";
+import { logoutLoader } from "@/util/auth";
 
-import { clearSession } from "./session";
-
-// Выход: сеанс чистит session.js — там же, где заводится. Кнопки живут в баре
+// Выход: гасит серверный сеанс и чистит localStorage. Кнопки живут в баре
 // оболочки и в бургер-меню, своего экрана у маршрута нет.
-export function action() {
-  clearSession();
-  return redirect("/auth");
-}
+//
+// До появления серверных сессий выход был чисто клиентским — токен просто
+// забывали, а он оставался валидным ещё четырнадцать дней.
+export const action = logoutLoader;

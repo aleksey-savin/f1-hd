@@ -6,6 +6,16 @@ const storage = require("../services/storage");
 const { runWorkStatusAuto } = require("../services/workStatusAuto");
 
 const getAuthData = require("../middleware/getAuthData");
+const {
+  setUserPassword,
+  verifyUserPassword,
+  PasswordPolicyError,
+} = require("../services/authPassword");
+const { getAuth } = require("../auth/bootstrap");
+const {
+  revokeAllForUser,
+  revokeOthersForUser,
+} = require("../services/authSessions");
 const { AppError } = require("../middleware/errorHandling");
 const { concatIdsArray } = require("../helpers/concatIdsArray");
 const { encryptSecret, isEncrypted } = require("../services/crypto/secretBox");
@@ -29,6 +39,7 @@ const TicketCategory = require("../models/ticketCategory");
 const Prefs = require("../models/preferences");
 const Location = require("../models/inventory/location");
 const CompanyLog = require("../models/companyLog");
+const { permissionFilter } = require("@/services/permissions");
 
 // Финансовые поля пользователя (оклад, ставка переработок)
 const toNonNegativeOrNull = (value) => {
@@ -39,13 +50,13 @@ const toNonNegativeOrNull = (value) => {
   return Number.isFinite(num) && num >= 0 ? num : null;
 };
 
-const canManageFinances = (caller) =>
-  Boolean(caller.isAdmin || caller.permissions?.canSeeGlobalFinancialReport);
+const canManageFinances = (req) =>
+  req.auth.can({ finances: ["readGlobalReport"] });
 
 // График правится из формы пользователя, но своим правом: у того, кто ведёт
 // пользователей, не обязательно есть право на графики и наоборот.
-const canManageSchedules = (caller) =>
-  Boolean(caller.isAdmin || caller.permissions?.canManageWorkSchedules);
+const canManageSchedules = (req) =>
+  req.auth.can({ workSchedule: ["manage"] });
 
 /**
  * Применить блок графика работы к документу пользователя (без сохранения).
@@ -170,7 +181,7 @@ exports.getAll = async (req, res, next) => {
     // только пользователей компаний, за которые отвечают (company._id встроен,
     // индексируемое совпадение без $lookup).
     const canSeeAll = Boolean(
-      authedUser.isAdmin || authedUser.permissions?.canAdministrateTickets,
+      req.auth.can({ ticket: ["administrate"] }),
     );
     const scopedCompanyIds = canSeeAll
       ? null
@@ -207,7 +218,9 @@ exports.getAll = async (req, res, next) => {
     // сотрудников без компании поля нет). Снятый тумблер показывает и
     // отключённых людей, и людей отключённых компаний.
     if (q.activeOnly === "true") {
-      match.isActive = true;
+      // banned: отсутствие поля значит «работает» — полярность обратная
+      // остальным сущностям, см. models/user.js
+      match.banned = { $ne: true };
       match["company.isActive"] = { $ne: false };
     }
 
@@ -333,7 +346,7 @@ exports.getAll = async (req, res, next) => {
           isAdmin: 1,
           isEndUser: 1,
           isCloudTelephony: 1,
-          isActive: 1,
+          banned: 1,
           workStatus: 1,
           hideWorkStatus: 1,
           subdivision: 1,
@@ -394,7 +407,7 @@ exports.getScopeCompanies = async (req, res, next) => {
     }
 
     const canSeeAll = Boolean(
-      authedUser.isAdmin || authedUser.permissions?.canAdministrateTickets,
+      req.auth.can({ ticket: ["administrate"] }),
     );
 
     let companies;
@@ -423,8 +436,11 @@ exports.getScopeCompanies = async (req, res, next) => {
 // мог запросить восстановление на почту администратора, прочитать токен из
 // карточки и сменить ему пароль. Ветка клиента вдобавок отдавала собственный
 // документ вообще без выборки — вместе с bcrypt-хешем.
+// `banReason` и `banExpires` не отдаём: причина пишется администратором для
+// администраторов, а карточку читает любой авторизованный. Экран, который их
+// покажет, появится вместе со своим гейтом прав — тогда и откроем точечно.
 const HIDDEN_USER_FIELDS =
-  "-password -resetToken -resetTokenExpiration -verifyToken -verifyTokenExpiration -notifications";
+  "-password -resetToken -resetTokenExpiration -verifyToken -verifyTokenExpiration -notifications -banReason -banExpires";
 
 exports.getOne = async (req, res, next) => {
   try {
@@ -470,7 +486,7 @@ exports.getOne = async (req, res, next) => {
 
       const isSelf = authedUser._id.toString() === user._id.toString();
       const payload = { ...maskSecrets(user), clientTimezone };
-      if (!canManageFinances(authedUser) && !isSelf) {
+      if (!canManageFinances(req) && !isSelf) {
         // Оклад и ставка видны только самому сотруднику и фин. менеджерам
         delete payload.finances;
       }
@@ -490,7 +506,7 @@ exports.getOne = async (req, res, next) => {
 exports.getPro32Connected = async (req, res, next) => {
   try {
     const users = await User.find({ "getScreen.api": { $nin: [null, ""] } })
-      .select("firstName lastName company.alias isActive isEndUser")
+      .select("firstName lastName company.alias banned isEndUser")
       .sort({ lastName: 1, firstName: 1 })
       .lean();
     res.status(200).json({ users });
@@ -523,8 +539,8 @@ exports.revokePro32 = async (req, res, next) => {
 exports.getCanPerformTicketsUsers = async (req, res, next) => {
   try {
     const users = await User.find({
-      "permissions.canPerformTickets": true,
-      isActive: true,
+      ...(await permissionFilter("canPerformTickets")),
+      banned: { $ne: true },
     });
     res.status(200).json(users);
   } catch (error) {
@@ -539,15 +555,15 @@ exports.getCanPerformTicketsUsers = async (req, res, next) => {
 // «База знаний») для списка модераторов.
 exports.getKnowledgeBaseModerators = async (req, res, next) => {
   try {
+    // Кандидат обязан уметь и видеть базу знаний, И управлять ею — поэтому два
+    // условия через $and, а не одно $or. Каждое покрывает обе дороги: право
+    // ролью и собственный флаг.
     const users = await User.find({
-      isActive: true,
+      banned: { $ne: true },
       isServiceAccount: false,
-      $or: [
-        {
-          "permissions.canSeeKnowledgeBase": true,
-          "permissions.canManageKnowledgeBase": true,
-        },
-        { isAdmin: true },
+      $and: [
+        await permissionFilter("canSeeKnowledgeBase"),
+        await permissionFilter("canManageKnowledgeBase"),
       ],
     })
       .sort({ lastName: 1 })
@@ -587,7 +603,7 @@ exports.add = async (req, res, next) => {
       position,
       notify,
       role,
-      isActive,
+      banned,
       isAdmin,
       isEndUser,
       isServiceAccount,
@@ -625,8 +641,13 @@ exports.add = async (req, res, next) => {
       }
     }
 
+    // Пароль хешируется штатным scrypt better-auth и кладётся в credential-
+    // аккаунт после save() — иначе заведённый человек не смог бы войти вовсе:
+    // better-auth смотрит в authAccounts, а не в users.password.
+    // Заглушка на время создания документа: поле в схеме `required`, а
+    // настоящее значение проставит setUserPassword ниже.
     const plainPassword = password ? password : crypto.randomUUID();
-    const hashedPassword = await bcrypt.hash(plainPassword, 12);
+    const hashedPassword = "pending";
 
     const user = new User({
       email: email?.toLowerCase(),
@@ -649,7 +670,7 @@ exports.add = async (req, res, next) => {
       // подразделения», и переезд филиала подхватится сам (services/clientTimezone)
       timezone: normalizeTimezone(timezone),
       password: hashedPassword,
-      isActive: isActive,
+      banned: Boolean(banned),
       // Ключ PRO32 Connect храним только шифртекстом (secretBox)
       getScreen: {
         api: getScreenApi ? encryptSecret(getScreenApi) : "",
@@ -660,16 +681,15 @@ exports.add = async (req, res, next) => {
         id: item.id,
         alias: item.alias,
       })),
-      notifications: {
-        lastAction: "new user",
-        password: jwt.sign(password, process.env.JWT_SECRET),
-        pending: sendPassword,
-      },
+      // Пароль в открытом виде не храним: сюда писался `jwt.sign(пароль)` —
+      // base64 строки, а не шифр, — чтобы почтовый крон вложил его в письмо.
+      // Вместо этого новому человеку уходит штатная ссылка установки пароля.
+      notifications: { lastAction: "new user", pending: false },
     });
 
     // Финансовые поля задают только админ или обладатель глобального фин. права
     const caller = await getAuthData(req);
-    if (finances && canManageFinances(caller)) {
+    if (finances && canManageFinances(req)) {
       user.finances = {
         salary: toNonNegativeOrNull(finances.salary),
         overtimeHourlyRate: toNonNegativeOrNull(finances.overtimeHourlyRate),
@@ -677,11 +697,30 @@ exports.add = async (req, res, next) => {
     }
 
     // График сотрудника задаётся шагом мастера — сразу первой версией
-    if (req.body.workSchedule && canManageSchedules(caller)) {
+    if (req.body.workSchedule && canManageSchedules(req)) {
       applyWorkSchedule(user, req.body.workSchedule, caller.userId);
     }
 
     await user.save();
+
+    // Только после save(): setUserPassword пишет credential-аккаунт, которому
+    // нужен уже существующий _id пользователя. Он же обновляет users.password
+    // тем же хешем и проверяет требования к паролю из конфигурации better-auth.
+    try {
+      await setUserPassword(user._id, plainPassword);
+    } catch (error) {
+      if (error instanceof PasswordPolicyError) {
+        // Документ уже сохранён — учётка без пароля никому не нужна.
+        await User.deleteOne({ _id: user._id });
+        return next(new AppError(error.message, 400));
+      }
+      throw error;
+    }
+
+    // Ссылка установки пароля вместо письма с паролем.
+    if (sendPassword) {
+      await getAuth().api.requestPasswordReset({ body: { email: user.email } });
+    }
 
     company.employees.push(user._id);
 
@@ -752,7 +791,7 @@ exports.update = async (req, res, next) => {
       lastName,
       position,
       role,
-      isActive,
+      banned,
       isAdmin,
       isEndUser,
       isServiceAccount,
@@ -815,7 +854,7 @@ exports.update = async (req, res, next) => {
     // Формой role не управляется — сохраняем прежнее значение. Было
     // `role ?? role`: при каждом сохранении роль затиралась в null.
     user.role = role ?? user.role;
-    user.isActive = isActive;
+    user.banned = Boolean(banned);
     user.isAdmin = isAdmin;
     user.isEndUser = isEndUser;
     user.isServiceAccount = isServiceAccount;
@@ -845,7 +884,7 @@ exports.update = async (req, res, next) => {
     // Финансовые поля меняют только админ или обладатель глобального фин.
     // права; без права или без поля в запросе — не трогаем, чтобы не затереть
     const caller = await getAuthData(req);
-    if (finances !== undefined && canManageFinances(caller)) {
+    if (finances !== undefined && canManageFinances(req)) {
       user.finances = {
         salary: toNonNegativeOrNull(finances?.salary),
         overtimeHourlyRate: toNonNegativeOrNull(finances?.overtimeHourlyRate),
@@ -880,7 +919,7 @@ exports.update = async (req, res, next) => {
     // Форма шлёт блок, только если его трогали: иначе каждое сохранение
     // пользователя плодило бы новую версию графика.
     const scheduleChanged =
-      workSchedule !== undefined && canManageSchedules(caller);
+      workSchedule !== undefined && canManageSchedules(req);
     if (scheduleChanged) {
       applyWorkSchedule(user, workSchedule, caller.userId);
     }
@@ -942,6 +981,17 @@ exports.update = async (req, res, next) => {
   }
 };
 
+/**
+ * Отключить или включить учётную запись.
+ *
+ * Отключение ГАСИТ СЕАНСЫ сразу. Прежний `isActive` этого не делал: человек
+ * оставался работать до истечения собственного токена, а «отключено» в карточке
+ * означало лишь «в следующий раз не пустим».
+ *
+ * Причина и срок (`banReason`, `banExpires`) в поле есть, но интерфейс их пока
+ * не спрашивает — это отдельный экран со своим макетом. Просроченный бан
+ * снимает сам плагин при попытке входа.
+ */
 exports.toggleActive = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
@@ -950,12 +1000,21 @@ exports.toggleActive = async (req, res, next) => {
       return next(new AppError(`User ${req.params.id} not found`, 404));
     }
 
-    user.isActive = !user.isActive;
+    const banned = !user.banned;
+    user.banned = banned;
+    if (!banned) {
+      user.banReason = undefined;
+      user.banExpires = undefined;
+    }
     await user.save();
 
+    if (banned) {
+      await revokeAllForUser(user._id);
+    }
+
     res.status(200).json({
-      message: "User active status toggled",
-      isActive: user.isActive,
+      message: banned ? "Учётная запись отключена" : "Учётная запись включена",
+      banned,
     });
   } catch (error) {
     next(new AppError(`Failed to toggle user active status`, 500, true, error));
@@ -966,7 +1025,14 @@ exports.delete = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
 
-    if (user) {
+    // Без этой ветки запрос НЕ ОТВЕЧАЛ ВОВСЕ: всё тело обёрнуто в `if (user)`,
+    // и на несуществующий id соединение висело до таймаута клиента, а вкладка
+    // крутила спиннер бесконечно.
+    if (!user) {
+      return next(new AppError("Учётная запись не найдена", 404));
+    }
+
+    {
       const company = await Company.findById(user.company._id);
 
       if (company) {
@@ -1046,7 +1112,8 @@ exports.delete = async (req, res, next) => {
 // любая из 676 клиентских учёток могла назначить пароль администратору.
 exports.changePassword = async (req, res, next) => {
   try {
-    const { password, repeatedPassword, sendPassword } = req.body;
+    const { password, repeatedPassword, currentPassword, sendPassword } =
+      req.body;
 
     const authedUser = await getAuthData(req);
     const isSelf = String(req.params.id) === String(authedUser.userId);
@@ -1054,7 +1121,7 @@ exports.changePassword = async (req, res, next) => {
     if (
       !isSelf &&
       !authedUser.isAdmin &&
-      !authedUser.permissions?.canManageUsers
+      !req.auth.can({ user: ["manage"] })
     ) {
       return next(
         new AppError("Недостаточно прав для смены чужого пароля", 403),
@@ -1071,25 +1138,57 @@ exports.changePassword = async (req, res, next) => {
       return next(new AppError(`Пароли не совпадают`, 401));
     }
 
-    // Длину здесь не проверяли вовсе, хотя восстановление по почте её требует —
-    // короткий пароль заходил через эту дверь мимо общего правила
-    if (!password || password.length < 6) {
-      return next(new AppError("Минимальная длина пароля - 6 символов", 400));
+    // Свой пароль меняют, зная текущий. Без этого любая уведённая вкладка
+    // меняет пароль молча, гасит остальные сеансы и запирает хозяина снаружи —
+    // причём именно у администратора, который чаще всего меняет пароль себе же
+    // из карточки. Чужой пароль сбрасывают без него: у сбрасывающего его нет.
+    if (isSelf) {
+      const confirmed = await verifyUserPassword(user._id, currentPassword);
+      if (!confirmed) {
+        return next(new AppError("Текущий пароль неверен", 400));
+      }
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
-    user.password = hashedPassword;
-    // ВРЕМЕННО. jwt.sign(строка) — это base64 строки, а не шифр: пароль лежит в
-    // БД обратимо, чтобы почтовый крон вложил его в письмо. Наружу это больше не
-    // уезжает (см. HIDDEN_USER_FIELDS в getOne), но само хранение уйдёт вместе с
-    // письмом-паролем: его заменяет письмо со ссылкой установки пароля.
-    user.notifications = {
-      lastAction: "change password",
-      password: jwt.sign(password, process.env.JWT_SECRET),
-      pending: sendPassword,
-    };
+    // Длина и прочие требования — внутри setUserPassword, из конфигурации
+    // better-auth. Своей константы здесь больше нет: она уже один раз
+    // разошлась с библиотекой и пропускала шестизначные пароли.
+    try {
+      await setUserPassword(user._id, password);
+    } catch (error) {
+      if (error instanceof PasswordPolicyError) {
+        return next(new AppError(error.message, 400));
+      }
+      throw error;
+    }
+
+    // Пароль в открытом виде больше НЕ ХРАНИТСЯ. Прежде сюда писался
+    // `jwt.sign(пароль)` — это base64 строки, а не шифр, — чтобы почтовый крон
+    // вложил пароль в письмо. Вместо этого администратор отправляет человеку
+    // штатную ссылку смены пароля.
+    user.notifications = { lastAction: "change password", pending: false };
 
     await user.save();
+
+    // Смена пароля гасит сеансы: если пароль меняют потому, что доступ увели,
+    // старые сеансы обязаны умереть вместе с ним. Своя вкладка при этом
+    // остаётся — выкидывать человека из приложения за то, что он сменил себе
+    // пароль, значит наказывать за правильное действие.
+    if (isSelf) {
+      // Токен берём из req.auth, а не из getAuthData: шим отдаёт легаси-форму,
+      // в которой сеанса нет вовсе, и «сохранить текущий» молча погасило бы всё.
+      await revokeOthersForUser(user._id, req.auth?.session?.token);
+    } else {
+      await revokeAllForUser(user._id);
+    }
+
+    // «Отправить ссылку на смену» вместо «отправить пароль письмом»: дёргаем
+    // штатное восстановление better-auth от имени этого пользователя. Письмо
+    // уходит нашим отправителем и через mailGuard (auth/hooks.js).
+    if (sendPassword) {
+      await getAuth().api.requestPasswordReset({
+        body: { email: user.email },
+      });
+    }
 
     res.status(201).json({
       message: "Пароль успешно сброшен",
@@ -1098,6 +1197,72 @@ exports.changePassword = async (req, res, next) => {
     next(
       new AppError(
         `Failed to change password for user ${req.params.id}`,
+        500,
+        true,
+        error,
+      ),
+    );
+  }
+};
+
+/**
+ * Второй путь того же диалога: не задать пароль, а отправить ссылку на смену.
+ *
+ * Пароль здесь не рождается вовсе — человек придумает его сам, а
+ * администратор не увидит и не понесёт по мессенджеру. Дёргается штатное
+ * восстановление better-auth; письмо уходит документом `Notification` и,
+ * значит, через `mailGuard` (см. auth/hooks.js).
+ *
+ * Ручка отдельная, а не флаг у `changePassword`: там смена пароля происходит
+ * всегда, и «отправить ссылку» через неё означало бы сначала назначить
+ * человеку пароль, которого он не просил.
+ */
+exports.sendPasswordLink = async (req, res, next) => {
+  try {
+    const authedUser = await getAuthData(req);
+    const isSelf = String(req.params.id) === String(authedUser.userId);
+
+    if (
+      !isSelf &&
+      !authedUser.isAdmin &&
+      !req.auth.can({ user: ["manage"] })
+    ) {
+      return next(
+        new AppError("Недостаточно прав для смены чужого пароля", 403),
+      );
+    }
+
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return next(new AppError("Учётная запись не найдена", 404));
+    }
+
+    // Ссылка ведёт к паролю, а этими учётками паролем не входят: письмо
+    // окажется тупиком. Отказ называет причину — её чинят выключателем.
+    if (user.isServiceAccount) {
+      return next(
+        new AppError("Служебная учётная запись входит не паролем", 400),
+      );
+    }
+
+    if (user.banned || user.company?.isActive === false) {
+      return next(
+        new AppError("Учётная запись отключена — сначала включите её", 400),
+      );
+    }
+
+    if (!user.email) {
+      return next(new AppError("У учётной записи нет почтового адреса", 400));
+    }
+
+    await getAuth().api.requestPasswordReset({ body: { email: user.email } });
+
+    res.status(200).json({ message: "Ссылка на смену пароля отправлена" });
+  } catch (error) {
+    next(
+      new AppError(
+        `Failed to send password link for user ${req.params.id}`,
         500,
         true,
         error,
@@ -1394,7 +1559,7 @@ exports.setWorkStatusFromTelegram = async (req, res, next) => {
 exports.getWorkStatuses = async (req, res, next) => {
   try {
     const users = await User.find({
-      isActive: true,
+      banned: { $ne: true },
       isEndUser: false,
       isServiceAccount: false,
       isCloudTelephony: false,

@@ -6,6 +6,7 @@ import { AuthedUserContext } from "../../store/authed-user-context";
 import useDashboardTicketsStore from "../../store/dashboard-tickets";
 import { createdText } from "../Ticket/ticket-state";
 import TicketRow from "./TicketRow";
+import { useCan } from "@/store/authed-user";
 
 /**
  * Три блока сотрудника поверх одного набора открытых заявок: «На мне»,
@@ -46,7 +47,8 @@ const companyMeta = (ticket) =>
   [ticket.company?.alias, ticket.category?.title].filter(Boolean).join(" · ");
 
 const StaffTickets = () => {
-  const { _id: userId, isAdmin, permissions } = useContext(AuthedUserContext);
+  const { _id: userId, isAdmin } = useContext(AuthedUserContext);
+  const can = useCan();
   const tickets = useDashboardTicketsStore((state) => state.tickets);
   const loaded = useDashboardTicketsStore((state) => state.loaded);
 
@@ -55,8 +57,8 @@ const StaffTickets = () => {
   // всегда (см. скоуп all-opened в controllers/ticket.js).
   const seesOthers =
     isAdmin ||
-    !!permissions?.canAdministrateTickets ||
-    !!permissions?.canSeeAllTickets;
+    !!can({ ticket: ["administrate"] }) ||
+    !!can({ ticket: ["readAll"] });
 
   const mine = useMemo(
     () =>

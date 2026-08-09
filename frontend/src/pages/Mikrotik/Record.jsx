@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Link,
   Outlet,
@@ -53,13 +53,13 @@ import {
   formatDurationShort,
 } from "../../components/Mikrotik/meta";
 import usePolling from "../../hooks/use-polling";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import useMikrotikDeviceFilterStore, {
   rowStatus,
 } from "../../store/lists/mikrotik-devices";
 import { getLocalStorageData } from "../../util/auth";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
+import { useCan } from "@/store/authed-user";
 
 const dash = <span className="text-faint">—</span>;
 
@@ -73,9 +73,9 @@ const MikrotikRecordPage = () => {
   const revalidator = useRevalidator();
   const offcanvas = useOffcanvasStore();
   const showToast = useToastStore((state) => state.showToast);
-  const { permissions } = useContext(AuthedUserContext);
-  const canManage = permissions.canManageMikrotikDevices;
-  const canManageConfigs = permissions.canManageMikrotikConfigs;
+  const can = useCan();
+  const canManage = can({ mikrotik: ["manageDevices"] });
+  const canManageConfigs = can({ mikrotik: ["manageConfigs"] });
 
   const connectRecord = useMikrotikDeviceFilterStore(
     (state) => state.connectRecord,

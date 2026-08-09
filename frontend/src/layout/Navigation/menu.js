@@ -18,6 +18,7 @@ import {
   RiPulseLine,
   RiServerLine,
   RiServiceLine,
+  RiShieldKeyholeLine,
   RiSettings3Line,
   RiTeamLine,
 } from "react-icons/ri";
@@ -57,6 +58,7 @@ export function buildMenu({
     canManageTicketCategories,
     canManageCompanies,
     canManageUsers,
+    canManageRoles,
     canManageRoutineTasks,
     canSeeAnalytics,
     canUseTimeTrackingModule,
@@ -212,7 +214,23 @@ export function buildMenu({
 
   // Группы «Администрирования» подписаны по модулям; «Компании»,
   // «Пользователи» и «Настройки системы» отсюда ушли (верхний уровень и
-  // меню аватара соответственно)
+  // меню аватара соответственно).
+  //
+  // «Доступ» стоит ОТДЕЛЬНО от общей ветки `isAdmin ?`: у ролей своё право, и
+  // человек с ним обязан видеть пункт, не будучи администратором. Остальные
+  // группы остаются админскими — у их пунктов есть собственные проверки прав,
+  // но сегодня они мёртвые (внешний `isAdmin` их закрывает), и открывать их
+  // заодно значило бы менять видимость двенадцати экранов ради одного.
+  const accessGroup =
+    isAdmin || canManageRoles
+      ? [
+          {
+            label: "Доступ",
+            items: [link("adm-roles", "Роли", RiShieldKeyholeLine, "/roles")],
+          },
+        ]
+      : [];
+
   const adminGroups = isAdmin
     ? [
         {
@@ -315,6 +333,8 @@ export function buildMenu({
       ].filter((group) => group.items.length > 0)
     : [];
 
+  const administration = [...accessGroup, ...adminGroups];
+
   return [
     link("dashboard", "Главная", RiDashboard2Line, "/dashboard"),
     link("tickets", "Заявки", RiCheckboxLine, "/tickets"),
@@ -355,12 +375,12 @@ export function buildMenu({
     mikrotikActive &&
       (canManageMikrotikDevices || canManageMikrotikConfigs) &&
       link("monitoring", "Мониторинг", RiPulseLine, "/devices/mikrotik"),
-    adminGroups.length > 0 && {
+    administration.length > 0 && {
       key: "admin",
       label: "Администрирование",
       shortLabel: "Админ",
       icon: RiSettings3Line,
-      groups: adminGroups,
+      groups: administration,
     },
     link("archive", "Архив", RiArchiveLine, "/archive"),
   ].filter(Boolean);

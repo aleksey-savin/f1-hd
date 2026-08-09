@@ -69,7 +69,7 @@ const AttachFields = ({
       .then((payload) =>
         setPeople(
           (payload.users || []).filter(
-            (user: any) => user.isEndUser !== false && user.isActive !== false,
+            (user: any) => user.isEndUser !== false && !user.banned,
           ),
         ),
       )

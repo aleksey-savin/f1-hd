@@ -19,7 +19,12 @@ import {
   type Way,
 } from "../../components/Auth/AuthPanel";
 import { useAuthPrefs } from "./Layout";
-import { API, INLINE_STATUSES, inlineError, storeSession } from "./session";
+import {
+  API,
+  OFFLINE_FAILURE,
+  authFailure,
+  storeSession,
+} from "./session";
 
 type LoginFailure = { message: string; locked: boolean; email: string };
 
@@ -32,21 +37,27 @@ export async function action({ request }: { request: Request }) {
   const data = await request.formData();
   const email = String(data.get("email") || "").trim();
 
-  const response = await fetch(`${API}/api/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password: data.get("password") }),
-  });
+  // Экран входа не бросает НИЧЕГО: уходить с него человеку некуда, а
+  // введённый адрес при этом теряется. Сеть оборвалась — тоже сюда.
+  let response: Response;
+  try {
+    response = await fetch(`${API}/api/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password: data.get("password") }),
+    });
+  } catch {
+    return { ...OFFLINE_FAILURE, email };
+  }
 
   if (!response.ok) {
-    if (!INLINE_STATUSES.includes(response.status)) {
-      throw response;
-    }
-    const failure = await inlineError(response, "Не удалось войти.");
+    const failure = await authFailure(response, "Не удалось войти.");
     return { ...failure, email };
   }
 
-  await storeSession(await response.json());
+  // Ответ передаём целиком: токен сеанса приезжает заголовком
+  // `set-auth-token`, а поле `token` тела оставлено для совместимости.
+  await storeSession(await response.json(), response);
   return redirect("/");
 }
 
@@ -64,9 +75,8 @@ const Login = () => {
     prefs.emailIsActive
       ? { label: "Получить пароль", to: "/auth/password" }
       : null,
-    prefs.selfSignupIsActive
-      ? { label: "Впервые здесь", to: "/auth/signup" }
-      : null,
+    // Пути «Впервые здесь» больше нет: саморегистрация удалена, учётки заводит
+    // ИТ-отдел вместе с почтой и остальными доступами.
     prefs.contacts.email
       ? {
           label: "Написать в поддержку",

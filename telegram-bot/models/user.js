@@ -143,9 +143,13 @@ const userSchema = new Schema(
       type: String,
       required: true,
     },
-    isActive: {
+    // Отключение учётки. Пришло на смену `isActive` вместе с переездом бэкенда
+    // на better-auth: полярность ОБРАТНАЯ — `true` значит «не работает», а
+    // отсутствие поля значит «работает». База у бота и бэкенда общая, поэтому
+    // расхождение здесь означало бы, что бот пускает отключённых.
+    banned: {
       type: Boolean,
-      required: true,
+      default: false,
     },
     lastLogin: {
       type: Date,

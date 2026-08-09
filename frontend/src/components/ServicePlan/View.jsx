@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Outlet, useNavigate } from "react-router";
 import {
   RiArrowLeftSLine,
@@ -22,11 +22,11 @@ import { Eyebrow, Panel } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
 
 import useOffcanvasStore from "../../store/offcanvas";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import { formatShortDate } from "../../util/format-date";
 import { formatPrice } from "../../util/format-string";
 import { plural } from "../../util/plural";
 import { tariffTypeName } from "./tariff-types";
+import { useCan } from "@/store/authed-user";
 
 // Пн–Вс в порядке недели; ключи — как в customProvisionSchedule
 const WEEK = [
@@ -50,8 +50,8 @@ const personName = (person) =>
 const ViewServicePlan = ({ servicePlan }) => {
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
-  const { permissions } = useContext(AuthedUserContext);
-  const canManage = permissions.canManageServicePlans;
+  const can = useCan();
+  const canManage = can({ servicePlan: ["manage"] });
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Десктоп не сбрасывает window-скролл при навигации (Root сбрасывает лишь

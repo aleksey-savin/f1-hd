@@ -71,6 +71,16 @@ import ViewCompanyPage, {
   action as viewCompanyAction,
 } from "./pages/Company/View.jsx";
 
+// Роли — справочник, отдельная страница в «Администрировании»
+import RolesPage, {
+  loader as rolesLoader,
+  action as deleteRoleAction,
+} from "./pages/Role/List.jsx";
+import AddRolePage, { loader as addRoleLoader } from "./pages/Role/Add.jsx";
+import UpdateRolePage, {
+  loader as updateRoleLoader,
+} from "./pages/Role/Update.jsx";
+
 // Ticket categories
 import TicketCatogries, {
   loader as ticketCategoriesLoader,
@@ -353,10 +363,6 @@ import Login, {
   loader as loginLoader,
   action as loginAction,
 } from "./pages/Auth/Login.tsx";
-import Signup, {
-  loader as signupLoader,
-  action as signupAction,
-} from "./pages/Auth/Signup.tsx";
 import PasswordRequest, {
   loader as passwordLoader,
   action as passwordAction,
@@ -365,15 +371,21 @@ import NewPassword, {
   loader as newPasswordLoader,
   action as newPasswordAction,
 } from "./pages/Auth/NewPassword.tsx";
-import Setup, {
-  loader as setupLoader,
-  action as setupAction,
-} from "./pages/Auth/Setup.tsx";
-import { authDataLoader, checkAuthLoader } from "./util/auth.js";
+import { authDataLoader } from "./util/auth.js";
+import { setUnauthorizedHandler } from "./lib/api";
 import { action as logoutAction } from "./pages/Auth/logout.js";
 
 // Errors
 import Error from "./pages/Error.jsx";
+
+// Единая реакция на 401 из api()-клиента. Жёсткая перезагрузка, а не
+// router.navigate: сторы zustand живут вне маршрутизатора, и только полный
+// сброс страницы гарантированно уносит их состояние вместе с мёртвым сеансом.
+setUnauthorizedHandler(() => {
+  if (window.location.pathname !== "/auth") {
+    window.location.assign("/auth");
+  }
+});
 
 function App() {
   const router = createBrowserRouter([
@@ -395,22 +407,10 @@ function App() {
           action: loginAction,
         },
         {
-          path: "auth/signup",
-          element: <Signup />,
-          loader: signupLoader,
-          action: signupAction,
-        },
-        {
           path: "auth/password",
           element: <PasswordRequest />,
           loader: passwordLoader,
           action: passwordAction,
-        },
-        {
-          path: "auth/setup",
-          element: <Setup />,
-          loader: setupLoader,
-          action: setupAction,
         },
         {
           path: "reset-password/:token",
@@ -454,8 +454,10 @@ function App() {
             },
 
             {
+              // Загрузчика нет намеренно: выход должен срабатывать и когда
+              // сеанс уже мёртв — иначе человек застревает на странице,
+              // с которой не может уйти.
               path: "logout",
-              loader: checkAuthLoader,
               action: logoutAction,
             },
             // Dashboard
@@ -647,6 +649,25 @@ function App() {
               element: <MyAccount />,
               loader: myAccountLoader,
               action: myAccountAction,
+            },
+            // Роли
+            {
+              path: "roles",
+              element: <RolesPage />,
+              loader: rolesLoader,
+              action: deleteRoleAction,
+              children: [
+                {
+                  path: "add",
+                  element: <AddRolePage />,
+                  loader: addRoleLoader,
+                },
+                {
+                  path: "update/:key",
+                  element: <UpdateRolePage />,
+                  loader: updateRoleLoader,
+                },
+              ],
             },
             // Ticket Categories
             {

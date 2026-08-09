@@ -87,7 +87,7 @@ const syncStatusesWithAbsences = async (staffFilter) => {
 // statusBoard.isActive: устаревший статус вреден и в вебе.
 const runWorkStatusReset = async () => {
   const staffFilter = {
-    isActive: true,
+    banned: { $ne: true },
     isEndUser: false,
     isServiceAccount: false,
     isCloudTelephony: false,

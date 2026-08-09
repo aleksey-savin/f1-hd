@@ -661,7 +661,7 @@ exports.getAssignableUsers = async (req, res, next) => {
 
       const subIds = subs.map((s) => s._id);
       const employees = await User.find({
-        isActive: true,
+        banned: { $ne: true },
         "company.isActive": { $ne: false },
         $or: [
           { subdivision: { $in: subIds } },
@@ -696,7 +696,7 @@ exports.getAssignableUsers = async (req, res, next) => {
 
     // 3) Без подразделения → все активные пользователи компании.
     const companyUsers = await User.find({
-      isActive: true,
+      banned: { $ne: true },
       "company.isActive": { $ne: false },
       "company._id": location.company,
     }).select("firstName lastName email");

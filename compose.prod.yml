@@ -96,7 +96,8 @@ services:
       context: .
       dockerfile: frontend/Dockerfile.prod
       args:
-        VITE_API_ADDRESS: ${API_URL}
+        # Пусто = относительные URL: фронт и API за одним nginx (same-origin).
+        VITE_API_ADDRESS: ""
         VITE_TG_BOT_NAME: ${VITE_TG_BOT_NAME}
     container_name: hd-frontend-prod
     restart: unless-stopped

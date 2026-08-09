@@ -3,6 +3,7 @@ import { useLoaderData, redirect } from "react-router";
 import { getLocalStorageData } from "../../util/auth";
 
 import ViewCompany from "../../components/Company/View";
+import { api } from "@/lib/api";
 
 const ViewCompanyPage = () => {
   const { company, servicePlans, servicePlansList, stats } = useLoaderData();
@@ -19,7 +20,7 @@ const ViewCompanyPage = () => {
 export default ViewCompanyPage;
 
 export async function loader({ params }) {
-  const { token, userId } = getLocalStorageData();
+  const { token } = getLocalStorageData();
 
   const headers = {
     Authorization: "Bearer " + token,
@@ -29,11 +30,12 @@ export async function loader({ params }) {
   // parallel instead of awaiting each in sequence.
   // Статистика — второстепенная: её сбой не должен ронять страницу, поэтому
   // запрос самодостаточно резолвится в распарсенный объект или null.
-  const [userResponse, companyResponse, initialPrefsResponse, stats] =
+  // Свои эффективные права знает только /api/me: карточка пользователя отдаёт
+  // сырые флаги документа, а с ролями их там нет. Заодно ушёл лишний запрос —
+  // `/api/users/:id` здесь тянули ровно ради одной галочки.
+  const [me, companyResponse, initialPrefsResponse, stats] =
     await Promise.all([
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`, {
-        headers,
-      }),
+      api("/api/me").catch(() => null),
       fetch(`${import.meta.env.VITE_API_ADDRESS}/api/companies/${params.id}`, {
         headers,
       }),
@@ -49,8 +51,6 @@ export async function loader({ params }) {
         .then((response) => (response.ok ? response.json() : null))
         .catch(() => null),
     ]);
-
-  const user = await userResponse.json();
 
   if (!companyResponse.ok) {
     throw companyResponse;
@@ -107,10 +107,9 @@ export async function loader({ params }) {
 
   let servicePlansData = [];
 
-  if (
-    prefsData.modules.finances.isActive &&
-    user.permissions.canUseFinancesModule
-  ) {
+  const canUseFinances = Boolean(me?.permissions?.canUseFinancesModule);
+
+  if (prefsData.modules.finances.isActive && canUseFinances) {
     const servicePlansResponse = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/`,
       {

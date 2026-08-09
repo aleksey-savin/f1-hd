@@ -39,7 +39,7 @@ const doFetch = async (get: Getter, set: Setter) => {
   const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/finances/employees-trend`);
+    const url = new URL(`${API}/api/finances/employees-trend`, window.location.origin);
     const params = new URLSearchParams({ months: String(months) });
     if (approvedOnly) params.set("approvedOnly", "true");
     url.search = params.toString();

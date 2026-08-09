@@ -52,6 +52,7 @@ const {
 
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
+const { canFor } = require("@/services/permissions");
 
 // Config exports contain device secrets, so downloading one requires a step-up
 // email OTP: a 6-digit code, valid 10 minutes, single-use, max 5 tries.
@@ -1116,9 +1117,9 @@ const inventoryLinkContext = async (record, userId) => {
   if (prefs?.modules?.inventory?.isActive === false) return null;
 
   const candidate = await findInventoryCandidate(record);
-  const canCreateCard = Boolean(
-    user?.isAdmin || user?.permissions?.canManageClientDevices,
-  );
+  const canCreateCard = user
+    ? (await canFor(user))({ clientDevice: ["manage"] })
+    : false;
   return { candidate, canCreateCard };
 };
 

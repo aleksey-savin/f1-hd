@@ -99,6 +99,13 @@ router.post(
   userController.toggleActive,
 );
 router.post("/users/reset-password/:id", isAuth, userController.changePassword);
+// Права — внутри контроллера, по той же причине, что и у смены пароля: «своё»
+// и «чужое» здесь разные действия с разными основаниями.
+router.post(
+  "/users/send-password-link/:id",
+  isAuth,
+  userController.sendPasswordLink,
+);
 router.post(
   "/users/:id/add-profile-image",
   isAuth,

@@ -11,6 +11,23 @@ const ViewUserPage = () => {
 
 export default ViewUserPage;
 
+/**
+ * Отказ сервера, который человек может исправить прямо в диалоге (пароль из
+ * утечек, отключённая учётка), возвращаем данными — их показывает форма. Общий
+ * экран ошибки для такого не годится: он уводит со страницы и теряет ввод.
+ * Всё остальное — как было, броском.
+ */
+async function refusal(response, fallback) {
+  const failure = await response.json().catch(() => ({}));
+  const message = failure.message || fallback;
+
+  if (response.status === 400 || response.status === 403) {
+    return { error: message };
+  }
+
+  throw Response.json({ message }, { status: 500 });
+}
+
 export async function loader({ params }) {
   const { token } = getLocalStorageData();
   if (!token) {
@@ -111,6 +128,8 @@ export async function action({ request }) {
     const userData = {
       password: data.get("password"),
       repeatedPassword: data.get("repeatedPassword"),
+      // Своя смена пароля подтверждается текущим; при сбросе чужого поля нет.
+      currentPassword: data.get("currentPassword") || "",
       sendPassword: data.get("sendPassword") === "true",
     };
 
@@ -126,10 +145,26 @@ export async function action({ request }) {
       },
     );
     if (!response.ok) {
-      throw Response.json(
-        { message: "Не удалось изменить пароль" },
-        { status: 500 },
-      );
+      return refusal(response, "Не удалось изменить пароль");
+    }
+
+    return response;
+  }
+
+  if (intent === "send-password-link") {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/users/send-password-link/${id}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      return refusal(response, "Не удалось отправить ссылку");
     }
 
     return response;

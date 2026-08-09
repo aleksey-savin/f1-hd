@@ -1,72 +1,83 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import AlertMessage from "@/components/app/AlertMessage";
 import Field from "@/components/app/Field";
+import PasswordPolicyField from "@/components/app/PasswordPolicyField";
 import SettingRow from "@/components/app/SettingRow";
-import SwitchField from "@/components/app/SwitchField";
-import useToastStore from "../../../store/toast-store";
+import { verdictAllows } from "@/lib/password";
+import useToastStore from "@/store/toast-store";
 
-// Секция «Безопасность»: смена пароля в диалоге (2 поля + свитч — «диалог
-// только для маленьких вещей»). Механика легаси сохранена: intent
-// reset-password на action маршрута /users/:id.
+/**
+ * Секция «Безопасность»: смена собственного пароля.
+ *
+ * Текущий пароль спрашиваем обязательно — иначе уведённая вкладка меняет
+ * пароль молча и запирает хозяина снаружи. Поля «повторите пароль» нет: его
+ * работу делает кнопка показа в PasswordPolicyField, оттуда же живая проверка
+ * длины и утечек. Отправлять себе пароль письмом (прежний свитч) незачем: он
+ * только что набран, а письмо превращало бы почтовый ящик в его хранилище.
+ */
 const Security = ({ user }) => {
   const fetcher = useFetcher();
-  const { showToast } = useToastStore();
 
   const [open, setOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
-  const [repeatedPassword, setRepeatedPassword] = useState("");
-  const [sendPassword, setSendPassword] = useState(false);
-  const [invalid, setInvalid] = useState(false);
+  const [verdict, setVerdict] = useState({ kind: "idle" });
+  const [error, setError] = useState("");
+  // `fetcher.data` переживает закрытие диалога — без отметки «ждём ответ»
+  // повторное открытие закрылось бы само на прошлом успехе.
+  const awaiting = useRef(false);
 
   useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.message) {
-      showToast(
-        fetcher.data.error ? "danger" : "success",
-        fetcher.data.message,
-      );
+    if (!awaiting.current || fetcher.state !== "idle" || !fetcher.data) return;
+    awaiting.current = false;
+
+    if (fetcher.data.error) {
+      setError(fetcher.data.error);
+      return;
     }
+
+    setOpen(false);
+    useToastStore.getState().showToast("success", "Пароль изменён");
   }, [fetcher.state, fetcher.data]);
 
   const openDialog = () => {
+    setCurrentPassword("");
     setPassword("");
-    setRepeatedPassword("");
-    setSendPassword(false);
-    setInvalid(false);
+    setVerdict({ kind: "idle" });
+    setError("");
+    awaiting.current = false;
     setOpen(true);
   };
 
   const submitHandler = (event) => {
     event.preventDefault();
-
-    if (password.trim() === "" || password !== repeatedPassword) {
-      setInvalid(true);
-      return;
-    }
+    setError("");
+    awaiting.current = true;
 
     fetcher.submit(
       {
         intent: "reset-password",
         id: user._id,
         password,
-        repeatedPassword,
-        sendPassword,
+        repeatedPassword: password,
+        currentPassword,
       },
       { method: "POST", action: `/users/${user._id}` },
     );
-
-    setOpen(false);
   };
+
+  const busy = fetcher.state !== "idle";
 
   return (
     <>
@@ -80,44 +91,45 @@ const Security = ({ user }) => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Смена пароля</DialogTitle>
+            <DialogDescription>{user.email}</DialogDescription>
           </DialogHeader>
-          <form method="post" onSubmit={submitHandler}>
-            <Field label="Новый пароль" htmlFor="password" required>
+          <form onSubmit={submitHandler} className="flex flex-col gap-3.5">
+            <Field
+              label="Текущий пароль"
+              htmlFor="current-password"
+              className="mb-0"
+              required
+            >
               <Input
                 required
                 autoFocus
-                id="password"
-                name="password"
+                id="current-password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
               />
             </Field>
-            <Field label="Пароль ещё раз" htmlFor="passwordRepeat" required>
-              <Input
-                required
-                id="passwordRepeat"
-                name="passwordRepeat"
-                type="password"
-                value={repeatedPassword}
-                onChange={(e) => setRepeatedPassword(e.target.value)}
-              />
-            </Field>
-            <SwitchField
-              id="sendPassword"
-              checked={sendPassword}
-              onCheckedChange={() => setSendPassword((prev) => !prev)}
-              label="Отправить учётные данные на email"
-              hint={`Письмо с новым паролем уйдёт на ${user.email}.`}
+
+            <PasswordPolicyField
+              id="new-password"
+              value={password}
+              onChange={setPassword}
+              onVerdictChange={setVerdict}
             />
-            {invalid && (
-              <AlertMessage
-                variant="danger"
-                message="Пароли не совпадают."
-                className="my-2"
-              />
+
+            <p className="my-0 border-t border-border pt-3 text-xs text-muted-foreground">
+              Ваши сеансы на других устройствах завершатся. Эта вкладка
+              останется.
+            </p>
+
+            {error && (
+              <p className="my-0 text-sm font-medium text-destructive">
+                {error}
+              </p>
             )}
-            <DialogFooter className="mt-4">
+
+            <DialogFooter className="mt-2 max-sm:grid max-sm:grid-cols-2">
               <Button
                 type="button"
                 variant="ghost"
@@ -125,8 +137,13 @@ const Security = ({ user }) => {
               >
                 Отмена
               </Button>
-              <Button type="submit" disabled={fetcher.state !== "idle"}>
-                Сменить
+              <Button
+                type="submit"
+                disabled={
+                  busy || !verdictAllows(verdict) || !currentPassword.trim()
+                }
+              >
+                Сменить пароль
               </Button>
             </DialogFooter>
           </form>

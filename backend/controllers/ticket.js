@@ -54,6 +54,10 @@ const {
   formatClientTimeLabel,
 } = require("../services/clientTimezone");
 const { resolveTimezone } = require("../utils/datetime");
+const {
+  permissionFilter,
+  effectivePermissions,
+} = require("@/services/permissions");
 
 const buildAttachment = (file) => ({
   mimetype: file.mimetype,
@@ -72,7 +76,7 @@ exports.getAllOpened = async (req, res, next) => {
       .populate({
         path: "applicantId",
         select:
-          "firstName lastName email phone position role isActive subdivision timezone",
+          "firstName lastName email phone position role banned subdivision timezone",
         populate: {
           path: "subdivision",
           select: "name timezone parent",
@@ -97,13 +101,13 @@ exports.getAllOpened = async (req, res, next) => {
     let filteredTickets = [];
 
     if (
-      isAdmin ||
-      permissions.canAdministrateTickets ||
-      permissions.canSeeAllTickets
+      req.auth.can({
+        ticket: { actions: ["administrate", "readAll"], connector: "OR" },
+      })
     ) {
       // Пользователи с ролью администратор
       filteredTickets = allTickets;
-    } else if (permissions.canSeeAllCompanyTickets) {
+    } else if (req.auth.can({ ticket: ["readCompany"] })) {
       // Пользователи с разрешением на просмотр всех заявок Компании
       filteredTickets = allTickets.filter((ticket) => {
         return ticket.company?._id?.toString() === company._id.toString();
@@ -206,9 +210,9 @@ exports.getUsersTickets = async (req, res, next) => {
     contextLogger.log("info", "Fetching user's tickets");
 
     if (
-      isAdmin ||
-      permissions.canAdministrateTickets ||
-      permissions.canSeeAllTickets
+      req.auth.can({
+        ticket: { actions: ["administrate", "readAll"], connector: "OR" },
+      })
     ) {
       // Пользователи с ролью администратор
       tickets = await Ticket.find({
@@ -308,12 +312,12 @@ exports.getClosed = async (req, res, next) => {
     // (жёстче фильтра компаний из запроса); остальные — заявки, в которых
     // участвовали (ответственный, автор или заявитель)
     if (
-      isAdmin ||
-      permissions.canAdministrateTickets ||
-      permissions.canSeeAllTickets
+      req.auth.can({
+        ticket: { actions: ["administrate", "readAll"], connector: "OR" },
+      })
     ) {
       // без ограничений
-    } else if (permissions.canSeeAllCompanyTickets) {
+    } else if (req.auth.can({ ticket: ["readCompany"] })) {
       query["company._id"] = company._id;
     } else {
       and.push({
@@ -447,7 +451,7 @@ exports.getOne = async (req, res, next) => {
       .populate({
         path: "applicantId",
         select:
-          "firstName lastName email phone position role isActive subdivision activeDirectoryObjectGUID timezone",
+          "firstName lastName email phone position role banned subdivision activeDirectoryObjectGUID timezone",
         populate: {
           path: "subdivision",
           select: "name email address phone linkToMap timezone parent",
@@ -487,8 +491,8 @@ exports.getOne = async (req, res, next) => {
     // вырезает пустой объект company — без ?. карточка падала бы в 500.
     const company = await Company.findById(ticket.company?._id).populate({
       path: "employees",
-      select: "firstName lastName email phone position isActive",
-      match: { isActive: true },
+      select: "firstName lastName email phone position banned",
+      match: { banned: { $ne: true } },
     });
 
     // Если инициатор связан с Active Directory, подтягиваем его последний ПК
@@ -536,11 +540,11 @@ exports.getOne = async (req, res, next) => {
     // только исключение: у работы в рамках тарифа поля просто нет.
     const billingByWork = await annotateWorks({
       works: works.map((work) => work.toObject()),
-      canSeeMoney: Boolean(
-        isAdmin ||
-          (permissions?.canUseFinancesModule &&
-            permissions?.canSeeGlobalFinancialReport),
-      ),
+      // Внутри одного объекта действия складываются по И — ровно то, что
+      // нужно: деньги видит тот, у кого и модуль, и общий финансовый отчёт.
+      canSeeMoney: req.auth.can({
+        finances: ["use", "readGlobalReport"],
+      }),
     });
 
     const worksWithLinks = works.map((work) => ({
@@ -613,33 +617,30 @@ exports.getFormData = async (req, res, next) => {
       }).sort({ alias: 1 });
 
       responsibles = await User.find({
-        $and: [{ "permissions.canPerformTickets": true }, { isActive: true }],
+        $and: [await permissionFilter("canPerformTickets"), { banned: { $ne: true } }],
       }).sort({ lastName: 1 });
 
       // Полный активный каталог: фасет категорий в архиве (сегменты «Заявки»
       // и «Работы») у конечного пользователя раньше оставался пустым
       categories = await Category.find({ isActive: true }).sort({ title: 1 });
 
-      if (authedUser.permissions?.canSeeAllCompanyTickets) {
+      if (req.auth.can({ ticket: ["readCompany"] })) {
         applicants = await User.find({
           "company._id": authedUser.company._id,
           isServiceAccount: false,
-          isActive: true,
+          banned: { $ne: true },
         });
       } else {
         applicants = [authedUser];
       }
-    } else if (
-      authedUser.permissions.canAdministrateTickets ||
-      authedUser.isAdmin
-    ) {
+    } else if (req.auth.can({ ticket: ["administrate"] })) {
       companies = await Company.find({
         "responsibles._id": authedUser._id,
         ...companyActive,
       }).sort({ alias: 1 });
 
       applicants = await User.find({
-        $and: [{ isActive: true }, { isServiceAccount: false }],
+        $and: [{ banned: { $ne: true } }, { isServiceAccount: false }],
         ...applicantCompanyActive,
       }).sort({ lastName: 1 });
 
@@ -648,7 +649,7 @@ exports.getFormData = async (req, res, next) => {
       });
 
       responsibles = await User.find({
-        $and: [{ "permissions.canPerformTickets": true }, { isActive: true }],
+        $and: [await permissionFilter("canPerformTickets"), { banned: { $ne: true } }],
       }).sort({ lastName: 1 });
     } else {
       companies = await Company.find({
@@ -659,11 +660,11 @@ exports.getFormData = async (req, res, next) => {
       // applicants наследуют фильтр активности от уже отфильтрованных companies
       applicants = await User.find({
         "company._id": { $in: companies },
-        isActive: true,
+        banned: { $ne: true },
       }).sort({ lastName: 1 });
 
       categories = await Category.find({
-        isActive: true,
+        banned: { $ne: true },
         _id: { $in: authedUser.categories },
       }).sort({
         title: 1,
@@ -1614,18 +1615,20 @@ exports.close = async (req, res, next) => {
         .filter((work) => work.finishedAt)
         .map((work) => work.finishedBy._id.toString());
 
+      // Право ЧУЖОГО человека: читать `user.permissions` напрямую нельзя —
+      // с ролями флага в документе нет, и исполнитель молча выпал бы из списка.
+      const respPermissions = (await effectivePermissions(user)).permissions;
       if (
         worksExecutorsIds.includes(resp._id.toString()) ||
-        user.permissions.canAvoidWorks
+        respPermissions.canAvoidWorks
       ) {
-        const user = await User.findById(resp._id);
         responsibles.push(user);
       }
     }
 
     const prevState = ticket.state;
 
-    if (works.length > 0 || permissions.canAvoidWorks) {
+    if (works.length > 0 || req.auth.can({ work: ["avoid"] })) {
       ticket.finishedAt = new Date();
       ticket.responsibles = responsibles;
       ticket.finishedBy = authedUser._id;
@@ -1996,7 +1999,7 @@ exports.closeMultiple = async (req, res, next) => {
 
       const works = await Work.find({ tickets: ticket._id });
 
-      if (!(works.length > 0 || permissions.canAvoidWorks)) continue;
+      if (!(works.length > 0 || req.auth.can({ work: ["avoid"] }))) continue;
       // То же правило, что у одиночного закрытия: заявку с невыполненным
       // обязательным пунктом массовое действие пропускает, а не закрывает
       if (
@@ -2012,9 +2015,11 @@ exports.closeMultiple = async (req, res, next) => {
           .filter((work) => work.finishedAt)
           .map((work) => work.finishedBy._id.toString());
 
+        // Право ЧУЖОГО человека — только через effectivePermissions.
+        const respPermissions = (await effectivePermissions(user)).permissions;
         if (
           worksExecutorsIds.includes(resp._id.toString()) ||
-          user.permissions.canAvoidWorks
+          respPermissions.canAvoidWorks
         ) {
           responsibles.push(user);
         }
@@ -2331,13 +2336,13 @@ exports.getAllOpenedTg = async (req, res, next) => {
     let tickets = [];
 
     if (
-      isAdmin ||
-      permissions.canAdministrateTickets ||
-      permissions.canSeeAllTickets
+      req.auth.can({
+        ticket: { actions: ["administrate", "readAll"], connector: "OR" },
+      })
     ) {
       // Пользователи с ролью администратор
       tickets = allTickets;
-    } else if (permissions.canSeeAllCompanyTickets) {
+    } else if (req.auth.can({ ticket: ["readCompany"] })) {
       // Пользователи с разрешением на просмотр всех заявок Компании
       tickets = allTickets.filter(
         (ticket) => ticket.company._id === user.company._id,
@@ -2359,7 +2364,7 @@ exports.getAllOpenedTg = async (req, res, next) => {
         .populate({
           path: "applicantId",
           select:
-            "firstName lastName email phone position isActive subdivision timezone",
+            "firstName lastName email phone position banned subdivision timezone",
           populate: { path: "subdivision", select: "name timezone parent" },
         })
         .populate({

@@ -26,6 +26,7 @@ import KnowledgeBaseFilter, {
 import NoteList from "../../components/KnowledgeBase/NoteList";
 import NoteBulkActionBar from "../../components/KnowledgeBase/NoteBulkActionBar";
 import CompanyFolders from "../../components/KnowledgeBase/CompanyFolders";
+import { useCan } from "@/store/authed-user";
 
 const MODERATION_MODES = [
   "all-unapproved",
@@ -102,8 +103,9 @@ const KnowledgeBaseList = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const store = useKnowledgeNotesStore();
-  const { isAdmin, permissions } = useContext(AuthedUserContext);
-  const canManage = isAdmin || permissions?.canManageKnowledgeBase;
+  const { isAdmin } = useContext(AuthedUserContext);
+  const can = useCan();
+  const canManage = isAdmin || can({ knowledgeBase: ["manage"] });
 
   const moderationParam = searchParams.get("moderation");
 

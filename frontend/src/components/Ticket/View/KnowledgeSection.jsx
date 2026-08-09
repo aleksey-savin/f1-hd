@@ -24,6 +24,7 @@ import { getNoteTypeMeta } from "../../../util/knowledgeNoteTypes";
 import MarkdownViewer from "../../../UI/MarkdownViewer";
 import { BindingPillList } from "../../KnowledgeBase/BindingPills";
 import { EmptySection } from "./Sections";
+import { useCan } from "@/store/authed-user";
 
 /**
  * Подсказки базы знаний в заявке.
@@ -218,7 +219,8 @@ const NoteSheet = ({ note, loading, onClose }) => {
 
 const KnowledgeSection = ({ ticket }) => {
   const navigate = useNavigate();
-  const { isAdmin, permissions } = useContext(AuthedUserContext);
+  const { isAdmin } = useContext(AuthedUserContext);
+  const can = useCan();
   const updateFilter = useKnowledgeNotesStore((state) => state.updateFilter);
 
   const companyId = ticket.company?._id;
@@ -233,7 +235,7 @@ const KnowledgeSection = ({ ticket }) => {
   const [openNote, setOpenNote] = useState(null);
   const openId = openRow?._id ?? null;
 
-  const canManage = isAdmin || permissions?.canManageKnowledgeBase;
+  const canManage = isAdmin || can({ knowledgeBase: ["manage"] });
 
   useEffect(() => {
     const params = new URLSearchParams();

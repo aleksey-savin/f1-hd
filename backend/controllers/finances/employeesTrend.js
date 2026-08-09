@@ -40,7 +40,7 @@ exports.getTrend = async (req, res, next) => {
       isServiceAccount: false,
     })
       .select(
-        "firstName lastName position isActive finances timezone workSchedule followProductionCalendar",
+        "firstName lastName position banned finances timezone workSchedule followProductionCalendar",
       )
       .lean();
 
@@ -72,7 +72,7 @@ exports.getTrend = async (req, res, next) => {
             firstName: employee?.firstName || "",
             lastName: employee?.lastName || "",
             position: employee?.position ?? null,
-            isActive: employee?.isActive !== false,
+            isActive: !employee?.banned,
           },
           totalMinutes: series.months.reduce((sum, item) => sum + item.minutes, 0),
           months: series.months,

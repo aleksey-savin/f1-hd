@@ -64,6 +64,7 @@ import { getTaxiAction } from "../../Company/company-links";
 import WorkStatusText from "../../Company/WorkStatusText";
 import { formatMoney } from "../../Report/work-format";
 import { cn } from "@/lib/utils";
+import { useCan } from "@/store/authed-user";
 
 // Секции карточки заявки. Все они ТОЛЬКО показывают: правка — в форме заявки.
 // Вход в неё — карандаш `app/SectionEditLink` в метке секции (проявляется по
@@ -106,14 +107,15 @@ export const DescriptionSection = ({
   const [showOriginal, setShowOriginal] = useState(false);
   const [openTerm, setOpenTerm] = useState(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const { permissions, isEndUser } = useContext(AuthedUserContext);
+  const { isEndUser } = useContext(AuthedUserContext);
+  const can = useCan();
   const { modules, ai } = useInitialPrefsStore();
   const clean = (html) => ({ __html: DOMPurify.sanitize(html) });
 
   const showAi = !isEndUser && ai?.isActive;
   const terms = inTextTerms(ticket);
   const canSaveNote =
-    !!modules?.knowledgeBase?.isActive && !!permissions?.canManageKnowledgeBase;
+    !!modules?.knowledgeBase?.isActive && !!can({ knowledgeBase: ["manage"] });
 
   // Понятия подчёркиваем строкой в уже очищенном html, поэтому своих React-узлов
   // там нет: клик ловим одним обработчиком на всей панели и находим понятие по
@@ -294,7 +296,8 @@ export const FactsSection = ({
   onShowLogs,
   onEdit,
 }) => {
-  const { permissions, isEndUser } = useContext(AuthedUserContext);
+  const { isEndUser } = useContext(AuthedUserContext);
+  const can = useCan();
   const { taxi } = useInitialPrefsStore();
   const applicant = ticket.applicant;
   const computer = applicant?.computer;
@@ -393,7 +396,7 @@ export const FactsSection = ({
                 </Button>
               )}
               {onShowLogs &&
-                permissions.canManageCompanies &&
+                can({ company: ["manage"] }) &&
                 applicant?.activeDirectoryObjectGUID && (
                   <Button
                     variant="ghost"

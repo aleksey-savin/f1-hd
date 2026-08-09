@@ -20,6 +20,7 @@ import useTicketFilterStore from "../../store/lists/tickets";
 import useToastStore from "../../store/toast-store";
 import { getLocalStorageData } from "../../util/auth";
 import { queueLabel } from "../../util/ticket-queues";
+import { useCan } from "@/store/authed-user";
 
 // Список активных заявок. Выборка клиентская (открытых заявок десятки), поэтому
 // счётчики очередей считаются по всей выборке и честны.
@@ -45,16 +46,17 @@ const Tickets = () => {
   const location = useLocation();
   const store = useTicketFilterStore();
   const { showToast } = useToastStore();
-  const { isAdmin, permissions } = useContext(AuthedUserContext);
+  const { isAdmin } = useContext(AuthedUserContext);
+  const can = useCan();
 
   const [processing, setProcessing] = useState(false);
 
   const canSelect =
-    permissions.canDeleteTickets || permissions.canPerformTickets;
+    can({ ticket: ["delete"] }) || can({ ticket: ["perform"] });
   const canFilterByResponsible =
     isAdmin ||
-    permissions.canAdministrateTickets ||
-    permissions.canSeeAllTickets;
+    can({ ticket: ["administrate"] }) ||
+    can({ ticket: ["readAll"] });
 
   const selection = useListSelection({
     items: store.filteredList,
@@ -343,8 +345,8 @@ const Tickets = () => {
             onToggle={selection.toggle}
             pressProps={selection.pressProps(ticket._id)}
             consumeSuppressedClick={selection.consumeSuppressedClick}
-            canEdit={permissions.canEditTickets}
-            canDelete={permissions.canDeleteTickets}
+            canEdit={can({ ticket: ["update"] })}
+            canDelete={can({ ticket: ["delete"] })}
           />
         ))}
       </ListWrapper>

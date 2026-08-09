@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { RiBox3Line } from "react-icons/ri";
 import { redirect, useLocation, useSearchParams } from "react-router";
@@ -12,9 +12,9 @@ import ClientDeviceFilter from "../../components/ClientDevice/Filter";
 import DeviceRow from "../../components/ClientDevice/DeviceRow";
 import FleetStrip from "../../components/ClientDevice/FleetStrip";
 import useClientDeviceFilterStore from "../../store/lists/client-devices";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import { getLocalStorageData } from "../../util/auth";
 import { plural } from "../../util/plural";
+import { useCan } from "@/store/authed-user";
 
 const LIST_PATH = "/inventory/client-devices";
 
@@ -36,7 +36,7 @@ const labelOf = (options, value) =>
 const ClientDevices = () => {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { permissions } = useContext(AuthedUserContext);
+  const can = useCan();
   const store = useClientDeviceFilterStore();
 
   // Снятие ?company= меняет адрес и без него бы перезапросило список — этот
@@ -174,7 +174,7 @@ const ClientDevices = () => {
           />
         }
         searchPlaceholder="Номер, серийник, имя ПК, модель…"
-        showAddButton={Boolean(permissions.canManageClientDevices)}
+        showAddButton={Boolean(can({ clientDevice: ["manage"] }))}
         addRoute="add"
         addLabel="Новое устройство"
         // Создание — мастер (lg), правка — плоская форма с рейлом (xl).

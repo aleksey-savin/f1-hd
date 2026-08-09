@@ -66,14 +66,13 @@ subdivisionSchema.index({ company: 1 });
 subdivisionSchema.index({ manager: 1 });
 
 // Initialize arrays if they're undefined
-subdivisionSchema.pre("save", function (next) {
+subdivisionSchema.pre("save", function () {
   if (!this.users) {
     this.users = [];
   }
   if (!this.subdivisions) {
     this.subdivisions = [];
   }
-  next();
 });
 
 const Subdivision = mongoose.model("Subdivision", subdivisionSchema);

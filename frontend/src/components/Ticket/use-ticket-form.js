@@ -115,13 +115,17 @@ export const useTicketForm = ({
   const applicants = useMemo(() => {
     const all = formData.applicants ?? [];
     if (isEndUser) return all;
-    return all.filter(
-      (user) =>
-        user.permissions?.canPerformTickets ||
-        user.permissions?.canAdministrateTickets ||
-        asId(user.company) === companyId,
+    // «Кто ведёт заявки» больше не вычитывается из прав каждого человека:
+    // с ролями в документе пользователя флага нет, и такой фильтр молча
+    // выбрасывал бы половину списка. Сервер уже посчитал этот набор —
+    // это и есть responsibles.
+    const handlers = new Set(
+      (formData.responsibles ?? []).map((person) => asId(person)),
     );
-  }, [formData.applicants, companyId, isEndUser]);
+    return all.filter(
+      (user) => handlers.has(asId(user)) || asId(user.company) === companyId,
+    );
+  }, [formData.applicants, formData.responsibles, companyId, isEndUser]);
 
   // Кто ведёт выбранную категорию — раньше это говорил цвет имени (зелёное
   // против оранжевого). Цвет по гайду говорит о состоянии, а не о виде записи,

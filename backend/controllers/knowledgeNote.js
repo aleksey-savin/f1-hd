@@ -925,7 +925,7 @@ exports.getServiceExpiry = async (req, res, next) => {
       if (!isClientSideResponsible) {
         return res.status(200).json(empty);
       }
-    } else if (!authedUser.isAdmin && !authedUser.permissions?.canSeeKnowledgeBase) {
+    } else if (!req.auth.can({ knowledgeBase: ["read"] })) {
       // Сотрудник без права «видеть базу знаний» не видел этого и раньше —
       // маршрут был закрыт middleware; гейт просто переехал сюда.
       return res.status(200).json(empty);
@@ -1084,7 +1084,7 @@ exports.getFormData = async (req, res, next) => {
     const [companies, users, categories] = await Promise.all([
       Company.find({ isActive: { $ne: false } }).sort({ alias: 1 }),
       User.find({
-        isActive: true,
+        banned: { $ne: true },
         isServiceAccount: false,
         "company.isActive": { $ne: false },
       }).sort({

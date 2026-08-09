@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const { WORK_STATUS_CODES } = require("../utils/workStatuses");
+const { assertPermissionKeysMatch } = require("../utils/permissions");
 const workScheduleSchema = require("./workSchedule");
 
 const Schema = mongoose.Schema;
@@ -11,6 +12,22 @@ const userSchema = new Schema(
       type: String,
       required: true,
       unique: true,
+      // Индекс объявлен уникальным, но регистр не нормализовался: адрес
+      // сохранялся как введён, а `controllers/user.js#add` искал дубль по
+      // сырому значению — «Ivanov@f1lab.ru» и «ivanov@f1lab.ru» могли завестись
+      // оба. better-auth приводит адрес к нижнему регистру, и такая пара
+      // означала бы вход под чужой учёткой. На 2026-08 данные чистые (проверено
+      // scripts/checkEmailCollisions.js), сеттеры закрывают вход новым.
+      lowercase: true,
+      trim: true,
+    },
+    // Нужно better-auth: при `requireEmailVerification` он не пускает без него.
+    // Существующим проставлено true миграцией — эти учётки заводил
+    // администратор, и требовать от них подтверждения задним числом значило бы
+    // запереть снаружи 694 человека.
+    emailVerified: {
+      type: Boolean,
+      default: false,
     },
     phone: {
       type: String,
@@ -65,6 +82,10 @@ const userSchema = new Schema(
         alias: String,
       },
     ],
+    // Свободный текстовый ЯРЛЫК должности («директор», «бухгалтер»). В
+    // авторизации не участвует, но копируется в денормализованные снапшоты
+    // Company.users[].role и Ticket.applicant.role — переименовать его нельзя,
+    // копии уже разошлись по 13 тысячам заявок. Роль доступа — это roleId ниже.
     role: {
       type: String,
     },
@@ -105,6 +126,7 @@ const userSchema = new Schema(
       // basic portal administration
       canManageCompanies: { type: Boolean, default: false },
       canManageUsers: { type: Boolean, default: false },
+      canManageRoles: { type: Boolean, default: false },
       canManageTicketCategories: { type: Boolean, default: false },
       canManageKnowledgeBase: { type: Boolean, default: false }, // может создавать/редактировать заметки базы знаний
       canSeeKnowledgeBase: { type: Boolean, default: false }, // может просматривать базу знаний
@@ -221,10 +243,35 @@ const userSchema = new Schema(
       type: String,
       required: true,
     },
-    isActive: {
+    // Ставится плагином twoFactor better-auth. Поле обязано быть в схеме:
+    // strict mode вырезал бы его при первом же user.save() из нашего кода, и
+    // двухфакторка молча выключилась бы.
+    twoFactorEnabled: {
       type: Boolean,
-      required: true,
+      default: false,
     },
+    // Отключение учётки. Пришло на смену `isActive` вместе с плагином `admin`:
+    // он сам проверяет флаг при создании сеанса, сам снимает просроченный бан
+    // по `banExpires` и сам отзывает сеансы — у `isActive` из этого не было
+    // ничего, отключённый жил до истечения своего токена.
+    //
+    // ПОЛЯРНОСТЬ ОБРАТНАЯ остальным сущностям: у категорий и компаний
+    // `isActive: true` значит «работает», здесь «не работает» — `banned:
+    // true`. Отсюда фильтры вида `{ banned: { $ne: true } }`, а не `true`:
+    // поля может не быть вовсе, и его отсутствие значит «работает».
+    //
+    // `required` нет намеренно: better-auth пишет пользователя нативным
+    // драйвером мимо валидации Mongoose, и обязательное поле сломало бы его
+    // собственные ручки, а не нас.
+    banned: {
+      type: Boolean,
+      default: false,
+    },
+    // Причину видит администратор в карточке; человеку она не показывается —
+    // текст пишется для своих и в чужие руки не рассчитан.
+    banReason: String,
+    // Пусто = бессрочно. Просроченный бан плагин снимает сам при входе.
+    banExpires: Date,
     lastLogin: {
       type: Date,
     },
@@ -275,5 +322,7 @@ const userSchema = new Schema(
   },
   { timestamps: true },
 );
+
+assertPermissionKeysMatch(userSchema);
 
 module.exports = mongoose.model("User", userSchema);

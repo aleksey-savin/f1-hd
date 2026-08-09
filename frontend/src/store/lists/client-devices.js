@@ -60,7 +60,7 @@ const doFetch = async (get, set, { append = false } = {}) => {
   const seq = ++requestSeq;
   set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/inventory/client-devices`);
+    const url = new URL(`${API}/api/inventory/client-devices`, window.location.origin);
     url.search = buildParams(get()).toString();
     const response = await fetch(url, {
       headers: { Authorization: "Bearer " + token },

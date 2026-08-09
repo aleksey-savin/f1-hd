@@ -19,7 +19,7 @@ exports.getAll = async (req, res, next) => {
 
     let templates = [];
 
-    if (permissions.canManageTicketTemplates) {
+    if (req.auth.can({ ticketTemplate: ["manage"] })) {
       templates = await TicketTemplate.find({})
         .populate("categoryId", "_id title")
         .sort({

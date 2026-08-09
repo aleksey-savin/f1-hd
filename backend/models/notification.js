@@ -66,14 +66,15 @@ const guardDocument = (doc) => {
   }
 };
 
-notificationSchema.pre("save", function preSave(next) {
+// Mongoose 9 убрал колбэк-стиль: middleware больше не получает `next`, вместо
+// него ожидается синхронная функция или промис. Прежняя запись с `next` даёт
+// «TypeError: next is not a function» — то есть сохранение падает целиком.
+notificationSchema.pre("save", function preSave() {
   guardDocument(this);
-  next();
 });
 
-notificationSchema.pre("insertMany", function preInsertMany(next, docs) {
+notificationSchema.pre("insertMany", function preInsertMany(docs) {
   (docs || []).forEach(guardDocument);
-  next();
 });
 
 module.exports = mongoose.model("Notification", notificationSchema);

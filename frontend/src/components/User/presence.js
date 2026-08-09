@@ -10,7 +10,7 @@ export function getPresence(user = {}) {
     !user.isServiceAccount &&
     !user.isCloudTelephony &&
     !user.hideWorkStatus &&
-    Boolean(user.isActive);
+    !user.banned;
 
   const code = user.workStatus?.code;
   const meta = getWorkStatusMeta(code);

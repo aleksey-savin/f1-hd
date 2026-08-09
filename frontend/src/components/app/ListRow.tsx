@@ -14,7 +14,7 @@ import { DeleteDialog } from "@/components/app/DeleteItem";
 import { canManageEntity } from "@/components/app/entity-permissions";
 import { cn } from "@/lib/utils";
 import useOffcanvasStore from "@/store/offcanvas";
-import { useAuthedUser } from "@/store/authed-user";
+import { useAuthedUser, useCan } from "@/store/authed-user";
 
 // Строка списка из согласованного макета: монограмма-плитка · имя + мета ·
 // «⋯»-меню (по наведению; на тач-экране видно всегда). Разделители — тонкая
@@ -69,8 +69,10 @@ const ListRow = ({
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const { _id: userId, permissions } = useAuthedUser();
-  const canManage = canManageEntity(itemTitle, permissions, item, userId);
+  const { _id: userId } = useAuthedUser();
+
+  const can = useCan();
+  const canManage = canManageEntity(itemTitle, can, item, userId);
 
   const updateTo = `update/${item._id}`;
 

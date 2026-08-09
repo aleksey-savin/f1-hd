@@ -1,5 +1,4 @@
 import {
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -49,7 +48,7 @@ import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
-import { AuthedUserContext } from "../../store/authed-user-context";
+import { useCan } from "@/store/authed-user";
 
 const dash = <span className="text-faint">—</span>;
 const fmtDate = (value) => (value ? formatShortDate(value) : null);
@@ -168,8 +167,8 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
   const { showToast } = useToastStore();
   const actionData = useActionData();
   const reorderFetcher = useFetcher();
-  const { permissions } = useContext(AuthedUserContext);
-  const canManage = permissions.canManageClientDevices;
+  const can = useCan();
+  const canManage = can({ clientDevice: ["manage"] });
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [vendorFilter, setVendorFilter] = useState(null);
   const [search, setSearch] = useState("");
