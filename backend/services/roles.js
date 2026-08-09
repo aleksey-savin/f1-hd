@@ -5,6 +5,8 @@ const {
   STATEMENT,
   permissionsToStatements,
   statementsToPermissions,
+  isFullAccess,
+  AC_TO_LEGACY,
 } = require("@/auth/access");
 const {
   organizationId,
@@ -34,6 +36,13 @@ const members = () => mongoose.connection.db.collection("member");
 
 /** Ключ роли — латиницей: он попадает в `member.role`, строку через запятую. */
 const KEY_RE = /^[a-z0-9][a-z0-9-]{1,39}$/;
+
+/**
+ * Кому роль предназначена. Подсказка форме, а не запрет: роль чужого адресата
+ * всё ещё выбирается, просто не предлагается первой.
+ */
+const AUDIENCES = ["staff", "client"];
+const audienceOf = (value) => (AUDIENCES.includes(value) ? value : "staff");
 
 const TRANSLIT = {
   а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z",
@@ -168,7 +177,7 @@ const list = async () => {
  * тот случай, где плоская карта уместна. Перевод в словарь один на весь проект
  * (auth/access.js), второй копии на клиенте не заводим.
  */
-const create = async ({ title, description, permissions }, can) => {
+const create = async ({ title, description, permissions, audience }, can) => {
   const orgId = await orgIdOrThrow();
   const clean = sanitize(permissionsToStatements(permissions || {}));
   assertNotEscalating(clean, can);
@@ -187,6 +196,7 @@ const create = async ({ title, description, permissions }, can) => {
     role: key,
     title: String(title).trim(),
     description: String(description || "").trim(),
+    audience: audienceOf(audience),
     permission: JSON.stringify(clean),
     createdAt: new Date(),
   });
@@ -195,7 +205,7 @@ const create = async ({ title, description, permissions }, can) => {
   return { key, title, description, statements: clean };
 };
 
-const update = async (key, { title, description, permissions }, can) => {
+const update = async (key, { title, description, permissions, audience }, can) => {
   const orgId = await orgIdOrThrow();
   const role = await collection().findOne({ organizationId: orgId, role: key });
   if (!role) {
@@ -213,6 +223,9 @@ const update = async (key, { title, description, permissions }, can) => {
   }
   if (description !== undefined) {
     set.description = String(description).trim();
+  }
+  if (audience !== undefined) {
+    set.audience = audienceOf(audience);
   }
   if (permissions !== undefined) {
     const clean = sanitize(permissionsToStatements(permissions));
@@ -301,6 +314,39 @@ const rolesOfMember = async (userId) => {
     .filter(Boolean);
 };
 
+/**
+ * Членство в организации — единственный носитель ролей, поэтому оно обязано
+ * появляться вместе с человеком.
+ *
+ * Миграция завела строки всем, кто был на тот момент; для заведённых после неё
+ * этого не делал никто, и первое же назначение роли отвечало бы «не состоит в
+ * организации». Идемпотентно: повторный вызов ничего не меняет.
+ */
+const ensureMember = async (userId) => {
+  const orgId = await orgIdOrThrow();
+  await members().updateOne(
+    { organizationId: orgId, userId: String(userId) },
+    { $setOnInsert: { role: "", createdAt: new Date() } },
+    { upsert: true },
+  );
+};
+
+/**
+ * Роли человека С НАЗВАНИЯМИ — для карточки и формы.
+ *
+ * Один ключ `engineer-lead-finance` человеку не читается, а два запроса ради
+ * подстановки названий здесь ни к чему: каталог маленький и уже в памяти.
+ */
+const namedRoles = async (userId) => {
+  const keys = await rolesOfMember(userId);
+  if (!keys.length) return [];
+  const catalogue = await listRoles();
+  return keys.map((key) => ({
+    key,
+    title: catalogue.find((role) => role.key === key)?.title || key,
+  }));
+};
+
 /** Назначить человеку набор ролей (полная замена, не добавление). */
 const assign = async (userId, keys, can) => {
   const orgId = await orgIdOrThrow();
@@ -318,13 +364,11 @@ const assign = async (userId, keys, can) => {
     assertNotEscalating(known.get(key).statements, can);
   }
 
-  const result = await members().updateOne(
+  await ensureMember(userId);
+  await members().updateOne(
     { organizationId: orgId, userId: String(userId) },
     { $set: { role: keys.join(",") } },
   );
-  if (!result.matchedCount) {
-    throw new AppError("Пользователь не состоит в организации", 404);
-  }
 
   const statements = {};
   for (const key of keys) {
@@ -334,7 +378,58 @@ const assign = async (userId, keys, can) => {
       ];
     }
   }
-  return { roles: keys, permissions: statementsToPermissions(statements) };
+
+  /**
+   * `isAdmin` — ЗЕРКАЛО роли с полным доступом, а не отдельный выключатель.
+   *
+   * Поле читают около сотни мест и меню фронта, поэтому оно остаётся; но два
+   * способа сказать «этому можно всё» неизбежно разъезжаются, и разъехавшись
+   * дают либо тихую потерю доступа, либо тихое его сохранение после снятия
+   * роли. Источник истины теперь один — набор ролей.
+   */
+  const shouldBeAdmin = keys.some((key) => isFullAccess(known.get(key).statements));
+  await mongoose.connection.db
+    .collection("users")
+    .updateOne(
+      { _id: new mongoose.Types.ObjectId(String(userId)) },
+      { $set: { isAdmin: shouldBeAdmin } },
+    );
+
+  return {
+    roles: keys,
+    isAdmin: shouldBeAdmin,
+    permissions: statementsToPermissions(statements),
+  };
+};
+
+/**
+ * Права, которые нельзя выдать иначе как вместе со всем порталом.
+ *
+ * Право попадает сюда, когда его не даёт ни одна роль либо дают только роли с
+ * полным доступом. Каталог заведут — список опустеет сам; никаких пометок
+ * руками и никакого сравнения с ключом «admin».
+ */
+const gaps = async () => {
+  const catalogue = await listRoles();
+  const partial = catalogue.filter((role) => !isFullAccess(role.statements));
+
+  const covered = new Set(
+    partial.flatMap((role) =>
+      Object.entries(role.statements).flatMap(([resource, actions]) =>
+        actions.map((action) => `${resource}.${action}`),
+      ),
+    ),
+  );
+
+  // Наружу отдаём ПЛОСКИМИ ключами: у списка прав в интерфейсе ключ и подпись
+  // идут парами, и второй словарь на клиенте здесь ни к чему.
+  return Object.entries(STATEMENT)
+    .flatMap(([resource, actions]) =>
+      actions
+        .filter((action) => !covered.has(`${resource}.${action}`))
+        .map((action) => AC_TO_LEGACY[`${resource}.${action}`]),
+    )
+    .filter(Boolean);
 };
 
 module.exports = {
@@ -343,6 +438,9 @@ module.exports = {
   update,
   remove,
   assign,
+  ensureMember,
+  gaps,
   rolesOfMember,
+  namedRoles,
   slugify,
 };

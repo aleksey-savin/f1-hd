@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
 import PasswordPolicyField from "@/components/app/PasswordPolicyField";
-import PermissionModules from "./PermissionModules";
+import RoleSummary, { effectiveOf, rolesToOptions } from "./RoleSummary";
 import SwitchField from "@/components/app/SwitchField";
 import Segmented from "@/components/app/Segmented";
 import WizardStepper from "@/components/app/WizardStepper";
@@ -18,6 +18,7 @@ import ScheduleEditor, {
 } from "@/components/app/ScheduleEditor";
 import { cn } from "@/lib/utils";
 import { verdictAllows } from "@/lib/password";
+import { api } from "@/lib/api";
 
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import useOffcanvasStore from "../../store/offcanvas";
@@ -30,9 +31,6 @@ import { getInitialPrefsData } from "../../util/prefs";
 
 import {
   ACCOUNT_KINDS,
-  ALL_PERMISSION_KEYS,
-  CLIENT_PERMISSIONS,
-  CLIENT_PERMISSION_KEYS,
   NOTIFY_EVENTS,
   WORK_TIME_MODES,
   kindOfUser,
@@ -46,9 +44,6 @@ import { useCan } from "@/store/authed-user";
 // нужны права и категории, служебному — почти ничего. Тип аккаунта — один
 // сегмент вместо трёх независимых флагов модели (isEndUser/isServiceAccount/
 // isCloudTelephony); обратно в флаги собирается при сабмите.
-const emptyPermissions = () =>
-  Object.fromEntries(ALL_PERMISSION_KEYS.map((key) => [key, false]));
-
 const emptyNotify = () => ({
   byTelegram: Object.fromEntries(NOTIFY_EVENTS.map((e) => [e.key, true])),
   byEmail: Object.fromEntries(NOTIFY_EVENTS.map((e) => [e.key, true])),
@@ -168,7 +163,12 @@ const UserForm = () => {
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
 
+  // Тот же флаг, что гасит «Прислать письмо» на входе: notify.byEmail.isActive.
+  const mailIsOn = Boolean(useInitialPrefs().emailNotifications);
   const [kind, setKind] = useState(kindOfUser(user));
+  // Каталог ролей грузится формой: он нужен только на шаге прав и живёт
+  // отдельно от списков, которые приходят загрузчиком страницы.
+  const [catalogue, setCatalogue] = useState([]);
   // Вердикт по паролю живёт рядом с формой: шаг «Человек» не пускает дальше,
   // пока пароль не пройдёт те же проверки, что и на сервере.
   const [passwordVerdict, setPasswordVerdict] = useState({ kind: "idle" });
@@ -179,7 +179,10 @@ const UserForm = () => {
     phone: user?.phone || "",
     position: user?.position || "",
     password: "",
-    sendPassword: false,
+    // Как человек попадёт внутрь: "invite" — приглашение письмом (по
+    // умолчанию: пароль не покидает голову владельца), "password" — задаём
+    // сами. Почта выключена — остаётся только вторая дорога.
+    access: "invite",
     isActive: !user?.banned,
     workStatusEnabled: user ? !user.hideWorkStatus : true,
     isCloudTelephony: !!user?.isCloudTelephony,
@@ -197,7 +200,11 @@ const UserForm = () => {
     responsibleForCompanies: (user?.responsibleForCompanies || [])
       .map((item) => companiesList.find((c) => c._id === String(item.id)))
       .filter(Boolean),
-    permissions: { ...emptyPermissions(), ...(user?.permissions || {}) },
+    // Права человека — это его роли. Личных галочек форма больше не правит:
+    // они снимаются миграцией (scripts/stripOwnPermissions.js).
+    // Сервер отдаёт роли парами ключ-название (их читает карточка); форме
+    // нужны только ключи.
+    roles: (user?.roles || []).map((role) => role.key || role),
     notify: user?.notify
       ? {
           byTelegram: {
@@ -293,7 +300,9 @@ const UserForm = () => {
         return isService ? "Укажите наименование" : "Укажите имя";
       if (!isService && !form.lastName.trim()) return "Укажите фамилию";
       if (!form.email.trim()) return "Укажите email";
-      if (!isEdit && !isService) {
+      // Пароль требуется ТОЛЬКО на своей дороге: при приглашении его нет
+      // вовсе, и это правильное состояние, а не незаполненное поле.
+      if (!isEdit && !isService && form.access === "password") {
         if (!form.password.trim()) return "Задайте пароль";
         // Причина отказа уже написана под полем — сюда её не дублируем, иначе
         // человек читает одно и то же дважды и разными словами.
@@ -352,18 +361,6 @@ const UserForm = () => {
           effectiveFrom: schedule.effectiveFrom || null,
         };
 
-  // У клиента правится только его подмножество; остальное сохраняем как было
-  // (перевод сотрудника в клиенты — осознанное действие, там чистим).
-  const clientPermissions = () => {
-    if (isService) return emptyPermissions();
-    const stayedClient = kindOfUser(user) === "client";
-    const base = stayedClient ? { ...form.permissions } : emptyPermissions();
-    for (const key of CLIENT_PERMISSION_KEYS) {
-      base[key] = !!form.permissions[key];
-    }
-    return base;
-  };
-
   const handleSubmit = () => {
     // Форма открыта только на графике: остальных секций нет, и валидировать
     // нечего — уходим на endpoint графика
@@ -390,7 +387,6 @@ const UserForm = () => {
       phone: isService ? "" : form.phone,
       position: isService ? "" : form.position,
       ...kindToFlags(kind, { isCloudTelephony: form.isCloudTelephony }),
-      isAdmin: isStaff ? form.isAdmin : false,
       // Форма говорит «Активен», база хранит обратное — переворачиваем здесь,
       // в единственной точке, а не заводим в интерфейсе слово «бан».
       banned: !form.isActive,
@@ -407,12 +403,17 @@ const UserForm = () => {
             alias: c.alias,
           }))
         : [],
-      permissions: isStaff ? form.permissions : clientPermissions(),
+      // Права даются ролями, и `isAdmin` сервер зеркалит из них сам
+      // (services/roles.js#assign). Служебной учётке роли не положены —
+      // сессий ей не выдают вовсе.
+      roles: isService ? [] : form.roles,
     };
 
     if (!isEdit && !isService) {
-      payload.password = form.password;
-      payload.sendPassword = form.sendPassword;
+      payload.access = form.access;
+      // Пароль уходит только на своей дороге: при приглашении учётка заводится
+      // вовсе без него.
+      if (form.access === "password") payload.password = form.password;
     }
     if (canEditFinances && isStaff) {
       payload.finances = {
@@ -442,12 +443,41 @@ const UserForm = () => {
     }
   }, [fetcher.state, fetcher.data]);
 
+  // Каталог нужен и для выбора, и для блока «что получается». Право на чтение
+  // есть у того, кто ведёт людей (routes/internal/role.js) — отдельной
+  // проверки здесь не надо, отказ просто оставит список пустым.
+  useEffect(() => {
+    if (!canManageUsers) return;
+    let alive = true;
+    api("/api/roles")
+      .then((data) => {
+        if (alive) setCatalogue(Array.isArray(data.roles) ? data.roles : []);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [canManageUsers]);
+
+  /**
+   * Новому клиенту роль подставляется сама: «Клиент» носят 665 человек из 696,
+   * и заставлять выбирать её каждый раз значит требовать подтверждения того,
+   * что и так верно. Сотруднику НЕ подставляется ничего — там выбор настоящий.
+   *
+   * Только при создании и только в пустое поле: правку чужого набора это
+   * трогать не должно.
+   */
+  useEffect(() => {
+    if (isEdit || kind !== "client" || form.roles.length || !catalogue.length) {
+      return;
+    }
+    const plain = catalogue
+      .filter((role) => role.audience === "client")
+      .sort((a, b) => (b.usage?.total || 0) - (a.usage?.total || 0))[0];
+    if (plain) setField("roles", [plain.key]);
+  }, [catalogue, kind, isEdit]);
+
   /* ---------- переключатели ---------- */
-  const togglePerm = (key) =>
-    setForm((prev) => ({
-      ...prev,
-      permissions: { ...prev.permissions, [key]: !prev.permissions[key] },
-    }));
   const toggleNotify = (channel, key) => {
     setNotifyDirty(true);
     setForm((prev) => ({
@@ -467,12 +497,12 @@ const UserForm = () => {
    * человека: у роли категорий нет, это свойство конкретной учётной записи.
    * Поэтому он приходит в общую матрицу пропом, а не переезжает в неё.
    */
-  const categoriesUnderPerform = (cap) => {
-    if (cap.key !== "canPerformTickets" || !form.permissions[cap.key]) {
+  const categoriesUnderPerform = () => {
+    if (!effectiveOf(form.roles, catalogue).sources.canPerformTickets) {
       return null;
     }
     return (
-      <div className="mb-2 rounded-xl border border-border bg-accent p-3">
+      <div className="rounded-xl border border-border bg-accent p-3">
         <Field label="Категории заявок" htmlFor="u-categories">
           <MultiCombobox
             id="u-categories"
@@ -528,7 +558,7 @@ const UserForm = () => {
     <>
       <Field
         label="Тип аккаунта"
-        hint="От типа зависят доступные разделы формы."
+        hint="Клиент обращается в поддержку, сотрудник её оказывает, служебный аккаунт входит только по API. От этого зависят разделы формы и роли, которые предложат дальше."
       >
         <Segmented
           options={ACCOUNT_KINDS}
@@ -597,26 +627,62 @@ const UserForm = () => {
       )}
 
       {!isEdit && !isService && (
-        <>
-          <PasswordPolicyField
-            id="u-password"
-            label="Пароль"
-            value={form.password}
-            onChange={(value) => setField("password", value)}
-            onVerdictChange={setPasswordVerdict}
-          />
-          {/* Пароль письмом больше не уходит: вместо него ссылка, по которой
-              человек задаёт свой. Заданный здесь остаётся запасным входом на
-              случай, если письмо не дойдёт. */}
-          <SwitchField
-            id="u-sendPassword"
-            checked={form.sendPassword}
-            onCheckedChange={(value) => setField("sendPassword", value)}
-            label="Отправить ссылку для смены пароля"
-            hint="Человек получит письмо и задаст пароль сам. Пароль из поля выше в письмо не попадёт."
-            divider
-          />
-        </>
+        <Field
+          label="Как человек войдёт"
+          className="mb-0"
+          hint={
+            mailIsOn
+              ? undefined
+              : "Почта в настройках выключена — письмо не уйдёт"
+          }
+        >
+          <div className="flex flex-col gap-3.5">
+            {/* Те же две дороги и тем же сегментом, что в диалоге пароля:
+                один и тот же выбор не должен выглядеть в двух местах
+                по-разному. Погашенная вкладка и есть сообщение, что дороги
+                нет, — отдельного предупреждения рядом не нужно. */}
+            <Segmented
+              ariaLabel="Как человек войдёт"
+              value={form.access}
+              onChange={(value) => setField("access", value)}
+              options={[
+                {
+                  value: "invite",
+                  label: "Пригласить письмом",
+                  disabled: !mailIsOn,
+                  title: mailIsOn
+                    ? undefined
+                    : "Почта в настройках выключена — письмо не уйдёт",
+                },
+                { value: "password", label: "Задать пароль" },
+              ]}
+            />
+
+            {form.access === "invite" ? (
+              <p className="my-0 rounded-xl border border-border bg-accent/45 px-3 py-2.5 text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">
+                  {form.firstName || "Человек"} получит письмо со ссылкой.
+                </span>{" "}
+                Клиент войдёт по ней сразу, сотрудник задаст пароль. Вы пароль
+                не увидите и передавать не придётся.
+              </p>
+            ) : (
+              <>
+                <PasswordPolicyField
+                  id="u-password"
+                  label="Пароль"
+                  value={form.password}
+                  onChange={(value) => setField("password", value)}
+                  onVerdictChange={setPasswordVerdict}
+                />
+                <p className="my-0 text-sm text-muted-foreground">
+                  Этот пароль придётся передать человеку самому — система его не
+                  отправит.
+                </p>
+              </>
+            )}
+          </div>
+        </Field>
       )}
 
       {isService && (
@@ -953,39 +1019,58 @@ const UserForm = () => {
   // Клиенту каталог модулей не применим, но одно право у него штатное:
   // «все заявки своей компании» (директор, секретарь). Раньше секции у клиента
   // не было вовсе — и сохранение формы молча снимало это право.
-  const clientRightsStep = (
-    <>
-      {CLIENT_PERMISSIONS.map((cap) => (
-        <SwitchField
-          key={cap.key}
-          id={`perm-${cap.key}`}
-          checked={!!form.permissions[cap.key]}
-          onCheckedChange={() => togglePerm(cap.key)}
-          label={cap.label}
-          hint={cap.hint}
-        />
-      ))}
-    </>
-  );
-
+  /**
+   * Права и доступ = роли. Тип аккаунта решает, КТО человек, роль — что ему
+   * можно; повторять здесь тип строкой нужно как раз затем, чтобы эти два
+   * вопроса перестали читаться как две ступени одной раздачи прав.
+   */
   const rightsStep = (
-    <>
-      <div className="mb-4 rounded-xl border border-border p-4">
-        <SwitchField
-          id="u-isAdmin"
-          checked={form.isAdmin}
-          onCheckedChange={(value) => setField("isAdmin", value)}
-          label="Администратор"
-          hint="Полный доступ ко всему порталу — переключатели ниже теряют смысл."
-          className="py-0"
-        />
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-accent/45 px-3 py-2.5 text-sm text-muted-foreground">
+        <span className="font-semibold text-foreground">
+          {isStaff ? "Сотрудник" : "Клиент"}
+        </span>
+        <span>
+          {isStaff
+            ? "· оказывает поддержку"
+            : "· обращается в поддержку"}
+        </span>
+        <button
+          type="button"
+          className="ml-auto cursor-pointer appearance-none border-0 bg-transparent p-0 text-sm font-semibold text-accent-text"
+          onClick={() => setStep(0)}
+        >
+          Изменить тип
+        </button>
       </div>
-      <PermissionModules
-        values={form.permissions}
-        onToggle={togglePerm}
-        renderExtra={categoriesUnderPerform}
+
+      <Field
+        label="Роли"
+        htmlFor="u-roles"
+        className="mb-0"
+        hint="Права складываются: если их даёт хоть одна роль — они есть. Отобрать право отдельной галочкой нельзя, для этого заводится своя роль."
+      >
+        <MultiCombobox
+          id="u-roles"
+          placeholder="Выберите роли"
+          value={form.roles}
+          options={rolesToOptions(catalogue, kind)}
+          onChange={(keys) => setField("roles", keys)}
+        />
+      </Field>
+
+      <RoleSummary
+        roles={form.roles}
+        catalogue={catalogue}
+        emptyHint={
+          isStaff
+            ? "Роли нет — человек войдёт, но увидит только свои обращения."
+            : "Дополнительных прав нет: клиент видит свои обращения."
+        }
       />
-    </>
+
+      {categoriesUnderPerform()}
+    </div>
   );
 
   const extraStep = (
@@ -1105,7 +1190,7 @@ const UserForm = () => {
       person: personStep,
       org: orgStep,
       schedule: scheduleStep,
-      rights: isStaff ? rightsStep : clientRightsStep,
+      rights: rightsStep,
       extra: extraStep,
     })[key];
 
@@ -1161,6 +1246,8 @@ const UserForm = () => {
               <FormSummary
                 form={form}
                 kind={kind}
+                catalogue={catalogue}
+                isEdit={isEdit}
                 schedule={showSchedule && scheduleDirty ? schedule : null}
               />
             </div>
@@ -1207,7 +1294,13 @@ const UserForm = () => {
             )}
             {step === LAST && (
               <Button type="button" onClick={handleSubmit} disabled={saving}>
-                Сохранить
+                {/* Кнопка называет ОБЕ половины действия: уходит письмо —
+                    говорим об этом, не уходит — не обещаем. */}
+                {isEdit
+                  ? "Сохранить"
+                  : isService || form.access === "password"
+                    ? "Создать пользователя"
+                    : "Создать и пригласить"}
               </Button>
             )}
           </>

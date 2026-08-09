@@ -150,6 +150,20 @@ const statementsToPermissions = (statements = {}) => {
   return permissions;
 };
 
+/**
+ * Роль отдаёт ВЕСЬ словарь — и потому равна полному доступу.
+ *
+ * Это единственный механический признак «администратора», который у нас есть:
+ * по нему зеркалится `user.isAdmin` (его читают около сотни мест и меню
+ * фронта) и по нему же считается, какие права нельзя выдать иначе как вместе
+ * со всем порталом. Сравнение с ключом роли `"admin"` было бы хуже: ключ
+ * принадлежит каталогу, а каталог правят из интерфейса.
+ */
+const isFullAccess = (statements) =>
+  Object.entries(STATEMENT).every(([resource, actions]) =>
+    actions.every((action) => statements?.[resource]?.includes(action)),
+  );
+
 module.exports = {
   STATEMENT,
   LEGACY_TO_AC,
@@ -157,4 +171,5 @@ module.exports = {
   assertStatementMatchesKeys,
   permissionsToStatements,
   statementsToPermissions,
+  isFullAccess,
 };

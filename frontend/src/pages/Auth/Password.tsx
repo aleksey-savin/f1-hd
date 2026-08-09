@@ -21,7 +21,7 @@ type Result =
   | { sent: false; message: string; email: string };
 
 export async function loader() {
-  document.title = "Пароль по почте";
+  document.title = "Письмо для входа";
   return null;
 }
 
@@ -29,16 +29,16 @@ export async function action({ request }: { request: Request }) {
   const data = await request.formData();
   const email = String(data.get("email") || "").trim();
 
-  // Штатная ручка better-auth. Прежняя `/api/forgot-password` удалена вместе
-  // со своей механикой: она отвечала честным 404 «пользователь не найден»,
-  // то есть работала проверялкой чужих адресов, и парковала СЫРОЙ токен
-  // восстановления в документе пользователя.
+  // ОДНА ДВЕРЬ: что отправить, решает сервер — клиенту ссылку для входа,
+  // сотруднику ссылку на смену пароля. Спрашивать это у человека значило бы
+  // спрашивать «вы клиент или сотрудник»: не его забота, а два почтовых
+  // действия рядом читались бы как одно и то же.
   //
-  // Ответ здесь одинаковый независимо от того, существует адрес или нет —
-  // поэтому экран всегда показывает «письмо отправлено».
+  // Ответ одинаковый независимо от того, существует адрес или нет — поэтому
+  // экран всегда показывает «письмо отправлено».
   let response: Response;
   try {
-    response = await fetch(`${API}/api/auth/request-password-reset`, {
+    response = await fetch(`${API}/api/login-link`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
@@ -81,8 +81,8 @@ const PasswordRequest = () => {
           title="Письмо отправлено"
           lede={
             <>
-              Ссылка на смену пароля ушла на <b>{result.email}</b> и живёт
-              сутки. Не пришло — проверьте спам или напишите нам.
+              Ссылка ушла на <b>{result.email}</b>. Не пришло — проверьте спам
+              или напишите нам.
             </>
           }
         />
@@ -94,8 +94,8 @@ const PasswordRequest = () => {
   return (
     <AuthPanel>
       <AuthHeading
-        title="Пароль по почте"
-        lede="Пришлём ссылку на смену пароля. Она живёт сутки."
+        title="Письмо для входа"
+        lede="Пришлём ссылку — по ней вы войдёте или зададите новый пароль."
       />
 
       {result && !result.sent && (
@@ -118,7 +118,7 @@ const PasswordRequest = () => {
         </Field>
 
         <Button type="submit" disabled={submitting} className="mt-1 w-full">
-          {submitting ? "Отправляем…" : "Отправить ссылку"}
+          {submitting ? "Отправляем…" : "Прислать письмо"}
         </Button>
       </Form>
 

@@ -53,6 +53,27 @@ const run = async () => {
   }
   const orgId = String(org._id);
 
+  /**
+   * ПОРЯДОК ОБЯЗАТЕЛЕН: этот скрипт выводит роли из личных галочек
+   * (`user.permissions`), а `stripOwnPermissions.js` их снимает. Запуск после
+   * снятия не «ничего не делает» — он видит у всех пустую подпись и раздаёт
+   * ВСЕМ роль с пустым набором прав, то есть стирает раздачу целиком.
+   *
+   * Проверено на своей шкуре: 696 членств стали «Клиент» одной командой.
+   */
+  if (!rollback) {
+    const withOwn = await db.collection("users").countDocuments({
+      $or: PERMISSION_KEYS.map((key) => ({ [`permissions.${key}`]: true })),
+    });
+    if (!withOwn) {
+      throw new Error(
+        "Личных прав нет ни у кого — выводить роли не из чего. " +
+          "Либо раздача уже выполнена, либо stripOwnPermissions.js отработал раньше. " +
+          "Роли сейчас живут только в member.role; повторный запуск их сотрёт.",
+      );
+    }
+  }
+
   if (rollback) {
     const result = await db
       .collection("member")
@@ -189,6 +210,10 @@ const run = async () => {
           // что членство хранит роль именно им.
           title: role.title,
           description: role.description || "",
+          // Кому роль предлагать в форме человека. Вывести из прав нельзя:
+          // «Клиент: руководитель» даёт учёт времени и отчёты по работам —
+          // права не клиентские, а роль клиентская.
+          audience: role.audience === "client" ? "client" : "staff",
           updatedAt: new Date(),
         },
         $setOnInsert: {

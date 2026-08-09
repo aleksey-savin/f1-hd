@@ -17,6 +17,10 @@ exports.list = async (req, res, next) => {
       // Словарь отдаём вместе с каталогом: интерфейсу правки роли нужен полный
       // список возможных действий, а не только те, что уже выданы.
       statement: STATEMENT,
+      // Права, которых не даёт ни одна роль, кроме полного доступа. Считает
+      // сервер: правило («роль отдаёт весь словарь») живёт там же, где им
+      // зеркалится isAdmin, и второй копии на клиенте быть не должно.
+      gaps: await roles.gaps(),
     });
   } catch (error) {
     next(error);
@@ -25,9 +29,9 @@ exports.list = async (req, res, next) => {
 
 exports.create = async (req, res, next) => {
   try {
-    const { title, description, permissions } = req.body;
+    const { title, description, permissions, audience } = req.body;
     const role = await roles.create(
-      { title, description, permissions },
+      { title, description, permissions, audience },
       req.auth.can,
     );
     res.status(201).json({ role, message: "Роль создана" });
@@ -38,10 +42,10 @@ exports.create = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { title, description, permissions } = req.body;
+    const { title, description, permissions, audience } = req.body;
     const role = await roles.update(
       req.params.key,
-      { title, description, permissions },
+      { title, description, permissions, audience },
       req.auth.can,
     );
     res.status(200).json({ role, message: "Роль сохранена" });

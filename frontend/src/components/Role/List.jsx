@@ -47,6 +47,8 @@ const RoleList = ({ roles }) => (
           dimmed={total === 0}
           meta={
             <>
+              {role.audience === "client" ? "клиентам" : "сотрудникам"}
+              {" · "}
               {total === 0
                 ? "никому не назначена"
                 : `${total} ${peopleWord(total)}`}

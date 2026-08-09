@@ -102,6 +102,30 @@ const loginLimiter = rateLimit({
   skipSuccessfulRequests: true, // Don't count successful logins against the limit
 });
 
+
+/**
+ * Ссылка для входа: свой лимитер по АДРЕСУ, а не только по IP.
+ *
+ * Без него ручка становится инструментом рассылки писем на чужой ящик: адрес
+ * чужой, IP свой, и общий лимитер по IP тут не помогает — он ограничит
+ * отправителя, а достаётся получателю. Три письма в час на адрес — потолок
+ * осмысленного: ссылка живёт полчаса, и четвёртая за час означает не спешку,
+ * а чужие руки.
+ */
+const loginLinkLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.body?.email || "").toLowerCase().trim(),
+  // Ответ ТОТ ЖЕ, что у успеха: разный ответ на «часто просят» и «адреса
+  // нет» опять сделал бы из ручки проверялку чужих адресов.
+  handler: (req, res) =>
+    res.status(200).json({
+      message: "Если такой адрес есть, письмо со ссылкой отправлено.",
+    }),
+});
+
 // Саморегистрация (`/signup`, `/signup/company-by-email`) и первый запуск
 // (`/first-launch`) удалены: учётки заводит ИТ-отдел вместе с AD и почтой, а
 // три неавторизованных эндпоинта — лишняя поверхность (один из них уже был
@@ -119,6 +143,15 @@ router.post(
   authValidation.login,
   runValidation,
   authController.login,
+);
+
+// Вход по ссылке из письма — только клиентам; гейт и одинаковый ответ на
+// любой адрес живут в контроллере.
+router.post(
+  "/login-link",
+  authLimiter,
+  loginLinkLimiter,
+  authController.requestLoginLink,
 );
 
 // routes for telegram bot

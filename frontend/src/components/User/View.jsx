@@ -154,8 +154,10 @@ const ViewUser = ({ user, tickets }) => {
     activeDirectoryObjectGUID,
     finances,
     permissions = {},
+    roles = [],
     notify,
     lastLogin,
+    invitedAt,
     lastActivityAt,
     createdAt,
   } = user;
@@ -541,6 +543,16 @@ const ViewUser = ({ user, tickets }) => {
                     <span className="tabular-nums">
                       {formatDate(lastLogin)}
                     </span>
+                  ) : invitedAt ? (
+                    /* «Никогда» не отвечает на вопрос, который тут возникает:
+                       дошло ли приглашение. Из 98 заведённых за год учёток 76
+                       не входили ни разу, и узнать об этом было неоткуда. */
+                    <span className="font-normal text-warning">
+                      ни разу · приглашён{" "}
+                      <span className="tabular-nums">
+                        {relativeDay(invitedAt) || formatDate(invitedAt)}
+                      </span>
+                    </span>
                   ) : (
                     <span className="font-normal text-faint">никогда</span>
                   )}
@@ -699,6 +711,16 @@ const ViewUser = ({ user, tickets }) => {
                     {isAdmin ? "Администратор" : accountType}
                   </span>
                   {isAdmin && <Pill>{accountType}</Pill>}
+                </div>
+                {/* Откуда права: список ниже — следствие ролей, и без них он
+                    читается как набор, взявшийся ниоткуда. */}
+                <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Роли:</span>
+                  {roles.length ? (
+                    roles.map((role) => <Pill key={role.key}>{role.title}</Pill>)
+                  ) : (
+                    <span className="text-faint">не назначены</span>
+                  )}
                 </div>
                 {isEndUser ? (
                   <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">

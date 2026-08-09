@@ -39,7 +39,16 @@ const TicketCategory = require("../models/ticketCategory");
 const Prefs = require("../models/preferences");
 const Location = require("../models/inventory/location");
 const CompanyLog = require("../models/companyLog");
-const { permissionFilter } = require("@/services/permissions");
+const {
+  permissionFilter,
+  effectivePermissions,
+} = require("@/services/permissions");
+const { invite } = require("@/services/invitation");
+const {
+  ensureMember,
+  assign: assignRoles,
+  namedRoles,
+} = require("@/services/roles");
 
 // Финансовые поля пользователя (оклад, ставка переработок)
 const toNonNegativeOrNull = (value) => {
@@ -485,7 +494,18 @@ exports.getOne = async (req, res, next) => {
       });
 
       const isSelf = authedUser._id.toString() === user._id.toString();
-      const payload = { ...maskSecrets(user), clientTimezone };
+      // Роли живут не в документе пользователя, а в членстве организации:
+      // форме они нужны здесь же, иначе шаг «Права и доступ» открывался бы
+      // пустым и вторым запросом дозаполнялся на глазах.
+      // Права отдаём ЭФФЕКТИВНЫЕ, а не поле документа: личных галочек больше
+      // нет, всё приходит ролями, и карточка человека, читающая документ,
+      // показывала бы «нет выданных прав» всем подряд.
+      const payload = {
+        ...maskSecrets(user),
+        clientTimezone,
+        roles: await namedRoles(user._id),
+        permissions: (await effectivePermissions(user)).permissions,
+      };
       if (!canManageFinances(req) && !isSelf) {
         // Оклад и ставка видны только самому сотруднику и фин. менеджерам
         delete payload.finances;
@@ -596,7 +616,7 @@ exports.add = async (req, res, next) => {
       categories,
       email,
       password,
-      sendPassword,
+      access,
       phone,
       firstName,
       lastName,
@@ -613,6 +633,7 @@ exports.add = async (req, res, next) => {
       remoteOnly,
       timezone,
       permissions,
+      roles,
       finances,
       getScreenApi,
       responsibleForCompanies,
@@ -641,13 +662,28 @@ exports.add = async (req, res, next) => {
       }
     }
 
-    // Пароль хешируется штатным scrypt better-auth и кладётся в credential-
-    // аккаунт после save() — иначе заведённый человек не смог бы войти вовсе:
-    // better-auth смотрит в authAccounts, а не в users.password.
-    // Заглушка на время создания документа: поле в схеме `required`, а
-    // настоящее значение проставит setUserPassword ниже.
-    const plainPassword = password ? password : crypto.randomUUID();
-    const hashedPassword = "pending";
+    /**
+     * Как человек попадёт внутрь — ДВЕ дороги, и по умолчанию первая:
+     *
+     *   invite   — учётка заводится БЕЗ ПАРОЛЯ, человеку уходит приглашение.
+     *              Несозданный пароль нельзя ни угадать, ни утечь, и его не
+     *              надо никому передавать;
+     *   password — пароль задаёт администратор. Нужен, когда почта выключена
+     *              или доступ нужен прямо сейчас, при человеке.
+     *
+     * Служебной учётке не нужно ни то, ни другое: она не входит.
+     */
+    const byInvite = access !== "password" && !isServiceAccount;
+    const plainPassword = byInvite ? null : password;
+
+    if (!byInvite && !isServiceAccount && !plainPassword) {
+      return next(new AppError("Задайте пароль или пригласите письмом", 400));
+    }
+
+    // Заглушка на время создания документа: настоящее значение проставит
+    // setUserPassword. При приглашении пароля не будет вовсе — поле в схеме
+    // больше не обязательное.
+    const hashedPassword = byInvite ? undefined : "pending";
 
     const user = new User({
       email: email?.toLowerCase(),
@@ -706,20 +742,33 @@ exports.add = async (req, res, next) => {
     // Только после save(): setUserPassword пишет credential-аккаунт, которому
     // нужен уже существующий _id пользователя. Он же обновляет users.password
     // тем же хешем и проверяет требования к паролю из конфигурации better-auth.
-    try {
-      await setUserPassword(user._id, plainPassword);
-    } catch (error) {
-      if (error instanceof PasswordPolicyError) {
-        // Документ уже сохранён — учётка без пароля никому не нужна.
-        await User.deleteOne({ _id: user._id });
-        return next(new AppError(error.message, 400));
+    if (plainPassword) {
+      try {
+        await setUserPassword(user._id, plainPassword);
+      } catch (error) {
+        if (error instanceof PasswordPolicyError) {
+          // Документ уже сохранён, а учётка с отвергнутым паролем бесполезна.
+          await User.deleteOne({ _id: user._id });
+          return next(new AppError(error.message, 400));
+        }
+        throw error;
       }
-      throw error;
     }
 
-    // Ссылка установки пароля вместо письма с паролем.
-    if (sendPassword) {
-      await getAuth().api.requestPasswordReset({ body: { email: user.email } });
+    // Приглашение: письмо выбирает сервер — клиенту ссылку для входа,
+    // сотруднику ссылку на пароль. Сбой отправки учётку не откатывает:
+    // приглашение можно повторить, а повторное заведение упрётся в занятый
+    // адрес (см. services/invitation.js).
+    if (byInvite) {
+      await invite(user, req);
+    }
+
+    // Членство в организации — носитель ролей, и появиться оно обязано вместе
+    // с человеком: без строки в `member` первое же назначение роли отвечало бы
+    // «не состоит в организации».
+    await ensureMember(user._id);
+    if (Array.isArray(roles)) {
+      await assignRoles(user._id, roles, req.auth.can);
     }
 
     company.employees.push(user._id);
@@ -805,6 +854,7 @@ exports.update = async (req, res, next) => {
       workSchedule,
       categories,
       permissions,
+      roles,
       finances,
       getScreenApi,
       notify,
@@ -855,7 +905,12 @@ exports.update = async (req, res, next) => {
     // `role ?? role`: при каждом сохранении роль затиралась в null.
     user.role = role ?? user.role;
     user.banned = Boolean(banned);
-    user.isAdmin = isAdmin;
+    // `isAdmin` — зеркало роли с полным доступом, и его проставляет назначение
+    // ролей (services/roles.js#assign). Безусловное присваивание здесь гасило
+    // бы зеркало на каждом сохранении формы, которая поля больше не шлёт.
+    if (isAdmin !== undefined) {
+      user.isAdmin = isAdmin;
+    }
     user.isEndUser = isEndUser;
     user.isServiceAccount = isServiceAccount;
     user.isCloudTelephony = isCloudTelephony;
@@ -872,7 +927,12 @@ exports.update = async (req, res, next) => {
     if (timezone !== undefined) {
       user.timezone = normalizeTimezone(timezone);
     }
-    user.permissions = permissions;
+    // Личные права сверх ролей — хвост прежней системы. Форма их больше не
+    // шлёт, и трогать их без запроса нельзя: пустой объект стал бы тихим
+    // снятием того, что ещё не разобрано.
+    if (permissions !== undefined) {
+      user.permissions = permissions;
+    }
     // Ответственность за компании теперь правится из формы пользователя
     // (раньше — только через карточку компании)
     if (responsibleForCompanies !== undefined) {
@@ -925,6 +985,13 @@ exports.update = async (req, res, next) => {
     }
 
     await user.save();
+
+    // ПОСЛЕ save(): назначение зеркалит `isAdmin` прямо в базу, и сохранение
+    // документа поверх вернуло бы прежнее значение.
+    await ensureMember(user._id);
+    if (Array.isArray(roles)) {
+      await assignRoles(user._id, roles, req.auth.can);
+    }
 
     if (scheduleChanged) {
       await syncAutoWorkStatus(user);

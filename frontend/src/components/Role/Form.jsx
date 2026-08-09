@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Field from "@/components/app/Field";
+import Segmented from "@/components/app/Segmented";
 import AlertMessage from "@/components/app/AlertMessage";
 import PermissionModules from "@/components/User/PermissionModules";
 import { ALL_PERMISSION_KEYS } from "@/components/User/permissions-catalog";
@@ -66,6 +67,9 @@ const RoleForm = ({ role }) => {
   const initial = role?.permissions || {};
   const [title, setTitle] = useState(role?.title || "");
   const [description, setDescription] = useState(role?.description || "");
+  // Новая роль по умолчанию сотруднику: клиентских ролей в каталоге три, и
+  // заводят их редко.
+  const [audience, setAudience] = useState(role?.audience || "staff");
   const [permissions, setPermissions] = useState({ ...initial });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -100,7 +104,7 @@ const RoleForm = ({ role }) => {
     setBusy(true);
     setError("");
     try {
-      const body = { title, description, permissions };
+      const body = { title, description, permissions, audience };
       if (role) {
         await api(`/api/roles/${role.key}`, { method: "PATCH", body });
       } else {
@@ -162,6 +166,22 @@ const RoleForm = ({ role }) => {
           placeholder="Зачем эта роль — увидят те, кто будет её назначать"
           value={description}
           onChange={(event) => setDescription(event.target.value)}
+        />
+      </Field>
+
+      <Field
+        label="Кому назначается"
+        className="mb-0"
+        hint="Тип аккаунта человека решает, какие роли предложить первыми. Роль другого адресата выбрать всё равно можно — она просто уйдёт вниз списка."
+      >
+        <Segmented
+          ariaLabel="Кому назначается"
+          value={audience}
+          onChange={setAudience}
+          options={[
+            { value: "staff", label: "Сотрудникам" },
+            { value: "client", label: "Клиентам" },
+          ]}
         />
       </Field>
 

@@ -2,24 +2,30 @@ const Router = require("express");
 const router = new Router();
 
 const roleController = require("@/controllers/role");
-const { canManageRoles } = require("@/middleware/permissions");
+const {
+  canManageRoles,
+  canManageUsers,
+  canReadRoles,
+} = require("@/middleware/permissions");
 
 /**
- * Каталог ролей. Всё под одним правом `canManageRoles` — включая чтение:
- * список ролей это карта того, кто в системе что может, и посторонним она не
- * нужна. Кому какие роли назначены, видно в карточке человека под своим правом.
+ * Каталог ролей. Правка — под `canManageRoles`: список ролей это карта того,
+ * кто в системе что может, и менять её должен тот, кому доверено решать.
  *
- * Защита от «выдам себе всё» живёт НЕ здесь, а в сервисе: право открывает
- * ручку, а содержимое запроса проверяется отдельно — выдать роли больше, чем
- * есть у самого, нельзя.
+ * ЧТЕНИЕ И НАЗНАЧЕНИЕ — под управлением пользователями тоже, и это осознанная
+ * правка прежнего решения. Роли назначаются В ФОРМЕ ЧЕЛОВЕКА, а выбрать роль,
+ * не видя каталога, невозможно: со строгим гейтом у того, кто ведёт людей, шаг
+ * «Права и доступ» оказался бы пустым, и раздать права он не смог бы вовсе.
+ *
+ * Опасности в этом нет: `assertNotEscalating` в сервисе не даёт назначить
+ * роль, которая даёт больше, чем есть у самого назначающего. То есть право
+ * открывает ручку, а содержимое запроса проверяется отдельно.
  */
-router.get("/roles", canManageRoles, roleController.list);
+router.get("/roles", canReadRoles, roleController.list);
 router.post("/roles", canManageRoles, roleController.create);
 router.patch("/roles/:key", canManageRoles, roleController.update);
 router.delete("/roles/:key", canManageRoles, roleController.remove);
 
-// Назначение ролей человеку — часть работы с пользователем, но право то же:
-// раздача ролей и есть раздача прав.
-router.put("/users/:id/roles", canManageRoles, roleController.assign);
+router.put("/users/:id/roles", canManageUsers, roleController.assign);
 
 module.exports = router;

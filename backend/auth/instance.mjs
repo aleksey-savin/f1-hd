@@ -8,7 +8,7 @@
 
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
-import { admin, bearer, organization } from "better-auth/plugins";
+import { admin, bearer, magicLink, organization } from "better-auth/plugins";
 import { createAccessControl, role } from "better-auth/plugins/access";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { verifyPassword } from "better-auth/crypto";
@@ -146,6 +146,32 @@ export function createAuth({ db, client, config, hooks, statement }) {
 
     hooks: { before: checkBreachedPasswords(hooks) },
 
+    databaseHooks: {
+      session: {
+        create: {
+          /**
+           * ПРИКЛАДНЫЕ правила отказа — здесь, а не только в /api/login.
+           *
+           * better-auth не знает ни про служебные учётки, ни про отключённые
+           * компании. Пока способ входа был один, проверка жила в контроллере
+           * входа; со вторым (ссылка из письма) она бы там и осталась, а сеанс
+           * выписывался бы мимо неё. Хук ловит ЛЮБОЙ способ, включая те, что
+           * появятся позже.
+           *
+           * Отключённую учётку тут не проверяем: это делает своим таким же
+           * хуком плагин `admin`, а хуки складываются, не заменяя друг друга
+           * (`context/helpers.mjs` кладёт их в массив).
+           */
+          before: async (session) => {
+            const refusal = await hooks.sessionRefusal(session.userId);
+            if (refusal) {
+              throw new APIError("FORBIDDEN", { message: refusal });
+            }
+          },
+        },
+      },
+    },
+
     plugins: [
       // Переходный транспорт: пока часть экранов фронта шлёт Authorization,
       // токен сессии принимается и заголовком. Снимается в уборке.
@@ -175,6 +201,26 @@ export function createAuth({ db, client, config, hooks, statement }) {
       // ничего из этого организацией не является.
       //
       // Приглашений не будет: саморегистрация удалена, учётки заводит ИТ-отдел.
+      // Вход по ссылке из письма — ТОЛЬКО клиентам (гейт в нашей ручке
+      // /api/login-link, плагин сам никого не проверяет и шлёт по любому
+      // адресу). Смысл: клиентская учётка рождается из письма в поддержку,
+      // человек о ней не знает, и пароль ему до сих пор генерировали и
+      // присылали открытым текстом. Ссылка даёт тот же уровень доверия, что
+      // и восстановление пароля — доступ к почте есть доступ к учётке, — но
+      // паролями сорить перестаёт.
+      magicLink({
+        // Обязателен: иначе ссылка на незнакомый адрес ЗАВЕДЁТ учётку.
+        disableSignUp: true,
+        // Полминуты по умолчанию для этой аудитории мало: почтовый крон ходит
+        // раз в десять секунд, но доставка до внешнего ящика занимает минуты,
+        // а клиенты читают почту не мгновенно.
+        expiresIn: 30 * 60,
+        // Токен в базе — хешем: в `verification` он лежит рядом с токенами
+        // восстановления, и утечка дампа не должна давать вход.
+        storeToken: "hashed",
+        sendMagicLink: hooks.sendMagicLink,
+      }),
+
       organization({
         ac,
         schema: {
@@ -199,6 +245,19 @@ export function createAuth({ db, client, config, hooks, statement }) {
               title: { type: "string", required: false, input: true },
               /** Зачем эта роль — читают те, кто её назначает. */
               description: { type: "string", required: false, input: true },
+              /**
+               * Кому роль предназначена: "staff" или "client".
+               *
+               * Единственное место, где тип аккаунта встречается с ролями.
+               * Вывести адресата из самих прав нельзя: «Клиент: руководитель»
+               * даёт учёт времени и отчёты по работам — права не клиентские, а
+               * роль клиентская.
+               *
+               * Это подсказка формы, а НЕ запрет: роль не своего адресата
+               * уходит вниз списка и гаснет, но остаётся выбираемой. Данные
+               * дрейфуют, и жёсткий запрет однажды окажется тупиком.
+               */
+              audience: { type: "string", required: false, input: true },
             },
           },
         },

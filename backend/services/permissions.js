@@ -119,6 +119,9 @@ const listRoles = async () => {
       key: row.role,
       title: row.title || row.role,
       description: row.description || "",
+      // Отсутствие адресата у старых ролей означает «сотрудникам»: до этого
+      // поля весь каталог, кроме клиентских ролей, был про сотрудников.
+      audience: row.audience === "client" ? "client" : "staff",
       statements,
       permissions: statementsToPermissions(statements),
     };

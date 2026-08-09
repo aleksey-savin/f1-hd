@@ -12,6 +12,7 @@ import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
 
 import useRolesFilterStore from "../../store/lists/roles";
 import RoleList from "../../components/Role/List";
+import RoleGaps from "../../components/Role/Gaps";
 import { PERMISSION_OPTIONS } from "../../components/Role/permission-options";
 
 /**
@@ -85,6 +86,9 @@ const RolesPage = () => {
       searchPlaceholder="Поиск по названию"
       emptyTitle="Ролей пока нет"
       emptyHint="Заведите первую — и назначайте её людям вместо россыпи галочек."
+      // Дыры каталога — ПОД списком, а не над ним: сначала то, что есть,
+      // потом то, чего не хватает.
+      belowList={<RoleGaps gaps={filterStore.gaps} />}
     >
       <RoleList roles={filterStore.filteredList || []} />
     </ListWrapper>

@@ -92,6 +92,11 @@ const useRolesFilterStore = create((set) => ({
   filteredList: [],
   /** Словарь возможных действий — им питается фильтр по правам. */
   statement: {},
+  /**
+   * Права, которых не даёт ни одна роль, кроме полного доступа. Считает
+   * сервер — правило живёт там же, где им зеркалится `isAdmin`.
+   */
+  gaps: [],
   fullTextSearch: (query) =>
     set((state) => ({
       filteredList: sortList(
@@ -107,12 +112,13 @@ const useRolesFilterStore = create((set) => ({
       set({
         originalList: Array.isArray(data.roles) ? data.roles : [],
         statement: data.statement || {},
+        gaps: Array.isArray(data.gaps) ? data.gaps : [],
         isLoading: false,
       });
     } catch {
       // Ошибку показывает страница по пустому списку: свой текст ошибки в
       // сторе завёл бы второе место, где живёт состояние загрузки.
-      set({ originalList: [], isLoading: false });
+      set({ originalList: [], gaps: [], isLoading: false });
     }
   },
   updateFilter: (data) =>

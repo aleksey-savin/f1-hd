@@ -3,6 +3,11 @@ const Preferences = require("@/models/preferences");
 const { AppError } = require("@/middleware/errorHandling");
 const { getAuth, getFromNodeHeaders } = require("@/auth/bootstrap");
 const { checkBreached, policy } = require("@/services/passwordPolicy");
+const { isModerator } = require("@/helpers/knowledgeNoteVisibility");
+const {
+  getModerationCounts,
+  ZERO_COUNTS,
+} = require("@/services/knowledgeModerationCounts");
 
 /**
  * Профиль текущего пользователя, его эффективные права, рубильники модулей и
@@ -51,6 +56,26 @@ exports.getMe = async (req, res, next) => {
     const { user, permissions, statements, session } = req.auth;
     const preferences = await Preferences.findOne({});
 
+    // Статус модерации базы знаний нужен глобально: карточка модерации на
+    // странице заявок и алерт об утечках на каждой странице.
+    const kb = preferences?.knowledgeBase || {};
+    const moderatorIds = (kb.moderators || [])
+      .map((moderator) => moderator?._id?.toString())
+      .filter(Boolean);
+    const userIsModerator = isModerator(
+      { ...user.toObject?.(), isAdmin: user.isAdmin, permissions },
+      moderatorIds,
+    );
+    const knowledgeBase = {
+      isModerator: userIsModerator,
+      hideNotApproved: Boolean(kb.hideNotApproved),
+      scanForSecrets: Boolean(kb.scanForSecrets),
+      approvalPeriodDays: kb.approvalPeriodDays || 0,
+      counts: userIsModerator
+        ? await getModerationCounts({ scanForSecrets: !!kb.scanForSecrets })
+        : ZERO_COUNTS,
+    };
+
     res.status(200).json({
       user: publicUser(user),
       // Два вида одного и того же, оба нужны и оба дёшевы:
@@ -60,11 +85,36 @@ exports.getMe = async (req, res, next) => {
       statements,
       permissions,
       modules: preferences?.modules || {},
+      /**
+       * НАБОР ПОЛЕЙ ОБЯЗАН СОВПАДАТЬ с тем, что кладёт в стор
+       * `frontend/src/store/prefs.js`: этот ответ заменил собой
+       * `/api/preferences-initial`, и всё, чего здесь нет, во фронте
+       * становится `undefined` — молча, без единой ошибки.
+       *
+       * Так уже обожглись: рубильник почты сюда не попал, и вкладка
+       * «Пригласить письмом» была погашена у всех, будто почта выключена.
+       */
       prefs: {
         contacts: preferences?.contacts,
+        htmlTicketDesc: preferences?.htmlTicketDesc,
         timezone: preferences?.timezone,
         getScreen: preferences?.getScreen,
-        mikrotik: { isActive: Boolean(preferences?.mikrotik?.isActive) },
+        // Оператор такси — действие «такси» в справочнике компаний
+        taxi: { operator: preferences?.taxi?.operator || "" },
+        emailNotifications: Boolean(preferences?.notify?.byEmail?.isActive),
+        telegramNotifications: Boolean(
+          preferences?.notify?.byTelegram?.isActive,
+        ),
+        personalNotifications: preferences?.notify?.personal,
+        // Отсутствие поля у старых документов означает «включено»
+        mikrotik: { isActive: preferences?.mikrotik?.isActive !== false },
+        ai: {
+          isActive: Boolean(preferences?.ai?.isActive),
+          speechToText: {
+            isActive: Boolean(preferences?.ai?.speechToText?.isActive),
+          },
+        },
+        knowledgeBase,
       },
       // Идентификатор текущего сеанса нужен разделу «Активные сеансы», чтобы
       // пометить «это устройство».

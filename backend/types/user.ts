@@ -110,7 +110,8 @@ export interface IUser {
     overtimeHourlyRate: number | null;
   };
   notify: { byTelegram: IUserTelegramNotify; byEmail: IUserEmailNotify };
-  password: string;
+  /** Может отсутствовать: заведённый приглашением задаёт пароль сам. */
+  password?: string;
   /** Ставится плагином twoFactor better-auth. */
   twoFactorEnabled: boolean;
   /**
@@ -124,6 +125,8 @@ export interface IUser {
   /** Пусто = бессрочно. Просроченный бан плагин снимает сам при входе. */
   banExpires?: Date;
   lastLogin?: Date;
+  /** Когда отправлено приглашение. Пусто + пустой lastLogin = «не дошло». */
+  invitedAt?: Date;
   verifyToken?: string;
   verifyTokenExpiration?: Date;
   resetToken?: string;

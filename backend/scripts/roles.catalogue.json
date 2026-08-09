@@ -19,6 +19,7 @@
     {
       "key": "client",
       "title": "Клиент",
+      "audience": "client",
       "description": "Заявки только свои",
       "permissions": [],
       "matches": [
@@ -36,6 +37,7 @@
     {
       "key": "client-company",
       "title": "Клиент: все заявки компании",
+      "audience": "client",
       "description": "Видит заявки всех сотрудников своей компании",
       "permissions": [
         "canSeeAllCompanyTickets"
@@ -49,6 +51,7 @@
     {
       "key": "client-manager",
       "title": "Клиент: руководитель",
+      "audience": "client",
       "description": "Заявки компании плюс отчёт по работам",
       "permissions": [
         "canSeeAllCompanyTickets",
@@ -66,10 +69,12 @@
     {
       "key": "admin",
       "title": "Администратор",
-      "description": "Полный доступ. Гейты пропускают администратора и без прав — набор влияет на меню",
+      "audience": "staff",
+      "description": "Полный доступ ко всему порталу. Набор ОБЯЗАН содержать весь словарь: по признаку «роль отдаёт всё» зеркалится user.isAdmin (auth/access.js#isFullAccess), и роль без одного действия гасила бы зеркало",
       "permissions": [
         "canPerformTickets",
         "canAdministrateTickets",
+        "canSeeAllCompanyTickets",
         "canSeeAllTickets",
         "canEditTickets",
         "canDeleteTickets",
@@ -198,6 +203,7 @@
     {
       "key": "engineer",
       "title": "Инженер",
+      "audience": "staff",
       "description": "Заявки, учёт времени, техника клиентов",
       "permissions": [
         "canPerformTickets",
@@ -225,6 +231,7 @@
     {
       "key": "engineer-noworks",
       "title": "Инженер: закрытие без работ",
+      "audience": "staff",
       "description": "Инженер, которому можно закрыть заявку без записи о работе",
       "permissions": [
         "canPerformTickets",
@@ -245,6 +252,7 @@
     {
       "key": "engineer-lead",
       "title": "Ведущий инженер",
+      "audience": "staff",
       "description": "Инженер плюс все заявки, база знаний, регламенты и конфигурации Mikrotik",
       "permissions": [
         "canPerformTickets",
@@ -283,6 +291,7 @@
     {
       "key": "engineer-lead-finance",
       "title": "Ведущий инженер: финансы",
+      "audience": "staff",
       "description": "Ведущий инженер плюс финансовый модуль и личный финансовый отчёт",
       "permissions": [
         "canPerformTickets",
@@ -327,6 +336,7 @@
     {
       "key": "works-accounting",
       "title": "Учёт работ",
+      "audience": "staff",
       "description": "Учёт времени и отчёт по работам без доступа к заявкам",
       "permissions": [
         "canUseTimeTrackingModule",

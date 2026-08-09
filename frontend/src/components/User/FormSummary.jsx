@@ -38,14 +38,23 @@ const None = ({ children }) => (
   <span className="font-normal text-faint">{children}</span>
 );
 
-const FormSummary = ({ form, kind, schedule }) => {
+/** Названия ролей по ключам: в сводке ключ `engineer-lead` не читается. */
+const roleTitles = (keys = [], catalogue = []) =>
+  keys.map(
+    (key) => catalogue.find((role) => role.key === key)?.title ?? key,
+  );
+
+const FormSummary = ({
+  form,
+  kind,
+  schedule,
+  catalogue = [],
+  isEdit = false,
+}) => {
   const name = `${form.lastName || ""} ${form.firstName || ""}`.trim();
   const kindLabel = ACCOUNT_KINDS.find((item) => item.value === kind)?.label;
   const isStaff = kind === "staff";
 
-  const grantedCount = Object.values(form.permissions || {}).filter(
-    Boolean,
-  ).length;
 
   return (
     <aside className="rounded-xl border border-border bg-accent p-4">
@@ -61,22 +70,34 @@ const FormSummary = ({ form, kind, schedule }) => {
           <span className="text-faint"> · {form.subdivision.name}</span>
         )}
       </Row>
+      {/* Единственное место, где видно, уйдёт письмо или нет. Ошибиться здесь
+          дороже, чем в отчестве: человек либо не получит доступ вовсе, либо
+          получит письмо, которого не ждал. */}
+      {!isEdit && kind !== "service" && (
+        <Row label="Доступ">
+          {form.access === "password" ? (
+            <>Пароль задан вручную</>
+          ) : (
+            <span className="text-accent-text">Приглашение письмом</span>
+          )}
+        </Row>
+      )}
       {isStaff && schedule && (
         <Row label="График">
           {scheduleLabel(schedule) || <None>не задан</None>}
         </Row>
       )}
+      {kind !== "service" && (
+        <Row label="Роли">
+          {form.roles?.length ? (
+            roleTitles(form.roles, catalogue).join(", ")
+          ) : (
+            <None>не назначены</None>
+          )}
+        </Row>
+      )}
       {isStaff && (
         <>
-          <Row label="Права">
-            {form.isAdmin ? (
-              <span className="text-accent-text">Администратор</span>
-            ) : grantedCount > 0 ? (
-              <span className="tabular-nums">{grantedCount} выдано</span>
-            ) : (
-              <None>не выданы</None>
-            )}
-          </Row>
           <Row label="Категории">
             {form.categories?.length ? (
               <span className="tabular-nums">{form.categories.length}</span>

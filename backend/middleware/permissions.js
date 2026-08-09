@@ -149,6 +149,12 @@ module.exports.canManageUsers = requirePermission({ user: ["manage"] }, PAGE);
 // Раздача ролей — это раздача прав, поэтому право своё, а не производное от
 // управления пользователями: вести людей и решать, что им можно, — разные дела.
 module.exports.canManageRoles = requirePermission({ role: ["manage"] }, PAGE);
+// Читать каталог нужно и тому, кто ролей не правит: в форме человека роль
+// выбирают из списка, а выбрать из невидимого списка нельзя.
+module.exports.canReadRoles = requirePermission(
+  [{ role: ["manage"] }, { user: ["manage"] }],
+  PAGE,
+);
 module.exports.canManageTicketCategories = requirePermission({ ticketCategory: ["manage"] },
   PAGE,
 );
