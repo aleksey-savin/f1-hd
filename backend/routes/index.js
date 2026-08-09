@@ -54,6 +54,9 @@ const externalApprovalRoutes = require("./external/approval");
 // Public routes
 const healthRoutes = require("./public/health");
 
+// Telegram-сервис: закрытый список ручек за общим секретом (см. routes/bot.js)
+const botRoutes = require("./bot");
+
 // Create route groups
 const internalRoutes = express.Router();
 const externalRoutes = express.Router();
@@ -68,6 +71,20 @@ const publicRoutes = express.Router();
 // isAuth, и на анонимном запросе к /finances или /inventory прежний код падал
 // в 500 вместо 401, разыменовывая пользователя, которого не нашёл.
 const attachSession = require("@/middleware/attachSession");
+
+/**
+ * Телеграм-сервис — ДО `attachSession`, и это не косметика.
+ *
+ * У него нет и не может быть серверного сеанса: он ходит с общим секретом и
+ * заголовком актора, а `req.auth` ему собирает `attachTelegramActor`. Пусти
+ * его через `attachSession` — и на маршрут приехал бы ещё и браузерный сеанс,
+ * если бы к запросу прицепилась чужая cookie; две личности на одном запросе
+ * это ровно тот класс путаницы, ради выхода из которого всё и затевалось.
+ *
+ * Регистрация раньше по порядку означает, что до `attachSession` эти запросы
+ * просто не доходят.
+ */
+internalRoutes.use("/bot", botRoutes);
 
 internalRoutes.use(attachSession);
 // Внешние маршруты живут на своих удостоверениях (X-API-Key, токен в ссылке),

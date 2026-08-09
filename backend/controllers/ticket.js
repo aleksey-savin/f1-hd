@@ -2309,7 +2309,10 @@ exports.getAllOpenedTg = async (req, res, next) => {
      * пор, как права переехали на роли. Плюс непривязанный чат ронял
      * деструктуризацию `null`.
      */
-    const actor = await resolveTelegramActor(req.query.chat_id);
+    // На `/api/bot/*` актора уже разрешил `attachTelegramActor`; на старом
+    // `/api/tg/tickets/all-opened` его нет, и он поднимается по `chat_id`.
+    // Вторая ветка уходит вместе со старым маршрутом после переезда бота.
+    const actor = req.auth || (await resolveTelegramActor(req.query.chat_id));
     if (!actor) {
       return next(
         new AppError(
