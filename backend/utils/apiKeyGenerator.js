@@ -36,8 +36,20 @@ function hashApiKey(apiKey) {
   return crypto.createHash('sha256').update(apiKey).digest('hex');
 }
 
+/**
+ * Хвост ключа для показа в списке — четыре последних знака.
+ *
+ * Не маска из точек: она не отвечает ни на один вопрос. Хвост сверяется глазом
+ * с тем, что прописано в скрипте на машине, — а это единственное, зачем
+ * значение в списке вообще нужно.
+ */
+function apiKeyTail(apiKey) {
+  return String(apiKey || "").slice(-4);
+}
+
 module.exports = {
   generateApiKey,
   isValidApiKey,
-  hashApiKey
+  hashApiKey,
+  apiKeyTail
 };

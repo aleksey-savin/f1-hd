@@ -1,4 +1,3 @@
-const jwt = require("jsonwebtoken");
 const pad = require("pad");
 
 const logger = require("../utils/logger");

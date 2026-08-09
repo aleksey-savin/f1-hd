@@ -1,5 +1,6 @@
 require("module-alias/register");
 const express = require("express");
+const helmet = require("helmet");
 const cron = require("node-cron");
 const mongoose = require("mongoose");
 const path = require("path");
@@ -69,6 +70,32 @@ const app = express();
 
 app.set("trust proxy", TRUST_PROXY_HOPS);
 
+/**
+ * Заголовки безопасности.
+ *
+ * CSP ЗДЕСЬ НЕ СТАВИТСЯ ГЛОБАЛЬНО: этот процесс отдаёт только `/api` и
+ * `/uploads`, а документ приложения раздаёт nginx — его политика живёт в
+ * `nginx/nginx.conf`, и вторая копия на другом слое разошлась бы с первой.
+ *
+ * Что действительно нужно здесь — `nosniff`: без него браузер угадывает тип по
+ * содержимому, и ответ API с чужим текстом внутри может быть исполнен как
+ * скрипт. Отдельная жёсткая политика для загруженных файлов — ниже, у самого
+ * маршрута.
+ */
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    // Мы не раздаём страниц, но фреймить наши ответы всё равно незачем.
+    frameguard: { action: "deny" },
+    // Адрес заявки не должен уезжать в Referer на сторонние домены.
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    // HSTS выставляет nginx на терминации TLS: здесь трафик уже расшифрован,
+    // и заголовок отсюда либо продублируется, либо соврёт про схему.
+    hsts: false,
+    crossOriginResourcePolicy: { policy: "same-site" },
+  }),
+);
+
 // Performance and monitoring middleware
 app.use(requestIdMiddleware);
 app.use(performanceMonitor);
@@ -92,6 +119,22 @@ mongoose.set("strictQuery", false);
 // unchanged, otherwise 302-redirect to a short-lived presigned S3 URL. The
 // /uploads/<name> URL is therefore identical for old and new files.
 app.get("/uploads/:name", async (req, res) => {
+  /**
+   * ЗАГРУЖЕННЫЙ ФАЙЛ — ЧУЖОЙ КОД НА НАШЕМ ДОМЕНЕ.
+   *
+   * Вложения к заявкам приходят от кого угодно, включая почту, и отдаются с
+   * того же origin, что и приложение. HTML или SVG со скриптом внутри
+   * превращается в хранимую XSS: скрипт выполнится в нашем домене и дотянется
+   * до сессионной cookie.
+   *
+   * `sandbox` в CSP отключает для этого ответа скрипты, формы и переходы —
+   * картинка и PDF смотрятся, а разметка исполняться перестаёт. `nosniff`
+   * запрещает угадывать тип по содержимому: без него `.txt` со скриптом внутри
+   * браузер может решить исполнить.
+   */
+  res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+
   const name = path.basename(req.params.name);
 
   // Defense-in-depth against path traversal: must be a plain file name.

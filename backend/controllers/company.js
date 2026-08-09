@@ -10,7 +10,11 @@ const { Ticket } = require("../models/ticket");
 const Preferences = require("../models/preferences");
 
 const { AppError } = require("../middleware/errorHandling");
-const { generateApiKey } = require("../utils/apiKeyGenerator");
+const {
+  generateApiKey,
+  hashApiKey,
+  apiKeyTail,
+} = require("../utils/apiKeyGenerator");
 const CompanyLog = require("../models/companyLog");
 const logger = require("../utils/logger");
 const storage = require("../services/storage");
@@ -99,6 +103,18 @@ exports.getOne = async (req, res, next) => {
     // `lastActivity` — index assignment is a no-op and reassigning casts each
     // entry back to an ObjectId. toJSON() yields the same shape res.json would.
     const companyObj = company.toJSON();
+
+    /**
+     * ЗНАЧЕНИЕ КЛЮЧА НАРУЖУ НЕ УХОДИТ — даже пока поле ещё существует.
+     *
+     * Смысл перехода на отпечаток в том, что выданный ключ нельзя прочитать
+     * повторно. Оставить его в ответе карточки компании на время миграции
+     * значило бы оставить и дыру: интерфейс перестал бы его показывать, а API
+     * продолжал бы отдавать.
+     */
+    companyObj.apiKeys = (companyObj.apiKeys || []).map(
+      ({ key, keyHash, ...rest }) => rest,
+    );
 
     // Subdivisions: fetch the whole set for this company in one query and
     // assemble the tree in JS by `parent`. This replaces the previous
@@ -1209,12 +1225,18 @@ exports.createApiKey = async (req, res, next) => {
       });
     }
 
-    // Генерируем новый API-ключ
     const newApiKey = generateApiKey();
 
-    // Добавляем ключ в массив
+    /**
+     * ЗНАЧЕНИЕ НЕ СОХРАНЯЕТСЯ — только отпечаток и хвост для опознания.
+     *
+     * Отсюда и единственный показ: в ответе ключ есть, в базе его нет, и
+     * повторить показ будет неоткуда. Интерфейс обязан сказать это до того,
+     * как человек закроет окно.
+     */
     company.apiKeys.push({
-      key: newApiKey,
+      keyHash: hashApiKey(newApiKey),
+      keyTail: apiKeyTail(newApiKey),
       name: keyName,
       isActive: true,
       createdBy: userId,
@@ -1222,18 +1244,67 @@ exports.createApiKey = async (req, res, next) => {
 
     await company.save();
 
+    const created = company.apiKeys[company.apiKeys.length - 1];
     res.status(201).json({
       message: "API-ключ успешно создан",
       apiKey: {
-        _id: company.apiKeys[company.apiKeys.length - 1]._id,
+        _id: created._id,
+        // Первый и последний раз, когда значение покидает сервер.
         key: newApiKey,
         name: keyName,
         isActive: true,
-        createdAt: company.apiKeys[company.apiKeys.length - 1].createdAt,
+        createdAt: created.createdAt,
       },
     });
   } catch (error) {
     next(new AppError("Ошибка при создании API-ключа", 500, true, error));
+  }
+};
+
+/**
+ * Перевыпуск ключа: имя и место в списке те же, значение новое.
+ *
+ * Отдельное действие, а не «удалить и создать заново»: имя — то, по чему
+ * интеграцию узнают, и терять его на ровном месте незачем. Нужен перевыпуск
+ * ровно потому, что подсмотреть выданный ключ больше нельзя.
+ */
+exports.reissueApiKey = async (req, res, next) => {
+  try {
+    const { companyId, keyId } = req.body;
+
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return next(new AppError("Компания не найдена", 404));
+    }
+
+    const apiKey = company.apiKeys.id(keyId);
+    if (!apiKey) {
+      return next(new AppError("API-ключ не найден", 404));
+    }
+
+    const newApiKey = generateApiKey();
+    apiKey.keyHash = hashApiKey(newApiKey);
+    apiKey.keyTail = apiKeyTail(newApiKey);
+    // Прежнее значение переходного поля стирается сразу: оно уже недействительно,
+    // и оставлять его означало бы хранить мёртвый ключ открытым текстом.
+    apiKey.key = undefined;
+    // Счёт начинается заново: старая отметка относится к прежнему значению и
+    // сказала бы, что новый ключ уже работал.
+    apiKey.lastUsedAt = null;
+    await company.save();
+
+    res.status(200).json({
+      message: "API-ключ перевыпущен",
+      apiKey: {
+        _id: apiKey._id,
+        key: newApiKey,
+        name: apiKey.name,
+        isActive: apiKey.isActive,
+        createdAt: apiKey.createdAt,
+      },
+    });
+  } catch (error) {
+    next(new AppError("Ошибка при перевыпуске API-ключа", 500, true, error));
   }
 };
 

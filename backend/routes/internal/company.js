@@ -140,6 +140,17 @@ router.post(
   companyController.createApiKey,
 );
 
+// Перевыпуск — POST, а не PATCH: это выдача нового значения, а не правка
+// существующего, и ответ несёт ключ, которого больше нигде не будет.
+router.post(
+  "/companies/reissue-api-key",
+  isAuth,
+  canManageCompanies,
+  companyValidation.reissueApiKey,
+  runValidation,
+  companyController.reissueApiKey,
+);
+
 router.delete(
   "/companies/delete-api-key",
   isAuth,

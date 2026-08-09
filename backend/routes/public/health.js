@@ -72,7 +72,10 @@ router.get('/ready', async (req, res) => {
     }
 
     // Check environment variables
-    const requiredEnvVars = ['MONGODB_USERNAME', 'MONGODB_PASSWORD', 'JWT_SECRET', 'MIKROTIK_ENC_KEY'];
+    // JWT_SECRET больше не нужен: подписанных нами токенов не осталось, сеансы
+    // живут на сервере. BETTER_AUTH_SECRET занял его место — на нём же
+    // шифруются секреты второго фактора, и без него не поднимется вход.
+    const requiredEnvVars = ['MONGODB_USERNAME', 'MONGODB_PASSWORD', 'BETTER_AUTH_SECRET', 'MIKROTIK_ENC_KEY'];
     const envCheck = requiredEnvVars.every(envVar => process.env[envVar]);
     checks.push({
       service: 'environment',

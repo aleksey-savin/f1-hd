@@ -202,6 +202,11 @@ exports.deleteApiKey = [
   body("keyId").isMongoId().withMessage("Invalid API key ID"),
 ];
 
+exports.reissueApiKey = [
+  body("companyId").isMongoId().withMessage("Invalid company ID"),
+  body("keyId").isMongoId().withMessage("Invalid API key ID"),
+];
+
 exports.getCompanyLogs = [
   param("id").isMongoId().withMessage("Invalid company ID"),
 ];

@@ -451,6 +451,29 @@ export async function action({ request }) {
     return response;
   }
 
+  if (intent === "reissueApiKey") {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ADDRESS}/api/companies/reissue-api-key`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({
+          companyId: data.get("companyId"),
+          keyId: data.get("keyId"),
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      throw response;
+    }
+
+    return response;
+  }
+
   if (intent === "deleteApiKey") {
     const companyId = data.get("companyId");
     const keyId = data.get("keyId");
