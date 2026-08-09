@@ -94,8 +94,12 @@ exports.launchTgBot = async () => {
 
     const authorizeBot = async (msg, userId) => {
       try {
+        // Кодируем: содержимое `/start` печатает человек, и незакодированный
+        // `&` в нём дописал бы к запросу свои параметры.
         const response = await fetch(
-          `http://backend:8080/api/tg/auth?chatId=${msg.chat.id}&userId=${userId}`,
+          `http://backend:8080/api/tg/auth?chatId=${encodeURIComponent(
+            msg.chat.id,
+          )}&userId=${encodeURIComponent(userId)}`,
           { method: "POST", headers: tgApiHeaders() },
         );
 
@@ -332,12 +336,35 @@ exports.launchTgBot = async () => {
           }
 
           if (msg.text.startsWith("/start")) {
-            if (msg.text.length > 6) {
-              const userId = msg.text.slice(7);
+            /**
+             * Отвечаем ПО ОТВЕТУ БЭКЕНДА, а не факту отправки запроса.
+             *
+             * Раньше `authorizeBot` даже не дожидались, а «🥳 Всё получилось!»
+             * печатали безусловно — человек видел успех и при 401, и при 404, и
+             * при упавшей сети, а потом гадал, почему уведомления не приходят.
+             * С одноразовыми кодами это стало заметнее: просроченная ссылка
+             * теперь обычное дело, и молчать о ней нельзя.
+             *
+             * Разбор `/start` заодно перестал быть `slice(7)`: в группе команда
+             * приезжает как `/start@ИмяБота <код>`, и прежняя резка отдавала
+             * бэкенду «имябота <код>».
+             */
+            const startMatch = msg.text.match(
+              /^\/start(?:@\S+)?(?:\s+(.*))?$/i,
+            );
+            const payload = (startMatch?.[1] || "").trim();
 
-              authorizeBot(msg, userId);
+            if (payload) {
+              const response = await authorizeBot(msg, payload);
+              const body = await response?.json().catch(() => null);
 
-              await bot.sendMessage(msg.chat.id, `🥳 Всё получилось!`);
+              await bot.sendMessage(
+                msg.chat.id,
+                response?.ok
+                  ? "🥳 Всё получилось! Уведомления будут приходить сюда"
+                  : body?.message ||
+                      "Не удалось подключить бота. Откройте «Мой аккаунт → Интеграции» и нажмите «Подключить» ещё раз",
+              );
             }
 
             if (msg.chat.id.toString() !== globalChat) {
