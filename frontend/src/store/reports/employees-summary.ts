@@ -1,18 +1,17 @@
 import { create } from "zustand";
 
+import { api } from "@/lib/api";
+
 import type {
   EmployeesSummaryResponse,
   ReportPeriod,
 } from "../../types/employeesReport";
-import { getLocalStorageData } from "../../util/auth";
 import { monthRange } from "../../util/period";
 
 // Сводка по сотрудникам: часы, классы работ, переработки и доплата за период.
 // Механика — как у аналитики (store/reports/companies-summary): загрузка сразу
 // при открытии за текущий месяц, seq-guard от гонок листания, ошибка не
 // сбрасывает уже показанные данные.
-const API = import.meta.env.VITE_API_ADDRESS;
-
 type SummaryState = {
   from: string;
   to: string;
@@ -37,20 +36,14 @@ const doFetch = async (get: Getter, set: Setter) => {
   if (!from || !to) return;
 
   const requestId = ++requestSeq;
-  const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/finances/employees-summary`, window.location.origin);
-    url.search = new URLSearchParams({
+    const search = new URLSearchParams({
       from,
       to,
       ...(approvedOnly ? { approvedOnly: "true" } : {}),
     }).toString();
-    const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (!response.ok) throw new Error(`employees summary ${response.status}`);
-    const data = (await response.json()) as EmployeesSummaryResponse;
+    const data = (await api(`/api/finances/employees-summary?${search}`)) as EmployeesSummaryResponse;
     if (requestId !== requestSeq) return;
     set({ data, isLoading: false, error: null });
   } catch (error) {

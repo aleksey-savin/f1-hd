@@ -1,14 +1,13 @@
 import { create } from "zustand";
 
+import { api } from "@/lib/api";
+
 import type { TeamScheduleResponse } from "../../types/teamSchedule";
-import { getLocalStorageData } from "../../util/auth";
 import { monthRange } from "../../util/period";
 
 // Календарь команды. Механика — канон страниц-отчётов
 // (store/reports/*): загрузка сразу при открытии за текущий месяц, seq-guard
 // от гонок листания, ошибка НЕ сбрасывает уже показанные данные.
-const API = import.meta.env.VITE_API_ADDRESS;
-
 /**
  * Месяц — «что происходит в этот день», сегодня — «кому кидать заявку»,
  * планирование — «когда безопасно поставить отпуск».
@@ -45,22 +44,20 @@ const doFetch = async (get: Getter, set: Setter) => {
   if (!from || !to) return;
 
   const requestId = ++requestSeq;
-  const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/team/schedule`, window.location.origin);
-    url.search = new URLSearchParams({
+    // Имя `query`, а не `search`: в состоянии уже есть поле `search`, и
+    // одноимённая переменная затенила бы его внутри собственного инициализатора.
+    const query = new URLSearchParams({
       from,
       to,
       ...(company ? { company } : {}),
       ...(subdivision ? { subdivision } : {}),
       ...(search ? { search } : {}),
     }).toString();
-    const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (!response.ok) throw new Error(`team schedule ${response.status}`);
-    const data = (await response.json()) as TeamScheduleResponse;
+    const data = (await api(
+      `/api/team/schedule?${query}`,
+    )) as TeamScheduleResponse;
     if (requestId !== requestSeq) return;
     set({ data, isLoading: false, error: null });
   } catch (error) {

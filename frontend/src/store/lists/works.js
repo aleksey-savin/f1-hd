@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../../util/auth";
+import { api } from "@/lib/api";
+
 import { prevMonthRange } from "../../util/period";
 
 // Сегмент «Работы» страницы «Архив» — список на серверной выборке (калька
@@ -11,7 +12,6 @@ import { prevMonthRange } from "../../util/period";
 // isSorting / resetFilter). Опции фасетов — из общего loader страницы
 // (/tickets/form-data?includeInactive=true): responsibles каталога — это и
 // есть исполнители работ (активные с canPerformTickets, как в легаси-отчёте).
-const API = import.meta.env.VITE_API_ADDRESS;
 const PAGE_SIZE = 50;
 
 // Сортировки по label (их показывает дропдаун ListWrapper) → серверный ключ
@@ -53,16 +53,11 @@ const buildParams = (s) => {
 };
 
 const doFetch = async (get, set, { append = false } = {}) => {
-  const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/works`, window.location.origin);
-    url.search = buildParams(get()).toString();
-    const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (!response.ok) throw new Error(`finished works ${response.status}`);
-    const data = await response.json();
+    const data = await api(
+      `/api/works?${buildParams(get()).toString()}`,
+    );
     set((state) => ({
       items: append ? [...state.items, ...data.works] : data.works,
       total: typeof data.total === "number" ? data.total : data.works.length,

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../util/auth";
+import { api } from "@/lib/api";
+
 
 /**
  * Открытые заявки для главной — ОДИН запрос на три блока.
@@ -16,15 +17,7 @@ import { getLocalStorageData } from "../util/auth";
  * которое главная не использует и не должна ронять, уходя с себя.
  */
 
-const fetchOpened = async () => {
-  const { token } = getLocalStorageData();
-  const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
-    { headers: { Authorization: "Bearer " + token } },
-  );
-  if (!response.ok) throw new Error(`all-opened ${response.status}`);
-  return response.json();
-};
+const fetchOpened = async () => api("/api/tickets/all-opened");
 
 const useDashboardTicketsStore = create((set) => ({
   tickets: [],

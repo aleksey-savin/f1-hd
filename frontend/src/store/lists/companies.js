@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../../util/auth";
+import { api } from "@/lib/api";
+
 
 // Стор списка компаний. Выборка клиентская (компаний десятки, страниц нет):
 // бэкенд отдаёт компактную проекцию со счётчиками (usersCount,
@@ -120,23 +121,24 @@ const useCompanyFilterStore = create((set) => ({
 
   fetch: async () => {
     set({ isLoading: true });
-    const { token } = getLocalStorageData();
-    // Страница компаний — единственный потребитель с отключёнными: бэкенд по
-    // умолчанию отдаёт только активные (выпадашки форм), фасетим клиентски
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/companies?includeInactive=true`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
-    const data = await response.json();
-    set((state) => ({
-      originalList: data,
-      isLoading: false,
-      ...recompute({ ...state, originalList: data }),
-    }));
+    try {
+      // Страница компаний — единственный потребитель с отключёнными: бэкенд по
+      // умолчанию отдаёт только активные (выпадашки форм), фасетим клиентски
+      const data = await api("/api/companies?includeInactive=true");
+      set((state) => ({
+        originalList: data,
+        isLoading: false,
+        ...recompute({ ...state, originalList: data }),
+      }));
+    } catch {
+      // Раньше ответ не проверялся вовсе: на ошибке список молча оставался
+      // пустым, а isLoading не сбрасывался никогда.
+      set((state) => ({
+        originalList: [],
+        isLoading: false,
+        ...recompute({ ...state, originalList: [] }),
+      }));
+    }
   },
 
   fullTextSearch: (query) =>

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../../util/auth";
+import { api } from "@/lib/api";
+
 
 // Список «Пользователи» — адресная книга на серверной выборке: поиск, фасеты,
 // сортировка и постраничность считает бэкенд (клиентский поиск несовместим с
@@ -9,7 +10,6 @@ import { getLocalStorageData } from "../../util/auth";
 // запрос само (страница только монтирует первичную загрузку). Контракт
 // app/ListWrapper сохранён (fullTextSearch / handleSorting / sortBy /
 // sortingOptions / isLoading / isSorting / resetFilter).
-const API = import.meta.env.VITE_API_ADDRESS;
 const PAGE_SIZE = 30;
 
 // Наборы сортировок по label (их показывает дропдаун ListWrapper) → серверный
@@ -58,19 +58,14 @@ const buildParams = (s) => {
 };
 
 const doFetch = async (get, set, { silent = false, append = false } = {}) => {
-  const { token } = getLocalStorageData();
   if (!silent) set({ isLoading: true });
   try {
     // База обязательна: VITE_API_ADDRESS теперь пуст (фронт и API на одном
     // origin), а `new URL("/api/users")` без базы БРОСАЕТ «Invalid URL».
     // Абсолютному адресу база не мешает — он её перекрывает.
-    const url = new URL(`${API}/api/users`, window.location.origin);
-    url.search = buildParams(get()).toString();
-    const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (!response.ok) throw new Error(`users ${response.status}`);
-    const data = await response.json();
+    const data = await api(
+      `/api/users?${buildParams(get()).toString()}`,
+    );
     set((state) => ({
       items: append ? [...state.items, ...data.users] : data.users,
       total: typeof data.total === "number" ? data.total : data.users.length,
@@ -114,13 +109,8 @@ const useUserFilterStore = create((set, get) => ({
   // достижимых сотрудников и мёржим workStatus в показанные строки (пагинация
   // не рвётся). Сбой глотаем — следующий опрос подтянет.
   silentRefresh: async () => {
-    const { token } = getLocalStorageData();
     try {
-      const response = await fetch(`${API}/api/users/work-statuses`, {
-        headers: { Authorization: "Bearer " + token },
-      });
-      if (!response.ok) throw new Error(`work-statuses ${response.status}`);
-      const raw = await response.json();
+      const raw = await api("/api/users/work-statuses");
       const list = Array.isArray(raw) ? raw : raw?.users || [];
       const byId = new Map(list.map((u) => [String(u._id), u.workStatus]));
       set((state) => ({

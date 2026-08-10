@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { api } from "@/lib/api";
+
 import { getLocalStorageData } from "../../util/auth";
 import {
   DEFAULT_QUEUE,
@@ -201,15 +203,7 @@ const recalc = (state) => ({
   queueCounts: countQueues(state),
 });
 
-const fetchTickets = async () => {
-  const { token } = getLocalStorageData();
-  const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/all-opened`,
-    { headers: { Authorization: "Bearer " + token } },
-  );
-  if (!response.ok) throw new Error(`all-opened ${response.status}`);
-  return response.json();
-};
+const fetchTickets = async () => api("/api/tickets/all-opened");
 
 const useTicketFilterStore = create((set, get) => ({
   ...FACET_DEFAULTS,

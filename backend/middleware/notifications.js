@@ -1,6 +1,14 @@
 const pad = require("pad");
 
 const logger = require("../utils/logger");
+const {
+  ticketEvent,
+  commentEvent,
+  worksEvent,
+  contextLine,
+  personName,
+  escapeHtml,
+} = require("../services/telegramMessage");
 const { resolveTimezone } = require("../utils/datetime");
 
 const Notification = require("../models//notification");
@@ -54,7 +62,7 @@ const clientTimeLine = async (ticket, applicant, prefs) => {
       orgTimezone: resolveTimezone(prefs),
     });
 
-    return label ? `\nУ клиента сейчас: ${label}` : "";
+    return label ? `У клиента сейчас: ${label}` : "";
   } catch {
     return "";
   }
@@ -238,7 +246,12 @@ exports.createTicketNotifications = async () => {
               instrument: "telegram",
               ticketId: ticket._id,
               to: groupChatTo(prefs),
-              text: `⭐️ <b>Новая заявка ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+              text: ticketEvent({
+                  emoji: "⭐️",
+                  event: "Новая заявка",
+                  ticket,
+                  lines: [contextLine(ticket)],
+                }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
@@ -264,7 +277,11 @@ exports.createTicketNotifications = async () => {
                 chatId: applicant.telegramBot.chatId,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              text: `⭐️ <b>Новая заявка ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\n#ticket_${ticket.num}`,
+              text: ticketEvent({
+                  emoji: "⭐️",
+                  event: "Новая заявка",
+                  ticket,
+                }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
@@ -296,7 +313,12 @@ exports.createTicketNotifications = async () => {
                   chatId: resp.telegramBot.chatId,
                   responsible: `${resp.lastName} ${resp.firstName}`,
                 },
-                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}${await clientTime()}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                text: ticketEvent({
+                  emoji: "🟢",
+                  event: "Вы в списке ответственных",
+                  ticket,
+                  lines: [contextLine(ticket), await clientTime()],
+                }),
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
@@ -446,7 +468,12 @@ exports.createTicketNotifications = async () => {
                   chatId: resp.telegramBot.chatId,
                   responsible: `${resp.lastName} ${resp.firstName}`,
                 },
-                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}${await clientTime()}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                text: ticketEvent({
+                  emoji: "🟢",
+                  event: "Вы в списке ответственных",
+                  ticket,
+                  lines: [contextLine(ticket), await clientTime()],
+                }),
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
@@ -535,7 +562,11 @@ exports.createTicketNotifications = async () => {
                 chatId: applicant.telegramBot?.chatId,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              text: `📌 <b>Заявка ${ticket.num} принята в работу</b>\nТема: ${ticket.title}\n#ticket_${ticket.num}`,
+              text: ticketEvent({
+                  emoji: "📌",
+                  event: "Принята в работу",
+                  ticket,
+                }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
@@ -628,7 +659,12 @@ exports.createTicketNotifications = async () => {
                   chatId: user.telegramBot?.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `🟢 <b>Вы добавлены в список ответственных заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}${await clientTime()}\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                text: ticketEvent({
+                  emoji: "🟢",
+                  event: "Вы в списке ответственных",
+                  ticket,
+                  lines: [contextLine(ticket), await clientTime()],
+                }),
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
@@ -714,7 +750,12 @@ exports.createTicketNotifications = async () => {
               instrument: "telegram",
               ticketId: ticket._id,
               to: groupChatTo(prefs),
-              text: `‼️ <b>Заявка ${ticket.num} возвращена в статус "Новая"</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n#ticket_${ticket.num}`,
+              text: ticketEvent({
+                  emoji: "↩️",
+                  event: "Возвращена в статус «Новая»",
+                  ticket,
+                  lines: [contextLine(ticket)],
+                }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
@@ -746,17 +787,13 @@ exports.createTicketNotifications = async () => {
                   chatId: user.telegramBot?.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `🟠 <b>${userRejected.firstName} ${
-                  userRejected.lastName
-                } убрал(а) себя из списка ответственных заявки ${
-                  ticket.num
-                }</b>\n<b>Причина: ${
-                  ticket.rejected[ticket.rejected.length - 1].reason
-                }</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${
-                  ticket.company.alias
-                }\nИнициатор: ${ticket.applicantId.lastName} ${
-                  ticket.applicantId.firstName
-                }\n<b>Статус: ${ticket.state}</b>\n#ticket_${ticket.num}`,
+                text: ticketEvent({
+                  emoji: "🟠",
+                  event: `${personName(userRejected)} снял(а) с себя заявку`,
+                  ticket,
+                  quoted: ticket.rejected[ticket.rejected.length - 1].reason,
+                  lines: [contextLine(ticket)],
+                }),
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
@@ -920,7 +957,13 @@ exports.createTicketNotifications = async () => {
               instrument: "telegram",
               ticketId: ticket._id,
               to: groupChatTo(prefs),
-              text: `✅ <b>Закрыта заявка ${ticket.num}</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.closingComment}</b>\n#ticket_${ticket.num}`,
+              text: ticketEvent({
+                  emoji: "✅",
+                  event: "Заявка закрыта",
+                  ticket,
+                  quoted: ticket.closingComment,
+                  lines: [contextLine(ticket)],
+                }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
@@ -946,7 +989,13 @@ exports.createTicketNotifications = async () => {
                 chatId: applicant.telegramBot.chatId,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              text: `✅ <b>Закрыта заявка ${ticket.num}</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.closingComment}</b>\n#ticket_${ticket.num}`,
+              text: ticketEvent({
+                  emoji: "✅",
+                  event: "Заявка закрыта",
+                  ticket,
+                  quoted: ticket.closingComment,
+                  lines: [contextLine(ticket)],
+                }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
@@ -975,7 +1024,13 @@ exports.createTicketNotifications = async () => {
                   chatId: user.telegramBot?.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `✅ <b>Закрыта заявка ${ticket.num}</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.closingComment}</b>\n#ticket_${ticket.num}`,
+                text: ticketEvent({
+                  emoji: "✅",
+                  event: "Заявка закрыта",
+                  ticket,
+                  quoted: ticket.closingComment,
+                  lines: [contextLine(ticket)],
+                }),
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
@@ -1100,7 +1155,13 @@ exports.createTicketNotifications = async () => {
               instrument: "telegram",
               ticketId: ticket._id,
               to: groupChatTo(prefs),
-              text: `‼️ <b>Заявка ${ticket.num} возвращена в статус "В работе"</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.returningComment}</b>\n#ticket_${ticket.num}`,
+              text: ticketEvent({
+                  emoji: "↩️",
+                  event: "Возвращена в работу",
+                  ticket,
+                  quoted: ticket.returningComment,
+                  lines: [contextLine(ticket)],
+                }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
@@ -1129,7 +1190,13 @@ exports.createTicketNotifications = async () => {
                   chatId: user.telegramBot?.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `‼️ <b>Заявка ${ticket.num} возвращена в статус "В работе"</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.returningComment}</b>\n#ticket_${ticket.num}`,
+                text: ticketEvent({
+                  emoji: "↩️",
+                  event: "Возвращена в работу",
+                  ticket,
+                  quoted: ticket.returningComment,
+                  lines: [contextLine(ticket)],
+                }),
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
@@ -1156,7 +1223,13 @@ exports.createTicketNotifications = async () => {
                 chatId: applicant.telegramBot?.chatId,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              text: `‼️ <b>Заявка ${ticket.num} возвращена в статус "В работе"</b>\nТема: ${ticket.title}\nКомпания: ${ticket.company.alias}\nИнициатор: ${ticket.applicantId.lastName} ${ticket.applicantId.firstName}\n<b>Комментарий: ${ticket.returningComment}</b>\n#ticket_${ticket.num}`,
+              text: ticketEvent({
+                  emoji: "↩️",
+                  event: "Возвращена в работу",
+                  ticket,
+                  quoted: ticket.returningComment,
+                  lines: [contextLine(ticket)],
+                }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
@@ -1316,7 +1389,15 @@ exports.createTicketNotifications = async () => {
                   chatId: user.telegramBot.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `⏰ <b>Изменён срок заявки ${ticket.num}</b>\n<b>Тема: ${ticket.title}</b>\nКомпания: ${ticket.company.alias}\n<b>Новый срок: ${deadlineText}</b>\n#ticket_${ticket.num}`,
+                text: ticketEvent({
+                  emoji: "⏰",
+                  event: "Срок изменён",
+                  ticket,
+                  lines: [
+                    `Новый срок: <b>${escapeHtml(deadlineText)}</b>`,
+                    contextLine(ticket),
+                  ],
+                }),
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
@@ -1465,7 +1546,7 @@ exports.createCommentNotifications = async () => {
                 chatId: applicant.telegramBot?.chatId,
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
-              text: `💬 <b>Комментарий к заявке ${ticket.num}</b>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
+              text: commentEvent({ comment, ticket }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newCommentNotification.save();
@@ -1489,7 +1570,7 @@ exports.createCommentNotifications = async () => {
               commentId: comment._id,
               ticketId: ticket._id,
               to: groupChatTo(prefs),
-              text: `💬 <b>Комментарий к заявке ${ticket.num}</b>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
+              text: commentEvent({ comment, ticket }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newCommentNotification.save();
@@ -1521,7 +1602,7 @@ exports.createCommentNotifications = async () => {
                   chatId: user.telegramBot.chatId,
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
-                text: `💬 <b>Комментарий к заявке ${ticket.num}</b>\n<b>${comment.createdBy.lastName} ${comment.createdBy.firstName}:</b>\n<b>${comment.content}</b>\nКомпания: ${ticket.company.alias}\nТема заявки: ${ticket.title}\n#ticket_${ticket.num}`,
+                text: commentEvent({ comment, ticket }),
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
@@ -1805,24 +1886,21 @@ exports.createScheduledWorkNotifications = async () => {
               recepient === prefs.notify?.byTelegram?.chatId
                 ? groupChatTo(prefs)
                 : { chatId: recepient },
-            text: `<b>Запланированы работы по ${
-              tickets.length === 1 ? "заявке" : "заявкам"
-            } ${tickets.map(
-              (ticket) =>
-                ticket + (tickets[tickets.length - 1] === ticket ? "" : ", "),
-            )}</b>\nКомпания: ${company}\nСпециалист: ${
-              work.executor.lastName
-            } ${work.executor.firstName}\nТип: ${
-              work.visitRequired ? "выезд" : "удалённые работы"
-            }\nНачало: ${formatDateTime(
-              work.planningToStart,
-            )}\nОжидаемая длительность: ${msToHMS(
-              work.planningToFinish - work.planningToStart,
-            )}\n${tickets.map(
-              (ticket) =>
-                `#ticket_${ticket}` +
-                (tickets[tickets.length - 1] === ticket ? "" : " "),
-            )}`,
+            text: worksEvent({
+                emoji: "🛠",
+                event: "Запланированы работы",
+                tickets,
+                lines: [
+                  escapeHtml(company),
+                  `Специалист: ${escapeHtml(personName(work.executor))}`,
+                  `${work.visitRequired ? "Выезд" : "Удалённо"} · начало ${escapeHtml(
+                    formatDateTime(work.planningToStart),
+                  )}`,
+                  `Ожидаемая длительность: ${escapeHtml(
+                    msToHMS(work.planningToFinish - work.planningToStart),
+                  )}`,
+                ],
+              }),
           });
           await scheduledWorksNotification.save();
         } catch (error) {
@@ -1918,24 +1996,21 @@ exports.createScheduledWorkNotifications = async () => {
               recepient === prefs.notify?.byTelegram?.chatId
                 ? groupChatTo(prefs)
                 : { chatId: recepient },
-            text: `<b>Обновлены данные запланированных работ по ${
-              tickets.length === 1 ? "заявке" : "заявкам"
-            } ${tickets.map(
-              (ticket) =>
-                ticket + (tickets[tickets.length - 1] === ticket ? "" : ", "),
-            )}</b>\nКомпания: ${company}\nСпециалист: <b>${
-              work.executor.lastName
-            } ${work.executor.firstName}</b>\nТип: <b>${
-              work.visitRequired ? "выезд" : "удалённые"
-            }</b>\nНачало: <b>${formatDateTime(
-              work.planningToStart,
-            )}</b>\nОжидаемая длительность: <b>${msToHMS(
-              work.planningToFinish - work.planningToStart,
-            )}</b>\n${tickets.map(
-              (ticket) =>
-                `#ticket_${ticket}` +
-                (tickets[tickets.length - 1] === ticket ? "" : " "),
-            )}`,
+            text: worksEvent({
+                emoji: "🛠",
+                event: "Изменены запланированные работы",
+                tickets,
+                lines: [
+                  escapeHtml(company),
+                  `Специалист: ${escapeHtml(personName(work.executor))}`,
+                  `${work.visitRequired ? "Выезд" : "Удалённо"} · начало ${escapeHtml(
+                    formatDateTime(work.planningToStart),
+                  )}`,
+                  `Ожидаемая длительность: ${escapeHtml(
+                    msToHMS(work.planningToFinish - work.planningToStart),
+                  )}`,
+                ],
+              }),
           });
           await scheduledWorksNotification.save();
         } catch (error) {

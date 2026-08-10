@@ -1,18 +1,17 @@
 import { create } from "zustand";
 
+import { api } from "@/lib/api";
+
 import type {
   TrendsGrouping,
   TrendsPreset,
   TrendsResponse,
 } from "../../types/report";
-import { getLocalStorageData } from "../../util/auth";
 
 // Сегмент «Динамика» отчёта «Компании»: пресет периода + группировка, при
 // «Произвольном» — две даты из шторки (запрос уходит, когда заданы обе).
 // Выбор метрики и компаний — клиентский пивот по загруженным данным (без
 // запроса), живёт здесь же, чтобы переживать переключение сегментов.
-const API = import.meta.env.VITE_API_ADDRESS;
-
 export type TrendsMetricKey =
   | "totalTime"
   | "totalTickets"
@@ -51,7 +50,6 @@ const doFetch = async (get: Getter, set: Setter) => {
   if (preset === "custom" && (!startDate || !endDate)) return;
 
   const requestId = ++requestSeq;
-  const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
     const params = new URLSearchParams({ period: preset, grouping });
@@ -59,13 +57,8 @@ const doFetch = async (get: Getter, set: Setter) => {
       params.set("startDate", startDate);
       params.set("endDate", endDate);
     }
-    const url = new URL(`${API}/api/report/companies/trends`, window.location.origin);
-    url.search = params.toString();
-    const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (!response.ok) throw new Error(`companies trends ${response.status}`);
-    const data = (await response.json()) as TrendsResponse;
+    const search = params.toString();
+    const data = (await api(`/api/report/companies/trends?${search}`)) as TrendsResponse;
     if (requestId !== requestSeq) return;
     set({ data, isLoading: false, error: null });
   } catch (error) {

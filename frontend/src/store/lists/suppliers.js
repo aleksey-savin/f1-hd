@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../../util/auth";
+import { api } from "@/lib/api";
+
 
 // Справочник поставщиков — маленький, поэтому выборка клиентская (как у
 // вендоров): бэкенд отдаёт список целиком вместе с агрегатами закупок.
@@ -60,14 +61,8 @@ const useSupplierFilterStore = create((set) => ({
 
   fetch: async () => {
     set({ isLoading: true });
-    const { token } = getLocalStorageData();
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/suppliers`,
-        { headers: { Authorization: "Bearer " + token } },
-      );
-      if (!response.ok) throw new Error(`suppliers ${response.status}`);
-      const data = await response.json();
+      const data = await api("/api/inventory/suppliers");
       set({ originalList: Array.isArray(data) ? data : [], isLoading: false });
     } catch (error) {
       set({ isLoading: false });

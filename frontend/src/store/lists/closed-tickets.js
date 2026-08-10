@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../../util/auth";
+import { api } from "@/lib/api";
+
 import { prevMonthRange } from "../../util/period";
 
 // «Архив заявок» — список на серверной выборке (канон «Пользователей»): поиск,
@@ -12,7 +13,6 @@ import { prevMonthRange } from "../../util/period";
 // isLoading / isSorting / resetFilter). Опции фасетов приезжают из
 // /tickets/form-data?includeInactive=true (loader страницы → setOptions) —
 // каталог полный, поэтому выбранное храним массивами id.
-const API = import.meta.env.VITE_API_ADDRESS;
 const PAGE_SIZE = 50;
 
 // Сортировки по label (их показывает дропдаун ListWrapper) → серверный ключ
@@ -61,16 +61,11 @@ const buildParams = (s) => {
 };
 
 const doFetch = async (get, set, { append = false } = {}) => {
-  const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/tickets/closed`, window.location.origin);
-    url.search = buildParams(get()).toString();
-    const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (!response.ok) throw new Error(`closed tickets ${response.status}`);
-    const data = await response.json();
+    const data = await api(
+      `/api/tickets/closed?${buildParams(get()).toString()}`,
+    );
     set((state) => ({
       items: append ? [...state.items, ...data.tickets] : data.tickets,
       total: typeof data.total === "number" ? data.total : data.tickets.length,

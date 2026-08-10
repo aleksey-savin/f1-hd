@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../../util/auth";
+import { api } from "@/lib/api";
+
 
 // Фасеты фильтра дерева расположений. Компания — обязательный контекст (чип на
 // панели, задаётся отдельно); showWorkplaces — чип «Рабочие места» (РМ скрыты
@@ -142,9 +143,7 @@ const useLocationFilterStore = create((set) => ({
   isLoading: false,
   fetch: async (companyParam = null) => {
     set({ isLoading: true });
-    const { token } = getLocalStorageData();
-
-    let url = `${import.meta.env.VITE_API_ADDRESS}/api/inventory/companies-locations`;
+    let url = "/api/inventory/companies-locations";
 
     const currentState = useLocationFilterStore.getState();
     if (companyParam) {
@@ -156,13 +155,9 @@ const useLocationFilterStore = create((set) => ({
       url += `?companyIds=${currentState.selectedCompanyIds.join(",")}`;
     }
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    });
-
-    const data = response.ok ? await response.json() : [];
+    // Пустой список при ошибке — прежнее поведение, только теперь оно
+    // записано одним способом, а не двумя.
+    const data = await api(url).catch(() => []);
     set({
       originalList: data,
       isLoading: false,

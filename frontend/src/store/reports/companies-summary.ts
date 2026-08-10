@@ -1,7 +1,8 @@
 import { create } from "zustand";
 
+import { api } from "@/lib/api";
+
 import type { CompaniesSummaryResponse, PeriodRange } from "../../types/report";
-import { getLocalStorageData } from "../../util/auth";
 import { monthRange } from "../../util/period";
 
 // Сегмент «Сводка» отчёта «Компании»: данные грузятся сразу при открытии за
@@ -9,8 +10,6 @@ import { monthRange } from "../../util/period";
 // прошлым месяцем), смена периода сама делает запрос. При ошибке устаревший
 // отчёт остаётся видимым под баннером (data не сбрасывается); контракт UI:
 // isLoading && !data — скелет, isLoading && data — приглушение контента.
-const API = import.meta.env.VITE_API_ADDRESS;
-
 type SummaryState = {
   from: string;
   to: string;
@@ -35,16 +34,10 @@ const doFetch = async (get: Getter, set: Setter) => {
   if (!from || !to) return;
 
   const requestId = ++requestSeq;
-  const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/report/companies`, window.location.origin);
-    url.search = new URLSearchParams({ from, to }).toString();
-    const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (!response.ok) throw new Error(`companies summary ${response.status}`);
-    const data = (await response.json()) as CompaniesSummaryResponse;
+    const search = new URLSearchParams({ from, to }).toString();
+    const data = (await api(`/api/report/companies?${search}`)) as CompaniesSummaryResponse;
     if (requestId !== requestSeq) return;
     set({ data, isLoading: false, error: null });
   } catch (error) {

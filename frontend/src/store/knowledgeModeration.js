@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../util/auth";
+import { api } from "@/lib/api";
+
 
 const ZERO = {
   pendingApproval: 0,
@@ -25,16 +26,8 @@ const useKnowledgeModerationStore = create((set) => ({
   seed: (counts) => set({ counts: counts || ZERO }),
 
   refresh: async () => {
-    const { token } = getLocalStorageData();
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/knowledge-notes/moderation-summary`,
-        { headers: { Authorization: "Bearer " + token } },
-      );
-      if (!response.ok) {
-        return;
-      }
-      const data = await response.json();
+      const data = await api("/api/knowledge-notes/moderation-summary");
       set({
         counts: {
           pendingApproval: data.pendingApproval || 0,

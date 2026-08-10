@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../util/auth";
+import { api } from "@/lib/api";
+
 
 // Статусы сотрудников для бара: лёгкий эндпоинт /users/work-statuses,
 // обновляется фоновым опросом (usePolling). silentRefresh не трогает спиннеры
@@ -10,15 +11,7 @@ const useWorkStatusesStore = create((set, get) => ({
   users: [],
   isLoaded: false,
   fetch: async () => {
-    const { token } = getLocalStorageData();
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/users/work-statuses`,
-      { headers: { Authorization: "Bearer " + token } },
-    );
-    if (!response.ok) {
-      throw new Error("Failed to fetch work statuses");
-    }
-    const data = await response.json();
+    const data = await api("/api/users/work-statuses");
     set({ users: data.users || [], isLoaded: true });
   },
   silentRefresh: async () => {

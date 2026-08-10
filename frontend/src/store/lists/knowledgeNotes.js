@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { getLocalStorageData } from "../../util/auth";
+
+import { api } from "@/lib/api";
 import { NOTE_TYPES } from "../../util/knowledgeNoteTypes";
 
 // Все типы включены — значение по умолчанию для фильтра по типу
@@ -165,14 +166,9 @@ const useKnowledgeNotesStore = create((set, get) => ({
   fetch: async () => {
     const query = datasetQuery(get());
     set({ isLoading: true });
-    const { token } = getLocalStorageData();
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/knowledge-notes${query}`,
-      {
-        headers: { Authorization: "Bearer " + token },
-      },
-    );
-    const data = await response.json();
+    // Ошибку не глушим: список заметок — содержимое страницы, и пустой он
+    // должен появляться только когда заметок действительно нет.
+    const data = await api(`/api/knowledge-notes${query}`);
 
     set((state) => {
       const originalList = Array.isArray(data) ? data : [];

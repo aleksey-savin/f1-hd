@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../../util/auth";
+import { api } from "@/lib/api";
+
 
 // Список «Устройства» — реестр активов на серверной выборке: поиск, фасеты,
 // сортировка, постраничность и счётчики стадий считает бэкенд (клиентский поиск
@@ -10,7 +11,6 @@ import { getLocalStorageData } from "../../util/auth";
 //
 // Контракт app/ListWrapper сохранён: fullTextSearch / handleSorting / sortBy /
 // sortingOptions / isLoading / isSorting / resetFilter.
-const API = import.meta.env.VITE_API_ADDRESS;
 const PAGE_SIZE = 50;
 
 const SORT = {
@@ -56,17 +56,12 @@ const buildParams = (state) => {
 };
 
 const doFetch = async (get, set, { append = false } = {}) => {
-  const { token } = getLocalStorageData();
   const seq = ++requestSeq;
   set({ isLoading: true });
   try {
-    const url = new URL(`${API}/api/inventory/client-devices`, window.location.origin);
-    url.search = buildParams(get()).toString();
-    const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
-    if (!response.ok) throw new Error(`client-devices ${response.status}`);
-    const data = await response.json();
+    const data = await api(
+      `/api/inventory/client-devices?${buildParams(get()).toString()}`,
+    );
     if (seq !== requestSeq) return;
     set((state) => ({
       items: append ? [...state.items, ...data.devices] : data.devices,
@@ -110,14 +105,8 @@ const useClientDeviceFilterStore = create((set, get) => ({
   fetch: () => doFetch(get, set),
 
   fetchOptions: async () => {
-    const { token } = getLocalStorageData();
     try {
-      const response = await fetch(
-        `${API}/api/inventory/client-devices/facets`,
-        { headers: { Authorization: "Bearer " + token } },
-      );
-      if (!response.ok) throw new Error(`facets ${response.status}`);
-      set({ options: await response.json() });
+      set({ options: await api("/api/inventory/client-devices/facets") });
     } catch (error) {
       console.warn("Опции фильтра устройств пропущены:", error);
     }
