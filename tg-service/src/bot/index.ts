@@ -405,6 +405,20 @@ export const createBot = (getConfig: ConfigSource): Bot => {
         "Отлично!👌 В течение минуты пришлём уведомление о создании заявки и будем держать Вас в курсе о ходе её выполнения.",
       );
     } catch (error) {
+      // Причина обязана быть в журнале: человеку показывается общая фраза, и
+      // без этой строки «Сервер сейчас недоступен» ничем не отличается от
+      // «упал разбор формы» — что и стоило двух кругов догадок.
+      logger.error("Failed to create a ticket", {
+        actor,
+        withPhoto: Boolean(payload.photoFileId),
+        status: error instanceof BackendError ? error.status : null,
+        payload: error instanceof BackendError ? error.payload : null,
+        error: error instanceof Error ? error.message : String(error),
+        cause:
+          error instanceof Error && error.cause instanceof Error
+            ? error.cause.message
+            : null,
+      });
       await ctx.reply(explain(error));
     }
   };

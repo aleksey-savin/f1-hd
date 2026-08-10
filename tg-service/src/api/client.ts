@@ -72,9 +72,20 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
       signal: abort,
     });
   } catch (error) {
-    // Сеть и таймаут — это «повторим», а не «ответ такой».
+    /**
+     * Сеть и таймаут — это «повторим», а не «ответ такой».
+     *
+     * `fetch failed` сам по себе не говорит ничего: под ним лежит настоящая
+     * причина (отказ соединения, DNS, разрыв на теле запроса), и она в
+     * `error.cause`. Без неё сообщение одинаково для «бэкенд перезапускается» и
+     * для «тело запроса собралось неправильно».
+     */
     const reason = error instanceof Error ? error.message : String(error);
-    throw new BackendError(0, null, `Backend unreachable: ${reason}`);
+    const cause =
+      error instanceof Error && error.cause instanceof Error
+        ? ` (${error.cause.message})`
+        : "";
+    throw new BackendError(0, null, `Backend unreachable: ${reason}${cause}`);
   }
 
   if (!response.ok) {
