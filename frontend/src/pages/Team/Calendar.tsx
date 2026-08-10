@@ -21,7 +21,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
 import useTeamScheduleStore, { type ScheduleView } from "@/store/team/schedule";
-import { getLocalStorageData } from "@/util/auth";
 
 const API = import.meta.env.VITE_API_ADDRESS;
 
@@ -56,12 +55,10 @@ const TeamCalendar = () => {
     decision: "approve" | "reject",
     comment?: string,
   ) => {
-    const { token } = getLocalStorageData();
     const response = await fetch(`${API}/api/team/absences/${id}/decision`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify({ decision, comment }),
     });

@@ -2,7 +2,8 @@ import { useContext } from "react";
 import DeviceAttributeForm from "../../components/DeviceAttribute/Form";
 import InlineForbidden from "../../components/Error/InlineForbidden";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
+
+import { api } from "@/lib/api";
 
 const UpdateDeviceAttributePage = () => {
   const { permissions } = useContext(AuthedUserContext);
@@ -25,27 +26,10 @@ export default UpdateDeviceAttributePage;
 export async function loader({ params }) {
   document.title = "Изменить атрибут устройства";
 
-  const { token } = getLocalStorageData();
-
-  const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-attributes/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw response;
-  }
-
-  return response;
+  return api(`/api/inventory/device-attributes/${params.id}`);
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const options = data.get("options");
@@ -75,7 +59,6 @@ export async function action({ request, params }) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(attributeData),
     },

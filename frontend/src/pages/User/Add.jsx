@@ -18,14 +18,12 @@ export async function loader() {
 
   const companiesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/companies`,
-    { headers: { Authorization: "Bearer " + token } },
   );
 
   const companies = await companiesResponse.json();
 
   const categoriesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
-    { headers: { Authorization: "Bearer " + token } },
   );
 
   const categories = await categoriesResponse.json();
@@ -60,7 +58,6 @@ export async function loader() {
 // уходило вовсе, `canManageServicPlans` был опечаткой, часть прав отправлялась
 // строкой вместо boolean, а `role: null` затирал сохранённую роль.
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
   const userData = await request.json();
 
   const response = await fetch(
@@ -69,7 +66,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(userData),
     },

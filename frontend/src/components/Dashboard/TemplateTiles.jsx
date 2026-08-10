@@ -5,7 +5,6 @@ import { RiAddLine, RiFileList3Line } from "react-icons/ri";
 
 import SearchBar from "@/components/app/SearchBar";
 import { Eyebrow } from "@/components/app/Panel";
-import { getLocalStorageData } from "../../util/auth";
 
 /**
  * «Чем помочь?» — карточки шаблонов заявок плюс карточка свободного обращения.
@@ -35,11 +34,9 @@ const TemplateTiles = ({ heading = null }) => {
 
   useEffect(() => {
     const load = async () => {
-      const { token } = getLocalStorageData();
       try {
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates`,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok)
           throw new Error(`ticket-templates ${response.status}`);

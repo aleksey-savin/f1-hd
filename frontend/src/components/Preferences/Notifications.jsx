@@ -10,7 +10,6 @@ import HealthRow from "@/components/app/HealthRow";
 import { SubLabel } from "@/components/app/Panel";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
 import MailChannelFields from "./MailChannelFields";
 import { describeChannelHealth, describeCheckResult } from "./channel-health";
@@ -110,14 +109,12 @@ const PrefsNotifications = ({ prefs }) => {
     setSending(true);
     setTestResult(null);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/preferences/smtp/test`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify({ byEmail: buildEmailPayload() }),
         },

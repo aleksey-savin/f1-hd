@@ -210,11 +210,9 @@ const ViewTicket = () => {
   const hasActiveFetcher = fetchers.some((f) => f.state !== "idle");
   usePolling(
     async () => {
-      const { token } = getLocalStorageData();
       try {
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticket.num}`,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok) return;
         const fresh = await response.json();
@@ -706,8 +704,10 @@ export default ViewTicket;
 export async function loader({ params }) {
   document.title = `Заявка № ${params.ticketNum}`;
 
-  const { token, userId } = getLocalStorageData();
-  const headers = { Authorization: "Bearer " + token };
+  const { userId } = getLocalStorageData();
+  // Заголовков не осталось: сеанс едет cookie, и объект пустой лишь потому,
+  // что ниже он передаётся в несколько fetch подряд.
+  const headers = {};
 
   const ticketResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${params.ticketNum}`,

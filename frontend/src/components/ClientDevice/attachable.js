@@ -1,4 +1,3 @@
-import { getLocalStorageData } from "../../util/auth";
 import { DEVICE_STATUS_LABELS as STATUS_LABELS } from "@/components/app/device-status";
 
 const base = import.meta.env.VITE_API_ADDRESS;
@@ -11,7 +10,6 @@ export async function fetchAttachableDevices({
   hostTypeId,
 }) {
   if (!companyId) return [];
-  const { token } = getLocalStorageData();
   const params = new URLSearchParams({ companyId });
   if (excludeId) params.set("excludeId", excludeId);
   if (hostTypeId) params.set("hostTypeId", hostTypeId);
@@ -19,7 +17,6 @@ export async function fetchAttachableDevices({
   try {
     const res = await fetch(
       `${base}/api/inventory/client-devices/attachable?${params.toString()}`,
-      { headers: { Authorization: "Bearer " + token } },
     );
     if (!res.ok) return [];
     const data = await res.json();

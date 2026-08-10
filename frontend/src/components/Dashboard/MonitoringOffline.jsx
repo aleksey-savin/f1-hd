@@ -5,7 +5,6 @@ import { RiAlertLine } from "react-icons/ri";
 
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
-import { getLocalStorageData } from "../../util/auth";
 import { formatDayMonth } from "../../util/format-date";
 
 /**
@@ -40,11 +39,9 @@ const MonitoringOffline = () => {
 
   useEffect(() => {
     const load = async () => {
-      const { token } = getLocalStorageData();
       try {
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/offline`,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok)
           throw new Error(`mikrotik offline ${response.status}`);

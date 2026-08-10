@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import AlertMessage from "@/components/app/AlertMessage";
 import Spinner from "@/components/app/Spinner";
 
-import { getLocalStorageData } from "../../util/auth";
 
 import VendorFormFields from "../Vendor/FormFields";
 import DeviceTypeFormFields from "../DeviceType/FormFields";
@@ -24,8 +23,7 @@ import SupplierFormFields from "../Supplier/FormFields";
 const base = import.meta.env.VITE_API_ADDRESS;
 
 const authHeaders = () => {
-  const { token } = getLocalStorageData();
-  return { Authorization: "Bearer " + token };
+  return {};
 };
 
 // Конфигурация инлайн-создания справочников. Каждый kind переиспользует поля

@@ -18,7 +18,6 @@ import Segmented from "@/components/app/Segmented";
 
 import Combobox, { toOptions } from "@/components/app/Combobox";
 import useToastStore from "../../store/toast-store";
-import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
 
 // «Интеграции»: внешние сервисы уровня приложения. Mikrotik — самостоятельная
@@ -46,10 +45,7 @@ const PrefsIntegrations = ({ prefs }) => {
   const [revoking, setRevoking] = useState(false);
 
   const loadConnected = () => {
-    const { token } = getLocalStorageData();
-    fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users/pro32-connected`, {
-      headers: { Authorization: "Bearer " + token },
-    })
+    fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users/pro32-connected`)
       .then((response) => (response.ok ? response.json() : { users: [] }))
       .then((data) => setConnected(data.users || []))
       .catch(() => {});
@@ -60,10 +56,9 @@ const PrefsIntegrations = ({ prefs }) => {
     if (!revokeTarget) return;
     setRevoking(true);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/users/pro32-revoke/${revokeTarget._id}`,
-        { method: "POST", headers: { Authorization: "Bearer " + token } },
+        { method: "POST", headers: {} },
       );
       const data = await response.json();
       if (!response.ok) {
@@ -106,8 +101,7 @@ const PrefsIntegrations = ({ prefs }) => {
   const [categories, setCategories] = useState([]);
   const [accounts, setAccounts] = useState([]);
   useEffect(() => {
-    const { token } = getLocalStorageData();
-    const headers = { Authorization: "Bearer " + token };
+    const headers = {};
     fetch(`${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`, {
       headers,
     })

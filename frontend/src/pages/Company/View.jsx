@@ -1,6 +1,5 @@
 import { useLoaderData, redirect } from "react-router";
 
-import { getLocalStorageData } from "../../util/auth";
 
 import ViewCompany from "../../components/Company/View";
 import { api } from "@/lib/api";
@@ -20,10 +19,7 @@ const ViewCompanyPage = () => {
 export default ViewCompanyPage;
 
 export async function loader({ params }) {
-  const { token } = getLocalStorageData();
-
   const headers = {
-    Authorization: "Bearer " + token,
   };
 
   // These requests are independent of one another, so fire them in
@@ -135,8 +131,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const intent = data.get("intent");
   const id = data.get("id");
@@ -159,7 +153,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify(newServicePlan),
       },
@@ -185,7 +178,6 @@ export async function action({ request }) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           servicePlanId: data.get("servicePlanId"),
@@ -221,7 +213,6 @@ export async function action({ request }) {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ servicePlanId: servicePlanId }),
       },
@@ -245,7 +236,6 @@ export async function action({ request }) {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
       },
     );
@@ -268,7 +258,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
       },
     );
@@ -298,7 +287,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           name: data.get("name"),
@@ -332,7 +320,6 @@ export async function action({ request }) {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           subdivisionId: data.get("subdivisionId"),
@@ -365,7 +352,6 @@ export async function action({ request }) {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           subdivisionId: data.get("subdivisionId"),
@@ -404,7 +390,6 @@ export async function action({ request }) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           subdivisionId,
@@ -431,7 +416,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           companyId,
@@ -458,7 +442,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           companyId: data.get("companyId"),
@@ -484,7 +467,6 @@ export async function action({ request }) {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           companyId,
@@ -514,7 +496,6 @@ export async function action({ request }) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           userId,
@@ -543,7 +524,6 @@ export async function action({ request }) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           userId,

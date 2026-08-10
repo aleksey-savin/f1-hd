@@ -18,7 +18,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import ReportCard from "../../components/Report/ReportCard";
 import ReportExportMenu from "../../components/Report/ReportExportMenu";
 import usePolling from "../../hooks/use-polling";
-import { getLocalStorageData } from "../../util/auth";
 import { toDateInputValue } from "../../util/format-date";
 
 /**
@@ -53,13 +52,10 @@ const ApprovalReport = () => {
 
   const load = async () => {
     try {
-      const { token } = getLocalStorageData();
       const url = isPreview
         ? `${API}/api/approval/preview/${companyId}/${servicePlanId}/${month}`
         : `${API}/api/approval/reports/${id}`;
-      const response = await fetch(url, {
-        headers: { Authorization: "Bearer " + token },
-      });
+      const response = await fetch(url);
       if (!response.ok) throw new Error(`report ${response.status}`);
       setData(await response.json());
       setError(null);
@@ -90,12 +86,10 @@ const ApprovalReport = () => {
     setBusy(true);
     setError(null);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(`${API}${path}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify(body),
       });
@@ -142,7 +136,7 @@ const ApprovalReport = () => {
       {!isClientView && report.status === "declined" && !report.canDecide && (
         <Button
           disabled={busy}
-          onClick={() => post(`/api/approval/reports/${id}/resubmit`, {})}
+          onClick={() => post(`/api/approval/reports/${id}/resubmit`)}
         >
           Отправить повторно
         </Button>
@@ -162,7 +156,7 @@ const ApprovalReport = () => {
         <Button
           variant="outline"
           disabled={busy}
-          onClick={() => post(`/api/approval/reports/${id}/archive`, {})}
+          onClick={() => post(`/api/approval/reports/${id}/archive`)}
         >
           В архив
         </Button>

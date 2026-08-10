@@ -3,7 +3,6 @@ import { redirect, useLocation } from "react-router";
 
 import ListWrapper from "@/components/app/ListWrapper";
 
-import { getLocalStorageData } from "../../util/auth";
 
 import List from "../../components/ServicePlan/List";
 import ServicePlanFilter from "../../components/ServicePlan/Filter";
@@ -87,8 +86,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const intent = data.get("intent");
   const id = data.get("id");
@@ -100,7 +97,6 @@ export async function action({ request }) {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
       },
     );

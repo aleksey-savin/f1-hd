@@ -137,7 +137,6 @@ const CardAvatar = ({ user, ringColor, canEdit }) => {
         `${API}/api/users/${user._id}/add-profile-image`,
         {
           method: "POST",
-          headers: { Authorization: "Bearer " + token },
           body: form,
         },
       );

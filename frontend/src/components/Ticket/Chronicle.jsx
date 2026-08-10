@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import useHttp from "../../hooks/use-http";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useViewTicketStore from "../../store/view-ticket";
-import { getLocalStorageData } from "../../util/auth";
 import {
   businessDayKey,
   formatDate,
@@ -120,14 +119,12 @@ const EventEntry = ({ event, ticketNum, divided }) => {
   const expand = () => {
     setExpanded((value) => !value);
     if (entries || !event.technical) return;
-    const { token } = getLocalStorageData();
     const params = new URLSearchParams();
     if (event.technical.from) params.set("from", event.technical.from);
     if (event.technical.to) params.set("to", event.technical.to);
     sendRequest(
       {
         url: `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticketNum}/log?${params}`,
-        headers: { Authorization: "Bearer " + token },
       },
       (data) => setEntries(data.entries ?? []),
     );
@@ -252,12 +249,10 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
     formData.append("ticketId", ticket._id);
     for (const file of files) formData.append("attachments", file);
 
-    const { token } = getLocalStorageData();
     sendRequest(
       {
         url: `${import.meta.env.VITE_API_ADDRESS}/api/comments/add/`,
         method: "POST",
-        headers: { Authorization: "Bearer " + token },
         isFormData: true,
         body: formData,
       },

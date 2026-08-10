@@ -10,7 +10,6 @@ import HealthRow from "@/components/app/HealthRow";
 import { SubLabel } from "@/components/app/Panel";
 
 import Combobox, { toOptions } from "@/components/app/Combobox";
-import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
 import MailChannelFields from "./MailChannelFields";
 import { describeChannelHealth, describeCheckResult } from "./channel-health";
@@ -61,14 +60,12 @@ const PrefsTicketsCollect = ({ prefs }) => {
     setChecking(true);
     setCheckResult(null);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/preferences/mailbox/check`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify({ mailbox }),
         },
@@ -90,12 +87,9 @@ const PrefsTicketsCollect = ({ prefs }) => {
   // остаётся выбираемым, даже если его нет в свежем списке
   const [accounts, setAccounts] = useState([]);
   useEffect(() => {
-    const { token } = getLocalStorageData();
     fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/form-data/service-accounts`,
-      {
-        headers: { Authorization: "Bearer " + token },
-      },
+      {},
     )
       .then((response) => (response.ok ? response.json() : []))
       .then((data) =>
@@ -139,7 +133,7 @@ const PrefsTicketsCollect = ({ prefs }) => {
   const health = checking
     ? { state: "busy", title: "Проверяем ящик…" }
     : checkResult
-      ? describeCheckResult(checkResult, {})
+      ? describeCheckResult(checkResult)
       : describeChannelHealth(prefs.mailbox?.health, { kind: "imap" });
 
   return (

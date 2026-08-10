@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils";
 
 import useUserFilterStore from "../../store/lists/users";
 import usePolling from "../../hooks/use-polling";
-import { getLocalStorageData } from "../../util/auth";
 
 import List from "../../components/User/List";
 import UserFilter from "../../components/User/Filter";
@@ -46,10 +45,7 @@ const Users = () => {
 
   // Список компаний для фасета (лёгкий, scoped на бэкенде).
   useEffect(() => {
-    const { token } = getLocalStorageData();
-    fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users/companies`, {
-      headers: { Authorization: "Bearer " + token },
-    })
+    fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users/companies`)
       .then((response) => (response.ok ? response.json() : []))
       .then((data) =>
         s.setCompanyOptions(

@@ -2,7 +2,6 @@ import { useContext } from "react";
 import DeviceModelForm from "../../components/DeviceModel/Form";
 import InlineForbidden from "../../components/Error/InlineForbidden";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 import { useSearchParams } from "react-router";
 
 const UpdateDeviceModelPage = () => {
@@ -31,17 +30,10 @@ export default UpdateDeviceModelPage;
 export async function loader({ params }) {
   document.title = "Изменить модель устройства";
 
-  const { token } = getLocalStorageData();
-
   // Fetch device model
   const deviceModelResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!deviceModelResponse.ok) {
     throw deviceModelResponse;
@@ -52,12 +44,7 @@ export async function loader({ params }) {
   // Fetch device types with attributes
   const deviceTypesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
   // Атрибуты типа форме модели больше не нужны (конфигурации — отдельная
   // форма с карточки); тип по-прежнему несёт isConsumable для совместимости.
   const deviceTypes = await deviceTypesResponse.json();
@@ -65,23 +52,13 @@ export async function loader({ params }) {
   // Fetch vendors
   const vendorsResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/vendors`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
   const vendors = await vendorsResponse.json();
 
   // Fetch all device models for compatibility selection (exclude current one)
   const deviceModelsResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
   const allDeviceModels = await deviceModelsResponse.json();
   const deviceModels = allDeviceModels.filter((dm) => dm._id !== params.id);
 
@@ -94,8 +71,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const deviceModelData = {
@@ -112,7 +87,6 @@ export async function action({ request, params }) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(deviceModelData),
     },

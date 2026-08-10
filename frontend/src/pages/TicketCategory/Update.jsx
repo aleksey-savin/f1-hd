@@ -1,5 +1,4 @@
 import Form from "../../components/TicketCategory/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const UpdateTicketCategoryPage = () => {
   return <Form title="Изменить категорию заявок" />;
@@ -10,16 +9,9 @@ export default UpdateTicketCategoryPage;
 export async function loader({ params }) {
   document.title = "Изменить категорию заявок";
 
-  const { token } = getLocalStorageData();
-
   const categoryResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!categoryResponse.ok) {
     throw categoryResponse;
@@ -29,12 +21,7 @@ export async function loader({ params }) {
 
   const initialPrefsResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!initialPrefsResponse.ok) {
     throw initialPrefsResponse;
@@ -47,12 +34,7 @@ export async function loader({ params }) {
   if (prefsData.modules.finances.isActive) {
     const servicePlansResponse = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
+          );
 
     if (!servicePlansResponse.ok) {
       throw servicePlansResponse;
@@ -63,12 +45,7 @@ export async function loader({ params }) {
 
   const usersResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!usersResponse.ok) {
     throw usersResponse;
@@ -84,8 +61,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const categoryData = {
@@ -103,7 +78,6 @@ export async function action({ request, params }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(categoryData),
     },

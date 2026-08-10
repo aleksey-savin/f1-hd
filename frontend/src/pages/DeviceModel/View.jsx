@@ -4,7 +4,6 @@ import { useLoaderData, redirect } from "react-router";
 import ViewDeviceModel from "../../components/DeviceModel/View";
 import Forbidden from "../../components/Error/403";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 
 const ViewDeviceModelPage = () => {
   const { permissions } = useContext(AuthedUserContext);
@@ -29,8 +28,7 @@ export default ViewDeviceModelPage;
 export async function loader({ params }) {
   document.title = "Просмотр модели устройства";
 
-  const { token } = getLocalStorageData();
-  const headers = { Authorization: "Bearer " + token };
+  const headers = {};
   const base = `${import.meta.env.VITE_API_ADDRESS}/api/inventory`;
 
   const deviceModelResponse = await fetch(
@@ -70,10 +68,8 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
   const headers = {
     "Content-Type": "application/json",
-    Authorization: "Bearer " + token,
   };
 
   const data = await request.formData();

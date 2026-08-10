@@ -126,7 +126,6 @@ const AiGuideSection = () => {
       try {
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticket.num}`,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok) return;
         const data = await response.json();
@@ -148,7 +147,6 @@ const AiGuideSection = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: { _id: ticket._id },
       },

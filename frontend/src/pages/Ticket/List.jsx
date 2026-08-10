@@ -18,7 +18,6 @@ import usePolling from "../../hooks/use-polling";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useTicketFilterStore from "../../store/lists/tickets";
 import useToastStore from "../../store/toast-store";
-import { getLocalStorageData } from "../../util/auth";
 import { queueLabel } from "../../util/ticket-queues";
 import { useCan } from "@/store/authed-user";
 
@@ -243,7 +242,6 @@ const Tickets = () => {
   // Общий запрос массового действия: POST + обновление списка. Сетевые сбои не
   // роняем — показываем тост, список перечитываем в любом случае.
   const bulkRequest = async (url, body, successMessage) => {
-    const { token } = getLocalStorageData();
     setProcessing(true);
     try {
       const response = await fetch(
@@ -252,7 +250,6 @@ const Tickets = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify(body),
         },

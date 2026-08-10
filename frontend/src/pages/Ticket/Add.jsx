@@ -1,4 +1,3 @@
-import { getLocalStorageData } from "../../util/auth";
 
 import TicketFormRoute from "../../components/Ticket/TicketFormRoute";
 
@@ -9,8 +8,7 @@ export default AddTicketPage;
 export async function loader({ request }) {
   document.title = "Новая заявка";
 
-  const { token } = getLocalStorageData();
-  const headers = { Authorization: "Bearer " + token };
+  const headers = {};
   const api = import.meta.env.VITE_API_ADDRESS;
 
   // Шаблоны тянет loader, а не эффект компонента: список нужен сразу, а его
@@ -42,15 +40,12 @@ export async function loader({ request }) {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   // Тело пересылаем как есть: в нём файлы вложений, а multipart собирается
   // браузером вместе с boundary — Content-Type руками не ставим
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/tickets/add`,
     {
       method: "POST",
-      headers: { Authorization: "Bearer " + token },
       body: await request.formData(),
     },
   );

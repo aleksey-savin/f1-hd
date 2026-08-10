@@ -10,7 +10,6 @@ import HealthRow from "@/components/app/HealthRow";
 import { SubLabel } from "@/components/app/Panel";
 
 import Combobox, { toOptions } from "@/components/app/Combobox";
-import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
 import AiRules from "./AiRules";
 import { describeChannelHealth, describeCheckResult } from "./channel-health";
@@ -147,14 +146,12 @@ const PrefsAi = ({ prefs }) => {
     folderId,
     baseUrl,
   }) => {
-    const { token } = getLocalStorageData();
     const response = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/preferences/ai-models`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ provider, apiKey, feature, folderId, baseUrl }),
       },
@@ -169,14 +166,12 @@ const PrefsAi = ({ prefs }) => {
     setBusy(true);
     setResult(null);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/preferences/${path}`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify(payload),
         },
@@ -321,13 +316,13 @@ const PrefsAi = ({ prefs }) => {
   const chatHealth = aiChecking
     ? { state: "busy", title: "Спрашиваем модель…" }
     : aiCheckResult
-      ? describeCheckResult(aiCheckResult, {})
+      ? describeCheckResult(aiCheckResult)
       : describeChannelHealth(prefs.ai?.health, { kind: "ai" });
 
   const speechHealth = speechChecking
     ? { state: "busy", title: "Проверяем распознавание…" }
     : speechCheckResult
-      ? describeCheckResult(speechCheckResult, {})
+      ? describeCheckResult(speechCheckResult)
       : describeChannelHealth(prefs.ai?.speechToText?.health, {
           kind: "speech",
         });

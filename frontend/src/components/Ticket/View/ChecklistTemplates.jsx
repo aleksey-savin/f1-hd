@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-import { getLocalStorageData } from "../../../util/auth";
 import { plural } from "../../../util/plural";
 import { dismissOffer, isOfferDismissed } from "../../../util/checklist-offer";
 
@@ -44,10 +43,8 @@ export const useChecklistTemplates = (ticketNum, canEdit) => {
 
     (async () => {
       try {
-        const { token } = getLocalStorageData();
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/checklist-templates/for-ticket/${ticketNum}`,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok) return;
         const json = await response.json();

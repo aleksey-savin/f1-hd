@@ -1,7 +1,6 @@
 import { create } from "zustand";
 
 import type { PersonalReportResponse } from "../../types/employeesReport";
-import { getLocalStorageData } from "../../util/auth";
 import { monthRange } from "../../util/period";
 
 // Персональный отчёт: свой («Мой отчёт») или выбранного сотрудника (переход из
@@ -35,7 +34,6 @@ const doFetch = async (get: Getter, set: Setter) => {
   if (!from || !to) return;
 
   const requestId = ++requestSeq;
-  const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
     const url = new URL(`${API}/api/finances/personal-report-summary`, window.location.origin);
@@ -44,9 +42,7 @@ const doFetch = async (get: Getter, set: Setter) => {
       to,
       ...(userId ? { userId } : {}),
     }).toString();
-    const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
+    const response = await fetch(url);
     if (response.status === 403) {
       if (requestId !== requestSeq) return;
       set({ isLoading: false, isForbidden: true, data: null });

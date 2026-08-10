@@ -5,7 +5,6 @@ import { Switch } from "@/components/ui/switch";
 import SettingRow from "@/components/app/SettingRow";
 
 import { MultiCombobox, toOptions } from "@/components/app/Combobox";
-import { getLocalStorageData } from "../../util/auth";
 import SectionForm from "./SectionForm";
 
 // «База знаний» (видна при включённом модуле): модерация, поиск секретов и
@@ -33,10 +32,9 @@ const PrefsKnowledgeBase = ({ prefs }) => {
   // Кандидаты в модераторы — сотрудники с правами «видеть» и «управлять» базой
   const [candidates, setCandidates] = useState([]);
   useEffect(() => {
-    const { token } = getLocalStorageData();
     fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/users/knowledge-base-moderators`,
-      { headers: { Authorization: "Bearer " + token } },
+      {},
     )
       .then((response) => (response.ok ? response.json() : []))
       .then((data) => setCandidates(Array.isArray(data) ? data : []))

@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import Combobox from "@/components/app/Combobox";
 import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
 import useTeamScheduleStore from "@/store/team/schedule";
-import { getLocalStorageData } from "@/util/auth";
 
 const API = import.meta.env.VITE_API_ADDRESS;
 
@@ -37,10 +36,7 @@ const ScheduleFilter = () => {
   }, [offcanvas.isActive, store.search, store.company]);
 
   useEffect(() => {
-    const { token } = getLocalStorageData();
-    fetch(`${API}/api/users/companies`, {
-      headers: { Authorization: "Bearer " + token },
-    })
+    fetch(`${API}/api/users/companies`)
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
         const list = payload?.companies ?? payload ?? [];

@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import AlertMessage from "@/components/app/AlertMessage";
 
 import DeviceAttributeFormFields from "../DeviceAttribute/FormFields";
-import { getLocalStorageData } from "../../util/auth";
 
 // Инлайн-создание атрибута из формы типа устройства: общий
 // DeviceAttributeFormFields (onChange-контракт), fetch напрямую —
@@ -52,8 +51,6 @@ const AddDeviceAttributeModal = ({ show, onHide, onAttributeCreated }) => {
     setError("");
 
     try {
-      const { token } = getLocalStorageData();
-
       // Parse options if select/multiselect
       let parsedOptions = [];
       const showOptionsField =
@@ -83,7 +80,6 @@ const AddDeviceAttributeModal = ({ show, onHide, onAttributeCreated }) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify(attributeData),
         },

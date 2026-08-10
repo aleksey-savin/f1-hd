@@ -1,4 +1,3 @@
-import { getLocalStorageData } from "../../util/auth";
 
 // Loader и action всех форм работ. Пять маршрутов отличались только адресом
 // запроса, а копий кода было пять — время в UTC каждая переводила сама, и одна
@@ -11,11 +10,8 @@ const api = (path) => `${import.meta.env.VITE_API_ADDRESS}/api${path}`;
 
 /** Что форме нужно сразу при открытии: с какой даты можно указывать работы. */
 export async function workFormLoader({ params }) {
-  const { token } = getLocalStorageData();
-
   const response = await fetch(
     api(`/works/additional-data/${params.ticketNum}`),
-    { headers: { Authorization: "Bearer " + token } },
   );
 
   if (!response.ok) {
@@ -26,13 +22,10 @@ export async function workFormLoader({ params }) {
 }
 
 const post = async (url, payload) => {
-  const { token } = getLocalStorageData();
-
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: "Bearer " + token,
     },
     body: JSON.stringify(payload),
   });

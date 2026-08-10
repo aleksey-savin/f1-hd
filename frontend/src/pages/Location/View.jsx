@@ -1,7 +1,6 @@
 import { useLoaderData, redirect } from "react-router";
 
 import ViewLocation from "../../components/Location/View";
-import { getLocalStorageData } from "../../util/auth";
 
 // Гейта Forbidden нет намеренно: getOne на бэкенде доступен любому
 // авторизованному (как список расположений); кнопки управления карточка
@@ -24,13 +23,10 @@ export default ViewLocationPage;
 export async function loader({ params }) {
   document.title = "Просмотр расположения";
 
-  const { token } = getLocalStorageData();
-
   // getOne отдаёт всё для карточки разом: location + ancestors (крошки) +
   // children с числом устройств + устройства «здесь» (тонкие DTO).
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations/${params.id}`,
-    { headers: { Authorization: "Bearer " + token } },
   );
   if (!response.ok) {
     throw response;
@@ -39,8 +35,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   if (data.get("intent") !== "delete") {
     return { ok: true };
@@ -53,7 +47,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
     },
   );

@@ -3,7 +3,6 @@ import { redirect, useLocation } from "react-router";
 
 import ListWrapper from "@/components/app/ListWrapper";
 
-import { getLocalStorageData } from "../../util/auth";
 
 import useTicketCategoryFilterStore from "../../store/lists/ticket-categories";
 
@@ -86,8 +85,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const id = data.get("id");
 
@@ -97,7 +94,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
     },
   );

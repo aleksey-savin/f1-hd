@@ -23,7 +23,6 @@ import { cn } from "@/lib/utils";
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import MarkdownEditor from "../../UI/MarkdownEditor";
 import useOffcanvasStore from "../../store/offcanvas";
-import { getLocalStorageData } from "../../util/auth";
 import Summary from "./Summary";
 
 const STEPS = [
@@ -104,10 +103,8 @@ const RoutineTaskForm = () => {
       return;
     }
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates/${tpl._id}`,
-        { headers: { Authorization: "Bearer " + token } },
       );
       if (!response.ok) throw response;
       const full = await response.json();

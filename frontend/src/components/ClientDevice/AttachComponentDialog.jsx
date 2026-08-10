@@ -15,7 +15,6 @@ import AlertMessage from "@/components/app/AlertMessage";
 import Combobox from "@/components/app/Combobox";
 import Field from "@/components/app/Field";
 
-import { getLocalStorageData } from "../../util/auth";
 import { fetchAttachableDevices, describeDevice } from "./attachable";
 
 const refId = (value) => value?._id || value || "";
@@ -76,7 +75,6 @@ const AttachComponentDialog = ({ open, onOpenChange, device, onAttached }) => {
     if (!componentId) return;
     setSaving(true);
     setError("");
-    const { token } = getLocalStorageData();
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${device._id}/components`,
@@ -84,7 +82,6 @@ const AttachComponentDialog = ({ open, onOpenChange, device, onAttached }) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify({ componentId }),
         },

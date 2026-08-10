@@ -66,17 +66,14 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
   const period = monthRange(new Date());
 
   const load = useCallback(async () => {
-    const { token } = getLocalStorageData();
     setIsLoading(true);
     try {
       const [scheduleResponse, absenceResponse] = await Promise.all([
         fetch(
           `${API}/api/team/schedule/${user._id}?from=${period.from}&to=${period.to}`,
-          { headers: { Authorization: "Bearer " + token } },
+          {},
         ),
-        fetch(`${API}/api/team/absences?user=${user._id}`, {
-          headers: { Authorization: "Bearer " + token },
-        }),
+        fetch(`${API}/api/team/absences?user=${user._id}`),
       ]);
       if (!scheduleResponse.ok)
         throw new Error(String(scheduleResponse.status));
@@ -104,14 +101,13 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
   }));
 
   const saveTimezone = async (next: string | null) => {
-    const { token, userId } = getLocalStorageData();
+    const { userId } = getLocalStorageData();
     setSavingTz(true);
     try {
       const response = await fetch(`${API}/api/users/update-account`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ id: userId, timezone: next }),
       });
@@ -125,12 +121,10 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
   };
 
   const cancel = async (id: string) => {
-    const { token } = getLocalStorageData();
     setBusyId(id);
     try {
       const response = await fetch(`${API}/api/team/absences/${id}/cancel`, {
         method: "POST",
-        headers: { Authorization: "Bearer " + token },
       });
       if (!response.ok) throw new Error(String(response.status));
       await load();

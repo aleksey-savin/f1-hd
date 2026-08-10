@@ -60,9 +60,7 @@ export async function storeSession(data: AuthResponse, response?: Response) {
   localStorage.setItem("userId", String(data.userId));
 
   try {
-    const response = await fetch(`${API}/api/preferences-initial`, {
-      headers: { Authorization: "Bearer " + token },
-    });
+    const response = await fetch(`${API}/api/preferences-initial`);
     if (!response.ok) return;
 
     const prefs = (await response.json()) as {

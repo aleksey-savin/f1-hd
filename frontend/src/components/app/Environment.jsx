@@ -295,7 +295,7 @@ const Environment = ({
           ? `${base}/api/inventory/locations/user/${userId}/environment`
           : `${base}/api/inventory/locations/company/${companyId}/environment`;
     sendRequest(
-      { url, headers: { Authorization: "Bearer " + token } },
+      { url, headers: {} },
       (data) => {
         setEnv(data);
         if (mode === "company") {
@@ -387,7 +387,6 @@ const Environment = ({
         {
           // userId нужен только для слоя isPersonal — в остальных режимах его нет.
           url: `${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations/${child._id}/node${mode === "user" || mode === "device" ? (userId ? `?userId=${userId}` : "") : ""}`,
-          headers: { Authorization: "Bearer " + token },
         },
         (node) => {
           dirRef.current = 1;

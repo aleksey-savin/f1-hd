@@ -5,7 +5,6 @@ import { RiMailLine, RiPhoneLine } from "react-icons/ri";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
 import useInitialPrefsStore from "../../store/prefs";
-import { getLocalStorageData } from "../../util/auth";
 import { monogramFor } from "@/components/app/monogram";
 
 /**
@@ -25,11 +24,9 @@ const MySupport = () => {
 
   useEffect(() => {
     const load = async () => {
-      const { token } = getLocalStorageData();
       try {
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/companies/my-support`,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok) throw new Error(`my-support ${response.status}`);
         setData(await response.json());

@@ -1,5 +1,4 @@
 import Form from "../../components/TicketCategory/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const AddTicketCategoryPage = () => {
   return <Form title="Новая категория заявок" />;
@@ -8,18 +7,11 @@ const AddTicketCategoryPage = () => {
 export default AddTicketCategoryPage;
 
 export async function loader() {
-  const { token } = getLocalStorageData();
-
   document.title = "Новая категория заявок";
 
   const initialPrefsResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!initialPrefsResponse.ok) {
     throw initialPrefsResponse;
@@ -32,12 +24,7 @@ export async function loader() {
   if (prefsData.modules.finances.isActive) {
     const servicePlansResponse = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
+          );
 
     if (!servicePlansResponse.ok) {
       throw servicePlansResponse;
@@ -48,12 +35,7 @@ export async function loader() {
 
   const usersResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!usersResponse.ok) {
     throw usersResponse;
@@ -68,8 +50,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const categoryData = {
@@ -87,7 +67,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(categoryData),
     },

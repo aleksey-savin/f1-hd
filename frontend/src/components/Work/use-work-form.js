@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { localToUtc, utcToLocalForm } from "../../util/format-date";
-import { getLocalStorageData } from "../../util/auth";
 
 import { LONG_WORK_MS } from "./duration";
 
@@ -161,14 +160,12 @@ export const useWorkForm = ({
 
     const timer = setTimeout(async () => {
       try {
-        const { token } = getLocalStorageData();
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/works/preview`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: "Bearer " + token,
             },
             body: JSON.stringify({
               tickets: allTicketIds,

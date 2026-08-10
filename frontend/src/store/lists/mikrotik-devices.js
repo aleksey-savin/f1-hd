@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { getLocalStorageData } from "../../util/auth";
 
 const API = `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices`;
 
@@ -107,7 +106,6 @@ const recompute = (state) => {
 };
 
 const authHeaders = () => ({
-  Authorization: "Bearer " + getLocalStorageData().token,
 });
 
 const jsonHeaders = () => ({

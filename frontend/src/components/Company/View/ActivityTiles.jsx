@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Eyebrow } from "@/components/app/Panel";
 import StatTile, { StatTileDelta } from "@/components/app/StatTile";
 
-import { getLocalStorageData } from "../../../util/auth";
 import { msToHMS } from "../../../util/time-helpers";
 
 // «Активность» — статборд-плитки (app/StatTile) вместо легаси-карточек
@@ -81,10 +80,7 @@ const ActivityTiles = ({ company, stats, id }) => {
     }
     const seq = ++seqRef.current;
     setBusy(true);
-    const { token } = getLocalStorageData();
-    fetch(`${API}/api/companies/${company._id}/stats?month=${key}`, {
-      headers: { Authorization: "Bearer " + token },
-    })
+    fetch(`${API}/api/companies/${company._id}/stats?month=${key}`)
       .then((response) => {
         if (!response.ok) throw new Error(`stats ${response.status}`);
         return response.json();

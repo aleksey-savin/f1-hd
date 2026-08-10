@@ -27,7 +27,6 @@ import useToastStore from "@/store/toast-store";
 
 import Combobox from "@/components/app/Combobox";
 import SetupHelp, { genPassword, parseKnock } from "./SetupHelp";
-import { getLocalStorageData } from "../../util/auth";
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 
 const EMPTY_FORM = {
@@ -108,11 +107,9 @@ const DeviceForm = () => {
     const controller = new AbortController();
     (async () => {
       try {
-        const { token } = getLocalStorageData();
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/companies`,
           {
-            headers: { Authorization: "Bearer " + token },
             signal: controller.signal,
           },
         );
@@ -169,12 +166,10 @@ const DeviceForm = () => {
     if (!targetDeviceId) return;
     let cancelled = false;
     (async () => {
-      const { token } = getLocalStorageData();
       const base = import.meta.env.VITE_API_ADDRESS;
       try {
         const response = await fetch(
           base + "/api/inventory/client-devices/" + targetDeviceId,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok) return;
         const device = await response.json();

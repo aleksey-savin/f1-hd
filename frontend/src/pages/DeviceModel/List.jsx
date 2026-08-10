@@ -8,7 +8,6 @@ import useDeviceModelFilterStore from "../../store/lists/deviceModels";
 import List from "../../components/DeviceModel/List";
 import DeviceModelFilter from "../../components/DeviceModel/Filter";
 
-import { getLocalStorageData } from "../../util/auth";
 
 const DeviceModelListPage = () => {
   const location = useLocation();
@@ -99,8 +98,6 @@ const DeviceModelListPage = () => {
 export default DeviceModelListPage;
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const id = data.get("id");
 
@@ -110,7 +107,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
     },
   );

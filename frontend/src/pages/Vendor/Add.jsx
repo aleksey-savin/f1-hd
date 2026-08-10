@@ -1,5 +1,4 @@
 import Form from "../../components/Vendor/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const AddVendorPage = () => {
   return (
@@ -21,8 +20,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const vendorData = {
@@ -38,7 +35,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(vendorData),
     },

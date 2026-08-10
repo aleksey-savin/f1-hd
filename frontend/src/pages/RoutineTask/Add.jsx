@@ -7,10 +7,8 @@ const AddRoutineTaskPage = () => {
 
 export default AddRoutineTaskPage;
 
-const authGet = (path, token) =>
-  fetch(`${import.meta.env.VITE_API_ADDRESS}/api/${path}`, {
-    headers: { Authorization: "Bearer " + token },
-  }).then((response) => {
+const authGet = (path, _token) =>
+  fetch(`${import.meta.env.VITE_API_ADDRESS}/api/${path}`).then((response) => {
     if (!response.ok) throw response;
     return response.json();
   });
@@ -53,7 +51,6 @@ export async function loader({ request }) {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
 
   const payload = await request.json();
 
@@ -63,7 +60,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(payload),
     },

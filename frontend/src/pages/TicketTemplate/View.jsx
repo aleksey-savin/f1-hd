@@ -1,6 +1,5 @@
 import { useLoaderData, redirect } from "react-router";
 
-import { getLocalStorageData } from "../../util/auth";
 
 import ViewTicketTemplate from "../../components/TicketTemplate/View";
 
@@ -12,16 +11,9 @@ const ViewTicketTemplatePage = () => {
 export default ViewTicketTemplatePage;
 
 export async function loader({ params }) {
-  const { token } = getLocalStorageData();
-
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!response.ok) {
     throw response;
@@ -35,8 +27,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const intent = data.get("intent");
   const id = data.get("id");
@@ -51,7 +41,6 @@ export async function action({ request, params }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ checklist }),
       },
@@ -71,7 +60,6 @@ export async function action({ request, params }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
       },
     );

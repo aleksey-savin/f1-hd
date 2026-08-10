@@ -1,7 +1,6 @@
 import { create } from "zustand";
 
 import type { PipelineResponse, PipelineStageKey } from "../../types/approval";
-import { getLocalStorageData } from "../../util/auth";
 
 // Конвейер «Согласования работ». Механика та же, что у остальных отчётов
 // (store/reports/*): seq-guard от гонок, ошибка не сбрасывает уже показанные
@@ -29,14 +28,11 @@ let requestSeq = 0;
 
 const doFetch = async (get: Getter, set: Setter, silent = false) => {
   const requestId = ++requestSeq;
-  const { token } = getLocalStorageData();
   if (!silent) {
     set({ isLoading: true });
   }
   try {
-    const response = await fetch(`${API}/api/approval/pipeline`, {
-      headers: { Authorization: "Bearer " + token },
-    });
+    const response = await fetch(`${API}/api/approval/pipeline`);
     if (!response.ok) throw new Error(`approval pipeline ${response.status}`);
     const data = (await response.json()) as PipelineResponse;
     if (requestId !== requestSeq) return;

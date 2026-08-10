@@ -34,7 +34,6 @@ import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import MarkdownEditor from "../../UI/MarkdownEditor";
 import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
-import { getLocalStorageData } from "../../util/auth";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import Summary from "./Summary";
 
@@ -195,14 +194,12 @@ const TicketTemplateForm = () => {
   const applySync = async () => {
     setSyncing(true);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates/${template._id}/sync-routines`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify({ routineIds: syncIds }),
         },

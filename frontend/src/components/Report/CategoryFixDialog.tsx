@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import { getLocalStorageData } from "../../util/auth";
 
 /**
  * Правка категории заявки у работ, не попавших ни под одну услугу.
@@ -54,10 +53,7 @@ const CategoryFixDialog = ({
     setCategory(null);
     setError(null);
 
-    const { token } = getLocalStorageData();
-    fetch(`${API}/api/ticket-categories`, {
-      headers: { Authorization: "Bearer " + token },
-    })
+    fetch(`${API}/api/ticket-categories`)
       .then((response) => response.json())
       .then((list) => setCategories(list || []))
       .catch(() => setCategories([]));
@@ -71,12 +67,10 @@ const CategoryFixDialog = ({
     setBusy(true);
     setError(null);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(`${API}/api/tickets/update`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ _id: ticket._id, categoryId: category._id }),
       });

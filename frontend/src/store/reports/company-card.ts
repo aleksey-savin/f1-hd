@@ -5,7 +5,6 @@ import type {
   PeriodRange,
   SubdivisionCardResponse,
 } from "../../types/report";
-import { getLocalStorageData } from "../../util/auth";
 import { monthRange } from "../../util/period";
 
 // Карточка компании и карточка подразделения — один стор: экраны различаются
@@ -46,7 +45,6 @@ const doFetch = async (get: Getter, set: Setter) => {
   if (!companyId || !from || !to) return;
 
   const requestId = ++requestSeq;
-  const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
     const path = subdivisionId
@@ -59,9 +57,7 @@ const doFetch = async (get: Getter, set: Setter) => {
     }
     url.search = params.toString();
 
-    const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
+    const response = await fetch(url);
     if (response.status === 403) {
       if (requestId !== requestSeq) return;
       set({ isLoading: false, isForbidden: true, data: null, error: null });

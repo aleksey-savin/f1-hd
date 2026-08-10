@@ -7,7 +7,6 @@ import ListWrapper from "@/components/app/ListWrapper";
 import List from "../../components/RoutineTask/List";
 import RoutineTaskFilter from "../../components/RoutineTask/Filter";
 import useRoutineTaskFilterStore from "../../store/lists/routine-tasks";
-import { getLocalStorageData } from "../../util/auth";
 
 const pluralCompanies = (n) => {
   const m10 = n % 10;
@@ -130,8 +129,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const id = data.get("id");
 
@@ -141,7 +138,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
     },
   );

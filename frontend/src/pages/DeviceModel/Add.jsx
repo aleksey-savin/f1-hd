@@ -1,7 +1,6 @@
 import { useParams } from "react-router";
 
 import Form from "../../components/DeviceModel/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const AddDeviceModelPage = ({ presetFrom }) => {
   // Вложенные маршруты карточек (device-types/:id/models/add,
@@ -30,17 +29,10 @@ export default AddDeviceModelPage;
 export async function loader() {
   document.title = "Новая модель устройства";
 
-  const { token } = getLocalStorageData();
-
   // Fetch device types with attributes
   const deviceTypesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
   // Тип содержит флаг isConsumable (для поля «Совместимые модели»); атрибуты
   // здесь больше не нужны — конфигурации создаются отдельной формой с карточки.
   const deviceTypes = await deviceTypesResponse.json();
@@ -48,23 +40,13 @@ export async function loader() {
   // Fetch vendors
   const vendorsResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/vendors`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
   const vendors = await vendorsResponse.json();
 
   // Fetch all device models for compatibility selection
   const deviceModelsResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
   const deviceModels = await deviceModelsResponse.json();
 
   return {
@@ -75,8 +57,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const deviceModelData = {
@@ -93,7 +73,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(deviceModelData),
     },

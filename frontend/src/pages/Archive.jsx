@@ -6,7 +6,6 @@ import Segmented from "@/components/app/Segmented";
 import TicketsArchiveList from "../components/Ticket/ArchiveList";
 import WorksArchiveList from "../components/Work/ArchiveList";
 import useInitialPrefs from "../store/prefs";
-import { getLocalStorageData } from "../util/auth";
 import { useCan } from "@/store/authed-user";
 
 // «Архив» — одна страница на две сущности истории: закрытые заявки и
@@ -76,20 +75,13 @@ export default Archive;
 export async function loader() {
   document.title = "Архив";
 
-  const { token } = getLocalStorageData();
-
   // Архив — исключение: отключённые компании и их заявители нужны в фильтрах,
   // чтобы искать по истории (обычные формы получают только активные).
   // Один form-data обслуживает фасеты обоих сегментов (responsibles каталога —
   // это и исполнители работ).
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/tickets/form-data?includeInactive=true`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!response.ok) {
     throw response;

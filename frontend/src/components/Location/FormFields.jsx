@@ -9,7 +9,6 @@ import SwitchField from "@/components/app/SwitchField";
 import Segmented from "@/components/app/Segmented";
 
 import Combobox from "@/components/app/Combobox";
-import { getLocalStorageData } from "../../util/auth";
 import { TYPE_LABEL, TYPE_ICON } from "./type-meta";
 
 // Тип расположения — сегментами с иконками (из общего type-meta, тот же язык,
@@ -163,11 +162,9 @@ const LocationFormFields = ({
   }, [location]);
 
   const fetchSubdivisions = async (companyId) => {
-    const { token } = getLocalStorageData();
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/companies/${companyId}`,
-        { headers: { Authorization: "Bearer " + token } },
       );
       if (response.ok) {
         const data = await response.json();

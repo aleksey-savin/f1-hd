@@ -10,7 +10,6 @@ import List from "../../components/DeviceAttribute/List";
 import DeviceAttributeFilter from "../../components/DeviceAttribute/Filter";
 
 import { valueTypeLabel } from "../../components/DeviceAttribute/value-types";
-import { getLocalStorageData } from "../../util/auth";
 
 // id привязанных к типу атрибутов (связи отдаёт getAll типов)
 const attributeIdsOf = (deviceType) =>
@@ -120,8 +119,6 @@ const DeviceAttributeListPage = () => {
 export default DeviceAttributeListPage;
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const id = data.get("id");
 
@@ -131,7 +128,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
     },
   );

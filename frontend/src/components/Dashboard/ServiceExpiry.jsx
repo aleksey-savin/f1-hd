@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { Eyebrow, Panel } from "@/components/app/Panel";
-import { getLocalStorageData } from "../../util/auth";
 import { businessDaysAgo } from "../../util/format-date";
 
 /**
@@ -39,11 +38,9 @@ const ServiceExpiry = ({ showCompany = false }) => {
 
   useEffect(() => {
     const load = async () => {
-      const { token } = getLocalStorageData();
       try {
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/knowledge-notes/service-expiry`,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok) throw new Error(`service-expiry ${response.status}`);
         const data = await response.json();

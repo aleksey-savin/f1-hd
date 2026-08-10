@@ -4,7 +4,6 @@ import { useLoaderData, redirect } from "react-router";
 import ViewVendor from "../../components/Vendor/View";
 import Forbidden from "../../components/Error/403";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 
 const ViewVendorPage = () => {
   const { permissions } = useContext(AuthedUserContext);
@@ -23,8 +22,7 @@ export default ViewVendorPage;
 export async function loader({ params }) {
   document.title = "Просмотр вендора";
 
-  const { token } = getLocalStorageData();
-  const headers = { Authorization: "Bearer " + token };
+  const headers = {};
   const base = `${import.meta.env.VITE_API_ADDRESS}/api/inventory`;
 
   const vendorResponse = await fetch(`${base}/vendors/${params.id}`, {
@@ -49,10 +47,8 @@ export async function loader({ params }) {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
   const headers = {
     "Content-Type": "application/json",
-    Authorization: "Bearer " + token,
   };
 
   const data = await request.formData();

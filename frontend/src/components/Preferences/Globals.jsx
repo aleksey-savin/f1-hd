@@ -11,7 +11,6 @@ import { SubLabel } from "@/components/app/Panel";
 import Combobox from "@/components/app/Combobox";
 import timezones from "../../store/timezones";
 import useToastStore from "../../store/toast-store";
-import { getLocalStorageData } from "../../util/auth";
 import { DEFAULT_TIMEZONE } from "../../util/format-date";
 import { TAXI_OPERATORS } from "../../util/taxi-operators";
 import SectionForm from "./SectionForm";
@@ -43,14 +42,12 @@ const PrefsGlobals = ({ prefs }) => {
   const [logoBusy, setLogoBusy] = useState(false);
 
   const logoRequest = async (path, options) => {
-    const { token } = getLocalStorageData();
     setLogoBusy(true);
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}${path}`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
           ...options,
         },
       );
@@ -236,7 +233,7 @@ const PrefsGlobals = ({ prefs }) => {
             <Button
               variant="ghost"
               disabled={logoBusy}
-              onClick={() => logoRequest("/api/preferences/delete-logo", {})}
+              onClick={() => logoRequest("/api/preferences/delete-logo")}
               className="text-destructive hover:text-destructive"
             >
               Удалить

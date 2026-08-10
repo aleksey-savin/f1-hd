@@ -3,7 +3,6 @@ import { useContext } from "react";
 import AttributeForm from "../../components/DeviceType/AttributeForm";
 import InlineForbidden from "../../components/Error/InlineForbidden";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 
 const AttributeUpdatePage = () => {
   const { permissions } = useContext(AuthedUserContext);
@@ -20,8 +19,7 @@ export default AttributeUpdatePage;
 export async function loader({ params }) {
   document.title = "Изменить атрибут типа";
 
-  const { token } = getLocalStorageData();
-  const headers = { Authorization: "Bearer " + token };
+  const headers = {};
   const base = `${import.meta.env.VITE_API_ADDRESS}/api/inventory`;
 
   const [linkResponse, typeResponse, catalogResponse] = await Promise.all([
@@ -52,7 +50,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
   const data = await request.formData();
 
   const body = {
@@ -67,7 +64,6 @@ export async function action({ request, params }) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(body),
     },

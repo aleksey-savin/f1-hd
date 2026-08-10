@@ -4,7 +4,6 @@ import { useLoaderData, redirect } from "react-router";
 import ViewDeviceType from "../../components/DeviceType/View";
 import Forbidden from "../../components/Error/403";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 
 const ViewDeviceTypePage = () => {
   const { permissions } = useContext(AuthedUserContext);
@@ -23,8 +22,7 @@ export default ViewDeviceTypePage;
 export async function loader({ params }) {
   document.title = "Просмотр типа устройства";
 
-  const { token } = getLocalStorageData();
-  const headers = { Authorization: "Bearer " + token };
+  const headers = {};
   const base = `${import.meta.env.VITE_API_ADDRESS}/api/inventory`;
 
   const typeResponse = await fetch(`${base}/device-types/${params.id}`, {
@@ -48,10 +46,8 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
   const headers = {
     "Content-Type": "application/json",
-    Authorization: "Bearer " + token,
   };
   const base = `${import.meta.env.VITE_API_ADDRESS}/api/inventory`;
 

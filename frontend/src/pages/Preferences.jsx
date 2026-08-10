@@ -17,8 +17,9 @@ import PrefsOvertime from "../components/Preferences/Overtime";
 import PrefsProductionCalendar from "../components/Preferences/ProductionCalendar";
 
 import Forbidden from "../components/Error/403";
-import { getLocalStorageData } from "../util/auth";
 import { AuthedUserContext } from "../store/authed-user-context";
+
+import { api } from "@/lib/api";
 
 // «Настройки системы»: одна страница вместо вкладок — секции-панели подряд,
 // слева липкий рейл-якорь (канон «Мой аккаунт»). Каждая секция сохраняется
@@ -133,29 +134,13 @@ export default Preferences;
 export async function loader() {
   document.title = "Настройки системы";
 
-  const { token } = getLocalStorageData();
-
-  const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/preferences`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw response;
-  }
-
-  return response;
+  return api(`/api/preferences`);
 }
 
 // Сохранение секции: JSON-тело уходит на частичный POST /api/preferences.
 // Часовой пояс после сохранения дублируется в localStorage (его читает
 // util/format-date на каждой странице).
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
   const payload = await request.json();
 
   const response = await fetch(
@@ -164,7 +149,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(payload),
     },

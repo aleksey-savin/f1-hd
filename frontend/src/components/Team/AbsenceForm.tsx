@@ -9,7 +9,6 @@ import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import Combobox from "../app/Combobox";
 import { ABSENCE_TYPES } from "../../util/absence-types";
-import { getLocalStorageData } from "../../util/auth";
 import { toIsoDay } from "../../util/period";
 import type { TeamMember } from "@/types/teamSchedule";
 
@@ -103,11 +102,9 @@ const AbsenceForm = ({
       setImpact(null);
       return;
     }
-    const { token } = getLocalStorageData();
     try {
       const response = await fetch(
         `${API}/api/team/absences/impact?user=${targetId}&from=${from}&to=${to}`,
-        { headers: { Authorization: "Bearer " + token } },
       );
       if (!response.ok) throw new Error(String(response.status));
       setImpact(await response.json());
@@ -127,7 +124,6 @@ const AbsenceForm = ({
       setError("Дата окончания раньше даты начала");
       return;
     }
-    const { token } = getLocalStorageData();
     setSaving(true);
     setError(null);
     try {
@@ -135,7 +131,6 @@ const AbsenceForm = ({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           ...(showEmployeePicker && userId ? { user: userId } : {}),

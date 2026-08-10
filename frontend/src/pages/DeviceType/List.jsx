@@ -8,7 +8,6 @@ import List from "../../components/DeviceType/List";
 import DeviceTypeFilter from "../../components/DeviceType/Filter";
 import { kindLabel } from "../../components/DeviceType/kinds";
 
-import { getLocalStorageData } from "../../util/auth";
 
 const DeviceTypeListPage = () => {
   const location = useLocation();
@@ -73,8 +72,6 @@ const DeviceTypeListPage = () => {
 export default DeviceTypeListPage;
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const id = data.get("id");
 
@@ -84,7 +81,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
     },
   );

@@ -36,21 +36,11 @@ export async function loader({ params }) {
 
   const userResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   const ticketsResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/tickets/user/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!userResponse.ok) {
     throw Response.json(
@@ -68,7 +58,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
 
   const data = await request.formData();
   const intent = data.get("intent");
@@ -81,7 +70,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
       },
     );
@@ -111,7 +99,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           banned,
@@ -151,7 +138,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify(userData),
       },
@@ -170,7 +156,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
       },
     );

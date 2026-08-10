@@ -1,5 +1,4 @@
 import Form from "../../components/DeviceType/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const AddDeviceTypePage = () => {
   return (
@@ -20,17 +19,10 @@ export default AddDeviceTypePage;
 export async function loader() {
   document.title = "Новый тип устройства";
 
-  const { token } = getLocalStorageData();
-
   // Fetch all device types for attachableToTypeIds selection
   const deviceTypesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
   const availableDeviceTypes = await deviceTypesResponse.json();
 
   // Атрибуты в форму типа больше не входят — их добавляют с карточки типа.
@@ -38,8 +30,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const deviceTypeData = {
@@ -58,7 +48,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(deviceTypeData),
     },

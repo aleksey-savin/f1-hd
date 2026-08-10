@@ -1,6 +1,5 @@
 import { useLoaderData, redirect } from "react-router";
 
-import { getLocalStorageData } from "../../util/auth";
 
 import ViewServicePlan from "../../components/ServicePlan/View";
 
@@ -12,16 +11,9 @@ const ViewServicePlanPage = () => {
 export default ViewServicePlanPage;
 
 export async function loader({ params }) {
-  const { token } = getLocalStorageData();
-
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!response.ok) {
     throw response;
@@ -37,8 +29,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const intent = data.get("intent");
   const id = data.get("id");
@@ -50,7 +40,6 @@ export async function action({ request }) {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
       },
     );

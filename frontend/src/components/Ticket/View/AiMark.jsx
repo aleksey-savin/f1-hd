@@ -13,7 +13,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-import { getLocalStorageData } from "../../../util/auth";
 import useToastStore from "../../../store/toast-store";
 
 // Метка того, что ИИ вписал в заявку вместо человека, — и вход в замечание.
@@ -77,14 +76,12 @@ const AiMark = ({
   const submit = async () => {
     setBusy(true);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/tickets/ai-feedback`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify({ _id: ticketId, target, reason, text }),
         },

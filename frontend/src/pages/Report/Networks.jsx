@@ -18,7 +18,6 @@ import {
 } from "../../components/Mikrotik/NetworksRegistry";
 import { exportNetworksToExcel } from "../../components/Mikrotik/networks-export";
 import { OVERLAP_ORDER } from "../../components/Mikrotik/meta";
-import { getLocalStorageData } from "../../util/auth";
 import { plural } from "../../util/plural";
 
 // Ключ сортировки по адресу: строкой «46.x» встаёт после «192.x», а
@@ -297,11 +296,8 @@ export default Networks;
 export async function loader() {
   document.title = "Диапазоны сетей";
 
-  const { token } = getLocalStorageData();
-
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/report/networks`,
-    { headers: { Authorization: "Bearer " + token } },
   );
 
   if (!response.ok) {

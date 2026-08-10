@@ -1,4 +1,3 @@
-import { getLocalStorageData } from "../../util/auth";
 
 import TicketFormRoute from "../../components/Ticket/TicketFormRoute";
 
@@ -20,8 +19,7 @@ export function makeLoader(mode) {
         ? `Обработать заявку ${params.ticketNum}`
         : `Изменить заявку ${params.ticketNum}`;
 
-    const { token } = getLocalStorageData();
-    const headers = { Authorization: "Bearer " + token };
+    const headers = {};
     const api = import.meta.env.VITE_API_ADDRESS;
 
     const [formDataResponse, ticketResponse] = await Promise.all([

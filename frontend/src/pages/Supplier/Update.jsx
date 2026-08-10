@@ -1,7 +1,6 @@
 
 import Form from "../../components/Supplier/Form";
 import InlineForbidden from "../../components/Error/InlineForbidden";
-import { getLocalStorageData } from "../../util/auth";
 import { useCan } from "@/store/authed-user";
 
 const UpdateSupplierPage = () => {
@@ -22,10 +21,8 @@ export default UpdateSupplierPage;
 export async function loader({ params }) {
   document.title = "Изменить поставщика";
 
-  const { token } = getLocalStorageData();
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/suppliers/${params.id}`,
-    { headers: { Authorization: "Bearer " + token } },
   );
 
   if (!response.ok) throw response;
@@ -33,7 +30,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
   const data = await request.formData();
 
   const response = await fetch(
@@ -42,7 +38,6 @@ export async function action({ request, params }) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify({
         name: data.get("name"),

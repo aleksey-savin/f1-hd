@@ -22,7 +22,6 @@ import Spinner from "@/components/app/Spinner";
 import WizardStepper from "@/components/app/WizardStepper";
 
 import useOffcanvasStore from "../../store/offcanvas";
-import { getLocalStorageData } from "../../util/auth";
 import {
   DeviceFields,
   PlacementFields,
@@ -161,8 +160,7 @@ const ClientDeviceForm = ({ title }) => {
 
   // Справочники: компании, типы, вендоры, модели, поставщики.
   useEffect(() => {
-    const { token } = getLocalStorageData();
-    const headers = { Authorization: "Bearer " + token };
+    const headers = {};
     const base = import.meta.env.VITE_API_ADDRESS;
     let cancelled = false;
 
@@ -202,11 +200,10 @@ const ClientDeviceForm = ({ title }) => {
       setLocations([]);
       return undefined;
     }
-    const { token } = getLocalStorageData();
     let cancelled = false;
     fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/inventory/companies-locations?companyIds=${form.companyId}`,
-      { headers: { Authorization: "Bearer " + token } },
+      {},
     )
       .then((response) => (response.ok ? response.json() : []))
       .then((list) => {
@@ -226,11 +223,10 @@ const ClientDeviceForm = ({ title }) => {
       setConfigurations([]);
       return undefined;
     }
-    const { token } = getLocalStorageData();
     let cancelled = false;
     fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-configurations/model/${form.deviceModelId}`,
-      { headers: { Authorization: "Bearer " + token } },
+      {},
     )
       .then((response) => (response.ok ? response.json() : []))
       .then((list) => {
@@ -259,7 +255,6 @@ const ClientDeviceForm = ({ title }) => {
       setSerialMatches([]);
       return undefined;
     }
-    const { token } = getLocalStorageData();
     const timer = setTimeout(() => {
       const url = new URL(
         `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/serial-check`,
@@ -267,7 +262,7 @@ const ClientDeviceForm = ({ title }) => {
       );
       url.searchParams.set("value", value);
       if (data?._id) url.searchParams.set("excludeId", data._id);
-      fetch(url, { headers: { Authorization: "Bearer " + token } })
+      fetch(url)
         .then((response) => (response.ok ? response.json() : null))
         .then((result) => setSerialMatches(result?.matches || []))
         .catch(() => setSerialMatches([]));

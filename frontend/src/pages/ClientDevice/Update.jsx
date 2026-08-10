@@ -1,5 +1,6 @@
 import Form from "../../components/ClientDevice/Form";
-import { getLocalStorageData } from "../../util/auth";
+
+import { api } from "@/lib/api";
 
 const UpdateClientDevicePage = () => {
   return <Form title="Изменить устройство" />;
@@ -10,27 +11,10 @@ export default UpdateClientDevicePage;
 export async function loader({ params }) {
   document.title = "Изменить устройство";
 
-  const { token } = getLocalStorageData();
-
-  const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw response;
-  }
-
-  return response;
+  return api(`/api/inventory/client-devices/${params.id}`);
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
-
   // Тело формы — JSON (см. docs/ux-ui-guide.md, «Сложное вложенное тело»).
   const clientDeviceData = await request.json();
 
@@ -40,7 +24,6 @@ export async function action({ request, params }) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(clientDeviceData),
     },

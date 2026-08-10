@@ -7,7 +7,6 @@ import List from "../../components/Supplier/List";
 import SupplierFilter from "../../components/Supplier/Filter";
 import useSupplierFilterStore from "../../store/lists/suppliers";
 import useToastStore from "../../store/toast-store";
-import { getLocalStorageData } from "../../util/auth";
 
 // Справочник поставщиков: у кого закупаем технику. Строка отвечает на «сколько
 // у него куплено и когда в последний раз» — ради этого список и открывают.
@@ -67,8 +66,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const id = data.get("id");
 
@@ -78,7 +75,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
     },
   );

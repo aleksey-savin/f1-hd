@@ -16,7 +16,6 @@ import AlertMessage from "@/components/app/AlertMessage";
 import Combobox from "@/components/app/Combobox";
 import Field from "@/components/app/Field";
 
-import { getLocalStorageData } from "../../util/auth";
 
 const refId = (value) => value?._id || value || "";
 
@@ -58,8 +57,7 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
     });
     setError("");
 
-    const { token } = getLocalStorageData();
-    const headers = { Authorization: "Bearer " + token };
+    const headers = {};
     const base = import.meta.env.VITE_API_ADDRESS;
     let cancelled = false;
 
@@ -137,7 +135,6 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
     }
     setSaving(true);
     setError("");
-    const { token } = getLocalStorageData();
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/add`,
@@ -145,7 +142,6 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify({
             parentDeviceId: host._id,

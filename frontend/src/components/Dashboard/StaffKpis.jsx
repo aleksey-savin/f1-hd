@@ -4,7 +4,6 @@ import StatTile, { StatTileDelta } from "@/components/app/StatTile";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useInitialPrefsStore from "../../store/prefs";
 import useDashboardTicketsStore from "../../store/dashboard-tickets";
-import { getLocalStorageData } from "../../util/auth";
 import { monthRange } from "../../util/period";
 import { useCan } from "@/store/authed-user";
 
@@ -44,13 +43,11 @@ const StaffKpis = () => {
   useEffect(() => {
     if (!canSeeOvertime) return;
     const load = async () => {
-      const { token } = getLocalStorageData();
       const { from, to } = monthRange(new Date());
       const params = new URLSearchParams({ from, to, details: "0" });
       try {
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/finances/personal-report-summary?${params}`,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok) throw new Error(`overtime ${response.status}`);
         setOvertime(await response.json());

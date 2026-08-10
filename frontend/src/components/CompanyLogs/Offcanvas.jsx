@@ -40,7 +40,6 @@ import { monogramFor } from "@/components/app/monogram";
 import { cn } from "@/lib/utils";
 
 import Combobox, { toOptions } from "@/components/app/Combobox";
-import { getLocalStorageData } from "../../util/auth";
 import { plural } from "../../util/plural";
 import {
   businessDaysAgo,
@@ -76,7 +75,6 @@ const dayLabel = (value) => {
 };
 
 const authHeaders = () => ({
-  Authorization: "Bearer " + getLocalStorageData().token,
 });
 
 // Карта фильтруется на клиенте — она загружена целиком

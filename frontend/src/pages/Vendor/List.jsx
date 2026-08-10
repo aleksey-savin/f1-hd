@@ -8,7 +8,6 @@ import VendorFilter from "../../components/Vendor/Filter";
 
 import ListWrapper from "@/components/app/ListWrapper";
 
-import { getLocalStorageData } from "../../util/auth";
 
 const VendorListPage = () => {
   const location = useLocation();
@@ -60,8 +59,6 @@ const VendorListPage = () => {
 export default VendorListPage;
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const id = data.get("id");
 
@@ -71,7 +68,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
     },
   );

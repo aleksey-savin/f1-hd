@@ -1,7 +1,6 @@
 import { create } from "zustand";
 
 import type { EmployeesTrendResponse } from "../../types/employeesReport";
-import { getLocalStorageData } from "../../util/auth";
 
 // Режим «Динамика» отчёта «Сотрудники»: 12 месяцев по команде. Запрос тяжёлый
 // (год работ всей организации + расчёт переработок по каждой), поэтому он
@@ -36,7 +35,6 @@ const doFetch = async (get: Getter, set: Setter) => {
   const { months, approvedOnly } = get();
 
   const requestId = ++requestSeq;
-  const { token } = getLocalStorageData();
   set({ isLoading: true });
   try {
     const url = new URL(`${API}/api/finances/employees-trend`, window.location.origin);
@@ -44,9 +42,7 @@ const doFetch = async (get: Getter, set: Setter) => {
     if (approvedOnly) params.set("approvedOnly", "true");
     url.search = params.toString();
 
-    const response = await fetch(url, {
-      headers: { Authorization: "Bearer " + token },
-    });
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`employees trend ${response.status}`);
     const data = (await response.json()) as EmployeesTrendResponse;
     if (requestId !== requestSeq) return;

@@ -2,7 +2,6 @@ import { useContext } from "react";
 import Form from "../../components/DeviceConfiguration/Form";
 import InlineForbidden from "../../components/Error/InlineForbidden";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 
 const AddDeviceConfigurationPage = () => {
   const { permissions } = useContext(AuthedUserContext);
@@ -25,17 +24,10 @@ export default AddDeviceConfigurationPage;
 export async function loader({ params }) {
   document.title = "Новая конфигурация";
 
-  const { token } = getLocalStorageData();
-
   // Fetch device model
   const deviceModelResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!deviceModelResponse.ok) {
     throw deviceModelResponse;
@@ -46,12 +38,7 @@ export async function loader({ params }) {
   // Fetch device type with attributes
   const deviceTypeResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types/${deviceModel.deviceTypeId._id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   const deviceType = await deviceTypeResponse.json();
   const attributes = deviceType.attributes || [];
@@ -63,8 +50,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const valuesJson = data.get("values");
@@ -81,7 +66,6 @@ export async function action({ request, params }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(configurationData),
     },

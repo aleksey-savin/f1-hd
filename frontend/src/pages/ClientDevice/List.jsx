@@ -12,7 +12,6 @@ import ClientDeviceFilter from "../../components/ClientDevice/Filter";
 import DeviceRow from "../../components/ClientDevice/DeviceRow";
 import FleetStrip from "../../components/ClientDevice/FleetStrip";
 import useClientDeviceFilterStore from "../../store/lists/client-devices";
-import { getLocalStorageData } from "../../util/auth";
 import { plural } from "../../util/plural";
 import { useCan } from "@/store/authed-user";
 
@@ -242,8 +241,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const id = data.get("id");
 
@@ -253,7 +250,6 @@ export async function action({ request }) {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
     },
   );

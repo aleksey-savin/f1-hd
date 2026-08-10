@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import useToastStore from "@/store/toast-store";
 
 import Combobox, { toOptions } from "@/components/app/Combobox";
-import { getLocalStorageData } from "../../util/auth";
 
 // Связать/отвязать учётную запись пользователя с Active Directory. Логины берём
 // из логов активности компании (уникальные по GUID, ещё не привязанные). Шлём
@@ -37,10 +36,8 @@ const LinkAdDialog = ({ user, open, onOpenChange }) => {
     (async () => {
       setLoading(true);
       try {
-        const { token } = getLocalStorageData();
         const response = await fetch(
           `${API}/api/companies/${companyId}/logs?page=1&limit=1000`,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok) return;
         const data = await response.json();

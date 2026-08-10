@@ -1,5 +1,4 @@
 import ServicePlanForm from "../../components/ServicePlan/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const UpdateServicePlanPage = () => {
   return <ServicePlanForm title="Изменить услугу" />;
@@ -10,16 +9,9 @@ export default UpdateServicePlanPage;
 export async function loader({ params }) {
   document.title = "Изменить услугу";
 
-  const { token } = getLocalStorageData();
-
   const servicePlanResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!servicePlanResponse.ok) {
     throw servicePlanResponse;
@@ -27,12 +19,7 @@ export async function loader({ params }) {
 
   const ticketCategoriesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!ticketCategoriesResponse.ok) {
     throw ticketCategoriesResponse;
@@ -47,8 +34,6 @@ export async function loader({ params }) {
 // Мастер услуги шлёт готовый JSON (encType: application/json) — форма уже
 // собрала типы (числа/булевы), график-объект и пакеты. Пробрасываем на бэкенд.
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
-
   const body = await request.json();
 
   const response = await fetch(
@@ -57,7 +42,6 @@ export async function action({ request, params }) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(body),
     },

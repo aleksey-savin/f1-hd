@@ -13,7 +13,6 @@ import { DeviceStatusText } from "@/components/app/device-status";
 import Spinner from "@/components/app/Spinner";
 
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
-import { getLocalStorageData } from "../../util/auth";
 import { formatDate } from "../../util/format-date";
 
 // Одна величина — одна плитка; подписи короткие, значения крупные.
@@ -49,12 +48,11 @@ const MonitoringPanel = ({ device, canManage, onSynced }) => {
 
   useEffect(() => {
     if (!recordId) return;
-    const { token } = getLocalStorageData();
     let cancelled = false;
     setIsLoading(true);
     fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/records/${recordId}`,
-      { headers: { Authorization: "Bearer " + token } },
+      {},
     )
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {

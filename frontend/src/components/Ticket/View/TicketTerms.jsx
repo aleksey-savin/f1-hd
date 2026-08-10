@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import useViewTicketStore from "../../../store/view-ticket";
-import { getLocalStorageData } from "../../../util/auth";
 import useToastStore from "../../../store/toast-store";
 
 // Понятийный аппарат заявки: что за предмет в ней вообще обсуждается.
@@ -198,14 +197,12 @@ const Reference = ({ ticket, item, onClose, canSaveNote }) => {
   const save = async () => {
     setSaving(true);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/tickets/ai-terms/save-note`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify({ _id: ticket._id, term: item.term }),
         },
@@ -303,7 +300,6 @@ const Reference = ({ ticket, item, onClose, canSaveNote }) => {
  * @param {Function} onOpenTerm смена раскрытого понятия (null — свернуть)
  */
 const TicketTerms = ({ openTerm, onOpenTerm, canSaveNote }) => {
-  const { token } = getLocalStorageData();
   const ticket = useViewTicketStore((state) => state.ticket);
   const updateTicket = useViewTicketStore((state) => state.updateTicket);
   const [analyzing, setAnalyzing] = useState(false);
@@ -328,7 +324,6 @@ const TicketTerms = ({ openTerm, onOpenTerm, canSaveNote }) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify({ _id: ticket._id }),
         },
@@ -369,7 +364,6 @@ const TicketTerms = ({ openTerm, onOpenTerm, canSaveNote }) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify({ _id: ticket._id, term: item.term }),
         },

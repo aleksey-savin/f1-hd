@@ -1,5 +1,4 @@
 import Form from "../../components/DeviceAttribute/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const AddDeviceAttributePage = () => {
   return <Form title="Новый атрибут устройства" />;
@@ -13,8 +12,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const options = data.get("options");
@@ -44,7 +41,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(attributeData),
     },

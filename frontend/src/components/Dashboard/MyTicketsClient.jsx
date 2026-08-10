@@ -5,7 +5,6 @@ import { Eyebrow, Panel } from "@/components/app/Panel";
 import Segmented from "@/components/app/Segmented";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useDashboardTicketsStore from "../../store/dashboard-tickets";
-import { getLocalStorageData } from "../../util/auth";
 import { formatShortDate } from "../../util/format-date";
 import { toIsoDay } from "../../util/period";
 import { createdText } from "../Ticket/ticket-state";
@@ -48,7 +47,6 @@ const MyTicketsClient = () => {
 
   useEffect(() => {
     const load = async () => {
-      const { token } = getLocalStorageData();
       const params = new URLSearchParams({
         from: range.from,
         to: range.to,
@@ -59,7 +57,6 @@ const MyTicketsClient = () => {
       try {
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/tickets/closed?${params}`,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok) throw new Error(`closed ${response.status}`);
         const data = await response.json();

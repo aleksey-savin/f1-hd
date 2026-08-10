@@ -1,5 +1,4 @@
 import ServicePlanForm from "../../components/ServicePlan/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const AddServicePlanPage = () => {
   return <ServicePlanForm title="Новая услуга" />;
@@ -10,16 +9,9 @@ export default AddServicePlanPage;
 export async function loader() {
   document.title = "Новая услуга";
 
-  const { token } = getLocalStorageData();
-
   const ticketCategoriesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!ticketCategoriesResponse.ok) {
     throw ticketCategoriesResponse;
@@ -33,8 +25,6 @@ export async function loader() {
 // Мастер услуги шлёт готовый JSON (encType: application/json) — форма уже
 // собрала типы (числа/булевы), график-объект и пакеты. Пробрасываем на бэкенд.
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const body = await request.json();
 
   const response = await fetch(
@@ -43,7 +33,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(body),
     },

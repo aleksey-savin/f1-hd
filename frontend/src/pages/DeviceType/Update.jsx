@@ -1,5 +1,4 @@
 import Form from "../../components/DeviceType/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const UpdateDeviceTypePage = () => {
   return <Form title="Изменить тип устройства" />;
@@ -10,17 +9,10 @@ export default UpdateDeviceTypePage;
 export async function loader({ params }) {
   document.title = "Изменить тип устройства";
 
-  const { token } = getLocalStorageData();
-
   // Fetch device type
   const deviceTypeResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!deviceTypeResponse.ok) {
     throw deviceTypeResponse;
@@ -31,12 +23,7 @@ export async function loader({ params }) {
   // Fetch all device types for attachableToTypeIds selection
   const deviceTypesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
   const allDeviceTypes = await deviceTypesResponse.json();
 
   // Filter out current device type from available options
@@ -49,8 +36,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const deviceTypeData = {
@@ -69,7 +54,6 @@ export async function action({ request, params }) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(deviceTypeData),
     },

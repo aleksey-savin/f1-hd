@@ -16,7 +16,6 @@ import Spinner from "../app/Spinner";
 import { Button } from "../ui/button";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useOffcanvasStore from "../../store/offcanvas";
-import { getLocalStorageData } from "../../util/auth";
 import { monthRange } from "../../util/period";
 import { getAbsenceType } from "../../util/absence-types";
 import { WORK_TIME_MODES } from "./permissions-catalog";
@@ -95,17 +94,14 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
   const period = monthRange(new Date());
 
   const load = useCallback(async () => {
-    const { token } = getLocalStorageData();
     setIsLoading(true);
     try {
       const [scheduleResponse, absenceResponse] = await Promise.all([
         fetch(
           `${API}/api/team/schedule/${userId}?from=${period.from}&to=${period.to}`,
-          { headers: { Authorization: "Bearer " + token } },
+          {},
         ),
-        fetch(`${API}/api/team/absences?user=${userId}`, {
-          headers: { Authorization: "Bearer " + token },
-        }),
+        fetch(`${API}/api/team/absences?user=${userId}`),
       ]);
       if (!scheduleResponse.ok) {
         throw new Error(`schedule ${scheduleResponse.status}`);

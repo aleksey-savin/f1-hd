@@ -32,7 +32,6 @@ import {
 import usePolling from "../../hooks/use-polling";
 import useApprovalStore from "../../store/reports/approval";
 import type { PreviewRow, ReportRow } from "../../types/approval";
-import { getLocalStorageData } from "../../util/auth";
 import { formatMonthLabel, formatShortDate } from "../../util/format-date";
 
 /**
@@ -103,12 +102,10 @@ const Approval = () => {
     setBusyKey(key);
     setActionError(null);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(`${API}/api/approval/reports`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           companyId: row.company._id,
@@ -133,10 +130,8 @@ const Approval = () => {
   const openUnrelated = async (row: PreviewRow) => {
     setActionError(null);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(
         `${API}/api/approval/unrelated/${row.company._id}/${row.month}`,
-        { headers: { Authorization: "Bearer " + token } },
       );
       if (!response.ok)
         throw new Error("Не удалось загрузить работы вне услуг");

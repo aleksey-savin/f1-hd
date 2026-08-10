@@ -20,7 +20,6 @@ import useHttp from "../../../hooks/use-http";
 import useInitialPrefsStore from "../../../store/prefs";
 import useToastStore from "../../../store/toast-store";
 import useViewTicketStore from "../../../store/view-ticket";
-import { getLocalStorageData } from "../../../util/auth";
 
 import AttachmentChip from "./AttachmentChip";
 import { attachmentKind, attachmentName, fileUrl } from "./attachment-utils";
@@ -48,7 +47,6 @@ import { useCan } from "@/store/authed-user";
 const VISIBLE_LIMIT = 4;
 
 export const useAttachments = (ticket) => {
-  const { token } = getLocalStorageData();
   const can = useCan();
   const { showToast } = useToastStore();
   const store = useViewTicketStore();
@@ -79,7 +77,6 @@ export const useAttachments = (ticket) => {
       {
         url: `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticket.num}/add-attachments`,
         method: "POST",
-        headers: { Authorization: "Bearer " + token },
         isFormData: true,
         body: formData,
       },
@@ -103,7 +100,6 @@ export const useAttachments = (ticket) => {
         url: `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticket.num}/remove-attachment`,
         method: "POST",
         headers: {
-          Authorization: "Bearer " + token,
           "Content-Type": "application/json",
         },
         body: { attachmentName: attachment.name },
@@ -156,7 +152,6 @@ const AttachmentStrip = ({
   ticketNum,
 }) => {
   const { showToast } = useToastStore();
-  const { token } = getLocalStorageData();
   const store = useViewTicketStore();
 
   const [preview, setPreview] = useState(null);
@@ -178,7 +173,6 @@ const AttachmentStrip = ({
         {
           method: "POST",
           headers: {
-            Authorization: "Bearer " + token,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ attachmentName: attachment.name }),

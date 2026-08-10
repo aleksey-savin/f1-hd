@@ -14,7 +14,6 @@ import ConfirmDialog from "@/components/app/ConfirmDialog";
 import Spinner from "@/components/app/Spinner";
 import { cn } from "@/lib/utils";
 
-import { getLocalStorageData } from "../../util/auth";
 
 // Зеркалит лимиты backend/middleware/imageUpload.js.
 const MAX_PHOTOS = 10;
@@ -180,10 +179,8 @@ const PhotoGallery = ({
 
     setIsUploading(true);
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: { Authorization: "Bearer " + token },
         body,
       });
       const data = await response.json().catch(() => ({}));
@@ -204,10 +201,8 @@ const PhotoGallery = ({
     setIsDeleting(true);
     setError("");
     try {
-      const { token } = getLocalStorageData();
       const response = await fetch(`${endpoint}/${pendingDelete._id}`, {
         method: "DELETE",
-        headers: { Authorization: "Bearer " + token },
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok)

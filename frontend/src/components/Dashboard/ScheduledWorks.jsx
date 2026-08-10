@@ -3,7 +3,6 @@ import { Link } from "react-router";
 
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 import {
   businessDaysAgo,
   formatDayMonth,
@@ -37,11 +36,9 @@ const ScheduledWorks = () => {
 
   useEffect(() => {
     const load = async () => {
-      const { token } = getLocalStorageData();
       try {
         const response = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/all-scheduled-works`,
-          { headers: { Authorization: "Bearer " + token } },
         );
         if (!response.ok) throw new Error(`scheduled ${response.status}`);
         const data = await response.json();

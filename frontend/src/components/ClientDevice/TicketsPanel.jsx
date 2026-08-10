@@ -4,7 +4,6 @@ import { Link } from "react-router";
 import { DeviceStatusText } from "@/components/app/device-status";
 import Spinner from "@/components/app/Spinner";
 
-import { getLocalStorageData } from "../../util/auth";
 import { formatShortDate } from "../../util/format-date";
 
 // Состояние заявки → тон статус-текста (тот же язык, что у учётных статусов
@@ -32,11 +31,10 @@ const TicketsPanel = ({ deviceId, onEmpty }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const { token } = getLocalStorageData();
     let cancelled = false;
     fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${deviceId}/tickets`,
-      { headers: { Authorization: "Bearer " + token } },
+      {},
     )
       .then((response) => (response.ok ? response.json() : null))
       .then((result) => {

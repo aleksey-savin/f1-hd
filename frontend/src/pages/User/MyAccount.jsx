@@ -85,21 +85,11 @@ export async function loader() {
 
   const userResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   const initialPrefsResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!userResponse.ok) {
     if (userResponse.status === 401 || userResponse.status === 402) {
@@ -120,7 +110,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
   const data = await request.formData();
   const intent = data.get("intent");
 
@@ -140,7 +129,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify(profile),
       },
@@ -190,7 +178,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify(profile),
       },
@@ -225,7 +212,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify(profile),
       },
@@ -255,7 +241,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           code: data.get("code"),

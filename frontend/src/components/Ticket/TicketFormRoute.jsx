@@ -8,7 +8,6 @@ import FormWrapper from "@/components/app/FormWrapper";
 import { FormHeader, FormSections } from "@/components/app/FormLayout";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 import useOffcanvasStore from "../../store/offcanvas";
 
 import { ticketFormSections } from "./TicketFormFields";
@@ -38,7 +37,6 @@ const TicketFormRoute = ({ mode }) => {
   const ticket = ticketData?.ticket ?? null;
 
   const offcanvas = useOffcanvasStore();
-  const { token } = getLocalStorageData();
   const { isEndUser } = useContext(AuthedUserContext);
   const can = useCan();
 
@@ -77,7 +75,6 @@ const TicketFormRoute = ({ mode }) => {
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates/${nextId}`,
-        { headers: { Authorization: "Bearer " + token } },
       );
       if (!response.ok) throw new Error("template request failed");
       form.applyTemplate(await response.json());

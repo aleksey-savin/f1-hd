@@ -18,7 +18,6 @@ export async function loader({ params }) {
 
   const userResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/${params.id}`,
-    { headers: { Authorization: "Bearer " + token } },
   );
 
   const user = await userResponse.json();
@@ -27,14 +26,12 @@ export async function loader({ params }) {
   // обязан находить её опцию — иначе сохранение молча затрёт связь
   const companiesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/companies?includeInactive=true`,
-    { headers: { Authorization: "Bearer " + token } },
   );
 
   const companies = await companiesResponse.json();
 
   const categoriesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
-    { headers: { Authorization: "Bearer " + token } },
   );
 
   const categories = await categoriesResponse.json();
@@ -68,7 +65,6 @@ export async function loader({ params }) {
 // отправляем вовсе: поля в форме нет, а прежний `role: null` затирал сохранённое
 // значение при каждом сохранении (бэкенд теперь оставляет прежнее).
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
   const userData = await request.json();
 
   // Форма, открытая только на секции графика (право на графики без права на
@@ -85,7 +81,6 @@ export async function action({ request, params }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(scheduleOnly ? userData.workSchedule : userData),
     },

@@ -149,9 +149,6 @@ function ImageUpload({ userId, setProfileImage }) {
         `${import.meta.env.VITE_API_ADDRESS}/api/users/${userId}/add-profile-image`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
           body: formData,
         },
       );

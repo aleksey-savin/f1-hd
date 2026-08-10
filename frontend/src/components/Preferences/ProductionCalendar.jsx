@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import Combobox from "@/components/app/Combobox";
-import { getLocalStorageData } from "../../util/auth";
 import { formatDayMonthTime } from "../../util/format-date";
 import useToastStore from "../../store/toast-store";
 
@@ -51,11 +50,8 @@ const ProductionCalendar = ({ prefs }) => {
   const [syncing, setSyncing] = useState(false);
 
   const loadHealth = useCallback(async () => {
-    const { token } = getLocalStorageData();
     try {
-      const response = await fetch(`${API}/api/team/production-calendar`, {
-        headers: { Authorization: "Bearer " + token },
-      });
+      const response = await fetch(`${API}/api/team/production-calendar`);
       if (!response.ok) throw new Error(String(response.status));
       setHealth(await response.json());
     } catch (error) {
@@ -69,12 +65,10 @@ const ProductionCalendar = ({ prefs }) => {
   }, [loadHealth]);
 
   const sync = async () => {
-    const { token } = getLocalStorageData();
     setSyncing(true);
     try {
       const response = await fetch(`${API}/api/team/production-calendar/sync`, {
         method: "POST",
-        headers: { Authorization: "Bearer " + token },
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok)

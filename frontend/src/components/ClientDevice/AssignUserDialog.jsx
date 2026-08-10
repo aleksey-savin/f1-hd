@@ -15,7 +15,6 @@ import AlertMessage from "@/components/app/AlertMessage";
 import Combobox from "@/components/app/Combobox";
 import Field from "@/components/app/Field";
 
-import { getLocalStorageData } from "../../util/auth";
 import useAssignableUsers, { userOptionLabel } from "./useAssignableUsers";
 
 const refId = (value) => value?._id || value || "";
@@ -65,7 +64,6 @@ const AssignUserDialog = ({ open, onOpenChange, device, onAssigned }) => {
   const submit = async (nextUserId) => {
     setSaving(true);
     setError("");
-    const { token } = getLocalStorageData();
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${device._id}/assign-user`,
@@ -73,7 +71,6 @@ const AssignUserDialog = ({ open, onOpenChange, device, onAssigned }) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: JSON.stringify({ userId: nextUserId || "" }),
         },

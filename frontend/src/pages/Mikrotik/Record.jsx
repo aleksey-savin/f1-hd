@@ -56,7 +56,6 @@ import usePolling from "../../hooks/use-polling";
 import useMikrotikDeviceFilterStore, {
   rowStatus,
 } from "../../store/lists/mikrotik-devices";
-import { getLocalStorageData } from "../../util/auth";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import { useCan } from "@/store/authed-user";
@@ -522,11 +521,8 @@ const MikrotikRecordPage = () => {
 export default MikrotikRecordPage;
 
 export async function loader({ params }) {
-  const { token } = getLocalStorageData();
-
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/records/${params.recordId}`,
-    { headers: { Authorization: "Bearer " + token } },
   );
 
   if (!response.ok) throw response;

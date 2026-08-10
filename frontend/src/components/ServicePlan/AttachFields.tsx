@@ -5,7 +5,6 @@ import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 import { Input } from "@/components/ui/input";
 
-import { getLocalStorageData } from "../../util/auth";
 import { toDateInputValue } from "../../util/format-date";
 
 /**
@@ -61,10 +60,7 @@ const AttachFields = ({
       return;
     }
     setLoading(true);
-    const { token } = getLocalStorageData();
-    fetch(`${API}/api/users?company=${companyId}&limit=300`, {
-      headers: { Authorization: "Bearer " + token },
-    })
+    fetch(`${API}/api/users?company=${companyId}&limit=300`)
       .then((response) => response.json())
       .then((payload) =>
         setPeople(

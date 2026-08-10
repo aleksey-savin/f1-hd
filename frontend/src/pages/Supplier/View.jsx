@@ -2,7 +2,6 @@ import { redirect, useLoaderData } from "react-router";
 
 import ViewSupplier from "../../components/Supplier/View";
 import Forbidden from "../../components/Error/403";
-import { getLocalStorageData } from "../../util/auth";
 import { useCan } from "@/store/authed-user";
 
 const ViewSupplierPage = () => {
@@ -22,11 +21,8 @@ const ViewSupplierPage = () => {
 export default ViewSupplierPage;
 
 export async function loader({ params }) {
-  const { token } = getLocalStorageData();
-
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/suppliers/${params.id}`,
-    { headers: { Authorization: "Bearer " + token } },
   );
 
   if (!response.ok) throw response;
@@ -37,7 +33,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
   const data = await request.formData();
 
   if (data.get("intent") === "delete") {
@@ -47,7 +42,6 @@ export async function action({ request, params }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
       },
     );

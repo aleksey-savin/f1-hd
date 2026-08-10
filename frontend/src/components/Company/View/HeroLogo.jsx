@@ -134,7 +134,6 @@ const HeroLogo = ({ company, canEdit }) => {
         `${API}/api/companies/${company._id}/add-profile-image`,
         {
           method: "PATCH",
-          headers: { Authorization: "Bearer " + token },
           body: form,
         },
       );

@@ -1,10 +1,7 @@
-import { getLocalStorageData } from "../../util/auth";
 
 import { redirect } from "react-router";
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const ticketId = data.get("id");
@@ -15,7 +12,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
     },
   );

@@ -1,7 +1,6 @@
 
 import Form from "../../components/Supplier/Form";
 import InlineForbidden from "../../components/Error/InlineForbidden";
-import { getLocalStorageData } from "../../util/auth";
 import { useCan } from "@/store/authed-user";
 
 const AddSupplierPage = () => {
@@ -47,7 +46,6 @@ const bodyFrom = (data) => ({
 });
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
   const data = await request.formData();
 
   const response = await fetch(
@@ -56,7 +54,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(bodyFrom(data)),
     },

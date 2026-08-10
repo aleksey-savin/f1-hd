@@ -1,6 +1,5 @@
 import { useLoaderData, redirect } from "react-router";
 
-import { getLocalStorageData } from "../../util/auth";
 
 import ViewRoutineTask from "../../components/RoutineTask/View";
 
@@ -12,16 +11,9 @@ const ViewRoutineTaskPage = () => {
 export default ViewRoutineTaskPage;
 
 export async function loader({ params }) {
-  const { token } = getLocalStorageData();
-
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/routine-tasks/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!response.ok) {
     throw response;
@@ -35,8 +27,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
   const intent = data.get("intent");
 
@@ -49,7 +39,6 @@ export async function action({ request, params }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ checklist }),
       },
@@ -71,7 +60,6 @@ export async function action({ request, params }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ skipNext }),
       },
@@ -91,7 +79,6 @@ export async function action({ request, params }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
       },
     );

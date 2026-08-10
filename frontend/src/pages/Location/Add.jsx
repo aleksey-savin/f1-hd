@@ -1,6 +1,5 @@
 import { useLoaderData } from "react-router";
 
-import { getLocalStorageData } from "../../util/auth";
 
 import Form from "../../components/Location/Form";
 
@@ -35,22 +34,15 @@ const AddLocationPage = () => {
 export default AddLocationPage;
 
 export async function loader({ request }) {
-  const { token } = getLocalStorageData();
   const url = new URL(request.url);
   const companyParam = url.searchParams.get("company");
   const parentParam = url.searchParams.get("parent");
 
   const [companiesResponse, parentLocationsResponse, usersResponse] =
     await Promise.all([
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/companies`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users?activeOnly=true`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }),
+      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/companies`),
+      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations`),
+      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users?activeOnly=true`),
     ]);
 
   const companies = await companiesResponse.json();
@@ -71,7 +63,6 @@ export async function loader({ request }) {
 
 // Action function for React Router
 export const action = async ({ request }) => {
-  const { token } = getLocalStorageData();
   const formData = await request.formData();
 
   const locationData = {
@@ -94,7 +85,6 @@ export const action = async ({ request }) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(locationData),
     },

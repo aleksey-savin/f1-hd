@@ -1,7 +1,6 @@
 import { useLoaderData } from "react-router";
 
 import NoteView from "../../components/KnowledgeBase/NoteView";
-import { getLocalStorageData } from "../../util/auth";
 
 const ViewKnowledgeNote = () => {
   const note = useLoaderData();
@@ -13,12 +12,8 @@ const ViewKnowledgeNote = () => {
 export default ViewKnowledgeNote;
 
 export async function loader({ params }) {
-  const { token } = getLocalStorageData();
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/knowledge-notes/${params.id}`,
-    {
-      headers: { Authorization: "Bearer " + token },
-    },
   );
 
   if (!response.ok) {

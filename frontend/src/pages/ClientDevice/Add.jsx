@@ -1,5 +1,4 @@
 import Form from "../../components/ClientDevice/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const AddClientDevicePage = () => {
   return <Form title="Новое устройство" />;
@@ -14,8 +13,6 @@ export async function loader() {
 }
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   // Тело формы — JSON: собирать вложенные данные из FormData значит терять
   // ключи молча (см. docs/ux-ui-guide.md, «Сложное вложенное тело — JSON»).
   const clientDevice = await request.json();
@@ -26,7 +23,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(clientDevice),
     },

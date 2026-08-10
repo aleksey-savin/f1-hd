@@ -39,7 +39,6 @@ const RemoteAccess = ({ ticket }) => {
     fetchConnection(
       {
         url: `${import.meta.env.VITE_API_ADDRESS}/api/support/connection/${ticket.num}`,
-        headers: { Authorization: "Bearer " + token },
       },
       (data) =>
         setConnectionState({
@@ -62,7 +61,6 @@ const RemoteAccess = ({ ticket }) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: { user: ticket.applicant?._id, ticketNum: ticket.num },
       },

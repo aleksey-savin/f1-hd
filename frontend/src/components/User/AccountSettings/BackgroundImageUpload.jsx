@@ -3,13 +3,11 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import useToastStore from "../../../store/toast-store";
 
-import { getLocalStorageData } from "../../../util/auth";
 
 // Фоновое изображение рабочего стола: превью + «Загрузить»/«Удалить».
 // Выбранный файл загружается сразу (валидация типа и размера — до запроса);
 // превью после загрузки — серверный путь из ответа.
 function BackgroundImageUpload({ user }) {
-  const { token } = getLocalStorageData();
   const { showToast } = useToastStore();
 
   const fileInputRef = useRef(null);
@@ -50,9 +48,6 @@ function BackgroundImageUpload({ user }) {
         `${import.meta.env.VITE_API_ADDRESS}/api/users/add-background-image`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
           body: formData,
         },
       );
@@ -83,9 +78,6 @@ function BackgroundImageUpload({ user }) {
         `${import.meta.env.VITE_API_ADDRESS}/api/users/delete-background-image`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         },
       );
 

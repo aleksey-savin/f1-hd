@@ -1,4 +1,3 @@
-import { getLocalStorageData } from "../../util/auth";
 
 // Loader и action справочника шаблонов чек-листов. Форма и создания, и правки
 // нуждается в одних и тех же справочниках привязок, поэтому loader один.
@@ -6,8 +5,7 @@ import { getLocalStorageData } from "../../util/auth";
 const api = (path) => `${import.meta.env.VITE_API_ADDRESS}/api${path}`;
 
 const authHeaders = () => {
-  const { token } = getLocalStorageData();
-  return { Authorization: "Bearer " + token };
+  return {};
 };
 
 const fetchJson = async (path) => {

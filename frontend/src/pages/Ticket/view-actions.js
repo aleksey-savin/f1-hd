@@ -1,6 +1,5 @@
 import { redirect } from "react-router";
 
-import { getLocalStorageData } from "../../util/auth";
 
 // Router-action карточки заявки: все мутации над заявкой идут одним intent'ом.
 // Вынесено из View.jsx — там это было больше трети файла и мешало читать
@@ -8,8 +7,6 @@ import { getLocalStorageData } from "../../util/auth";
 // возвращается наверх, чтобы экран показал человеческую причину.
 
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const intent = data.get("intent");
@@ -30,7 +27,6 @@ export async function action({ request }) {
       `${import.meta.env.VITE_API_ADDRESS}/api/tickets/update`,
       {
         method: "POST",
-        headers: { Authorization: "Bearer " + token },
         body: payload,
       },
     );
@@ -76,7 +72,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify(ticketData),
       },
@@ -113,7 +108,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           _id: data.get("_id"),
@@ -141,7 +135,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           _id: data.get("_id"),
@@ -169,7 +162,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           _id: data.get("_id"),
@@ -202,7 +194,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify(ticketData),
       },
@@ -225,7 +216,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           _id: data.get("_id"),
@@ -253,7 +243,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           _id: data.get("_id"),
@@ -289,7 +278,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           _id: data.get("_id"),
@@ -318,9 +306,6 @@ export async function action({ request }) {
       `${import.meta.env.VITE_API_ADDRESS}/api/comments/add`,
       {
         method: "POST",
-        headers: {
-          Authorization: "Bearer " + token,
-        },
         body: data,
       },
     );
@@ -347,7 +332,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify(checklistItem),
       },
@@ -374,7 +358,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ _id: data.get("workId") }),
       },
@@ -399,7 +382,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({
           checklist: JSON.parse(data.get("checklist")),
@@ -430,7 +412,6 @@ export async function action({ request }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
       },
     );

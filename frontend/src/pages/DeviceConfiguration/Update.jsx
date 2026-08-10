@@ -2,7 +2,6 @@ import { useContext } from "react";
 import Form from "../../components/DeviceConfiguration/Form";
 import InlineForbidden from "../../components/Error/InlineForbidden";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 
 const UpdateDeviceConfigurationPage = () => {
   const { permissions } = useContext(AuthedUserContext);
@@ -25,17 +24,10 @@ export default UpdateDeviceConfigurationPage;
 export async function loader({ params }) {
   document.title = "Изменить конфигурацию";
 
-  const { token } = getLocalStorageData();
-
   // Fetch configuration
   const configurationResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-configurations/${params.configId}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!configurationResponse.ok) {
     throw configurationResponse;
@@ -46,12 +38,7 @@ export async function loader({ params }) {
   // Fetch device model
   const deviceModelResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models/${configuration.deviceModelId._id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!deviceModelResponse.ok) {
     throw deviceModelResponse;
@@ -62,12 +49,7 @@ export async function loader({ params }) {
   // Fetch device type with attributes
   const deviceTypeResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types/${deviceModel.deviceTypeId._id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   const deviceType = await deviceTypeResponse.json();
   const attributes = deviceType.attributes || [];
@@ -80,8 +62,6 @@ export async function loader({ params }) {
 }
 
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
-
   const data = await request.formData();
 
   const valuesJson = data.get("values");
@@ -99,7 +79,6 @@ export async function action({ request, params }) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(configurationData),
     },

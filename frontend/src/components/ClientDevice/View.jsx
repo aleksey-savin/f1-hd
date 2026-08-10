@@ -55,7 +55,6 @@ import {
 import { cn } from "@/lib/utils";
 
 import useOffcanvasStore from "../../store/offcanvas";
-import { getLocalStorageData } from "../../util/auth";
 import { formatCalendarDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import PhotoGallery, { photoUrl } from "@/components/app/PhotoGallery";
@@ -180,7 +179,6 @@ const ViewClientDevice = ({ device = {} }) => {
   const detachComponent = async (componentId) => {
     setDetachingId(componentId);
     setDetachError("");
-    const { token } = getLocalStorageData();
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${device._id}/components/${componentId}`,
@@ -188,7 +186,6 @@ const ViewClientDevice = ({ device = {} }) => {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
         },
       );

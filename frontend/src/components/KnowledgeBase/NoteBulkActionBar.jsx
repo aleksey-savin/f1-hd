@@ -14,7 +14,6 @@ import VerifyModal from "./VerifyModal";
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
 import useKnowledgeModerationStore from "../../store/knowledgeModeration";
 import useToastStore from "../../store/toast-store";
-import { getLocalStorageData } from "../../util/auth";
 import {
   verifyReason,
   confirmDeletionReason,
@@ -30,7 +29,6 @@ const API = import.meta.env.VITE_API_ADDRESS;
 // запросов. Один массив actions питает и десктопную панель, и мобильный остров
 // (app/BulkActionBar).
 const NoteBulkActionBar = () => {
-  const { token } = getLocalStorageData();
   const { showToast } = useToastStore();
   const refreshCounts = useKnowledgeModerationStore((state) => state.refresh);
 
@@ -61,7 +59,6 @@ const NoteBulkActionBar = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
         body: JSON.stringify({ ids: selectedIds, ...body }),
       });

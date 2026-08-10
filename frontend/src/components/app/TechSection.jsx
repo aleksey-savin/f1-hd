@@ -249,7 +249,7 @@ const TechSection = ({
         ? `${base}/api/inventory/locations/company/${companyId}/tech`
         : `${base}/api/inventory/locations/user/${userId}/tech`;
     sendRequest(
-      { url, headers: { Authorization: "Bearer " + token } },
+      { url, headers: {} },
       setData,
     );
   }, [companyId, userId, self, token, sendRequest]);

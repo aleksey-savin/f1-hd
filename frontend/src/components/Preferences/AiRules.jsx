@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { SubLabel } from "@/components/app/Panel";
 
-import { getLocalStorageData } from "../../util/auth";
 import { formatDate } from "../../util/format-date";
 import useToastStore from "../../store/toast-store";
 
@@ -35,14 +34,12 @@ const AiRules = () => {
   const showToast = useToastStore((state) => state.showToast);
 
   const request = async (path, options) => {
-    const { token } = getLocalStorageData();
     const response = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/preferences/${path}`,
       {
         ...options,
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
         },
       },
     );

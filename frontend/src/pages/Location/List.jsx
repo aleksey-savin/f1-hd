@@ -38,7 +38,6 @@ import useMobileFilterOffcanvasStore from "../../store/mobile-filter-offcanvas";
 import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 import { useCan } from "@/store/authed-user";
 
 const TYPE_ORDER = { building: 0, floor: 1, room: 2, workplace: 3, storage: 4 };
@@ -412,11 +411,8 @@ export default LocationList;
 export const loader = async () => {
   document.title = "Расположения";
 
-  const { token } = getLocalStorageData();
-
   const companiesResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/companies`,
-    { headers: { Authorization: "Bearer " + token } },
   );
   const companies = companiesResponse.ok ? await companiesResponse.json() : [];
 
@@ -424,7 +420,6 @@ export const loader = async () => {
 };
 
 export const action = async ({ request }) => {
-  const { token } = getLocalStorageData();
   const formData = await request.formData();
 
   if (formData.get("intent") !== "delete") {
@@ -438,7 +433,6 @@ export const action = async ({ request }) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
     },
   );

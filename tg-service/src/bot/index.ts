@@ -34,11 +34,26 @@ import {
  */
 
 const MAIN_KEYBOARD = {
-  keyboard: [
-    [{ text: "📖 Список текущих заявок" }, { text: "⭐️ Новая заявка" }],
-  ],
+  keyboard: [[{ text: "⭐️ Новая заявка" }], [{ text: "📖 Список текущих заявок" }]],
   resize_keyboard: true,
 };
+
+/**
+ * Меню команд. Было у прежнего бота и потерялось при переписывании — без него
+ * синей кнопки «Меню» в чате нет вовсе, и команды приходится помнить наизусть.
+ */
+const PRIVATE_COMMANDS = [
+  { command: "start", description: "🤖 Запустить бота" },
+  { command: "id", description: "📍 Узнать ID чата" },
+  { command: "ticket_list", description: "📖 Список текущих заявок" },
+  { command: "add_new_ticket", description: "⭐️ Новая заявка" },
+];
+
+/** В групповом чате уведомлений заявки не заводят — там бот только вещает. */
+const GROUP_COMMANDS = [
+  { command: "start", description: "🤖 Запустить бота" },
+  { command: "id", description: "📍 Узнать ID чата" },
+];
 
 /** Ответ на ошибку бэкенда: 4xx — это сообщение человеку, остальное — сбой. */
 const explain = (error: unknown): string => {
@@ -94,9 +109,25 @@ export const createBot = (getConfig: ConfigSource): Bot => {
       return;
     }
 
+    /**
+     * Приветствие. Тексты и меню — прежнего бота, дословно: их читают люди, и
+     * переписывать их «покрасивее» я права не имел. В групповом чате
+     * уведомлений меню заявок не нужно — там бот только вещает.
+     */
+    const isGlobalChat =
+      String(ctx.chat.id) === String(getConfig()?.telegram.chatId || "");
+
+    await ctx.api
+      .setMyCommands(isGlobalChat ? GROUP_COMMANDS : PRIVATE_COMMANDS, {
+        scope: { type: "chat", chat_id: ctx.chat.id },
+      })
+      .catch(() => undefined);
+
     await ctx.reply(
-      "Чтобы подключить бота, откройте в портале «Мой аккаунт → Интеграции» и нажмите «Подключить».",
-      { reply_markup: MAIN_KEYBOARD },
+      isGlobalChat
+        ? "Привет👋 Отлично, уведомления по заявкам теперь будут отправляться в эту группу"
+        : "Привет👋 Воспользуйтесь меню или просто отправьте сообщение или фото с описанием, чтобы создать заявку",
+      isGlobalChat ? undefined : { reply_markup: MAIN_KEYBOARD },
     );
   });
 
@@ -151,7 +182,7 @@ export const createBot = (getConfig: ConfigSource): Bot => {
     }
 
     if (tickets.length === 0) {
-      await ctx.reply("Открытых заявок нет");
+      await ctx.reply("Нет активных заявок");
       return;
     }
 
@@ -212,9 +243,19 @@ export const createBot = (getConfig: ConfigSource): Bot => {
   });
 
   bot.on("message:photo", async (ctx) => {
+    /**
+     * Фото ОБЯЗАНО быть с описанием — правило прежнего бота, и оно про дело:
+     * заявка из одной картинки без слов исполнителю ничего не сообщает. Я его
+     * молча снял, подставляя «Фото без описания», — то есть заводил заведомо
+     * бесполезные заявки.
+     */
+    if (!ctx.message.caption?.trim()) {
+      await ctx.reply("Фото обязательно должно быть с описанием");
+      return;
+    }
     // Последний размер — самый крупный.
     const photo = ctx.message.photo.at(-1);
-    await offerTicket(ctx, ctx.message.caption || "Фото без описания", photo?.file_id);
+    await offerTicket(ctx, ctx.message.caption, photo?.file_id);
   });
 
   // --- нажатия --------------------------------------------------------------
@@ -241,7 +282,9 @@ export const createBot = (getConfig: ConfigSource): Bot => {
 
     if (data === "newticket:no") {
       clearDialog(actor);
-      await ctx.reply("Хорошо, заявку не создаю");
+      // Вопрос убираем: ответ на него дан, а висящие кнопки предлагают нажать
+      // ещё раз. Так делал и прежний бот — молча, без «хорошо, не создаю».
+      await ctx.deleteMessage().catch(() => undefined);
       return;
     }
 
@@ -252,6 +295,7 @@ export const createBot = (getConfig: ConfigSource): Bot => {
         return;
       }
       clearDialog(actor);
+      await ctx.deleteMessage().catch(() => undefined);
       await submitTicket(ctx, actor, dialog.payload);
       return;
     }
@@ -322,7 +366,24 @@ export const createBot = (getConfig: ConfigSource): Bot => {
         const url = `https://api.telegram.org/file/bot${config.botToken}/${file.file_path}`;
         const response = await fetch(url);
         if (response.ok) {
-          form.append("attachments", await response.blob(), "telegram-photo.jpg");
+          /**
+           * ТИП ФАЙЛА СТАВИМ САМИ.
+           *
+           * `response.blob()` с файлового сервера Telegram приходит без типа,
+           * то есть `application/octet-stream`, а бэкенд пропускает такой MIME
+           * только для `.conf` — заявка с фото падала с «Недопустимое
+           * расширение файла». Настоящий тип виден в `file_path`, который
+           * Telegram отдаёт с расширением.
+           */
+          const ext = (file.file_path?.split(".").pop() || "jpg").toLowerCase();
+          const isPng = ext === "png";
+          const bytes = await response.arrayBuffer();
+
+          form.append(
+            "attachments",
+            new Blob([bytes], { type: isPng ? "image/png" : "image/jpeg" }),
+            `telegram-photo.${isPng ? "png" : "jpg"}`,
+          );
         }
       } catch (error) {
         // Заявка важнее вложения: без фото она всё равно полезна.
@@ -331,11 +392,17 @@ export const createBot = (getConfig: ConfigSource): Bot => {
     }
 
     try {
-      const result = await createTicket(actor, form);
-      const num = result.ticket?.num;
+      await createTicket(actor, form);
+      /**
+       * Ответ человеку, а не отчёт машины.
+       *
+       * Текст прежнего бота, возвращён дословно: «Заявка 57007 создана» —
+       * это констатация для того, кто и так нажал «Да», и она молчит о
+       * главном: что будет дальше. Номер, тема и кнопка приедут следом
+       * обычным уведомлением о новой заявке — повторять их здесь незачем.
+       */
       await ctx.reply(
-        num ? `Заявка ${num} создана` : result.message || "Заявка создана",
-        num && ticketButton(num) ? { reply_markup: ticketButton(num) } : undefined,
+        "Отлично!👌 В течение минуты пришлём уведомление о создании заявки и будем держать Вас в курсе о ходе её выполнения.",
       );
     } catch (error) {
       await ctx.reply(explain(error));

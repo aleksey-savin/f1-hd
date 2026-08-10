@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../../../store/authed-user-context";
 import useKnowledgeNotesStore from "../../../store/lists/knowledgeNotes";
-import { getLocalStorageData } from "../../../util/auth";
 import { formatShortDate } from "../../../util/format-date";
 import { getNoteTypeMeta } from "../../../util/knowledgeNoteTypes";
 import MarkdownViewer from "../../../UI/MarkdownViewer";
@@ -251,10 +250,7 @@ const KnowledgeSection = ({ ticket }) => {
 
     let active = true;
     setLoading(true);
-    const { token } = getLocalStorageData();
-    fetch(`${API}/api/knowledge-notes/related?${params}`, {
-      headers: { Authorization: "Bearer " + token },
-    })
+    fetch(`${API}/api/knowledge-notes/related?${params}`)
       .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((data) => {
         if (!active) return;
@@ -277,10 +273,7 @@ const KnowledgeSection = ({ ticket }) => {
   const open = (note) => {
     setOpenRow(note);
     setOpenNote(null);
-    const { token } = getLocalStorageData();
-    fetch(`${API}/api/knowledge-notes/${note._id}`, {
-      headers: { Authorization: "Bearer " + token },
-    })
+    fetch(`${API}/api/knowledge-notes/${note._id}`)
       .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((data) => setOpenNote(data))
       .catch(() => setOpenNote({ ...note, content: "" }));

@@ -1,4 +1,3 @@
-import { getLocalStorageData } from "../../util/auth";
 
 import CompanyForm from "../../components/Company/Form";
 
@@ -11,16 +10,9 @@ export default UpdateCompanyPage;
 export async function loader({ params }) {
   document.title = "Изменить компанию";
 
-  const { token } = getLocalStorageData();
-
   const companyResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/companies/${params.id}`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!companyResponse.ok) {
     throw companyResponse;
@@ -28,12 +20,7 @@ export async function loader({ params }) {
 
   const respResponse = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!respResponse.ok) {
     throw respResponse;
@@ -50,8 +37,6 @@ export async function loader({ params }) {
 // Форма шлёт готовый JSON (encType: application/json) — телефоны-массив,
 // оба списка ответственных и объект графика уже собраны. Пробрасываем на бэкенд.
 export async function action({ request, params }) {
-  const { token } = getLocalStorageData();
-
   const body = await request.json();
 
   const response = await fetch(
@@ -60,7 +45,6 @@ export async function action({ request, params }) {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(body),
     },

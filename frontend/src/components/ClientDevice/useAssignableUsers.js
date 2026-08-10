@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 
-import { getLocalStorageData } from "../../util/auth";
 
 const refId = (v) => v?._id || v || "";
 
@@ -24,8 +23,7 @@ export default function useAssignableUsers(locationId, companyId) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const { token } = getLocalStorageData();
-    const headers = { Authorization: "Bearer " + token };
+    const headers = {};
     const base = import.meta.env.VITE_API_ADDRESS;
     let cancelled = false;
 

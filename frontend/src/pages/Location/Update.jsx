@@ -1,5 +1,4 @@
 import { useLoaderData } from "react-router";
-import { getLocalStorageData } from "../../util/auth";
 
 import Form from "../../components/Location/Form";
 
@@ -22,8 +21,6 @@ const UpdateLocationPage = () => {
 export default UpdateLocationPage;
 
 export const loader = async ({ params }) => {
-  const { token } = getLocalStorageData();
-
   if (!params.id) {
     throw new Error("Location ID is required for editing");
   }
@@ -34,27 +31,18 @@ export const loader = async ({ params }) => {
     // Fetch parent locations
     promises.push(
       fetch(`${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations`, {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
       }),
     );
 
     // Fetch companies
     promises.push(
       fetch(`${import.meta.env.VITE_API_ADDRESS}/api/companies`, {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
       }),
     );
 
     // Fetch users (active only — disabled users aren't offered for assignment)
     promises.push(
       fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users?activeOnly=true`, {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
       }),
     );
 
@@ -62,12 +50,7 @@ export const loader = async ({ params }) => {
     promises.push(
       fetch(
         `${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations/${params.id}`,
-        {
-          headers: {
-            Authorization: "Bearer " + token,
-          },
-        },
-      ),
+              ),
     );
 
     const responses = await Promise.all(promises);
@@ -105,9 +88,6 @@ export const loader = async ({ params }) => {
       try {
         const subdivisionResponse = await fetch(
           `${import.meta.env.VITE_API_ADDRESS}/api/companies/${location.company?._id}`,
-          {
-            headers: { Authorization: "Bearer " + token },
-          },
         );
         if (subdivisionResponse.ok) {
           const companyData = await subdivisionResponse.json();
@@ -139,7 +119,6 @@ export const loader = async ({ params }) => {
 
 // Action function for React Router
 export const action = async ({ request, params }) => {
-  const { token } = getLocalStorageData();
   const formData = await request.formData();
 
   const locationData = {
@@ -162,7 +141,6 @@ export const action = async ({ request, params }) => {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(locationData),
     },

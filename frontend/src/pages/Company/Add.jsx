@@ -1,5 +1,4 @@
 import CompanyForm from "../../components/Company/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const AddCompanyPage = () => {
   return <CompanyForm />;
@@ -10,16 +9,9 @@ export default AddCompanyPage;
 export async function loader() {
   document.title = "Новая компания";
 
-  const { token } = getLocalStorageData();
-
   const response = await fetch(
     `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    },
-  );
+      );
 
   if (!response.ok) {
     throw response;
@@ -34,8 +26,6 @@ export async function loader() {
 // ответственные и объект графика уже собраны формой. Пробрасываем на бэкенд;
 // ответ содержит созданную компанию — форма уводит на её карточку.
 export async function action({ request }) {
-  const { token } = getLocalStorageData();
-
   const body = await request.json();
 
   const response = await fetch(
@@ -44,7 +34,6 @@ export async function action({ request }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer " + token,
       },
       body: JSON.stringify(body),
     },

@@ -14,7 +14,6 @@ import useHttp from "../../hooks/use-http";
 import useToastStore from "../../store/toast-store";
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
 import { AuthedUserContext } from "../../store/authed-user-context";
-import { getLocalStorageData } from "../../util/auth";
 import useInitialPrefsStore from "../../store/prefs";
 
 import NoteHero from "./NoteHero";
@@ -39,7 +38,6 @@ const sameIds = (a, b) =>
 
 const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
   const navigate = useNavigate();
-  const { token } = getLocalStorageData();
   const { showToast } = useToastStore();
   const { sendRequest, isLoading } = useHttp();
   const refreshNotes = useKnowledgeNotesStore((state) => state.fetch);
@@ -112,7 +110,6 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
     sendRequest(
       {
         url: `${API}/api/knowledge-notes/form-data`,
-        headers: { Authorization: "Bearer " + token },
       },
       (data) => {
         if (!data || data.error) {
@@ -194,7 +191,6 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + token,
           },
           body: {
             title: title.trim(),
@@ -240,7 +236,6 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
         method: "POST",
         headers: {
           ...(body ? { "Content-Type": "application/json" } : {}),
-          Authorization: "Bearer " + token,
         },
         ...(body ? { body } : {}),
       },
@@ -319,7 +314,6 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
       {
         url: `${API}/api/knowledge-notes/confirm-deletion/${currentNote._id}`,
         method: "POST",
-        headers: { Authorization: "Bearer " + token },
       },
       (data) => {
         if (data?.error) {
