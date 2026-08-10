@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { getLocalStorageData } from "../../util/auth";
+
+import { api } from "@/lib/api";
 
 // Фильтр списка шаблонов заявок. Компания — одиночный фасет (чип-combobox в
 // строке инструментов); категория / пользователи / автор — множественные (в
@@ -113,13 +114,15 @@ const useTicketTemplateFilterStore = create((set) => ({
   isLoading: false,
   fetch: async () => {
     set({ isLoading: true });
-    const { token } = getLocalStorageData();
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates`,
-      { headers: { Authorization: "Bearer " + token } },
-    );
-    const data = await response.json();
-    set({ originalList: data, isLoading: false });
+    try {
+      const data = await api("/api/ticket-templates");
+      set({ originalList: data, isLoading: false });
+    } catch {
+      // Пустой список вместо молчаливого зависания: до перехода на
+      // api() ответ не проверялся вовсе, и на любой ошибке стор
+      // оставался в isLoading навсегда.
+      set({ originalList: [], isLoading: false });
+    }
   },
   updateFilter: (data) =>
     set(() => ({

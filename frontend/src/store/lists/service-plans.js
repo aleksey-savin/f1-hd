@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../../util/auth";
+import { api } from "@/lib/api";
+
 
 const servicePlanFilter = (state) => {
   const originalList = Array.isArray(state.originalList)
@@ -128,20 +129,18 @@ const useServicePlanFilterStore = create((set) => ({
   isLoading: false,
   fetch: async () => {
     set({ isLoading: true });
-    const { token } = getLocalStorageData();
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans`,
-      {
-        headers: {
-          Authorization: "Bearer " + token,
-        },
-      },
-    );
-    const data = await response.json();
-    set({
-      originalList: Array.isArray(data) ? data : [],
-      isLoading: false,
-    });
+    try {
+      const data = await api("/api/finances/service-plans");
+      set({
+        originalList: Array.isArray(data) ? data : [],
+        isLoading: false,
+      });
+    } catch {
+      // Пустой список вместо молчаливого зависания: до перехода на
+      // api() ответ не проверялся вовсе, и на любой ошибке стор
+      // оставался в isLoading навсегда.
+      set({ originalList: [], isLoading: false });
+    }
   },
   updateFilter: (data) =>
     set(() => ({

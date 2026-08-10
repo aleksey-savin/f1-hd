@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-import { getLocalStorageData } from "../../util/auth";
+import { api } from "@/lib/api";
+
 
 // Стор справочника шаблонов чек-листов — по образцу «Вендоров»: поиск и
 // сортировка на клиенте, шаблонов десятки, серверная выборка тут ничего не
@@ -73,13 +74,15 @@ const useChecklistTemplateStore = create((set) => ({
   isLoading: false,
   fetch: async () => {
     set({ isLoading: true });
-    const { token } = getLocalStorageData();
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/checklist-templates`,
-      { headers: { Authorization: "Bearer " + token } },
-    );
-    const data = await response.json();
-    set({ originalList: data, isLoading: false });
+    try {
+      const data = await api("/api/checklist-templates");
+      set({ originalList: data, isLoading: false });
+    } catch {
+      // Пустой список вместо молчаливого зависания: до перехода на
+      // api() ответ не проверялся вовсе, и на любой ошибке стор
+      // оставался в isLoading навсегда.
+      set({ originalList: [], isLoading: false });
+    }
   },
   applyFilter: () =>
     set((state) => ({
