@@ -8,7 +8,6 @@ const Company = require("../models/company");
 const ServicePlanReport = require("../models/finances/servicePlanReport");
 const TicketCategory = require("../models/ticketCategory");
 
-const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
 const { previewWork } = require("../services/workPreview");
 
@@ -75,7 +74,7 @@ exports.getAllScheduled = async (req, res, next) => {
     });
 
     // filter works depending on user role & permissions
-    const { isAdmin, userId, permissions, company } = await getAuthData(req);
+    const { isAdmin, userId, permissions, company } = req.auth.legacy;
 
     let filteredWorks = [];
 
@@ -199,7 +198,7 @@ exports.getAdditionalData = async (req, res, next) => {
  */
 exports.preview = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const { tickets, startedAt, finishedAt } = req.body;
 
     const result = await previewWork({
@@ -226,7 +225,7 @@ exports.add = async (req, res, next) => {
       finishedAt,
     } = req.body;
 
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const authedUser = await User.findById(authData.userId);
 
     const ticket = await Ticket.findById(tickets[0]);
@@ -296,7 +295,7 @@ exports.schedule = async (req, res, next) => {
       planningToFinish,
     } = req.body;
 
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const authedUser = await User.findById(authData.userId);
 
     const ticket = await Ticket.findById(tickets[0]);
@@ -357,7 +356,7 @@ exports.schedule = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { userId, firstName, lastName } = await getAuthData(req);
+    const { userId, firstName, lastName } = req.auth.legacy;
 
     const authedUser = await User.findById(userId);
 
@@ -442,7 +441,7 @@ exports.update = async (req, res, next) => {
 
 exports.delete = async (req, res, next) => {
   try {
-    const { isAdmin, userId } = await getAuthData(req);
+    const { isAdmin, userId } = req.auth;
 
     const work = await Work.findById(req.body._id);
 
@@ -495,7 +494,7 @@ const FINISHED_SORT = {
 
 exports.getFinished = async (req, res, next) => {
   try {
-    const { isEndUser, company } = await getAuthData(req);
+    const { isEndUser, company } = req.auth.legacy;
     const q = req.query;
 
     // Только завершённые: у подтверждённой запланированной работы флаг

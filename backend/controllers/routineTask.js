@@ -11,7 +11,6 @@ const Company = require("../models/company");
 const User = require("../models/user");
 const TicketCategory = require("../models/ticketCategory");
 
-const getAuthData = require("../middleware/getAuthData");
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -105,7 +104,7 @@ const buildRoutineData = async (body) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     if (!(await validateRoutineTask(req.body.cronSchedule))) {
       return res.status(400).json({
@@ -138,7 +137,7 @@ exports.add = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
 
     if (!(await validateRoutineTask(req.body.cronSchedule))) {
       return res.status(400).json({
@@ -187,7 +186,7 @@ exports.update = async (req, res, next) => {
 // runRoutineTask читает свежую задачу из БД при каждом срабатывании.
 exports.updateChecklist = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
 
     const routineTask = await RoutineTask.findById(req.params.id);
     if (!routineTask) {

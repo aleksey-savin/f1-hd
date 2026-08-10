@@ -2,7 +2,6 @@ const ChecklistTemplate = require("@/models/checklistTemplate");
 const { Ticket } = require("@/models/ticket");
 const TicketCategory = require("@/models/ticketCategory");
 const Company = require("@/models/company");
-const getAuthData = require("@/middleware/getAuthData");
 const { AppError } = require("@/middleware/errorHandling");
 const {
   templatesForTicket,
@@ -77,7 +76,7 @@ exports.getOne = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const { title, items, categories, companies, isActive } = req.body;
 
     if (!String(title ?? "").trim()) {
@@ -104,7 +103,7 @@ exports.add = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const template = await ChecklistTemplate.findById(req.params.id);
 
     if (!template) {

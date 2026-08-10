@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 
-const getAuthData = require("../middleware/getAuthData");
 const Company = require("../models/company");
 const User = require("../models/user");
 const ServicePlan = require("../models/finances/servicePlan");
@@ -26,7 +25,7 @@ const {
 
 exports.getAll = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     // По умолчанию — только активные компании: этим же эндпоинтом кормятся
     // выпадашки форм (пользователь, локация, устройство), им отключённые не
@@ -78,7 +77,7 @@ exports.getAll = async (req, res, next) => {
 
 exports.getOne = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     const company = await Company.findById(req.params.id)
       .populate({
@@ -253,7 +252,9 @@ exports.getOne = async (req, res, next) => {
 
 exports.getStats = async (req, res, next) => {
   try {
-    await getAuthData(req);
+    // Здесь стоял `await getAuthData(req)` без присваивания — остаток тех
+    // времён, когда шим сам поднимал пользователя. Личность устанавливает
+    // attachSession, доступ проверяет гейт маршрута; вызов не делал ничего.
 
     // ?month=YYYY-MM — переключатель месяцев на карточке (прошлые месяцы)
     const stats = await companyStatsService.getCompanyStats(
@@ -297,7 +298,7 @@ exports.getStats = async (req, res, next) => {
  */
 exports.getMySupport = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const empty = { eligible: false, company: null, responsibles: [] };
 
     const companyId = authedUser.company?._id;
@@ -354,7 +355,7 @@ exports.getMySupport = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
 
     const {
       alias,
@@ -1210,7 +1211,7 @@ exports.updateSubdivisionUsers = async (req, res, next) => {
 exports.createApiKey = async (req, res, next) => {
   try {
     const { companyId, keyName } = req.body;
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
 
     const company = await Company.findById(companyId);
     if (!company) {

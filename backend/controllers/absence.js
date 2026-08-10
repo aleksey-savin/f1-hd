@@ -2,7 +2,6 @@ const Absence = require("../models/absence");
 const User = require("../models/user");
 const Preferences = require("../models/preferences");
 
-const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
 const { getAbsenceType } = require("../utils/absenceTypes");
 const { fmtDateTime, resolveTimezone } = require("../utils/datetime");
@@ -140,7 +139,7 @@ exports.getAll = async (req, res, next) => {
 // POST /absences — своё уходит на согласование, чужое заводится подтверждённым
 exports.add = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const author = await User.findById(userId)
       .select("firstName lastName isAdmin permissions")
       .lean();
@@ -225,7 +224,7 @@ exports.add = async (req, res, next) => {
 // POST /absences/:id/decision — подтвердить или отклонить
 exports.decide = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const { decision, comment } = req.body;
 
     const absence = await Absence.findById(req.params.id);
@@ -279,7 +278,7 @@ exports.decide = async (req, res, next) => {
 // POST /absences/:id/cancel — заявитель отзывает свой запрос
 exports.cancel = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const author = await User.findById(userId).select("isAdmin permissions").lean();
 
     const absence = await Absence.findById(req.params.id);

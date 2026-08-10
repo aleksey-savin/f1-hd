@@ -6,7 +6,6 @@ const logger = require("../utils/logger");
 const { runWorkStatusAuto } = require("../services/workStatusAuto");
 const { resolveActor: resolveTelegramActor } = require("../services/telegramActor");
 
-const getAuthData = require("../middleware/getAuthData");
 const {
   setUserPassword,
   verifyUserPassword,
@@ -179,7 +178,7 @@ const USERS_PAGE_LIMIT_MAX = 100;
 
 exports.getAll = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     // lean: responsibleForCompanies[].id — реальное поле (ref компании). На
     // Mongoose-документе его затеняет виртуальный геттер id (= _id субдока),
     // из-за чего старый скоуп сравнивал по auto-_id субдока и не совпадал;
@@ -417,7 +416,7 @@ exports.getAll = async (req, res, next) => {
 // его компания) и здесь дал бы одну компанию.
 exports.getScopeCompanies = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const authedUser = await User.findById(userId).lean();
     if (!authedUser) {
       return next(new AppError("Unauthorized", 401));
@@ -461,7 +460,7 @@ const HIDDEN_USER_FIELDS =
 
 exports.getOne = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
 
     const authedUser = await User.findById(userId).select(HIDDEN_USER_FIELDS);
 
@@ -746,7 +745,7 @@ exports.add = async (req, res, next) => {
     });
 
     // Финансовые поля задают только админ или обладатель глобального фин. права
-    const caller = await getAuthData(req);
+    const caller = req.auth?.legacy ?? null;
     if (finances && canManageFinances(req)) {
       user.finances = {
         salary: toNonNegativeOrNull(finances.salary),
@@ -965,7 +964,7 @@ exports.update = async (req, res, next) => {
 
     // Финансовые поля меняют только админ или обладатель глобального фин.
     // права; без права или без поля в запросе — не трогаем, чтобы не затереть
-    const caller = await getAuthData(req);
+    const caller = req.auth?.legacy ?? null;
     if (finances !== undefined && canManageFinances(req)) {
       user.finances = {
         salary: toNonNegativeOrNull(finances?.salary),
@@ -1333,7 +1332,7 @@ exports.changePassword = async (req, res, next) => {
     const { password, repeatedPassword, currentPassword, sendPassword } =
       req.body;
 
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const isSelf = String(req.params.id) === String(authedUser.userId);
 
     if (
@@ -1392,7 +1391,7 @@ exports.changePassword = async (req, res, next) => {
     // остаётся — выкидывать человека из приложения за то, что он сменил себе
     // пароль, значит наказывать за правильное действие.
     if (isSelf) {
-      // Токен берём из req.auth, а не из getAuthData: шим отдаёт легаси-форму,
+      // Токен берём из req.auth: там лежит сам сеанс, а не плоская копия
       // в которой сеанса нет вовсе, и «сохранить текущий» молча погасило бы всё.
       await revokeOthersForUser(user._id, req.auth?.session?.token);
     } else {
@@ -1437,7 +1436,7 @@ exports.changePassword = async (req, res, next) => {
  */
 exports.sendPasswordLink = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const isSelf = String(req.params.id) === String(authedUser.userId);
 
     if (
@@ -1491,7 +1490,7 @@ exports.sendPasswordLink = async (req, res, next) => {
 
 exports.deleteBackgroundImage = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
 
     const user = await User.findById(userId);
 
@@ -1520,7 +1519,7 @@ exports.addBackgroundImage = async (req, res, next) => {
       return next(new AppError(`File not uploaded`, 400));
     }
 
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
 
     const user = await User.findById(userId);
 
@@ -1681,7 +1680,7 @@ exports.updateMyAccount = async (req, res, next) => {
 // Смена собственного статуса присутствия (веб). Identity строго из токена.
 exports.setWorkStatus = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const user = await User.findById(userId);
     if (!user) {
       return next(new AppError(`User ${userId} not found`, 404));
@@ -1835,7 +1834,7 @@ exports.updateWorkSchedule = async (req, res, next) => {
       );
     }
 
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
 
     applyWorkSchedule(user, req.body, userId);
 

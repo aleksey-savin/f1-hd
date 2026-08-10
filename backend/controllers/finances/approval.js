@@ -11,7 +11,6 @@ const ServicePlanReport = require("@/models/finances/servicePlanReport");
 const Work = require("@/models/work");
 
 const { AppError } = require("@/middleware/errorHandling");
-const getAuthData = require("@/middleware/getAuthData");
 const {
   buildPreview,
   companyZone,
@@ -122,7 +121,7 @@ const restrictRow = (row, report, viewer) => {
 
 exports.getPipeline = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const scope = await resolveReportApprovalScope(authedUser);
 
     if (scope.kind === "none") {
@@ -236,7 +235,7 @@ exports.getPipeline = async (req, res, next) => {
 
 exports.getReport = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const scope = await resolveReportApprovalScope(authedUser);
 
     const report = await ServicePlanReport.findById(req.params.id)
@@ -284,7 +283,7 @@ exports.getReport = async (req, res, next) => {
  */
 exports.getPreviewCard = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const scope = await resolveReportApprovalScope(authedUser);
     if (scope.kind !== "all") {
       return next(new AppError("Подбор доступен только исполнителю", 403));
@@ -427,7 +426,7 @@ exports.getUnrelated = async (req, res, next) => {
 
 exports.create = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { companyId, servicePlanId, workIds } = req.body;
 
     const report = await createReport({
@@ -449,7 +448,7 @@ exports.create = async (req, res, next) => {
 
 exports.resubmit = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const report = await ServicePlanReport.findById(req.params.id);
     if (!report) {
       return next(new AppError("Отчёт не найден", 404));
@@ -469,7 +468,7 @@ exports.resubmit = async (req, res, next) => {
 /** Шаги после согласования: счёт, оплата, архив. */
 const stageAction = (run) => async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const report = await ServicePlanReport.findById(req.params.id);
     if (!report) {
       return next(new AppError("Отчёт не найден", 404));
@@ -504,7 +503,7 @@ exports.archive = stageAction(({ report, authedUser }) =>
 
 exports.decision = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const scope = await resolveReportApprovalScope(authedUser);
 
     const report = await ServicePlanReport.findById(req.params.id);

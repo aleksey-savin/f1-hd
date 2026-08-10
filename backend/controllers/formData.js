@@ -2,13 +2,12 @@ const Company = require("../models//company");
 const User = require("../models//user");
 const TicketCategory = require("../models//ticketCategory");
 
-const getAuthData = require("../middleware/getAuthData");
 
 const { AppError } = require("../middleware/errorHandling");
 
 exports.getCompanies = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     let companies = [];
 

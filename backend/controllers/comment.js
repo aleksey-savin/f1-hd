@@ -5,7 +5,6 @@ const TicketLog = require("../models/ticketLog");
 const { Ticket } = require("../models/ticket");
 const Preferences = require("../models/preferences");
 
-const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
 const logger = require("../utils/logger");
 
@@ -28,7 +27,7 @@ exports.getAll = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const prefs = await Preferences.findOne({});
 
     const { ticketId, content } = req.body;
@@ -107,7 +106,7 @@ exports.add = async (req, res, next) => {
 // Без вложений (для bulk не поддерживаем). Повторяет логику add по каждой заявке.
 exports.addMultiple = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const prefs = await Preferences.findOne({});
 
     const { ids, content } = req.body;
@@ -164,7 +163,7 @@ exports.addMultiple = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const comment = await Comment.findById(req.body.id);
 
     if (authData.userId.toString() === comment.ticket.toString()) {
@@ -189,7 +188,7 @@ exports.update = async (req, res, next) => {
 
 exports.delete = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const comment = await Comment.findById(req.body.id);
 
     if (comment && authData.userId.toString() === comment.ticket.toString()) {

@@ -1,4 +1,3 @@
-const getAuthData = require("../../middleware/getAuthData");
 const User = require("../../models/user");
 const ServicePlan = require("../../models/finances/servicePlan");
 const TicketCategory = require("../../models/ticketCategory");
@@ -44,7 +43,7 @@ exports.getOne = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
 
     const {
       title,

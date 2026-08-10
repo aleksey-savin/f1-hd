@@ -4,7 +4,6 @@ const User = require("../../models/user");
 const Company = require("../../models/company");
 const ClientDevice = require("../../models/inventory/clientDevice");
 const { AppError } = require("../../middleware/errorHandling");
-const getAuthData = require("../../middleware/getAuthData");
 const {
   buildMikrotikStatusMap,
   mikrotikOverlay,
@@ -153,7 +152,7 @@ exports.getAllCompanies = async (req, res, next) => {
   try {
     const { companyIds } = req.query;
 
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     let companyFilter = {};
 
@@ -360,7 +359,7 @@ exports.add = async (req, res, next) => {
       notes,
     } = req.body;
 
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     // Validation: assignedUser only for workplace type
     if (type !== "workplace" && assignedUser) {
@@ -497,7 +496,7 @@ exports.update = async (req, res, next) => {
       );
     }
 
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     const {
       name,
@@ -1138,7 +1137,7 @@ const PARENT_GROUP_LABEL = {
  * нечем.
  */
 exports.getMyTech = async (req, res, next) => {
-  const authedUser = await getAuthData(req);
+  const authedUser = req.auth?.legacy ?? null;
   req.params = { ...req.params, userId: authedUser._id.toString() };
   return exports.getUserTech(req, res, next);
 };

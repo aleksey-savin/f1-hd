@@ -5,7 +5,6 @@ const { buildPersonalReport } = require("../../services/personalReportService");
 
 const { AppError } = require("../../middleware/errorHandling");
 
-const getAuthData = require("../../middleware/getAuthData");
 
 const MAX_PERIOD_DAYS = 366;
 
@@ -18,7 +17,7 @@ const MAX_PERIOD_DAYS = 366;
 // прошлому периоду — без неё плитке нечего показать под значением.
 exports.getSummary = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const { from, to, userId: requestedUserId, details } = req.query;
     const includeDetails = details !== "0" && details !== "false";
 

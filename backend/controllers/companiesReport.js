@@ -1,6 +1,5 @@
 const Preferences = require("@/models/preferences");
 
-const getAuthData = require("@/middleware/getAuthData");
 const { AppError } = require("@/middleware/errorHandling");
 
 const {
@@ -22,7 +21,7 @@ const {
 
 const withScope = (handler) => async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const [preferences, scope] = await Promise.all([
       Preferences.findOne({}),
       resolveCompaniesReportScope(authedUser),

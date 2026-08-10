@@ -13,7 +13,6 @@ const { Ticket } = require("../../models/ticket");
 
 const { createPhotoHandlers, deleteAllPhotos } = require("./photoHandlers");
 const { AppError } = require("../../middleware/errorHandling");
-const getAuthData = require("../../middleware/getAuthData");
 const {
   buildMikrotikStatusMap,
   mikrotikOverlay,
@@ -443,7 +442,7 @@ const duplicateError = (error) => {
 
 exports.getAll = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const q = req.query;
 
     const baseMatch = await buildListMatch(q, authedUser);
@@ -585,7 +584,7 @@ exports.getAll = async (req, res, next) => {
  */
 exports.getFacets = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     // Комплектующие входят в опции: без них в фасете типов не было бы
     // «Оперативной памяти», и свитч «показывать комплектующие» не с чем было бы
     // складывать.
@@ -724,7 +723,7 @@ exports.checkSerial = async (req, res, next) => {
     const value = String(req.query.value || "").trim();
     if (!value) return res.status(200).json({ matches: [] });
 
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const match = {
       deletedAt: null,
       serialNumber: value,

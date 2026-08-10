@@ -3,7 +3,6 @@ const storage = require("../services/storage");
 const { AppError } = require("../middleware/errorHandling");
 const logger = require("../utils/logger");
 
-const getAuthData = require("../middleware/getAuthData");
 const Preferences = require("../models//preferences");
 
 const { Ticket } = require("../models/ticket");
@@ -72,7 +71,7 @@ const buildAttachment = (file) => ({
 
 exports.getAllOpened = async (req, res, next) => {
   try {
-    const { isAdmin, permissions, userId, company } = await getAuthData(req);
+    const { isAdmin, permissions, userId, company } = req.auth.legacy;
 
     const allTickets = await Ticket.find({ isClosed: false })
       .select("-description")
@@ -204,7 +203,7 @@ exports.getAllOpened = async (req, res, next) => {
 exports.getUsersTickets = async (req, res, next) => {
   const contextLogger = await logger.addContext(req);
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     const { isAdmin, permissions, userId } = authedUser;
 
@@ -282,7 +281,7 @@ exports.getClosed = async (req, res, next) => {
       isAdmin,
       permissions,
       company,
-    } = await getAuthData(req);
+    } = req.auth.legacy;
     const q = req.query;
 
     const query = { isClosed: true };
@@ -410,7 +409,7 @@ exports.getClosed = async (req, res, next) => {
  */
 exports.getTechnicalLog = async (req, res, next) => {
   try {
-    const { isEndUser } = await getAuthData(req);
+    const { isEndUser } = req.auth;
     if (isEndUser) return res.status(200).json({ entries: [] });
 
     const ticket = await Ticket.findOne({ num: req.params.ticketNum })
@@ -443,7 +442,7 @@ exports.getTechnicalLog = async (req, res, next) => {
 
 exports.getOne = async (req, res, next) => {
   try {
-    const { isEndUser, isAdmin, permissions } = await getAuthData(req);
+    const { isEndUser, isAdmin, permissions } = req.auth;
     const ticketNum = req.params.ticketNum;
 
     const ticket = await Ticket.findOne({ num: ticketNum })
@@ -599,7 +598,7 @@ exports.getOne = async (req, res, next) => {
 
 exports.getFormData = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     // По умолчанию отключённые компании (и их заявители) в форму не попадают;
     // Архив заявок шлёт ?includeInactive=true — там фильтруют по истории.
@@ -716,7 +715,7 @@ exports.getFormData = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { userId, company } = await getAuthData(req);
+    const { userId, company } = req.auth.legacy;
     const { categoryId, applicantId } = req.body;
     const prefs = await Preferences.findOne({});
     const userCompany = await Company.findById(company._id);
@@ -944,7 +943,7 @@ exports.getAiTermReference = async (req, res, next) => {
 // человек, который отделяет проверенное знание от предположения модели.
 exports.saveAiTermNote = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const { _id, term } = req.body;
 
     const note = await saveReferenceAsNote(_id, term, userId);
@@ -974,7 +973,7 @@ const TARGET_LABEL = {
 
 exports.addAiFeedback = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { _id, target, reason, text } = req.body;
 
     if (!FEEDBACK_TARGETS.includes(target)) {
@@ -1181,7 +1180,7 @@ exports.process = async (req, res, next) => {
       deadline,
     } = req.body;
 
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
 
     const ticket = await Ticket.findOne({ _id: req.body._id });
 
@@ -1237,7 +1236,7 @@ exports.process = async (req, res, next) => {
 
 exports.takeToWork = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     const ticket = await Ticket.findById(req.body._id);
 
@@ -1329,7 +1328,7 @@ exports.takeToWork = async (req, res, next) => {
 
 exports.requestHelp = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
 
     const ticket = await Ticket.findById(req.body._id);
 
@@ -1383,7 +1382,7 @@ exports.requestHelp = async (req, res, next) => {
 
 exports.joinResponsibles = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     const ticket = await Ticket.findById(req.body._id);
 
@@ -1461,7 +1460,7 @@ exports.joinResponsibles = async (req, res, next) => {
 
 exports.updateDeadline = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
 
     const ticket = await Ticket.findById(req.body._id);
 
@@ -1510,7 +1509,7 @@ exports.updateDeadline = async (req, res, next) => {
 
 exports.reject = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
 
     const ticket = await Ticket.findById(req.body._id);
 
@@ -1582,7 +1581,7 @@ exports.reject = async (req, res, next) => {
 exports.close = async (req, res, next) => {
   try {
     const prefs = await Preferences.findOne({});
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { permissions } = authedUser;
 
     const ticket = await Ticket.findById(req.body._id);
@@ -1710,7 +1709,7 @@ exports.close = async (req, res, next) => {
 
 exports.backToWork = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const authedUser = await User.findById(userId);
 
     const ticket = await Ticket.findById(req.body._id);
@@ -1778,7 +1777,7 @@ exports.backToWork = async (req, res, next) => {
 exports.delete = async (req, res, next) => {
   try {
     const prefs = await Preferences.findOne({});
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const authedUser = await User.findById(authData.userId);
 
     const ticket = await Ticket.findById(req.params.id);
@@ -1844,7 +1843,7 @@ exports.delete = async (req, res, next) => {
 exports.deleteMultiple = async (req, res, next) => {
   try {
     const prefs = await Preferences.findOne({});
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const authedUser = await User.findById(authData.userId);
     const { ids } = req.body;
 
@@ -1906,7 +1905,7 @@ exports.deleteMultiple = async (req, res, next) => {
 // detail-вью ловили конфликт.
 exports.takeToWorkMultiple = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { ids, takeOver } = req.body;
     const authedUserId = authedUser._id.toString();
 
@@ -1992,7 +1991,7 @@ exports.takeToWorkMultiple = async (req, res, next) => {
 exports.closeMultiple = async (req, res, next) => {
   try {
     const prefs = await Preferences.findOne({});
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { permissions } = authedUser;
     const { ids, closingComment } = req.body;
 
@@ -2099,7 +2098,7 @@ exports.closeMultiple = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const authData = await getAuthData(req);
+    const authData = req.auth?.legacy ?? null;
     const authedUser = await User.findById(authData.userId);
     const prefs = await Preferences.findOne({});
 
@@ -2457,7 +2456,7 @@ exports.getAllOpenedTg = async (req, res, next) => {
 
 exports.updateChecklistItem = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
 
     const authedUser = await User.findById(userId);
     const ticketNum = req.params.ticketNum;
@@ -2554,7 +2553,7 @@ exports.updateChecklist = async (req, res, next) => {
     // было ни следа, кто и когда его завёл. Источник важен: чек-лист, собранный
     // из руководства ИИ, — это и есть та фича, ради которой их станет больше,
     // и в истории она должна отличаться от ручной правки
-    const { firstName, lastName } = await getAuthData(req);
+    const { firstName, lastName } = req.auth.legacy;
     const fromAi = req.body?.source === "ai";
     const templateTitle = req.body?.templateTitle;
 
@@ -2638,7 +2637,7 @@ exports.addAttachments = async (req, res, next) => {
     // Поля именно те, что есть в схеме TicketLog: до 31.07 здесь писались
     // action/description/createdBy, которых в ней нет, и Mongoose в
     // strict-режиме молча их выбрасывал — в базе оставалась пустая запись.
-    const { firstName, lastName } = await getAuthData(req);
+    const { firstName, lastName } = req.auth.legacy;
 
     const log = new TicketLog({
       ticketId: ticket._id,
@@ -2712,7 +2711,7 @@ exports.removeAttachment = async (req, res, next) => {
 
     // Удаление тоже событие: файл исчезает из описания бесследно, и
     // восстановить его нечем
-    const { firstName, lastName } = await getAuthData(req);
+    const { firstName, lastName } = req.auth.legacy;
     const log = new TicketLog({
       ticketId: ticket._id,
       kind: "attachmentRemoved",

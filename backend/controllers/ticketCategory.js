@@ -3,11 +3,10 @@ const ServicePlan = require("../models/finances/servicePlan");
 const User = require("../models/user");
 const { AppError } = require("../middleware/errorHandling");
 const { concatIdsArray } = require("../helpers/concatIdsArray");
-const getAuthData = require("../middleware/getAuthData");
 
 exports.getAll = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const categories = await TicketCategory.find({}).sort({ title: 1 });
 
     const filteredCategories = categories.filter((category) => {

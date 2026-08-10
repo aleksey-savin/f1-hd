@@ -7,7 +7,7 @@ const { authorizeFor } = require("@/auth/bootstrap");
  * Способов теперь два: серверный сеанс better-auth (`middleware/attachSession`)
  * и телеграм-актор (`middleware/attachTelegramActor` через
  * `services/telegramActor`). Форма `req.auth` при этом обязана совпадать до
- * поля: её читают 134 места через `getAuthData`, ~52 маршрута через
+ * поля: её читают ~52 маршрута через
  * `req.userId` и все гейты прав через `can()`. Разойдись эти две сборки — и
  * контроллер, работающий из браузера, молча повёл бы себя иначе из бота.
  *
@@ -54,7 +54,7 @@ const buildAuthContext = async (user, session = null) => {
     isAdmin,
     isEndUser: user.isEndUser !== false,
     session,
-    // Форма, которую сорок раз ждёт код через getAuthData: тот же плоский
+    // Прежняя плоская форма ответа снятого шима `getAuthData`: тот же
     // объект пользователя плюс userId. Отличие одно — permissions здесь
     // ЭФФЕКТИВНЫЕ и всегда полные.
     legacy: { ...user.toObject(), userId: user._id.toString(), permissions },

@@ -11,7 +11,6 @@ const {
 } = require("../../services/workCalendar");
 const { resolveOvertimeSettings } = require("../../services/workOvertime");
 const { getHealth, syncCalendar } = require("../../services/productionCalendar");
-const getAuthData = require("../../middleware/getAuthData");
 const { AppError } = require("../../middleware/errorHandling");
 
 // Период считается по календарным дням: сравнение UTC-полуночей, а не
@@ -50,7 +49,7 @@ exports.getSchedule = async (req, res, next) => {
       return next(invalid);
     }
 
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const [preferences, viewer] = await Promise.all([
       Preferences.findOne({}).lean(),
       User.findById(userId).select("isAdmin permissions").lean(),

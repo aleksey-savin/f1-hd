@@ -5,7 +5,6 @@ const TicketCategory = require("../models/ticketCategory");
 const Preferences = require("../models/preferences");
 
 const { AppError } = require("../middleware/errorHandling");
-const getAuthData = require("../middleware/getAuthData");
 const { markdownToPlainText } = require("../helpers/markdownToPlainText");
 const { rescanNoteDerived } = require("../helpers/knowledgeNoteDerived");
 const {
@@ -142,7 +141,7 @@ const buildSearchConditions = (raw) => {
 // Список заметок, доступных пользователю. Поиск (?search=) — на сервере.
 exports.getAll = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const kbConfig = await getKbConfig();
 
     // По умолчанию — активные заметки (не в архиве). archived=true → архивные;
@@ -213,7 +212,7 @@ const matchesTicketContext = (note, { company, category, user }) => {
 // списка), ранжирование по релевантности — на клиенте.
 exports.getRelated = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const kbConfig = await getKbConfig();
     const { company, category, user } = req.query;
 
@@ -251,7 +250,7 @@ exports.getRelated = async (req, res, next) => {
 // Полная заметка (с content) — с проверкой видимости
 exports.getOne = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const kbConfig = await getKbConfig();
     const note = await KnowledgeNote.findById(req.params.id)
       .populate(ACTOR_PATHS)
@@ -282,7 +281,7 @@ exports.getOne = async (req, res, next) => {
 
 exports.add = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const {
       title = "",
       content = "",
@@ -323,7 +322,7 @@ exports.add = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const note = await KnowledgeNote.findById(req.params.id);
 
     if (!note) {
@@ -407,7 +406,7 @@ exports.delete = async (req, res, next) => {
 // Доступно носителям canManageKnowledgeBase.
 exports.sendToDeletion = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const note = await KnowledgeNote.findById(req.params.id);
 
     if (!note) {
@@ -438,7 +437,7 @@ exports.sendToDeletion = async (req, res, next) => {
 // Подтвердить удаление заметки (жёсткое удаление из БД). Только модераторы.
 exports.confirmDeletion = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { moderatorIds } = await getKbConfig();
 
     if (!isModerator(authedUser, moderatorIds)) {
@@ -474,7 +473,7 @@ exports.confirmDeletion = async (req, res, next) => {
 // Отклонить запрос на удаление (модератор) — снимает pendingDeletion
 exports.declineDeletion = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { moderatorIds } = await getKbConfig();
 
     if (!isModerator(authedUser, moderatorIds)) {
@@ -516,7 +515,7 @@ exports.declineDeletion = async (req, res, next) => {
 // из диалога. В БД состояние хранится в полях approved/approvedBy/approvedAt.
 exports.approve = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { moderatorIds } = await getKbConfig();
 
     if (!isModerator(authedUser, moderatorIds)) {
@@ -566,7 +565,7 @@ exports.approve = async (req, res, next) => {
 // Доступно носителям canManageKnowledgeBase.
 exports.requestArchive = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const note = await KnowledgeNote.findById(req.params.id);
 
     if (!note) {
@@ -597,7 +596,7 @@ exports.requestArchive = async (req, res, next) => {
 // Подтвердить архивацию. Только модераторы. Заметка исчезает отовсюду.
 exports.confirmArchive = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { moderatorIds } = await getKbConfig();
 
     if (!isModerator(authedUser, moderatorIds)) {
@@ -640,7 +639,7 @@ exports.confirmArchive = async (req, res, next) => {
 // Отклонить запрос на архивацию (модератор) — снимает pendingArchive
 exports.declineArchive = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { moderatorIds } = await getKbConfig();
 
     if (!isModerator(authedUser, moderatorIds)) {
@@ -713,7 +712,7 @@ exports.unarchive = async (req, res, next) => {
 // нужна человекочитаемая причина для тех, кого пропустили (статус успел
 // измениться, пока модератор смотрел список).
 const runBulkModeration = async (req, { precondition, skipReason, apply }) => {
-  const authedUser = await getAuthData(req);
+  const authedUser = req.auth?.legacy ?? null;
   const kbConfig = await getKbConfig();
 
   if (!isModerator(authedUser, kbConfig.moderatorIds)) {
@@ -858,7 +857,7 @@ exports.declineArchiveMultiple = bulkModerationHandler({
 // Немодераторам возвращаем нули.
 exports.getModerationSummary = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { moderatorIds, scanForSecrets } = await getKbConfig();
 
     if (!isModerator(authedUser, moderatorIds)) {
@@ -902,7 +901,7 @@ exports.getServiceExpiry = async (req, res, next) => {
       return res.status(200).json({ services: [], count: 0 });
     }
 
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { hideNotApproved, moderatorIds } = await getKbConfig();
     const empty = { services: [], count: 0 };
 
@@ -1019,7 +1018,7 @@ exports.getServiceExpiry = async (req, res, next) => {
 // секрет (другое значение) в той же заметке по-прежнему сработает.
 exports.ignoreSecretFinding = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const { moderatorIds } = await getKbConfig();
 
     if (!isModerator(authedUser, moderatorIds)) {

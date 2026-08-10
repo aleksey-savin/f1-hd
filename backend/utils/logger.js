@@ -1,7 +1,6 @@
 const winston = require("winston");
 const { combine, timestamp, json, errors } = winston.format;
 const DailyRotateFile = require("winston-daily-rotate-file");
-const getAuthData = require("../middleware/getAuthData");
 
 const levels = {
   error: 0,
@@ -110,7 +109,10 @@ const getValidLogLevel = (level) => {
 
 // Add request context to logs with auth
 logger.addContext = async function (req) {
-  const userData = await getAuthData(req);
+  // Личность уже собрана `attachSession` — логгеру остаётся её прочитать.
+  // `?.` обязателен: контекст просят и на неавторизованных маршрутах, где
+  // `req.auth` не создаётся вовсе, и «anonymous» ниже — штатный случай.
+  const userData = req?.auth?.legacy ?? null;
 
   return {
     log: (level, message, meta = {}) => {

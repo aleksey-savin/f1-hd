@@ -3,7 +3,6 @@ const RoutineTask = require("../models/routineTask");
 const User = require("../models/user");
 const Company = require("../models/company");
 
-const getAuthData = require("../middleware/getAuthData");
 
 const { AppError } = require("../middleware/errorHandling");
 
@@ -14,7 +13,7 @@ exports.getAll = async (req, res, next) => {
       company,
       permissions,
       isEndUser,
-    } = await getAuthData(req);
+    } = req.auth.legacy;
     const authedUser = await User.findById(userId);
 
     let templates = [];
@@ -159,7 +158,7 @@ exports.add = async (req, res, next) => {
       userId,
       isEndUser,
       company: authedUserCompany,
-    } = await getAuthData(req);
+    } = req.auth.legacy;
     const authedUser = await User.findById(userId);
 
     const data = await buildTemplateData(
@@ -187,7 +186,7 @@ exports.update = async (req, res, next) => {
       userId,
       isEndUser,
       company: authedUserCompany,
-    } = await getAuthData(req);
+    } = req.auth.legacy;
     const authedUser = await User.findById(userId);
 
     const template = await TicketTemplate.findById(req.params.id);
@@ -272,7 +271,7 @@ exports.syncRoutines = async (req, res, next) => {
 // Правка только чек-листа шаблона (с карточки, отдельно от полной формы).
 exports.updateChecklist = async (req, res, next) => {
   try {
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
     const authedUser = await User.findById(userId);
 
     const template = await TicketTemplate.findById(req.params.id);

@@ -1,13 +1,12 @@
 const User = require("../models/user");
 const Connection = require("../models/pro32Connect/connection");
 
-const getAuthData = require("../middleware/getAuthData");
 const { AppError } = require("../middleware/errorHandling");
 const { resolveGetScreenApiKey } = require("../helpers/getScreenKey");
 
 exports.createSupport = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     if (!authedUser.getScreen.api) {
       return next(
@@ -65,7 +64,7 @@ exports.createSupport = async (req, res, next) => {
 
 exports.getConnection = async (req, res, next) => {
   try {
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
 
     const connection = await Connection.findOne({
       ticket: req.params.ticketNum,

@@ -4,7 +4,6 @@ const Company = require("../models/company");
 const AiFeedback = require("../models/aiFeedback");
 
 const { AppError } = require("../middleware/errorHandling");
-const getAuthData = require("../middleware/getAuthData");
 const storage = require("../services/storage");
 const { isModerator } = require("../helpers/knowledgeNoteVisibility");
 const {
@@ -206,7 +205,7 @@ exports.getInitial = async (req, res, next) => {
 
     // Статус модерации базы знаний для текущего пользователя — нужен глобально
     // (карточка модерации на странице заявок и алерт об утечках на каждой странице).
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     const kb = preferences.knowledgeBase || {};
     const moderatorIds = (kb.moderators || [])
       .map((moderator) => moderator?._id?.toString())
@@ -548,7 +547,7 @@ exports.sendTestEmail = async (req, res, next) => {
     );
     // Письмо уходит тому, кто нажал кнопку: свой ящик админ проверит сразу,
     // а вводить адрес отдельным полем — лишний шаг с шансом опечататься.
-    const authedUser = await getAuthData(req);
+    const authedUser = req.auth?.legacy ?? null;
     res.status(200).json(await sendTestEmail(channel, authedUser?.email));
   } catch (error) {
     next(new AppError(`Failed to send test email`, 500, true, error));
@@ -646,7 +645,7 @@ exports.getAiRules = async (req, res, next) => {
 exports.toggleAiRule = async (req, res, next) => {
   try {
     const { _id, isActive } = req.body;
-    const { userId } = await getAuthData(req);
+    const { userId } = req.auth;
 
     const rule = await AiFeedback.findByIdAndUpdate(
       _id,
