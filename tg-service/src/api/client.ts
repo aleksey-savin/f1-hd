@@ -74,14 +74,14 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   } catch (error) {
     // Сеть и таймаут — это «повторим», а не «ответ такой».
     const reason = error instanceof Error ? error.message : String(error);
-    throw new BackendError(0, null, `Бэкенд недоступен: ${reason}`);
+    throw new BackendError(0, null, `Backend unreachable: ${reason}`);
   }
 
   if (!response.ok) {
     const payload: unknown = await response.json().catch(() => null);
     const message =
       (payload as { message?: string } | null)?.message ||
-      `Запрос не удался (${response.status})`;
+      `Request failed (${response.status})`;
     throw new BackendError(response.status, payload, message);
   }
 
@@ -107,7 +107,7 @@ export async function tryApi<T>(
   try {
     return await call();
   } catch (error) {
-    logger.warn(`Не удалось: ${what}`, error);
+    logger.warn(`Failed to ${what}`, error);
     return null;
   }
 }

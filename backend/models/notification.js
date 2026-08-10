@@ -35,6 +35,14 @@ const notificationSchema = new Schema(
     // раньше: у большинства уведомлений своей вёрстки нет и не нужно
     html: { type: String, default: null },
     replyMarkup: { type: Schema.Types.Mixed },
+    /**
+     * Блоки рич-сообщения (Bot API 10.1+) — основная форма для telegram.
+     *
+     * `text` при этом продолжает заполняться обычной HTML-разметкой и остаётся
+     * запасной дорогой: если рич-формат не пройдёт (старый клиент, отказ API),
+     * отправщик уходит на `sendMessage` и уведомление не теряется.
+     */
+    richMessage: { type: Schema.Types.Mixed, default: null },
     sent: { type: Boolean, default: false },
     failed: { type: Boolean, default: false },
     attemptsCounter: { type: Number, default: 0 },

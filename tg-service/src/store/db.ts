@@ -54,13 +54,13 @@ export const openDatabase = (): DatabaseSync => {
     db.exec(statement);
   }
 
-  logger.info("Локальная база открыта", { path: config.dbPath });
+  logger.info("Local database opened", { path: config.dbPath });
   return db;
 };
 
 export const getDatabase = (): DatabaseSync => {
   if (!db) {
-    throw new Error("База не открыта: openDatabase() не вызывали");
+    throw new Error("Database is not open: openDatabase() was never called");
   }
   return db;
 };

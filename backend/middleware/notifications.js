@@ -5,6 +5,10 @@ const {
   ticketEvent,
   commentEvent,
   worksEvent,
+  ticketBlocks,
+  commentBlocks,
+  worksBlocks,
+  deadlineRow,
   contextLine,
   personName,
   escapeHtml,
@@ -108,17 +112,67 @@ const groupChatTo = (prefs) => {
 // Telegram отклоняет inline-кнопки с невалидным URL (localhost/127.* и пустой ADDRESS)
 // ошибкой BUTTON_URL_INVALID, что роняет всю отправку. В таких случаях (например, в dev)
 // кнопку не добавляем — сообщение уходит без неё.
-const ticketButton = (num) => {
+/**
+ * Кнопка «Подробнее» — ВСЕГДА ссылка на страницу заявки в приложении. Ничем
+ * другим она не бывает: это одно действие с одним смыслом.
+ *
+ * Единственная причина, по которой её может не быть, — `ADDRESS` не годится в
+ * ссылку. Telegram отклоняет кнопку на localhost (`BUTTON_URL_INVALID`) и
+ * роняет при этом ВСЁ сообщение, то есть уведомление не доходит вовсе; лучше
+ * выпустить его без кнопки. Раньше это происходило молча — теперь в журнале
+ * остаётся строка с причиной, потому что «кнопка пропала» иначе выглядит
+ * поломкой кода, а не настройкой окружения.
+ */
+let addressWarned = false;
+
+/** Адрес заявки в приложении. Пустой ADDRESS — единственное, что его отменяет. */
+const ticketUrl = (num) => {
   const base = process.env.ADDRESS || "";
+  if (!base) return null;
+
+  // Диагноз раз на процесс: Telegram не примет ссылку на localhost, и понять
+  // это по отсутствующей кнопке невозможно.
   const isLocal = /\/\/(localhost|127\.|0\.0\.0\.0|\[?::1)/i.test(base);
-  if (!/^https?:\/\//i.test(base) || isLocal) {
-    return undefined;
+  if ((isLocal || !/^https?:\/\//i.test(base)) && !addressWarned) {
+    addressWarned = true;
+    logger.log(
+      "warn",
+      `ADDRESS="${base}" не годится в ссылку Telegram: кнопка будет отброшена при отправке (нужен публичный http(s)-адрес)`,
+      { module: "notifications" },
+    );
   }
-  return {
-    inline_keyboard: [
-      [{ text: "Подробнее", url: `${base}/tickets/${num}` }],
-    ],
-  };
+
+  return `${base}/tickets/${num}`;
+};
+
+/**
+ * Кнопка «Подробнее» — В КАЖДОМ уведомлении и ВСЕГДА ссылкой на страницу
+ * заявки в приложении.
+ *
+ * Раньше её здесь молча не добавляли, если `ADDRESS` не годился в ссылку. Это
+ * решало не ту задачу: уведомление доходило, но кнопки не было НИКОГДА, и
+ * выглядело это поломкой. Теперь кнопка ставится всегда, а разбирается с
+ * негодной ссылкой тот, кто единственный знает ответ Telegram, — отправщик:
+ * получив `BUTTON_URL_INVALID`, он повторяет отправку без разметки, так что
+ * уведомление не теряется (`tg-service/src/workers/outbox.ts`).
+ */
+const ticketButton = (num) => {
+  const url = ticketUrl(num);
+  if (!url) return undefined;
+  return { inline_keyboard: [[{ text: "Подробнее", url }]] };
+};
+
+/**
+ * Работы относятся сразу к нескольким заявкам, поэтому кнопка на каждую: одна
+ * «Подробнее» здесь не отвечает на вопрос «подробнее о которой».
+ */
+const worksButtons = (tickets) => {
+  const rows = tickets
+    .map((num) => ({ num, url: ticketUrl(num) }))
+    .filter(({ url }) => url)
+    .map(({ num, url }) => [{ text: `Заявка ${num}`, url }]);
+
+  return rows.length ? { inline_keyboard: rows } : undefined;
 };
 
 exports.createTicketNotifications = async () => {
@@ -158,7 +212,9 @@ exports.createTicketNotifications = async () => {
       })
         .sort({ updatedAt: 1 })
         .limit(NOTIFICATION_BATCH_SIZE)
-        .populate("applicantId"),
+        .populate("applicantId")
+        // Закрывшего показываем автором закрывающего комментария.
+        .populate("finishedBy"),
     "loading pending ticket notifications",
   );
 
@@ -233,6 +289,12 @@ exports.createTicketNotifications = async () => {
     const clientTime = () =>
       (clientTimePromise ??= clientTimeLine(ticket, applicant, prefs));
 
+    // То же значение строкой таблицы для рич-сообщения.
+    const clientTimeRow = async () => {
+      const line = await clientTime();
+      return line ? ["У клиента", line.replace(/^У клиента сейчас:\s*/, "")] : null;
+    };
+
     switch (lastAction) {
       case "new ticket":
         //--------------------------------------------------
@@ -252,6 +314,12 @@ exports.createTicketNotifications = async () => {
                   ticket,
                   lines: [contextLine(ticket)],
                 }),
+              richMessage: ticketBlocks({
+                emoji: "⭐️",
+                event: "Новая заявка",
+                ticket,
+                rows: [deadlineRow(ticket, resolveTimezone(prefs))],
+              }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
@@ -282,6 +350,12 @@ exports.createTicketNotifications = async () => {
                   event: "Новая заявка",
                   ticket,
                 }),
+              richMessage: ticketBlocks({
+                emoji: "⭐️",
+                event: "Новая заявка",
+                ticket,
+                rows: [deadlineRow(ticket, resolveTimezone(prefs))],
+              }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
@@ -317,7 +391,13 @@ exports.createTicketNotifications = async () => {
                   emoji: "🟢",
                   event: "Вы в списке ответственных",
                   ticket,
-                  lines: [contextLine(ticket), await clientTime()],
+                  rows: [await clientTimeRow()],
+                }),
+                richMessage: ticketBlocks({
+                  emoji: "🟢",
+                  event: "Вы в списке ответственных",
+                  ticket,
+                  rows: [await clientTimeRow()],
                 }),
                 replyMarkup: ticketButton(ticket.num),
               });
@@ -472,7 +552,13 @@ exports.createTicketNotifications = async () => {
                   emoji: "🟢",
                   event: "Вы в списке ответственных",
                   ticket,
-                  lines: [contextLine(ticket), await clientTime()],
+                  rows: [await clientTimeRow()],
+                }),
+                richMessage: ticketBlocks({
+                  emoji: "🟢",
+                  event: "Вы в списке ответственных",
+                  ticket,
+                  rows: [await clientTimeRow()],
                 }),
                 replyMarkup: ticketButton(ticket.num),
               });
@@ -563,6 +649,11 @@ exports.createTicketNotifications = async () => {
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
               text: ticketEvent({
+                  emoji: "📌",
+                  event: "Принята в работу",
+                  ticket,
+                }),
+              richMessage: ticketBlocks({
                   emoji: "📌",
                   event: "Принята в работу",
                   ticket,
@@ -663,7 +754,13 @@ exports.createTicketNotifications = async () => {
                   emoji: "🟢",
                   event: "Вы в списке ответственных",
                   ticket,
-                  lines: [contextLine(ticket), await clientTime()],
+                  rows: [await clientTimeRow()],
+                }),
+                richMessage: ticketBlocks({
+                  emoji: "🟢",
+                  event: "Вы в списке ответственных",
+                  ticket,
+                  rows: [await clientTimeRow()],
                 }),
                 replyMarkup: ticketButton(ticket.num),
               });
@@ -756,6 +853,11 @@ exports.createTicketNotifications = async () => {
                   ticket,
                   lines: [contextLine(ticket)],
                 }),
+              richMessage: ticketBlocks({
+                  emoji: "↩️",
+                  event: "Возвращена в статус «Новая»",
+                  ticket,
+                }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newTicketNotification.save();
@@ -792,7 +894,12 @@ exports.createTicketNotifications = async () => {
                   event: `${personName(userRejected)} снял(а) с себя заявку`,
                   ticket,
                   quoted: ticket.rejected[ticket.rejected.length - 1].reason,
-                  lines: [contextLine(ticket)],
+                }),
+                richMessage: ticketBlocks({
+                  emoji: "🟠",
+                  event: `${personName(userRejected)} снял(а) с себя заявку`,
+                  ticket,
+                  quoted: ticket.rejected[ticket.rejected.length - 1].reason,
                 }),
                 replyMarkup: ticketButton(ticket.num),
               });
@@ -962,7 +1069,14 @@ exports.createTicketNotifications = async () => {
                   event: "Заявка закрыта",
                   ticket,
                   quoted: ticket.closingComment,
-                  lines: [contextLine(ticket)],
+                  quotedBy: personName(ticket.finishedBy),
+                }),
+              richMessage: ticketBlocks({
+                  emoji: "✅",
+                  event: "Заявка закрыта",
+                  ticket,
+                  quoted: ticket.closingComment,
+                  quotedBy: personName(ticket.finishedBy),
                 }),
               replyMarkup: ticketButton(ticket.num),
             });
@@ -994,7 +1108,14 @@ exports.createTicketNotifications = async () => {
                   event: "Заявка закрыта",
                   ticket,
                   quoted: ticket.closingComment,
-                  lines: [contextLine(ticket)],
+                  quotedBy: personName(ticket.finishedBy),
+                }),
+              richMessage: ticketBlocks({
+                  emoji: "✅",
+                  event: "Заявка закрыта",
+                  ticket,
+                  quoted: ticket.closingComment,
+                  quotedBy: personName(ticket.finishedBy),
                 }),
               replyMarkup: ticketButton(ticket.num),
             });
@@ -1029,7 +1150,14 @@ exports.createTicketNotifications = async () => {
                   event: "Заявка закрыта",
                   ticket,
                   quoted: ticket.closingComment,
-                  lines: [contextLine(ticket)],
+                  quotedBy: personName(ticket.finishedBy),
+                }),
+                richMessage: ticketBlocks({
+                  emoji: "✅",
+                  event: "Заявка закрыта",
+                  ticket,
+                  quoted: ticket.closingComment,
+                  quotedBy: personName(ticket.finishedBy),
                 }),
                 replyMarkup: ticketButton(ticket.num),
               });
@@ -1160,7 +1288,12 @@ exports.createTicketNotifications = async () => {
                   event: "Возвращена в работу",
                   ticket,
                   quoted: ticket.returningComment,
-                  lines: [contextLine(ticket)],
+                }),
+              richMessage: ticketBlocks({
+                  emoji: "↩️",
+                  event: "Возвращена в работу",
+                  ticket,
+                  quoted: ticket.returningComment,
                 }),
               replyMarkup: ticketButton(ticket.num),
             });
@@ -1195,7 +1328,12 @@ exports.createTicketNotifications = async () => {
                   event: "Возвращена в работу",
                   ticket,
                   quoted: ticket.returningComment,
-                  lines: [contextLine(ticket)],
+                }),
+                richMessage: ticketBlocks({
+                  emoji: "↩️",
+                  event: "Возвращена в работу",
+                  ticket,
+                  quoted: ticket.returningComment,
                 }),
                 replyMarkup: ticketButton(ticket.num),
               });
@@ -1228,7 +1366,12 @@ exports.createTicketNotifications = async () => {
                   event: "Возвращена в работу",
                   ticket,
                   quoted: ticket.returningComment,
-                  lines: [contextLine(ticket)],
+                }),
+              richMessage: ticketBlocks({
+                  emoji: "↩️",
+                  event: "Возвращена в работу",
+                  ticket,
+                  quoted: ticket.returningComment,
                 }),
               replyMarkup: ticketButton(ticket.num),
             });
@@ -1393,10 +1536,13 @@ exports.createTicketNotifications = async () => {
                   emoji: "⏰",
                   event: "Срок изменён",
                   ticket,
-                  lines: [
-                    `Новый срок: <b>${escapeHtml(deadlineText)}</b>`,
-                    contextLine(ticket),
-                  ],
+                  rows: [["Новый срок", deadlineText]],
+                }),
+                richMessage: ticketBlocks({
+                  emoji: "⏰",
+                  event: "Срок изменён",
+                  ticket,
+                  rows: [["Новый срок", deadlineText]],
                 }),
                 replyMarkup: ticketButton(ticket.num),
               });
@@ -1547,6 +1693,7 @@ exports.createCommentNotifications = async () => {
                 applicant: `${applicant.lastName} ${applicant.firstName}`,
               },
               text: commentEvent({ comment, ticket }),
+              richMessage: commentBlocks({ comment, ticket }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newCommentNotification.save();
@@ -1571,6 +1718,7 @@ exports.createCommentNotifications = async () => {
               ticketId: ticket._id,
               to: groupChatTo(prefs),
               text: commentEvent({ comment, ticket }),
+              richMessage: commentBlocks({ comment, ticket }),
               replyMarkup: ticketButton(ticket.num),
             });
             await newCommentNotification.save();
@@ -1603,6 +1751,7 @@ exports.createCommentNotifications = async () => {
                   responsible: `${user.lastName} ${user.firstName}`,
                 },
                 text: commentEvent({ comment, ticket }),
+                richMessage: commentBlocks({ comment, ticket }),
                 replyMarkup: ticketButton(ticket.num),
               });
               await newTicketNotification.save();
@@ -1901,6 +2050,22 @@ exports.createScheduledWorkNotifications = async () => {
                   )}`,
                 ],
               }),
+            richMessage: worksBlocks({
+                emoji: "🛠",
+                event: "Запланированы работы",
+                tickets,
+                lines: [
+                  escapeHtml(company),
+                  `Специалист: ${escapeHtml(personName(work.executor))}`,
+                  `${work.visitRequired ? "Выезд" : "Удалённо"} · начало ${escapeHtml(
+                    formatDateTime(work.planningToStart),
+                  )}`,
+                  `Ожидаемая длительность: ${escapeHtml(
+                    msToHMS(work.planningToFinish - work.planningToStart),
+                  )}`,
+                ],
+              }),
+            replyMarkup: worksButtons(tickets),
           });
           await scheduledWorksNotification.save();
         } catch (error) {
@@ -2011,6 +2176,22 @@ exports.createScheduledWorkNotifications = async () => {
                   )}`,
                 ],
               }),
+            richMessage: worksBlocks({
+                emoji: "🛠",
+                event: "Изменены запланированные работы",
+                tickets,
+                lines: [
+                  escapeHtml(company),
+                  `Специалист: ${escapeHtml(personName(work.executor))}`,
+                  `${work.visitRequired ? "Выезд" : "Удалённо"} · начало ${escapeHtml(
+                    formatDateTime(work.planningToStart),
+                  )}`,
+                  `Ожидаемая длительность: ${escapeHtml(
+                    msToHMS(work.planningToFinish - work.planningToStart),
+                  )}`,
+                ],
+              }),
+            replyMarkup: worksButtons(tickets),
           });
           await scheduledWorksNotification.save();
         } catch (error) {

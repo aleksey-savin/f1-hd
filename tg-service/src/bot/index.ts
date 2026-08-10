@@ -64,11 +64,11 @@ export const createBot = (getConfig: ConfigSource): Bot => {
   bot.catch((error) => {
     const cause = error.error;
     if (cause instanceof GrammyError) {
-      logger.warn("Telegram отклонил запрос", { description: cause.description });
+      logger.warn("Telegram rejected the request", { description: cause.description });
     } else if (cause instanceof HttpError) {
-      logger.warn("Сеть Telegram недоступна", cause);
+      logger.warn("Telegram network is unreachable", cause);
     } else {
-      logger.error("Необработанная ошибка обработчика", cause);
+      logger.error("Unhandled handler error", cause);
     }
   });
 
@@ -326,7 +326,7 @@ export const createBot = (getConfig: ConfigSource): Bot => {
         }
       } catch (error) {
         // Заявка важнее вложения: без фото она всё равно полезна.
-        logger.warn("Не удалось забрать фото из Telegram", error);
+        logger.warn("Could not fetch the photo from Telegram", error);
       }
     }
 

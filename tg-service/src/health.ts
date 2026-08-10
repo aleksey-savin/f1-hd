@@ -55,7 +55,7 @@ export const startHealthServer = (): Server => {
 
   // Только петля: наружу сервису слушать нечего, входящих портов у него нет.
   server.listen(config.healthPort, "127.0.0.1", () => {
-    logger.info("Проверка здоровья слушает", { port: config.healthPort });
+    logger.info("Health endpoint listening", { port: config.healthPort });
   });
 
   return server;

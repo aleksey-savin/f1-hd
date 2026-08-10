@@ -118,6 +118,8 @@ exports.outboxPull = async (req, res, next) => {
         messageThreadId: notification.to?.messageThreadId || null,
         globalChat: Boolean(notification.to?.globalChat),
         text: notification.text,
+        // Блоки рич-сообщения; `text` рядом остаётся запасной дорогой.
+        richMessage: notification.richMessage || null,
         replyMarkup: notification.replyMarkup || null,
         attempt: notification.attemptsCounter,
       })),

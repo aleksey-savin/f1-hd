@@ -5,7 +5,6 @@ import { tryApi } from "../api/client.ts";
 import type { DeliveryOutcome, OutboxItem } from "../api/types.ts";
 import { logger } from "../logger.ts";
 import { recordDelivery, wasDelivered } from "../store/deliveries.ts";
-import { guardChat, guardText } from "../util/chatGuard.ts";
 
 /**
  * Доставка уведомлений.
@@ -48,41 +47,91 @@ const isPermanent = (error: GrammyError): boolean => {
   );
 };
 
+/**
+ * Отправка: сначала рич-сообщением, при отказе — обычным.
+ *
+ * Рич-формату два месяца (Bot API 10.1), и как он ведёт себя на всех клиентах,
+ * проверено не до конца. Поэтому у каждого уведомления есть вторая форма —
+ * та же мысль обычной HTML-разметкой, — и отказ API по форме сообщения не
+ * должен стоить доставки. Откат делается ОДИН раз и только на понятной ошибке
+ * формата: сеть и лимиты разбираются выше, повторной попыткой.
+ *
+ * 429 наверх пробрасывается как есть: пауза касается всей пачки.
+ */
+const sendEither = async (
+  bot: Bot,
+  item: OutboxItem,
+  common: Record<string, unknown>,
+) => {
+  if (item.richMessage?.length) {
+    try {
+      return await bot.api.sendRichMessage(
+        item.chatId,
+        { blocks: item.richMessage },
+        common,
+      );
+    } catch (error) {
+      if (error instanceof GrammyError && error.error_code !== 429) {
+        logger.warn("Rich message rejected, falling back to plain HTML", {
+          id: item.id,
+          description: error.description,
+        });
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  return bot.api.sendMessage(item.chatId, item.text, {
+    parse_mode: "HTML",
+    link_preview_options: { is_disabled: true },
+    ...common,
+  });
+};
+
+/**
+ * Telegram отказался от КНОПКИ, а не от сообщения.
+ *
+ * Ссылка на localhost — `BUTTON_URL_INVALID`, и отказ приходит на всё
+ * сообщение целиком. Бэкенд кнопку ставит всегда (это правило продукта:
+ * ссылка на заявку в каждом уведомлении), а годность адреса знает только тот,
+ * кто получил ответ Telegram. Поэтому решение здесь: повторить без разметки.
+ * Уведомление важнее кнопки.
+ */
+const isBadButton = (error: unknown): boolean =>
+  error instanceof GrammyError &&
+  error.description.toUpperCase().includes("BUTTON_URL_INVALID");
+
 const deliver = async (bot: Bot, item: OutboxItem): Promise<DeliveryOutcome> => {
   // 1. Не отправляли ли уже? Это и есть защита от повторной доставки.
   const already = wasDelivered(item.id);
   if (already) {
-    logger.info("Уведомление уже доставлено, подтверждаем повторно", {
+    logger.info("Notification already delivered, re-acknowledging", {
       id: item.id,
     });
     return { id: item.id, ok: true, tgMessageId: already.tgMessageId ?? 0 };
   }
 
-  const target = guardChat(item.chatId);
-  if (target.blocked) {
-    return {
-      id: item.id,
-      ok: false,
-      retryable: false,
-      reason: "заблокировано предохранителем (не прод)",
-    };
-  }
+  const common = {
+    ...(item.replyMarkup ? { reply_markup: item.replyMarkup } : {}),
+    ...(item.messageThreadId
+      ? { message_thread_id: Number(item.messageThreadId) }
+      : {}),
+  };
 
   try {
-    const message = await bot.api.sendMessage(
-      target.chatId,
-      target.redirected ? guardText(item.text, target.intended) : item.text,
-      {
-        parse_mode: "HTML",
-        link_preview_options: { is_disabled: true },
-        ...(item.replyMarkup ? { reply_markup: item.replyMarkup } : {}),
-        // Ветка форума из прод-чата в дев-чате не существует — сообщение ушло
-        // бы в никуда с ошибкой.
-        ...(item.messageThreadId && !target.redirected
-          ? { message_thread_id: Number(item.messageThreadId) }
-          : {}),
-      },
-    );
+    let message;
+    try {
+      message = await sendEither(bot, item, common);
+    } catch (error) {
+      if (!isBadButton(error)) throw error;
+      const { reply_markup: _dropped, ...withoutButton } = common;
+      logger.warn("Telegram refused the button, resending without it", {
+        id: item.id,
+        hint: "ADDRESS должен быть публичным http(s)-адресом",
+      });
+      message = await sendEither(bot, item, withoutButton);
+    }
 
     // 2. Записываем ДО подтверждения: подтверждение может не доехать.
     recordDelivery(item.id, message.message_id);
@@ -95,7 +144,7 @@ const deliver = async (bot: Bot, item: OutboxItem): Promise<DeliveryOutcome> => 
         throw error;
       }
       if (isPermanent(error)) {
-        logger.warn("Уведомление недоставимо, закрываем", {
+        logger.warn("Notification undeliverable, closing", {
           id: item.id,
           description: error.description,
         });
@@ -115,15 +164,15 @@ const deliver = async (bot: Bot, item: OutboxItem): Promise<DeliveryOutcome> => 
     }
 
     if (error instanceof HttpError) {
-      return { id: item.id, ok: false, retryable: true, reason: "сеть Telegram" };
+      return { id: item.id, ok: false, retryable: true, reason: "Telegram network failure" };
     }
 
-    logger.error("Неожиданная ошибка отправки", error);
+    logger.error("Unexpected send failure", error);
     return {
       id: item.id,
       ok: false,
       retryable: true,
-      reason: error instanceof Error ? error.message : "неизвестная ошибка",
+      reason: error instanceof Error ? error.message : "unknown error",
     };
   }
 };
@@ -138,12 +187,12 @@ const retryAfterMs = (error: unknown): number | null => {
 };
 
 export const runOutboxCycle = async (bot: Bot): Promise<void> => {
-  const batch = await tryApi("получить очередь уведомлений", () => pullOutbox());
+  const batch = await tryApi("pull the notification queue", () => pullOutbox());
   if (!batch || batch.notifications.length === 0) {
     return;
   }
 
-  logger.debug("Взята пачка уведомлений", {
+  logger.debug("Claimed a batch of notifications", {
     leaseId: batch.leaseId,
     count: batch.notifications.length,
   });
@@ -162,7 +211,7 @@ export const runOutboxCycle = async (bot: Bot): Promise<void> => {
         id: item.id,
         ok: false,
         retryable: true,
-        reason: "Telegram просит подождать",
+        reason: "Telegram asked us to slow down",
       });
       continue;
     }
@@ -177,7 +226,7 @@ export const runOutboxCycle = async (bot: Bot): Promise<void> => {
           id: item.id,
           ok: false,
           retryable: true,
-          reason: "Telegram просит подождать",
+          reason: "Telegram asked us to slow down",
         });
         continue;
       }
@@ -187,10 +236,10 @@ export const runOutboxCycle = async (bot: Bot): Promise<void> => {
     await sleep(SEND_GAP_MS);
   }
 
-  await tryApi("подтвердить доставку", () => ackOutbox(batch.leaseId, results));
+  await tryApi("acknowledge delivery", () => ackOutbox(batch.leaseId, results));
 
   if (throttledFor !== null) {
-    logger.warn("Telegram ограничил отправку, ждём", { ms: throttledFor });
+    logger.warn("Telegram rate-limited us, waiting", { ms: throttledFor });
     await sleep(throttledFor);
   }
 };

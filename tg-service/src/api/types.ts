@@ -1,4 +1,5 @@
 import type { InlineKeyboardMarkup } from "grammy/types";
+import type { Api } from "grammy";
 
 /**
  * Формы ответов бэкенда — В ОДНОМ МЕСТЕ.
@@ -47,6 +48,16 @@ export type BotConfig = {
  */
 export type ReplyMarkup = InlineKeyboardMarkup;
 
+/**
+ * Блоки рич-сообщения.
+ *
+ * Тип выводится ИЗ САМОГО МЕТОДА, а не описывается рядом: так он не может
+ * разойтись с тем, что примет API, и обновится вместе с grammy.
+ */
+export type RichBlocks = NonNullable<
+  Parameters<Api["sendRichMessage"]>[1]["blocks"]
+>;
+
 export type OutboxItem = {
   id: string;
   ticketId: string | null;
@@ -55,6 +66,8 @@ export type OutboxItem = {
   globalChat: boolean;
   text: string;
   replyMarkup: ReplyMarkup | null;
+  /** Основная форма сообщения; `text` — запасная, если рич не пройдёт. */
+  richMessage: RichBlocks | null;
   attempt: number;
 };
 

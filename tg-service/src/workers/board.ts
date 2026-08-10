@@ -47,7 +47,7 @@ export const runBoardCycle = async (bot: Bot, config: BotConfig): Promise<void> 
     return;
   }
 
-  const board = await tryApi("получить состав табло", () => fetchBoard());
+  const board = await tryApi("fetch status board members", () => fetchBoard());
   if (!board) return;
 
   const text = renderBoard(board.users, config);
@@ -73,16 +73,16 @@ export const runBoardCycle = async (bot: Bot, config: BotConfig): Promise<void> 
         .catch((error: unknown) => {
           // Права на закрепление может не быть — табло от этого работать не
           // перестаёт, а падать из-за украшения незачем.
-          logger.warn("Не удалось закрепить табло", error);
+          logger.warn("Could not pin the status board", error);
         });
 
       setRenderedHash(chatId, hash);
-      await tryApi("сообщить id табло", () =>
+      await tryApi("report the board message id", () =>
         reportBoardMessage({ messageId: message.message_id }),
       );
-      logger.info("Табло создано", { chatId, messageId: message.message_id });
+      logger.info("Status board created", { chatId, messageId: message.message_id });
     } catch (error) {
-      logger.warn("Не удалось создать табло", error);
+      logger.warn("Could not create the status board", error);
     }
     return;
   }
@@ -103,7 +103,7 @@ export const runBoardCycle = async (bot: Bot, config: BotConfig): Promise<void> 
     setRenderedHash(chatId, hash);
   } catch (error) {
     if (!(error instanceof GrammyError)) {
-      logger.warn("Не удалось обновить табло", error);
+      logger.warn("Could not update the status board", error);
       return;
     }
 
@@ -116,28 +116,28 @@ export const runBoardCycle = async (bot: Bot, config: BotConfig): Promise<void> 
 
     const migrated = migratedChatId(error);
     if (migrated) {
-      logger.warn("Группа стала супергруппой, адрес табло изменился", {
+      logger.warn("Group upgraded to supergroup, board chat id changed", {
         from: chatId,
         to: migrated,
       });
       forgetBoard(chatId);
       // Бэкенду это важнее, чем нам: он адресует по этому же chatId групповые
       // уведомления, и без правки они уходили бы в несуществующий чат.
-      await tryApi("сообщить о переезде чата", () =>
+      await tryApi("report the chat migration", () =>
         reportBoardMessage({ migratedToChatId: migrated }),
       );
       return;
     }
 
     if (isMissingMessage(error)) {
-      logger.warn("Сообщение табло исчезло, будет создано заново");
+      logger.warn("Status board message is gone, it will be recreated");
       forgetBoard(chatId);
-      await tryApi("сбросить id табло", () =>
+      await tryApi("reset the board message id", () =>
         reportBoardMessage({ messageId: null }),
       );
       return;
     }
 
-    logger.warn("Не удалось обновить табло", error);
+    logger.warn("Could not update the status board", error);
   }
 };
