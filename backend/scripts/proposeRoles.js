@@ -12,8 +12,7 @@
 require("module-alias/register");
 const mongoose = require("mongoose");
 
-const { PERMISSION_KEYS } = require("@/utils/permissions");
-const { permissionsToStatements } = require("@/auth/access");
+const { PERMISSION_KEYS, legacyToActions } = require("./legacyPermissions");
 
 const run = async () => {
   const asJson = process.argv.includes("--json");
@@ -68,8 +67,11 @@ const run = async () => {
     name: `role${index + 1}`,
     isAdmin: group.isAdmin,
     people: group.users.length,
-    permissions: group.granted,
-    statements: permissionsToStatements(
+    // Наружу — действия НОВОГО словаря: предложение вставляют в каталог, а
+    // каталог говорит на нём. Подпись при этом остаётся доролевой: по ней
+    // `assignRoles.js` и узнаёт человека в базе.
+    signature: group.granted,
+    actions: legacyToActions(
       Object.fromEntries(group.granted.map((key) => [key, true])),
     ),
     sample: group.users

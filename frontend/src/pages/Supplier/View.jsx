@@ -8,10 +8,7 @@ const ViewSupplierPage = () => {
   const can = useCan();
   const supplier = useLoaderData();
 
-  if (
-    !can({ inventory: ["use"] }) ||
-    !can({ clientDevice: ["manage"] })
-  ) {
+  if (!can({ supplier: ["read"] })) {
     return <Forbidden />;
   }
 

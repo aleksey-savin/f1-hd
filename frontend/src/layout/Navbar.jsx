@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import WorkStatusAvatar from "../components/User/WorkStatusAvatar";
 import WorkStatusSwitcher from "../components/User/WorkStatusSwitcher";
 import { AuthedUserContext } from "../store/authed-user-context";
+import { useCan } from "../store/authed-user";
 import { ThemeContext } from "../store/theme-context";
 import useInitialPrefs from "../store/prefs";
 import { getLocalStorageData } from "../util/auth";
@@ -138,10 +139,11 @@ const ThemeDropdown = () => {
 };
 
 // Меню пользователя: статусы присутствия + «Мой аккаунт» + «Настройки
-// системы» (только админам — переехали из «Администрирования») + «Выйти»
+// системы» (кому открыты — переехали из «Администрирования») + «Выйти»
 const UserMenu = ({ trigger, align = "end" }) => {
   const [open, setOpen] = useState(false);
-  const { isAdmin, isEndUser, hideWorkStatus } = useContext(AuthedUserContext);
+  const { isEndUser, hideWorkStatus } = useContext(AuthedUserContext);
+  const can = useCan();
   const workStatusAvailable = !isEndUser && !hideWorkStatus;
 
   const menuItemClass =
@@ -169,7 +171,7 @@ const UserMenu = ({ trigger, align = "end" }) => {
           />
           Мой аккаунт
         </NavLink>
-        {isAdmin && (
+        {can({ settings: ["read"] }) && (
           <NavLink
             to="/preferences"
             onClick={() => setOpen(false)}
@@ -206,18 +208,17 @@ const NavigationBar = ({ embedded = false }) => {
   const isLoggedIn = !!token;
 
   const authedUser = useContext(AuthedUserContext);
+  const can = useCan();
   const { modules, mikrotik } = useInitialPrefs();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const {
     firstName,
     lastName,
-    isAdmin,
     isEndUser,
     profileImagePath,
     workStatus,
     hideWorkStatus,
-    permissions,
   } = authedUser;
 
   const workStatusAvailable = !isEndUser && !hideWorkStatus;
@@ -229,13 +230,12 @@ const NavigationBar = ({ embedded = false }) => {
       isLoggedIn
         ? buildMenu({
             isEndUser,
-            isAdmin,
-            permissions,
+            can,
             modules,
             mikrotikActive: !!mikrotik?.isActive,
           })
         : [],
-    [isLoggedIn, isEndUser, isAdmin, permissions, modules, mikrotik],
+    [isLoggedIn, isEndUser, can, modules, mikrotik],
   );
 
   const userTrigger = (

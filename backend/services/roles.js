@@ -3,10 +3,9 @@ const mongoose = require("mongoose");
 const { AppError } = require("@/middleware/errorHandling");
 const {
   STATEMENT,
-  permissionsToStatements,
-  statementsToPermissions,
+  actionsToStatements,
+  statementsToActions,
   isFullAccess,
-  AC_TO_LEGACY,
 } = require("@/auth/access");
 const {
   organizationId,
@@ -167,19 +166,25 @@ const list = async () => {
   const orgId = await orgIdOrThrow();
   const roles = await listRoles();
   return Promise.all(
-    roles.map(async (role) => ({ ...role, usage: await usage(orgId, role.key) })),
+    roles.map(async (role) => ({
+      ...role,
+      // Наружу — СПИСОК ДЕЙСТВИЙ, а не statements: им говорят и форма роли, и
+      // фильтр каталога, и строка списка. Без него интерфейс читал `role.actions`
+      // как undefined и показывал все роли пустыми.
+      actions: statementsToActions(role.statements),
+      usage: await usage(orgId, role.key),
+    })),
   );
 };
 
 /**
- * Права приходят ПЛОСКОЙ картой ({ canManageUsers: true }), а не словарём.
- * Роль правится галочками, у которых ключ и подпись идут парами, — это ровно
- * тот случай, где плоская карта уместна. Перевод в словарь один на весь проект
+ * Права приходят СПИСКОМ ДЕЙСТВИЙ (`["ticket.delete", …]`) — тем же языком, на
+ * котором объявлен словарь. Перевод в statements один на весь проект
  * (auth/access.js), второй копии на клиенте не заводим.
  */
-const create = async ({ title, description, permissions, audience }, can) => {
+const create = async ({ title, description, actions, audience }, can) => {
   const orgId = await orgIdOrThrow();
-  const clean = sanitize(permissionsToStatements(permissions || {}));
+  const clean = sanitize(actionsToStatements(actions || []));
   assertNotEscalating(clean, can);
 
   if (!String(title || "").trim()) {
@@ -205,7 +210,77 @@ const create = async ({ title, description, permissions, audience }, can) => {
   return { key, title, description, statements: clean };
 };
 
-const update = async (key, { title, description, permissions, audience }, can) => {
+/**
+ * Пересчитать зеркало `isAdmin` (и роль плагина) у всех носителей роли.
+ *
+ * Нужен там, где меняется САМА РОЛЬ, а не назначение: `assign` зеркалит одного
+ * человека, а правка набора прав роли касается сразу всех, кто её носит.
+ * Без этого зеркало разъезжается с ролью в обе стороны — роль, потерявшая
+ * полный доступ, оставляла носителей администраторами (то есть отъём прав
+ * молча не срабатывал), а роль, дополненная до полного доступа, не делала их
+ * администраторами вовсе.
+ */
+const refreshMirrorForUsers = async (orgId, userIds) => {
+  if (!userIds.length) return 0;
+
+  const catalogue = new Map(
+    (await listRoles()).map((role) => [role.key, role.statements]),
+  );
+
+  const rows = await members()
+    .find(
+      { organizationId: orgId, userId: { $in: userIds.map(String) } },
+      { projection: { userId: 1, role: 1 } },
+    )
+    .toArray();
+
+  for (const row of rows) {
+    const keys = String(row.role || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const statements = {};
+    for (const key of keys) {
+      for (const [resource, actions] of Object.entries(catalogue.get(key) || {})) {
+        statements[resource] = [
+          ...new Set([...(statements[resource] || []), ...actions]),
+        ];
+      }
+    }
+
+    const shouldBeAdmin = keys.some((key) =>
+      isFullAccess(catalogue.get(key) || {}),
+    );
+
+    await mongoose.connection.db.collection("users").updateOne(
+      { _id: new mongoose.Types.ObjectId(String(row.userId)) },
+      { $set: { isAdmin: shouldBeAdmin, role: pluginRole(statements) } },
+    );
+  }
+
+  return rows.length;
+};
+
+/** То же, но по роли: кто её носит СЕЙЧАС. */
+const refreshMirrorFor = async (orgId, roleKey) => {
+  const rows = await members()
+    .find(
+      {
+        organizationId: orgId,
+        role: { $regex: `(^|,)\\s*${roleKey}\\s*(,|$)` },
+      },
+      { projection: { userId: 1 } },
+    )
+    .toArray();
+
+  return refreshMirrorForUsers(
+    orgId,
+    rows.map((row) => row.userId).filter(Boolean),
+  );
+};
+
+const update = async (key, { title, description, actions, audience }, can) => {
   const orgId = await orgIdOrThrow();
   const role = await collection().findOne({ organizationId: orgId, role: key });
   if (!role) {
@@ -227,14 +302,19 @@ const update = async (key, { title, description, permissions, audience }, can) =
   if (audience !== undefined) {
     set.audience = audienceOf(audience);
   }
-  if (permissions !== undefined) {
-    const clean = sanitize(permissionsToStatements(permissions));
+  if (actions !== undefined) {
+    const clean = sanitize(actionsToStatements(actions));
     assertNotEscalating(clean, can);
     set.permission = JSON.stringify(clean);
   }
 
   await collection().updateOne({ _id: role._id }, { $set: set });
   invalidateRoles();
+
+  // Набор прав роли изменился — зеркало у её носителей обязано догнать
+  if (set.permission !== undefined) {
+    await refreshMirrorFor(orgId, key);
+  }
 
   return { ...role, ...set };
 };
@@ -244,17 +324,24 @@ const update = async (key, { title, description, permissions, audience }, can) =
  * хранит роль именем, и запись, указывающая на несуществующую роль, — это
  * человек без прав и без объяснения, откуда это.
  */
-const remove = async (key) => {
+const remove = async (key, can) => {
   const orgId = await orgIdOrThrow();
   const role = await collection().findOne({ organizationId: orgId, role: key });
   if (!role) {
     throw new AppError("Роль не найдена", 404);
   }
 
+  const statements = JSON.parse(role.permission || "{}");
+
+  // Удаление — тоже распоряжение чужими правами: оно снимает роль со всех, кто
+  // её носит. Тот же порог, что у создания и правки: нельзя трогать роль,
+  // раздающую больше, чем есть у самого. Иначе управляющий ролями снимал бы
+  // администраторскую роль, выдать которую не может.
+  assertNotEscalating(statements, can);
+
   // Последнюю роль, дающую управление ролями или пользователями, не отдаём:
   // после неё раздавать права станет некому, и починить это можно будет только
   // руками в базе.
-  const statements = JSON.parse(role.permission || "{}");
   for (const [resource, action] of [
     ["role", "manage"],
     ["user", "manage"],
@@ -281,14 +368,16 @@ const remove = async (key) => {
   const affected = await usage(orgId, key);
 
   const rows = await members()
-    .find({ organizationId: orgId }, { projection: { role: 1 } })
+    .find({ organizationId: orgId }, { projection: { role: 1, userId: 1 } })
     .toArray();
+  const touched = [];
   for (const row of rows) {
     const roles = String(row.role || "")
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
     if (!roles.includes(key)) continue;
+    touched.push(row.userId);
     await members().updateOne(
       { _id: row._id },
       { $set: { role: roles.filter((item) => item !== key).join(",") } },
@@ -297,6 +386,9 @@ const remove = async (key) => {
 
   await collection().deleteOne({ _id: role._id });
   invalidateRoles();
+
+  // Роль снята со всех — если она давала полный доступ, зеркало обязано погаснуть
+  await refreshMirrorForUsers(orgId, touched.filter(Boolean));
 
   return affected;
 };
@@ -414,7 +506,7 @@ const assign = async (userId, keys, can) => {
   return {
     roles: keys,
     isAdmin: shouldBeAdmin,
-    permissions: statementsToPermissions(statements),
+    actions: statementsToActions(statements),
   };
 };
 
@@ -451,15 +543,13 @@ const gaps = async () => {
     ),
   );
 
-  // Наружу отдаём ПЛОСКИМИ ключами: у списка прав в интерфейсе ключ и подпись
-  // идут парами, и второй словарь на клиенте здесь ни к чему.
-  return Object.entries(STATEMENT)
-    .flatMap(([resource, actions]) =>
-      actions
-        .filter((action) => !covered.has(`${resource}.${action}`))
-        .map((action) => AC_TO_LEGACY[`${resource}.${action}`]),
-    )
-    .filter(Boolean);
+  // Наружу — идентификаторы действий: подписи к ним фронт берёт из того же
+  // каталога, что и всё остальное (`/api/me`, `permissionCatalogue`).
+  return Object.entries(STATEMENT).flatMap(([resource, actions]) =>
+    actions
+      .filter((action) => !covered.has(`${resource}.${action}`))
+      .map((action) => `${resource}.${action}`),
+  );
 };
 
 module.exports = {

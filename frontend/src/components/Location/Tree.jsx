@@ -215,7 +215,7 @@ const TreeNode = ({
 const Tree = ({ items = [], selectedId = null, onSelect }) => {
   const roots = useMemo(() => buildForest(items), [items]);
   const can = useCan();
-  const canManage = can({ clientDevice: ["manage"] });
+  const canManage = can({ device: ["manage"] });
 
   const [collapsedIds, setCollapsedIds] = useState(() => new Set());
 

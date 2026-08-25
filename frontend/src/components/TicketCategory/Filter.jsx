@@ -17,7 +17,7 @@ const TicketCategoryFilter = () => {
   const can = useCan();
   const filterStore = useTicketCategoryFilterStore();
   const items = filterStore.originalList || [];
-  const showFinances = can({ finances: ["use"] });
+  const showFinances = can({ servicePlan: ["read"] });
 
   const userOptions = useMemo(() => {
     const map = new Map();

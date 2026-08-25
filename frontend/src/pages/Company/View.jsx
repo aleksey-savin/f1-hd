@@ -103,7 +103,10 @@ export async function loader({ params }) {
 
   let servicePlansData = [];
 
-  const canUseFinances = Boolean(me?.permissions?.canUseFinancesModule);
+  // Плоской карты прав больше нет — спрашиваем словарём, тем же, что сервер
+  const canUseFinances = Boolean(
+    me?.statements?.servicePlan?.includes("read"),
+  );
 
   if (prefsData.modules.finances.isActive && canUseFinances) {
     const servicePlansResponse = await fetch(

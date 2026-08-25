@@ -6,14 +6,79 @@ const Company = require("../models/company");
 
 const { AppError } = require("../middleware/errorHandling");
 
+/**
+ * Видимость шаблона — то же правило, что собирает выборкой `getAll`. Раньше оно
+ * существовало ТОЛЬКО в виде запроса, поэтому `getOne` и все правки его не
+ * знали: список аккуратно скрывал чужой шаблон, а прямая ссылка отдавала его
+ * целиком.
+ *
+ * Сверяем по идентификаторам, а не по вложенным объектам целиком, как в
+ * запросе: объект компании в шаблоне — снимок, и точное сравнение разошлось бы
+ * с ним на первом же переименовании.
+ */
+const canSeeTemplate = (template, auth) => {
+  if (auth.can({ ticketTemplate: ["manage"] })) return true;
+
+  const userId = auth.userId;
+  const companyId = auth.user.company?._id?.toString();
+
+  return Boolean(
+    String(template.createdBy?._id) === userId ||
+      (!auth.isEndUser && template.allowAllStaff) ||
+      (template.sharedUsers || []).some(
+        (user) => String(user?._id ?? user) === userId,
+      ) ||
+      (companyId &&
+        (template.sharedCompanies || []).some(
+          (company) => String(company?._id ?? company) === companyId,
+        )),
+  );
+};
+
+/**
+ * Править и удалять — автор или тот, кому доверены все шаблоны. Шаблон заводит
+ * себе кто угодно, включая клиента (`buildTemplateData`, ветка `isEndUser`),
+ * поэтому «править может только управляющий шаблонами» здесь неверно: это
+ * отобрало бы у человека его собственную заготовку.
+ */
+const canEditTemplate = (template, auth) =>
+  auth.can({ ticketTemplate: ["manage"] }) ||
+  String(template.createdBy?._id) === auth.userId;
+
+/** Шаблон по id с проверкой. `mode` — что именно с ним собираются делать. */
+const loadTemplate = async (req, mode) => {
+  const template = await TicketTemplate.findById(req.params.id).populate(
+    "categoryId",
+    "_id title",
+  );
+  if (!template) {
+    throw new AppError(`Шаблон заявки не найден`, 404);
+  }
+
+  const allowed =
+    mode === "edit"
+      ? canEditTemplate(template, req.auth)
+      : canSeeTemplate(template, req.auth);
+
+  if (!allowed) {
+    throw new AppError(
+      mode === "edit"
+        ? `Изменить можно только свой шаблон`
+        : `Шаблон вам недоступен`,
+      403,
+    );
+  }
+
+  return template;
+};
+
+/** Отказ по доступу — 403, а не сбой сервера. */
+const passThrough = (error, fallback) =>
+  error instanceof AppError ? error : new AppError(fallback, 500, true, error);
+
 exports.getAll = async (req, res, next) => {
   try {
-    const {
-      _id: userId,
-      company,
-      permissions,
-      isEndUser,
-    } = req.auth.legacy;
+    const { _id: userId, company, isEndUser } = req.auth.legacy;
     const authedUser = await User.findById(userId);
 
     let templates = [];
@@ -54,23 +119,10 @@ exports.getAll = async (req, res, next) => {
 
 exports.getOne = async (req, res, next) => {
   try {
-    const template = await TicketTemplate.findById(req.params.id).populate(
-      "categoryId",
-      "_id title",
-    );
-    if (!template) {
-      return res.status(404).json({ message: "Template not found" });
-    }
+    const template = await loadTemplate(req, "read");
     res.status(200).json(template);
   } catch (error) {
-    next(
-      new AppError(
-        `Failed to fetch ticket template ${req.params.id}`,
-        500,
-        true,
-        error,
-      ),
-    );
+    next(passThrough(error, `Failed to fetch ticket template ${req.params.id}`));
   }
 };
 
@@ -189,12 +241,7 @@ exports.update = async (req, res, next) => {
     } = req.auth.legacy;
     const authedUser = await User.findById(userId);
 
-    const template = await TicketTemplate.findById(req.params.id);
-    if (!template) {
-      return next(
-        new AppError(`Ticket template ${req.params.id} not found`, 404),
-      );
-    }
+    const template = await loadTemplate(req, "edit");
 
     const data = await buildTemplateData(
       req.body,
@@ -213,7 +260,7 @@ exports.update = async (req, res, next) => {
 
     res.status(201).json({ template, childRoutines });
   } catch (error) {
-    next(new AppError(`Failed to update ticket template`, 500, true, error));
+    next(passThrough(error, `Failed to update ticket template`));
   }
 };
 
@@ -231,15 +278,7 @@ exports.syncRoutines = async (req, res, next) => {
       return res.status(200).json({ updated: 0 });
     }
 
-    const template = await TicketTemplate.findById(req.params.id).populate(
-      "categoryId",
-      "_id title",
-    );
-    if (!template) {
-      return next(
-        new AppError(`Ticket template ${req.params.id} not found`, 404),
-      );
-    }
+    const template = await loadTemplate(req, "edit");
 
     const patch = {
       title: template.title,
@@ -264,7 +303,7 @@ exports.syncRoutines = async (req, res, next) => {
 
     res.status(201).json({ updated: result.modifiedCount ?? 0 });
   } catch (error) {
-    next(new AppError(`Failed to sync routines`, 500, true, error));
+    next(passThrough(error, `Failed to sync routines`));
   }
 };
 
@@ -274,12 +313,7 @@ exports.updateChecklist = async (req, res, next) => {
     const { userId } = req.auth;
     const authedUser = await User.findById(userId);
 
-    const template = await TicketTemplate.findById(req.params.id);
-    if (!template) {
-      return next(
-        new AppError(`Ticket template ${req.params.id} not found`, 404),
-      );
-    }
+    const template = await loadTemplate(req, "edit");
 
     const checklist = Array.isArray(req.body.checklist)
       ? req.body.checklist
@@ -295,25 +329,20 @@ exports.updateChecklist = async (req, res, next) => {
     await template.save();
     res.status(201).json(template);
   } catch (error) {
-    next(
-      new AppError(
-        `Failed to update ticket template checklist`,
-        500,
-        true,
-        error,
-      ),
-    );
+    next(passThrough(error, `Failed to update ticket template checklist`));
   }
 };
 
 exports.delete = async (req, res, next) => {
   try {
-    await TicketTemplate.deleteOne({ _id: req.params.id });
+    const template = await loadTemplate(req, "edit");
+
+    await TicketTemplate.deleteOne({ _id: template._id });
 
     res.status(201).json({
       message: "Ticket deleted successfully!",
     });
   } catch (error) {
-    next(new AppError(`Failed to delete ticket template`, 500, true, error));
+    next(passThrough(error, `Failed to delete ticket template`));
   }
 };

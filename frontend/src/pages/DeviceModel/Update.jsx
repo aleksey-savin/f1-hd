@@ -1,28 +1,14 @@
-import { useContext } from "react";
 import DeviceModelForm from "../../components/DeviceModel/Form";
-import InlineForbidden from "../../components/Error/InlineForbidden";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import { useSearchParams } from "react-router";
 
 const UpdateDeviceModelPage = () => {
-  const { permissions } = useContext(AuthedUserContext);
-  const { canUseInventoryModule, canManageClientDevices } = permissions;
   const [searchParams] = useSearchParams();
   const configId = searchParams.get("configId");
 
-  return (
-    <>
-      {canUseInventoryModule && canManageClientDevices && (
-        <DeviceModelForm
+  return <DeviceModelForm
           title="Изменить модель устройства"
           editConfigId={configId}
-        />
-      )}
-      {(!canUseInventoryModule || !canManageClientDevices) && (
-        <InlineForbidden right="Управление устройствами" />
-      )}
-    </>
-  );
+        />;
 };
 
 export default UpdateDeviceModelPage;

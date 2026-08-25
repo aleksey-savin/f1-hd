@@ -18,26 +18,30 @@ const getAccessibleCompanyIds = (authedUser) => {
 };
 
 // Может ли сотрудник видеть заметку базы знаний.
-// Без права canSeeKnowledgeBase заметки недоступны. Админ и носитель
-// canManageKnowledgeBase видят все. Остальные — по пересечению связей заметки
-// (категории / компании / связанные пользователи) с их доступом.
+// Без права knowledge.read заметки недоступны; носитель knowledge.manage видит
+// все. Остальные — по пересечению связей заметки (категории / компании /
+// связанные пользователи) с их доступом.
 // Заметка без связей считается общей и видна всем сотрудникам.
 // kbConfig = { hideNotApproved, moderatorIds } — настройки модерации из Preferences.
-// Здесь СОЗНАТЕЛЬНО читается плоская карта прав, а не `can({...})`: функция
-// вызывается в цикле по заметкам, а `permissions` в `authedUser` — уже
-// ЭФФЕКТИВНЫЕ права (attachSession разрешил роли один раз на запрос). Перевод
-// на `canFor` дал бы чтение из базы на каждую заметку и ни одного нового ответа.
-const canViewNote = (note, authedUser, kbConfig = {}) => {
-  const { isAdmin, permissions } = authedUser;
+//
+// Первым аргументом после заметки идёт `req.auth` целиком, а не плоский профиль:
+// права спрашиваем у `can()` — того же, что решает на маршрутах. Прежде здесь
+// читалась плоская карта прав, и это было дёшево (роли разрешены один раз на
+// запрос), но карты больше нет; `can()` стоит ровно столько же — она уже
+// замкнута на разрешённый набор и в базу не ходит.
+const canViewNote = (note, auth, kbConfig = {}) => {
+  const profile = auth?.legacy || auth || {};
+  const can = auth?.can;
   const { hideNotApproved = false } = kbConfig;
 
   // Без права «видеть базу знаний» заметки недоступны (маршруты тоже закрыты
-  // middleware canSeeKnowledgeBase — это защита в глубину)
-  if (!isAdmin && !permissions?.canSeeKnowledgeBase) {
+  // middleware canReadKnowledge — это защита в глубину)
+  if (!can?.({ knowledge: ["read"] })) {
     return false;
   }
 
-  const canManage = isAdmin || permissions?.canManageKnowledgeBase;
+  const canManage = can({ knowledge: ["manage"] });
+  const authedUser = profile;
 
   // Скрытие неодобренных заметок: их видят только админы и менеджеры (а значит и
   // модераторы — по условию модератор всегда имеет canManageKnowledgeBase).

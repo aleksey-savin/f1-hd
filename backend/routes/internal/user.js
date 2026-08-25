@@ -5,11 +5,15 @@ const impersonationController = require("@/controllers/impersonation");
 
 const isAuth = require("@/middleware/isAuth");
 const {
+  canReadUsers,
   canManageUsers,
+  canManageUserAccess,
+  canManageKnowledge,
+  canManageIntegrations,
+  selfOrCanManageUsers,
   canImpersonateUsers,
-  canManageWorkSchedules,
+  canManageSchedules,
   isNotClient,
-  isAdmin,
 } = require("@/middleware/permissions");
 
 const { runValidation } = require("@/middleware/runValidation");
@@ -19,7 +23,11 @@ const fileUpload = require("@/middleware/fileUpload");
 const { uploadBackgroundImage } = require("@/middleware/imageUpload");
 const isTelegramBot = require("@/middleware/isTelegramBot");
 
-router.get("/users", isAuth, isNotClient, userController.getAll);
+router.get("/users", isAuth, canReadUsers, userController.getAll);
+// Остаётся доступным клиенту НАМЕРЕННО: загрузчик карточки заявки тянет этот
+// список безусловно (`pages/Ticket/View.jsx:719`), а свою заявку открывает и
+// клиент. Отдаются имена сотрудников поддержки — тех же, кого клиент видит в
+// строке «ответственные» своей заявки.
 router.get(
   "/users/can-perform-tickets",
   isAuth,
@@ -28,7 +36,7 @@ router.get(
 router.get(
   "/users/knowledge-base-moderators",
   isAuth,
-  isAdmin,
+  canManageKnowledge,
   userController.getKnowledgeBaseModerators,
 );
 // PRO32 Connect: подключённые пользователи и отзыв доступа (глобальные
@@ -36,20 +44,20 @@ router.get(
 router.get(
   "/users/pro32-connected",
   isAuth,
-  isAdmin,
+  canManageIntegrations,
   userController.getPro32Connected,
 );
 router.post(
   "/users/pro32-revoke/:id",
   isAuth,
-  isAdmin,
+  canManageIntegrations,
   userController.revokePro32,
 );
 // Компании для фасета списка «Пользователи» (скоуп как у getAll)
 router.get(
   "/users/companies",
   isAuth,
-  isNotClient,
+  canReadUsers,
   userController.getScopeCompanies,
 );
 
@@ -101,34 +109,34 @@ router.post(
   userController.toggleActive,
 );
 
-// Чужие сеансы — часть работы с учётной записью, поэтому под тем же правом.
+// Сеансы, второй фактор и пароли — это ДОСТУП, а не карточка человека, и право
+// у них своё. Прежде их закрывало «управление пользователями», то есть тот, кому
+// поручили вести профили, заодно мог сбросить пароль администратору.
 router.get(
   "/users/:id/sessions",
   isAuth,
-  canManageUsers,
+  canManageUserAccess,
   userController.sessions,
 );
 router.delete(
   "/users/:id/sessions/:sessionId",
   isAuth,
-  canManageUsers,
+  canManageUserAccess,
   userController.revokeSession,
 );
 router.post(
   "/users/:id/sessions/revoke-all",
   isAuth,
-  canManageUsers,
+  canManageUserAccess,
   userController.revokeAllSessions,
 );
 
-// Сброс второго фактора — под правом на управление людьми: это часть работы с
-// учётной записью. Дополнительное условие («у сбрасывающего свой фактор тоже
-// включён») проверяет контроллер: оно про самого вызывающего, а не про доступ
-// к ручке.
+// Дополнительное условие («у сбрасывающего свой фактор тоже включён») проверяет
+// контроллер: оно про самого вызывающего, а не про доступ к ручке.
 router.post(
   "/users/:id/two-factor/reset",
   isAuth,
-  canManageUsers,
+  canManageUserAccess,
   userController.resetTwoFactor,
 );
 
@@ -150,6 +158,7 @@ router.post(
 router.post(
   "/users/:id/add-profile-image",
   isAuth,
+  selfOrCanManageUsers,
   fileUpload.single("profileImage"),
   userController.addProfileImage,
 );
@@ -171,7 +180,7 @@ router.post(
 router.post(
   "/users/:id/work-schedule",
   isAuth,
-  canManageWorkSchedules,
+  canManageSchedules,
   teamValidation.updateWorkSchedule,
   runValidation,
   userController.updateWorkSchedule,

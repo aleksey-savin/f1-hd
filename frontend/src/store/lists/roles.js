@@ -20,7 +20,7 @@ const rolesFilter = (state) => {
   const wanted = state.permissions || [];
 
   return list
-    .filter((role) => wanted.every((key) => role.permissions?.[key]))
+    .filter((role) => wanted.every((id) => role.actions?.includes(id)))
     .filter((role) => {
       if (!state.searchTerm) return true;
       return [role.title, role.description]
@@ -57,9 +57,7 @@ const sortList = (selected, list) => {
       sorted.sort((a, b) => a.title.localeCompare(b.title));
       break;
     case "Больше прав":
-      sorted.sort(
-        (a, b) => grantedCount(b.permissions) - grantedCount(a.permissions),
-      );
+      sorted.sort((a, b) => grantedCount(b.actions) - grantedCount(a.actions));
       break;
     default:
       break;
@@ -67,8 +65,7 @@ const sortList = (selected, list) => {
   return sorted;
 };
 
-const grantedCount = (permissions = {}) =>
-  Object.values(permissions).filter(Boolean).length;
+const grantedCount = (actions = []) => actions.length;
 
 const useRolesFilterStore = create((set) => ({
   permissions: [],

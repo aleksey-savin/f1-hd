@@ -532,7 +532,7 @@ const assertApprovalRoute = async (report, attachment) => {
  * Не только автор отчёта: пока он в отпуске или уволился, отказ клиента не
  * увидел бы никто, а на нём стоит вся дальнейшая работа — правка состава и
  * повторная отправка. Поэтому весь, кто ведёт отчёты, то есть держатели
- * `canSeeGlobalFinancialReport` (тем же правом открывается раздел, см.
+ * `canReadEmployeesReport` (тем же правом открывается раздел, см.
  * services/reportApprovalScope) и администраторы.
  *
  * Автор добавляется отдельно и безусловно: право могли снять после того, как
@@ -544,7 +544,7 @@ const contractorRecipients = async (report) =>
     isEndUser: { $ne: true },
     $or: [
       { _id: report.createdBy },
-      ...(await permissionFilter("canSeeGlobalFinancialReport")).$or,
+      ...(await permissionFilter("report.employees")).$or,
     ],
   })
     .select("firstName lastName email telegramBot notify")

@@ -213,7 +213,7 @@ exports.getOne = async (req, res, next) => {
 
     let servicePlans = [];
 
-    if (req.auth.can({ finances: ["use"] })) {
+    if (req.auth.can({ servicePlan: ["read"] })) {
       // ObjectIds from the Mongoose document (see employees note above).
       const planIds = company.servicePlans.map((plan) => plan._id);
       const planDocs = await ServicePlan.find({ _id: { $in: planIds } }).lean();

@@ -560,6 +560,7 @@ function App() {
             // Knowledge Base
             {
               path: "knowledge-base",
+              handle: { can: { knowledge: ["read"] } },
               element: <KnowledgeBaseList />,
               loader: knowledgeBaseListLoader,
               children: [
@@ -578,18 +579,21 @@ function App() {
             // Companies
             {
               path: "companies",
+              handle: { can: { company: ["read"] } },
               element: <Companies />,
               loader: companiesLoader,
               action: viewCompanyAction,
               children: [
                 {
                   path: "add",
+                  handle: { can: { company: ["manage"] } },
                   loader: addCompanyLoader,
                   action: addCompanyAction,
                   element: <AddCompanyPage />,
                 },
                 {
                   path: "update/:id",
+                  handle: { can: { company: ["manage"] } },
                   loader: updateCompanyLoader,
                   action: updateCompanyrAction,
                   element: <UpdateCompanyPage />,
@@ -622,18 +626,21 @@ function App() {
             // Users
             {
               path: "users",
+              handle: { can: { user: ["read"] } },
               element: <Users />,
               loader: usersLoader,
               action: viewUserAction,
               children: [
                 {
                   path: "add",
+                  handle: { can: { user: ["manage"] } },
                   loader: addUserLoader,
                   action: addUserAction,
                   element: <AddUserPage />,
                 },
                 {
                   path: "update/:id",
+                  handle: { can: { user: ["manage"] } },
                   loader: updateUserLoader,
                   action: updateUserAction,
                   element: <UpdateUserPage />,
@@ -663,17 +670,20 @@ function App() {
             // Роли
             {
               path: "roles",
+              handle: { can: { role: ["read"] } },
               element: <RolesPage />,
               loader: rolesLoader,
               action: deleteRoleAction,
               children: [
                 {
                   path: "add",
+                  handle: { can: { role: ["manage"] } },
                   element: <AddRolePage />,
                   loader: addRoleLoader,
                 },
                 {
                   path: "update/:key",
+                  handle: { can: { role: ["manage"] } },
                   element: <UpdateRolePage />,
                   loader: updateRoleLoader,
                 },
@@ -682,6 +692,7 @@ function App() {
             // Ticket Categories
             {
               path: "ticket-categories",
+              handle: { can: { ticketCategory: ["manage"] } },
               element: <TicketCatogries />,
               loader: ticketCategoriesLoader,
               action: deleteTicketCategoryAction,
@@ -706,6 +717,7 @@ function App() {
             // Ticket Templates
             {
               path: "ticket-templates",
+              handle: { can: { ticketTemplate: ["manage"] } },
               element: <TicketTemplates />,
               loader: ticketTemplatesLoader,
               action: deleteTicketTemplateAction,
@@ -747,6 +759,7 @@ function App() {
             // Шаблоны чек-листов
             {
               path: "tickets/checklist-templates",
+              handle: { can: { checklistTemplate: ["manage"] } },
               element: <ChecklistTemplateListPage />,
               action: deleteChecklistTemplateAction,
               children: [
@@ -767,6 +780,7 @@ function App() {
             // Routine tasks
             {
               path: "routine-tasks",
+              handle: { can: { routineTask: ["manage"] } },
               element: <RoutineTask />,
               loader: routineTaskLoader,
               action: deleteRoutineTaskAction,
@@ -808,6 +822,7 @@ function App() {
             // Service Plans
             {
               path: "finances/service-plans",
+              handle: { can: { servicePlan: ["read"] } },
               element: <ServicePlans />,
               loader: servicePlansLoader,
               action: servicePlansAction,
@@ -829,6 +844,7 @@ function App() {
             // Client Devices
             {
               path: "inventory/client-devices",
+              handle: { can: { device: ["read"] } },
               element: <ClientDevices />,
               loader: clientDevicesLoader,
               action: clientDevicesAction,
@@ -869,6 +885,7 @@ function App() {
             // Location Management
             {
               path: "inventory/locations",
+              handle: { can: { device: ["read"] } },
               element: <LocationList />,
               loader: locationLoader,
               action: locationAction,
@@ -916,6 +933,7 @@ function App() {
             // Device Types
             {
               path: "inventory/device-types",
+              handle: { can: { inventoryCatalog: ["read"] } },
               element: <DeviceTypeListPage />,
               action: deviceTypeAction,
               children: [
@@ -974,6 +992,7 @@ function App() {
             // Vendors
             {
               path: "inventory/vendors",
+              handle: { can: { inventoryCatalog: ["read"] } },
               element: <VendorListPage />,
               action: vendorAction,
               children: [
@@ -993,6 +1012,7 @@ function App() {
             },
             {
               path: "inventory/suppliers",
+              handle: { can: { supplier: ["read"] } },
               element: <SupplierListPage />,
               loader: supplierListLoader,
               action: supplierAction,
@@ -1055,6 +1075,7 @@ function App() {
             // Device Attributes
             {
               path: "inventory/device-attributes",
+              handle: { can: { inventoryCatalog: ["read"] } },
               element: <DeviceAttributeListPage />,
               action: deviceAttributeAction,
               children: [
@@ -1076,6 +1097,7 @@ function App() {
             // Device Models
             {
               path: "inventory/device-models",
+              handle: { can: { inventoryCatalog: ["read"] } },
               element: <DeviceModelListPage />,
               action: deviceModelAction,
               children: [
@@ -1144,6 +1166,7 @@ function App() {
             // Devices
             {
               path: "devices/mikrotik",
+              handle: { can: { mikrotik: ["read"] } },
               element: <MikrotikDevices />,
               loader: mikrotikDevicesLoader,
               // Формы создания/правки — нижняя шторка списка (Outlet ListWrapper).
@@ -1172,6 +1195,7 @@ function App() {
               // отчётов, — открывают её из тулбара мониторинга, а не с каждой
               // страницы (xlsx выгрузки подгружается ещё позже, по нажатию).
               path: "report/networks",
+              handle: { can: { mikrotik: ["read"] } },
               lazy: async () => {
                 const networksModule = await import("./pages/Report/Networks");
                 return {
@@ -1185,6 +1209,7 @@ function App() {
               // уезжают в свой чанк и не грузятся тем, кто отчёт не открывает
               // (протухший после деплоя чанк перезагружает vite:preloadError).
               path: "report/companies",
+              handle: { can: { report: ["companies"] } },
               lazy: async () => {
                 const companiesModule = await import(
                   "./pages/Report/Companies"
@@ -1232,6 +1257,7 @@ function App() {
             {
               // Календарь команды: месячная сетка на всех сотрудников — свой чанк
               path: "team/calendar",
+              handle: { can: { schedule: ["read"] } },
               lazy: async () => {
                 const calendarModule = await import(
                   "./pages/Team/Calendar.tsx"
@@ -1254,6 +1280,7 @@ function App() {
             // раздел открывают не все, а тянет он таблицы и маршрут подписей.
             {
               path: "finances/approval",
+              handle: { can: { approval: ["decide"] } },
               lazy: async () => {
                 const approvalModule = await import(
                   "./pages/Finances/Approval.tsx"
@@ -1295,6 +1322,7 @@ function App() {
             // Ленивые чанки: recharts грузится только тем, кто открыл отчёт.
             {
               path: "finances/employees",
+              handle: { can: { report: ["employees"] } },
               lazy: async () => {
                 const employeesModule = await import(
                   "./pages/Finances/EmployeesReport.tsx"
@@ -1319,6 +1347,7 @@ function App() {
             },
             {
               path: "finances/my-report",
+              handle: { can: { report: ["own"] } },
               lazy: async () => {
                 const personalModule = await import(
                   "./pages/Finances/PersonalReportPage.tsx"
@@ -1348,6 +1377,7 @@ function App() {
             // Preferences
             {
               path: "preferences",
+              handle: { can: { settings: ["read"] } },
               element: <Preferences />,
               loader: prefsLoader,
               action: prefsAction,

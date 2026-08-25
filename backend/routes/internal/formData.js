@@ -2,15 +2,17 @@ const Router = require("express");
 const router = new Router();
 
 const isAuth = require("@/middleware/isAuth");
-const { canManageRoutineTasks } = require("@/middleware/permissions");
+const { canManageRoutineTasks, isNotClient } = require("@/middleware/permissions");
 
 const formDataController = require("@/controllers/formData");
 
 router.get("/form-data/companies", isAuth, formDataController.getCompanies);
 
+// Служебные учётки нужны только настройкам и регламентам — экранам сотрудника
 router.get(
   "/form-data/service-accounts",
   isAuth,
+  isNotClient,
   formDataController.getServiceAccounts,
 );
 

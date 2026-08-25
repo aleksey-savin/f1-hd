@@ -10,6 +10,7 @@ import {
 
 import NavigationBar from "./Navbar";
 import Footer from "./Footer";
+import RouteGuard from "@/components/app/RouteGuard";
 import WorkStatusBar from "../components/User/WorkStatusBar";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -260,8 +261,10 @@ const RootLayout = () => {
       value={{
         ...defaultAuthedUser,
         ...userData,
-        permissions: userData?.permissions || defaultAuthedUser.permissions,
         statements: userData?.statements || defaultAuthedUser.statements,
+        permissionCatalogue:
+          userData?.permissionCatalogue ||
+          defaultAuthedUser.permissionCatalogue,
       }}
     >
       {isLoggedIn && (
@@ -403,7 +406,9 @@ const RootLayout = () => {
                   помогло — Ctrl&nbsp;+&nbsp;Shift&nbsp;+&nbsp;R.
                 </AppBanner>
               )}
-              <Outlet />
+              <RouteGuard>
+                <Outlet />
+              </RouteGuard>
             </div>
             <Footer />
           </div>
@@ -422,7 +427,9 @@ const RootLayout = () => {
               ref={mobileScrollRef}
             >
               <div className="mx-auto w-full px-3 pt-3">
-                <Outlet />
+                <RouteGuard>
+                  <Outlet />
+                </RouteGuard>
                 <Footer />
               </div>
             </main>

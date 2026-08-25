@@ -168,7 +168,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
   const actionData = useActionData();
   const reorderFetcher = useFetcher();
   const can = useCan();
-  const canManage = can({ clientDevice: ["manage"] });
+  const canManage = can({ inventoryCatalog: ["manage"] });
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [vendorFilter, setVendorFilter] = useState(null);
   const [search, setSearch] = useState("");

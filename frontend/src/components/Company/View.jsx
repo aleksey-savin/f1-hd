@@ -121,9 +121,9 @@ const ViewCompany = ({
 
   const canManage = can({ company: ["manage"] });
   const showFinances =
-    modules?.finances?.isActive && can({ finances: ["use"] });
+    modules?.finances?.isActive && can({ servicePlan: ["read"] });
   const showTech =
-    modules?.inventory?.isActive && can({ inventory: ["use"] });
+    modules?.inventory?.isActive && can({ device: ["read"] });
   const isActive = company.isActive !== false;
 
   const employeesCount = company.employees?.length || 0;

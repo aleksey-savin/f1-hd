@@ -1,11 +1,14 @@
 const express = require("express");
 
 const {
-  canUseInventoryModule,
   inventoryModuleIsActive,
   financesModuleIsActive,
-  canUseFinancesModule,
   mikrotikIsActive,
+  canReadDevices,
+  canReadInventoryCatalog,
+  canReadSuppliers,
+  canReadMikrotik,
+  canReadServicePlans,
 } = require("@/middleware/permissions");
 
 // Internal routes
@@ -119,13 +122,13 @@ internalRoutes.use("/", workRoutes);
 internalRoutes.use(
   "/finances",
   financesModuleIsActive,
-  canUseFinancesModule,
+  canReadServicePlans,
   financesReportRoutes,
 );
 internalRoutes.use(
   "/finances",
   financesModuleIsActive,
-  canUseFinancesModule,
+  canReadServicePlans,
   servicePlanRoutes,
 );
 
@@ -138,59 +141,60 @@ internalRoutes.use("/approval", financesModuleIsActive, workApprovalRoutes);
 internalRoutes.use(
   "/inventory",
   inventoryModuleIsActive,
-  canUseInventoryModule,
+  canReadDevices,
   clientDeviceRoutes,
 );
 internalRoutes.use(
   "/inventory",
   inventoryModuleIsActive,
-  canUseInventoryModule,
+  canReadInventoryCatalog,
   deviceAttributeRoutes,
 );
 internalRoutes.use(
   "/inventory",
   inventoryModuleIsActive,
-  canUseInventoryModule,
+  canReadInventoryCatalog,
   deviceConfigurationRoutes,
 );
 internalRoutes.use(
   "/inventory",
   inventoryModuleIsActive,
-  canUseInventoryModule,
+  canReadInventoryCatalog,
   deviceModelRoutes,
 );
 internalRoutes.use(
   "/inventory",
   inventoryModuleIsActive,
-  canUseInventoryModule,
+  canReadInventoryCatalog,
   deviceTypeRoutes,
 );
 internalRoutes.use(
   "/inventory",
   inventoryModuleIsActive,
-  canUseInventoryModule,
+  canReadInventoryCatalog,
   deviceTypeAttributeRoutes,
 );
 internalRoutes.use(
   "/inventory",
   inventoryModuleIsActive,
-  canUseInventoryModule,
+  canReadDevices,
   locationRoutes,
 );
 // Mikrotik — самостоятельная интеграция (не зависит от модуля «Учёт техники»):
-// гейт — только собственный рубильник; права проверяют сами роуты. Путь
-// /inventory сохранён — его знает фронтенд
-internalRoutes.use("/inventory", mikrotikIsActive, mikrotikRoutes);
+// рубильник собственный, право на вход в раздел — тоже. Более узкие права
+// (устройства, конфигурации) проверяют сами роуты. Путь /inventory сохранён —
+// его знает фронтенд
+internalRoutes.use("/inventory", mikrotikIsActive, canReadMikrotik, mikrotikRoutes);
 internalRoutes.use(
   "/inventory",
   inventoryModuleIsActive,
-  canUseInventoryModule,
+  canReadSuppliers,
   supplierRoutes,
 );
 internalRoutes.use(
   "/inventory",
   inventoryModuleIsActive,
-  canUseInventoryModule,
+  canReadInventoryCatalog,
   vendorRoutes,
 );
 

@@ -8,16 +8,16 @@ const { runValidation } = require("@/middleware/runValidation");
 const reportValidation = require("@/validations/report");
 
 const {
-  canSeeAnalytics,
+  canReadCompaniesReport,
   timeTrackingModuleIsActive,
-  canUseTimeTrackingModule,
+  canReadWorks,
 } = require("@/middleware/permissions");
 
 // Отчёт «Компании» (бывшая «Аналитика»): сводка → карточка компании →
 // карточка подразделения. Право открывает страницу, объём данных считает
 // services/reportScope (наш сотрудник — все компании, ответственное лицо
 // клиента — свои компании, руководитель подразделения — своё поддерево).
-const gate = [isAuth, timeTrackingModuleIsActive, canUseTimeTrackingModule, canSeeAnalytics];
+const gate = [isAuth, timeTrackingModuleIsActive, canReadWorks, canReadCompaniesReport];
 
 router.get(
   "/report/companies",

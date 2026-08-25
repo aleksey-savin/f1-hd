@@ -14,6 +14,7 @@ const {
   CODE_TTL_MS: PAIRING_CODE_TTL_MS,
 } = require("@/services/telegramPairing");
 const { isModerator } = require("@/helpers/knowledgeNoteVisibility");
+const { GROUPS } = require("@/auth/access");
 const {
   getModerationCounts,
   ZERO_COUNTS,
@@ -63,7 +64,7 @@ const publicUser = (user) => ({
 
 exports.getMe = async (req, res, next) => {
   try {
-    const { user, permissions, statements, session } = req.auth;
+    const { user, statements, session } = req.auth;
     const preferences = await Preferences.findOne({});
 
     // Статус модерации базы знаний нужен глобально: карточка модерации на
@@ -72,10 +73,7 @@ exports.getMe = async (req, res, next) => {
     const moderatorIds = (kb.moderators || [])
       .map((moderator) => moderator?._id?.toString())
       .filter(Boolean);
-    const userIsModerator = isModerator(
-      { ...user.toObject?.(), isAdmin: user.isAdmin, permissions },
-      moderatorIds,
-    );
+    const userIsModerator = isModerator(req.auth.legacy, moderatorIds);
     const knowledgeBase = {
       isModerator: userIsModerator,
       hideNotApproved: Boolean(kb.hideNotApproved),
@@ -88,12 +86,17 @@ exports.getMe = async (req, res, next) => {
 
     res.status(200).json({
       user: publicUser(user),
-      // Два вида одного и того же, оба нужны и оба дёшевы:
-      //   `statements` — язык словаря, по нему работает `can()` во фронте;
-      //   `permissions` — плоская карта, по ней рисуется меню и списки галочек
-      //   в форме пользователя, где ключи и подписи идут парами.
+      // Права человека — на языке словаря; по ним работает `can()` во фронте.
       statements,
-      permissions,
+      /**
+       * САМ СЛОВАРЬ с подписями. Он одинаков для всех и мог бы ехать отдельной
+       * ручкой, но тогда у фронта появилось бы состояние «права уже есть, а как
+       * они называются — ещё нет», и подписи пришлось бы держать второй копией
+       * в клиентском коде. Ровно так они и разъехались в прошлый раз: одно
+       * право звалось «Отчёты по оказанным услугам» в форме и «Просмотр общего
+       * финансового отчёта» в отказе. Полсотни коротких строк того не стоят.
+       */
+      permissionCatalogue: GROUPS,
       modules: preferences?.modules || {},
       /**
        * НАБОР ПОЛЕЙ ОБЯЗАН СОВПАДАТЬ с тем, что кладёт в стор

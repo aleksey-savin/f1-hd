@@ -2,7 +2,7 @@ const Router = require("express");
 const router = new Router();
 const controller = require("@/controllers/checklistTemplate");
 const isAuth = require("@/middleware/isAuth");
-const { canAdministrateTickets } = require("@/middleware/permissions");
+const { canManageChecklistTemplates } = require("@/middleware/permissions");
 
 // Читать справочник нужно всем, кто заполняет чек-лист в заявке (список «Ещё
 // чек-листы» и «Взять шаблон»), а править — тем же, кто правит шаблоны заявок.
@@ -10,7 +10,7 @@ router.get("/checklist-templates", isAuth, controller.getAll);
 router.get(
   "/checklist-templates/form-data",
   isAuth,
-  canAdministrateTickets,
+  canManageChecklistTemplates,
   controller.getFormData,
 );
 router.get(
@@ -23,19 +23,19 @@ router.get("/checklist-templates/:id", isAuth, controller.getOne);
 router.post(
   "/checklist-templates/add",
   isAuth,
-  canAdministrateTickets,
+  canManageChecklistTemplates,
   controller.add,
 );
 router.post(
   "/checklist-templates/update/:id",
   isAuth,
-  canAdministrateTickets,
+  canManageChecklistTemplates,
   controller.update,
 );
 router.post(
   "/checklist-templates/delete/:id",
   isAuth,
-  canAdministrateTickets,
+  canManageChecklistTemplates,
   controller.delete,
 );
 

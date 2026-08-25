@@ -1,18 +1,10 @@
-import { useContext } from "react";
 import { useLoaderData, redirect } from "react-router";
 
 import ViewDeviceType from "../../components/DeviceType/View";
-import Forbidden from "../../components/Error/403";
-import { AuthedUserContext } from "../../store/authed-user-context";
 
 const ViewDeviceTypePage = () => {
-  const { permissions } = useContext(AuthedUserContext);
-  const { canUseInventoryModule, canManageClientDevices } = permissions;
   const { deviceType, models } = useLoaderData();
 
-  if (!canUseInventoryModule || !canManageClientDevices) {
-    return <Forbidden />;
-  }
 
   return <ViewDeviceType deviceType={deviceType} models={models} />;
 };

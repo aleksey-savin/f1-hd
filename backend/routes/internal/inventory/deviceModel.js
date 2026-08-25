@@ -4,7 +4,7 @@ const deviceModelController = require("@/controllers/inventory/deviceModel");
 const isAuth = require("@/middleware/isAuth");
 const { uploadPhotos } = require("@/middleware/imageUpload");
 const {
-  canManageClientDevices,
+  canManageInventoryCatalog,
 } = require("@/middleware/permissions");
 const {
   deviceModelValidation,
@@ -18,7 +18,7 @@ router.get("/device-models/:id", isAuth, deviceModelController.getOne);
 router.post(
   "/device-models/add",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceModelValidation,
   checkValidationResult,
   deviceModelController.add,
@@ -27,7 +27,7 @@ router.post(
 router.put(
   "/device-models/update/:id",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceModelValidation,
   checkValidationResult,
   deviceModelController.update,
@@ -36,7 +36,7 @@ router.put(
 router.post(
   "/device-models/:id/photos",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   uploadPhotos,
   deviceModelController.addPhotos,
 );
@@ -44,14 +44,14 @@ router.post(
 router.delete(
   "/device-models/:id/photos/:photoId",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceModelController.deletePhoto,
 );
 
 router.post(
   "/device-models/delete/:id",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceModelController.delete,
 );
 

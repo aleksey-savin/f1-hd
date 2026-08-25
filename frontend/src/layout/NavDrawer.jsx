@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 
 import WorkStatusAvatar from "../components/User/WorkStatusAvatar";
 import { AuthedUserContext } from "../store/authed-user-context";
+import { useCan } from "../store/authed-user";
 import { ThemeContext } from "../store/theme-context";
 
 // Бургер-Sheet навигации: мобильный shell и узкий десктоп (< xl, где пункты
@@ -44,6 +45,7 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
     workStatus,
     hideWorkStatus,
   } = useContext(AuthedUserContext);
+  const can = useCan();
   const { theme, setTheme } = useContext(ThemeContext);
 
   const workStatusAvailable = !isEndUser && !hideWorkStatus;
@@ -186,7 +188,7 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
             <RiUserSettingsLine size={18} aria-hidden className={iconClass} />
             Мой аккаунт
           </NavLink>
-          {isAdmin && (
+          {can({ settings: ["read"] }) && (
             <NavLink to="/preferences" onClick={close} className={itemClass}>
               <RiSettings3Line size={18} aria-hidden className={iconClass} />
               Настройки системы

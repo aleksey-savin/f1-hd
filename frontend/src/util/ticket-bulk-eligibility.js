@@ -67,7 +67,7 @@ export const closeReason = (selectedItems, { userId, can }) => {
     return `Вы не ответственны за заявки: ${numbers(notResponsible)}`;
   }
 
-  if (can({ work: ["avoid"] }) || !can({ timeTracking: ["use"] })) {
+  if (can({ ticket: ["closeWithoutWork"] }) || !can({ work: ["read"] })) {
     return null;
   }
 

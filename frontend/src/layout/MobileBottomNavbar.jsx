@@ -15,10 +15,12 @@ import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../store/authed-user-context";
 import { useCan } from "@/store/authed-user";
+import useInitialPrefs from "../store/prefs";
 
 const MobileBottomNavbar = () => {
-  const { isEndUser, isAdmin } = useContext(AuthedUserContext);
+  const { isEndUser } = useContext(AuthedUserContext);
   const can = useCan();
+  const { modules } = useInitialPrefs();
   const { pathname } = useLocation();
   const reduceMotion = useReducedMotion();
 
@@ -33,14 +35,21 @@ const MobileBottomNavbar = () => {
       label: "Главная",
     },
     { to: "/tickets", icon: RiCheckboxLine, label: "Заявки" },
-    !isEndUser && { to: "/users", icon: RiAccountBoxLine, label: "Люди" },
-    !isEndUser && {
+    // Права и рубильники модулей — те же, что в десктопном меню. Прежде здесь
+    // стоял голый `!isEndUser`, и вкладки «Люди» и «Компании» вели сотрудника
+    // на 403, а «База» показывалась при выключенном модуле базы знаний.
+    can({ user: ["read"] }) && {
+      to: "/users",
+      icon: RiAccountBoxLine,
+      label: "Люди",
+    },
+    can({ company: ["read"] }) && {
       to: "/companies",
       icon: RiBuilding2Line,
       label: "Компании",
     },
-    !isEndUser &&
-      (isAdmin || can({ knowledgeBase: ["read"] })) && {
+    modules?.knowledgeBase?.isActive &&
+      can({ knowledge: ["read"] }) && {
         to: "/knowledge-base",
         icon: RiBookOpenLine,
         label: "База",

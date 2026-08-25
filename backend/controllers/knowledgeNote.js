@@ -164,7 +164,7 @@ exports.getAll = async (req, res, next) => {
       .lean();
 
     const visibleNotes = notes.filter((note) =>
-      canViewNote(note, authedUser, kbConfig),
+      canViewNote(note, req.auth, kbConfig),
     );
 
     res.status(200).json(visibleNotes);
@@ -235,7 +235,7 @@ exports.getRelated = async (req, res, next) => {
 
     const visibleNotes = notes.filter(
       (note) =>
-        canViewNote(note, authedUser, kbConfig) &&
+        canViewNote(note, req.auth, kbConfig) &&
         matchesTicketContext(note, { company, category, user }),
     );
 
@@ -262,7 +262,7 @@ exports.getOne = async (req, res, next) => {
       );
     }
 
-    if (!canViewNote(note, authedUser, kbConfig)) {
+    if (!canViewNote(note, req.auth, kbConfig)) {
       return next(new AppError(`Недостаточно прав для просмотра заметки`, 403));
     }
 
@@ -403,7 +403,7 @@ exports.delete = async (req, res, next) => {
 };
 
 // Отправить заметку на удаление (мягко): ждёт подтверждения модератора.
-// Доступно носителям canManageKnowledgeBase.
+// Доступно носителям canManageKnowledge.
 exports.sendToDeletion = async (req, res, next) => {
   try {
     const { userId } = req.auth;
@@ -562,7 +562,7 @@ exports.approve = async (req, res, next) => {
 };
 
 // Запросить архивацию (мягко): ждёт подтверждения модератора.
-// Доступно носителям canManageKnowledgeBase.
+// Доступно носителям canManageKnowledge.
 exports.requestArchive = async (req, res, next) => {
   try {
     const { userId } = req.auth;
@@ -677,7 +677,7 @@ exports.declineArchive = async (req, res, next) => {
   }
 };
 
-// Восстановить заметку из архива. Доступно носителям canManageKnowledgeBase.
+// Восстановить заметку из архива. Доступно носителям canManageKnowledge.
 exports.unarchive = async (req, res, next) => {
   try {
     const note = await KnowledgeNote.findById(req.params.id);
@@ -731,7 +731,7 @@ const runBulkModeration = async (req, { precondition, skipReason, apply }) => {
   for (const note of notes) {
     // Модератор видит всё, но предикат видимости — единственная граница
     // доступа в этом модуле, поэтому проверяем и здесь (защита в глубину).
-    if (!canViewNote(note, authedUser, kbConfig)) {
+    if (!canViewNote(note, req.auth, kbConfig)) {
       skipped.push({ title: note.title, reason: "нет доступа" });
       continue;
     }
@@ -924,7 +924,7 @@ exports.getServiceExpiry = async (req, res, next) => {
       if (!isClientSideResponsible) {
         return res.status(200).json(empty);
       }
-    } else if (!req.auth.can({ knowledgeBase: ["read"] })) {
+    } else if (!req.auth.can({ knowledge: ["read"] })) {
       // Сотрудник без права «видеть базу знаний» не видел этого и раньше —
       // маршрут был закрыт middleware; гейт просто переехал сюда.
       return res.status(200).json(empty);
@@ -947,7 +947,7 @@ exports.getServiceExpiry = async (req, res, next) => {
     ).lean();
 
     // Клиента через canViewNote не пропустить — он первым делом требует
-    // canSeeKnowledgeBase, которого у клиента нет. Для него правило своё и
+    // canReadKnowledge, которого у клиента нет. Для него правило своё и
     // узкое: только своя компания, и неодобренное скрывается, если так
     // настроено. Для сотрудника правило не дублируем — оно уже написано.
     const notes = ownCompanyId
@@ -960,7 +960,7 @@ exports.getServiceExpiry = async (req, res, next) => {
             ),
         )
       : allNotes.filter((note) =>
-          canViewNote(note, authedUser, { hideNotApproved, moderatorIds }),
+          canViewNote(note, req.auth, { hideNotApproved, moderatorIds }),
         );
 
     // Все записи в окне, дедуп по услуге (оставляем ближайшую дату)
@@ -1075,7 +1075,7 @@ exports.ignoreSecretFinding = async (req, res, next) => {
 };
 
 // Данные для селектов формы заметки. Эндпоинт доступен только носителям
-// canManageKnowledgeBase / админам, которые видят все сущности.
+// canManageKnowledge / админам, которые видят все сущности.
 exports.getFormData = async (req, res, next) => {
   try {
     // Отключённые компании (и их люди) в форме привязки не предлагаются;

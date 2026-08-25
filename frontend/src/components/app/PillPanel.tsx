@@ -22,6 +22,8 @@ type PillPanelProps = {
   getLabel?: (item: PillItem) => ReactNode;
   /** Текст пустого состояния. */
   emptyText?: ReactNode;
+  /** Одна строка пояснения над облаком — зачем этот список здесь. */
+  hint?: ReactNode;
   /** Высота свёрнутого «облака», px; при переполнении — «Показать все». */
   collapsedMaxHeight?: number;
   /** Якорь секции для рейла-навигации (app/AnchorRail). */
@@ -54,6 +56,7 @@ const PillPanel = ({
   getKey = defaultKey,
   getLabel = defaultLabel,
   emptyText,
+  hint,
   collapsedMaxHeight = COLLAPSED_MAX_HEIGHT,
   id,
 }: PillPanelProps) => {
@@ -112,6 +115,9 @@ const PillPanel = ({
           <div className="text-sm text-muted-foreground">{emptyText}</div>
         ) : (
           <>
+            {hint && (
+              <p className="mt-0 mb-3 text-sm text-muted-foreground">{hint}</p>
+            )}
             <div className="relative">
               <div
                 ref={cloudRef}

@@ -27,7 +27,7 @@ const isResponsible = (ticket, userId) =>
 export const closeBlockers = (ticket, { works = [], can }) => {
   const reasons = [];
   const worksRequired =
-    can({ timeTracking: ["use"] }) && !can({ work: ["avoid"] });
+    can({ work: ["read"] }) && !can({ ticket: ["closeWithoutWork"] });
 
   if (worksRequired && !works.some((work) => work.finishedAt)) {
     reasons.push("По заявке не указаны работы");

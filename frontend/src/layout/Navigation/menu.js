@@ -48,32 +48,32 @@ const link = (key, label, icon, to, extra = {}) => ({
 
 export function buildMenu({
   isEndUser,
-  isAdmin,
-  permissions = {},
+  // Права спрашиваем ФУНКЦИЕЙ, а не плоским набором ключей: плоского набора
+  // больше нет, а восемнадцать выдернутых из него имён и были тем местом, где
+  // меню расходилось со словарём.
+  can,
   modules,
   // Интеграция Mikrotik — свой рубильник, от модулей не зависит
   mikrotikActive = false,
 }) {
-  const {
-    canManageTicketCategories,
-    canManageCompanies,
-    canManageUsers,
-    canManageRoles,
-    canManageRoutineTasks,
-    canSeeAnalytics,
-    canUseTimeTrackingModule,
-    canUseFinancesModule,
-    canUseInventoryModule,
-    canManageMikrotikDevices,
-    canManageMikrotikConfigs,
-    canManageClientDevices,
-    canSeeGlobalFinancialReport,
-    canSeePersonalFinancialReport,
-    canManageServicePlans,
-    canPerformTickets,
-    canSeeKnowledgeBase,
-    canApproveWorkReports,
-  } = permissions;
+  const canManageTicketCategories = can({ ticketCategory: ["manage"] });
+  const canManageTicketTemplates = can({ ticketTemplate: ["manage"] });
+  const canManageChecklistTemplates = can({ checklistTemplate: ["manage"] });
+  const canReadCompanies = can({ company: ["read"] });
+  const canReadUsers = can({ user: ["read"] });
+  const canPerformTickets = can({ ticket: ["perform"] });
+  const canReadRoles = can({ role: ["read"] });
+  const canManageRoutineTasks = can({ routineTask: ["manage"] });
+  const canReadCompaniesReport = can({ report: ["companies"] });
+  const canReadDevices = can({ device: ["read"] });
+  const canReadInventoryCatalog = can({ inventoryCatalog: ["read"] });
+  const canReadSuppliers = can({ supplier: ["read"] });
+  const canReadMikrotik = can({ mikrotik: ["read"] });
+  const canManageServicePlans = can({ servicePlan: ["manage"] });
+  const canReadEmployeesReport = can({ report: ["employees"] });
+  const canReadOwnReport = can({ report: ["own"] });
+  const canReadKnowledge = can({ knowledge: ["read"] });
+  const canDecideApproval = can({ approval: ["decide"] });
 
   const timeTracking = !!modules?.timeTracking?.isActive;
   const inventory = !!modules?.inventory?.isActive;
@@ -83,8 +83,7 @@ export function buildMenu({
   if (isEndUser) {
     const reports = [
       timeTracking &&
-        canUseTimeTrackingModule &&
-        canSeeAnalytics &&
+        canReadCompaniesReport &&
         link(
           "report-companies",
           "Компании",
@@ -97,7 +96,7 @@ export function buildMenu({
       // свою часть. canUseFinancesModule тут НЕ нужен: финансовый модуль
       // целиком согласующему не положен.
       finances &&
-        canApproveWorkReports &&
+        canDecideApproval &&
         link(
           "approval",
           "Согласование работ",
@@ -116,7 +115,7 @@ export function buildMenu({
         "/ticket-templates",
       ),
       inventory &&
-        canUseInventoryModule &&
+        canReadDevices &&
         link(
           "client-devices",
           "Устройства",
@@ -124,7 +123,7 @@ export function buildMenu({
           "/inventory/client-devices",
         ),
       knowledgeBase &&
-        canSeeKnowledgeBase &&
+        canReadKnowledge &&
         link(
           "knowledge-base",
           "База знаний",
@@ -154,8 +153,7 @@ export function buildMenu({
     {
       items: [
         timeTracking &&
-          canUseTimeTrackingModule &&
-          canSeeAnalytics &&
+          canReadCompaniesReport &&
           link(
             "report-companies",
             "Компании",
@@ -166,8 +164,7 @@ export function buildMenu({
         // с полным правом — сводная по всем («Сотрудники», клик по строке
         // открывает отчёт сотрудника), иначе — только свой («Мой отчёт»).
         finances &&
-          canUseFinancesModule &&
-          (canSeeGlobalFinancialReport || isAdmin) &&
+          canReadEmployeesReport &&
           link(
             "fin-employees",
             "Сотрудники",
@@ -175,9 +172,8 @@ export function buildMenu({
             "/finances/employees",
           ),
         finances &&
-          canUseFinancesModule &&
-          !(canSeeGlobalFinancialReport || isAdmin) &&
-          canSeePersonalFinancialReport &&
+          !canReadEmployeesReport &&
+          canReadOwnReport &&
           link(
             "fin-personal",
             "Мой отчёт",
@@ -185,8 +181,7 @@ export function buildMenu({
             "/finances/my-report",
           ),
         finances &&
-          canUseFinancesModule &&
-          canSeeGlobalFinancialReport &&
+          canReadEmployeesReport &&
           link(
             "fin-approval",
             "Согласование работ",
@@ -202,8 +197,7 @@ export function buildMenu({
   // кого можно послать к клиенту, — это ежедневный оперативный экран.
   // Смотрят его все сотрудники; правка внутри — под canManageWorkSchedules.
   const peopleItems = [
-    (canPerformTickets || canManageUsers || isAdmin) &&
-      link("users", "Пользователи", RiContactsLine, "/users"),
+    canReadUsers && link("users", "Пользователи", RiContactsLine, "/users"),
     link(
       "team-calendar",
       "Календарь команды",
@@ -216,129 +210,128 @@ export function buildMenu({
   // «Пользователи» и «Настройки системы» отсюда ушли (верхний уровень и
   // меню аватара соответственно).
   //
-  // «Доступ» стоит ОТДЕЛЬНО от общей ветки `isAdmin ?`: у ролей своё право, и
-  // человек с ним обязан видеть пункт, не будучи администратором. Остальные
-  // группы остаются админскими — у их пунктов есть собственные проверки прав,
-  // но сегодня они мёртвые (внешний `isAdmin` их закрывает), и открывать их
-  // заодно значило бы менять видимость двенадцати экранов ради одного.
-  const accessGroup =
-    isAdmin || canManageRoles
-      ? [
-          {
-            label: "Доступ",
-            items: [link("adm-roles", "Роли", RiShieldKeyholeLine, "/roles")],
-          },
-        ]
-      : [];
-
-  const adminGroups = isAdmin
+  // ВНЕШНЕГО `isAdmin ?` здесь больше нет. Он закрывал всю ветку целиком, и
+  // проверки прав у отдельных пунктов внутри были мертвы: человек с правом на
+  // регламенты, категории или услуги не видел пункта нигде, хотя сервер его
+  // пускал. Теперь у каждого пункта работает его собственное право, а пустая
+  // группа отсеивается ниже (`group.items.length > 0`).
+  const accessGroup = canReadRoles
     ? [
         {
-          label: "Заявки",
-          items: [
-            link(
-              "adm-ticket-templates",
-              "Шаблоны заявок",
-              RiFileList3Line,
-              "/ticket-templates",
-            ),
-            link(
-              "adm-checklist-templates",
-              "Шаблоны чек-листов",
-              RiListCheck2,
-              "/tickets/checklist-templates",
-            ),
-            canManageRoutineTasks &&
-              link(
-                "adm-routine-tasks",
-                "Регламенты",
-                RiCalendar2Line,
-                "/routine-tasks",
-              ),
-            canManageTicketCategories &&
-              link(
-                "adm-ticket-categories",
-                "Категории",
-                RiServerLine,
-                "/ticket-categories",
-              ),
-          ].filter(Boolean),
+          label: "Доступ",
+          items: [link("adm-roles", "Роли", RiShieldKeyholeLine, "/roles")],
         },
-        {
-          label: "Финансы",
-          items: [
-            // Модульный гейт как у API: /finances закрыт financesModuleIsActive
-            finances &&
-              canManageServicePlans &&
-              link(
-                "adm-service-plans",
-                "Услуги",
-                RiServiceLine,
-                "/finances/service-plans",
-              ),
-          ].filter(Boolean),
-        },
-        {
-          label: "Учёт техники",
-          // Модульный гейт как у API: весь /inventory смонтирован за
-          // inventoryModuleIsActive + canUseInventoryModule (routes/index.js)
-          items: (inventory && canUseInventoryModule
-            ? [
-                canManageClientDevices &&
-                  link(
-                    "adm-locations",
-                    "Расположения",
-                    RiMapPinLine,
-                    "/inventory/locations",
-                  ),
-                canManageClientDevices &&
-                  link(
-                    "adm-device-types",
-                    "Типы устройств",
-                    RiApps2Line,
-                    "/inventory/device-types",
-                  ),
-                canManageClientDevices &&
-                  link(
-                    "adm-vendors",
-                    "Вендоры",
-                    RiBuilding4Line,
-                    "/inventory/vendors",
-                  ),
-                canManageClientDevices &&
-                  link(
-                    "adm-device-attributes",
-                    "Атрибуты устройств",
-                    RiListSettingsLine,
-                    "/inventory/device-attributes",
-                  ),
-                canManageClientDevices &&
-                  link(
-                    "adm-device-models",
-                    "Модели устройств",
-                    RiDeviceLine,
-                    "/inventory/device-models",
-                  ),
-                canManageClientDevices &&
-                  link(
-                    "adm-suppliers",
-                    "Поставщики",
-                    RiShoppingCart2Line,
-                    "/inventory/suppliers",
-                  ),
-              ]
-            : []
-          ).filter(Boolean),
-        },
-      ].filter((group) => group.items.length > 0)
+      ]
     : [];
+
+  const adminGroups = [
+    {
+      label: "Заявки",
+      items: [
+        canManageTicketTemplates &&
+          link(
+            "adm-ticket-templates",
+            "Шаблоны заявок",
+            RiFileList3Line,
+            "/ticket-templates",
+          ),
+        canManageChecklistTemplates &&
+          link(
+            "adm-checklist-templates",
+            "Шаблоны чек-листов",
+            RiListCheck2,
+            "/tickets/checklist-templates",
+          ),
+        canManageRoutineTasks &&
+          link(
+            "adm-routine-tasks",
+            "Регламенты",
+            RiCalendar2Line,
+            "/routine-tasks",
+          ),
+        canManageTicketCategories &&
+          link(
+            "adm-ticket-categories",
+            "Категории",
+            RiServerLine,
+            "/ticket-categories",
+          ),
+      ].filter(Boolean),
+    },
+    {
+      label: "Финансы",
+      items: [
+        // Модульный гейт как у API: /finances закрыт financesModuleIsActive
+        finances &&
+          canManageServicePlans &&
+          link(
+            "adm-service-plans",
+            "Услуги",
+            RiServiceLine,
+            "/finances/service-plans",
+          ),
+      ].filter(Boolean),
+    },
+    {
+      label: "Учёт техники",
+      // Модульный гейт как у API; право у каждого справочника своё —
+      // раздать поставщиков, не раздавая всю технику, теперь можно
+      items: (inventory
+        ? [
+            canReadDevices &&
+              link(
+                "adm-locations",
+                "Расположения",
+                RiMapPinLine,
+                "/inventory/locations",
+              ),
+            canReadInventoryCatalog &&
+              link(
+                "adm-device-types",
+                "Типы устройств",
+                RiApps2Line,
+                "/inventory/device-types",
+              ),
+            canReadInventoryCatalog &&
+              link(
+                "adm-vendors",
+                "Вендоры",
+                RiBuilding4Line,
+                "/inventory/vendors",
+              ),
+            canReadInventoryCatalog &&
+              link(
+                "adm-device-attributes",
+                "Атрибуты устройств",
+                RiListSettingsLine,
+                "/inventory/device-attributes",
+              ),
+            canReadInventoryCatalog &&
+              link(
+                "adm-device-models",
+                "Модели устройств",
+                RiDeviceLine,
+                "/inventory/device-models",
+              ),
+            canReadSuppliers &&
+              link(
+                "adm-suppliers",
+                "Поставщики",
+                RiShoppingCart2Line,
+                "/inventory/suppliers",
+              ),
+          ]
+        : []
+      ).filter(Boolean),
+    },
+  ].filter((group) => group.items.length > 0);
 
   const administration = [...accessGroup, ...adminGroups];
 
   return [
     link("dashboard", "Главная", RiDashboard2Line, "/dashboard"),
     link("tickets", "Заявки", RiCheckboxLine, "/tickets"),
-    (canPerformTickets || canManageCompanies || isAdmin) &&
+    canReadCompanies &&
       link("companies", "Компании", RiBuilding2Line, "/companies"),
     peopleItems.length > 0 && {
       key: "people",
@@ -347,7 +340,7 @@ export function buildMenu({
       groups: [{ items: peopleItems }],
     },
     inventory &&
-      canUseInventoryModule &&
+      canReadDevices &&
       link(
         "client-devices",
         "Устройства",
@@ -355,10 +348,13 @@ export function buildMenu({
         "/inventory/client-devices",
       ),
     knowledgeBase &&
-      canSeeKnowledgeBase &&
+      canReadKnowledge &&
       link("knowledge-base", "База знаний", RiBookOpenLine, "/knowledge-base", {
         shortLabel: "База знаний",
       }),
+    // Только тем, кто заявки НЕ выполняет: у исполнителя шаблоны и так под
+    // рукой в форме заявки, а в «Администрировании» есть полный список для
+    // того, кому доверены чужие заготовки.
     !canPerformTickets &&
       link(
         "ticket-templates",
@@ -373,7 +369,7 @@ export function buildMenu({
       groups: reportGroups,
     },
     mikrotikActive &&
-      (canManageMikrotikDevices || canManageMikrotikConfigs) &&
+      canReadMikrotik &&
       link("monitoring", "Мониторинг", RiPulseLine, "/devices/mikrotik"),
     administration.length > 0 && {
       key: "admin",

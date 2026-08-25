@@ -1,4 +1,4 @@
-import { PERMISSION_MODULES } from "@/components/User/permissions-catalog";
+import { usePermissionCatalogue } from "@/store/authed-user";
 
 /**
  * Значения фасета «Права» — единственного условия каталога ролей.
@@ -8,19 +8,17 @@ import { PERMISSION_MODULES } from "@/components/User/permissions-catalog";
  * финансов или до чужих заявок. Живёт фасет в СТРОКЕ ИНСТРУМЕНТОВ, а не в
  * Sheet-фильтре: единственное условие экрана прятать за кнопкой нельзя.
  *
- * Порядок и подписи — те же, что в форме роли: каталог прав один
- * (permissions-catalog.js), иначе один список читался бы двумя способами.
- * Мастер-право модуля («доступ к разделу») в списке есть — именно им чаще
- * всего и спрашивают: «у какой роли вообще есть финансы».
+ * Подписи берутся из общего каталога и НЕ ПЕРЕПИСЫВАЮТСЯ. Прежняя версия
+ * склеивала их сама — `${группа} · ${подпись.toLowerCase()}` — и получала
+ * третье название для того же права, попутно превращая «Mikrotik» в
+ * «mikrotik». Раздел показываем отдельным полем, а не внутри строки.
  */
-const PERMISSION_OPTIONS = PERMISSION_MODULES.flatMap((module) => [
-  ...(module.master
-    ? [{ value: module.master, label: `${module.label} · доступ к разделу` }]
-    : []),
-  ...module.caps.map((cap) => ({
-    value: cap.key,
-    label: `${module.label} · ${cap.label.toLowerCase()}`,
-  })),
-]);
-
-export { PERMISSION_OPTIONS };
+export const usePermissionOptions = () => {
+  const groups = usePermissionCatalogue();
+  return groups.flatMap((group) =>
+    group.actions.map((action) => ({
+      value: action.id,
+      label: `${group.label} · ${action.label}`,
+    })),
+  );
+};

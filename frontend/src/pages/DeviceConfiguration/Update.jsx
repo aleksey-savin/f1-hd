@@ -1,22 +1,8 @@
-import { useContext } from "react";
 import Form from "../../components/DeviceConfiguration/Form";
-import InlineForbidden from "../../components/Error/InlineForbidden";
-import { AuthedUserContext } from "../../store/authed-user-context";
 
 const UpdateDeviceConfigurationPage = () => {
-  const { permissions } = useContext(AuthedUserContext);
-  const { canUseInventoryModule, canManageClientDevices } = permissions;
 
-  return (
-    <>
-      {canUseInventoryModule && canManageClientDevices && (
-        <Form title="Изменить конфигурацию" />
-      )}
-      {(!canUseInventoryModule || !canManageClientDevices) && (
-        <InlineForbidden right="Управление устройствами" />
-      )}
-    </>
-  );
+  return <Form title="Изменить конфигурацию" />;
 };
 
 export default UpdateDeviceConfigurationPage;

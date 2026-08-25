@@ -924,7 +924,7 @@ exports.createTicketNotifications = async () => {
         try {
           // notifying managers
           const managers = await User.find({
-            ...(await permissionFilter("canAdministrateTickets")),
+            ...(await permissionFilter("ticket.administrate")),
             banned: { $ne: true },
           });
 

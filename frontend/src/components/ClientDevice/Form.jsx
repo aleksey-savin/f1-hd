@@ -662,7 +662,7 @@ const ClientDeviceForm = ({ title }) => {
               Позже
             </Button>
             <Button
-              disabled={!can({ mikrotik: ["manageDevices"] })}
+              disabled={!can({ mikrotik: ["manage"] })}
               onClick={() =>
                 navigate(`/devices/mikrotik/add?clientDeviceId=${connectOffer}`)
               }

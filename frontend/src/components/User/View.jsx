@@ -54,7 +54,6 @@ import useOffcanvasStore from "../../store/offcanvas";
 import useInitialPrefs from "../../store/prefs";
 import { getPresence } from "./presence";
 import PresenceText from "./PresenceText";
-import { CLIENT_PERMISSIONS, PERMISSION_MODULES } from "./permissions-catalog";
 import SessionList from "./SessionList";
 import ImpersonateDialog from "./ImpersonateDialog";
 import { TwoFactorReset } from "./TwoFactorRow";
@@ -66,7 +65,7 @@ import CardAvatar from "./CardAvatar";
 import ResetPasswordDialog from "./ResetPasswordDialog";
 import ToggleActiveDialog from "./ToggleActiveDialog";
 import LinkAdDialog from "./LinkAdDialog";
-import { useCan } from "@/store/authed-user";
+import { useCan, usePermissionCatalogue } from "@/store/authed-user";
 
 const ticketState = (state) =>
   state === "Новая" || state === "Не в работе"
@@ -126,7 +125,11 @@ const ViewUser = ({ user, tickets }) => {
   const revalidator = useRevalidator();
   const authedUser = useContext(AuthedUserContext);
   const can = useCan();
+  const catalogue = usePermissionCatalogue();
   const canManageUsers = can({ user: ["manage"] });
+  // Пароли, сеансы и второй фактор — это ДОСТУП, а не карточка человека:
+  // право своё, и кнопки показываем по нему, иначе сервер отобьёт нажатие.
+  const canManageUserAccess = can({ user: ["manageAccess"] });
   const canManageCompanies = can({ company: ["manage"] });
   // Вход под пользователем — своё право, а не следствие управления людьми.
   const canImpersonate = can({ user: ["impersonate"] });
@@ -167,7 +170,7 @@ const ViewUser = ({ user, tickets }) => {
     getScreen,
     activeDirectoryObjectGUID,
     finances,
-    permissions = {},
+    statements = {},
     roles = [],
     notify,
     lastLogin,
@@ -206,27 +209,27 @@ const ViewUser = ({ user, tickets }) => {
 
   const adLinked = Boolean(activeDirectoryObjectGUID);
 
-  // Модули прав берём из общего каталога (им же управляет форма) — один список
-  // на показ и на редактирование. master — «рубильник» модуля.
-  const MODULE_ICONS = {
+  // Разделы прав — из общего каталога с сервера. Показываем только ВЫДАННОЕ:
+  // «что человек может»; полный список с отказами живёт в форме роли.
+  const GROUP_ICONS = {
     tickets: <RiTicket2Line />,
-    portal: <RiSettings4Line />,
+    ticketCatalogs: <RiSettings4Line />,
     knowledge: <RiPriceTag3Line />,
-    time: <RiTimeLine />,
+    work: <RiTimeLine />,
+    reports: <RiMoneyDollarCircleLine />,
     inventory: <RiHardDrive2Line />,
-    finances: <RiMoneyDollarCircleLine />,
   };
-  const modules = PERMISSION_MODULES.map((module) => {
-    return {
-      label: module.label,
-      icon: MODULE_ICONS[module.key],
-      master: module.master ? Boolean(permissions[module.master]) : undefined,
-      caps: module.caps.map((cap) => ({
-        on: Boolean(permissions[cap.key]),
-        label: cap.label,
-      })),
-    };
-  });
+  const hasAction = (id) => {
+    const [resource, action] = id.split(".");
+    return Boolean(statements?.[resource]?.includes(action));
+  };
+  const permissionGroups = catalogue
+    .map((group) => ({
+      label: group.label,
+      icon: GROUP_ICONS[group.key],
+      caps: group.actions.filter((action) => hasAction(action.id)),
+    }))
+    .filter((group) => group.caps.length);
 
   const notifyRows = notify
     ? [
@@ -267,10 +270,6 @@ const ViewUser = ({ user, tickets }) => {
   // Клиенту каталог модулей не применим, но одно право у него штатное —
   // «все заявки своей компании»; секцию показываем и ему
   const showPermissions = canManageUsers && !isServiceAccount;
-  const clientCaps = CLIENT_PERMISSIONS.map((cap) => ({
-    label: cap.label,
-    on: Boolean(permissions[cap.key]),
-  }));
   const showNotify = canManageUsers && Boolean(notify);
 
   // Техника (список + окружение) — при активном модуле инвентаря и праве на
@@ -279,7 +278,7 @@ const ViewUser = ({ user, tickets }) => {
     !isServiceAccount &&
     !isCloudTelephony &&
     Boolean(appModules?.inventory?.isActive) &&
-    Boolean(can({ inventory: ["use"] }));
+    Boolean(can({ device: ["read"] }));
 
   // График работы — только у сотрудников: у клиентов и служебных аккаунтов
   // нет ни нормы часов, ни отсутствий
@@ -400,7 +399,7 @@ const ViewUser = ({ user, tickets }) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {!isServiceAccount && (
+                {!isServiceAccount && canManageUserAccess && (
                   <DropdownMenuItem onSelect={() => setResetOpen(true)}>
                     <RiLock2Line /> Сбросить пароль
                   </DropdownMenuItem>
@@ -764,60 +763,27 @@ const ViewUser = ({ user, tickets }) => {
                     <span className="text-faint">не назначены</span>
                   )}
                 </div>
-                {isEndUser ? (
-                  <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
-                    {clientCaps.map((cap) => (
-                      <Cap key={cap.label} on={cap.on}>
-                        {cap.label}
-                      </Cap>
-                    ))}
+                {permissionGroups.length === 0 ? (
+                  <div className="py-0.5 text-sm text-faint">
+                    Нет выданных прав
                   </div>
                 ) : (
                   <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-                    {modules.map((module) => {
-                      const disabled = module.master === false;
-                      // Показываем только выданные способности — «что человек может»;
-                      // полный список с отказами живёт в форме правки.
-                      const granted = module.caps.filter((cap) => cap.on);
-                      return (
-                        <div
-                          key={module.label}
-                          className={cn(disabled && "opacity-50")}
-                        >
-                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                            <span className="text-muted-foreground [&_svg]:size-4">
-                              {module.icon}
-                            </span>
-                            {module.label}
-                            {module.master !== undefined && (
-                              <span
-                                className={cn(
-                                  "ml-auto text-xs font-bold tracking-wide uppercase",
-                                  module.master
-                                    ? "text-accent-text"
-                                    : "text-faint",
-                                )}
-                              >
-                                {module.master ? "Включён" : "Отключён"}
-                              </span>
-                            )}
-                          </div>
-                          {disabled ? (
-                            <Cap on={false}>Модуль недоступен</Cap>
-                          ) : granted.length > 0 ? (
-                            granted.map((cap) => (
-                              <Cap key={cap.label} on>
-                                {cap.label}
-                              </Cap>
-                            ))
-                          ) : (
-                            <div className="py-0.5 text-sm text-faint">
-                              Нет выданных прав
-                            </div>
-                          )}
+                    {permissionGroups.map((group) => (
+                      <div key={group.label}>
+                        <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                          <span className="text-muted-foreground [&_svg]:size-4">
+                            {group.icon}
+                          </span>
+                          {group.label}
                         </div>
-                      );
-                    })}
+                        {group.caps.map((cap) => (
+                          <Cap key={cap.id} on>
+                            {cap.label}
+                          </Cap>
+                        ))}
+                      </div>
+                    ))}
                   </div>
                 )}
               </Panel>
@@ -839,7 +805,7 @@ const ViewUser = ({ user, tickets }) => {
                   >
                     {twoFactorEnabled ? "Включён" : "Выключен"}
                   </span>
-                  {twoFactorEnabled && (
+                  {twoFactorEnabled && canManageUserAccess && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -850,7 +816,12 @@ const ViewUser = ({ user, tickets }) => {
                     </Button>
                   )}
                 </div>
-                <SessionList userId={user._id} />
+                {/* Завершать чужие сеансы может тот же, кто распоряжается
+                    доступом; остальным список показываем только на чтение. */}
+                <SessionList
+                  userId={user._id}
+                  canRevoke={canManageUserAccess}
+                />
               </Panel>
             </>
           )}

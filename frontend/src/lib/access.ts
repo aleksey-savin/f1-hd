@@ -35,12 +35,15 @@ const isAllowed = (
 };
 
 /**
- * Собирает `can` по набору statements. Администратор проходит везде — как и на
- * сервере: это признак учётной записи, а не право.
+ * Собирает `can` по набору statements.
+ *
+ * Замыкания на `isAdmin` здесь НЕТ — как и на сервере: администратору весь
+ * словарь выдаёт `effectivePermissions`, поэтому его `statements` и так полны.
+ * Пока замыкание было, ответ функции расходился с содержимым набора, и экраны,
+ * читавшие набор напрямую, отказывали администратору там, где `can()` пускал.
  */
-export function makeCan(statements: Statements | undefined, isAdmin: boolean) {
+export function makeCan(statements: Statements | undefined) {
   return (request: AccessRequest): boolean => {
-    if (isAdmin) return true;
     const resources = Object.entries(request);
     if (!resources.length) return false;
     return resources.every(([resource, requested]) =>

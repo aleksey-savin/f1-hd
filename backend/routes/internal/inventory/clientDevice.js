@@ -3,7 +3,7 @@ const router = new Router();
 const deviceController = require("@/controllers/inventory/clientDevice");
 const isAuth = require("@/middleware/isAuth");
 const { uploadPhotos } = require("@/middleware/imageUpload");
-const { canManageClientDevices } = require("@/middleware/permissions");
+const { canManageDevices } = require("@/middleware/permissions");
 const {
   clientDeviceValidation,
 } = require("@/validations/inventory/clientDevice");
@@ -22,7 +22,7 @@ router.get("/client-devices/:id/tickets", isAuth, deviceController.getTickets);
 router.post(
   "/client-devices/add",
   isAuth,
-  canManageClientDevices,
+  canManageDevices,
   clientDeviceValidation,
   checkValidationResult,
   deviceController.add,
@@ -30,7 +30,7 @@ router.post(
 router.put(
   "/client-devices/update/:id",
   isAuth,
-  canManageClientDevices,
+  canManageDevices,
   clientDeviceValidation,
   checkValidationResult,
   deviceController.update,
@@ -38,39 +38,39 @@ router.put(
 router.post(
   "/client-devices/:id/assign-user",
   isAuth,
-  canManageClientDevices,
+  canManageDevices,
   deviceController.assignUser,
 );
 router.post(
   "/client-devices/:id/components",
   isAuth,
-  canManageClientDevices,
+  canManageDevices,
   deviceController.attachComponent,
 );
 router.delete(
   "/client-devices/:id/components/:componentId",
   isAuth,
-  canManageClientDevices,
+  canManageDevices,
   deviceController.detachComponent,
 );
 router.post(
   "/client-devices/:id/photos",
   isAuth,
-  canManageClientDevices,
+  canManageDevices,
   uploadPhotos,
   deviceController.addPhotos,
 );
 router.delete(
   "/client-devices/:id/photos/:photoId",
   isAuth,
-  canManageClientDevices,
+  canManageDevices,
   deviceController.deletePhoto,
 );
 router.delete(
   "/client-devices/delete/:id",
   isAuth,
 
-  canManageClientDevices,
+  canManageDevices,
   deviceController.delete,
 );
 

@@ -1,54 +1,5 @@
 import type { Types } from "mongoose";
 
-/**
- * Список обязан совпадать с `permissions` в `models/user.js` и с
- * `PERMISSION_KEYS` в `utils/permissions.js`. Совпадение схемы со списком
- * сторожит `assertPermissionKeysMatch` при загрузке модели; этот тип проверить
- * автоматически нельзя (у бэкенда `checkJs: false`, а модель — JS), поэтому
- * правится руками вместе с ними.
- *
- * До 2026-08 он тихо врал: содержал canManageDeviceModels, canManageDeviceTypes
- * и canManageDeviceAttributes, которых в схеме нет, и не содержал
- * canManageWorkSchedules с canApproveWorkReports, которые есть и гейтят.
- */
-export interface IUserPermissions {
-  // tickets workflow
-  canPerformTickets: boolean;
-  canAdministrateTickets: boolean;
-  canSeeAllCompanyTickets: boolean;
-  canSeeAllTickets: boolean;
-  canEditTickets: boolean;
-  canDeleteTickets: boolean;
-  // basic portal administration
-  canManageCompanies: boolean;
-  canManageUsers: boolean;
-  canManageRoles: boolean;
-  canImpersonateUsers: boolean;
-  canManageTicketCategories: boolean;
-  canManageKnowledgeBase: boolean;
-  canSeeKnowledgeBase: boolean;
-  canManageRoutineTasks: boolean;
-  canManageTicketTemplates: boolean;
-  // time tracking module
-  canUseTimeTrackingModule: boolean;
-  canAvoidWorks: boolean;
-  canSeeWorksReport: boolean;
-  canSeeAnalytics: boolean;
-  canManageWorkSchedules: boolean;
-  // inventory module
-  canUseInventoryModule: boolean;
-  canManageClientDevices: boolean;
-  canManageMikrotikDevices: boolean;
-  canManageMikrotikConfigs: boolean;
-  // finances module
-  canUseFinancesModule: boolean;
-  canManageServicePlans: boolean;
-  canSeeGlobalFinancialReport: boolean;
-  canConfirmReportActions: boolean;
-  canSeePersonalFinancialReport: boolean;
-  canApproveWorkReports: boolean;
-}
-
 export interface IUserTelegramNotify {
   newTicket: boolean;
   respStateUpdate: boolean;
@@ -105,7 +56,6 @@ export interface IUser {
   isServiceAccount: boolean;
   isCloudTelephony: boolean;
   hideWorkStatus?: boolean;
-  permissions: IUserPermissions;
   finances?: {
     salary: number | null;
     overtimeHourlyRate: number | null;

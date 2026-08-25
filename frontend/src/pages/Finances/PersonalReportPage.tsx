@@ -66,7 +66,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
   const isOwn = own || !userId || userId === authedUser?._id;
   // Сводная доступна только с полным правом — только им и показываем возврат
   const canSeeSummary = Boolean(
-    can({ finances: ["readGlobalReport"] }),
+    can({ report: ["employees"] }),
   );
 
   const toolbar = (
@@ -106,7 +106,7 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
   if (s.isForbidden) {
     body = (
       <InlineForbidden
-        right="Просмотр общего финансового отчёта"
+        right="report.employees"
         action="смотреть отчёт другого сотрудника"
       />
     );

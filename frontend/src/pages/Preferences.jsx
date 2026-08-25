@@ -1,4 +1,3 @@
-import { useContext } from "react";
 import { useLoaderData } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 
@@ -17,7 +16,7 @@ import PrefsOvertime from "../components/Preferences/Overtime";
 import PrefsProductionCalendar from "../components/Preferences/ProductionCalendar";
 
 import Forbidden from "../components/Error/403";
-import { AuthedUserContext } from "../store/authed-user-context";
+import { useCan } from "@/store/authed-user";
 
 import { api } from "@/lib/api";
 
@@ -27,75 +26,84 @@ import { api } from "@/lib/api";
 // группу). Секции выключенных модулей не рендерятся и не оставляют пункт в
 // рейле; после сохранения «Модулей» loader ревалидируется и состав секций
 // обновляется сам.
+/**
+ * Секции настроек показываем ПО ПРАВАМ, а не по признаку администратора.
+ *
+ * Раньше страницу целиком закрывал один `isAdmin`, и поручить кому-то почту
+ * значило отдать заодно ключи интеграций и политику входа. Теперь у секций
+ * разные права, и человек видит ровно те, что может менять; сервер проверяет
+ * каждую присланную секцию отдельно (`controllers/preferences.js`).
+ */
 const Preferences = () => {
-  const { isAdmin } = useContext(AuthedUserContext);
   const prefs = useLoaderData() || {};
-
-  if (!isAdmin) {
-    return <Forbidden />;
-  }
+  const can = useCan();
 
   const modules = prefs.modules || {};
+  const general = can({ settings: ["manage"] });
   const sections = [
-    {
+    general && {
       id: "globals",
       label: "Основные",
       element: <PrefsGlobals prefs={prefs} />,
     },
-    {
+    can({ settings: ["manageMail"] }) && {
       id: "tickets-collect",
       label: "Сбор заявок",
       element: <PrefsTicketsCollect prefs={prefs} />,
     },
-    {
+    can({ settings: ["manageMail"] }) && {
       id: "notifications",
       label: "Уведомления",
       element: <PrefsNotifications prefs={prefs} />,
     },
-    {
+    can({ settings: ["manageIntegrations"] }) && {
       id: "ai",
       label: "Искусственный интеллект",
       // рейл тесный — в нём секция живёт коротким именем
       rail: "ИИ",
       element: <PrefsAi prefs={prefs} />,
     },
-    {
+    can({ settings: ["manageIntegrations"] }) && {
       id: "integrations",
       label: "Интеграции",
       element: <PrefsIntegrations prefs={prefs} />,
     },
-    {
+    can({ settings: ["manageSecurity"] }) && {
       id: "security",
       label: "Безопасность",
       element: <PrefsSecurity prefs={prefs} />,
     },
-    { id: "modules", label: "Модули", element: <PrefsModules prefs={prefs} /> },
-    ...(modules.knowledgeBase?.isActive
-      ? [
-          {
-            id: "knowledge-base",
-            label: "База знаний",
-            element: <PrefsKnowledgeBase prefs={prefs} />,
-          },
-        ]
-      : []),
-    ...(modules.finances?.isActive
-      ? [
-          {
-            id: "finances",
-            label: "Финансы",
-            element: <PrefsOvertime prefs={prefs} />,
-          },
-        ]
-      : []),
+    general && {
+      id: "modules",
+      label: "Модули",
+      element: <PrefsModules prefs={prefs} />,
+    },
+    general &&
+      modules.knowledgeBase?.isActive && {
+        id: "knowledge-base",
+        label: "База знаний",
+        element: <PrefsKnowledgeBase prefs={prefs} />,
+      },
+    general &&
+      modules.finances?.isActive && {
+        id: "finances",
+        label: "Финансы",
+        element: <PrefsOvertime prefs={prefs} />,
+      },
     // Календарь нужен норме часов и переработкам, поэтому модулем не закрыт:
     // отпуска и графики ведутся и без учёта времени
-    {
+    general && {
       id: "production-calendar",
       label: "Производственный календарь",
       element: <PrefsProductionCalendar prefs={prefs} />,
     },
-  ];
+  ].filter(Boolean);
+
+  // Право «видеть настройки» открывает страницу, но менять может быть нечего:
+  // так бывает у роли, которой оставили только чтение.
+  if (!sections.length) {
+    return <Forbidden />;
+  }
 
   const panels = (
     <div className="max-w-2xl space-y-8">

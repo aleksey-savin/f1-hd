@@ -39,7 +39,7 @@ const optionLabel = (options, value) =>
 // поллингом каждые 15 с; клик по строке — шторка-превью справа.
 const MikrotikDevices = () => {
   const can = useCan();
-  const canManage = can({ mikrotik: ["manageDevices"] });
+  const canManage = can({ mikrotik: ["manage"] });
   const filterStore = useMikrotikDeviceFilterStore();
   const [searchParams, setSearchParams] = useSearchParams();
 

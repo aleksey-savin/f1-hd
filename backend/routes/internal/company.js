@@ -9,23 +9,23 @@ const { runValidation } = require("@/middleware/runValidation");
 const companyValidation = require("@/validations/company");
 
 const {
+  canReadCompanies,
   canManageCompanies,
   canManageServicePlans,
-  isNotClient,
 } = require("@/middleware/permissions");
 
-router.get("/companies", isAuth, isNotClient, companyController.getAll);
+router.get("/companies", isAuth, canReadCompanies, companyController.getAll);
 // Блок «Кто ведёт вашу компанию» на главной. Единственный маршрут раздела БЕЗ
 // isNotClient — он как раз для клиента; кому именно отвечать, решает контроллер.
 // Обязан стоять ВЫШЕ «/companies/:id», иначе :id съест «my-support».
 router.get("/companies/my-support", isAuth, companyController.getMySupport);
 // Формат id здесь не валидируем: битый ObjectId переводится в 404 глобально
 // (CastError в middleware/errorHandling.js), как у остальных сущностей.
-router.get("/companies/:id", isAuth, isNotClient, companyController.getOne);
+router.get("/companies/:id", isAuth, canReadCompanies, companyController.getOne);
 router.get(
   "/companies/:id/stats",
   isAuth,
-  isNotClient,
+  canReadCompanies,
   companyController.getStats,
 );
 
@@ -127,6 +127,7 @@ router.delete(
 router.patch(
   "/companies/:id/add-profile-image",
   isAuth,
+  canManageCompanies,
   fileUpload.single("profileImage"),
   companyController.addProfileImage,
 );
@@ -160,9 +161,13 @@ router.delete(
   companyController.deleteApiKey,
 );
 
+// Журнал входов AD — имена, учётные записи и имена компьютеров сотрудников
+// клиента. До этого гейта его читал любой авторизованный, включая клиента
+// ЧУЖОЙ компании: проверялось только существование компании.
 router.get(
   "/companies/:id/logs",
   isAuth,
+  canManageCompanies,
   companyValidation.getCompanyLogs,
   runValidation,
   companyController.getCompanyLogs,
@@ -171,6 +176,7 @@ router.get(
 router.get(
   "/companies/:id/logs/accounts",
   isAuth,
+  canManageCompanies,
   companyValidation.getCompanyLogs,
   runValidation,
   companyController.getCompanyLogAccounts,

@@ -781,6 +781,20 @@ exports.getOne = async (req, res, next) => {
       );
     }
 
+    // Тот же скоуп, что у списка: клиент заперт в своей компании. В выборке
+    // список это делал (`scopeMatch`), а карточка — нет, и чужое устройство
+    // открывалось прямой ссылкой.
+    const { isEndUser, user } = req.auth;
+    if (
+      isEndUser &&
+      String(device.companyId?._id ?? device.companyId ?? "") !==
+        String(user.company?._id ?? "")
+    ) {
+      return next(
+        new AppError(`Device with id ${req.params.id} not found`, 404),
+      );
+    }
+
     // Комплектующие сборки (если есть) — для отображения/редактирования состава.
     const components = await ClientDevice.find({
       parentDeviceId: req.params.id,

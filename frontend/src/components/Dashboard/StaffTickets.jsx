@@ -47,7 +47,7 @@ const companyMeta = (ticket) =>
   [ticket.company?.alias, ticket.category?.title].filter(Boolean).join(" · ");
 
 const StaffTickets = () => {
-  const { _id: userId, isAdmin } = useContext(AuthedUserContext);
+  const { _id: userId } = useContext(AuthedUserContext);
   const can = useCan();
   const tickets = useDashboardTicketsStore((state) => state.tickets);
   const loaded = useDashboardTicketsStore((state) => state.loaded);
@@ -56,9 +56,7 @@ const StaffTickets = () => {
   // остальных набор физически состоит из их собственных, и блок был бы пуст
   // всегда (см. скоуп all-opened в controllers/ticket.js).
   const seesOthers =
-    isAdmin ||
-    !!can({ ticket: ["administrate"] }) ||
-    !!can({ ticket: ["readAll"] });
+    !!can({ ticket: ["administrate"] }) || !!can({ ticket: ["readAll"] });
 
   const mine = useMemo(
     () =>

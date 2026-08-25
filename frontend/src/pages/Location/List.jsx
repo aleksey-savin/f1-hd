@@ -370,7 +370,7 @@ const LocationList = () => {
         node={selectedNode}
         ancestors={ancestors}
         childNodes={childNodes}
-        canManage={can({ clientDevice: ["manage"] })}
+        canManage={can({ device: ["manage"] })}
         onClose={() => setSelectedId(null)}
         onNavigate={(node) => setSelectedId(node._id)}
         onDelete={(node) => {

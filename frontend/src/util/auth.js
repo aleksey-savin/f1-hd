@@ -61,10 +61,9 @@ export async function authDataLoader() {
       appVersion,
       userData: {
         ...me.user,
-        permissions: me.permissions,
         statements: me.statements,
+        permissionCatalogue: me.permissionCatalogue,
       },
-      permissions: me.permissions,
       prefs: { ...me.prefs, modules: me.modules },
       sessionId: me.sessionId,
       // Подмена — состояние вкладки: полосу о ней рисует оболочка.

@@ -1,4 +1,4 @@
-import { useContext, useEffect } from "react";
+import { useEffect } from "react";
 import {
   Link,
   Outlet,
@@ -16,7 +16,6 @@ import ListWrapper from "@/components/app/ListWrapper";
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
 import useKnowledgeModerationStore from "../../store/knowledgeModeration";
 import useInitialPrefsStore from "../../store/prefs";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import { plural } from "../../util/plural";
 import KnowledgeBaseExplorer from "../../components/KnowledgeBase/Explorer";
 import KnowledgeBaseFilter, {
@@ -103,9 +102,8 @@ const KnowledgeBaseList = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const store = useKnowledgeNotesStore();
-  const { isAdmin } = useContext(AuthedUserContext);
   const can = useCan();
-  const canManage = isAdmin || can({ knowledgeBase: ["manage"] });
+  const canManage = can({ knowledge: ["manage"] });
 
   const moderationParam = searchParams.get("moderation");
 

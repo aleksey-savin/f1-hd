@@ -3,7 +3,7 @@ const router = new Router();
 const deviceConfigurationController = require("@/controllers/inventory/deviceConfiguration");
 const isAuth = require("@/middleware/isAuth");
 const {
-  canManageClientDevices,
+  canManageInventoryCatalog,
 } = require("@/middleware/permissions");
 const {
   deviceConfigurationValidation,
@@ -25,7 +25,7 @@ router.get(
 router.post(
   "/device-configurations/add",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceConfigurationValidation,
   checkValidationResult,
   deviceConfigurationController.add,
@@ -34,7 +34,7 @@ router.post(
 router.put(
   "/device-configurations/update/:id",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceConfigurationValidation,
   checkValidationResult,
   deviceConfigurationController.update,
@@ -43,7 +43,7 @@ router.put(
 router.post(
   "/device-configurations/delete/:id",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceConfigurationController.delete,
 );
 

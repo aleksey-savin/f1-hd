@@ -7,27 +7,27 @@ const { runValidation } = require("@/middleware/runValidation");
 const approvalValidation = require("@/validations/finances/approval");
 
 const {
-  canUseWorkApproval,
-  canConfirmReportActions,
+  canOpenApproval,
+  canManageApproval,
 } = require("@/middleware/permissions");
 
 /**
  * «Согласование работ». Смонтирован под /api/approval, а НЕ под /api/finances:
- * последний закрыт `canUseFinancesModule`, которого у клиента нет и быть не
+ * последний закрыт `canReadServicePlans`, которого у клиента нет и быть не
  * должно — согласующему со стороны заказчика финансовый модуль целиком не
  * нужен. Кто что видит внутри — services/reportApprovalScope.
  */
 
 // Конвейер и карточка доступны обеим сторонам, объём режет скоуп
-router.get("/pipeline", isAuth, canUseWorkApproval, approvalController.getPipeline);
-router.get("/reports/:id", isAuth, canUseWorkApproval, approvalController.getReport);
+router.get("/pipeline", isAuth, canOpenApproval, approvalController.getPipeline);
+router.get("/reports/:id", isAuth, canOpenApproval, approvalController.getReport);
 
 // Карточка подбора — проверка состава ДО формирования отчёта. Только наша
 // сторона: клиент в подборе не участвует.
 router.get(
   "/preview/:companyId/:servicePlanId/:month",
   isAuth,
-  canConfirmReportActions,
+  canManageApproval,
   approvalController.getPreviewCard,
 );
 
@@ -35,7 +35,7 @@ router.get(
 router.get(
   "/unrelated/:companyId/:month",
   isAuth,
-  canConfirmReportActions,
+  canManageApproval,
   approvalController.getUnrelated,
 );
 
@@ -43,7 +43,7 @@ router.get(
 router.post(
   "/reports",
   isAuth,
-  canConfirmReportActions,
+  canManageApproval,
   approvalValidation.create,
   runValidation,
   approvalController.create,
@@ -52,7 +52,7 @@ router.post(
 router.post(
   "/reports/:id/resubmit",
   isAuth,
-  canConfirmReportActions,
+  canManageApproval,
   approvalValidation.resubmit,
   runValidation,
   approvalController.resubmit,
@@ -62,7 +62,7 @@ router.post(
 router.post(
   "/reports/:id/invoice",
   isAuth,
-  canConfirmReportActions,
+  canManageApproval,
   approvalValidation.invoice,
   runValidation,
   approvalController.invoice,
@@ -70,7 +70,7 @@ router.post(
 router.post(
   "/reports/:id/payment",
   isAuth,
-  canConfirmReportActions,
+  canManageApproval,
   approvalValidation.payment,
   runValidation,
   approvalController.payment,
@@ -78,7 +78,7 @@ router.post(
 router.post(
   "/reports/:id/archive",
   isAuth,
-  canConfirmReportActions,
+  canManageApproval,
   approvalController.archive,
 );
 
@@ -87,7 +87,7 @@ router.post(
 router.post(
   "/reports/:id/decision",
   isAuth,
-  canUseWorkApproval,
+  canOpenApproval,
   approvalValidation.decision,
   runValidation,
   approvalController.decision,

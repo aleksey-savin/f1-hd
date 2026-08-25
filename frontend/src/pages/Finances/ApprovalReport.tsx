@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import ReportCard from "../../components/Report/ReportCard";
 import ReportExportMenu from "../../components/Report/ReportExportMenu";
 import usePolling from "../../hooks/use-polling";
+import { useCan } from "@/store/authed-user";
 import { toDateInputValue } from "../../util/format-date";
 
 /**
@@ -80,7 +81,12 @@ const ApprovalReport = () => {
   });
 
   const report = data?.report;
+  const can = useCan();
   const isClientView = Boolean(data?.scope?.isClientView);
+  // Конвейер (счёт, оплата, архив) ведёт тот, у кого есть на это право.
+  // Прежде кнопки показывались всем, кто смотрит отчёт «нашими» глазами, и
+  // нажатие возвращало 403 — гейт на маршруте стоял, а в интерфейсе нет.
+  const canManageApproval = can({ approval: ["manage"] });
 
   const post = async (path: string, body: Record<string, unknown>) => {
     setBusy(true);
@@ -133,7 +139,7 @@ const ApprovalReport = () => {
     <>
       <ReportExportMenu report={report} />
 
-      {!isClientView && report.status === "declined" && !report.canDecide && (
+      {canManageApproval && report.status === "declined" && !report.canDecide && (
         <Button
           disabled={busy}
           onClick={() => post(`/api/approval/reports/${id}/resubmit`)}
@@ -142,17 +148,17 @@ const ApprovalReport = () => {
         </Button>
       )}
 
-      {!isClientView && report.status === "approved" && (
+      {canManageApproval && report.status === "approved" && (
         <Button disabled={busy} onClick={() => setStageForm("invoice")}>
           Выставить счёт
         </Button>
       )}
-      {!isClientView && report.status === "awaitingPayment" && (
+      {canManageApproval && report.status === "awaitingPayment" && (
         <Button disabled={busy} onClick={() => setStageForm("payment")}>
           Подтвердить оплату
         </Button>
       )}
-      {!isClientView && report.status === "paid" && (
+      {canManageApproval && report.status === "paid" && (
         <Button
           variant="outline"
           disabled={busy}

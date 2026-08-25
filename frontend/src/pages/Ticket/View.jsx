@@ -276,13 +276,13 @@ const ViewTicket = () => {
   };
 
   const showWorks =
-    modules.timeTracking?.isActive && can({ timeTracking: ["use"] });
+    modules.timeTracking?.isActive && can({ work: ["read"] });
   const showEnvironment =
     !isEndUser &&
     modules.inventory?.isActive &&
-    can({ inventory: ["use"] });
+    can({ device: ["read"] });
   const showKnowledge =
-    modules.knowledgeBase?.isActive && can({ knowledgeBase: ["read"] });
+    modules.knowledgeBase?.isActive && can({ knowledge: ["read"] });
   const showAi = !isEndUser && ai?.isActive;
 
   const railSections = useMemo(

@@ -1,4 +1,7 @@
-const { Ticket } = require("@/models/ticket");
+const {
+  loadAccessibleTicket,
+  assertTicketsAccessible,
+} = require("@/services/ticketAccess");
 
 const requireAuth = require("./requireAuth");
 
@@ -68,163 +71,272 @@ module.exports.isNotClient = [
 // --- заявки --------------------------------------------------------------
 
 /**
- * Доступ к конкретной заявке. Единственный гейт со своей логикой: он смотрит не
- * только на права, но и на отношение человека к самой заявке.
+ * Доступ к конкретной заявке — единственный гейт, который смотрит не только на
+ * права, но и на отношение человека к самой записи. Само правило живёт в
+ * `services/ticketAccess.js`: к заявке ходят не только маршруты с номером в
+ * пути, а мидлварь умеет проверять только их.
  *
- * Список допусков совпадает со скоупом списка заявок
- * (`controllers/ticket.js`, ветка «остальные пользователи»): ответственный ИЛИ
- * автор ИЛИ заявитель. Без `isCreator` сотрудник, заведший заявку за клиента,
- * видел бы её в списке и получал 403 по клику.
+ * @param {(req) => ({num?: any, id?: any})} locate — где лежит ключ заявки.
+ *   Заявку кладём в `req.ticket`: контроллеру она почти всегда нужна следом, и
+ *   второе чтение той же записи не окупается.
  */
-module.exports.allowedToViewTicket = [
+const requireTicketAccess = (locate) => [
   requireAuth,
   async (req, res, next) => {
     try {
-      const notFound = () => {
-        req.isAuth = false;
-        return res
-          .status(404)
-          .json({ error: true, status: 404, message: "Заявка не найдена" });
-      };
-
-      if (isNaN(+req.params.ticketNum)) {
-        return notFound();
-      }
-      const ticket = await Ticket.findOne({ num: req.params.ticketNum });
-      if (!ticket) {
-        return notFound();
-      }
-
-      const { user, can, isAdmin } = req.auth;
-      const userId = user._id.toString();
-
-      const isResp = ticket.responsibles
-        .map((resp) => resp._id.toString())
-        .includes(userId);
-      const isApplicant =
-        ticket.applicantId?.toString() === userId ||
-        ticket.applicant?._id?.toString() === userId;
-      const isCreator = ticket.createdBy?.toString() === userId;
-      const sameCompany =
-        can({ ticket: ["readCompany"] }) &&
-        Boolean(user.company?._id) &&
-        user.company._id.toString() === ticket.company?._id?.toString();
-
-      const allowed =
-        isAdmin ||
-        // connector: "OR" — внутри ресурса, а не рядом с ним: список действий
-        // по умолчанию складывается по И (`access.mjs#normalizeActionRequest`).
-        can({ ticket: { actions: ["administrate", "readAll"], connector: "OR" } }) ||
-        isResp ||
-        isApplicant ||
-        isCreator ||
-        sameCompany;
-
-      return allowed
-        ? next()
-        : deny(req, res, "Недостаточно прав для просмотра страницы");
+      req.ticket = await loadAccessibleTicket(req.auth, locate(req));
+      next();
     } catch (error) {
       next(error);
     }
   },
 ];
 
-module.exports.canPerformTickets = requirePermission({ ticket: ["perform"] },
+module.exports.requireTicketAccess = requireTicketAccess;
+
+module.exports.allowedToViewTicket = requireTicketAccess((req) => ({
+  num: req.params.ticketNum,
+}));
+
+/**
+ * То же для списка заявок в теле запроса: одна работа вешается сразу на
+ * несколько заявок, и доступной должна быть каждая.
+ *
+ * @param {(req) => string[]} locate — где лежит список идентификаторов.
+ */
+module.exports.requireTicketsAccess = (locate) => [
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      await assertTicketsAccessible(req.auth, locate(req));
+      next();
+    } catch (error) {
+      next(error);
+    }
+  },
+];
+
+/**
+ * Своя карточка или право распоряжаться чужими. Отдельный гейт нужен там, где
+ * человек правит СЕБЯ без всяких прав — аватар, — а `:id` в пути позволяет
+ * подставить чужой. Стоит ДО multer: отказать надо раньше, чем принят файл.
+ */
+module.exports.selfOrCanManageUsers = [
+  requireAuth,
+  (req, res, next) =>
+    String(req.params.id) === req.auth.userId ||
+    req.auth.can({ user: ["manage"] })
+      ? next()
+      : deny(req, res, "Изменить можно только свою карточку"),
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Гейты словаря.
+//
+// Имя гейта = действие словаря, и это правило, а не совпадение. Прежние имена
+// врали: `canUseFinancesModule` означало «видеть услуги и тарифы»,
+// `canUseTimeTrackingModule` — «видеть работы», `canUseInventoryModule` открывал
+// сразу технику, справочники, поставщиков и Mikrotik. Гейт, названный не тем,
+// что он проверяет, — это будущая ошибка раздачи прав.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// --- заявки ---------------------------------------------------------------
+
+module.exports.canPerformTickets = requirePermission(
+  { ticket: ["perform"] },
   "У пользователя отсутствует разрешение на выполнение заявки",
 );
-module.exports.canAdministrateTickets = requirePermission({ ticket: ["administrate"] },
+module.exports.canAdministrateTickets = requirePermission(
+  { ticket: ["administrate"] },
   "У пользователя отсутствует разрешение на администрирование заявки",
 );
-module.exports.canEditTickets = requirePermission({ ticket: ["update"] },
+module.exports.canUpdateTickets = requirePermission(
+  { ticket: ["update"] },
   "У пользователя отсутствует разрешение на редактирование заявки",
 );
-module.exports.canDeleteTickets = requirePermission({ ticket: ["delete"] },
+module.exports.canDeleteTickets = requirePermission(
+  { ticket: ["delete"] },
   "У пользователя отсутствует разрешение на удаление заявки",
 );
 
-// --- администрирование портала -------------------------------------------
+// --- заготовки заявок -----------------------------------------------------
 
-module.exports.canManageCompanies = requirePermission({ company: ["manage"] }, PAGE);
+module.exports.canManageTicketCategories = requirePermission(
+  { ticketCategory: ["manage"] },
+  PAGE,
+);
+module.exports.canManageTicketTemplates = requirePermission(
+  { ticketTemplate: ["manage"] },
+  PAGE,
+);
+module.exports.canManageChecklistTemplates = requirePermission(
+  { checklistTemplate: ["manage"] },
+  PAGE,
+);
+module.exports.canManageRoutineTasks = requirePermission(
+  { routineTask: ["manage"] },
+  PAGE,
+);
+
+// --- работы и отчёты ------------------------------------------------------
+
+module.exports.canReadWorks = requirePermission({ work: ["read"] }, PAGE);
+module.exports.canLogWorks = requirePermission(
+  { work: ["log"] },
+  "Недостаточно прав для записи работ",
+);
+module.exports.canReadWorksReport = requirePermission(
+  { report: ["works"] },
+  "Недостаточно прав для просмотра данного отчёта",
+);
+module.exports.canReadCompaniesReport = requirePermission(
+  { report: ["companies"] },
+  "Недостаточно прав для просмотра отчёта",
+);
+module.exports.canReadEmployeesReport = requirePermission(
+  { report: ["employees"] },
+  PAGE,
+);
+// Ручка обслуживает и свой отчёт, и чужой; чей именно — решает контроллер
+module.exports.canReadPersonalReport = requirePermission(
+  [{ report: ["own"] }, { report: ["employees"] }],
+  PAGE,
+);
+
+// --- согласование работ ---------------------------------------------------
+
+// Раздел открыт и согласующим со стороны клиента, которым отчёт по сотрудникам
+// не нужен вовсе: достаточно любого из двух прав.
+module.exports.canOpenApproval = requirePermission(
+  [{ report: ["employees"] }, { approval: ["decide"] }],
+  PAGE,
+);
+module.exports.canManageApproval = requirePermission(
+  { approval: ["manage"] },
+  PAGE,
+);
+
+// --- услуги, компании, люди, роли ----------------------------------------
+
+module.exports.canReadServicePlans = requirePermission(
+  { servicePlan: ["read"] },
+  PAGE,
+);
+module.exports.canManageServicePlans = requirePermission(
+  { servicePlan: ["manage"] },
+  PAGE,
+);
+
+module.exports.canReadCompanies = requirePermission({ company: ["read"] }, PAGE);
+module.exports.canManageCompanies = requirePermission(
+  { company: ["manage"] },
+  PAGE,
+);
+module.exports.canReadCompanyLogs = requirePermission(
+  { company: ["readLogs"] },
+  PAGE,
+);
+
+module.exports.canReadUsers = requirePermission({ user: ["read"] }, PAGE);
 module.exports.canManageUsers = requirePermission({ user: ["manage"] }, PAGE);
-// Раздача ролей — это раздача прав, поэтому право своё, а не производное от
-// управления пользователями: вести людей и решать, что им можно, — разные дела.
-module.exports.canManageRoles = requirePermission({ role: ["manage"] }, PAGE);
-// Вход под пользователем — своё право, не производное от управления людьми:
-// вести учётки и ходить под ними разные вещи.
+// Пароли, сеансы, второй фактор и раздача ролей: распоряжаться входом — не то
+// же самое, что вести карточку человека.
+module.exports.canManageUserAccess = requirePermission(
+  { user: ["manageAccess"] },
+  PAGE,
+);
 module.exports.canImpersonateUsers = requirePermission(
   { user: ["impersonate"] },
   "У вас нет разрешения входить под пользователем",
 );
-// Читать каталог нужно и тому, кто ролей не правит: в форме человека роль
-// выбирают из списка, а выбрать из невидимого списка нельзя.
-module.exports.canReadRoles = requirePermission(
-  [{ role: ["manage"] }, { user: ["manage"] }],
-  PAGE,
-);
-module.exports.canManageTicketCategories = requirePermission({ ticketCategory: ["manage"] },
-  PAGE,
-);
-module.exports.canManageKnowledgeBase = requirePermission({ knowledgeBase: ["manage"] },
-  PAGE,
-);
-module.exports.canSeeKnowledgeBase = requirePermission({ knowledgeBase: ["read"] }, PAGE);
-module.exports.canManageRoutineTasks = requirePermission({ routineTask: ["manage"] },
-  PAGE,
-);
 
-// --- учёт времени ---------------------------------------------------------
+module.exports.canReadRoles = requirePermission({ role: ["read"] }, PAGE);
+module.exports.canManageRoles = requirePermission({ role: ["manage"] }, PAGE);
 
-module.exports.canUseTimeTrackingModule = requirePermission({ timeTracking: ["use"] },
+// --- графики и база знаний ------------------------------------------------
+
+module.exports.canReadSchedule = requirePermission(
+  { schedule: ["read"] },
   PAGE,
 );
-module.exports.canSeeWorksReport = requirePermission({ work: ["readReport"] },
-  "Недостаточно прав для просмотра данного отчёта",
-);
-module.exports.canSeeAnalytics = requirePermission({ analytics: ["read"] },
-  "Недостаточно прав для просмотра аналитики",
-);
-module.exports.canManageWorkSchedules = requirePermission({ workSchedule: ["manage"] },
+module.exports.canManageSchedules = requirePermission(
+  { schedule: ["manage"] },
   "Недостаточно прав для управления графиками и отсутствиями",
 );
-
-// --- учёт техники ---------------------------------------------------------
-
-module.exports.canUseInventoryModule = requirePermission({ inventory: ["use"] },
-  "Недостаточно прав",
+module.exports.canApproveAbsences = requirePermission(
+  { schedule: ["approve"] },
+  "Недостаточно прав для согласования отсутствий",
 );
-module.exports.canManageClientDevices = requirePermission({ clientDevice: ["manage"] },
-  "Недостаточно прав",
-);
-module.exports.canManageMikrotikDevices = requirePermission({ mikrotik: ["manageDevices"] },
+
+module.exports.canReadKnowledge = requirePermission(
+  { knowledge: ["read"] },
   PAGE,
 );
-module.exports.canManageMikrotikConfigs = requirePermission({ mikrotik: ["manageConfigs"] },
+module.exports.canManageKnowledge = requirePermission(
+  { knowledge: ["manage"] },
+  PAGE,
+);
+
+// --- оборудование ---------------------------------------------------------
+
+module.exports.canReadDevices = requirePermission({ device: ["read"] }, PAGE);
+module.exports.canManageDevices = requirePermission(
+  { device: ["manage"] },
+  "Недостаточно прав",
+);
+module.exports.canReadInventoryCatalog = requirePermission(
+  { inventoryCatalog: ["read"] },
+  PAGE,
+);
+module.exports.canManageInventoryCatalog = requirePermission(
+  { inventoryCatalog: ["manage"] },
+  "Недостаточно прав",
+);
+module.exports.canReadSuppliers = requirePermission(
+  { supplier: ["read"] },
+  PAGE,
+);
+module.exports.canManageSuppliers = requirePermission(
+  { supplier: ["manage"] },
+  "Недостаточно прав",
+);
+module.exports.canReadMikrotik = requirePermission({ mikrotik: ["read"] }, PAGE);
+module.exports.canManageMikrotik = requirePermission(
+  { mikrotik: ["manage"] },
+  PAGE,
+);
+module.exports.canManageMikrotikConfigs = requirePermission(
+  { mikrotik: ["manageConfigs"] },
   "Недостаточно прав для управления резервными копиями конфигураций Mikrotik",
 );
 
-// --- финансы --------------------------------------------------------------
+// --- удалённая помощь и настройки ----------------------------------------
 
-module.exports.canUseFinancesModule = requirePermission({ finances: ["use"] }, PAGE);
-module.exports.canSeeGlobalFinancialReport = requirePermission({ finances: ["readGlobalReport"] },
+module.exports.canUseRemoteSupport = requirePermission(
+  { remoteSupport: ["use"] },
+  "Недостаточно прав для запуска сеанса удалённой помощи",
+);
+
+module.exports.canReadSettings = requirePermission(
+  { settings: ["read"] },
+  "Недостаточно прав для просмотра настроек",
+);
+module.exports.canManageSettings = requirePermission(
+  { settings: ["manage"] },
   PAGE,
 );
-// Раздел открыт и согласующим со стороны клиента, которым финансовый модуль
-// целиком не нужен: достаточно любого из двух прав.
-module.exports.canUseWorkApproval = requirePermission(
-  [{ finances: ["readGlobalReport"] }, { workReport: ["approve"] }],
+module.exports.canManageMailSettings = requirePermission(
+  { settings: ["manageMail"] },
   PAGE,
 );
-module.exports.canSeePersonalFinancialReport = requirePermission({ finances: ["readPersonalReport"] },
+module.exports.canManageIntegrations = requirePermission(
+  { settings: ["manageIntegrations"] },
   PAGE,
 );
-module.exports.canSeePersonalOrGlobalFinancialReport = requirePermission(
-  [{ finances: ["readPersonalReport"] }, { finances: ["readGlobalReport"] }],
+module.exports.canManageSecuritySettings = requirePermission(
+  { settings: ["manageSecurity"] },
   PAGE,
 );
-module.exports.canConfirmReportActions = requirePermission({ finances: ["confirmActions"] },
-  PAGE,
-);
-module.exports.canManageServicePlans = requirePermission({ servicePlan: ["manage"] }, PAGE);
 
 // Рубильники модулей переехали в ./modules — это настройка установки, а не
 // права. Реэкспорт оставлен, чтобы не править импорты в routes/index.js разом.

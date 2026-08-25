@@ -66,7 +66,7 @@ const TicketBulkActionBar = ({
       reason: empty ?? commentReason(selectedItems),
     },
     can({ ticket: ["perform"] }) &&
-      can({ timeTracking: ["use"] }) && {
+      can({ work: ["read"] }) && {
         key: "works",
         icon: RiToolsLine,
         label: "Работы",

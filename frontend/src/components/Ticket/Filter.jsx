@@ -52,15 +52,13 @@ const TicketFilter = ({
   responsibleOptions = [],
   categoryOptions = [],
 }) => {
-  const { isAdmin, isEndUser } = useContext(AuthedUserContext);
+  const { isEndUser } = useContext(AuthedUserContext);
   const can = useCan();
   const { modules } = useInitialPrefsStore();
   const store = useTicketFilterStore();
 
   const canSeeResponsiblesFacet =
-    isAdmin ||
-    can({ ticket: ["administrate"] }) ||
-    can({ ticket: ["readAll"] });
+    can({ ticket: ["administrate"] }) || can({ ticket: ["readAll"] });
 
   return (
     <FilterContainer resetFilterHandler={store.resetFilter}>

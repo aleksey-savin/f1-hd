@@ -9,17 +9,20 @@ const { runValidation } = require("@/middleware/runValidation");
 const teamValidation = require("@/validations/team");
 
 const {
-  isNotClient,
-  isAdmin,
-  canManageWorkSchedules,
+  canReadSchedule,
+  canManageSchedules,
+  canApproveAbsences,
+  canManageSettings,
 } = require("@/middleware/permissions");
 
 // Табель и графики — смотреть может любой сотрудник: знать, кто когда работает
-// и кто в отпуске, полезно всем. Менять — только с правом.
+// и кто в отпуске, полезно всем, и право «Календарь команды» есть у каждой роли
+// сотрудника. Менять график — своё право, решать по отсутствию — ещё одно:
+// согласующий не обязан уметь править чужие расписания.
 router.get(
   "/schedule",
   isAuth,
-  isNotClient,
+  canReadSchedule,
   teamValidation.teamSchedule,
   runValidation,
   scheduleController.getSchedule,
@@ -28,7 +31,7 @@ router.get(
 router.get(
   "/schedule/:userId",
   isAuth,
-  isNotClient,
+  canReadSchedule,
   teamValidation.userSchedule,
   runValidation,
   scheduleController.getUserSchedule,
@@ -37,14 +40,14 @@ router.get(
 router.get(
   "/production-calendar",
   isAuth,
-  isNotClient,
+  canReadSchedule,
   scheduleController.getProductionCalendar,
 );
 
 router.post(
   "/production-calendar/sync",
   isAuth,
-  isAdmin,
+  canManageSettings,
   scheduleController.syncProductionCalendar,
 );
 
@@ -52,7 +55,7 @@ router.post(
 router.get(
   "/absences",
   isAuth,
-  isNotClient,
+  canReadSchedule,
   teamValidation.absenceList,
   runValidation,
   absenceController.getAll,
@@ -61,7 +64,7 @@ router.get(
 router.get(
   "/absences/impact",
   isAuth,
-  isNotClient,
+  canReadSchedule,
   teamValidation.absenceImpact,
   runValidation,
   absenceController.impact,
@@ -72,7 +75,7 @@ router.get(
 router.post(
   "/absences",
   isAuth,
-  isNotClient,
+  canReadSchedule,
   teamValidation.absenceAdd,
   runValidation,
   absenceController.add,
@@ -81,19 +84,24 @@ router.post(
 router.post(
   "/absences/:id/decision",
   isAuth,
-  canManageWorkSchedules,
+  canApproveAbsences,
   teamValidation.absenceDecision,
   runValidation,
   absenceController.decide,
 );
 
 // Отозвать может заявитель (проверка владения — в контроллере)
-router.post("/absences/:id/cancel", isAuth, isNotClient, absenceController.cancel);
+router.post(
+  "/absences/:id/cancel",
+  isAuth,
+  canReadSchedule,
+  absenceController.cancel,
+);
 
 router.post(
   "/absences/delete/:id",
   isAuth,
-  canManageWorkSchedules,
+  canManageSchedules,
   absenceController.delete,
 );
 

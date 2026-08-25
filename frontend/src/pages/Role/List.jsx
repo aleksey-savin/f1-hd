@@ -13,7 +13,7 @@ import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
 import useRolesFilterStore from "../../store/lists/roles";
 import RoleList from "../../components/Role/List";
 import RoleGaps from "../../components/Role/Gaps";
-import { PERMISSION_OPTIONS } from "../../components/Role/permission-options";
+import { usePermissionOptions } from "../../components/Role/permission-options";
 
 /**
  * Роли — справочник, поэтому отдельная страница в «Администрировании», рядом с
@@ -26,6 +26,7 @@ import { PERMISSION_OPTIONS } from "../../components/Role/permission-options";
  */
 const RolesPage = () => {
   const can = useCan();
+  const permissionOptions = usePermissionOptions();
   const location = useLocation();
   const filterStore = useRolesFilterStore();
 
@@ -41,7 +42,7 @@ const RolesPage = () => {
     }
   }, [location.key]);
 
-  if (!can({ role: ["manage"] })) {
+  if (!can({ role: ["read"] })) {
     return <Forbidden />;
   }
 
@@ -64,14 +65,14 @@ const RolesPage = () => {
       searchPlaceholder="Найти право…"
       countLabel={(count) => `Права: ${count}`}
       value={selected}
-      options={PERMISSION_OPTIONS}
+      options={permissionOptions}
       onChange={setPermissions}
     />
   );
   const activeFilters = selected.map((key) => ({
     key,
     label:
-      PERMISSION_OPTIONS.find((option) => option.value === key)?.label ?? key,
+      permissionOptions.find((option) => option.value === key)?.label ?? key,
     onRemove: () => setPermissions(selected.filter((item) => item !== key)),
   }));
 

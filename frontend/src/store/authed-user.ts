@@ -4,6 +4,20 @@ import { AuthedUserContext } from "@/store/authed-user-context";
 import { makeCan, type Can, type Statements } from "@/lib/access";
 import type { AuthedUser } from "@/types/user";
 
+/** Одно действие словаря так, как его отдаёт сервер. */
+export type PermissionAction = {
+  id: string;
+  label: string;
+  hint?: string;
+};
+
+/** Группа действий — раздел в форме роли и в карточке человека. */
+export type PermissionGroup = {
+  key: string;
+  label: string;
+  actions: PermissionAction[];
+};
+
 // Типобезопасный доступ к авторизованному пользователю.
 //
 // Стор `authed-user-context.js` пока на JS и создаётся с ЧАСТИЧНЫМ дефолтом
@@ -29,10 +43,34 @@ export function useAuthedUser(): AuthedUser {
 export function useCan(): Can {
   const user = useContext(AuthedUserContext) as unknown as {
     statements?: Statements;
-    isAdmin?: boolean;
   };
+  return useMemo(() => makeCan(user?.statements), [user?.statements]);
+}
+
+/**
+ * Словарь прав с подписями — тот же, что объявлен на сервере, привезённый в
+ * `/api/me`. Своего списка на клиенте нет: подписи жили копией и разъезжались.
+ *
+ * Форма роли рисует по нему матрицу, карточка человека — выданные права, а
+ * `InlineForbidden` берёт отсюда название права, которого не хватило.
+ */
+export function usePermissionCatalogue(): PermissionGroup[] {
+  const user = useContext(AuthedUserContext) as unknown as {
+    permissionCatalogue?: PermissionGroup[];
+  };
+  return user?.permissionCatalogue || [];
+}
+
+/** Подпись одного действия, «ресурс.действие» → «Удалять заявки». */
+export function usePermissionLabels(): Record<string, PermissionAction> {
+  const groups = usePermissionCatalogue();
   return useMemo(
-    () => makeCan(user?.statements, Boolean(user?.isAdmin)),
-    [user?.statements, user?.isAdmin],
+    () =>
+      Object.fromEntries(
+        groups.flatMap((group) =>
+          group.actions.map((action) => [action.id, action]),
+        ),
+      ),
+    [groups],
   );
 }

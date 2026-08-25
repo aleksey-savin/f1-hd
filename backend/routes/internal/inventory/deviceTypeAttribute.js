@@ -2,12 +2,12 @@ const Router = require("express");
 const router = new Router();
 const deviceTypeAttributeController = require("@/controllers/inventory/deviceTypeAttribute");
 const isAuth = require("@/middleware/isAuth");
-const { canManageClientDevices } = require("@/middleware/permissions");
+const { canManageInventoryCatalog } = require("@/middleware/permissions");
 
 // Атрибуты типа устройства правятся точечно с карточки типа (добавить/изменить/
 // удалить/переупорядочить), по образцу конфигураций модели. Пишущий гейт —
-// canManageClientDevices (как у device-types / device-configurations); модуль
-// уже проверен на монтировании (inventoryModuleIsActive + canUseInventoryModule).
+// canManageInventoryCatalog (как у device-types / device-configurations); модуль
+// уже проверен на монтировании (inventoryModuleIsActive + canReadInventoryCatalog).
 
 router.get(
   "/device-type-attributes/type/:id",
@@ -24,7 +24,7 @@ router.get(
 router.post(
   "/device-type-attributes/add",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceTypeAttributeController.add,
 );
 
@@ -32,21 +32,21 @@ router.post(
 router.put(
   "/device-type-attributes/reorder",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceTypeAttributeController.reorder,
 );
 
 router.put(
   "/device-type-attributes/update/:id",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceTypeAttributeController.update,
 );
 
 router.post(
   "/device-type-attributes/delete/:id",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceTypeAttributeController.delete,
 );
 

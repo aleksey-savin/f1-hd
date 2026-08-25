@@ -5,12 +5,13 @@ const isAuth = require("@/middleware/isAuth");
 const isTelegramBot = require("@/middleware/isTelegramBot");
 const {
   allowedToViewTicket,
+  requireTicketAccess,
   canDeleteTickets,
-  canEditTickets,
+  canUpdateTickets,
   canPerformTickets,
   canAdministrateTickets,
-  canManageKnowledgeBase,
-  canSeeKnowledgeBase,
+  canManageKnowledge,
+  canReadKnowledge,
   knowledgeBaseModuleIsActive,
 } = require("@/middleware/permissions");
 
@@ -49,7 +50,7 @@ router.post(
 router.post(
   "/tickets/update",
   isAuth,
-  canEditTickets,
+  canUpdateTickets,
   fileUpload.array("attachments"),
   ticketController.update,
 );
@@ -95,7 +96,16 @@ router.post(
   canPerformTickets,
   ticketController.close,
 );
-router.post("/tickets/back-to-work", isAuth, ticketController.backToWork);
+// Возврат в работу — то же действие, что закрытие, только обратное: те же
+// права и та же проверка отношения к заявке. Ключ лежит в теле, поэтому доступ
+// проверяем по `_id`, а не по номеру.
+router.post(
+  "/tickets/back-to-work",
+  isAuth,
+  canPerformTickets,
+  requireTicketAccess((req) => ({ id: req.body._id })),
+  ticketController.backToWork,
+);
 
 router.post(
   "/tickets/ai-guide/generate",
@@ -123,8 +133,8 @@ router.post(
   isAuth,
   canPerformTickets,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   ticketController.saveAiTermNote,
 );
 // Замечание к тому, что ИИ вписал в заявку вместо человека
@@ -174,7 +184,7 @@ router.post(
 router.post(
   "/tickets/:ticketNum/update-checklist",
   isAuth,
-  canEditTickets,
+  canUpdateTickets,
   ticketController.updateChecklist,
 );
 

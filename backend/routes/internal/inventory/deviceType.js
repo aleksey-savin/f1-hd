@@ -3,7 +3,7 @@ const router = new Router();
 const deviceTypeController = require("@/controllers/inventory/deviceType");
 const isAuth = require("@/middleware/isAuth");
 const {
-  canManageClientDevices,
+  canManageInventoryCatalog,
 } = require("@/middleware/permissions");
 const { deviceTypeValidation } = require("@/validations/inventory/deviceType");
 const { checkValidationResult } = require("@/middleware/validation");
@@ -15,7 +15,7 @@ router.get("/device-types/:id", isAuth, deviceTypeController.getOne);
 router.post(
   "/device-types/add",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceTypeValidation,
   checkValidationResult,
   deviceTypeController.add,
@@ -24,7 +24,7 @@ router.post(
 router.put(
   "/device-types/update/:id",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceTypeValidation,
   checkValidationResult,
   deviceTypeController.update,
@@ -33,7 +33,7 @@ router.put(
 router.post(
   "/device-types/delete/:id",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   deviceTypeController.delete,
 );
 

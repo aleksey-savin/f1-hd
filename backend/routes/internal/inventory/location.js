@@ -2,7 +2,7 @@ const Router = require("express");
 const router = new Router();
 const locationController = require("@/controllers/inventory/location");
 const isAuth = require("@/middleware/isAuth");
-const { canManageClientDevices } = require("@/middleware/permissions");
+const { canManageDevices } = require("@/middleware/permissions");
 const { locationValidation } = require("@/validations/inventory/location");
 const { checkValidationResult } = require("@/middleware/validation");
 
@@ -72,7 +72,7 @@ router.get("/locations/:id", isAuth, locationController.getOne);
 router.post(
   "/locations/add",
   isAuth,
-  canManageClientDevices,
+  canManageDevices,
   locationValidation,
   checkValidationResult,
   locationController.add,
@@ -82,7 +82,7 @@ router.post(
 router.put(
   "/locations/update/:id",
   isAuth,
-  canManageClientDevices,
+  canManageDevices,
   locationValidation,
   checkValidationResult,
   locationController.update,
@@ -92,7 +92,7 @@ router.put(
 router.post(
   "/locations/delete/:id",
   isAuth,
-  canManageClientDevices,
+  canManageDevices,
   locationController.delete,
 );
 

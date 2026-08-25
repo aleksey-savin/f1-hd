@@ -125,8 +125,8 @@ const ViewClientDevice = ({ device = {} }) => {
   const revalidator = useRevalidator();
   const offcanvas = useOffcanvasStore();
   const can = useCan();
-  const canManage = Boolean(can({ clientDevice: ["manage"] }));
-  const canManageMikrotik = Boolean(can({ mikrotik: ["manageDevices"] }));
+  const canManage = Boolean(can({ device: ["manage"] }));
+  const canManageMikrotik = Boolean(can({ mikrotik: ["manage"] }));
 
   const [qrOpen, setQrOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);

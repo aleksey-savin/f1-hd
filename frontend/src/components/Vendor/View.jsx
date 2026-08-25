@@ -86,7 +86,7 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
   const { showToast } = useToastStore();
   const actionData = useActionData();
   const can = useCan();
-  const canManage = can({ clientDevice: ["manage"] });
+  const canManage = can({ inventoryCatalog: ["manage"] });
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
   // Свёрнутый/раскрытый набор групп (по id типа). Малый каталог — всё раскрыто.

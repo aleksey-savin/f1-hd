@@ -11,9 +11,11 @@
 // худшее, что можно сделать. Такой человек показывается поимённо, и решение
 // принимает человек: дополнить каталог или поправить права.
 //
-// Идемпотентен. Обратим: `--rollback` чистит `member.role`, после чего права
-// снова считаются из `user.permissions` — их скрипт не трогает НИКОГДА, и
-// именно поэтому откат не требует ни восстановления копии, ни деплоя.
+// Идемпотентен. `--rollback` чистит `member.role` — но ПРАВА ПРИ ЭТОМ НЕ
+// ВОЗВРАЩАЮТСЯ: личные галочки в документах остаются нетронутыми, однако
+// приложение их больше не читает (`services/permissions.js`). Откат этого
+// релиза — предыдущий образ; тот код снова прочитает те же документы, потому
+// что скрипт не трогает `user.permissions` НИКОГДА.
 //
 // Запуск внутри контейнера бэкенда:
 //   node scripts/assignRoles.js             # показать план и изменения прав
@@ -24,9 +26,9 @@ const fs = require("fs");
 const path = require("path");
 const mongoose = require("mongoose");
 
-const { PERMISSION_KEYS } = require("@/utils/permissions");
+const { PERMISSION_KEYS, legacyToActions } = require("./legacyPermissions");
 const { syncCatalogue } = require("./syncRoleCatalogue");
-const { permissionsToStatements } = require("@/auth/access");
+const { actionsToStatements } = require("@/auth/access");
 const { ORG_SLUG } = require("@/services/permissions");
 
 const CATALOGUE = path.join(__dirname, "roles.catalogue.json");
@@ -55,10 +57,9 @@ const run = async () => {
   const orgId = String(org._id);
 
   /**
-   * ПОРЯДОК ОБЯЗАТЕЛЕН: этот скрипт выводит роли из личных галочек
-   * (`user.permissions`), а `stripOwnPermissions.js` их снимает. Запуск после
-   * снятия не «ничего не делает» — он видит у всех пустую подпись и раздаёт
-   * ВСЕМ роль с пустым набором прав, то есть стирает раздачу целиком.
+   * Скрипт выводит роли из ДОРОЛЕВЫХ галочек в документах. Если их нет ни у
+   * кого, подпись у всех пустая, и повторный запуск раздал бы ВСЕМ роль с
+   * пустым набором прав — то есть стёр бы раздачу целиком.
    *
    * Проверено на своей шкуре: 696 членств стали «Клиент» одной командой.
    */
@@ -68,9 +69,9 @@ const run = async () => {
     });
     if (!withOwn) {
       throw new Error(
-        "Личных прав нет ни у кого — выводить роли не из чего. " +
-          "Либо раздача уже выполнена, либо stripOwnPermissions.js отработал раньше. " +
-          "Роли сейчас живут только в member.role; повторный запуск их сотрёт.",
+        "Доролевых прав нет ни у кого — выводить роли не из чего. " +
+          "Похоже, раздача уже выполнена: роли живут в member.role, " +
+          "и повторный запуск их сотрёт.",
       );
     }
   }
@@ -81,7 +82,8 @@ const run = async () => {
       .updateMany({ organizationId: orgId }, { $set: { role: "" } });
     console.log(`Роли сняты у ${result.modifiedCount} членов.`);
     console.log(
-      "Права снова считаются из user.permissions — они не менялись, деплой не нужен.",
+      "ВНИМАНИЕ: права при этом не вернулись — доролевые галочки в документах " +
+        "целы, но этот код их не читает. Полный откат — предыдущий образ.",
     );
     await mongoose.disconnect();
     return;
@@ -130,8 +132,13 @@ const run = async () => {
       continue;
     }
 
-    const gained = role.permissions.filter((key) => !own.includes(key));
-    const lost = own.filter((key) => !role.permissions.includes(key));
+    // Сравниваем в НОВОМ языке: подпись человека — доролевая, набор роли —
+    // словарь. Прежние галочки переводятся расширением (`legacyToActions`),
+    // поэтому «получит» показывает настоящую разницу, а не разницу словарей.
+    const ownActions = legacyToActions(user.permissions || {});
+    const roleActions = role.actions || [];
+    const gained = roleActions.filter((id) => !ownActions.includes(id));
+    const lost = ownActions.filter((id) => !roleActions.includes(id));
     plan.push({ user, role, gained, lost });
   }
 
@@ -199,7 +206,7 @@ const run = async () => {
   // Тот же код, что и у `syncRoleCatalogue.js`: каталог обязан выглядеть
   // одинаково, кем бы его ни записали. Второй копии этих полей быть не должно
   // — разъехавшийся `audience` или потерянное описание нашлись бы нескоро.
-  await syncCatalogue(db, orgId, roles, { permissionsToStatements });
+  await syncCatalogue(db, orgId, roles, { actionsToStatements });
   console.log(`\nРолей в каталоге: ${roles.length}`);
 
   let assigned = 0;

@@ -11,7 +11,7 @@ const TicketCategoryItem = ({ item }) => {
 
   const userCount = users?.length || 0;
   const planCount = servicePlans?.length || 0;
-  const showPlans = can({ finances: ["use"] });
+  const showPlans = can({ servicePlan: ["read"] });
 
   const metaParts = [
     userCount > 0

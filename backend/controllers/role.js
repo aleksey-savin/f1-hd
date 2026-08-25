@@ -1,5 +1,5 @@
 const { AppError } = require("@/middleware/errorHandling");
-const { STATEMENT } = require("@/auth/access");
+const { GROUPS } = require("@/auth/access");
 const roles = require("@/services/roles");
 
 /**
@@ -15,8 +15,9 @@ exports.list = async (req, res, next) => {
     res.status(200).json({
       roles: await roles.list(),
       // Словарь отдаём вместе с каталогом: интерфейсу правки роли нужен полный
-      // список возможных действий, а не только те, что уже выданы.
-      statement: STATEMENT,
+      // список возможных действий, а не только те, что уже выданы. Группы —
+      // с подписями, потому что подписи живут рядом со словарём и больше нигде.
+      groups: GROUPS,
       // Права, которых не даёт ни одна роль, кроме полного доступа. Считает
       // сервер: правило («роль отдаёт весь словарь») живёт там же, где им
       // зеркалится isAdmin, и второй копии на клиенте быть не должно.
@@ -29,9 +30,9 @@ exports.list = async (req, res, next) => {
 
 exports.create = async (req, res, next) => {
   try {
-    const { title, description, permissions, audience } = req.body;
+    const { title, description, actions, audience } = req.body;
     const role = await roles.create(
-      { title, description, permissions, audience },
+      { title, description, actions, audience },
       req.auth.can,
     );
     res.status(201).json({ role, message: "Роль создана" });
@@ -42,10 +43,10 @@ exports.create = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const { title, description, permissions, audience } = req.body;
+    const { title, description, actions, audience } = req.body;
     const role = await roles.update(
       req.params.key,
-      { title, description, permissions, audience },
+      { title, description, actions, audience },
       req.auth.can,
     );
     res.status(200).json({ role, message: "Роль сохранена" });
@@ -56,7 +57,7 @@ exports.update = async (req, res, next) => {
 
 exports.remove = async (req, res, next) => {
   try {
-    const affected = await roles.remove(req.params.key);
+    const affected = await roles.remove(req.params.key, req.auth.can);
     res.status(200).json({
       message: "Роль удалена",
       // Сколько человек её носили и у скольких она была единственной — чтобы

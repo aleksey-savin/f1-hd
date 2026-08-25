@@ -1,24 +1,10 @@
-import { useContext } from "react";
 import DeviceAttributeForm from "../../components/DeviceAttribute/Form";
-import InlineForbidden from "../../components/Error/InlineForbidden";
-import { AuthedUserContext } from "../../store/authed-user-context";
 
 import { api } from "@/lib/api";
 
 const UpdateDeviceAttributePage = () => {
-  const { permissions } = useContext(AuthedUserContext);
-  const { canUseInventoryModule, canManageClientDevices } = permissions;
 
-  return (
-    <>
-      {canUseInventoryModule && canManageClientDevices && (
-        <DeviceAttributeForm title="Изменить атрибут устройства" />
-      )}
-      {(!canUseInventoryModule || !canManageClientDevices) && (
-        <InlineForbidden right="Управление устройствами" />
-      )}
-    </>
-  );
+  return <DeviceAttributeForm title="Изменить атрибут устройства" />;
 };
 
 export default UpdateDeviceAttributePage;

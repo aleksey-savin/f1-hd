@@ -7,13 +7,21 @@
     "менять его нельзя: переименование ключа оставит людей без прав молча.",
     "`title` — то, что видит человек; правится свободно, в том числе из UI.",
     "",
-    "`matches` — подписи наборов прав, которые эта роль поглощает. Каждая подпись",
-    "это отсортированный по порядку utils/permissions.js список включённых прав.",
-    "Слияние нескольких подписей в одну роль — осознанное решение человека, и",
-    "оно видно здесь глазами: assignRoles.js печатает, кто что при этом получит.",
+    "`actions` — действия СЛОВАРЯ (backend/auth/access.js), «ресурс.действие».",
+    "",
+    "`matches` — подписи ДОРОЛЕВЫХ наборов галочек, которые эта роль поглощает.",
+    "Каждая подпись — список ключей в порядке scripts/legacyPermissions.js. Языки",
+    "здесь разные намеренно: подпись описывает то, что лежит в базе прода, а",
+    "actions — то, что роль даёт после переезда. Слияние нескольких подписей в",
+    "одну роль — осознанное решение человека, и оно видно здесь глазами:",
+    "assignRoles.js печатает, кто что при этом получит.",
     "",
     "Пользователь, чья подпись не описана НИ ОДНОЙ ролью, останавливает скрипт.",
-    "Это защита от расхождения дева и прода: на проде наборы могли уйти вперёд."
+    "Это защита от расхождения дева и прода: на проде наборы могли уйти вперёд.",
+    "",
+    "Роль «admin» ОБЯЗАНА содержать весь словарь: по признаку «роль отдаёт всё»",
+    "зеркалится user.isAdmin (auth/access.js#isFullAccess). Новое действие в",
+    "словаре — новая строка здесь, иначе зеркало погаснет у всех администраторов."
   ],
   "roles": [
     {
@@ -21,7 +29,7 @@
       "title": "Клиент",
       "audience": "client",
       "description": "Заявки только свои",
-      "permissions": [],
+      "actions": [],
       "matches": [
         [],
         [
@@ -39,8 +47,8 @@
       "title": "Клиент: все заявки компании",
       "audience": "client",
       "description": "Видит заявки всех сотрудников своей компании",
-      "permissions": [
-        "canSeeAllCompanyTickets"
+      "actions": [
+        "ticket.readCompany"
       ],
       "matches": [
         [
@@ -53,10 +61,11 @@
       "title": "Клиент: руководитель",
       "audience": "client",
       "description": "Заявки компании плюс отчёт по работам",
-      "permissions": [
-        "canSeeAllCompanyTickets",
-        "canUseTimeTrackingModule",
-        "canSeeWorksReport"
+      "actions": [
+        "ticket.readCompany",
+        "work.read",
+        "work.log",
+        "report.works"
       ],
       "matches": [
         [
@@ -71,37 +80,59 @@
       "title": "Администратор",
       "audience": "staff",
       "description": "Полный доступ ко всему порталу. Набор ОБЯЗАН содержать весь словарь: по признаку «роль отдаёт всё» зеркалится user.isAdmin (auth/access.js#isFullAccess), и роль без одного действия гасила бы зеркало",
-      "permissions": [
-        "canPerformTickets",
-        "canAdministrateTickets",
-        "canSeeAllCompanyTickets",
-        "canSeeAllTickets",
-        "canEditTickets",
-        "canDeleteTickets",
-        "canManageCompanies",
-        "canManageUsers",
-        "canManageRoles",
-        "canImpersonateUsers",
-        "canManageTicketCategories",
-        "canManageKnowledgeBase",
-        "canSeeKnowledgeBase",
-        "canManageRoutineTasks",
-        "canManageTicketTemplates",
-        "canUseTimeTrackingModule",
-        "canAvoidWorks",
-        "canSeeWorksReport",
-        "canSeeAnalytics",
-        "canManageWorkSchedules",
-        "canUseInventoryModule",
-        "canManageClientDevices",
-        "canManageMikrotikDevices",
-        "canManageMikrotikConfigs",
-        "canUseFinancesModule",
-        "canManageServicePlans",
-        "canSeeGlobalFinancialReport",
-        "canConfirmReportActions",
-        "canSeePersonalFinancialReport",
-        "canApproveWorkReports"
+      "actions": [
+        "ticket.readCompany",
+        "ticket.readAll",
+        "ticket.perform",
+        "ticket.administrate",
+        "ticket.update",
+        "ticket.delete",
+        "ticket.createForOthers",
+        "ticket.closeWithoutWork",
+        "ticketCategory.manage",
+        "ticketTemplate.manage",
+        "checklistTemplate.manage",
+        "routineTask.manage",
+        "work.read",
+        "work.log",
+        "work.manageAll",
+        "report.works",
+        "report.companies",
+        "report.employees",
+        "report.own",
+        "approval.decide",
+        "approval.manage",
+        "servicePlan.read",
+        "servicePlan.manage",
+        "company.read",
+        "company.manage",
+        "company.readLogs",
+        "user.read",
+        "user.manage",
+        "user.manageAccess",
+        "user.impersonate",
+        "role.read",
+        "role.manage",
+        "schedule.read",
+        "schedule.manage",
+        "schedule.approve",
+        "knowledge.read",
+        "knowledge.manage",
+        "device.read",
+        "device.manage",
+        "inventoryCatalog.read",
+        "inventoryCatalog.manage",
+        "supplier.read",
+        "supplier.manage",
+        "mikrotik.read",
+        "mikrotik.manage",
+        "mikrotik.manageConfigs",
+        "remoteSupport.use",
+        "settings.read",
+        "settings.manage",
+        "settings.manageMail",
+        "settings.manageIntegrations",
+        "settings.manageSecurity"
       ],
       "matches": [
         [
@@ -206,12 +237,22 @@
       "title": "Инженер",
       "audience": "staff",
       "description": "Заявки, учёт времени, техника клиентов",
-      "permissions": [
-        "canPerformTickets",
-        "canUseTimeTrackingModule",
-        "canUseInventoryModule",
-        "canManageClientDevices",
-        "canManageMikrotikDevices"
+      "actions": [
+        "ticket.perform",
+        "ticket.createForOthers",
+        "work.read",
+        "work.log",
+        "company.read",
+        "user.read",
+        "schedule.read",
+        "device.read",
+        "device.manage",
+        "inventoryCatalog.read",
+        "inventoryCatalog.manage",
+        "supplier.read",
+        "supplier.manage",
+        "mikrotik.read",
+        "mikrotik.manage"
       ],
       "matches": [
         [
@@ -234,13 +275,23 @@
       "title": "Инженер: закрытие без работ",
       "audience": "staff",
       "description": "Инженер, которому можно закрыть заявку без записи о работе",
-      "permissions": [
-        "canPerformTickets",
-        "canUseTimeTrackingModule",
-        "canAvoidWorks",
-        "canUseInventoryModule",
-        "canManageClientDevices",
-        "canManageMikrotikDevices"
+      "actions": [
+        "ticket.perform",
+        "ticket.createForOthers",
+        "ticket.closeWithoutWork",
+        "work.read",
+        "work.log",
+        "company.read",
+        "user.read",
+        "schedule.read",
+        "device.read",
+        "device.manage",
+        "inventoryCatalog.read",
+        "inventoryCatalog.manage",
+        "supplier.read",
+        "supplier.manage",
+        "mikrotik.read",
+        "mikrotik.manage"
       ],
       "matches": [
         [
@@ -255,17 +306,27 @@
       "title": "Ведущий инженер",
       "audience": "staff",
       "description": "Инженер плюс все заявки, база знаний, регламенты и конфигурации Mikrotik",
-      "permissions": [
-        "canPerformTickets",
-        "canSeeAllTickets",
-        "canManageKnowledgeBase",
-        "canSeeKnowledgeBase",
-        "canManageRoutineTasks",
-        "canUseTimeTrackingModule",
-        "canUseInventoryModule",
-        "canManageClientDevices",
-        "canManageMikrotikDevices",
-        "canManageMikrotikConfigs"
+      "actions": [
+        "ticket.readAll",
+        "ticket.perform",
+        "ticket.createForOthers",
+        "routineTask.manage",
+        "work.read",
+        "work.log",
+        "company.read",
+        "user.read",
+        "schedule.read",
+        "knowledge.read",
+        "knowledge.manage",
+        "device.read",
+        "device.manage",
+        "inventoryCatalog.read",
+        "inventoryCatalog.manage",
+        "supplier.read",
+        "supplier.manage",
+        "mikrotik.read",
+        "mikrotik.manage",
+        "mikrotik.manageConfigs"
       ],
       "matches": [
         [
@@ -294,17 +355,27 @@
       "title": "Ведущий инженер: финансы",
       "audience": "staff",
       "description": "Ведущий инженер плюс финансовый модуль и личный финансовый отчёт",
-      "permissions": [
-        "canPerformTickets",
-        "canSeeAllTickets",
-        "canManageKnowledgeBase",
-        "canSeeKnowledgeBase",
-        "canUseTimeTrackingModule",
-        "canUseInventoryModule",
-        "canManageClientDevices",
-        "canManageMikrotikDevices",
-        "canUseFinancesModule",
-        "canSeePersonalFinancialReport"
+      "actions": [
+        "ticket.readAll",
+        "ticket.perform",
+        "ticket.createForOthers",
+        "work.read",
+        "work.log",
+        "report.own",
+        "servicePlan.read",
+        "company.read",
+        "user.read",
+        "schedule.read",
+        "knowledge.read",
+        "knowledge.manage",
+        "device.read",
+        "device.manage",
+        "inventoryCatalog.read",
+        "inventoryCatalog.manage",
+        "supplier.read",
+        "supplier.manage",
+        "mikrotik.read",
+        "mikrotik.manage"
       ],
       "matches": [
         [
@@ -339,8 +410,12 @@
       "title": "Поддержка второй линии",
       "audience": "staff",
       "description": "Добавляется ПОВЕРХ инженерной роли и даёт одно: вход под пользователем. Отдельной ролью, а не правом внутри «Инженера», потому что смотреть портал чужими глазами нужно не каждому",
-      "permissions": [
-        "canImpersonateUsers"
+      "actions": [
+        "ticket.createForOthers",
+        "company.read",
+        "user.read",
+        "user.impersonate",
+        "schedule.read"
       ],
       "matches": []
     },
@@ -349,9 +424,14 @@
       "title": "Учёт работ",
       "audience": "staff",
       "description": "Учёт времени и отчёт по работам без доступа к заявкам",
-      "permissions": [
-        "canUseTimeTrackingModule",
-        "canSeeWorksReport"
+      "actions": [
+        "ticket.createForOthers",
+        "work.read",
+        "work.log",
+        "report.works",
+        "company.read",
+        "user.read",
+        "schedule.read"
       ],
       "matches": [
         [

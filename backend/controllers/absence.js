@@ -141,7 +141,7 @@ exports.add = async (req, res, next) => {
   try {
     const { userId } = req.auth;
     const author = await User.findById(userId)
-      .select("firstName lastName isAdmin permissions")
+      .select("firstName lastName isAdmin")
       .lean();
 
     const targetId = req.body.user || userId;
@@ -279,7 +279,7 @@ exports.decide = async (req, res, next) => {
 exports.cancel = async (req, res, next) => {
   try {
     const { userId } = req.auth;
-    const author = await User.findById(userId).select("isAdmin permissions").lean();
+    const author = await User.findById(userId).select("isAdmin").lean();
 
     const absence = await Absence.findById(req.params.id);
     if (!absence) {
@@ -350,7 +350,7 @@ const notifyManagers = async (doc) => {
   const managers = await User.find({
     banned: { $ne: true },
     isEndUser: false,
-    ...(await permissionFilter("canManageWorkSchedules")),
+    ...(await permissionFilter("schedule.manage")),
   })
     .select("firstName lastName telegramBot notify email")
     .lean();

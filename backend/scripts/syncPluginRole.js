@@ -28,15 +28,14 @@ const run = async () => {
   await initAuth();
   const { effectivePermissions } = require("@/services/permissions");
   const { pluginRole } = require("@/services/roles");
-  const { permissionsToStatements } = require("@/auth/access");
   const User = require("@/models/user");
 
   const users = await User.find({}).select("_id email role").lean();
 
   const changes = [];
   for (const user of users) {
-    const { permissions } = await effectivePermissions(user);
-    const wanted = pluginRole(permissionsToStatements(permissions));
+    const { statements } = await effectivePermissions(user);
+    const wanted = pluginRole(statements);
     if (user.role === wanted) continue;
     changes.push({ user, wanted });
   }

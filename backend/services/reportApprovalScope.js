@@ -10,7 +10,7 @@ const { canFor } = require("@/services/permissions");
  *
  * Схема та же, что у отчёта «Компании» (services/reportScope): ПРАВО
  * открывает раздел, ОБЪЁМ даёт роль. Права двух видов:
- *  - наш сотрудник с `canSeeGlobalFinancialReport` — весь конвейер;
+ *  - наш сотрудник с `canReadEmployeesReport` — весь конвейер;
  *  - клиент с `canApproveWorkReports` — только то, что ждёт его подписи,
  *    и то, что он уже подписал.
  *
@@ -129,7 +129,7 @@ const resolveReportApprovalScope = async (authedUser) => {
   const can = await canFor(authedUser);
 
   if (!authedUser.isEndUser) {
-    if (!can({ finances: ["readGlobalReport"] })) {
+    if (!can({ report: ["employees"] })) {
       return emptyScope(false);
     }
     return withPredicates({
@@ -141,7 +141,7 @@ const resolveReportApprovalScope = async (authedUser) => {
     });
   }
 
-  if (!can({ workReport: ["approve"] })) {
+  if (!can({ approval: ["decide"] })) {
     return emptyScope(true);
   }
 

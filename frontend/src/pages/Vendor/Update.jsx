@@ -1,24 +1,10 @@
-import { useContext } from "react";
 import VendorForm from "../../components/Vendor/Form";
-import InlineForbidden from "../../components/Error/InlineForbidden";
-import { AuthedUserContext } from "../../store/authed-user-context";
 
 import { api } from "@/lib/api";
 
 const UpdateVendorPage = () => {
-  const { permissions } = useContext(AuthedUserContext);
-  const { canUseInventoryModule, canManageClientDevices } = permissions;
 
-  return (
-    <>
-      {canUseInventoryModule && canManageClientDevices && (
-        <VendorForm title="Изменить вендора" />
-      )}
-      {(!canUseInventoryModule || !canManageClientDevices) && (
-        <InlineForbidden right="Управление устройствами" />
-      )}
-    </>
-  );
+  return <VendorForm title="Изменить вендора" />;
 };
 
 export default UpdateVendorPage;

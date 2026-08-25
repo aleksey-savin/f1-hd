@@ -69,9 +69,45 @@ const buildAttachment = (file) => ({
   size: file.size,
 });
 
+/**
+ * Ответственных проверяем поимённо: право «брать заявки в работу» должно быть у
+ * КАЖДОГО из списка, а не подразумеваться из того, что список пришёл из формы.
+ *
+ * Условие собирает `permissionFilter` — с ролями флага в документе пользователя
+ * нет, и прямое `{ "permissions.canPerformTickets": true }` молча вернуло бы
+ * неполный список. Отказ называет людей по именам: идентификаторы человеку,
+ * который его читает, ничего не говорят.
+ */
+const assertResponsiblesMayPerform = async (responsibles) => {
+  const ids = responsibles.map((person) => person?._id).filter(Boolean);
+  if (!ids.length) return;
+
+  const filter = await permissionFilter("ticket.perform");
+  const allowed = await User.find({ _id: { $in: ids }, ...filter })
+    .select("_id")
+    .lean();
+
+  if (allowed.length === ids.length) return;
+
+  const allowedIds = new Set(allowed.map((user) => user._id.toString()));
+  const names = responsibles
+    .filter((person) => !allowedIds.has(String(person?._id)))
+    .map(
+      (person) =>
+        [person.lastName, person.firstName].filter(Boolean).join(" ") ||
+        String(person._id),
+    )
+    .join(", ");
+
+  throw new AppError(
+    `Нельзя назначить ответственным: ${names} — у них нет права выполнять заявки`,
+    400,
+  );
+};
+
 exports.getAllOpened = async (req, res, next) => {
   try {
-    const { isAdmin, permissions, userId, company } = req.auth.legacy;
+    const { isAdmin, userId, company } = req.auth.legacy;
 
     const allTickets = await Ticket.find({ isClosed: false })
       .select("-description")
@@ -205,7 +241,7 @@ exports.getUsersTickets = async (req, res, next) => {
   try {
     const authedUser = req.auth?.legacy ?? null;
 
-    const { isAdmin, permissions, userId } = authedUser;
+    const { isAdmin, userId } = authedUser;
 
     let tickets = [];
 
@@ -542,11 +578,11 @@ exports.getOne = async (req, res, next) => {
     // только исключение: у работы в рамках тарифа поля просто нет.
     const billingByWork = await annotateWorks({
       works: works.map((work) => work.toObject()),
-      // Внутри одного объекта действия складываются по И — ровно то, что
-      // нужно: деньги видит тот, у кого и модуль, и общий финансовый отчёт.
-      canSeeMoney: req.auth.can({
-        finances: ["use", "readGlobalReport"],
-      }),
+      // Деньги видит тот, у кого и тарифы, и отчёт по сотрудникам. Двумя
+      // вызовами: по И словарь складывает только действия ОДНОГО ресурса.
+      canSeeMoney:
+        req.auth.can({ servicePlan: ["read"] }) &&
+        req.auth.can({ report: ["employees"] }),
     });
 
     const worksWithLinks = works.map((work) => ({
@@ -619,7 +655,7 @@ exports.getFormData = async (req, res, next) => {
       }).sort({ alias: 1 });
 
       responsibles = await User.find({
-        $and: [await permissionFilter("canPerformTickets"), { banned: { $ne: true } }],
+        $and: [await permissionFilter("ticket.perform"), { banned: { $ne: true } }],
       }).sort({ lastName: 1 });
 
       // Полный активный каталог: фасет категорий в архиве (сегменты «Заявки»
@@ -651,7 +687,7 @@ exports.getFormData = async (req, res, next) => {
       });
 
       responsibles = await User.find({
-        $and: [await permissionFilter("canPerformTickets"), { banned: { $ne: true } }],
+        $and: [await permissionFilter("ticket.perform"), { banned: { $ne: true } }],
       }).sort({ lastName: 1 });
     } else {
       companies = await Company.find({
@@ -716,12 +752,28 @@ exports.getFormData = async (req, res, next) => {
 exports.add = async (req, res, next) => {
   try {
     const { userId, company } = req.auth.legacy;
-    const { categoryId, applicantId } = req.body;
+    const { categoryId } = req.body;
     const prefs = await Preferences.findOne({});
     const userCompany = await Company.findById(company._id);
     const now = new Date();
 
-    const applicant = applicantId ? applicantId : userId;
+    /**
+     * Заявку от ЧУЖОГО имени и по чужой компании заводит только тот, кому это
+     * разрешено. Полей «инициатор», «компания» и «ответственные» в форме
+     * клиента нет вовсе (`TicketFormFields.jsx:188`), но до этой проверки любой
+     * авторизованный мог прислать их запросом — и завести заявку от чужого
+     * лица, на чужую компанию и с чужими ответственными.
+     *
+     * Право, а не признак «сотрудник»: заводить заявки за позвонившего — часть
+     * обычной работы поддержки, но именно поэтому его должно быть видно в роли
+     * и можно отобрать. Оно есть у всех ролей сотрудников.
+     */
+    const onBehalfOfOthers = req.auth.can({ ticket: ["createForOthers"] });
+
+    const applicant =
+      onBehalfOfOthers && req.body.applicantId
+        ? req.body.applicantId
+        : userId;
 
     const attachments = req.files?.map(buildAttachment);
 
@@ -746,9 +798,15 @@ exports.add = async (req, res, next) => {
     // Свой чек-лист шаблона заявки сильнее подбора: он часть заготовки, по
     // которой заявку и создают. Подбор шаблона чек-листа работает там, где
     // списка нет, — то есть в 90 % заявок, создаваемых вручную
-    const ticketCompany = req.body.company
-      ? JSON.parse(req.body.company)
-      : userCompany;
+    const ticketCompany =
+      onBehalfOfOthers && req.body.company
+        ? JSON.parse(req.body.company)
+        : userCompany;
+
+    const responsibles = onBehalfOfOthers
+      ? JSON.parse(req.body.responsibles || "[]")
+      : [];
+    await assertResponsiblesMayPerform(responsibles);
 
     if (templateChecklist.length === 0 && (await autoApplyEnabled())) {
       const best = await bestTemplateForTicket({
@@ -789,7 +847,7 @@ exports.add = async (req, res, next) => {
       // Заявитель либо авторизованный пользователь, либо указанный в полной форме создания заявки
       applicantId: applicant,
       company: ticketCompany,
-      responsibles: JSON.parse(req.body.responsibles),
+      responsibles: responsibles,
       deadline: req.body.deadline
         ? req.body.deadline
         : now.setTime(now.getTime() + prefs.deadline * 60 * 60 * 1000),
@@ -850,7 +908,12 @@ exports.add = async (req, res, next) => {
         );
       }
     }
-    next(new AppError(`Failed to add ticket`, 500, true, error));
+    // Отказ по составу заявки — это 400, а не сбой сервера
+    next(
+      error instanceof AppError
+        ? error
+        : new AppError(`Failed to add ticket`, 500, true, error),
+    );
   }
 };
 
@@ -1630,7 +1693,7 @@ exports.close = async (req, res, next) => {
 
     const prevState = ticket.state;
 
-    if (works.length > 0 || req.auth.can({ work: ["avoid"] })) {
+    if (works.length > 0 || req.auth.can({ ticket: ["closeWithoutWork"] })) {
       ticket.finishedAt = new Date();
       ticket.responsibles = responsibles;
       ticket.finishedBy = authedUser._id;
@@ -1712,7 +1775,8 @@ exports.backToWork = async (req, res, next) => {
     const { userId } = req.auth;
     const authedUser = await User.findById(userId);
 
-    const ticket = await Ticket.findById(req.body._id);
+    // Заявку уже подняла и проверила `requireTicketAccess`
+    const ticket = req.ticket;
 
     if (isStaleVersion(ticket, req.body.expectedVersion)) {
       return sendConflict(res, ticket);
@@ -2001,7 +2065,7 @@ exports.closeMultiple = async (req, res, next) => {
 
       const works = await Work.find({ tickets: ticket._id });
 
-      if (!(works.length > 0 || req.auth.can({ work: ["avoid"] }))) continue;
+      if (!(works.length > 0 || req.auth.can({ ticket: ["closeWithoutWork"] }))) continue;
       // То же правило, что у одиночного закрытия: заявку с невыполненным
       // обязательным пунктом массовое действие пропускает, а не закрывает
       if (
@@ -2206,17 +2270,6 @@ exports.update = async (req, res, next) => {
 
     ticket.state = state ? state : ticket.state;
     ticket.isClosed = isClosed ? isClosed : ticket.isClosed;
-
-    /* if ((isClosed && works.length > 0) || authData.permissions.canAvoidWorks) {
-
-    } else if (!isClosed && state !== "Закрыта") {
-      ticket.state = state ? state : ticket.state;
-    } else {
-      return res.status(404).json({
-        error: 422,
-        message: "Can not close ticket without works",
-      });
-      } */
 
     // Ветка "process ticket" уведомляет каждого ответственного с пустым
     // isNotified, поэтому запускаем её только когда в этом редактировании

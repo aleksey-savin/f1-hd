@@ -25,8 +25,8 @@ const Archive = () => {
 
   const worksAvailable =
     !!modules?.timeTracking?.isActive &&
-    !!can({ timeTracking: ["use"] }) &&
-    !!can({ work: ["readReport"] });
+    !!can({ work: ["read"] }) &&
+    !!can({ report: ["works"] });
 
   const view =
     worksAvailable && searchParams.get("view") === "works"

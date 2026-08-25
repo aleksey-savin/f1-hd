@@ -10,14 +10,30 @@ const TicketCategory = require("../models/ticketCategory");
 
 const { AppError } = require("../middleware/errorHandling");
 const { previewWork } = require("../services/workPreview");
+const { assertTicketsAccessible } = require("../services/ticketAccess");
 
 /**
- * Право видеть суммы и условия тарифа: нужны И модуль финансов, И общий
- * финансовый отчёт — внутри одного ресурса действия складываются по И.
- * Администратор проходит: это заложено в `req.auth.can`, как и во всех гейтах.
+ * Право видеть суммы и условия тарифа: нужны И тарифы, И отчёт по сотрудникам.
+ * Двумя вызовами, а не одним запросом на два ресурса: складывать действия по И
+ * словарь умеет только ВНУТРИ ресурса.
  */
 const canSeeMoney = (req) =>
-  req.auth.can({ finances: ["use", "readGlobalReport"] });
+  req.auth.can({ servicePlan: ["read"] }) &&
+  req.auth.can({ report: ["employees"] });
+
+/**
+ * Можно ли править эту работу. Своими считаем троих, а не одного автора:
+ * запланированную работу заводит один человек, а подтверждает фактом другой —
+ * исполнитель, — и правило «только автор» разорвало бы этот обычный ход.
+ *
+ * Чужую работу правит тот, у кого есть на это право. Ограничение по заявкам
+ * отдельное и стоит раньше: без него номер чужой работы открывал бы её вовсе.
+ */
+const canEditWork = (work, { userId, can }) =>
+  can({ work: ["manageAll"] }) ||
+  [work.createdBy?._id, work.executor?._id, work.finishedBy?._id]
+    .filter(Boolean)
+    .some((id) => id.toString() === userId);
 
 /**
  * Работа не тарифицируется, если ХОТЬ ОДНА её заявка льготной категории.
@@ -48,11 +64,9 @@ const isAlwaysWithinPlan = async (ticketIds) => {
 
 exports.getTicketWorks = async (req, res, next) => {
   try {
-    const ticket = await Ticket.findOne({ num: req.params.ticketNum });
+    // Заявку уже подняла и проверила `allowedToViewTicket`
+    const ticket = req.ticket;
 
-    if (!ticket) {
-      return next(new AppError(`Ticket not found`, 404));
-    }
     const works = await Work.find({ tickets: ticket._id }).sort({
       _id: 1,
     });
@@ -74,7 +88,7 @@ exports.getAllScheduled = async (req, res, next) => {
     });
 
     // filter works depending on user role & permissions
-    const { isAdmin, userId, permissions, company } = req.auth.legacy;
+    const { userId, company } = req.auth.legacy;
 
     let filteredWorks = [];
 
@@ -143,11 +157,8 @@ exports.getAllScheduled = async (req, res, next) => {
  */
 exports.getAdditionalData = async (req, res, next) => {
   try {
-    const ticket = await Ticket.findOne({ num: +req.params.ticketNum });
-
-    if (!ticket) {
-      return next(new AppError(`Ticket not found`, 404));
-    }
+    // Заявку уже подняла и проверила `allowedToViewTicket`
+    const ticket = req.ticket;
 
     let limitWorksDateFrom = null;
 
@@ -361,6 +372,28 @@ exports.update = async (req, res, next) => {
     const authedUser = await User.findById(userId);
 
     const work = await Work.findById(req.params.workId);
+
+    if (!work) {
+      return next(new AppError(`Work not found`, 404));
+    }
+
+    // Проверяем И заявки, на которых работа висит сейчас, И те, на которые её
+    // переносят: иначе чужую работу можно было бы перевесить на свою заявку,
+    // а свою — на чужую, и в обоих случаях запись ушла бы не в ту компанию.
+    await assertTicketsAccessible(req.auth, [
+      ...work.tickets,
+      ...(req.body.tickets || []),
+    ]);
+
+    if (!canEditWork(work, req.auth)) {
+      return next(
+        new AppError(
+          `Изменить можно только свою работу — заведённую вами, вашу запланированную или отмеченную вами по факту`,
+          403,
+        ),
+      );
+    }
+
     const finishedBy = await User.findById(req.body.finishedBy);
     const executor = await User.findById(req.body.executor);
     let notifications = work.notifications;
@@ -441,7 +474,7 @@ exports.update = async (req, res, next) => {
 
 exports.delete = async (req, res, next) => {
   try {
-    const { isAdmin, userId } = req.auth;
+    const { userId, can } = req.auth;
 
     const work = await Work.findById(req.body._id);
 
@@ -449,7 +482,8 @@ exports.delete = async (req, res, next) => {
       return next(new AppError(`Work not found`, 404));
     }
 
-    if (!isAdmin && work.createdBy._id.toString() !== userId) {
+    // Удаление строже правки: только автор либо тот, кому доверены чужие работы
+    if (!can({ work: ["manageAll"] }) && work.createdBy._id.toString() !== userId) {
       return next(
         new AppError(
           `Work can only be deleted by the creator or an administrator`,
@@ -530,7 +564,7 @@ exports.getFinished = async (req, res, next) => {
       and.push({ tickets: { $in: categoryTickets.map((t) => t._id) } });
     }
 
-    // Скоуп прав: canSeeWorksReport — глобальное право, но конечный
+    // Скоуп прав: canReadWorksReport — глобальное право, но конечный
     // пользователь заперт в своей компании поверх любых фасетов (легаси
     // ограничивал только список опций формы — дыра закрыта)
     if (isEndUser) query.company = company._id;

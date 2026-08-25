@@ -58,8 +58,15 @@ const VISIT_STATUS_CODES = codesWhere((s) => s.visit);
  * статусы разъедутся. Исключения:
  *   • свободный режим учёта («free») — человек вне графика, ведёт статусы сам;
  *   • право «Графики и отсутствия» — форс-мажор, руками может всё.
+ *
+ * `can` приходит параметром: право живёт в роли, а не в документе, и прежнее
+ * `user.permissions.canManageWorkSchedules` не видело его вовсе — сюда
+ * передают сырой документ пользователя. Вызывающий берёт функцию из
+ * `req.auth.can` (свой запрос) или из `canFor(user)` (чужой человек).
+ *
+ * @param {(request: object) => boolean} can
  */
-const canSetStatusManually = (user, code) => {
+const canSetStatusManually = (user, code, can) => {
   const meta = WORK_STATUS_BY_CODE[code];
   if (!meta) {
     return false;
@@ -75,14 +82,13 @@ const canSetStatusManually = (user, code) => {
   if (user?.workTimeMode === "free") {
     return true;
   }
-  return Boolean(user?.isAdmin || user?.permissions?.canManageWorkSchedules);
+  return can({ schedule: ["manage"] });
 };
 
 /** Статусы, которые показываем в переключателе конкретному человеку. */
-const selectableStatuses = (user) =>
-  WORK_STATUSES.filter(
-    (status) =>
-      canSetStatusManually(user, status.code),
+const selectableStatuses = (user, can) =>
+  WORK_STATUSES.filter((status) =>
+    canSetStatusManually(user, status.code, can),
   );
 
 module.exports = {

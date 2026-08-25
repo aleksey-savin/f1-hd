@@ -149,7 +149,6 @@ exports.login = async (req, res, next) => {
       role: user.role,
       categories: user.categories,
       isAdmin: user.isAdmin,
-      permissions: user.permissions,
       profileImagePath: user.profileImagePath,
     });
   } catch (error) {

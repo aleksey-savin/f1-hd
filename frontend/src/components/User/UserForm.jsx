@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useFetcher, useLoaderData, useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,6 @@ import useInitialPrefs from "../../store/prefs";
 import timezones from "../../store/timezones";
 import { inheritedTimezone, tzCity } from "../../util/timezone-display";
 import { businessDayKey } from "../../util/format-date";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import { getInitialPrefsData } from "../../util/prefs";
 
 import {
@@ -138,20 +137,18 @@ const UserForm = () => {
   } = useLoaderData() || {};
   const isEdit = !!user?._id;
 
-  const authedUser = useContext(AuthedUserContext);
-
   const can = useCan();
   const canEditFinances = Boolean(
-    authedUser.isAdmin || can({ finances: ["readGlobalReport"] }),
+    can({ report: ["employees"] }),
   );
   // Правка пользователя и правка графика — разные права. У кого есть только
   // второе (офис-менеджер, ведущий графики), форма открывается одной секцией
   // «График работы» и уходит своим endpoint'ом (см. pages/User/Update.jsx).
   const canManageUsers = Boolean(
-    authedUser.isAdmin || can({ user: ["manage"] }),
+    can({ user: ["manage"] }),
   );
   const canManageSchedule = Boolean(
-    authedUser.isAdmin || can({ workSchedule: ["manage"] }),
+    can({ schedule: ["manage"] }),
   );
   // Глобальная интеграция включена — ключ правят только у клиентов (как в легаси)
   const prefsGetScreenActive = Boolean(
@@ -200,8 +197,7 @@ const UserForm = () => {
     responsibleForCompanies: (user?.responsibleForCompanies || [])
       .map((item) => companiesList.find((c) => c._id === String(item.id)))
       .filter(Boolean),
-    // Права человека — это его роли. Личных галочек форма больше не правит:
-    // они снимаются миграцией (scripts/stripOwnPermissions.js).
+    // Права человека — это его роли; личных галочек не существует.
     // Сервер отдаёт роли парами ключ-название (их читает карточка); форме
     // нужны только ключи.
     roles: (user?.roles || []).map((role) => role.key || role),
@@ -498,7 +494,7 @@ const UserForm = () => {
    * Поэтому он приходит в общую матрицу пропом, а не переезжает в неё.
    */
   const categoriesUnderPerform = () => {
-    if (!effectiveOf(form.roles, catalogue).sources.canPerformTickets) {
+    if (!effectiveOf(form.roles, catalogue).sources["ticket.perform"]) {
       return null;
     }
     return (

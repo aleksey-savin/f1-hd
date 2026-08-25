@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useBlocker } from "react-router";
 import { isMobile, MobileView } from "react-device-detect";
 
@@ -13,7 +13,6 @@ import MarkdownViewer from "../../UI/MarkdownViewer";
 import useHttp from "../../hooks/use-http";
 import useToastStore from "../../store/toast-store";
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import useInitialPrefsStore from "../../store/prefs";
 
 import NoteHero from "./NoteHero";
@@ -46,10 +45,9 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
   const filterUsers = useKnowledgeNotesStore((state) => state.users);
   const filterCategories = useKnowledgeNotesStore((state) => state.categories);
 
-  const { isAdmin } = useContext(AuthedUserContext);
 
   const can = useCan();
-  const canManage = isAdmin || can({ knowledgeBase: ["manage"] });
+  const canManage = can({ knowledge: ["manage"] });
   const isModerator = useInitialPrefsStore(
     (state) => state.knowledgeBase.isModerator,
   );

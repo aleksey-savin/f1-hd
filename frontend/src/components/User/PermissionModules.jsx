@@ -1,98 +1,97 @@
 import SwitchField from "@/components/app/SwitchField";
 import { cn } from "@/lib/utils";
 
-import { PERMISSION_MODULES } from "./permissions-catalog";
+import { usePermissionCatalogue } from "@/store/authed-user";
 
 /**
- * Матрица прав — ОДИН компонент на форму человека и форму роли.
+ * Матрица прав формы роли.
  *
- * Раньше он жил внутри `UserForm` функцией `moduleBlock`, и форма роли завела
- * себе вторую версию на голых чекбоксах: один и тот же список прав читался
- * двумя разными способами. Копий у этой матрицы быть не должно — набор прав и
- * так живёт в трёх местах (схема, словарь, каталог подписей), и четвёртое
- * расхождение было бы в вёрстке.
+ * Группы и подписи приходят с сервера (`/api/me` → `permissionCatalogue`):
+ * список действий — свойство словаря, а не вёрстки, и второй его копии на
+ * клиенте нет. Прежде здесь лежал собственный список из шести «модулей», и он
+ * успел разойтись с сервером: право «Согласование отчётов по услугам» в него не
+ * попало вовсе, поэтому выдать его из формы было нельзя ни одной роли.
  *
- * Карточка модуля: заголовок · счётчик «N из M» · мастер-свитч справа.
- * Счётчик здесь работает НАВИГАЦИЕЙ: он говорит, где у роли есть сила, до
- * того как человек начал читать строки. Выключенный модуль сворачивается
- * целиком — четыре погашенные строки не несут информации.
+ * Мастер-переключателя у группы больше нет. Он изображал «рубильник модуля», а
+ * на деле был обычным правом («видеть раздел») с особой ролью в вёрстке: снятая
+ * галочка прятала соседние строки, и человек не видел, что у роли ещё есть.
+ * Теперь «Видеть …» — такая же строка, как остальные, а рубильники модулей
+ * живут там, где им место, — в настройках установки.
+ *
+ * Счётчик «N из M» работает НАВИГАЦИЕЙ: говорит, где у роли есть сила, до того
+ * как человек начал читать строки.
  */
 const PermissionModules = ({
-  values,
+  /** Набор выданных действий: Set или массив «ресурс.действие». */
+  value,
   onToggle,
-  /** Какие права вообще можно трогать. Не передан — можно все. */
+  /** Какие действия вообще можно трогать. Не передан — можно все. */
   allowed,
   /** Дополнительный блок под конкретным правом (категории у исполнителя). */
   renderExtra,
   className,
 }) => {
-  const canToggle = (key) => !allowed || Boolean(allowed[key]);
+  const groups = usePermissionCatalogue();
+  const granted = value instanceof Set ? value : new Set(value || []);
+  const allowedSet =
+    allowed == null
+      ? null
+      : allowed instanceof Set
+        ? allowed
+        : new Set(allowed);
+
+  const canToggle = (id) => !allowedSet || allowedSet.has(id);
 
   return (
     <div className={cn("flex flex-col gap-3", className)}>
-      {PERMISSION_MODULES.map((module) => {
-        const master = module.master;
-        const off = master ? !values[master] : false;
-        const granted = module.caps.filter((cap) => values[cap.key]).length;
+      {groups.map((group) => {
+        const count = group.actions.filter((action) =>
+          granted.has(action.id),
+        ).length;
 
         return (
-          <div
-            key={module.key}
-            className={cn(
-              "rounded-xl border border-border p-4",
-              off && "opacity-60",
-            )}
-          >
+          <div key={group.key} className="rounded-xl border border-border p-4">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold">{module.label}</span>
+              <span className="text-sm font-semibold">{group.label}</span>
               <span className="text-xs text-faint tabular-nums">
-                {off ? "выключен" : `${granted} из ${module.caps.length}`}
+                {count} из {group.actions.length}
               </span>
-              {master && (
-                <span className="ms-auto">
-                  <SwitchField
-                    id={`perm-master-${module.key}`}
-                    checked={!!values[master]}
-                    onCheckedChange={() => onToggle(master)}
-                    disabled={!canToggle(master)}
-                    label="Модуль"
-                    className="py-0"
-                  />
-                </span>
-              )}
             </div>
 
-            {!off &&
-              module.caps.map((cap) => {
-                const locked = !canToggle(cap.key);
-                return (
-                  <div key={cap.key}>
-                    <SwitchField
-                      id={`perm-${cap.key}`}
-                      checked={!!values[cap.key]}
-                      onCheckedChange={() => onToggle(cap.key)}
-                      disabled={locked}
-                      label={
-                        <span
-                          className={cn(
-                            "flex items-center gap-2",
-                            locked && "text-muted-foreground",
-                          )}
-                        >
-                          {cap.label}
-                          {/* Причина отказа стоит В СТРОКЕ, а не только в
-                              подсказке: наведения на тач-экране нет. */}
-                          {locked && (
-                            <span className="text-xs text-faint">нет у вас</span>
-                          )}
-                        </span>
-                      }
-                      className="py-2"
-                    />
-                    {renderExtra?.(cap)}
-                  </div>
-                );
-              })}
+            {group.actions.map((action) => {
+              const locked = !canToggle(action.id);
+              return (
+                <div key={action.id}>
+                  <SwitchField
+                    id={`perm-${action.id}`}
+                    checked={granted.has(action.id)}
+                    onCheckedChange={() => onToggle(action.id)}
+                    disabled={locked}
+                    label={
+                      <span
+                        className={cn(
+                          "flex items-center gap-2",
+                          locked && "text-muted-foreground",
+                        )}
+                      >
+                        {action.label}
+                        {/* Причина отказа стоит В СТРОКЕ, а не только в
+                            подсказке: наведения на тач-экране нет. */}
+                        {locked && (
+                          <span className="text-xs text-faint">нет у вас</span>
+                        )}
+                      </span>
+                    }
+                    /* Пояснение к праву было написано, но не рисовалось нигде.
+                       Именно здесь его и читают — в момент, когда решают,
+                       выдавать право или нет. */
+                    hint={action.hint || undefined}
+                    className="py-2"
+                  />
+                  {renderExtra?.(action)}
+                </div>
+              );
+            })}
           </div>
         );
       })}

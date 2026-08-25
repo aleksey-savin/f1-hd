@@ -23,20 +23,16 @@ const asHours = (minutes) => {
 };
 
 const StaffKpis = () => {
-  const { _id: userId, isAdmin } = useContext(AuthedUserContext);
+  const { _id: userId } = useContext(AuthedUserContext);
   const can = useCan();
   const modules = useInitialPrefsStore((state) => state.modules);
   const tickets = useDashboardTicketsStore((state) => state.tickets);
 
   const canSeeOvertime =
     !!modules?.finances?.isActive &&
-    (isAdmin ||
-      !!can({ finances: ["readPersonalReport"] }) ||
-      !!can({ finances: ["readGlobalReport"] }));
+    (!!can({ report: ["own"] }) || !!can({ report: ["employees"] }));
   const seesOthers =
-    isAdmin ||
-    !!can({ ticket: ["administrate"] }) ||
-    !!can({ ticket: ["readAll"] });
+    !!can({ ticket: ["administrate"] }) || !!can({ ticket: ["readAll"] });
 
   const [overtime, setOvertime] = useState(null);
 

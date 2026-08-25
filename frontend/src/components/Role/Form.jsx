@@ -8,10 +8,8 @@ import Field from "@/components/app/Field";
 import Segmented from "@/components/app/Segmented";
 import AlertMessage from "@/components/app/AlertMessage";
 import PermissionModules from "@/components/User/PermissionModules";
-import { ALL_PERMISSION_KEYS } from "@/components/User/permissions-catalog";
-import { PERMISSION_OPTIONS } from "@/components/Role/permission-options";
 import { api, ApiError } from "@/lib/api";
-import { useAuthedUser } from "@/store/authed-user";
+import { usePermissionLabels, useCan } from "@/store/authed-user";
 import useOffcanvasStore from "@/store/offcanvas";
 import useToastStore from "@/store/toast-store";
 import useRolesFilterStore from "@/store/lists/roles";
@@ -22,13 +20,10 @@ import useRolesFilterStore from "@/store/lists/roles";
  * Собрана под главный сценарий — открыть готовую роль и добавить одно право;
  * создание с нуля бывает много реже. Отсюда три вещи, которых нет в обычной
  * форме: носители под названием, счётчики «N из M» в шапках карточек как
- * навигация по двадцати девяти правам и блок «что изменится» перед кнопкой.
+ * навигация по полусотне прав и блок «что изменится» перед кнопкой.
  *
  * Матрица прав — общий `PermissionModules`, тот же, что в форме человека.
  */
-
-const label = (key) =>
-  PERMISSION_OPTIONS.find((option) => option.value === key)?.label ?? key;
 
 const peopleWord = (count) => {
   const tail = count % 10;
@@ -61,16 +56,29 @@ const RoleForm = ({ role }) => {
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
   const filterStore = useRolesFilterStore();
-  // Свои права нужны плоской картой: галочки идут парами «ключ — подпись».
-  const { permissions: own } = useAuthedUser();
+  const labels = usePermissionLabels();
+  const can = useCan();
+  const label = (id) => labels[id]?.label ?? id;
 
-  const initial = role?.permissions || {};
+  // Что можно выдать: только то, что есть у самого. Спрашиваем `can()` по
+  // каждому действию каталога — тот же вопрос, что задаст сервер
+  // (`assertNotEscalating`), и потому тот же ответ.
+  const allowed = useMemo(() => {
+    const set = new Set();
+    for (const id of Object.keys(labels)) {
+      const [resource, action] = id.split(".");
+      if (can({ [resource]: [action] })) set.add(id);
+    }
+    return set;
+  }, [labels, can]);
+
+  const initial = useMemo(() => new Set(role?.actions || []), [role]);
   const [title, setTitle] = useState(role?.title || "");
   const [description, setDescription] = useState(role?.description || "");
   // Новая роль по умолчанию сотруднику: клиентских ролей в каталоге три, и
   // заводят их редко.
   const [audience, setAudience] = useState(role?.audience || "staff");
-  const [permissions, setPermissions] = useState({ ...initial });
+  const [actions, setActions] = useState(() => new Set(role?.actions || []));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -79,23 +87,22 @@ const RoleForm = ({ role }) => {
     navigate("/roles");
   };
 
-  const toggle = (key) =>
-    setPermissions((current) => ({ ...current, [key]: !current[key] }));
+  const toggle = (id) =>
+    setActions((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   // Что изменится против сохранённого состояния. Считается от исходной роли,
   // а не от пустоты: при создании блок не рисуется вовсе.
   const diff = useMemo(() => {
     if (!role) return { added: [], removed: [] };
-    const added = [];
-    const removed = [];
-    for (const key of ALL_PERMISSION_KEYS) {
-      const was = Boolean(initial[key]);
-      const now = Boolean(permissions[key]);
-      if (was === now) continue;
-      (now ? added : removed).push(key);
-    }
+    const added = [...actions].filter((id) => !initial.has(id));
+    const removed = [...initial].filter((id) => !actions.has(id));
     return { added, removed };
-  }, [role, initial, permissions]);
+  }, [role, initial, actions]);
 
   const changed = diff.added.length > 0 || diff.removed.length > 0;
   const total = role?.usage?.total || 0;
@@ -104,7 +111,7 @@ const RoleForm = ({ role }) => {
     setBusy(true);
     setError("");
     try {
-      const body = { title, description, permissions, audience };
+      const body = { title, description, actions: [...actions], audience };
       if (role) {
         await api(`/api/roles/${role.key}`, { method: "PATCH", body });
       } else {
@@ -186,11 +193,11 @@ const RoleForm = ({ role }) => {
       </Field>
 
       <PermissionModules
-        values={permissions}
+        value={actions}
         onToggle={toggle}
         // Право, которого нет у самого, выдать нельзя — сервер отобьёт.
         // Предлагать то, что вернётся отказом, хуже, чем не предлагать.
-        allowed={own}
+        allowed={allowed}
       />
 
       {/* Последствие названо ДО нажатия: тост «Роль сохранена» приходит, когда

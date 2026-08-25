@@ -173,7 +173,7 @@ const ClientDevices = () => {
           />
         }
         searchPlaceholder="Номер, серийник, имя ПК, модель…"
-        showAddButton={Boolean(can({ clientDevice: ["manage"] }))}
+        showAddButton={Boolean(can({ device: ["manage"] }))}
         addRoute="add"
         addLabel="Новое устройство"
         // Создание — мастер (lg), правка — плоская форма с рейлом (xl).

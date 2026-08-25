@@ -11,13 +11,17 @@ export function canManageEntity(
 ): boolean {
   switch (itemTitle) {
     case "clientDevice":
+    case "location":
+      return !!can({ device: ["manage"] });
+    // Справочники и поставщики — свои права: раздать поставщиков, не раздавая
+    // всю технику клиентов, теперь можно
     case "deviceModel":
     case "deviceType":
     case "vendor":
-    case "supplier":
     case "deviceAttribute":
-    case "location":
-      return !!can({ clientDevice: ["manage"] });
+      return !!can({ inventoryCatalog: ["manage"] });
+    case "supplier":
+      return !!can({ supplier: ["manage"] });
     case "company":
       return !!can({ company: ["manage"] });
     case "routineTask":
@@ -28,10 +32,10 @@ export function canManageEntity(
       return !!(can({ ticket: ["update"] }) || can({ ticket: ["delete"] }));
     case "ticketCategory":
       return !!can({ ticketCategory: ["manage"] });
-    // Шаблоны чек-листов правит тот же, кто администрирует заявки — как и
-    // маршрут на бэкенде (routes/internal/checklistTemplate.js)
+    // У шаблонов чек-листов своё право — как и на маршруте
+    // (routes/internal/checklistTemplate.js)
     case "checklistTemplate":
-      return !!can({ ticket: ["administrate"] });
+      return !!can({ checklistTemplate: ["manage"] });
     case "user":
       return !!can({ user: ["manage"] });
     case "role":

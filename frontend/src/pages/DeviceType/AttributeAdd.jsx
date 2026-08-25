@@ -1,16 +1,8 @@
-import { useContext } from "react";
 
 import AttributeForm from "../../components/DeviceType/AttributeForm";
-import InlineForbidden from "../../components/Error/InlineForbidden";
-import { AuthedUserContext } from "../../store/authed-user-context";
 
 const AttributeAddPage = () => {
-  const { permissions } = useContext(AuthedUserContext);
-  const { canUseInventoryModule, canManageClientDevices } = permissions;
 
-  if (!canUseInventoryModule || !canManageClientDevices) {
-    return <InlineForbidden right="Управление устройствами" />;
-  }
   return <AttributeForm title="Добавить атрибут" />;
 };
 

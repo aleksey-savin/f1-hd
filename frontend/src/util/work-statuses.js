@@ -124,15 +124,27 @@ export const getWorkStatusMeta = (code) =>
  * аккаунт» намеренно глотает ошибки, поэтому запрещённые пункты надо не
  * показывать, а не полагаться на 403.
  */
-const canSetStatusManually = (user, code) => {
+const canSetStatusManually = (user, code, can) => {
   const meta = WORK_STATUSES.find((s) => s.code === code);
   if (!meta) return false;
   if (user?.remoteOnly && code === "office") return false;
   if (meta.manual) return true;
   if (user?.workTimeMode === "free") return true;
-  return Boolean(user?.isAdmin || user?.can({ workSchedule: ["manage"] }));
+  return can({ schedule: ["manage"] });
 };
 
-/** Статусы для переключателя конкретного человека. */
-export const selectableStatuses = (user) =>
-  WORK_STATUSES.filter((status) => canSetStatusManually(user, status.code));
+/**
+ * Статусы для переключателя конкретного человека.
+ *
+ * `can` приходит параметром, а не берётся из `user`: функции контекст не
+ * отдаёт — там лежат только `statements` и `isAdmin`, — и прежнее
+ * `user.can({...})` роняло переключатель на TypeError у каждого, кто не
+ * администратор (у администратора его прикрывало `isAdmin ||` слева).
+ *
+ * @param {object} user — чей переключатель
+ * @param {(request: object) => boolean} can — из `useCan()`; уже учитывает `isAdmin`
+ */
+export const selectableStatuses = (user, can) =>
+  WORK_STATUSES.filter((status) =>
+    canSetStatusManually(user, status.code, can),
+  );

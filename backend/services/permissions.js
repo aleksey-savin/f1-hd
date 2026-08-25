@@ -1,22 +1,21 @@
 const mongoose = require("mongoose");
 
 const { authorizeFor } = require("@/auth/bootstrap");
-const { PERMISSION_KEYS } = require("@/utils/permissions");
 const {
   STATEMENT,
-  LEGACY_TO_AC,
-  statementsToPermissions,
+  isKnownAction,
+  fullAccessStatements,
 } = require("@/auth/access");
 
 /**
  * Эффективные права пользователя — единственное место, где решается «что этому
  * человеку можно».
  *
- * Источников два, и они складываются: роли человека (`member.role` → statements
- * из `organizationRole`) и его собственные `user.permissions`. Второй источник
- * переходный: пока роль никому не назначена, ответ совпадает с доролевым
- * побайтово, и это делает выкатку безопасной. Он уйдёт, когда все 702 учётки
- * получат роли, — тогда `user.permissions` станет мёртвым полем.
+ * Источник один: роли человека (`member.role` → statements из
+ * `organizationRole`). Личных галочек в документе больше нет — они были
+ * переходным источником на время переезда и сняты вместе с полем
+ * `users.permissions`. Прочитать доролевой набор умеет только миграция
+ * (`scripts/legacyPermissions.js`).
  *
  * РОЛИ ЧИТАЮТСЯ ОДИН РАЗ ЗА ЗАПРОС, а не на каждую проверку. Штатный
  * `hasPermission` плагина ходит в базу за всеми ролями организации при каждом
@@ -123,7 +122,6 @@ const listRoles = async () => {
       // поля весь каталог, кроме клиентских ролей, был про сотрудников.
       audience: row.audience === "client" ? "client" : "staff",
       statements,
-      permissions: statementsToPermissions(statements),
     };
   });
 };
@@ -166,15 +164,22 @@ const mergeStatements = (target, source) => {
 };
 
 /**
- * @returns {Promise<{statements: object, permissions: object}>}
- *   `permissions` — полная карта из 28 ключей (а не то, что лежит в документе:
- *   у старых учёток часть полей отсутствует). Её читает интерфейс, чтобы
- *   рисовать меню, и приёмка миграции, чтобы сверить снимки.
+ * Права администратора МАТЕРИАЛИЗУЮТСЯ, а не подменяются проверкой.
+ *
+ * Раньше `isAdmin` был коротким замыканием внутри `can()`: функция отвечала
+ * «да», а набор statements при этом оставался тем, что дали роли. Три способа
+ * спросить одно и то же расходились — `can()` пускал, `/api/me` показывал
+ * права неполными, а экраны, читавшие набор напрямую, показывали
+ * администратору 403 на странице, которую сервер ему же и отдавал. Теперь
+ * ответ один, потому что источник один.
+ *
+ * @returns {Promise<{statements: object}>}
  */
 const effectivePermissions = async (user) => {
+  if (user?.isAdmin) return { statements: fullAccessStatements() };
+
   const statements = {};
 
-  // 1. Роли
   const roles = await rolesOfUser(user._id);
   if (roles.length) {
     const catalogue = await loadRoles();
@@ -183,15 +188,7 @@ const effectivePermissions = async (user) => {
     }
   }
 
-  // 2. Собственные права (переходный источник, см. заголовок файла)
-  const own = user?.permissions || {};
-  for (const key of PERMISSION_KEYS) {
-    if (!own[key]) continue;
-    const [resource, action] = LEGACY_TO_AC[key];
-    mergeStatements(statements, { [resource]: [action] });
-  }
-
-  return { statements, permissions: statementsToPermissions(statements) };
+  return { statements };
 };
 
 /**
@@ -213,28 +210,27 @@ const canFor = async (user) => {
 /**
  * Условие «у пользователя есть это право» для запроса к `users`.
  *
- * Простым `{ "permissions.canX": true }` это больше не выражается: право может
- * приходить ролью, а роль лежит не в документе пользователя. Поэтому условие
- * собирается из двух частей — «есть подходящая роль» (список id из `member`) и
- * «есть собственный флаг» (переходный источник). Плюс администраторы: они
- * проходят везде, и списки исполнителей без них были бы неполны.
+ * Простым условием по документу это не выражается вовсе: право приходит ролью,
+ * а роль лежит не в документе пользователя. Поэтому фильтр собирается из ролей,
+ * которые это действие дают, плюс администраторы — они проходят везде, и списки
+ * исполнителей без них были бы неполны.
  *
  * Возвращается фрагмент фильтра, а не готовый запрос: вызывающий обычно
  * добавляет свои условия (компания, `banned`, `isServiceAccount`).
  *
- * @param {string} legacyKey — прежний плоский ключ, например `canPerformTickets`
+ * Это место легко проглядеть: запрос с неверным условием не падает, он молча
+ * возвращает неполный список.
+ *
+ * @param {string} actionId — действие словаря, например `ticket.perform`
  * @returns {Promise<object>} `{ $or: [...] }`
  */
-const permissionFilter = async (legacyKey) => {
-  const [resource, action] = LEGACY_TO_AC[legacyKey] || [];
-  if (!resource) {
-    throw new Error(`Неизвестное право: ${legacyKey}`);
+const permissionFilter = async (actionId) => {
+  const [resource, action] = String(actionId).split(".");
+  if (!isKnownAction(resource, action)) {
+    throw new Error(`Неизвестное право: ${actionId}`);
   }
 
-  const conditions = [
-    { isAdmin: true },
-    { [`permissions.${legacyKey}`]: true },
-  ];
+  const conditions = [{ isAdmin: true }];
 
   const catalogue = await loadRoles();
   const granting = Object.entries(catalogue)

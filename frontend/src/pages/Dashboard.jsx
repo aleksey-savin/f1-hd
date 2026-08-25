@@ -73,11 +73,10 @@ const DashboardClient = () => {
 };
 
 const DashboardStaff = () => {
-  const { isAdmin } = useContext(AuthedUserContext);
   const can = useCan();
   // Заготовки сотруднику — под правом администрирования заявок: остальным они
   // не инструмент, а лишний ряд плиток над тем, за чем сюда пришли.
-  const showTemplates = isAdmin || !!can({ ticket: ["administrate"] });
+  const showTemplates = !!can({ ticket: ["administrate"] });
 
   return (
     <>

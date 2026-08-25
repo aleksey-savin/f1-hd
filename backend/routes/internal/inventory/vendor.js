@@ -3,26 +3,26 @@ const router = new Router();
 const vendorController = require("@/controllers/inventory/vendor");
 const isAuth = require("@/middleware/isAuth");
 const {
-  canUseInventoryModule,
+  canReadInventoryCatalog,
   inventoryModuleIsActive,
-  canManageClientDevices,
+  canManageInventoryCatalog,
 } = require("@/middleware/permissions");
 const { vendorValidation } = require("@/validations/inventory/vendor");
 const { checkValidationResult } = require("@/middleware/validation");
 
-router.get("/vendors", isAuth, canManageClientDevices, vendorController.getAll);
+router.get("/vendors", isAuth, canManageInventoryCatalog, vendorController.getAll);
 
 router.get(
   "/vendors/:id",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   vendorController.getOne,
 );
 
 router.post(
   "/vendors/add",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   vendorValidation,
   checkValidationResult,
   vendorController.add,
@@ -31,7 +31,7 @@ router.post(
 router.put(
   "/vendors/update/:id",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   vendorValidation,
   checkValidationResult,
   vendorController.update,
@@ -40,7 +40,7 @@ router.put(
 router.post(
   "/vendors/delete/:id",
   isAuth,
-  canManageClientDevices,
+  canManageInventoryCatalog,
   vendorController.delete,
 );
 

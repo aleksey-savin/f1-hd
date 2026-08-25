@@ -10,14 +10,14 @@ const { runValidation } = require("@/middleware/runValidation");
 const reportValidation = require("@/validations/finances/report");
 
 const {
-  canSeeGlobalFinancialReport,
-  canSeePersonalOrGlobalFinancialReport,
+  canReadEmployeesReport,
+  canReadPersonalReport,
 } = require("@/middleware/permissions");
 
 router.get(
   "/personal-report-summary",
   isAuth,
-  canSeePersonalOrGlobalFinancialReport,
+  canReadPersonalReport,
   reportValidation.personalSummary,
   runValidation,
   personalReportController.getSummary,
@@ -27,7 +27,7 @@ router.get(
 router.get(
   "/employees-summary",
   isAuth,
-  canSeeGlobalFinancialReport,
+  canReadEmployeesReport,
   reportValidation.employeesSummary,
   runValidation,
   employeesSummaryController.getSummary,
@@ -36,7 +36,7 @@ router.get(
 router.get(
   "/employees-trend",
   isAuth,
-  canSeeGlobalFinancialReport,
+  canReadEmployeesReport,
   reportValidation.employeesTrend,
   runValidation,
   employeesTrendController.getTrend,
@@ -45,7 +45,7 @@ router.get(
 router.post(
   "/employee-report",
   isAuth,
-  canSeeGlobalFinancialReport,
+  canReadEmployeesReport,
   reportValidation.employeeReport,
   runValidation,
   reportController.getEmployeeReport,

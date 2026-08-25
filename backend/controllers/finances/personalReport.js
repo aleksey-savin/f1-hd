@@ -10,7 +10,7 @@ const MAX_PERIOD_DAYS = 366;
 
 // GET /finances/personal-report-summary?from&to[&userId][&details=0]
 // Свой отчёт — любому обладателю personal/global права; чужой (?userId) —
-// только isAdmin или canSeeGlobalFinancialReport.
+// только isAdmin или canReadEmployeesReport.
 //
 // details=0 — режим плитки на главной: без списка работ и без 12-месячного
 // тренда (это два лишних прохода на каждый заход на главную), но с дельтой к
@@ -24,7 +24,7 @@ exports.getSummary = async (req, res, next) => {
     let targetUserId = authData.userId;
     if (requestedUserId && requestedUserId !== String(authData.userId)) {
       const canSeeOthers =
-        req.auth.can({ finances: ["readGlobalReport"] });
+        req.auth.can({ report: ["employees"] });
       if (!canSeeOthers) {
         return next(
           new AppError(

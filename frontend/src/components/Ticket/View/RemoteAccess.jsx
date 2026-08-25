@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 
 import useHttp from "../../../hooks/use-http";
 import { AuthedUserContext } from "../../../store/authed-user-context";
+import { useCan } from "@/store/authed-user";
 import useInitialPrefsStore from "../../../store/prefs";
 import usePro32ConnectStore from "../../../store/pro32-connect";
 import useToastStore from "../../../store/toast-store";
@@ -26,6 +27,7 @@ import { getLocalStorageData } from "../../../util/auth";
 const RemoteAccess = ({ ticket }) => {
   const { token } = getLocalStorageData();
   const { isEndUser } = useContext(AuthedUserContext);
+  const can = useCan();
   const { getScreen } = useInitialPrefsStore();
   const { connectUrl, inviteUrl, setConnectionState } = usePro32ConnectStore();
   const { showToast } = useToastStore();
@@ -85,6 +87,10 @@ const RemoteAccess = ({ ticket }) => {
       </Button>
     ) : null;
   }
+
+  // Сеанс заводит тот, кому это разрешено. Раньше кнопку видел любой
+  // сотрудник, а сервер с этого релиза спрашивает право.
+  if (!can({ remoteSupport: ["use"] })) return null;
 
   return connectUrl ? (
     <Button asChild variant="outline">

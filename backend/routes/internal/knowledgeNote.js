@@ -5,17 +5,17 @@ const knowledgeNoteController = require("@/controllers/knowledgeNote");
 const isAuth = require("@/middleware/isAuth");
 const {
   isNotClient,
-  canManageKnowledgeBase,
-  canSeeKnowledgeBase,
+  canManageKnowledge,
+  canReadKnowledge,
   knowledgeBaseModuleIsActive,
 } = require("@/middleware/permissions");
 
-// Чтение доступно сотрудникам с правом canSeeKnowledgeBase; скоупинг по видимости — в контроллере
+// Чтение доступно сотрудникам с правом canReadKnowledge; скоупинг по видимости — в контроллере
 router.get(
   "/knowledge-notes",
   isAuth,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
+  canReadKnowledge,
   knowledgeNoteController.getAll,
 );
 
@@ -25,8 +25,8 @@ router.get(
   isAuth,
   knowledgeBaseModuleIsActive,
   isNotClient,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.getFormData,
 );
 
@@ -35,7 +35,7 @@ router.get(
   "/knowledge-notes/related",
   isAuth,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
+  canReadKnowledge,
   knowledgeNoteController.getRelated,
 );
 
@@ -44,13 +44,13 @@ router.get(
   "/knowledge-notes/moderation-summary",
   isAuth,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
+  canReadKnowledge,
   knowledgeNoteController.getModerationSummary,
 );
 
 // service-expiry объявляется до :id, чтобы не быть перехваченным динамическим сегментом.
 //
-// БЕЗ canSeeKnowledgeBase — намеренно, это единственный маршрут раздела без него.
+// БЕЗ canReadKnowledge — намеренно, это единственный маршрут раздела без него.
 // Сроки продления адресованы и ответственному со стороны клиента, а права «видеть
 // базу знаний» у клиентов нет и быть не должно: оно открыло бы им базу целиком.
 // Ручка отдаёт не заметки, а строки сроков, и решает, кому что показать, сама
@@ -67,7 +67,7 @@ router.get(
   "/knowledge-notes/:id",
   isAuth,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
+  canReadKnowledge,
   knowledgeNoteController.getOne,
 );
 
@@ -76,8 +76,8 @@ router.post(
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.add,
 );
 
@@ -86,8 +86,8 @@ router.post(
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.update,
 );
 
@@ -108,31 +108,31 @@ moderationBulkRoutes.forEach(([path, handler]) => {
     isAuth,
     isNotClient,
     knowledgeBaseModuleIsActive,
-    canSeeKnowledgeBase,
-    canManageKnowledgeBase,
+    canReadKnowledge,
+    canManageKnowledge,
     handler,
   );
 });
 
-// Отметка «Проверено» — canManageKnowledgeBase + проверка модератора в контроллере
+// Отметка «Проверено» — canManageKnowledge + проверка модератора в контроллере
 router.post(
   "/knowledge-notes/approve/:id",
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.approve,
 );
 
-// Отправка на удаление (мягко) — носители canManageKnowledgeBase
+// Отправка на удаление (мягко) — носители canManageKnowledge
 router.post(
   "/knowledge-notes/send-to-deletion/:id",
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.sendToDeletion,
 );
 
@@ -142,8 +142,8 @@ router.post(
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.confirmDeletion,
 );
 
@@ -153,19 +153,19 @@ router.post(
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.declineDeletion,
 );
 
-// Запрос на архивацию (мягко) — носители canManageKnowledgeBase
+// Запрос на архивацию (мягко) — носители canManageKnowledge
 router.post(
   "/knowledge-notes/request-archive/:id",
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.requestArchive,
 );
 
@@ -175,8 +175,8 @@ router.post(
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.confirmArchive,
 );
 
@@ -186,19 +186,19 @@ router.post(
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.declineArchive,
 );
 
-// Восстановление из архива — носители canManageKnowledgeBase
+// Восстановление из архива — носители canManageKnowledge
 router.post(
   "/knowledge-notes/unarchive/:id",
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.unarchive,
 );
 
@@ -208,8 +208,8 @@ router.post(
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.ignoreSecretFinding,
 );
 
@@ -218,8 +218,8 @@ router.post(
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
-  canSeeKnowledgeBase,
-  canManageKnowledgeBase,
+  canReadKnowledge,
+  canManageKnowledge,
   knowledgeNoteController.delete,
 );
 

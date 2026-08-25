@@ -116,7 +116,7 @@ const CompanyLogsOffcanvas = ({
   can,
   initialSearchQuery = "",
 }) => {
-  const canManage = can({ company: ["manage"] });
+  const canManage = can({ company: ["readLogs"] });
 
   const linkFetcher = useFetcher({ key: "linkUser" });
   const unlinkFetcher = useFetcher({ key: "unlinkUser" });

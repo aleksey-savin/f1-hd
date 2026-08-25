@@ -1,4 +1,3 @@
-
 import Form from "../../components/Supplier/Form";
 import InlineForbidden from "../../components/Error/InlineForbidden";
 import { useCan } from "@/store/authed-user";
@@ -6,11 +5,10 @@ import { useCan } from "@/store/authed-user";
 const UpdateSupplierPage = () => {
   const can = useCan();
 
-  if (
-    !can({ inventory: ["use"] }) ||
-    !can({ clientDevice: ["manage"] })
-  ) {
-    return <InlineForbidden right="Управление устройствами" />;
+  if (!can({ supplier: ["manage"] })) {
+    return (
+      <InlineForbidden right="supplier.manage" action="изменять поставщиков" />
+    );
   }
 
   return <Form title="Изменить поставщика" />;

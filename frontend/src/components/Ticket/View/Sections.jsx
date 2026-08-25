@@ -115,7 +115,7 @@ export const DescriptionSection = ({
   const showAi = !isEndUser && ai?.isActive;
   const terms = inTextTerms(ticket);
   const canSaveNote =
-    !!modules?.knowledgeBase?.isActive && !!can({ knowledgeBase: ["manage"] });
+    !!modules?.knowledgeBase?.isActive && !!can({ knowledge: ["manage"] });
 
   // Понятия подчёркиваем строкой в уже очищенном html, поэтому своих React-узлов
   // там нет: клик ловим одним обработчиком на всей панели и находим понятие по
@@ -396,7 +396,7 @@ export const FactsSection = ({
                 </Button>
               )}
               {onShowLogs &&
-                can({ company: ["manage"] }) &&
+                can({ company: ["readLogs"] }) &&
                 applicant?.activeDirectoryObjectGUID && (
                   <Button
                     variant="ghost"

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useNavigate } from "react-router";
 import { isMobile } from "react-device-detect";
@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-import { AuthedUserContext } from "../../../store/authed-user-context";
 import useKnowledgeNotesStore from "../../../store/lists/knowledgeNotes";
 import { formatShortDate } from "../../../util/format-date";
 import { getNoteTypeMeta } from "../../../util/knowledgeNoteTypes";
@@ -218,7 +217,6 @@ const NoteSheet = ({ note, loading, onClose }) => {
 
 const KnowledgeSection = ({ ticket }) => {
   const navigate = useNavigate();
-  const { isAdmin } = useContext(AuthedUserContext);
   const can = useCan();
   const updateFilter = useKnowledgeNotesStore((state) => state.updateFilter);
 
@@ -234,7 +232,7 @@ const KnowledgeSection = ({ ticket }) => {
   const [openNote, setOpenNote] = useState(null);
   const openId = openRow?._id ?? null;
 
-  const canManage = isAdmin || can({ knowledgeBase: ["manage"] });
+  const canManage = can({ knowledge: ["manage"] });
 
   useEffect(() => {
     const params = new URLSearchParams();

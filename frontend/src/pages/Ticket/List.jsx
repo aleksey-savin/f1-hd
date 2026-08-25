@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import { RiCheckboxMultipleLine } from "react-icons/ri";
@@ -15,7 +15,6 @@ import QueueStrip from "../../components/Ticket/QueueStrip";
 import TicketRow from "../../components/Ticket/Row";
 import useListSelection from "../../hooks/use-list-selection";
 import usePolling from "../../hooks/use-polling";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import useTicketFilterStore from "../../store/lists/tickets";
 import useToastStore from "../../store/toast-store";
 import { queueLabel } from "../../util/ticket-queues";
@@ -45,17 +44,13 @@ const Tickets = () => {
   const location = useLocation();
   const store = useTicketFilterStore();
   const { showToast } = useToastStore();
-  const { isAdmin } = useContext(AuthedUserContext);
   const can = useCan();
 
   const [processing, setProcessing] = useState(false);
 
-  const canSelect =
-    can({ ticket: ["delete"] }) || can({ ticket: ["perform"] });
+  const canSelect = can({ ticket: ["delete"] }) || can({ ticket: ["perform"] });
   const canFilterByResponsible =
-    isAdmin ||
-    can({ ticket: ["administrate"] }) ||
-    can({ ticket: ["readAll"] });
+    can({ ticket: ["administrate"] }) || can({ ticket: ["readAll"] });
 
   const selection = useListSelection({
     items: store.filteredList,

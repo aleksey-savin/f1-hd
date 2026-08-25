@@ -38,26 +38,29 @@ const isDeniedAccount = (user) =>
  * @param {object|null} session сеанс better-auth; у телеграм-актора его нет
  */
 const buildAuthContext = async (user, session = null) => {
-  const { statements, permissions } = await effectivePermissions(user);
+  const { statements } = await effectivePermissions(user);
   const isAdmin = Boolean(user.isAdmin);
 
   return {
     userId: user._id.toString(),
     user,
-    permissions,
     statements,
     /**
      * `can({ ticket: ["delete"] })` — тот же запрос, что понимает плагин.
-     * Администратор проходит везде: это не право, а признак учётной записи.
+     *
+     * Замыкания на `isAdmin` здесь БОЛЬШЕ НЕТ: администратору весь словарь
+     * выдаёт `effectivePermissions`, поэтому ответ функции и содержимое
+     * `statements` совпадают всегда. Пока замыкание стояло здесь, они
+     * расходились — и всё, что читало набор напрямую, отказывало
+     * администратору там, где `can()` пускал.
      */
-    can: (request) => isAdmin || authorizeFor(statements)(request),
+    can: authorizeFor(statements),
     isAdmin,
     isEndUser: user.isEndUser !== false,
     session,
     // Прежняя плоская форма ответа снятого шима `getAuthData`: тот же
-    // объект пользователя плюс userId. Отличие одно — permissions здесь
-    // ЭФФЕКТИВНЫЕ и всегда полные.
-    legacy: { ...user.toObject(), userId: user._id.toString(), permissions },
+    // объект пользователя плюс userId.
+    legacy: { ...user.toObject(), userId: user._id.toString() },
   };
 };
 

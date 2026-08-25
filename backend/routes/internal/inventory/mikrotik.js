@@ -3,9 +3,8 @@ const router = new Router();
 const mikrotikController = require("@/controllers/inventory/mikrotik");
 const isAuth = require("@/middleware/isAuth");
 const {
-  canManageMikrotikDevices,
+  canManageMikrotik,
   canManageMikrotikConfigs,
-  canManageClientDevices,
 } = require("@/middleware/permissions");
 const rateLimit = require("express-rate-limit");
 
@@ -53,7 +52,7 @@ router.get(
 router.post(
   "/mikrotik-devices/standalone/parameters",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotik,
   parametersLimiter,
   mikrotikController.createStandalone,
 );
@@ -69,26 +68,26 @@ router.get(
 router.post(
   "/mikrotik-devices/records/:recordId/parameters",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotik,
   parametersLimiter,
   mikrotikController.updateRecordParameters,
 );
 router.post(
   "/mikrotik-devices/records/:recordId/connect",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotik,
   mikrotikController.connectRecord,
 );
 router.post(
   "/mikrotik-devices/records/:recordId/disconnect",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotik,
   mikrotikController.disconnectRecord,
 );
 router.delete(
   "/mikrotik-devices/records/:recordId",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotik,
   mikrotikController.deleteRecord,
 );
 // Авто-связь с инвентарём (шаг после проверки). Создание карточки требует ещё и
@@ -96,21 +95,21 @@ router.delete(
 router.post(
   "/mikrotik-devices/records/:recordId/link-inventory",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotik,
   mikrotikController.linkInventory,
 );
 // Применить считанные с устройства значения к связанной карточке инвентаря.
 router.post(
   "/mikrotik-devices/records/:recordId/sync-inventory",
   isAuth,
-  canManageMikrotikDevices,
+  canManageMikrotik,
   mikrotikController.syncInventory,
 );
 router.post(
   "/mikrotik-devices/records/:recordId/create-inventory",
   isAuth,
-  canManageMikrotikDevices,
-  canManageClientDevices,
+  canManageMikrotik,
+  canManageMikrotik,
   mikrotikController.createInventoryCard,
 );
 
@@ -119,7 +118,7 @@ router.post(
 // SSH session — throttle them per user. ---
 // Config-management routes are gated by the dedicated `canManageMikrotikConfigs`
 // permission (separation of duties) — a config operator can be granted access to
-// backups/exports WITHOUT the device-editing `canManageMikrotikDevices` right. Even
+// backups/exports WITHOUT the device-editing `canManageMikrotik` right. Even
 // listing stored configs requires it (defense in depth; the frontend hides the tab).
 // Availability report (uptime / outage episodes) — a read, like getOne.
 router.get(

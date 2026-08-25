@@ -6,11 +6,16 @@ const { Ticket } = require("../models/ticket");
 const Preferences = require("../models/preferences");
 
 const { AppError } = require("../middleware/errorHandling");
+const {
+  canAccessTicket,
+  assertTicketsAccessible,
+} = require("../services/ticketAccess");
 const logger = require("../utils/logger");
 
 exports.getAll = async (req, res, next) => {
   try {
-    const ticket = await Ticket.findById(req.params.ticketNum);
+    // Заявку уже подняла и проверила `requireTicketAccess`
+    const ticket = req.ticket;
 
     const comments = await Comment.find({
       ticketId: ticket?._id,
@@ -32,7 +37,10 @@ exports.add = async (req, res, next) => {
 
     const { ticketId, content } = req.body;
 
-    const ticket = await Ticket.findById(ticketId);
+    // Проверка стоит здесь, а не мидлварью на маршруте: `ticketId` приезжает в
+    // multipart-теле, то есть до multer его не прочитать, а после — уже загружены
+    // файлы. Отсюда их удаляет общий catch этого же обработчика.
+    const [ticket] = await assertTicketsAccessible(req.auth, [ticketId]);
 
     const attachments = req.files
       ? req.files.map((file) => {
@@ -91,13 +99,17 @@ exports.add = async (req, res, next) => {
         );
       }
     }
+    // Отказ по доступу — это 403, а не сбой: заворачивать его в 500 значило бы
+    // показать человеку страницу ошибки вместо внятного «недостаточно прав».
     next(
-      new AppError(
-        `Failed to add new comment for ticket ${req.body.ticketId}`,
-        500,
-        true,
-        error,
-      ),
+      error instanceof AppError
+        ? error
+        : new AppError(
+            `Failed to add new comment for ticket ${req.body.ticketId}`,
+            500,
+            true,
+            error,
+          ),
     );
   }
 };
@@ -113,7 +125,13 @@ exports.addMultiple = async (req, res, next) => {
 
     for (const id of ids) {
       const ticket = await Ticket.findById(id);
+      // Несуществующую заявку пропускаем — список приходит из выделения и
+      // мог устареть. А вот чужая заявка в теле означает не гонку, а подлог:
+      // отказываем целиком, чтобы отказ было видно.
       if (!ticket) continue;
+      if (!canAccessTicket(ticket, req.auth)) {
+        return next(new AppError(`Заявка ${ticket.num} вам недоступна`, 403));
+      }
 
       const comment = new Comment({
         content: content,
@@ -161,52 +179,7 @@ exports.addMultiple = async (req, res, next) => {
   }
 };
 
-exports.update = async (req, res, next) => {
-  try {
-    const authData = req.auth?.legacy ?? null;
-    const comment = await Comment.findById(req.body.id);
-
-    if (authData.userId.toString() === comment.ticket.toString()) {
-      comment.content = req.body.content;
-      await comment.save();
-      res.status(200).json({
-        message: "Comment updated successfully!",
-        comment: comment,
-      });
-    }
-  } catch (error) {
-    next(
-      new AppError(
-        `Failed to update comment with id ${req.body.id}`,
-        500,
-        true,
-        error,
-      ),
-    );
-  }
-};
-
-exports.delete = async (req, res, next) => {
-  try {
-    const authData = req.auth?.legacy ?? null;
-    const comment = await Comment.findById(req.body.id);
-
-    if (comment && authData.userId.toString() === comment.ticket.toString()) {
-      await Comment.deleteOne({ _id: req.body.id });
-      res.status(204).end();
-    } else {
-      return next(
-        new AppError(`Comment with id ${req.body.id} not found`, 404),
-      );
-    }
-  } catch (error) {
-    next(
-      new AppError(
-        `Failed to delete comment with id ${req.body.id}`,
-        500,
-        true,
-        error,
-      ),
-    );
-  }
-};
+// `update` и `delete` удалены: ни один маршрут их не подключал, а проверка
+// внутри сравнивала id пользователя со ссылкой на заявку
+// (`authData.userId === comment.ticket`) — то есть была ложна всегда. Понадобится
+// правка комментария — писать заново, от этого образца брать нечего.

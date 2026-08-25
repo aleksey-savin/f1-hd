@@ -165,7 +165,7 @@ const ViewSupplier = ({ supplier = {} }) => {
   const can = useCan();
   const { showToast } = useToastStore();
   const actionData = useActionData();
-  const canManage = Boolean(can({ clientDevice: ["manage"] }));
+  const canManage = Boolean(can({ supplier: ["manage"] }));
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {

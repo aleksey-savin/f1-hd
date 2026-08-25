@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
   RiAddLine,
@@ -14,7 +14,7 @@ import { SCHEDULE_DAYS } from "../app/ScheduleEditor";
 import ScheduleView from "../app/ScheduleView";
 import Spinner from "../app/Spinner";
 import { Button } from "../ui/button";
-import { AuthedUserContext } from "../../store/authed-user-context";
+import { useCan } from "../../store/authed-user";
 import useOffcanvasStore from "../../store/offcanvas";
 import { monthRange } from "../../util/period";
 import { getAbsenceType } from "../../util/absence-types";
@@ -80,11 +80,9 @@ const monthLabel = (from) => {
  * секция перечитывает график.
  */
 const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
-  const authedUser = useContext(AuthedUserContext);
   const offcanvas = useOffcanvasStore();
-  const canManage = Boolean(
-    authedUser?.isAdmin || authedUser?.can({ workSchedule: ["manage"] }),
-  );
+  const can = useCan();
+  const canManage = can({ schedule: ["manage"] });
 
   const [data, setData] = useState(null);
   const [absences, setAbsences] = useState([]);

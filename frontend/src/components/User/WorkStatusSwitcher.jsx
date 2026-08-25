@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
+import { useCan } from "../../store/authed-user";
 import { selectableStatuses } from "../../util/work-statuses";
 
 // Секция «Мой статус» внутри меню пользователя (PopoverContent навбара —
@@ -17,10 +18,11 @@ import { selectableStatuses } from "../../util/work-statuses";
 // result»). Выбор нового статуса очищает заметку: она описывала предыдущий.
 const WorkStatusSwitcher = () => {
   const authedUser = useContext(AuthedUserContext);
+  const can = useCan();
   const { workStatus } = authedUser;
   // Отпуск, больничный и «не на работе» ставит автоматика — их тут просто нет.
   // Полагаться на 403 нельзя: action «Мой аккаунт» намеренно глотает ошибки.
-  const statuses = selectableStatuses(authedUser);
+  const statuses = selectableStatuses(authedUser, can);
   const fetcher = useFetcher();
 
   const currentCode = workStatus?.code || "unset";

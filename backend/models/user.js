@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 
 const { WORK_STATUS_CODES } = require("../utils/workStatuses");
-const { assertPermissionKeysMatch } = require("../utils/permissions");
 const workScheduleSchema = require("./workSchedule");
 
 const Schema = mongoose.Schema;
@@ -115,51 +114,6 @@ const userSchema = new Schema(
     // Статусы присутствия отключены (сторонние сотрудники): скрыт из бара,
     // списка «Люди» и Telegram-табло, переключатель статуса недоступен
     hideWorkStatus: { type: Boolean, default: false },
-    permissions: {
-      // tickets workflow
-      canPerformTickets: { type: Boolean, default: false },
-      canAdministrateTickets: { type: Boolean, default: false }, // mainly for manager, update ticket state
-      canSeeAllCompanyTickets: { type: Boolean, default: false },
-      canSeeAllTickets: { type: Boolean, default: false },
-      canEditTickets: { type: Boolean, default: false }, // route /ticket/update/:id
-      canDeleteTickets: { type: Boolean, default: false }, // route /ticket/delete/:id
-      // basic portal administration
-      canManageCompanies: { type: Boolean, default: false },
-      canManageUsers: { type: Boolean, default: false },
-      canManageRoles: { type: Boolean, default: false },
-      // Вход под пользователем. Право СВОЁ, а не производное от управления
-      // людьми: вести учётки и ходить под ними — разные вещи.
-      canImpersonateUsers: { type: Boolean, default: false },
-      canManageTicketCategories: { type: Boolean, default: false },
-      canManageKnowledgeBase: { type: Boolean, default: false }, // может создавать/редактировать заметки базы знаний
-      canSeeKnowledgeBase: { type: Boolean, default: false }, // может просматривать базу знаний
-      canManageRoutineTasks: { type: Boolean, default: false }, // может управлять регламентными заданиями
-      canManageTicketTemplates: { type: Boolean, default: false }, // может управлять шаблонами заявок
-      // time tracking module
-      canUseTimeTrackingModule: { type: Boolean, default: false },
-      canAvoidWorks: { type: Boolean, default: false }, // может закрыть заявку без указания работ
-      canSeeWorksReport: { type: Boolean, default: false }, // может видеть отчёт по работам
-      canSeeAnalytics: { type: Boolean, default: false }, // может видеть аналитику и анализ трендов
-      // Правка чужих графиков работы, заведение отсутствий и решение по
-      // запросам на согласовании. Смотреть табель может любой не-клиент.
-      canManageWorkSchedules: { type: Boolean, default: false },
-      // inventory module
-      canUseInventoryModule: { type: Boolean, default: false },
-      canManageClientDevices: { type: Boolean, default: false },
-      canManageMikrotikDevices: { type: Boolean, default: false },
-      canManageMikrotikConfigs: { type: Boolean, default: false }, // резервные копии конфигураций Mikrotik (бэкапы/экспорт)
-      // finances module
-      canUseFinancesModule: { type: Boolean, default: false },
-      canManageServicePlans: { type: Boolean, default: false },
-      canSeeGlobalFinancialReport: { type: Boolean, default: false },
-      canConfirmReportActions: { type: Boolean, default: false },
-      canSeePersonalFinancialReport: { type: Boolean, default: false },
-      // Клиентское право: открывает раздел «Согласование работ» на стороне
-      // заказчика. Объём даёт роль, а не право (services/reportApprovalScope):
-      // назначенный согласующий видит отчёт целиком, руководитель филиала —
-      // только свою часть. Так же устроен доступ к отчёту «Компании».
-      canApproveWorkReports: { type: Boolean, default: false },
-    },
     // Часовой пояс сотрудника (IANA). null — берётся Preferences.timezone.
     // От него считаются границы его суток, норма и переработки: без этого поля
     // смена инженера из UTC+10 целиком попадала в «до 09:00 по Москве» и
@@ -341,7 +295,5 @@ const userSchema = new Schema(
   },
   { timestamps: true },
 );
-
-assertPermissionKeysMatch(userSchema);
 
 module.exports = mongoose.model("User", userSchema);

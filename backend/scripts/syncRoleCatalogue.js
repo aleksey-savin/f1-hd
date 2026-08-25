@@ -1,11 +1,11 @@
 // Синхронизация КАТАЛОГА ролей с `roles.catalogue.json`: названия, описания,
 // адресаты и наборы прав. Членство не трогается вовсе.
 //
-// Отдельно от `assignRoles.js` не для красоты. Тот выводит роли из личных
-// галочек и после `stripOwnPermissions.js` запускаться не имеет права — иначе
-// раздаст всем роль с пустым набором. А каталог править надо и потом: новое
-// право в словаре обязано попасть в роль полного доступа, иначе `isFullAccess`
-// перестанет её узнавать и зеркало `isAdmin` погаснет у всех администраторов.
+// Отдельно от `assignRoles.js` не для красоты. Тот выводит роли из доролевых
+// галочек и на базе, где их уже нет, раздаст всем роль с пустым набором. А
+// каталог править надо и потом: новое право в словаре обязано попасть в роль
+// полного доступа, иначе `isFullAccess` перестанет её узнавать и зеркало
+// `isAdmin` погаснет у всех администраторов.
 //
 // Идемпотентен. Запуск внутри контейнера бэкенда:
 //   node scripts/syncRoleCatalogue.js            # только показать
@@ -20,14 +20,10 @@ const CATALOGUE = path.join(__dirname, "roles.catalogue.json");
  * Записывает роли каталога в `organizationRole`. Ключ роли неизменяем и служит
  * идентификатором — членство хранит роль именно им.
  */
-const syncCatalogue = async (db, orgId, roles, { permissionsToStatements }) => {
+const syncCatalogue = async (db, orgId, roles, { actionsToStatements }) => {
   const written = [];
   for (const role of roles) {
-    const permission = JSON.stringify(
-      permissionsToStatements(
-        Object.fromEntries(role.permissions.map((key) => [key, true])),
-      ),
-    );
+    const permission = JSON.stringify(actionsToStatements(role.actions || []));
     const result = await db.collection("organizationRole").updateOne(
       { organizationId: orgId, role: role.key },
       {
@@ -83,11 +79,7 @@ const run = async () => {
   // Роль полного доступа обязана содержать ВЕСЬ словарь: по этому признаку
   // зеркалится `isAdmin`, и роль без одного действия погасила бы его.
   const full = roles.filter((role) =>
-    access.isFullAccess(
-      access.permissionsToStatements(
-        Object.fromEntries(role.permissions.map((key) => [key, true])),
-      ),
-    ),
+    access.isFullAccess(access.actionsToStatements(role.actions || [])),
   );
   if (!full.length) {
     throw new Error(

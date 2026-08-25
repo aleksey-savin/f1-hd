@@ -1,4 +1,3 @@
-import { useContext } from "react";
 import { Link } from "react-router";
 
 import {
@@ -26,7 +25,6 @@ import SearchBar from "@/components/app/SearchBar";
 import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
 
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
-import { AuthedUserContext } from "../../store/authed-user-context";
 import { getNoteTypeMeta } from "../../util/knowledgeNoteTypes";
 import { bindingLabel } from "../../util/knowledgeNoteBindings";
 
@@ -158,9 +156,8 @@ const useAppliedFilters = () => {
 //
 // На мобилке эту роль играет pages/KnowledgeBase/List.jsx поверх ListWrapper.
 const KnowledgeBaseExplorer = () => {
-  const { isAdmin } = useContext(AuthedUserContext);
   const can = useCan();
-  const canManage = isAdmin || can({ knowledgeBase: ["manage"] });
+  const canManage = can({ knowledge: ["manage"] });
 
   const store = useKnowledgeNotesStore();
   const { filteredList, searchTerm, fullTextSearch, resetFilter } = store;

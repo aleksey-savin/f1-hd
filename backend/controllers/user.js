@@ -48,6 +48,7 @@ const CompanyLog = require("../models/companyLog");
 const {
   permissionFilter,
   effectivePermissions,
+  rolesOfUser,
 } = require("@/services/permissions");
 const { invite } = require("@/services/invitation");
 const {
@@ -67,12 +68,38 @@ const toNonNegativeOrNull = (value) => {
 };
 
 const canManageFinances = (req) =>
-  req.auth.can({ finances: ["readGlobalReport"] });
+  req.auth.can({ report: ["employees"] });
 
 // График правится из формы пользователя, но своим правом: у того, кто ведёт
 // пользователей, не обязательно есть право на графики и наоборот.
-const canManageSchedules = (req) =>
-  req.auth.can({ workSchedule: ["manage"] });
+const canManageSchedules = (req) => req.auth.can({ schedule: ["manage"] });
+
+/**
+ * Менять роли человека — раздавать права, и право на это своё
+ * (`user.manageAccess`), отдельное от «вести карточку».
+ *
+ * Проверяем ИЗМЕНЕНИЕ, а не наличие поля: форма человека шлёт `roles` при
+ * каждом сохранении, и отказ по наличию поля отобрал бы у того, кто ведёт
+ * карточки, саму правку карточки.
+ *
+ * Стоит ДО записи: отказ после создания учётной записи оставил бы человека
+ * заведённым и без ролей.
+ */
+const assertMayChangeRoles = (req, currentKeys, wanted) => {
+  if (!Array.isArray(wanted)) return;
+
+  const same =
+    currentKeys.length === wanted.length &&
+    currentKeys.every((key) => wanted.includes(key));
+  if (same) return;
+
+  if (!req.auth.can({ user: ["manageAccess"] })) {
+    throw new AppError(
+      "Недостаточно прав, чтобы менять роли: это раздача прав, а не правка карточки",
+      403,
+    );
+  }
+};
 
 /**
  * Применить блок графика работы к документу пользователя (без сохранения).
@@ -504,14 +531,13 @@ exports.getOne = async (req, res, next) => {
       // Роли живут не в документе пользователя, а в членстве организации:
       // форме они нужны здесь же, иначе шаг «Права и доступ» открывался бы
       // пустым и вторым запросом дозаполнялся на глазах.
-      // Права отдаём ЭФФЕКТИВНЫЕ, а не поле документа: личных галочек больше
-      // нет, всё приходит ролями, и карточка человека, читающая документ,
-      // показывала бы «нет выданных прав» всем подряд.
+      // Права отдаём ЭФФЕКТИВНЫЕ, а не поле документа: галочек в документе
+      // нет вовсе, всё приходит ролями.
       const payload = {
         ...maskSecrets(user),
         clientTimezone,
         roles: await namedRoles(user._id),
-        permissions: (await effectivePermissions(user)).permissions,
+        statements: (await effectivePermissions(user)).statements,
       };
 
       /**
@@ -580,7 +606,7 @@ exports.revokePro32 = async (req, res, next) => {
 exports.getCanPerformTicketsUsers = async (req, res, next) => {
   try {
     const users = await User.find({
-      ...(await permissionFilter("canPerformTickets")),
+      ...(await permissionFilter("ticket.perform")),
       banned: { $ne: true },
     });
     res.status(200).json(users);
@@ -603,8 +629,8 @@ exports.getKnowledgeBaseModerators = async (req, res, next) => {
       banned: { $ne: true },
       isServiceAccount: false,
       $and: [
-        await permissionFilter("canSeeKnowledgeBase"),
-        await permissionFilter("canManageKnowledgeBase"),
+        await permissionFilter("knowledge.read"),
+        await permissionFilter("knowledge.manage"),
       ],
     })
       .sort({ lastName: 1 })
@@ -645,7 +671,6 @@ exports.add = async (req, res, next) => {
       notify,
       role,
       banned,
-      isAdmin,
       isEndUser,
       isServiceAccount,
       isCloudTelephony,
@@ -653,7 +678,6 @@ exports.add = async (req, res, next) => {
       workTimeMode,
       remoteOnly,
       timezone,
-      permissions,
       roles,
       finances,
       getScreenApi,
@@ -701,6 +725,9 @@ exports.add = async (req, res, next) => {
       return next(new AppError("Задайте пароль или пригласите письмом", 400));
     }
 
+    // Новому человеку ролей ещё не назначено, поэтому текущий набор пуст.
+    assertMayChangeRoles(req, [], roles);
+
     // Заглушка на время создания документа: настоящее значение проставит
     // setUserPassword. При приглашении пароля не будет вовсе — поле в схеме
     // больше не обязательное.
@@ -716,7 +743,16 @@ exports.add = async (req, res, next) => {
       subdivision: subdivision,
       categories: categoriesList,
       role: role,
-      isAdmin: isAdmin,
+      /**
+       * ЗЕРКАЛО роли полного доступа, а не поле формы. Значение проставит
+       * `assignRoles` ниже — по тому, что человеку назначено.
+       *
+       * Из тела запроса его не читаем вовсе: форма его и не шлёт, а вот
+       * запрос руками с `isAdmin: true` и без `roles` раньше заводил
+       * администратора в обход ролей — то есть тот, кому доверили вести
+       * карточки, мог выписать себе весь портал.
+       */
+      isAdmin: false,
       isEndUser: isEndUser,
       isServiceAccount: isServiceAccount,
       isCloudTelephony: isCloudTelephony,
@@ -732,7 +768,6 @@ exports.add = async (req, res, next) => {
       getScreen: {
         api: getScreenApi ? encryptSecret(getScreenApi) : "",
       },
-      permissions: permissions,
       notify: notify,
       responsibleForCompanies: (responsibleForCompanies || []).map((item) => ({
         id: item.id,
@@ -788,9 +823,9 @@ exports.add = async (req, res, next) => {
     // с человеком: без строки в `member` первое же назначение роли отвечало бы
     // «не состоит в организации».
     await ensureMember(user._id);
-    if (Array.isArray(roles)) {
-      await assignRoles(user._id, roles, req.auth.can);
-    }
+    // Назначаем ВСЕГДА, даже пустой набор: этим же вызовом проставляется
+    // зеркало `isAdmin`, и пропуск оставил бы его непроверенным.
+    await assignRoles(user._id, Array.isArray(roles) ? roles : [], req.auth.can);
 
     company.employees.push(user._id);
 
@@ -862,7 +897,6 @@ exports.update = async (req, res, next) => {
       position,
       role,
       banned,
-      isAdmin,
       isEndUser,
       isServiceAccount,
       isCloudTelephony,
@@ -874,13 +908,15 @@ exports.update = async (req, res, next) => {
       // версия недельного расписания одним блоком
       workSchedule,
       categories,
-      permissions,
       roles,
       finances,
       getScreenApi,
       notify,
       responsibleForCompanies,
     } = req.body;
+
+    // До любых записей: смена ролей — раздача прав, и право на неё своё
+    assertMayChangeRoles(req, await rolesOfUser(user._id), roles);
 
     if (prevSubdivision) {
       prevSubdivision.users = prevSubdivision.users.filter(
@@ -926,12 +962,11 @@ exports.update = async (req, res, next) => {
     // `role ?? role`: при каждом сохранении роль затиралась в null.
     user.role = role ?? user.role;
     user.banned = Boolean(banned);
-    // `isAdmin` — зеркало роли с полным доступом, и его проставляет назначение
-    // ролей (services/roles.js#assign). Безусловное присваивание здесь гасило
-    // бы зеркало на каждом сохранении формы, которая поля больше не шлёт.
-    if (isAdmin !== undefined) {
-      user.isAdmin = isAdmin;
-    }
+    // `isAdmin` здесь НЕ трогаем вовсе: это зеркало роли с полным доступом, и
+    // проставляет его назначение ролей (services/roles.js#assign). Присланное
+    // в теле значение раньше принималось на веру — то есть учётку
+    // администратора можно было выписать запросом, минуя роли и проверку
+    // «нельзя выдать больше, чем есть у самого».
     user.isEndUser = isEndUser;
     user.isServiceAccount = isServiceAccount;
     user.isCloudTelephony = isCloudTelephony;
@@ -948,12 +983,8 @@ exports.update = async (req, res, next) => {
     if (timezone !== undefined) {
       user.timezone = normalizeTimezone(timezone);
     }
-    // Личные права сверх ролей — хвост прежней системы. Форма их больше не
-    // шлёт, и трогать их без запроса нельзя: пустой объект стал бы тихим
-    // снятием того, что ещё не разобрано.
-    if (permissions !== undefined) {
-      user.permissions = permissions;
-    }
+    // Личных прав сверх ролей больше нет: поле снято со схемы, права выдаются
+    // только ролями (`PUT /api/users/:id/roles`). Присланное в теле игнорируем.
     // Ответственность за компании теперь правится из формы пользователя
     // (раньше — только через карточку компании)
     if (responsibleForCompanies !== undefined) {
@@ -1335,11 +1366,10 @@ exports.changePassword = async (req, res, next) => {
     const authedUser = req.auth?.legacy ?? null;
     const isSelf = String(req.params.id) === String(authedUser.userId);
 
-    if (
-      !isSelf &&
-      !authedUser.isAdmin &&
-      !req.auth.can({ user: ["manage"] })
-    ) {
+    // Пароль чужой учётной записи — это доступ, а не карточка: право своё,
+    // отдельное от «заводить и изменять людей». `isAdmin` перепроверять больше
+    // не нужно — весь словарь ему выдаёт `effectivePermissions`.
+    if (!isSelf && !req.auth.can({ user: ["manageAccess"] })) {
       return next(
         new AppError("Недостаточно прав для смены чужого пароля", 403),
       );
@@ -1439,11 +1469,10 @@ exports.sendPasswordLink = async (req, res, next) => {
     const authedUser = req.auth?.legacy ?? null;
     const isSelf = String(req.params.id) === String(authedUser.userId);
 
-    if (
-      !isSelf &&
-      !authedUser.isAdmin &&
-      !req.auth.can({ user: ["manage"] })
-    ) {
+    // Пароль чужой учётной записи — это доступ, а не карточка: право своё,
+    // отдельное от «заводить и изменять людей». `isAdmin` перепроверять больше
+    // не нужно — весь словарь ему выдаёт `effectivePermissions`.
+    if (!isSelf && !req.auth.can({ user: ["manageAccess"] })) {
       return next(
         new AppError("Недостаточно прав для смены чужого пароля", 403),
       );
@@ -1703,7 +1732,7 @@ exports.setWorkStatus = async (req, res, next) => {
     // Отсутствия и «не на работе» ставит автоматика — иначе статусы и календарь
     // разъедутся. Исключения: свободный режим учёта и право «Графики и
     // отсутствия» (форс-мажор). UI такие пункты просто не показывает.
-    if (!canSetStatusManually(user, code)) {
+    if (!canSetStatusManually(user, code, req.auth.can)) {
       return next(
         new AppError(
           "Этот статус проставляется автоматически: отпуск и больничный — по заявке, «не на работе» — по графику",
@@ -1771,7 +1800,9 @@ exports.setWorkStatusFromTelegram = async (req, res, next) => {
     if (!WORK_STATUS_CODES.includes(code)) {
       return next(new AppError(`Некорректный статус "${code}"`, 400, true));
     }
-    if (!canSetStatusManually(user, code)) {
+    // `actor` — тот же контекст, что `req.auth`, только собранный по привязке
+    // Telegram (`services/telegramActor`), поэтому и права спрашиваем у него
+    if (!canSetStatusManually(user, code, actor.can)) {
       return next(
         new AppError(
           "Этот статус проставляется автоматически: отпуск и больничный — по заявке, «не на работе» — по графику",

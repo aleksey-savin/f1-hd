@@ -73,7 +73,7 @@ const MikrotikRecordPage = () => {
   const offcanvas = useOffcanvasStore();
   const showToast = useToastStore((state) => state.showToast);
   const can = useCan();
-  const canManage = can({ mikrotik: ["manageDevices"] });
+  const canManage = can({ mikrotik: ["manage"] });
   const canManageConfigs = can({ mikrotik: ["manageConfigs"] });
 
   const connectRecord = useMikrotikDeviceFilterStore(

@@ -1112,7 +1112,7 @@ const findInventoryCandidate = async (record) => {
 const inventoryLinkContext = async (record, userId) => {
   const [prefs, user] = await Promise.all([
     Preferences.findOne({}).select("modules.inventory").lean(),
-    User.findById(userId).select("permissions isAdmin").lean(),
+    User.findById(userId).select("isAdmin").lean(),
   ]);
   if (prefs?.modules?.inventory?.isActive === false) return null;
 

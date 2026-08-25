@@ -138,7 +138,7 @@ const ViewDeviceModel = ({
   const { showToast } = useToastStore();
   const actionData = useActionData();
   const can = useCan();
-  const canManage = can({ clientDevice: ["manage"] });
+  const canManage = can({ inventoryCatalog: ["manage"] });
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Карточку всегда открываем от начала: иначе hero прячется под фиксированным

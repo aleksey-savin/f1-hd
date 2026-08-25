@@ -14,7 +14,7 @@
 require("module-alias/register");
 const mongoose = require("mongoose");
 
-const { PERMISSION_KEYS } = require("@/utils/permissions");
+const { statementsToActions } = require("@/auth/access");
 
 const run = async () => {
   await mongoose.connect(
@@ -31,8 +31,8 @@ const run = async () => {
   const users = await User.find({}).sort({ _id: 1 }).lean();
 
   for (const user of users) {
-    const { permissions } = await effectivePermissions(user);
-    const granted = PERMISSION_KEYS.filter((key) => permissions[key]);
+    const { statements } = await effectivePermissions(user);
+    const granted = statementsToActions(statements);
     console.log(
       [
         String(user._id),
