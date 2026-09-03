@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useFetcher, useLoaderData, useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,13 @@ import SwitchField from "@/components/app/SwitchField";
 import Segmented from "@/components/app/Segmented";
 import WizardStepper from "@/components/app/WizardStepper";
 import AlertMessage from "@/components/app/AlertMessage";
-import { FormHeader, FormSections } from "@/components/app/FormLayout";
+import {
+  FormHeader,
+  FormSections,
+  sectionAnchorId,
+} from "@/components/app/FormLayout";
+import { scrollToSection } from "@/components/app/AnchorRail";
+import { OverlayScrollContext } from "@/components/app/overlay-context";
 import { SubLabel } from "@/components/app/Panel";
 import ScheduleEditor, {
   emptyDay,
@@ -136,6 +142,9 @@ const UserForm = () => {
     categoriesList = [],
   } = useLoaderData() || {};
   const isEdit = !!user?._id;
+  // Скроллится внутренность шторки, а не окно: переход к секции без этого
+  // контекста не сдвинет ничего
+  const scroller = useContext(OverlayScrollContext);
 
   const can = useCan();
   const canEditFinances = Boolean(
@@ -371,8 +380,15 @@ const UserForm = () => {
 
     const badStep = stepKeys.findIndex((key) => stepError(key));
     if (badStep !== -1) {
-      setStep(badStep);
       setAttempted(true);
+      // Показать человеку незаполненное поле. В мастере это переключение шага,
+      // в правке — прокрутка к секции: шагов там нет, и `setStep` молчал бы,
+      // а форма выглядела бы сломанной — нажал «Сохранить», не случилось ничего
+      if (isEdit) {
+        scrollToSection(scroller, sectionAnchorId(stepKeys[badStep]));
+      } else {
+        setStep(badStep);
+      }
       return;
     }
 
@@ -554,7 +570,7 @@ const UserForm = () => {
     <>
       <Field
         label="Тип аккаунта"
-        hint="Клиент обращается в поддержку, сотрудник её оказывает, служебный аккаунт входит только по API. От этого зависят разделы формы и роли, которые предложат дальше."
+        hint="Клиент обращается в поддержку, сотрудник её оказывает, служебный аккаунт входит только по API."
       >
         <Segmented
           options={ACCOUNT_KINDS}
@@ -1031,10 +1047,17 @@ const UserForm = () => {
             ? "· оказывает поддержку"
             : "· обращается в поддержку"}
         </span>
+        {/* В мастере тип живёт на первом шаге, в правке — в секции «Основное»
+            того же скролла. Шаг там не переключается: состояние `step` в
+            плоском режиме никто не читает, и кнопка молчала бы */}
         <button
           type="button"
           className="ml-auto cursor-pointer appearance-none border-0 bg-transparent p-0 text-sm font-semibold text-accent-text"
-          onClick={() => setStep(0)}
+          onClick={() =>
+            isEdit
+              ? scrollToSection(scroller, sectionAnchorId("person"))
+              : setStep(0)
+          }
         >
           Изменить тип
         </button>
@@ -1044,7 +1067,7 @@ const UserForm = () => {
         label="Роли"
         htmlFor="u-roles"
         className="mb-0"
-        hint="Права складываются: если их даёт хоть одна роль — они есть. Отобрать право отдельной галочкой нельзя, для этого заводится своя роль."
+        hint="Права складываются: достаточно одной роли, которая даёт право."
       >
         <MultiCombobox
           id="u-roles"
@@ -1215,7 +1238,18 @@ const UserForm = () => {
           sections={stepKeys.map((key) => ({
             key,
             title: titles[key],
-            body: bodyFor(key),
+            /* Ошибка обязана быть видна и здесь: в мастере её показывает
+               ветка ниже, а в плоской правке показать её больше некому */
+            body: (
+              <>
+                {bodyFor(key)}
+                {attempted && stepError(key) && (
+                  <p className="mt-2 mb-0 text-sm text-destructive">
+                    {stepError(key)}
+                  </p>
+                )}
+              </>
+            ),
           }))}
         />
       ) : (

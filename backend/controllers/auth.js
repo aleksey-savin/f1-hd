@@ -6,6 +6,7 @@ const { getAuth, getFromNodeHeaders } = require("../auth/bootstrap");
 // Проверка пароля без создания сеанса — там же, где и его запись: обе
 // операции работают с credential-аккаунтом и обе обходят обёртки плагинов.
 const { verifyUserPassword } = require("../services/authPassword");
+const { isBanned } = require("../services/authBan");
 const { bindChat } = require("../services/telegramActor");
 
 /**
@@ -77,7 +78,7 @@ exports.login = async (req, res, next) => {
     // статусами из своего списка, 403 уронит error boundary. Отключение
     // компании блокирует вход её сотрудников тем же текстом — статус компании
     // наружу не раскрываем.
-    if (user.banned || user.company?.isActive === false) {
+    if (isBanned(user) || user.company?.isActive === false) {
       return next(
         new AppError(
           "Учётная запись отключена. Обратитесь к администратору.",
@@ -316,13 +317,13 @@ exports.requestLoginLink = async (req, res, next) => {
     if (!email) return same();
 
     const user = await User.findOne({ email }).select(
-      "isEndUser banned isServiceAccount twoFactorEnabled company.isActive",
+      "isEndUser banned banExpires isServiceAccount twoFactorEnabled company.isActive",
     );
 
     // Общие основания отказать: их не различает ни один из двух путей.
     const reachable =
       user &&
-      !user.banned &&
+      !isBanned(user) &&
       !user.isServiceAccount &&
       user.company?.isActive !== false;
 

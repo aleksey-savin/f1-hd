@@ -49,8 +49,10 @@ const {
   permissionFilter,
   effectivePermissions,
   rolesOfUser,
+  usersWithRoles,
 } = require("@/services/permissions");
 const { invite } = require("@/services/invitation");
+const { isBanned } = require("@/services/authBan");
 const {
   ensureMember,
   removeMembership,
@@ -293,6 +295,17 @@ exports.getAll = async (req, res, next) => {
       and.push({
         $or: [{ lastActivityAt: { $lt: sixMonthsAgo } }, { lastActivityAt: null }],
       });
+    }
+
+    // 7б) Роль. Членство живёт отдельной коллекцией, поэтому сначала берём
+    // носителей, потом сужаем список. Пустой результат — законный ответ
+    // «никого»: фасет задан, просто эту роль никто не носит.
+    const roleKeys = String(q.roles || "")
+      .split(",")
+      .map((key) => key.trim())
+      .filter(Boolean);
+    if (roleKeys.length) {
+      and.push({ _id: { $in: await usersWithRoles(roleKeys) } });
     }
 
     // 8) Поиск: каждый терм должен встретиться хотя бы в одном поле (терм
@@ -1492,7 +1505,7 @@ exports.sendPasswordLink = async (req, res, next) => {
       );
     }
 
-    if (user.banned || user.company?.isActive === false) {
+    if (isBanned(user) || user.company?.isActive === false) {
       return next(
         new AppError("Учётная запись отключена — сначала включите её", 400),
       );

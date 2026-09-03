@@ -7,6 +7,7 @@ import Segmented from "@/components/app/Segmented";
 import ChipCombobox from "@/components/app/ChipCombobox";
 import ListWrapper from "@/components/app/ListWrapper";
 import Pager from "@/components/app/Pager";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 import useUserFilterStore from "../../store/lists/users";
@@ -52,6 +53,22 @@ const Users = () => {
           (data || []).map((company) => ({
             value: company._id,
             label: company.alias,
+          })),
+        ),
+      )
+      .catch(() => {});
+  }, []);
+
+  // Справочник ролей для фасета. Отказ глотаем: без права на чтение ролей
+  // список останется пустым, и фасет просто не появится.
+  useEffect(() => {
+    api("/api/roles")
+      .then((data) =>
+        s.setRoleOptions(
+          (data?.roles || []).map((role) => ({
+            value: role.key,
+            label: role.title,
+            hint: role.description || undefined,
           })),
         ),
       )

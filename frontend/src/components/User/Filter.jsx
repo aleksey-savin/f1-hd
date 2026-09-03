@@ -2,7 +2,7 @@ import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 
-import Combobox from "@/components/app/Combobox";
+import Combobox, { MultiCombobox } from "@/components/app/Combobox";
 
 import useUserFilterStore from "../../store/lists/users";
 import useInitialPrefs from "../../store/prefs";
@@ -48,6 +48,23 @@ const UserFilter = () => {
           label="Группировать по подразделению"
           hint="Разбить людей выбранной компании на подразделения."
         />
+      )}
+
+      {/* Справочник пуст у того, кому не видны роли, — тогда и фасета нет */}
+      {s.roleOptions.length > 0 && (
+        <Field
+          label="Роль"
+          htmlFor="filter-roles"
+          hint="Несколько ролей — покажем всех, у кого есть хотя бы одна."
+        >
+          <MultiCombobox
+            id="filter-roles"
+            placeholder="Любая роль"
+            value={s.roles}
+            options={s.roleOptions}
+            onChange={(keys) => s.updateFilter({ roles: keys })}
+          />
+        </Field>
       )}
 
       {presenceRelevant && (

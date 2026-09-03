@@ -116,6 +116,13 @@ const orgIdOrThrow = async () => {
 /**
  * Сколько человек носит роль, у скольких она единственная и кто эти люди.
  *
+ * СЧИТАЮТСЯ ТОЛЬКО ДЕЙСТВУЮЩИЕ УЧЁТНЫЕ ЗАПИСИ. Отключение роль не снимает —
+ * человека включат обратно с тем же доступом, и вспоминать его набор никому не
+ * придётся, — но носителем роли отключённый не является: действовать ею он не
+ * может. Так же выпадают строки членства, у которых уже нет документа
+ * пользователя: до `removeMembership` удаление человека их не трогало, и
+ * такие строки в базе есть.
+ *
  * Имена нужны форме: «снимаю право у 665 человек» и «у одного» читаются
  * по-разному, и до сих пор в форме этого не было видно вовсе. Отдаём первые
  * три — дальше список перестаёт помещаться в строку и превращается в число.
@@ -127,39 +134,43 @@ const usage = async (orgId, key) => {
     .find({ organizationId: orgId }, { projection: { role: 1, userId: 1 } })
     .toArray();
 
-  let total = 0;
-  let only = 0;
-  const userIds = [];
+  // userId → сколько всего ролей у человека (для счётчика «единственная»)
+  const bearers = new Map();
   for (const row of rows) {
     const roles = String(row.role || "")
       .split(",")
       .map((role) => role.trim())
       .filter(Boolean);
-    if (!roles.includes(key)) continue;
-    total += 1;
-    if (roles.length === 1) only += 1;
-    if (userIds.length < NAMES_SHOWN) userIds.push(row.userId);
+    if (!roles.includes(key) || !row.userId) continue;
+    bearers.set(String(row.userId), roles.length);
   }
+  if (!bearers.size) return { total: 0, only: 0, names: [] };
 
-  const names = userIds.length
-    ? (
-        await mongoose.connection.db
-          .collection("users")
-          .find(
-            { _id: { $in: userIds.map((id) => new mongoose.Types.ObjectId(String(id))) } },
-            { projection: { firstName: 1, lastName: 1, email: 1 } },
-          )
-          .toArray()
-      ).map(
-        (user) =>
-          [user.lastName, user.firstName?.slice(0, 1) && user.firstName[0] + "."]
-            .filter(Boolean)
-            .join(" ")
-            .trim() || user.email,
-      )
-    : [];
+  const people = await mongoose.connection.db
+    .collection("users")
+    .find(
+      {
+        _id: {
+          $in: [...bearers.keys()].map((id) => new mongoose.Types.ObjectId(id)),
+        },
+        banned: { $ne: true },
+      },
+      { projection: { firstName: 1, lastName: 1, email: 1 } },
+    )
+    .sort({ lastName: 1, firstName: 1 })
+    .toArray();
 
-  return { total, only, names };
+  return {
+    total: people.length,
+    only: people.filter((user) => bearers.get(String(user._id)) === 1).length,
+    names: people.slice(0, NAMES_SHOWN).map(
+      (user) =>
+        [user.lastName, user.firstName?.slice(0, 1) && user.firstName[0] + "."]
+          .filter(Boolean)
+          .join(" ")
+          .trim() || user.email,
+    ),
+  };
 };
 
 const list = async () => {
@@ -565,4 +576,7 @@ module.exports = {
   rolesOfMember,
   namedRoles,
   slugify,
+  // Для миграции (`scripts/assignRoles.js`): раздача с прода обязана оставить
+  // зеркало в том же виде, что и назначение из интерфейса.
+  refreshMirrorForUsers,
 };

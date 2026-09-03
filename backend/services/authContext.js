@@ -1,4 +1,5 @@
 const { effectivePermissions } = require("@/services/permissions");
+const { isBanned } = require("@/services/authBan");
 const { authorizeFor } = require("@/auth/bootstrap");
 
 /**
@@ -22,10 +23,13 @@ const { authorizeFor } = require("@/auth/bootstrap");
  * `company.isActive` остаётся отдельной проверкой: у better-auth нет понятия
  * «организация отключила сотрудника», это прикладное правило (см. комментарий в
  * `middleware/attachSession`).
+ *
+ * `banned` читается через `isBanned`, а не напрямую: отключение со сроком после
+ * срока не действует (см. `services/authBan`).
  */
 const isDeniedAccount = (user) =>
   Boolean(
-    user.banned || user.company?.isActive === false || user.isServiceAccount,
+    isBanned(user) || user.company?.isActive === false || user.isServiceAccount,
   );
 
 /**

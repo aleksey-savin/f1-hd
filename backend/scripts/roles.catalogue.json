@@ -1,7 +1,9 @@
 {
   "_": [
-    "Каталог ролей: ДАННЫЕ, а не код. Правится руками, лежит в репозитории и",
-    "переезжает на прод вместе с ним — там же и применяется assignRoles.js.",
+    "Каталог ролей: ДАННЫЕ, а не код. СОБИРАЕТСЯ ИЗ БАЗЫ ДЕВА скриптом",
+    "scripts/dumpRoleCatalogue.js --apply после правки ролей в интерфейсе; лежит в",
+    "репозитории и переезжает на прод вместе с ним — там его применяет",
+    "assignRoles.js. Руками здесь правят только matches и members.",
     "",
     "`key` — НЕИЗМЕНЯЕМЫЙ ключ роли. Именно его хранит `member.role`, поэтому",
     "менять его нельзя: переименование ключа оставит людей без прав молча.",
@@ -9,19 +11,22 @@
     "",
     "`actions` — действия СЛОВАРЯ (backend/auth/access.js), «ресурс.действие».",
     "",
-    "`matches` — подписи ДОРОЛЕВЫХ наборов галочек, которые эта роль поглощает.",
-    "Каждая подпись — список ключей в порядке scripts/legacyPermissions.js. Языки",
-    "здесь разные намеренно: подпись описывает то, что лежит в базе прода, а",
-    "actions — то, что роль даёт после переезда. Слияние нескольких подписей в",
-    "одну роль — осознанное решение человека, и оно видно здесь глазами:",
-    "assignRoles.js печатает, кто что при этом получит.",
+    "`members` — ЛЮДИ ПОИМЁННО, по почте: у ролей сотрудников (audience: staff)",
+    "это единственный способ раздачи. Сотрудник, не названный ни в одной роли,",
+    "останавливает assignRoles.js — молча приписать ему роль по старым галочкам",
+    "нельзя, раздача сотрудникам сделана руками и повторяется один в один.",
+    "Отключённые учётки перечисляются наравне с действующими: отключение роль",
+    "не снимает.",
     "",
-    "Пользователь, чья подпись не описана НИ ОДНОЙ ролью, останавливает скрипт.",
-    "Это защита от расхождения дева и прода: на проде наборы могли уйти вперёд.",
+    "`matches` — подписи ДОРОЛЕВЫХ наборов галочек, которые КЛИЕНТСКАЯ роль",
+    "поглощает (audience: client). Каждая подпись — список ключей в порядке",
+    "scripts/legacyPermissions.js. Клиент, чья подпись не описана ни одной",
+    "ролью, останавливает скрипт: на проде наборы могли уйти вперёд от копии.",
     "",
-    "Роль «admin» ОБЯЗАНА содержать весь словарь: по признаку «роль отдаёт всё»",
-    "зеркалится user.isAdmin (auth/access.js#isFullAccess). Новое действие в",
-    "словаре — новая строка здесь, иначе зеркало погаснет у всех администраторов."
+    "Роль полного доступа ОБЯЗАНА содержать весь словарь: по признаку «роль",
+    "отдаёт всё» зеркалится user.isAdmin (auth/access.js#isFullAccess). Новое",
+    "действие в словаре — пересобрать файл, иначе зеркало погаснет у всех",
+    "администраторов."
   ],
   "roles": [
     {
@@ -43,12 +48,20 @@
       ]
     },
     {
-      "key": "client-company",
-      "title": "Клиент: все заявки компании",
+      "key": "client-admin",
+      "title": "Клиент: администратор",
       "audience": "client",
       "description": "Видит заявки всех сотрудников своей компании",
       "actions": [
-        "ticket.readCompany"
+        "ticket.readCompany",
+        "ticket.createForOthers",
+        "report.works",
+        "report.companies",
+        "approval.decide",
+        "servicePlan.read",
+        "company.read",
+        "user.read",
+        "device.read"
       ],
       "matches": [
         [
@@ -134,107 +147,16 @@
         "settings.manageIntegrations",
         "settings.manageSecurity"
       ],
-      "matches": [
-        [
-          "canPerformTickets",
-          "canAdministrateTickets",
-          "canSeeAllCompanyTickets",
-          "canSeeAllTickets",
-          "canEditTickets",
-          "canDeleteTickets",
-          "canManageCompanies",
-          "canManageUsers",
-          "canManageTicketCategories",
-          "canManageKnowledgeBase",
-          "canSeeKnowledgeBase",
-          "canManageRoutineTasks",
-          "canManageTicketTemplates",
-          "canUseTimeTrackingModule",
-          "canSeeWorksReport",
-          "canSeeAnalytics",
-          "canUseInventoryModule",
-          "canManageClientDevices",
-          "canManageMikrotikDevices",
-          "canManageMikrotikConfigs",
-          "canUseFinancesModule",
-          "canManageServicePlans",
-          "canSeeGlobalFinancialReport",
-          "canConfirmReportActions"
-        ],
-        [
-          "canPerformTickets",
-          "canAdministrateTickets",
-          "canSeeAllTickets",
-          "canEditTickets",
-          "canDeleteTickets",
-          "canManageCompanies",
-          "canManageUsers",
-          "canManageTicketCategories",
-          "canManageKnowledgeBase",
-          "canSeeKnowledgeBase",
-          "canManageRoutineTasks",
-          "canManageTicketTemplates",
-          "canUseTimeTrackingModule",
-          "canSeeWorksReport",
-          "canSeeAnalytics",
-          "canUseInventoryModule",
-          "canManageClientDevices",
-          "canManageMikrotikDevices",
-          "canManageMikrotikConfigs",
-          "canUseFinancesModule",
-          "canManageServicePlans",
-          "canSeeGlobalFinancialReport",
-          "canConfirmReportActions"
-        ],
-        [
-          "canPerformTickets",
-          "canAdministrateTickets",
-          "canSeeAllTickets",
-          "canEditTickets",
-          "canDeleteTickets",
-          "canManageCompanies",
-          "canManageUsers",
-          "canManageTicketCategories",
-          "canManageKnowledgeBase",
-          "canSeeKnowledgeBase",
-          "canManageRoutineTasks",
-          "canManageTicketTemplates",
-          "canUseTimeTrackingModule",
-          "canSeeWorksReport",
-          "canSeeAnalytics",
-          "canUseInventoryModule",
-          "canManageClientDevices",
-          "canManageMikrotikDevices",
-          "canUseFinancesModule",
-          "canManageServicePlans",
-          "canSeeGlobalFinancialReport"
-        ],
-        [
-          "canPerformTickets",
-          "canAdministrateTickets",
-          "canSeeAllTickets",
-          "canEditTickets",
-          "canDeleteTickets",
-          "canManageCompanies",
-          "canManageUsers",
-          "canManageTicketCategories",
-          "canManageKnowledgeBase",
-          "canSeeKnowledgeBase",
-          "canManageRoutineTasks",
-          "canUseTimeTrackingModule",
-          "canSeeWorksReport",
-          "canUseInventoryModule",
-          "canManageClientDevices",
-          "canManageMikrotikDevices",
-          "canUseFinancesModule",
-          "canManageServicePlans",
-          "canSeeGlobalFinancialReport"
-        ]
+      "members": [
+        "a.savin@f1lab.ru",
+        "a.shvetsov@f1lab.ru",
+        "s.odzyal@f1lab.ru",
+        "y.em@f1lab.ru"
       ]
     },
     {
-      "key": "engineer",
-      "title": "Инженер",
+      "key": "it-first-line",
+      "title": "ИТ-Специалист: первая линия",
       "audience": "staff",
       "description": "Заявки, учёт времени, техника клиентов",
       "actions": [
@@ -242,78 +164,62 @@
         "ticket.createForOthers",
         "work.read",
         "work.log",
+        "report.own",
         "company.read",
+        "company.readLogs",
         "user.read",
         "schedule.read",
+        "knowledge.read",
+        "knowledge.manage",
         "device.read",
         "device.manage",
         "inventoryCatalog.read",
         "inventoryCatalog.manage",
         "supplier.read",
-        "supplier.manage",
         "mikrotik.read",
-        "mikrotik.manage"
+        "remoteSupport.use"
       ],
-      "matches": [
-        [
-          "canPerformTickets"
-        ],
-        [
-          "canPerformTickets",
-          "canUseTimeTrackingModule"
-        ],
-        [
-          "canUseTimeTrackingModule",
-          "canUseInventoryModule",
-          "canManageClientDevices",
-          "canManageMikrotikDevices"
-        ]
+      "members": [
+        "i.chernov@f1lab.ru",
+        "m.guryanov@f1lab.ru",
+        "t.zhuravskaya@f1lab.ru",
+        "v.yushin@f1lab.ru"
       ]
     },
     {
-      "key": "engineer-noworks",
-      "title": "Инженер: закрытие без работ",
+      "key": "contractor-no-works",
+      "title": "Сторонний исполнитель: без указания работ",
       "audience": "staff",
       "description": "Инженер, которому можно закрыть заявку без записи о работе",
       "actions": [
         "ticket.perform",
-        "ticket.createForOthers",
         "ticket.closeWithoutWork",
-        "work.read",
-        "work.log",
         "company.read",
-        "user.read",
-        "schedule.read",
-        "device.read",
-        "device.manage",
-        "inventoryCatalog.read",
-        "inventoryCatalog.manage",
-        "supplier.read",
-        "supplier.manage",
-        "mikrotik.read",
-        "mikrotik.manage"
+        "user.read"
       ],
-      "matches": [
-        [
-          "canPerformTickets",
-          "canUseTimeTrackingModule",
-          "canAvoidWorks"
-        ]
+      "members": [
+        "crm@anlex.ru",
+        "kirpichev@dvregion.ru"
       ]
     },
     {
-      "key": "engineer-lead",
-      "title": "Ведущий инженер",
+      "key": "it-second-line",
+      "title": "ИТ-Специалист: вторая линия",
       "audience": "staff",
       "description": "Инженер плюс все заявки, база знаний, регламенты и конфигурации Mikrotik",
       "actions": [
         "ticket.readAll",
         "ticket.perform",
         "ticket.createForOthers",
+        "ticketTemplate.manage",
+        "checklistTemplate.manage",
         "routineTask.manage",
         "work.read",
         "work.log",
+        "report.works",
+        "report.own",
         "company.read",
+        "company.readLogs",
         "user.read",
         "schedule.read",
         "knowledge.read",
@@ -323,121 +229,14 @@
         "inventoryCatalog.read",
         "inventoryCatalog.manage",
         "supplier.read",
-        "supplier.manage",
         "mikrotik.read",
         "mikrotik.manage",
-        "mikrotik.manageConfigs"
+        "mikrotik.manageConfigs",
+        "remoteSupport.use"
       ],
-      "matches": [
-        [
-          "canSeeAllTickets",
-          "canManageRoutineTasks",
-          "canUseTimeTrackingModule",
-          "canUseInventoryModule",
-          "canManageClientDevices",
-          "canManageMikrotikDevices"
-        ],
-        [
-          "canPerformTickets",
-          "canManageKnowledgeBase",
-          "canSeeKnowledgeBase",
-          "canManageRoutineTasks",
-          "canUseTimeTrackingModule",
-          "canUseInventoryModule",
-          "canManageClientDevices",
-          "canManageMikrotikDevices",
-          "canManageMikrotikConfigs"
-        ]
-      ]
-    },
-    {
-      "key": "engineer-lead-finance",
-      "title": "Ведущий инженер: финансы",
-      "audience": "staff",
-      "description": "Ведущий инженер плюс финансовый модуль и личный финансовый отчёт",
-      "actions": [
-        "ticket.readAll",
-        "ticket.perform",
-        "ticket.createForOthers",
-        "work.read",
-        "work.log",
-        "report.own",
-        "servicePlan.read",
-        "company.read",
-        "user.read",
-        "schedule.read",
-        "knowledge.read",
-        "knowledge.manage",
-        "device.read",
-        "device.manage",
-        "inventoryCatalog.read",
-        "inventoryCatalog.manage",
-        "supplier.read",
-        "supplier.manage",
-        "mikrotik.read",
-        "mikrotik.manage"
-      ],
-      "matches": [
-        [
-          "canPerformTickets",
-          "canSeeAllTickets",
-          "canManageKnowledgeBase",
-          "canSeeKnowledgeBase",
-          "canUseTimeTrackingModule",
-          "canUseInventoryModule",
-          "canManageClientDevices",
-          "canManageMikrotikDevices",
-          "canUseFinancesModule",
-          "canSeePersonalFinancialReport"
-        ],
-        [
-          "canPerformTickets",
-          "canSeeAllCompanyTickets",
-          "canSeeAllTickets",
-          "canManageKnowledgeBase",
-          "canSeeKnowledgeBase",
-          "canUseTimeTrackingModule",
-          "canUseInventoryModule",
-          "canManageClientDevices",
-          "canManageMikrotikDevices",
-          "canUseFinancesModule",
-          "canSeePersonalFinancialReport"
-        ]
-      ]
-    },
-    {
-      "key": "second-line",
-      "title": "Поддержка второй линии",
-      "audience": "staff",
-      "description": "Добавляется ПОВЕРХ инженерной роли и даёт одно: вход под пользователем. Отдельной ролью, а не правом внутри «Инженера», потому что смотреть портал чужими глазами нужно не каждому",
-      "actions": [
-        "ticket.createForOthers",
-        "company.read",
-        "user.read",
-        "user.impersonate",
-        "schedule.read"
-      ],
-      "matches": []
-    },
-    {
-      "key": "works-accounting",
-      "title": "Учёт работ",
-      "audience": "staff",
-      "description": "Учёт времени и отчёт по работам без доступа к заявкам",
-      "actions": [
-        "ticket.createForOthers",
-        "work.read",
-        "work.log",
-        "report.works",
-        "company.read",
-        "user.read",
-        "schedule.read"
-      ],
-      "matches": [
-        [
-          "canUseTimeTrackingModule",
-          "canSeeWorksReport"
-        ]
+      "members": [
+        "a.echin@f1lab.ru",
+        "i.karpachev@f1lab.ru"
       ]
     }
   ]

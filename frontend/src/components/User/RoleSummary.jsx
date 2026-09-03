@@ -95,8 +95,9 @@ const RoleSummary = ({ roles, catalogue, emptyHint }) => {
     return (
       <div className="rounded-xl border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm">
         <span className="font-semibold">Полный доступ ко всему порталу.</span>{" "}
-        Перечислять права незачем — роль «{full.title}» даёт всё, включая то,
-        что появится позже. Остальные роли ничего не добавят.
+        Роль «{full.title}» открывает все разделы и все действия.
+        {(roles?.length || 0) > 1 &&
+          " Остальные выбранные роли ничего не добавляют."}
       </div>
     );
   }

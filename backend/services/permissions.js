@@ -265,11 +265,52 @@ const permissionFilter = async (actionId) => {
   return { $or: conditions };
 };
 
+/**
+ * Идентификаторы носителей указанных ролей — для фасета «Роль» в списке людей.
+ *
+ * Ключи приходят из строки запроса, поэтому в регулярное выражение попадают
+ * только те, что есть в каталоге: подставлять клиентскую строку в `$regex`
+ * нельзя. Неизвестный ключ не ошибка — он просто никого не находит, и фасет по
+ * удалённой роли честно отдаёт пустой список, а не весь.
+ *
+ * @param {string[]} keys — ключи ролей
+ * @returns {Promise<import("mongoose").Types.ObjectId[]>}
+ */
+const usersWithRoles = async (keys = []) => {
+  const catalogue = await loadRoles();
+  const wanted = [...new Set(keys.map((key) => String(key).trim()))].filter(
+    (key) => key && Object.hasOwn(catalogue, key),
+  );
+  if (!wanted.length) return [];
+
+  const orgId = await organizationId();
+  const members = await mongoose.connection.db
+    .collection("member")
+    .find(
+      {
+        organizationId: orgId,
+        // Несколько ролей плагин хранит строкой через запятую — сравнение по
+        // вхождению, как в permissionFilter выше.
+        $or: wanted.map((role) => ({
+          role: { $regex: `(^|,)\\s*${role}\\s*(,|$)` },
+        })),
+      },
+      { projection: { userId: 1 } },
+    )
+    .toArray();
+
+  return members
+    .map((member) => member.userId)
+    .filter(Boolean)
+    .map((id) => new mongoose.Types.ObjectId(String(id)));
+};
+
 module.exports = {
   effectivePermissions,
   canFor,
   listRoles,
   permissionFilter,
+  usersWithRoles,
   invalidateRoles,
   rolesOfUser,
   loadRoles,

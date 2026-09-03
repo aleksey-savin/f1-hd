@@ -44,6 +44,7 @@ const buildParams = (s) => {
   if (s.company) p.set("company", s.company);
   if (s.online) p.set("online", "true");
   if (s.pro32) p.set("pro32", "true");
+  if (s.roles?.length) p.set("roles", s.roles.join(","));
   if (s.activity && s.activity !== "any") p.set("activity", s.activity);
   if (s.searchTerm) p.set("search", s.searchTerm);
   p.set("sort", SORT_KEY_BY_LABEL[s.sortBy?.label] || "name");
@@ -91,6 +92,10 @@ const useUserFilterStore = create((set, get) => ({
   audience: "clients",
   company: null,
   companyOptions: [],
+  // Роли — фасет и его справочник. Справочник грузит страница; без права на
+  // чтение ролей он останется пустым, и фасет не показывается.
+  roles: [],
+  roleOptions: [],
   online: false,
   activity: "any",
   activeOnly: true,
@@ -168,6 +173,8 @@ const useUserFilterStore = create((set, get) => ({
 
   setCompanyOptions: (companyOptions) => set({ companyOptions }),
 
+  setRoleOptions: (roleOptions) => set({ roleOptions }),
+
   handleSorting: async (data) => {
     set({ sortBy: data, isSorting: true, page: 1 });
     await doFetch(get, set);
@@ -192,6 +199,7 @@ const useUserFilterStore = create((set, get) => ({
     set({
       audience: "clients",
       company: null,
+      roles: [],
       online: false,
       activity: "any",
       activeOnly: true,

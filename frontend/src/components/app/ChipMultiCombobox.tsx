@@ -15,6 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useInOverlay } from "@/components/app/overlay-context";
 import { cn } from "@/lib/utils";
 
 type Option = { value: string; label: string };
@@ -44,6 +45,7 @@ const ChipMultiCombobox = ({
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
+  const inOverlay = useInOverlay();
   const selected = options.filter((option) => value.includes(option.value));
   const active = value.length > 0;
 
@@ -62,7 +64,7 @@ const ChipMultiCombobox = ({
         : countLabel(selected.length);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={inOverlay}>
       <PopoverTrigger asChild>
         <button
           type="button"

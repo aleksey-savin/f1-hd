@@ -20,6 +20,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useInOverlay } from "@/components/app/overlay-context";
 import { cn } from "@/lib/utils";
 
 type ComboboxOption = {
@@ -168,6 +169,7 @@ const Combobox = ({
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
+  const inOverlay = useInOverlay();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const selected = options.find((option) => option.value === value) ?? null;
 
@@ -177,7 +179,7 @@ const Combobox = ({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={inOverlay}>
       {/* relative — якорь для скрытого спутника required */}
       <div className="relative">
         {required && (
@@ -322,6 +324,7 @@ export const MultiCombobox = ({
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
+  const inOverlay = useInOverlay();
   const triggerRef = useRef<HTMLDivElement>(null);
   const selected = options.filter((option) => value.includes(option.value));
 
@@ -333,7 +336,7 @@ export const MultiCombobox = ({
     );
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={inOverlay}>
       {/* relative — якорь для скрытого спутника required */}
       <div className="relative">
         {required && (

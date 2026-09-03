@@ -13,6 +13,13 @@ import { OverlayScrollContext } from "@/components/app/overlay-context";
 // мастера, а секции с рейлом — только для правки.
 
 /**
+ * Якорь секции по её ключу. Экспортируется, потому что на него ссылаются и
+ * снаружи: тело секции может звать «перейти к другой секции» — например, плашка
+ * типа аккаунта в правах ведёт к самому полю типа в «Основном».
+ */
+export const sectionAnchorId = (key) => `form-section-${key}`;
+
+/**
  * Липкий заголовок формы. Скроллится внутренность шторки (app/FormSheet),
  * поэтому заголовок остаётся на месте вместе с крестиком, а `onHeight`
  * отдаёт его высоту рейлу — тот прижимается ровно под него.
@@ -55,7 +62,7 @@ export const FormSections = ({
 }) => {
   const location = useLocation();
   const scroller = useContext(OverlayScrollContext);
-  const anchorId = (key) => `form-section-${key}`;
+  const anchorId = sectionAnchorId;
 
   const keys = sections.map((section) => section.key).join("|");
   useEffect(() => {

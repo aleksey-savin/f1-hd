@@ -58,6 +58,7 @@ const {
 const { runSecretsScan } = require("./services/secretsScanRun");
 const { runWorkStatusReset } = require("./services/workStatusReset");
 const { runWorkStatusAuto } = require("./services/workStatusAuto");
+const { liftExpiredBans } = require("./services/authBan");
 const { runReportAutoApproval } = require("./services/reportAutoApproval");
 const {
   runServiceExpiryScan,
@@ -439,6 +440,23 @@ cron.schedule("0 * * * *", async () => {
     isScanningSecrets = false;
   }
 });
+
+// Отключения с вышедшим сроком — снимаем раз в минуту. Гейты доступа считают
+// срок сами (`isBanned`), а этот прогон приводит в порядок ДОКУМЕНТ: списки,
+// рассылка и табло фильтруют по `banned` и про срок не знают. Плагин `admin`
+// снял бы флаг при входе, но до его хука наши гейты не доходят, а клиенты
+// входят редко — письма при этом идут им постоянно (см. services/authBan).
+guardedCron(
+  "expired bans lift",
+  "* * * * *",
+  async () => {
+    const lifted = await liftExpiredBans();
+    if (lifted) {
+      logger.log("info", `Expired bans lifted: ${lifted}`);
+    }
+  },
+  10000,
+);
 
 // Ночные обслуживающие задания — по настенным часам БИЗНЕС-таймзоны: без
 // опции node-cron исполнял бы «2:00»/«3:00» по UTC контейнера, т.е. днём для
