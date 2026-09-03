@@ -1857,7 +1857,7 @@ exports.getWorkStatuses = async (req, res, next) => {
       isCloudTelephony: false,
       hideWorkStatus: { $ne: true },
     })
-      .select("_id firstName lastName profileImagePath workStatus")
+      .select("_id firstName lastName profileImagePath workStatus nextShiftAt")
       .sort({ lastName: 1 })
       .lean();
 

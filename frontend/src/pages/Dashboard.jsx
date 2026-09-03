@@ -1,5 +1,6 @@
 import { useContext, useEffect } from "react";
 import { redirect } from "react-router";
+import { MobileView } from "react-device-detect";
 
 import PageShell from "@/components/app/PageShell";
 import KbAttention from "../components/Dashboard/KbAttention";
@@ -10,6 +11,7 @@ import ScheduledWorks from "../components/Dashboard/ScheduledWorks";
 import ServiceExpiry from "../components/Dashboard/ServiceExpiry";
 import StaffKpis from "../components/Dashboard/StaffKpis";
 import StaffTickets from "../components/Dashboard/StaffTickets";
+import TeamNow from "../components/Dashboard/TeamNow";
 import TechSection from "@/components/app/TechSection";
 import TemplateTiles from "../components/Dashboard/TemplateTiles";
 import usePolling from "../hooks/use-polling";
@@ -80,6 +82,11 @@ const DashboardStaff = () => {
 
   return (
     <>
+      {/* Телефон: команда на главной вместо ленты в шелле; на десктопе —
+          рейл, блок был бы дублированием */}
+      <MobileView renderWithFragment>
+        <TeamNow />
+      </MobileView>
       <StaffKpis />
       <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start">
         <div className="flex flex-col gap-5">

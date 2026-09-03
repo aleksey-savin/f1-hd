@@ -157,17 +157,13 @@ body:has(.mobile-shell),
 }
 
 /* Бейдж масштабируется ОТ РАЗМЕРА КРУГЛЯША (em), но не мельче читаемого
-   минимума: max() от em и px в сетке нет. Смещение на пол-пикселя — оптическое
-   центрирование: цветные эмодзи-глифы (Noto/Segoe) прижаты в своих метриках
-   влево-вниз. */
+   минимума: max() от em и px в сетке нет. Внутри — иконка каталога
+   (WorkStatusAvatar), подгонок под эмодзи-глифы больше нет. */
 .ws-avatar__badge {
   right: -8px;
   bottom: -7px;
   width: max(21px, 1.65em);
   height: max(21px, 1.65em);
-  font-size: max(13.5px, 1.05em);
-  padding-left: 1.5px;
-  padding-bottom: 1px;
 }
 
 /* Пульсирующая точка «живых» данных: расходящееся кольцо — псевдоэлемент с
@@ -200,21 +196,23 @@ body:has(.mobile-shell),
    WorkStatusBar.jsx). Правило НЕ в слое: нелоённый CSS сильнее любого слоя,
    поэтому оно перебивает px-12 контейнера оболочки из layer(utilities) без
    !important. */
-@media (min-width: 992px) {
+/* Порог тот же, что у самого рейла (max-lg:hidden = 1024px): резерв без рейла
+   или рейл без резерва — оба состояния ломают страницу. */
+@media (min-width: 1024px) {
   .has-ws-rail {
     /* свёрнутый рейл w-18 (4.5rem) + воздух; в rem, чтобы масштабироваться
        вместе с рейлом при личном размере текста */
     padding-right: 5.75rem;
+    transition: padding-right 300ms;
+  }
+  /* Раскрытый рейл стоит в потоке и сдвигает контент, а не накрывает его:
+     w-84 (21rem) + воздух */
+  .has-ws-rail-open {
+    padding-right: 22rem;
   }
 }
 .ws-rail-scroll {
   scrollbar-width: thin;
-}
-.ws-strip-scroll {
-  scrollbar-width: none;
-}
-.ws-strip-scroll::-webkit-scrollbar {
-  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

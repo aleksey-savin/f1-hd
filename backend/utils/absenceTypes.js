@@ -40,7 +40,7 @@ const ABSENCE_TYPES = [
     short: "Ог",
     emoji: "🕘",
     reducesNorm: true,
-    workStatus: "absent",
+    workStatus: "offshift",
   },
   {
     code: "unpaid",
@@ -48,7 +48,7 @@ const ABSENCE_TYPES = [
     short: "Бс",
     emoji: "📄",
     reducesNorm: true,
-    workStatus: "absent",
+    workStatus: "offshift",
   },
   {
     code: "training",

@@ -13,7 +13,10 @@
 //   kind   — working: на связи; break: на смене, но недоступен (обед);
 //            away: его нет; idle: рабочее время не идёт
 //   manual — можно ли выбрать самому. Отсутствия (отпуск, болею) ставятся
-//            автоматически из подтверждённых заявок, «не на работе» — по графику
+//            автоматически из подтверждённых заявок; «не на работе» ставит и
+//            график, и сам человек (форс-мажор без заявки), и согласованный
+//            отгул или дни без содержания — прежний «отсутствует» слит сюда:
+//            оба значили «его нет», а почему и до когда, говорит заметка
 //   visit  — можно ли отправить к клиенту физически (удалёнка может быть и из
 //            другой страны, поэтому она false)
 const WORK_STATUSES = [
@@ -21,10 +24,9 @@ const WORK_STATUSES = [
   { code: "remote", label: "на удалёнке", emoji: "🏠", kind: "working", manual: true, visit: false, longLived: false },
   { code: "trip", label: "на выезде", emoji: "🚗", kind: "working", manual: true, visit: true, longLived: false },
   { code: "lunch", label: "обед", emoji: "🍜", kind: "break", manual: true, visit: false, longLived: false },
-  { code: "offshift", label: "не на работе", emoji: "🌙", kind: "idle", manual: false, visit: false, longLived: false },
+  { code: "offshift", label: "не на работе", emoji: "🚶", kind: "idle", manual: true, visit: false, longLived: false },
   { code: "vacation", label: "отпуск", emoji: "🌴", kind: "away", manual: false, visit: false, longLived: true },
   { code: "sick", label: "болею", emoji: "🤒", kind: "away", manual: false, visit: false, longLived: true },
-  { code: "absent", label: "отсутствует", emoji: "🚫", kind: "away", manual: false, visit: false, longLived: true },
   { code: "unset", label: "не указан", emoji: "▫️", kind: "idle", manual: true, visit: false, longLived: false },
 ];
 
@@ -46,7 +48,7 @@ const WORKING_STATUS_CODES = codesWhere((s) => s.kind === "working");
 // На смене: работает или на обеде — этим календарь считает доступность дня
 const ON_SHIFT_STATUS_CODES = codesWhere((s) => s.kind === "working" || s.kind === "break");
 const BREAK_STATUS_CODES = codesWhere((s) => s.kind === "break");
-// Человека нет: отпуск, больничный
+// Человека нет и не будет до конца отсутствия: отпуск, больничный
 const AWAY_STATUS_CODES = codesWhere((s) => s.kind === "away");
 // Кого можно физически отправить к клиенту
 const VISIT_STATUS_CODES = codesWhere((s) => s.visit);

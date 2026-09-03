@@ -1,3 +1,14 @@
+import {
+  RiBuilding2Line,
+  RiCarLine,
+  RiCheckboxBlankCircleLine,
+  RiHome4Line,
+  RiRestaurantLine,
+  RiSunLine,
+  RiThermometerLine,
+  RiWalkLine,
+} from "react-icons/ri";
+
 // Каталог статусов присутствия сотрудников.
 // Держать в синхронизации три копии: backend/utils/workStatuses.js,
 // frontend/src/util/work-statuses.js —
@@ -5,12 +16,15 @@
 // Порядок массива задаёт порядок групп в баре статусов и на Telegram-табло.
 //
 // color здесь — css-переменные (--ws-st-* в styles/tailwind.css): светлая тема
-// приглушённее, тёмная ярче; копии бота/бэкенда обходятся без цвета.
+// приглушённее, тёмная ярче; icon — компонент `Ri*` для веба (бейдж аватара,
+// заголовки групп, чипы меню). emoji остаются для Telegram-табло: там иконок
+// нет. Копия бэкенда обходится без цвета и иконки.
 //
 // СЕМАНТИКА ЖИВЁТ ЗДЕСЬ, а не в списках кодов по компонентам:
 //   kind   — working: на связи; break: на смене, но недоступен (обед);
 //            away: его нет; idle: рабочее время не идёт
-//   manual — можно ли выбрать самому (отсутствия и «не на работе» ставит автоматика)
+//   manual — можно ли выбрать самому (отпуск и болею ставит автоматика;
+//            «не на работе» — и график, и сам человек при форс-мажоре)
 //   visit  — можно ли отправить к клиенту физически
 export const WORK_STATUSES = [
   {
@@ -22,6 +36,7 @@ export const WORK_STATUSES = [
     visit: true,
     longLived: false,
     color: "var(--ws-st-office)",
+    icon: RiBuilding2Line,
   },
   {
     code: "remote",
@@ -32,6 +47,7 @@ export const WORK_STATUSES = [
     visit: false,
     longLived: false,
     color: "var(--ws-st-remote)",
+    icon: RiHome4Line,
   },
   {
     code: "trip",
@@ -42,6 +58,7 @@ export const WORK_STATUSES = [
     visit: true,
     longLived: false,
     color: "var(--ws-st-trip)",
+    icon: RiCarLine,
   },
   {
     code: "lunch",
@@ -52,16 +69,18 @@ export const WORK_STATUSES = [
     visit: false,
     longLived: false,
     color: "var(--ws-st-lunch)",
+    icon: RiRestaurantLine,
   },
   {
     code: "offshift",
     label: "не на работе",
-    emoji: "🌙",
+    emoji: "🚶",
     kind: "idle",
-    manual: false,
+    manual: true,
     visit: false,
     longLived: false,
     color: "var(--ws-st-offshift)",
+    icon: RiWalkLine,
   },
   {
     code: "vacation",
@@ -72,6 +91,7 @@ export const WORK_STATUSES = [
     visit: false,
     longLived: true,
     color: "var(--ws-st-vacation)",
+    icon: RiSunLine,
   },
   {
     code: "sick",
@@ -82,16 +102,7 @@ export const WORK_STATUSES = [
     visit: false,
     longLived: true,
     color: "var(--ws-st-sick)",
-  },
-  {
-    code: "absent",
-    label: "отсутствует",
-    emoji: "🚫",
-    kind: "away",
-    manual: false,
-    visit: false,
-    longLived: true,
-    color: "var(--ws-st-absent)",
+    icon: RiThermometerLine,
   },
   {
     code: "unset",
@@ -102,6 +113,7 @@ export const WORK_STATUSES = [
     visit: false,
     longLived: false,
     color: "var(--ws-st-unset)",
+    icon: RiCheckboxBlankCircleLine,
   },
 ];
 

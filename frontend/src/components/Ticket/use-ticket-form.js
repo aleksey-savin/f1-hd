@@ -1,4 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import useWorkStatusesStore from "../../store/work-statuses";
+import { getWorkStatusMeta } from "../../util/work-statuses";
+import { presenceLine } from "../User/presence";
 
 import { localToUtc, utcToLocalForm } from "../../util/format-date";
 
@@ -127,27 +131,57 @@ export const useTicketForm = ({
     );
   }, [formData.applicants, formData.responsibles, companyId, isEndUser]);
 
+  // Присутствие ответственных — из табло статусов (тот же лёгкий запрос, что
+  // у рейла). Решение «кому назначить» принимают здесь, и смотреть для этого
+  // в рейл и обратно не нужно. Клиенту ручка закрыта — ему и не показываем.
+  const {
+    users: presenceUsers,
+    isLoaded: presenceLoaded,
+    silentRefresh: refreshPresence,
+  } = useWorkStatusesStore();
+  useEffect(() => {
+    if (!isEndUser && !presenceLoaded) refreshPresence();
+  }, [isEndUser, presenceLoaded, refreshPresence]);
+  const presenceById = useMemo(
+    () => new Map(presenceUsers.map((user) => [asId(user), user])),
+    [presenceUsers],
+  );
+
   // Кто ведёт выбранную категорию — раньше это говорил цвет имени (зелёное
   // против оранжевого). Цвет по гайду говорит о состоянии, а не о виде записи,
   // и вдобавок не работал: `users` у категории бэкенд не отдавал вовсе.
   const responsibleOptions = useMemo(() => {
     const owners = new Set((category?.users ?? []).map((user) => asId(user)));
     const label = (person) => `${person.lastName} ${person.firstName}`.trim();
-    const options = (formData.responsibles ?? []).map((person) => ({
-      value: asId(person),
-      label: label(person),
-      group: owners.has(asId(person))
-        ? `Ведут «${category.title}»`
-        : owners.size
-          ? "Остальные"
-          : undefined,
-    }));
-    // Своя группа идёт первой — ради неё группировка и заведена
-    return options.sort((a, b) => {
-      if (a.group === b.group) return 0;
-      return a.group && a.group !== "Остальные" ? -1 : 1;
+    // На связи — первыми, обед — за ними, отсутствующие — последними
+    const RANK = { working: 0, break: 1 };
+    const options = (formData.responsibles ?? []).map((person) => {
+      const live = presenceById.get(asId(person));
+      const meta = live ? getWorkStatusMeta(live.workStatus?.code) : null;
+      return {
+        value: asId(person),
+        label: label(person),
+        hint: live ? presenceLine(live) : undefined,
+        dot: meta && meta.code !== "unset" ? meta.color : undefined,
+        rank: meta ? (RANK[meta.kind] ?? 2) : 2,
+        group: owners.has(asId(person))
+          ? `Ведут «${category.title}»`
+          : owners.size
+            ? "Остальные"
+            : undefined,
+      };
     });
-  }, [formData.responsibles, category]);
+    // Своя группа идёт первой — ради неё группировка и заведена; внутри
+    // группы — по присутствию, остальной порядок сервера сохраняется
+    return options
+      .sort((a, b) => {
+        if (a.group !== b.group) {
+          return a.group && a.group !== "Остальные" ? -1 : 1;
+        }
+        return a.rank - b.rank;
+      })
+      .map(({ rank, ...option }) => option);
+  }, [formData.responsibles, category, presenceById]);
 
   const errors = useMemo(() => {
     const found = {};

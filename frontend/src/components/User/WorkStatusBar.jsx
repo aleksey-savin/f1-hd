@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState } from "react";
 
-import { RiArrowDownSLine, RiArrowLeftSLine } from "react-icons/ri";
+import { RiArrowLeftSLine } from "react-icons/ri";
 
 import {
   Tooltip,
@@ -13,90 +13,41 @@ import { cn } from "@/lib/utils";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useWorkStatusesStore from "../../store/work-statuses";
 import usePolling from "../../hooks/use-polling";
-import { WORK_STATUSES } from "../../util/work-statuses";
 import {
-  businessDayKey,
-  formatDayMonth,
-  formatTime,
-} from "../../util/format-date";
+  availabilitySummary,
+  groupByStatus,
+  presenceLine,
+  updatedLabel,
+} from "./presence";
+import { GroupHeading, IdleGroup, PersonRow } from "./PresenceList";
 import WorkStatusAvatar from "./WorkStatusAvatar";
 
-const STORAGE_KEY = "workStatusBarOpen";
-
-// «с HH:MM» для сегодняшних смен статуса, «с DD.MM» для более старых. «Сегодня»
-// — день бизнес-таймзоны (табло общее для всей организации), а не браузера.
-const sinceLabel = (updatedAt) => {
-  if (!updatedAt) {
-    return "";
-  }
-  return businessDayKey(updatedAt) === businessDayKey()
-    ? `с ${formatTime(updatedAt)}`
-    : `с ${formatDayMonth(updatedAt)}`;
-};
-
-const personTitle = (user, status) =>
-  `${user.lastName} ${user.firstName} — ${status.label}` +
-  (user.workStatus?.note ? ` (${user.workStatus.note})` : "");
-
-// Uppercase-заголовок группы цветом статуса, счётчик — приглушённый
-const GroupHeading = ({ status, count, className }) => (
-  <p
-    className={cn(
-      "my-0 flex items-baseline gap-1.5 text-xs font-bold tracking-wider whitespace-nowrap uppercase",
-      className,
-    )}
-    style={{ color: status.color }}
-  >
-    {status.emoji} {status.label}
-    <span className="font-semibold tracking-normal text-faint">· {count}</span>
-  </p>
-);
-
-// Строка сотрудника в развёрнутом виде: имя, статус текстом, время, заметка
-const PersonRow = ({ user, status }) => (
-  <div className="flex min-h-12 items-center gap-2.5 px-3.5 py-1 transition-colors hover:bg-accent">
-    <WorkStatusAvatar
-      size={38}
-      firstName={user.firstName}
-      lastName={user.lastName}
-      profileImagePath={user.profileImagePath}
-      workStatus={user.workStatus}
-    />
-    <span className="min-w-0 flex-1 leading-snug">
-      <span className="block truncate text-sm font-semibold">
-        {user.lastName} {user.firstName}
-      </span>
-      <span className="block truncate text-xs" style={{ color: status.color }}>
-        {status.label}
-        {user.workStatus?.updatedAt && (
-          <span className="text-muted-foreground tabular-nums">
-            {" "}
-            · {sinceLabel(user.workStatus.updatedAt)}
-          </span>
-        )}
-      </span>
-      {user.workStatus?.note && (
-        <span className="block truncate text-xs text-muted-foreground">
-          {user.workStatus.note}
-        </span>
-      )}
-    </span>
-  </div>
-);
-
-// Бар статусов сотрудников (согласованный мокап, перенос на tw — Фаза 2+):
-// - rail: вертикальная панель у правого края (десктоп), свёрнута до колонки
-//   кругляшей с тултипами влево, раскрывается в список со статусом текстом,
-//   сводкой в шапке и футером «Обновлено…»;
-// - strip: тонкая лента сверху (мобильный app-shell), горизонтальный скролл
-//   со скрытым скролл-баром и градиентом справа, тап раскрывает список.
+// Рейл статусов сотрудников (десктоп, ≥ lg): вертикальная панель у правого
+// края, свёрнута до колонки кругляшей с тултипами влево, раскрывается в список
+// со статусом текстом, сводкой в шапке и футером «Обновлено…».
+//
+// Раскрытый рейл СТОИТ В ПОТОКЕ, а не накрывает контент: сам он fixed (иначе
+// уезжал бы со скроллом), а место под него резервирует оболочка —
+// `has-ws-rail` / `has-ws-rail-open` в layout/Root по состоянию стора.
+//
+// Норма молчит: «не на работе» и «не указан» (kind idle) свёрнуты в строку со
+// счётчиком, в свёрнутом рейле — в кружок «+N»; кольца и имена — у тех, кто на
+// связи, и у исключений (отпуск, больничный). Сводка в шапке — от доступности.
 // Авторизованный пользователь в списки не попадает — его статус в навбаре.
-const WorkStatusBar = ({ variant = "rail" }) => {
+// Мобильной ленты больше нет: на телефоне команда — блок на главной.
+const personTitle = (user) =>
+  `${user.lastName} ${user.firstName} — ${presenceLine(user)}`;
+
+const WorkStatusBar = () => {
   const authedUser = useContext(AuthedUserContext);
-  const { users, isLoaded, silentRefresh } = useWorkStatusesStore();
-  const [open, setOpen] = useState(
-    () => localStorage.getItem(STORAGE_KEY) === "true",
-  );
+  const {
+    users,
+    isLoaded,
+    silentRefresh,
+    railOpen: open,
+    toggleRail: toggle,
+  } = useWorkStatusesStore();
+  const [idleOpen, setIdleOpen] = useState({});
 
   const isStaff =
     !!authedUser._id && !authedUser.isEndUser && !authedUser.hideWorkStatus;
@@ -120,18 +71,15 @@ const WorkStatusBar = ({ variant = "rail" }) => {
     return null;
   }
 
-  const groups = WORK_STATUSES.map((status) => ({
-    status,
-    users: colleagues.filter(
-      (user) => (user.workStatus?.code || "unset") === status.code,
-    ),
-  })).filter((group) => group.users.length > 0);
+  const groups = groupByStatus(colleagues);
+  const shown = groups.filter((group) => group.status.kind !== "idle");
+  const idle = groups.filter((group) => group.status.kind === "idle");
+  const idleCount = idle.reduce((sum, group) => sum + group.users.length, 0);
+  const idleTitle = idle
+    .map((group) => `${group.status.label} · ${group.users.length}`)
+    .join(", ");
 
-  const summary = groups
-    .filter((group) => group.status.code !== "unset")
-    .slice(0, 3)
-    .map((group) => `${group.users.length} ${group.status.label}`)
-    .join(" · ");
+  const summary = availabilitySummary(colleagues);
 
   // Футер честен ко времени данных: max(updatedAt), не «сейчас»
   // (паттерн Telegram-табло)
@@ -140,116 +88,11 @@ const WorkStatusBar = ({ variant = "rail" }) => {
     return value && (!latest || value > latest) ? value : latest;
   }, null);
 
-  const toggle = () => {
-    setOpen((prev) => {
-      localStorage.setItem(STORAGE_KEY, String(!prev));
-      return !prev;
-    });
-  };
-
-  if (variant === "strip") {
-    return (
-      <div className="flex-none border-b border-border bg-card">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-label="Статусы сотрудников"
-          onClick={toggle}
-          className="flex w-full cursor-pointer appearance-none items-center gap-2.5 border-0 bg-transparent px-3 py-1.5 outline-none focus-visible:ring-4 focus-visible:ring-ring/50"
-        >
-          <span
-            className="ws-live relative inline-block size-2 flex-none rounded-full bg-primary"
-            aria-hidden="true"
-          />
-          <span className="relative min-w-0 flex-1">
-            <span className="ws-strip-scroll flex items-center gap-2.5 overflow-x-auto py-1 pe-6">
-              {groups.map((group, groupIndex) => (
-                <span
-                  key={group.status.code}
-                  className="flex flex-none items-center gap-1"
-                >
-                  {groupIndex > 0 && (
-                    <span
-                      aria-hidden
-                      className="me-1.5 h-5 w-px flex-none bg-border"
-                    />
-                  )}
-                  {group.users.map((user) => (
-                    <WorkStatusAvatar
-                      key={user._id}
-                      size={32}
-                      firstName={user.firstName}
-                      lastName={user.lastName}
-                      profileImagePath={user.profileImagePath}
-                      workStatus={user.workStatus}
-                    />
-                  ))}
-                </span>
-              ))}
-            </span>
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-r from-transparent to-card"
-            />
-          </span>
-          <RiArrowDownSLine
-            size={17}
-            aria-hidden
-            className={cn(
-              "flex-none text-muted-foreground transition-transform",
-              open && "rotate-180",
-            )}
-          />
-        </button>
-
-        {open && (
-          <div className="flex max-h-72 flex-col gap-3 overflow-y-auto px-3 pt-1 pb-3">
-            {groups.map((group) => (
-              <div key={group.status.code}>
-                <GroupHeading
-                  status={group.status}
-                  count={group.users.length}
-                  className="mb-1.5"
-                />
-                {group.users.map((user) => (
-                  <div
-                    key={user._id}
-                    className="mb-1.5 flex items-center gap-2 rounded-lg border border-border-soft bg-background px-2 py-1.5 last:mb-0"
-                  >
-                    <WorkStatusAvatar
-                      size={26}
-                      firstName={user.firstName}
-                      lastName={user.lastName}
-                      profileImagePath={user.profileImagePath}
-                      workStatus={user.workStatus}
-                      showBadge={false}
-                    />
-                    <span className="text-sm font-semibold whitespace-nowrap">
-                      {user.lastName} {user.firstName}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                      {user.workStatus?.note}
-                    </span>
-                    {user.workStatus?.updatedAt && (
-                      <span className="flex-none border-s border-border-soft ps-2 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-                        {sinceLabel(user.workStatus.updatedAt)}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
     <aside
       className={cn(
         "fixed inset-y-0 right-0 flex flex-col overflow-hidden border-l border-border bg-card pt-16 transition-[width] duration-300 max-lg:hidden",
-        open ? "w-84 shadow-2xl" : "w-18",
+        open ? "w-84" : "w-18",
       )}
       style={{ zIndex: 1020 }}
     >
@@ -259,9 +102,11 @@ const WorkStatusBar = ({ variant = "rail" }) => {
         onClick={toggle}
         title={open ? "Свернуть" : "Статусы сотрудников"}
         className={cn(
-          "flex w-full cursor-pointer appearance-none items-center gap-2.5 border-0 bg-transparent text-left outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
+          // 16px слева — как у заголовков групп и футера; min-h-12 в обоих
+          // состояниях, иначе стрелка прыгала на 3px при сворачивании
+          "flex min-h-12 w-full cursor-pointer appearance-none items-center gap-2.5 border-0 bg-transparent text-left outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
           open
-            ? "min-h-12 border-b border-border-soft px-3.5 py-2"
+            ? "border-b border-border-soft px-4 py-2"
             : "justify-center px-1.5 py-2",
         )}
       >
@@ -286,18 +131,18 @@ const WorkStatusBar = ({ variant = "rail" }) => {
               />{" "}
               Сотрудники
             </span>
-            {summary && (
-              <span className="block truncate text-xs text-muted-foreground tabular-nums">
-                {summary}
-              </span>
-            )}
+            <span className="block truncate text-xs text-muted-foreground tabular-nums">
+              {summary}
+            </span>
           </span>
         )}
       </button>
 
-      <div className="ws-rail-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-1 pb-2.5">
+      {/* pt-2 — первому заголовку те же 8px под шапкой, что остальным под
+          разделителем (mt-1.5 + pt-2 у групп ниже) */}
+      <div className="ws-rail-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-2 pb-2.5">
         <TooltipProvider delayDuration={150}>
-          {groups.map((group, groupIndex) => (
+          {shown.map((group, groupIndex) => (
             <div
               key={group.status.code}
               className={cn(
@@ -333,12 +178,49 @@ const WorkStatusBar = ({ variant = "rail" }) => {
                         </div>
                       </TooltipTrigger>
                       <TooltipContent side="left">
-                        {personTitle(user, group.status)}
+                        {personTitle(user)}
                       </TooltipContent>
                     </Tooltip>
                   ))}
             </div>
           ))}
+
+          {idle.length > 0 &&
+            (open ? (
+              idle.map((group) => (
+                <IdleGroup
+                  key={group.status.code}
+                  status={group.status}
+                  users={group.users}
+                  open={!!idleOpen[group.status.code]}
+                  onToggle={() =>
+                    setIdleOpen((prev) => ({
+                      ...prev,
+                      [group.status.code]: !prev[group.status.code],
+                    }))
+                  }
+                  className={cn(
+                    (shown.length > 0 || groups[0] !== group) &&
+                      "mt-1.5 border-t border-border-soft pt-1",
+                  )}
+                />
+              ))
+            ) : (
+              <div
+                className={cn(
+                  shown.length > 0 && "mt-1.5 border-t border-border-soft pt-2",
+                )}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="mx-auto grid h-6 w-9.5 cursor-default place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground tabular-nums">
+                      +{idleCount}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">{idleTitle}</TooltipContent>
+                </Tooltip>
+              </div>
+            ))}
         </TooltipProvider>
       </div>
 
@@ -346,8 +228,8 @@ const WorkStatusBar = ({ variant = "rail" }) => {
         <div className="flex-none truncate border-t border-border-soft px-4 py-2 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           {/* Про ночной сброс писать больше нельзя: днём статусы ведёт
               автоматика по графику (services/workStatusAuto) */}
-          Обновлено {sinceLabel(lastUpdatedAt).replace(/^с /, "в ")} · статусы
-          меняются по графику
+          Обновлено {updatedLabel(lastUpdatedAt)} · статусы меняются по
+          графику
         </div>
       )}
     </aside>

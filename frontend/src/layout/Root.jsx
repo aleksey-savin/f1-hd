@@ -31,6 +31,7 @@ import MobileBottomNavbar from "./MobileBottomNavbar";
 import { getLocalStorageData, getTokenDuration } from "../util/auth";
 import useOffcanvasStore from "../store/offcanvas";
 import useInitialPrefsStore from "../store/prefs";
+import useWorkStatusesStore from "../store/work-statuses";
 import { ThemeContext } from "../store/theme-context";
 import useRouteErrorStore from "../store/route-error";
 
@@ -218,6 +219,7 @@ const RootLayout = () => {
   // для первой отрисовки. Сервер побеждает: на общем рабочем месте после
   // входа другого человека действует его выбор, а не прошлого.
   const { fontScale, setFontScale } = useContext(ThemeContext);
+  const railOpen = useWorkStatusesStore((state) => state.railOpen);
   useEffect(() => {
     const server = userData?.fontScale;
     if (server && server !== fontScale) {
@@ -285,7 +287,7 @@ const RootLayout = () => {
           {/* Бар статусов: фиксирован к правому краю окна. Рендерим вне
               Transitions — transform у предка ломает position: fixed */}
           {!userData?.isEndUser && !userData?.hideWorkStatus && (
-            <WorkStatusBar variant="rail" />
+            <WorkStatusBar />
           )}
         </BrowserView>
       )}
@@ -306,8 +308,9 @@ const RootLayout = () => {
           )}
           {/* Контентная область оболочки. Ширина 1920 и отступ под фиксированный
               бар — стилем: ни того, ни другого нет во встроенной сетке tw.
-              has-ws-rail резервирует место под свёрнутый рейл статусов
-              (правило в index.css). */}
+              has-ws-rail резервирует место под рейл статусов, has-ws-rail-open
+              — под раскрытый: рейл стоит в потоке и сдвигает контент, а не
+              накрывает его (правила в index.css). */}
           <div
             // 5rem = бар h-14 (3.5rem) + 1.5rem воздуха; в rem, потому что бар
             // в rem, а личный масштаб текста двигает и то и другое
@@ -318,6 +321,11 @@ const RootLayout = () => {
                 !userData?.isEndUser &&
                 !userData?.hideWorkStatus &&
                 "has-ws-rail",
+              isLoggedIn &&
+                !userData?.isEndUser &&
+                !userData?.hideWorkStatus &&
+                railOpen &&
+                "has-ws-rail-open",
             )}
           >
             <div
@@ -432,10 +440,9 @@ const RootLayout = () => {
         {isLoggedIn ? (
           <div className="mobile-shell fixed inset-0 flex flex-col overflow-hidden">
             <NavigationBar embedded />
-            {/* Лента статусов сотрудников: flex-элемент шелла, не fixed */}
-            {!userData?.isEndUser && !userData?.hideWorkStatus && (
-              <WorkStatusBar variant="strip" />
-            )}
+            {/* Ленты статусов в шелле больше нет: 56px на каждом экране ради
+                информации, которая нужна изредка. На телефоне команда — блок
+                «Команда сейчас» на главной (components/Dashboard/TeamNow) */}
             <main
               className="mobile-shell__scroll min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
               ref={mobileScrollRef}

@@ -24,7 +24,6 @@ export type WorkStatusCode =
   | "remote"
   | "trip"
   | "lunch"
-  | "absent"
   | "offshift"
   | "vacation"
   | "sick"

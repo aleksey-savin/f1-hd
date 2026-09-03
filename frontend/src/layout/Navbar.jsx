@@ -155,7 +155,7 @@ const UserMenu = ({ trigger, align = "end" }) => {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent align={align} className="w-64 p-1.5">
+      <PopoverContent align={align} className="w-80 p-1.5">
         {workStatusAvailable && (
           <>
             <WorkStatusSwitcher />

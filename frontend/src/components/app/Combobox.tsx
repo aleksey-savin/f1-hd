@@ -41,6 +41,12 @@ type ComboboxOption = {
    * подразделении — и подпись объясняет, где именно.
    */
   disabled?: boolean;
+  /**
+   * Цвет точки перед названием — присутствие сотрудника в выборе
+   * ответственного (тон статуса из каталога). Точка, а не иконка: в строке
+   * списка ей хватает 8px, а смысл несёт подпись `hint`.
+   */
+  dot?: string;
 };
 
 /**
@@ -56,6 +62,7 @@ export const toOptions = <T,>(
     hint?: (item: T) => string | undefined;
     group?: (item: T) => string | undefined;
     disabled?: (item: T) => boolean;
+    dot?: (item: T) => string | undefined;
   },
 ): ComboboxOption[] =>
   items.map((item) => ({
@@ -64,6 +71,7 @@ export const toOptions = <T,>(
     hint: map.hint?.(item),
     group: map.group?.(item),
     disabled: map.disabled?.(item),
+    dot: map.dot?.(item),
   }));
 
 /**
@@ -261,6 +269,13 @@ const Combobox = ({
                     disabled={option.disabled}
                     onSelect={() => pick(option.value)}
                   >
+                    {option.dot && (
+                      <span
+                        aria-hidden
+                        className="size-2 flex-none rounded-full"
+                        style={{ background: option.dot }}
+                      />
+                    )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">{option.label}</span>
                       {option.hint && (
@@ -426,6 +441,13 @@ export const MultiCombobox = ({
                     disabled={option.disabled}
                     onSelect={() => toggle(option.value)}
                   >
+                    {option.dot && (
+                      <span
+                        aria-hidden
+                        className="size-2 flex-none rounded-full"
+                        style={{ background: option.dot }}
+                      />
+                    )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">{option.label}</span>
                       {option.hint && (

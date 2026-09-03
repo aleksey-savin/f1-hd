@@ -1,8 +1,13 @@
 import { getWorkStatusMeta } from "../../util/work-statuses";
 
 // Кругляш сотрудника: фото профиля (или инициалы) + кольцо цвета статуса +
-// мини-эмодзи-бейдж. Общий для навбара и бара статусов. Фото — фоном на
-// <span>, потому что размер задаётся инлайном от пропа `size`.
+// мини-бейдж с иконкой статуса. Общий для навбара, рейла статусов и блока
+// «Команда сейчас». Фото — фоном на <span>, потому что размер задаётся
+// инлайном от пропа `size`.
+//
+// В бейдже иконка каталога (`Ri*`), а не эмодзи: эмодзи нужны Telegram-табло,
+// в вебе они рисуются по-разному на каждой ОС и держались на подгонках
+// полупикселями. Иконка красится цветом статуса — тем же, что кольцо.
 //
 // В CSS остаются только две вещи, которых нет в сетке: кольцо
 // `box-shadow: 0 0 0 2px var(--ws-color)` (цвет приезжает инлайном из каталога
@@ -17,6 +22,7 @@ const WorkStatusAvatar = ({
   showBadge = true,
 }) => {
   const meta = getWorkStatusMeta(workStatus?.code);
+  const Icon = meta.icon;
   const initials =
     `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.trim() || "?";
   const avatarSrc = profileImagePath
@@ -39,10 +45,15 @@ const WorkStatusAvatar = ({
       {!avatarSrc && initials}
       {showBadge && (
         <span
-          className="ws-avatar__badge absolute flex items-center justify-center rounded-full border border-ws-line bg-ws-surface leading-none"
+          className="ws-avatar__badge absolute grid place-items-center rounded-full border border-ws-line bg-ws-surface leading-none"
+          style={{ color: meta.color }}
           aria-hidden="true"
         >
-          {meta.emoji}
+          {Icon ? (
+            <Icon style={{ width: "62%", height: "62%" }} />
+          ) : (
+            meta.emoji
+          )}
         </span>
       )}
     </span>

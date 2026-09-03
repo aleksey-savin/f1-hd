@@ -30,6 +30,8 @@ let STAFF = [];
 const WRITES = [];
 User.find = () => ({ select: () => ({ lean: async () => STAFF }) });
 User.updateOne = async (filter, update) => {
+  // Ближайшая смена пишется отдельным $set — к статусам не относится
+  if (!update.$set.workStatus) return { modifiedCount: 1 };
   WRITES.push({
     id: String(filter._id),
     code: update.$set.workStatus.code,
@@ -119,7 +121,7 @@ const runNote = async (staff, now, absences = []) => {
       at("10:00"),
       [absence("dayoff")],
     ),
-    "absent");
+    "offshift");
   check("заметка называет тип отсутствия",
     await runNote(
       [person({ workStatus: { code: "office", note: "", updatedAt: at("06:05") } })],
@@ -127,10 +129,10 @@ const runNote = async (staff, now, absences = []) => {
       [absence("dayoff")],
     ),
     "Отгул");
-  check("день без содержания — тоже «отсутствует»",
+  check("день без содержания — тоже «не на работе»",
     await run([person({ workStatus: { code: "office", updatedAt: at("06:05") } })], at("10:00"),
       [absence("unpaid")]),
-    "absent");
+    "offshift");
   check("отпуск поверх рабочего статуса",
     await run([person({ workStatus: { code: "office", updatedAt: at("06:05") } })], at("10:00"),
       [absence("vacation")]),
@@ -152,16 +154,22 @@ const runNote = async (staff, now, absences = []) => {
   check("отгул действует и при свободном графике",
     await run([person({ workTimeMode: "free", workStatus: { code: "remote", updatedAt: at("06:05") } })],
       at("10:00"), [absence("dayoff")]),
-    "absent");
+    "offshift");
   // Статус проставлен при согласовании накануне, отсутствие кончилось в полночь
-  check("отсутствие кончилось — статус освобождается",
+  check("отгул кончился — на смене снова «в офисе»",
     await run(
       [person({
-        workStatus: { code: "absent", note: "Отгул", updatedAt: new Date("2026-07-24T09:00:00.000Z") },
+        workStatus: { code: "offshift", note: "Отгул", updatedAt: new Date("2026-07-24T09:00:00.000Z"), auto: true },
       })],
       at("10:00"),
     ),
-    "offshift");
+    "office");
+  check("ручной «не на работе» (форс-мажор) на смене держится",
+    await run(
+      [person({ workStatus: { code: "offshift", note: "вернусь к 15:00", updatedAt: at("09:00"), auto: false } })],
+      at("10:00"),
+    ),
+    null);
   check("форс-мажорный больничный, поставленный сегодня, держится",
     await run([person({ workStatus: { code: "sick", note: "", updatedAt: at("06:40") } })], at("10:00")),
     null);
