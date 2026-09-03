@@ -179,13 +179,16 @@ const run = async () => {
   );
   const db = mongoose.connection.db;
 
+  // Показ работает и ДО организации — это разведка перед окном, и она обязана
+  // быть чтением. Запись без организации невозможна: членство заводит
+  // migrateOrganization.js.
   const org = await db.collection("organization").findOne({ slug: ORG_SLUG });
-  if (!org) {
+  if (!org && (apply || rollback)) {
     throw new Error(
       "Организации нет — сначала scripts/migrateOrganization.js --apply",
     );
   }
-  const orgId = String(org._id);
+  const orgId = org ? String(org._id) : null;
 
   if (rollback) {
     const result = await db
@@ -217,10 +220,12 @@ const run = async () => {
     )
     .toArray();
 
-  const members = await db
-    .collection("member")
-    .find({ organizationId: orgId }, { projection: { userId: 1, role: 1 } })
-    .toArray();
+  const members = orgId
+    ? await db
+        .collection("member")
+        .find({ organizationId: orgId }, { projection: { userId: 1, role: 1 } })
+        .toArray()
+    : [];
   const currentRole = new Map(
     members.map((member) => [String(member.userId), String(member.role || "")]),
   );
@@ -296,7 +301,9 @@ const run = async () => {
   const withoutMember = plan.filter(
     (item) => !currentRole.has(String(item.user._id)),
   );
-  if (withoutMember.length) {
+  if (!orgId) {
+    console.log("\nОрганизации ещё нет: членство заведёт migrateOrganization.js --apply.");
+  } else if (withoutMember.length) {
     console.log(
       `\nБез членства (нужен migrateOrganization.js --apply): ${withoutMember
         .map((item) => item.user.email)
