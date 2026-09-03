@@ -284,7 +284,7 @@ const AiGuideSection = () => {
             )}
 
             {aiGuide.summary && (
-              <p className="mt-0 mb-3.5 text-[0.9375rem] leading-relaxed">
+              <p className="mt-0 mb-3.5 text-sm leading-relaxed">
                 {aiGuide.summary}
               </p>
             )}

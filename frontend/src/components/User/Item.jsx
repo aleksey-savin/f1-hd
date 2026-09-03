@@ -112,13 +112,13 @@ const UserItem = ({ item }) => {
       >
         <UserAvatar
           user={item}
-          sizeClass="size-13"
+          sizeClass="size-12"
           ringColor={presence.ringColor}
         />
 
         {/* имя + должность/принадлежность; на мобайле — ещё строка присутствия */}
         <div className="min-w-0 flex-1">
-          <div className="truncate text-xl leading-tight font-medium">
+          <div className="truncate text-base leading-tight font-medium">
             {fullName || "—"}
           </div>
           <div className="truncate text-sm text-muted-foreground">

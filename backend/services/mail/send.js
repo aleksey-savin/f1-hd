@@ -46,22 +46,26 @@ exports.sendMail = async (creds, to, subject, text, html) => {
    * отправки, то есть последней дверью, и закрывает всё, что попадёт сюда мимо
    * очереди.
    */
-  const guarded = guardRecipient(to);
-  const finalSubject = guarded.redirected
-    ? guardSubject(subject, guarded.intended)
-    : subject;
+  // `guardRecipient` отдаёт СТРОКУ — адрес, куда письмо уйдёт на самом деле
+  // (тот же API, что у модели уведомления и у проверки канала). Прежняя
+  // версия читала из результата поля `.to`/`.redirected`, которых нет:
+  // получатель выходил undefined, и каждое письмо из очереди падало с
+  // «No recipients defined» — тихо, потому что крон просто считал попытки.
+  const actual = guardRecipient(to, { module: "mailSend" });
+  const redirected = actual !== to;
+  const finalSubject = redirected ? guardSubject(subject, to) : subject;
 
   try {
     const transport = nodemailer.createTransport(options);
     const message = await transport.sendMail({
       from,
-      to: guarded.to,
+      to: actual,
       subject: finalSubject,
-      text: guarded.redirected
-        ? `[Письмо предназначалось: ${guarded.intended}]\n\n${text || ""}`
+      text: redirected
+        ? `[Письмо предназначалось: ${to}]\n\n${text || ""}`
         : text,
-      html: guarded.redirected
-        ? `<p><b>Письмо предназначалось: ${guarded.intended}</b></p>${html || ""}`
+      html: redirected
+        ? `<p><b>Письмо предназначалось: ${to}</b></p>${html || ""}`
         : html,
     });
 

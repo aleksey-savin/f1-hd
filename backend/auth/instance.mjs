@@ -11,6 +11,7 @@ import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import {
   admin,
   bearer,
+  emailOTP,
   magicLink,
   organization,
   twoFactor,
@@ -18,7 +19,8 @@ import {
 import { createAccessControl, role } from "better-auth/plugins/access";
 import { defaultAc, userAc } from "better-auth/plugins/admin/access";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { verifyPassword } from "better-auth/crypto";
+import { deleteSessionCookie } from "better-auth/cookies";
+import { generateRandomString, verifyPassword } from "better-auth/crypto";
 import { toNodeHandler, fromNodeHeaders } from "better-auth/node";
 import bcrypt from "bcryptjs";
 
@@ -51,6 +53,8 @@ const PASSWORD_PATHS = new Set([
   "/sign-up/email",
   "/change-password",
   "/reset-password",
+  // смена пароля по коду из письма (плагин email-otp)
+  "/email-otp/reset-password",
   "/admin/create-user",
   "/admin/set-user-password",
 ]);
@@ -74,6 +78,63 @@ const checkBreachedPasswords = (hooks) =>
       throw new APIError("BAD_REQUEST", { message: verdict.message });
     }
   });
+
+/**
+ * Второй фактор ПОСЛЕ КОДА ИЗ ПИСЬМА.
+ *
+ * Плагин `twoFactor` перехватывает только парольный вход: его after-хук
+ * смотрит на `/sign-in/email`, `/sign-in/username` и `/sign-in/phone-number`
+ * (`plugins/two-factor/index.mjs`). Вход по коду из письма выписал бы сеанс
+ * мимо TOTP, и письмо стало бы обходом второго фактора — а пересечение «вошёл
+ * письмом» и «есть TOTP» обязано оставаться пустым.
+ *
+ * Хук повторяет ровно то, что плагин делает для пароля: отзывает только что
+ * выданный сеанс, кладёт подписанную cookie проверки и отвечает
+ * `{ twoFactorRedirect: true }` — дальше работает штатная `verify-totp`, для
+ * неё первый шаг неотличим от парольного.
+ *
+ * Имена `two_factor`, `2fa-…` и `2fa-attempts-…` — контракт
+ * `plugins/two-factor/verify-two-factor.mjs` ЭТОЙ версии: при обновлении
+ * better-auth сверить. Cookie доверенного устройства не поддерживаем —
+ * форма её и не просит.
+ */
+const TWO_FACTOR_CHALLENGE_SECONDS = 600; // как twoFactorCookieMaxAge плагина
+
+const twoFactorAfterEmailCode = createAuthMiddleware(async (ctx) => {
+  if (ctx.path !== "/sign-in/email-otp") return;
+
+  const issued = ctx.context.newSession;
+  if (!issued?.user?.twoFactorEnabled) return;
+
+  deleteSessionCookie(ctx, true);
+  await ctx.context.internalAdapter.deleteSession(issued.session.token);
+  ctx.context.setNewSession(null);
+
+  const cookie = ctx.context.createAuthCookie("two_factor", {
+    maxAge: TWO_FACTOR_CHALLENGE_SECONDS,
+  });
+  const identifier = `2fa-${generateRandomString(20)}`;
+  const expiresAt = new Date(Date.now() + TWO_FACTOR_CHALLENGE_SECONDS * 1000);
+
+  await ctx.context.internalAdapter.createVerificationValue({
+    value: issued.user.id,
+    identifier,
+    expiresAt,
+  });
+  await ctx.context.internalAdapter.createVerificationValue({
+    value: "0",
+    identifier: `2fa-attempts-${identifier}`,
+    expiresAt,
+  });
+  await ctx.setSignedCookie(
+    cookie.name,
+    identifier,
+    ctx.context.secret,
+    cookie.attributes,
+  );
+
+  return ctx.json({ twoFactorRedirect: true, twoFactorMethods: ["totp"] });
+});
 
 export function createAuth({ db, client, config, hooks, statement }) {
   // Словарь ресурсов и действий приходит из auth/access.js (CommonJS): его
@@ -151,7 +212,10 @@ export function createAuth({ db, client, config, hooks, statement }) {
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", path: "/" },
     },
 
-    hooks: { before: checkBreachedPasswords(hooks) },
+    hooks: {
+      before: checkBreachedPasswords(hooks),
+      after: twoFactorAfterEmailCode,
+    },
 
     databaseHooks: {
       session: {
@@ -270,14 +334,15 @@ export function createAuth({ db, client, config, hooks, statement }) {
       // приложения: у неё домены для разбора почты, тарифы, подразделения —
       // ничего из этого организацией не является.
       //
-      // Приглашений не будет: саморегистрация удалена, учётки заводит ИТ-отдел.
-      // Вход по ссылке из письма — ТОЛЬКО клиентам (гейт в нашей ручке
-      // /api/login-link, плагин сам никого не проверяет и шлёт по любому
-      // адресу). Смысл: клиентская учётка рождается из письма в поддержку,
-      // человек о ней не знает, и пароль ему до сих пор генерировали и
-      // присылали открытым текстом. Ссылка даёт тот же уровень доверия, что
-      // и восстановление пароля — доступ к почте есть доступ к учётке, — но
-      // паролями сорить перестаёт.
+      // Приглашений плагина не будет: саморегистрация удалена, учётки заводит
+      // ИТ-отдел. Ссылка для входа — ТОЛЬКО в приглашении клиенту
+      // (`services/invitation.js`; плагин сам никого не проверяет и шлёт по
+      // любому адресу). Смысл: клиентская учётка рождается из письма в
+      // поддержку, человек о ней не знает, и пароль ему до сих пор
+      // генерировали и присылали открытым текстом. Ссылка даёт тот же уровень
+      // доверия, что и восстановление пароля — доступ к почте есть доступ к
+      // учётке, — но паролями сорить перестаёт. С экрана входа ссылку больше
+      // не просят: там код (см. emailOTP ниже).
       magicLink({
         // Обязателен: иначе ссылка на незнакомый адрес ЗАВЕДЁТ учётку.
         disableSignUp: true,
@@ -289,6 +354,34 @@ export function createAuth({ db, client, config, hooks, statement }) {
         // восстановления, и утечка дампа не должна давать вход.
         storeToken: "hashed",
         sendMagicLink: hooks.sendMagicLink,
+      }),
+
+      /**
+       * Код из письма — «Войти по коду из письма» на экране входа.
+       *
+       * Код, а не ссылка: ссылка открывается в том браузере, где прочитали
+       * почту, а код вводят там, где входят. Два типа кода под два типа
+       * аккаунта: клиенту — `sign-in`, он просто входит (пароля у большинства
+       * клиентов никогда и не было); сотруднику — `forget-password`, по нему
+       * он задаёт новый пароль и входит паролем и вторым фактором. Код одного
+       * типа ручка другого не примет — у них разные идентификаторы.
+       *
+       * Кому и какой слать, решает наша ручка `/api/login-code` (клиент или
+       * сотрудник, отключённые, служебные, компания выключена); ответ у неё
+       * одинаковый на любой адрес. Та же привязка типа к аккаунту повторена
+       * в `hooks.sendEmailCode` — ручки плагина публичны. Второй фактор после
+       * кода для входа — хук `twoFactorAfterEmailCode` выше.
+       */
+      emailOTP({
+        otpLength: 6,
+        expiresIn: config.loginCodeTtlSeconds,
+        // Пять неверных попыток гасят код — дальше только новый.
+        allowedAttempts: 5,
+        // Код в базе — хешем, по той же причине, что и токен ссылки.
+        storeOTP: "hashed",
+        // Обязателен: иначе код на незнакомый адрес ЗАВЕДЁТ учётку.
+        disableSignUp: true,
+        sendVerificationOTP: hooks.sendEmailCode,
       }),
 
       organization({

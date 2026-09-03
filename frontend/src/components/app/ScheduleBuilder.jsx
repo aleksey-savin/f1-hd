@@ -351,7 +351,7 @@ const ScheduleBuilder = ({ value, onChange }) => {
         </button>
       </div>
       <div className="border-t border-border-soft px-4 py-3">
-        <div className="mb-2 text-[11px] font-bold tracking-wider text-faint uppercase">
+        <div className="mb-2 text-xs font-bold tracking-wider text-faint uppercase">
           Ближайшие запуски
         </div>
         <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
@@ -445,7 +445,7 @@ const ScheduleBuilder = ({ value, onChange }) => {
                 : "border-destructive",
             )}
           />
-          <div className="mt-2 grid grid-cols-5 gap-1.5 text-center text-[11px] font-semibold text-faint">
+          <div className="mt-2 grid grid-cols-5 gap-1.5 text-center text-xs font-semibold text-faint">
             <span>минута</span>
             <span>час</span>
             <span>день мес.</span>
@@ -477,7 +477,7 @@ const ScheduleBuilder = ({ value, onChange }) => {
                   <code className="block font-mono text-xs text-accent-text">
                     {expr}
                   </code>
-                  <span className="text-[11.5px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {label}
                   </span>
                 </button>

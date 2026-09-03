@@ -1,6 +1,4 @@
-import { useState } from "react";
 import {
-  Form,
   Link,
   redirect,
   useActionData,
@@ -10,12 +8,7 @@ import {
 import { RiLinkUnlinkM } from "react-icons/ri";
 
 import AlertMessage from "@/components/app/AlertMessage";
-import PasswordPolicyField from "@/components/app/PasswordPolicyField";
-import {
-  MIN_LENGTH,
-  verdictAllows,
-  type PasswordVerdict,
-} from "@/lib/password";
+import { MIN_LENGTH } from "@/lib/password";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -24,6 +17,7 @@ import {
   AuthTile,
   WaysIn,
 } from "../../components/Auth/AuthPanel";
+import NewPasswordForm from "../../components/Auth/NewPasswordForm";
 import { API, OFFLINE_FAILURE, authFailure } from "./session";
 
 // Своего числа здесь нет: минимум приходит из `lib/password`, который держит
@@ -82,21 +76,22 @@ const NewPassword = () => {
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
 
-  const [password, setPassword] = useState("");
-  const [verdict, setVerdict] = useState<PasswordVerdict>({ kind: "idle" });
-
   if (!valid) {
     return (
       <AuthPanel>
-        <AuthTile tone="warning">
-          <RiLinkUnlinkM size={20} />
-        </AuthTile>
         <AuthHeading
+          tile={
+            <AuthTile tone="warning">
+              <RiLinkUnlinkM size={20} />
+            </AuthTile>
+          }
           title="Ссылка больше не работает"
-          lede="Она живёт сутки с момента запроса. Запросите новую — придёт свежее письмо."
+          lede="Она живёт сутки с момента запроса. Запросите новое письмо — придёт свежее."
         />
+        {/* Та же дверь, что на входе: клиенту придёт код, сотруднику — новая
+            ссылка. Какое письмо нужно, решает сервер по адресу. */}
         <Button asChild className="mt-5 w-full">
-          <Link to="/auth/password">Запросить новую</Link>
+          <Link to="/auth/code">Запросить новое письмо</Link>
         </Button>
         <WaysIn
           title="Ещё варианты"
@@ -112,27 +107,8 @@ const NewPassword = () => {
 
       {failure && <AlertMessage variant="danger" message={failure.message} />}
 
-      <Form method="post" className="mt-5 flex flex-col gap-4">
-        {/* Поле — то же, что во всех местах, где задают пароль: живой вердикт
-            и генератор. Здесь оно нужнее всего — рядом нет администратора,
-            который объяснит, почему дата рождения не подходит. */}
-        <PasswordPolicyField
-          id="password"
-          value={password}
-          onChange={setPassword}
-          onVerdictChange={setVerdict}
-          autoFocus
-        />
-        <input type="hidden" name="password" value={password} />
-
-        <Button
-          type="submit"
-          disabled={submitting || !verdictAllows(verdict)}
-          className="w-full"
-        >
-          {submitting ? "Сохраняем…" : "Сохранить пароль"}
-        </Button>
-      </Form>
+      {/* Токен — из адреса страницы, форме его нести не нужно */}
+      <NewPasswordForm submitting={submitting} />
 
       <WaysIn
         title="Ещё варианты"

@@ -103,8 +103,8 @@ const ListRow = ({
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-4 px-5 py-4 transition-colors",
-        "before:absolute before:top-0 before:right-5 before:left-24 before:h-px before:bg-border-soft first:before:hidden",
+        "group relative flex items-center gap-4 px-5 py-3 transition-colors",
+        "before:absolute before:top-0 before:right-5 before:left-21 before:h-px before:bg-border-soft first:before:hidden",
         "hover:bg-accent/60",
         clickable && "cursor-pointer",
         justCreated && "row-appear",
@@ -115,7 +115,7 @@ const ListRow = ({
       <span
         aria-hidden
         className={cn(
-          "grid size-15 flex-none place-items-center overflow-hidden rounded-xl text-xl font-semibold",
+          "grid size-12 flex-none place-items-center overflow-hidden rounded-xl text-lg font-semibold",
           dimmed
             ? "text-faint"
             : "bg-accent text-muted-foreground inset-ring inset-ring-border",
@@ -137,14 +137,14 @@ const ListRow = ({
       <div className="min-w-0 flex-1">
         <div
           className={cn(
-            "truncate text-2xl leading-snug font-medium",
+            "truncate text-base leading-snug font-medium",
             dimmed && "text-muted-foreground",
           )}
         >
           {title}
         </div>
         {meta && (
-          <div className="truncate text-lg text-muted-foreground tabular-nums">
+          <div className="truncate text-sm text-muted-foreground tabular-nums">
             {meta}
           </div>
         )}

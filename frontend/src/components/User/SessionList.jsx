@@ -149,10 +149,10 @@ const SessionList = ({ userId, self = false, canRevoke = true }) => {
           </span>
 
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[15px] font-medium">
+            <div className="truncate text-sm font-medium">
               {session.device?.title}
             </div>
-            <div className="truncate text-[13px] tabular-nums text-muted-foreground">
+            <div className="truncate text-sm tabular-nums text-muted-foreground">
               {[session.ip, formatAgo(session.lastActiveAt)]
                 .filter(Boolean)
                 .join(" · ")}

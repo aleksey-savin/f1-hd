@@ -17,17 +17,27 @@ export const AuthPanel = ({ children }: { children: ReactNode }) => (
 export const AuthHeading = ({
   title,
   lede,
+  tile,
 }: {
   title: string;
   lede?: ReactNode;
+  /** Плитка итогового состояния — в одной строке с заголовком, слева. */
+  tile?: ReactNode;
 }) => (
   <>
-    <h1 className="mb-0 text-2xl font-bold tracking-tight">{title}</h1>
+    <div className="flex items-center gap-3">
+      {tile}
+      <h1 className="mb-0 text-2xl font-bold tracking-tight">{title}</h1>
+    </div>
     {lede && <p className="mt-2 mb-0 text-sm text-muted-foreground">{lede}</p>}
   </>
 );
 
-/** Плитка-иконка итогового состояния (письмо ушло, ссылка протухла). */
+/**
+ * Плитка-иконка итогового состояния (письмо ушло, ссылка протухла). Стоит в
+ * строке заголовка (`AuthHeading tile`), а не над ним: отдельной строкой она
+ * читалась как самостоятельный элемент, а не как знак к заголовку.
+ */
 export const AuthTile = ({
   tone,
   children,
@@ -37,7 +47,7 @@ export const AuthTile = ({
 }) => (
   <div
     className={cn(
-      "mb-4 flex size-10 items-center justify-center rounded-xl",
+      "flex size-10 shrink-0 items-center justify-center rounded-xl",
       tone === "success"
         ? "bg-primary/15 text-accent-text"
         : "bg-warning/15 text-warning",

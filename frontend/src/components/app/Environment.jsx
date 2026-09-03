@@ -136,7 +136,7 @@ const EnvLevel = ({
           <Icon size={22} />
         </span>
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold tracking-wide text-faint uppercase">
+          <div className="text-xs font-semibold tracking-wide text-faint uppercase">
             {isCompany ? "Компания" : TYPE_LABEL[node.type] || node.type}
           </div>
           <div className="flex min-w-0 items-center gap-1">

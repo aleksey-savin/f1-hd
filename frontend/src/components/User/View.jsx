@@ -322,7 +322,7 @@ const ViewUser = ({ user, tickets }) => {
           canEdit={canManageUsers}
         />
         <div className="min-w-0 flex-1">
-          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight break-words">
+          <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight break-words">
             {fullName}
           </h1>
           {position && (
@@ -793,7 +793,7 @@ const ViewUser = ({ user, tickets }) => {
                   сеансы — «откуда заходят», и объединять их незачем. */}
               <Panel>
                 <div className="mb-4 flex flex-wrap items-center gap-2.5">
-                  <span className="text-[15px] font-medium">
+                  <span className="text-sm font-medium">
                     Вход по коду из приложения
                   </span>
                   <span

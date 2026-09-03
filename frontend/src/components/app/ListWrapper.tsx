@@ -1,4 +1,5 @@
 import {
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -38,6 +39,7 @@ import {
 import FormSheet from "@/components/app/FormSheet";
 import SearchBar from "@/components/app/SearchBar";
 import Spinner from "@/components/app/Spinner";
+import { ThemeContext } from "../../store/theme-context";
 import useOffcanvasStore from "@/store/offcanvas";
 import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
 
@@ -215,6 +217,8 @@ const ListWrapper = ({
   const hasActiveFilters = activeFilters.length > 0;
   const stuckSentinelRef = useRef<HTMLDivElement | null>(null);
   const [filtersStuck, setFiltersStuck] = useState(false);
+  // theme-context — ещё .jsx, типизируем на границе
+  const { fontScale } = useContext(ThemeContext) as { fontScale: number };
 
   useEffect(() => {
     if (!hasActiveFilters) {
@@ -225,13 +229,18 @@ const ListWrapper = ({
     if (!sentinel || typeof IntersectionObserver === "undefined") {
       return;
     }
+    // Порог — высота навбара (h-14 = 3.5rem) плюс его граница. rootMargin
+    // понимает только px и %, поэтому rem считаем сами и пересобираем
+    // наблюдателя при смене личного масштаба текста.
+    const remPx =
+      parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const observer = new IntersectionObserver(
       ([entry]) => setFiltersStuck(!entry.isIntersecting),
-      { rootMargin: "-57px 0px 0px 0px" },
+      { rootMargin: `-${Math.round(3.5 * remPx + 1)}px 0px 0px 0px` },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasActiveFilters]);
+  }, [hasActiveFilters, fontScale]);
 
   const headerCount = serverMode
     ? count
@@ -241,11 +250,11 @@ const ListWrapper = ({
     // items-baseline: при разных кеглях заголовка и счётчика центрирование
     // по середине строки выглядит «съехавшим» — равняем по базовой линии
     <div className="flex items-baseline gap-2">
-      <h1 className="my-0 flex items-center gap-2 text-4xl leading-none font-semibold tracking-tight">
+      <h1 className="my-0 flex items-center gap-2 text-3xl leading-none font-semibold tracking-tight">
         {title()}
       </h1>
       {showSortAndCount && (
-        <span className="text-2xl leading-none font-medium text-faint tabular-nums">
+        <span className="text-xl leading-none font-medium text-faint tabular-nums">
           {headerCount}
         </span>
       )}
@@ -424,7 +433,7 @@ const ListWrapper = ({
         >
           <SheetContent side="left" className="w-5/6 max-w-sm">
             <SheetHeader className="border-b border-border">
-              <SheetTitle className="text-base">Фильтр</SheetTitle>
+              <SheetTitle>Фильтр</SheetTitle>
             </SheetHeader>
             <div className="flex-1 overflow-y-auto px-4 pb-4">
               {filter}

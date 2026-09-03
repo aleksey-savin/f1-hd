@@ -18,13 +18,9 @@ import {
   WaysIn,
   type Way,
 } from "../../components/Auth/AuthPanel";
+import TwoFactorStep from "../../components/Auth/TwoFactorStep";
 import { useAuthPrefs } from "./Layout";
-import {
-  API,
-  OFFLINE_FAILURE,
-  authFailure,
-  storeSession,
-} from "./session";
+import { API, signIn } from "./session";
 
 type LoginFailure = { message: string; locked: boolean; email: string };
 /**
@@ -60,37 +56,21 @@ export async function action({ request }: { request: Request }) {
 
   // Экран входа не бросает НИЧЕГО: уходить с него человеку некуда, а
   // введённый адрес при этом теряется. Сеть оборвалась — тоже сюда.
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // Cookie второго фактора — та же дорога, что у сессионной: без неё
-      // сервер не знает, чей вход подтверждают.
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return { ...OFFLINE_FAILURE, email };
-  }
+  const outcome = await signIn(url, body, "Не удалось войти.");
 
-  if (!response.ok) {
-    const failure = await authFailure(response, "Не удалось войти.");
+  if (outcome.status === "failed") {
     // Ошибка кода не должна выбрасывать обратно к паролю: человек его уже
     // ввёл верно, и повторять весь вход из-за опечатки в шести цифрах — то,
     // что раздражает в чужих порталах.
-    return code ? { ...failure, email, twoFactorStep: true } : { ...failure, email };
+    return code
+      ? { ...outcome.failure, email, twoFactorStep: true }
+      : { ...outcome.failure, email };
   }
-
-  const payload = await response.json();
-
-  if (payload?.twoFactorRequired) {
+  if (outcome.status === "two-factor") {
     return { twoFactor: true as const, email };
   }
 
-  // Ответ передаём целиком: токен сеанса приезжает заголовком
-  // `set-auth-token`, а поле `token` тела оставлено для совместимости.
-  await storeSession(payload, response);
+  // Сеанс. Исход «новый пароль» у парольного входа не случается.
   return redirect("/");
 }
 
@@ -109,11 +89,12 @@ const Login = () => {
 
   const ways: Way[] = [
     // Почта выключена — письмо слать нечем, и путь не обещаем.
-    // Дорога ОДНА: что уйдёт — ссылка для входа или ссылка на смену пароля —
-    // решает сервер по тому, кто это. Две почтовые дороги рядом читались бы
-    // как одно и то же, а выбрать верную человек всё равно не может.
+    // Дорога ОДНА: клиенту придёт код для входа, сотруднику — ссылка на смену
+    // пароля (сотрудник входит паролем и вторым фактором). Что уйдёт, решает
+    // сервер по адресу; спрашивать это у человека — вопрос «вы клиент или
+    // сотрудник», который не его забота.
     prefs.emailIsActive
-      ? { label: "Прислать письмо", to: "/auth/password" }
+      ? { label: "Войти по коду из письма", to: "/auth/code" }
       : null,
     // Пути «Впервые здесь» больше нет: саморегистрация удалена, учётки заводит
     // ИТ-отдел вместе с почтой и остальными доступами.
@@ -146,50 +127,14 @@ const Login = () => {
       {codeStep ? (
         /**
          * Второй шаг того же входа, а не отдельный экран: пароль уже принят,
-         * поэтому та же карточка и тот же заголовок. Своего адреса у шага нет
-         * намеренно — прийти на него, минуя пароль, нельзя.
+         * поэтому та же карточка и тот же заголовок.
          */
-        <Form method="post" className="mt-5">
-          <Field
-            label="Код из приложения"
-            htmlFor="code"
-            required
-            hint="Шесть цифр, меняются раз в 30 секунд."
-          >
-            <Input
-              id="code"
-              name="code"
-              required
-              autoFocus
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="000000"
-              aria-invalid={failure ? true : undefined}
-              className="text-center font-mono text-2xl tracking-[0.4em]"
-            />
-          </Field>
-
-          <Button type="submit" disabled={submitting} className="mt-1 w-full">
-            {submitting ? "Проверяем…" : "Войти"}
-          </Button>
-
-          {/* Резервным кодом пользуются раз в жизни — он вторичен и по виду.
-              Тот же submit, только с признаком: отдельная форма потеряла бы
-              введённое значение при переключении. */}
-          <Button
-            type="submit"
-            name="backup"
-            value="true"
-            variant="ghost"
-            disabled={submitting}
-            className="mt-2 w-full"
-          >
-            Ввести резервный код
-          </Button>
-        </Form>
+        <TwoFactorStep submitting={submitting} invalid={Boolean(failure)} />
       ) : (
       <Form method="post" className="mt-5">
-        <Field label="Рабочая почта" htmlFor="email" required>
+        {/* Звёздочек обязательности нет: у входа оба поля обязательны, и
+            это очевидно без пометки. */}
+        <Field label="Рабочая почта" htmlFor="email">
           <Input
             id="email"
             name="email"
@@ -203,7 +148,7 @@ const Login = () => {
           />
         </Field>
 
-        <Field label="Пароль" htmlFor="password" required>
+        <Field label="Пароль" htmlFor="password">
           <PasswordInput
             id="password"
             name="password"

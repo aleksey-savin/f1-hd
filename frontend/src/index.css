@@ -65,10 +65,12 @@ body {
   padding-top: calc(0.5rem + env(safe-area-inset-top));
 }
 
-/* Зазор под плавающим островом: его высота + отступ снизу + вырез. */
+/* Зазор под плавающим островом: его высота + отступ снизу + вырез.
+   В rem, как и сам остров (min-h-13 в MobileBottomNavbar): px-резерв под
+   rem-высоту разъезжается при смене корневого размера. */
 .mobile-shell__scroll {
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
 }
 
 /* Блокируем скролл страницы только когда shell в DOM (т.е. только мобайл;
@@ -91,9 +93,9 @@ body:has(.mobile-shell),
 .mobile-tabbar,
 .mobile-actionbar {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: calc(10px + env(safe-area-inset-bottom));
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: calc(0.625rem + env(safe-area-inset-bottom));
   border-radius: 22px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
 }
@@ -123,7 +125,7 @@ body:has(.mobile-shell),
 /* Панель выше острова — без запаса она накроет последнюю карточку списка,
    по которой пользователь как раз и тапает. */
 .mobile-shell:has(.mobile-actionbar) .mobile-shell__scroll {
-  padding-bottom: calc(132px + env(safe-area-inset-bottom));
+  padding-bottom: calc(8.25rem + env(safe-area-inset-bottom));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -200,7 +202,9 @@ body:has(.mobile-shell),
    !important. */
 @media (min-width: 992px) {
   .has-ws-rail {
-    padding-right: 92px; /* свёрнутый рейл 72px + воздух */
+    /* свёрнутый рейл w-18 (4.5rem) + воздух; в rem, чтобы масштабироваться
+       вместе с рейлом при личном размере текста */
+    padding-right: 5.75rem;
   }
 }
 .ws-rail-scroll {
@@ -258,7 +262,9 @@ body[data-scroll-locked] {
   margin: 9px 6px;
 }
 .md-doc .toastui-editor-contents {
-  font-size: 1rem;
+  /* inherit, а не число: кегль задаёт утилита на обёртке (описание заявки —
+     text-lg, база знаний — тело), правило лишь перебивает 13px Toast UI */
+  font-size: inherit;
 }
 .md-doc .toastui-editor-contents > *:first-child {
   margin-top: 0;

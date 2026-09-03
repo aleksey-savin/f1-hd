@@ -120,7 +120,7 @@ const TechRow = ({ device, onSelect }) => {
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5 text-[15px] leading-snug font-medium">
+        <span className="flex items-center gap-1.5 text-sm leading-snug font-medium">
           <span className="min-w-0 truncate" title={device.name}>
             {device.name}
           </span>

@@ -361,13 +361,13 @@ const CompanyLogsOffcanvas = ({
                             aria-hidden
                             className={cn(
                               "grid size-9 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border",
-                              !displayName && "font-mono text-[10px]",
+                              !displayName && "font-mono text-xs",
                             )}
                           >
                             {displayName ? monogramFor(displayName) : "AD"}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[15px] leading-tight font-semibold">
+                            <span className="block truncate text-sm leading-tight font-semibold">
                               {account.user ? (
                                 <Link
                                   to={`/users/${account.user._id}`}
@@ -504,7 +504,7 @@ const CompanyLogsOffcanvas = ({
                                     aria-hidden
                                     className="flex-none text-faint"
                                   />
-                                  <span className="truncate font-mono text-[13px]">
+                                  <span className="truncate font-mono text-sm">
                                     {log.computerName}
                                   </span>
                                 </>

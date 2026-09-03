@@ -160,11 +160,11 @@ const CompanyItem = ({ item }) => {
         )}
         onClick={() => (isMobile ? setContactOpen(true) : navigate(detailTo))}
       >
-        <CompanyLogo company={item} sizeClass="size-13" />
+        <CompanyLogo company={item} sizeClass="size-12" />
 
         {/* название; десктоп — полное имя + счётчики, мобайл — адрес и график */}
         <div className="min-w-0 flex-1">
-          <div className="truncate text-xl leading-tight font-medium">
+          <div className="truncate text-base leading-tight font-medium">
             {alias || "—"}
           </div>
           {/* усекается только юрлицо; счётчики закреплены в конце строки */}

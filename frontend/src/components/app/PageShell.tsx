@@ -34,16 +34,17 @@ const PageShell = ({
   children: ReactNode;
 }) => (
   <div
-    // 1600 нет во встроенной сетке tailwind, а произвольные значения в классах
-    // гайд запрещает — ширину задаём стилем
+    // 1600 (100rem) нет во встроенной сетке tailwind, а произвольные значения
+    // в классах гайд запрещает — ширину задаём стилем; в rem, чтобы личный
+    // масштаб текста растягивал и страницу, как зум браузера
     className={wide ? "mx-auto w-full" : "mx-auto w-full max-w-7xl"}
-    style={wide ? { maxWidth: 1600 } : undefined}
+    style={wide ? { maxWidth: "100rem" } : undefined}
   >
     {breadcrumb && <div className="mb-3">{breadcrumb}</div>}
     <div className="mb-4 flex flex-wrap items-center gap-x-2.5 gap-y-3">
       {icon}
       <div>
-        <h1 className="my-0 text-4xl leading-none font-semibold tracking-tight">
+        <h1 className="my-0 text-3xl leading-none font-semibold tracking-tight">
           {title}
         </h1>
         {subtitle && (

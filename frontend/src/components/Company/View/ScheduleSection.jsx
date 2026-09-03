@@ -97,7 +97,7 @@ const ScheduleSection = ({ workSchedule, hasSchedule, timezone, id }) => {
                   >
                     <div
                       className={cn(
-                        "text-[0.65rem] font-bold tracking-wider uppercase",
+                        "text-xs font-bold tracking-wider uppercase",
                         isToday ? "text-accent-text" : "text-faint",
                       )}
                     >

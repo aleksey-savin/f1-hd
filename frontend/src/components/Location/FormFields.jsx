@@ -350,7 +350,7 @@ const LocationFormFields = ({
           сотрудник — ответственный за технику на этом месте) */}
       {isWorkplace && (
         <div className="mb-4 rounded-xl bg-primary/5 p-3 inset-ring inset-ring-border-soft">
-          <div className="mb-2 inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-accent-text uppercase">
+          <div className="mb-2 inline-flex items-center gap-1.5 text-xs font-bold tracking-wider text-accent-text uppercase">
             <RiUser3Line size={13} aria-hidden /> Для рабочего места
           </div>
           <Field

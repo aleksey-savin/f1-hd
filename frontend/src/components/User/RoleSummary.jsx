@@ -129,7 +129,7 @@ const RoleSummary = ({ roles, catalogue, emptyHint }) => {
           {group.caps.map((cap) => (
             <div
               key={cap.id}
-              className="flex items-center gap-2.5 px-3 py-1 text-[15px]"
+              className="flex items-center gap-2.5 px-3 py-1 text-sm"
             >
               <span className="shrink-0 font-bold text-accent-text">✓</span>
               <span className="min-w-0 truncate">{cap.label}</span>

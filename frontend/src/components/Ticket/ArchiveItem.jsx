@@ -71,7 +71,7 @@ const ArchiveItem = ({ ticket }) => {
 
       {/* тема + мета */}
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium">{ticket.title}</div>
+        <div className="truncate text-base leading-tight font-medium">{ticket.title}</div>
         <div className="hidden truncate text-sm text-muted-foreground md:block">
           {desktopMeta || "—"}
         </div>

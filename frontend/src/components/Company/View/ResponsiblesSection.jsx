@@ -35,7 +35,7 @@ const PersonRow = ({ person }) => {
       <div className="min-w-0 flex-1">
         <div
           className={cn(
-            "truncate text-[15px] leading-tight font-medium",
+            "truncate text-sm leading-tight font-medium",
             inactive && "text-muted-foreground",
           )}
         >
@@ -50,7 +50,7 @@ const PersonRow = ({ person }) => {
             name
           )}
         </div>
-        <div className="truncate text-[13px] text-muted-foreground">
+        <div className="truncate text-sm text-muted-foreground">
           {person.position || "—"}
           {inactive && <span className="text-faint"> · отключён</span>}
         </div>

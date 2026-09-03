@@ -178,7 +178,7 @@ const TicketRow = ({
 
         {/* тема и мета — всегда двумя строками */}
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{title}</span>
+          <span className="block truncate text-base leading-tight font-medium">{title}</span>
           <span className="hidden truncate text-sm text-muted-foreground md:block">
             {meta || "—"}
           </span>

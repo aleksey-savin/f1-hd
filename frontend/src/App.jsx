@@ -363,10 +363,10 @@ import Login, {
   loader as loginLoader,
   action as loginAction,
 } from "./pages/Auth/Login.tsx";
-import PasswordRequest, {
-  loader as passwordLoader,
-  action as passwordAction,
-} from "./pages/Auth/Password.tsx";
+import LoginCode, {
+  loader as loginCodeLoader,
+  action as loginCodeAction,
+} from "./pages/Auth/Code.tsx";
 import NewPassword, {
   loader as newPasswordLoader,
   action as newPasswordAction,
@@ -407,10 +407,10 @@ function App() {
           action: loginAction,
         },
         {
-          path: "auth/password",
-          element: <PasswordRequest />,
-          loader: passwordLoader,
-          action: passwordAction,
+          path: "auth/code",
+          element: <LoginCode />,
+          loader: loginCodeLoader,
+          action: loginCodeAction,
         },
         {
           path: "reset-password/:token",

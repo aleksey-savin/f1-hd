@@ -162,7 +162,7 @@ const EmployeesTable = ({
             <span className="flex items-center gap-2 font-medium">
               <span className="truncate">{fullName(row.employee)}</span>
               {isMe && (
-                <span className="flex-none rounded-full bg-primary px-2 py-px text-[0.6875rem] font-semibold text-white">
+                <span className="flex-none rounded-full bg-primary px-2 py-px text-xs font-semibold text-white">
                   Вы
                 </span>
               )}

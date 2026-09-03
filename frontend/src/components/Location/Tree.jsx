@@ -141,7 +141,7 @@ const TreeNode = ({
         <div className="min-w-0 flex-1">
           <div
             className={cn(
-              "truncate text-[15px] font-medium",
+              "truncate text-base font-medium",
               selected && "text-accent-text",
             )}
           >

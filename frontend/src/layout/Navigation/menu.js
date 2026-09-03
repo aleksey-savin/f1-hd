@@ -373,8 +373,8 @@ export function buildMenu({
       link("monitoring", "Мониторинг", RiPulseLine, "/devices/mikrotik"),
     administration.length > 0 && {
       key: "admin",
+      // Без короткой подписи намеренно: «Админ» читалось как роль, а не раздел
       label: "Администрирование",
-      shortLabel: "Админ",
       icon: RiSettings3Line,
       groups: administration,
     },

@@ -122,7 +122,7 @@ const NoteRow = ({ note, active, onOpen }) => {
         className="mt-0.5 flex-none text-faint"
       />
       <span className="min-w-0 flex-1">
-        <span className="block text-[0.9375rem] leading-snug font-medium">
+        <span className="block text-sm leading-snug font-medium">
           {note.title}
         </span>
         <span className="mt-0.5 block text-sm text-muted-foreground">

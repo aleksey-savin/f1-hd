@@ -17,7 +17,7 @@ const dash = <span className="text-faint">—</span>;
 // Микро-подпись + значение (как в предпросмотре расположений).
 const Info = ({ label, mono, wide, children }) => (
   <div className={cn("min-w-0", wide && "col-span-2")}>
-    <div className="mb-0.5 text-[11px] font-semibold tracking-wide text-faint uppercase">
+    <div className="mb-0.5 text-xs font-semibold tracking-wide text-faint uppercase">
       {label}
     </div>
     <div

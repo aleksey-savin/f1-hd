@@ -166,7 +166,7 @@ const ViewCompany = ({
       <div className="flex flex-wrap items-start gap-x-5 gap-y-4">
         <HeroLogo company={company} canEdit={canManage} />
         <div className="min-w-0 flex-1">
-          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight break-words">
+          <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight break-words">
             {company.alias || "—"}
           </h1>
           {/* Юрлицо в hero не дублируем — полное наименование есть в

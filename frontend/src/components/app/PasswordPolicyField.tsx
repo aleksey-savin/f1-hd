@@ -168,7 +168,7 @@ const PasswordPolicyField = ({
 
       <div className="flex flex-col gap-2.5 border-t border-border pt-3.5">
         <div className="flex items-center gap-3">
-          <span className="shrink-0 text-[13px] font-semibold text-muted-foreground">
+          <span className="shrink-0 text-sm font-semibold text-muted-foreground">
             Длина
           </span>
           <Slider
@@ -179,7 +179,7 @@ const PasswordPolicyField = ({
             step={1}
             aria-label="Длина пароля"
           />
-          <span className="w-6 shrink-0 text-right text-[13px] font-semibold tabular-nums">
+          <span className="w-6 shrink-0 text-right text-sm font-semibold tabular-nums">
             {length}
           </span>
         </div>

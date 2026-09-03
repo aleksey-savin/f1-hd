@@ -66,7 +66,7 @@ const Detail = ({ label, children, className }) => (
     <div className="mb-0.5 text-xs font-semibold tracking-wide text-faint uppercase">
       {label}
     </div>
-    <div className="text-[15px] leading-relaxed break-words">
+    <div className="text-sm leading-relaxed break-words">
       {children || dash}
     </div>
   </div>
@@ -256,7 +256,7 @@ const ViewDeviceModel = ({
           )}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight break-words">
+          <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight break-words">
             {title}
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -456,7 +456,7 @@ const ViewDeviceModel = ({
                 className="overflow-hidden rounded-xl border border-border bg-card"
               >
                 <div className="flex items-center justify-between gap-2 border-b border-border-soft px-4 py-2.5">
-                  <span className="inline-flex min-w-0 items-center gap-2 text-[15px] font-semibold">
+                  <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold">
                     <RiCpuLine className="flex-none text-accent-text" />
                     <span className="truncate">{label}</span>
                   </span>

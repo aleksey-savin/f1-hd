@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useRef } from "react";
 import { useLocation, useRevalidator } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 import { Outlet, useLoaderData, useNavigate, useSubmit } from "react-router";
@@ -31,6 +31,7 @@ import MobileBottomNavbar from "./MobileBottomNavbar";
 import { getLocalStorageData, getTokenDuration } from "../util/auth";
 import useOffcanvasStore from "../store/offcanvas";
 import useInitialPrefsStore from "../store/prefs";
+import { ThemeContext } from "../store/theme-context";
 import useRouteErrorStore from "../store/route-error";
 
 // Страницы живут прямо на канве: заголовок — на канве, панель — у самого
@@ -213,6 +214,17 @@ const RootLayout = () => {
     }
   }, [location.pathname]);
 
+  // Масштаб текста — личная настройка с сервера; localStorage лишь зеркало
+  // для первой отрисовки. Сервер побеждает: на общем рабочем месте после
+  // входа другого человека действует его выбор, а не прошлого.
+  const { fontScale, setFontScale } = useContext(ThemeContext);
+  useEffect(() => {
+    const server = userData?.fontScale;
+    if (server && server !== fontScale) {
+      setFontScale(server);
+    }
+  }, [userData?.fontScale]);
+
   useEffect(() => {
     if (location.state?.refresh) {
       revalidator.revalidate();
@@ -297,7 +309,9 @@ const RootLayout = () => {
               has-ws-rail резервирует место под свёрнутый рейл статусов
               (правило в index.css). */}
           <div
-            style={{ maxWidth: "1920px", paddingTop: "80px" }}
+            // 5rem = бар h-14 (3.5rem) + 1.5rem воздуха; в rem, потому что бар
+            // в rem, а личный масштаб текста двигает и то и другое
+            style={{ maxWidth: "1920px", paddingTop: "5rem" }}
             className={cn(
               "mx-auto w-full px-12 pb-12",
               isLoggedIn &&
@@ -318,9 +332,9 @@ const RootLayout = () => {
                   "mx-auto w-full rounded-2xl border bg-card p-4",
               )}
               style={{
-                minHeight: "calc(100svh - 104px)",
+                minHeight: "calc(100svh - 6.5rem)",
                 ...(userData.backgroundImagePath
-                  ? { maxWidth: sheetWidth }
+                  ? { maxWidth: `${sheetWidth / 16}rem` }
                   : {}),
               }}
             >

@@ -1,8 +1,10 @@
 import { cn } from "@/lib/utils";
 
 // Марка приложения в одном месте: бар оболочки и пред-авторизационные экраны
-// показывают её одинаково. Задан логотип арендатора (Preferences.contacts.logo)
-// — он вытесняет и знак, и слово; иначе рисуется текстовый бренд.
+// показывают её одинаково. Единственная картинка здесь — логотип арендатора
+// (Preferences.contacts.logo); задан — он вытесняет слово, не задан — рисуется
+// текстовый бренд. Своего знака у приложения нет: картинка, которую не
+// задавали в настройках, читалась бы как чужой бренд на чужом портале.
 //
 // Размер картинки задаём ИНЛАЙНОМ через max-height: глобальный автоскейл <img>
 // в index.css ставит width/height: auto !important и перебил бы tw-классы
@@ -15,19 +17,15 @@ const WORD_SIZE = {
 } as const;
 
 const LOGO_HEIGHT = { sm: 28, default: 32, lg: 32 } as const;
-const MARK_HEIGHT = { sm: 24, default: 28, lg: 32 } as const;
 
 const BrandMark = ({
   logo,
   size = "default",
-  mark = false,
   className,
 }: {
   /** Имя файла логотипа арендатора в uploads; пусто — текстовый бренд. */
   logo?: string;
   size?: keyof typeof WORD_SIZE;
-  /** Показать знак приложения слева от слова (пред-авторизационные экраны). */
-  mark?: boolean;
   className?: string;
 }) => {
   if (logo) {
@@ -42,23 +40,14 @@ const BrandMark = ({
   }
 
   return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
-      {mark && (
-        <img
-          src="/logo.png"
-          alt=""
-          aria-hidden="true"
-          style={{ maxHeight: MARK_HEIGHT[size] }}
-        />
+    <span
+      className={cn(
+        "inline-flex items-center font-bold tracking-tight text-foreground",
+        WORD_SIZE[size],
+        className,
       )}
-      <span
-        className={cn(
-          "font-bold tracking-tight text-foreground",
-          WORD_SIZE[size],
-        )}
-      >
-        Help<span className="text-primary">Desk</span>
-      </span>
+    >
+      Help<span className="text-primary">Desk</span>
     </span>
   );
 };

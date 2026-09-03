@@ -53,6 +53,7 @@ const publicUser = (user) => ({
   workStatus: user.workStatus,
   workTimeMode: user.workTimeMode,
   timezone: user.timezone,
+  fontScale: user.fontScale === 125 ? 125 : 100,
   notify: user.notify,
   telegramBot: {
     isActive: Boolean(user.telegramBot?.isActive),

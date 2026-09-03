@@ -175,10 +175,10 @@ const EmployeesSection = ({ company, id }) => {
                         textClass="text-xs"
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[15px] leading-tight font-medium">
+                        <div className="truncate text-sm leading-tight font-medium">
                           {user.lastName} {user.firstName}
                         </div>
-                        <div className="truncate text-[13px] text-muted-foreground">
+                        <div className="truncate text-sm text-muted-foreground">
                           {[user.position, user.subdivision?.name]
                             .filter(Boolean)
                             .join(" · ") || "—"}

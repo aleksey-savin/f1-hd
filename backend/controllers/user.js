@@ -1630,6 +1630,7 @@ exports.updateMyAccount = async (req, res, next) => {
       notify,
       telegramBot,
       timezone,
+      fontScale,
     } = req.body;
 
     // Ручка правит ТОЛЬКО свою учётку, поэтому и адресат берётся из сеанса.
@@ -1646,6 +1647,12 @@ exports.updateMyAccount = async (req, res, next) => {
     // зависят и его сутки в календаре, и границы его смены
     if (timezone !== undefined) {
       user.timezone = timezone || null;
+    }
+
+    // Масштаб текста применяет клиент сразу; сервер только помнит выбор.
+    // Незнакомое значение — дефолт, а не ошибка: экран уже переключился.
+    if (fontScale !== undefined) {
+      user.fontScale = Number(fontScale) === 125 ? 125 : 100;
     }
 
     user.email = email ? email : user.email;

@@ -20,7 +20,7 @@ const SettingsSection = ({
 }) => {
   return (
     <section id={id} className={cn("scroll-mt-28", className)}>
-      <div className="mb-2 px-1 text-sm font-semibold tracking-widest text-muted-foreground uppercase">
+      <div className="mb-2 px-1 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
         {label}
       </div>
       <div className="overflow-hidden rounded-xl border border-border bg-card">

@@ -31,7 +31,7 @@ export const FormHeader = ({ title, subtitle, onHeight, children }) => (
     }}
     className="sticky top-0 z-10 -mx-6 -mt-5 mb-3 border-b border-border-soft bg-background px-6 pt-5 pb-3"
   >
-    <h1 className="my-0 pr-10 text-2xl font-semibold tracking-tight">
+    <h1 className="my-0 pr-10 text-xl font-semibold tracking-tight">
       {title}
     </h1>
     {subtitle && (

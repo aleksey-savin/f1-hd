@@ -154,7 +154,7 @@ const MikrotikRecordPage = () => {
       <div className="flex flex-wrap items-center gap-4">
         <DeviceTile row={row} size="lg" />
         <div className="min-w-0 flex-1">
-          <h1 className="my-0 truncate text-3xl font-semibold tracking-tight">
+          <h1 className="my-0 truncate text-2xl font-semibold tracking-tight">
             {row.displayName}
           </h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm">

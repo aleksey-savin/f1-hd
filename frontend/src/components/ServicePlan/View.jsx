@@ -152,7 +152,7 @@ const ViewServicePlan = ({ servicePlan }) => {
           <RiFileList2Line />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight">
+          <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight">
             {title}
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -282,7 +282,7 @@ const ViewServicePlan = ({ servicePlan }) => {
                       : "rounded-lg border border-border-soft px-2 py-2 text-center"
                   }
                 >
-                  <div className="text-[0.65rem] font-bold tracking-wider text-faint uppercase">
+                  <div className="text-xs font-bold tracking-wider text-faint uppercase">
                     {label}
                   </div>
                   <div

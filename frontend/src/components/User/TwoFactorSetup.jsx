@@ -237,7 +237,7 @@ const TwoFactorSetup = ({ email, open, onOpenChange, onDone }) => {
               <div className="rounded-lg border border-border bg-accent px-3 py-2 font-mono text-sm break-all">
                 {secret.key}
               </div>
-              <span className="text-[13px] text-faint">
+              <span className="text-sm text-faint">
                 Введите этот ключ в приложении вручную.
               </span>
               <div>
@@ -264,7 +264,7 @@ const TwoFactorSetup = ({ email, open, onOpenChange, onDone }) => {
 
         {step === "codes" && (
           <>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-xl border border-border bg-accent px-3.5 py-3 font-mono text-[15px]">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-xl border border-border bg-accent px-3.5 py-3 font-mono text-sm">
               {codes.map((item) => (
                 <span key={item}>{item}</span>
               ))}

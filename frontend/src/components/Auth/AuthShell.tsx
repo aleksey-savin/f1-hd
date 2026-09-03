@@ -103,11 +103,12 @@ const AuthShell = ({
     setTheme: (value: string) => void;
   };
 
+  // Тема применяется на месте: контекст переключает класс `.dark` на <html>,
+  // как и у переключателей внутри приложения. Перезагрузка здесь когда-то
+  // была ради легаси-CSS и осталась лишней — она ещё и стирала введённое.
   const changeTheme = (value: string) => {
     if (value === theme) return;
     setTheme(value);
-    // Легаси-CSS до эндшпиля подхватывает тему только с перезагрузкой
-    window.location.reload();
   };
 
   const { contacts } = prefs;
@@ -133,7 +134,7 @@ const AuthShell = ({
         <div className="contents lg:col-span-2 lg:flex lg:flex-col">
           {/* марка */}
           <div className="order-1 flex items-center justify-between gap-4">
-            <BrandMark logo={contacts.logo} size="lg" mark />
+            <BrandMark logo={contacts.logo} size="lg" />
             <ThemeSegment
               theme={theme}
               onChange={changeTheme}

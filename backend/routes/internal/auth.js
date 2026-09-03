@@ -105,15 +105,15 @@ const loginLimiter = rateLimit({
 
 
 /**
- * Ссылка для входа: свой лимитер по АДРЕСУ, а не только по IP.
+ * Код для входа: свой лимитер по АДРЕСУ, а не только по IP.
  *
  * Без него ручка становится инструментом рассылки писем на чужой ящик: адрес
  * чужой, IP свой, и общий лимитер по IP тут не помогает — он ограничит
  * отправителя, а достаётся получателю. Три письма в час на адрес — потолок
- * осмысленного: ссылка живёт полчаса, и четвёртая за час означает не спешку,
- * а чужие руки.
+ * осмысленного: код живёт пятнадцать минут, и четвёртое письмо за час
+ * означает не спешку, а чужие руки.
  */
-const loginLinkLimiter = rateLimit({
+const loginCodeLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 3,
   standardHeaders: true,
@@ -123,8 +123,31 @@ const loginLinkLimiter = rateLimit({
   // нет» опять сделал бы из ручки проверялку чужих адресов.
   handler: (req, res) =>
     res.status(200).json({
-      message: "Если такой адрес есть, письмо со ссылкой отправлено.",
+      message: "Если такой адрес есть, код отправлен.",
     }),
+});
+
+/**
+ * Проверка кода из письма.
+ *
+ * ПЕРЕБОР ОГРАНИЧИВАЕТ САМ ПЛАГИН: после пяти неверных попыток код гаснет, и
+ * нужен новый (`allowedAttempts` в `auth/instance.mjs`). Лимитер здесь — как
+ * у пароля, по паре адрес+IP, и только против объёма запросов.
+ */
+const loginCodeVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const email = (req.body?.email || "").toLowerCase().trim();
+    return `code:${req.ip}:${email}`;
+  },
+  message: {
+    error: true,
+    message: "Слишком много попыток. Запросите новый код позже.",
+  },
+  skipSuccessfulRequests: true,
 });
 
 /**
@@ -203,13 +226,27 @@ const twoFactorLimiter = rateLimit({
 
 router.post("/login/two-factor", twoFactorLimiter, authController.verifyTwoFactor);
 
-// Вход по ссылке из письма — только клиентам; гейт и одинаковый ответ на
-// любой адрес живут в контроллере.
+// Вход по коду из письма: запрос кода (гейт и одинаковый ответ на любой адрес
+// живут в контроллере) и обмен кода на сеанс.
 router.post(
-  "/login-link",
+  "/login-code",
   authLimiter,
-  loginLinkLimiter,
-  authController.requestLoginLink,
+  loginCodeLimiter,
+  authController.requestLoginCode,
+);
+router.post(
+  "/login-code/verify",
+  authLimiter,
+  loginCodeVerifyLimiter,
+  authController.verifyLoginCode,
+);
+// Новый пароль сотрудника по тому же коду — тот же лимитер: попытки кода
+// считаются вместе, где бы его ни вводили.
+router.post(
+  "/login-code/password",
+  authLimiter,
+  loginCodeVerifyLimiter,
+  authController.resetPasswordByCode,
 );
 
 // routes for telegram bot

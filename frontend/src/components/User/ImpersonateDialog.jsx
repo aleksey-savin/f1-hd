@@ -89,7 +89,7 @@ const ImpersonateDialog = ({ user, open, onOpenChange }) => {
         {state.status === "ready" && (
           <>
             <div className="flex items-stretch overflow-hidden rounded-lg border border-border">
-              <div className="min-w-0 flex-1 truncate bg-accent/55 px-3 py-2.5 font-mono text-[13px] text-muted-foreground">
+              <div className="min-w-0 flex-1 truncate bg-accent/55 px-3 py-2.5 font-mono text-sm text-muted-foreground">
                 {state.data.link}
               </div>
               <button
@@ -102,7 +102,7 @@ const ImpersonateDialog = ({ user, open, onOpenChange }) => {
               </button>
             </div>
 
-            <p className="my-0 text-[13px] text-faint">
+            <p className="my-0 text-sm text-faint">
               Ссылка одноразовая и живёт 10 минут. Сеанс под чужой учётной
               записью — час, дальше он завершится сам.
             </p>

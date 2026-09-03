@@ -232,7 +232,7 @@ const ViewSupplier = ({ supplier = {} }) => {
           {monogramFor(supplier.name || "")}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight">
+          <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight">
             {supplier.name}
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">

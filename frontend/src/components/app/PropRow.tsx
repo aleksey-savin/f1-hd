@@ -36,7 +36,7 @@ const PropRow = ({
     </span>
     <div className="min-w-0 flex-1">
       <div className="text-xs text-faint">{label}</div>
-      <div className="truncate text-base font-medium">{children}</div>
+      <div className="truncate text-sm font-medium">{children}</div>
     </div>
     {action}
     {copy && (

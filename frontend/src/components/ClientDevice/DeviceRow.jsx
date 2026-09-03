@@ -170,7 +170,7 @@ const DeviceRow = ({ device }) => {
 
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="min-w-0 truncate font-medium" title={device.name}>
+          <span className="min-w-0 truncate text-base leading-tight font-medium" title={device.name}>
             {device.name}
           </span>
           {device.componentCount > 0 && (

@@ -116,7 +116,7 @@ const ViewTicketTemplate = ({ template }) => {
           <RiFileList3Line />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight">
+          <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight">
             {title}
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-base">

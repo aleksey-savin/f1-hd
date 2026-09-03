@@ -184,7 +184,7 @@ export const DescriptionSection = ({
           // Кегль крупнее остальных секций: это единственный текст на карточке,
           // который читают целиком, а не сканируют.
           <div
-            className="md-doc max-h-96 overflow-auto text-xl leading-relaxed break-words"
+            className="md-doc max-h-96 overflow-auto text-base leading-relaxed break-words"
             onClick={showAi ? pickFromText : undefined}
             onKeyDown={
               showAi

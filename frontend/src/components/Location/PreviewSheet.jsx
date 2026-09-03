@@ -21,7 +21,7 @@ const dash = <span className="text-faint">—</span>;
 // Микро-подпись + значение (компактный вариант Detail карточки).
 const Info = ({ label, children }) => (
   <div className="min-w-0">
-    <div className="mb-0.5 text-[11px] font-semibold tracking-wide text-faint uppercase">
+    <div className="mb-0.5 text-xs font-semibold tracking-wide text-faint uppercase">
       {label}
     </div>
     <div className="text-sm leading-relaxed break-words">
@@ -71,7 +71,7 @@ const PreviewSheet = ({
           <>
             <div className="px-5 pt-4">
               {ancestors.length > 0 && (
-                <nav className="mb-2.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 pr-8 text-[13px] font-medium text-muted-foreground">
+                <nav className="mb-2.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 pr-8 text-sm font-medium text-muted-foreground">
                   {ancestors.map((crumb, index) => (
                     <span
                       key={crumb._id}
@@ -104,7 +104,7 @@ const PreviewSheet = ({
                   {node.name || "Без названия"}
                 </SheetTitle>
               </div>
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px]">
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm">
                 <span
                   className={cn(
                     "inline-flex items-center gap-1.5 font-semibold",
@@ -154,7 +154,7 @@ const PreviewSheet = ({
                       {subdivisions.map((subdivision) => (
                         <span
                           key={subdivision._id}
-                          className="inline-flex items-center rounded-full border border-border-soft bg-accent px-2 py-0.5 text-[13px] font-medium"
+                          className="inline-flex items-center rounded-full border border-border-soft bg-accent px-2 py-0.5 text-sm font-medium"
                         >
                           {subdivision.name}
                         </span>
@@ -181,7 +181,7 @@ const PreviewSheet = ({
                 )}
               </div>
 
-              <div className="mt-4 mb-1 text-[11px] font-bold tracking-wider text-faint uppercase">
+              <div className="mt-4 mb-1 text-xs font-bold tracking-wider text-faint uppercase">
                 Вложенные · {childNodes.length}
               </div>
               {childNodes.length > 0 ? (
@@ -204,7 +204,7 @@ const PreviewSheet = ({
                           {child.name?.trim() || "Без названия"}
                         </span>
                         {child.deviceCount > 0 && (
-                          <span className="flex-none text-[12.5px] font-normal text-muted-foreground tabular-nums">
+                          <span className="flex-none text-xs font-normal text-muted-foreground tabular-nums">
                             {child.deviceCount} устр.
                           </span>
                         )}

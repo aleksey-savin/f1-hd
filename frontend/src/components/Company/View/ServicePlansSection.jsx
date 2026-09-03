@@ -253,7 +253,7 @@ const ServicePlansSection = ({
                 className="group flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border-soft py-3 first:border-t-0 first:pt-0 last:pb-0"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="text-[15px] leading-snug font-medium">
+                  <div className="text-sm leading-snug font-medium">
                     <Link
                       to={`/finances/service-plans/${plan._id}`}
                       className="text-accent-text no-underline hover:underline"
@@ -261,7 +261,7 @@ const ServicePlansSection = ({
                       {plan.title}
                     </Link>
                   </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[13px] text-muted-foreground">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-sm text-muted-foreground">
                     <span>{tariffTypeName(tariff?.type) || "—"}</span>
                     {plan.isActiveSince && (
                       <span className="tabular-nums">
@@ -284,7 +284,7 @@ const ServicePlansSection = ({
                   </div>
                 </div>
                 <div className="flex flex-none items-center gap-1">
-                  <span className="text-[15px] font-bold tabular-nums">
+                  <span className="text-sm font-bold tabular-nums">
                     {price.value}
                     {price.per && (
                       <span className="font-semibold text-muted-foreground">

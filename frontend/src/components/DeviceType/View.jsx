@@ -61,7 +61,7 @@ const Detail = ({ label, children, className }) => (
     <div className="mb-0.5 text-xs font-semibold tracking-wide text-faint uppercase">
       {label}
     </div>
-    <div className="text-[15px] leading-relaxed break-words">
+    <div className="text-sm leading-relaxed break-words">
       {children || dash}
     </div>
   </div>
@@ -386,7 +386,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
         <div className="min-w-0 flex-1">
           <h1
             className={cn(
-              "my-0 text-3xl leading-tight font-semibold tracking-tight break-words",
+              "my-0 text-2xl leading-tight font-semibold tracking-tight break-words",
               !isActive && "text-muted-foreground",
             )}
           >
@@ -553,7 +553,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
                   />
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="text-[15px] font-medium">
+                  <div className="text-sm font-medium">
                     {meta?.name || "Атрибут"}
                     {meta?.unit && (
                       <span className="font-normal text-faint">

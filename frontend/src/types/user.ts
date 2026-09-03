@@ -22,4 +22,6 @@ export type AuthedUser = {
   /** Словарь прав с сервера: `{ ticket: ["delete"], … }`. Питает `useCan()`. */
   statements?: Record<string, string[]>;
   workStatus?: { code: string; note: string; updatedAt: string | null };
+  /** Личный масштаб интерфейса, проценты; применяется только на десктопе. */
+  fontScale?: 100 | 125;
 };

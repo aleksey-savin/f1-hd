@@ -18,7 +18,7 @@ const dash = <span className="text-faint">—</span>;
 // Микро-подпись + значение (тот же идиом, что в превью расположений).
 const Info = ({ label, children }) => (
   <div className="min-w-0">
-    <div className="mb-0.5 text-[11px] font-semibold tracking-wide text-faint uppercase">
+    <div className="mb-0.5 text-xs font-semibold tracking-wide text-faint uppercase">
       {label}
     </div>
     <div className="text-sm leading-relaxed break-words">
@@ -68,7 +68,7 @@ const SubdivisionPreviewSheet = ({
           <>
             <div className="px-5 pt-4">
               {ancestors.length > 0 && (
-                <nav className="mb-2.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 pr-8 text-[13px] font-medium text-muted-foreground">
+                <nav className="mb-2.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 pr-8 text-sm font-medium text-muted-foreground">
                   {ancestors.map((crumb, index) => (
                     <span
                       key={crumb._id}
@@ -101,7 +101,7 @@ const SubdivisionPreviewSheet = ({
                   {node.name?.trim() || "Без названия"}
                 </SheetTitle>
               </div>
-              <div className="mt-2 text-[13px] text-muted-foreground tabular-nums">
+              <div className="mt-2 text-sm text-muted-foreground tabular-nums">
                 <b className="font-semibold text-foreground">
                   {employees.length}
                 </b>{" "}
@@ -197,7 +197,7 @@ const SubdivisionPreviewSheet = ({
                 </Info>
               </div>
 
-              <div className="mt-4 mb-1 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-faint uppercase">
+              <div className="mt-4 mb-1 flex items-center gap-1.5 text-xs font-bold tracking-wider text-faint uppercase">
                 <RiGroupLine aria-hidden /> Сотрудники · {employees.length}
               </div>
               {employees.length > 0 ? (
@@ -226,7 +226,7 @@ const SubdivisionPreviewSheet = ({
                 </div>
               )}
 
-              <div className="mt-4 mb-1 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-faint uppercase">
+              <div className="mt-4 mb-1 flex items-center gap-1.5 text-xs font-bold tracking-wider text-faint uppercase">
                 <RiNodeTree aria-hidden /> Вложенные · {children.length}
               </div>
               {children.length > 0 ? (
@@ -247,7 +247,7 @@ const SubdivisionPreviewSheet = ({
                         {child.name?.trim() || "Без названия"}
                       </span>
                       {child.users?.length > 0 && (
-                        <span className="flex-none text-[12.5px] font-normal text-muted-foreground tabular-nums">
+                        <span className="flex-none text-xs font-normal text-muted-foreground tabular-nums">
                           {child.users.length}{" "}
                           {plural(child.users.length, "чел.", "чел.", "чел.")}
                         </span>

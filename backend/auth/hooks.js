@@ -38,20 +38,29 @@ const greet = (user) => user.firstName || user.name || "Здравствуйте
 
 const SIGNATURE = "<p>С уважением,<br />Команда F1Lab</p>";
 
+/**
+ * Письма авторизации уходят СРАЗУ, а не следующим тиком крона: человек стоит
+ * у экрана и ждёт, и экран обязан честно сказать, ушло письмо или нет.
+ * Документ `Notification` при этом создаётся как у всех — ради учёта и
+ * подмены получателя вне прода, — но В БАЗУ ПОПАДАЕТ УЖЕ С ИСХОДОМ: его
+ * сохраняет `sendNow` после отправки. Сохранённый заранее документ крон
+ * очереди успевал подхватить, пока шёл SMTP-обмен, и письмо уходило дважды.
+ * Не ушло — бросаем: вызывающая ручка ответит ошибкой, а не «отправлено».
+ */
 const send = async (to, title, body) => {
-  try {
-    await new Notification({
-      instrument: "email",
-      to: { email: to },
-      title,
-      text: `<div>${body}${SIGNATURE}</div>`,
-    }).save();
-  } catch (error) {
-    logger.log("error", "Не удалось поставить письмо в очередь", {
-      title,
-      error: error.message,
-    });
-    throw error;
+  const notification = new Notification({
+    instrument: "email",
+    to: { email: to },
+    title,
+    text: `<div>${body}${SIGNATURE}</div>`,
+  });
+
+  // Лениво: outbox тянет модели и почтовый слой, которым этот файл при
+  // загрузке острова не нужен.
+  const { sendNow } = require("@/services/mail/outbox");
+  const result = await sendNow(notification);
+  if (!result?.success) {
+    throw new Error(result?.failure?.state || "Письмо не отправлено");
   }
 };
 
@@ -204,7 +213,8 @@ const sendMagicLink = async ({ email, url }) => {
         <p><a href="${url}" target="_blank">Войти в портал</a> — пароль не
           понадобится.</p>
         <p>Ссылка действительна двое суток и срабатывает один раз. Если она
-          истечёт, на странице входа нажмите «Прислать письмо».</p>
+          истечёт, на странице входа нажмите «Войти по коду из письма» — код
+          придёт сюда же.</p>
       `,
     );
   }
@@ -223,9 +233,76 @@ const sendMagicLink = async ({ email, url }) => {
   );
 };
 
+const CODE_STYLE = "font-size: 1.6em; letter-spacing: 0.25em; font-weight: bold;";
+
+/**
+ * Письмо с кодом («Войти по коду из письма» на экране входа).
+ *
+ * Тот же путь через `Notification`, что и у остальных писем: вне прода
+ * получатель подменяется на разработческий ящик.
+ *
+ * ТИП КОДА ПРИВЯЗАН К ТИПУ АККАУНТА: клиенту — код для ВХОДА (`sign-in`),
+ * сотруднику — код для СМЕНЫ ПАРОЛЯ (`forget-password`), после которого он
+ * входит паролем и вторым фактором. Какой тип просить, решает
+ * `controllers/auth.js`; проверка повторяется здесь, потому что ручки плагина
+ * смонтированы публично: прямой `POST /api/auth/email-otp/send-verification-otp`
+ * минует наш гейт, и без неё сотрудник получил бы код для входа, а с ним —
+ * вход мимо пароля. Код без письма бесполезен, поэтому не слать его
+ * достаточно.
+ *
+ * Остальные типы плагина (подтверждение почты, смена адреса) мы не просим;
+ * такое письмо не отправляем вовсе.
+ */
+const sendEmailCode = async ({ email, otp, type }) => {
+  const User = require("@/models/user");
+  const user = await User.findOne({ email })
+    .select("firstName name isEndUser")
+    .lean();
+  const isClient = user?.isEndUser !== false;
+  const minutes = Math.round(config.loginCodeTtlSeconds / 60);
+
+  if (type === "sign-in" && isClient) {
+    return send(
+      email,
+      "Код для входа в портал F1Lab Helpdesk",
+      `
+        <p>${greet(user || {})},</p>
+        <p>ваш код для входа в портал:</p>
+        <p style="${CODE_STYLE}">${otp}</p>
+        <p>Введите его на странице входа — пароль не понадобится. Код
+          действителен ${minutes} минут и срабатывает один раз.</p>
+        <p>Если вы его не запрашивали, просто проигнорируйте это письмо: без
+          кода ничего не произойдёт.</p>
+      `,
+    );
+  }
+
+  if (type === "forget-password" && !isClient) {
+    return send(
+      email,
+      "Код для смены пароля в портале F1Lab Helpdesk",
+      `
+        <p>${greet(user || {})},</p>
+        <p>ваш код для смены пароля:</p>
+        <p style="${CODE_STYLE}">${otp}</p>
+        <p>Введите его на странице входа и задайте новый пароль. Код
+          действителен ${minutes} минут и срабатывает один раз.</p>
+        <p>Если вы его не запрашивали, просто проигнорируйте это письмо: без
+          кода пароль не изменится.</p>
+      `,
+    );
+  }
+
+  logger.log("warn", "Код из письма не отправлен: тип не подходит аккаунту", {
+    email,
+    type,
+  });
+};
+
 module.exports = {
   sendResetPassword,
   sendMagicLink,
+  sendEmailCode,
   sessionRefusal,
   checkPasswordBreach,
 };

@@ -44,7 +44,7 @@ const SwitchField = ({
         disabled={disabled}
         className="mt-0.5"
       />
-      <Label htmlFor={id} className="grid gap-0.5 text-base font-medium">
+      <Label htmlFor={id} className="grid gap-0.5 text-sm font-semibold">
         {label}
         {hint && (
           <span className="text-sm font-normal text-muted-foreground">

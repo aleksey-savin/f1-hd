@@ -91,7 +91,7 @@ const deliver = async (notification, channel) => {
       `отправлено email-уведомление пользователю ${label}`,
       "info",
     );
-    return;
+    return message;
   }
 
   const exhausted = notification.attemptsCounter >= NOTIFY_MAX_ATTEMPTS;
@@ -107,6 +107,43 @@ const deliver = async (notification, channel) => {
       : `при отправке email-уведомления пользователю ${label} произошла ошибка`,
     "danger",
   );
+  return message;
+};
+
+/**
+ * Письмо, которого человек ждёт ПРЯМО СЕЙЧАС: код для входа или смены пароля,
+ * ссылка на смену пароля. Отправляется тут же, а исход отдаётся вызывающему —
+ * экран обязан сказать «не ушло», а не «отправлено», и узнать это он может
+ * только так.
+ *
+ * Принимает НЕСОХРАНЁННЫЙ документ и сохраняет его сам, уже с исходом (это
+ * делает `deliver`). Сохранять заранее нельзя: между записью и концом
+ * SMTP-обмена проходят секунды, крон очереди ходит раз в двадцать, и
+ * документ «не отправлено, попыток ноль» он подхватывал — письмо уходило
+ * дважды.
+ *
+ * Не ушло — письмо помечается `failed`, повторов крона не будет: через
+ * пятнадцать минут код уже недействителен, а человек давно нажал «ещё раз».
+ *
+ * @returns {Promise<{success: boolean, failure?: {state: string, hint: string}}>}
+ */
+exports.sendNow = async (notification) => {
+  const prefs = await Preferences.findOne({});
+  if (!prefs?.notify?.byEmail?.isActive) {
+    notification.failed = true;
+    await notification.save();
+    return {
+      success: false,
+      failure: { state: "Почта выключена", hint: "" },
+    };
+  }
+
+  const message = await deliver(notification, prefs.notify.byEmail);
+  if (!message?.success) {
+    notification.failed = true;
+    await notification.save();
+  }
+  return message || { success: false };
 };
 
 exports.sendPendingEmails = async () => {

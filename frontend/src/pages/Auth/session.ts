@@ -144,6 +144,58 @@ export const OFFLINE_FAILURE: AuthFailure = {
   locked: false,
 };
 
+export type SignInOutcome =
+  /** Сеанс выдан и уже сохранён — остаётся уйти в приложение. */
+  | { status: "session" }
+  /** Первый шаг принят, но нужен код из приложения; состояние — в cookie. */
+  | { status: "two-factor" }
+  /** Код из письма принят, но это код сотрудника: дальше новый пароль. */
+  | { status: "password-reset" }
+  | { status: "failed"; failure: AuthFailure };
+
+/**
+ * Шаг входа, который может закончиться сеансом: пароль, код из письма, код из
+ * приложения. Исходов три на всех, поэтому и обработчик один — иначе каждый
+ * экран заново решал бы, что делать с `twoFactorRequired` и с обрывом сети.
+ *
+ * `credentials: "include"` обязателен: cookie второго фактора идёт той же
+ * дорогой, что и сессионная, — без неё сервер не знает, чей вход подтверждают.
+ */
+export async function signIn(
+  url: string,
+  body: unknown,
+  fallback: string,
+): Promise<SignInOutcome> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return { status: "failed", failure: OFFLINE_FAILURE };
+  }
+
+  if (!response.ok) {
+    return { status: "failed", failure: await authFailure(response, fallback) };
+  }
+
+  const payload = await response.json();
+  if (payload?.twoFactorRequired) {
+    return { status: "two-factor" };
+  }
+  if (payload?.passwordReset) {
+    return { status: "password-reset" };
+  }
+
+  // Ответ передаём целиком: токен сеанса приезжает заголовком
+  // `set-auth-token`, а поле `token` тела оставлено для совместимости.
+  await storeSession(payload, response);
+  return { status: "session" };
+}
+
 const responseText = async (response: Response) =>
   response
     .clone()

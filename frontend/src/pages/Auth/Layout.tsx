@@ -21,7 +21,7 @@ import { FALLBACK_PREFS, type AuthPrefs } from "./prefs";
 const LEGACY_MODES: Record<string, string> = {
   // Саморегистрации больше нет — старая закладка ведёт на вход.
   signup: "/auth",
-  "forgot-password": "/auth/password",
+  "forgot-password": "/auth/code",
   login: "/auth",
 };
 

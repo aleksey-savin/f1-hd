@@ -49,12 +49,12 @@ const SettingRow = ({
         {htmlFor ? (
           <label
             htmlFor={htmlFor}
-            className="block cursor-pointer text-base font-medium"
+            className="block cursor-pointer text-sm font-semibold"
           >
             {title}
           </label>
         ) : (
-          <div className="text-base font-medium">{title}</div>
+          <div className="text-sm font-semibold">{title}</div>
         )}
         {hint && (
           <div className="mt-0.5 text-sm text-muted-foreground">{hint}</div>

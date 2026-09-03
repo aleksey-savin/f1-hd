@@ -390,7 +390,7 @@ const ViewTicket = () => {
               </span>
             )}
           </div>
-          <h1 className="mt-1.5 mb-0 text-3xl leading-tight font-semibold tracking-tight break-words">
+          <h1 className="mt-1.5 mb-0 text-2xl leading-tight font-semibold tracking-tight break-words">
             {ticket.title}
             {/* Третье место, где ИИ заполнил поле заявки вместо человека:
                 заявитель темы не пишет, а она уезжает в список, в письмо,

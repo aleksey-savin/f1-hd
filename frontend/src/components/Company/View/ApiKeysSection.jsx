@@ -70,7 +70,7 @@ const IssuedKey = ({ value, onDone }) => {
   return (
     <>
       <div className="flex items-stretch overflow-hidden rounded-lg border border-border">
-        <div className="min-w-0 flex-1 bg-accent/55 px-3 py-2.5 font-mono text-[13px] break-all">
+        <div className="min-w-0 flex-1 bg-accent/55 px-3 py-2.5 font-mono text-sm break-all">
           {value}
         </div>
         <button
@@ -231,7 +231,7 @@ const ApiKeysSection = ({ company, id }) => {
             >
               <span
                 className={cn(
-                  "min-w-0 flex-1 truncate text-[15px] font-medium md:min-w-40 md:flex-none md:basis-48",
+                  "min-w-0 flex-1 truncate text-sm font-medium md:min-w-40 md:flex-none md:basis-48",
                   !apiKey.isActive && "text-muted-foreground",
                 )}
               >
@@ -257,7 +257,7 @@ const ApiKeysSection = ({ company, id }) => {
 
               <span
                 className={cn(
-                  "inline-flex w-22 flex-none items-center gap-1.5 text-[13px] font-semibold",
+                  "inline-flex w-22 flex-none items-center gap-1.5 text-sm font-semibold",
                   apiKey.isActive ? "text-accent-text" : "text-faint",
                 )}
               >

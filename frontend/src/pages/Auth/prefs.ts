@@ -11,7 +11,7 @@ export type AuthPrefs = {
     logo: string;
   };
   timezone: string;
-  /** Почта выключена — ссылку на смену пароля отправить нечем. */
+  /** Почта выключена — код для входа отправить нечем. */
   emailIsActive: boolean;
 };
 

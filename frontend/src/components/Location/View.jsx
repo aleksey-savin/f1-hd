@@ -56,7 +56,7 @@ const Detail = ({ label, children, className }) => (
     <div className="mb-0.5 text-xs font-semibold tracking-wide text-faint uppercase">
       {label}
     </div>
-    <div className="text-[15px] leading-relaxed break-words">
+    <div className="text-sm leading-relaxed break-words">
       {children || dash}
     </div>
   </div>
@@ -139,7 +139,7 @@ const DeviceRow = ({ device }) => {
       {statusLabel && (
         <span
           className={cn(
-            "flex-none text-[13px] font-semibold max-sm:hidden",
+            "flex-none text-sm font-semibold max-sm:hidden",
             statusTone,
           )}
         >
@@ -293,7 +293,7 @@ const ViewLocation = ({
         <div className="min-w-0 flex-1">
           <h1
             className={cn(
-              "my-0 text-3xl leading-tight font-semibold tracking-tight break-words",
+              "my-0 text-2xl leading-tight font-semibold tracking-tight break-words",
               !isActive && "text-muted-foreground",
             )}
           >

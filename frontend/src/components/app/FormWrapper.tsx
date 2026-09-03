@@ -106,7 +106,7 @@ const FormWrapper = ({
         }
       >
         {header ?? (
-          <h1 className="my-0 mb-5 pr-10 text-2xl font-semibold tracking-tight">
+          <h1 className="my-0 mb-5 pr-10 text-xl font-semibold tracking-tight">
             {title}
           </h1>
         )}

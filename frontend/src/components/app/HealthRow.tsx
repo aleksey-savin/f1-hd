@@ -71,7 +71,7 @@ const HealthRow = ({
         )}
       />
       <div className="min-w-0">
-        <div className="text-[0.9375rem]">
+        <div className="text-sm">
           <span className={cn("font-semibold", TONE[state])}>{title}</span>
           {meta && <span className="text-muted-foreground">{meta}</span>}
         </div>

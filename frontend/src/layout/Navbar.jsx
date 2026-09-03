@@ -115,13 +115,16 @@ const ThemeDropdown = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
+        {/* Служебная кнопка, а не пункт меню: меньше и приглушённее пунктов,
+            чтобы не спорить с ними за внимание */}
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon-xs"
           aria-label={`Тема оформления: ${current.label}`}
           title="Тема оформления"
+          className="text-muted-foreground hover:text-foreground"
         >
-          <current.Icon size={17} aria-hidden />
+          <current.Icon size={15} aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

@@ -26,9 +26,11 @@ export default function useSemanticZoom({
 
     const onWheel = (event) => {
       // Нормализуем единицы (строки/страницы → пиксели) и клампим против инерции.
+      // Строка — корневой размер шрифта, а не 16: при личном масштабе 125%
+      // корень равен 20px.
       const unit =
         event.deltaMode === 1
-          ? 16
+          ? parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
           : event.deltaMode === 2
             ? el.clientHeight || 800
             : 1;

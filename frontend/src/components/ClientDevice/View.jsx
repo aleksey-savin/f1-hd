@@ -257,7 +257,7 @@ const ViewClientDevice = ({ device = {} }) => {
           </span>
 
           <div className="min-w-0 flex-1">
-            <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight">
+            <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight">
               {title}
             </h1>
 
