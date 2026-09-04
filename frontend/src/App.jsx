@@ -489,6 +489,17 @@ function App() {
                   action: addTicketAction,
                   element: <AddTicketPage />,
                 },
+                // Правка со списка живёт ПОД списком, а не под карточкой:
+                // маршрут решает, что видно за шторкой, и с `/tickets/:num/update`
+                // за ней открывалась карточка заявки — страница, с которой человек
+                // не приходил, да ещё и лишним запросом (viewTicketLoader). Форма
+                // одна, маршрута два — как во всех прочих разделах; «..» после
+                // сабмита ведёт отсюда в список, а с карточки — на карточку.
+                {
+                  path: "update/:ticketNum",
+                  element: <UpdateTicketPage />,
+                  loader: updateTicketLoader,
+                },
                 {
                   path: "delete",
                   action: deleteTicketAction,

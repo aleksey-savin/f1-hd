@@ -244,7 +244,7 @@ const TicketRow = ({
               {canEdit && (
                 <DropdownMenuItem asChild>
                   <Link
-                    to={`/tickets/${num}/update`}
+                    to={`/tickets/update/${num}`}
                     onClick={offcanvas.setShow}
                   >
                     <RiEdit2Line /> Изменить

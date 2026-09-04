@@ -51,6 +51,8 @@ const MIGRATED_ROUTES = [
   // (со слэшем) ловит карточку и её вложенные маршруты
   { path: "/tickets/checklist-templates", maxWidth: 1328 },
   { path: "/tickets/add", maxWidth: 1328 },
+  // Правка со списка — вложенный маршрут списка, значит и ширина листа его
+  { path: "/tickets/update", maxWidth: 1328 },
   // Карточка шире списка: max-w-8xl (1440) + 2×24 — виджету
   // «Окружение» в 1280 не хватало места
   { path: "/tickets/", maxWidth: 1488 },

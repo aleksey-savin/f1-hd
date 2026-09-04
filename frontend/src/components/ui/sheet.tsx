@@ -70,8 +70,17 @@ function SheetContent({
             "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
           side === "top" &&
             "inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+          /* Нижние шторки высотой по содержимому, и содержимое у них приезжает
+             маршрутом — сперва заглушка, следом форма (app/FormSheet). Поэтому
+             въезд «на 100% своей высоты» им не годится: точкой отсчёта у него
+             служит сама высота, и подмена заглушки формой посреди анимации
+             утаскивает шторку обратно вниз. Подъём на фиксированные 6rem с
+             проявлением от высоты не зависит вовсе. Заодно 300 мс и ease-out —
+             входящее движение тормозит к концу, а не разгоняется с места, как
+             ease-in-out у боковых: у тех ширина задана классом, и 100%
+             считается от известного. */
           side === "bottom" &&
-            "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+            "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom-24 data-[state=closed]:fade-out-0 data-[state=closed]:duration-200 data-[state=closed]:ease-in data-[state=open]:slide-in-from-bottom-24 data-[state=open]:fade-in-0 data-[state=open]:duration-300 data-[state=open]:ease-out",
           className,
         )}
         {...props}
