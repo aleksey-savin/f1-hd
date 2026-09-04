@@ -3,7 +3,6 @@ import { ThemeProvider } from "./store/theme-context";
 import * as Sentry from "@sentry/react";
 
 import App from "./App";
-import BackToTop from "./UI/BackToTop";
 
 import "@fontsource-variable/inter";
 import "./styles/tailwind.css";
@@ -44,6 +43,5 @@ const root = ReactDOM.createRoot(container);
 root.render(
   <ThemeProvider>
     <App />
-    <BackToTop />
   </ThemeProvider>,
 );

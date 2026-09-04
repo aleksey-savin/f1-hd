@@ -21,7 +21,7 @@ const InternalServerError = ({ status }) => (
     }
     tech={{
       tone: "destructive",
-      text: `${status || 500} · отчёт отправлен автоматически`,
+      text: `Отчёт отправлен автоматически`,
     }}
   />
 );
