@@ -3,7 +3,6 @@ import { Link, Outlet, useNavigate, useRevalidator } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
   RiAddLine,
-  RiArrowLeftSLine,
   RiArrowRightSLine,
   RiBarcodeLine,
   RiBuilding2Line,
@@ -34,6 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import AlertMessage from "@/components/app/AlertMessage";
 import AnchorRail from "@/components/app/AnchorRail";
 import { DeleteDialog } from "@/components/app/DeleteItem";
@@ -154,6 +154,9 @@ const ViewClientDevice = ({ device = {} }) => {
     type?.name ||
     "Устройство";
 
+  // Как устройство назовётся в крошке компании, расположения, человека
+  const fromState = useCrumbFrom(title);
+
   const status = DEVICE_STATUS_META[device.status];
   const warranty = warrantyState(device.warrantyExpirationDate);
   const components = device.components || [];
@@ -236,13 +239,7 @@ const ViewClientDevice = ({ device = {} }) => {
   return (
     <>
       <div className="mx-auto w-full max-w-5xl">
-        {/* Возврат к списку — крошками, а не кнопкой в действиях */}
-        <Link
-          to="/inventory/client-devices"
-          className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-        >
-          <RiArrowLeftSLine /> Устройства
-        </Link>
+        <Crumbs />
 
         {/* Hero */}
         <div className="flex flex-wrap items-start gap-4">
@@ -419,6 +416,7 @@ const ViewClientDevice = ({ device = {} }) => {
                   {device.companyId ? (
                     <Link
                       to={`/companies/${device.companyId._id}`}
+                      state={fromState}
                       className="text-foreground no-underline hover:text-accent-text"
                     >
                       {refName(device.companyId)}
@@ -435,6 +433,7 @@ const ViewClientDevice = ({ device = {} }) => {
                     <>
                       <Link
                         to={`/inventory/locations/${device.locationId._id}`}
+                      state={fromState}
                         className="text-foreground no-underline hover:text-accent-text"
                       >
                         {device.locationId.name}
@@ -457,6 +456,7 @@ const ViewClientDevice = ({ device = {} }) => {
                   {device.userId ? (
                     <Link
                       to={`/users/${device.userId._id}`}
+                      state={fromState}
                       className="text-foreground no-underline hover:text-accent-text"
                     >
                       {[device.userId.lastName, device.userId.firstName]
@@ -474,7 +474,7 @@ const ViewClientDevice = ({ device = {} }) => {
                 пользователя, в режиме «по устройству»: цепочка расположений и
                 соседи по помещению, само устройство обведено */}
             <Eyebrow id="environment">Окружение</Eyebrow>
-            <Environment deviceId={device._id} />
+            <Environment deviceId={device._id} from={title} />
 
             <Section>
               <Eyebrow
@@ -500,6 +500,7 @@ const ViewClientDevice = ({ device = {} }) => {
                     <>
                       <Link
                         to={`/inventory/device-types/${type._id}`}
+                      state={fromState}
                         className="text-foreground no-underline hover:text-accent-text"
                       >
                         {type.name}
@@ -509,6 +510,7 @@ const ViewClientDevice = ({ device = {} }) => {
                           {" · "}
                           <Link
                             to={`/inventory/device-models/${model._id}`}
+                      state={fromState}
                             className="text-foreground no-underline hover:text-accent-text"
                           >
                             {[vendor?.name, model.name]

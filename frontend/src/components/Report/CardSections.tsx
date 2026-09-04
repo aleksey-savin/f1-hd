@@ -1,5 +1,4 @@
 import { type ReactNode } from "react";
-import { Link } from "react-router";
 import { RiInformationLine } from "react-icons/ri";
 
 import { Eyebrow } from "@/components/app/Panel";
@@ -27,30 +26,6 @@ export const CardMonogram = ({ name }: { name: string }) => (
   >
     {monogramFor(name)}
   </span>
-);
-
-export const CardCrumbs = ({
-  items,
-}: {
-  items: { label: string; to?: string }[];
-}) => (
-  <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-    {items.map((item, index) => (
-      <span key={item.label} className="inline-flex items-center gap-1.5">
-        {index > 0 && <span className="text-faint">/</span>}
-        {item.to ? (
-          <Link
-            to={item.to}
-            className="text-muted-foreground no-underline hover:text-foreground hover:underline"
-          >
-            {index === 0 ? `‹ ${item.label}` : item.label}
-          </Link>
-        ) : (
-          <span className="text-faint">{item.label}</span>
-        )}
-      </span>
-    ))}
-  </div>
 );
 
 /**

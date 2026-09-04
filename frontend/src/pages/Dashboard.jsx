@@ -61,6 +61,7 @@ const DashboardClient = () => {
                 subject="user"
                 label="Моё рабочее место"
                 hideWhenEmpty
+                from="Главная"
               />
             </div>
           )}

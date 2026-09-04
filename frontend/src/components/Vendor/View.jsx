@@ -4,7 +4,6 @@ import { Link, Outlet, useActionData, useNavigate } from "react-router";
 import {
   RiAddFill,
   RiArrowDownSLine,
-  RiArrowLeftSLine,
   RiArrowRightSLine,
   RiComputerLine,
   RiDeleteBinLine,
@@ -19,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import { Panel } from "@/components/app/Panel";
 import SearchBar from "@/components/app/SearchBar";
 import FormSheet from "@/components/app/FormSheet";
@@ -48,7 +48,8 @@ const typeIdOf = (model) =>
 // Плитка модели в сетке группы: превью · название · конфигурации · переход.
 // Внутри карточки вендора и группы типа префикс вендора и тип не дублируем —
 // остаётся имя модели и число конфигураций.
-const ModelTile = ({ model }) => {
+const ModelTile = ({ model, from }) => {
+  const fromState = useCrumbFrom(from);
   const title = model.name || "Без названия";
   const thumb = model.photos?.[0] ? photoUrl(model.photos[0]) : null;
   const count = model.configurationsCount || 0;
@@ -60,6 +61,7 @@ const ModelTile = ({ model }) => {
   return (
     <Link
       to={`/inventory/device-models/${model._id}`}
+      state={fromState}
       className="group flex items-center gap-3 rounded-lg px-3 py-2 text-inherit no-underline transition-colors hover:bg-accent"
     >
       <span className="grid size-9 flex-none place-items-center overflow-hidden rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border">
@@ -202,7 +204,7 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
       <>
         <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
           {shown.map((model) => (
-            <ModelTile key={model._id} model={model} />
+            <ModelTile from={name} key={model._id} model={model} />
           ))}
         </div>
         {capped && (
@@ -222,12 +224,7 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Link
-        to="/inventory/vendors"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-      >
-        <RiArrowLeftSLine /> Вендоры
-      </Link>
+      <Crumbs />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">

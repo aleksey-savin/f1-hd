@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
-import { RiArrowLeftSLine } from "react-icons/ri";
+import { useNavigate, useParams } from "react-router";
 
+import Crumbs from "@/components/app/Crumbs";
 import AlertMessage from "@/components/app/AlertMessage";
 import { Button } from "@/components/ui/button";
 import {
@@ -211,12 +211,7 @@ const ApprovalReport = () => {
           }).then(() => undefined)
         }
         breadcrumb={
-          <Link
-            to="/finances/approval"
-            className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-          >
-            <RiArrowLeftSLine /> Согласование работ
-          </Link>
+          <Crumbs />
         }
       />
 

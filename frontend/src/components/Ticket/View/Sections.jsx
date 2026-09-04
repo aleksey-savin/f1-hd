@@ -18,6 +18,8 @@ import {
   RiUserLine,
 } from "react-icons/ri";
 
+import EntityLink from "@/components/app/EntityLink";
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import ClientTime from "@/components/app/ClientTime";
 import {
   Eyebrow,
@@ -277,18 +279,6 @@ const Pill = ({ className, children }) => (
   </span>
 );
 
-// Переход к связанной сущности: подчёркивание по наведению, а не всегда —
-// строк-значений в «Деталях» много, и постоянные подчёркивания превратили бы
-// панель в список ссылок
-const EntityLink = ({ to, children }) => (
-  <Link
-    to={to}
-    className="font-medium text-foreground no-underline hover:text-accent-text hover:underline"
-  >
-    {children}
-  </Link>
-);
-
 export const FactsSection = ({
   ticket,
   company,
@@ -300,6 +290,9 @@ export const FactsSection = ({
   const can = useCan();
   const { taxi } = useInitialPrefsStore();
   const applicant = ticket.applicant;
+  // Как заявка назовётся в крошке компании или человека, куда ведут ссылки ниже
+  const from = `Заявка №${ticket.num}`;
+  const fromState = useCrumbFrom(from);
   const computer = applicant?.computer;
 
   // Два канала ИТ-специалиста: связаться с человеком или поехать на место.
@@ -363,7 +356,7 @@ export const FactsSection = ({
             {/* Имя — ссылка на карточку: раньше из заявки нельзя было попасть ни
                 к клиенту, ни к людям, и путь лежал через поиск в справочнике */}
             {ticket.company?._id ? (
-              <EntityLink to={`/companies/${ticket.company._id}`}>
+              <EntityLink from={from} to={`/companies/${ticket.company._id}`}>
                 {ticket.company.alias}
               </EntityLink>
             ) : (
@@ -413,7 +406,7 @@ export const FactsSection = ({
           }
         >
           {applicant?._id ? (
-            <EntityLink to={`/users/${applicant._id}`}>
+            <EntityLink from={from} to={`/users/${applicant._id}`}>
               {`${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()}
             </EntityLink>
           ) : applicant ? (
@@ -435,6 +428,7 @@ export const FactsSection = ({
                 <Link
                   key={user._id}
                   to={`/users/${user._id}`}
+                  state={fromState}
                   className="no-underline"
                 >
                   <Pill className="hover:border-primary hover:text-accent-text">

@@ -31,6 +31,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import Field from "@/components/app/Field";
 import AlertMessage from "@/components/app/AlertMessage";
@@ -99,6 +100,8 @@ const ServicePlansSection = ({
   const fetcher = useFetcher();
   const navigate = useNavigate();
   const offcanvas = useOffcanvasStore();
+  // Как компания назовётся в крошке карточки услуги
+  const fromState = useCrumbFrom(company.alias);
 
   const [addOpen, setAddOpen] = useState(false);
   const [detachPlan, setDetachPlan] = useState(null);
@@ -256,6 +259,7 @@ const ServicePlansSection = ({
                   <div className="text-sm leading-snug font-medium">
                     <Link
                       to={`/finances/service-plans/${plan._id}`}
+                      state={fromState}
                       className="text-accent-text no-underline hover:underline"
                     >
                       {plan.title}

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
+
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import {
   RiArrowRightSLine,
   RiCloseLine,
@@ -81,7 +83,8 @@ const uniqueOptions = (devices, pick) => {
 // Строка техники — жёсткие колонки: плитка (live-точка связи Mikrotik — как
 // кольцо присутствия), имя + «Тип · Вендор · Инв №», расположение, учётный
 // статус текстом с точкой, «↗» по наведению. Клик по строке — шторка.
-const TechRow = ({ device, onSelect }) => {
+const TechRow = ({ device, onSelect, from }) => {
+  const fromState = useCrumbFrom(from);
   const Icon = deviceIcon(device.typeName);
   const status = DEVICE_STATUS_META[device.status];
   const mikro = mikrotikStatus(device);
@@ -176,6 +179,7 @@ const TechRow = ({ device, onSelect }) => {
       <span className="hidden w-8 flex-none place-items-center md:grid">
         <Link
           to={`/inventory/client-devices/${device._id}`}
+          state={fromState}
           title="Открыть карточку устройства"
           aria-label="Открыть карточку устройства"
           onClick={(event) => event.stopPropagation()}
@@ -202,6 +206,8 @@ const TechRow = ({ device, onSelect }) => {
 // «В помещении — X» (прямая техника родителя рабочего места); у компании группа
 // одна, безымянная.
 const TechSection = ({
+  /** Как назвать страницу-хозяина в крошке карточки устройства. */
+  from,
   id,
   companyId,
   userId,
@@ -549,7 +555,7 @@ const TechSection = ({
                       {index > 0 && (
                         <div className="mx-2.5 h-px bg-border-soft" />
                       )}
-                      <TechRow device={device} onSelect={setSelectedDevice} />
+                      <TechRow from={from} device={device} onSelect={setSelectedDevice} />
                     </div>
                   ))}
                 </div>

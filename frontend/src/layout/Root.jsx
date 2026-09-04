@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef } from "react";
-import { useLocation, useRevalidator } from "react-router";
+import { useLocation } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 import { Outlet, useLoaderData, useNavigate, useSubmit } from "react-router";
 
@@ -184,7 +184,6 @@ const RootLayout = () => {
 
   const offcanvas = useOffcanvasStore();
   const location = useLocation();
-  const revalidator = useRevalidator();
 
   // Версия фронта вшита в бандл из frontend/package.json (vite.config.js),
   // бэкенд отдаёт свою из своего package.json — расхождение значит, что на
@@ -226,12 +225,6 @@ const RootLayout = () => {
       setFontScale(server);
     }
   }, [userData?.fontScale]);
-
-  useEffect(() => {
-    if (location.state?.refresh) {
-      revalidator.revalidate();
-    }
-  }, [location]);
 
   useEffect(() => {
     // Формы базы знаний открываются в основной панели, а не в offcanvas

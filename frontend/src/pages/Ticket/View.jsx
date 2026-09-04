@@ -11,13 +11,13 @@ import {
 } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
-  RiArrowLeftSLine,
   RiDeleteBinLine,
   RiErrorWarningLine,
   RiMoreLine,
   RiRepeat2Line,
 } from "react-icons/ri";
 
+import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import AnchorRail from "@/components/app/AnchorRail";
 import Checklist from "@/components/app/Checklist";
 import { DeleteDialog } from "@/components/app/DeleteItem";
@@ -242,6 +242,8 @@ const ViewTicket = () => {
 
   // Шаблоны чек-листов, подходящие этой заявке: ранжирование («побеждает самый
   // узкий») считает сервер, здесь только показ
+  // Как заявка назовётся в крошке регламента, куда ведёт ссылка в чек-листе
+  const fromState = useCrumbFrom(`Заявка №${ticket.num}`);
   const templates = useChecklistTemplates(ticket.num, canEditChecklist);
   const checklistHasChecks = (ticket.checklist ?? []).some(
     (item) => item.checked,
@@ -345,12 +347,7 @@ const ViewTicket = () => {
 
   return (
     <div className="mx-auto w-full max-w-8xl">
-      <Link
-        to="/tickets"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-      >
-        <RiArrowLeftSLine /> Заявки
-      </Link>
+      <Crumbs section={ticket.isArchived ? "archive" : "tickets"} />
 
       {ticket.isArchived && (
         <Alert variant="warning" className="mb-4">
@@ -548,6 +545,7 @@ const ViewTicket = () => {
                         Из регламента{" "}
                         <Link
                           to={`/routine-tasks/${ticket.routineTask._id}`}
+                          state={fromState}
                           className="text-accent-text no-underline hover:underline"
                         >
                           «{ticket.routineTask.title}»
@@ -634,6 +632,7 @@ const ViewTicket = () => {
                 userId={ticket.applicant?._id}
                 deviceId={ticket.relatedClientDeviceId}
                 onEmptyChange={setEnvironmentEmpty}
+                from={`Заявка №${ticket.num}`}
               />
             </Section>
           )}

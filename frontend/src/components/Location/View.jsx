@@ -3,7 +3,6 @@ import { Link, Outlet, useActionData, useNavigate } from "react-router";
 
 import {
   RiAddFill,
-  RiArrowLeftSLine,
   RiArrowRightSLine,
   RiComputerLine,
   RiDeleteBinLine,
@@ -19,6 +18,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import EntityLink from "@/components/app/EntityLink";
+import Crumbs from "@/components/app/Crumbs";
 import { Panel } from "@/components/app/Panel";
 import ChipSelect from "@/components/app/ChipSelect";
 import SearchBar from "@/components/app/SearchBar";
@@ -60,16 +61,6 @@ const Detail = ({ label, children, className }) => (
       {children || dash}
     </div>
   </div>
-);
-
-// Ссылка на карточку связанной сущности (навигация вверх/вбок по иерархии).
-const EntityLink = ({ to, children }) => (
-  <Link
-    to={to}
-    className="font-medium text-accent-text no-underline hover:underline"
-  >
-    {children}
-  </Link>
 );
 
 // Строка вложенного расположения: иконка типа · название · тип + устройства.
@@ -253,29 +244,14 @@ const ViewLocation = ({
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      {/* Крошки — полная цепочка предков: список → здание → этаж; текущее
-          расположение только в h1 */}
-      <nav className="mb-4 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm font-medium text-muted-foreground">
-        <Link
-          to="/inventory/locations"
-          className="inline-flex items-center gap-1 text-inherit no-underline hover:text-foreground"
-        >
-          <RiArrowLeftSLine /> Расположения
-        </Link>
-        {ancestors.map((ancestor) => (
-          <span key={ancestor._id} className="inline-flex items-center gap-1">
-            <span aria-hidden className="mx-1 text-faint">
-              ›
-            </span>
-            <Link
-              to={`/inventory/locations/${ancestor._id}`}
-              className="text-inherit no-underline hover:text-foreground"
-            >
-              {ancestor.name}
-            </Link>
-          </span>
-        ))}
-      </nav>
+      {/* Крошки: возврат туда, откуда пришли, затем цепочка предков —
+          здание › этаж; текущее расположение только в h1 */}
+      <Crumbs
+        chain={ancestors.map((ancestor) => ({
+          label: ancestor.name,
+          to: `/inventory/locations/${ancestor._id}`,
+        }))}
+      />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">
@@ -399,7 +375,7 @@ const ViewLocation = ({
           {type === "workplace" && (
             <Detail label="Сотрудник">
               {assignedUser ? (
-                <EntityLink to={`/users/${assignedUser._id}`}>
+                <EntityLink from={name} to={`/users/${assignedUser._id}`}>
                   {userName(assignedUser)}
                 </EntityLink>
               ) : null}
@@ -407,7 +383,7 @@ const ViewLocation = ({
           )}
           <Detail label="Ответственный по умолчанию">
             {defaultResponsible ? (
-              <EntityLink to={`/users/${defaultResponsible._id}`}>
+              <EntityLink from={name} to={`/users/${defaultResponsible._id}`}>
                 {userName(defaultResponsible)}
               </EntityLink>
             ) : null}

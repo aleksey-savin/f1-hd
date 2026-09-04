@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { RiFilter3Line } from "react-icons/ri";
 
+import Crumbs from "@/components/app/Crumbs";
 import AlertMessage from "@/components/app/AlertMessage";
 import MonthStepper from "@/components/app/MonthStepper";
 import { Eyebrow } from "@/components/app/Panel";
@@ -11,7 +12,6 @@ import { cn } from "@/lib/utils";
 
 import {
   AttributionNote,
-  CardCrumbs,
   CardMonogram,
   CardSkeleton,
   CategorySection,
@@ -233,15 +233,10 @@ const CompanyReport = () => {
       }
       icon={data && <CardMonogram name={data.company.alias} />}
       breadcrumb={
-        <CardCrumbs
-          items={[
-            {
-              label: "Компании",
-              // У кого доступен ровно один объект, сводка сразу редиректит
-              // сюда же — ссылка в крошках была бы кнопкой в никуда
-              to: data?.scope.defaultView ? undefined : "/report/companies",
-            },
-          ]}
+        <Crumbs
+          // У кого доступен ровно один объект, сводка сразу редиректит сюда же
+          // — запаска «наверх» была бы кнопкой в никуда
+          section={data?.scope.defaultView ? false : undefined}
         />
       }
       toolbar={toolbar}

@@ -2,7 +2,6 @@ import { useContext, useEffect, useState } from "react";
 import { Link, Outlet, useNavigate, useRevalidator } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
-  RiArrowLeftSLine,
   RiBuilding2Line,
   RiCheckLine,
   RiCloseLine,
@@ -38,6 +37,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import FormSheet from "@/components/app/FormSheet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { Eyebrow, Panel, SubLabel } from "@/components/app/Panel";
@@ -180,6 +180,8 @@ const ViewUser = ({ user, tickets }) => {
   } = user;
 
   const fullName = `${lastName || ""} ${firstName || ""}`.trim() || "—";
+  // Как человек назовётся в крошке компании или заявки, куда ведут ссылки
+  const fromState = useCrumbFrom(fullName);
   const ticketList = Array.isArray(tickets) ? tickets : tickets?.tickets || [];
 
   const presence = getPresence(user);
@@ -307,12 +309,7 @@ const ViewUser = ({ user, tickets }) => {
   return (
     // max-w-5xl: рейл 192px + зазор 28px + колонка секций ≈ 804px
     <div className="mx-auto w-full max-w-5xl">
-      <Link
-        to="/users"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-      >
-        <RiArrowLeftSLine /> Пользователи
-      </Link>
+      <Crumbs />
 
       {/* HERO */}
       <div className="flex flex-wrap items-start gap-x-5 gap-y-4">
@@ -346,6 +343,7 @@ const ViewUser = ({ user, tickets }) => {
                 <RiBuilding2Line className="size-4 text-faint" />
                 <Link
                   to={`/companies/${company._id}`}
+                      state={fromState}
                   className="text-accent-text no-underline hover:underline"
                 >
                   {company.alias}
@@ -519,6 +517,7 @@ const ViewUser = ({ user, tickets }) => {
                   {company?.alias ? (
                     <Link
                       to={`/companies/${company._id}`}
+                      state={fromState}
                       className="text-accent-text no-underline hover:underline"
                     >
                       {company.alias}
@@ -536,6 +535,7 @@ const ViewUser = ({ user, tickets }) => {
                           {" · рук. "}
                           <Link
                             to={`/users/${subdivision.manager._id}`}
+                      state={fromState}
                             className="text-accent-text no-underline hover:underline"
                           >
                             {managerName}
@@ -633,7 +633,12 @@ const ViewUser = ({ user, tickets }) => {
           )}
 
           {showTech && (
-            <TechSection id="tech" userId={user._id} subject="user" />
+            <TechSection
+              id="tech"
+              userId={user._id}
+              subject="user"
+              from={fullName}
+            />
           )}
 
           {/* Недавние заявки */}
@@ -648,6 +653,7 @@ const ViewUser = ({ user, tickets }) => {
                     <Link
                       key={ticket._id}
                       to={`/tickets/${ticket.num}`}
+                      state={fromState}
                       className="flex items-center gap-3 border-t border-border-soft py-2.5 text-foreground no-underline first:border-t-0 hover:bg-accent/40"
                     >
                       <span className="w-16 flex-none text-sm font-semibold text-accent-text tabular-nums">

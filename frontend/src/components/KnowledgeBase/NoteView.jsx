@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useBlocker } from "react-router";
+import { useNavigate, useBlocker } from "react-router";
 import { isMobile, MobileView } from "react-device-detect";
 
-import { RiArrowLeftSLine, RiSaveLine } from "react-icons/ri";
+import { RiSaveLine } from "react-icons/ri";
 
+import Crumbs from "@/components/app/Crumbs";
 import ConfirmDialog from "@/components/app/ConfirmDialog";
 import MobileActionBar from "@/components/app/MobileActionBar";
 
@@ -457,12 +458,7 @@ const NoteView = ({ note: initialNote = null, mode: initialMode = "read" }) => {
       {/* Крошка нужна только там, где списка не видно: на десктопе он всегда
           слева, в соседней панели */}
       <MobileView>
-        <Link
-          to="/knowledge-base"
-          className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-        >
-          <RiArrowLeftSLine /> База знаний
-        </Link>
+        <Crumbs />
       </MobileView>
 
       <NoteHero

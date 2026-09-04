@@ -16,7 +16,6 @@ import {
 import {
   RiAddFill,
   RiArrowDownLine,
-  RiArrowLeftSLine,
   RiArrowRightSLine,
   RiArrowUpLine,
   RiComputerLine,
@@ -34,6 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import ChipSelect from "@/components/app/ChipSelect";
 import SearchBar from "@/components/app/SearchBar";
@@ -127,7 +127,8 @@ const AttrActions = ({ link, label, index, count, onMove }) => {
 };
 
 // Облегчённая строка модели типа (плитка · название · N конфигураций · переход)
-const ModelRow = ({ model }) => {
+const ModelRow = ({ model, from }) => {
+  const fromState = useCrumbFrom(from);
   const title =
     [model.vendorId?.name, model.name].filter(Boolean).join(" ") ||
     "Без названия";
@@ -141,6 +142,7 @@ const ModelRow = ({ model }) => {
   return (
     <Link
       to={`/inventory/device-models/${model._id}`}
+      state={fromState}
       className="group relative flex items-center gap-3.5 px-4 py-2.5 text-inherit no-underline transition-colors hover:bg-accent before:absolute before:top-0 before:right-4 before:left-16 before:h-px before:bg-border-soft first:before:hidden"
     >
       <span className="grid size-9 flex-none place-items-center overflow-hidden rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border">
@@ -363,12 +365,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Link
-        to="/inventory/device-types"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-      >
-        <RiArrowLeftSLine /> Типы устройств
-      </Link>
+      <Crumbs />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">
@@ -667,7 +664,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
           ) : (
             <div className="overflow-hidden rounded-xl border border-border bg-card py-1.5">
               {filteredModels.map((model) => (
-                <ModelRow key={model._id} model={model} />
+                <ModelRow from={name} key={model._id} model={model} />
               ))}
             </div>
           )}

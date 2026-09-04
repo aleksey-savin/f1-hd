@@ -2,7 +2,6 @@ import { useContext, useEffect, useState } from "react";
 import { Link, Outlet, useNavigate } from "react-router";
 import {
   RiAddLine,
-  RiArrowLeftSLine,
   RiCalendarScheduleLine,
   RiDeleteBinLine,
   RiEdit2Line,
@@ -19,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Crumbs from "@/components/app/Crumbs";
 import FormSheet from "@/components/app/FormSheet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { Eyebrow, Panel, SectionEditLink } from "@/components/app/Panel";
@@ -99,13 +99,7 @@ const ViewTicketTemplate = ({ template }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      {/* Крошки — возврат к списку */}
-      <Link
-        to="/ticket-templates"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-      >
-        <RiArrowLeftSLine /> Шаблоны заявок
-      </Link>
+      <Crumbs />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">

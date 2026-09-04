@@ -2,7 +2,6 @@ import { useContext, useEffect, useState } from "react";
 import { Link, Outlet, useFetcher, useNavigate } from "react-router";
 import {
   RiAddLine,
-  RiArrowLeftSLine,
   RiCalendarScheduleLine,
   RiCornerDownRightLine,
   RiDeleteBinLine,
@@ -31,6 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import Crumbs from "@/components/app/Crumbs";
 import FormSheet from "@/components/app/FormSheet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { Eyebrow, Panel, SectionEditLink } from "@/components/app/Panel";
@@ -126,12 +126,7 @@ const ViewRoutineTask = ({ task }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Link
-        to="/routine-tasks"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-      >
-        <RiArrowLeftSLine /> Регламенты
-      </Link>
+      <Crumbs />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">

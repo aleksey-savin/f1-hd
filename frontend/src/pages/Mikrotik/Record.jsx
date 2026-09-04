@@ -9,7 +9,6 @@ import {
 
 import {
   RiArchive2Line,
-  RiArrowLeftSLine,
   RiBarcodeLine,
   RiCalendar2Line,
   RiCpuLine,
@@ -36,6 +35,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Crumbs from "@/components/app/Crumbs";
 import { Panel, Eyebrow } from "@/components/app/Panel";
 import PropRow from "@/components/app/PropRow";
 import FormSheet from "@/components/app/FormSheet";
@@ -143,12 +143,7 @@ const MikrotikRecordPage = () => {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <Link
-        to="/devices/mikrotik"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-      >
-        <RiArrowLeftSLine /> Мониторинг Mikrotik
-      </Link>
+      <Crumbs />
 
       {/* ── Hero ── */}
       <div className="flex flex-wrap items-center gap-4">

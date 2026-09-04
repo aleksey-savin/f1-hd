@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useNavigate } from "react-router";
 import {
-  RiArrowLeftSLine,
   RiDeleteBinLine,
   RiEdit2Line,
   RiFileList2Line,
@@ -16,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Crumbs from "@/components/app/Crumbs";
 import FormSheet from "@/components/app/FormSheet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { Eyebrow, Panel } from "@/components/app/Panel";
@@ -135,13 +135,7 @@ const ViewServicePlan = ({ servicePlan }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      {/* Хлебные крошки — возврат к списку (не кнопкой в действиях) */}
-      <Link
-        to="/finances/service-plans"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-      >
-        <RiArrowLeftSLine /> Услуги
-      </Link>
+      <Crumbs />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">

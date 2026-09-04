@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 import { RiFilter3Line } from "react-icons/ri";
 
+import Crumbs from "@/components/app/Crumbs";
 import AlertMessage from "@/components/app/AlertMessage";
 import MonthStepper from "@/components/app/MonthStepper";
 import { Eyebrow } from "@/components/app/Panel";
@@ -12,7 +13,6 @@ import { cn } from "@/lib/utils";
 
 import {
   AttributionNote,
-  CardCrumbs,
   CardMonogram,
   CardSkeleton,
   CategorySection,
@@ -241,12 +241,9 @@ const SubdivisionReport = () => {
       }
       icon={data && <CardMonogram name={data.subdivision.name} />}
       breadcrumb={
-        <CardCrumbs
-          items={[
-            {
-              label: "Компании",
-              to: data?.scope.defaultView ? undefined : "/report/companies",
-            },
+        <Crumbs
+          section={data?.scope.defaultView ? false : undefined}
+          chain={[
             {
               label: data?.company.alias ?? "Компания",
               // Руководителю подразделения карточка компании недоступна —
@@ -256,7 +253,6 @@ const SubdivisionReport = () => {
                   ? `/report/companies/${companyId}`
                   : undefined,
             },
-            { label: data?.subdivision.name ?? "Подразделение" },
           ]}
         />
       }

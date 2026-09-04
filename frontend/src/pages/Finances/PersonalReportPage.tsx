@@ -1,7 +1,8 @@
 import { useEffect, type ReactNode } from "react";
-import { Link, useParams } from "react-router";
-import { RiArrowLeftSLine, RiFilter3Line } from "react-icons/ri";
+import { useParams } from "react-router";
+import { RiFilter3Line } from "react-icons/ri";
 
+import Crumbs from "@/components/app/Crumbs";
 import AlertMessage from "@/components/app/AlertMessage";
 import MonthStepper from "@/components/app/MonthStepper";
 import { Eyebrow, SubLabel } from "@/components/app/Panel";
@@ -381,15 +382,11 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
       }
       subtitle={subtitle}
       breadcrumb={
-        canSeeSummary ? (
-          <Link
-            to="/finances/employees"
-            className="inline-flex items-center gap-0.5 text-sm text-muted-foreground no-underline hover:text-foreground"
-          >
-            <RiArrowLeftSLine size={16} aria-hidden />
-            Сотрудники
-          </Link>
-        ) : undefined
+        <Crumbs
+          // Свой отчёт открывают из меню, сводной над ним нет — без источника
+          // крошка молчит, вместо ссылки в чужой раздел
+          section={canSeeSummary ? "employees-report" : false}
+        />
       }
       toolbar={toolbar}
     >

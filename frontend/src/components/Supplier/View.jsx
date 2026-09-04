@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useActionData, useNavigate } from "react-router";
 import {
-  RiArrowLeftSLine,
   RiArrowRightSLine,
   RiDeleteBinLine,
   RiEdit2Line,
@@ -21,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import FormSheet from "@/components/app/FormSheet";
 import {
@@ -61,7 +61,8 @@ const warranty = (value) => {
 
 // Поставка — одна накладная: заголовок с суммой, внутри позиции. Раскрытие по
 // клику: обычно нужен сам факт поставки, а состав — по требованию.
-const Delivery = ({ delivery, defaultOpen }) => {
+const Delivery = ({ delivery, defaultOpen, from }) => {
+  const fromState = useCrumbFrom(from);
   const [open, setOpen] = useState(defaultOpen);
   const count = delivery.positions.length;
 
@@ -114,6 +115,7 @@ const Delivery = ({ delivery, defaultOpen }) => {
               <Link
                 key={position._id}
                 to={`/inventory/client-devices/${position._id}`}
+                state={fromState}
                 className="flex items-center gap-2.5 py-1.5 text-sm text-foreground no-underline hover:text-accent-text"
               >
                 <span
@@ -217,12 +219,7 @@ const ViewSupplier = ({ supplier = {} }) => {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <Link
-        to="/inventory/suppliers"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-      >
-        <RiArrowLeftSLine /> Поставщики
-      </Link>
+      <Crumbs />
 
       <div className="flex flex-wrap items-start gap-4">
         <span
@@ -346,7 +343,7 @@ const ViewSupplier = ({ supplier = {} }) => {
           </p>
         ) : (
           deliveries.map((delivery, index) => (
-            <Delivery
+            <Delivery from={supplier.name}
               key={delivery.document || `no-doc-${index}`}
               delivery={delivery}
               defaultOpen={index === 0}

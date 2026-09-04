@@ -14,7 +14,6 @@ import { BrowserView, MobileView } from "react-device-detect";
 import {
   RiAddFill,
   RiArrowDownSLine,
-  RiArrowGoBackLine,
   RiCloseLine,
   RiFilter3Line,
   RiFilterOffLine,
@@ -124,9 +123,7 @@ type ListWrapperProps = {
   onAddClick?: () => void;
   hiddenAddButton?: boolean;
   showAddButton?: boolean;
-  showBackButton?: boolean;
   showRefreshButton?: boolean;
-  backRoute?: string;
   defaultSearchValue?: string;
   /** Плейсхолдер поиска — подсказывает охват («Найти в архиве…»). */
   searchPlaceholder?: string;
@@ -164,9 +161,7 @@ const ListWrapper = ({
   onAddClick,
   hiddenAddButton,
   showAddButton = true,
-  showBackButton = false,
   showRefreshButton = false,
-  backRoute,
   defaultSearchValue = "",
   searchPlaceholder,
   showSortAndCount = true,
@@ -298,32 +293,6 @@ const ListWrapper = ({
     </DropdownMenu>
   );
 
-  const backButton =
-    showBackButton &&
-    (backRoute ? (
-      <Button
-        asChild
-        variant="ghost"
-        size="icon"
-        title="Назад"
-        aria-label="Назад"
-      >
-        <Link to={backRoute}>
-          <RiArrowGoBackLine />
-        </Link>
-      </Button>
-    ) : (
-      <Button
-        variant="ghost"
-        size="icon"
-        title="Назад"
-        aria-label="Назад"
-        onClick={() => navigate(-1)}
-      >
-        <RiArrowGoBackLine />
-      </Button>
-    ));
-
   const refreshButton = showRefreshButton && (
     <Button
       asChild
@@ -381,7 +350,6 @@ const ListWrapper = ({
     <div className="mx-auto w-full max-w-7xl">
       <BrowserView>
         <div className="mb-4 flex flex-wrap items-center gap-x-2.5 gap-y-3">
-          {backButton}
           {titleBlock}
           <div className="ms-auto flex flex-wrap items-center gap-2.5">
             {refreshButton}
@@ -401,7 +369,6 @@ const ListWrapper = ({
       </BrowserView>
       <MobileView>
         <div className="mb-3 flex items-center gap-2">
-          {backButton}
           {titleBlock}
           <div className="ms-auto">{addButton(true)}</div>
         </div>

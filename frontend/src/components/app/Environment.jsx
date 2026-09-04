@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   RiBuilding2Line,
@@ -107,12 +109,14 @@ const CELLS_COLLAPSED = 12;
 // помечена «здесь») и техника этого уровня. Синтетический узел «компания» —
 // обзор корневых расположений, техники у него нет.
 const EnvLevel = ({
+  from,
   node,
   chainIds,
   highlightId,
   onSelectChild,
   onSelectDevice,
 }) => {
+  const fromState = useCrumbFrom(from);
   const isCompany = node.type === "company";
   const Icon = isCompany ? RiCommunityLine : TYPE_ICON[node.type] || RiDoorLine;
   const children = node.children || [];
@@ -146,6 +150,7 @@ const EnvLevel = ({
             {!isCompany && (
               <Link
                 to={`/inventory/locations/${node._id}`}
+                state={fromState}
                 title="Открыть карточку расположения"
                 aria-label="Открыть карточку расположения"
                 className="grid size-6 flex-none place-items-center rounded-md text-faint no-underline opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-muted-foreground focus-visible:opacity-100 pointer-coarse:opacity-100"
@@ -257,6 +262,8 @@ const EnvLevel = ({
 // Скролл/стрелки/линейка/кластер «+/−» меняют масштаб по текущему пути; клик по
 // любой дочерней локации подгружает её и ветвит путь. Клик по технике — шторка.
 const Environment = ({
+  /** Как назвать страницу-хозяина в крошке карточки расположения. */
+  from,
   userId,
   deviceId,
   companyId,
@@ -570,7 +577,7 @@ const Environment = ({
                     ease: [0.22, 1, 0.36, 1],
                   }}
                 >
-                  <EnvLevel
+                  <EnvLevel from={from}
                     node={current}
                     chainIds={chainIds}
                     highlightId={mode === "device" ? deviceId : null}

@@ -9,7 +9,6 @@ import {
 
 import {
   RiAddFill,
-  RiArrowLeftSLine,
   RiComputerLine,
   RiCpuLine,
   RiDeleteBinLine,
@@ -25,6 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
 import FormSheet from "@/components/app/FormSheet";
@@ -162,6 +162,8 @@ const ViewDeviceModel = ({
   const typeId = deviceModel.deviceTypeId?._id;
   const title =
     [vendorName, deviceModel.name].filter(Boolean).join(" ") || "Без названия";
+  // Как модель назовётся в крошке типа или вендора
+  const fromState = useCrumbFrom(title);
   const compatible = deviceModel.compatibleWithModelIds || [];
   const configCount = configurations.length;
 
@@ -231,13 +233,7 @@ const ViewDeviceModel = ({
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      {/* Хлебные крошки — возврат к списку (не кнопкой в действиях) */}
-      <Link
-        to="/inventory/device-models"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-      >
-        <RiArrowLeftSLine /> Модели устройств
-      </Link>
+      <Crumbs />
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">
@@ -266,6 +262,7 @@ const ViewDeviceModel = ({
             {typeId ? (
               <Link
                 to={`/inventory/device-types/${typeId}`}
+                state={fromState}
                 title="Открыть тип устройства"
                 className="inline-flex items-center gap-2 text-sm font-semibold text-accent-text no-underline hover:underline"
               >
@@ -342,6 +339,7 @@ const ViewDeviceModel = ({
             {vendorId ? (
               <Link
                 to={`/inventory/vendors/${vendorId}`}
+                state={fromState}
                 className="font-medium text-accent-text no-underline hover:underline"
               >
                 {vendorName}
@@ -354,6 +352,7 @@ const ViewDeviceModel = ({
             {typeId ? (
               <Link
                 to={`/inventory/device-types/${typeId}`}
+                state={fromState}
                 className="font-medium text-accent-text no-underline hover:underline"
               >
                 {typeName}
@@ -426,7 +425,7 @@ const ViewDeviceModel = ({
           {canManage && typeId && (
             <Button asChild variant="outline">
               {/* Атрибуты добавляются с карточки типа — туда и ведём */}
-              <Link to={`/inventory/device-types/${typeId}`}>
+              <Link to={`/inventory/device-types/${typeId}`} state={fromState}>
                 Открыть тип устройства
               </Link>
             </Button>

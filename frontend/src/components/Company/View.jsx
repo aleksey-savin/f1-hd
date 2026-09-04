@@ -8,7 +8,6 @@ import {
 } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
-  RiArrowLeftSLine,
   RiAtLine,
   RiBuilding2Line,
   RiCheckboxCircleLine,
@@ -30,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Crumbs from "@/components/app/Crumbs";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import FormSheet from "@/components/app/FormSheet";
 import { Eyebrow, Panel } from "@/components/app/Panel";
@@ -155,12 +155,7 @@ const ViewCompany = ({
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <Link
-        to="/companies"
-        className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground no-underline hover:text-foreground"
-      >
-        <RiArrowLeftSLine /> Компании
-      </Link>
+      <Crumbs />
 
       {/* HERO */}
       <div className="flex flex-wrap items-start gap-x-5 gap-y-4">
@@ -380,7 +375,11 @@ const ViewCompany = ({
 
           {/* Техника: список с фасетами + окружение (общая шторка устройства) */}
           {showTech && (
-            <TechSection id="company-tech" companyId={company._id} />
+            <TechSection
+              id="company-tech"
+              companyId={company._id}
+              from={company.alias}
+            />
           )}
 
           <EmployeesSection company={company} id="company-people" />

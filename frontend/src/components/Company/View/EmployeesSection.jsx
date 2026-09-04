@@ -8,6 +8,7 @@ import {
   RiPhoneLine,
 } from "react-icons/ri";
 
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import SearchBar from "@/components/app/SearchBar";
 import ChipSelect from "@/components/app/ChipSelect";
@@ -30,6 +31,7 @@ const iconLinkClass =
   "grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-faint no-underline transition-colors hover:bg-border-soft hover:text-foreground";
 
 const EmployeesSection = ({ company, id }) => {
+  const fromState = useCrumbFrom(company.alias);
   const navigate = useNavigate();
   const employees = company.employees || [];
 
@@ -98,7 +100,7 @@ const EmployeesSection = ({ company, id }) => {
       searchTerm: "",
       page: 1,
     });
-    navigate("/users");
+    navigate("/users", { state: fromState });
   };
 
   const openRow = (user) => {
@@ -113,7 +115,7 @@ const EmployeesSection = ({ company, id }) => {
         lastActivityAt: user.lastActivity?.date,
       });
     } else {
-      navigate(`/users/${user._id}`);
+      navigate(`/users/${user._id}`, { state: fromState });
     }
   };
 

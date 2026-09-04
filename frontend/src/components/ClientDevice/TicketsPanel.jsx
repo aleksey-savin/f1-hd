@@ -63,7 +63,10 @@ const TicketsPanel = ({ deviceId, onEmpty }) => {
       {tickets.map((ticket) => (
         <Link
           key={ticket._id}
-          to={`/tickets/${ticket._id}`}
+          // В адресе заявки её НОМЕР, а не идентификатор: маршрут объявлен как
+          // `:ticketNum`, и контроллер ищет findOne({ num }). С _id ссылка
+          // отдавала 404 всегда.
+          to={`/tickets/${ticket.num}`}
           className="flex items-center gap-3.5 border-t border-border-soft py-2.5 text-foreground no-underline first:border-t-0 hover:text-accent-text"
         >
           <span className="w-16 flex-none font-mono text-sm font-semibold text-muted-foreground">

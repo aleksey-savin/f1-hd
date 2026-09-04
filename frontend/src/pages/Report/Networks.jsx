@@ -3,12 +3,12 @@ import { useLoaderData } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 import { RiArrowLeftSLine, RiDownloadLine } from "react-icons/ri";
 
+import Crumbs from "@/components/app/Crumbs";
 import PageShell from "@/components/app/PageShell";
 import SearchBar from "@/components/app/SearchBar";
 import { Eyebrow } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
 
-import { CardCrumbs } from "../../components/Report/CardSections";
 import NetworksStrip from "../../components/Mikrotik/NetworksStrip";
 import NetworksOverlaps from "../../components/Mikrotik/NetworksOverlaps";
 import {
@@ -184,9 +184,8 @@ const Networks = () => {
             Диапазоны сетей
           </button>
         ) : (
-          <CardCrumbs
-            items={[{ label: "Мониторинг Mikrotik", to: "/devices/mikrotik" }]}
-          />
+          // Раздел у отчёта не по адресу, а по меню: сети — часть мониторинга
+          <Crumbs section="mikrotik" />
         )
       }
       toolbar={

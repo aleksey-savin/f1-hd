@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { RiMailLine, RiPhoneLine } from "react-icons/ri";
 
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel, SubLabel } from "@/components/app/Panel";
 import { monogramFor } from "@/components/app/monogram";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,7 @@ const getFullName = (person) =>
 const iconLinkClass =
   "grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-faint no-underline transition-colors hover:bg-border-soft hover:text-foreground";
 
-const PersonRow = ({ person }) => {
+const PersonRow = ({ person, from }) => {
   const name = getFullName(person);
   const inactive = person.isActive === false;
   const profileId = person.id?._id || person.id;
@@ -42,6 +43,7 @@ const PersonRow = ({ person }) => {
           {profileId ? (
             <Link
               to={`/users/${profileId}`}
+              state={useCrumbFrom(from)}
               className="text-inherit no-underline hover:underline"
             >
               {name}
@@ -81,13 +83,13 @@ const PersonRow = ({ person }) => {
   );
 };
 
-const Group = ({ title, people }) => (
+const Group = ({ title, people, from }) => (
   <>
     <SubLabel count={people?.length || undefined}>{title}</SubLabel>
     {people && people.length > 0 ? (
       <div className="mb-1">
         {people.map((person) => (
-          <PersonRow key={person._id || person.id} person={person} />
+          <PersonRow from={from} key={person._id || person.id} person={person} />
         ))}
       </div>
     ) : (
@@ -100,12 +102,12 @@ const ResponsiblesSection = ({ company, id }) => (
   <>
     <Eyebrow id={id}>Ответственные</Eyebrow>
     <Panel>
-      <Group
+      <Group from={company.alias}
         title="Со стороны клиента"
         people={company.clientsSideResponsibles}
       />
       <div className="mt-4">
-        <Group title="Со стороны исполнителя" people={company.responsibles} />
+        <Group from={company.alias} title="Со стороны исполнителя" people={company.responsibles} />
       </div>
     </Panel>
   </>
