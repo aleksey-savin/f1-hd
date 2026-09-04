@@ -9,6 +9,7 @@ import {
   RiVideoLine,
 } from "react-icons/ri";
 
+import DateTimeField from "@/components/app/DateTimeField";
 import Field from "@/components/app/Field";
 import Combobox, { MultiCombobox } from "@/components/app/Combobox";
 import { Button } from "@/components/ui/button";
@@ -324,11 +325,10 @@ export const ticketFormSections = ({ form, formData = {} }) => {
         </Field>
 
         <Field label="Срок" htmlFor="ticket-deadline">
-          <Input
+          <DateTimeField
             id="ticket-deadline"
-            type="datetime-local"
             value={deadline}
-            onChange={(event) => setDeadline(event.target.value)}
+            onChange={setDeadline}
           />
         </Field>
       </div>

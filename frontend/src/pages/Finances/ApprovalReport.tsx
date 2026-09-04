@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router";
 
 import Crumbs from "@/components/app/Crumbs";
 import AlertMessage from "@/components/app/AlertMessage";
+import DateField from "@/components/app/DateField";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -139,14 +140,16 @@ const ApprovalReport = () => {
     <>
       <ReportExportMenu report={report} />
 
-      {canManageApproval && report.status === "declined" && !report.canDecide && (
-        <Button
-          disabled={busy}
-          onClick={() => post(`/api/approval/reports/${id}/resubmit`)}
-        >
-          Отправить повторно
-        </Button>
-      )}
+      {canManageApproval &&
+        report.status === "declined" &&
+        !report.canDecide && (
+          <Button
+            disabled={busy}
+            onClick={() => post(`/api/approval/reports/${id}/resubmit`)}
+          >
+            Отправить повторно
+          </Button>
+        )}
 
       {canManageApproval && report.status === "approved" && (
         <Button disabled={busy} onClick={() => setStageForm("invoice")}>
@@ -210,9 +213,7 @@ const ApprovalReport = () => {
             subdivisionId,
           }).then(() => undefined)
         }
-        breadcrumb={
-          <Crumbs />
-        }
+        breadcrumb={<Crumbs />}
       />
 
       <Dialog
@@ -246,13 +247,11 @@ const ApprovalReport = () => {
                 <Label htmlFor="inv-date" className="mb-1.5 text-sm">
                   Дата счёта
                 </Label>
-                <Input
+                <DateField
                   id="inv-date"
-                  type="date"
                   value={invoice.date}
-                  onChange={(event) =>
-                    setInvoice({ ...invoice, date: event.target.value })
-                  }
+                  onChange={(next) => setInvoice({ ...invoice, date: next })}
+                  clearable={false}
                 />
               </div>
             </div>
@@ -261,11 +260,11 @@ const ApprovalReport = () => {
               <Label htmlFor="paid-at" className="mb-1.5 text-sm">
                 Дата полной оплаты
               </Label>
-              <Input
+              <DateField
                 id="paid-at"
-                type="date"
                 value={paidAt}
-                onChange={(event) => setPaidAt(event.target.value)}
+                onChange={setPaidAt}
+                clearable={false}
               />
             </div>
           )}

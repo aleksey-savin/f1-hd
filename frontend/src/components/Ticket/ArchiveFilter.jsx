@@ -1,13 +1,13 @@
 import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
-import { Input } from "@/components/ui/input";
+import DateRangeField from "@/components/app/DateRangeField";
 
 import { MultiCombobox } from "@/components/app/Combobox";
 
 import useClosedTicketsStore from "../../store/lists/closed-tickets";
 
 // Sheet-фильтр архива заявок. Все условия опциональны: период по дате закрытия
-// — два нативных поля даты, остальное — мультиселекты по полному каталогу
+// — одно поле-календарь, остальное — мультиселекты по полному каталогу
 // form-data (включая отключённые компании: архив ищет по истории). Выбранное
 // хранится в сторе массивами id — ими же говорит MultiCombobox.
 const ArchiveFilter = () => {
@@ -15,25 +15,12 @@ const ArchiveFilter = () => {
 
   return (
     <FilterContainer resetFilterHandler={s.resetFilter}>
-      <Field label="Закрыта в период" htmlFor="filter-period-from">
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            id="filter-period-from"
-            type="date"
-            aria-label="Начало периода"
-            value={s.from}
-            max={s.to || undefined}
-            onChange={(event) => s.updateFilter({ from: event.target.value })}
-          />
-          <Input
-            id="filter-period-to"
-            type="date"
-            aria-label="Конец периода"
-            value={s.to}
-            min={s.from || undefined}
-            onChange={(event) => s.updateFilter({ to: event.target.value })}
-          />
-        </div>
+      <Field label="Закрыта в период" htmlFor="filter-period">
+        <DateRangeField
+          id="filter-period"
+          value={{ from: s.from, to: s.to }}
+          onChange={(range) => s.updateFilter(range)}
+        />
       </Field>
 
       <Field label="Компании" htmlFor="filter-companies">

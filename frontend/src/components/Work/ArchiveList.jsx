@@ -11,6 +11,7 @@ import useWorksStore from "../../store/lists/works";
 import WorkArchiveFilter from "./ArchiveFilter";
 import WorkArchiveItem from "./ArchiveItem";
 import { formatDuration } from "./duration";
+import { formatDayKey } from "../../util/format-date";
 
 // Сегмент «Работы» страницы «Архив» — бывший «Отчёт по работам» на каркасе
 // архива: серверная выборка по 50, открывается сразу (без обязательных
@@ -19,7 +20,6 @@ import { formatDuration } from "./duration";
 // и встаёт первым в toolbar — вне десктоп-обёртки чипа, он нужен и на мобайле.
 
 // yyyy-MM-dd (значение нативного поля даты) → dd.MM.yyyy для бейджа
-const formatBadgeDate = (isoDay) => isoDay.split("-").reverse().join(".");
 
 const WorksArchiveList = ({ segment }) => {
   const s = useWorksStore();
@@ -45,10 +45,10 @@ const WorksArchiveList = ({ segment }) => {
       key: "period",
       label:
         s.from && s.to
-          ? `Завершена: ${formatBadgeDate(s.from)} – ${formatBadgeDate(s.to)}`
+          ? `Завершена: ${formatDayKey(s.from)} – ${formatDayKey(s.to)}`
           : s.from
-            ? `Завершена с ${formatBadgeDate(s.from)}`
-            : `Завершена по ${formatBadgeDate(s.to)}`,
+            ? `Завершена с ${formatDayKey(s.from)}`
+            : `Завершена по ${formatDayKey(s.to)}`,
       onRemove: () => s.updateFilter({ from: "", to: "" }),
     });
   const facetBadge = (key, one, many) => {

@@ -66,7 +66,7 @@ const SUBMIT_FIELDS = [
   "notes",
 ];
 
-// ISO date → "yyyy-MM-dd" для <input type="date">. Даты покупки/гарантии —
+// ISO date → "yyyy-MM-dd" для app/DateField. Даты покупки/гарантии —
 // КАЛЕНДАРНЫЕ, в БД лежат UTC-полночью, поэтому здесь toISOString корректен
 // (читаем обратно тот же UTC-день); toDateInputValue дал бы локальный день и
 // сдвинул дату в поясах с отрицательным смещением.

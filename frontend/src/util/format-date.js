@@ -197,7 +197,8 @@ export const formatCalendarDate = (date) =>
     ? null
     : new Date(date).toLocaleDateString("ru-RU", { timeZone: "UTC" });
 
-// Значение для <input type="date">: ЛОКАЛЬНЫЙ календарный день инстанта.
+// Значение для app/DateField (контракт <input type="date">): ЛОКАЛЬНЫЙ
+// календарный день инстанта.
 // НИКОГДА не получайте его через toISOString().split("T")[0] — ISO даёт
 // UTC-день, для восточных поясов это «вчера» до смены суток по UTC (при +10 —
 // каждое утро до 10:00).
@@ -205,6 +206,19 @@ export const toDateInputValue = (date = new Date()) => {
   const d = new Date(date);
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
+/* ── Day-key «2026-09-04» (строки календарных периодов и полей-календарей) ── */
+
+// «04.09.2026» из day-key. Без таймзоны и без Date: строка уже является днём,
+// переводить её в чью-либо зону нельзя (тот же принцип, что у formatMonthLabel).
+// Подписи полей-календарей (app/DateField и др.), бейджи периода в архивах,
+// произвольный период в MonthStepper.
+export const formatDayKey = (key) => {
+  if (isEmpty(key)) return null;
+  const [year, month, day] = String(key).split("-");
+  if (!year || !month || !day) return null;
+  return `${day}.${month}.${year}`;
 };
 
 /* ── <input type="datetime-local"> ↔ UTC (симметричная пара в бизнес-таймзоне) ── */
@@ -223,8 +237,8 @@ const toWallTime = (date) => {
   )}:${p(d.getMinutes())}`;
 };
 
-// Значение для <input type="datetime-local">: настенное время инстанта в
-// бизнес-таймзоне. Пара к localToUtc (обратное преобразование при сохранении).
+// Значение для app/DateTimeField (контракт <input type="datetime-local">):
+// настенное время инстанта в бизнес-таймзоне. Пара к localToUtc (обратное преобразование при сохранении).
 export const toDateTimeLocal = (date = new Date()) =>
   toWallTime(new Date(date));
 

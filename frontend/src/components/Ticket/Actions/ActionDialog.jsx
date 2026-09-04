@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { RiCloseLine, RiErrorWarningLine } from "react-icons/ri";
 
 import Combobox from "@/components/app/Combobox";
+import DateTimeField from "@/components/app/DateTimeField";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -14,7 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 import useTicketAction from "../../../hooks/use-ticket-action";
@@ -262,11 +262,10 @@ const ActionDialog = ({
 
             {action === "updateDeadline" && (
               <Field label="Срок" htmlFor="action-deadline">
-                <Input
+                <DateTimeField
                   id="action-deadline"
-                  type="datetime-local"
                   value={deadline}
-                  onChange={(event) => setDeadline(event.target.value)}
+                  onChange={setDeadline}
                 />
               </Field>
             )}

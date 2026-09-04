@@ -1,5 +1,5 @@
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import TimeInput from "@/components/app/TimeInput";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
@@ -69,22 +69,22 @@ const ScheduleEditor = ({ schedule, onChange }) => {
                 </span>
               ) : (
                 <>
-                  <Input
-                    type="time"
+                  <TimeInput
                     value={day.start}
+                    aria-label="Начало"
                     onChange={(event) =>
                       setDay(key, { start: event.target.value })
                     }
-                    className="h-9 w-full min-w-0 tabular-nums sm:w-28"
+                    className="h-9 w-full min-w-0 sm:w-28"
                   />
                   <span className="text-faint">–</span>
-                  <Input
-                    type="time"
+                  <TimeInput
                     value={day.end}
+                    aria-label="Конец"
                     onChange={(event) =>
                       setDay(key, { end: event.target.value })
                     }
-                    className="h-9 w-full min-w-0 tabular-nums sm:w-28"
+                    className="h-9 w-full min-w-0 sm:w-28"
                   />
                 </>
               )}

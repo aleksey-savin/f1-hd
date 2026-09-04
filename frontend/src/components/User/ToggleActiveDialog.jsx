@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
 import Segmented from "@/components/app/Segmented";
 import { toDateInputValue } from "@/util/format-date";
@@ -96,12 +97,12 @@ const ToggleActiveDialog = ({ user, open, onOpenChange }) => {
                     ]}
                   />
                   {mode === "until" && (
-                    <Input
-                      type="date"
+                    <DateField
                       name="banExpires"
-                      aria-label="Дата окончания"
+                      ariaLabel="Дата окончания"
                       value={until}
-                      onChange={(event) => setUntil(event.target.value)}
+                      onChange={setUntil}
+                      clearable={false}
                     />
                   )}
                 </div>

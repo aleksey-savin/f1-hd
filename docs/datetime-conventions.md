@@ -19,7 +19,8 @@ _Обновлено: 2026-07-29 (сквозная ревизия: выверен
    локальный день даёт `toDateInputValue`, день организации — `businessDayKey`.
    Отсюда запрет: `new Date().toISOString().slice(0, 10)` для **«сегодня»** —
    это UTC-день, для UTC+10 «вчера» каждое утро до 10:00.
-3. **`<input type="datetime-local">`** — настенное время в нём означает
+3. **Поле даты со временем (`app/DateTimeField`, контракт
+   `<input type="datetime-local">`)** — настенное время в нём означает
    **бизнес-таймзону**: загрузка `utcToLocalForm(iso)`, сохранение
    `localToUtc(value)`, «Сейчас» — `toDateTimeLocal()`. Пары не смешивать.
 4. **Период документа считает сервер и присылает строкой.** Месяц отчёта,
@@ -202,11 +203,19 @@ const to = dayjs.tz(date, tz).endOf("month").toDate();
 
 | Хелпер | Направление | Семантика |
 | --- | --- | --- |
-| `toDateInputValue(date?)` | → `<input type="date">` | **локальный** календарный день инстанта (дефолт — сегодня) |
-| `toDateTimeLocal(date?)` | → `<input type="datetime-local">` | настенное время в **бизнес-таймзоне** (дефолт — сейчас; кнопки «Сейчас», а также границы `min`/`max`) |
+| `toDateInputValue(date?)` | → `app/DateField` (значение как у `<input type="date">`) | **локальный** календарный день инстанта (дефолт — сегодня) |
+| `toDateTimeLocal(date?)` | → `app/DateTimeField` (значение как у `<input type="datetime-local">`) | настенное время в **бизнес-таймзоне** (дефолт — сейчас; кнопки «Сейчас», а также границы `min`/`max`) |
 | `utcToLocalForm(iso)` | ISO → datetime-local | то же для строки с бэка (загрузка форм) |
 | `localToUtc(value)` | datetime-local → ISO | обратное: настенное бизнес-время → UTC (сохранение форм) |
 | `shiftLocalForm(value, ±N)` | datetime-local → datetime-local | сдвиг на N минут, не выходя из **бизнес-таймзоны** (чипы длительности в форме работы) |
+| `formatDayKey(key)` | day-key → «04.09.2026» | без таймзоны: подписи полей-календарей, бейджи периода |
+
+**Поля-календари** (`app/DateField`, `DateRangeField`, `DateTimeField` поверх
+react-day-picker) держат тот же строковый контракт. `Date` живёт только
+внутри них: day-key разбирается **локальным** конструктором (`parseDayKey` в
+`components/app/date-value.ts`, `new Date(y, m - 1, d)`), наружу уходит
+`toIsoDay`; `timeZone` календарю не передаётся — его «сегодня» браузерное,
+как у `util/period.js`, и день никуда не переводится.
 
 ### Другие датовые модули фронта
 
@@ -230,7 +239,7 @@ const to = dayjs.tz(date, tz).endOf("month").toDate();
 Симметричная пара, всё в бизнес-таймзоне:
 
 ```
-загрузка:   defaultValue={utcToLocalForm(ticket.deadline)}
+загрузка:   value={utcToLocalForm(ticket.deadline)}   // app/DateTimeField
 «Сейчас»:   setValue(toDateTimeLocal())
 сохранение: formData.append("deadline", localToUtc(input.value))
 ```
@@ -333,7 +342,8 @@ Europe/Volgograd и Europe/Moscow — одно и то же настенное �
 - **Чтение календарного поля UTC-срезом** — `String(value).slice(0, 10)` или
   `toISOString().split("T")[0]` над полем, которое **записано UTC-полночью**,
   КОРРЕКТНО: читаем тот же день, каким он записан (правило 2). Так сделаны
-  префилл `<input type="date">` в `components/ClientDevice/Form.jsx`
+  префилл `DateField` (контракт `<input type="date">`) в
+  `components/ClientDevice/Form.jsx`
   (`toDateInput`), `isActiveSince` в `Company/View/ServicePlansSection.jsx`,
   `effectiveFrom` в `controllers/team/schedule.js` и `controllers/user.js`
   (там же сравнение версий графика по дню). Запрет из правила 2
@@ -376,8 +386,8 @@ Europe/Volgograd и Europe/Moscow — одно и то же настенное �
   `Intl.DateTimeFormat` в `app/MonthStepper.tsx`, `Report/TrendsChart.tsx`,
   `pages/Finances/PersonalReportPage.tsx`. Каждый tz-безопасен (формат берётся
   от синтетической даты, собранной из day-key), но это пять параллельных
-  наборов. Туда же day-key-форматтеры `Ticket/ArchiveList.jsx` и
-  `Work/ArchiveList.jsx` (`isoDay.split("-").reverse().join(".")`).
+  наборов (day-key-форматтеры архивов и `MonthStepper` сведены в
+  `formatDayKey` 2026-09-04).
 - **Копии `msToHMS`** — `Dashboard/WorksCard.jsx`,
   `Work/AddScheduledDashboard.jsx`, `pages/Dashboard.jsx` при живом
   `util/time-helpers.js`.

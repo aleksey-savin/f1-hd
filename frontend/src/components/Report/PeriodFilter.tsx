@@ -1,9 +1,9 @@
+import DateRangeField from "@/components/app/DateRangeField";
 import Field from "@/components/app/Field";
 import FilterContainer from "@/components/app/FilterContainer";
 import SwitchField from "@/components/app/SwitchField";
-import { Input } from "@/components/ui/input";
 
-// Тело Sheet-фильтра отчёта: произвольный период двумя нативными датами.
+// Тело Sheet-фильтра отчёта: произвольный период одним полем-календарём.
 // «Сбросить» возвращает текущий месяц — дефолт отчётов (у архива это прошлый:
 // там текущий месяц ещё «не история»). Свитч «только согласованные работы»
 // живёт здесь же: он влияет на все режимы отчёта «Сотрудники», а не на одну
@@ -27,25 +27,12 @@ const PeriodFilter = ({
   onApprovedOnlyChange?: (value: boolean) => void;
 }) => (
   <FilterContainer resetFilterHandler={onReset}>
-    <Field label="Период" htmlFor={`${idPrefix}-period-from`}>
-      <div className="grid grid-cols-2 gap-2">
-        <Input
-          id={`${idPrefix}-period-from`}
-          type="date"
-          aria-label="Начало периода"
-          value={from}
-          max={to || undefined}
-          onChange={(event) => onChange({ from: event.target.value })}
-        />
-        <Input
-          id={`${idPrefix}-period-to`}
-          type="date"
-          aria-label="Конец периода"
-          value={to}
-          min={from || undefined}
-          onChange={(event) => onChange({ to: event.target.value })}
-        />
-      </div>
+    <Field label="Период" htmlFor={`${idPrefix}-period`}>
+      <DateRangeField
+        id={`${idPrefix}-period`}
+        value={{ from, to }}
+        onChange={onChange}
+      />
     </Field>
     {onApprovedOnlyChange && (
       <SwitchField

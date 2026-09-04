@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 
 import Combobox from "@/components/app/Combobox";
+import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
-import { Input } from "@/components/ui/input";
 
 import { toDateInputValue } from "../../util/format-date";
 
@@ -76,12 +76,11 @@ const AttachFields = ({
   return (
     <>
       <Field label="Действует с" htmlFor={`${idPrefix}-since`} required>
-        <Input
+        <DateField
           id={`${idPrefix}-since`}
-          type="date"
           required
           value={value.isActiveSince}
-          onChange={(event) => patch({ isActiveSince: event.target.value })}
+          onChange={(next) => patch({ isActiveSince: next })}
         />
       </Field>
 

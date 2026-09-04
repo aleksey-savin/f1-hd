@@ -5,9 +5,9 @@ import AlertMessage from "../app/AlertMessage";
 import Field from "../app/Field";
 import FormSheet from "../app/FormSheet";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import Combobox from "../app/Combobox";
+import DateRangeField from "../app/DateRangeField";
 import { ABSENCE_TYPES } from "../../util/absence-types";
 import { toIsoDay } from "../../util/period";
 import type { TeamMember } from "@/types/teamSchedule";
@@ -188,24 +188,17 @@ const AbsenceForm = ({
         />
       </Field>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="С" htmlFor="abs-from" required>
-          <Input
-            id="abs-from"
-            type="date"
-            value={from}
-            onChange={(event) => setFrom(event.target.value)}
-          />
-        </Field>
-        <Field label="По" htmlFor="abs-to" required>
-          <Input
-            id="abs-to"
-            type="date"
-            value={to}
-            onChange={(event) => setTo(event.target.value)}
-          />
-        </Field>
-      </div>
+      <Field label="Период" htmlFor="abs-period" required>
+        <DateRangeField
+          id="abs-period"
+          value={{ from, to }}
+          onChange={(range) => {
+            setFrom(range.from);
+            setTo(range.to);
+          }}
+          required
+        />
+      </Field>
 
       <Field
         label="Комментарий"

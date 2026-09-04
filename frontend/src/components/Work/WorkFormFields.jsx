@@ -3,8 +3,8 @@ import { RiTimeLine, RiUserLine } from "react-icons/ri";
 import Field from "@/components/app/Field";
 import Segmented from "@/components/app/Segmented";
 import Combobox, { MultiCombobox } from "@/components/app/Combobox";
+import DateTimeField from "@/components/app/DateTimeField";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
@@ -154,12 +154,11 @@ const WorkFormFields = ({
           }
         >
           <div className="flex gap-2">
-            <Input
+            <DateTimeField
               id="work-started-at"
-              type="datetime-local"
               value={startedAt}
               min={minStart || undefined}
-              onChange={(event) => setStartedAt(event.target.value)}
+              onChange={setStartedAt}
               className="min-w-0 flex-1"
             />
             <Button
@@ -183,16 +182,13 @@ const WorkFormFields = ({
           }
         >
           <div className="flex gap-2">
-            <Input
+            <DateTimeField
               id="work-finished-at"
-              type="datetime-local"
               value={finishedAt}
               min={startedAt || minStart || undefined}
-              onChange={(event) => setFinishedAt(event.target.value)}
-              className={cn(
-                "min-w-0 flex-1",
-                isReversed && "border-destructive",
-              )}
+              onChange={setFinishedAt}
+              invalid={isReversed}
+              className="min-w-0 flex-1"
             />
             <Button
               type="button"

@@ -2,6 +2,7 @@ import { RiArrowLeftSLine, RiArrowRightSLine } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";
 
+import { formatDayKey } from "../../util/format-date";
 import { monthRange } from "../../util/period";
 
 type Range = { from: string; to: string };
@@ -24,8 +25,6 @@ const MONTH_LABEL = new Intl.DateTimeFormat("ru-RU", {
   month: "long",
   year: "numeric",
 });
-
-const shortDate = (value: string) => value.split("-").reverse().join(".");
 
 const arrowClass =
   "grid size-8 flex-none cursor-pointer appearance-none place-items-center rounded-md border-0 bg-transparent p-0 text-muted-foreground transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent";
@@ -62,7 +61,7 @@ const MonthStepper = ({
     ? MONTH_LABEL.format(anchorMonth).replace(" г.", "")
     : isEmpty
       ? "Весь период"
-      : `${from ? shortDate(from) : "…"} – ${to ? shortDate(to) : "…"}`;
+      : `${from ? formatDayKey(from) : "…"} – ${to ? formatDayKey(to) : "…"}`;
 
   const step = (delta: number) => {
     const base = isEmpty ? currentMonth : anchorMonth;

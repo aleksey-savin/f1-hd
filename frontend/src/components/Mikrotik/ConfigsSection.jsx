@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Panel, Eyebrow } from "@/components/app/Panel";
 import Field from "@/components/app/Field";
+import TimeInput from "@/components/app/TimeInput";
 import useToastStore from "@/store/toast-store";
 
 import Combobox, { toOptions } from "@/components/app/Combobox";
@@ -268,9 +269,8 @@ const ConfigsSection = ({ recordId, initialSchedule }) => {
               </Field>
               {draft.frequency !== "off" && (
                 <Field label="Время" htmlFor="schedule-time">
-                  <Input
+                  <TimeInput
                     id="schedule-time"
-                    type="time"
                     value={draft.time}
                     onChange={(event) =>
                       setDraft((prev) => ({

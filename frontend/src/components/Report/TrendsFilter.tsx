@@ -1,11 +1,12 @@
+import DateRangeField from "@/components/app/DateRangeField";
 import Field from "@/components/app/Field";
 import FilterContainer from "@/components/app/FilterContainer";
-import { Input } from "@/components/ui/input";
 
 import useCompaniesTrendsStore from "../../store/reports/companies-trends";
 
-// Sheet-фильтр «Динамики» — даты произвольного диапазона (пресет
-// «Произвольный»). Запрос уходит, когда заданы обе (гард в сторе);
+// Sheet-фильтр «Динамики» — произвольный диапазон одним полем-календарём
+// (пресет «Произвольный»); крестика очистки нет: пустой диапазон оставил бы
+// пресет без данных. Запрос уходит, когда заданы обе (гард в сторе);
 // «Сбросить» возвращает пресет «12 месяцев».
 const TrendsFilter = () => {
   const s = useCompaniesTrendsStore();
@@ -16,25 +17,15 @@ const TrendsFilter = () => {
         s.setParams({ preset: "12months", startDate: "", endDate: "" })
       }
     >
-      <Field label="Произвольный диапазон" htmlFor="trends-period-from">
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            id="trends-period-from"
-            type="date"
-            aria-label="Начало диапазона"
-            value={s.startDate}
-            max={s.endDate || undefined}
-            onChange={(event) => s.setParams({ startDate: event.target.value })}
-          />
-          <Input
-            id="trends-period-to"
-            type="date"
-            aria-label="Конец диапазона"
-            value={s.endDate}
-            min={s.startDate || undefined}
-            onChange={(event) => s.setParams({ endDate: event.target.value })}
-          />
-        </div>
+      <Field label="Произвольный диапазон" htmlFor="trends-period">
+        <DateRangeField
+          id="trends-period"
+          value={{ from: s.startDate, to: s.endDate }}
+          onChange={({ from, to }) =>
+            s.setParams({ startDate: from, endDate: to })
+          }
+          clearable={false}
+        />
       </Field>
     </FilterContainer>
   );

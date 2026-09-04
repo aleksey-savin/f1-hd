@@ -1,9 +1,9 @@
 import { useContext } from "react";
 
+import DateRangeField from "@/components/app/DateRangeField";
 import Field from "@/components/app/Field";
 import FilterContainer from "@/components/app/FilterContainer";
 import Segmented from "@/components/app/Segmented";
-import { Input } from "@/components/ui/input";
 
 import useInitialPrefsStore from "../../store/prefs";
 import useTicketFilterStore from "../../store/lists/tickets";
@@ -100,29 +100,14 @@ const TicketFilter = ({
         </>
       )}
 
-      <Field label="Создана в период" htmlFor="filter-created-from">
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            id="filter-created-from"
-            type="date"
-            aria-label="Начало периода"
-            value={store.createdFrom}
-            max={store.createdTo || undefined}
-            onChange={(event) =>
-              store.updateFilter({ createdFrom: event.target.value })
-            }
-          />
-          <Input
-            id="filter-created-to"
-            type="date"
-            aria-label="Конец периода"
-            value={store.createdTo}
-            min={store.createdFrom || undefined}
-            onChange={(event) =>
-              store.updateFilter({ createdTo: event.target.value })
-            }
-          />
-        </div>
+      <Field label="Создана в период" htmlFor="filter-created">
+        <DateRangeField
+          id="filter-created"
+          value={{ from: store.createdFrom, to: store.createdTo }}
+          onChange={({ from, to }) =>
+            store.updateFilter({ createdFrom: from, createdTo: to })
+          }
+        />
       </Field>
 
       <Field label="Компании" htmlFor="filter-companies">

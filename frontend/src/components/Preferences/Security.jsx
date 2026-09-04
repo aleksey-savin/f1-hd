@@ -2,8 +2,8 @@ import { useState } from "react";
 
 import SettingRow from "@/components/app/SettingRow";
 import SwitchField from "@/components/app/SwitchField";
+import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
-import { Input } from "@/components/ui/input";
 import { toDateInputValue } from "@/util/format-date";
 import { useAuthedUser } from "@/store/authed-user";
 
@@ -74,12 +74,12 @@ const PrefsSecurity = ({ prefs }) => {
               className="mb-0"
               hint="До этой даты вход работает как раньше, а в портале висит напоминание с датой."
             >
-              <Input
+              <DateField
                 id="tf-grace"
-                type="date"
                 value={until}
-                onChange={(event) => setUntil(event.target.value)}
+                onChange={setUntil}
                 className="max-w-52"
+                clearable={false}
               />
             </Field>
           </div>

@@ -3,6 +3,7 @@ import { useFetcher, useLoaderData, useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
 import PasswordPolicyField from "@/components/app/PasswordPolicyField";
 import RoleSummary, { effectiveOf, rolesToOptions } from "./RoleSummary";
@@ -147,18 +148,12 @@ const UserForm = () => {
   const scroller = useContext(OverlayScrollContext);
 
   const can = useCan();
-  const canEditFinances = Boolean(
-    can({ report: ["employees"] }),
-  );
+  const canEditFinances = Boolean(can({ report: ["employees"] }));
   // Правка пользователя и правка графика — разные права. У кого есть только
   // второе (офис-менеджер, ведущий графики), форма открывается одной секцией
   // «График работы» и уходит своим endpoint'ом (см. pages/User/Update.jsx).
-  const canManageUsers = Boolean(
-    can({ user: ["manage"] }),
-  );
-  const canManageSchedule = Boolean(
-    can({ schedule: ["manage"] }),
-  );
+  const canManageUsers = Boolean(can({ user: ["manage"] }));
+  const canManageSchedule = Boolean(can({ schedule: ["manage"] }));
   // Глобальная интеграция включена — ключ правят только у клиентов (как в легаси)
   const prefsGetScreenActive = Boolean(
     getInitialPrefsData()?.getScreen?.isActive,
@@ -984,14 +979,12 @@ const UserForm = () => {
                   : "Прежний график сохранится в истории и продолжит действовать до этой даты."
               }
             >
-              <Input
+              <DateField
                 id="u-effective-from"
-                type="date"
                 className="max-w-3xs"
                 value={schedule.effectiveFrom}
-                onChange={(event) =>
-                  patchSchedule({ effectiveFrom: event.target.value })
-                }
+                onChange={(next) => patchSchedule({ effectiveFrom: next })}
+                clearable={false}
               />
             </Field>
 
@@ -1043,9 +1036,7 @@ const UserForm = () => {
           {isStaff ? "Сотрудник" : "Клиент"}
         </span>
         <span>
-          {isStaff
-            ? "· оказывает поддержку"
-            : "· обращается в поддержку"}
+          {isStaff ? "· оказывает поддержку" : "· обращается в поддержку"}
         </span>
         {/* В мастере тип живёт на первом шаге, в правке — в секции «Основное»
             того же скролла. Шаг там не переключается: состояние `step` в

@@ -1,10 +1,10 @@
+import DateRangeField from "@/components/app/DateRangeField";
 import Field from "@/components/app/Field";
 import FilterContainer from "@/components/app/FilterContainer";
-import { Input } from "@/components/ui/input";
 
 import useCompaniesSummaryStore from "../../store/reports/companies-summary";
 
-// Sheet-фильтр «Сводки»: произвольный период двумя нативными датами (паттерн
+// Sheet-фильтр «Сводки»: произвольный период одним полем-календарём (паттерн
 // архива работ). «Сбросить» возвращает текущий месяц (дефолт отчёта).
 // Запрос уходит, когда заданы обе границы (гард в сторе).
 const SummaryFilter = () => {
@@ -12,25 +12,12 @@ const SummaryFilter = () => {
 
   return (
     <FilterContainer resetFilterHandler={s.resetPeriod}>
-      <Field label="Период" htmlFor="analytics-period-from">
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            id="analytics-period-from"
-            type="date"
-            aria-label="Начало периода"
-            value={s.from}
-            max={s.to || undefined}
-            onChange={(event) => s.setPeriod({ from: event.target.value })}
-          />
-          <Input
-            id="analytics-period-to"
-            type="date"
-            aria-label="Конец периода"
-            value={s.to}
-            min={s.from || undefined}
-            onChange={(event) => s.setPeriod({ to: event.target.value })}
-          />
-        </div>
+      <Field label="Период" htmlFor="analytics-period">
+        <DateRangeField
+          id="analytics-period"
+          value={{ from: s.from, to: s.to }}
+          onChange={(range) => s.setPeriod(range)}
+        />
       </Field>
     </FilterContainer>
   );

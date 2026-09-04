@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import Combobox from "@/components/app/Combobox";
+import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
 import Segmented from "@/components/app/Segmented";
 import { DEVICE_STATUS_OPTIONS } from "@/components/app/device-status";
@@ -331,11 +332,11 @@ export const PurchaseFields = ({
   <>
     <div className="grid gap-x-3 md:grid-cols-2">
       <Field label="Дата приобретения" htmlFor="device-purchased">
-        <Input
+        <DateField
           id="device-purchased"
-          type="date"
           value={values.purchasedAt}
-          onChange={(event) => onChange("purchasedAt", event.target.value)}
+          onChange={(next) => onChange("purchasedAt", next)}
+          captionLayout="dropdown"
         />
       </Field>
       <Field label="Стоимость, ₽" htmlFor="device-price">
@@ -375,13 +376,11 @@ export const PurchaseFields = ({
 
     <div className="grid gap-x-3 md:grid-cols-2">
       <Field label="Гарантия до" htmlFor="device-warranty">
-        <Input
+        <DateField
           id="device-warranty"
-          type="date"
           value={values.warrantyExpirationDate}
-          onChange={(event) =>
-            onChange("warrantyExpirationDate", event.target.value)
-          }
+          onChange={(next) => onChange("warrantyExpirationDate", next)}
+          captionLayout="dropdown"
         />
       </Field>
     </div>
@@ -450,13 +449,11 @@ export const TechFields = ({ values, onChange, mikrotikMode }) => (
         </div>
         <div className="grid gap-x-3 md:grid-cols-2">
           <Field label="Последнее обслуживание" htmlFor="device-maintenance">
-            <Input
+            <DateField
               id="device-maintenance"
-              type="date"
               value={values.lastMaintenanceDate}
-              onChange={(event) =>
-                onChange("lastMaintenanceDate", event.target.value)
-              }
+              onChange={(next) => onChange("lastMaintenanceDate", next)}
+              captionLayout="dropdown"
             />
           </Field>
         </div>

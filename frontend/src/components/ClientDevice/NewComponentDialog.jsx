@@ -14,8 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import AlertMessage from "@/components/app/AlertMessage";
 import Combobox from "@/components/app/Combobox";
+import DateField from "@/components/app/DateField";
 import Field from "@/components/app/Field";
-
 
 const refId = (value) => value?._id || value || "";
 
@@ -253,13 +253,11 @@ const NewComponentDialog = ({ open, onOpenChange, host, onCreated }) => {
             </div>
 
             <Field label="Гарантия до" htmlFor="component-warranty">
-              <Input
+              <DateField
                 id="component-warranty"
-                type="date"
                 value={form.warrantyExpirationDate}
-                onChange={(event) =>
-                  setField("warrantyExpirationDate", event.target.value)
-                }
+                onChange={(next) => setField("warrantyExpirationDate", next)}
+                captionLayout="dropdown"
               />
             </Field>
           </div>

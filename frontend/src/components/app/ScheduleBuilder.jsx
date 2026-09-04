@@ -8,6 +8,7 @@ import {
   RiTimeLine,
 } from "react-icons/ri";
 
+import TimeInput from "@/components/app/TimeInput";
 import { cn } from "@/lib/utils";
 import {
   buildCron,
@@ -174,12 +175,7 @@ const ScheduleBuilder = ({ value, onChange }) => {
         <div className="flex flex-col gap-3.5">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className={LAB}>Каждый день, время</span>
-            <input
-              type="time"
-              value={timeValue}
-              onChange={setTime}
-              className={INP}
-            />
+            <TimeInput value={timeValue} onChange={setTime} className={INP} />
           </div>
           <button
             type="button"
@@ -251,12 +247,7 @@ const ScheduleBuilder = ({ value, onChange }) => {
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
             <span className={LAB}>Время</span>
-            <input
-              type="time"
-              value={timeValue}
-              onChange={setTime}
-              className={INP}
-            />
+            <TimeInput value={timeValue} onChange={setTime} className={INP} />
           </div>
         </div>
       );
@@ -279,12 +270,7 @@ const ScheduleBuilder = ({ value, onChange }) => {
             ))}
           </select>
           <span className={LAB}>время</span>
-          <input
-            type="time"
-            value={timeValue}
-            onChange={setTime}
-            className={INP}
-          />
+          <TimeInput value={timeValue} onChange={setTime} className={INP} />
         </div>
         <p className="m-0 text-xs text-faint">
           Числа 29–31 планировщик не поддерживает напрямую — в коротких месяцах
@@ -477,9 +463,7 @@ const ScheduleBuilder = ({ value, onChange }) => {
                   <code className="block font-mono text-xs text-accent-text">
                     {expr}
                   </code>
-                  <span className="text-xs text-muted-foreground">
-                    {label}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{label}</span>
                 </button>
               ))}
             </div>

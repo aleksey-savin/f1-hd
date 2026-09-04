@@ -1,6 +1,6 @@
 import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
-import { Input } from "@/components/ui/input";
+import DateRangeField from "@/components/app/DateRangeField";
 
 import { MultiCombobox } from "@/components/app/Combobox";
 
@@ -8,7 +8,7 @@ import useWorksStore from "../../store/lists/works";
 
 // Sheet-фильтр сегмента «Работы» архива. Все условия опциональны (обязательных
 // «компания + период» легаси-отчёта больше нет): период по дате завершения —
-// два нативных поля даты, остальное — мультиселекты по полному каталогу
+// одно поле-календарь, остальное — мультиселекты по полному каталогу
 // form-data. Категории — свойство связанных заявок; исполнители — активные
 // пользователи с правом выполнения заявок.
 const WorkArchiveFilter = () => {
@@ -16,25 +16,12 @@ const WorkArchiveFilter = () => {
 
   return (
     <FilterContainer resetFilterHandler={s.resetFilter}>
-      <Field label="Завершена в период" htmlFor="work-filter-period-from">
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            id="work-filter-period-from"
-            type="date"
-            aria-label="Начало периода"
-            value={s.from}
-            max={s.to || undefined}
-            onChange={(event) => s.updateFilter({ from: event.target.value })}
-          />
-          <Input
-            id="work-filter-period-to"
-            type="date"
-            aria-label="Конец периода"
-            value={s.to}
-            min={s.from || undefined}
-            onChange={(event) => s.updateFilter({ to: event.target.value })}
-          />
-        </div>
+      <Field label="Завершена в период" htmlFor="work-filter-period">
+        <DateRangeField
+          id="work-filter-period"
+          value={{ from: s.from, to: s.to }}
+          onChange={(range) => s.updateFilter(range)}
+        />
       </Field>
 
       <Field label="Компании" htmlFor="work-filter-companies">

@@ -88,7 +88,7 @@ export const toOptions = <T,>(
  * той же причине; `pointer-events-none`, чтобы полоска не перехватывала клик
  * по нижней кромке триггера.
  */
-const RequiredMirror = ({
+export const RequiredMirror = ({
   value,
   disabled,
   onFocus,

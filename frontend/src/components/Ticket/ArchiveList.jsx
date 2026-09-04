@@ -10,6 +10,7 @@ import useClosedTicketsStore from "../../store/lists/closed-tickets";
 
 import ArchiveFilter from "./ArchiveFilter";
 import ArchiveItem from "./ArchiveItem";
+import { formatDayKey } from "../../util/format-date";
 
 // Сегмент «Заявки» страницы «Архив» (бывшая страница «Архив заявок» — тело
 // перенесено сюда 1:1): список на серверной выборке, открывается сразу,
@@ -19,7 +20,6 @@ import ArchiveItem from "./ArchiveItem";
 // (`segment`) и встаёт первым в toolbar — вне десктоп-обёртки чипа.
 
 // yyyy-MM-dd (значение нативного поля даты) → dd.MM.yyyy для бейджа
-const formatBadgeDate = (isoDay) => isoDay.split("-").reverse().join(".");
 
 // Фасеты-списки, которые принимаются из адреса через запятую.
 const URL_LIST_FACETS = [
@@ -76,10 +76,10 @@ const TicketsArchiveList = ({ segment }) => {
       key: "period",
       label:
         s.from && s.to
-          ? `Закрыта: ${formatBadgeDate(s.from)} – ${formatBadgeDate(s.to)}`
+          ? `Закрыта: ${formatDayKey(s.from)} – ${formatDayKey(s.to)}`
           : s.from
-            ? `Закрыта с ${formatBadgeDate(s.from)}`
-            : `Закрыта по ${formatBadgeDate(s.to)}`,
+            ? `Закрыта с ${formatDayKey(s.from)}`
+            : `Закрыта по ${formatDayKey(s.to)}`,
       onRemove: () => s.updateFilter({ from: "", to: "" }),
     });
   const facetBadge = (key, one, many) => {
