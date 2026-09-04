@@ -224,16 +224,24 @@ body:has(.mobile-shell),
 /* --- Скролл-лок radix без «прыжков» лэйаута -------------------------------
    Вместо пиксельных компенсаций фиксед-элементов: желоб скроллбара на
    десктопе есть ВСЕГДА (html overflow-y: scroll), поэтому при локе
-   (Dialog/AlertDialog/Sheet) ширина ничего не меняет. Компенсирующий
-   padding-right от react-remove-scroll при этом сам стал бы источником
-   сдвига — гасим его (!important перебивает инлайн-стиль без important).
+   (Dialog/AlertDialog/Sheet) ширина ничего не меняет — и компенсация от
+   react-remove-scroll сама становится источником сдвига: она сужает боди
+   на ширину скроллбара, и всё центрованное (mx-auto) уезжает влево на
+   половину этой ширины. Гасим её.
+   Гасить надо margin-right, а не только padding-right: gapMode у
+   react-remove-scroll-bar по умолчанию «margin» (radix его не передаёт),
+   так что в padding-right библиотека кладёт ноль, а зазор — в margin-right.
+   Селектор удвоен намеренно: тот margin-right идёт с !important, а свой
+   <style> библиотека вешает в конец head, то есть ПОСЛЕ index.css — при
+   равной специфичности выигрывала бы она.
    Мобильный shell не задет: html:has(.mobile-shell) ставит overflow: hidden
    с большей специфичностью. Меню (DropdownMenu) лок не вызывают вовсе —
    они non-modal (см. ui/dropdown-menu.tsx). */
 html {
   overflow-y: scroll;
 }
-body[data-scroll-locked] {
+body[data-scroll-locked][data-scroll-locked] {
+  margin-right: 0 !important;
   padding-right: 0 !important;
 }
 
