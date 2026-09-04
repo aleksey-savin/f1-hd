@@ -3,21 +3,24 @@ import { isBrowser } from "react-device-detect";
 
 import { cn } from "@/lib/utils";
 import useInitialPrefs from "../store/prefs";
-import { AuthedUserContext } from "../store/authed-user-context";
 import { getLocalStorageData } from "../util/auth";
+import { ThemeContext } from "../store/theme-context";
 
-// Футер оболочки: контакты компании и служебная строка. Лёгкий текст на канве
-// (без легаси-карточек). ОБЯЗАТЕЛЬНО relative: фоновая картинка (fixed
-// .background-container) рисуется поверх статического контента — без
-// позиционирования футер под ней исчезает. При заданной картинке текст канвы
-// нечитаем — футер получает подложку-«лист» цвета канвы (как контент в Root).
+// Футер оболочки: контакты компании и служебная строка. ОБЯЗАТЕЛЬНО relative:
+// слой обоев (fixed .app-wallpaper) рисуется поверх статического контента —
+// без позиционирования футер под ним исчезает.
+//
+// На десктопе футер получает подложку-«лист», как и контент в Root: на канве
+// с фактурой (index.css → «Фактура канвы») мелкий серый текст поверх клетки
+// не читается, а под обоями — тем более. В чистом виде листа нет ни у
+// контента, ни здесь. На телефоне его нет никогда: там канва спокойнее, а
+// ширины на поля вокруг листа всё равно нет.
 const Footer = () => {
   const { token } = getLocalStorageData();
   const { contacts } = useInitialPrefs();
-  const { backgroundImagePath } = useContext(AuthedUserContext);
+  const { plainCanvas } = useContext(ThemeContext);
 
-  // Фон рендерится только на десктопе (Root.jsx)
-  const sheet = isBrowser && !!backgroundImagePath;
+  const sheet = isBrowser && !plainCanvas;
 
   if (!token) return null;
 

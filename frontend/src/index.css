@@ -323,3 +323,161 @@ body[data-scroll-locked][data-scroll-locked] {
     user-select: none;
   }
 }
+
+/* ==================== Фактура канвы ====================
+   Канва приложения — не ровная заливка: техническая клетка 32 px, каждая
+   пятая линия вдвое темнее (шаг 160 px), к углам всё угасает в цвет канвы.
+   На экране входа поверх этого добавляется мягкий свет за листом формы —
+   единственное место, где свету есть к чему привязаться.
+
+   Рисуется на body и #root, то есть ровно там, где базовый слой красит канву
+   (@layer base в styles/tailwind.css). Всё, у чего есть свой фон — карточки,
+   шторки, диалоги, бары оболочки, — фактуру закрывает само.
+
+   Одним блоком на обе темы: цвета считаются от токенов, поэтому вслед за
+   --foreground и --canvas линии сами становятся светлыми на тёмном и .dark
+   отдельно описывать не нужно. Вне tw-сетки: многослойного background-image
+   утилитами не собрать.
+   =================================================================== */
+body,
+#root {
+  /* Зеркалит базовый слой: до 768 px канва БЕЛАЯ, а не серая. Вуаль, гасящая
+     клетку, обязана совпасть с ней, иначе по углам проступит серая тень.
+     Сам цвет остаётся за базовым слоем — здесь только его копия для вуали. */
+  --canvas-bg: var(--canvas);
+  --canvas-cell: 32px;
+  --canvas-line: color-mix(in srgb, var(--foreground) 4.5%, transparent);
+  --canvas-line-major: color-mix(in srgb, var(--foreground) 9%, transparent);
+  /* Свет включает только вход (см. ниже): в приложении его нечем якорить —
+     за листом формы он осмыслен, за списком заявок нет. */
+  --canvas-glow: transparent;
+  --canvas-glow-size: 680px 580px;
+  --canvas-glow-at: 50% 47%;
+  /* Зерно поверх слоёв — ДИЗЕРИНГ, а не текстура. Свет и вуаль ползут по
+     каналу единицами, и в 8 битах это видно кольцами (особенно на тёмной
+     канве); шум ломает ступени. Тайл 160 px, feTurbulence обесцвечен и сжат
+     к середине (slope/intercept), а кладётся режимом overlay — середина
+     подложку не двигает, поэтому цвет канвы остаётся ровно токеном, а
+     отклонения дают нужные ±1–2 единицы. color-interpolation-filters='sRGB'
+     обязателен: по умолчанию фильтр считает в linearRGB, и «середина» 0.5
+     уезжает в светлое — overlay начинает высветлять всю канву. intercept
+     привязан к slope как 0.5 − slope/2: иначе шум перестаёт быть
+     симметричным и канва уползает светлее токена. */
+  --canvas-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='0.16' intercept='0.42'/%3E%3CfeFuncG type='linear' slope='0.16' intercept='0.42'/%3E%3CfeFuncB type='linear' slope='0.16' intercept='0.42'/%3E%3CfeFuncA type='discrete' tableValues='1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  /* Свет и вуаль расписаны колоколом в девять и семь стопов, а не двумя-тремя:
+     у линейного спада производная рвётся на концах, и мягкое пятно читается
+     как пятно с границей. Доля задаётся подмешиванием прозрачного к готовому
+     цвету — так множитель один, а не hex в каждом стопе.
+     Слои сверху вниз: зерно · свет · вуаль (в середине прозрачна, к углам
+     уводит клетку в цвет канвы) · каждая пятая линия · клетка. */
+  background-image:
+    var(--canvas-grain),
+    radial-gradient(
+      var(--canvas-glow-size) at var(--canvas-glow-at),
+      var(--canvas-glow) 0%,
+      color-mix(in srgb, var(--canvas-glow) 94%, transparent) 12%,
+      color-mix(in srgb, var(--canvas-glow) 80%, transparent) 25%,
+      color-mix(in srgb, var(--canvas-glow) 62%, transparent) 37%,
+      color-mix(in srgb, var(--canvas-glow) 42%, transparent) 50%,
+      color-mix(in srgb, var(--canvas-glow) 25%, transparent) 62%,
+      color-mix(in srgb, var(--canvas-glow) 12%, transparent) 75%,
+      color-mix(in srgb, var(--canvas-glow) 4%, transparent) 87%,
+      transparent 100%
+    ),
+    radial-gradient(
+      126% 112% at 50% 50%,
+      transparent 40%,
+      color-mix(in srgb, var(--canvas-bg) 6%, transparent) 55%,
+      color-mix(in srgb, var(--canvas-bg) 18%, transparent) 68%,
+      color-mix(in srgb, var(--canvas-bg) 34%, transparent) 78%,
+      color-mix(in srgb, var(--canvas-bg) 54%, transparent) 87%,
+      color-mix(in srgb, var(--canvas-bg) 76%, transparent) 94%,
+      var(--canvas-bg) 100%
+    ),
+    linear-gradient(to right, var(--canvas-line-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--canvas-line-major) 1px, transparent 1px),
+    linear-gradient(to right, var(--canvas-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--canvas-line) 1px, transparent 1px);
+  background-size:
+    160px 160px,
+    auto,
+    auto,
+    calc(var(--canvas-cell) * 5) calc(var(--canvas-cell) * 5),
+    calc(var(--canvas-cell) * 5) calc(var(--canvas-cell) * 5),
+    var(--canvas-cell) var(--canvas-cell),
+    var(--canvas-cell) var(--canvas-cell);
+  background-blend-mode:
+    overlay, normal, normal, normal, normal, normal, normal;
+  /* Фактура привязана к ОКНУ, а не к документу: иначе на длинной странице
+     вуаль растягивается на всю её высоту и пропадает, а клетка едет при
+     прокрутке. На мобилке окно не скроллится вовсе (app-shell), так что
+     известные болячки fixed там не при чём. */
+  background-attachment: fixed;
+}
+
+/* Два исключения, оба гасят фактуру целиком.
+
+   1. Персональные обои (`user.backgroundImagePath`, слой `.app-wallpaper` в
+      layout/Root.jsx): фон задаёт пользователь.
+   2. Чистый вид (`user.plainCanvas`, атрибут ставит ThemeProvider): человек
+      попросил ровную канву — заодно оболочка не рисует ни обои, ни «лист».
+
+   Первое — по разметке, через :has(), потому что признак и так есть в DOM;
+   второе — атрибутом на <html>, потому что настройка глобальная и должна
+   действовать и до входа, где никакой оболочки ещё нет. */
+body:has(.app-wallpaper),
+#root:has(.app-wallpaper),
+html[data-canvas="plain"] body,
+html[data-canvas="plain"] #root {
+  background-image: none;
+}
+
+/* Экран входа добавляет свет за листом формы. Значение ставится на #root, а
+   не на саму обёртку: фон рисует канва, а `.auth-canvas` — только признак
+   экрана (как `.mobile-shell` для app-shell). */
+body:has(.auth-canvas),
+#root:has(.auth-canvas) {
+  --canvas-glow: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+/* Ниже lg лист стоит по центру экрана, с lg — в правой части сетки: центр
+   листа всегда на 222 px правее центра окна (контейнер max-w-6xl, 5 колонок,
+   стойка 2 + лист 384 в оставшихся 3). Свечение ходит за листом, иначе ореол
+   выглядит смещённым в угол. */
+@media (min-width: 1024px) {
+  body:has(.auth-canvas),
+  #root:has(.auth-canvas) {
+    --canvas-glow-at: calc(50% + 222px) 50%;
+  }
+}
+
+/* Телефон: канва белая, на ней клетка заметнее — поэтому мельче и слабее.
+   Порог 768 px взят у КАНВЫ (не у раскладки, она перестраивается на lg =
+   1024): настройки здесь зависят именно от цвета подложки. */
+@media (max-width: 767.98px) {
+  body,
+  #root {
+    --canvas-bg: var(--background);
+    --canvas-cell: 24px;
+    --canvas-line: color-mix(in srgb, var(--foreground) 3.6%, transparent);
+    --canvas-line-major: color-mix(
+      in srgb,
+      var(--foreground) 7.2%,
+      transparent
+    );
+  }
+  body:has(.auth-canvas),
+  #root:has(.auth-canvas) {
+    --canvas-glow: color-mix(in srgb, var(--primary) 9%, transparent);
+    --canvas-glow-size: 420px 380px;
+    --canvas-glow-at: 50% 44%;
+  }
+}
+
+/* Зеркалит `html.dark body` из базового слоя: в тёмной теме канва остаётся
+   серой и на телефоне. */
+html.dark body,
+html.dark #root {
+  --canvas-bg: var(--canvas);
+}

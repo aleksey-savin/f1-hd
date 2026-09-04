@@ -35,10 +35,10 @@ import useWorkStatusesStore from "../store/work-statuses";
 import { ThemeContext } from "../store/theme-context";
 import useRouteErrorStore from "../store/route-error";
 
-// Страницы живут прямо на канве: заголовок — на канве, панель — у самого
-// списка (согласованный макет, см. docs/ux-ui-guide.md → раздел миграции).
+// Ширина листа по маршруту (согласованный макет, см. docs/ux-ui-guide.md).
 // maxWidth — контентная ширина страницы (её max-w-*) + горизонтальный p-4
-// листа; сам лист рисуется только под фоновой картинкой.
+// листа. Лист рисуется всегда (см. комментарий у него ниже), поэтому ширина
+// маршрута управляет каждой страницей, а не только теми, под кем лежат обои.
 const MIGRATED_ROUTES = [
   // Главная: ролевой лендинг, PageShell max-w-7xl + 2×24.
   // «/» — точным совпадением, иначе префикс поймал бы вообще
@@ -219,7 +219,8 @@ const RootLayout = () => {
   // Масштаб текста — личная настройка с сервера; localStorage лишь зеркало
   // для первой отрисовки. Сервер побеждает: на общем рабочем месте после
   // входа другого человека действует его выбор, а не прошлого.
-  const { fontScale, setFontScale } = useContext(ThemeContext);
+  const { fontScale, setFontScale, plainCanvas, setPlainCanvas } =
+    useContext(ThemeContext);
   const railOpen = useWorkStatusesStore((state) => state.railOpen);
   useEffect(() => {
     const server = userData?.fontScale;
@@ -227,6 +228,16 @@ const RootLayout = () => {
       setFontScale(server);
     }
   }, [userData?.fontScale]);
+
+  // Чистый вид — там же на сервере и с тем же правилом «сервер побеждает».
+  // Значение булево, поэтому сравниваем явно: undefined из старого ответа не
+  // должен молча выключать настройку.
+  useEffect(() => {
+    const server = userData?.plainCanvas;
+    if (server !== undefined && Boolean(server) !== plainCanvas) {
+      setPlainCanvas(server);
+    }
+  }, [userData?.plainCanvas]);
 
   useEffect(() => {
     // Формы базы знаний открываются в основной панели, а не в offcanvas
@@ -289,13 +300,17 @@ const RootLayout = () => {
       <Transitions>
         <BrowserView>
           {/* <Pro32Connect /> */}
-          {userData.backgroundImagePath && (
+          {!plainCanvas && userData.backgroundImagePath && (
             <div
               // Декоративный слой обоев под контентом. top-14 — высота бара
               // оболочки, без зазора-полосы; pointer-events-none обязателен:
               // fixed-слой рисуется поверх статического контента и иначе
               // съедает клики.
-              className="pointer-events-none fixed inset-x-0 top-14 bottom-0 bg-cover bg-center bg-no-repeat"
+              //
+              // Класс app-wallpaper — признак для канвы: по нему index.css
+              // гасит собственную фактуру (клетку и вуаль), потому что фон
+              // здесь задаёт пользователь.
+              className="app-wallpaper pointer-events-none fixed inset-x-0 top-14 bottom-0 bg-cover bg-center bg-no-repeat"
               style={{
                 backgroundImage: `url("${import.meta.env.VITE_API_ADDRESS}/uploads/${userData.backgroundImagePath}")`,
               }}
@@ -324,27 +339,31 @@ const RootLayout = () => {
             )}
           >
             <div
-              /* relative — контент рисуется поверх fixed-слоя фоновой картинки.
-                 При заданной картинке он лежит на «листе» цвета канвы (content
-                 sheet on wallpaper), и лист обнимает контент по ширине его
-                 маршрута, а не тянется на всю ширину: пустых полей-«карточек»
-                 нет, обои видны по бокам. Без картинки лист не рисуется вовсе. */
+              /* «Лист» страницы. relative — контент рисуется поверх fixed-слоя
+                 обоев; без позиционирования он бы под ними исчез.
+
+                 Лист рисуется всегда, кроме чистого вида. Раньше без обоев
+                 страницы жили прямо на канве, и это работало, пока канва была
+                 ровной заливкой. С фактурой (index.css → «Фактура канвы»)
+                 заголовок, фильтры и чипы оказались на клетке — для лендинга
+                 нормально, для повседневной работы утомительно. Плотному
+                 интерфейсу нужна спокойная подложка, а фактура остаётся тем,
+                 чем и была: полями вокруг листа.
+
+                 Лист обнимает контент по ширине его маршрута (sheetWidth), а не
+                 тянется на всю рабочую область: пустых полей-«карточек» нет, а
+                 под обоями они к тому же видны по бокам. */
               className={cn(
                 "relative",
-                userData.backgroundImagePath &&
-                  "mx-auto w-full rounded-2xl border bg-card p-4",
+                !plainCanvas && "mx-auto w-full rounded-2xl border bg-card p-4",
               )}
               style={{
                 minHeight: "calc(100svh - 6.5rem)",
-                ...(userData.backgroundImagePath
-                  ? { maxWidth: `${sheetWidth / 16}rem` }
-                  : {}),
+                ...(plainCanvas ? {} : { maxWidth: `${sheetWidth / 16}rem` }),
               }}
             >
-              {/* Баннер оболочки — первым элементом внутри листа, а не над
-                  ним: так он ровно по ширине карточки страницы. Когда листа
-                  нет (нет обоев), ограничиваем его сами — иначе растянулся бы
-                  на всю рабочую область. */}
+              {/* Баннеры — первыми элементами внутри листа, а не над ним:
+                  так они ровно по ширине карточки страницы. */}
               {/* Работа под чужой учётной записью — состояние, о котором надо
                   помнить постоянно, поэтому полоса видна на каждой странице и
                   не закрывается. «Выйти» здесь — обычный выход: своя вкладка
@@ -356,7 +375,7 @@ const RootLayout = () => {
                   title={`Вы под учётной записью: ${impersonatedName}`}
                   className={cn(
                     "mb-4",
-                    !userData.backgroundImagePath && "mx-auto w-full max-w-7xl",
+                    plainCanvas && "mx-auto w-full max-w-7xl",
                   )}
                   action={
                     <Button
@@ -383,7 +402,7 @@ const RootLayout = () => {
                   title="Настройте вход по коду из приложения"
                   className={cn(
                     "mb-4",
-                    !userData.backgroundImagePath && "mx-auto w-full max-w-7xl",
+                    plainCanvas && "mx-auto w-full max-w-7xl",
                   )}
                   action={
                     <Button
@@ -407,7 +426,7 @@ const RootLayout = () => {
                   title="Доступна новая версия"
                   className={cn(
                     "mb-4",
-                    !userData.backgroundImagePath && "mx-auto w-full max-w-7xl",
+                    plainCanvas && "mx-auto w-full max-w-7xl",
                   )}
                   action={
                     <Button

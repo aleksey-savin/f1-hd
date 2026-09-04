@@ -1631,6 +1631,7 @@ exports.updateMyAccount = async (req, res, next) => {
       telegramBot,
       timezone,
       fontScale,
+      plainCanvas,
     } = req.body;
 
     // Ручка правит ТОЛЬКО свою учётку, поэтому и адресат берётся из сеанса.
@@ -1653,6 +1654,11 @@ exports.updateMyAccount = async (req, res, next) => {
     // Незнакомое значение — дефолт, а не ошибка: экран уже переключился.
     if (fontScale !== undefined) {
       user.fontScale = Number(fontScale) === 125 ? 125 : 100;
+    }
+
+    // Чистый вид — та же история: клиент уже переключился, сервер помнит.
+    if (plainCanvas !== undefined) {
+      user.plainCanvas = Boolean(plainCanvas);
     }
 
     user.email = email ? email : user.email;

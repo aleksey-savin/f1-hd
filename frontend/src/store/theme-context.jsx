@@ -15,6 +15,8 @@ export const ThemeContext = createContext({
   setTheme: () => {},
   fontScale: 100,
   setFontScale: () => {},
+  plainCanvas: false,
+  setPlainCanvas: () => {},
 });
 
 export const ThemeProvider = ({ children }) => {
@@ -51,6 +53,21 @@ export const ThemeProvider = ({ children }) => {
     localStorage.setItem("fontScale", String(value));
   };
 
+  /**
+   * Чистый вид — канва без фактуры, без фонового изображения и без «листа»
+   * под контентом. Хранится и мостится так же, как масштаб: на сервере
+   * (`user.plainCanvas`), в localStorage — зеркало для первой отрисовки.
+   */
+  const [plainCanvas, setPlainCanvasState] = useState(
+    () => localStorage.getItem("plainCanvas") === "1",
+  );
+
+  const updatePlainCanvas = (next) => {
+    const value = Boolean(next);
+    setPlainCanvasState(value);
+    localStorage.setItem("plainCanvas", value ? "1" : "0");
+  };
+
   // Класс .dark на <html> — источник тёмной темы для tailwind/shadcn-токенов
   // (см. @custom-variant dark в styles/tailwind.css). Держим синхронно с
   // isDark.
@@ -63,6 +80,14 @@ export const ThemeProvider = ({ children }) => {
   useLayoutEffect(() => {
     document.documentElement.dataset.fontScale = String(fontScale);
   }, [fontScale]);
+
+  // Атрибут на <html> — по нему index.css гасит фактуру канвы. Атрибутом, а
+  // не классом: рядом уже живёт data-font-scale, и это тоже «как показывать»,
+  // а не состояние вроде .dark, от которого зависят токены.
+  useLayoutEffect(() => {
+    if (plainCanvas) document.documentElement.dataset.canvas = "plain";
+    else delete document.documentElement.dataset.canvas;
+  }, [plainCanvas]);
 
   // Listen for system theme changes
   useEffect(() => {
@@ -87,6 +112,8 @@ export const ThemeProvider = ({ children }) => {
         setTheme: updateTheme,
         fontScale,
         setFontScale: updateFontScale,
+        plainCanvas,
+        setPlainCanvas: updatePlainCanvas,
       }}
     >
       {children}
