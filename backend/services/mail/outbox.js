@@ -6,7 +6,10 @@ const User = require("@/models/user");
 
 const logger = require("@/utils/logger");
 const { NOTIFY_MAX_ATTEMPTS, NOTIFY_RETRY_INTERVAL_MINUTES } = require("@/utils/retryPolicy");
-const { REPLY_MARKER } = require("@/services/emailReplyStripper");
+const {
+  REPLY_MARKER,
+  ticketNumFromSubject,
+} = require("@/services/emailReplyStripper");
 const { sendMail } = require("@/services/mail/send");
 const { SMTP, recordOk, recordError } = require("@/services/mail/health");
 
@@ -29,6 +32,25 @@ const { SMTP, recordOk, recordError } = require("@/services/mail/health");
  * комментарием «менять синхронно» — то есть договорённость вместо проверки.
  */
 const REPLY_MARKER_HTML = `<p style="color:#999999;font-size:12px;margin:0 0 12px 0">${REPLY_MARKER}</p>`;
+
+/**
+ * Тело письма, собранное из текста уведомления.
+ *
+ * Служебная строка «пишите ответ выше» ставится ТОЛЬКО письмам, ответ на
+ * которые вернётся в систему: тема адресует заявку, и входящий разборщик
+ * (middleware/emailHandling) положит ответ комментарием. Раньше строку получало
+ * каждое письмо без своей вёрстки — коды подтверждения, уведомления об
+ * отсутствиях, письма Mikrotik, — то есть строка обещала переписку там, где
+ * ответ уходит в никуда.
+ *
+ * Признак — номер заявки в теме, а не наличие `ticketId`: разбирает тему тот же
+ * код, что маршрутизирует входящий ответ, поэтому обещание и его исполнение не
+ * могут разъехаться.
+ */
+const textBody = (notification) =>
+  ticketNumFromSubject(notification.title) === null
+    ? notification.text
+    : REPLY_MARKER_HTML + notification.text;
 
 /** Пора ли пробовать: попытки не исчерпаны и пауза между ними выдержана. */
 const okToSend = (notification) =>
@@ -65,12 +87,10 @@ const deliver = async (notification, channel) => {
     "",
     /**
      * Письмо со своей вёрсткой (html) — документ с кнопкой, на него не
-     * отвечают, и служебная строка «пишите ответ выше» в нём только мешает.
-     * Маркер остаётся у переписки по заявкам: по нему отрезается цитата во
-     * входящем ответе. ВНИМАНИЕ: если html появится у уведомлений по заявкам,
-     * маркер придётся возвращать.
+     * отвечают. ВНИМАНИЕ: если html появится у уведомлений по заявкам, маркер
+     * придётся возвращать и сюда.
      */
-    notification.html || REPLY_MARKER_HTML + notification.text,
+    notification.html || textBody(notification),
   );
 
   // Состояние канала для строки в настройках: реальная отправка — самый честный

@@ -1,5 +1,3 @@
-import { RiCalendarScheduleLine } from "react-icons/ri";
-
 import ListRow from "@/components/app/ListRow";
 import { cn } from "@/lib/utils";
 import {
@@ -52,7 +50,6 @@ const RoutineTaskItem = ({ item }) => {
     <ListRow
       item={item}
       itemTitle="routineTask"
-      monogram={<RiCalendarScheduleLine className="size-6" />}
       title={title}
       meta={meta}
       trailing={trailing}

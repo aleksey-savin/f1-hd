@@ -1,9 +1,5 @@
 import { Link } from "react-router";
-import {
-  RiCalendarScheduleLine,
-  RiFileList3Line,
-  RiTicketLine,
-} from "react-icons/ri";
+import { RiCalendarScheduleLine, RiTicketLine } from "react-icons/ri";
 
 import ListRow from "@/components/app/ListRow";
 import {
@@ -78,7 +74,6 @@ const TicketTemplateItem = ({ item }) => {
     <ListRow
       item={item}
       itemTitle="ticketTemplate"
-      monogram={<RiFileList3Line className="size-6" />}
       title={title}
       meta={meta}
       trailing={trailing}

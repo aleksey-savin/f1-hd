@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router";
 import { RiCheckboxMultipleLine } from "react-icons/ri";
 
 import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
+import { useSheetOpen } from "@/components/app/FormOutlet";
 import ListWrapper from "@/components/app/ListWrapper";
 import Segmented from "@/components/app/Segmented";
 import SelectionBar from "@/components/app/SelectionBar";
@@ -15,6 +16,7 @@ import QueueStrip from "../../components/Ticket/QueueStrip";
 import TicketRow from "../../components/Ticket/Row";
 import useListSelection from "../../hooks/use-list-selection";
 import usePolling from "../../hooks/use-polling";
+import { warm } from "@/store/form-data";
 import useTicketFilterStore from "../../store/lists/tickets";
 import useToastStore from "../../store/toast-store";
 import { queueLabel } from "../../util/ticket-queues";
@@ -57,15 +59,27 @@ const Tickets = () => {
     enabled: canSelect,
   });
 
+  // Перечитываем список только на своём адресе: открытие и закрытие шторки
+  // формы тоже меняют location, а рефетч в этот момент дёргал строки под
+  // выезжающей шторкой (как у остальных списков)
   useEffect(() => {
-    store.fetchOpened();
-  }, [location]);
+    if (location.pathname === "/tickets") store.fetchOpened();
+  }, [location.key]);
+
+  // Справочники формы — заранее: первое открытие «Новой заявки» и «Изменить»
+  // уже не ждёт form-data и список шаблонов
+  useEffect(() => {
+    warm("/api/tickets/form-data");
+    warm("/api/ticket-templates");
+  }, []);
 
   // Фоновое автообновление: пока идёт выбор — пауза, иначе список поехал бы под
-  // курсором, а выделение частично протухло.
+  // курсором, а выделение частично протухло; при открытой форме — тоже, чтобы
+  // не перетереть ввод
+  const sheetOpen = useSheetOpen();
   usePolling(() => store.silentRefresh(), {
     intervalMs: 15000,
-    enabled: !selection.isActive,
+    enabled: !selection.isActive && !sheetOpen,
   });
 
   const companyOptions = useMemo(
@@ -289,7 +303,6 @@ const Tickets = () => {
         addLabel="Новая заявка"
         // Та же ширина, что у шторки карточки: одна форма не может быть
         // 672 со списка и 896 с карточки
-        formSize="lg"
         emptyTitle="Открытых заявок нет"
         emptyHint="Всё разобрано. Закрытые заявки лежат в архиве."
         emptyAction={

@@ -63,7 +63,7 @@ exports.getEmployeeReport = async (req, res, next) => {
           ],
         },
       })
-      .populate("company", "fullTitle alias")
+      .populate("company", "fullTitle alias profileImagePath")
       .populate("servicePlan", "title");
 
     // Group works by employee

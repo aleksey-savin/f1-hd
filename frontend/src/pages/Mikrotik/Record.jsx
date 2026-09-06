@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   Link,
-  Outlet,
   useLoaderData,
   useNavigate,
   useRevalidator,
@@ -38,9 +37,8 @@ import {
 import Crumbs from "@/components/app/Crumbs";
 import { Panel, Eyebrow } from "@/components/app/Panel";
 import PropRow from "@/components/app/PropRow";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import { cn } from "@/lib/utils";
-import useOffcanvasStore from "@/store/offcanvas";
 import useToastStore from "@/store/toast-store";
 
 import ConfirmDialog from "../../components/Mikrotik/ConfirmDialog";
@@ -70,7 +68,6 @@ const MikrotikRecordPage = () => {
   const row = useLoaderData();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
-  const offcanvas = useOffcanvasStore();
   const showToast = useToastStore((state) => state.showToast);
   const can = useCan();
   const canManage = can({ mikrotik: ["manage"] });
@@ -226,7 +223,7 @@ const MikrotikRecordPage = () => {
               </DropdownMenuContent>
             </DropdownMenu>
             <Button asChild>
-              <Link to="update" onClick={offcanvas.setShow}>
+              <Link to="update">
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
@@ -485,17 +482,7 @@ const MikrotikRecordPage = () => {
       </div>
 
       {/* Правка — шторка на месте (вложенный маршрут update) */}
-      <FormSheet
-        open={offcanvas.isActive}
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
 
       <ConfirmDialog
         open={showDelete}

@@ -9,7 +9,7 @@ import {
 
 import { cn } from "@/lib/utils";
 
-import { Link, Outlet, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 import {
   RiAddFill,
@@ -35,18 +35,17 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import SearchBar from "@/components/app/SearchBar";
 import Spinner from "@/components/app/Spinner";
 import { ThemeContext } from "../../store/theme-context";
-import useOffcanvasStore from "@/store/offcanvas";
 import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
 
 // Каркас страниц-списков по согласованному макету: заголовок + счётчик,
 // справа — поиск, сортировка (текст-дропдаун), чипы (toolbar) и «Добавить»;
-// формы add/update — в нижней шторке (десктоп: колонка 600px по центру,
-// мобайл: почти весь экран). Контракты легаси сохранены: filterStore,
-// store/offcanvas.js (Root.jsx открывает шторку по хвосту пути add/update).
+// формы add/update — вложенные маршруты списка в нижней шторке, которую
+// рисует app/FormOutlet: открыта она ровно тогда, когда совпал маршрут формы
+// (его ширина — в handle.sheet маршрута). Контракт легаси сохранён: filterStore.
 /** `shortLabel` — подпись для узкой строки инструментов (мобайл). */
 type SortOption = { label: string; shortLabel?: string };
 
@@ -136,9 +135,6 @@ type ListWrapperProps = {
   /** Дополнительное действие рядом с кнопкой создания в пустом состоянии. */
   emptyAction?: ReactNode;
   renderOutlet?: boolean;
-  /** Ширина шторки формы: md 672 · lg 896 (мастер со сводкой) · xl 1024
-      (форма с рейлом секций). Та же, что у этой формы на карточке. */
-  formSize?: "md" | "lg" | "xl";
   children?: ReactNode;
 };
 
@@ -168,17 +164,13 @@ const ListWrapper = ({
   emptyTitle,
   emptyHint,
   emptyAction,
-  // Нижняя шторка с <Outlet/> для форм add/update. Экраны, рендерящие
+  // Шторка с формами add/update (app/FormOutlet). Экраны, рендерящие
   // <Outlet/> сами (база знаний), передают false — иначе маршрут
   // смонтируется дважды.
   renderOutlet = true,
-  formSize = "md",
   children,
 }: ListWrapperProps) => {
-  const navigate = useNavigate();
-
   const filterOffcanvas = useMobileFilterOffcanvasStore();
-  const offcanvas = useOffcanvasStore();
   // Инкремент ремоунтит неконтролируемый SearchBar — очистка инпута при
   // «Сбросить фильтры» (resetFilter стора сбрасывает только searchTerm)
   const [searchResetKey, setSearchResetKey] = useState(0);
@@ -327,7 +319,7 @@ const ListWrapper = ({
         title={addLabel}
         aria-label={addLabel}
       >
-        <Link to={addRoute || "add"} onClick={offcanvas.setShow}>
+        <Link to={addRoute || "add"}>
           <RiAddFill />
           {!iconOnly && addLabel}
         </Link>
@@ -530,20 +522,7 @@ const ListWrapper = ({
           </EmptyState>
         </div>
       )}
-      {renderOutlet && (
-        <FormSheet
-          open={offcanvas.isActive}
-          size={formSize}
-          onOpenChange={(open) => {
-            if (!open) {
-              navigate(-1);
-              offcanvas.setClose();
-            }
-          }}
-        >
-          <Outlet />
-        </FormSheet>
-      )}
+      {renderOutlet && <FormOutlet />}
     </div>
   );
 };

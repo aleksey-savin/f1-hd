@@ -108,7 +108,7 @@ export async function action({ request }: { request: Request }) {
       { code, backup: data.get("backup") === "true" },
       "Не удалось войти.",
     );
-    if (outcome.status === "session") return redirect("/");
+    if (outcome.status === "session") return redirect("/dashboard");
     return {
       step: "two-factor" as const,
       email,
@@ -124,7 +124,7 @@ export async function action({ request }: { request: Request }) {
       { email, otp },
       "Не удалось войти.",
     );
-    if (outcome.status === "session") return redirect("/");
+    if (outcome.status === "session") return redirect("/dashboard");
     if (outcome.status === "two-factor") {
       return { step: "two-factor" as const, email };
     }

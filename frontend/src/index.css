@@ -240,6 +240,52 @@ body:has(.mobile-shell),
 html {
   overflow-y: scroll;
 }
+/* Ожидание перехода дольше 200 мс (признак ставит layout/Root.jsx по
+   useNavigation): шторка формы открывается по готовности данных, и на
+   медленной сети щелчок без отклика выглядел бы «мёртвым». Два отклика:
+   курсор ожидания (свои курсоры у элементов остаются) и линия на нижней
+   границе бара оболочки — app/NavProgress, макет «Индикатор перехода»,
+   вариант B. Геометрия линии — классами в компоненте, здесь только движение:
+   «pending» — ползёт: 0 → 58 % за ~1 с, затем всё медленнее к 88 %;
+   «done» — доезжает до 100 % за 150 мс и растворяется за 250 мс (Root.jsx
+   держит это значение ровно на время растворения). */
+html[data-navigating="pending"] {
+  cursor: progress;
+}
+html[data-navigating="pending"] .nav-progress {
+  opacity: 1;
+  animation: nav-progress-trickle 4s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+html[data-navigating="done"] .nav-progress {
+  width: 100%;
+  opacity: 0;
+  transition:
+    width 0.15s ease-in,
+    opacity 0.25s ease-out 0.15s;
+}
+@keyframes nav-progress-trickle {
+  from {
+    width: 0;
+  }
+  25% {
+    width: 58%;
+  }
+  60% {
+    width: 76%;
+  }
+  to {
+    width: 88%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-navigating="pending"] .nav-progress {
+    animation: none;
+    width: 88%;
+  }
+  html[data-navigating="done"] .nav-progress {
+    transition: opacity 0.25s ease-out;
+  }
+}
 body[data-scroll-locked][data-scroll-locked] {
   margin-right: 0 !important;
   padding-right: 0 !important;

@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 import DeviceModelForm from "../../components/DeviceModel/Form";
 import { useSearchParams } from "react-router";
 
@@ -16,36 +18,17 @@ export default UpdateDeviceModelPage;
 export async function loader({ params }) {
   document.title = "Изменить модель устройства";
 
-  // Fetch device model
-  const deviceModelResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models/${params.id}`,
-      );
-
-  if (!deviceModelResponse.ok) {
-    throw deviceModelResponse;
-  }
-
-  const deviceModel = await deviceModelResponse.json();
-
-  // Fetch device types with attributes
-  const deviceTypesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types`,
-      );
+  // Модель — всегда свежая; справочники — из кэша (store/form-data).
   // Атрибуты типа форме модели больше не нужны (конфигурации — отдельная
   // форма с карточки); тип по-прежнему несёт isConsumable для совместимости.
-  const deviceTypes = await deviceTypesResponse.json();
-
-  // Fetch vendors
-  const vendorsResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/vendors`,
-      );
-  const vendors = await vendorsResponse.json();
-
-  // Fetch all device models for compatibility selection (exclude current one)
-  const deviceModelsResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models`,
-      );
-  const allDeviceModels = await deviceModelsResponse.json();
+  const [deviceModel, deviceTypes, vendors, allDeviceModels] =
+    await Promise.all([
+      api(`/api/inventory/device-models/${params.id}`),
+      load("/api/inventory/device-types"),
+      load("/api/inventory/vendors"),
+      load("/api/inventory/device-models"),
+    ]);
+  // Совместимые модели — без самой себя
   const deviceModels = allDeviceModels.filter((dm) => dm._id !== params.id);
 
   return {

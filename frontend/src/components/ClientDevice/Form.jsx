@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 
 import {
   RiArrowLeftLine,
@@ -21,7 +21,7 @@ import { FormHeader, FormSections } from "@/components/app/FormLayout";
 import Spinner from "@/components/app/Spinner";
 import WizardStepper from "@/components/app/WizardStepper";
 
-import useOffcanvasStore from "../../store/offcanvas";
+import { useFormSheet } from "@/components/app/FormOutlet";
 import {
   DeviceFields,
   PlacementFields,
@@ -97,8 +97,7 @@ const ClientDeviceForm = ({ title }) => {
   const isEdit = Boolean(data?._id);
 
   const fetcher = useFetcher();
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
+  const { close } = useFormSheet();
   const can = useCan();
 
   const [form, setForm] = useState({
@@ -382,10 +381,7 @@ const ClientDeviceForm = ({ title }) => {
     setStep(next);
     setMaxReached((previous) => Math.max(previous, next));
   };
-  const handleClose = () => {
-    offcanvas.setClose();
-    navigate(-1);
-  };
+  const handleClose = () => close();
 
   const handleKindChange = (kind) => {
     setDeviceKind(kind);
@@ -467,17 +463,18 @@ const ClientDeviceForm = ({ title }) => {
     fetcher.submit(body, { method: "post", encType: "application/json" });
   };
 
-  // Успешный сабмит: у вендора Mikrotik предлагаем подключить мониторинг,
-  // иначе — обычный исход (карточка созданной сущности / возврат на карточку).
+  // Успешный сабмит: у вендора Mikrotik предлагаем подключить мониторинг —
+  // диалогом поверх ещё открытой шторки (скрыть её, оставаясь на маршруте
+  // формы, нельзя: открыта она, пока совпадает маршрут); иначе — обычный исход
+  // (карточка созданной сущности / возврат на карточку).
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.error) return;
     const created = fetcher.data.clientDevice || fetcher.data;
-    offcanvas.setClose();
     if (!isEdit && isMikrotikVendor && created?._id) {
       setConnectOffer(created._id);
       return;
     }
-    navigate(
+    close(
       !isEdit && created?._id
         ? `/inventory/client-devices/${created._id}`
         : "..",
@@ -632,14 +629,15 @@ const ClientDeviceForm = ({ title }) => {
         onCreated={(created) => handleInlineCreated(inlineKind, created)}
       />
 
-      {/* Оффер подключения — только у вендора с управлением Mikrotik */}
+      {/* Оффер подключения — только у вендора с управлением Mikrotik. Диалог
+          поверх шторки: она уезжает вместе с выбранным исходом */}
       <Dialog
         open={Boolean(connectOffer)}
         onOpenChange={(open) => {
           if (open) return;
           const id = connectOffer;
           setConnectOffer(null);
-          navigate(`/inventory/client-devices/${id}`, { replace: true });
+          close(`/inventory/client-devices/${id}`, { replace: true });
         }}
       >
         <DialogContent className="sm:max-w-md">
@@ -656,7 +654,7 @@ const ClientDeviceForm = ({ title }) => {
               onClick={() => {
                 const id = connectOffer;
                 setConnectOffer(null);
-                navigate(`/inventory/client-devices/${id}`, { replace: true });
+                close(`/inventory/client-devices/${id}`, { replace: true });
               }}
             >
               Позже
@@ -664,7 +662,7 @@ const ClientDeviceForm = ({ title }) => {
             <Button
               disabled={!can({ mikrotik: ["manage"] })}
               onClick={() =>
-                navigate(`/devices/mikrotik/add?clientDeviceId=${connectOffer}`)
+                close(`/devices/mikrotik/add?clientDeviceId=${connectOffer}`)
               }
             >
               <RiRouterLine /> Подключить

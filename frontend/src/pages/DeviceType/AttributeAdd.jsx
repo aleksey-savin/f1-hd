@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 
 import AttributeForm from "../../components/DeviceType/AttributeForm";
 
@@ -11,18 +13,11 @@ export default AttributeAddPage;
 export async function loader({ params }) {
   document.title = "Добавить атрибут типа";
 
-  const headers = {};
-  const base = `${import.meta.env.VITE_API_ADDRESS}/api/inventory`;
-
-  const [typeResponse, catalogResponse] = await Promise.all([
-    fetch(`${base}/device-types/${params.id}`, { headers }),
-    fetch(`${base}/device-attributes`, { headers }),
+  // Тип — свежий (по нему считаем занятые атрибуты); каталог — из кэша
+  const [deviceType, catalog] = await Promise.all([
+    api(`/api/inventory/device-types/${params.id}`),
+    load("/api/inventory/device-attributes").catch(() => []),
   ]);
-  if (!typeResponse.ok) {
-    throw typeResponse;
-  }
-  const deviceType = await typeResponse.json();
-  const catalog = catalogResponse.ok ? await catalogResponse.json() : [];
 
   // Уже привязанные атрибуты — чтобы не предлагать их повторно.
   const usedAttributeIds = (deviceType.attributes || []).map((attr) =>

@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import useToastStore from "@/store/toast-store";
-import useOffcanvasStore from "@/store/offcanvas";
 
 import ConfirmDialog from "./ConfirmDialog";
 import UptimeBar from "./UptimeBar";
@@ -98,7 +97,6 @@ const Prop = ({ label, mono, copy, children }) => (
 // «Открыть устройство»; правка/мониторинг/удаление — в «⋯».
 const DeviceSheet = ({ row, onClose, canManage }) => {
   const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   const showToast = useToastStore((state) => state.showToast);
   const connectRecord = useMikrotikDeviceFilterStore(
     (state) => state.connectRecord,
@@ -417,7 +415,6 @@ const DeviceSheet = ({ row, onClose, canManage }) => {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
                         onClick={() => {
-                          offcanvas.setShow();
                           onClose();
                           navigate(`/devices/mikrotik/update/${row.recordId}`);
                         }}

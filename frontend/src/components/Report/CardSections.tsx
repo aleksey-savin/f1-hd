@@ -2,30 +2,33 @@ import { type ReactNode } from "react";
 import { RiInformationLine } from "react-icons/ri";
 
 import { Eyebrow } from "@/components/app/Panel";
-import { monogramFor } from "@/components/app/monogram";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import type {
   CategoryRow,
+  CompanyRef,
   MonthPoint,
   ReportDiagnostics,
 } from "../../types/report";
 
+import CompanyLogo from "../Company/CompanyLogo";
 import ShareBars from "./ShareBars";
 import WorkTimeBars from "./WorkTimeBars";
 
-// Блоки, общие для карточки компании и карточки подразделения: монограмма
+// Блоки, общие для карточки компании и карточки подразделения: плитка
 // заголовка, пояснение объёма доступа, разрез по категориям, помесячная
 // динамика и сноска о неточностях атрибуции. Один вид одной информации на двух
 // экранах — из каталога, а не копией по страницам.
 
-export const CardMonogram = ({ name }: { name: string }) => (
-  <span
-    aria-hidden
-    className="grid size-14 flex-none place-items-center rounded-2xl bg-accent text-base font-semibold text-muted-foreground inset-ring inset-ring-border"
-  >
-    {monogramFor(name)}
-  </span>
+/** Плитка hero — логотип компании (у филиала — его компании), без логотипа
+ *  тихий глиф раздела; та же плитка, что в строке списка компаний. */
+export const CardTile = ({ company }: { company?: CompanyRef | null }) => (
+  <CompanyLogo
+    company={company}
+    sizeClass="size-14"
+    glyphSize={26}
+    className="rounded-2xl"
+  />
 );
 
 /**

@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 import { useLoaderData } from "react-router";
 
 import Form from "../../components/Location/Form";
@@ -26,73 +28,26 @@ export const loader = async ({ params }) => {
   }
 
   try {
-    const promises = [];
-
-    // Fetch parent locations
-    promises.push(
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations`, {
-      }),
-    );
-
-    // Fetch companies
-    promises.push(
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/companies`, {
-      }),
-    );
-
-    // Fetch users (active only — disabled users aren't offered for assignment)
-    promises.push(
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users?activeOnly=true`, {
-      }),
-    );
-
-    // Fetch the location (always required for update page)
-    promises.push(
-      fetch(
-        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations/${params.id}`,
-              ),
-    );
-
-    const responses = await Promise.all(promises);
-
-    const parentLocationsResponse = responses[0];
-    if (!parentLocationsResponse.ok) {
-      throw new Error("Failed to fetch parent locations");
-    }
-    const parentLocations = await parentLocationsResponse.json();
-
-    const companiesResponse = responses[1];
-    if (!companiesResponse.ok) {
-      throw new Error("Failed to fetch companies");
-    }
-    const companies = await companiesResponse.json();
-
-    const usersResponse = responses[2];
-    if (!usersResponse.ok) {
-      throw new Error("Failed to fetch users");
-    }
-    const usersData = await usersResponse.json();
+    // Справочники — из кэша (store/form-data); само расположение — свежее.
+    // Пользователи — только активные: отключённых на назначение не предлагаем
+    const [parentLocations, companies, usersData, locationData] =
+      await Promise.all([
+        load("/api/inventory/locations"),
+        load("/api/companies"),
+        load("/api/users?activeOnly=true"),
+        api(`/api/inventory/locations/${params.id}`),
+      ]);
     const users = usersData.users || [];
-
-    const locationResponse = responses[3];
-    if (!locationResponse.ok) {
-      throw new Error("Failed to fetch location");
-    }
-    const locationData = await locationResponse.json();
     const location = locationData.location;
 
     let subdivisions = [];
     // If location has a company, fetch its subdivisions
-
     if (location?.company) {
       try {
-        const subdivisionResponse = await fetch(
-          `${import.meta.env.VITE_API_ADDRESS}/api/companies/${location.company?._id}`,
+        const companyData = await api(
+          `/api/companies/${location.company?._id}`,
         );
-        if (subdivisionResponse.ok) {
-          const companyData = await subdivisionResponse.json();
-          subdivisions = companyData.company?.subdivisions || [];
-        }
+        subdivisions = companyData.company?.subdivisions || [];
       } catch (error) {
         console.error("Error fetching subdivisions:", error);
       }

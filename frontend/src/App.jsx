@@ -19,10 +19,10 @@ import ViewTicket, {
 
 import { action as deleteTicketAction } from "./pages/Ticket/Delete.jsx";
 
-import AddTicketPage, {
-  loader as addTicketLoader,
-  action as addTicketAction,
-} from "./pages/Ticket/Add.jsx";
+// Форма заявки — фабрика маршрутов: форма одна, хозяев несколько (список,
+// главная, карточка шаблона). Ширину шторки маршрут формы несёт в handle.
+import { ticketFormRoutes } from "./routes/ticket-forms.jsx";
+import { SHEET_LG, SHEET_MD, SHEET_XL } from "@/components/app/FormOutlet";
 
 import ChecklistTemplateListPage from "./pages/ChecklistTemplate/List.jsx";
 import AddChecklistTemplatePage from "./pages/ChecklistTemplate/Add.jsx";
@@ -456,11 +456,11 @@ function App() {
           // случай падения самого authDataLoader.
           errorElement: <Error />,
           children: [
-            // Index
+            // Главная живёт на /dashboard: у неё есть вложенный маршрут формы
+            // заявки, а индексному маршруту детей не положено
             {
               index: true,
-              element: <Dashboard />,
-              loader: dashboardLoader,
+              loader: () => redirect("/dashboard"),
             },
 
             {
@@ -475,6 +475,9 @@ function App() {
               path: "dashboard",
               element: <Dashboard />,
               loader: dashboardLoader,
+              // «Новая заявка» с главной: форма — вложенный маршрут главной,
+              // за шторкой остаётся главная, а не список заявок
+              children: ticketFormRoutes({ prefix: "tickets/", modes: ["add"] }),
             },
             // Tickets
             {
@@ -483,23 +486,10 @@ function App() {
               loader: ticketsLoader,
               action: viewTicketAction,
               children: [
-                {
-                  path: "add",
-                  loader: addTicketLoader,
-                  action: addTicketAction,
-                  element: <AddTicketPage />,
-                },
-                // Правка со списка живёт ПОД списком, а не под карточкой:
-                // маршрут решает, что видно за шторкой, и с `/tickets/:num/update`
-                // за ней открывалась карточка заявки — страница, с которой человек
-                // не приходил, да ещё и лишним запросом (viewTicketLoader). Форма
-                // одна, маршрута два — как во всех прочих разделах; «..» после
-                // сабмита ведёт отсюда в список, а с карточки — на карточку.
-                {
-                  path: "update/:ticketNum",
-                  element: <UpdateTicketPage />,
-                  loader: updateTicketLoader,
-                },
+                // Создание и правка со списка живут ПОД списком, а не под
+                // карточкой: маршрут решает, что видно за шторкой. Форма одна,
+                // хозяев несколько — см. routes/ticket-forms.jsx
+                ...ticketFormRoutes(),
                 {
                   path: "delete",
                   action: deleteTicketAction,
@@ -512,44 +502,55 @@ function App() {
               action: viewTicketAction,
               element: <ViewTicket />,
               children: [
+                // action у формы свой: роутер шлёт сабмит в самый глубокий
+                // маршрут адреса, и без него правка отвечала бы 405
                 {
                   path: "update",
+                  handle: SHEET_LG,
                   element: <UpdateTicketPage />,
                   loader: updateTicketLoader,
+                  action: viewTicketAction,
                 },
                 // «Обработать» — та же форма с другой подписью сабмита: у неё шесть
                 // полей, и диалогом она была нарушением «диалог → только мелкие вещи»
                 {
                   path: "process",
+                  handle: SHEET_LG,
                   element: <UpdateTicketPage mode="process" />,
                   loader: makeTicketFormLoader("process"),
+                  action: viewTicketAction,
                 },
                 {
                   path: "work/add",
+                  handle: SHEET_LG,
                   loader: workFormLoader,
                   action: addWorkAction,
                   element: <WorkFormRoute mode="add" />,
                 },
                 {
                   path: "work/:workId/update",
+                  handle: SHEET_LG,
                   loader: workFormLoader,
                   action: updateWorkAction,
                   element: <WorkFormRoute mode="update" />,
                 },
                 {
                   path: "work/schedule",
+                  handle: SHEET_LG,
                   loader: workFormLoader,
                   action: scheduleWorkAction,
                   element: <WorkFormRoute mode="schedule" />,
                 },
                 {
                   path: "work-scheduled/:workId/update",
+                  handle: SHEET_LG,
                   loader: workFormLoader,
                   action: updateWorkAction,
                   element: <WorkFormRoute mode="updateScheduled" />,
                 },
                 {
                   path: "work/:workId/confirm",
+                  handle: SHEET_LG,
                   loader: workFormLoader,
                   action: updateWorkAction,
                   element: <WorkFormRoute mode="confirm" />,
@@ -597,14 +598,14 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: { can: { company: ["manage"] } },
+                  handle: { can: { company: ["manage"] }, ...SHEET_MD },
                   loader: addCompanyLoader,
                   action: addCompanyAction,
                   element: <AddCompanyPage />,
                 },
                 {
                   path: "update/:id",
-                  handle: { can: { company: ["manage"] } },
+                  handle: { can: { company: ["manage"] }, ...SHEET_MD },
                   loader: updateCompanyLoader,
                   action: updateCompanyrAction,
                   element: <UpdateCompanyPage />,
@@ -620,6 +621,7 @@ function App() {
               children: [
                 {
                   path: "update",
+                  handle: SHEET_MD,
                   loader: updateCompanyLoader,
                   action: updateCompanyrAction,
                   element: <UpdateCompanyPage />,
@@ -628,6 +630,7 @@ function App() {
                   // «Новая услуга» из диалога «Добавить услугу»: мастер услуги в
                   // wide-шторке карточки, создание + подключение одним запросом
                   path: "service-plans/add",
+                  handle: SHEET_LG,
                   loader: addCompanyServicePlanLoader,
                   action: addCompanyServicePlanAction,
                   element: <AddCompanyServicePlanPage />,
@@ -644,14 +647,14 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: { can: { user: ["manage"] } },
+                  handle: { can: { user: ["manage"] }, ...SHEET_XL },
                   loader: addUserLoader,
                   action: addUserAction,
                   element: <AddUserPage />,
                 },
                 {
                   path: "update/:id",
-                  handle: { can: { user: ["manage"] } },
+                  handle: { can: { user: ["manage"] }, ...SHEET_XL },
                   loader: updateUserLoader,
                   action: updateUserAction,
                   element: <UpdateUserPage />,
@@ -666,6 +669,7 @@ function App() {
               children: [
                 {
                   path: "update",
+                  handle: SHEET_XL,
                   loader: updateUserLoader,
                   action: updateUserAction,
                   element: <UpdateUserPage />,
@@ -688,13 +692,13 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: { can: { role: ["manage"] } },
+                  handle: { can: { role: ["manage"] }, ...SHEET_MD },
                   element: <AddRolePage />,
                   loader: addRoleLoader,
                 },
                 {
                   path: "update/:key",
-                  handle: { can: { role: ["manage"] } },
+                  handle: { can: { role: ["manage"] }, ...SHEET_MD },
                   element: <UpdateRolePage />,
                   loader: updateRoleLoader,
                 },
@@ -710,12 +714,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_MD,
                   loader: addTicketCategoryLoader,
                   action: addTicketCategoryAction,
                   element: <AddTicketCategoryPage />,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_MD,
                   loader: updateTicketCategoryLoader,
                   action: updateTicketCategoryAction,
                   element: <UpdateTicketCategoryPage />,
@@ -735,12 +741,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_LG,
                   loader: addTicketTemplateLoader,
                   action: addTicketTemplateAction,
                   element: <AddTicketTemplatePage />,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_LG,
                   loader: updateTicketTemplateLoader,
                   action: updateTicketTemplateAction,
                   element: <UpdateTicketTemplatePage />,
@@ -756,8 +764,12 @@ function App() {
               action: viewTicketTemplateAction,
               element: <ViewTicketTemplatePage />,
               children: [
+                // «Создать заявку» с карточки шаблона — шторка здесь же, за ней
+                // остаётся карточка; ?template= подставляет заготовку
+                ...ticketFormRoutes({ prefix: "tickets/", modes: ["add"] }),
                 {
                   path: "update",
+                  handle: SHEET_LG,
                   loader: updateTicketTemplateLoader,
                   action: updateTicketTemplateAction,
                   element: <UpdateTicketTemplatePage />,
@@ -776,12 +788,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_MD,
                   loader: checklistTemplateFormLoader,
                   action: addChecklistTemplateAction,
                   element: <AddChecklistTemplatePage />,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_MD,
                   loader: checklistTemplateFormLoader,
                   action: updateChecklistTemplateAction,
                   element: <UpdateChecklistTemplatePage />,
@@ -798,12 +812,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_LG,
                   loader: addRoutineTaskLoader,
                   action: addRoutineTaskAction,
                   element: <AddRoutineTaskPage />,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_LG,
                   loader: updateRoutineTaskLoader,
                   action: updateRoutineTaskAction,
                   element: <UpdateRoutineTaskPage />,
@@ -821,6 +837,7 @@ function App() {
               children: [
                 {
                   path: "update",
+                  handle: SHEET_LG,
                   loader: updateRoutineTaskLoader,
                   action: updateRoutineTaskAction,
                   element: <UpdateRoutineTaskPage />,
@@ -840,12 +857,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_LG,
                   loader: addServicePlanLoader,
                   action: addServicePlanAction,
                   element: <AddServicePlanPage />,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_LG,
                   loader: updateServicePlanLoader,
                   action: updateServicePlanAction,
                   element: <UpdateServicePlanPage />,
@@ -862,12 +881,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_LG,
                   loader: addClientDeviceLoader,
                   action: addClientDeviceAction,
                   element: <AddClientDevicePage />,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_XL,
                   loader: updateClientDeviceLoader,
                   action: updateClientDeviceAction,
                   element: <UpdateClientDevicePage />,
@@ -886,6 +907,7 @@ function App() {
               children: [
                 {
                   path: "update",
+                  handle: SHEET_XL,
                   loader: updateClientDeviceLoader,
                   action: updateClientDeviceAction,
                   element: <UpdateClientDevicePage />,
@@ -903,12 +925,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_MD,
                   loader: addLocationLoader,
                   action: addLocationAction,
                   element: <AddLocationPage />,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_MD,
                   loader: updateLocationLoader,
                   action: updateLocationAction,
                   element: <UpdateLocationPage />,
@@ -925,6 +949,7 @@ function App() {
                 // остаёмся на карточке
                 {
                   path: "update",
+                  handle: SHEET_MD,
                   loader: updateLocationLoader,
                   action: updateLocationAction,
                   element: <UpdateLocationPage />,
@@ -934,6 +959,7 @@ function App() {
                 // карточку созданного расположения
                 {
                   path: "add",
+                  handle: SHEET_MD,
                   loader: addLocationLoader,
                   action: addLocationAction,
                   element: <AddLocationPage />,
@@ -950,12 +976,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_MD,
                   element: <AddDeviceTypePage />,
                   loader: addDeviceTypeLoader,
                   action: addDeviceTypeAction,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_MD,
                   element: <UpdateDeviceTypePage />,
                   loader: updateDeviceTypeLoader,
                   action: updateDeviceTypeAction,
@@ -972,6 +1000,7 @@ function App() {
                 // на карточке (правило «редактирование не меняет страницу»)
                 {
                   path: "update",
+                  handle: SHEET_MD,
                   element: <UpdateDeviceTypePage />,
                   loader: updateDeviceTypeLoader,
                   action: updateDeviceTypeAction,
@@ -980,6 +1009,7 @@ function App() {
                 // форма сама уводит на карточку созданной модели
                 {
                   path: "models/add",
+                  handle: SHEET_MD,
                   element: <AddDeviceModelPage presetFrom="deviceType" />,
                   loader: addDeviceModelLoader,
                   action: addDeviceModelAction,
@@ -987,12 +1017,14 @@ function App() {
                 // Атрибуты типа — формы add/update в нижней шторке карточки
                 {
                   path: "attributes/add",
+                  handle: SHEET_MD,
                   element: <AttributeAddPage />,
                   loader: attributeAddLoader,
                   action: attributeAddAction,
                 },
                 {
                   path: "attributes/update/:attrId",
+                  handle: SHEET_MD,
                   element: <AttributeUpdatePage />,
                   loader: attributeUpdateLoader,
                   action: attributeUpdateAction,
@@ -1009,12 +1041,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_MD,
                   element: <AddVendorPage />,
                   loader: addVendorLoader,
                   action: addVendorAction,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_MD,
                   element: <UpdateVendorPage />,
                   loader: updateVendorLoader,
                   action: updateVendorAction,
@@ -1030,12 +1064,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_MD,
                   element: <AddSupplierPage />,
                   loader: addSupplierLoader,
                   action: addSupplierAction,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_MD,
                   element: <UpdateSupplierPage />,
                   loader: updateSupplierLoader,
                   action: updateSupplierAction,
@@ -1051,6 +1087,7 @@ function App() {
                 // Правка — в шторке карточки: после сабмита остаёмся на ней
                 {
                   path: "update",
+                  handle: SHEET_MD,
                   element: <UpdateSupplierPage />,
                   loader: updateSupplierLoader,
                   action: updateSupplierAction,
@@ -1068,6 +1105,7 @@ function App() {
                 // страницу»)
                 {
                   path: "update",
+                  handle: SHEET_MD,
                   element: <UpdateVendorPage />,
                   loader: updateVendorLoader,
                   action: updateVendorAction,
@@ -1076,6 +1114,7 @@ function App() {
                 // сабмита форма сама уводит на карточку созданной модели
                 {
                   path: "models/add",
+                  handle: SHEET_MD,
                   element: <AddDeviceModelPage presetFrom="vendor" />,
                   loader: addDeviceModelLoader,
                   action: addDeviceModelAction,
@@ -1092,12 +1131,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_MD,
                   element: <AddDeviceAttributePage />,
                   loader: addDeviceAttributeLoader,
                   action: addDeviceAttributeAction,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_MD,
                   element: <UpdateDeviceAttributePage />,
                   loader: updateDeviceAttributeLoader,
                   action: updateDeviceAttributeAction,
@@ -1114,12 +1155,14 @@ function App() {
               children: [
                 {
                   path: "add",
+                  handle: SHEET_MD,
                   element: <AddDeviceModelPage />,
                   loader: addDeviceModelLoader,
                   action: addDeviceModelAction,
                 },
                 {
                   path: "update/:id",
+                  handle: SHEET_MD,
                   element: <UpdateDeviceModelPage />,
                   loader: updateDeviceModelLoader,
                   action: updateDeviceModelAction,
@@ -1137,6 +1180,7 @@ function App() {
                 // "update/:configId" конфигураций)
                 {
                   path: "update",
+                  handle: SHEET_MD,
                   element: <UpdateDeviceModelPage />,
                   loader: updateDeviceModelLoader,
                   action: updateDeviceModelAction,
@@ -1144,12 +1188,14 @@ function App() {
                 // Конфигурации модели открываются в нижнем Offcanvas страницы просмотра.
                 {
                   path: "add",
+                  handle: SHEET_MD,
                   element: <AddDeviceConfigurationPage />,
                   loader: addDeviceConfigurationLoader,
                   action: addDeviceConfigurationAction,
                 },
                 {
                   path: "update/:configId",
+                  handle: SHEET_MD,
                   element: <UpdateDeviceConfigurationPage />,
                   loader: updateDeviceConfigurationLoader,
                   action: updateDeviceConfigurationAction,
@@ -1165,6 +1211,7 @@ function App() {
               children: [
                 {
                   path: "update",
+                  handle: SHEET_LG,
                   loader: updateServicePlanLoader,
                   action: updateServicePlanAction,
                   element: <UpdateServicePlanPage />,
@@ -1182,8 +1229,8 @@ function App() {
               loader: mikrotikDevicesLoader,
               // Формы создания/правки — нижняя шторка списка (Outlet ListWrapper).
               children: [
-                { path: "add", element: <MikrotikDeviceForm /> },
-                { path: "update/:recordId", element: <MikrotikDeviceForm /> },
+                { path: "add", element: <MikrotikDeviceForm />, handle: SHEET_MD },
+                { path: "update/:recordId", element: <MikrotikDeviceForm />, handle: SHEET_MD },
               ],
             },
             // Страница записи мониторинга — общая для инвентарных и standalone
@@ -1192,7 +1239,7 @@ function App() {
               path: "devices/mikrotik/records/:recordId",
               element: <MikrotikRecordPage />,
               loader: mikrotikRecordLoader,
-              children: [{ path: "update", element: <MikrotikDeviceForm /> }],
+              children: [{ path: "update", element: <MikrotikDeviceForm />, handle: SHEET_MD }],
             },
             // Reports
             // Легаси-отчёт по работам влился в «Архив» (сегмент «Работы») —

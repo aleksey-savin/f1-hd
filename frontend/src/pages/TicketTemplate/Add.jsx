@@ -1,3 +1,4 @@
+import { load } from "@/store/form-data";
 import Form from "../../components/TicketTemplate/Form";
 
 const AddTicketTemplatePage = () => <Form />;
@@ -7,15 +8,8 @@ export default AddTicketTemplatePage;
 export async function loader() {
   document.title = "Новый шаблон";
 
-  const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/form-data`,
-  );
-
-  if (!response.ok) {
-    throw response;
-  }
-
-  const formData = await response.json();
+  // Справочники формы заявки — из кэша (store/form-data)
+  const formData = await load("/api/tickets/form-data");
 
   return { formData };
 }

@@ -46,7 +46,6 @@ const RoleList = ({ roles }) => {
               updatedAt: role.updatedAt,
             }}
             itemTitle="role"
-            monogram={role.title.slice(0, 1).toUpperCase()}
             title={role.title}
             // Роль без носителей ГАСНЕТ — язык вендоров, где отключённое
             // тускнеет. Бейдж «никому не назначена» был бы вторым способом

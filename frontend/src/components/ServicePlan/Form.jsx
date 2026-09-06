@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import {
   RiArrowLeftLine,
   RiArrowRightLine,
@@ -15,7 +15,7 @@ import WizardStepper from "@/components/app/WizardStepper";
 import AlertMessage from "@/components/app/AlertMessage";
 
 import { MultiCombobox, toOptions } from "@/components/app/Combobox";
-import useOffcanvasStore from "../../store/offcanvas";
+import { useFormSheet } from "@/components/app/FormOutlet";
 
 import Tariffing from "./Tariffing";
 import ScheduleEditor, {
@@ -56,8 +56,7 @@ const ServicePlanForm = ({ title, attach = null }) => {
   const isEdit = !!servicePlan._id;
 
   const fetcher = useFetcher();
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
+  const { close } = useFormSheet();
 
   const [form, setForm] = useState({
     title: servicePlan.title || "",
@@ -129,10 +128,7 @@ const ServicePlanForm = ({ title, attach = null }) => {
     }
   };
 
-  const handleClose = () => {
-    offcanvas.setClose();
-    navigate(-1);
-  };
+  const handleClose = () => close();
 
   const saving = fetcher.state !== "idle";
 
@@ -187,11 +183,10 @@ const ServicePlanForm = ({ title, attach = null }) => {
     fetcher.submit(payload, { method: "post", encType: "application/json" });
   };
 
-  // Успешный сабмит — закрываем шторку и уходим на «..» (список или карточка)
+  // Успешный сабмит — шторка уезжает, затем «..» (список или карточка)
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
-      offcanvas.setClose();
-      navigate("..");
+      close("..");
     }
   }, [fetcher.state, fetcher.data]);
 

@@ -10,7 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { monogramFor } from "@/components/app/monogram";
+
+import CompanyLogo from "../Company/CompanyLogo";
 
 import type { CompanyRow, ReportTotals } from "../../types/report";
 import { msToHMS } from "../../util/time-helpers";
@@ -99,12 +100,12 @@ export const CompanySummaryTable = ({
           >
             <TableCell>
               <span className="flex items-center gap-2.5">
-                <span
-                  aria-hidden
-                  className="grid size-8 flex-none place-items-center rounded-lg bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border"
-                >
-                  {monogramFor(row.company.alias)}
-                </span>
+                <CompanyLogo
+                  company={row.company}
+                  sizeClass="size-8"
+                  glyphSize={16}
+                  className="rounded-lg"
+                />
                 <span className="min-w-0">
                   <span className="block truncate font-medium">
                     {row.company.alias}

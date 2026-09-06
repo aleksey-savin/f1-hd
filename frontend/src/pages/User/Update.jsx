@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 import { redirect } from "react-router";
 
 import { getLocalStorageData } from "../../util/auth";
@@ -16,47 +18,15 @@ export async function loader({ params }) {
     return redirect("/auth");
   }
 
-  const userResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/users/${params.id}`,
-  );
-
-  const user = await userResponse.json();
-
-  // includeInactive: у пользователя отключённой компании селект «Компания»
-  // обязан находить её опцию — иначе сохранение молча затрёт связь
-  const companiesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/companies?includeInactive=true`,
-  );
-
-  const companies = await companiesResponse.json();
-
-  const categoriesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
-  );
-
-  const categories = await categoriesResponse.json();
-
-  if (!companiesResponse.ok) {
-    if (companiesResponse.status === 401 || companiesResponse.status === 402) {
-      return redirect("/auth");
-    }
-    throw Response.json(
-      { message: companiesResponse.message },
-      { status: companiesResponse.status },
-    );
-  }
-  if (!categoriesResponse.ok) {
-    if (
-      categoriesResponse.status === 401 ||
-      categoriesResponse.status === 402
-    ) {
-      return redirect("/auth");
-    }
-    throw Response.json(
-      { message: categoriesResponse.message },
-      { status: categoriesResponse.status },
-    );
-  }
+  // Пользователь — всегда свежий; справочники — из кэша (store/form-data),
+  // 401 обрабатывает lib/api. includeInactive: у пользователя отключённой
+  // компании селект «Компания» обязан находить её опцию — иначе сохранение
+  // молча затрёт связь
+  const [user, companies, categories] = await Promise.all([
+    api(`/api/users/${params.id}`),
+    load("/api/companies?includeInactive=true"),
+    load("/api/ticket-categories"),
+  ]);
 
   return { user, companiesList: companies, categoriesList: categories };
 }

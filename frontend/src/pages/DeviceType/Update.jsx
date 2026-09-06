@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 import Form from "../../components/DeviceType/Form";
 
 const UpdateDeviceTypePage = () => {
@@ -9,22 +11,11 @@ export default UpdateDeviceTypePage;
 export async function loader({ params }) {
   document.title = "Изменить тип устройства";
 
-  // Fetch device type
-  const deviceTypeResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types/${params.id}`,
-      );
-
-  if (!deviceTypeResponse.ok) {
-    throw deviceTypeResponse;
-  }
-
-  const deviceType = await deviceTypeResponse.json();
-
-  // Fetch all device types for attachableToTypeIds selection
-  const deviceTypesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types`,
-      );
-  const allDeviceTypes = await deviceTypesResponse.json();
+  // Тип — всегда свежий; список всех типов для attachableToTypeIds — из кэша
+  const [deviceType, allDeviceTypes] = await Promise.all([
+    api(`/api/inventory/device-types/${params.id}`),
+    load("/api/inventory/device-types"),
+  ]);
 
   // Filter out current device type from available options
   const availableDeviceTypes = allDeviceTypes.filter(

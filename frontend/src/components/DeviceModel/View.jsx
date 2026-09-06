@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Link,
-  Outlet,
   useActionData,
-  useNavigate,
   useRevalidator,
 } from "react-router";
 
@@ -27,14 +25,13 @@ import {
 import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { cn } from "@/lib/utils";
 
 import PhotoGallery, { photoUrl } from "@/components/app/PhotoGallery";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
-import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { useCan } from "@/store/authed-user";
 
@@ -75,7 +72,6 @@ const Detail = ({ label, children, className }) => (
 // «⋯» действия конфигурации. Диалог удаления рендерится ВНЕ radix-меню
 // (меню размонтирует содержимое при закрытии), открывается состоянием.
 const ConfigActions = ({ config, label }) => {
-  const offcanvas = useOffcanvasStore();
   const [deleteOpen, setDeleteOpen] = useState(false);
   return (
     <>
@@ -93,7 +89,7 @@ const ConfigActions = ({ config, label }) => {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
-            <Link to={`update/${config._id}`} onClick={offcanvas.setShow}>
+            <Link to={`update/${config._id}`}>
               <RiEdit2Line /> Изменить
             </Link>
           </DropdownMenuItem>
@@ -132,9 +128,7 @@ const ViewDeviceModel = ({
   configurations = [],
   attributes = [],
 }) => {
-  const navigate = useNavigate();
   const revalidator = useRevalidator();
-  const offcanvas = useOffcanvasStore();
   const { showToast } = useToastStore();
   const actionData = useActionData();
   const can = useCan();
@@ -322,7 +316,7 @@ const ViewDeviceModel = ({
             </DropdownMenu>
             <Button asChild>
               {/* Правка — вложенный маршрут карточки: остаёмся на ней */}
-              <Link to="update" onClick={offcanvas.setShow}>
+              <Link to="update">
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
@@ -410,7 +404,7 @@ const ViewDeviceModel = ({
         </div>
         {canManage && !noTypeAttributes && (
           <Button asChild size="sm">
-            <Link to="add" onClick={offcanvas.setShow}>
+            <Link to="add">
               <RiAddFill /> Новая конфигурация
             </Link>
           </Button>
@@ -438,7 +432,7 @@ const ViewDeviceModel = ({
         >
           {canManage && (
             <Button asChild>
-              <Link to="add" onClick={offcanvas.setShow}>
+              <Link to="add">
                 <RiAddFill /> Новая конфигурация
               </Link>
             </Button>
@@ -505,17 +499,7 @@ const ViewDeviceModel = ({
       />
 
       {/* Формы конфигураций (add / update) — нижняя шторка прямо на карточке */}
-      <FormSheet
-        open={offcanvas.isActive}
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </div>
   );
 };

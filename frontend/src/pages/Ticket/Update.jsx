@@ -1,5 +1,6 @@
-
 import TicketFormRoute from "../../components/Ticket/TicketFormRoute";
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 
 /**
  * Правка и обработка заявки — один и тот же набор полей, поэтому одна страница
@@ -19,21 +20,15 @@ export function makeLoader(mode) {
         ? `Обработать заявку ${params.ticketNum}`
         : `Изменить заявку ${params.ticketNum}`;
 
-    const headers = {};
-    const api = import.meta.env.VITE_API_ADDRESS;
-
-    const [formDataResponse, ticketResponse] = await Promise.all([
-      fetch(`${api}/api/tickets/form-data`, { headers }),
-      fetch(`${api}/api/tickets/${params.ticketNum}`, { headers }),
+    // Справочники — из кэша (store/form-data); сама заявка — всегда свежая:
+    // её правят многие и часто. `?view=form` отдаёт одну заявку без компании,
+    // журналов и работ — карточных данных, которые форма не читает.
+    const [formData, ticketData] = await Promise.all([
+      load("/api/tickets/form-data"),
+      api(`/api/tickets/${params.ticketNum}?view=form`),
     ]);
 
-    if (!formDataResponse.ok) throw formDataResponse;
-    if (!ticketResponse.ok) throw ticketResponse;
-
-    return {
-      formData: await formDataResponse.json(),
-      ticketData: await ticketResponse.json(),
-    };
+    return { formData, ticketData };
   };
 }
 

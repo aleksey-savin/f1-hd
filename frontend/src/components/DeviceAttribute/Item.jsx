@@ -1,5 +1,4 @@
 import ListRow from "@/components/app/ListRow";
-import { monogramFor } from "@/components/app/monogram";
 
 import { valueTypeLabel } from "./value-types";
 
@@ -10,7 +9,6 @@ const DeviceAttributeItem = ({ item }) => {
     <ListRow
       item={item}
       itemTitle="deviceAttribute"
-      monogram={monogramFor(name)}
       title={name}
       dimmed={!isActive}
       meta={

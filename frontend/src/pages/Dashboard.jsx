@@ -2,6 +2,7 @@ import { useContext, useEffect } from "react";
 import { redirect } from "react-router";
 import { MobileView } from "react-device-detect";
 
+import FormOutlet from "@/components/app/FormOutlet";
 import PageShell from "@/components/app/PageShell";
 import KbAttention from "../components/Dashboard/KbAttention";
 import MonitoringOffline from "../components/Dashboard/MonitoringOffline";
@@ -17,6 +18,7 @@ import TemplateTiles from "../components/Dashboard/TemplateTiles";
 import usePolling from "../hooks/use-polling";
 import { AuthedUserContext } from "../store/authed-user-context";
 import useDashboardTicketsStore from "../store/dashboard-tickets";
+import { warm } from "@/store/form-data";
 import useInitialPrefsStore from "../store/prefs";
 import { getLocalStorageData } from "../util/auth";
 import { useCan } from "@/store/authed-user";
@@ -114,6 +116,13 @@ const Dashboard = () => {
     load();
   }, [load]);
 
+  // Справочники формы заявки — заранее: «Новая заявка» с главной открывается
+  // без ожидания form-data и списка шаблонов
+  useEffect(() => {
+    warm("/api/tickets/form-data");
+    warm("/api/ticket-templates");
+  }, []);
+
   usePolling(refresh, { intervalMs: 15000 });
 
   // «пятница, 1 августа» — день недели тут не украшение: половина блоков
@@ -136,6 +145,8 @@ const Dashboard = () => {
       }
     >
       {isEndUser ? <DashboardClient /> : <DashboardStaff />}
+      {/* «Новая заявка» — вложенный маршрут главной (tickets/add) в шторке */}
+      <FormOutlet />
     </PageShell>
   );
 };

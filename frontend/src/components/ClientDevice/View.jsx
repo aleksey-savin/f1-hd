@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Outlet, useNavigate, useRevalidator } from "react-router";
+import { Link, useRevalidator } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
   RiAddLine,
@@ -37,7 +37,7 @@ import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import AlertMessage from "@/components/app/AlertMessage";
 import AnchorRail from "@/components/app/AnchorRail";
 import { DeleteDialog } from "@/components/app/DeleteItem";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import Environment from "@/components/app/Environment";
 import {
   Eyebrow,
@@ -54,7 +54,6 @@ import {
 } from "@/components/app/device-status";
 import { cn } from "@/lib/utils";
 
-import useOffcanvasStore from "../../store/offcanvas";
 import { formatCalendarDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
 import PhotoGallery, { photoUrl } from "@/components/app/PhotoGallery";
@@ -121,9 +120,7 @@ const SpecRow = ({ label, children }) => (
  * текстом и видны всегда.
  */
 const ViewClientDevice = ({ device = {} }) => {
-  const navigate = useNavigate();
   const revalidator = useRevalidator();
-  const offcanvas = useOffcanvasStore();
   const can = useCan();
   const canManage = Boolean(can({ device: ["manage"] }));
   const canManageMikrotik = Boolean(can({ mikrotik: ["manage"] }));
@@ -368,7 +365,7 @@ const ViewClientDevice = ({ device = {} }) => {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <Button asChild>
-                  <Link to="update" onClick={offcanvas.setShow}>
+                  <Link to="update">
                     <RiEdit2Line /> Изменить
                   </Link>
                 </Button>
@@ -403,7 +400,7 @@ const ViewClientDevice = ({ device = {} }) => {
                       <SectionEditLink
                         to="update#placement"
                         label="Размещение"
-                        onClick={offcanvas.setShow}
+                       
                       />
                     </>
                   )
@@ -484,7 +481,7 @@ const ViewClientDevice = ({ device = {} }) => {
                     <SectionEditLink
                       to="update#device"
                       label="Идентификация"
-                      onClick={offcanvas.setShow}
+                     
                     />
                   )
                 }
@@ -596,7 +593,7 @@ const ViewClientDevice = ({ device = {} }) => {
                     <SectionEditLink
                       to="update#tech"
                       label="Сеть и система"
-                      onClick={offcanvas.setShow}
+                     
                     />
                   )
                 }
@@ -801,7 +798,7 @@ const ViewClientDevice = ({ device = {} }) => {
                     <SectionEditLink
                       to="update#purchase"
                       label="Закупка и гарантия"
-                      onClick={offcanvas.setShow}
+                     
                     />
                   )
                 }
@@ -968,18 +965,7 @@ const ViewClientDevice = ({ device = {} }) => {
         onOpenChange={setDeleteOpen}
       />
       {/* Правка — плоская форма с рейлом: шторка xl (рейл + колонка полей) */}
-      <FormSheet
-        open={offcanvas.isActive}
-        size="xl"
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </>
   );
 };

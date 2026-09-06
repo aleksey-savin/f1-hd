@@ -1,3 +1,4 @@
+import { load } from "@/store/form-data";
 import { useLoaderData } from "react-router";
 
 
@@ -38,18 +39,12 @@ export async function loader({ request }) {
   const companyParam = url.searchParams.get("company");
   const parentParam = url.searchParams.get("parent");
 
-  const [companiesResponse, parentLocationsResponse, usersResponse] =
-    await Promise.all([
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/companies`),
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/inventory/locations`),
-      fetch(`${import.meta.env.VITE_API_ADDRESS}/api/users?activeOnly=true`),
-    ]);
-
-  const companies = await companiesResponse.json();
-  const parentLocations = parentLocationsResponse.ok
-    ? await parentLocationsResponse.json()
-    : [];
-  const usersData = usersResponse.ok ? await usersResponse.json() : {};
+  // Справочники — из кэша (store/form-data)
+  const [companies, parentLocations, usersData] = await Promise.all([
+    load("/api/companies"),
+    load("/api/inventory/locations").catch(() => []),
+    load("/api/users?activeOnly=true").catch(() => ({})),
+  ]);
   const users = usersData.users || [];
 
   return {

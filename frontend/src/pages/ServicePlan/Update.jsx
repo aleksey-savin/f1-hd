@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 import ServicePlanForm from "../../components/ServicePlan/Form";
 
 const UpdateServicePlanPage = () => {
@@ -9,26 +11,13 @@ export default UpdateServicePlanPage;
 export async function loader({ params }) {
   document.title = "Изменить услугу";
 
-  const servicePlanResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/${params.id}`,
-      );
+  // Услуга — всегда свежая; категории — из кэша (store/form-data)
+  const [servicePlan, ticketCategories] = await Promise.all([
+    api(`/api/finances/service-plans/${params.id}`),
+    load("/api/ticket-categories"),
+  ]);
 
-  if (!servicePlanResponse.ok) {
-    throw servicePlanResponse;
-  }
-
-  const ticketCategoriesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
-      );
-
-  if (!ticketCategoriesResponse.ok) {
-    throw ticketCategoriesResponse;
-  }
-
-  return {
-    servicePlan: await servicePlanResponse.json(),
-    ticketCategories: await ticketCategoriesResponse.json(),
-  };
+  return { servicePlan, ticketCategories };
 }
 
 // Мастер услуги шлёт готовый JSON (encType: application/json) — форма уже

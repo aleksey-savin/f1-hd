@@ -1,5 +1,4 @@
 import ListRow from "@/components/app/ListRow";
-import { monogramFor } from "@/components/app/monogram";
 
 import { plural } from "../../util/plural";
 
@@ -40,7 +39,6 @@ const DeviceTypeItem = ({ item }) => {
       item={item}
       itemTitle="deviceType"
       detailTo={`/inventory/device-types/${item._id}`}
-      monogram={monogramFor(name)}
       title={name}
       dimmed={!isActive}
       meta={

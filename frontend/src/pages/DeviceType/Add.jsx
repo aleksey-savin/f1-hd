@@ -1,3 +1,4 @@
+import { load } from "@/store/form-data";
 import Form from "../../components/DeviceType/Form";
 
 const AddDeviceTypePage = () => {
@@ -19,13 +20,10 @@ export default AddDeviceTypePage;
 export async function loader() {
   document.title = "Новый тип устройства";
 
-  // Fetch all device types for attachableToTypeIds selection
-  const deviceTypesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types`,
-      );
-  const availableDeviceTypes = await deviceTypesResponse.json();
-
+  // Все типы для attachableToTypeIds — из кэша (store/form-data).
   // Атрибуты в форму типа больше не входят — их добавляют с карточки типа.
+  const availableDeviceTypes = await load("/api/inventory/device-types");
+
   return { availableDeviceTypes };
 }
 

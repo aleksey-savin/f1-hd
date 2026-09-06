@@ -21,7 +21,6 @@ import {
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { canManageEntity } from "@/components/app/entity-permissions";
 import { useAuthedUser, useCan } from "@/store/authed-user";
-import useOffcanvasStore from "@/store/offcanvas";
 import { cn } from "@/lib/utils";
 
 import { relativeDay } from "../../util/relative-time";
@@ -59,7 +58,6 @@ const UserItem = ({ item }) => {
   } = item;
 
   const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const { _id: authedId } = useAuthedUser();
@@ -171,14 +169,14 @@ const UserItem = ({ item }) => {
                   size="icon-sm"
                   aria-label="Действия"
                   title="Действия"
-                  className="text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                  className="text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
                 >
                   <RiMoreLine />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem asChild>
-                  <Link to={updateTo} onClick={offcanvas.setShow}>
+                  <Link to={updateTo}>
                     <RiEdit2Line /> Изменить
                   </Link>
                 </DropdownMenuItem>

@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 
 import AttributeForm from "../../components/DeviceType/AttributeForm";
 
@@ -11,20 +13,12 @@ export default AttributeUpdatePage;
 export async function loader({ params }) {
   document.title = "Изменить атрибут типа";
 
-  const headers = {};
-  const base = `${import.meta.env.VITE_API_ADDRESS}/api/inventory`;
-
-  const [linkResponse, typeResponse, catalogResponse] = await Promise.all([
-    fetch(`${base}/device-type-attributes/${params.attrId}`, { headers }),
-    fetch(`${base}/device-types/${params.id}`, { headers }),
-    fetch(`${base}/device-attributes`, { headers }),
+  // Привязка и тип — свежие; каталог атрибутов — из кэша (store/form-data)
+  const [link, deviceType, catalog] = await Promise.all([
+    api(`/api/inventory/device-type-attributes/${params.attrId}`),
+    api(`/api/inventory/device-types/${params.id}`).catch(() => ({})),
+    load("/api/inventory/device-attributes").catch(() => []),
   ]);
-  if (!linkResponse.ok) {
-    throw linkResponse;
-  }
-  const link = await linkResponse.json();
-  const deviceType = typeResponse.ok ? await typeResponse.json() : {};
-  const catalog = catalogResponse.ok ? await catalogResponse.json() : [];
 
   const usedAttributeIds = (deviceType.attributes || []).map((attr) =>
     String(attr.attributeId?._id || attr.attributeId),

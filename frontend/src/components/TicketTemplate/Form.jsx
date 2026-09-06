@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import {
   RiArrowLeftLine,
   RiArrowRightLine,
@@ -32,7 +32,7 @@ import { describeCron } from "@/util/cron";
 
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import MarkdownEditor from "../../UI/MarkdownEditor";
-import useOffcanvasStore from "../../store/offcanvas";
+import { useFormSheet } from "@/components/app/FormOutlet";
 import useToastStore from "../../store/toast-store";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import Summary from "./Summary";
@@ -58,8 +58,7 @@ const TicketTemplateForm = () => {
 
   const { isEndUser } = useContext(AuthedUserContext);
   const fetcher = useFetcher();
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
+  const { close } = useFormSheet();
 
   const [form, setForm] = useState({
     title: template.title || "",
@@ -124,10 +123,7 @@ const TicketTemplateForm = () => {
     }
   };
 
-  const handleClose = () => {
-    offcanvas.setClose();
-    navigate(-1);
-  };
+  const handleClose = () => close();
 
   const saving = fetcher.state !== "idle";
 
@@ -167,8 +163,7 @@ const TicketTemplateForm = () => {
 
   const finishClose = () => {
     setSyncOpen(false);
-    offcanvas.setClose();
-    navigate("..");
+    close("..");
   };
 
   useEffect(() => {
@@ -179,8 +174,7 @@ const TicketTemplateForm = () => {
         setSyncIds(children.map((routine) => routine._id));
         setSyncOpen(true);
       } else {
-        offcanvas.setClose();
-        navigate("..");
+        close("..");
       }
     }
   }, [fetcher.state, fetcher.data]);

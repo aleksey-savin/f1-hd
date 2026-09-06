@@ -1,20 +1,20 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { isMobile } from "react-device-detect";
-import { useOutlet } from "react-router";
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { OverlayScrollContext } from "@/components/app/overlay-context";
 import { cn } from "@/lib/utils";
 
 // Нижняя шторка для форм (согласованный макет): на десктопе — колонка по центру
-// с автовысотой, на мобильном — почти весь экран. Используется ListWrapper'ом
-// для маршрутов add/update; переиспользуйте её и для прочих «всплывающих»
-// форм/панелей вместо копирования геометрии.
+// с автовысотой, на мобильном — почти весь экран. Формы-маршруты приносит в
+// неё `app/FormOutlet` (единственный хозяин у списков, карточек и главной);
+// для прочих «всплывающих» форм и панелей используйте её напрямую вместо
+// копирования геометрии.
 
 // Ширина — под контент, но НЕ под место, откуда форму открыли: одна и та же
-// форма обязана быть одной ширины и со списка, и с карточки.
+// форма обязана быть одной ширины и со списка, и с карточки. У формы-маршрута
+// ширину задаёт `handle.sheet.size` маршрута — см. `app/FormOutlet`.
 const SIZES = {
   /** 672 — обычная форма в один столбец. */
   md: "max-w-2xl",
@@ -24,47 +24,27 @@ const SIZES = {
   xl: "max-w-5xl",
 } as const;
 
-// Сколько полей рисовать в заглушке: чем шире шторка, тем длиннее форма за ней.
-// Попасть точно нельзя — форм много и все разной длины, — поэтому промах
-// доигрывает переход по высоте (ниже); эти числа лишь делают его коротким.
-const SKELETON_ROWS = { md: 5, lg: 8, xl: 10 } as const;
-
-/**
- * Заглушка на время лоадера вложенного маршрута. Повторяет каркас
- * `app/FormWrapper` — заголовок, поля, ряд кнопок, — потому что ровно им и
- * станет.
- */
-const FormSkeleton = ({ rows }: { rows: number }) => (
-  <div role="status">
-    <span className="sr-only">Загрузка формы</span>
-    <Skeleton className="mb-5 h-7 w-56" />
-    <div className="space-y-5">
-      {Array.from({ length: rows }, (_, row) => (
-        <div key={row} className="space-y-2">
-          <Skeleton className="h-3.5 w-32" />
-          <Skeleton className="h-9 w-full" />
-        </div>
-      ))}
-    </div>
-    <div className="mt-6 flex justify-end gap-2.5 border-t border-border-soft pt-3">
-      <Skeleton className="h-9 w-24" />
-      <Skeleton className="h-9 w-28" />
-    </div>
-  </div>
-);
+export type SheetSize = keyof typeof SIZES;
 
 const FormSheet = ({
   open,
   onOpenChange,
+  onExitComplete,
   title = "Форма",
   size = "md",
   children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Анимация закрытия доиграла, содержимое размонтировано. Хозяин-маршрут
+   * переходит на другой адрес именно здесь — форма уезжает целой, а не
+   * исчезает с полпути.
+   */
+  onExitComplete?: () => void;
   /** Невидимый заголовок для скринридеров (radix требует Title). */
   title?: string;
-  size?: keyof typeof SIZES;
+  size?: SheetSize;
   children: ReactNode;
 }) => {
   // Скроллится внутренность, а не сама шторка: крестик (у radix он absolute)
@@ -72,31 +52,37 @@ const FormSheet = ({
   // следить — на window скролла нет.
   const [scroller, setScroller] = useState<HTMLElement | null>(null);
 
-  // Шторку открывают щелчком, а форму в неё приносит вложенный маршрут — и он
-  // приезжает позже на время своего лоадера. Пока его нет, шторка выезжала
-  // пустой полосой в одни поля отступов и дорастала до формы уже на ходу;
-  // вместо пустоты показываем заглушку примерно той же высоты. `open` в
-  // условии обязателен: на закрытии маршрут уходит раньше анимации выезда, и
-  // без него заглушка мигнула бы вслед уезжающей форме.
-  const outlet = useOutlet();
-  const pending = open && !outlet;
-
-  // Высоту шторке задаёт содержимое, а содержимое здесь подменяется на ходу:
-  // сперва заглушка, следом форма, и разницу между ними шторка отыгрывала
-  // скачком. Поэтому меряем содержимое и держим высоту числом — смена числа
-  // проезжает переходом. Обёртке нельзя давать overflow: hidden: она стала бы
-  // скролл-контейнером, и липкие шапка формы и ряд кнопок липли бы к ней, а не
-  // к прокручиваемой внутренности шторки. Лишнее обрезает сама шторка.
+  // Высоту шторке задаёт содержимое, а содержимое открытой формы меняется —
+  // раскрылась секция, появились ошибки полей, приехал ленивый редактор.
+  // Скачок высоты смотрится рывком, поэтому меряем содержимое и держим высоту
+  // числом: смена числа проезжает переходом. Обёртке нельзя давать
+  // overflow: hidden — она стала бы скролл-контейнером, и липкие шапка формы и
+  // ряд кнопок липли бы к ней, а не к прокручиваемой внутренности шторки.
+  // Лишнее обрезает сама шторка.
+  //
+  // На закрытии содержимое может исчезнуть раньше конца анимации (маршрут ушёл
+  // по «назад»), и шторка схлопнулась бы до одних полей отступов. Поэтому
+  // последнюю измеренную высоту держим до размонтирования, а состояние
+  // сбрасываем в auto: следующее открытие стартует с настоящей высоты формы, а
+  // не проезжает к ней от старого числа.
   const body = useRef<HTMLDivElement>(null);
+  const measured = useRef<number>(undefined);
+  const frozen = useRef<number>(undefined);
   const [bodyHeight, setBodyHeight] = useState<number>();
 
   useLayoutEffect(() => {
     const node = body.current;
     if (!open || !node) {
+      frozen.current = measured.current;
+      measured.current = undefined;
       setBodyHeight(undefined);
       return undefined;
     }
-    const measure = () => setBodyHeight(node.offsetHeight);
+    frozen.current = undefined;
+    const measure = () => {
+      measured.current = node.offsetHeight;
+      setBodyHeight(node.offsetHeight);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(node);
@@ -117,6 +103,7 @@ const FormSheet = ({
         side="bottom"
         aria-describedby={undefined}
         onInteractOutside={guardDesktopClose}
+        onCloseAutoFocus={onExitComplete}
         className={cn(
           "overflow-hidden rounded-t-2xl border border-b-0 border-border",
           isMobile
@@ -131,12 +118,11 @@ const FormSheet = ({
         <OverlayScrollContext.Provider value={scroller}>
           <div ref={setScroller} className="min-h-0 flex-1 overflow-y-auto">
             <div
-              style={{ height: bodyHeight }}
+              style={{ height: open ? bodyHeight : frozen.current }}
               className="transition-[height] duration-200 ease-out motion-reduce:transition-none"
             >
               <div ref={body} className="px-6 pt-5 pb-6">
                 {children}
-                {pending && <FormSkeleton rows={SKELETON_ROWS[size]} />}
               </div>
             </div>
           </div>

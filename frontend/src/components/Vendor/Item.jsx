@@ -1,5 +1,4 @@
 import ListRow from "@/components/app/ListRow";
-import { monogramFor } from "@/components/app/monogram";
 
 import { plural } from "../../util/plural";
 
@@ -10,7 +9,6 @@ const VendorItem = ({ item }) => {
     <ListRow
       item={item}
       itemTitle="vendor"
-      monogram={monogramFor(name)}
       title={name}
       dimmed={!isActive}
       detailTo={`/inventory/vendors/${item._id}`}

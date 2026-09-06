@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import {
   RiAddLine,
   RiArrowLeftLine,
@@ -20,7 +20,7 @@ import ScheduleEditor, {
 } from "@/components/app/ScheduleEditor";
 
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
-import useOffcanvasStore from "../../store/offcanvas";
+import { useFormSheet } from "@/components/app/FormOutlet";
 import timezones from "../../store/timezones";
 import { orgTimezone, tzCity } from "../../util/timezone-display";
 
@@ -73,8 +73,7 @@ const CompanyForm = () => {
   const isEdit = Boolean(company?._id);
 
   const fetcher = useFetcher();
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
+  const { close } = useFormSheet();
 
   const [form, setForm] = useState({
     alias: company?.alias || "",
@@ -160,10 +159,7 @@ const CompanyForm = () => {
     }
   };
 
-  const handleClose = () => {
-    offcanvas.setClose();
-    navigate(-1);
-  };
+  const handleClose = () => close();
 
   const saving = fetcher.state !== "idle";
 
@@ -200,11 +196,10 @@ const CompanyForm = () => {
   // Успех: создание → карточка созданной компании, правка → где были
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
-      offcanvas.setClose();
       if (!isEdit && fetcher.data.company?._id) {
-        navigate(`/companies/${fetcher.data.company._id}`);
+        close(`/companies/${fetcher.data.company._id}`);
       } else {
-        navigate("..");
+        close("..");
       }
     }
   }, [fetcher.state, fetcher.data]);

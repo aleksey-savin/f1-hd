@@ -7,14 +7,13 @@ import {
 } from "react";
 import {
   Link,
-  Outlet,
   useActionData,
   useFetcher,
-  useNavigate,
 } from "react-router";
 
 import {
   RiAddFill,
+  RiApps2Line,
   RiArrowDownLine,
   RiArrowRightSLine,
   RiArrowUpLine,
@@ -37,16 +36,14 @@ import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import ChipSelect from "@/components/app/ChipSelect";
 import SearchBar from "@/components/app/SearchBar";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
-import { monogramFor } from "@/components/app/monogram";
 import { cn } from "@/lib/utils";
 
 import { photoUrl } from "@/components/app/PhotoGallery";
 import { valueTypeLabel } from "../DeviceAttribute/value-types";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
-import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { useCan } from "@/store/authed-user";
 
@@ -71,7 +68,6 @@ const Detail = ({ label, children, className }) => (
 // Удалить. Диалог удаления — ВНЕ radix-меню (меню размонтирует содержимое при
 // закрытии), открывается состоянием. Ср. ConfigActions у карточки модели.
 const AttrActions = ({ link, label, index, count, onMove }) => {
-  const offcanvas = useOffcanvasStore();
   const [deleteOpen, setDeleteOpen] = useState(false);
   return (
     <>
@@ -91,7 +87,7 @@ const AttrActions = ({ link, label, index, count, onMove }) => {
           <DropdownMenuItem asChild>
             <Link
               to={`attributes/update/${link._id}`}
-              onClick={offcanvas.setShow}
+             
             >
               <RiEdit2Line /> Изменить
             </Link>
@@ -164,8 +160,6 @@ const ModelRow = ({ model, from }) => {
 };
 
 const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   const { showToast } = useToastStore();
   const actionData = useActionData();
   const reorderFetcher = useFetcher();
@@ -369,16 +363,18 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">
+        {/* Плитка hero — глиф раздела, не монограмма: та же плитка, что в
+            строке списка, одна на страницу */}
         <span
           aria-hidden
           className={cn(
-            "grid size-14 flex-none place-items-center rounded-2xl text-2xl font-semibold inset-ring inset-ring-border",
+            "grid size-14 flex-none place-items-center rounded-2xl",
             isActive
               ? "bg-accent text-muted-foreground"
               : "bg-accent/50 text-faint",
           )}
         >
-          {monogramFor(name)}
+          <RiApps2Line size={26} />
         </span>
         <div className="min-w-0 flex-1">
           <h1
@@ -435,7 +431,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
               </DropdownMenuContent>
             </DropdownMenu>
             <Button asChild>
-              <Link to={editTypeTo} onClick={offcanvas.setShow}>
+              <Link to={editTypeTo}>
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
@@ -485,7 +481,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
         </div>
         {canManage && (
           <Button asChild size="sm">
-            <Link to="attributes/add" onClick={offcanvas.setShow}>
+            <Link to="attributes/add">
               <RiAddFill /> Добавить атрибут
             </Link>
           </Button>
@@ -507,7 +503,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
             </p>
             {canManage && (
               <Button asChild className="mt-2">
-                <Link to="attributes/add" onClick={offcanvas.setShow}>
+                <Link to="attributes/add">
                   <RiAddFill /> Добавить атрибут
                 </Link>
               </Button>
@@ -607,7 +603,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
         </div>
         {canManage && (
           <Button asChild size="sm">
-            <Link to={addModelTo} onClick={offcanvas.setShow}>
+            <Link to={addModelTo}>
               <RiAddFill /> Новая модель
             </Link>
           </Button>
@@ -627,7 +623,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
             </p>
             {canManage && (
               <Button asChild className="mt-2">
-                <Link to={addModelTo} onClick={offcanvas.setShow}>
+                <Link to={addModelTo}>
                   <RiAddFill /> Новая модель
                 </Link>
               </Button>
@@ -685,17 +681,7 @@ const ViewDeviceType = ({ deviceType = {}, models = [] }) => {
       />
 
       {/* Формы атрибутов (add / update) — нижняя шторка прямо на карточке */}
-      <FormSheet
-        open={offcanvas.isActive}
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </div>
   );
 };

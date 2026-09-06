@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Outlet, useActionData, useNavigate } from "react-router";
+import { Link, useActionData } from "react-router";
 
 import {
   RiAddFill,
   RiArrowDownSLine,
   RiArrowRightSLine,
+  RiBuilding4Line,
   RiComputerLine,
   RiDeleteBinLine,
   RiEdit2Line,
@@ -21,15 +22,14 @@ import {
 import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import { Panel } from "@/components/app/Panel";
 import SearchBar from "@/components/app/SearchBar";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
-import { monogramFor } from "@/components/app/monogram";
+import { deviceIcon } from "@/components/app/device-status";
 import { cn } from "@/lib/utils";
 
 import { photoUrl } from "@/components/app/PhotoGallery";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
-import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { useCan } from "@/store/authed-user";
 
@@ -83,8 +83,6 @@ const ModelTile = ({ model, from }) => {
 };
 
 const ViewVendor = ({ vendor = {}, models = [] }) => {
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   const { showToast } = useToastStore();
   const actionData = useActionData();
   const can = useCan();
@@ -228,16 +226,18 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
 
       {/* Hero */}
       <div className="flex flex-wrap items-start gap-4">
+        {/* Плитка hero — глиф раздела, не монограмма: та же плитка, что в
+            строке списка, одна на страницу */}
         <span
           aria-hidden
           className={cn(
-            "grid size-14 flex-none place-items-center rounded-2xl text-2xl font-semibold inset-ring inset-ring-border",
+            "grid size-14 flex-none place-items-center rounded-2xl",
             isActive
               ? "bg-accent text-muted-foreground"
               : "bg-accent/50 text-faint",
           )}
         >
-          {monogramFor(name)}
+          <RiBuilding4Line size={26} />
         </span>
         <div className="min-w-0 flex-1">
           <h1
@@ -308,7 +308,7 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
               </DropdownMenuContent>
             </DropdownMenu>
             <Button asChild>
-              <Link to={editVendorTo} onClick={offcanvas.setShow}>
+              <Link to={editVendorTo}>
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
@@ -328,7 +328,7 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
         </div>
         {canManage && (
           <Button asChild size="sm">
-            <Link to={addModelTo} onClick={offcanvas.setShow}>
+            <Link to={addModelTo}>
               <RiAddFill /> Новая модель
             </Link>
           </Button>
@@ -348,7 +348,7 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
             </p>
             {canManage && (
               <Button asChild className="mt-2">
-                <Link to={addModelTo} onClick={offcanvas.setShow}>
+                <Link to={addModelTo}>
                   <RiAddFill /> Новая модель
                 </Link>
               </Button>
@@ -392,6 +392,7 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
                 const countN = searching
                   ? group.shown.length
                   : group.models.length;
+                const GroupGlyph = deviceIcon(group.name);
                 return (
                   <section
                     key={group.id}
@@ -403,8 +404,9 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
                       aria-expanded={open}
                       className="flex w-full cursor-pointer appearance-none items-center gap-3 border-0 bg-transparent px-3.5 py-3 text-left text-inherit transition-colors outline-none hover:bg-accent focus-visible:bg-accent"
                     >
-                      <span className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-sm font-semibold text-muted-foreground inset-ring inset-ring-border">
-                        {monogramFor(group.name)}
+                      {/* Глиф типа устройства — как в списке моделей */}
+                      <span className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-muted-foreground">
+                        <GroupGlyph size={18} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-base font-medium">
@@ -468,17 +470,7 @@ const ViewVendor = ({ vendor = {}, models = [] }) => {
       />
 
       {/* Формы (правка вендора / новая модель) — нижняя шторка на карточке */}
-      <FormSheet
-        open={offcanvas.isActive}
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </div>
   );
 };

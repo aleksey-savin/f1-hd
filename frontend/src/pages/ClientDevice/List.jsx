@@ -178,7 +178,6 @@ const ClientDevices = () => {
         addLabel="Новое устройство"
         // Создание — мастер (lg), правка — плоская форма с рейлом (xl).
         // Одна и та же форма правки одной ширины и здесь, и на карточке.
-        formSize={location.pathname.endsWith("/add") ? "lg" : "xl"}
         topContent={
           <FleetStrip
             statusCounts={store.statusCounts}

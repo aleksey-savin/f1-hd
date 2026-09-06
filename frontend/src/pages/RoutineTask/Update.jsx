@@ -1,5 +1,6 @@
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 import Form from "../../components/RoutineTask/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const UpdateRoutineTaskPage = () => {
   return <Form />;
@@ -7,17 +8,10 @@ const UpdateRoutineTaskPage = () => {
 
 export default UpdateRoutineTaskPage;
 
-const authGet = (path, _token) =>
-  fetch(`${import.meta.env.VITE_API_ADDRESS}/api/${path}`).then((response) => {
-    if (!response.ok) throw response;
-    return response.json();
-  });
-
 export async function loader({ params }) {
   document.title = "Изменить регламент";
 
-  const { token } = getLocalStorageData();
-
+  // Регламент — всегда свежий; справочники — из кэша (store/form-data)
   const [
     task,
     companies,
@@ -26,12 +20,12 @@ export async function loader({ params }) {
     templates,
     ticketFormData,
   ] = await Promise.all([
-    authGet(`routine-tasks/${params.id}`, token),
-    authGet("companies", token),
-    authGet("form-data/service-accounts", token),
-    authGet("ticket-categories", token),
-    authGet("ticket-templates", token),
-    authGet("tickets/form-data", token),
+    api(`/api/routine-tasks/${params.id}`),
+    load("/api/companies"),
+    load("/api/form-data/service-accounts"),
+    load("/api/ticket-categories"),
+    load("/api/ticket-templates"),
+    load("/api/tickets/form-data"),
   ]);
 
   return {

@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
-import { monogramFor } from "@/components/app/monogram";
 import { SCHEDULE_DAYS } from "@/components/app/ScheduleEditor";
+
+import CompanyLogo from "./CompanyLogo";
 
 import { plural } from "../../util/plural";
 
@@ -48,9 +49,7 @@ const FormSummary = ({ form, phones, responsibles, schedule, reached }) => {
         Сводка
       </div>
       <div className="mb-3 flex items-center gap-2.5">
-        <span className="grid size-10 flex-none place-items-center rounded-xl bg-accent font-semibold text-muted-foreground inset-ring inset-ring-border">
-          {monogramFor(form.alias) || "?"}
-        </span>
+        <CompanyLogo sizeClass="size-10" glyphSize={18} />
         <div
           className={cn(
             "text-sm leading-tight",

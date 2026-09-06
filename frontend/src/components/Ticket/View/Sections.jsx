@@ -567,7 +567,6 @@ export const WorksSection = ({
   works = [],
   ticket,
   canAddWork,
-  onOpenForm,
 }) => {
   const { isAdmin, _id: userId } = useContext(AuthedUserContext);
   const [deleting, setDeleting] = useState(null);
@@ -585,7 +584,6 @@ export const WorksSection = ({
   const editItem = (to) => ({
     key: "update",
     to,
-    onClick: onOpenForm,
     icon: <RiEdit2Line />,
     label: "Изменить",
   });
@@ -602,12 +600,12 @@ export const WorksSection = ({
   const actions = canAddWork && (
     <>
       <Button asChild variant="outline" size="xs">
-        <Link to="work/add" onClick={onOpenForm}>
+        <Link to="work/add">
           Новая работа
         </Link>
       </Button>
       <Button asChild variant="outline" size="xs">
-        <Link to="work/schedule" onClick={onOpenForm}>
+        <Link to="work/schedule">
           Запланировать
         </Link>
       </Button>
@@ -638,7 +636,6 @@ export const WorksSection = ({
                       mayConfirm(work) && {
                         key: "confirm",
                         to: `work/${work._id}/confirm`,
-                        onClick: onOpenForm,
                         icon: <RiCheckboxCircleLine />,
                         label: "Подтвердить",
                       },

@@ -62,7 +62,7 @@ const ImpersonatePage = () => {
           userId: String(data.userId),
         });
 
-        navigate("/", { replace: true });
+        navigate("/dashboard", { replace: true });
       } catch {
         setError("Сервер недоступен. Попробуйте открыть ссылку ещё раз.");
       }

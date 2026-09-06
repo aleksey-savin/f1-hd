@@ -13,7 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import useOffcanvasStore from "../../store/offcanvas";
 import { TYPE_LABEL, TYPE_ICON, CHILD_CAPABLE } from "./type-meta";
 import { plural } from "../../util/plural";
 import { useCan } from "@/store/authed-user";
@@ -88,7 +87,6 @@ const TreeNode = ({
   selectedId,
   canManage,
 }) => {
-  const offcanvas = useOffcanvasStore();
   const { data, children } = node;
   const hasChildren = children.length > 0;
   const expanded = isExpanded(data._id);
@@ -179,10 +177,7 @@ const TreeNode = ({
             className="flex-none opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
             onClick={(event) => event.stopPropagation()}
           >
-            <Link
-              to={`add?company=${companyId}&parent=${data._id}`}
-              onClick={offcanvas.setShow}
-            >
+            <Link to={`add?company=${companyId}&parent=${data._id}`}>
               <RiAddFill />
             </Link>
           </Button>

@@ -70,7 +70,6 @@ const ServicePlans = () => {
       filter={<ServicePlanFilter />}
       filterActive={activeFilters.length > 0}
       activeFilters={activeFilters}
-      formSize="lg"
     >
       <List items={filterStore.filteredList} />
     </ListWrapper>

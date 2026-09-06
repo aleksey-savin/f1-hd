@@ -26,6 +26,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import BrandMark from "@/components/app/BrandMark";
+import NavProgress from "@/components/app/NavProgress";
 import { THEME_OPTIONS } from "@/components/app/ThemeSegment";
 import { cn } from "@/lib/utils";
 
@@ -59,7 +60,7 @@ const Brand = ({ size = "default" }) => {
 
   return (
     <NavLink
-      to="/"
+      to="/dashboard"
       aria-label="HelpDesk — на главную"
       className="inline-flex flex-none items-center no-underline"
     >
@@ -273,7 +274,9 @@ const NavigationBar = ({ embedded = false }) => {
   // --- Мобильный shell: статичный флекс-ребёнок, а не fixed (см. гайд) ---
   if (embedded) {
     return (
-      <header className="mobile-shell__header flex flex-none items-center gap-1.5 border-b border-border bg-card px-2.5 pb-2">
+      <header className="mobile-shell__header relative flex flex-none items-center gap-1.5 border-b border-border bg-card px-2.5 pb-2">
+        {/* Линия ожидания перехода — на нижней границе шапки, как и на десктопе */}
+        <NavProgress />
         {isLoggedIn && (
           <Button
             variant="ghost"
@@ -325,6 +328,8 @@ const NavigationBar = ({ embedded = false }) => {
       className="fixed inset-x-0 top-0 border-b border-border bg-card"
       style={{ zIndex: 1030 }}
     >
+      {/* Линия ожидания перехода — во всю ширину бара, поверх его границы */}
+      <NavProgress />
       <div
         className="mx-auto flex h-14 items-center gap-1.5 px-6"
         style={{ maxWidth: "1920px" }}

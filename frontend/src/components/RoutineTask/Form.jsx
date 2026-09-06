@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import {
   RiArrowLeftLine,
   RiArrowRightLine,
@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import MarkdownEditor from "../../UI/MarkdownEditor";
-import useOffcanvasStore from "../../store/offcanvas";
+import { useFormSheet } from "@/components/app/FormOutlet";
 import Summary from "./Summary";
 
 const STEPS = [
@@ -61,8 +61,7 @@ const RoutineTaskForm = () => {
   const seed = !isEdit && prefillTemplate ? prefillTemplate : null;
 
   const fetcher = useFetcher();
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
+  const { close } = useFormSheet();
 
   const [form, setForm] = useState({
     title: task.title || seed?.title || "",
@@ -160,10 +159,7 @@ const RoutineTaskForm = () => {
       setStep(index);
     }
   };
-  const handleClose = () => {
-    offcanvas.setClose();
-    navigate(-1);
-  };
+  const handleClose = () => close();
 
   const saving = fetcher.state !== "idle";
 
@@ -211,8 +207,7 @@ const RoutineTaskForm = () => {
 
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
-      offcanvas.setClose();
-      navigate("..");
+      close("..");
     }
   }, [fetcher.state, fetcher.data]);
 

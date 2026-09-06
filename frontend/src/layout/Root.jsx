@@ -1,7 +1,13 @@
 import { useContext, useEffect, useRef } from "react";
 import { useLocation } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
-import { Outlet, useLoaderData, useNavigate, useSubmit } from "react-router";
+import {
+  Outlet,
+  useLoaderData,
+  useNavigate,
+  useNavigation,
+  useSubmit,
+} from "react-router";
 
 import {
   AuthedUserContext,
@@ -29,7 +35,6 @@ import Transitions from "../animations/Transition";
 import MobileBottomNavbar from "./MobileBottomNavbar";
 
 import { getLocalStorageData, getTokenDuration } from "../util/auth";
-import useOffcanvasStore from "../store/offcanvas";
 import useInitialPrefsStore from "../store/prefs";
 import useWorkStatusesStore from "../store/work-statuses";
 import { ThemeContext } from "../store/theme-context";
@@ -184,8 +189,34 @@ const RootLayout = () => {
     initialPrefs.set(prefs);
   }, [prefs]);
 
-  const offcanvas = useOffcanvasStore();
   const location = useLocation();
+
+  // Переход, который длится дольше мгновения (шторка формы открывается по
+  // готовности данных; прямая ссылка; медленная сеть), получает признак на
+  // корне документа: `data-navigating="pending"` — index.css показывает по
+  // нему курсор ожидания и линию на границе бара оболочки (app/NavProgress).
+  // Порог — чтобы быстрые переходы не мигали. По коммиту линия, если успела
+  // появиться, доезжает до конца и гаснет: «done» живёт ровно на время этой
+  // анимации, иначе признак просто снимается.
+  const navigation = useNavigation();
+  useEffect(() => {
+    const root = document.documentElement.dataset;
+    if (navigation.state !== "idle") {
+      const timer = setTimeout(() => {
+        root.navigating = "pending";
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+    if (root.navigating !== "pending") {
+      delete root.navigating;
+      return undefined;
+    }
+    root.navigating = "done";
+    const timer = setTimeout(() => {
+      if (root.navigating === "done") delete root.navigating;
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [navigation.state]);
 
   // Версия фронта вшита в бандл из frontend/package.json (vite.config.js),
   // бэкенд отдаёт свою из своего package.json — расхождение значит, что на
@@ -238,23 +269,6 @@ const RootLayout = () => {
       setPlainCanvas(server);
     }
   }, [userData?.plainCanvas]);
-
-  useEffect(() => {
-    // Формы базы знаний открываются в основной панели, а не в offcanvas
-    if (
-      !location.pathname.startsWith("/knowledge-base") &&
-      (["add", "update", "process", "schedule", "confirm"].includes(
-        location.pathname.split("/")[location.pathname.split("/").length - 1],
-      ) ||
-        ["update"].includes(
-          location.pathname.split("/")[location.pathname.split("/").length - 2],
-        ))
-    ) {
-      return offcanvas.setShow();
-    } else {
-      return offcanvas.setClose();
-    }
-  }, [location]);
 
   const submit = useSubmit();
   const isLoggedIn = !!token;

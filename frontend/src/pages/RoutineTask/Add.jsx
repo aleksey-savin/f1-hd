@@ -1,5 +1,5 @@
+import { load } from "@/store/form-data";
 import Form from "../../components/RoutineTask/Form";
-import { getLocalStorageData } from "../../util/auth";
 
 const AddRoutineTaskPage = () => {
   return <Form />;
@@ -7,18 +7,13 @@ const AddRoutineTaskPage = () => {
 
 export default AddRoutineTaskPage;
 
-const authGet = (path, _token) =>
-  fetch(`${import.meta.env.VITE_API_ADDRESS}/api/${path}`).then((response) => {
-    if (!response.ok) throw response;
-    return response.json();
-  });
-
 export async function loader({ request }) {
   document.title = "Новый регламент";
 
-  const { token } = getLocalStorageData();
   const fromTemplate = new URL(request.url).searchParams.get("fromTemplate");
 
+  // Справочники — из кэша (store/form-data): их пять, и без кэша форма ждала
+  // бы все пять на каждом открытии
   const [
     companies,
     serviceAccounts,
@@ -27,14 +22,12 @@ export async function loader({ request }) {
     ticketFormData,
     prefillTemplate,
   ] = await Promise.all([
-    authGet("companies", token),
-    authGet("form-data/service-accounts", token),
-    authGet("ticket-categories", token),
-    authGet("ticket-templates", token),
-    authGet("tickets/form-data", token),
-    fromTemplate
-      ? authGet(`ticket-templates/${fromTemplate}`, token)
-      : Promise.resolve(null),
+    load("/api/companies"),
+    load("/api/form-data/service-accounts"),
+    load("/api/ticket-categories"),
+    load("/api/ticket-templates"),
+    load("/api/tickets/form-data"),
+    fromTemplate ? load(`/api/ticket-templates/${fromTemplate}`) : null,
   ]);
 
   return {

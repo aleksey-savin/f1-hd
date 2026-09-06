@@ -1,3 +1,4 @@
+import { load } from "@/store/form-data";
 import { useParams } from "react-router";
 
 import Form from "../../components/DeviceModel/Form";
@@ -29,25 +30,14 @@ export default AddDeviceModelPage;
 export async function loader() {
   document.title = "Новая модель устройства";
 
-  // Fetch device types with attributes
-  const deviceTypesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-types`,
-      );
-  // Тип содержит флаг isConsumable (для поля «Совместимые модели»); атрибуты
-  // здесь больше не нужны — конфигурации создаются отдельной формой с карточки.
-  const deviceTypes = await deviceTypesResponse.json();
-
-  // Fetch vendors
-  const vendorsResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/vendors`,
-      );
-  const vendors = await vendorsResponse.json();
-
-  // Fetch all device models for compatibility selection
-  const deviceModelsResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/inventory/device-models`,
-      );
-  const deviceModels = await deviceModelsResponse.json();
+  // Справочники — из кэша (store/form-data). Тип содержит флаг isConsumable
+  // (для поля «Совместимые модели»); атрибуты здесь больше не нужны —
+  // конфигурации создаются отдельной формой с карточки.
+  const [deviceTypes, vendors, deviceModels] = await Promise.all([
+    load("/api/inventory/device-types"),
+    load("/api/inventory/vendors"),
+    load("/api/inventory/device-models"),
+  ]);
 
   return {
     deviceTypes,

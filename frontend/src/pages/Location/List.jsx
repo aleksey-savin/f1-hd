@@ -1,11 +1,9 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import {
   Link,
-  Outlet,
   useActionData,
   useLoaderData,
   useLocation,
-  useNavigate,
 } from "react-router";
 
 import {
@@ -24,7 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import ChipCombobox from "@/components/app/ChipCombobox";
 import FilterChip from "@/components/app/FilterChip";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import SearchBar from "@/components/app/SearchBar";
 import Spinner from "@/components/app/Spinner";
 import { DeleteDialog } from "@/components/app/DeleteItem";
@@ -35,7 +33,6 @@ import LocationFilter from "../../components/Location/Filter";
 import { TYPE_LABEL } from "../../components/Location/type-meta";
 import useLocationFilterStore from "../../store/lists/locations";
 import useMobileFilterOffcanvasStore from "../../store/mobile-filter-offcanvas";
-import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { useCan } from "@/store/authed-user";
@@ -48,12 +45,10 @@ const TYPE_ORDER = { building: 0, floor: 1, room: 2, workplace: 3, storage: 4 };
 // (по умолчанию РМ скрыты — их много).
 const LocationList = () => {
   const appLocation = useLocation();
-  const navigate = useNavigate();
   const { companies = [] } = useLoaderData();
   const actionData = useActionData();
   const filterStore = useLocationFilterStore();
   const filterOffcanvas = useMobileFilterOffcanvasStore();
-  const offcanvas = useOffcanvasStore();
   const { showToast } = useToastStore();
   const authedUser = useContext(AuthedUserContext);
   const can = useCan();
@@ -269,7 +264,7 @@ const LocationList = () => {
             <RiFilter3Line />
           </Button>
           <Button asChild title="Новое расположение">
-            <Link to={addTo} onClick={offcanvas.setShow}>
+            <Link to={addTo}>
               <RiAddFill />
               <span className="max-sm:hidden">Новое расположение</span>
             </Link>
@@ -324,7 +319,7 @@ const LocationList = () => {
               помещения.
             </p>
             <Button asChild className="mt-3">
-              <Link to={addTo} onClick={offcanvas.setShow}>
+              <Link to={addTo}>
                 <RiAddFill /> Новое расположение
               </Link>
             </Button>
@@ -389,17 +384,7 @@ const LocationList = () => {
       />
 
       {/* Формы add/update — нижняя шторка (как в ListWrapper) */}
-      <FormSheet
-        open={offcanvas.isActive}
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </div>
   );
 };

@@ -40,7 +40,7 @@ export async function loader({ request }: { request: Request }) {
     // пароль меняют и не выходя из приложения
     const { token } = getLocalStorageData();
     if (token && token !== "EXPIRED") {
-      return redirect("/");
+      return redirect("/dashboard");
     }
   }
 

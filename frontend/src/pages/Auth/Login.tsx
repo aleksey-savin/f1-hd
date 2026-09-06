@@ -71,7 +71,7 @@ export async function action({ request }: { request: Request }) {
   }
 
   // Сеанс. Исход «новый пароль» у парольного входа не случается.
-  return redirect("/");
+  return redirect("/dashboard");
 }
 
 const Login = () => {

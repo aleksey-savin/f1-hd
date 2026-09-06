@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 
 import CompanyForm from "../../components/Company/Form";
 
@@ -10,27 +12,15 @@ export default UpdateCompanyPage;
 export async function loader({ params }) {
   document.title = "Изменить компанию";
 
-  const companyResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/companies/${params.id}`,
-      );
-
-  if (!companyResponse.ok) {
-    throw companyResponse;
-  }
-
-  const respResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
-      );
-
-  if (!respResponse.ok) {
-    throw respResponse;
-  }
-
-  const companyData = await companyResponse.json();
+  // Компания — всегда свежая; справочник ответственных — из кэша
+  const [companyData, responsibles] = await Promise.all([
+    api(`/api/companies/${params.id}`),
+    load("/api/users/can-perform-tickets"),
+  ]);
 
   return {
     company: companyData.company,
-    responsibles: await respResponse.json(),
+    responsibles,
   };
 }
 

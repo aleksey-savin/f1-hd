@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 import Form from "../../components/TicketCategory/Form";
 
 const UpdateTicketCategoryPage = () => {
@@ -9,49 +11,16 @@ export default UpdateTicketCategoryPage;
 export async function loader({ params }) {
   document.title = "Изменить категорию заявок";
 
-  const categoryResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories/${params.id}`,
-      );
-
-  if (!categoryResponse.ok) {
-    throw categoryResponse;
-  }
-
-  const categoryData = await categoryResponse.json();
-
-  const initialPrefsResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/preferences-initial`,
-      );
-
-  if (!initialPrefsResponse.ok) {
-    throw initialPrefsResponse;
-  }
-
-  const prefsData = await initialPrefsResponse.json();
-
-  let servicePlansData = [];
-
-  if (prefsData.modules.finances.isActive) {
-    const servicePlansResponse = await fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/`,
-          );
-
-    if (!servicePlansResponse.ok) {
-      throw servicePlansResponse;
-    }
-
-    servicePlansData = await servicePlansResponse.json();
-  }
-
-  const usersResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
-      );
-
-  if (!usersResponse.ok) {
-    throw usersResponse;
-  }
-
-  const usersData = await usersResponse.json();
+  // Категория — всегда свежая; справочники — из кэша (store/form-data);
+  // услуги — только при включённом модуле финансов
+  const [categoryData, prefsData, usersData] = await Promise.all([
+    api(`/api/ticket-categories/${params.id}`),
+    load("/api/preferences-initial"),
+    load("/api/users/can-perform-tickets"),
+  ]);
+  const servicePlansData = prefsData.modules.finances.isActive
+    ? await load("/api/finances/service-plans/")
+    : [];
 
   return {
     ticketCategory: categoryData,

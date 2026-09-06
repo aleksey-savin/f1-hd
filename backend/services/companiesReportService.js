@@ -304,7 +304,10 @@ const buildCompaniesSummary = async ({ from, to, scope, preferences }) => {
   const companyFilter = companyIds ? { _id: { $in: companyIds.map(toObjectId) } } : {};
 
   const [companies, rawPeriodWorks, rawPrevWorks] = await Promise.all([
-    Company.find(companyFilter).select("alias fullTitle subdivisions").sort({ alias: 1 }).lean(),
+    Company.find(companyFilter)
+      .select("alias fullTitle profileImagePath subdivisions")
+      .sort({ alias: 1 })
+      .lean(),
     loadPeriodWorks({ period, companyIds, needsTicketFields: scope.needsAttribution }),
     loadPeriodWorks({ period: prev, companyIds, needsTicketFields: scope.needsAttribution }),
   ]);
@@ -340,6 +343,7 @@ const buildCompaniesSummary = async ({ from, to, scope, preferences }) => {
         _id: company._id,
         alias: company.alias,
         fullTitle: company.fullTitle,
+        profileImagePath: company.profileImagePath || null,
       },
       ...summary,
       access,
@@ -378,7 +382,7 @@ const buildCompaniesSummary = async ({ from, to, scope, preferences }) => {
 /** Компания + проверка доступа; 404 отдельно от 403. */
 const loadCompanyForScope = async (companyId, scope) => {
   const company = await Company.findById(companyId)
-    .select("alias fullTitle timezone subdivisions")
+    .select("alias fullTitle profileImagePath timezone subdivisions")
     .lean();
   if (!company) {
     throw new AppError(`Company ${companyId} not found`, 404, true);
@@ -518,6 +522,7 @@ const buildCompanyCard = async ({ companyId, from, to, scope, preferences }) => 
       _id: company._id,
       alias: company.alias,
       fullTitle: company.fullTitle,
+      profileImagePath: company.profileImagePath || null,
       timezone: company.timezone || null,
       subdivisionsCount: subdivisionDocs.length,
     },
@@ -673,7 +678,12 @@ const buildSubdivisionCard = async ({
     period: serializePeriod(period),
     includeDescendants,
     access: scope.companyAccess(companyId),
-    company: { _id: company._id, alias: company.alias, fullTitle: company.fullTitle },
+    company: {
+      _id: company._id,
+      alias: company.alias,
+      fullTitle: company.fullTitle,
+      profileImagePath: company.profileImagePath || null,
+    },
     subdivision: {
       _id: node._id,
       name: node.name,
@@ -831,7 +841,7 @@ const buildCompaniesTrends = async ({
   const companies = await Company.find(
     companyIds ? { _id: { $in: companyIds.map(toObjectId) } } : {},
   )
-    .select("alias fullTitle")
+    .select("alias fullTitle profileImagePath")
     .sort({ alias: 1 })
     .lean();
 
@@ -859,7 +869,12 @@ const buildCompaniesTrends = async ({
     }
     const worksByPeriod = groupBy(companyWorks, keyOf);
     data.push({
-      company: { _id: company._id, alias: company.alias, fullTitle: company.fullTitle },
+      company: {
+        _id: company._id,
+        alias: company.alias,
+        fullTitle: company.fullTitle,
+        profileImagePath: company.profileImagePath || null,
+      },
       periods: periods.map((item) => ({
         ...item,
         ...totalsOf(worksByPeriod.get(item.key) || []),

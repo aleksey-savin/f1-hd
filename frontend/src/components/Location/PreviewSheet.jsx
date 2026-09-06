@@ -12,7 +12,6 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import useOffcanvasStore from "../../store/offcanvas";
 import { TYPE_LABEL, TYPE_ICON, CHILD_CAPABLE } from "./type-meta";
 import { plural } from "../../util/plural";
 
@@ -41,8 +40,6 @@ const PreviewSheet = ({
   onNavigate,
   onDelete,
 }) => {
-  const offcanvas = useOffcanvasStore();
-
   const TypeIcon = node ? TYPE_ICON[node.type] || RiDoorLine : RiDoorLine;
   const companyId = node?.company?._id || node?.company;
   const canHaveChildren = CHILD_CAPABLE.includes(node?.type);
@@ -51,13 +48,6 @@ const PreviewSheet = ({
   const childCount = node?.children?.length || 0;
   const deviceCount = node?.deviceCount || 0;
   const isActive = node?.isActive !== false;
-
-  // Формы открываются в нижней шторке списка — предпросмотр закрываем,
-  // чтобы оверлеи не накладывались.
-  const openFormAndClose = () => {
-    offcanvas.setShow();
-    onClose();
-  };
 
   return (
     <Sheet
@@ -231,22 +221,21 @@ const PreviewSheet = ({
               </Button>
               {canManage && (
                 <>
+                  {/* Формы открываются в нижней шторке списка — предпросмотр
+                      закрываем (onClose), чтобы оверлеи не накладывались */}
                   <div className="flex gap-2">
                     {canHaveChildren && (
                       <Button asChild variant="outline" className="flex-1">
                         <Link
                           to={`add?company=${companyId}&parent=${node._id}`}
-                          onClick={openFormAndClose}
+                          onClick={onClose}
                         >
                           <RiAddFill /> Вложенное
                         </Link>
                       </Button>
                     )}
                     <Button asChild variant="outline" className="flex-1">
-                      <Link
-                        to={`update/${node._id}`}
-                        onClick={openFormAndClose}
-                      >
+                      <Link to={`update/${node._id}`} onClick={onClose}>
                         <RiEdit2Line /> Изменить
                       </Link>
                     </Button>

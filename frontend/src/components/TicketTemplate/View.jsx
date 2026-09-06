@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { Link, Outlet, useNavigate } from "react-router";
+import { Link } from "react-router";
 import {
   RiAddLine,
   RiCalendarScheduleLine,
@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Crumbs from "@/components/app/Crumbs";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { Eyebrow, Panel, SectionEditLink } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
@@ -30,7 +30,6 @@ import { formatShortDate } from "@/util/format-date";
 import { cn } from "@/lib/utils";
 
 import MarkdownViewer from "../../UI/MarkdownViewer";
-import useOffcanvasStore from "../../store/offcanvas";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { useCan } from "@/store/authed-user";
 
@@ -48,8 +47,6 @@ const personName = (person) =>
     : null;
 
 const ViewTicketTemplate = ({ template }) => {
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   const { _id: userId } = useContext(AuthedUserContext);
   const can = useCan();
   const canManage = canManageEntity("ticketTemplate", can,
@@ -164,12 +161,12 @@ const ViewTicketTemplate = ({ template }) => {
               </DropdownMenuContent>
             </DropdownMenu>
             <Button variant="outline" asChild>
-              <Link to={`/tickets/add?template=${template._id}`}>
+              <Link to={`tickets/add?template=${template._id}`}>
                 <RiTicketLine /> Создать заявку
               </Link>
             </Button>
             <Button asChild>
-              <Link to="update" onClick={offcanvas.setShow}>
+              <Link to="update">
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
@@ -216,12 +213,12 @@ const ViewTicketTemplate = ({ template }) => {
                   <SectionEditLink
                     to="update#checklist"
                     label="Чек-лист"
-                    onClick={offcanvas.setShow}
+                   
                   />
                 </span>
               ) : (
                 <Button asChild variant="outline" size="sm" className="ml-auto">
-                  <Link to="update#checklist" onClick={offcanvas.setShow}>
+                  <Link to="update#checklist">
                     <RiAddLine /> Добавить чек-лист
                   </Link>
                 </Button>
@@ -299,18 +296,7 @@ const ViewTicketTemplate = ({ template }) => {
         onOpenChange={setDeleteOpen}
       />
 
-      <FormSheet
-        open={offcanvas.isActive}
-        size="lg"
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </div>
   );
 };

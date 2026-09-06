@@ -4,9 +4,10 @@ import { RiAlertLine } from "react-icons/ri";
 import AlertMessage from "@/components/app/AlertMessage";
 import ChipSelect from "@/components/app/ChipSelect";
 import { Eyebrow, Panel } from "@/components/app/Panel";
-import { monogramFor } from "@/components/app/monogram";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+import CompanyLogo from "../Company/CompanyLogo";
 
 import DecisionDialog from "./DecisionDialog";
 import ReportLifecycle from "./ReportLifecycle";
@@ -162,12 +163,12 @@ const ReportCard = ({
       {breadcrumb}
 
       <div className="flex flex-wrap items-start gap-4">
-        <span
-          aria-hidden
-          className="grid size-14 flex-none place-items-center rounded-2xl bg-accent text-lg font-semibold text-muted-foreground inset-ring inset-ring-border"
-        >
-          {monogramFor(report.company?.alias || "")}
-        </span>
+        <CompanyLogo
+          company={report.company}
+          sizeClass="size-14"
+          glyphSize={26}
+          className="rounded-2xl"
+        />
         <div className="min-w-0 flex-1">
           <h1 className="my-0 text-3xl leading-tight font-semibold tracking-tight">
             {report.company?.alias}

@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ import { verdictAllows } from "@/lib/password";
 import { api } from "@/lib/api";
 
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
-import useOffcanvasStore from "../../store/offcanvas";
+import { useFormSheet } from "@/components/app/FormOutlet";
 import useInitialPrefs from "../../store/prefs";
 import timezones from "../../store/timezones";
 import { inheritedTimezone, tzCity } from "../../util/timezone-display";
@@ -161,8 +161,7 @@ const UserForm = () => {
   const { timezone: orgTimezone } = useInitialPrefs();
 
   const fetcher = useFetcher();
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
+  const { close } = useFormSheet();
 
   // Тот же флаг, что гасит «Прислать письмо» на входе: notify.byEmail.isActive.
   const mailIsOn = Boolean(useInitialPrefs().emailNotifications);
@@ -336,10 +335,7 @@ const UserForm = () => {
     }
   };
 
-  const handleClose = () => {
-    offcanvas.setClose();
-    navigate(-1);
-  };
+  const handleClose = () => close();
 
   // Липкая шапка формы закрывает верх колонки — рейл прижимается под неё
   const [headHeight, setHeadHeight] = useState(0);
@@ -444,9 +440,8 @@ const UserForm = () => {
 
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
-      offcanvas.setClose();
       const id = fetcher.data.userId;
-      navigate(id ? `/users/${id}` : "..", { replace: true });
+      close(id ? `/users/${id}` : "..", { replace: true });
     }
   }, [fetcher.state, fetcher.data]);
 

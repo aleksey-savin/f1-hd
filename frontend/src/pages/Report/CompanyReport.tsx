@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 import {
   AttributionNote,
-  CardMonogram,
+  CardTile,
   CardSkeleton,
   CategorySection,
   MonthsSection,
@@ -231,7 +231,7 @@ const CompanyReport = () => {
           </span>
         )
       }
-      icon={data && <CardMonogram name={data.company.alias} />}
+      icon={data && <CardTile company={data.company} />}
       breadcrumb={
         <Crumbs
           // У кого доступен ровно один объект, сводка сразу редиректит сюда же

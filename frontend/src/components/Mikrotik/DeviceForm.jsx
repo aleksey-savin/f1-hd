@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Link,
-  useNavigate,
   useParams,
   useRevalidator,
   useSearchParams,
@@ -22,7 +21,7 @@ import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 import AlertMessage from "@/components/app/AlertMessage";
 import { SubLabel } from "@/components/app/Panel";
-import useOffcanvasStore from "@/store/offcanvas";
+import { useFormSheet } from "@/components/app/FormOutlet";
 import useToastStore from "@/store/toast-store";
 
 import Combobox from "@/components/app/Combobox";
@@ -45,12 +44,11 @@ const EMPTY_FORM = {
 // проверка подключения (verify-on-save); после успешной проверки создание
 // показывает шаг «Устройство подключено» с блоком «Инвентарь»: карточка с тем
 // же серийным номером предлагается к связи, отсутствующая — к созданию.
-// Рендерится вложенным маршрутом (add / update/:recordId) в шторке FormSheet.
+// Рендерится вложенным маршрутом (add / update/:recordId) в шторке (app/FormOutlet).
 const DeviceForm = () => {
   const { recordId } = useParams();
-  const navigate = useNavigate();
   const revalidator = useRevalidator();
-  const offcanvas = useOffcanvasStore();
+  const { close } = useFormSheet();
   const showToast = useToastStore((state) => state.showToast);
 
   const rows = useMikrotikDeviceFilterStore((state) => state.originalList);
@@ -241,16 +239,14 @@ const DeviceForm = () => {
   const finish = () => {
     fetchRows();
     revalidator.revalidate();
-    offcanvas.setClose();
     // Пришли с карточки устройства — туда и возвращаемся: подключение было
-    // шагом её задачи, а не заходом в раздел мониторинга.
+    // шагом её задачи, а не заходом в раздел мониторинга. Шторка сперва
+    // уезжает, переход — после (useFormSheet).
     if (targetDeviceId) {
-      navigate(`/inventory/client-devices/${targetDeviceId}`, {
-        replace: true,
-      });
+      close(`/inventory/client-devices/${targetDeviceId}`, { replace: true });
       return;
     }
-    navigate("..", { replace: true, relative: "route" });
+    close("..", { replace: true });
   };
 
   const submitHandler = async (event) => {
@@ -506,10 +502,7 @@ const DeviceForm = () => {
         <div className="mt-5 flex justify-end gap-2 border-t border-border-soft pt-4">
           {linkState && result.record?._id && (
             <Button asChild variant="ghost">
-              <Link
-                to={`/devices/mikrotik/records/${result.record._id}`}
-                onClick={() => offcanvas.setClose()}
-              >
+              <Link to={`/devices/mikrotik/records/${result.record._id}`}>
                 Открыть устройство <RiExternalLinkLine size={13} />
               </Link>
             </Button>
@@ -766,10 +759,7 @@ const DeviceForm = () => {
         <Button
           type="button"
           variant="ghost"
-          onClick={() => {
-            offcanvas.setClose();
-            navigate("..", { relative: "route" });
-          }}
+          onClick={() => close("..")}
         >
           Отмена
         </Button>

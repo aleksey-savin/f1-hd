@@ -2,7 +2,6 @@ import { useContext, useEffect, useMemo, useState } from "react";
 
 import {
   Link,
-  Outlet,
   useFetcher,
   useFetchers,
   useLoaderData,
@@ -22,7 +21,7 @@ import AnchorRail from "@/components/app/AnchorRail";
 import Checklist from "@/components/app/Checklist";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import Environment from "@/components/app/Environment";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet, { useSheetOpen } from "@/components/app/FormOutlet";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,7 +72,7 @@ import {
 import usePolling from "../../hooks/use-polling";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useInitialPrefsStore from "../../store/prefs";
-import useOffcanvasStore from "../../store/offcanvas";
+import { warm } from "@/store/form-data";
 import useToastStore from "../../store/toast-store";
 import useViewTicketStore from "../../store/view-ticket";
 import { getLocalStorageData } from "../../util/auth";
@@ -114,8 +113,14 @@ const ViewTicket = () => {
   const { ticket, company, works, events = [] } = ticketData;
 
   const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
+  const sheetOpen = useSheetOpen();
   const revalidator = useRevalidator();
+
+  // Справочники формы правки — заранее, чтобы «Изменить» и «Обработать» не
+  // ждали form-data
+  useEffect(() => {
+    warm("/api/tickets/form-data");
+  }, []);
   const fetchers = useFetchers();
   const checklistFetcher = useFetcher();
   const { modules, ai } = useInitialPrefsStore();
@@ -230,7 +235,7 @@ const ViewTicket = () => {
       enabled:
         revalidator.state === "idle" &&
         !hasActiveFetcher &&
-        !offcanvas.isActive &&
+        !sheetOpen &&
         !checklistEdit,
     },
   );
@@ -340,7 +345,6 @@ const ViewTicket = () => {
     // «Обработать» — такая же форма заявки, как правка, только с другой
     // подписью сабмита, поэтому и открывается так же: маршрутом в шторке
     if (key === "update" || key === "process" || key === "addWork") {
-      offcanvas.setShow();
       navigate(key === "addWork" ? "work/add" : key);
     }
   };
@@ -621,7 +625,6 @@ const ViewTicket = () => {
               canAddWork={
                 canPerform && !["Новая", "Не в работе"].includes(ticket.state)
               }
-              onOpenForm={offcanvas.setShow}
             />
           )}
 
@@ -682,18 +685,7 @@ const ViewTicket = () => {
         initialSearchQuery={logsQuery ?? ""}
       />
 
-      <FormSheet
-        open={offcanvas.isActive}
-        size="lg"
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </div>
   );
 };

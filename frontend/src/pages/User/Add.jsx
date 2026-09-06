@@ -1,3 +1,4 @@
+import { load } from "@/store/form-data";
 import { redirect } from "react-router";
 
 import UserForm from "../../components/User/UserForm";
@@ -16,39 +17,11 @@ export async function loader() {
     return redirect("/auth");
   }
 
-  const companiesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/companies`,
-  );
-
-  const companies = await companiesResponse.json();
-
-  const categoriesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
-  );
-
-  const categories = await categoriesResponse.json();
-
-  if (!companiesResponse.ok) {
-    if (companiesResponse.status === 401 || companiesResponse.status === 402) {
-      return redirect("/auth");
-    }
-    throw Response.json(
-      { message: companiesResponse.message },
-      { status: companiesResponse.status },
-    );
-  }
-  if (!categoriesResponse.ok) {
-    if (
-      categoriesResponse.status === 401 ||
-      categoriesResponse.status === 402
-    ) {
-      return redirect("/auth");
-    }
-    throw Response.json(
-      { message: categoriesResponse.message },
-      { status: categoriesResponse.status },
-    );
-  }
+  // Справочники — из кэша (store/form-data); 401 обрабатывает lib/api
+  const [companies, categories] = await Promise.all([
+    load("/api/companies"),
+    load("/api/ticket-categories"),
+  ]);
 
   return { companiesList: companies, categoriesList: categories };
 }

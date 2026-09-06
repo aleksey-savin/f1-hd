@@ -36,7 +36,6 @@ import { Eyebrow, Panel } from "@/components/app/Panel";
 import Field from "@/components/app/Field";
 import AlertMessage from "@/components/app/AlertMessage";
 import AttachFields, { emptyAttach } from "../../ServicePlan/AttachFields";
-import useOffcanvasStore from "@/store/offcanvas";
 
 import Combobox, { toOptions } from "@/components/app/Combobox";
 import {
@@ -99,7 +98,6 @@ const ServicePlansSection = ({
 }) => {
   const fetcher = useFetcher();
   const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   // Как компания назовётся в крошке карточки услуги
   const fromState = useCrumbFrom(company.alias);
 
@@ -180,7 +178,6 @@ const ServicePlansSection = ({
   // query-строкой в мастер услуги (вложенный маршрут карточки, wide-шторка)
   const openWizard = () => {
     setAddOpen(false);
-    offcanvas.setShow();
     // Условия подключения уезжают в мастер query-строкой — там их подхватит
     // тот же AttachFields
     const params = new URLSearchParams({

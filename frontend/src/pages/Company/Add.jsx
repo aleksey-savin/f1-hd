@@ -1,3 +1,4 @@
+import { load } from "@/store/form-data";
 import CompanyForm from "../../components/Company/Form";
 
 const AddCompanyPage = () => {
@@ -9,16 +10,9 @@ export default AddCompanyPage;
 export async function loader() {
   document.title = "Новая компания";
 
-  const response = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/users/can-perform-tickets`,
-      );
-
-  if (!response.ok) {
-    throw response;
-  }
-
+  // Справочник ответственных — из кэша (store/form-data)
   return {
-    responsibles: await response.json(),
+    responsibles: await load("/api/users/can-perform-tickets"),
   };
 }
 

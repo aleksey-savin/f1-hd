@@ -1,6 +1,5 @@
 
 import ListRow from "@/components/app/ListRow";
-import { monogramFor } from "@/components/app/monogram";
 
 import { plural } from "../../util/plural";
 import { useCan } from "@/store/authed-user";
@@ -31,7 +30,6 @@ const TicketCategoryItem = ({ item }) => {
     <ListRow
       item={item}
       itemTitle="ticketCategory"
-      monogram={monogramFor(title)}
       title={title}
       dimmed={!isActive}
       meta={metaParts.map((part, index) => (

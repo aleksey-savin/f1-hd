@@ -1,3 +1,5 @@
+import { api } from "@/lib/api";
+import { load } from "@/store/form-data";
 import Form from "../../components/TicketTemplate/Form";
 
 const UpdateTicketTemplatePage = () => <Form />;
@@ -7,25 +9,11 @@ export default UpdateTicketTemplatePage;
 export async function loader({ params }) {
   document.title = "Изменить шаблон";
 
-  const templateResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-templates/${params.id}`,
-  );
-
-  if (!templateResponse.ok) {
-    throw templateResponse;
-  }
-
-  const template = await templateResponse.json();
-
-  const formDataResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/tickets/form-data`,
-  );
-
-  if (!formDataResponse.ok) {
-    throw formDataResponse;
-  }
-
-  const formData = await formDataResponse.json();
+  // Шаблон — всегда свежий; справочники формы заявки — из кэша
+  const [template, formData] = await Promise.all([
+    api(`/api/ticket-templates/${params.id}`),
+    load("/api/tickets/form-data"),
+  ]);
 
   return { template, formData };
 }

@@ -1,5 +1,5 @@
-
 import TicketFormRoute from "../../components/Ticket/TicketFormRoute";
+import { load } from "@/store/form-data";
 
 const AddTicketPage = () => <TicketFormRoute mode="add" />;
 
@@ -8,35 +8,22 @@ export default AddTicketPage;
 export async function loader({ request }) {
   document.title = "Новая заявка";
 
-  const headers = {};
-  const api = import.meta.env.VITE_API_ADDRESS;
-
-  // Шаблоны тянет loader, а не эффект компонента: список нужен сразу, а его
-  // отсутствие в первый кадр раньше прятало вход «Из шаблона»
-  const [formDataResponse, templatesResponse] = await Promise.all([
-    fetch(`${api}/api/tickets/form-data`, { headers }),
-    fetch(`${api}/api/ticket-templates`, { headers }),
+  // Шторка открывается по готовности данных, поэтому справочники — из кэша
+  // (store/form-data): без него каждое открытие ждало бы form-data и список
+  // шаблонов. Шаблоны тянет loader, а не эффект компонента: список нужен
+  // сразу, а его отсутствие в первый кадр раньше прятало вход «Из шаблона».
+  // Вход «Создать заявку» с карточки шаблона (?template=<id>): заготовка
+  // приезжает целиком, чтобы форма открылась уже заполненной.
+  const presetId = new URL(request.url).searchParams.get("template");
+  const [formData, templates, presetTemplate] = await Promise.all([
+    load("/api/tickets/form-data"),
+    load("/api/ticket-templates").catch(() => []),
+    presetId
+      ? load(`/api/ticket-templates/${presetId}`).catch(() => null)
+      : null,
   ]);
 
-  if (!formDataResponse.ok) throw formDataResponse;
-
-  // Вход «Создать заявку» с карточки шаблона: заготовка приезжает целиком,
-  // чтобы форма открылась уже заполненной
-  const presetId = new URL(request.url).searchParams.get("template");
-  let presetTemplate = null;
-  if (presetId) {
-    const presetResponse = await fetch(
-      `${api}/api/ticket-templates/${presetId}`,
-      { headers },
-    );
-    if (presetResponse.ok) presetTemplate = await presetResponse.json();
-  }
-
-  return {
-    formData: await formDataResponse.json(),
-    templates: templatesResponse.ok ? await templatesResponse.json() : [],
-    presetTemplate,
-  };
+  return { formData, templates, presetTemplate };
 }
 
 export async function action({ request }) {

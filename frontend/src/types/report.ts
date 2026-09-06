@@ -14,7 +14,13 @@ export type ReportTotals = {
   routineTask: WorkClassStat;
 };
 
-export type CompanyRef = { _id: string; alias: string; fullTitle?: string };
+export type CompanyRef = {
+  _id: string;
+  alias: string;
+  fullTitle?: string;
+  /** Логотип для плитки hero и сводки (`Company/CompanyLogo`). */
+  profileImagePath?: string | null;
+};
 
 /** Объём доступа: сервер решает, что видит запрашивающий (services/reportScope). */
 export type ReportScope = {

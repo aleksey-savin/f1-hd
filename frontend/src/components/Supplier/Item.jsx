@@ -1,5 +1,4 @@
 import ListRow from "@/components/app/ListRow";
-import { monogramFor } from "@/components/app/monogram";
 
 import { formatCalendarDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
@@ -28,7 +27,6 @@ const SupplierItem = ({ item }) => {
     <ListRow
       item={item}
       itemTitle="supplier"
-      monogram={monogramFor(name)}
       title={name}
       dimmed={!isActive}
       detailTo={`/inventory/suppliers/${item._id}`}

@@ -525,6 +525,14 @@ exports.getOne = async (req, res, next) => {
     await expireStalePendingSpeech(ticket);
     await expireStalePendingTerms(ticket);
 
+    // Форме правки нужна одна заявка, и всегда свежая: её правят многие и
+    // часто. Компания с людьми, журналы, работы и хроника ниже — данные
+    // карточки, форма их не читает; `?view=form` отвечает сразу после них,
+    // и шторка формы открывается без лишних выборок.
+    if (req.query.view === "form") {
+      return res.status(200).json({ message: "Ticket fetched", ticket });
+    }
+
     // У заявки может не быть компании (легаси-данные): toObject() с minimize
     // вырезает пустой объект company — без ?. карточка падала бы в 500.
     const company = await Company.findById(ticket.company?._id).populate({
@@ -649,68 +657,65 @@ exports.getFormData = async (req, res, next) => {
     let categories = [];
     let responsibles = [];
 
+    // Форма открывается по готовности этих данных, поэтому независимые
+    // выборки идут параллельно, а не одна за другой
+    const performers = () =>
+      permissionFilter("ticket.perform").then((filter) =>
+        User.find({ $and: [filter, { banned: { $ne: true } }] }).sort({
+          lastName: 1,
+        }),
+      );
+
     if (authedUser.isEndUser) {
-      companies = await Company.find({
-        _id: authedUser.company._id,
-      }).sort({ alias: 1 });
-
-      responsibles = await User.find({
-        $and: [await permissionFilter("ticket.perform"), { banned: { $ne: true } }],
-      }).sort({ lastName: 1 });
-
-      // Полный активный каталог: фасет категорий в архиве (сегменты «Заявки»
-      // и «Работы») у конечного пользователя раньше оставался пустым
-      categories = await Category.find({ isActive: true }).sort({ title: 1 });
-
-      if (req.auth.can({ ticket: ["readCompany"] })) {
-        applicants = await User.find({
-          "company._id": authedUser.company._id,
-          isServiceAccount: false,
-          banned: { $ne: true },
-        });
-      } else {
-        applicants = [authedUser];
-      }
+      [companies, responsibles, categories, applicants] = await Promise.all([
+        Company.find({ _id: authedUser.company._id }).sort({ alias: 1 }),
+        performers(),
+        // Полный активный каталог: фасет категорий в архиве (сегменты «Заявки»
+        // и «Работы») у конечного пользователя раньше оставался пустым
+        Category.find({ isActive: true }).sort({ title: 1 }),
+        req.auth.can({ ticket: ["readCompany"] })
+          ? User.find({
+              "company._id": authedUser.company._id,
+              isServiceAccount: false,
+              banned: { $ne: true },
+            })
+          : [authedUser],
+      ]);
     } else if (req.auth.can({ ticket: ["administrate"] })) {
-      companies = await Company.find({
-        "responsibles._id": authedUser._id,
-        ...companyActive,
-      }).sort({ alias: 1 });
-
-      applicants = await User.find({
-        $and: [{ banned: { $ne: true } }, { isServiceAccount: false }],
-        ...applicantCompanyActive,
-      }).sort({ lastName: 1 });
-
-      categories = await Category.find({ isActive: true }).sort({
-        title: 1,
-      });
-
-      responsibles = await User.find({
-        $and: [await permissionFilter("ticket.perform"), { banned: { $ne: true } }],
-      }).sort({ lastName: 1 });
+      [companies, applicants, categories, responsibles] = await Promise.all([
+        Company.find({
+          "responsibles._id": authedUser._id,
+          ...companyActive,
+        }).sort({ alias: 1 }),
+        User.find({
+          $and: [{ banned: { $ne: true } }, { isServiceAccount: false }],
+          ...applicantCompanyActive,
+        }).sort({ lastName: 1 }),
+        Category.find({ isActive: true }).sort({ title: 1 }),
+        performers(),
+      ]);
     } else {
-      companies = await Company.find({
-        "responsibles._id": authedUser._id,
-        ...companyActive,
-      }).sort({ alias: 1 });
-
-      // applicants наследуют фильтр активности от уже отфильтрованных companies
-      applicants = await User.find({
-        "company._id": { $in: companies },
-        banned: { $ne: true },
-      }).sort({ lastName: 1 });
-
-      categories = await Category.find({
-        banned: { $ne: true },
-        _id: { $in: authedUser.categories },
-      }).sort({
-        title: 1,
-      });
-
-      responsibles = await User.find({
-        _id: authedUser._id,
-      }).sort({ lastName: 1 });
+      [[companies, applicants], categories, responsibles] = await Promise.all([
+        // applicants наследуют фильтр активности от уже отфильтрованных
+        // companies — эта пара последовательна, остальное параллельно
+        Company.find({
+          "responsibles._id": authedUser._id,
+          ...companyActive,
+        })
+          .sort({ alias: 1 })
+          .then(async (found) => [
+            found,
+            await User.find({
+              "company._id": { $in: found },
+              banned: { $ne: true },
+            }).sort({ lastName: 1 }),
+          ]),
+        Category.find({
+          banned: { $ne: true },
+          _id: { $in: authedUser.categories },
+        }).sort({ title: 1 }),
+        User.find({ _id: authedUser._id }).sort({ lastName: 1 }),
+      ]);
     }
 
     res.status(200).json({

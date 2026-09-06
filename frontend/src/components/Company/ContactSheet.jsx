@@ -85,7 +85,7 @@ const CompanyContactSheet = ({ item, open, onOpenChange }) => {
           <CompanyLogo
             company={item}
             sizeClass="size-15"
-            textClass="text-xl"
+            glyphSize={26}
             className="rounded-2xl"
           />
           <div className="min-w-0">

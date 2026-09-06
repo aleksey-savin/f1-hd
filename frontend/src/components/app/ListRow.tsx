@@ -13,13 +13,16 @@ import {
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { canManageEntity } from "@/components/app/entity-permissions";
 import { cn } from "@/lib/utils";
-import useOffcanvasStore from "@/store/offcanvas";
 import { useAuthedUser, useCan } from "@/store/authed-user";
 
-// Строка списка из согласованного макета: монограмма-плитка · имя + мета ·
-// «⋯»-меню (по наведению; на тач-экране видно всегда). Разделители — тонкая
-// линия с отступом под монограмму. Клик по строке открывает правку (если есть
-// права), диалог удаления живёт вне radix-меню.
+// Строка списка из согласованного макета: [плитка ·] имя + мета · «⋯»-меню
+// (по наведению; на тач-экране видно всегда). Плитка слева стоит только там,
+// где она различает строки: превью из каталога (`thumbSrc`, с кольцом) или
+// глиф вида в смешанном списке (`glyph`, без кольца). У однородного
+// справочника плитки нет — монограмма из букв повторяла название рядом и
+// читалась как шум. Разделители — тонкая линия от отступа панели (с плиткой —
+// от её правого края). Клик по строке открывает правку (если есть права),
+// диалог удаления живёт вне radix-меню.
 // Свежесозданная строка появляется с fade-in + подсветкой, свежеизменённая —
 // только с подсветкой (по createdAt/updatedAt из API; окно — FRESH_MS).
 const FRESH_MS = 8000;
@@ -34,10 +37,12 @@ type ListRowProps = {
     updatedAt?: string;
   };
   itemTitle?: string;
-  /** URL превью (фото из каталога): заполняет плитку целиком (object-cover)
-   *  вместо монограммы. Есть фото — фото, иначе показывается `monogram`. */
+  /** URL превью (фото из каталога): заполняет плитку целиком (object-cover),
+   *  кольцо держит край. Есть фото — фото, иначе показывается `glyph`. */
   thumbSrc?: string;
-  monogram?: ReactNode;
+  /** Глиф вида записи (`<RiPrinterLine size={22} />`) — только для смешанных
+   *  списков, где вид различает строки. Без `thumbSrc` и `glyph` плитки нет. */
+  glyph?: ReactNode;
   title: ReactNode;
   meta?: ReactNode;
   dimmed?: boolean;
@@ -55,7 +60,7 @@ const ListRow = ({
   item,
   itemTitle,
   thumbSrc,
-  monogram,
+  glyph,
   title,
   meta,
   dimmed = false,
@@ -65,7 +70,6 @@ const ListRow = ({
   customDeleteMessage,
   trailing,
 }: ListRowProps) => {
-  const offcanvas = useOffcanvasStore();
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -85,12 +89,10 @@ const ListRow = ({
   const justCreated = createdAgo < FRESH_MS;
   const justUpdated = !justCreated && updatedAgo < FRESH_MS;
 
-  const openUpdate = () => {
-    offcanvas.setShow();
-    navigate(updateTo);
-  };
+  const openUpdate = () => navigate(updateTo);
 
   const clickable = detailTo ? true : canManage && openUpdateOnClick;
+  const tiled = Boolean(thumbSrc || glyph);
   // Диалоги и меню рендерятся в портал на <body>, но React-события всплывают по
   // дереву КОМПОНЕНТОВ, а не по DOM: без этой проверки клик внутри модала
   // считался бы кликом по строке и уводил бы на карточку.
@@ -104,7 +106,8 @@ const ListRow = ({
     <div
       className={cn(
         "group relative flex items-center gap-4 px-5 py-3 transition-colors",
-        "before:absolute before:top-0 before:right-5 before:left-21 before:h-px before:bg-border-soft first:before:hidden",
+        "before:absolute before:top-0 before:right-5 before:h-px before:bg-border-soft first:before:hidden",
+        tiled ? "before:left-21" : "before:left-5",
         "hover:bg-accent/60",
         clickable && "cursor-pointer",
         justCreated && "row-appear",
@@ -112,28 +115,32 @@ const ListRow = ({
       )}
       onClick={clickable ? handleRowClick : undefined}
     >
-      <span
-        aria-hidden
-        className={cn(
-          "grid size-12 flex-none place-items-center overflow-hidden rounded-xl text-lg font-semibold",
-          dimmed
-            ? "text-faint"
-            : "bg-accent text-muted-foreground inset-ring inset-ring-border",
-        )}
-      >
-        {thumbSrc ? (
-          <img
-            src={thumbSrc}
-            alt=""
-            loading="lazy"
-            // size-full перебивает preflight-правило `img { height: auto }`:
-            // утилиты лежат в слое выше base
-            className="size-full object-cover"
-          />
-        ) : (
-          monogram
-        )}
-      </span>
+      {tiled && (
+        <span
+          aria-hidden
+          className={cn(
+            "grid size-12 flex-none place-items-center overflow-hidden rounded-xl",
+            thumbSrc
+              ? "bg-accent inset-ring inset-ring-border"
+              : dimmed
+                ? "text-faint"
+                : "bg-accent text-muted-foreground",
+          )}
+        >
+          {thumbSrc ? (
+            <img
+              src={thumbSrc}
+              alt=""
+              loading="lazy"
+              // size-full перебивает preflight-правило `img { height: auto }`:
+              // утилиты лежат в слое выше base
+              className="size-full object-cover"
+            />
+          ) : (
+            glyph
+          )}
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <div
           className={cn(
@@ -154,9 +161,12 @@ const ListRow = ({
           {trailing && (
             <span onClick={(e) => e.stopPropagation()}>{trailing}</span>
           )}
+          {/* Гнездо «⋯» — как у строки заявки: постоянная ширина, воздух от
+              края и приглушённый, а не блёклый глиф — вплотную к рамке его
+              не замечали */}
           {canManage && (
             <div
-              className="flex flex-none items-center"
+              className="flex w-14 flex-none items-center justify-center pe-4"
               onClick={(e) => e.stopPropagation()}
             >
               <DropdownMenu>
@@ -166,7 +176,7 @@ const ListRow = ({
                     size="icon-sm"
                     aria-label="Действия"
                     title="Действия"
-                    className="text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
+                    className="text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
                   >
                     <RiMoreLine />
                   </Button>
@@ -174,7 +184,7 @@ const ListRow = ({
                 <DropdownMenuContent align="end">
                   {extraActions}
                   <DropdownMenuItem asChild>
-                    <Link to={updateTo} onClick={offcanvas.setShow}>
+                    <Link to={updateTo}>
                       <RiEdit2Line /> Изменить
                     </Link>
                   </DropdownMenuItem>

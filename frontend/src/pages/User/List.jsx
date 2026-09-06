@@ -181,7 +181,6 @@ const Users = () => {
       addLabel="Новый пользователь"
       /* Форма пользователя одной ширины и здесь, и на карточке: рейл секций
          + колонка полей (см. app/FormSheet) */
-      formSize="xl"
       belowList={
         grouped ? null : (
           <Pager

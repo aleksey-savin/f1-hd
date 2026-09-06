@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { Link, Outlet, useFetcher, useNavigate } from "react-router";
+import { Link, useFetcher } from "react-router";
 import {
   RiAddLine,
   RiCalendarScheduleLine,
@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import Crumbs from "@/components/app/Crumbs";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { Eyebrow, Panel, SectionEditLink } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
@@ -48,7 +48,6 @@ import {
 import { formatShortDate } from "@/util/format-date";
 
 import MarkdownViewer from "../../UI/MarkdownViewer";
-import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { useCan } from "@/store/authed-user";
@@ -59,8 +58,6 @@ const personName = (person) =>
     : null;
 
 const ViewRoutineTask = ({ task }) => {
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   const { showToast } = useToastStore();
   const { _id: userId } = useContext(AuthedUserContext);
   const can = useCan();
@@ -203,7 +200,7 @@ const ViewRoutineTask = ({ task }) => {
               <RiTicketLine /> Создать заявку сейчас
             </Button>
             <Button asChild>
-              <Link to="update" onClick={offcanvas.setShow}>
+              <Link to="update">
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
@@ -326,12 +323,12 @@ const ViewRoutineTask = ({ task }) => {
                   <SectionEditLink
                     to="update#checklist"
                     label="Чек-лист"
-                    onClick={offcanvas.setShow}
+                   
                   />
                 </span>
               ) : (
                 <Button asChild variant="outline" size="sm" className="ml-auto">
-                  <Link to="update#checklist" onClick={offcanvas.setShow}>
+                  <Link to="update#checklist">
                     <RiAddLine /> Добавить чек-лист
                   </Link>
                 </Button>
@@ -411,18 +408,7 @@ const ViewRoutineTask = ({ task }) => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <FormSheet
-        open={offcanvas.isActive}
-        size="lg"
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </div>
   );
 };

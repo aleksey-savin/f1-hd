@@ -29,7 +29,6 @@ import {
 } from "@/components/app/device-status";
 import { cn } from "@/lib/utils";
 import { useAuthedUser, useCan } from "@/store/authed-user";
-import useOffcanvasStore from "@/store/offcanvas";
 
 import QrDialog from "./QrDialog";
 
@@ -85,7 +84,6 @@ const InventoryTag = ({ number, onOpenQr }) => (
  */
 const DeviceRow = ({ device }) => {
   const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   const { _id: userId } = useAuthedUser();
   const can = useCan();
   const canManage = canManageEntity("clientDevice", can,
@@ -297,7 +295,7 @@ const DeviceRow = ({ device }) => {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem asChild>
-                  <Link to={`update/${device._id}`} onClick={offcanvas.setShow}>
+                  <Link to={`update/${device._id}`}>
                     <RiEdit2Line /> Изменить
                   </Link>
                 </DropdownMenuItem>

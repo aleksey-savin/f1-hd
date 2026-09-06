@@ -1,3 +1,4 @@
+import { load } from "@/store/form-data";
 // Loader и action справочника шаблонов чек-листов. Форма и создания, и правки
 // нуждается в одних и тех же справочниках привязок, поэтому loader один.
 
@@ -14,8 +15,9 @@ const fetchJson = async (path) => {
 };
 
 export async function checklistTemplateFormLoader({ params }) {
+  // Справочники привязок — из кэша (store/form-data); сам шаблон — свежий
   const [formData, template] = await Promise.all([
-    fetchJson("/checklist-templates/form-data"),
+    load("/api/checklist-templates/form-data"),
     params.id ? fetchJson(`/checklist-templates/${params.id}`) : null,
   ]);
 

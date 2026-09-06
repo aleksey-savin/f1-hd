@@ -1,10 +1,12 @@
 import ListRow from "@/components/app/ListRow";
-import { RiComputerLine } from "react-icons/ri";
 
+import { deviceIcon } from "@/components/app/device-status";
 import { photoUrl } from "@/components/app/PhotoGallery";
 import { plural } from "../../util/plural";
 
-// Строка каталога моделей: плитка — фото из каталога, иначе иконка устройства;
+// Строка каталога моделей: плитка — фото из каталога, иначе глиф типа
+// устройства (тот же, что в реестре: принтер, ноутбук, роутер читаются до
+// названия — одна иконка компьютера на все строки ничего не различала);
 // заголовок «Производитель + модель», мета «Тип · N конфигураций» (у
 // расходников — «Тип · совместимо: N моделей»). Клик по строке → карточка.
 const DeviceModelItem = ({ item }) => {
@@ -25,6 +27,7 @@ const DeviceModelItem = ({ item }) => {
     [vendorId?.name, name].filter(Boolean).join(" ") || "Без названия";
 
   const thumbSrc = photos?.[0] ? photoUrl(photos[0]) : undefined;
+  const Glyph = deviceIcon(typeName);
 
   const compatibleCount = compatibleWithModelIds?.length || 0;
   const configCount = configurationsCount || 0;
@@ -46,7 +49,7 @@ const DeviceModelItem = ({ item }) => {
       item={{ ...item, title: displayTitle }}
       itemTitle="deviceModel"
       thumbSrc={thumbSrc}
-      monogram={<RiComputerLine size={26} />}
+      glyph={<Glyph size={22} />}
       title={displayTitle}
       meta={meta || undefined}
       detailTo={`/inventory/device-models/${item._id}`}

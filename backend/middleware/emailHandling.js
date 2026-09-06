@@ -26,7 +26,10 @@ const {
 } = require("../services/callerIdentityService");
 const { detectTicketCategory } = require("../services/ticketCategoryService");
 const { logAiTicketEvent } = require("../services/aiTicketLog");
-const { stripQuotedReply } = require("../services/emailReplyStripper");
+const {
+  stripQuotedReply,
+  ticketNumFromSubject,
+} = require("../services/emailReplyStripper");
 const {
   buildImapConfig,
   describeMailError,
@@ -710,10 +713,11 @@ exports.handleNewEmails = async () => {
 
         const now = new Date();
 
-        const regex = /-([^\]-]+)\]/;
-        const match = regex.exec(ticketTitle);
+        // Разбор темы общий с отправщиком: он по нему решает, ставить ли в
+        // письмо строку «пишите ответ выше» (services/emailReplyStripper).
+        const ticketNum = ticketNumFromSubject(ticketTitle);
 
-        if (match !== null && !isNaN(+match[1])) {
+        if (ticketNum !== null) {
           // Ответ на существующую заявку: отправителя ищем БЕЗ фильтра
           // активности компании — атрибуция комментария в старой заявке
           // не «выдача» и не опознание компании
@@ -721,7 +725,7 @@ exports.handleNewEmails = async () => {
             email: emailAddress,
           });
 
-          const ticket = await Ticket.findOne({ num: +match[1] });
+          const ticket = await Ticket.findOne({ num: ticketNum });
 
           if (ticket) {
             // Отрезаем процитированную переписку — иначе комментарий тонет в
@@ -752,7 +756,7 @@ exports.handleNewEmails = async () => {
 
             // добавляем запись в лог заявки
             const logEntry = new TicketLog({
-              ticket: +match[1],
+              ticket: ticketNum,
               ticketId: ticket._id,
               user: {
                 firstName:
@@ -764,7 +768,7 @@ exports.handleNewEmails = async () => {
             });
             await logEntry.save();
 
-            logger.log("info", `Added comment to ticket ${match[1]}`, context);
+            logger.log("info", `Added comment to ticket ${ticketNum}`, context);
           } else {
             logger.log(
               "error",

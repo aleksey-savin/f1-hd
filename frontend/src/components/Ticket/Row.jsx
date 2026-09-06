@@ -18,7 +18,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import useOffcanvasStore from "@/store/offcanvas";
 
 import { formatDate } from "../../util/format-date";
 import {
@@ -31,9 +30,9 @@ import {
 } from "./ticket-state";
 
 // Строка списка заявок. Жёсткие колонки, все строки одной высоты, ровный правый
-// край: чекбокс · номер · тема и мета · ответственные · создана · состояние и
-// срок · «⋯». Мобайл — три яруса: номер, возраст и состояние / тема / компания,
-// инициатор и срок.
+// край: номер · тема и мета · ответственные · создана · состояние и срок · «⋯».
+// Мобайл — три яруса: номер, возраст и состояние / тема / компания, инициатор
+// и срок.
 //
 // Категории в мете нет намеренно: она растягивала колонку и глушила тему —
 // главное в строке. Категория осталась фильтром.
@@ -44,6 +43,22 @@ import {
 // Строка — настоящая ссылка, поэтому Cmd/Ctrl+клик и средний клик открывают её
 // в новой вкладке. Чекбокс и «⋯» лежат снаружи ссылки: интерактивное внутри
 // ссылки невалидно.
+//
+// Чекбокс выбора живёт без своего жёлоба: он лежит поверх штатного отступа
+// строки (20 px, как у любого списка), по наведению проявляется, а номер
+// сдвигается на 24 px, освобождая место, — тема и остальные колонки стоят.
+// Задержка 200 мс отсекает пролёт курсора: номера не дёргаются, пока человек
+// просто ведёт мышь вниз по списку. В режиме выбора сдвиг делается один раз для
+// всех строк и держится до выхода. На мобилке наведения нет: чекбокс появляется
+// только в режиме (долгий тап), и тогда сдвигается всё содержимое строки, как в
+// любом режиме правки. Резервный жёлоб под чекбокс отвергнут: он читался как
+// пустой отступ в начале каждой строки.
+//
+// Регламентная заявка помечена в мете строки — глиф и слово «регламент» перед
+// компанией: это вид записи, то есть вторичный факт, и живёт он рядом с
+// остальными вторичными фактами. Глиф у номера отвергнут: читался как случайный
+// символ, приклеенный к числу; глиф у темы — сдвигал заголовки регламентных
+// строк относительно остальных.
 
 // 1 ответственный — полное имя, несколько — «Фамилия И.» через запятую
 const responsibleNames = (responsibles) => {
@@ -59,6 +74,19 @@ const responsibleNames = (responsibles) => {
     .join(", ");
 };
 
+// Не флекс: иконка стоит в строчном потоке меты и садится на её базовую линию
+// (у флекса базовая линия взялась бы от svg — см. TicketStateText)
+const RoutineMark = ({ size }) => (
+  <span title="Создана регламентом">
+    <RiRepeat2Line
+      size={size}
+      aria-hidden
+      className="me-1 inline-block align-[-0.125em]"
+    />
+    регламент
+  </span>
+);
+
 const TicketRow = ({
   ticket,
   selectable,
@@ -70,7 +98,6 @@ const TicketRow = ({
   canEdit,
   canDelete,
 }) => {
-  const offcanvas = useOffcanvasStore();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const {
@@ -91,9 +118,20 @@ const TicketRow = ({
   const applicantName = applicant
     ? `${applicant.lastName || ""} ${applicant.firstName || ""}`.trim()
     : realSender || "";
-  const meta = [company?.alias, applicantName].filter(Boolean).join(" · ");
+  const metaText = [company?.alias, applicantName].filter(Boolean).join(" · ");
+  const meta = (iconSize) =>
+    routineTask ? (
+      <>
+        <RoutineMark size={iconSize} />
+        {metaText && ` · ${metaText}`}
+      </>
+    ) : (
+      metaText || "—"
+    );
 
   const hasMenu = canEdit || canDelete;
+  // Чекбокс виден без наведения: режим включён (или строка уже выбрана)
+  const revealed = selectable && (selectionActive || isSelected);
 
   const handleOpen = (event) => {
     // Клик, сгенерированный сработавшим долгим тапом, до открытия не доходит
@@ -119,73 +157,67 @@ const TicketRow = ({
       )}
       {...(pressProps || {})}
     >
-      {/* Жёлоб чекбокса: место занято всегда, иначе строка дёргается по
-          наведению, а правый край списка перестаёт быть ровным */}
       {selectable && (
-        <span className="flex w-9 flex-none justify-center ps-4 md:ps-5">
-          {/* Переключаем по onClick, а не onCheckedChange: нужен shiftKey для
-              диапазона, а два обработчика дали бы двойное переключение */}
-          <Checkbox
-            checked={isSelected}
-            aria-label={`Выбрать заявку № ${num}`}
-            onClick={(event) => onToggle(ticket._id, { range: event.shiftKey })}
-            className={cn(
-              "transition-opacity",
-              selectionActive || isSelected
-                ? "opacity-100"
-                : "opacity-0 group-hover:opacity-60 focus-visible:opacity-100",
-            )}
-          />
-        </span>
+        // Переключаем по onClick, а не onCheckedChange: нужен shiftKey для
+        // диапазона, а два обработчика дали бы двойное переключение.
+        // Пока чекбокс скрыт, на таче он не ловит тапы у края строки — вход в
+        // режим там долгий тап.
+        <Checkbox
+          checked={isSelected}
+          aria-label={`Выбрать заявку № ${num}`}
+          onClick={(event) => onToggle(ticket._id, { range: event.shiftKey })}
+          className={cn(
+            "absolute start-4 top-1/2 z-10 -translate-y-1/2 transition-opacity md:start-5",
+            revealed
+              ? "opacity-100"
+              : "opacity-0 group-hover:opacity-85 group-hover:delay-200 focus-visible:opacity-100 focus-visible:delay-0 pointer-coarse:pointer-events-none",
+          )}
+        />
       )}
 
       <Link
         to={`/tickets/${num}`}
         onClick={handleOpen}
         className={cn(
-          "flex min-w-0 flex-1 flex-col gap-0.5 py-3 pe-2 text-foreground no-underline outline-none hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50 md:flex-row md:items-center md:gap-4 md:py-2.5",
-          selectable ? "ps-2" : "ps-4 md:ps-5",
+          "flex min-w-0 flex-1 flex-col gap-0.5 py-3 pe-2 text-foreground no-underline outline-none transition-[padding] hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50 md:flex-row md:items-center md:gap-4 md:py-2.5 md:ps-5",
+          // мобайл в режиме выбора: содержимое уступает место чекбоксу
+          revealed ? "ps-10" : "ps-4",
         )}
       >
         {/* мобайл: номер, возраст и состояние */}
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums md:hidden">
           № {num}
-          {routineTask && (
-            <RiRepeat2Line
-              size={12}
-              aria-label="Создана регламентом"
-              className="text-faint"
-            />
-          )}
           <span className="text-faint">· {createdShort(createdAt)}</span>
           <TicketStateText tone={state.tone} className="ms-auto text-xs">
             {state.label}
           </TicketStateText>
         </span>
 
-        {/* десктоп: номер */}
-        <span className="hidden w-16 flex-none items-center gap-1 font-medium text-muted-foreground tabular-nums md:flex">
-          {num}
-          {routineTask && (
-            <RiRepeat2Line
-              size={13}
-              aria-label="Создана регламентом"
-              title="Создана регламентом"
-              className="text-faint"
-            />
+        {/* десктоп: номер; уступает место чекбоксу сдвигом в своей колонке */}
+        <span
+          className={cn(
+            "hidden w-[4.5rem] flex-none font-medium text-muted-foreground tabular-nums transition-transform md:block",
+            selectable &&
+              (revealed
+                ? "translate-x-6"
+                : "group-hover:translate-x-6 group-hover:delay-200 group-has-[[data-slot=checkbox]:focus-visible]:translate-x-6"),
           )}
+        >
+          {num}
         </span>
 
         {/* тема и мета — всегда двумя строками */}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-base leading-tight font-medium">{title}</span>
+          <span className="block truncate text-base leading-tight font-medium">
+            {title}
+          </span>
           <span className="hidden truncate text-sm text-muted-foreground md:block">
-            {meta || "—"}
+            {meta(14)}
           </span>
         </span>
 
-        {/* десктоп: ответственные */}
-        <span className="hidden w-36 flex-none truncate text-sm text-muted-foreground lg:block">
+        {/* десктоп: ответственные — два-три «Фамилия И.» без усечения */}
+        <span className="hidden w-56 flex-none truncate text-sm text-muted-foreground lg:block">
           {responsibleNames(responsibles) || "—"}
         </span>
 
@@ -212,7 +244,7 @@ const TicketRow = ({
 
         {/* мобайл: компания, инициатор и срок */}
         <span className="flex items-center gap-2 text-xs text-muted-foreground md:hidden">
-          <span className="min-w-0 truncate">{meta || "—"}</span>
+          <span className="min-w-0 truncate">{meta(12)}</span>
           <span
             className={cn(
               "ms-auto flex-none tabular-nums",
@@ -225,8 +257,10 @@ const TicketRow = ({
       </Link>
 
       {/* «⋯» — идиома строки списка приложения; состав тот же, что был в
-          легаси-меню «Действия» */}
-      <span className="flex w-9 flex-none justify-center pe-2 md:pe-3">
+          легаси-меню «Действия». Гнездо с воздухом от края и приглушённым, а не
+          блёклым глифом: в узком гнезде «⋯» не замечали. В режиме выбора
+          гаснет — строка там переключает выбор, а не открывает меню */}
+      <span className="flex w-14 flex-none justify-center pe-3 md:pe-4">
         {hasMenu && (
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
@@ -235,7 +269,12 @@ const TicketRow = ({
                 size="icon-sm"
                 aria-label="Действия"
                 title="Действия"
-                className="text-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
+                className={cn(
+                  "text-muted-foreground",
+                  selectionActive
+                    ? "pointer-events-none opacity-0"
+                    : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100",
+                )}
               >
                 <RiMoreLine />
               </Button>
@@ -243,10 +282,7 @@ const TicketRow = ({
             <DropdownMenuContent align="end">
               {canEdit && (
                 <DropdownMenuItem asChild>
-                  <Link
-                    to={`/tickets/update/${num}`}
-                    onClick={offcanvas.setShow}
-                  >
+                  <Link to={`/tickets/update/${num}`}>
                     <RiEdit2Line /> Изменить
                   </Link>
                 </DropdownMenuItem>

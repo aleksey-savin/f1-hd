@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +9,7 @@ import AlertMessage from "@/components/app/AlertMessage";
 import PermissionModules from "@/components/User/PermissionModules";
 import { api, ApiError } from "@/lib/api";
 import { usePermissionLabels, useCan } from "@/store/authed-user";
-import useOffcanvasStore from "@/store/offcanvas";
+import { useFormSheet } from "@/components/app/FormOutlet";
 import useToastStore from "@/store/toast-store";
 import useRolesFilterStore from "@/store/lists/roles";
 
@@ -53,8 +52,6 @@ const Bearers = ({ usage }) => {
 };
 
 const RoleForm = ({ role }) => {
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   const filterStore = useRolesFilterStore();
   const labels = usePermissionLabels();
   const can = useCan();
@@ -82,10 +79,11 @@ const RoleForm = ({ role }) => {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const close = () => {
-    offcanvas.setHide();
-    navigate("/roles");
-  };
+  // «Отмена» — назад, откуда форму открыли; успех — к списку ролей без записи
+  // формы в истории (как у app/FormWrapper)
+  const { close: closeSheet } = useFormSheet();
+  const cancel = () => closeSheet();
+  const finish = () => closeSheet("..", { replace: true });
 
   const toggle = (id) =>
     setActions((current) => {
@@ -122,7 +120,7 @@ const RoleForm = ({ role }) => {
       useToastStore
         .getState()
         .showToast("success", role ? "Роль сохранена" : "Роль создана");
-      close();
+      finish();
     } catch (failure) {
       setError(
         failure instanceof ApiError
@@ -228,7 +226,7 @@ const RoleForm = ({ role }) => {
       )}
 
       <div className="flex justify-end gap-2 border-t border-border pt-4">
-        <Button variant="ghost" type="button" onClick={close}>
+        <Button variant="ghost" type="button" onClick={cancel}>
           Отмена
         </Button>
         <Button onClick={submit} disabled={busy || !title.trim()}>

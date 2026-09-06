@@ -11,8 +11,9 @@ import { Eyebrow } from "@/components/app/Panel";
  *
  * Герой клиентской главной. Шаблоны в системе были, а нажать на них было
  * негде: из 13 271 заявки по шаблону создано 13. Маршрут и предзаполнение
- * готовы давно (`/tickets/add?template=<id>` читает `pages/Ticket/Add.jsx`), не
- * хватало только места, где заготовку видно.
+ * готовы давно (`?template=<id>` читает `pages/Ticket/Add.jsx`), не хватало
+ * только места, где заготовку видно. Форма — вложенный маршрут главной
+ * (`/dashboard/tickets/add`): за шторкой остаётся главная, а не список заявок.
  *
  * Поиск появляется, когда карточек становится больше, чем удаётся окинуть
  * взглядом: до этого он лишний ряд управляющих элементов над двумя плитками.
@@ -97,7 +98,7 @@ const TemplateTiles = ({ heading = null }) => {
         {visible.map((template) => (
           <Link
             key={template._id}
-            to={`/tickets/add?template=${template._id}`}
+            to={`/dashboard/tickets/add?template=${template._id}`}
             className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 text-foreground no-underline transition-colors hover:border-primary hover:bg-accent hover:text-foreground"
           >
             <span className="flex size-9 items-center justify-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border-soft">
@@ -117,7 +118,7 @@ const TemplateTiles = ({ heading = null }) => {
         {/* Свободное обращение — всегда последним и всегда на месте: заготовка
             подходит не каждому вопросу, и тупика тут быть не должно. */}
         <Link
-          to="/tickets/add"
+          to="/dashboard/tickets/add"
           className="flex flex-col gap-2 rounded-xl border border-dashed border-border bg-card p-4 text-foreground no-underline transition-colors hover:border-primary hover:bg-accent hover:text-foreground"
         >
           <span className="flex size-9 items-center justify-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border-soft">

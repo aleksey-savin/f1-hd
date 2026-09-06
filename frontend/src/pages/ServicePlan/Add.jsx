@@ -1,3 +1,4 @@
+import { load } from "@/store/form-data";
 import ServicePlanForm from "../../components/ServicePlan/Form";
 
 const AddServicePlanPage = () => {
@@ -9,16 +10,9 @@ export default AddServicePlanPage;
 export async function loader() {
   document.title = "Новая услуга";
 
-  const ticketCategoriesResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/ticket-categories`,
-      );
-
-  if (!ticketCategoriesResponse.ok) {
-    throw ticketCategoriesResponse;
-  }
-
+  // Категории — из кэша (store/form-data)
   return {
-    ticketCategories: await ticketCategoriesResponse.json(),
+    ticketCategories: await load("/api/ticket-categories"),
   };
 }
 

@@ -1,7 +1,6 @@
 import { RiBuildingLine, RiPriceTag3Line } from "react-icons/ri";
 
 import ListRow from "@/components/app/ListRow";
-import { monogramFor } from "@/components/app/monogram";
 
 import { plural } from "../../util/plural";
 
@@ -30,7 +29,6 @@ const ChecklistTemplateItem = ({ item }) => {
     <ListRow
       item={item}
       itemTitle="checklistTemplate"
-      monogram={monogramFor(title)}
       title={title}
       dimmed={!isActive || !bound}
       meta={

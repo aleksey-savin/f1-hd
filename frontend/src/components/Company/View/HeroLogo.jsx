@@ -16,7 +16,7 @@ import useToastStore from "@/store/toast-store";
 import { getLocalStorageData } from "../../../util/auth";
 import CompanyLogo from "../CompanyLogo";
 
-// Логотип hero карточки компании: плитка (монограмма без файла); у менеджеров —
+// Логотип hero карточки компании: плитка (глиф раздела без файла); у менеджеров —
 // загрузка с квадратным кадрированием (карточка — единственное место смены
 // логотипа, в форме правки его нет). Механика кропа — как у User/CardAvatar,
 // но кроп квадратный (язык записей — плитка, круг остаётся людям); endpoint —
@@ -162,7 +162,7 @@ const HeroLogo = ({ company, canEdit }) => {
         company={company}
         src={preview}
         sizeClass="size-14"
-        textClass="text-2xl"
+        glyphSize={26}
         className="rounded-2xl"
       />
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Outlet, useActionData, useNavigate } from "react-router";
+import { Link, useActionData } from "react-router";
 
 import {
   RiAddFill,
@@ -23,7 +23,7 @@ import Crumbs from "@/components/app/Crumbs";
 import { Panel } from "@/components/app/Panel";
 import ChipSelect from "@/components/app/ChipSelect";
 import SearchBar from "@/components/app/SearchBar";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +31,6 @@ import { DEVICE_STATUS_LABELS as STATUS_LABELS } from "@/components/app/device-s
 import { TYPE_LABEL, TYPE_ICON, CHILD_CAPABLE } from "./type-meta";
 import { formatShortDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
-import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { useCan } from "@/store/authed-user";
 
@@ -148,8 +147,6 @@ const ViewLocation = ({
   childLocations = [],
   devices = [],
 }) => {
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   const { showToast } = useToastStore();
   const actionData = useActionData();
   const can = useCan();
@@ -342,7 +339,7 @@ const ViewLocation = ({
               </DropdownMenuContent>
             </DropdownMenu>
             <Button asChild>
-              <Link to="update" onClick={offcanvas.setShow}>
+              <Link to="update">
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
@@ -408,7 +405,7 @@ const ViewLocation = ({
         </div>
         {canManage && canHaveChildren && (
           <Button asChild size="sm">
-            <Link to={addChildTo} onClick={offcanvas.setShow}>
+            <Link to={addChildTo}>
               <RiAddFill /> Новое расположение
             </Link>
           </Button>
@@ -495,17 +492,7 @@ const ViewLocation = ({
       />
 
       {/* Формы (правка / вложенное расположение) — нижняя шторка на карточке */}
-      <FormSheet
-        open={offcanvas.isActive}
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </div>
   );
 };

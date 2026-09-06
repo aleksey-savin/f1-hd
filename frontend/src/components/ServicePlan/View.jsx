@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Outlet, useNavigate } from "react-router";
+import { Link } from "react-router";
 import {
   RiDeleteBinLine,
   RiEdit2Line,
@@ -16,12 +16,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Crumbs from "@/components/app/Crumbs";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
 
-import useOffcanvasStore from "../../store/offcanvas";
 import { formatShortDate } from "../../util/format-date";
 import { formatPrice } from "../../util/format-string";
 import { plural } from "../../util/plural";
@@ -48,8 +47,6 @@ const personName = (person) =>
     : null;
 
 const ViewServicePlan = ({ servicePlan }) => {
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   const can = useCan();
   const canManage = can({ servicePlan: ["manage"] });
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -191,7 +188,7 @@ const ViewServicePlan = ({ servicePlan }) => {
               </DropdownMenuContent>
             </DropdownMenu>
             <Button asChild>
-              <Link to="update" onClick={offcanvas.setShow}>
+              <Link to="update">
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
@@ -323,18 +320,7 @@ const ViewServicePlan = ({ servicePlan }) => {
         onOpenChange={setDeleteOpen}
       />
 
-      <FormSheet
-        open={offcanvas.isActive}
-        size="lg"
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </div>
   );
 };

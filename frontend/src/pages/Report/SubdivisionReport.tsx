@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 import {
   AttributionNote,
-  CardMonogram,
+  CardTile,
   CardSkeleton,
   CategorySection,
   MonthsSection,
@@ -239,7 +239,7 @@ const SubdivisionReport = () => {
           </span>
         )
       }
-      icon={data && <CardMonogram name={data.subdivision.name} />}
+      icon={data && <CardTile company={data.company} />}
       breadcrumb={
         <Crumbs
           section={data?.scope.defaultView ? false : undefined}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Outlet, useActionData, useNavigate } from "react-router";
+import { Link, useActionData } from "react-router";
 import {
   RiArrowRightSLine,
   RiDeleteBinLine,
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import { DeleteDialog } from "@/components/app/DeleteItem";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import {
   Eyebrow,
   Panel,
@@ -31,10 +31,8 @@ import {
 } from "@/components/app/Panel";
 import PropRow from "@/components/app/PropRow";
 import { DeviceStatusText } from "@/components/app/device-status";
-import { monogramFor } from "@/components/app/monogram";
 import { cn } from "@/lib/utils";
 
-import useOffcanvasStore from "../../store/offcanvas";
 import useToastStore from "../../store/toast-store";
 import { formatCalendarDate } from "../../util/format-date";
 import { plural } from "../../util/plural";
@@ -162,8 +160,6 @@ const Delivery = ({ delivery, defaultOpen, from }) => {
  * «что это за устройство».
  */
 const ViewSupplier = ({ supplier = {} }) => {
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   const can = useCan();
   const { showToast } = useToastStore();
   const actionData = useActionData();
@@ -222,11 +218,13 @@ const ViewSupplier = ({ supplier = {} }) => {
       <Crumbs />
 
       <div className="flex flex-wrap items-start gap-4">
+        {/* Плитка hero — глиф раздела, не монограмма: та же плитка, что в
+            строке списка, одна на страницу */}
         <span
           aria-hidden
-          className="grid size-14 flex-none place-items-center rounded-2xl bg-accent text-xl font-semibold text-muted-foreground inset-ring inset-ring-border"
+          className="grid size-14 flex-none place-items-center rounded-2xl bg-accent text-muted-foreground"
         >
-          {monogramFor(supplier.name || "")}
+          <RiShoppingCart2Line size={26} />
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight">
@@ -291,7 +289,7 @@ const ViewSupplier = ({ supplier = {} }) => {
               </DropdownMenuContent>
             </DropdownMenu>
             <Button asChild>
-              <Link to="update" onClick={offcanvas.setShow}>
+              <Link to="update">
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
@@ -306,7 +304,7 @@ const ViewSupplier = ({ supplier = {} }) => {
               <SectionEditLink
                 to="update"
                 label="Контакты"
-                onClick={offcanvas.setShow}
+               
               />
             )
           }
@@ -358,17 +356,7 @@ const ViewSupplier = ({ supplier = {} }) => {
         onOpenChange={setDeleteOpen}
       />
 
-      <FormSheet
-        open={offcanvas.isActive}
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </div>
   );
 };

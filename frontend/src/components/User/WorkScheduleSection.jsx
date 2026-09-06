@@ -15,7 +15,6 @@ import ScheduleView from "../app/ScheduleView";
 import Spinner from "../app/Spinner";
 import { Button } from "../ui/button";
 import { useCan } from "../../store/authed-user";
-import useOffcanvasStore from "../../store/offcanvas";
 import { monthRange } from "../../util/period";
 import { getAbsenceType } from "../../util/absence-types";
 import { WORK_TIME_MODES } from "./permissions-catalog";
@@ -80,7 +79,6 @@ const monthLabel = (from) => {
  * секция перечитывает график.
  */
 const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
-  const offcanvas = useOffcanvasStore();
   const can = useCan();
   const canManage = can({ schedule: ["manage"] });
 
@@ -143,14 +141,10 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
              что создаёт; когда он есть — карандаш: это второй вход в ту же
              форму, а не отдельная операция. */
           !canManage ? undefined : data?.hasPersonalSchedule ? (
-            <SectionEditLink
-              to="update#schedule"
-              label="График работы"
-              onClick={offcanvas.setShow}
-            />
+            <SectionEditLink to="update#schedule" label="График работы" />
           ) : (
             <Button asChild variant="outline" size="sm">
-              <Link to="update#schedule" onClick={offcanvas.setShow}>
+              <Link to="update#schedule">
                 <RiAddLine /> Задать график
               </Link>
             </Button>

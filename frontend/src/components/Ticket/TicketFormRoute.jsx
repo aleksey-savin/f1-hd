@@ -8,7 +8,6 @@ import FormWrapper from "@/components/app/FormWrapper";
 import { FormHeader, FormSections } from "@/components/app/FormLayout";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
-import useOffcanvasStore from "../../store/offcanvas";
 
 import { ticketFormSections } from "./TicketFormFields";
 import { useTicketForm } from "./use-ticket-form";
@@ -36,15 +35,8 @@ const TicketFormRoute = ({ mode }) => {
   } = useLoaderData() ?? {};
   const ticket = ticketData?.ticket ?? null;
 
-  const offcanvas = useOffcanvasStore();
   const { isEndUser } = useContext(AuthedUserContext);
   const can = useCan();
-
-  // Прямая ссылка на форму открывает шторку сама: без этого /tickets/42/update
-  // рисовал пустой экран — шторка ждала setShow, который делала только ссылка
-  useEffect(() => {
-    offcanvas.setShow();
-  }, []);
 
   const form = useTicketForm({
     mode,

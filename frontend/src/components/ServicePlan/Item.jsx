@@ -1,5 +1,3 @@
-import { RiFileList2Line } from "react-icons/ri";
-
 import ListRow from "@/components/app/ListRow";
 
 import { tariffTypeName } from "./tariff-types";
@@ -19,7 +17,6 @@ const ServicePlanItem = ({ item }) => {
       itemTitle="servicePlan"
       // Клик по услуге открывает карточку (View), а не шторку правки
       detailTo={item._id}
-      monogram={<RiFileList2Line />}
       title={title}
       meta={metaParts.join(" · ")}
     />

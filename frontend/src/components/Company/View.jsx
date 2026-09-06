@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Link,
-  Outlet,
   useActionData,
-  useLocation,
-  useNavigate,
 } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
@@ -31,14 +28,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Crumbs from "@/components/app/Crumbs";
 import { DeleteDialog } from "@/components/app/DeleteItem";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import AnchorRail from "@/components/app/AnchorRail";
 import PropRow from "@/components/app/PropRow";
 import TechSection from "@/components/app/TechSection";
 import { useCan } from "@/store/authed-user";
 import useInitialPrefs from "@/store/prefs";
-import useOffcanvasStore from "@/store/offcanvas";
 import useToastStore from "@/store/toast-store";
 
 import { plural } from "../../util/plural";
@@ -61,7 +57,7 @@ import ApiKeysSection from "./View/ApiKeysSection";
 
 // Карточка компании: hero (логотип · название · живой статус графика ·
 // счётчики охвата) → секции одним скроллом с липким рейлом-якорем (десктоп) →
-// подвал «Обновлено …». Правка — вложенный маршрут update в FormSheet,
+// подвал «Обновлено …». Правка — вложенный маршрут update в шторке (app/FormOutlet),
 // «Лог активности» — в «⋯»-меню.
 const DELETE_MESSAGE =
   "Вы уверены? Все пользователи компании также будут удалены. Это действие нельзя отменить.";
@@ -93,9 +89,6 @@ const ViewCompany = ({
 }) => {
   const can = useCan();
   const { modules, taxi } = useInitialPrefs();
-  const offcanvas = useOffcanvasStore();
-  const navigate = useNavigate();
-  const location = useLocation();
   const actionData = useActionData();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -108,10 +101,6 @@ const ViewCompany = ({
       useToastStore.getState().showToast("danger", actionData.message);
     }
   }, [actionData]);
-
-  // Оба вложенных маршрута живут в FormSheet: мастер «Новой услуги» — wide
-  // (сводка справа), правка компании — обычная колонка
-  const isPlanWizard = location.pathname.endsWith("/service-plans/add");
 
   // Карточку всегда открываем от начала: Root сбрасывает только мобильный
   // контейнер, а window-скролл при навигации сохраняется (см. карточку услуги).
@@ -217,7 +206,7 @@ const ViewCompany = ({
           /* На мобильном блок действий занимает свою строку во всю ширину */
           <div className="flex w-full items-center gap-2 sm:w-auto sm:flex-none">
             <Button asChild className="flex-1 sm:flex-none">
-              <Link to="update" onClick={offcanvas.setShow}>
+              <Link to="update">
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
@@ -420,18 +409,7 @@ const ViewCompany = ({
       />
 
       {/* Правка компании и мастер «Новой услуги» — вложенные маршруты в шторке */}
-      <FormSheet
-        open={offcanvas.isActive}
-        size={isPlanWizard ? "lg" : "md"}
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
 
       {canManage && (
         <CompanyLogsOffcanvas

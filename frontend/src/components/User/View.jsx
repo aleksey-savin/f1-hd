@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { Link, Outlet, useNavigate, useRevalidator } from "react-router";
+import { Link, useRevalidator } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
   RiBuilding2Line,
@@ -38,7 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
-import FormSheet from "@/components/app/FormSheet";
+import FormOutlet from "@/components/app/FormOutlet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { Eyebrow, Panel, SubLabel } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
@@ -50,7 +50,6 @@ import ClientTime from "@/components/app/ClientTime";
 import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
-import useOffcanvasStore from "../../store/offcanvas";
 import useInitialPrefs from "../../store/prefs";
 import { getPresence } from "./presence";
 import PresenceText from "./PresenceText";
@@ -118,8 +117,6 @@ const Cap = ({ on, children }) => (
 );
 
 const ViewUser = ({ user, tickets }) => {
-  const navigate = useNavigate();
-  const offcanvas = useOffcanvasStore();
   // Сброс фактора меняет карточку — перечитываем загрузчик, иначе строка
   // осталась бы «Включён» до перезагрузки страницы.
   const revalidator = useRevalidator();
@@ -381,7 +378,7 @@ const ViewUser = ({ user, tickets }) => {
              блок действий занимает свою строку во всю ширину, с sm — как был */
           <div className="flex w-full items-center gap-2 sm:w-auto sm:flex-none">
             <Button asChild className="flex-1 sm:flex-none">
-              <Link to="update" onClick={offcanvas.setShow}>
+              <Link to="update">
                 <RiEdit2Line /> Изменить
               </Link>
             </Button>
@@ -929,18 +926,7 @@ const ViewUser = ({ user, tickets }) => {
         />
       )}
 
-      <FormSheet
-        open={offcanvas.isActive}
-        size="xl"
-        onOpenChange={(open) => {
-          if (!open) {
-            navigate(-1);
-            offcanvas.setClose();
-          }
-        }}
-      >
-        <Outlet />
-      </FormSheet>
+      <FormOutlet />
     </div>
   );
 };
