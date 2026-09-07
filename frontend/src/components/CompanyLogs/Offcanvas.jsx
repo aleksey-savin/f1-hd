@@ -310,7 +310,7 @@ const CompanyLogsOffcanvas = ({
                 <Input
                   type="search"
                   autoFocus
-                  placeholder="Найти пользователя или компьютер…"
+                  placeholder="Поиск…"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   className="ps-9"
@@ -360,7 +360,7 @@ const CompanyLogsOffcanvas = ({
                           <span
                             aria-hidden
                             className={cn(
-                              "grid size-9 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border",
+                              "grid size-9 flex-none place-items-center rounded-lg bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border",
                               !displayName && "font-mono text-xs",
                             )}
                           >

@@ -50,10 +50,15 @@ const GEO_TIMEOUT_MS = 4000;
  * ответа геолокации браузер уже не считает открытие жестом пользователя и
  * блокирует его как попап. Отказ в доступе, таймаут и отсутствие API не
  * блокируют ничего — едем с одной конечной точкой.
+ *
+ * Без `noopener`/`noreferrer` в features: с ними window.open по спецификации
+ * возвращает null, хэндла вкладки нет — заказ уезжал в текущую вкладку, а
+ * пустая новая оставалась. Обратную связь с приложением рвём вручную.
  */
 export function openTaxi(action) {
   if (!action) return;
-  const tab = window.open("", "_blank", "noopener,noreferrer");
+  const tab = window.open("", "_blank");
+  if (tab) tab.opener = null;
   const go = (href) => {
     if (tab) tab.location = href;
     else window.location.href = href;

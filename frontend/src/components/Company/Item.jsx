@@ -5,9 +5,7 @@ import {
   RiArrowRightSLine,
   RiDeleteBinLine,
   RiEdit2Line,
-  RiMapPin2Line,
   RiMoreLine,
-  RiTaxiLine,
 } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
@@ -20,30 +18,34 @@ import {
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import { canManageEntity } from "@/components/app/entity-permissions";
 import { useAuthedUser, useCan } from "@/store/authed-user";
-import useInitialPrefs from "@/store/prefs";
 import { cn } from "@/lib/utils";
 
 import { plural } from "../../util/plural";
-import { getTaxiAction } from "./company-links";
 import CompanyLogo from "./CompanyLogo";
+import TaxiButton from "./TaxiButton";
 import WorkStatusText from "./WorkStatusText";
 import CompanyContactSheet from "./ContactSheet";
 
 // Строка справочника клиентов (по согласованному макету): плитка-логотип ·
-// название + юрлицо (усекается) со счётчиками (не усекаются) · адресная
-// колонка в одну строку (клик — карта, полный адрес в title) · живой график
+// название + юрлицо (усекается) со счётчиками (не усекаются) · живой график
 // работы (цвет — только у точки и «открыто») · гнездо действий постоянной
-// ширины: такси при выбранном операторе (Preferences.taxi.operator),
-// «⋯» по правам. Кнопки звонка нет — телефоны
-// живут в шторке-справке и на карточке. Клик по строке — карточка компании;
-// на мобайле тап открывает шторку-справку (адрес, такси, телефоны).
+// ширины: такси при выбранном операторе (Preferences.taxi.operator; адресов
+// несколько — меню адресов под кнопкой, см. Company/TaxiButton), «⋯» по
+// правам — оба только по наведению, как любое действие строки (на тач-экране
+// видны всегда). Адреса и телефоны в строке не показываются — они живут в
+// шторке-справке и на карточке, а у такси — в меню. Клик по строке —
+// карточка компании; на мобайле тап открывает шторку-справку.
 const FRESH_MS = 8000;
 
 const DELETE_MESSAGE =
   "Вы уверены? Все пользователи компании также будут удалены. Это действие нельзя отменить.";
 
+// Действие строки: в покое невидимо, проявляется по наведению на строку и при
+// клавиатурном фокусе; на тач-экране видно всегда (правило гайда, как «⋯»).
+// transition-all, как у Button: с transition-colors прозрачность прыгала
+// мгновенно, а «⋯» рядом плавно гас — два действия в разнобой
 const contactClass =
-  "inline-grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-faint no-underline transition-colors group-hover:text-muted-foreground hover:bg-accent";
+  "inline-grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-muted-foreground no-underline opacity-0 transition-all group-hover:opacity-100 hover:bg-accent focus-visible:opacity-100 pointer-coarse:opacity-100";
 
 // Отключённая компания в списке — тихим форматом (как «график не указан»):
 // приглушённая строка, полая точка, слово вместо живого графика. Красный
@@ -63,8 +65,6 @@ const CompanyItem = ({ item }) => {
     _id,
     alias,
     fullTitle,
-    address,
-    linkToMap,
     usersCount = 0,
     servicePlansCount = 0,
     workSchedule,
@@ -79,13 +79,10 @@ const CompanyItem = ({ item }) => {
   const [contactOpen, setContactOpen] = useState(false);
   const { _id: authedId } = useAuthedUser();
   const can = useCan();
-  const { taxi } = useInitialPrefs();
   const canManage = canManageEntity("company", can, item, authedId);
 
   const detailTo = `/companies/${_id}`;
   const updateTo = `update/${_id}`;
-
-  const taxiAction = getTaxiAction(item, taxi?.operator);
 
   const inactive = isActive === false;
 
@@ -105,45 +102,6 @@ const CompanyItem = ({ item }) => {
     .join(" · ");
 
   const stop = (event) => event.stopPropagation();
-
-  // Адресная колонка: одна строка с усечением — все строки одной высоты,
-  // колонка читается сверху вниз, как телефонная книга. Полный адрес — в
-  // title и на карточке; клик — карта (если есть ссылка); адреса нет —
-  // приглушённая заглушка.
-  const addressColumn = address ? (
-    linkToMap ? (
-      <a
-        href={linkToMap}
-        target="_blank"
-        rel="noreferrer"
-        onClick={stop}
-        title={address}
-        className="group/addr hidden w-72 flex-none items-center gap-2 text-sm text-muted-foreground no-underline transition-colors hover:text-foreground md:flex"
-      >
-        <RiMapPin2Line
-          size={15}
-          aria-hidden
-          className="flex-none text-faint transition-colors group-hover/addr:text-accent-text"
-        />
-        <span className="min-w-0 flex-1 truncate group-hover/addr:underline">
-          {address}
-        </span>
-      </a>
-    ) : (
-      <span
-        title={address}
-        className="hidden w-72 flex-none items-center gap-2 text-sm text-muted-foreground md:flex"
-      >
-        <RiMapPin2Line size={15} aria-hidden className="flex-none text-faint" />
-        <span className="min-w-0 flex-1 truncate">{address}</span>
-      </span>
-    )
-  ) : (
-    <span className="hidden w-72 flex-none items-center gap-2 text-sm text-faint md:flex">
-      <RiMapPin2Line size={15} aria-hidden className="flex-none opacity-45" />
-      Адрес не указан
-    </span>
-  );
 
   return (
     <>
@@ -176,9 +134,7 @@ const CompanyItem = ({ item }) => {
               </span>
             )}
           </div>
-          <div className="truncate text-sm text-muted-foreground md:hidden">
-            {address || <span className="text-faint">Адрес не указан</span>}
-          </div>
+
           <div className="mt-0.5 md:hidden">
             {inactive ? (
               <InactiveStatus />
@@ -187,8 +143,6 @@ const CompanyItem = ({ item }) => {
             )}
           </div>
         </div>
-
-        {addressColumn}
 
         {/* десктоп: живой график работы (у отключённой — тихий статус) */}
         <div className="hidden w-52 flex-none items-center justify-end lg:flex">
@@ -200,24 +154,22 @@ const CompanyItem = ({ item }) => {
         </div>
 
         {/* десктоп: гнездо действий постоянной ширины — ровный правый край
-            у всех строк; такси при выбранном операторе, «⋯» по наведению
-            и правам */}
+            у всех строк; такси при выбранном операторе (один адрес — сразу
+            маршрут, несколько — меню адресов), «⋯» по правам, оба только по
+            наведению */}
         <div
           className="hidden w-17 flex-none items-center justify-end gap-0.5 md:flex"
           onClick={stop}
         >
-          {taxiAction && (
-            <a
-              className={cn(contactClass, "hover:text-warning")}
-              href={taxiAction.href}
-              target="_blank"
-              rel="noreferrer"
-              title={taxiAction.title}
-              aria-label={`${taxiAction.orderText} — ${alias} · ${taxiAction.label}`}
-            >
-              <RiTaxiLine size={18} />
-            </a>
-          )}
+          <TaxiButton
+            company={item}
+            className={cn(
+              contactClass,
+              "hover:text-warning data-[state=open]:bg-accent data-[state=open]:text-warning",
+            )}
+            iconSize={18}
+            ariaLabel={`Такси — ${alias}`}
+          />
           {canManage && (
             <>
               <DropdownMenu>
@@ -227,7 +179,7 @@ const CompanyItem = ({ item }) => {
                     size="icon-sm"
                     aria-label="Действия"
                     title="Действия"
-                    className="text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                    className="text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
                   >
                     <RiMoreLine />
                   </Button>

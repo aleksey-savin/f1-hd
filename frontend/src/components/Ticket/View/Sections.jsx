@@ -8,11 +8,12 @@ import {
   RiComputerLine,
   RiDeleteBinLine,
   RiEdit2Line,
+  RiFileCopyLine,
   RiHistoryLine,
+  RiMapPin2Line,
   RiMoreLine,
   RiPhoneLine,
   RiPriceTag3Line,
-  RiTaxiLine,
   RiTeamLine,
   RiToolsLine,
   RiUserLine,
@@ -21,6 +22,7 @@ import {
 import EntityLink from "@/components/app/EntityLink";
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import ClientTime from "@/components/app/ClientTime";
+import { copyText } from "@/components/app/PropRow";
 import {
   Eyebrow,
   Panel,
@@ -60,9 +62,9 @@ import TicketTerms, {
 } from "./TicketTerms";
 import useInitialPrefsStore from "../../../store/prefs";
 import { formatDate } from "../../../util/format-date";
-import { openTaxi } from "../../../util/taxi-operators";
 import { msToHMS } from "../../../util/time-helpers";
-import { getTaxiAction } from "../../Company/company-links";
+import { getCompanyAddresses } from "../../Company/company-links";
+import TaxiButton, { cardTaxiClass } from "../../Company/TaxiButton";
 import WorkStatusText from "../../Company/WorkStatusText";
 import { formatMoney } from "../../Report/work-format";
 import { cn } from "@/lib/utils";
@@ -279,6 +281,94 @@ const Pill = ({ className, children }) => (
   </span>
 );
 
+/**
+ * Куда ехать к инициатору: адрес его подразделения (ближайшего с адресом),
+ * иначе — компании; каскад и список адресов компании считает бэкенд
+ * (`services/clientAddress` → `ticket.clientAddress`, `company.addresses`).
+ * Такси стоит здесь, у адреса, а не у компании: у многоадресной компании оно
+ * везёт именно сюда, остальные адреса — в меню кнопки (`Company/TaxiButton`).
+ * Источник адреса подписан, только когда есть из чего выбирать.
+ */
+const ClientAddressRow = ({ ticket, company }) => {
+  const resolved = ticket.clientAddress;
+  const address = resolved?.address || null;
+  const severalAddresses = getCompanyAddresses(company).length > 1;
+  const fromSubdivision = resolved?.source === "subdivision";
+  const sourceText = !severalAddresses
+    ? null
+    : fromSubdivision
+      ? resolved.sourceName
+      : resolved?.source === "company"
+        ? "основной адрес"
+        : null;
+  const showTaxi = Boolean(ticket.company?._id);
+
+  return (
+    <PropRow
+      icon={<RiMapPin2Line size={16} />}
+      label="Адрес"
+      action={
+        (showTaxi || address) && (
+          <>
+            {showTaxi && (
+              <TaxiButton
+                company={company}
+                defaultKey={resolved?.key}
+                defaultReason={
+                  fromSubdivision ? "подразделение инициатора" : null
+                }
+                className={cn(cardTaxiClass, "text-muted-foreground")}
+              />
+            )}
+            {address && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="Скопировать"
+                aria-label="Скопировать адрес"
+                onClick={() => copyText(address, "Адрес")}
+              >
+                <RiFileCopyLine />
+              </Button>
+            )}
+          </>
+        )
+      }
+    >
+      {address && (
+        <>
+          {resolved.linkToMap ? (
+            <a
+              href={resolved.linkToMap}
+              target="_blank"
+              rel="noreferrer"
+              title="Открыть на карте"
+              className="text-accent-text no-underline hover:underline"
+            >
+              {address}
+            </a>
+          ) : (
+            address
+          )}
+          {sourceText && (
+            <span
+              className="text-faint"
+              title={
+                fromSubdivision
+                  ? `Адрес подразделения «${resolved.sourceName}»`
+                  : undefined
+              }
+            >
+              {" · "}
+              {sourceText}
+            </span>
+          )}
+        </>
+      )}
+    </PropRow>
+  );
+};
+
 export const FactsSection = ({
   ticket,
   company,
@@ -288,19 +378,11 @@ export const FactsSection = ({
 }) => {
   const { isEndUser } = useContext(AuthedUserContext);
   const can = useCan();
-  const { taxi } = useInitialPrefsStore();
   const applicant = ticket.applicant;
   // Как заявка назовётся в крошке компании или человека, куда ведут ссылки ниже
   const from = `Заявка №${ticket.num}`;
   const fromState = useCrumbFrom(from);
   const computer = applicant?.computer;
-
-  // Два канала ИТ-специалиста: связаться с человеком или поехать на место.
-  // Жили в шторке предпросмотра списка; шторку отменили — каналы переехали
-  // сюда, к компании и инициатору, а не пропали.
-  const taxiAction = ticket.company
-    ? getTaxiAction(ticket.company, taxi?.operator)
-    : null;
 
   return (
     <Section>
@@ -324,32 +406,16 @@ export const FactsSection = ({
           icon={<RiBuilding2Line size={16} />}
           label="Компания"
           action={
-            <>
-              {taxiAction && (
-                // Через openTaxi, а не голой ссылкой: он спрашивает текущее
-                // положение и строит маршрут до офиса клиента
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  title={taxiAction.title}
-                  aria-label="Вызвать такси"
-                  className="text-warning hover:text-warning"
-                  onClick={() => openTaxi(taxiAction)}
-                >
-                  <RiTaxiLine />
-                </Button>
-              )}
-              {onShowLogs && (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  title="Лог активности компании"
-                  onClick={() => onShowLogs()}
-                >
-                  <RiHistoryLine />
-                </Button>
-              )}
-            </>
+            onShowLogs && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="Лог активности компании"
+                onClick={() => onShowLogs()}
+              >
+                <RiHistoryLine />
+              </Button>
+            )
           }
         >
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -421,6 +487,8 @@ export const FactsSection = ({
             </span>
           )}
         </PropRow>
+
+        <ClientAddressRow ticket={ticket} company={company} />
 
         <PropRow icon={<RiTeamLine size={16} />} label="Ответственные">
           {ticket.responsibles?.length
@@ -563,11 +631,7 @@ const WorkMenu = ({ items }) => {
   );
 };
 
-export const WorksSection = ({
-  works = [],
-  ticket,
-  canAddWork,
-}) => {
+export const WorksSection = ({ works = [], ticket, canAddWork }) => {
   const { isAdmin, _id: userId } = useContext(AuthedUserContext);
   const [deleting, setDeleting] = useState(null);
 
@@ -600,14 +664,10 @@ export const WorksSection = ({
   const actions = canAddWork && (
     <>
       <Button asChild variant="outline" size="xs">
-        <Link to="work/add">
-          Новая работа
-        </Link>
+        <Link to="work/add">Новая работа</Link>
       </Button>
       <Button asChild variant="outline" size="xs">
-        <Link to="work/schedule">
-          Запланировать
-        </Link>
+        <Link to="work/schedule">Запланировать</Link>
       </Button>
     </>
   );

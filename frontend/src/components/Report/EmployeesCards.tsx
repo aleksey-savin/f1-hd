@@ -44,7 +44,7 @@ const EmployeesCards = ({
             onClick={() => navigate(`/finances/employees/${row.employee._id}`)}
             className="flex w-full cursor-pointer appearance-none items-center gap-2.5 border-0 border-t border-border-soft bg-transparent px-0 py-3 text-left first:border-t-0 focus-visible:ring-4 focus-visible:ring-ring/50"
           >
-            <span className="grid size-9 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border">
+            <span className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border">
               {initials(row.employee)}
             </span>
             <span className="min-w-0 flex-1">

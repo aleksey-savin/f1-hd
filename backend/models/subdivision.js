@@ -23,6 +23,13 @@ const subdivisionSchema = new Schema(
       type: String,
       required: false,
     },
+    // Точка на карте из linkToMap (метка, «что здесь» или центр карты;
+    // короткую ссылку «Поделиться» раскрывает бэкенд при сохранении —
+    // services/mapLink). По ней — маршрут такси и «Открыть на карте».
+    location: {
+      lat: Number,
+      lon: Number,
+    },
     // Часовой пояс филиала (IANA). null — наследуется по цепочке
     // родитель → компания → Preferences.timezone (см. services/clientTimezone).
     // Без него техподдержка звонила главбуху филиала в его 3 часа ночи.

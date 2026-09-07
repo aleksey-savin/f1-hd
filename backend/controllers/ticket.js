@@ -56,6 +56,13 @@ const {
   formatClientTimeLabel,
 } = require("../services/clientTimezone");
 const { resolveTimezone } = require("../utils/datetime");
+const Subdivision = require("../models/subdivision");
+const {
+  ADDRESS_FIELDS,
+  listCompanyAddresses,
+  resolveClientAddress,
+  subdivisionIndex,
+} = require("../services/clientAddress");
 const {
   permissionFilter,
   effectivePermissions,
@@ -621,10 +628,32 @@ exports.getOne = async (req, res, next) => {
       preferences: await Preferences.findOne({}),
     });
 
+    // Куда ехать к заявителю: адрес его подразделения (или ближайшего родителя
+    // с адресом), иначе адрес компании — каскад в services/clientAddress.
+    // Компанию отдаём плоским объектом: Mongoose-документ вырезал бы поле
+    // `addresses`, которого нет в схеме.
+    const companyObj = company ? company.toJSON() : null;
+    if (companyObj) {
+      const subdivisionDocs = await Subdivision.find({ company: company._id })
+        .select(ADDRESS_FIELDS)
+        .lean();
+      companyObj.addresses = listCompanyAddresses({
+        company: companyObj,
+        subdivisions: subdivisionDocs,
+      });
+      ticket.clientAddress = resolveClientAddress({
+        subdivision: ticket.applicant?.subdivision,
+        company: companyObj,
+        subdivisionById: subdivisionIndex(subdivisionDocs),
+      });
+    } else {
+      ticket.clientAddress = resolveClientAddress({ subdivision: null });
+    }
+
     res.status(200).json({
       message: "Ticket fetched",
       ticket: ticket,
-      company: company || {},
+      company: companyObj || {},
       works: worksWithLinks,
       events: isEndUser ? [] : events,
     });

@@ -132,11 +132,15 @@ const TeamCalendar = () => {
       >
         <RiFilter3Line />
       </Button>
-      <Button onClick={() => setAbsenceOpen(true)}>
-        <RiAddFill />
-        <span className="max-sm:hidden">Отсутствие</span>
-      </Button>
     </>
+  );
+
+  // Главное действие страницы — в углу шапки на любой ширине, не в тулбаре
+  const absenceAction = (
+    <Button onClick={() => setAbsenceOpen(true)}>
+      <RiAddFill />
+      <span className="max-sm:hidden">Отсутствие</span>
+    </Button>
   );
 
   let body;
@@ -284,7 +288,12 @@ const TeamCalendar = () => {
   ) : undefined;
 
   return (
-    <PageShell title="Календарь команды" subtitle={subtitle} toolbar={toolbar}>
+    <PageShell
+      title="Календарь команды"
+      subtitle={subtitle}
+      toolbar={toolbar}
+      action={absenceAction}
+    >
       <FilterSheet>
         <ScheduleFilter />
       </FilterSheet>

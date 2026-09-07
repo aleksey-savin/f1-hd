@@ -7,6 +7,7 @@ const {
 } = require("@/middleware/permissions");
 const {
   deviceAttributeValidation,
+  deviceAttributeTypesValidation,
 } = require("@/validations/inventory/deviceAttribute");
 const { checkValidationResult } = require("@/middleware/validation");
 
@@ -30,6 +31,17 @@ router.put(
   deviceAttributeValidation,
   checkValidationResult,
   deviceAttributeController.update,
+);
+
+// Привязка к типам набором — из списка атрибутов. Обратная операция (правка
+// одной связки с карточки типа) живёт в device-type-attributes; гейт тот же.
+router.put(
+  "/device-attributes/:id/device-types",
+  isAuth,
+  canManageInventoryCatalog,
+  deviceAttributeTypesValidation,
+  checkValidationResult,
+  deviceAttributeController.setDeviceTypes,
 );
 
 router.post(

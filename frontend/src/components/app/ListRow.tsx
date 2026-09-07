@@ -54,6 +54,13 @@ type ListRowProps = {
   customDeleteMessage?: ReactNode;
   /** Постоянный контент справа перед «⋯» (напр. статус доступа). */
   trailing?: ReactNode;
+  /** Колонка данных перед `trailing` — второй факт строки, которому не место в
+   *  мете (типы устройств у атрибута). Начинается на одном месте у всех строк:
+   *  имя с метой получают потолок ширины, а колонка забирает остаток. Клик не
+   *  перехватывает — строка остаётся кликабельной целиком, в отличие от
+   *  `trailing`, где живут свои действия. Видимость на узком экране задаёт
+   *  вызывающий: места на колонку там нет. */
+  column?: ReactNode;
 };
 
 const ListRow = ({
@@ -69,6 +76,7 @@ const ListRow = ({
   extraActions,
   customDeleteMessage,
   trailing,
+  column,
 }: ListRowProps) => {
   const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -141,7 +149,12 @@ const ListRow = ({
           )}
         </span>
       )}
-      <div className="min-w-0 flex-1">
+      {/* С колонкой основной блок получает потолок: без него он растёт на всю
+          строку и отгоняет колонку к правому краю — между метой и вторым
+          фактом встаёт пустота во всю ширину панели, и строка читается как
+          две несвязанные половины. Потолок берут только имя и мета; свободное
+          место после них достаётся самой колонке. */}
+      <div className={cn("min-w-0 flex-1", column && "md:max-w-lg")}>
         <div
           className={cn(
             "truncate text-base leading-snug font-medium",
@@ -156,6 +169,7 @@ const ListRow = ({
           </div>
         )}
       </div>
+      {column}
       {(trailing || canManage) && (
         <div className="ml-auto flex flex-none items-center gap-2">
           {trailing && (

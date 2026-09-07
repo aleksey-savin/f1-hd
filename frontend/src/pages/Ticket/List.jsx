@@ -297,7 +297,6 @@ const Tickets = () => {
         filterActive={activeFilters.length > 0}
         activeFilters={activeFilters}
         toolbar={toolbar}
-        searchPlaceholder="Найти заявку…"
         defaultSearchValue={store.searchTerm}
         addRoute="/tickets/add"
         addLabel="Новая заявка"

@@ -16,12 +16,6 @@ const scheduleLabel = (schedule) => {
   return working.join(", ");
 };
 
-const domainsCount = (value) =>
-  String(value || "")
-    .split(",")
-    .map((domain) => domain.trim())
-    .filter(Boolean).length;
-
 const Row = ({ label, value, muted }) => (
   <div className="flex items-baseline justify-between gap-3 border-t border-border-soft py-2.5 text-sm first:border-t-0">
     <dt className="flex-none text-muted-foreground">{label}</dt>
@@ -36,8 +30,15 @@ const Row = ({ label, value, muted }) => (
   </div>
 );
 
-const FormSummary = ({ form, phones, responsibles, schedule, reached }) => {
-  const domains = domainsCount(form.emailDomains);
+const FormSummary = ({
+  form,
+  phones,
+  domains: domainRows = [],
+  responsibles,
+  schedule,
+  reached,
+}) => {
+  const domains = domainRows.filter((row) => row.value?.trim()).length;
   const phoneCount = phones.filter((phone) => phone.value?.trim()).length;
   const showContacts = reached >= 1;
   const showSchedule = reached >= 2;

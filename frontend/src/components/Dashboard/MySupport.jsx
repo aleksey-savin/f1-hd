@@ -56,7 +56,7 @@ const MySupport = () => {
                 key={person._id || person.email || name}
                 className="flex items-center gap-3 border-b border-border-soft px-5 py-3 last:border-b-0"
               >
-                <span className="flex size-9 flex-none items-center justify-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border-soft">
+                <span className="flex size-9 flex-none items-center justify-center rounded-lg bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border-soft">
                   {monogramFor(name)}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -105,7 +105,7 @@ const MySupport = () => {
 
           {(supportPhone || supportEmail) && (
             <div className="flex items-center gap-3 border-t border-border-soft px-5 py-3">
-              <span className="flex size-9 flex-none items-center justify-center rounded-full bg-accent text-muted-foreground inset-ring inset-ring-border-soft">
+              <span className="flex size-9 flex-none items-center justify-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border-soft">
                 <RiPhoneLine size={15} aria-hidden />
               </span>
               <span className="min-w-0 flex-1">

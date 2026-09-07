@@ -7,7 +7,7 @@ import ErrorScreen from "./ErrorScreen";
 const InternalServerError = ({ status }) => (
   <ErrorScreen
     code={["5", "0"]}
-    title="Что-то сломалось у нас"
+    title="У нас что-то сломалось"
     body="Мы уже знаем об ошибке и разбираемся. Попробуйте обновить страницу — обычно это помогает."
     actions={
       <>

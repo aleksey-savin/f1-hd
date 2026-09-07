@@ -14,8 +14,12 @@ const getFullName = (person) =>
   [person.lastName, person.firstName].filter(Boolean).join(" ") ||
   "Без имени";
 
+// Действие строки: в покое невидимо, проявляется по наведению на строку и при
+// клавиатурном фокусе; на тач-экране видно всегда (правило гайда, как «⋯»).
+// transition-all, как у Button: с transition-colors прозрачность прыгала
+// мгновенно, а «⋯» рядом плавно гас — два действия в разнобой
 const iconLinkClass =
-  "grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-faint no-underline transition-colors hover:bg-border-soft hover:text-foreground";
+  "grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-muted-foreground no-underline opacity-0 transition-all group-hover:opacity-100 hover:bg-border-soft hover:text-foreground focus-visible:opacity-100 pointer-coarse:opacity-100";
 
 const PersonRow = ({ person, from }) => {
   const name = getFullName(person);
@@ -23,11 +27,11 @@ const PersonRow = ({ person, from }) => {
   const profileId = person.id?._id || person.id;
 
   return (
-    <div className="flex items-center gap-3 border-t border-border-soft py-2.5 first:border-t-0">
+    <div className="group flex items-center gap-3 border-t border-border-soft py-2.5 first:border-t-0">
       <span
         aria-hidden
         className={cn(
-          "grid size-9 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border",
+          "grid size-9 flex-none place-items-center rounded-lg bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border",
           inactive && "opacity-60",
         )}
       >

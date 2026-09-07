@@ -172,7 +172,6 @@ const ClientDevices = () => {
             onChange={(value) => store.setFacet("companies", value)}
           />
         }
-        searchPlaceholder="Номер, серийник, имя ПК, модель…"
         showAddButton={Boolean(can({ device: ["manage"] }))}
         addRoute="add"
         addLabel="Новое устройство"

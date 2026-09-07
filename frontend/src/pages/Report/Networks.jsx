@@ -188,23 +188,22 @@ const Networks = () => {
           <Crumbs section="mikrotik" />
         )
       }
+      // Поиск — в слоте шапки: она сама задаёт ему ширину и переносит
+      // ступенями при сужении окна
+      search={
+        openDevice ? null : (
+          <SearchBar value={search} onChange={changeSearch} />
+        )
+      }
       toolbar={
         openDevice ? null : (
-          <>
-            <SearchBar
-              value={search}
-              onChange={changeSearch}
-              placeholder="Адрес, сеть, интерфейс, устройство…"
-              className="w-full md:w-72"
-            />
-            <Button
-              variant="ghost"
-              className="text-muted-foreground"
-              onClick={() => exportNetworksToExcel(visibleEntries)}
-            >
-              <RiDownloadLine /> Выгрузить
-            </Button>
-          </>
+          <Button
+            variant="ghost"
+            className="text-muted-foreground"
+            onClick={() => exportNetworksToExcel(visibleEntries)}
+          >
+            <RiDownloadLine /> Выгрузить
+          </Button>
         )
       }
     >

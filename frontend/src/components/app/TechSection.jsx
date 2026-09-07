@@ -451,7 +451,7 @@ const TechSection = ({
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Поиск по технике"
+                  placeholder="Поиск…"
                   aria-label="Поиск по технике"
                   className="min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-faint"
                 />

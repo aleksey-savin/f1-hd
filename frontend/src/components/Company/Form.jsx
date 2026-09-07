@@ -25,6 +25,7 @@ import timezones from "../../store/timezones";
 import { orgTimezone, tzCity } from "../../util/timezone-display";
 
 import FormSummary from "./FormSummary";
+import MapLinkHint from "./MapLinkHint";
 
 // Форма компании (по согласованному макету): создание — мастер «Основное ·
 // Контакты · График работы» со сводкой справа (wide-шторка), правка — плоская
@@ -78,7 +79,6 @@ const CompanyForm = () => {
   const [form, setForm] = useState({
     alias: company?.alias || "",
     fullTitle: company?.fullTitle || "",
-    emailDomains: (company?.emailDomains || []).join(", "),
     address: company?.address || "",
     linkToMap: company?.linkToMap || "",
   });
@@ -94,6 +94,17 @@ const CompanyForm = () => {
       value,
     }));
     return rows;
+  });
+
+  // Почтовые домены — тот же динамический список, что у телефонов
+  const domainSeq = useRef(0);
+  const nextDomainKey = () => `domain-${domainSeq.current++}`;
+  const [domains, setDomains] = useState(() => {
+    const existing = (company?.emailDomains || []).filter(Boolean);
+    return (existing.length ? existing : [""]).map((value) => ({
+      key: nextDomainKey(),
+      value,
+    }));
   });
 
   const [responsibles, setResponsibles] = useState(company?.responsibles || []);
@@ -123,6 +134,23 @@ const CompanyForm = () => {
       const next = prev.filter((row) => row.key !== key);
       return next.length ? next : [{ key: nextPhoneKey(), value: "" }];
     });
+
+  const setDomain = (key, value) =>
+    setDomains((prev) =>
+      prev.map((row) => (row.key === key ? { ...row, value } : row)),
+    );
+  const addDomain = () =>
+    setDomains((prev) => [...prev, { key: nextDomainKey(), value: "" }]);
+  const removeDomain = (key) =>
+    setDomains((prev) => {
+      const next = prev.filter((row) => row.key !== key);
+      return next.length ? next : [{ key: nextDomainKey(), value: "" }];
+    });
+  // Домен из адреса письма: без «@», пробелов и регистра
+  const cleanDomains = () =>
+    domains
+      .map((row) => row.value.trim().replace(/^@/, "").toLowerCase())
+      .filter(Boolean);
 
   // Обязательные поля есть только на первом шаге
   const stepValid = (index) =>
@@ -174,7 +202,7 @@ const CompanyForm = () => {
       alias: form.alias.trim(),
       fullTitle: form.fullTitle.trim(),
       // Бэкенд сплитит строку доменов сам (легаси-контракт сохранён)
-      emailDomains: form.emailDomains,
+      emailDomains: cleanDomains().join(", "),
       phones: phones.map((row) => row.value.trim()).filter(Boolean),
       address: form.address.trim(),
       linkToMap: form.linkToMap.trim(),
@@ -227,15 +255,39 @@ const CompanyForm = () => {
           </div>
           <Field
             label="Почтовые домены"
-            htmlFor="emailDomains"
-            hint="Через запятую, без «@» — по ним опознаются входящие письма."
+            hint="Без «@» — по домену адреса письма опознаётся компания."
           >
-            <Input
-              id="emailDomains"
-              placeholder="company.ru, company.spb.ru"
-              value={form.emailDomains}
-              onChange={(event) => setField("emailDomains", event.target.value)}
-            />
+            <div className="grid gap-2">
+              {domains.map((row) => (
+                <div key={row.key} className="flex items-center gap-1.5">
+                  <Input
+                    id={row.key}
+                    placeholder="company.ru"
+                    value={row.value}
+                    onChange={(event) => setDomain(row.key, event.target.value)}
+                    className="min-w-0 flex-1"
+                  />
+                  {(domains.length > 1 || row.value) && (
+                    <button
+                      type="button"
+                      onClick={() => removeDomain(row.key)}
+                      title="Убрать домен"
+                      aria-label="Убрать домен"
+                      className="grid size-8 flex-none cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-transparent text-faint transition-colors hover:bg-accent hover:text-destructive"
+                    >
+                      <RiCloseLine size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={addDomain}
+              className="mt-2 inline-flex cursor-pointer appearance-none items-center gap-1.5 border-0 bg-transparent p-0 text-sm font-semibold text-accent-text hover:underline"
+            >
+              <RiAddLine size={15} /> Ещё домен
+            </button>
           </Field>
           <Field
             label="Ответственные"
@@ -337,7 +389,7 @@ const CompanyForm = () => {
           <Field
             label="Ссылка на карту"
             htmlFor="linkToMap"
-            hint="Открывается из адреса; из координат в ссылке строится маршрут такси."
+            hint={<MapLinkHint url={form.linkToMap} />}
           >
             <Input
               id="linkToMap"
@@ -429,6 +481,7 @@ const CompanyForm = () => {
               <FormSummary
                 form={form}
                 phones={phones}
+                domains={domains}
                 responsibles={responsibles}
                 schedule={schedule}
                 reached={maxReached}

@@ -10,7 +10,7 @@
     "dev": "nodemon app.js",
     "prepare": "husky",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"No tests yet\" && exit 0",
+    "test": "node --test \"services/**/*.test.js\" \"validations/**/*.test.js\"",
     "init:inventory": "node scripts/initializeInventoryData.js",
     "seed:mikrotik-models": "node scripts/seedMikrotikModels.js",
     "migrate:device-indexes": "node scripts/migrateClientDeviceIndexes.js",

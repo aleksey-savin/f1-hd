@@ -168,6 +168,7 @@ const CardAvatar = ({ user, ringColor, canEdit }) => {
         textClass="text-2xl"
         ringColor={ringColor}
         ring="lg"
+        shape="round"
       />
 
       {canEdit && (

@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Link,
-  useActionData,
-} from "react-router";
+import { Link, useActionData } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
   RiAtLine,
@@ -15,7 +12,6 @@ import {
   RiMapPin2Line,
   RiMoreLine,
   RiPhoneLine,
-  RiTaxiLine,
 } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
@@ -30,7 +26,7 @@ import Crumbs from "@/components/app/Crumbs";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import FormOutlet from "@/components/app/FormOutlet";
 import { Eyebrow, Panel } from "@/components/app/Panel";
-import AnchorRail from "@/components/app/AnchorRail";
+import AnchorRail, { scrollToSection } from "@/components/app/AnchorRail";
 import PropRow from "@/components/app/PropRow";
 import TechSection from "@/components/app/TechSection";
 import { useCan } from "@/store/authed-user";
@@ -40,8 +36,8 @@ import useToastStore from "@/store/toast-store";
 import { plural } from "../../util/plural";
 import { formatShortDate } from "../../util/format-date";
 import { getWorkingStatus } from "../../util/get-working-status";
-import { openTaxi } from "../../util/taxi-operators";
-import { getTaxiAction } from "./company-links";
+import { getCompanyAddresses } from "./company-links";
+import TaxiButton from "./TaxiButton";
 import WorkStatusText from "./WorkStatusText";
 import ToggleActiveDialog from "./ToggleActiveDialog";
 import CompanyLogsOffcanvas from "../CompanyLogs/Offcanvas";
@@ -88,7 +84,7 @@ const ViewCompany = ({
   stats = null,
 }) => {
   const can = useCan();
-  const { modules, taxi } = useInitialPrefs();
+  const { modules } = useInitialPrefs();
   const actionData = useActionData();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -111,14 +107,17 @@ const ViewCompany = ({
   const canManage = can({ company: ["manage"] });
   const showFinances =
     modules?.finances?.isActive && can({ servicePlan: ["read"] });
-  const showTech =
-    modules?.inventory?.isActive && can({ device: ["read"] });
+  const showTech = modules?.inventory?.isActive && can({ device: ["read"] });
   const isActive = company.isActive !== false;
 
   const employeesCount = company.employees?.length || 0;
   const subdivisionsCount = countTree(company.subdivisions);
   const noSchedule = Boolean(getWorkingStatus(company.workSchedule).unknown);
-  const taxiAction = getTaxiAction(company, taxi?.operator);
+  // Адреса подразделений живут в «Структуре» (шторка узла); в реквизитах —
+  // свой адрес компании и счётчик-ссылка туда, а в меню такси — все сразу
+  const extraAddresses = getCompanyAddresses(company).filter(
+    (entry) => entry.source === "subdivision",
+  ).length;
 
   const updaterName = personName(company.updatedBy);
   const metaBits = [
@@ -294,22 +293,8 @@ const ViewCompany = ({
             </PropRow>
             <PropRow
               icon={<RiMapPin2Line size={17} />}
-              label="Адрес"
-              action={
-                taxiAction && (
-                  // Через openTaxi, а не голой ссылкой: он спрашивает текущее
-                  // положение и кладёт его в маршрут начальной точкой
-                  <button
-                    type="button"
-                    onClick={() => openTaxi(taxiAction)}
-                    title={taxiAction.title}
-                    aria-label={`${taxiAction.orderText} · ${taxiAction.label}`}
-                    className="grid size-8 flex-none cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-transparent text-faint transition-colors hover:bg-accent hover:text-warning"
-                  >
-                    <RiTaxiLine size={16} />
-                  </button>
-                )
-              }
+              label={extraAddresses > 0 ? "Адреса" : "Адрес"}
+              action={<TaxiButton company={company} />}
               copy={
                 company.address
                   ? { value: company.address, label: "Адрес" }
@@ -332,6 +317,24 @@ const ViewCompany = ({
                 )
               ) : (
                 dash
+              )}
+              {extraAddresses > 0 && (
+                <span className="font-normal text-faint">
+                  {" · "}
+                  <a
+                    href="#company-structure"
+                    title="Адреса подразделений — в разделе «Структура»"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      scrollToSection(null, "company-structure");
+                    }}
+                    className="text-inherit no-underline hover:text-foreground hover:underline"
+                  >
+                    {company.address
+                      ? `ещё ${extraAddresses} в структуре`
+                      : `${extraAddresses} ${plural(extraAddresses, "адрес", "адреса", "адресов")} в структуре`}
+                  </a>
+                </span>
               )}
             </PropRow>
             {canManage && (

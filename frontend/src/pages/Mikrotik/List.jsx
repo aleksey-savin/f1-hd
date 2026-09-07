@@ -185,7 +185,6 @@ const MikrotikDevices = () => {
             onChange={(value) => setFacet("companies", value)}
           />
         }
-        searchPlaceholder="Найти устройство…"
         showAddButton={canManage}
         addRoute="add"
         addLabel="Новое устройство"

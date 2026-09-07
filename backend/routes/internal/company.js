@@ -19,6 +19,13 @@ router.get("/companies", isAuth, canReadCompanies, companyController.getAll);
 // isNotClient — он как раз для клиента; кому именно отвечать, решает контроллер.
 // Обязан стоять ВЫШЕ «/companies/:id», иначе :id съест «my-support».
 router.get("/companies/my-support", isAuth, companyController.getMySupport);
+// Подсказка формы «есть ли в ссылке на карту точка»: короткую ссылку
+// «Поделиться» раскрывает бэкенд (из браузера редирект не прочитать).
+router.post(
+  "/companies/resolve-map-link",
+  isAuth,
+  companyController.resolveMapLink,
+);
 // Формат id здесь не валидируем: битый ObjectId переводится в 404 глобально
 // (CastError в middleware/errorHandling.js), как у остальных сущностей.
 router.get("/companies/:id", isAuth, canReadCompanies, companyController.getOne);

@@ -7,7 +7,7 @@ import useToastStore from "@/store/toast-store";
 // Строка «иконка · подпись · значение» карточки сущности (карточка
 // пользователя, реквизиты компании): плитка-иконка, микро-подпись, значение,
 // справа — опциональные действия и кнопка копирования с тостом.
-const copyText = (text: string, label: string) => {
+export const copyText = (text: string, label: string) => {
   if (!navigator?.clipboard) return;
   navigator.clipboard.writeText(text).then(
     () => useToastStore.getState().showToast("success", `${label} скопирован`),

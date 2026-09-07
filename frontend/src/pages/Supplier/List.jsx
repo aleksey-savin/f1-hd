@@ -48,7 +48,6 @@ const SupplierListPage = () => {
       filterStore={filterStore}
       addRoute="/inventory/suppliers/add"
       addLabel="Новый поставщик"
-      searchPlaceholder="Название, телефон, почта, ИНН…"
       filter={<SupplierFilter />}
       filterActive={filterStore.isActive === true}
       activeFilters={activeFilters}

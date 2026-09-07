@@ -35,6 +35,11 @@ export interface ICompany {
   employees?: Types.ObjectId[];
   responsibles?: ICompanyUserRef[];
   clientsSideResponsibles?: ICompanyUserRef[];
+  /** Точка из linkToMap (services/mapLink) — маршрут такси и «Открыть на карте». */
+  location?: {
+    lat?: number;
+    lon?: number;
+  };
   locationSettings?: {
     allowTracking?: boolean;
     latitude?: number;

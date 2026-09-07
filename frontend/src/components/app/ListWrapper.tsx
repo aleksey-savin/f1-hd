@@ -36,13 +36,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import FormOutlet from "@/components/app/FormOutlet";
+import PageHeader from "@/components/app/PageHeader";
 import SearchBar from "@/components/app/SearchBar";
 import Spinner from "@/components/app/Spinner";
 import { ThemeContext } from "../../store/theme-context";
 import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
 
 // Каркас страниц-списков по согласованному макету: заголовок + счётчик,
-// справа — поиск, сортировка (текст-дропдаун), чипы (toolbar) и «Добавить»;
+// справа — поиск, сортировка (текст-дропдаун), чипы (toolbar) и «Добавить»
+// (шапка — app/PageHeader, при сужении окна переносится ступенями);
 // формы add/update — вложенные маршруты списка в нижней шторке, которую
 // рисует app/FormOutlet: открыта она ровно тогда, когда совпал маршрут формы
 // (его ширина — в handle.sheet маршрута). Контракт легаси сохранён: filterStore.
@@ -124,7 +126,7 @@ type ListWrapperProps = {
   showAddButton?: boolean;
   showRefreshButton?: boolean;
   defaultSearchValue?: string;
-  /** Плейсхолдер поиска — подсказывает охват («Найти в архиве…»). */
+  /** Плейсхолдер поиска — переопределяет дефолтный «Поиск…» из SearchBar. */
   searchPlaceholder?: string;
   showSortAndCount?: boolean;
   /** Пустое состояние «данных нет вовсе». Умолчание — «Список пуст», но у
@@ -341,23 +343,28 @@ const ListWrapper = ({
   return (
     <div className="mx-auto w-full max-w-7xl">
       <BrowserView>
-        <div className="mb-4 flex flex-wrap items-center gap-x-2.5 gap-y-3">
-          {titleBlock}
-          <div className="ms-auto flex flex-wrap items-center gap-2.5">
-            {refreshButton}
+        {/* Ширину поиска задаёт шапка (20rem, на узкой ступени — вся строка) */}
+        <PageHeader
+          className="mb-4"
+          title={titleBlock}
+          search={
             <SearchBar
               key={searchResetKey}
               onChange={searchHandler}
               defaultValue={defaultSearchValue}
               placeholder={searchPlaceholder}
-              className="w-80"
             />
-            {sortDropdown}
-            {toolbar}
-            {filterButton}
-            {addButton(false)}
-          </div>
-        </div>
+          }
+          sort={sortDropdown}
+          controls={
+            <>
+              {refreshButton}
+              {toolbar}
+              {filterButton}
+            </>
+          }
+          action={addButton(false)}
+        />
       </BrowserView>
       <MobileView>
         <div className="mb-3 flex items-center gap-2">

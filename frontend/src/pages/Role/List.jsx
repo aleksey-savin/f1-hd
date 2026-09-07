@@ -84,7 +84,6 @@ const RolesPage = () => {
       activeFilters={activeFilters}
       hasActiveQuery={selected.length > 0 || Boolean(filterStore.searchTerm)}
       addLabel="Новая роль"
-      searchPlaceholder="Поиск по названию"
       emptyTitle="Ролей пока нет"
       emptyHint="Заведите первую — и назначайте её людям вместо россыпи галочек."
       // Дыры каталога — ПОД списком, а не над ним: сначала то, что есть,

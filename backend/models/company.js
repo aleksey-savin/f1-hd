@@ -37,6 +37,14 @@ const companySchema = new Schema(
     ],
     address: { type: String, required: false },
     linkToMap: { type: String, required: false },
+    // Точка на карте из linkToMap (метка, «что здесь» или центр карты;
+    // короткую ссылку «Поделиться» раскрывает бэкенд при сохранении —
+    // services/mapLink). По ней — маршрут такси и «Открыть на карте».
+    // locationSettings ниже — старое поле, которое ничто не заполняет.
+    location: {
+      lat: Number,
+      lon: Number,
+    },
     subdivisions: [
       {
         type: Schema.Types.ObjectId,

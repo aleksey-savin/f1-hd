@@ -100,7 +100,6 @@ const WorksArchiveList = ({ segment }) => {
       filterActive={activeFilters.length > 0}
       activeFilters={activeFilters}
       toolbar={toolbar}
-      searchPlaceholder="Найти в работах…"
       defaultSearchValue={s.searchTerm}
       showAddButton={false}
       renderOutlet={false}

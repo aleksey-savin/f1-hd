@@ -22,6 +22,23 @@ const {
   normalizeTimezone,
   annotateSubdivisionTree,
 } = require("../services/clientTimezone");
+const {
+  listCompanyAddresses,
+  loadAddressSubdivisions,
+} = require("../services/clientAddress");
+const { resolveMapLink } = require("../services/mapLink");
+
+// Точка из ссылки на карту при сохранении: пересчитываем, когда ссылка
+// изменилась или точки ещё не было (короткую ссылку раскрывает сеть — без
+// нужды не ходим). Нет координат — точки нет: такси поедет без маршрута.
+const locationForLink = async (linkToMap, previous = {}) => {
+  const next = (linkToMap || "").trim();
+  const unchanged = next === (previous.linkToMap || "").trim();
+  if (unchanged && Number.isFinite(previous.location?.lat)) {
+    return previous.location;
+  }
+  return (await resolveMapLink(next)) || undefined;
+};
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -52,6 +69,12 @@ exports.getAll = async (req, res, next) => {
       }
     });
 
+    // Адреса подразделений — для действия «такси» в строке и мобильной
+    // шторке: один запрос на страницу, список считает services/clientAddress.
+    const addressSubdivisions = await loadAddressSubdivisions(
+      filteredCompanies.map((company) => company._id),
+    );
+
     // Списку не нужны тяжёлые вложенные массивы (users/employees/apiKeys…) —
     // отдаём компактную проекцию со счётчиками; полные данные — в getOne.
     const companies = filteredCompanies.map(
@@ -66,6 +89,10 @@ exports.getAll = async (req, res, next) => {
         ...company,
         usersCount: users?.length ?? 0,
         servicePlansCount: servicePlans?.length ?? 0,
+        addresses: listCompanyAddresses({
+          company,
+          subdivisions: addressSubdivisions.get(String(company._id)),
+        }),
       }),
     );
 
@@ -162,6 +189,13 @@ exports.getOne = async (req, res, next) => {
     });
 
     companyObj.subdivisions = rootSubdivisions;
+
+    // Все адреса компании (свой + подразделений) для действия «такси» —
+    // по тем же документам, из которых собрано дерево.
+    companyObj.addresses = listCompanyAddresses({
+      company: companyObj,
+      subdivisions: subdivisionDocs,
+    });
 
     // Add lastActivity for each employee.
     // One aggregation finds the latest ticket per applicant instead of issuing
@@ -389,6 +423,7 @@ exports.add = async (req, res, next) => {
       phones: (Array.isArray(phones) ? phones : [phones]).filter(Boolean),
       address: address,
       linkToMap: linkToMap,
+      location: await locationForLink(linkToMap),
       users: users,
       responsibles: responsibles,
       workSchedule: workSchedule,
@@ -437,6 +472,7 @@ exports.update = async (req, res, next) => {
       Boolean,
     );
     company.address = address;
+    company.location = await locationForLink(linkToMap, company);
     company.linkToMap = linkToMap;
     company.workSchedule = workSchedule;
     company.timezone = normalizeTimezone(timezone);
@@ -814,6 +850,19 @@ exports.deleteServicePlan = async (req, res, next) => {
   }
 };
 
+// Подсказка формы «есть ли в ссылке точка»: короткую ссылку «Поделиться»
+// раскрывает бэкенд — из браузера редирект не прочитать. Ответ ни к чему не
+// обязывает: точку при сохранении бэкенд посчитает сам.
+exports.resolveMapLink = async (req, res, next) => {
+  try {
+    const url = typeof req.body?.url === "string" ? req.body.url : "";
+    const location = url.length <= 2048 ? await resolveMapLink(url) : null;
+    res.status(200).json({ location });
+  } catch (error) {
+    next(new AppError("Failed to resolve map link", 500, true, error));
+  }
+};
+
 exports.addSubdivision = async (req, res, next) => {
   try {
     const {
@@ -833,6 +882,7 @@ exports.addSubdivision = async (req, res, next) => {
       name,
       address,
       linkToMap,
+      location: await locationForLink(linkToMap),
       phone,
       email,
       company: companyId,
@@ -946,6 +996,7 @@ exports.updateSubdivision = async (req, res, next) => {
 
     subdivision.name = name;
     subdivision.address = address;
+    subdivision.location = await locationForLink(linkToMap, subdivision);
     subdivision.linkToMap = linkToMap;
     subdivision.phone = phone;
     subdivision.email = email;

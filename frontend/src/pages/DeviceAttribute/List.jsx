@@ -10,12 +10,7 @@ import List from "../../components/DeviceAttribute/List";
 import DeviceAttributeFilter from "../../components/DeviceAttribute/Filter";
 
 import { valueTypeLabel } from "../../components/DeviceAttribute/value-types";
-
-// id привязанных к типу атрибутов (связи отдаёт getAll типов)
-const attributeIdsOf = (deviceType) =>
-  (deviceType.attributes || []).map((attr) =>
-    String(attr.attributeId?._id ?? attr.attributeId),
-  );
+import { attributeIdsOfType } from "../../components/DeviceAttribute/device-type-links";
 
 const DeviceAttributeListPage = () => {
   const location = useLocation();
@@ -61,7 +56,7 @@ const DeviceAttributeListPage = () => {
         ? {
             _id: deviceType._id,
             name: deviceType.name,
-            attributeIds: attributeIdsOf(deviceType),
+            attributeIds: attributeIdsOfType(deviceType),
           }
         : null,
     });

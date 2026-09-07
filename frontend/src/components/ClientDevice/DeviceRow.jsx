@@ -64,11 +64,6 @@ const InventoryTag = ({ number, onOpenQr }) => (
     style={number ? undefined : { border: "1px dashed var(--border)" }}
   >
     {number || "нет №"}
-    <RiQrCodeLine
-      size={11}
-      aria-hidden
-      className="opacity-0 transition-opacity group-hover:opacity-55 pointer-coarse:opacity-55"
-    />
   </button>
 );
 
@@ -184,7 +179,7 @@ const DeviceRow = ({ device }) => {
         <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
           {/* До md колонки схлопнуты — метка едет в строку меты */}
           <span className="flex-none md:hidden" onClick={stop}>
-            <InventoryTag number={device.inventoryNumber} onOpenQr={openQr} />
+            <InventoryTag number={device.inventoryNumber}/>
           </span>
           <span className="truncate">{meta || "—"}</span>
           {/* Комплектующее попадает в список только по запросу и обязано

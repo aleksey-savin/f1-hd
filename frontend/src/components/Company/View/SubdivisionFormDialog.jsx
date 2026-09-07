@@ -15,6 +15,7 @@ import AlertMessage from "@/components/app/AlertMessage";
 import Combobox, { toOptions } from "@/components/app/Combobox";
 import timezones from "../../../store/timezones";
 import { orgTimezone, tzCity } from "../../../util/timezone-display";
+import MapLinkHint from "../MapLinkHint";
 
 // Форма подразделения (создание/правка) в диалоге: полей мало, это справочный
 // под-объект карточки. Сабмит — прежний intent add/updateSubdivision на action
@@ -31,6 +32,8 @@ const SubdivisionFormDialog = ({
   const isEdit = Boolean(node);
   const [parent, setParent] = useState(null);
   const [timezone, setTimezone] = useState(null);
+  // Ссылка на карту — контролируемая ради подсказки «есть ли точка»
+  const [linkToMap, setLinkToMap] = useState("");
 
   // Родитель — предустановка на каждое открытие: у правки — текущий родитель,
   // у «Вложенного» — узел-источник.
@@ -43,6 +46,7 @@ const SubdivisionFormDialog = ({
   useEffect(() => {
     if (!open) return;
     setTimezone(node?.timezone || null);
+    setLinkToMap(node?.linkToMap || "");
   }, [open, node]);
 
   // Что подставится, если поле оставить пустым: пояс выбранного родителя,
@@ -96,8 +100,12 @@ const SubdivisionFormDialog = ({
           <Field label="Адрес">
             <Input name="address" defaultValue={node?.address || ""} />
           </Field>
-          <Field label="Ссылка на карту">
-            <Input name="linkToMap" defaultValue={node?.linkToMap || ""} />
+          <Field label="Ссылка на карту" hint={<MapLinkHint url={linkToMap} />}>
+            <Input
+              name="linkToMap"
+              value={linkToMap}
+              onChange={(event) => setLinkToMap(event.target.value)}
+            />
           </Field>
           <Field label="Родительское подразделение">
             <Combobox

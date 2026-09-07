@@ -29,16 +29,21 @@ import UserAvatar from "./UserAvatar";
 import PresenceText from "./PresenceText";
 import UserContactSheet from "./ContactSheet";
 
-// Строка адресной книги: круглый аватар с кольцом-присутствием · имя ·
+// Строка адресной книги: плитка-аватар с кольцом-присутствием · имя ·
 // должность/принадлежность · контекстный правый столбец (у сотрудника —
 // присутствие, у клиента — последняя активность) · действия связи (десктоп) ·
-// «⋯» по правам. Клик по строке ведёт на карточку профиля. Специализированный
-// вариант app/ListRow: людям нужен круг+присутствие+связь, чего у общей строки
-// справочника нет.
+// «⋯» по правам — и связь, и «⋯» только по наведению, как любое действие
+// строки (на тач-экране видны всегда). Клик по строке ведёт на карточку
+// профиля. Специализированный вариант app/ListRow: людям нужен
+// круг+присутствие+связь, чего у общей строки справочника нет.
 const FRESH_MS = 8000;
 
+// Действие строки: в покое невидимо, проявляется по наведению на строку и при
+// клавиатурном фокусе; на тач-экране видно всегда (правило гайда, как «⋯»).
+// transition-all, как у Button: с transition-colors прозрачность прыгала
+// мгновенно, а «⋯» рядом плавно гас — два действия в разнобой
 const contactClass =
-  "inline-grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-faint no-underline transition-colors group-hover:text-muted-foreground hover:bg-accent";
+  "inline-grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-muted-foreground no-underline opacity-0 transition-all group-hover:opacity-100 hover:bg-accent focus-visible:opacity-100 pointer-coarse:opacity-100";
 
 const UserItem = ({ item }) => {
   const {
@@ -169,7 +174,7 @@ const UserItem = ({ item }) => {
                   size="icon-sm"
                   aria-label="Действия"
                   title="Действия"
-                  className="text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                  className="text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
                 >
                   <RiMoreLine />
                 </Button>

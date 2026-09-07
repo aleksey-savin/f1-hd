@@ -27,8 +27,12 @@ import { relativeDay } from "../../../util/relative-time";
 const COLLAPSED_ROWS = 7;
 const NO_SUBDIVISION = "__none__";
 
+// Действие строки: в покое невидимо, проявляется по наведению на строку и при
+// клавиатурном фокусе; на тач-экране видно всегда (правило гайда, как «⋯»).
+// transition-all, как у Button: с transition-colors прозрачность прыгала
+// мгновенно, а «⋯» рядом плавно гас — два действия в разнобой
 const iconLinkClass =
-  "grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-faint no-underline transition-colors hover:bg-border-soft hover:text-foreground";
+  "grid size-8 flex-none cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-muted-foreground no-underline opacity-0 transition-all group-hover:opacity-100 hover:bg-border-soft hover:text-foreground focus-visible:opacity-100 pointer-coarse:opacity-100";
 
 const EmployeesSection = ({ company, id }) => {
   const fromState = useCrumbFrom(company.alias);
@@ -175,6 +179,7 @@ const EmployeesSection = ({ company, id }) => {
                         user={user}
                         sizeClass="size-9"
                         textClass="text-xs"
+                        className="rounded-lg"
                       />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm leading-tight font-medium">

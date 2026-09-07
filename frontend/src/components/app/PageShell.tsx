@@ -1,9 +1,12 @@
 import { type ReactNode } from "react";
 
+import PageHeader from "@/components/app/PageHeader";
+
 // Каркас страницы, у которой есть заголовок и строка инструментов, но нет
-// поиска, сортировки и пагинации, — поэтому ListWrapper не подходит. Заголовок
-// в языке ListWrapper, тулбар (сегмент режимов, период, экспорт) справа.
-// Раскладка адаптивная (flex-wrap), отдельной мобильной ветки не требуется.
+// сортировки и пагинации, — поэтому ListWrapper не подходит. Шапка та же, что у
+// списков (app/PageHeader): заголовок слева, тулбар (сегмент режимов, период,
+// экспорт) справа, главное действие в углу; при сужении окна переносится
+// ступенями, отдельной мобильной ветки не требуется.
 //
 // Жил в components/Report как ReportShell, пока пользователем был один отчёт.
 // Сейчас каркас делят все три отчёта, календарь команды, согласование работ и
@@ -12,6 +15,8 @@ const PageShell = ({
   title,
   subtitle,
   toolbar,
+  search,
+  action,
   breadcrumb,
   icon,
   wide = false,
@@ -21,6 +26,11 @@ const PageShell = ({
   /** Строка под заголовком: должность, ставка и т.п. */
   subtitle?: ReactNode;
   toolbar?: ReactNode;
+  /** Поиск по странице (сети): шапка сама задаёт ему ширину. */
+  search?: ReactNode;
+  /** Главное действие страницы («Отсутствие» у календаря) — в правом верхнем
+   *  углу на любой ширине, а не в хвосте тулбара. */
+  action?: ReactNode;
   /** Возврат к списку/сводной — крошками сверху, как на карточках сущностей. */
   breadcrumb?: ReactNode;
   /** Плитка-монограмма слева от заголовка (карточки компании и подразделения). */
@@ -41,20 +51,27 @@ const PageShell = ({
     style={wide ? { maxWidth: "100rem" } : undefined}
   >
     {breadcrumb && <div className="mb-3">{breadcrumb}</div>}
-    <div className="mb-4 flex flex-wrap items-center gap-x-2.5 gap-y-3">
-      {icon}
-      <div>
-        <h1 className="my-0 text-3xl leading-none font-semibold tracking-tight">
-          {title}
-        </h1>
-        {subtitle && (
-          <div className="mt-1.5 text-sm text-muted-foreground">{subtitle}</div>
-        )}
-      </div>
-      <div className="ms-auto flex flex-wrap items-center gap-2.5">
-        {toolbar}
-      </div>
-    </div>
+    <PageHeader
+      className="mb-4"
+      title={
+        <div className="flex items-center gap-2.5">
+          {icon}
+          <div className="min-w-0">
+            <h1 className="my-0 text-3xl leading-none font-semibold tracking-tight">
+              {title}
+            </h1>
+            {subtitle && (
+              <div className="mt-1.5 text-sm text-muted-foreground">
+                {subtitle}
+              </div>
+            )}
+          </div>
+        </div>
+      }
+      search={search}
+      controls={toolbar}
+      action={action}
+    />
     {children}
   </div>
 );

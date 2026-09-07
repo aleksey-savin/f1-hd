@@ -75,7 +75,6 @@ const TemplateTiles = ({ heading = null }) => {
               <SearchBar
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Найти заготовку"
               />
             ) : undefined
           }
@@ -88,7 +87,6 @@ const TemplateTiles = ({ heading = null }) => {
             <SearchBar
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Найти заготовку"
             />
           </div>
         )

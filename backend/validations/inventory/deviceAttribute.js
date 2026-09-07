@@ -39,4 +39,15 @@ const deviceAttributeValidation = [
     .withMessage("Active status must be a boolean"),
 ];
 
-module.exports = { deviceAttributeValidation };
+// Привязка атрибута к типам сразу набором (PUT /:id/device-types): пустой
+// массив — законный ввод, он отвязывает атрибут ото всех типов.
+const deviceAttributeTypesValidation = [
+  body("deviceTypeIds")
+    .isArray()
+    .withMessage("Device type ids must be an array"),
+  body("deviceTypeIds.*")
+    .isMongoId()
+    .withMessage("Invalid device type id"),
+];
+
+module.exports = { deviceAttributeValidation, deviceAttributeTypesValidation };

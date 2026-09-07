@@ -175,7 +175,6 @@ const KnowledgeBaseExplorer = () => {
       <div className="flex items-center gap-2">
         <SearchBar
           className="min-w-0 flex-1"
-          placeholder="Найти в заметках…"
           value={searchTerm}
           onChange={(event) => fullTextSearch(event.target.value)}
         />

@@ -93,6 +93,7 @@ const UserContactSheet = ({ item, open, onOpenChange }) => {
             sizeClass="size-15"
             textClass="text-xl"
             ringColor={presence.ringColor}
+            shape="round"
           />
           <div className="min-w-0">
             <div className="truncate text-lg font-semibold">

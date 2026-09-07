@@ -132,7 +132,6 @@ const TicketsArchiveList = ({ segment }) => {
       filterActive={activeFilters.length > 0}
       activeFilters={activeFilters}
       toolbar={toolbar}
-      searchPlaceholder="Найти в архиве…"
       defaultSearchValue={s.searchTerm}
       showAddButton={false}
       renderOutlet={false}

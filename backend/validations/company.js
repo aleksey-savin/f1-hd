@@ -13,6 +13,13 @@ const optionalTimezone = (field) =>
     .custom((value) => value === "" || isValidTimezone(value))
     .withMessage(`${field} must be a valid IANA time zone`);
 
+// Телефоны: tw-форма шлёт массив строк, легаси-форма — одну строку; контроллер
+// принимает оба (controllers/company.js). express-validator 7 элементы массива
+// сам не проверяет (isString() на массиве — отказ), поэтому проверяем сами.
+const isPhoneList = (value) =>
+  typeof value === "string" ||
+  (Array.isArray(value) && value.every((phone) => typeof phone === "string"));
+
 exports.add = [
   body("alias").trim().not().isEmpty().withMessage("Company alias is required"),
   body("fullTitle")
@@ -24,7 +31,10 @@ exports.add = [
     .optional()
     .isString()
     .withMessage("Email domains must be an array"),
-  body("phones").optional().isString().withMessage("Phone must be a string"),
+  body("phones")
+    .optional()
+    .custom(isPhoneList)
+    .withMessage("Phones must be a string or an array of strings"),
   body("address").optional().isString().withMessage("Address must be a string"),
   body("linkToMap")
     .optional()
@@ -62,7 +72,10 @@ exports.update = [
     .optional()
     .isString()
     .withMessage("Email domains must be an array"),
-  body("phones").optional().isString().withMessage("Phone must be a string"),
+  body("phones")
+    .optional()
+    .custom(isPhoneList)
+    .withMessage("Phones must be a string or an array of strings"),
   body("address").optional().isString().withMessage("Address must be a string"),
   body("linkToMap")
     .optional()
