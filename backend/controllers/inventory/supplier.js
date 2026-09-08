@@ -1,5 +1,6 @@
 const Supplier = require("../../models/inventory/supplier");
 const ClientDevice = require("../../models/inventory/clientDevice");
+const Company = require("../../models/company");
 const { AppError } = require("../../middleware/errorHandling");
 
 // Поля формы поставщика. Название обязательно, остальное дописывается позже:
@@ -23,19 +24,34 @@ const applyFields = (supplier, body) => {
 };
 
 /**
- * Закупки поставщика: сколько единиц, на какую сумму и когда последняя.
+ * Закупки поставщика, разложенные по году и компании: сколько единиц, на какую
+ * сумму и когда последняя.
+ *
+ * Разбивкой, а не одной суммой за всё время: подрядчики меняются, и в списке
+ * нужен текущий год, а не накопленный итог с основания. Считать все срезы на
+ * бэке под каждый чип — лишние ходы: справочник маленький, поэтому корзины
+ * уезжают на фронт целиком, и переключение года или компании там мгновенное.
+ *
+ * Год берётся в UTC: `purchasedAt` — календарная дата (лежит UTC-полночью), и
+ * в бизнес-зоне первое января уехало бы в предыдущий год. Позиции без даты
+ * попадают в корзину `year: null` — приписать их к году нечем, и в срезе
+ * конкретного года их не видно.
  *
  * Комплектующие считаются обычными позициями: сборку целиком с перечнем
  * деталей не покупают — деталь берут отдельно, и в поставке она такая же
  * позиция, как системный блок. Поэтому `parentDeviceId` здесь не фильтруется.
  */
-const purchaseTotals = async (supplierIds) => {
+const purchaseBuckets = async (supplierIds) => {
   if (!supplierIds.length) return new Map();
   const rows = await ClientDevice.aggregate([
     { $match: { deletedAt: null, supplierId: { $in: supplierIds } } },
     {
       $group: {
-        _id: "$supplierId",
+        _id: {
+          supplierId: "$supplierId",
+          year: { $year: { date: "$purchasedAt", timezone: "UTC" } },
+          companyId: "$companyId",
+        },
         deviceCount: { $sum: 1 },
         totalSpent: { $sum: { $ifNull: ["$price", 0] } },
         lastPurchaseAt: { $max: "$purchasedAt" },
@@ -43,19 +59,41 @@ const purchaseTotals = async (supplierIds) => {
       },
     },
   ]);
-  return new Map(
-    rows.map((row) => [
-      String(row._id),
-      {
-        deviceCount: row.deviceCount,
-        totalSpent: row.totalSpent,
-        lastPurchaseAt: row.lastPurchaseAt || null,
-        // Позиции без документа в поставки не группируются — считаем их одной
-        // безымянной «россыпью», поэтому null из набора выкидываем.
-        deliveryCount: row.documents.filter(Boolean).length,
-      },
+
+  // Наружу — названия компаний, а не идентификаторы: их читает человек.
+  const companyIds = [
+    ...new Set(rows.map((row) => row._id.companyId).filter(Boolean).map(String)),
+  ];
+  const companies = await Company.find({ _id: { $in: companyIds } })
+    .select("alias fullTitle")
+    .lean();
+  const companyName = new Map(
+    companies.map((company) => [
+      String(company._id),
+      company.alias || company.fullTitle,
     ]),
   );
+
+  const bySupplier = new Map();
+  for (const row of rows) {
+    const key = String(row._id.supplierId);
+    if (!bySupplier.has(key)) bySupplier.set(key, []);
+    const companyId = row._id.companyId ? String(row._id.companyId) : null;
+    bySupplier.get(key).push({
+      year: row._id.year ?? null,
+      companyId,
+      companyName: companyId ? companyName.get(companyId) || null : null,
+      deviceCount: row.deviceCount,
+      totalSpent: row.totalSpent,
+      lastPurchaseAt: row.lastPurchaseAt || null,
+      // Позиции без документа в поставки не группируются — считаем их одной
+      // безымянной «россыпью», поэтому null из набора выкидываем. Накладные
+      // уникальны ВНУТРИ корзины: если одну разложили на две компании, в срезе
+      // «все компании» она сосчитается дважды — так закупки не ведут.
+      deliveryCount: row.documents.filter(Boolean).length,
+    });
+  }
+  return bySupplier;
 };
 
 exports.getAll = async (req, res, next) => {
@@ -66,17 +104,14 @@ exports.getAll = async (req, res, next) => {
       .sort({ name: 1 })
       .lean();
 
-    const totals = await purchaseTotals(suppliers.map((s) => s._id));
+    const buckets = await purchaseBuckets(suppliers.map((s) => s._id));
 
+    // Итогов одним числом тут нет намеренно: их считает список под выбранные
+    // год и компанию (frontend/src/store/lists/suppliers.js).
     res.status(200).json(
       suppliers.map((supplier) => ({
         ...supplier,
-        ...(totals.get(String(supplier._id)) || {
-          deviceCount: 0,
-          totalSpent: 0,
-          lastPurchaseAt: null,
-          deliveryCount: 0,
-        }),
+        purchases: buckets.get(String(supplier._id)) || [],
       })),
     );
   } catch (error) {

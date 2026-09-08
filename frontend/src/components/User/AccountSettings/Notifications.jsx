@@ -28,6 +28,8 @@ const CATEGORIES = [
     name: "RespStateUpdate",
     label: "Изменение статуса ответственного за заявку",
     visibilityKey: "respStateUpdate",
+    // Ответственным по заявке бывает только сотрудник — клиенту строка ни о чём
+    staffOnly: true,
     getTg: (notify) => notify.byTelegram?.respStateUpdate,
     getEmail: (notify) => notify.byEmail?.respStateUpdate,
   },
@@ -40,7 +42,7 @@ const CATEGORIES = [
   },
   {
     name: "TicketDeadlineUpdate",
-    label: "Изменение срока заявки",
+    label: "Изменения срока выполнения",
     visibilityKey: "ticketDeadlineUpdate",
     getTg: (notify) => notify.byTelegram?.ticketDeadlineUpdate,
     getEmail: (notify) => notify.byEmail?.ticketDeadlineUpdate,
@@ -93,7 +95,9 @@ const Notifications = ({ user, initialPrefs }) => {
   }, [fetcher.state, fetcher.data]);
 
   const visibleCategories = CATEGORIES.filter(
-    (category) => initialPrefs.personalNotifications?.[category.visibilityKey],
+    (category) =>
+      initialPrefs.personalNotifications?.[category.visibilityKey] &&
+      (!category.staffOnly || !user.isEndUser),
   );
 
   const tgDisabled =

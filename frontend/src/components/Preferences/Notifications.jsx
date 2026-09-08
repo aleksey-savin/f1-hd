@@ -25,7 +25,7 @@ const CATEGORIES = [
   { key: "newTicket", label: "Новая заявка" },
   { key: "respStateUpdate", label: "Изменение статуса ответственного" },
   { key: "ticketStateUpdate", label: "Изменение статуса заявки" },
-  { key: "ticketDeadlineUpdate", label: "Изменение срока заявки" },
+  { key: "ticketDeadlineUpdate", label: "Изменения срока выполнения" },
   { key: "ticketNewComment", label: "Новые комментарии к заявке" },
   { key: "scheduledWorks", label: "Запланированные работы" },
   // Категории появлялись в моделях, но в эту матрицу не попадали — глобальный

@@ -37,7 +37,7 @@ const Row = ({
   return (
     <div className="flex items-center gap-3 border-t border-border-soft px-4 py-2.5 first:border-t-0">
       <span
-        className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-xs font-semibold text-muted-foreground"
+        className="grid size-9 flex-none place-items-center rounded-[25%] bg-accent text-xs font-semibold text-muted-foreground"
         style={{
           boxShadow: `0 0 0 2px var(--card), 0 0 0 3.5px ${statusColor(status?.code)}`,
         }}

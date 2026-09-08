@@ -16,12 +16,15 @@ import useToastStore from "@/store/toast-store";
 import { getLocalStorageData } from "../../util/auth";
 import UserAvatar from "./UserAvatar";
 
-// Аватар карточки: круг с кольцом-присутствием (как в списке); у менеджеров —
-// загрузка фото с кадрированием 1:1 по кругу (карточка — единственное место
-// смены аватара, в форме правки его нет). Логика кропа перенесена из легаси
-// UI/AvatarUpload: валидация → FileReader → react-image-crop → canvas → blob.
-// Аватар рисуем фоном на <span>, а не <img>, в обход глобального
-// img{width/height:auto!important}.
+// Аватар карточки: та же плитка с кольцом-присутствием, что в списке, только
+// крупнее; у менеджеров — загрузка фото с кадрированием 1:1 под плитку
+// (маска кропа повторяет её скругление — `crop-tile` в index.css: что
+// выбрал, то и увидишь; карточка — единственное место смены аватара, в форме
+// правки его нет). Логика кропа перенесена из легаси UI/AvatarUpload:
+// валидация → FileReader → react-image-crop → canvas → blob. Аватар рисуем
+// фоном на <span>, а не <img>, в обход глобального
+// img{width/height:auto!important}. Кнопка камеры — круглый бейдж поверх
+// плитки, сдвинут на 2 px наружу в угол.
 const API = import.meta.env.VITE_API_ADDRESS;
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 МБ
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif"];
@@ -168,7 +171,6 @@ const CardAvatar = ({ user, ringColor, canEdit }) => {
         textClass="text-2xl"
         ringColor={ringColor}
         ring="lg"
-        shape="round"
       />
 
       {canEdit && (
@@ -178,7 +180,7 @@ const CardAvatar = ({ user, ringColor, canEdit }) => {
             onClick={() => inputRef.current?.click()}
             title="Изменить фото"
             aria-label="Изменить фото"
-            className="absolute right-0 bottom-0 grid size-8 cursor-pointer appearance-none place-items-center rounded-full border-2 border-card bg-primary text-primary-foreground transition-colors hover:bg-primary/90"
+            className="absolute -right-0.5 -bottom-0.5 grid size-8 cursor-pointer appearance-none place-items-center rounded-full border-2 border-card bg-primary text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <RiCameraLine size={15} />
           </button>
@@ -204,12 +206,11 @@ const CardAvatar = ({ user, ringColor, canEdit }) => {
           {error && <p className="my-0 text-sm text-destructive">{error}</p>}
 
           {imgSrc && (
-            <div className="flex justify-center overflow-hidden rounded-xl border border-border bg-accent p-2">
+            <div className="crop-tile flex justify-center overflow-hidden rounded-xl border border-border bg-accent p-2">
               <ReactCrop
                 crop={crop}
                 onChange={(pixelCrop) => setCrop(pixelCrop)}
                 aspect={1}
-                circularCrop
                 unit="px"
               >
                 <img

@@ -155,7 +155,7 @@ const EmployeesTable = ({
           ) : (
             <span className="size-5 flex-none" />
           )}
-          <span className="grid size-8 flex-none place-items-center rounded-lg bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border">
+          <span className="grid size-8 flex-none place-items-center rounded-[25%] bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border">
             {initials(row.employee)}
           </span>
           <span className="min-w-0">

@@ -40,7 +40,13 @@ import {
 import Crumbs, { useCrumbFrom } from "@/components/app/Crumbs";
 import FormOutlet from "@/components/app/FormOutlet";
 import { DeleteDialog } from "@/components/app/DeleteItem";
-import { Eyebrow, Panel, SubLabel } from "@/components/app/Panel";
+import {
+  Eyebrow,
+  Panel,
+  Section,
+  SectionEditLink,
+  SubLabel,
+} from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
 import AnchorRail from "@/components/app/AnchorRail";
 import PropRow from "@/components/app/PropRow";
@@ -124,6 +130,10 @@ const ViewUser = ({ user, tickets }) => {
   const can = useCan();
   const catalogue = usePermissionCatalogue();
   const canManageUsers = can({ user: ["manage"] });
+  // Правка финансов — та же форма пользователя, но секция под своим правом
+  // (как в UserForm): без него карандаш вёл бы в форму, где секции нет
+  const canEditFinances =
+    canManageUsers && Boolean(can({ report: ["employees"] }));
   // Пароли, сеансы и второй фактор — это ДОСТУП, а не карточка человека:
   // право своё, и кнопки показываем по нему, иначе сервер отобьёт нажатие.
   const canManageUserAccess = can({ user: ["manageAccess"] });
@@ -149,7 +159,6 @@ const ViewUser = ({ user, tickets }) => {
     email,
     phone,
     position,
-    role,
     company,
     subdivision,
     clientTimezone,
@@ -237,18 +246,24 @@ const ViewUser = ({ user, tickets }) => {
           tg: notify.byTelegram?.newTicket,
           em: notify.byEmail?.newTicket,
         },
-        {
-          label: "Статус ответственного",
-          tg: notify.byTelegram?.respStateUpdate,
-          em: notify.byEmail?.respStateUpdate,
-        },
+        // Ответственным по заявке бывает только сотрудник — клиенту строка
+        // ни о чём
+        ...(isEndUser
+          ? []
+          : [
+              {
+                label: "Статус ответственного",
+                tg: notify.byTelegram?.respStateUpdate,
+                em: notify.byEmail?.respStateUpdate,
+              },
+            ]),
         {
           label: "Изменение статуса заявки",
           tg: notify.byTelegram?.ticketStateUpdate,
           em: notify.byEmail?.ticketStateUpdate,
         },
         {
-          label: "Изменение срока",
+          label: "Изменения срока выполнения",
           tg: notify.byTelegram?.ticketDeadlineUpdate,
           em: notify.byEmail?.ticketDeadlineUpdate,
         },
@@ -493,16 +508,20 @@ const ViewUser = ({ user, tickets }) => {
             >
               <StatusText on={adLinked} onText="Связан" offText="Не связан" />
             </PropRow>
-            <PropRow
-              icon={<RiRemoteControlLine size={17} />}
-              label="PRO32 Connect"
-            >
-              <StatusText
-                on={Boolean(getScreen?.hasApi)}
-                onText="Подключён"
-                offText="Не подключён"
-              />
-            </PropRow>
+            {/* Ключ PRO32 Connect есть только у сотрудников — он подключает
+                к машине клиента того, кто нажал кнопку в заявке */}
+            {!isEndUser && !isServiceAccount && (
+              <PropRow
+                icon={<RiRemoteControlLine size={17} />}
+                label="PRO32 Connect"
+              >
+                <StatusText
+                  on={Boolean(getScreen?.hasApi)}
+                  onText="Подключён"
+                  offText="Не подключён"
+                />
+              </PropRow>
+            )}
           </Panel>
 
           {/* Организация + Активность */}
@@ -561,11 +580,6 @@ const ViewUser = ({ user, tickets }) => {
                         </span>
                       )}
                     </span>
-                  </PropRow>
-                )}
-                {role && (
-                  <PropRow icon={<RiPriceTag3Line size={17} />} label="Роль">
-                    {role}
                   </PropRow>
                 )}
               </Panel>
@@ -717,8 +731,17 @@ const ViewUser = ({ user, tickets }) => {
 
           {/* Финансы (по правам) */}
           {canSeeFinances && (
-            <>
-              <Eyebrow id="finances">Финансы</Eyebrow>
+            <Section>
+              <Eyebrow
+                id="finances"
+                action={
+                  canEditFinances ? (
+                    <SectionEditLink to="update#finances" label="Финансы" />
+                  ) : undefined
+                }
+              >
+                Финансы
+              </Eyebrow>
               <Panel>
                 <PropRow
                   icon={<RiMoneyDollarCircleLine size={17} />}
@@ -741,98 +764,108 @@ const ViewUser = ({ user, tickets }) => {
                   )}
                 </PropRow>
               </Panel>
-            </>
+            </Section>
           )}
 
           {/* Права и доступ (для управляющих пользователями) */}
           {showPermissions && (
             <>
               <Eyebrow id="permissions">Права и доступ</Eyebrow>
-              <Panel>
-                <div className="mb-4 flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1 text-sm font-semibold text-accent-text">
-                    <RiVipCrownLine className="size-3.5" />
-                    {isAdmin ? "Администратор" : accountType}
-                  </span>
-                  {isAdmin && <Pill>{accountType}</Pill>}
-                </div>
-                {/* Откуда права: список ниже — следствие ролей, и без них он
-                    читается как набор, взявшийся ниоткуда. */}
-                <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Роли:</span>
-                  {roles.length ? (
-                    roles.map((role) => <Pill key={role.key}>{role.title}</Pill>)
+              {/* Две панели одной секции — с зазором, иначе сливаются в одну */}
+              <div className="flex flex-col gap-4">
+                <Panel>
+                  {/* Тип аккаунта здесь не повторяем — он в шапке карточки
+                      (вместе с «· Администратор»): с чипом типа и ролью
+                      «Клиент» слово стояло на карточке трижды. Панель отвечает
+                      на один вопрос — какие роли и что они дают. Откуда права:
+                      список ниже — следствие ролей, и без них он читается как
+                      набор, взявшийся ниоткуда. */}
+                  <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Роли:</span>
+                    {roles.length ? (
+                      roles.map((role) => <Pill key={role.key}>{role.title}</Pill>)
+                    ) : (
+                      <span className="text-faint">не назначены</span>
+                    )}
+                  </div>
+                  {permissionGroups.length === 0 ? (
+                    <div className="py-0.5 text-sm text-faint">
+                      Нет выданных прав
+                    </div>
                   ) : (
-                    <span className="text-faint">не назначены</span>
-                  )}
-                </div>
-                {permissionGroups.length === 0 ? (
-                  <div className="py-0.5 text-sm text-faint">
-                    Нет выданных прав
-                  </div>
-                ) : (
-                  <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-                    {permissionGroups.map((group) => (
-                      <div key={group.label}>
-                        <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                          <span className="text-muted-foreground [&_svg]:size-4">
-                            {group.icon}
-                          </span>
-                          {group.label}
+                    <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                      {permissionGroups.map((group) => (
+                        <div key={group.label}>
+                          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                            <span className="text-muted-foreground [&_svg]:size-4">
+                              {group.icon}
+                            </span>
+                            {group.label}
+                          </div>
+                          {group.caps.map((cap) => (
+                            <Cap key={cap.id} on>
+                              {cap.label}
+                            </Cap>
+                          ))}
                         </div>
-                        {group.caps.map((cap) => (
-                          <Cap key={cap.id} on>
-                            {cap.label}
-                          </Cap>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Panel>
-
-              {/* Где эта учётная запись открыта прямо сейчас. Отдельной
-                  панелью, а не внутри прав: права отвечают «что можно»,
-                  сеансы — «откуда заходят», и объединять их незачем. */}
-              <Panel>
-                <div className="mb-4 flex flex-wrap items-center gap-2.5">
-                  <span className="text-sm font-medium">
-                    Вход по коду из приложения
-                  </span>
-                  <span
-                    className={
-                      twoFactorEnabled
-                        ? "rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-accent-text"
-                        : "rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-muted-foreground"
-                    }
-                  >
-                    {twoFactorEnabled ? "Включён" : "Выключен"}
-                  </span>
-                  {twoFactorEnabled && canManageUserAccess && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="ml-auto"
-                      onClick={() => setTfResetOpen(true)}
-                    >
-                      Сбросить
-                    </Button>
+                      ))}
+                    </div>
                   )}
-                </div>
-                {/* Завершать чужие сеансы может тот же, кто распоряжается
-                    доступом; остальным список показываем только на чтение. */}
-                <SessionList
-                  userId={user._id}
-                  canRevoke={canManageUserAccess}
-                />
-              </Panel>
+                </Panel>
+
+                {/* Где эта учётная запись открыта прямо сейчас. Отдельной
+                    панелью, а не внутри прав: права отвечают «что можно»,
+                    сеансы — «откуда заходят», и объединять их незачем. */}
+                <Panel>
+                  <div className="mb-4 flex flex-wrap items-center gap-2.5">
+                    <span className="text-sm font-medium">
+                      Вход по коду из приложения
+                    </span>
+                    <span
+                      className={
+                        twoFactorEnabled
+                          ? "rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-accent-text"
+                          : "rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-muted-foreground"
+                      }
+                    >
+                      {twoFactorEnabled ? "Включён" : "Выключен"}
+                    </span>
+                    {twoFactorEnabled && canManageUserAccess && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-auto"
+                        onClick={() => setTfResetOpen(true)}
+                      >
+                        Сбросить
+                      </Button>
+                    )}
+                  </div>
+                  {/* Завершать чужие сеансы может тот же, кто распоряжается
+                      доступом; остальным список показываем только на чтение. */}
+                  <SessionList
+                    userId={user._id}
+                    canRevoke={canManageUserAccess}
+                  />
+                </Panel>
+              </div>
             </>
           )}
 
           {/* Уведомления (для управляющих пользователями) */}
           {showNotify && (
-            <>
-              <Eyebrow id="notifications">Уведомления</Eyebrow>
+            <Section>
+              <Eyebrow
+                id="notifications"
+                action={
+                  <SectionEditLink
+                    to="update#notifications"
+                    label="Уведомления"
+                  />
+                }
+              >
+                Уведомления
+              </Eyebrow>
               <Panel>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -886,7 +919,7 @@ const ViewUser = ({ user, tickets }) => {
                   </p>
                 )}
               </Panel>
-            </>
+            </Section>
           )}
         </div>
       </div>

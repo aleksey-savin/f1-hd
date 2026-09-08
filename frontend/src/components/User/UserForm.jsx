@@ -33,7 +33,6 @@ import useInitialPrefs from "../../store/prefs";
 import timezones from "../../store/timezones";
 import { inheritedTimezone, tzCity } from "../../util/timezone-display";
 import { businessDayKey } from "../../util/format-date";
-import { getInitialPrefsData } from "../../util/prefs";
 
 import {
   ACCOUNT_KINDS,
@@ -154,10 +153,6 @@ const UserForm = () => {
   // «График работы» и уходит своим endpoint'ом (см. pages/User/Update.jsx).
   const canManageUsers = Boolean(can({ user: ["manage"] }));
   const canManageSchedule = Boolean(can({ schedule: ["manage"] }));
-  // Глобальная интеграция включена — ключ правят только у клиентов (как в легаси)
-  const prefsGetScreenActive = Boolean(
-    getInitialPrefsData()?.getScreen?.isActive,
-  );
   const { timezone: orgTimezone } = useInitialPrefs();
 
   const fetcher = useFetcher();
@@ -255,29 +250,40 @@ const UserForm = () => {
     if (found) setForm((prev) => ({ ...prev, subdivision: found }));
   }, [form.company]);
 
-  const canEditGetScreen = !prefsGetScreenActive || kind === "client";
   const isService = kind === "service";
   const isStaff = kind === "staff";
+  // Ключ PRO32 Connect — только у сотрудника: кнопка в заявке подключается
+  // ключом того, кто её нажал (controllers/pro32Connect.js), клиент лишь
+  // называет свою машину. Прежнее «при включённой интеграции — только у
+  // клиентов» было наследием и показывало поле не тем.
+  const canEditGetScreen = isStaff;
 
   /* ---------- шаги ---------- */
   // График — только у сотрудников (у клиента и служебного нет ни нормы часов,
   // ни отсутствий) и только с правом на графики
   const showSchedule = isStaff && canManageSchedule;
+  // Финансы — только у сотрудника и только с правом на отчёт по сотрудникам
+  const showFinances = canEditFinances && isStaff;
+  // Секции те же и в том же порядке, что на карточке пользователя: сборной
+  // «Дополнительно» нет — у каждого блока своё имя, и ярлык секции карточки
+  // ведёт сюда хешем (update#finances, update#notifications)
   const stepKeys = canManageUsers
     ? [
         "person",
         "org",
         ...(showSchedule ? ["schedule"] : []),
+        ...(showFinances ? ["finances"] : []),
         ...(isService ? [] : ["rights"]),
-        ...(isService ? [] : ["extra"]),
+        ...(isService ? [] : ["notifications"]),
       ]
     : ["schedule"];
   const titles = {
     person: "Основное",
     org: "Организация",
     schedule: "График работы",
+    finances: "Финансы",
     rights: "Права и доступ",
-    extra: "Дополнительно",
+    notifications: "Уведомления",
   };
   const STEPS = stepKeys.map((key) => ({
     label: { rights: "Права", schedule: "График" }[key] ?? titles[key],
@@ -288,15 +294,28 @@ const UserForm = () => {
   const [maxReached, setMaxReached] = useState(isEdit ? 99 : 0);
   const [attempted, setAttempted] = useState(false);
 
-  // Смена типа аккаунта может укоротить набор шагов
+  // Смена типа аккаунта может укоротить набор шагов — и снимает роли другого
+  // адресата: селектор их больше не показывает, а невидимая роль всё равно
+  // ушла бы на сервер. Пока каталог не загружен, адресата не узнать — не трогаем
   useEffect(() => {
     setStep((current) => Math.min(current, stepKeys.length - 1));
+    if (!catalogue.length) return;
+    const allowed = new Set(
+      rolesToOptions(catalogue, kind).map((option) => option.value),
+    );
+    setForm((prev) =>
+      prev.roles.every((key) => allowed.has(key))
+        ? prev
+        : { ...prev, roles: prev.roles.filter((key) => allowed.has(key)) },
+    );
   }, [kind]);
 
   const stepError = (key) => {
     if (key === "person") {
-      if (!form.firstName.trim())
-        return isService ? "Укажите наименование" : "Укажите имя";
+      // Человеку обязательна только фамилия: имя бывает неизвестно (входящая
+      // почта, справочник клиента). У служебной учётки наименование — это и
+      // есть firstName, без него записи не назвать.
+      if (isService && !form.firstName.trim()) return "Укажите наименование";
       if (!isService && !form.lastName.trim()) return "Укажите фамилию";
       if (!form.email.trim()) return "Укажите email";
       // Пароль требуется ТОЛЬКО на своей дороге: при приглашении его нет
@@ -311,6 +330,9 @@ const UserForm = () => {
       return null;
     }
     if (key === "org" && !form.company) return "Выберите компанию";
+    // Роль обязательна: без неё у человека нет прав, и «Далее»/«Сохранить»
+    // не пускают дальше, пока не выбрана хотя бы одна
+    if (key === "rights" && form.roles.length === 0) return "Выберите роль";
     return null;
   };
 
@@ -587,7 +609,7 @@ const UserForm = () => {
               onChange={(event) => setField("lastName", event.target.value)}
             />
           </Field>
-          <Field label="Имя" required htmlFor="u-firstName">
+          <Field label="Имя" htmlFor="u-firstName">
             <Input
               id="u-firstName"
               value={form.firstName}
@@ -805,6 +827,29 @@ const UserForm = () => {
                 ),
               )
             }
+          />
+        </Field>
+      )}
+
+      {/* Ключ интеграции — среди полей организации, как строка «PRO32 Connect»
+          в шапке карточки. Служебной учётке не нужен: она не открывает заявки */}
+      {canEditGetScreen && (
+        <Field
+          label="API-ключ PRO32 Connect"
+          htmlFor="u-getscreen"
+          hint={
+            hasGetScreenKey
+              ? "Ключ задан и хранится в зашифрованном виде. Оставьте поле пустым, чтобы не менять; введённый ключ заменит текущий."
+              : "Персональный ключ удалённого подключения — без него кнопка PRO32 Connect в заявке не работает."
+          }
+        >
+          <Input
+            id="u-getscreen"
+            type="password"
+            autoComplete="new-password"
+            placeholder={hasGetScreenKey ? "••••••••  (ключ задан)" : ""}
+            value={form.getScreenApi}
+            onChange={(event) => setField("getScreenApi", event.target.value)}
           />
         </Field>
       )}
@@ -1067,20 +1112,15 @@ const UserForm = () => {
       <RoleSummary
         roles={form.roles}
         catalogue={catalogue}
-        emptyHint={
-          isStaff
-            ? "Роли нет — человек войдёт, но увидит только свои обращения."
-            : "Дополнительных прав нет: клиент видит свои обращения."
-        }
+        emptyHint="Выберите хотя бы одну роль — без неё сохранить нельзя."
       />
 
       {categoriesUnderPerform()}
     </div>
   );
 
-  const extraStep = (
+  const notificationsStep = (
     <>
-      <div className="mb-2 text-sm font-semibold">Уведомления</div>
       {notifyDirty && (
         <div className="mb-3">
           <AlertMessage
@@ -1089,7 +1129,7 @@ const UserForm = () => {
           />
         </div>
       )}
-      <div className="mb-5 overflow-x-auto rounded-xl border border-border">
+      <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-xs font-bold tracking-wide text-faint uppercase">
@@ -1099,95 +1139,75 @@ const UserForm = () => {
             </tr>
           </thead>
           <tbody>
-            {NOTIFY_EVENTS.map((event) => (
-              <tr key={event.key} className="border-t border-border-soft">
-                <td className="p-3 font-medium">{event.label}</td>
-                {["byTelegram", "byEmail"].map((channel) => (
-                  <td key={channel} className="p-3">
-                    <div className="flex justify-center">
-                      <SwitchField
-                        id={`n-${channel}-${event.key}`}
-                        checked={!!form.notify[channel][event.key]}
-                        onCheckedChange={() => toggleNotify(channel, event.key)}
-                        label=""
-                        className="py-0"
-                      />
-                    </div>
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {NOTIFY_EVENTS.filter((event) => !event.staffOnly || isStaff).map(
+              (event) => (
+                <tr key={event.key} className="border-t border-border-soft">
+                  <td className="p-3 font-medium">{event.label}</td>
+                  {["byTelegram", "byEmail"].map((channel) => (
+                    <td key={channel} className="p-3">
+                      <div className="flex justify-center">
+                        <SwitchField
+                          id={`n-${channel}-${event.key}`}
+                          checked={!!form.notify[channel][event.key]}
+                          onCheckedChange={() =>
+                            toggleNotify(channel, event.key)
+                          }
+                          label=""
+                          className="py-0"
+                        />
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              ),
+            )}
           </tbody>
         </table>
       </div>
-
-      {canEditFinances && isStaff && (
-        <>
-          <div className="mt-5 mb-2 text-sm font-semibold">Финансы</div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Field
-              label="Оклад, ₽/мес"
-              htmlFor="u-salary"
-              hint="Отображается в персональном отчёте сотрудника."
-            >
-              <Input
-                id="u-salary"
-                type="number"
-                min="0"
-                step="1"
-                value={form.finances.salary}
-                onChange={(event) =>
-                  setField("finances", {
-                    ...form.finances,
-                    salary: event.target.value,
-                  })
-                }
-              />
-            </Field>
-            <Field
-              label="Ставка переработок, ₽/час"
-              htmlFor="u-overtime"
-              hint="Доплата = часы × ставка × коэффициент из настроек."
-            >
-              <Input
-                id="u-overtime"
-                type="number"
-                min="0"
-                step="1"
-                value={form.finances.overtimeHourlyRate}
-                onChange={(event) =>
-                  setField("finances", {
-                    ...form.finances,
-                    overtimeHourlyRate: event.target.value,
-                  })
-                }
-              />
-            </Field>
-          </div>
-        </>
-      )}
-
-      {canEditGetScreen && (
-        <Field
-          label="API-ключ PRO32 Connect"
-          htmlFor="u-getscreen"
-          hint={
-            hasGetScreenKey
-              ? "Ключ задан и хранится в зашифрованном виде. Оставьте поле пустым, чтобы не менять; введённый ключ заменит текущий."
-              : "Персональный ключ удалённого подключения — без него кнопка PRO32 Connect в заявке не работает."
-          }
-        >
-          <Input
-            id="u-getscreen"
-            type="password"
-            autoComplete="new-password"
-            placeholder={hasGetScreenKey ? "••••••••  (ключ задан)" : ""}
-            value={form.getScreenApi}
-            onChange={(event) => setField("getScreenApi", event.target.value)}
-          />
-        </Field>
-      )}
     </>
+  );
+
+  const financesStep = (
+    <div className="grid gap-3 md:grid-cols-2">
+      <Field
+        label="Оклад, ₽/мес"
+        htmlFor="u-salary"
+        hint="Отображается в персональном отчёте сотрудника."
+      >
+        <Input
+          id="u-salary"
+          type="number"
+          min="0"
+          step="1"
+          value={form.finances.salary}
+          onChange={(event) =>
+            setField("finances", {
+              ...form.finances,
+              salary: event.target.value,
+            })
+          }
+        />
+      </Field>
+      <Field
+        label="Ставка переработок, ₽/час"
+        htmlFor="u-overtime"
+        hint="Доплата = часы × ставка × коэффициент из настроек."
+      >
+        <Input
+          id="u-overtime"
+          type="number"
+          min="0"
+          step="1"
+          value={form.finances.overtimeHourlyRate}
+          onChange={(event) =>
+            setField("finances", {
+              ...form.finances,
+              overtimeHourlyRate: event.target.value,
+            })
+          }
+        />
+      </Field>
+    </div>
   );
 
   const bodyFor = (key) =>
@@ -1195,8 +1215,9 @@ const UserForm = () => {
       person: personStep,
       org: orgStep,
       schedule: scheduleStep,
+      finances: financesStep,
       rights: rightsStep,
-      extra: extraStep,
+      notifications: notificationsStep,
     })[key];
 
   const subtitle = isEdit

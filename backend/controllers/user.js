@@ -682,7 +682,6 @@ exports.add = async (req, res, next) => {
       lastName,
       position,
       notify,
-      role,
       banned,
       isEndUser,
       isServiceAccount,
@@ -738,6 +737,14 @@ exports.add = async (req, res, next) => {
       return next(new AppError("Задайте пароль или пригласите письмом", 400));
     }
 
+    // Роль обязательна сотруднику и клиенту: без неё у человека нет прав, а
+    // учётка без прав — ошибка заведения, не состояние. Проверка ДО записи:
+    // ниже документ уже сохраняется и уходит приглашение. Служебной учётке
+    // роли не положены вовсе (см. форму).
+    if (!isServiceAccount && !(Array.isArray(roles) && roles.length > 0)) {
+      return next(new AppError("Выберите хотя бы одну роль", 400));
+    }
+
     // Новому человеку ролей ещё не назначено, поэтому текущий набор пуст.
     assertMayChangeRoles(req, [], roles);
 
@@ -749,13 +756,14 @@ exports.add = async (req, res, next) => {
     const user = new User({
       email: email?.toLowerCase(),
       phone: phone,
-      firstName: firstName,
+      firstName: firstName || "",
       lastName: lastName || "",
       position: position,
       company: company,
       subdivision: subdivision,
       categories: categoriesList,
-      role: role,
+      // `role` — роль плагина better-auth, её проставит assignRoles ниже;
+      // из тела запроса не читается (см. комментарий в модели)
       /**
        * ЗЕРКАЛО роли полного доступа, а не поле формы. Значение проставит
        * `assignRoles` ниже — по тому, что человеку назначено.
@@ -781,7 +789,19 @@ exports.add = async (req, res, next) => {
       getScreen: {
         api: getScreenApi ? encryptSecret(getScreenApi) : "",
       },
-      notify: notify,
+      // Клиент не бывает ответственным по заявке: событие «статус
+      // ответственного» ему выключаем при заведении, что бы ни прислала форма
+      notify:
+        isEndUser !== false && !isServiceAccount
+          ? {
+              ...(notify || {}),
+              byTelegram: {
+                ...(notify?.byTelegram || {}),
+                respStateUpdate: false,
+              },
+              byEmail: { ...(notify?.byEmail || {}), respStateUpdate: false },
+            }
+          : notify,
       responsibleForCompanies: (responsibleForCompanies || []).map((item) => ({
         id: item.id,
         alias: item.alias,
@@ -858,13 +878,13 @@ exports.add = async (req, res, next) => {
     }
 
     try {
-      const workplaceName =
-        `Рабочее место - ${firstName} ${lastName || ""}`.trim();
+      const personName = [firstName, lastName].filter(Boolean).join(" ");
+      const workplaceName = `Рабочее место - ${personName}`;
 
       const workplace = new Location({
         name: workplaceName,
         type: "workplace",
-        description: `Рабочее место сотрудника ${firstName} ${lastName || ""}`,
+        description: `Рабочее место сотрудника ${personName}`,
         company: company._id,
         subdivision: subdivision ? subdivision._id : null,
         assignedUser: user._id,
@@ -908,7 +928,6 @@ exports.update = async (req, res, next) => {
       firstName,
       lastName,
       position,
-      role,
       banned,
       isEndUser,
       isServiceAccount,
@@ -927,6 +946,12 @@ exports.update = async (req, res, next) => {
       notify,
       responsibleForCompanies,
     } = req.body;
+
+    // Пустой набор ролей сотруднику или клиенту не сохраняем (как и при
+    // заведении); поле не прислано — роли не трогаются
+    if (!isServiceAccount && Array.isArray(roles) && roles.length === 0) {
+      return next(new AppError("Выберите хотя бы одну роль", 400));
+    }
 
     // До любых записей: смена ролей — раздача прав, и право на неё своё
     assertMayChangeRoles(req, await rolesOfUser(user._id), roles);
@@ -966,14 +991,12 @@ exports.update = async (req, res, next) => {
 
     user.email = email?.toLowerCase();
     user.phone = phone;
-    user.firstName = firstName;
+    user.firstName = firstName || "";
     user.lastName = lastName || "";
     user.position = position;
     user.categories = categoriesList.filter(Boolean);
     user.company = newCompany;
-    // Формой role не управляется — сохраняем прежнее значение. Было
-    // `role ?? role`: при каждом сохранении роль затиралась в null.
-    user.role = role ?? user.role;
+    // `role` не трогаем: это роль плагина better-auth, её ведёт assignRoles
     user.banned = Boolean(banned);
     // `isAdmin` здесь НЕ трогаем вовсе: это зеркало роли с полным доступом, и
     // проставляет его назначение ролей (services/roles.js#assign). Присланное
@@ -1071,9 +1094,9 @@ exports.update = async (req, res, next) => {
       });
 
       if (workplace) {
-        const newWorkplaceName =
-          `Рабочее место - ${firstName} ${lastName || ""}`.trim();
-        const newDescription = `Рабочее место сотрудника ${firstName} ${lastName || ""}`;
+        const personName = [firstName, lastName].filter(Boolean).join(" ");
+        const newWorkplaceName = `Рабочее место - ${personName}`;
+        const newDescription = `Рабочее место сотрудника ${personName}`;
 
         workplace.name = newWorkplaceName;
         workplace.description = newDescription;

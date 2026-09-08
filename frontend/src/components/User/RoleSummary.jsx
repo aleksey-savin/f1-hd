@@ -43,34 +43,24 @@ export const effectiveOf = (keys = [], catalogue = [], allActions = []) => {
 };
 
 /**
- * Опции селектора ролей: сначала подходящие типу аккаунта, следом остальные.
+ * Опции селектора ролей — только адресованные типу аккаунта: клиенту
+ * клиентские, сотруднику — роли сотрудников (`audience` роли).
  *
- * Чужой адресат не запрещён — он уходит вниз отдельной группой. Данные
- * дрейфуют, и жёсткий запрет однажды окажется тупиком; заказчику, которому
- * действительно нужна роль сотрудника, придётся её выбрать.
+ * Чужие роли не показываем вовсе — решение владельца (2026-09-08): раньше они
+ * шли второй группой «на всякий случай», и одного неверного клика хватало,
+ * чтобы клиент получил права сотрудника. Нужна роль другого адресата —
+ * меняется тип аккаунта, а не подбирается роль мимо адресата.
  */
 export const rolesToOptions = (catalogue = [], kind) => {
   const wanted = kind === "client" ? "client" : "staff";
-  const heading = {
-    client: { own: "Для клиентов", other: "Роли сотрудников" },
-    staff: { own: "Для сотрудников", other: "Роли клиентов" },
-  }[wanted];
-
-  const byAudience = (audience) =>
-    catalogue
-      .filter((role) => (role.audience || "staff") === audience)
-      .sort((a, b) => (b.usage?.total || 0) - (a.usage?.total || 0))
-      .map((role) => ({
-        value: role.key,
-        label: role.title,
-        group: audience === wanted ? heading.own : heading.other,
-        hint: role.description || undefined,
-      }));
-
-  return [
-    ...byAudience(wanted),
-    ...byAudience(wanted === "client" ? "staff" : "client"),
-  ];
+  return catalogue
+    .filter((role) => (role.audience || "staff") === wanted)
+    .sort((a, b) => (b.usage?.total || 0) - (a.usage?.total || 0))
+    .map((role) => ({
+      value: role.key,
+      label: role.title,
+      hint: role.description || undefined,
+    }));
 };
 
 /** Разделы с тем, что в них открыто. Пустой раздел не показываем вовсе. */

@@ -1,5 +1,6 @@
 const { AppError } = require("@/middleware/errorHandling");
 const { GROUPS } = require("@/auth/access");
+const User = require("@/models/user");
 const roles = require("@/services/roles");
 
 /**
@@ -73,6 +74,17 @@ exports.remove = async (req, res, next) => {
 exports.assign = async (req, res, next) => {
   try {
     const keys = Array.isArray(req.body.roles) ? req.body.roles : [];
+    // Сотруднику и клиенту роль обязательна (то же правило, что у формы
+    // пользователя): пустой набор снимает все права, а учётка без прав —
+    // ошибка, не состояние. Служебной учётке роли не положены.
+    if (keys.length === 0) {
+      const target = await User.findById(req.params.id)
+        .select("isServiceAccount")
+        .lean();
+      if (target && !target.isServiceAccount) {
+        return next(new AppError("Выберите хотя бы одну роль", 400));
+      }
+    }
     const result = await roles.assign(req.params.id, keys, req.auth.can);
     res.status(200).json({ ...result, message: "Роли назначены" });
   } catch (error) {

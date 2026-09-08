@@ -54,6 +54,8 @@ type SortOption = { label: string; shortLabel?: string };
 type FilterStore = {
   isLoading?: boolean;
   isSorting?: boolean;
+  /** Текущий запрос поиска — стор переживает переходы, поле обязано его показывать. */
+  searchTerm?: string;
   fullTextSearch: (query: string) => void;
   sortBy?: SortOption;
   sortingOptions?: SortOption[];
@@ -195,15 +197,42 @@ const ListWrapper = ({
     filterStore.fullTextSearch(e.target.value);
   };
 
+  // Стор фильтров переживает переходы: после возврата список уже отфильтрован
+  // по прежнему запросу, и пустое поле молчало бы о том, чем. Поэтому поле
+  // стартует с запроса стора, если страница не передала своего.
+  const initialSearch = defaultSearchValue || filterStore.searchTerm || "";
+
   const resetFiltersHandler = () => {
     filterStore.resetFilter?.();
     setSearchResetKey((key) => key + 1);
   };
 
+  // Поисковый запрос — такой же применённый фильтр, как чипы страницы: без
+  // него плашка не показывалась, и список, отфильтрованный одним поиском,
+  // было нечем сбросить, кроме как стереть поле руками. Снятие чипа чистит
+  // запрос в сторе и перемонтирует поле пустым (оно неуправляемое).
+  const clearSearch = () => {
+    filterStore.fullTextSearch("");
+    setSearchResetKey((key) => key + 1);
+  };
+  const searchTerm = (filterStore.searchTerm || "").trim();
+  const appliedFilters: ActiveFilter[] = [
+    ...(searchTerm
+      ? [
+          {
+            key: "__search",
+            label: `Поиск: «${searchTerm}»`,
+            onRemove: clearSearch,
+          },
+        ]
+      : []),
+    ...activeFilters,
+  ];
+
   // Прилипание плашки фильтров: sentinel над ней уходит за порог (высота
   // навбара; на мобайле раньше срабатывает клип скролл-контейнера) —
   // у плашки снимается верхнее скругление, она «прирастает» к бару
-  const hasActiveFilters = activeFilters.length > 0;
+  const hasActiveFilters = appliedFilters.length > 0;
   const stuckSentinelRef = useRef<HTMLDivElement | null>(null);
   const [filtersStuck, setFiltersStuck] = useState(false);
   // theme-context — ещё .jsx, типизируем на границе
@@ -351,7 +380,7 @@ const ListWrapper = ({
             <SearchBar
               key={searchResetKey}
               onChange={searchHandler}
-              defaultValue={defaultSearchValue}
+              defaultValue={initialSearch}
               placeholder={searchPlaceholder}
             />
           }
@@ -375,7 +404,7 @@ const ListWrapper = ({
           <SearchBar
             key={searchResetKey}
             onChange={searchHandler}
-            defaultValue={defaultSearchValue}
+            defaultValue={initialSearch}
             placeholder={searchPlaceholder}
             size="lg"
           />
@@ -441,7 +470,7 @@ const ListWrapper = ({
               aria-hidden
               className="ms-1 flex-none text-accent-text"
             />
-            {activeFilters.map((appliedFilter) => (
+            {appliedFilters.map((appliedFilter) => (
               <button
                 key={appliedFilter.key}
                 type="button"

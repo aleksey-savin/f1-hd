@@ -1,9 +1,11 @@
 import { getWorkStatusMeta } from "../../util/work-statuses";
 
-// Кругляш сотрудника: фото профиля (или инициалы) + кольцо цвета статуса +
-// мини-бейдж с иконкой статуса. Общий для навбара, рейла статусов и блока
-// «Команда сейчас». Фото — фоном на <span>, потому что размер задаётся
-// инлайном от пропа `size`.
+// Аватар статуса сотрудника: фото профиля (или инициалы) + кольцо цвета
+// статуса + мини-бейдж с иконкой статуса. Общий для навбара, рейла статусов,
+// блока «Команда сейчас» и меню на мобайле. Форма — та же плитка
+// `rounded-[25%]`, что у User/UserAvatar (у человека одна форма на всех
+// размерах); круглым остаётся только бейдж. Фото — фоном на <span>, потому
+// что размер задаётся инлайном от пропа `size`.
 //
 // В бейдже иконка каталога (`Ri*`), а не эмодзи: эмодзи нужны Telegram-табло,
 // в вебе они рисуются по-разному на каждой ОС и держались на подгонках
@@ -11,7 +13,7 @@ import { getWorkStatusMeta } from "../../util/work-statuses";
 //
 // В CSS остаются только две вещи, которых нет в сетке: кольцо
 // `box-shadow: 0 0 0 2px var(--ws-color)` (цвет приезжает инлайном из каталога
-// статусов) и размер бейджа `max(21px, 1.65em)` — он масштабируется от кругляша,
+// статусов) и размер бейджа `max(21px, 1.65em)` — он масштабируется от аватара,
 // но не мельче читаемого минимума.
 const WorkStatusAvatar = ({
   firstName,
@@ -31,7 +33,7 @@ const WorkStatusAvatar = ({
 
   return (
     <span
-      className="ws-avatar relative m-0.5 inline-flex flex-none items-center justify-center rounded-full bg-ws-avatar bg-cover bg-center leading-none font-bold text-ws-avatar-fg"
+      className="ws-avatar relative m-0.5 inline-flex flex-none items-center justify-center rounded-[25%] bg-ws-avatar bg-cover bg-center leading-none font-bold text-ws-avatar-fg"
       style={{
         "--ws-color": meta.color,
         width: `${size}px`,

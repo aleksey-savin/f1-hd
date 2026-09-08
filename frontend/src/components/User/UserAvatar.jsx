@@ -2,16 +2,19 @@ import { monogramFor } from "@/components/app/monogram";
 import { cn } from "@/lib/utils";
 
 // Аватар пользователя с кольцом-присутствием — общий для строки списка,
-// контакт-шторки и карточки. В списках это такая же плитка со скруглением,
-// как логотип компании или фото модели (`shape="tile"`, по умолчанию): круг
-// среди квадратов читался как чужой элемент. Круг (`shape="round"`) остаётся
-// hero карточки и шторке-справке. Фото рисуем фоном на <span>, а не <img>:
-// глобальный img{width/height:auto!important} (хак картинок заявок) ломает
+// контакт-шторки, hero карточки и «Моего аккаунта». Одна форма на любом
+// размере: та же плитка со скруглением, что у логотипа компании или фото
+// модели, скругление — четверть стороны (`rounded-[25%]`: 12 px при 48,
+// 20 у hero 80). Круга у человека нет нигде — среди квадратов он читался как
+// чужой элемент, а один и тот же человек менял форму от списка к карточке;
+// круглыми остаются только бейджи поверх плитки (статус, камера). Фото
+// рисуем фоном на <span>, а не <img>: глобальный
+// img{width/height:auto!important} (хак картинок заявок) ломает
 // фиксированные размеры. Нет фото — инициалы.
 const API = import.meta.env.VITE_API_ADDRESS;
 
 // Кольцо: тонкое для строк/шторки, толще для героя карточки. box-shadow
-// повторяет скругление — одно и то же кольцо у плитки и у круга.
+// повторяет скругление плитки сам, отдельного слоя под кольцо не нужно.
 const RING = {
   sm: "0 0 0 2px var(--card), 0 0 0 4px",
   lg: "0 0 0 3px var(--card), 0 0 0 6px",
@@ -25,8 +28,6 @@ const UserAvatar = ({
   textClass = "text-base",
   ringColor = null,
   ring = "sm",
-  /** "tile" — плитка со скруглением (списки); "round" — круг (hero, шторка). */
-  shape = "tile",
   className,
 }) => {
   const fullName = `${user.lastName || ""} ${user.firstName || ""}`.trim();
@@ -46,8 +47,7 @@ const UserAvatar = ({
         ...(ringColor ? { boxShadow: `${RING[ring]} ${ringColor}` } : {}),
       }}
       className={cn(
-        "grid flex-none place-items-center overflow-hidden bg-accent bg-cover bg-center font-semibold text-muted-foreground",
-        shape === "round" ? "rounded-full" : "rounded-xl",
+        "grid flex-none place-items-center overflow-hidden rounded-[25%] bg-accent bg-cover bg-center font-semibold text-muted-foreground",
         sizeClass,
         textClass,
         !ringColor && "inset-ring inset-ring-border",

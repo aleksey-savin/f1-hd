@@ -19,8 +19,8 @@ import CompanyLogo from "../CompanyLogo";
 // Логотип hero карточки компании: плитка (глиф раздела без файла); у менеджеров —
 // загрузка с квадратным кадрированием (карточка — единственное место смены
 // логотипа, в форме правки его нет). Механика кропа — как у User/CardAvatar,
-// но кроп квадратный (язык записей — плитка, круг остаётся людям); endpoint —
-// прежний PATCH …/add-profile-image.
+// маска кропа та же — со скруглением плитки (`crop-tile` в index.css);
+// endpoint — прежний PATCH …/add-profile-image.
 const API = import.meta.env.VITE_API_ADDRESS;
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 МБ
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif"];
@@ -199,7 +199,7 @@ const HeroLogo = ({ company, canEdit }) => {
           {error && <p className="my-0 text-sm text-destructive">{error}</p>}
 
           {imgSrc && (
-            <div className="flex justify-center overflow-hidden rounded-xl border border-border bg-accent p-2">
+            <div className="crop-tile flex justify-center overflow-hidden rounded-xl border border-border bg-accent p-2">
               <ReactCrop
                 crop={crop}
                 onChange={(pixelCrop) => setCrop(pixelCrop)}

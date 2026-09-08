@@ -44,13 +44,17 @@ export async function action({ request }) {
     },
   );
 
-  // 409 — почта занята. Нормализуем в { error }, иначе форма посчитает ответ
-  // успехом и закроется.
-  if (response.status === 409) {
+  // 409 — почта занята, 400 — отказ проверки (например, пустой набор ролей).
+  // Оба — ошибки формы: показываем сообщение в ней, а не страницу ошибки.
+  if (response.status === 409 || response.status === 400) {
     const body = await response.json().catch(() => ({}));
     return {
       error: true,
-      message: body.message || "Пользователь с такой почтой уже есть",
+      message:
+        body.message ||
+        (response.status === 409
+          ? "Пользователь с такой почтой уже есть"
+          : "Не удалось создать пользователя"),
     };
   }
 

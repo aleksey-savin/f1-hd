@@ -7,8 +7,10 @@ const money = (value) =>
   value ? `${Number(value).toLocaleString("ru-RU")} ₽` : null;
 
 // Строка справочника: слева — кто это и как связаться, справа — то, ради чего
-// сюда заходят: сколько у него куплено и когда в последний раз.
-const SupplierItem = ({ item }) => {
+// сюда заходят: сколько у него куплено и когда в последний раз. Числа — за
+// выбранный на панели год (`year`, null — за всё время); сам год в строке не
+// повторяется, он написан на чипе.
+const SupplierItem = ({ item, year = null }) => {
   const {
     name,
     isActive,
@@ -55,8 +57,17 @@ const SupplierItem = ({ item }) => {
             )}
           </span>
         ) : (
-          <span className="hidden text-sm text-faint sm:block">
-            закупок нет
+          // Пусто в выбранном году — не то же самое, что «никогда не покупали»:
+          // дата последней закупки показывает, насколько поставщик остыл.
+          <span className="hidden text-right text-sm text-faint sm:block">
+            <span className="block">
+              {year ? `в ${year} закупок нет` : "закупок нет"}
+            </span>
+            {lastPurchaseAt && (
+              <span className="block text-xs">
+                последняя — {formatCalendarDate(lastPurchaseAt)}
+              </span>
+            )}
           </span>
         )
       }

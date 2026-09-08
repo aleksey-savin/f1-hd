@@ -179,7 +179,6 @@ const EmployeesSection = ({ company, id }) => {
                         user={user}
                         sizeClass="size-9"
                         textClass="text-xs"
-                        className="rounded-lg"
                       />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm leading-tight font-medium">

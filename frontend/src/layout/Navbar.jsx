@@ -259,7 +259,7 @@ const NavigationBar = ({ embedded = false }) => {
       ) : (
         <span
           aria-hidden
-          className="grid size-7.5 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border"
+          className="grid size-7.5 flex-none place-items-center rounded-[25%] bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border"
         >
           {initials}
         </span>

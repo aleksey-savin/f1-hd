@@ -281,7 +281,7 @@ query, never in the browser:
 | `/device-attributes` | DeviceAttribute | hard | uniqueness on `name` *and* `code` |
 | `/device-configurations` | DeviceConfiguration | **soft** | no bare `GET /` — the list is `GET /device-configurations/model/:id`; values populated |
 | `/vendors` | Vendor | hard | reads require `canManageClientDevices` |
-| `/suppliers` | Supplier | hard, **guarded** | reads require `canManageClientDevices`. `getAll` appends purchase aggregates per supplier (`deviceCount`, `totalSpent`, `deliveryCount`, `lastPurchaseAt`); `getOne` additionally returns `deliveries[]` — devices grouped by `purchaseDocument` with `{document, purchasedAt, company, total, positions[]}`. Deleting a supplier with purchases is **409** («за поставщиком числится N устройств…») — disable it instead, it stays in the purchase history. Components are counted as ordinary positions (`parentDeviceId` is deliberately not filtered): a part is bought on its own, not as a line inside an assembly |
+| `/suppliers` | Supplier | hard, **guarded** | reads require `canManageClientDevices`. `getAll` appends `purchases[]` — one bucket per `{year, companyId}` with `companyName`, `deviceCount`, `totalSpent`, `deliveryCount`, `lastPurchaseAt`; no flat totals, the list sums the buckets under the year and company picked in its toolbar. The year comes from `purchasedAt` **in UTC** (calendar date, stored at UTC midnight — a business-timezone year would push the first of January into the previous one); positions without a date land in `year: null`. Document counts are distinct **within a bucket**, so one delivery note split across two companies counts twice in the all-companies slice. `getOne` additionally returns `deliveries[]` — devices grouped by `purchaseDocument` with `{document, purchasedAt, company, total, positions[]}`. Deleting a supplier with purchases is **409** («за поставщиком числится N устройств…») — disable it instead, it stays in the purchase history. Components are counted as ordinary positions (`parentDeviceId` is deliberately not filtered): a part is bought on its own, not as a line inside an assembly |
 
 **Mikrotik** (`/mikrotik-devices`) — record-centric monitoring and management,
 mounted under `/api/inventory` but gated by its **own** switch (`mikrotikIsActive`),
@@ -373,7 +373,7 @@ documented in each component's own header.
   `add` / `update/:configId`); `device-attributes`; `suppliers` (+ `add`,
   `update/:id`) and `suppliers/:id` (+ `update`). **Configurations have no
   top-level route** — they are managed from the model card.
-- **Migration state** (`MIGRATED_ROUTES` in `layout/Root.jsx`): **the module is
+- **Migration state** (`MIGRATED_ROUTES` in `layout/sheet-width.js`): **the module is
   fully migrated, react-bootstrap included** — locations, vendors, device types,
   models, attributes, suppliers, the device list, card and both forms. The shared
   photo block moved to the target catalog as `components/app/PhotoGallery.jsx`
@@ -411,7 +411,12 @@ documented in each component's own header.
 - **Suppliers** — `components/Supplier/`: `List` + `Item` + `Filter` (directory),
   `View` (card), `Form` + `FormFields` (flat form — few fields of one topic, no
   wizard). Selection is client-side (`store/lists/suppliers.js`): the directory is
-  small and the backend already ships the purchase aggregates. The card answers
+  small and the backend ships every purchase bucket at once, so switching year or
+  company costs no round trip. The arithmetic of a slice lives in
+  `store/lists/supplier-scope.js` (dependency-free, tested by
+  `node --test src/store/lists/supplier-scope.test.js`): the company narrows the
+  rows, the year only recomputes the numbers, and `lastPurchaseAt` ignores the
+  year on purpose — it is what tells how cold a supplier has gone. The card answers
   «what and for how much did we buy from them», so it shows contacts plus
   deliveries grouped by document — a flat list of hardware would be the device
   list's job. `FormFields` is the same module the device wizard renders inside

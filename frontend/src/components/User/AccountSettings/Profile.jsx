@@ -6,11 +6,14 @@ import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
 import PhoneInput from "@/components/app/PhoneInput";
 import ImageUpload from "../ImageUpload";
+import UserAvatar from "../UserAvatar";
 import useToastStore from "../../../store/toast-store";
 
 // Секция «Профиль»: hero (аватар · имя · роль + компания · «Сменить фото»)
-// и поля учётной записи. Роль и компанию меняет администратор — в hero они
-// только отображаются (словарь ролей — как в бургер-меню Navbar).
+// и поля учётной записи. Аватар — общий User/UserAvatar (та же плитка, что
+// в списке и на карточке; превью после загрузки — пропом `src`). Роль и
+// компанию меняет администратор — в hero они только отображаются (словарь
+// ролей — как в бургер-меню Navbar).
 const Profile = ({ user }) => {
   const fetcher = useFetcher();
   const { showToast } = useToastStore();
@@ -36,30 +39,16 @@ const Profile = ({ user }) => {
     : user.isEndUser
       ? "Пользователь"
       : "Сотрудник";
-  const initials =
-    `${user.firstName?.[0] ?? ""}${user.lastName?.[0] ?? ""}`.trim() || "?";
-
   return (
     <fetcher.Form method="post">
       <div className="p-5">
         <div className="mb-5 flex flex-wrap items-center gap-4">
-          {profileImage ? (
-            // span с background-image, а не <img>: глобальный автоскейл
-            // картинок тикетов (index.css) перебивает размеры <img>
-            <span
-              role="img"
-              aria-label="Фото профиля"
-              style={{ backgroundImage: `url("${profileImage}")` }}
-              className="size-16 flex-none rounded-full bg-cover bg-center"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="grid size-16 flex-none place-items-center rounded-full bg-accent text-xl font-semibold text-muted-foreground inset-ring inset-ring-border"
-            >
-              {initials}
-            </span>
-          )}
+          <UserAvatar
+            user={user}
+            src={profileImage}
+            sizeClass="size-16"
+            textClass="text-xl"
+          />
           <div className="min-w-0">
             <div className="text-xl leading-snug font-semibold tracking-tight">
               {user.firstName} {user.lastName}

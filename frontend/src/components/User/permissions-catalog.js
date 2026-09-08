@@ -19,9 +19,11 @@
 // и prefs.notify.personal (см. middleware/notifications.js).
 export const NOTIFY_EVENTS = [
   { key: "newTicket", label: "Новая заявка" },
-  { key: "respStateUpdate", label: "Статус ответственного" },
+  // Ответственным по заявке бывает только сотрудник: клиенту событие не
+  // показывается, а при заведении выключается (controllers/user.js#add)
+  { key: "respStateUpdate", label: "Статус ответственного", staffOnly: true },
   { key: "ticketStateUpdate", label: "Изменение статуса заявки" },
-  { key: "ticketDeadlineUpdate", label: "Изменение срока" },
+  { key: "ticketDeadlineUpdate", label: "Изменения срока выполнения" },
   { key: "ticketNewComment", label: "Новые комментарии" },
   { key: "scheduledWorks", label: "Запланированные работы" },
 ];

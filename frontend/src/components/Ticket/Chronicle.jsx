@@ -66,7 +66,7 @@ const CommentEntry = ({ comment, divided }) => {
 
   return (
     <div className={cn(ENTRY, divided && "border-t border-border-soft")}>
-      <span className="grid size-7 flex-none place-items-center rounded-full border border-border bg-accent text-xs font-semibold text-muted-foreground">
+      <span className="grid size-7 flex-none place-items-center rounded-[25%] border border-border bg-accent text-xs font-semibold text-muted-foreground">
         {initials(author)}
       </span>
       <div className="min-w-0 flex-1">

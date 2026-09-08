@@ -167,8 +167,8 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  /* Кругляш присутствия: своя пара тонов — от --accent/--muted-foreground она
-     отличается намеренно (кругляш стоит на карточке и должен от неё
+  /* Аватар присутствия: своя пара тонов — от --accent/--muted-foreground она
+     отличается намеренно (аватар стоит на карточке и должен от неё
      отделяться). Токены, а не произвольные значения в утилите. */
   --color-ws-avatar: var(--ws-avatar-bg);
   --color-ws-avatar-fg: var(--ws-avatar-fg);

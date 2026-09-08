@@ -16,7 +16,8 @@ import useToastStore from "../../store/toast-store";
 import { getLocalStorageData } from "../../util/auth";
 
 // Смена фото профиля (мигрированная страница «Мой аккаунт»): кнопка открывает
-// выбор файла, дальше — диалог с круглой обрезкой (ReactCrop) и загрузкой.
+// выбор файла, дальше — диалог с обрезкой 1:1 под плитку (ReactCrop; маска
+// повторяет скругление плитки — `crop-tile` в index.css) и загрузкой.
 // Механика легаси сохранена: canvas-кроп → POST add-profile-image.
 function ImageUpload({ userId, setProfileImage }) {
   const { showToast } = useToastStore();
@@ -198,12 +199,11 @@ function ImageUpload({ userId, setProfileImage }) {
           {error && (
             <AlertMessage variant="danger" message={error} className="my-0" />
           )}
-          <div className="flex justify-center overflow-hidden">
+          <div className="crop-tile flex justify-center overflow-hidden">
             <ReactCrop
               crop={crop}
               onChange={(pixelCrop) => setCrop(pixelCrop)}
               aspect={1}
-              circularCrop
               unit="px"
             >
               <img
