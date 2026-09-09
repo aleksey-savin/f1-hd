@@ -24,7 +24,7 @@ const ChecklistTemplateList = ({ items = [] }) => {
           tone="on"
         />
       )}
-      <div>
+      <div className="appear-children">
         {auto.map((item) => (
           <Item key={item._id} item={item} />
         ))}
@@ -38,7 +38,7 @@ const ChecklistTemplateList = ({ items = [] }) => {
             tone="off"
             className="mt-1.5 border-t border-border-soft"
           />
-          <div>
+          <div className="appear-children">
             {manual.map((item) => (
               <Item key={item._id} item={item} />
             ))}

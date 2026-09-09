@@ -171,6 +171,7 @@ export const ticketFormSections = ({ form, formData = {} }) => {
     config,
     isEndUser,
     descriptionMode,
+    epoch,
     template,
     title,
     setTitle,
@@ -202,17 +203,17 @@ export const ticketFormSections = ({ form, formData = {} }) => {
   // index.css (.md-editor) — общий приём с шаблоном и регламентом. Свой id —
   // цель прокрутки к ошибке из buildPayload.
   //
-  // `key` по шаблону: редактор читает `initialValue` один раз при
+  // `key` по «поколению» формы: редактор читает `initialValue` один раз при
   // монтировании (чтобы внешние ре-рендеры не сбрасывали курсор), поэтому
-  // выбранная в шапке заготовка иначе легла бы в состояние, но на экране
-  // осталась бы прежней.
+  // подставленный текст — заготовка, черновик, сброс — иначе лёг бы в
+  // состояние, но на экране остался бы прежним.
   const descriptionEditor = (
     <div
       id="ticket-description"
       className="md-editor overflow-hidden rounded-lg border border-input"
     >
       <MarkdownEditor
-        key={template?._id ?? "no-template"}
+        key={epoch}
         initialValue={description}
         onChange={setDescription}
         height="240px"
@@ -420,7 +421,7 @@ export const ticketFormSections = ({ form, formData = {} }) => {
               required={descriptionRequired}
               hint={
                 template?.description
-                  ? "Текст из заготовки — дополните или измените"
+                  ? "Текст из шаблона — дополните или измените"
                   : undefined
               }
               error={errorOf("description")}

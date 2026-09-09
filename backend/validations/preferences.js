@@ -73,6 +73,8 @@ exports.update = [
   body("getScreen").optional().isObject(),
   body("modules").optional().isObject(),
   body("knowledgeBase").optional().isObject(),
+  body("staleTickets").optional().isObject(),
+  body("staleTickets.thresholdDays").optional().isInt({ min: 1, max: 60 }),
   body("mikrotik").optional().isObject(),
   body("ai").optional().isObject(),
   body("overtime").optional().isObject(),

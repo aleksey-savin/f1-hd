@@ -4,7 +4,7 @@ import Item from "./Item";
 // ListWrapper — здесь только строки.
 const List = ({ items = [] }) => {
   return (
-    <div>
+    <div className="appear-children">
       {items.map((item) => (
         <Item key={item._id} item={item} />
       ))}

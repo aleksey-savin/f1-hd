@@ -157,7 +157,7 @@ const RoleForm = ({ role }) => {
           {!role && catalogue.length > 0 && (
             <ChipCombobox
               placeholder="Из роли"
-              allLabel="Без заготовки"
+              allLabel="Без шаблона"
               searchPlaceholder="Найти роль…"
               emptyText="Роль не нашлась."
               value={sourceKey}

@@ -118,6 +118,29 @@ export const answerError = (field: CustomFieldDef): string => {
 export const errorKeyOf = (field: CustomFieldDef) =>
   `field:${field.key ?? field.name ?? ""}`;
 
+/**
+ * Положить сохранённые ответы на ТЕКУЩИЙ состав вопросов — клиентская пара к
+ * серверному `collectAnswers`. Сверка по постоянному ключу, у записей без него
+ * (черновики и заявки до появления ключей) — по названию.
+ *
+ * Состав берётся из шаблона, а не из сохранённого: пока черновик лежал, вопрос
+ * могли переименовать, добавить или убрать, и возвращаться должны ответы, а не
+ * устаревший набор вопросов. Пустой ответ не затирает значение по умолчанию.
+ */
+export const applySavedAnswers = (
+  definitions: CustomFieldDef[],
+  saved: CustomFieldDef[] = [],
+): CustomFieldDef[] =>
+  definitions.map((field) => {
+    const found =
+      (field.key && saved.find((item) => item?.key === field.key)) ||
+      saved.find((item) => item && !item.key && item.name === field.name) ||
+      saved.find((item) => item?.name === field.name);
+    return found && hasAnswer(field.type, found.value)
+      ? { ...field, value: found.value }
+      : field;
+  });
+
 // «04.09.2026» из ключа дня — как util/format-date.formatDayKey, но без
 // его зависимостей: строка уже является днём, переводить её в зону нельзя
 const formatDayKey = (key: string) => {

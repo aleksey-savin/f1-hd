@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   INLINE_CHOICE_MAX,
   answerError,
+  applySavedAnswers,
   emptyAnswer,
   errorKeyOf,
   formatAnswer,
@@ -62,4 +63,56 @@ test("inlineChoices: up to six options are shown inline, more go to a Combobox",
 test("errorKeyOf: key first, name as the legacy fallback", () => {
   assert.equal(errorKeyOf({ key: "k1", name: "ФИО" }), "field:k1");
   assert.equal(errorKeyOf({ name: "ФИО" }), "field:ФИО");
+});
+
+test("applySavedAnswers: ответы ложатся по ключу на текущий состав вопросов", () => {
+  const definitions = [
+    { key: "a", name: "ФИО", type: "text", value: "" },
+    { key: "b", name: "Пропуск", type: "boolean", value: null },
+  ];
+  const merged = applySavedAnswers(definitions, [
+    { key: "b", name: "Пропуск (переименован)", value: true },
+    { key: "a", name: "ФИО", value: "Петрова" },
+  ]);
+  assert.deepEqual(
+    merged.map((field) => [field.key, field.name, field.value]),
+    [
+      ["a", "ФИО", "Петрова"],
+      ["b", "Пропуск", true],
+    ],
+  );
+});
+
+test("applySavedAnswers: у старых черновиков без ключа сверка по названию", () => {
+  const merged = applySavedAnswers(
+    [{ key: "a", name: "ФИО", type: "text", value: "" }],
+    [{ name: "ФИО", value: "Иванов" }],
+  );
+  assert.equal(merged[0].value, "Иванов");
+});
+
+test("applySavedAnswers: вопрос, которого в шаблоне уже нет, не возвращается", () => {
+  const merged = applySavedAnswers(
+    [{ key: "a", name: "ФИО", type: "text", value: "" }],
+    [
+      { key: "a", name: "ФИО", value: "Иванов" },
+      { key: "zzz", name: "Удалённый вопрос", value: "мусор" },
+    ],
+  );
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].value, "Иванов");
+});
+
+test("applySavedAnswers: пустой ответ не затирает значение по умолчанию", () => {
+  const merged = applySavedAnswers(
+    [{ key: "a", name: "Должность", type: "select", options: ["A"], value: "A" }],
+    [{ key: "a", value: "" }],
+  );
+  assert.equal(merged[0].value, "A");
+});
+
+test("applySavedAnswers: без черновика состав возвращается как есть", () => {
+  const definitions = [{ key: "a", name: "ФИО", type: "text", value: "" }];
+  assert.deepEqual(applySavedAnswers(definitions), definitions);
+  assert.deepEqual(applySavedAnswers(definitions, []), definitions);
 });

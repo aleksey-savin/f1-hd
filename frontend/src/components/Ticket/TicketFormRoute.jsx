@@ -9,6 +9,7 @@ import { FormHeader, FormSections } from "@/components/app/FormLayout";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
 
+import DraftNote from "./DraftNote";
 import { ticketFormSections } from "./TicketFormFields";
 import { useTicketForm } from "./use-ticket-form";
 import { useCan } from "@/store/authed-user";
@@ -37,7 +38,7 @@ const TicketFormRoute = ({ mode }) => {
   } = useLoaderData() ?? {};
   const ticket = ticketData?.ticket ?? null;
 
-  const { isEndUser } = useContext(AuthedUserContext);
+  const { isEndUser, _id: userId } = useContext(AuthedUserContext);
   const can = useCan();
 
   const form = useTicketForm({
@@ -46,16 +47,22 @@ const TicketFormRoute = ({ mode }) => {
     formData,
     isEndUser: !!isEndUser,
     canPerformTickets: !!can({ ticket: ["perform"] }),
+    userId: userId ? String(userId) : "",
   });
 
   const [templateId, setTemplateId] = useState("");
 
   // Вход «Создать заявку» с карточки шаблона (?template=<id>) — шаблон приходит
-  // уже загруженным из loader'а
+  // уже загруженным из loader'а. Черновик подставляется ПОСЛЕ заготовки: он и
+  // есть её недописанная правка
   useEffect(() => {
-    if (!presetTemplate?._id) return;
-    setTemplateId(String(presetTemplate._id));
-    form.applyTemplate(presetTemplate);
+    if (presetTemplate?._id) {
+      setTemplateId(String(presetTemplate._id));
+      form.applyTemplate(presetTemplate);
+    }
+    form.restoreDraft(
+      presetTemplate?._id ? String(presetTemplate._id) : null,
+    );
   }, []);
 
   // Заготовка приезжает целиком (описание, поля формы), поэтому за ней ходим
@@ -64,6 +71,7 @@ const TicketFormRoute = ({ mode }) => {
     setTemplateId(nextId ?? "");
     if (!nextId) {
       form.applyTemplate(null);
+      form.restoreDraft(null);
       return;
     }
     try {
@@ -72,12 +80,45 @@ const TicketFormRoute = ({ mode }) => {
       );
       if (!response.ok) throw new Error("template request failed");
       form.applyTemplate(await response.json());
+      // У каждой заготовки черновик свой: вернуться должен тот, что набирали
+      // по ЭТОЙ заявке, а не ответы из соседней
+      form.restoreDraft(String(nextId));
     } catch (error) {
       console.error("Не удалось загрузить шаблон заявки:", error);
     }
   };
 
   const sections = ticketFormSections({ form, formData });
+
+  const templatePill =
+    form.config.fromTemplate && templates.length > 0 ? (
+      <ChipCombobox
+        placeholder="Из шаблона"
+        allLabel="Без шаблона"
+        searchPlaceholder="Найти шаблон…"
+        emptyText="Шаблон не нашёлся."
+        value={templateId || null}
+        options={templates.map((item) => ({
+          value: String(item._id),
+          label: item.title,
+        }))}
+        onChange={pickTemplate}
+      />
+    ) : null;
+
+  // Заготовка и черновик — один ряд под заголовком: это две вещи об одном и
+  // том же (по чему заявка и что от неё осталось), и столбиком они добавляли
+  // шапке третий ряд, а строка читалась припиской к пилюле. Пустой ряд не
+  // рисуем — иначе в правке под заголовком висел бы отступ ни о чём
+  const headerMeta =
+    templatePill || form.draft ? (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        {templatePill}
+        {form.draft && (
+          <DraftNote draft={form.draft} onReset={form.resetForm} />
+        )}
+      </div>
+    ) : null;
 
   // Прямая ссылка на правку без прав раньше рисовала пустую шторку — теперь
   // она объясняет, что происходит (гайд, «Ошибки и гейты прав»)
@@ -98,6 +139,7 @@ const TicketFormRoute = ({ mode }) => {
       title={form.config.title}
       submitLabel={form.submitLabel}
       formData={form.buildPayload}
+      onSuccess={form.clearSavedDraft}
       // Создание ведёт на карточку созданной заявки, правка и обработка —
       // обратно туда, откуда форму открыли
       successTo={
@@ -114,20 +156,7 @@ const TicketFormRoute = ({ mode }) => {
               : undefined
           }
         >
-          {form.config.fromTemplate && templates.length > 0 && (
-            <ChipCombobox
-              placeholder="Из шаблона"
-              allLabel="Без шаблона"
-              searchPlaceholder="Найти шаблон…"
-              emptyText="Шаблон не нашёлся."
-              value={templateId || null}
-              options={templates.map((item) => ({
-                value: String(item._id),
-                label: item.title,
-              }))}
-              onChange={pickTemplate}
-            />
-          )}
+          {headerMeta}
         </FormHeader>
       }
     >

@@ -7,10 +7,10 @@ import PageShell from "@/components/app/PageShell";
 import KbAttention from "../components/Dashboard/KbAttention";
 import MonitoringOffline from "../components/Dashboard/MonitoringOffline";
 import MySupport from "../components/Dashboard/MySupport";
+import MyOvertime from "../components/Dashboard/MyOvertime";
 import MyTicketsClient from "../components/Dashboard/MyTicketsClient";
 import ScheduledWorks from "../components/Dashboard/ScheduledWorks";
 import ServiceExpiry from "../components/Dashboard/ServiceExpiry";
-import StaffKpis from "../components/Dashboard/StaffKpis";
 import StaffTickets from "../components/Dashboard/StaffTickets";
 import TeamNow from "../components/Dashboard/TeamNow";
 import TechSection from "@/components/app/TechSection";
@@ -37,8 +37,9 @@ import { useCan } from "@/store/authed-user";
  *    заготовок, и это правильная страница, а не сломанная.
  * 3. Загрузка поблочная. Router-loader только проверяет вход; каждый блок
  *    ходит за своим сам, поэтому медленный (техника, переработки) не держит
- *    остальные. Исключение — три «заявочных» блока сотрудника: они делят один
- *    запрос через `store/dashboard-tickets`.
+ *    остальные. Исключение — заявки сотрудника: три среза одного набора («на
+ *    мне», «без ответственного», «давно без движения») делят и запрос, и блок —
+ *    `store/dashboard-tickets` + переключатель в `StaffTickets`.
  */
 
 const DashboardClient = () => {
@@ -90,13 +91,13 @@ const DashboardStaff = () => {
       <MobileView renderWithFragment>
         <TeamNow />
       </MobileView>
-      <StaffKpis />
       <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start">
         <div className="flex flex-col gap-5">
           <StaffTickets />
-          {showTemplates && <TemplateTiles heading="Заготовки заявок" />}
+          {showTemplates && <TemplateTiles heading="Шаблоны заявок" />}
         </div>
         <div className="flex flex-col gap-5">
+          <MyOvertime />
           <MonitoringOffline />
           <ScheduledWorks />
           <KbAttention />

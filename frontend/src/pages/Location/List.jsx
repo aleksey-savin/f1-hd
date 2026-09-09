@@ -24,7 +24,6 @@ import ChipCombobox from "@/components/app/ChipCombobox";
 import FilterChip from "@/components/app/FilterChip";
 import FormOutlet from "@/components/app/FormOutlet";
 import SearchBar from "@/components/app/SearchBar";
-import Spinner from "@/components/app/Spinner";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 
 import Tree from "../../components/Location/Tree";
@@ -33,6 +32,7 @@ import LocationFilter from "../../components/Location/Filter";
 import { TYPE_LABEL } from "../../components/Location/type-meta";
 import useLocationFilterStore from "../../store/lists/locations";
 import useMobileFilterOffcanvasStore from "../../store/mobile-filter-offcanvas";
+import { useNavWait } from "@/components/app/nav-wait";
 import useToastStore from "../../store/toast-store";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import { useCan } from "@/store/authed-user";
@@ -217,6 +217,16 @@ const LocationList = () => {
 
   const noData = originalList.length === 0;
   const filteredEmpty = !noData && filteredList.length === 0;
+  // Дерево расположений грузит свой стор, не лоадер: первая загрузка поднимает
+  // ту же линию под баром оболочки, что и переход (app/nav-wait).
+  const waiting = Boolean(noData && filterStore.isLoading);
+  useNavWait(waiting);
+  // Ступенька приезда — только если ждали: дерево, приехавшее вместе со
+  // страницей, уже проявилось вместе с ней (см. app/ListWrapper).
+  const [arrivesLate, setArrivesLate] = useState(false);
+  useEffect(() => {
+    if (waiting) setArrivesLate(true);
+  }, [waiting]);
   const addTo = `add?company=${selectedCompanyId || ""}`;
 
   return (
@@ -306,7 +316,6 @@ const LocationList = () => {
         </div>
       )}
 
-      {noData && filterStore.isLoading && <Spinner />}
       {noData && !filterStore.isLoading && (
         <div className="rounded-xl border border-border bg-card">
           <div className="flex flex-col items-center gap-1.5 px-6 py-16 text-center">
@@ -335,11 +344,13 @@ const LocationList = () => {
         </div>
       )}
       {!noData && !filteredEmpty && (
-        <Tree
-          items={filteredList}
-          selectedId={selectedId}
-          onSelect={(node) => setSelectedId(node._id)}
-        />
+        <div className={arrivesLate ? "appear-ready" : undefined}>
+          <Tree
+            items={filteredList}
+            selectedId={selectedId}
+            onSelect={(node) => setSelectedId(node._id)}
+          />
+        </div>
       )}
 
       {/* Sheet-фильтр по основным параметрам: тип, статус, доступность,

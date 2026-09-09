@@ -258,50 +258,62 @@ body:has(.mobile-shell),
 html {
   overflow-y: scroll;
 }
-/* Ожидание перехода дольше 200 мс (признак ставит layout/Root.jsx по
-   useNavigation): шторка формы открывается по готовности данных, и на
-   медленной сети щелчок без отклика выглядел бы «мёртвым». Два отклика:
-   курсор ожидания (свои курсоры у элементов остаются) и линия на нижней
-   границе бара оболочки — app/NavProgress, макет «Индикатор перехода»,
-   вариант B. Геометрия линии — классами в компоненте, здесь только движение:
-   «pending» — ползёт: 0 → 58 % за ~1 с, затем всё медленнее к 88 %;
-   «done» — доезжает до 100 % за 150 мс и растворяется за 250 мс (Root.jsx
-   держит это значение ровно на время растворения). */
+/* Ожидание дольше 200 мс (признак ставит layout/Root.jsx, счётчик ожидающих
+   и пороги — app/nav-wait): шторка формы открывается по готовности данных, а
+   список берёт их своим стором уже после перехода, и на медленной сети
+   щелчок без отклика выглядел бы «мёртвым». Два отклика: курсор ожидания
+   (свои курсоры у элементов остаются) и линия на нижней границе бара
+   оболочки — app/NavProgress, макет «Индикатор перехода», вариант B.
+   Геометрия линии — классами в компоненте, здесь только движение:
+   «pending» — ползёт одной кривой к 90 %; «done» — доезжает до 100 % за
+   200 мс и растворяется за 260 мс (nav-wait держит признак ровно на время
+   этой связки). */
 html[data-navigating="pending"] {
   cursor: progress;
 }
+
+/* Линия ожидания — «Плавность перехода», макет согласован 09.09.
+   Три решения, каждое лечит свою рваность:
+   1. Двигаем TRANSFORM, а не width. scaleX считает композитор, а width —
+      раскладка на главном потоке; индикатор горит ровно тогда, когда поток
+      занят, и раньше именно тогда и переставал двигаться.
+   2. Двигаем ПЕРЕХОДОМ, а не keyframes. Переход стартует от текущего
+      значения, поэтому доводка до 100 % подхватывает линию там, где она
+      есть. Прежняя связка «разгон анимацией → доводка переходом» рвалась в
+      момент передачи: ширина срывалась к базовой.
+   3. Кривая ОДНА на весь ползок. У keyframes были промежуточные остановки
+      (58 % и 76 %), и cubic-bezier применялась к каждому отрезку заново —
+      вместо одного замедления получались три разгона подряд.
+   Порог появления (200 мс) и место линии не менялись. */
+.nav-progress {
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform, opacity;
+  /* в покое возврат к нулю мгновенный: гасить нечего, линия уже невидима */
+  transition: none;
+}
 html[data-navigating="pending"] .nav-progress {
   opacity: 1;
-  animation: nav-progress-trickle 4s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  transform: scaleX(0.9);
+  transition:
+    transform 6s cubic-bezier(0, 0.62, 0.3, 1),
+    opacity 120ms linear;
 }
 html[data-navigating="done"] .nav-progress {
-  width: 100%;
   opacity: 0;
+  transform: scaleX(1);
   transition:
-    width 0.15s ease-in,
-    opacity 0.25s ease-out 0.15s;
-}
-@keyframes nav-progress-trickle {
-  from {
-    width: 0;
-  }
-  25% {
-    width: 58%;
-  }
-  60% {
-    width: 76%;
-  }
-  to {
-    width: 88%;
-  }
+    transform 200ms cubic-bezier(0.32, 0, 0.16, 1),
+    opacity 260ms ease-out 200ms;
 }
 @media (prefers-reduced-motion: reduce) {
   html[data-navigating="pending"] .nav-progress {
-    animation: none;
-    width: 88%;
+    transform: scaleX(0.9);
+    transition: opacity 120ms linear;
   }
   html[data-navigating="done"] .nav-progress {
-    transition: opacity 0.25s ease-out;
+    transform: scaleX(1);
+    transition: opacity 260ms ease-out;
   }
 }
 body[data-scroll-locked][data-scroll-locked] {

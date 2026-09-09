@@ -6,6 +6,7 @@ import AnchorRail from "@/components/app/AnchorRail";
 
 import PrefsGlobals from "../components/Preferences/Globals";
 import PrefsSecurity from "../components/Preferences/Security";
+import PrefsTickets from "../components/Preferences/Tickets";
 import PrefsTicketsCollect from "../components/Preferences/TicketsCollect";
 import PrefsNotifications from "../components/Preferences/Notifications";
 import PrefsModules from "../components/Preferences/Modules";
@@ -50,6 +51,13 @@ const Preferences = () => {
       id: "tickets-collect",
       label: "Сбор заявок",
       element: <PrefsTicketsCollect prefs={prefs} />,
+    },
+    // «Сбор заявок» — про то, как заявки приходят; «Заявки» — про то, как за
+    // ними следят: срок, чек-листы, правила среза «давно без движения».
+    general && {
+      id: "tickets",
+      label: "Заявки",
+      element: <PrefsTickets prefs={prefs} />,
     },
     can({ settings: ["manageMail"] }) && {
       id: "notifications",

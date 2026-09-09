@@ -26,7 +26,7 @@ const List = ({ items = [] }) => {
   return (
     <>
       {groups.map((group, index) => (
-        <div key={group.key}>
+        <div key={group.key} className="appear-children">
           {!single && (
             <ListGroupLabel
               label={group.label}
@@ -37,7 +37,7 @@ const List = ({ items = [] }) => {
               }
             />
           )}
-          <div>
+          <div className="appear-children">
             {group.rows.map((item) => (
               <Item key={item._id} item={item} />
             ))}

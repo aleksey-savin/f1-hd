@@ -38,9 +38,9 @@ import {
 import FormOutlet from "@/components/app/FormOutlet";
 import PageHeader from "@/components/app/PageHeader";
 import SearchBar from "@/components/app/SearchBar";
-import Spinner from "@/components/app/Spinner";
 import { ThemeContext } from "../../store/theme-context";
 import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
+import { useNavWait } from "@/components/app/nav-wait";
 
 // Каркас страниц-списков по согласованному макету: заголовок + счётчик,
 // справа — поиск, сортировка (текст-дропдаун), чипы (toolbar) и «Добавить»
@@ -192,6 +192,23 @@ const ListWrapper = ({
   const filteredEmpty = serverMode
     ? count === 0 && hasActiveQuery
     : !noData && filteredCount === 0;
+  // Первая загрузка списка (показывать ещё нечего) — то же ожидание страницы,
+  // что и переход: линия под баром оболочки, а не спиннер на полпанели.
+  // Данные списка приезжают не лоадером, а стором, поэтому роутер об этом
+  // ожидании не знает — говорим ему сами (app/nav-wait).
+  const waiting = Boolean(noData && isLoading);
+  useNavWait(waiting);
+
+  // Ступенька приезда строк — только если список ЖДАЛ. Список, приехавший
+  // ВМЕСТЕ со страницей (стор уже держал данные), проявился вместе с ней
+  // (page-appear), и вторая анимация читалась как перезагрузка списка.
+  // Ждали — значит строки приедут позже страницы, и приехать они должны
+  // видимо. Флаг не сбрасывается: дальше ступеньку получают и строки,
+  // добавленные фильтром или подгрузкой страницы.
+  const [arrivesLate, setArrivesLate] = useState(false);
+  useEffect(() => {
+    if (waiting) setArrivesLate(true);
+  }, [waiting]);
 
   const searchHandler = (e: ChangeEvent<HTMLInputElement>) => {
     filterStore.fullTextSearch(e.target.value);
@@ -494,9 +511,11 @@ const ListWrapper = ({
         </div>
       )}
       {/* Пока данные есть — список стоит на месте: фоновый рефетч и навигация
-          в шторку НЕ подменяют его спиннером. Никаких глобальных fade-обёрток —
-          движение точечное, на уровне строк (row-appear / row-flash в
-          ListRow). Спиннер — только у первой загрузки, когда показывать нечего.
+          в шторку его не подменяют и не перепроявляют. Глобальной fade-обёртки
+          нет: движение точечное, на уровне строк (appear-children здесь,
+          row-appear / row-flash в ListRow) и играет на монтировании строки,
+          поэтому рефетч с теми же строками ничего не перерисовывает. Первая
+          загрузка ждёт линией под баром оболочки, а не спиннером (app/nav-wait).
           Пустые состояния предлагают действие (гайд): сброс/открытие фильтра
           при отфильтрованном в ноль списке, «Добавить …» при пустых данных. */}
       {!noData && !filteredEmpty && aboveList}
@@ -514,6 +533,13 @@ const ListWrapper = ({
         <div
           className={cn(
             "overflow-hidden border border-border bg-card pb-1.5",
+            // Строки приезжают снизу вверх ступенькой (макет «Плавность
+            // перехода»): правило работает по прямым детям панели и по
+            // вложенным контейнерам групп, поэтому его получают все виды
+            // строк — ListRow, Company/Item, User/Item, DeviceRow — и
+            // заголовки групп. Играет на монтировании строки: фоновый рефетч,
+            // у которого строки те же, ничего не перерисовывает.
+            arrivesLate && "appear-ready",
             selection && !filteredEmpty
               ? "rounded-b-xl border-t-0"
               : "rounded-xl",
@@ -540,7 +566,8 @@ const ListWrapper = ({
         </div>
       )}
       {!noData && !filteredEmpty && belowList}
-      {noData && isLoading && <Spinner />}
+      {/* Пока ждём первую порцию, панели нет вовсе: пустое состояние соврало
+          бы («Список пуст» до ответа), а спиннер спорил бы с линией. */}
       {noData && !isLoading && (
         <div className="overflow-hidden rounded-xl border border-border bg-card pb-1.5">
           <EmptyState

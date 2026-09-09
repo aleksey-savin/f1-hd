@@ -1,10 +1,7 @@
 import { useRef, useState } from "react";
 
-import { Link } from "react-router";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import SettingRow from "@/components/app/SettingRow";
 import { SubLabel } from "@/components/app/Panel";
 
@@ -26,15 +23,11 @@ const PrefsGlobals = ({ prefs }) => {
   const { showToast } = useToastStore();
 
   const [timezone, setTimezone] = useState(prefs.timezone || DEFAULT_TIMEZONE);
-  const [deadline, setDeadline] = useState(prefs.deadline ?? 10);
   const [orgTitle, setOrgTitle] = useState(prefs.contacts?.title || "");
   const [tel, setTel] = useState(prefs.contacts?.tel || "");
   const [email, setEmail] = useState(prefs.contacts?.email || "");
   const [address, setAddress] = useState(prefs.contacts?.address || "");
   const [taxiOperator, setTaxiOperator] = useState(prefs.taxi?.operator || "");
-  const [autoApplyChecklists, setAutoApplyChecklists] = useState(
-    prefs.checklistTemplates?.autoApply ?? false,
-  );
 
   // Лого компании: загрузка/удаление — сразу, отдельными эндпоинтами
   const logoInputRef = useRef(null);
@@ -87,10 +80,8 @@ const PrefsGlobals = ({ prefs }) => {
     <SectionForm
       buildPayload={() => ({
         timezone,
-        deadline: Number(deadline) || 0,
         contacts: { title: orgTitle, tel, email, address },
         taxi: { operator: taxiOperator },
-        checklistTemplates: { autoApply: autoApplyChecklists },
       })}
     >
       <SettingRow
@@ -107,46 +98,6 @@ const PrefsGlobals = ({ prefs }) => {
             onChange={(value) => setTimezone(value || DEFAULT_TIMEZONE)}
           />
         </div>
-      </SettingRow>
-      <SettingRow
-        divider
-        title="Срок выполнения по умолчанию"
-        hint="Дедлайн новой заявки, если не указан вручную."
-        htmlFor="prefs-deadline"
-      >
-        <div className="flex items-center gap-2">
-          <Input
-            id="prefs-deadline"
-            type="number"
-            min="1"
-            value={deadline}
-            onChange={(event) => setDeadline(event.target.value)}
-            className="w-24 text-right"
-          />
-          <span className="text-sm text-muted-foreground">часов</span>
-        </div>
-      </SettingRow>
-
-      <SettingRow
-        divider
-        title="Автоматически добавлять шаблоны чек-листов"
-        hint="При создании заявки подходящий шаблон применяется сам. Побеждает самый узкий: сначала «категория и компания», затем «компания», затем «категория». Выключено — карточка предлагает шаблон строкой."
-        htmlFor="prefs-checklist-autoapply"
-      >
-        <Switch
-          id="prefs-checklist-autoapply"
-          checked={autoApplyChecklists}
-          onCheckedChange={setAutoApplyChecklists}
-        />
-      </SettingRow>
-      <SettingRow
-        divider
-        title="Шаблоны чек-листов"
-        hint="Готовые списки с привязкой к категориям заявок и компаниям."
-      >
-        <Button asChild variant="outline" size="sm">
-          <Link to="/tickets/checklist-templates">Открыть справочник</Link>
-        </Button>
       </SettingRow>
 
       <div className="px-5 pt-4">

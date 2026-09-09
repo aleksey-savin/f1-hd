@@ -4,7 +4,7 @@ import Item from "./Item";
 // а тип тарификации уже виден в мете строки и доступен фасетом
 const List = ({ items = [] }) => {
   return (
-    <div>
+    <div className="appear-children">
       {items.map((item) => (
         <Item key={item._id} item={item} />
       ))}

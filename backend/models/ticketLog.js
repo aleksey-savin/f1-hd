@@ -47,4 +47,11 @@ ticketLogSchema.pre('validate', function assignKind() {
     if (!this.kind) this.kind = classify(this.event);
 });
 
+// Хроника читается двумя способами, и оба до этого шли полным сканом по
+// четверти миллиона записей: карточка заявки берёт свои события, а главная —
+// последнее НЕ служебное событие каждой открытой заявки (движение по заявке,
+// см. services/ticketActivity.js). Второй запрос повторяется на каждом опросе
+// дашборда, поэтому индекс обязателен, а не желателен.
+ticketLogSchema.index({ ticketId: 1, kind: 1, createdAt: -1 });
+
 module.exports = mongoose.model('TicketLog', ticketLogSchema);

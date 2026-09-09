@@ -21,6 +21,7 @@ const FormWrapper = ({
   header,
   action,
   successTo,
+  onSuccess,
   json,
   formData,
   submitLabel = "Сохранить",
@@ -36,6 +37,8 @@ const FormWrapper = ({
   header?: ReactNode;
   action?: string;
   successTo?: string | ((data: unknown) => string | undefined);
+  /** Убрать за собой после успешной отправки — до перехода со шторки. */
+  onSuccess?: (data: unknown) => void;
   /**
    * Тело запроса собирает сама форма — тогда сабмит уходит JSON-ом, а не
    * FormData. Нужно там, где в теле массивы и булевы (см. «Сложное вложенное
@@ -64,6 +67,9 @@ const FormWrapper = ({
 
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
+      // Успех до перехода: форме бывает что убрать за собой — черновик
+      // заявки страхует незакрытую шторку, а отправленную страховать нечего
+      onSuccess?.(fetcher.data);
       const to =
         typeof successTo === "function" ? successTo(fetcher.data) : successTo;
       close(to ?? "..", { replace: true });

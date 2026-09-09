@@ -1,3 +1,4 @@
+import { load } from "@/store/form-data";
 import Form from "../../components/ClientDevice/Form";
 
 const AddClientDevicePage = () => {
@@ -6,10 +7,35 @@ const AddClientDevicePage = () => {
 
 export default AddClientDevicePage;
 
+// Справочники — из кэша (store/form-data): их пять, и форма ждала их сама,
+// показывая спиннер в уже открытой шторке. Шторка обязана открываться по
+// готовности, а ожидание — жить на линии под баром оболочки.
 export async function loader() {
   document.title = "Новое устройство";
 
-  return null;
+  return { device: null, formData: await loadFormData() };
+}
+
+// Каждая ручка отдаёт массив, но форма и раньше страховалась: пришедший не
+// массив обнуляет ровно свой селект, а не роняет всю форму.
+const asList = (value) => (Array.isArray(value) ? value : []);
+
+export async function loadFormData() {
+  const [companies, deviceTypes, vendors, deviceModels, suppliers] =
+    await Promise.all([
+      load("/api/companies"),
+      load("/api/inventory/device-types"),
+      load("/api/inventory/vendors"),
+      load("/api/inventory/device-models"),
+      load("/api/inventory/suppliers"),
+    ]);
+  return {
+    companies: asList(companies),
+    deviceTypes: asList(deviceTypes),
+    vendors: asList(vendors),
+    deviceModels: asList(deviceModels),
+    suppliers: asList(suppliers),
+  };
 }
 
 export async function action({ request }) {

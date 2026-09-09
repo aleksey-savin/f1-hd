@@ -20,6 +20,7 @@ const {
   hasAnswer,
   normalizeAnswer,
 } = require("../services/ticketQuestionnaire");
+const { attachStale } = require("../services/ticketActivity");
 const { resolveGetScreenApiKey } = require("../helpers/getScreenKey");
 const User = require("../models//user");
 const Company = require("../models/company");
@@ -208,10 +209,14 @@ exports.getAllOpened = async (req, res, next) => {
       finishedWorkTicketIds.map((id) => id.toString()),
     );
 
+    // Настройки нужны дважды — поясу клиента и правилам среза «давно без
+    // движения», поэтому читаем их один раз.
+    const preferences = await Preferences.findOne({});
+
     // Пояс клиента на всю страницу разом: подразделения и компании грузятся
     // пачкой, каскад считается в памяти — иначе был бы запрос на строку.
     const clientTimezoneOf = await createClientTimezoneResolver({
-      preferences: await Preferences.findOne({}),
+      preferences,
       companyIds: filteredTickets.map((ticket) => ticket.company?._id),
     });
 
@@ -234,6 +239,10 @@ exports.getAllOpened = async (req, res, next) => {
       finishedAt: ticket.finishedAt,
       isClosed: ticket.isClosed,
       state: ticket.state,
+      // Источник нужен фронту, чтобы отделить машинные заявки от людских в
+      // срезе «Без ответственного»: без него предикат держался на одном
+      // «нет заявителя» и молча считал мониторинг людьми.
+      source: ticket.source,
       latestComment: ticket.comments[ticket.comments.length - 1],
       // Счётчик переписки — тихий значок в строке списка: диспетчер видит, что по
       // заявке уже общались, не открывая её. Отдаём число, а не массив: тексты
@@ -246,7 +255,16 @@ exports.getAllOpened = async (req, res, next) => {
       aiCategory: ticket.aiCategory,
     }));
 
-    res.status(200).json({ tickets: shortenedTickets });
+    // Срез «давно без движения» считает бэкенд: рабочие дни знает только он
+    // (производственный календарь), правила лежат в настройках, а хронику
+    // заявки фронту не отдают. Каждой заявке дописываются `silentDays` и
+    // `isStale`; порог едет рядом, чтобы блок мог назвать правило словами.
+    const { tickets, rules } = await attachStale(shortenedTickets, preferences);
+
+    res.status(200).json({
+      tickets,
+      staleRules: { thresholdDays: rules.thresholdDays },
+    });
   } catch (error) {
     next(new AppError("Failed to fetch opened tickets", 500, true, error));
   }

@@ -1,4 +1,5 @@
 import Form from "../../components/ClientDevice/Form";
+import { loadFormData } from "./Add";
 
 import { api } from "@/lib/api";
 
@@ -8,10 +9,17 @@ const UpdateClientDevicePage = () => {
 
 export default UpdateClientDevicePage;
 
+// Устройство — всегда свежее (его правят многие), справочники — из кэша
+// (store/form-data): форма открывается готовой, без спиннера внутри шторки.
 export async function loader({ params }) {
   document.title = "Изменить устройство";
 
-  return api(`/api/inventory/client-devices/${params.id}`);
+  const [device, formData] = await Promise.all([
+    api(`/api/inventory/client-devices/${params.id}`),
+    loadFormData(),
+  ]);
+
+  return { device, formData };
 }
 
 export async function action({ request, params }) {

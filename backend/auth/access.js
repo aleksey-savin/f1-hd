@@ -80,7 +80,7 @@ const GROUPS = [
   },
   {
     key: "ticketCatalogs",
-    label: "Заготовки заявок",
+    label: "Шаблоны заявок",
     actions: [
       { id: "ticketCategory.manage", label: "Категории заявок" },
       {

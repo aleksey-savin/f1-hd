@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import AlertMessage from "@/components/app/AlertMessage";
-import Spinner from "@/components/app/Spinner";
+import { load } from "@/store/form-data";
+import { useNavWait } from "@/components/app/nav-wait";
 
 
 import VendorFormFields from "../Vendor/FormFields";
@@ -78,10 +79,9 @@ const KINDS = {
     respKey: "deviceType",
     size: "lg",
     loadRefs: async () => {
-      const res = await fetch(`${base}/api/inventory/device-attributes`, {
-        headers: authHeaders(),
-      });
-      const attrs = await res.json();
+      // Справочник — из кэша (store/form-data): второе открытие диалога уже
+      // не ждёт (гайд, «Шторка открывается по готовности»).
+      const attrs = await load("/api/inventory/device-attributes");
       return {
         availableAttributes: Array.isArray(attrs)
           ? attrs.map((a) => ({ _id: a._id, name: a.name, code: a.code }))
@@ -169,10 +169,7 @@ const KINDS = {
     respKey: "location",
     size: "lg",
     loadRefs: async () => {
-      const res = await fetch(`${base}/api/users?activeOnly=true`, {
-        headers: authHeaders(),
-      });
-      const data = await res.json();
+      const data = await load("/api/users?activeOnly=true");
       return { users: Array.isArray(data) ? data : data.users || [] };
     },
     renderFields: ({ onChange, resources, context }) => (
@@ -233,6 +230,11 @@ const InlineCreateDialog = ({
   const [ready, setReady] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // Ожидание справочников диалога — на общей линии под баром оболочки, как у
+  // любого другого ожидания содержимого (app/nav-wait): собственный спиннер
+  // здесь был третьим видом одного и того же.
+  useNavWait(open && !ready && !error);
 
   // Сброс + загрузка недостающих справочников при открытии.
   useEffect(() => {
@@ -337,7 +339,7 @@ const InlineCreateDialog = ({
             // выпихивать кнопки за экран; vh встроенной сеткой не выражается.
             style={{ maxHeight: "60vh" }}
           >
-            {ready ? renderBody() : <Spinner className="min-h-32" />}
+            {ready && renderBody()}
           </div>
 
           <DialogFooter>

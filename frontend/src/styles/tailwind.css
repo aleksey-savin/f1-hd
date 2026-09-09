@@ -253,6 +253,58 @@
 }
 
 /*
+ * Приезд содержимого (макет «Плавность перехода», согласован 09.09). Словарь
+ * тот же, что у row-appear — 6 px вверх и проявление, — но втрое короче:
+ * 0.9s означает «эта строка только что создана», 0.32s — «страница приехала».
+ *
+ * page-appear — блок страницы на переходе, один на любую страницу. Класс
+ * вешает и переигрывает layout/Root.jsx: маршрут может остаться тем же
+ * компонентом (карточка → карточка соседа), и на ремоунт рассчитывать нельзя.
+ *
+ * Ступенька строк включается ТОЛЬКО у содержимого, которое приехало позже
+ * страницы: `appear-ready` ставит тот, кто знает, что ждал (app/ListWrapper по
+ * первой загрузке). Список, приехавший ВМЕСТЕ со страницей, уже проявился
+ * вместе с ней, и вторая анимация читалась как перезагрузка списка.
+ *
+ * Гасить вложенную ступень через `animation: none` нельзя: это не отмена, а
+ * ОТКЛАДЫВАНИЕ — когда гасящее правило перестаёт действовать, animation-name
+ * применяется впервые и анимация проигрывается тогда же. Поэтому выключено по
+ * умолчанию, а не выключается поверх включённого.
+ *
+ * `appear-children` — вложенный контейнер строк (группы списка, корни дерева).
+ * Ступени складываются: контейнер со своей ступенькой сам не движется,
+ * движутся его строки. Ступень по 26 мс, дальше шестого не растёт — на сотне
+ * строк лесенка выродилась бы в ожидание.
+ */
+/* Обычным правилом, а не @utility: класс ставит classList в layout/Root.jsx,
+   в разметке его нет, и сканер Tailwind утилиту не находит — она молча не
+   попадала бы в сборку. */
+.page-appear {
+  animation: row-fade-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+:is(.appear-ready, .appear-ready .appear-children) > * {
+  animation: row-fade-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+:is(.appear-ready, .appear-ready .appear-children) > .appear-children {
+  animation: none;
+}
+:is(.appear-ready, .appear-ready .appear-children) > *:nth-child(2) {
+  animation-delay: 26ms;
+}
+:is(.appear-ready, .appear-ready .appear-children) > *:nth-child(3) {
+  animation-delay: 52ms;
+}
+:is(.appear-ready, .appear-ready .appear-children) > *:nth-child(4) {
+  animation-delay: 78ms;
+}
+:is(.appear-ready, .appear-ready .appear-children) > *:nth-child(5) {
+  animation-delay: 104ms;
+}
+:is(.appear-ready, .appear-ready .appear-children) > *:nth-child(n + 6) {
+  animation-delay: 130ms;
+}
+
+/*
  * env-aim — кольцо-пульс целевого устройства в виджете «Окружение» (заявка
  * по устройству): дважды при появлении, дальше статичное кольцо даёт ring
  * (анимация перекрывает его box-shadow только на время проигрывания).
@@ -301,6 +353,9 @@
 @media (prefers-reduced-motion: reduce) {
   [class*="row-flash"],
   [class*="row-appear"],
+  [class*="page-appear"],
+  [class*="appear-ready"] > *,
+  [class*="appear-ready"] [class*="appear-children"] > *,
   [class*="env-aim"],
   [class*="err-cat-settle"],
   [class*="err-pulse"] {

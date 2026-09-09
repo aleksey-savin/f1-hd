@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import useWorkStatusesStore from "../../store/work-statuses";
 import { getWorkStatusMeta } from "../../util/work-statuses";
@@ -7,10 +7,12 @@ import { presenceLine } from "../User/presence";
 import { localToUtc, utcToLocalForm } from "../../util/format-date";
 import {
   answerError,
+  applySavedAnswers,
   emptyAnswer,
   errorKeyOf,
   hasAnswer,
 } from "@/components/app/custom-fields";
+import { clearDraft, readDraft, saveDraft } from "./ticket-draft";
 
 /**
  * Состояние формы заявки — одно на три поверхности.
@@ -112,6 +114,7 @@ const scrollToFirstError = () => {
  * @param {object} params.formData справочники от `GET /api/tickets/form-data`
  * @param {boolean} params.isEndUser заявителю видно только описание и вложения
  * @param {boolean} params.canPerformTickets ведущий заявки может не назначать себя
+ * @param {string} params.userId чей это черновик (создание); без него черновика нет
  */
 export const useTicketForm = ({
   mode,
@@ -119,6 +122,7 @@ export const useTicketForm = ({
   formData = {},
   isEndUser = false,
   canPerformTickets = false,
+  userId = "",
 }) => {
   const config = TICKET_FORM_MODES[mode] ?? TICKET_FORM_MODES.add;
 
@@ -154,6 +158,9 @@ export const useTicketForm = ({
   // Ошибки показываем по нажатию «Сохранить», а не блокируем кнопку:
   // заблокированная кнопка не объясняет, чего не хватает.
   const [attempted, setAttempted] = useState(false);
+  // Найденный черновик: метка времени и признак «были вложения» — их форма
+  // показывает строкой при заголовке (`ticket-draft`)
+  const [draft, setDraft] = useState(null);
 
   const categories = formData.categories ?? [];
   const category = categories.find((item) => asId(item) === categoryId) ?? null;
@@ -265,11 +272,158 @@ export const useTicketForm = ({
 
   const errorOf = (field) => (attempted ? errors[field] : undefined);
 
+  /* ---------- Черновик (только создание) ---------- */
+
+  // Не на каждую букву: черновик — страховка, а не автосохранение
+  const DRAFT_DEBOUNCE_MS = 800;
+
+  const draftEnabled = mode === "add" && !!userId;
+  const draftKeyId = template?._id ? String(template._id) : null;
+
+  // Что переживает закрытие шторки. Файлы сюда не попадают — `File` в строку
+  // не положить, поэтому черновик только помнит, что они были
+  const draftSlice = useMemo(
+    () => ({
+      title,
+      description,
+      customFields,
+      categoryId,
+      companyId,
+      applicantId,
+      responsibleIds,
+      deadline,
+      state,
+    }),
+    [
+      title,
+      description,
+      customFields,
+      categoryId,
+      companyId,
+      applicantId,
+      responsibleIds,
+      deadline,
+      state,
+    ],
+  );
+  const sliceJson = JSON.stringify(draftSlice);
+
+  // Слепок «как форма выглядела сразу после программного заполнения»
+  // (открытие, выбор заготовки, восстановление черновика, сброс). Пишем
+  // черновик только когда от него отличаются: иначе каждое открытие формы
+  // записывало бы черновик, которого никто не набирал, и строка «Черновик
+  // от …» встречала бы человека на пустой анкете.
+  const baselineRef = useRef(null);
+  const rebaseRef = useRef(true);
+  // Номер «поколения» формы: растёт на каждом программном заполнении. По нему
+  // пересобирается редактор описания — свой `initialValue` он читает только
+  // при монтировании, поэтому иначе подставленный текст (заготовка, черновик)
+  // лёг бы в состояние, но на экране не появился, а «Очистить» оставило бы
+  // старый текст в редакторе при пустом состоянии.
+  const [epoch, setEpoch] = useState(0);
+  const rebase = () => {
+    rebaseRef.current = true;
+    setEpoch((current) => current + 1);
+  };
+
+  useEffect(() => {
+    if (!draftEnabled) return undefined;
+    if (rebaseRef.current) {
+      baselineRef.current = sliceJson;
+      rebaseRef.current = false;
+      return undefined;
+    }
+    if (sliceJson === baselineRef.current) return undefined;
+
+    const timer = setTimeout(
+      () =>
+        saveDraft({
+          userId,
+          templateId: draftKeyId,
+          data: draftSlice,
+          hadFiles: files.length > 0,
+        }),
+      DRAFT_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [draftEnabled, sliceJson, draftSlice, draftKeyId, userId, files.length]);
+
+  /**
+   * Подставить черновик этой заготовки, если он есть. Зовётся ПОСЛЕ
+   * `applyTemplate`: черновик и есть правка заготовки, поэтому он сильнее её
+   * значений.
+   *
+   * @param {string|null} [templateId] чей черновик искать (по умолчанию — выбранной заготовки)
+   */
+  const restoreDraft = (templateId = draftKeyId) => {
+    if (!draftEnabled) return;
+    const found = readDraft({ userId, templateId: templateId ?? null });
+    setDraft(
+      found ? { savedAt: found.savedAt, hadFiles: found.hadFiles } : null,
+    );
+    if (!found) return;
+
+    const { data } = found;
+    if (typeof data.title === "string") setTitle(data.title);
+    if (typeof data.description === "string") setDescription(data.description);
+    // Ответы ложатся на состав вопросов, уже поставленный заготовкой
+    if (Array.isArray(data.customFields)) {
+      setCustomFields((current) =>
+        applySavedAnswers(current, data.customFields),
+      );
+    }
+    if (typeof data.categoryId === "string") setCategoryId(data.categoryId);
+    if (typeof data.companyId === "string") setCompanyId(data.companyId);
+    if (typeof data.applicantId === "string") setApplicantId(data.applicantId);
+    if (Array.isArray(data.responsibleIds))
+      setResponsibleIds(data.responsibleIds.map(String));
+    if (typeof data.deadline === "string") setDeadline(data.deadline);
+    if (typeof data.state === "string") setState(data.state);
+    rebase();
+  };
+
+  const blank = () => {
+    setTitle("");
+    setDescription("");
+    setCustomFields([]);
+    setCategoryId("");
+    setCompanyId("");
+    setApplicantId("");
+    setResponsibleIds([]);
+    setDeadline("");
+    setState("");
+  };
+
+  /**
+   * «Очистить»: убрать черновик и вернуть форму к тому виду, с которого она
+   * открывается, — со значениями выбранной заготовки или пустой.
+   */
+  const resetForm = () => {
+    clearDraft({ userId, templateId: draftKeyId });
+    setDraft(null);
+    setFiles([]);
+    setAttempted(false);
+    blank();
+    // applyTemplate объявлен ниже — к моменту нажатия он уже создан
+    if (template) applyTemplate(template);
+    else rebase();
+  };
+
+  /** Заявка отправлена — черновику больше нечего страховать. */
+  const clearSavedDraft = () => {
+    if (!draftEnabled) return;
+    clearDraft({ userId, templateId: draftKeyId });
+    setDraft(null);
+  };
+
   /**
    * Заготовка шаблона: подставляем то, чего человек ещё не трогал, — иначе
    * выбор шаблона стирал бы уже набранный текст.
    */
   const applyTemplate = (next) => {
+    // Заполнение программное, а не рукой: следующий кадр станет новой точкой
+    // отсчёта для черновика
+    rebase();
     setTemplate(next);
     setDescriptionMode(next?.descriptionMode ?? "required");
     // Вопросы принадлежат шаблону: снят шаблон — ушли и они
@@ -408,6 +562,11 @@ export const useTicketForm = ({
     setState,
     template,
     applyTemplate,
+    epoch,
+    draft,
+    restoreDraft,
+    resetForm,
+    clearSavedDraft,
     errorOf,
     buildPayload,
   };

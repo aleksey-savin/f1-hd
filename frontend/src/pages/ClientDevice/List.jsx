@@ -236,7 +236,7 @@ const ClientDevices = () => {
           />
         }
       >
-        <div>
+        <div className="appear-children">
           {store.items.map((device) => (
             <DeviceRow key={device._id} device={device} />
           ))}

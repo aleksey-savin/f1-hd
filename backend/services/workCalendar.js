@@ -29,16 +29,10 @@ const DAYS_OF_WEEK = [
   "Sunday",
 ];
 
-const pad = (n) => String(n).padStart(2, "0");
-
-/** Календарная дата → ключ YYYY-MM-DD. Работаем в UTC: это дата, не инстант. */
-const toDateKey = (date) =>
-  `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
-
-const keyToUtc = (dateKey) => {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d));
-};
+// Ключи дат живут отдельным модулем: их делит срез «давно без движения»
+// (services/ticketActivity), которому весь workCalendar с mongoose и логгером
+// не нужен. Экспорт отсюда сохранён — на него завязаны отчёты.
+const { toDateKey, keyToUtc, eachDayKey } = require("@/services/dateKeys");
 
 /** Имя дня недели по ключу даты (Monday-first). */
 const dayNameOfKey = (dateKey) => {
@@ -46,15 +40,6 @@ const dayNameOfKey = (dateKey) => {
   return DAYS_OF_WEEK[(dow + 6) % 7];
 };
 
-/** Перебор календарных дней периода включительно. */
-const eachDayKey = function* (fromKey, toKey) {
-  const cursor = keyToUtc(fromKey);
-  const last = keyToUtc(toKey);
-  while (cursor.valueOf() <= last.valueOf()) {
-    yield toDateKey(cursor);
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-};
 
 /** "HH:mm" → минуты от полуночи; null для пустых/битых значений. */
 const parseTimeOfDay = (value) => {

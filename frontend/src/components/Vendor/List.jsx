@@ -13,7 +13,7 @@ const List = ({ items = [] }) => {
       {active.length > 0 && (
         <ListGroupLabel label="Активные" count={active.length} tone="on" />
       )}
-      <div>
+      <div className="appear-children">
         {active.map((item) => (
           <Item key={item._id} item={item} />
         ))}
@@ -26,7 +26,7 @@ const List = ({ items = [] }) => {
             tone="off"
             className="border-t border-border-soft mt-1.5"
           />
-          <div>
+          <div className="appear-children">
             {disabled.map((item) => (
               <Item key={item._id} item={item} />
             ))}

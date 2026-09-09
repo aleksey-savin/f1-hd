@@ -1,4 +1,5 @@
 import { config } from "../config.ts";
+import { plainText } from "./text.ts";
 import type { BotConfig, BoardUser, TicketSummary, WorkStatus } from "../api/types.ts";
 
 /**
@@ -17,6 +18,7 @@ export const escapeHtml = (text: unknown): string =>
 
 const capitalize = (text: string): string =>
   text ? text[0]!.toUpperCase() + text.slice(1) : text;
+
 
 export const formatDate = (value: string | Date, timezone: string): string =>
   new Date(value).toLocaleDateString("ru", {
@@ -140,6 +142,13 @@ export const renderBoard = (users: BoardUser[], botConfig: BotConfig): string =>
 };
 
 /**
+ * Сколько знаков описания и комментария помещаем в карточку. На всю карточку у
+ * Telegram 4096, а описание бывает на десятки тысяч (логи бэкапа) — читать их
+ * в чате всё равно нельзя, для этого есть кнопка «Подробнее».
+ */
+const TICKET_TEXT_LIMIT = 600;
+
+/**
  * Карточка заявки. Клиенту показываем меньше: чужие исполнители, телефон
  * заявителя и название компании ему не нужны и не его.
  */
@@ -185,9 +194,22 @@ export const renderTicket = (
 
   lines.push(`<b>Статус: ${escapeHtml(ticket.state)}</b>`);
 
+  // Описание — то, ЗАЧЕМ заявка; без него карточка называла только тему, и
+  // узнать суть можно было лишь открыв её в браузере. У заявки по анкете это
+  // тем важнее: её текст целиком собран из ответов на вопросы.
+  const description = plainText(ticket.description, TICKET_TEXT_LIMIT);
+  if (description) {
+    lines.push("");
+    lines.push(escapeHtml(description));
+  }
+
   if (!forClient && ticket.latestComment?.content) {
     lines.push("");
-    lines.push(`Последний комментарий: ${escapeHtml(ticket.latestComment.content)}`);
+    lines.push(
+      `Последний комментарий: ${escapeHtml(
+        plainText(ticket.latestComment.content, TICKET_TEXT_LIMIT),
+      )}`,
+    );
   }
 
   return lines.join("\n");

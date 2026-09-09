@@ -2,6 +2,8 @@
 // Раньше запись жила в экшене страницы входа, а очистка — в экшене выхода, и
 // списки ключей успели разойтись.
 
+import { clearAllDrafts } from "@/components/Ticket/ticket-draft";
+
 export const API = import.meta.env.VITE_API_ADDRESS;
 
 /**
@@ -85,6 +87,9 @@ export async function storeSession(data: AuthResponse, response?: Response) {
 
 export function clearSession() {
   SESSION_KEYS.forEach((key) => localStorage.removeItem(key));
+  // Черновики заявок лежат по ключу на человека, а компьютер бывает общим:
+  // чужой набросок после выхода оставаться не должен
+  clearAllDrafts();
 }
 
 /**

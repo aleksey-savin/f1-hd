@@ -58,6 +58,11 @@ missing ones; without it, keys appear on the template's next save).
 `hasAnswer(type, value)` is the single definition of "answered": blanks, empty
 arrays, `null` and non-finite numbers are not answers. `formatAnswer(field)`
 renders one for humans (`Да`/`Нет`, `15.09.2026`, comma-joined list).
+`applySavedAnswers(definitions, saved)` puts saved answers onto the current
+definitions — the client twin of `collectAnswers`, used when a draft is
+restored (see "Незаконченное создание переживает закрытие шторки" in the
+ux-ui-guide): the questions come from the template, the answers from the draft,
+matched by key.
 
 While a number is being typed the form keeps the raw string (`"1,"`, `"-"`);
 the server parses it. Don't coerce mid-typing.
@@ -94,7 +99,16 @@ be stored as its own source.
 Composition is what keeps everything downstream unchanged: `deriveTicketTitle`,
 the notification emails (`middleware/notifications.js`), the Telegram render
 (`tg-service`) and the AI prompt (`services/ticketAiGuide.js`) all read
-`description` and know nothing about questionnaires. **Every name and answer is
+`description` and know nothing about questionnaires.
+
+Telegram is the one channel that needs help with it: it accepts only a handful
+of tags and `<p>` fails the whole send, so the description goes through
+`htmlToPlainLines(html, limit)` (`helpers/htmlToPlainText.js`, and its twin
+`plainText` in `tg-service/src/bot/text.ts`) — block tags become newlines, so a
+composed description stays one line per answer. Both surfaces truncate: the
+notification quote at 1000 characters (Telegram collapses a long quote itself),
+the bot's ticket card at 600, against a 4096 limit for the whole message and
+descriptions that reach tens of thousands of characters. **Every name and answer is
 HTML-escaped in `composeDescription`** — the string is inlined raw into email
 HTML and sanitised with DOMPurify on the card.
 

@@ -14,6 +14,17 @@ const {
   escapeHtml,
 } = require("../services/telegramMessage");
 const { resolveTimezone } = require("../utils/datetime");
+const { htmlToPlainLines } = require("../helpers/htmlToPlainText");
+
+/**
+ * Описание заявки для Telegram: цитатой под темой. Разметку туда переслать
+ * нельзя (`<p>` роняет отправку ошибкой разбора), а длинное описание бывает на
+ * десятки тысяч знаков при лимите 4096 на всё сообщение — поэтому текстом и с
+ * обрезкой. Длинное Telegram свернёт сам (`expandable` у цитаты).
+ */
+const TG_DESCRIPTION_LIMIT = 1000;
+const tgDescription = (ticket) =>
+  htmlToPlainLines(ticket?.description, TG_DESCRIPTION_LIMIT);
 
 const Notification = require("../models//notification");
 const { Ticket } = require("../models//ticket");
@@ -312,12 +323,16 @@ exports.createTicketNotifications = async () => {
                   emoji: "⭐️",
                   event: "Новая заявка",
                   ticket,
+                  // Зачем заявка — из описания; без него сообщение называло
+                  // только тему, и суть узнавали, открыв её в браузере
+                  quoted: tgDescription(ticket),
                   lines: [contextLine(ticket)],
                 }),
               richMessage: ticketBlocks({
                 emoji: "⭐️",
                 event: "Новая заявка",
                 ticket,
+                quoted: tgDescription(ticket),
                 rows: [deadlineRow(ticket, resolveTimezone(prefs))],
               }),
               replyMarkup: ticketButton(ticket.num),
@@ -349,11 +364,15 @@ exports.createTicketNotifications = async () => {
                   emoji: "⭐️",
                   event: "Новая заявка",
                   ticket,
+                  // Заявителю — подтверждение того, что мы получили: у заявки
+                  // по анкете это его же ответы, собранные в текст
+                  quoted: tgDescription(ticket),
                 }),
               richMessage: ticketBlocks({
                 emoji: "⭐️",
                 event: "Новая заявка",
                 ticket,
+                quoted: tgDescription(ticket),
                 rows: [deadlineRow(ticket, resolveTimezone(prefs))],
               }),
               replyMarkup: ticketButton(ticket.num),

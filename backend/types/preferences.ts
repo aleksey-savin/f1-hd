@@ -126,6 +126,13 @@ export interface IPreferences {
     trackServiceExpiry: boolean;
     serviceExpiryDays: number;
   };
+  /** Срез «давно без движения» на главной — см. services/ticketActivity. */
+  staleTickets: {
+    /** Молчание в рабочих днях, после которого заявка попадает в срез. */
+    thresholdDays: number;
+    ignoreAuto: boolean;
+    ignoreUnassigned: boolean;
+  };
   mikrotik: {
     isActive: boolean;
     offlineTicket: {

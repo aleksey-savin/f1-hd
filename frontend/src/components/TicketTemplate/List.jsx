@@ -24,7 +24,7 @@ const List = ({ items = [] }) => {
   return (
     <>
       {titles.map((title, index) => (
-        <div key={title}>
+        <div key={title} className="appear-children">
           {!single && (
             <ListGroupLabel
               label={title}
@@ -34,7 +34,7 @@ const List = ({ items = [] }) => {
               }
             />
           )}
-          <div>
+          <div className="appear-children">
             {groups.get(title).map((item) => (
               <Item key={item._id} item={item} />
             ))}

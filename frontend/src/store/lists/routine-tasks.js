@@ -63,9 +63,14 @@ const sortList = (selected, list) => {
     case "Сначала старые":
       sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
       break;
-    case "Ближайший запуск":
-      sorted.sort((a, b) => nextRunMs(a) - nextRunMs(b));
+    case "Ближайший запуск": {
+      // Ключ считаем ОДИН раз на задание, а не в компараторе: разбор
+      // расписания — не бесплатная операция, а компаратор зовут O(n log n)
+      // раз. Двадцать регламентов так стоили секунды заблокированного потока.
+      const nextRun = new Map(sorted.map((task) => [task, nextRunMs(task)]));
+      sorted.sort((a, b) => nextRun.get(a) - nextRun.get(b));
       break;
+    }
     default:
       break;
   }

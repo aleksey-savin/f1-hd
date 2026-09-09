@@ -22,7 +22,6 @@ import {
   FormHeader,
   FormSections,
 } from "@/components/app/FormLayout";
-import Spinner from "@/components/app/Spinner";
 import WizardStepper from "@/components/app/WizardStepper";
 
 import { useFormSheet } from "@/components/app/FormOutlet";
@@ -97,7 +96,9 @@ const optionsOf = (items, label = (item) => item.name) =>
  * Тело уходит JSON-ом (гайд: вложенные данные не собираются из FormData).
  */
 const ClientDeviceForm = ({ title }) => {
-  const data = useLoaderData();
+  // Справочники приезжают лоадером из кэша (store/form-data), поэтому форма
+  // открывается готовой: собственного ожидания у неё нет.
+  const { device: data, formData } = useLoaderData();
   const isEdit = Boolean(data?._id);
 
   const fetcher = useFetcher();
@@ -134,14 +135,16 @@ const ClientDeviceForm = ({ title }) => {
     data?.deviceModelId ? "branded" : data?.deviceTypeId ? "custom" : "branded",
   );
 
-  const [companies, setCompanies] = useState([]);
+  // Те справочники, в которые дописывает создание «на месте»
+  // (InlineCreateDialog), держим состоянием; компании инлайн не заводятся,
+  // поэтому они берутся из лоадера как есть.
+  const { companies } = formData;
   const [locations, setLocations] = useState([]);
-  const [deviceTypes, setDeviceTypes] = useState([]);
-  const [vendors, setVendors] = useState([]);
-  const [deviceModels, setDeviceModels] = useState([]);
+  const [deviceTypes, setDeviceTypes] = useState(formData.deviceTypes);
+  const [vendors, setVendors] = useState(formData.vendors);
+  const [deviceModels, setDeviceModels] = useState(formData.deviceModels);
   const [configurations, setConfigurations] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [suppliers, setSuppliers] = useState(formData.suppliers);
 
   const [step, setStep] = useState(0);
   const [maxReached, setMaxReached] = useState(0);
@@ -160,41 +163,6 @@ const ClientDeviceForm = ({ title }) => {
     form.locationId,
     form.companyId,
   );
-
-  // Справочники: компании, типы, вендоры, модели, поставщики.
-  useEffect(() => {
-    const headers = {};
-    const base = import.meta.env.VITE_API_ADDRESS;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const responses = await Promise.all([
-          fetch(`${base}/api/companies`, { headers }),
-          fetch(`${base}/api/inventory/device-types`, { headers }),
-          fetch(`${base}/api/inventory/vendors`, { headers }),
-          fetch(`${base}/api/inventory/device-models`, { headers }),
-          fetch(`${base}/api/inventory/suppliers`, { headers }),
-        ]);
-        const [companyList, typeList, vendorList, modelList, supplierList] =
-          await Promise.all(responses.map((response) => response.json()));
-        if (cancelled) return;
-        setCompanies(Array.isArray(companyList) ? companyList : []);
-        setDeviceTypes(Array.isArray(typeList) ? typeList : []);
-        setVendors(Array.isArray(vendorList) ? vendorList : []);
-        setDeviceModels(Array.isArray(modelList) ? modelList : []);
-        setSuppliers(Array.isArray(supplierList) ? supplierList : []);
-      } catch (error) {
-        console.warn("Справочники формы устройства не загрузились:", error);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Расположения выбранной компании — полным путём (одноимённых комнат у
   // клиента столько же, сколько зданий).
@@ -499,8 +467,6 @@ const ClientDeviceForm = ({ title }) => {
     options,
     onInlineCreate: setInlineKind,
   };
-
-  if (loading) return <Spinner className="min-h-64" />;
 
   const deviceStep = (
     <DeviceFields

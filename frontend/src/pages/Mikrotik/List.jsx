@@ -214,9 +214,9 @@ const MikrotikDevices = () => {
         </div>
       }
     >
-      <div>
+      <div className="appear-children">
         {groups.map((group) => (
-          <div key={group.key}>
+          <div key={group.key} className="appear-children">
             {groups.length > 1 && (
               <ListGroupLabel
                 label={group.label}

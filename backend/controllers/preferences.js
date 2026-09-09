@@ -393,6 +393,16 @@ exports.update = async (req, res, next) => {
         autoApply: !!body.checklistTemplates?.autoApply,
       };
     }
+    // Правила среза «давно без движения» (главная). Поля перечисляем поимённо:
+    // порог должен остаться числом, а выключенный переключатель — false, а не
+    // пропавшим ключом.
+    if (has("staleTickets")) {
+      preferences.staleTickets = {
+        thresholdDays: Number(body.staleTickets?.thresholdDays) || 7,
+        ignoreAuto: !!body.staleTickets?.ignoreAuto,
+        ignoreUnassigned: !!body.staleTickets?.ignoreUnassigned,
+      };
+    }
 
     // «Сбор заявок»: ящик-приёмник мержим по путям — форма не присылает health
     // (его пишут крон сбора и кнопка проверки), а замена группы целиком его бы

@@ -2,7 +2,6 @@ import { create } from "zustand";
 
 import { api } from "@/lib/api";
 
-
 /**
  * Открытые заявки для главной — ОДИН запрос на три блока.
  *
@@ -21,6 +20,9 @@ const fetchOpened = async () => api("/api/tickets/all-opened");
 
 const useDashboardTicketsStore = create((set) => ({
   tickets: [],
+  // Правила среза «давно без движения» приезжают вместе с заявками: считает их
+  // бэкенд, блоку порог нужен только чтобы назвать правило словами.
+  staleRules: { thresholdDays: 0 },
   isLoading: false,
   loaded: false,
   failed: false,
@@ -31,6 +33,7 @@ const useDashboardTicketsStore = create((set) => ({
       const data = await fetchOpened();
       set({
         tickets: data.tickets ?? [],
+        staleRules: data.staleRules ?? { thresholdDays: 0 },
         isLoading: false,
         loaded: true,
         failed: false,
@@ -47,7 +50,11 @@ const useDashboardTicketsStore = create((set) => ({
   refresh: async () => {
     try {
       const data = await fetchOpened();
-      set({ tickets: data.tickets ?? [], failed: false });
+      set({
+        tickets: data.tickets ?? [],
+        staleRules: data.staleRules ?? { thresholdDays: 0 },
+        failed: false,
+      });
     } catch (error) {
       console.warn("Фоновое обновление главной пропущено:", error);
     }

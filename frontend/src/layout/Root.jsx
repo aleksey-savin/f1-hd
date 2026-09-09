@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 import {
@@ -40,6 +40,7 @@ import useInitialPrefsStore from "../store/prefs";
 import useWorkStatusesStore from "../store/work-statuses";
 import { ThemeContext } from "../store/theme-context";
 import useRouteErrorStore from "../store/route-error";
+import { useNavWait } from "@/components/app/nav-wait";
 import { layoutPathname, resolveSheetWidth } from "./sheet-width";
 
 const RootLayout = () => {
@@ -68,32 +69,19 @@ const RootLayout = () => {
 
   const location = useLocation();
 
-  // Переход, который длится дольше мгновения (шторка формы открывается по
-  // готовности данных; прямая ссылка; медленная сеть), получает признак на
-  // корне документа: `data-navigating="pending"` — index.css показывает по
-  // нему курсор ожидания и линию на границе бара оболочки (app/NavProgress).
-  // Порог — чтобы быстрые переходы не мигали. По коммиту линия, если успела
-  // появиться, доезжает до конца и гаснет: «done» живёт ровно на время этой
-  // анимации, иначе признак просто снимается.
+  // Ожидание, которое длится дольше мгновения (шторка формы открывается по
+  // готовности данных; прямая ссылка; медленная сеть), показывает курсор
+  // ожидания и линию на границе бара оболочки (app/NavProgress) — по признаку
+  // `data-navigating` на корне документа.
+  //
+  // Роутер — лишь один из источников ожидания: список берёт данные своим
+  // стором уже ПОСЛЕ перехода. Пороги, счётчик ожидающих и сам признак живут в
+  // `app/nav-wait`, здесь только регистрируется переход. Подписки на счётчик у
+  // оболочки нет намеренно — линия рисуется CSS, перерисовывать ради неё
+  // дерево не нужно.
   const navigation = useNavigation();
-  useEffect(() => {
-    const root = document.documentElement.dataset;
-    if (navigation.state !== "idle") {
-      const timer = setTimeout(() => {
-        root.navigating = "pending";
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-    if (root.navigating !== "pending") {
-      delete root.navigating;
-      return undefined;
-    }
-    root.navigating = "done";
-    const timer = setTimeout(() => {
-      if (root.navigating === "done") delete root.navigating;
-    }, 450);
-    return () => clearTimeout(timer);
-  }, [navigation.state]);
+  useNavWait(navigation.state !== "idle");
+
 
   // Версия фронта вшита в бандл из frontend/package.json (vite.config.js),
   // бэкенд отдаёт свою из своего package.json — расхождение значит, что на
@@ -113,6 +101,40 @@ const RootLayout = () => {
   const sheetWidth = routeErrorActive
     ? 944
     : resolveSheetWidth(layoutPathname(matches));
+
+  // Приезд страницы: содержимое не должно возникать рывком (макет «Плавность
+  // перехода»). Класс переигрываем руками — снять, вызвать пересчёт, вернуть:
+  // маршрут может остаться ТЕМ ЖЕ компонентом (карточка → карточка соседа), и
+  // на ремоунт рассчитывать нельзя. useLayoutEffect, а не useEffect: обычный
+  // эффект отрабатывает после кадра, и страница успела бы мигнуть без
+  // анимации. По окончании класс снимаем, чтобы он не висел на странице всё
+  // время; слушаем при этом только СВОЮ анимацию — анимации строк всплывают
+  // сюда же и сняли бы класс раньше времени.
+  //
+  // Это единственная анимация приезда страницы. Список, который ЖДАЛ данных,
+  // добавляет свою ступеньку строк уже после (app/ListWrapper → appear-ready);
+  // список, приехавший вместе со страницей, второй анимации не получает.
+  //
+  // Зависимость — путь ХОЗЯИНА, а не pathname: открытие шторки формы это тоже
+  // смена адреса (`/users` → `/users/add`), а страница за шторкой остаётся на
+  // месте и переигрывать вход ей незачем.
+  //
+  // Оболочка на телефоне и на десктопе — разные ветки, но рисуется всегда
+  // одна, поэтому ссылка на обе обёртки общая.
+  const ownerPath = layoutPathname(matches);
+  const pageRef = useRef(null);
+  useLayoutEffect(() => {
+    const page = pageRef.current;
+    if (!page) return undefined;
+    page.classList.remove("page-appear");
+    void page.offsetWidth;
+    page.classList.add("page-appear");
+    const finish = (event) => {
+      if (event.target === page) page.classList.remove("page-appear");
+    };
+    page.addEventListener("animationend", finish);
+    return () => page.removeEventListener("animationend", finish);
+  }, [ownerPath]);
 
   // Мобильный app-shell: <main> — свой скролл-контейнер (не window), поэтому
   // сбрасываем прокрутку вверх при смене маршрута вручную.
@@ -332,9 +354,11 @@ const RootLayout = () => {
                   помогло — Ctrl&nbsp;+&nbsp;Shift&nbsp;+&nbsp;R.
                 </AppBanner>
               )}
-              <RouteGuard>
-                <Outlet />
-              </RouteGuard>
+              <div ref={pageRef}>
+                <RouteGuard>
+                  <Outlet />
+                </RouteGuard>
+              </div>
             </div>
             <Footer />
           </div>
@@ -352,9 +376,11 @@ const RootLayout = () => {
               ref={mobileScrollRef}
             >
               <div className="mx-auto w-full px-3 pt-3">
-                <RouteGuard>
-                  <Outlet />
-                </RouteGuard>
+                <div ref={pageRef}>
+                  <RouteGuard>
+                    <Outlet />
+                  </RouteGuard>
+                </div>
                 <Footer />
               </div>
             </main>

@@ -259,7 +259,10 @@ const Tree = ({ items = [], selectedId = null, onSelect }) => {
           </Button>
         </div>
       )}
-      <div className="rounded-xl border border-border bg-card p-2">
+      {/* Ступенька приезда — по корням дерева: здания появляются снизу
+          вверх вместе со своими этажами и помещениями (макет «Плавность
+          перехода»). */}
+      <div className="appear-children rounded-xl border border-border bg-card p-2">
         {roots.map((node) => (
           <TreeNode
             key={node.data._id}
