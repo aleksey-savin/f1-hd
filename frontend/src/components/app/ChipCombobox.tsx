@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { RiArrowDownSLine, RiCheckLine } from "react-icons/ri";
 
@@ -51,7 +51,10 @@ const ChipCombobox = ({
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const inOverlay = useInOverlay();
+  // Ссылка на триггер — чтобы понять, что чип стоит внутри шторки: там поповер
+  // обязан быть модальным, иначе список не прокрутить (см. useInOverlay)
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const inOverlay = useInOverlay(triggerRef);
   const selected = options.find((option) => option.value === value) ?? null;
 
   const pick = (next: string | null) => {
@@ -63,6 +66,7 @@ const ChipCombobox = ({
     <Popover open={open} onOpenChange={setOpen} modal={inOverlay}>
       <PopoverTrigger asChild>
         <button
+          ref={triggerRef}
           type="button"
           role="combobox"
           aria-expanded={open}

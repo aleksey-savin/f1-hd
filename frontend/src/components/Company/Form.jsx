@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import {
   RiAddLine,
@@ -14,6 +14,14 @@ import Field from "@/components/app/Field";
 import PhoneInput from "@/components/app/PhoneInput";
 import WizardStepper from "@/components/app/WizardStepper";
 import AlertMessage from "@/components/app/AlertMessage";
+import {
+  FormActions,
+  FormHeader,
+  FormSections,
+  sectionAnchorId,
+} from "@/components/app/FormLayout";
+import { scrollToSection } from "@/components/app/AnchorRail";
+import { OverlayScrollContext } from "@/components/app/overlay-context";
 import ScheduleEditor, {
   SCHEDULE_DAYS,
   emptyDay,
@@ -28,20 +36,24 @@ import FormSummary from "./FormSummary";
 import MapLinkHint from "./MapLinkHint";
 
 // Форма компании (по согласованному макету): создание — мастер «Основное ·
-// Контакты · График работы» со сводкой справа (wide-шторка), правка — плоская
-// секциями без шагов. Сабмит — JSON на action маршрута; создание уводит на
-// карточку созданной компании, правка возвращает где были.
+// Контакты · График работы» со сводкой справа (шторка `lg`), правка — те же
+// поля плоскими секциями с рейлом-якорем (`app/FormLayout`, шторка `xl`).
+// Сабмит — JSON на action маршрута; создание уводит на карточку созданной
+// компании, правка возвращает где были.
 const STEPS = [
   { label: "Основное" },
   { label: "Контакты" },
   { label: "График работы" },
 ];
 const LAST = STEPS.length - 1;
+// Ключи секций правки = якоря: ярлык «Изменить» в метке секции карточки ведёт
+// сюда хешем (`update#schedule`)
+const SECTION_KEYS = ["basic", "contacts", "schedule"];
 
 const STEP_META = [
   {
     title: "Основное",
-    desc: "Как компания называется, чьи письма ей принадлежат и кто её ведёт",
+    desc: "",
   },
   {
     title: "Контакты",
@@ -72,6 +84,10 @@ const initSchedule = (existing) =>
 const CompanyForm = () => {
   const { company, responsibles: responsiblesList = [] } = useLoaderData();
   const isEdit = Boolean(company?._id);
+
+  // Липкая шапка формы: под неё прижимается рейл секций
+  const [headHeight, setHeadHeight] = useState(0);
+  const scroller = useContext(OverlayScrollContext);
 
   const fetcher = useFetcher();
   const { close } = useFormSheet();
@@ -117,7 +133,7 @@ const CompanyForm = () => {
   const [timezone, setTimezone] = useState(() => company?.timezone || null);
 
   const [step, setStep] = useState(0);
-  const [maxReached, setMaxReached] = useState(isEdit ? LAST : 0);
+  const [maxReached, setMaxReached] = useState(0);
   const [attempted, setAttempted] = useState(false);
 
   const setField = (name, value) =>
@@ -181,7 +197,7 @@ const CompanyForm = () => {
   };
 
   const handleStepClick = (index) => {
-    if (isEdit || index <= maxReached) {
+    if (index <= maxReached) {
       setAttempted(false);
       setStep(index);
     }
@@ -193,8 +209,15 @@ const CompanyForm = () => {
 
   const handleSubmit = () => {
     if (!stepValid(0)) {
-      setStep(0);
       setAttempted(true);
+      // Показать человеку незаполненное поле. В мастере это переключение шага,
+      // в правке — прокрутка к секции: шагов там нет, и `setStep` молчал бы,
+      // а форма выглядела бы сломанной — нажал «Сохранить», не случилось ничего
+      if (isEdit) {
+        scrollToSection(scroller, sectionAnchorId(SECTION_KEYS[0]));
+      } else {
+        setStep(0);
+      }
       return;
     }
 
@@ -429,28 +452,36 @@ const CompanyForm = () => {
 
   return (
     <div>
-      <h1 className="my-0 mb-4 pr-10 text-2xl font-semibold tracking-tight">
-        {isEdit ? "Изменить компанию" : "Новая компания"}
-      </h1>
+      {isEdit ? (
+        <FormHeader title="Изменить компанию" onHeight={setHeadHeight} />
+      ) : (
+        <h1 className="my-0 mb-4 pr-10 text-2xl font-semibold tracking-tight">
+          Новая компания
+        </h1>
+      )}
 
       {isEdit ? (
-        // Правка — плоская форма без шагов
-        <div className="space-y-1">
-          {STEPS.map((meta, index) => (
-            <section
-              key={meta.label}
-              className="border-t border-border-soft py-5 first:border-t-0 first:pt-1"
-            >
-              <h3 className="my-0 text-base font-semibold tracking-tight">
-                {STEP_META[index].title}
-              </h3>
-              <p className="mt-0.5 mb-4 text-sm text-muted-foreground">
-                {STEP_META[index].desc}
-              </p>
-              {stepBody(index)}
-            </section>
-          ))}
-        </div>
+        /* Правка — плоские секции одним скроллом, слева рейл-якорь */
+        <FormSections
+          headHeight={headHeight}
+          sections={STEPS.map((meta, index) => ({
+            key: SECTION_KEYS[index],
+            title: STEP_META[index].title,
+            desc: STEP_META[index].desc,
+            /* Ошибка обязана быть видна и здесь: в мастере её показывает
+               ветка ниже, а в плоской правке показать её больше некому */
+            body: (
+              <>
+                {stepBody(index)}
+                {attempted && stepError(index) && (
+                  <p className="mt-2 mb-0 text-sm text-destructive">
+                    {stepError(index)}
+                  </p>
+                )}
+              </>
+            ),
+          }))}
+        />
       ) : (
         // Создание — мастер со сводкой
         <>
@@ -466,9 +497,13 @@ const CompanyForm = () => {
                 <h3 className="my-0 text-base font-semibold tracking-tight">
                   {STEP_META[step].title}
                 </h3>
-                <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
-                  {STEP_META[step].desc}
-                </p>
+                {/* Описание есть не у каждого шага — пустой абзац не рисуем
+                    (как и `FormSections` в правке) */}
+                {STEP_META[step].desc && (
+                  <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
+                    {STEP_META[step].desc}
+                  </p>
+                )}
               </div>
               {stepBody(step)}
               {attempted && stepError(step) && (
@@ -497,7 +532,7 @@ const CompanyForm = () => {
         </div>
       )}
 
-      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center gap-2.5 border-t border-border-soft bg-background px-6 py-3">
+      <FormActions>
         <Button
           type="button"
           variant="ghost"
@@ -536,7 +571,7 @@ const CompanyForm = () => {
             </>
           )}
         </div>
-      </div>
+      </FormActions>
     </div>
   );
 };

@@ -249,11 +249,32 @@ exports.getAll = async (req, res, next) => {
     }
 
     // 3) Набор: сотрудники / клиенты / все
-    if (q.audience === "staff") match.isEndUser = false;
-    else if (q.audience === "clients") match.isEndUser = true;
+    const audienceMatch =
+      q.audience === "staff"
+        ? { isEndUser: false }
+        : q.audience === "clients"
+          ? { isEndUser: true }
+          : null;
 
-    // 4) Служебные аккаунты и телефония по умолчанию скрыты (не «люди»).
-    if (q.includeService !== "true") {
+    // 4) Служебные аккаунты и телефония — не «люди» адресной книги: по
+    // умолчанию скрыты («hide»/пусто), «any» показывает их вместе с людьми
+    // набора, «only» — только их (срез для проверки телефонии и
+    // интеграционных учёток).
+    //
+    // Служебные стоят ВНЕ деления сотрудники/клиенты: в модели у них
+    // isEndUser=false, то есть набор считал бы их сотрудниками. Поэтому набор
+    // применяем только к людям — иначе «только служебные» давал бы пустой
+    // список в наборе «Клиенты», открытом по умолчанию, а «все» ничего в нём
+    // не меняли бы.
+    const serviceMatch = {
+      $or: [{ isServiceAccount: true }, { isCloudTelephony: true }],
+    };
+    if (q.service === "only") {
+      and.push(serviceMatch);
+    } else if (q.service === "any") {
+      if (audienceMatch) and.push({ $or: [audienceMatch, serviceMatch] });
+    } else {
+      if (audienceMatch) Object.assign(match, audienceMatch);
       match.isServiceAccount = { $ne: true };
       match.isCloudTelephony = { $ne: true };
     }

@@ -32,6 +32,13 @@ const ticketTemplateSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    // Описание при создании заявки по шаблону: обязательно, по желанию или
+    // скрыто — тогда сервер собирает его из ответов (services/ticketQuestionnaire).
+    descriptionMode: {
+      type: String,
+      enum: ["required", "optional", "hidden"],
+      default: "required",
+    },
     // Чек-лист-заготовка: копируется в чек-лист заявки при создании по шаблону.
     checklist: [
       {

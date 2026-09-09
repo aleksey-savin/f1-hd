@@ -4,6 +4,13 @@ import { cn } from "@/lib/utils";
 import { usePermissionCatalogue } from "@/store/authed-user";
 
 /**
+ * Якорь карточки группы. По нему ведёт рейл формы роли: секции рисуют себя
+ * сами, а рейл собирается списком из того же каталога — как на карточке
+ * компании.
+ */
+export const permissionGroupAnchor = (key) => `perm-group-${key}`;
+
+/**
  * Матрица прав формы роли.
  *
  * Группы и подписи приходят с сервера (`/api/me` → `permissionCatalogue`):
@@ -50,7 +57,11 @@ const PermissionModules = ({
         ).length;
 
         return (
-          <div key={group.key} className="rounded-xl border border-border p-4">
+          <div
+            key={group.key}
+            id={permissionGroupAnchor(group.key)}
+            className="rounded-xl border border-border p-4"
+          >
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold">{group.label}</span>
               <span className="text-xs text-faint tabular-nums">

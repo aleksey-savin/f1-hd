@@ -76,9 +76,13 @@ import RolesPage, {
   loader as rolesLoader,
   action as deleteRoleAction,
 } from "./pages/Role/List.jsx";
-import AddRolePage, { loader as addRoleLoader } from "./pages/Role/Add.jsx";
+import AddRolePage, {
+  loader as addRoleLoader,
+  action as addRoleAction,
+} from "./pages/Role/Add.jsx";
 import UpdateRolePage, {
   loader as updateRoleLoader,
+  action as updateRoleAction,
 } from "./pages/Role/Update.jsx";
 
 // Ticket categories
@@ -321,6 +325,9 @@ import MikrotikRecordPage, {
   loader as mikrotikRecordLoader,
 } from "./pages/Mikrotik/Record.jsx";
 import MikrotikDeviceForm from "./components/Mikrotik/DeviceForm.jsx";
+import MikrotikScheduleForm, {
+  action as mikrotikScheduleAction,
+} from "./components/Mikrotik/ScheduleForm.jsx";
 
 // Users
 import Users, { loader as usersLoader } from "./pages/User/List.jsx";
@@ -598,14 +605,14 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: { can: { company: ["manage"] }, ...SHEET_MD },
+                  handle: { can: { company: ["manage"] }, ...SHEET_LG },
                   loader: addCompanyLoader,
                   action: addCompanyAction,
                   element: <AddCompanyPage />,
                 },
                 {
                   path: "update/:id",
-                  handle: { can: { company: ["manage"] }, ...SHEET_MD },
+                  handle: { can: { company: ["manage"] }, ...SHEET_XL },
                   loader: updateCompanyLoader,
                   action: updateCompanyrAction,
                   element: <UpdateCompanyPage />,
@@ -621,7 +628,7 @@ function App() {
               children: [
                 {
                   path: "update",
-                  handle: SHEET_MD,
+                  handle: SHEET_XL,
                   loader: updateCompanyLoader,
                   action: updateCompanyrAction,
                   element: <UpdateCompanyPage />,
@@ -647,7 +654,7 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: { can: { user: ["manage"] }, ...SHEET_XL },
+                  handle: { can: { user: ["manage"] }, ...SHEET_LG },
                   loader: addUserLoader,
                   action: addUserAction,
                   element: <AddUserPage />,
@@ -691,16 +698,19 @@ function App() {
               action: deleteRoleAction,
               children: [
                 {
+                  // Матрица прав длинная: у формы рейл по группам, значит xl
                   path: "add",
-                  handle: { can: { role: ["manage"] }, ...SHEET_MD },
+                  handle: { can: { role: ["manage"] }, ...SHEET_XL },
                   element: <AddRolePage />,
                   loader: addRoleLoader,
+                  action: addRoleAction,
                 },
                 {
                   path: "update/:key",
-                  handle: { can: { role: ["manage"] }, ...SHEET_MD },
+                  handle: { can: { role: ["manage"] }, ...SHEET_XL },
                   element: <UpdateRolePage />,
                   loader: updateRoleLoader,
+                  action: updateRoleAction,
                 },
               ],
             },
@@ -748,7 +758,7 @@ function App() {
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_LG,
+                  handle: SHEET_XL,
                   loader: updateTicketTemplateLoader,
                   action: updateTicketTemplateAction,
                   element: <UpdateTicketTemplatePage />,
@@ -769,7 +779,7 @@ function App() {
                 ...ticketFormRoutes({ prefix: "tickets/", modes: ["add"] }),
                 {
                   path: "update",
-                  handle: SHEET_LG,
+                  handle: SHEET_XL,
                   loader: updateTicketTemplateLoader,
                   action: updateTicketTemplateAction,
                   element: <UpdateTicketTemplatePage />,
@@ -819,7 +829,7 @@ function App() {
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_LG,
+                  handle: SHEET_XL,
                   loader: updateRoutineTaskLoader,
                   action: updateRoutineTaskAction,
                   element: <UpdateRoutineTaskPage />,
@@ -837,7 +847,7 @@ function App() {
               children: [
                 {
                   path: "update",
-                  handle: SHEET_LG,
+                  handle: SHEET_XL,
                   loader: updateRoutineTaskLoader,
                   action: updateRoutineTaskAction,
                   element: <UpdateRoutineTaskPage />,
@@ -864,7 +874,7 @@ function App() {
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_LG,
+                  handle: SHEET_XL,
                   loader: updateServicePlanLoader,
                   action: updateServicePlanAction,
                   element: <UpdateServicePlanPage />,
@@ -1211,7 +1221,7 @@ function App() {
               children: [
                 {
                   path: "update",
-                  handle: SHEET_LG,
+                  handle: SHEET_XL,
                   loader: updateServicePlanLoader,
                   action: updateServicePlanAction,
                   element: <UpdateServicePlanPage />,
@@ -1235,11 +1245,24 @@ function App() {
             },
             // Страница записи мониторинга — общая для инвентарных и standalone
             // устройств; правка — в шторке на месте (вложенный маршрут update).
+            // id — чтобы шторка расписания читала данные записи через
+            // useRouteLoaderData, не запрашивая их второй раз.
             {
               path: "devices/mikrotik/records/:recordId",
+              id: "mikrotik-record",
               element: <MikrotikRecordPage />,
               loader: mikrotikRecordLoader,
-              children: [{ path: "update", element: <MikrotikDeviceForm />, handle: SHEET_MD }],
+              children: [
+                { path: "update", element: <MikrotikDeviceForm />, handle: SHEET_MD },
+                // Расписание экспорта — своя шторка: у параметров verify-on-save,
+                // а право у расписания другое (manageConfigs)
+                {
+                  path: "schedule",
+                  element: <MikrotikScheduleForm />,
+                  action: mikrotikScheduleAction,
+                  handle: { can: { mikrotik: ["manageConfigs"] }, ...SHEET_MD },
+                },
+              ],
             },
             // Reports
             // Легаси-отчёт по работам влился в «Архив» (сегмент «Работы») —

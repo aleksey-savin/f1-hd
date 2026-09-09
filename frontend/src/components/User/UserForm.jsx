@@ -12,6 +12,7 @@ import Segmented from "@/components/app/Segmented";
 import WizardStepper from "@/components/app/WizardStepper";
 import AlertMessage from "@/components/app/AlertMessage";
 import {
+  FormActions,
   FormHeader,
   FormSections,
   sectionAnchorId,
@@ -1299,7 +1300,7 @@ const UserForm = () => {
       )}
 
       {/* Ряд кнопок — как у app/FormWrapper: обе справа, без иконок */}
-      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2.5 bg-background px-6 py-3">
+      <FormActions className="justify-end">
         <Button
           type="button"
           variant="ghost"
@@ -1342,7 +1343,7 @@ const UserForm = () => {
             )}
           </>
         )}
-      </div>
+      </FormActions>
     </div>
   );
 };

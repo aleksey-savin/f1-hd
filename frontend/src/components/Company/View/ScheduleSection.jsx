@@ -1,6 +1,11 @@
 import { toZonedTime } from "date-fns-tz";
 
-import { Eyebrow, Panel } from "@/components/app/Panel";
+import {
+  Eyebrow,
+  Panel,
+  Section,
+  SectionEditLink,
+} from "@/components/app/Panel";
 import ClientTime from "@/components/app/ClientTime";
 import { SCHEDULE_DAYS } from "@/components/app/ScheduleEditor";
 import { cn } from "@/lib/utils";
@@ -44,12 +49,30 @@ const getToday = (schedule, zone) => {
   return { key, progress: Math.min(100, Math.max(0, progress)) };
 };
 
-const ScheduleSection = ({ workSchedule, hasSchedule, timezone, id }) => {
+const ScheduleSection = ({
+  workSchedule,
+  hasSchedule,
+  timezone,
+  canManage,
+  id,
+}) => {
   const today = hasSchedule ? getToday(workSchedule, timezone) : { key: null };
 
   return (
-    <>
-      <Eyebrow id={id}>График работы</Eyebrow>
+    <Section>
+      {/* Карандаш — второй вход в ту же форму, открытую на своей секции: график
+          правится только в ней (см. ux-ui-guide, «Секции карточки показывают,
+          правит форма») */}
+      <Eyebrow
+        id={id}
+        action={
+          canManage ? (
+            <SectionEditLink to="update#schedule" label="График работы" />
+          ) : undefined
+        }
+      >
+        График работы
+      </Eyebrow>
       <Panel>
         {!hasSchedule ? (
           <div className="text-sm text-muted-foreground">
@@ -136,7 +159,7 @@ const ScheduleSection = ({ workSchedule, hasSchedule, timezone, id }) => {
           </>
         )}
       </Panel>
-    </>
+    </Section>
   );
 };
 

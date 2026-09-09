@@ -12,10 +12,16 @@ import {
 import DateTimeField from "@/components/app/DateTimeField";
 import Field from "@/components/app/Field";
 import Combobox, { MultiCombobox } from "@/components/app/Combobox";
+import {
+  CustomFieldsForm,
+  QUESTION_BLOCK,
+  QuestionBlock,
+} from "@/components/app/CustomFieldInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import MarkdownEditor from "../../UI/MarkdownEditor";
+import MarkdownViewer from "../../UI/MarkdownViewer";
 
 import { TICKET_STATES } from "./use-ticket-form";
 
@@ -56,7 +62,7 @@ const iconFor = (name) => {
  * Повторный выбор ДОПИСЫВАЕТ файлы к пачке, а не заменяет её: прежний загрузчик
  * заменял, и второй заход терял первый.
  */
-const AttachmentsField = ({ files, setFiles }) => {
+const AttachmentsField = ({ files, setFiles, className }) => {
   const pickerRef = useRef(null);
   // Отклонённый файл обязан объяснить, почему его нет: молча пропавшее
   // вложение читается как поломка
@@ -87,6 +93,7 @@ const AttachmentsField = ({ files, setFiles }) => {
   return (
     <Field
       label="Вложения"
+      className={className}
       hint={
         rejected.length ? (
           <span className="text-destructive">{rejected.join(" · ")}</span>
@@ -149,15 +156,22 @@ const personLabel = (person) =>
  * ключ секции служит якорем, и карандаш в метке секции карточки открывает
  * форму сразу на нужном месте (`update#description`, `update#details`).
  *
+ * Набор зависит от роли. Сотрудник видит «Описание» (тема, текст, вложения) и
+ * «Детали» (компания, инициатор, категория, ответственные, срок и вопросы
+ * заготовки). Заявитель — анкету: одна секция без заголовка, где каждый
+ * вопрос сам себе блок, а свободный текст и вложения идут последними.
+ *
  * @param {object} params
  * @param {object} params.form состояние из `useTicketForm`
  * @param {object} params.formData справочники от `GET /api/tickets/form-data`
- * @returns {{ key: string, title: string, body: JSX.Element }[]}
+ * @returns {{ key: string, title?: string, body: JSX.Element }[]}
  */
 export const ticketFormSections = ({ form, formData = {} }) => {
   const {
     config,
     isEndUser,
+    descriptionMode,
+    template,
     title,
     setTitle,
     description,
@@ -184,41 +198,52 @@ export const ticketFormSections = ({ form, formData = {} }) => {
     errorOf,
   } = form;
 
+  // Обёртка даёт рамку и радиус, собственный бордер редактора снят в
+  // index.css (.md-editor) — общий приём с шаблоном и регламентом. Свой id —
+  // цель прокрутки к ошибке из buildPayload.
+  //
+  // `key` по шаблону: редактор читает `initialValue` один раз при
+  // монтировании (чтобы внешние ре-рендеры не сбрасывали курсор), поэтому
+  // выбранная в шапке заготовка иначе легла бы в состояние, но на экране
+  // осталась бы прежней.
+  const descriptionEditor = (
+    <div
+      id="ticket-description"
+      className="md-editor overflow-hidden rounded-lg border border-input"
+    >
+      <MarkdownEditor
+        key={template?._id ?? "no-template"}
+        initialValue={description}
+        onChange={setDescription}
+        height="240px"
+        hideModeSwitch
+        format="html"
+      />
+    </div>
+  );
+
+  // Обязательность описания задаёт шаблон: у заготовки со скрытым описанием
+  // заявка держится на ответах (services/ticketQuestionnaire)
+  const descriptionRequired = descriptionMode === "required";
+
   const descriptionSection = (
     <>
-      {!isEndUser && (
-        <Field
-          label="Тема"
-          htmlFor="ticket-title"
-          required
-          hint={errorOf("title")}
-        >
-          <Input
-            id="ticket-title"
-            autoFocus
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            aria-invalid={errorOf("title") ? true : undefined}
-          />
-        </Field>
-      )}
+      <Field label="Тема" htmlFor="ticket-title" required hint={errorOf("title")}>
+        <Input
+          id="ticket-title"
+          autoFocus
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          aria-invalid={errorOf("title") ? true : undefined}
+        />
+      </Field>
 
       <Field
-        label={isEndUser ? "Опишите задачу или проблему" : "Описание"}
-        required
+        label="Описание"
+        required={descriptionRequired}
         hint={errorOf("description")}
       >
-        {/* Обёртка даёт рамку и радиус, собственный бордер редактора снят
-            в index.css (.md-editor) — общий приём с шаблоном и регламентом */}
-        <div className="md-editor overflow-hidden rounded-lg border border-input">
-          <MarkdownEditor
-            initialValue={description}
-            onChange={setDescription}
-            height="240px"
-            hideModeSwitch
-            format="html"
-          />
-        </div>
+        {descriptionEditor}
       </Field>
 
       {config.attachments && (
@@ -356,63 +381,85 @@ export const ticketFormSections = ({ form, formData = {} }) => {
 
   // Поля шаблона заявка только ЗАПОЛНЯЕТ: состав задан шаблоном. Конструктора
   // «на лету» больше нет — за год им не воспользовались ни разу, показываясь
-  // при этом на каждом создании. Секция приходит вместе с содержимым.
-  const fieldsSection = customFields.length > 0 && (
-    <div className="grid gap-3 md:grid-cols-2">
-      {customFields.map((field, index) => {
-        const patch = (value) =>
-          setCustomFields(
-            customFields.map((item, position) =>
-              position === index ? { ...item, value } : item,
-            ),
-          );
-        const id = `ticket-custom-${index}`;
-        return (
-          <Field key={`${field.name}-${index}`} label={field.name} htmlFor={id}>
-            {field.type === "multiselect" ? (
-              <MultiCombobox
-                id={id}
-                value={Array.isArray(field.value) ? field.value : []}
-                onChange={patch}
-                options={(field.options ?? []).map((option) => ({
-                  value: option,
-                  label: option,
-                }))}
-                placeholder="Выберите значения"
-              />
-            ) : field.type === "select" ? (
-              <Combobox
-                id={id}
-                value={field.value || null}
-                onChange={(next) => patch(next ?? "")}
-                options={(field.options ?? []).map((option) => ({
-                  value: option,
-                  label: option,
-                }))}
-                placeholder="Выберите значение"
-                clearable
-              />
-            ) : (
-              <Input
-                id={id}
-                value={field.value ?? ""}
-                onChange={(event) => patch(event.target.value)}
-              />
-            )}
-          </Field>
-        );
-      })}
-    </div>
+  // при этом на каждом создании.
+  const questions = (
+    <CustomFieldsForm
+      fields={customFields}
+      onChange={setCustomFields}
+      errorOf={errorOf}
+      layout={isEndUser ? "column" : "grid"}
+    />
   );
+
+  /**
+   * Анкета заявителя: вопрос за вопросом одной колонкой, варианты видны
+   * сразу, свободный текст — последним. Своего заголовка у секции нет:
+   * вопросы сами себе заголовки, и общая метка над ними была бы эхом.
+   *
+   * Ключ секции остаётся `description` — по нему в форму ведёт карандаш
+   * секции «Описание» с карточки (`update#description`).
+   */
+  const questionnaire = (
+    <>
+      {/* Описание — на своём месте, одно на форму. Спрашивает шаблон — оно
+          идёт ПЕРВЫМ, с текстом заготовки, и его правят. Скрывает — остаётся
+          только текст заготовки, читаемым абзацем: дальше заявку опишут
+          ответы на вопросы, и второе поле для того же было бы лишним */}
+      {descriptionMode === "hidden"
+        ? template?.description && (
+            <div className={QUESTION_BLOCK}>
+              <div className="md-doc text-sm text-muted-foreground">
+                <MarkdownViewer value={template.description} />
+              </div>
+            </div>
+          )
+        : (
+            <QuestionBlock
+              heading
+              title="Опишите задачу или проблему"
+              required={descriptionRequired}
+              hint={
+                template?.description
+                  ? "Текст из заготовки — дополните или измените"
+                  : undefined
+              }
+              error={errorOf("description")}
+            >
+              {descriptionEditor}
+            </QuestionBlock>
+          )}
+
+      {questions}
+
+      {config.attachments && (
+        <div className={QUESTION_BLOCK}>
+          <AttachmentsField
+            files={files}
+            setFiles={setFiles}
+            className="mb-0"
+          />
+        </div>
+      )}
+    </>
+  );
+
+  if (isEndUser) return [{ key: "description", body: questionnaire }];
 
   const sections = [
     { key: "description", title: "Описание", body: descriptionSection },
+    // Поля заготовки идут внутри «Деталей» тем же рендером, что у анкеты:
+    // своя секция «Поля формы» над ними была вторым заголовком об одном и
+    // том же — деталях этой заявки
+    {
+      key: "details",
+      title: "Детали",
+      body: (
+        <>
+          {detailsSection}
+          {customFields.length > 0 && questions}
+        </>
+      ),
+    },
   ];
-  if (!isEndUser) {
-    sections.push({ key: "details", title: "Детали", body: detailsSection });
-  }
-  if (fieldsSection) {
-    sections.push({ key: "fields", title: "Поля формы", body: fieldsSection });
-  }
   return sections;
 };

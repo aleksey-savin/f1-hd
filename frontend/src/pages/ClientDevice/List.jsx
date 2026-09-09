@@ -6,8 +6,13 @@ import { redirect, useLocation, useSearchParams } from "react-router";
 import ListWrapper from "@/components/app/ListWrapper";
 import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
 import Pager from "@/components/app/Pager";
+import Segmented from "@/components/app/Segmented";
 import { DEVICE_STATUS_META } from "@/components/app/device-status";
 
+import {
+  COMPONENTS_BADGE,
+  COMPONENTS_OPTIONS,
+} from "../../components/ClientDevice/components-facet";
 import ClientDeviceFilter from "../../components/ClientDevice/Filter";
 import DeviceRow from "../../components/ClientDevice/DeviceRow";
 import FleetStrip from "../../components/ClientDevice/FleetStrip";
@@ -139,12 +144,12 @@ const ClientDevices = () => {
           },
         ]
       : []),
-    ...(facets.withComponents
+    ...(facets.components !== "hide"
       ? [
           {
-            key: "with-components",
-            label: "С комплектующими",
-            onRemove: () => store.toggleComponents(),
+            key: "components",
+            label: COMPONENTS_BADGE[facets.components],
+            onRemove: () => store.setComponents("hide"),
           },
         ]
       : []),
@@ -163,14 +168,25 @@ const ClientDevices = () => {
         filterActive={activeFilters.length > 0}
         activeFilters={activeFilters}
         toolbar={
-          <ChipMultiCombobox
-            placeholder="Все компании"
-            searchPlaceholder="Найти компанию…"
-            countLabel={(count) => `Компании: ${count}`}
-            value={facets.companies}
-            options={options.companies}
-            onChange={(value) => store.setFacet("companies", value)}
-          />
+          <>
+            {/* Набор строк реестра: детали сборок по умолчанию не в списке.
+                Сегмент, а не пункт шторки: это первое, что спрашивают у
+                реестра, и ответ должен быть виден без открытия фильтра. */}
+            <Segmented
+              ariaLabel="Что показывать"
+              options={COMPONENTS_OPTIONS}
+              value={facets.components}
+              onChange={(value) => store.setComponents(value)}
+            />
+            <ChipMultiCombobox
+              placeholder="Все компании"
+              searchPlaceholder="Найти компанию…"
+              countLabel={(count) => `Компании: ${count}`}
+              value={facets.companies}
+              options={options.companies}
+              onChange={(value) => store.setFacet("companies", value)}
+            />
+          </>
         }
         showAddButton={Boolean(can({ device: ["manage"] }))}
         addRoute="add"

@@ -65,8 +65,8 @@ const DateField = ({
   className,
 }: DateFieldProps) => {
   const [open, setOpen] = useState(false);
-  const inOverlay = useInOverlay();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const inOverlay = useInOverlay(triggerRef);
 
   const selected = parseDayKey(value);
   const minDate = parseDayKey(min);

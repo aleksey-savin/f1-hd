@@ -6,19 +6,18 @@ type Step = { label: string };
 
 // Горизонтальный степпер мастера (эталон — макет формы услуги): кружки с
 // номером/галочкой, подписи, линия-индикатор между пройденными шагами. Клик по
-// шагу разрешён в edit-режиме (allowJump) или по уже достигнутым шагам.
+// шагу разрешён по уже достигнутым (`maxReached`) — степпер живёт только в
+// создании, правка идёт плоскими секциями (см. ux-ui-guide).
 const WizardStepper = ({
   steps,
   current,
   maxReached = 0,
-  allowJump = false,
   onStepClick,
   className,
 }: {
   steps: Step[];
   current: number;
   maxReached?: number;
-  allowJump?: boolean;
   onStepClick?: (index: number) => void;
   className?: string;
 }) => {
@@ -29,7 +28,7 @@ const WizardStepper = ({
       {steps.map((step, i) => {
         const done = i < current;
         const cur = i === current;
-        const clickable = !!onStepClick && (allowJump || i <= maxReached);
+        const clickable = !!onStepClick && i <= maxReached;
         const go = clickable ? () => onStepClick?.(i) : undefined;
 
         return (

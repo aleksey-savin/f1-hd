@@ -2,10 +2,11 @@ import { useMemo } from "react";
 
 import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
-import SwitchField from "@/components/app/SwitchField";
+import Segmented from "@/components/app/Segmented";
 
 import { MultiCombobox } from "@/components/app/Combobox";
 
+import { COMPONENTS_OPTIONS } from "./components-facet";
 import useClientDeviceFilterStore from "../../store/lists/client-devices";
 
 /**
@@ -15,8 +16,10 @@ import useClientDeviceFilterStore from "../../store/lists/client-devices";
  *
  * Опции приходят отдельной ручкой (`/client-devices/facets`) и содержат только
  * то, что реально есть в видимом парке: фильтр сужает существующее, а не
- * предлагает пустые значения. Расположения показываются под выбранные
- * компании — иначе список расползается на все объекты всех клиентов.
+ * предлагает пустые значения. Расположения — фасет ВТОРОГО шага: до выбора
+ * компании поля нет вовсе (список расползался бы на все объекты всех клиентов,
+ * а подсказка «сначала выберите компанию» занимала место поля, которым нельзя
+ * пользоваться).
  */
 const ClientDeviceFilter = () => {
   const facets = useClientDeviceFilterStore((state) => state.facets);
@@ -24,13 +27,13 @@ const ClientDeviceFilter = () => {
   const setFacet = useClientDeviceFilterStore((state) => state.setFacet);
   const resetFilter = useClientDeviceFilterStore((state) => state.resetFilter);
 
+  // Поле показывается только с выбранными компаниями, поэтому и список
+  // расположений здесь всегда «под компании»
   const locationOptions = useMemo(
     () =>
-      facets.companies.length
-        ? options.locations.filter((option) =>
-            facets.companies.includes(option.company),
-          )
-        : options.locations,
+      options.locations.filter((option) =>
+        facets.companies.includes(option.company),
+      ),
     [options.locations, facets.companies],
   );
 
@@ -51,21 +54,15 @@ const ClientDeviceFilter = () => {
             {...multi("companies", options.companies)}
           />
         </Field>
-        <Field
-          label="Расположения"
-          htmlFor="device-filter-locations"
-          hint={
-            facets.companies.length
-              ? undefined
-              : "Выберите компанию, чтобы сузить список расположений"
-          }
-        >
-          <MultiCombobox
-            id="device-filter-locations"
-            placeholder="Любое"
-            {...multi("locations", locationOptions)}
-          />
-        </Field>
+        {facets.companies.length > 0 && (
+          <Field label="Расположения" htmlFor="device-filter-locations">
+            <MultiCombobox
+              id="device-filter-locations"
+              placeholder="Любое"
+              {...multi("locations", locationOptions)}
+            />
+          </Field>
+        )}
         <Field label="Закреплено за" htmlFor="device-filter-users">
           <MultiCombobox
             id="device-filter-users"
@@ -92,19 +89,22 @@ const ClientDeviceFilter = () => {
           />
         </Field>
 
-        {/* Детали сборок в реестре не показываются: они не выдаются и не
-            перемещаются сами по себе. Свитч — для просмотра («все модули
-            памяти»); поиск находит их и без него. */}
+        {/* Тот же фасет стоит сегментом в строке инструментов — это одно
+            значение стора, а не две настройки: здесь он повторён, чтобы полный
+            набор условий читался в одном месте. */}
         <div className="border-t border-border-soft pt-4">
-          <SwitchField
-            id="device-filter-components"
-            label="Показывать комплектующие"
-            hint="Детали сборок обычно не в списке — поиск находит их и так."
-            checked={facets.withComponents}
-            onCheckedChange={() =>
-              setFacet("withComponents", !facets.withComponents)
-            }
-          />
+          <Field
+            label="Что показывать"
+            hint="Комплектующие — детали внутри сборок: память, диски, платы. Поиск находит их в любом режиме."
+            className="mb-0"
+          >
+            <Segmented
+              ariaLabel="Что показывать"
+              options={COMPONENTS_OPTIONS}
+              value={facets.components}
+              onChange={(value) => setFacet("components", value)}
+            />
+          </Field>
         </div>
       </div>
     </FilterContainer>

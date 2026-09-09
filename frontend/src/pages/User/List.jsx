@@ -121,11 +121,11 @@ const Users = () => {
       label: "С отключёнными",
       onRemove: () => s.updateFilter({ activeOnly: true }),
     });
-  if (s.includeService)
+  if (s.service !== "hide")
     activeFilters.push({
       key: "service",
-      label: "Со служебными",
-      onRemove: () => s.updateFilter({ includeService: false }),
+      label: s.service === "only" ? "Только служебные" : "Со служебными",
+      onRemove: () => s.updateFilter({ service: "hide" }),
     });
 
   const hasActiveQuery = activeFilters.length > 0 || !!s.searchTerm;

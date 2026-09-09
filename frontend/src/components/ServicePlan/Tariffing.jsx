@@ -35,15 +35,8 @@ const Tariffing = ({ form, setField, packages, setPackages }) => {
 
   return (
     <div>
-      <div className="mb-4">
-        <h3 className="my-0 text-base font-semibold tracking-tight">
-          Тарификация
-        </h3>
-        <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
-          Как считается стоимость услуги
-        </p>
-      </div>
-
+      {/* Заголовок и описание секции рисует каркас формы (шаг мастера или
+          секция правки) — здесь только поля */}
       <Field label="Тип тарификации">
         <Segmented
           ariaLabel="Тип тарификации"

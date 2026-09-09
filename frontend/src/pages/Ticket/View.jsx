@@ -44,7 +44,8 @@ import {
 } from "../../components/Ticket/View/ChecklistTemplates";
 import Chronicle from "../../components/Ticket/Chronicle";
 import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
-import CustomFieldsView from "@/components/app/CustomFieldsView";
+import CustomFieldsAnswers from "@/components/app/CustomFieldsAnswers";
+import { hasAnswer } from "@/components/app/custom-fields";
 import KnowledgeSection from "../../components/Ticket/View/KnowledgeSection";
 import RemoteAccess from "../../components/Ticket/View/RemoteAccess";
 import ActionDialog from "../../components/Ticket/Actions/ActionDialog";
@@ -106,6 +107,15 @@ const ticketSignature = (data) =>
     data?.ticket?.aiGuide?.status,
     data?.events?.length,
   ].join("|");
+
+// Секция «Ответы» — только когда есть что показать и когда описание НЕ
+// собрано из этих же ответов: у заявки со скрытым описанием ответы и есть
+// её текст, и второй раз они были бы эхом.
+const showAnswers = (ticket) =>
+  !ticket.descriptionComposed &&
+  (ticket.customFields ?? []).some((field) =>
+    hasAnswer(field.type, field.value),
+  );
 
 const ViewTicket = () => {
   const data = useLoaderData();
@@ -299,9 +309,11 @@ const ViewTicket = () => {
         // а не по своему списку
         // Вложения — часть описания, своей секции и пункта рейла у них нет
         { id: "ticket-description", label: "Описание" },
-        ticket.customFields?.length && {
-          id: "ticket-fields",
-          label: "Поля формы",
+        // Ответы анкеты — отдельной секцией, пока описание не собрано из
+        // них самих: одно и то же дважды не показываем
+        showAnswers(ticket) && {
+          id: "ticket-answers",
+          label: "Ответы",
         },
         { id: "ticket-facts", label: "Детали" },
         // Руководство идёт сразу за фактами: оно отвечает «что делать», за этим
@@ -493,10 +505,12 @@ const ViewTicket = () => {
             }
           />
 
-          {ticket.customFields?.length > 0 && (
+          {showAnswers(ticket) && (
             <Section>
-              <span id="ticket-fields" className="block scroll-mt-28" />
-              <CustomFieldsView fields={ticket.customFields} />
+              <CustomFieldsAnswers
+                id="ticket-answers"
+                fields={ticket.customFields}
+              />
             </Section>
           )}
 

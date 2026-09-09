@@ -108,12 +108,9 @@ export function buildMenu({
     return [
       link("dashboard", "Главная", RiDashboard2Line, "/dashboard"),
       link("tickets", "Заявки", RiCheckboxLine, "/tickets"),
-      link(
-        "ticket-templates",
-        "Шаблоны заявок",
-        RiFileList3Line,
-        "/ticket-templates",
-      ),
+      // Пункта «Шаблоны заявок» у клиента нет: страница закрыта правом
+      // `ticketTemplate.manage`, и ссылка вела на 403. Заготовки клиент видит
+      // там, где они ему нужны, — плитками «Чем помочь?» на главной
       inventory &&
         canReadDevices &&
         link(
@@ -354,8 +351,10 @@ export function buildMenu({
       }),
     // Только тем, кто заявки НЕ выполняет: у исполнителя шаблоны и так под
     // рукой в форме заявки, а в «Администрировании» есть полный список для
-    // того, кому доверены чужие заготовки.
+    // того, кому доверены чужие заготовки. Право обязательно: страница за
+    // `ticketTemplate.manage`, и без него пункт вёл на 403.
     !canPerformTickets &&
+      canManageTicketTemplates &&
       link(
         "ticket-templates",
         "Шаблоны заявок",

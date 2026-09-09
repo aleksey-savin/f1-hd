@@ -202,7 +202,7 @@ const Networks = () => {
             className="text-muted-foreground"
             onClick={() => exportNetworksToExcel(visibleEntries)}
           >
-            <RiDownloadLine /> Выгрузить
+            <RiDownloadLine /> Экспорт
           </Button>
         )
       }

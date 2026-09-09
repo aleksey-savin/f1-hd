@@ -31,7 +31,9 @@ const FleetStrip = ({
 
   return (
     <div className="mb-3 flex items-center gap-2 px-1 max-md:overflow-x-auto max-md:pb-1 md:flex-wrap">
-      <span className="flex-none text-xs font-bold tracking-wider text-faint uppercase">
+      {/* На телефоне подпись прячется, как «Очереди» у заявок: ряд там
+          прокручивается, и слово стоило бы первого чипа */}
+      <span className="flex-none text-xs font-bold tracking-wider text-faint uppercase max-md:hidden">
         Парк
       </span>
       {stages.map((status) => {

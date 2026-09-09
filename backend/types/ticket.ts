@@ -34,11 +34,27 @@ export type TicketNotificationAction =
   | "close ticket"
   | "back to work";
 
+export type TicketCustomFieldType =
+  | "text"
+  | "select"
+  | "multiselect"
+  | "boolean"
+  | "number"
+  | "date";
+
+/**
+ * Questionnaire field: the definition on a template, the definition snapshot
+ * plus the answer on a ticket. Answer shape per type — services/ticketQuestionnaire.
+ */
 export interface ITicketCustomField {
+  /** Stable id assigned by the server; answers are matched by it, not by name. */
+  key?: string;
   name?: string;
-  type?: "text" | "select" | "multiselect";
+  type?: TicketCustomFieldType;
   value?: unknown;
   options?: string[];
+  required?: boolean;
+  hint?: string;
 }
 
 /** Fields shared by Ticket and TicketTemplate (ticketDefaultFieldsSchema). */
@@ -103,6 +119,8 @@ export interface ITicketAiGuide {
 export interface ITicket extends ITicketDefaultFields {
   num?: number;
   htmlDescription?: string;
+  /** Description was composed by the server from questionnaire answers. */
+  descriptionComposed?: boolean;
   attachments?: IAttachment[];
   template?: Types.ObjectId;
   routineTask?: Types.ObjectId;

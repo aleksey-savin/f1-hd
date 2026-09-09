@@ -5,6 +5,12 @@ import { getWorkStatusMeta } from "../../util/work-statuses";
 import { presenceLine } from "../User/presence";
 
 import { localToUtc, utcToLocalForm } from "../../util/format-date";
+import {
+  answerError,
+  emptyAnswer,
+  errorKeyOf,
+  hasAnswer,
+} from "@/components/app/custom-fields";
 
 /**
  * Состояние формы заявки — одно на три поверхности.
@@ -25,9 +31,13 @@ const TICKET_FORM_MODES = {
   add: {
     title: "Новая заявка",
     submitLabel: "Сохранить",
+    // Заявитель не сохраняет запись, а отправляет обращение — исключение из
+    // канона «Сохранить» (гайд, «Словарь действий»)
+    clientSubmitLabel: "Отправить",
     attachments: true,
     fromTemplate: true,
     state: false,
+    requireDescription: true,
   },
   update: {
     title: "Изменить заявку",
@@ -35,6 +45,10 @@ const TICKET_FORM_MODES = {
     attachments: false,
     fromTemplate: false,
     state: true,
+    // Описание требуем только при создании: заявки из почты и по API
+    // приходят без текста вовсе, и правка любого другого поля упиралась в
+    // «Опишите задачу» — приходилось выдумывать описание за отправителя
+    requireDescription: false,
   },
   process: {
     title: "Обработать заявку",
@@ -42,6 +56,7 @@ const TICKET_FORM_MODES = {
     attachments: false,
     fromTemplate: false,
     state: false,
+    requireDescription: false,
   },
 };
 
@@ -67,6 +82,30 @@ const htmlIsEmpty = (html) =>
     .trim();
 
 /**
+ * Прокрутка к первой ошибке после отказа отправить. У анкеты вопросов
+ * бывает шесть, и ошибка легко оказывается за краем шторки: отказ, которого
+ * не видно, читается как «кнопка не работает».
+ *
+ * Ищем по разметке ошибки (`app/Field` и блок вопроса рисуют
+ * `role="alert"`), а не по списку полей: так порядок совпадает с тем, что
+ * человек видит, при любом наборе полей. Ошибки появятся следующим кадром —
+ * своё состояние форма меняет синхронно, поэтому rAF уже видит их.
+ */
+const scrollToFirstError = () => {
+  requestAnimationFrame(() => {
+    const sheet = document.querySelector('[data-slot="sheet-content"]');
+    const alert = (sheet ?? document).querySelector('[role="alert"]');
+    if (!alert) return;
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)")
+      .matches;
+    alert.scrollIntoView({
+      block: "center",
+      behavior: smooth ? "smooth" : "auto",
+    });
+  });
+};
+
+/**
  * @param {object} params
  * @param {"add"|"update"|"process"} params.mode
  * @param {object|null} params.ticket заявка (правка и обработка)
@@ -89,7 +128,9 @@ export const useTicketForm = ({
   const [customFields, setCustomFields] = useState(() =>
     (ticket?.customFields ?? []).map((field) => ({
       ...field,
-      value: field.value ?? "",
+      value: hasAnswer(field.type, field.value)
+        ? field.value
+        : emptyAnswer(field.type),
     })),
   );
   const [categoryId, setCategoryId] = useState(
@@ -107,6 +148,9 @@ export const useTicketForm = ({
   );
   const [state, setState] = useState(ticket?.state ?? "");
   const [template, setTemplate] = useState(null);
+  // Что шаблон велит делать с описанием: обязательно, по желанию, скрыто.
+  // Без шаблона описание обязательно — как было всегда
+  const [descriptionMode, setDescriptionMode] = useState("required");
   // Ошибки показываем по нажатию «Сохранить», а не блокируем кнопку:
   // заблокированная кнопка не объясняет, чего не хватает.
   const [attempted, setAttempted] = useState(false);
@@ -185,7 +229,17 @@ export const useTicketForm = ({
 
   const errors = useMemo(() => {
     const found = {};
-    if (htmlIsEmpty(description)) found.description = "Опишите задачу";
+    if (
+      config.requireDescription &&
+      descriptionMode === "required" &&
+      htmlIsEmpty(description)
+    )
+      found.description = "Опишите задачу";
+    // Обязательные вопросы анкеты — у каждого своя ошибка под контролом
+    for (const field of customFields) {
+      if (field.required && !hasAnswer(field.type, field.value))
+        found[errorKeyOf(field)] = answerError(field);
+    }
     if (isEndUser) return found;
 
     if (!title.trim()) found.title = "Тема обязательна";
@@ -196,7 +250,10 @@ export const useTicketForm = ({
       found.responsibles = "Назначьте ответственных";
     return found;
   }, [
+    config,
     description,
+    descriptionMode,
+    customFields,
     title,
     companyId,
     applicantId,
@@ -214,19 +271,32 @@ export const useTicketForm = ({
    */
   const applyTemplate = (next) => {
     setTemplate(next);
-    if (!next) return;
+    setDescriptionMode(next?.descriptionMode ?? "required");
+    // Вопросы принадлежат шаблону: снят шаблон — ушли и они
+    if (!next) {
+      setCustomFields([]);
+      return;
+    }
     if (next.title) setTitle(next.title);
-    if (next.description) setDescription(next.description);
+    // Текст заготовки — предзаполненное описание, его правят. Заготовка со
+    // скрытым описанием текст в заявку не кладёт: там он объясняет анкету, и
+    // заявку опишут ответы (services/ticketQuestionnaire)
+    if (next.description && next.descriptionMode !== "hidden")
+      setDescription(next.description);
     // API шаблона отдаёт categoryId (populate), а не category: прежняя форма
     // читала `template.category` и молча оставляла категорию пустой
     const templateCategory = asId(next.categoryId ?? next.category);
     if (templateCategory) setCategoryId(templateCategory);
     const templateCompany = asId(next.company);
     if (templateCompany) setCompanyId(templateCompany);
+    // Значение шаблона — ответ по умолчанию; у старых шаблонов там «» при
+    // любом типе, поэтому пустой ответ берём по типу
     setCustomFields(
       (next.customFields ?? []).map((field) => ({
         ...field,
-        value: field.defaultValue ?? "",
+        value: hasAnswer(field.type, field.value)
+          ? field.value
+          : emptyAnswer(field.type),
       })),
     );
   };
@@ -238,6 +308,7 @@ export const useTicketForm = ({
   const buildPayload = () => {
     if (Object.keys(errors).length) {
       setAttempted(true);
+      scrollToFirstError();
       return null;
     }
 
@@ -245,7 +316,12 @@ export const useTicketForm = ({
     // Тему заявителя выводит сервер: у него поля «Тема» нет, а обрезка в
     // браузере давала обрубок описания посреди слова
     if (!isEndUser) payload.append("title", title.trim());
-    payload.append("description", description);
+    // Скрытое описание не отправляем даже если в состоянии остался текст от
+    // прежнего шаблона: сервер соберёт его из ответов
+    payload.append(
+      "description",
+      descriptionMode === "hidden" ? "" : description,
+    );
     payload.append(
       "customFields",
       JSON.stringify(customFields.filter((field) => field?.name?.trim())),
@@ -279,7 +355,8 @@ export const useTicketForm = ({
 
     if (mode === "add") {
       for (const file of files) payload.append("attachments", file);
-      if (template?._id) payload.append("template", JSON.stringify(template));
+      // Одним id: вопросы, чек-лист и доступ сервер берёт из своего документа
+      if (template?._id) payload.append("templateId", String(template._id));
       // Пока ответственных нет, заявка стоит в очереди «Новые»
       payload.append(
         "state",
@@ -301,7 +378,11 @@ export const useTicketForm = ({
 
   return {
     config,
+    submitLabel: isEndUser
+      ? (config.clientSubmitLabel ?? config.submitLabel)
+      : config.submitLabel,
     isEndUser,
+    descriptionMode,
     title,
     setTitle,
     description,

@@ -11,6 +11,15 @@ const {
   resolveActor: resolveTelegramActor,
 } = require("../services/telegramActor");
 const { deriveTicketTitle } = require("../helpers/deriveTicketTitle");
+const TicketTemplate = require("../models/ticketTemplate");
+const { canSeeTemplate } = require("./ticketTemplate");
+const {
+  collectAnswers,
+  composeDescription,
+  descriptionIsEmpty,
+  hasAnswer,
+  normalizeAnswer,
+} = require("../services/ticketQuestionnaire");
 const { resolveGetScreenApiKey } = require("../helpers/getScreenKey");
 const User = require("../models//user");
 const Company = require("../models/company");
@@ -786,7 +795,6 @@ exports.getFormData = async (req, res, next) => {
 exports.add = async (req, res, next) => {
   try {
     const { userId, company } = req.auth.legacy;
-    const { categoryId } = req.body;
     const prefs = await Preferences.findOne({});
     const userCompany = await Company.findById(company._id);
     const now = new Date();
@@ -811,19 +819,55 @@ exports.add = async (req, res, next) => {
 
     const attachments = req.files?.map(buildAttachment);
 
-    const customFields = req.body.customFields
-      ? JSON.parse(req.body.customFields)
-      : [];
-
-    const validCustomFields = customFields.filter(
-      (field) => field && field.name,
-    );
-
+    // Шаблон приходит одним id (прежний клиент слал документ целиком — из
+    // него берём только _id): вопросы, чек-лист и видимость решает документ
+    // из базы, а не то, что прислал браузер, — иначе любой присланный JSON
+    // сходил за шаблон, и обязательность вопросов проверить было не по чему
     const parsedTemplate = req.body.template
       ? JSON.parse(req.body.template)
       : null;
+    const templateId = req.body.templateId || parsedTemplate?._id || null;
+    const template = templateId
+      ? await TicketTemplate.findById(templateId)
+      : null;
+    if (templateId && !template) {
+      throw new AppError("Шаблон заявки не найден", 404);
+    }
+    if (template && !canSeeTemplate(template, req.auth)) {
+      throw new AppError("Шаблон вам недоступен", 403);
+    }
+
+    const submittedFields = req.body.customFields
+      ? JSON.parse(req.body.customFields)
+      : [];
+    let validCustomFields;
+    if (template) {
+      const answers = collectAnswers({
+        definitions: template.customFields.map((field) => field.toObject()),
+        submitted: submittedFields,
+      });
+      if (answers.errors.length) {
+        throw new AppError(
+          answers.errors.map((error) => error.message).join("; "),
+          400,
+        );
+      }
+      validCustomFields = answers.customFields;
+    } else {
+      // Без шаблона проверять не по чему — храним, что прислали с названием
+      validCustomFields = submittedFields.filter(
+        (field) => field && field.name,
+      );
+    }
+
+    // Категория шаблона — категория заявки: заявитель её не выбирает, и без
+    // этого каждая заявка по шаблону уходила на автоопределение категории
+    const categoryId =
+      req.body.categoryId ||
+      (template?.categoryId ? String(template.categoryId) : undefined);
+
     // Чек-лист-заготовка шаблона копируется в заявку (обязательность сохраняется).
-    let templateChecklist = (parsedTemplate?.checklist || []).map((item) => ({
+    let templateChecklist = (template?.checklist || []).map((item) => ({
       description: item.description,
       checked: false,
       mandatory: !!item.mandatory,
@@ -856,8 +900,35 @@ exports.add = async (req, res, next) => {
     // уезжает в список, в письмо, в Telegram и в отчёты. Прежняя обрезка на
     // клиенте (`substring(0, 50)`) давала 684 темы ровно в 50 знаков из 884
     // клиентских заявок за год — оборванных посреди слова.
+    // Описание: что написали — то и хранится, в любом режиме шаблона (режим
+    // говорит, о чём спрашивает форма, а не что принимает сервер: у
+    // сотрудника редактор есть всегда). Пустое при ответах на вопросы
+    // собирается из них — тогда тема, письмо, Telegram и подсказка ИИ
+    // работают как прежде. Пустое без ответов — отказ, если шаблон (или его
+    // отсутствие) описание требует.
+    const descriptionMode = template?.descriptionMode ?? "required";
+    let description = req.body.description ?? "";
+    let descriptionComposed = false;
+    if (descriptionIsEmpty(description)) {
+      if (
+        validCustomFields.some((field) => hasAnswer(field.type, field.value))
+      ) {
+        description = composeDescription(validCustomFields);
+        descriptionComposed = true;
+      } else if (descriptionMode === "required") {
+        throw new AppError("Опишите задачу", 400);
+      }
+    }
+
     const submittedTitle = (req.body.title || "").trim();
-    const title = submittedTitle || deriveTicketTitle(req.body.description);
+    // Из собранного описания тема не выводится: «ФИО: Иванов» — не тема,
+    // ею становится название шаблона
+    const title =
+      submittedTitle ||
+      (descriptionComposed && template?.title) ||
+      deriveTicketTitle(description) ||
+      template?.title ||
+      "";
     // Тему, выведенную из текста, может переписать ассистент — тем же проходом,
     // которым он подбирает категорию. Провизорную тему всё равно сохраняем:
     // уведомления уходят в момент создания, безымянной заявки быть не должно.
@@ -866,13 +937,19 @@ exports.add = async (req, res, next) => {
     // нет). Иначе заявка с категорией, но без темы получила бы вечный pending:
     // проход для неё не стартует. На практике это одно и то же множество —
     // темы не заполняет только заявитель, а категорию он и не выбирает.
+    // Тема из шаблона — не провизорная, переписывать её ассистенту не надо.
     const wantsAiTitle =
-      !!prefs?.ai?.isActive && !categoryId && !submittedTitle && !!title;
+      !!prefs?.ai?.isActive &&
+      !categoryId &&
+      !submittedTitle &&
+      !descriptionComposed &&
+      !!title;
 
     const ticket = new Ticket({
       title,
-      description: req.body.description,
-      template: parsedTemplate,
+      description,
+      descriptionComposed,
+      template: template?._id ?? null,
       checklist: templateChecklist,
       customFields: validCustomFields,
       attachments: attachments,
@@ -2227,13 +2304,18 @@ exports.update = async (req, res, next) => {
 
     const attachments = req.files?.map(buildAttachment);
 
-    const customFields = req.body.customFields
+    // Ответы трогаем, только если их прислали: запрос без customFields раньше
+    // молча стирал их. Приводим по типу из снимка самой заявки и без
+    // обязательности — старая заявка должна сохраняться как есть
+    const customFieldsSent = req.body.customFields !== undefined;
+    const validCustomFields = customFieldsSent
       ? JSON.parse(req.body.customFields)
-      : [];
-
-    const validCustomFields = customFields.filter(
-      (field) => field && field.name,
-    );
+          .filter((field) => field && field.name)
+          .map((field) => ({
+            ...field,
+            value: normalizeAnswer(field, field.value).value,
+          }))
+      : null;
 
     const prevState = ticket.state;
 
@@ -2284,8 +2366,18 @@ exports.update = async (req, res, next) => {
     ticket.company = company ? JSON.parse(company) : ticket.company;
     ticket.categoryId = categoryId ? categoryId : ticket.categoryId;
     ticket.applicantId = applicantId ? applicantId : ticket.applicantId;
-    ticket.description = description ? description : ticket.description;
-    ticket.customFields = validCustomFields;
+    // Текст, написанный рукой, снимает признак «собрано из ответов»; пока
+    // признак стоит, правка ответов пересобирает описание
+    if (description && description !== ticket.description) {
+      ticket.description = description;
+      ticket.descriptionComposed = false;
+    }
+    if (validCustomFields) {
+      ticket.customFields = validCustomFields;
+      if (ticket.descriptionComposed) {
+        ticket.description = composeDescription(ticket.customFields);
+      }
+    }
     ticket.attachments =
       attachments?.length > 0
         ? [...ticket.attachments, ...attachments]

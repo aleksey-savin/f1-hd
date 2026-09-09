@@ -1,5 +1,6 @@
 import FilterContainer from "@/components/app/FilterContainer";
 import Field from "@/components/app/Field";
+import Segmented from "@/components/app/Segmented";
 import SwitchField from "@/components/app/SwitchField";
 
 import Combobox, { MultiCombobox } from "@/components/app/Combobox";
@@ -10,11 +11,24 @@ import useInitialPrefs from "../../store/prefs";
 // Sheet-фильтр адресной книги. Набор (Все/Сотрудники/Клиенты) — сегментом над
 // списком; здесь — компания (ключевой фасет), присутствие, активность и
 // параметры аккаунта.
+// Активность и служебные аккаунты — сегменты, а не выпадающие списки: у обоих
+// по три-четыре взаимоисключающих значения, и выбор виден без раскрытия. Полные
+// формулировки «в этом месяце»/«больше полугода» в сегмент не влезают (шторка
+// max-w-sm) — их держит подсказка поля.
 const ACTIVITY_OPTIONS = [
   { value: "any", label: "Любая" },
-  { value: "currentMonth", label: "В этом месяце" },
-  { value: "currentYear", label: "В этом году" },
-  { value: "inactive6m", label: "Не обращались больше 6 месяцев" },
+  { value: "currentMonth", label: "Месяц" },
+  { value: "currentYear", label: "Год" },
+  { value: "inactive6m", label: "Давно" },
+];
+
+// Служебные — три состояния, а не тумблер «показывать»: «только служебные» это
+// самостоятельный срез (проверить телефонию и интеграционные учётки), и через
+// тумблер он не набирался.
+const SERVICE_OPTIONS = [
+  { value: "any", label: "Все" },
+  { value: "only", label: "Только" },
+  { value: "hide", label: "Скрыть" },
 ];
 
 const UserFilter = () => {
@@ -80,15 +94,14 @@ const UserFilter = () => {
 
       <Field
         label="Последняя активность"
-        htmlFor="filter-activity"
+        hint="«Месяц» и «Год» — с начала текущего, «Давно» — больше полугода назад или никогда."
         className="mt-2"
       >
-        <Combobox
-          id="filter-activity"
-          placeholder="Любая"
-          value={s.activity || "any"}
+        <Segmented
+          ariaLabel="Последняя активность"
           options={ACTIVITY_OPTIONS}
-          onChange={(value) => s.updateFilter({ activity: value ?? "any" })}
+          value={s.activity || "any"}
+          onChange={(value) => s.updateFilter({ activity: value })}
         />
       </Field>
 
@@ -110,13 +123,18 @@ const UserFilter = () => {
         label="Только активные"
         divider
       />
-      <SwitchField
-        id="filter-service"
-        checked={!!s.includeService}
-        onCheckedChange={(value) => s.updateFilter({ includeService: value })}
-        label="Показывать служебные"
-        hint="Сервисные аккаунты и телефония."
-      />
+      <Field
+        label="Служебные аккаунты"
+        hint="Сервисные учётки и телефония."
+        className="mt-3"
+      >
+        <Segmented
+          ariaLabel="Служебные аккаунты"
+          options={SERVICE_OPTIONS}
+          value={s.service || "hide"}
+          onChange={(value) => s.updateFilter({ service: value })}
+        />
+      </Field>
     </FilterContainer>
   );
 };

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useEffect, useMemo } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { RiDraftLine } from "react-icons/ri";
 
@@ -14,8 +14,9 @@ import DeviceFilter, {
   STATUS_OPTIONS,
 } from "../../components/Mikrotik/DeviceFilter";
 import DeviceRow from "../../components/Mikrotik/DeviceRow";
-import DeviceSheet from "../../components/Mikrotik/DeviceSheet";
-import RouterOsStrip from "../../components/Mikrotik/RouterOsStrip";
+import RouterOsStrip, {
+  BRANCH_LABEL,
+} from "../../components/Mikrotik/RouterOsStrip";
 
 import usePolling from "../../hooks/use-polling";
 import { useCan } from "@/store/authed-user";
@@ -36,14 +37,13 @@ const optionLabel = (options, value) =>
 // Мониторинг Mikrotik: статус-борд парка устройств. Список идёт от записей
 // мониторинга (добавление — только «Новое устройство», связь с инвентарём —
 // шагом после проверки); строки группируются по статусу, обновляются тихим
-// поллингом каждые 15 с; клик по строке — шторка-превью справа.
+// поллингом каждые 15 с; клик по строке — страница записи.
 const MikrotikDevices = () => {
   const can = useCan();
   const canManage = can({ mikrotik: ["manage"] });
   const filterStore = useMikrotikDeviceFilterStore();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-
-  const [activeRecordId, setActiveRecordId] = useState(null);
 
   useEffect(() => {
     filterStore.fetch();
@@ -54,37 +54,30 @@ const MikrotikDevices = () => {
   // паузе, пока вкладка скрыта, при возврате фокуса — сразу.
   usePolling(() => filterStore.silentRefresh(), { intervalMs: 15000 });
 
-  // Deep-link из заявки, «Окружения» и карточки устройства: ?recordId= /
-  // ?clientDeviceId= открывает шторку, параметр снимается из адреса.
+  // Deep-link из заявки, «Окружения» и карточки устройства: ?recordId= ведёт
+  // сразу на страницу записи; ?clientDeviceId= — как только список приехал и
+  // запись нашлась (не нашлась — остаёмся на списке, параметр снимаем).
   useEffect(() => {
     const recordId = searchParams.get("recordId");
     const clientDeviceId = searchParams.get("clientDeviceId");
     if (!recordId && !clientDeviceId) return;
+    if (recordId) {
+      navigate(`/devices/mikrotik/records/${recordId}`, { replace: true });
+      return;
+    }
     if (!filterStore.originalList.length) return;
 
-    const row = recordId
-      ? filterStore.originalList.find((item) => item.recordId === recordId)
-      : filterStore.originalList.find(
-          (item) => String(item.clientDeviceId) === clientDeviceId,
-        );
-    if (row) setActiveRecordId(row.recordId);
-
+    const row = filterStore.originalList.find(
+      (item) => String(item.clientDeviceId) === clientDeviceId,
+    );
+    if (row) {
+      navigate(`/devices/mikrotik/records/${row.recordId}`, { replace: true });
+      return;
+    }
     const next = new URLSearchParams(searchParams);
-    next.delete("recordId");
     next.delete("clientDeviceId");
     setSearchParams(next, { replace: true });
   }, [searchParams, filterStore.originalList]);
-
-  // Шторка живёт на строке из стора: тихий поллинг обновляет её содержимое.
-  const activeRow = useMemo(
-    () =>
-      activeRecordId
-        ? filterStore.originalList.find(
-            (row) => row.recordId === activeRecordId,
-          ) || null
-        : null,
-    [activeRecordId, filterStore.originalList],
-  );
 
   const companyOptions = useMemo(() => {
     const byId = new Map();
@@ -160,87 +153,85 @@ const MikrotikDevices = () => {
           },
         ]
       : []),
+    // Чип полосы RouterOS — такой же применённый фильтр, как остальные
+    ...(facets.branch
+      ? [
+          {
+            key: "branch",
+            label: `Отстают от ${BRANCH_LABEL[facets.branch] || facets.branch}`,
+            onRemove: () => setFacet("branch", null),
+          },
+        ]
+      : []),
   ];
 
   return (
-    <>
-      <ListWrapper
-        title={() => "Мониторинг Mikrotik"}
-        filterStore={filterStore}
-        filter={
-          <DeviceFilter
-            companyOptions={companyOptions}
-            typeOptions={typeOptions}
-          />
-        }
-        filterActive={activeFilters.length > 0}
-        activeFilters={activeFilters}
-        toolbar={
-          <ChipMultiCombobox
-            placeholder="Все компании"
-            searchPlaceholder="Найти компанию…"
-            countLabel={(count) => `Компании: ${count}`}
-            value={facets.companies}
-            options={companyOptions}
-            onChange={(value) => setFacet("companies", value)}
-          />
-        }
-        showAddButton={canManage}
-        addRoute="add"
-        addLabel="Новое устройство"
-        topContent={
-          // Ряд под шапкой: полоса RouterOS + «Диапазоны сетей» (переехали из
-          // меню «Отчёты»; строка инструментов и без того плотная, а правый
-          // край этого ряда свободен).
-          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <div className="min-w-0 flex-1">
-              <RouterOsStrip />
-            </div>
-            {canManage && (
-              <Button
-                asChild
-                variant="ghost"
-                size="sm"
-                className="flex-none text-muted-foreground"
-              >
-                <Link to="/report/networks">
-                  <RiDraftLine aria-hidden />
-                  Диапазоны сетей
-                </Link>
-              </Button>
-            )}
+    <ListWrapper
+      title={() => "Мониторинг Mikrotik"}
+      filterStore={filterStore}
+      filter={
+        <DeviceFilter
+          companyOptions={companyOptions}
+          typeOptions={typeOptions}
+        />
+      }
+      filterActive={activeFilters.length > 0}
+      activeFilters={activeFilters}
+      toolbar={
+        <ChipMultiCombobox
+          placeholder="Все компании"
+          searchPlaceholder="Найти компанию…"
+          countLabel={(count) => `Компании: ${count}`}
+          value={facets.companies}
+          options={companyOptions}
+          onChange={(value) => setFacet("companies", value)}
+        />
+      }
+      showAddButton={canManage}
+      addRoute="add"
+      addLabel="Новое устройство"
+      topContent={
+        // Ряд под шапкой: полоса RouterOS + «Диапазоны сетей» (переехали из
+        // меню «Отчёты»; строка инструментов и без того плотная, а правый
+        // край этого ряда свободен).
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <div className="min-w-0 flex-1">
+            <RouterOsStrip />
           </div>
-        }
-      >
-        <div>
-          {groups.map((group) => (
-            <div key={group.key}>
-              {groups.length > 1 && (
-                <ListGroupLabel
-                  label={group.label}
-                  count={group.rows.length}
-                  tone={group.tone || "on"}
-                  className={group.labelClass}
-                />
-              )}
-              {group.rows.map((row) => (
-                <DeviceRow
-                  key={row.recordId}
-                  row={row}
-                  onOpen={() => setActiveRecordId(row.recordId)}
-                />
-              ))}
-            </div>
-          ))}
+          {canManage && (
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="flex-none text-muted-foreground"
+            >
+              <Link to="/report/networks">
+                <RiDraftLine aria-hidden />
+                Диапазоны сетей
+              </Link>
+            </Button>
+          )}
         </div>
-      </ListWrapper>
-
-      <DeviceSheet
-        row={activeRow}
-        onClose={() => setActiveRecordId(null)}
-        canManage={canManage}
-      />
-    </>
+      }
+    >
+      <div>
+        {groups.map((group) => (
+          <div key={group.key}>
+            {groups.length > 1 && (
+              <ListGroupLabel
+                label={group.label}
+                count={group.rows.length}
+                tone={group.tone || "on"}
+                className={group.labelClass}
+              />
+            )}
+            {group.rows.map((row) => (
+              <DeviceRow key={row.recordId} row={row} canManage={canManage} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </ListWrapper>
   );
 };
 

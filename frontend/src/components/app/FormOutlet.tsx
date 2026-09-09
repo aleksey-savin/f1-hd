@@ -19,6 +19,7 @@ import {
 } from "react-router";
 
 import FormSheet, { type SheetSize } from "@/components/app/FormSheet";
+import { useAuthedUser } from "@/store/authed-user";
 
 /**
  * Единственный хозяин шторки для форм-маршрутов.
@@ -53,12 +54,28 @@ import FormSheet, { type SheetSize } from "@/components/app/FormSheet";
  * шторка доигрывает уход пустой, на замороженной высоте (см. FormSheet).
  */
 
-export type SheetHandle = { size?: SheetSize; title?: string };
+/**
+ * Ширина по роли — когда одну и ту же форму заявитель и сотрудник видят в
+ * разных режимах: анкета заявителя идёт колонкой (`md`), форма сотрудника —
+ * в две колонки (`lg`). Ширину по-прежнему выбирает режим, а не хозяин.
+ */
+export type RoleSheetSize = { staff: SheetSize; endUser: SheetSize };
+
+export type SheetHandle = { size?: SheetSize | RoleSheetSize; title?: string };
 
 /** `handle` маршрута формы: `{ ...SHEET_MD, can: {...} }` при гейте прав. */
-export const sheetHandle = (size: SheetSize, title?: string) => ({
+export const sheetHandle = (
+  size: SheetSize | RoleSheetSize,
+  title?: string,
+) => ({
   sheet: { size, title } as SheetHandle,
 });
+
+const resolveSize = (
+  size: SheetHandle["size"],
+  isEndUser: boolean,
+): SheetSize | undefined =>
+  typeof size === "object" ? (isEndUser ? size.endUser : size.staff) : size;
 export const SHEET_MD = sheetHandle("md");
 export const SHEET_LG = sheetHandle("lg");
 export const SHEET_XL = sheetHandle("xl");
@@ -130,6 +147,7 @@ const FormOutlet = () => {
   };
 
   const api = useMemo(() => ({ close, closing }), [close, closing]);
+  const { isEndUser } = useAuthedUser();
 
   // Вложенный маршрут без шторки (не форма) рисуется как обычный Outlet
   if (outlet !== null && sheet === undefined) return outlet;
@@ -139,7 +157,7 @@ const FormOutlet = () => {
   return (
     <FormSheet
       open={routeOpen && !closing}
-      size={shown?.size}
+      size={resolveSize(shown?.size, !!isEndUser)}
       title={shown?.title}
       onOpenChange={(open) => {
         if (!open) close();

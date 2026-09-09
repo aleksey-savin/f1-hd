@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import {
   RiArrowLeftLine,
@@ -13,6 +13,14 @@ import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 import WizardStepper from "@/components/app/WizardStepper";
 import AlertMessage from "@/components/app/AlertMessage";
+import {
+  FormActions,
+  FormHeader,
+  FormSections,
+  sectionAnchorId,
+} from "@/components/app/FormLayout";
+import { scrollToSection } from "@/components/app/AnchorRail";
+import { OverlayScrollContext } from "@/components/app/overlay-context";
 
 import { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import { useFormSheet } from "@/components/app/FormOutlet";
@@ -30,6 +38,18 @@ const STEPS = [
   { label: "График" },
 ];
 const LAST = STEPS.length - 1;
+// Ключи секций правки = якоря: ярлык «Изменить» в метке секции карточки ведёт
+// сюда хешем (`update#tariffing`)
+const SECTION_KEYS = ["basic", "tariffing", "schedule"];
+
+const STEP_META = [
+  {
+    title: "Основное",
+    desc: "Название услуги и к каким категориям заявок она относится",
+  },
+  { title: "Тарификация", desc: "Как считается стоимость услуги" },
+  { title: "График оказания", desc: "Когда услуга доступна" },
+];
 
 // customProvisionSchedule → полный объект по дням (недостающие дни — дефолт)
 const initSchedule = (existing) =>
@@ -57,6 +77,10 @@ const ServicePlanForm = ({ title, attach = null }) => {
 
   const fetcher = useFetcher();
   const { close } = useFormSheet();
+
+  // Липкая шапка формы: под неё прижимается рейл секций
+  const [headHeight, setHeadHeight] = useState(0);
+  const scroller = useContext(OverlayScrollContext);
 
   const [form, setForm] = useState({
     title: servicePlan.title || "",
@@ -89,7 +113,7 @@ const ServicePlanForm = ({ title, attach = null }) => {
   );
 
   const [step, setStep] = useState(0);
-  const [maxReached, setMaxReached] = useState(isEdit ? LAST : 0);
+  const [maxReached, setMaxReached] = useState(0);
   const [attempted, setAttempted] = useState(false);
 
   const setField = (name, value) =>
@@ -122,7 +146,7 @@ const ServicePlanForm = ({ title, attach = null }) => {
   };
 
   const handleStepClick = (index) => {
-    if (isEdit || index <= maxReached) {
+    if (index <= maxReached) {
       setAttempted(false);
       setStep(index);
     }
@@ -134,8 +158,15 @@ const ServicePlanForm = ({ title, attach = null }) => {
 
   const handleSubmit = () => {
     if (!stepValid(0)) {
-      setStep(0);
       setAttempted(true);
+      // Показать человеку незаполненное поле. В мастере это переключение шага,
+      // в правке — прокрутка к секции: шагов там нет, и `setStep` молчал бы,
+      // а форма выглядела бы сломанной — нажал «Сохранить», не случилось ничего
+      if (isEdit) {
+        scrollToSection(scroller, sectionAnchorId(SECTION_KEYS[0]));
+      } else {
+        setStep(0);
+      }
       return;
     }
 
@@ -190,18 +221,10 @@ const ServicePlanForm = ({ title, attach = null }) => {
     }
   }, [fetcher.state, fetcher.data]);
 
-  const renderStep = () => {
-    if (step === 0) {
+  const stepBody = (index) => {
+    if (index === 0) {
       return (
         <div>
-          <div className="mb-4">
-            <h3 className="my-0 text-base font-semibold tracking-tight">
-              Основное
-            </h3>
-            <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
-              Название услуги и к каким категориям заявок она относится
-            </p>
-          </div>
           <Field label="Наименование" htmlFor="title" required>
             <Input
               id="title"
@@ -235,7 +258,7 @@ const ServicePlanForm = ({ title, attach = null }) => {
       );
     }
 
-    if (step === 1) {
+    if (index === 1) {
       return (
         <Tariffing
           form={form}
@@ -248,14 +271,6 @@ const ServicePlanForm = ({ title, attach = null }) => {
 
     return (
       <div>
-        <div className="mb-4">
-          <h3 className="my-0 text-base font-semibold tracking-tight">
-            График оказания
-          </h3>
-          <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
-            Когда услуга доступна
-          </p>
-        </div>
         <SwitchField
           id="companyWorkSchedule"
           checked={form.companyWorkSchedule}
@@ -282,36 +297,74 @@ const ServicePlanForm = ({ title, attach = null }) => {
 
   return (
     <div>
-      <h1 className="my-0 mb-4 pr-10 text-2xl font-semibold tracking-tight">
-        {title}
-      </h1>
+      {isEdit ? (
+        <FormHeader title={title} onHeight={setHeadHeight} />
+      ) : (
+        <h1 className="my-0 mb-4 pr-10 text-2xl font-semibold tracking-tight">
+          {title}
+        </h1>
+      )}
 
-      <WizardStepper
-        steps={STEPS}
-        current={step}
-        maxReached={maxReached}
-        allowJump={isEdit}
-        onStepClick={handleStepClick}
-      />
-
-      <div className="mt-6 flex flex-col gap-6 md:flex-row">
-        <div className="min-w-0 flex-1">
-          {renderStep()}
-          {attempted && stepError(step) && (
-            <p className="mt-2 mb-0 text-sm text-destructive">
-              {stepError(step)}
-            </p>
-          )}
-        </div>
-        <div className="md:w-72 md:flex-none">
-          <Summary
-            form={{ ...form, schedule }}
-            packages={hourPackages}
-            reached={maxReached}
-            attach={attach}
+      {isEdit ? (
+        /* Правка — плоские секции одним скроллом, слева рейл-якорь: правят
+           обычно одно поле, и гонять его по шагам мастера незачем */
+        <FormSections
+          headHeight={headHeight}
+          sections={STEPS.map((meta, index) => ({
+            key: SECTION_KEYS[index],
+            title: STEP_META[index].title,
+            desc: STEP_META[index].desc,
+            /* Ошибка обязана быть видна и здесь: в мастере её показывает
+               ветка ниже, а в плоской правке показать её больше некому */
+            body: (
+              <>
+                {stepBody(index)}
+                {attempted && stepError(index) && (
+                  <p className="mt-2 mb-0 text-sm text-destructive">
+                    {stepError(index)}
+                  </p>
+                )}
+              </>
+            ),
+          }))}
+        />
+      ) : (
+        <>
+          <WizardStepper
+            steps={STEPS}
+            current={step}
+            maxReached={maxReached}
+            onStepClick={handleStepClick}
           />
-        </div>
-      </div>
+
+          <div className="mt-6 flex flex-col gap-6 md:flex-row">
+            <div className="min-w-0 flex-1">
+              <div className="mb-4">
+                <h3 className="my-0 text-base font-semibold tracking-tight">
+                  {STEP_META[step].title}
+                </h3>
+                <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
+                  {STEP_META[step].desc}
+                </p>
+              </div>
+              {stepBody(step)}
+              {attempted && stepError(step) && (
+                <p className="mt-2 mb-0 text-sm text-destructive">
+                  {stepError(step)}
+                </p>
+              )}
+            </div>
+            <div className="md:w-72 md:flex-none">
+              <Summary
+                form={{ ...form, schedule }}
+                packages={hourPackages}
+                reached={maxReached}
+                attach={attach}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {fetcher.data && fetcher.data.error && (
         <div className="mt-4">
@@ -319,7 +372,7 @@ const ServicePlanForm = ({ title, attach = null }) => {
         </div>
       )}
 
-      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center gap-2.5 border-t border-border-soft bg-background px-6 py-3">
+      <FormActions>
         <Button
           type="button"
           variant="ghost"
@@ -329,28 +382,36 @@ const ServicePlanForm = ({ title, attach = null }) => {
           Отмена
         </Button>
         <div className="ml-auto flex items-center gap-2.5">
-          {step > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleBack}
-              disabled={saving}
-            >
-              <RiArrowLeftLine /> Назад
-            </Button>
-          )}
-          {step < LAST && (
-            <Button type="button" onClick={handleNext}>
-              Далее <RiArrowRightLine />
-            </Button>
-          )}
-          {step === LAST && (
+          {isEdit ? (
             <Button type="button" onClick={handleSubmit} disabled={saving}>
               <RiCheckLine /> Сохранить
             </Button>
+          ) : (
+            <>
+              {step > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleBack}
+                  disabled={saving}
+                >
+                  <RiArrowLeftLine /> Назад
+                </Button>
+              )}
+              {step < LAST && (
+                <Button type="button" onClick={handleNext}>
+                  Далее <RiArrowRightLine />
+                </Button>
+              )}
+              {step === LAST && (
+                <Button type="button" onClick={handleSubmit} disabled={saving}>
+                  <RiCheckLine /> Сохранить
+                </Button>
+              )}
+            </>
           )}
         </div>
-      </div>
+      </FormActions>
     </div>
   );
 };

@@ -177,8 +177,8 @@ const Combobox = ({
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const inOverlay = useInOverlay();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const inOverlay = useInOverlay(triggerRef);
   const selected = options.find((option) => option.value === value) ?? null;
 
   const pick = (next: string | null) => {
@@ -339,8 +339,8 @@ export const MultiCombobox = ({
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const inOverlay = useInOverlay();
   const triggerRef = useRef<HTMLDivElement>(null);
+  const inOverlay = useInOverlay(triggerRef);
   const selected = options.filter((option) => value.includes(option.value));
 
   const toggle = (next: string) =>

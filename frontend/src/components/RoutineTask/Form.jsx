@@ -13,12 +13,15 @@ import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
 import SwitchField from "@/components/app/SwitchField";
 import WizardStepper from "@/components/app/WizardStepper";
-import { FormHeader, FormSections } from "@/components/app/FormLayout";
+import {
+  FormActions,
+  FormHeader,
+  FormSections,
+} from "@/components/app/FormLayout";
 import AlertMessage from "@/components/app/AlertMessage";
 import Checklist from "@/components/app/Checklist";
 import ScheduleBuilder from "@/components/app/ScheduleBuilder";
 import { isValidCron } from "@/util/cron";
-import { cn } from "@/lib/utils";
 
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import MarkdownEditor from "../../UI/MarkdownEditor";
@@ -480,11 +483,7 @@ const RoutineTaskForm = () => {
         </div>
       )}
 
-      <div
-        className={cn(
-          "sticky bottom-0 -mx-6 mt-6 flex items-center gap-2.5 border-t border-border-soft bg-background px-6 py-3",
-        )}
-      >
+      <FormActions>
         <Button
           type="button"
           variant="ghost"
@@ -528,7 +527,7 @@ const RoutineTaskForm = () => {
             </>
           )}
         </div>
-      </div>
+      </FormActions>
     </div>
   );
 };

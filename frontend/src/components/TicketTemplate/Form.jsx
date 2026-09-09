@@ -10,14 +10,23 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Field from "@/components/app/Field";
+import Segmented from "@/components/app/Segmented";
 import SwitchField from "@/components/app/SwitchField";
 import WizardStepper from "@/components/app/WizardStepper";
-import { FormHeader, FormSections } from "@/components/app/FormLayout";
+import {
+  FormActions,
+  FormHeader,
+  FormSections,
+} from "@/components/app/FormLayout";
 import AlertMessage from "@/components/app/AlertMessage";
 import Checklist from "@/components/app/Checklist";
 import CustomFieldsEditor, {
   genFieldKey,
 } from "@/components/app/CustomFieldsEditor";
+import {
+  DESCRIPTION_MODE_OPTIONS,
+  hasOptions,
+} from "@/components/app/custom-fields";
 
 import {
   AlertDialog,
@@ -68,6 +77,7 @@ const TicketTemplateForm = () => {
     allowAllStaff: !!template.allowAllStaff,
     sharedCompanies: template.sharedCompanies || [],
     sharedUsers: template.sharedUsers || [],
+    descriptionMode: template.descriptionMode || "required",
   });
   const [customFields, setCustomFields] = useState(
     (template.customFields || []).map((field) => ({
@@ -98,9 +108,26 @@ const TicketTemplateForm = () => {
   const setField = (name, value) =>
     setForm((prev) => ({ ...prev, [name]: value }));
 
-  const stepValid = (index) => index !== 0 || form.title.trim() !== "";
-  const stepError = (index) =>
-    index === 0 && !stepValid(0) ? "Укажите тему шаблона" : null;
+  // Шаг «Поля формы»: без описания заявка держится на ответах — нужен хотя
+  // бы один вопрос; вопрос выбора без вариантов инициатору не ответить
+  const fieldsError = () => {
+    const named = customFields.filter((field) => (field.name || "").trim());
+    if (form.descriptionMode === "hidden" && named.length === 0) {
+      return "Без описания нужен хотя бы один вопрос";
+    }
+    const noOptions = named.find(
+      (field) =>
+        hasOptions(field.type) &&
+        !(field.options || []).some((option) => (option || "").trim()),
+    );
+    return noOptions ? `У вопроса «${noOptions.name}» нет вариантов` : null;
+  };
+  const stepError = (index) => {
+    if (index === 0) return form.title.trim() ? null : "Укажите тему шаблона";
+    if (index === 1) return fieldsError();
+    return null;
+  };
+  const stepValid = (index) => stepError(index) === null;
 
   const handleNext = () => {
     if (!stepValid(step)) {
@@ -128,22 +155,27 @@ const TicketTemplateForm = () => {
   const saving = fetcher.state !== "idle";
 
   const handleSubmit = () => {
-    if (!stepValid(0)) {
-      setStep(0);
+    const invalid = [0, 1].find((index) => !stepValid(index));
+    if (invalid !== undefined) {
+      setStep(invalid);
       setAttempted(true);
       return;
     }
     const payload = {
       title: form.title.trim(),
       description: form.description,
+      descriptionMode: form.descriptionMode,
       categoryId: form.category?._id || null,
       company: form.company?._id || null,
       customFields: customFields
         .filter((field) => (field.name || "").trim() !== "")
         .map((field) => ({
+          key: field.key,
           name: field.name,
           type: field.type,
           options: field.options || [],
+          required: !!field.required,
+          hint: field.hint || "",
           value: field.value ?? "",
         })),
       checklist: checklist
@@ -364,7 +396,22 @@ const TicketTemplateForm = () => {
     if (index === 0) return basicFields;
     if (index === 1)
       return (
-        <CustomFieldsEditor value={customFields} onChange={setCustomFields} />
+        <>
+          {/* Режим описания — здесь, а не в «Основном»: шаг про то, что
+              заполнит инициатор, и описание — одна из его частей */}
+          <Field
+            label="Описание в заявке"
+            hint="Обязательно — без текста заявку не отправить. Необязательно — можно пропустить. Скрыто — инициатор отвечает только на вопросы, текст заявки соберётся из ответов."
+          >
+            <Segmented
+              ariaLabel="Описание в заявке"
+              options={DESCRIPTION_MODE_OPTIONS}
+              value={form.descriptionMode}
+              onChange={(value) => setField("descriptionMode", value)}
+            />
+          </Field>
+          <CustomFieldsEditor value={customFields} onChange={setCustomFields} />
+        </>
       );
     if (index === 2)
       return (
@@ -450,7 +497,7 @@ const TicketTemplateForm = () => {
         </div>
       )}
 
-      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center gap-2.5 border-t border-border-soft bg-background px-6 py-3">
+      <FormActions>
         <Button
           type="button"
           variant="ghost"
@@ -494,7 +541,7 @@ const TicketTemplateForm = () => {
             </>
           )}
         </div>
-      </div>
+      </FormActions>
 
       <AlertDialog
         open={syncOpen}

@@ -4,6 +4,7 @@ import { RiSaveLine } from "react-icons/ri";
 import AlertMessage from "../app/AlertMessage";
 import Field from "../app/Field";
 import FormSheet from "../app/FormSheet";
+import { FormActions } from "../app/FormLayout";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import Combobox from "../app/Combobox";
@@ -236,7 +237,7 @@ const AbsenceForm = ({
           }
         />
       )}
-      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2.5 bg-background px-6 py-3">
+      <FormActions className="justify-end">
         <Button
           variant="ghost"
           onClick={() => onOpenChange(false)}
@@ -251,7 +252,7 @@ const AbsenceForm = ({
           <RiSaveLine />
           {saving ? "Сохранение…" : "Сохранить"}
         </Button>
-      </div>
+      </FormActions>
     </FormSheet>
   );
 };

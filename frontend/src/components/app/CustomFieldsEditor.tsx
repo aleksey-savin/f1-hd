@@ -1,41 +1,51 @@
 import { Reorder, useDragControls } from "framer-motion";
 import {
   RiAddLine,
-  RiArrowDownSLine,
   RiCloseLine,
   RiDeleteBinLine,
   RiDraggable,
 } from "react-icons/ri";
 
+import Combobox from "@/components/app/Combobox";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
-// Конструктор кастомных полей (форма-опросник) — общий с картой (CustomFieldsView
-// показывает то же самое в чтении). Контролируемый: value + onChange. Каждое поле
-// несёт транзиентный `_key` для drag/ключей (бэкенд его игнорирует по strict-схеме).
+import { TYPE_OPTIONS, hasOptions } from "./custom-fields";
+
+// Конструктор вопросов анкеты — общий блок с CustomFieldsView (определение в
+// чтении), CustomFieldInput (ответ в форме заявки) и CustomFieldsAnswers
+// (ответы на карточке). Контролируемый: value + onChange. Каждое поле несёт
+// транзиентный `_key` для drag/ключей React; постоянный `key` вопроса выдаёт
+// сервер и по нему сверяет ответы — конструктор его только сохраняет.
 type EditableCustomField = {
   _key?: string;
+  key?: string;
   name?: string;
   type?: string;
   options?: string[];
+  required?: boolean;
+  hint?: string;
   value?: unknown;
 };
-
-const TYPE_OPTIONS = [
-  { value: "text", label: "Текст" },
-  { value: "select", label: "Выбор" },
-  { value: "multiselect", label: "Множественный выбор" },
-];
 
 export const genFieldKey = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
     : `cf-${Math.random().toString(16).slice(2)}-${Date.now()}`;
 
-const hasOptions = (type?: string) =>
-  type === "select" || type === "multiselect";
+// Что увидит инициатор у вопроса без вариантов
+const TYPE_NOTE: Record<string, string> = {
+  text: "Свободный ввод — заполняется при создании заявки.",
+  boolean: "Два варианта: «Да» и «Нет».",
+  number: "Только число.",
+  date: "Инициатор выберет день в календаре.",
+};
 
+// h-10 — высота контролов в ряду (гайд, «Типографика»): рядом с полем стоит
+// `app/Combobox` выбора типа, и в одном ряду высота одна
 const CF_INPUT =
-  "h-9 w-full appearance-none rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none placeholder:text-faint focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/50";
+  "h-10 w-full appearance-none rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none placeholder:text-faint focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/50";
 
 const FieldRow = ({
   field,
@@ -83,26 +93,44 @@ const FieldRow = ({
             aria-label="Название поля"
             className={cn(CF_INPUT, "min-w-40 flex-1 font-medium")}
           />
-          <div className="relative flex-none">
-            <select
+          {/* Выпадающий список — всегда app/Combobox (гайд, «Раскладка полей»):
+              нативный select тут выбивался и видом, и поведением внутри
+              шторки */}
+          <div className="w-52 flex-none">
+            <Combobox
               value={field.type ?? "text"}
-              onChange={(event) => changeType(event.target.value)}
-              aria-label="Тип поля"
-              className={
-                "h-9 w-52 cursor-pointer appearance-none rounded-lg border border-input bg-card pr-8 pl-3 text-sm font-medium text-foreground outline-none focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/50"
-              }
-            >
-              {TYPE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <RiArrowDownSLine
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 text-faint"
+              onChange={(next) => changeType(next ?? "text")}
+              options={TYPE_OPTIONS.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+              ariaLabel="Тип поля"
+              searchPlaceholder="Найти тип…"
+              emptyText="Тип не нашёлся."
             />
           </div>
+        </div>
+
+        {/* Подсказка и обязательность — у каждого вопроса, любого типа */}
+        <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+          <input
+            value={field.hint ?? ""}
+            onChange={(event) => onPatch({ hint: event.target.value })}
+            placeholder="Подсказка — что и как заполнить"
+            aria-label="Подсказка"
+            className={cn(CF_INPUT, "min-w-40 flex-1")}
+          />
+          <Label
+            htmlFor={`cf-required-${field._key}`}
+            className="h-9 flex-none gap-2 text-sm font-semibold"
+          >
+            <Switch
+              id={`cf-required-${field._key}`}
+              checked={!!field.required}
+              onCheckedChange={(checked) => onPatch({ required: checked })}
+            />
+            Обязательно
+          </Label>
         </div>
 
         {hasOptions(field.type) ? (
@@ -154,7 +182,7 @@ const FieldRow = ({
           </div>
         ) : (
           <div className="mt-2 text-sm text-muted-foreground">
-            Свободный ввод — заполняется при создании заявки.
+            {TYPE_NOTE[field.type ?? "text"] ?? TYPE_NOTE.text}
           </div>
         )}
       </div>
@@ -195,7 +223,16 @@ const CustomFieldsEditor = ({
   const add = () =>
     onChange([
       ...value,
-      { _key: genFieldKey(), name: "", type: "text", options: [], value: "" },
+      {
+        _key: genFieldKey(),
+        key: genFieldKey(),
+        name: "",
+        type: "text",
+        options: [],
+        required: false,
+        hint: "",
+        value: "",
+      },
     ]);
 
   return (

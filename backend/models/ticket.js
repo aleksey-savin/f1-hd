@@ -88,15 +88,24 @@ const ticketDefaultFieldsSchema = new Schema({
       type: String,
     },
   },
+  // Вопрос анкеты — одна форма у шаблона (определение) и у заявки (снимок
+  // определения + ответ): шаблон правят после того, как заявки уже созданы,
+  // а карточка показывает вопрос так, как его задали. Словарь типов и вид
+  // ответа по типу — services/ticketQuestionnaire.
   customFields: [
     {
+      // Постоянный ключ вопроса: ответы сверяются по нему, а не по названию,
+      // которое в шаблоне переименовывают
+      key: String,
       name: String,
       type: {
         type: String,
-        enum: ["text", "select", "multiselect"],
+        enum: ["text", "select", "multiselect", "boolean", "number", "date"],
       },
       value: Schema.Types.Mixed,
       options: [String],
+      required: { type: Boolean, default: false },
+      hint: String,
     },
   ],
   impact: {
@@ -123,6 +132,12 @@ const ticketSchema = new Schema(
     htmlDescription: {
       type: String,
       required: false,
+    },
+    // Описание собрано сервером из ответов анкеты (шаблон его скрыл): карточка
+    // тогда не показывает ответы второй раз, а правка текста снимает флаг
+    descriptionComposed: {
+      type: Boolean,
+      default: false,
     },
     attachments: [attachmentSchema],
     template: {

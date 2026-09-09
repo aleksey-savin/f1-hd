@@ -24,6 +24,7 @@ import { DeleteDialog } from "@/components/app/DeleteItem";
 import { Eyebrow, Panel, SectionEditLink } from "@/components/app/Panel";
 import PillPanel from "@/components/app/PillPanel";
 import CustomFieldsView from "@/components/app/CustomFieldsView";
+import { DESCRIPTION_MODE_LABEL } from "@/components/app/custom-fields";
 import Checklist from "@/components/app/Checklist";
 import { canManageEntity } from "@/components/app/entity-permissions";
 import { formatShortDate } from "@/util/format-date";
@@ -65,6 +66,7 @@ const ViewTicketTemplate = ({ template }) => {
     title,
     categoryId,
     description,
+    descriptionMode,
     customFields = [],
     checklist = [],
     allowAllStaff,
@@ -87,6 +89,10 @@ const ViewTicketTemplate = ({ template }) => {
 
   const metaBits = [
     fieldsCount ? `${fieldsCount} ${pluralFields(fieldsCount)}` : null,
+    // Отклонение от обычного «описание обязательно» стоит упоминания в мете
+    descriptionMode && descriptionMode !== "required"
+      ? `описание: ${DESCRIPTION_MODE_LABEL[descriptionMode].toLowerCase()}`
+      : null,
     authorName ? `создал ${authorName}` : null,
     formatShortDate(createdAt),
     updatedAt ? `изменён ${formatShortDate(updatedAt)}` : null,

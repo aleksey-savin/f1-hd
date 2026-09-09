@@ -1,6 +1,7 @@
 import { RiFileList3Line } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";
+import { DESCRIPTION_MODE_LABEL } from "@/components/app/custom-fields";
 import { plural } from "../../util/plural";
 
 const Row = ({ label, value, muted }) => (
@@ -37,6 +38,9 @@ const accessLabel = (form) => {
 // (reached — максимально достигнутый шаг). Незаданное — «—».
 const Summary = ({ form, reached }) => {
   const fieldsCount = form.customFields?.length ?? 0;
+  const requiredCount = (form.customFields ?? []).filter(
+    (field) => field.required,
+  ).length;
   const checklistCount = form.checklist?.length ?? 0;
   const showFields = reached >= 1;
   const showChecklist = reached >= 2;
@@ -74,8 +78,23 @@ const Summary = ({ form, reached }) => {
           muted={!form.company}
         />
         <Row
+          label="Описание"
+          value={
+            showFields
+              ? (DESCRIPTION_MODE_LABEL[form.descriptionMode] ?? "Обязательно")
+              : "—"
+          }
+          muted={!showFields}
+        />
+        <Row
           label="Поля формы"
-          value={showFields && fieldsCount ? fieldsCount : "—"}
+          value={
+            showFields && fieldsCount
+              ? requiredCount
+                ? `${fieldsCount} · ${requiredCount} ${plural(requiredCount, "обязательный", "обязательных", "обязательных")}`
+                : fieldsCount
+              : "—"
+          }
           muted={!showFields || !fieldsCount}
         />
         <Row

@@ -14,6 +14,7 @@
     "init:inventory": "node scripts/initializeInventoryData.js",
     "seed:mikrotik-models": "node scripts/seedMikrotikModels.js",
     "migrate:device-indexes": "node scripts/migrateClientDeviceIndexes.js",
+    "migrate:template-field-keys": "node scripts/backfillTemplateFieldKeys.js",
     "repair:mikrotik-state": "node scripts/repairMikrotikMonitoringState.js",
     "test:workplace": "node test-workplace-system.js",
     "security": "npm audit",

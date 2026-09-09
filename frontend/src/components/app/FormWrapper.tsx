@@ -4,6 +4,7 @@ import { useActionData, useFetcher } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import AlertMessage from "@/components/app/AlertMessage";
+import { FormActions } from "@/components/app/FormLayout";
 import { useFormSheet } from "@/components/app/FormOutlet";
 
 // Форма из согласованного макета: заголовок 16/650 (кнопка «закрыть» —
@@ -114,7 +115,7 @@ const FormWrapper = ({
           <AlertMessage variant="success" message={data.message} />
         )}
         {children}
-        <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2.5 border-t border-border-soft bg-background px-6 py-3">
+        <FormActions className="justify-end">
           <Button type="button" variant="ghost" onClick={() => close()}>
             Отмена
           </Button>
@@ -124,7 +125,7 @@ const FormWrapper = ({
           >
             {submitLabel}
           </Button>
-        </div>
+        </FormActions>
       </fetcher.Form>
     </>
   );

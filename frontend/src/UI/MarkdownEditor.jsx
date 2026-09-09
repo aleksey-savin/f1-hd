@@ -74,7 +74,20 @@ const MarkdownEditor = ({
         ],
       });
 
-      if (isHtml && initialValue) editor.setHTML(initialValue, false);
+      // Описание заявки хранится HTML, а заготовка шаблона приходит как её
+      // сохранил редактор шаблона — markdown'ом (у заготовок, заведённых до
+      // миграции, там HTML). Без разбора markdown приехал бы в редактор
+      // текстом с дефисами и решётками, поэтому смотрим на разметку. Готовый
+      // HTML отдаём наружу сразу: неотредактированная заготовка иначе
+      // сохранилась бы в заявке своим исходником.
+      if (isHtml && initialValue) {
+        if (/<[a-z][\s\S]*>/i.test(initialValue)) {
+          editor.setHTML(initialValue, false);
+        } else {
+          editor.setMarkdown(initialValue, false);
+          onChangeRef.current?.(editor.getHTML());
+        }
+      }
 
       editor.on("change", () => {
         onChangeRef.current?.(isHtml ? editor.getHTML() : editor.getMarkdown());

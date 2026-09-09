@@ -41,50 +41,49 @@ const LIVE_DOT = {
   off: "bg-faint",
 };
 
-// Инвентарная метка — опорный столбец реестра: номер ищут глазами по
-// вертикали, поэтому моноширинный и в своей колонке. Он же вход в QR: печатная
-// наклейка и её машинный двойник живут в одном месте (глиф проступает по
-// наведению на строку, на тач-экране виден всегда).
-const InventoryTag = ({ number, onOpenQr }) => (
-  <button
-    type="button"
-    onClick={(event) => {
-      event.stopPropagation();
-      onOpenQr();
-    }}
-    title="Показать QR-код"
-    className={cn(
-      "inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-0.5 font-mono text-xs tracking-wide transition-colors",
-      number
-        ? "border-border-soft bg-accent font-semibold text-foreground group-hover:border-input"
-        : // Пустая метка — пробел учёта: пунктир вместо номера. Пунктир задаём
-          // инлайном: без preflight классы border-dashed рисуют бокс (см. гайд).
-          "bg-transparent font-sans text-faint",
-    )}
-    style={number ? undefined : { border: "1px dashed var(--border)" }}
-  >
-    {number || "нет №"}
-  </button>
-);
+// Инвентарный номер — опорный столбец реестра: его ищут глазами по вертикали,
+// поэтому он моноширинный и в своей колонке, но текстом, а не рамкой — той же
+// идиомой, что номер заявки в её строке (обрамлённая метка была единственным
+// «боксом» внутри строк списков и выбивала реестр из общего ряда; макет
+// «Устройства · строка реестра», 08.09). Отсутствие номера — пробел учёта,
+// и говорит о себе словами, тихим форматом, как «не размещено».
+const InventoryNumber = ({ number, className }) =>
+  number ? (
+    <span
+      className={cn(
+        "font-mono text-sm font-medium whitespace-nowrap text-muted-foreground tabular-nums",
+        className,
+      )}
+    >
+      {number}
+    </span>
+  ) : (
+    <span className={cn("text-sm whitespace-nowrap text-faint", className)}>
+      нет №
+    </span>
+  );
 
 /**
  * Строка реестра устройств — жёсткие колонки: плитка типа (с живой точкой
- * связи Mikrotik) · имя + «тип · вендор · имя в сети» · инвентарная метка ·
+ * связи Mikrotik) · имя + «тип · вендор · имя в сети» · инвентарный номер ·
  * компания · «у кого / где» · учётный статус · гнездо действий (QR и «⋯»).
+ * Геометрия — строки списка с плиткой (`app/ListRow`): плитка 48 без кольца,
+ * разделители от её правого края, гнездо с приглушённым глифом по наведению.
  *
  * Клик по строке ведёт на карточку устройства. У рабочих мест расположение
  * почти дословно повторяет закреплённого человека, поэтому колонка одна:
  * закреплено — показываем человека и расположение подстрокой, не закреплено —
  * само расположение.
+ *
+ * QR-код — из гнезда: на тач-экране кнопка видна всегда, поэтому на телефоне
+ * гнездо остаётся (одна кнопка), а «⋯» там не нужен — правка и удаление живут
+ * на карточке, куда ведёт тап по строке.
  */
 const DeviceRow = ({ device }) => {
   const navigate = useNavigate();
   const { _id: userId } = useAuthedUser();
   const can = useCan();
-  const canManage = canManageEntity("clientDevice", can,
-    device,
-    userId,
-  );
+  const canManage = canManageEntity("clientDevice", can, device, userId);
 
   const [qrOpen, setQrOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -138,18 +137,22 @@ const DeviceRow = ({ device }) => {
       }}
       title="Открыть карточку устройства"
       className={cn(
-        "group relative flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors md:gap-4 md:px-5",
-        "before:absolute before:top-0 before:right-5 before:left-5 before:h-px before:bg-border-soft first:before:hidden",
+        "group relative flex cursor-pointer items-center gap-4 px-5 py-3 transition-colors",
+        // Разделитель — от правого края плитки (20 + 48 + 16), как у любой
+        // строки с плиткой
+        "before:absolute before:top-0 before:right-5 before:left-21 before:h-px before:bg-border-soft first:before:hidden",
         "hover:bg-accent/60",
         justCreated && "row-appear",
         justUpdated && "row-flash",
       )}
     >
+      {/* Плитка вида — глиф типа без кольца: кольцо только у настоящей
+          картинки (гайд → «Анатомия списка»). Живая точка связи — поверх. */}
       <span
         aria-hidden
-        className="relative grid size-10 flex-none place-items-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border"
+        className="relative grid size-12 flex-none place-items-center rounded-xl bg-accent text-muted-foreground"
       >
-        <Icon size={19} />
+        <Icon size={22} />
         {mikro && (
           <span
             title={`Mikrotik: ${mikro.label}`}
@@ -163,7 +166,10 @@ const DeviceRow = ({ device }) => {
 
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="min-w-0 truncate text-base leading-tight font-medium" title={device.name}>
+          <span
+            className="min-w-0 truncate text-base leading-tight font-medium"
+            title={device.name}
+          >
             {device.name}
           </span>
           {device.componentCount > 0 && (
@@ -177,11 +183,20 @@ const DeviceRow = ({ device }) => {
           )}
         </span>
         <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-          {/* До md колонки схлопнуты — метка едет в строку меты */}
-          <span className="flex-none md:hidden" onClick={stop}>
-            <InventoryTag number={device.inventoryNumber}/>
+          {/* До md колонки схлопнуты — номер открывает строку меты */}
+          <span className="flex-none md:hidden">
+            <InventoryNumber number={device.inventoryNumber} />
           </span>
-          <span className="truncate">{meta || "—"}</span>
+          <span className="truncate">
+            {meta ? (
+              <>
+                <span className="md:hidden">· </span>
+                {meta}
+              </>
+            ) : (
+              "—"
+            )}
+          </span>
           {/* Комплектующее попадает в список только по запросу и обязано
               назвать хозяина: у детали расположение и владелец — его. */}
           {device.parent && (
@@ -214,11 +229,9 @@ const DeviceRow = ({ device }) => {
         </span>
       </span>
 
-      <QrDialog device={device} open={qrOpen} onOpenChange={setQrOpen}>
-        <span className="hidden w-32 flex-none md:block" onClick={stop}>
-          <InventoryTag number={device.inventoryNumber} onOpenQr={openQr} />
-        </span>
-      </QrDialog>
+      <span className="hidden w-32 flex-none truncate md:block">
+        <InventoryNumber number={device.inventoryNumber} />
+      </span>
 
       <span className="hidden w-40 flex-none truncate text-sm lg:block">
         {device.company?.name || <span className="text-faint">—</span>}
@@ -255,10 +268,12 @@ const DeviceRow = ({ device }) => {
         )}
       </span>
 
-      {/* Гнездо действий постоянной ширины (две кнопки 36px) — правый край
-          ровный у всех строк, в том числе там, где прав на правку нет */}
+      {/* Гнездо действий постоянной ширины — правый край ровный у всех строк,
+          в том числе там, где прав на правку нет. Глиф приглушённый, а не
+          блёклый, и только по наведению (на тач-экране — всегда): правило
+          строки заявки. На телефоне в гнезде одна кнопка — QR. */}
       <span
-        className="hidden w-18 flex-none items-center justify-end md:flex"
+        className="flex w-9 flex-none items-center justify-end md:w-18"
         onClick={stop}
       >
         <Button
@@ -268,12 +283,13 @@ const DeviceRow = ({ device }) => {
           aria-label="Показать QR-код"
           onClick={openQr}
           className={cn(
-            "text-faint opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
-            qrOpen && "opacity-100 bg-accent text-accent-text",
+            "text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
+            qrOpen && "bg-accent text-accent-text opacity-100",
           )}
         >
           <RiQrCodeLine />
         </Button>
+        <QrDialog device={device} open={qrOpen} onOpenChange={setQrOpen} />
         {canManage && (
           <>
             <DropdownMenu>
@@ -283,7 +299,7 @@ const DeviceRow = ({ device }) => {
                   size="icon-sm"
                   title="Действия"
                   aria-label="Действия"
-                  className="text-faint opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100"
+                  className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 max-md:hidden"
                 >
                   <RiMoreLine />
                 </Button>
@@ -297,7 +313,7 @@ const DeviceRow = ({ device }) => {
                 {device.mikrotikRecordId && (
                   <DropdownMenuItem asChild>
                     <Link
-                      to={`/devices/mikrotik?recordId=${device.mikrotikRecordId}`}
+                      to={`/devices/mikrotik/records/${device.mikrotikRecordId}`}
                     >
                       <RiRouterLine /> Мониторинг Mikrotik
                     </Link>

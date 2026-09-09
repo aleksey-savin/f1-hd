@@ -13,13 +13,18 @@ export async function loader({ request }) {
   // шаблонов. Шаблоны тянет loader, а не эффект компонента: список нужен
   // сразу, а его отсутствие в первый кадр раньше прятало вход «Из шаблона».
   // Вход «Создать заявку» с карточки шаблона (?template=<id>): заготовка
-  // приезжает целиком, чтобы форма открылась уже заполненной.
+  // приезжает целиком, чтобы форма открылась уже заполненной. Шаблон —
+  // сущность, а не справочник: всегда свежий, иначе устаревший состав
+  // вопросов упёрся бы в проверку обязательных ответов на сервере
   const presetId = new URL(request.url).searchParams.get("template");
   const [formData, templates, presetTemplate] = await Promise.all([
     load("/api/tickets/form-data"),
     load("/api/ticket-templates").catch(() => []),
     presetId
-      ? load(`/api/ticket-templates/${presetId}`).catch(() => null)
+      ? load(`/api/ticket-templates/${presetId}`, {
+          maxAge: 0,
+          staleMax: 0,
+        }).catch(() => null)
       : null,
   ]);
 

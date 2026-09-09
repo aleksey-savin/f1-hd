@@ -25,7 +25,12 @@ import {
 import Crumbs from "@/components/app/Crumbs";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import FormOutlet from "@/components/app/FormOutlet";
-import { Eyebrow, Panel } from "@/components/app/Panel";
+import {
+  Eyebrow,
+  Panel,
+  Section,
+  SectionEditLink,
+} from "@/components/app/Panel";
 import AnchorRail, { scrollToSection } from "@/components/app/AnchorRail";
 import PropRow from "@/components/app/PropRow";
 import TechSection from "@/components/app/TechSection";
@@ -259,103 +264,115 @@ const ViewCompany = ({
           />
 
           {/* Реквизиты */}
-          <Eyebrow id="company-requisites">Реквизиты</Eyebrow>
-          <Panel>
-            <PropRow
-              icon={<RiBuilding2Line size={17} />}
-              label="Полное наименование"
-              copy={
-                company.fullTitle
-                  ? { value: company.fullTitle, label: "Реквизит" }
-                  : undefined
+          <Section>
+            <Eyebrow
+              id="company-requisites"
+              action={
+                canManage ? (
+                  <SectionEditLink to="update#basic" label="Реквизиты" />
+                ) : undefined
               }
             >
-              {company.fullTitle || dash}
-            </PropRow>
-            <PropRow icon={<RiPhoneLine size={17} />} label="Телефоны">
-              {company.phones?.length ? (
-                <span className="tabular-nums">
-                  {company.phones.map((phone, index) => (
-                    <span key={phone}>
-                      {index > 0 && <span className="text-faint"> · </span>}
-                      <a
-                        href={`tel:${phone}`}
-                        className="text-accent-text no-underline hover:underline"
-                      >
-                        {phone}
-                      </a>
-                    </span>
-                  ))}
-                </span>
-              ) : (
-                dash
-              )}
-            </PropRow>
-            <PropRow
-              icon={<RiMapPin2Line size={17} />}
-              label={extraAddresses > 0 ? "Адреса" : "Адрес"}
-              action={<TaxiButton company={company} />}
-              copy={
-                company.address
-                  ? { value: company.address, label: "Адрес" }
-                  : undefined
-              }
-            >
-              {company.address ? (
-                company.linkToMap ? (
-                  <a
-                    href={company.linkToMap}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Открыть на карте"
-                    className="text-accent-text no-underline hover:underline"
-                  >
-                    {company.address}
-                  </a>
-                ) : (
-                  company.address
-                )
-              ) : (
-                dash
-              )}
-              {extraAddresses > 0 && (
-                <span className="font-normal text-faint">
-                  {" · "}
-                  <a
-                    href="#company-structure"
-                    title="Адреса подразделений — в разделе «Структура»"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      scrollToSection(null, "company-structure");
-                    }}
-                    className="text-inherit no-underline hover:text-foreground hover:underline"
-                  >
-                    {company.address
-                      ? `ещё ${extraAddresses} в структуре`
-                      : `${extraAddresses} ${plural(extraAddresses, "адрес", "адреса", "адресов")} в структуре`}
-                  </a>
-                </span>
-              )}
-            </PropRow>
-            {canManage && (
-              <PropRow icon={<RiAtLine size={17} />} label="Почтовые домены">
-                {company.emailDomains?.length ? (
-                  <span className="flex flex-wrap gap-1.5 pt-0.5">
-                    {company.emailDomains.map((domain) => (
-                      <Pill key={domain}>{domain}</Pill>
+              Реквизиты
+            </Eyebrow>
+            <Panel>
+              <PropRow
+                icon={<RiBuilding2Line size={17} />}
+                label="Полное наименование"
+                copy={
+                  company.fullTitle
+                    ? { value: company.fullTitle, label: "Реквизит" }
+                    : undefined
+                }
+              >
+                {company.fullTitle || dash}
+              </PropRow>
+              <PropRow icon={<RiPhoneLine size={17} />} label="Телефоны">
+                {company.phones?.length ? (
+                  <span className="tabular-nums">
+                    {company.phones.map((phone, index) => (
+                      <span key={phone}>
+                        {index > 0 && <span className="text-faint"> · </span>}
+                        <a
+                          href={`tel:${phone}`}
+                          className="text-accent-text no-underline hover:underline"
+                        >
+                          {phone}
+                        </a>
+                      </span>
                     ))}
                   </span>
                 ) : (
                   dash
                 )}
               </PropRow>
-            )}
-          </Panel>
+              <PropRow
+                icon={<RiMapPin2Line size={17} />}
+                label={extraAddresses > 0 ? "Адреса" : "Адрес"}
+                action={<TaxiButton company={company} />}
+                copy={
+                  company.address
+                    ? { value: company.address, label: "Адрес" }
+                    : undefined
+                }
+              >
+                {company.address ? (
+                  company.linkToMap ? (
+                    <a
+                      href={company.linkToMap}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Открыть на карте"
+                      className="text-accent-text no-underline hover:underline"
+                    >
+                      {company.address}
+                    </a>
+                  ) : (
+                    company.address
+                  )
+                ) : (
+                  dash
+                )}
+                {extraAddresses > 0 && (
+                  <span className="font-normal text-faint">
+                    {" · "}
+                    <a
+                      href="#company-structure"
+                      title="Адреса подразделений — в разделе «Структура»"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        scrollToSection(null, "company-structure");
+                      }}
+                      className="text-inherit no-underline hover:text-foreground hover:underline"
+                    >
+                      {company.address
+                        ? `ещё ${extraAddresses} в структуре`
+                        : `${extraAddresses} ${plural(extraAddresses, "адрес", "адреса", "адресов")} в структуре`}
+                    </a>
+                  </span>
+                )}
+              </PropRow>
+              {canManage && (
+                <PropRow icon={<RiAtLine size={17} />} label="Почтовые домены">
+                  {company.emailDomains?.length ? (
+                    <span className="flex flex-wrap gap-1.5 pt-0.5">
+                      {company.emailDomains.map((domain) => (
+                        <Pill key={domain}>{domain}</Pill>
+                      ))}
+                    </span>
+                  ) : (
+                    dash
+                  )}
+                </PropRow>
+              )}
+            </Panel>
+          </Section>
 
           <ScheduleSection
             workSchedule={company.workSchedule}
             hasSchedule={!noSchedule}
             timezone={company.timezone}
+            canManage={canManage}
             id="company-schedule"
           />
 
@@ -386,7 +403,11 @@ const ViewCompany = ({
             />
           )}
 
-          <ResponsiblesSection company={company} id="company-responsibles" />
+          <ResponsiblesSection
+            company={company}
+            canManage={canManage}
+            id="company-responsibles"
+          />
 
           {canManage && <ApiKeysSection company={company} id="company-keys" />}
 

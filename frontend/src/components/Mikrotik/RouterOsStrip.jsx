@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import { RiErrorWarningLine, RiExternalLinkLine } from "react-icons/ri";
 
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
-import { formatDate, formatShortDate } from "../../util/format-date";
+import { formatShortDate } from "../../util/format-date";
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 
-const BRANCH_LABEL = {
+export const BRANCH_LABEL = {
   "7.stable": "stable",
   "7.long-term": "long-term",
   "6.stable": "stable (v6)",
@@ -15,11 +15,17 @@ const BRANCH_LABEL = {
 };
 const BRANCH_ORDER = ["7.stable", "7.long-term", "6.stable", "6.long-term"];
 
-// Полоса «последние версии RouterOS» над списком: чипы веток с числом
-// отстающих устройств + свежесть релизов и CVE-базы. Чипы v7 — всегда, v6 —
-// только когда во флоте есть такие устройства. Клик по чипу — правая шторка с
-// датой выхода, статистикой ветки и чейнджлогом. Пустой кэш (первый деплой до
-// boot-рефреша) — полоса не рендерится вовсе.
+const CHANGELOGS_URL = "https://mikrotik.com/download/changelogs";
+
+// Полоса «последние версии RouterOS» над списком — сводка и фильтр
+// одновременно (канон «сводка = переключатель», как лента парка и очереди):
+// чип ветки несёт её последнюю версию и число отстающих устройств, клик сужает
+// список до этих устройств (фасет `branch` стора). Ветка, где все актуальны, —
+// справка без клика: сужать нечего, а версия всё равно полезна. Чипы v7 —
+// всегда, v6 — только когда во флоте есть такие устройства. Чейнджлоги —
+// ссылкой на mikrotik.com в хвосте полосы: шторка с текстом чейнджлога снята
+// 08.09 — чип, который выглядит фильтром, обязан фильтровать. Пустой кэш
+// (первый деплой до boot-рефреша) — полоса не рендерится вовсе.
 const RouterOsStrip = () => {
   const releases = useMikrotikDeviceFilterStore((state) => state.releases);
   const fetchReleases = useMikrotikDeviceFilterStore(
@@ -28,8 +34,8 @@ const RouterOsStrip = () => {
   const originalList = useMikrotikDeviceFilterStore(
     (state) => state.originalList,
   );
-
-  const [openKey, setOpenKey] = useState(null);
+  const branch = useMikrotikDeviceFilterStore((state) => state.facets.branch);
+  const setFacet = useMikrotikDeviceFilterStore((state) => state.setFacet);
 
   useEffect(() => {
     fetchReleases();
@@ -50,15 +56,13 @@ const RouterOsStrip = () => {
   });
   if (!visible.length) return null;
 
-  const branchStats = (key) => {
-    const rows = (originalList || []).filter(
-      (row) => row.firmwareStatus?.branchKey === key,
-    );
-    return {
-      total: rows.length,
-      behind: rows.filter((row) => row.firmwareStatus.updateAvailable).length,
-    };
-  };
+  // Число на чипе — ровно те строки, до которых он сужает список
+  const behindCount = (key) =>
+    (originalList || []).filter(
+      (row) =>
+        row.firmwareStatus?.branchKey === key &&
+        row.firmwareStatus.updateAvailable,
+    ).length;
 
   const newestFetch = channels.reduce(
     (max, channel) =>
@@ -71,110 +75,76 @@ const RouterOsStrip = () => {
     channels.some((channel) => channel.lastError) ||
     Boolean(releases?.cveSync?.lastError);
 
-  const open = openKey ? byKey.get(openKey) : null;
-  const openStats = openKey ? branchStats(openKey) : null;
-
   return (
-    <>
-      {/* Нижний отступ ряда задаёт обёртка topContent страницы списка */}
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-1 text-sm text-faint">
-        <span className="text-xs font-bold tracking-wider uppercase">
-          RouterOS
-        </span>
-        {visible.map((key) => {
-          const channel = byKey.get(key);
-          const { behind } = branchStats(key);
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setOpenKey(key)}
-              className="inline-flex h-8 cursor-pointer appearance-none items-center gap-2 rounded-full border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-accent"
-            >
-              <span className="font-mono font-semibold text-foreground">
-                {BRANCH_LABEL[key]} {channel.version}
-              </span>
-              {behind > 0 ? (
-                <span className="font-semibold text-warning tabular-nums">
-                  отстают {behind}
-                </span>
-              ) : (
-                <span className="text-faint">все актуальны</span>
-              )}
-            </button>
-          );
-        })}
-        {hasError && (
-          <RiErrorWarningLine
-            aria-hidden
-            className="text-warning"
-            title="Не удалось обновить данные о версиях или уязвимостях — показаны сохранённые."
-          />
-        )}
-        {newestFetch && (
-          <span className="ms-auto hidden text-xs md:block">
-            релизы и CVE-база — от {formatShortDate(newestFetch)}
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-1 text-sm text-faint">
+      {/* На телефоне подпись прячется, как у остальных лент */}
+      <span className="text-xs font-bold tracking-wider uppercase max-md:hidden">
+        RouterOS
+      </span>
+      {visible.map((key) => {
+        const channel = byKey.get(key);
+        const behind = behindCount(key);
+        const active = branch === key;
+        const version = (
+          <span className="font-mono font-semibold text-foreground">
+            {BRANCH_LABEL[key]} {channel.version}
           </span>
+        );
+        // Выбранная ветка остаётся чипом-переключателем, даже если отстающих
+        // уже нет — иначе выбор исчезал бы из-под пальца
+        if (!behind && !active) {
+          return (
+            <span
+              key={key}
+              className="inline-flex h-8 items-center gap-2 rounded-full border border-border bg-card px-3 text-sm text-muted-foreground"
+            >
+              {version}
+              <span className="text-faint">все актуальны</span>
+            </span>
+          );
+        }
+        return (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={active}
+            title="Показать отстающие устройства ветки"
+            onClick={() => setFacet("branch", active ? null : key)}
+            className={cn(
+              "inline-flex h-8 cursor-pointer appearance-none items-center gap-2 rounded-full border px-3 text-sm transition-colors outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
+              active
+                ? "border-input bg-accent text-foreground"
+                : "border-border bg-card text-muted-foreground hover:bg-accent",
+            )}
+          >
+            {version}
+            <span className="font-semibold text-warning tabular-nums">
+              отстают {behind}
+            </span>
+          </button>
+        );
+      })}
+      {hasError && (
+        <RiErrorWarningLine
+          aria-hidden
+          className="text-warning"
+          title="Не удалось обновить данные о версиях или уязвимостях — показаны сохранённые."
+        />
+      )}
+      <span className="ms-auto hidden items-center gap-1 text-xs md:inline-flex">
+        {newestFetch && (
+          <>релизы и CVE-база — от {formatShortDate(newestFetch)} ·</>
         )}
-      </div>
-
-      <Sheet
-        open={Boolean(open)}
-        onOpenChange={(next) => {
-          if (!next) setOpenKey(null);
-        }}
-      >
-        <SheetContent side="right" className="w-11/12 max-w-md">
-          {open && (
-            <>
-              <div className="border-b border-border-soft px-5 pt-4 pb-3.5">
-                <SheetTitle className="my-0 pr-8 text-lg font-semibold">
-                  RouterOS <span className="font-mono">{open.version}</span>{" "}
-                  <span className="text-muted-foreground">
-                    · {BRANCH_LABEL[openKey]}
-                  </span>
-                </SheetTitle>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  {open.releasedAt && (
-                    <>Вышла {formatDate(open.releasedAt)} · </>
-                  )}
-                  {openStats?.total > 0 ? (
-                    <>
-                      устройств на ветке: {openStats.total}
-                      {openStats.behind > 0
-                        ? ` · отстают: ${openStats.behind}`
-                        : " · все на последней версии"}
-                    </>
-                  ) : (
-                    "устройств на этой ветке нет"
-                  )}
-                </div>
-                <a
-                  href="https://mikrotik.com/download/changelogs"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1.5 inline-flex items-center gap-1 text-sm font-semibold text-accent-text no-underline hover:underline"
-                >
-                  Открыть на mikrotik.com{" "}
-                  <RiExternalLinkLine size={13} aria-hidden />
-                </a>
-              </div>
-              <div className="flex-1 overflow-y-auto px-5 py-4">
-                {open.changelog ? (
-                  <pre className="my-0 font-mono text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                    {open.changelog}
-                  </pre>
-                ) : (
-                  <div className="text-sm text-muted-foreground">
-                    Чейнджлог недоступен.
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
-    </>
+        <a
+          href={CHANGELOGS_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 font-semibold text-accent-text no-underline hover:underline"
+        >
+          changelog <RiExternalLinkLine size={12} aria-hidden />
+        </a>
+      </span>
+    </div>
   );
 };
 

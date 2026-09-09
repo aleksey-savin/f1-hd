@@ -16,6 +16,7 @@ const {
 const { logAiTicketEvent } = require("./aiTicketLog");
 const { humanizeAiError } = require("./aiErrors");
 const { rulesFor } = require("./aiRules");
+const { formatAnswer, hasAnswer } = require("./ticketQuestionnaire");
 
 const MAX_COMMENTS = 20;
 const MAX_FIELD_LENGTH = 2000;
@@ -59,8 +60,8 @@ const buildUserContent = (ticket, company) => {
 
   if (Array.isArray(ticket.customFields) && ticket.customFields.length) {
     const fields = ticket.customFields
-      .filter((field) => field?.name)
-      .map((field) => `${field.name}: ${field.value ?? ""}`)
+      .filter((field) => field?.name && hasAnswer(field.type, field.value))
+      .map((field) => `${field.name}: ${formatAnswer(field)}`)
       .join("; ");
     if (fields) lines.push(`Дополнительные поля: ${fields}`);
   }

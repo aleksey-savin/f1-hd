@@ -38,16 +38,25 @@ const searchItems = (query, items) => {
 };
 
 // Фасеты Sheet-фильтра/чипа компаний. status: online|offline|disabled;
-// firmware: vulnerable (CVE ≥ порога) | outdated (есть обновление) | current.
+// firmware: vulnerable (CVE ≥ порога) | outdated (есть обновление) | current;
+// branch — чип полосы RouterOS: ключ ветки (7.stable, 6.long-term…), сужает
+// список до устройств ветки, отстающих от её последней версии.
 const EMPTY_FACETS = {
   status: null,
   companies: [],
   type: null,
   firmware: null,
+  branch: null,
 };
 
 const matchesFacets = (item, facets) => {
   if (facets.status && rowStatus(item) !== facets.status) return false;
+  if (facets.branch) {
+    const firmware = item.firmwareStatus;
+    if (firmware?.branchKey !== facets.branch || !firmware.updateAvailable) {
+      return false;
+    }
+  }
   if (
     facets.companies.length > 0 &&
     !facets.companies.includes(String(item.company?.id))
@@ -146,8 +155,7 @@ const useMikrotikDeviceFilterStore = create((set, get) => ({
     }));
   },
   // Фоновое обновление без isLoading: свежие строки + пересчёт одним set-вызовом.
-  // Статусы, доступность и индикаторы прошивки обновляются на месте; открытая
-  // шторка устройства живёт на строке из originalList и не закрывается.
+  // Статусы, доступность и индикаторы прошивки обновляются на месте.
   silentRefresh: async () => {
     let data;
     try {

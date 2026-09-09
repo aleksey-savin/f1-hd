@@ -263,21 +263,30 @@ const scopeMatch = ({ isEndUser, company }) =>
  * показывал бы «В ремонте · 0» сразу после выбора «В ремонте».
  */
 /**
- * Комплектующие показываются, КОГДА ИХ СПРОСИЛИ: поиском (прицельный вопрос
- * «где эта железка» — ищем по всему учёту, иначе реестр отвечает «ничего не
- * нашлось» про то, что в нём есть) или свитчем фильтра (просмотр «покажи все
- * модули памяти»). Без запроса список — реестр самостоятельных единиц.
+ * Что считается строкой реестра — три состояния фасета `components`:
+ * `hide` (умолчание) — только самостоятельные единицы, `any` — вместе с
+ * деталями сборок, `only` — одни детали (просмотр «покажи все модули памяти»).
+ *
+ * Поиск — прицельный вопрос «где эта железка»: он ищет по всему учёту, иначе
+ * реестр отвечал бы «ничего не нашлось» про то, что в нём есть. Явный выбор
+ * человека поиск при этом не отменяет: «только детали» остаётся «только
+ * деталями».
  */
-const wantsComponents = (query) =>
-  query.withComponents === "true" || Boolean(String(query.search || "").trim());
+const componentsMode = (query) => {
+  if (query.components === "only" || query.components === "any") {
+    return query.components;
+  }
+  return String(query.search || "").trim() ? "any" : "hide";
+};
 
 const buildListMatch = async (query, authedUser) => {
   const searchTerm = String(query.search || "").trim();
-  const withComponents = wantsComponents(query);
+  const mode = componentsMode(query);
 
   const match = {
     deletedAt: null,
-    ...(withComponents ? {} : { parentDeviceId: null }),
+    ...(mode === "hide" ? { parentDeviceId: null } : {}),
+    ...(mode === "only" ? { parentDeviceId: { $ne: null } } : {}),
   };
   const and = [];
 
@@ -510,7 +519,7 @@ exports.getAll = async (req, res, next) => {
       // объясняет, почему сумма ленты парка меньше счётчика. Когда деталей в
       // выборке нет по условию, считать нечего (иначе ключ parentDeviceId в
       // литерале перетёр бы ограничение match и посчитал бы все детали учёта).
-      wantsComponents(q)
+      componentsMode(q) === "any"
         ? ClientDevice.countDocuments({
             ...match,
             parentDeviceId: { $ne: null },
@@ -518,10 +527,17 @@ exports.getAll = async (req, res, next) => {
         : 0,
       // Лента парка: счётчики стадий и пробелов учёта — по всей выборке без
       // фасета статуса, поэтому агрегат идёт по baseMatch. Комплектующие в них
-      // не входят НИКОГДА: они наследуют статус хозяина, и сложить их со
-      // сборками значило бы удвоить парк (расхождение подписано над списком).
+      // не входят: они наследуют статус хозяина, и сложить их со сборками
+      // значило бы удвоить парк (расхождение подписано над списком).
+      // Исключение — режим «только детали»: сборок в выдаче нет вовсе, удваивать
+      // нечего, и лента обязана описывать ровно показанное, а не пустоту.
       ClientDevice.aggregate([
-        { $match: { ...baseMatch, parentDeviceId: null } },
+        {
+          $match:
+            componentsMode(q) === "only"
+              ? baseMatch
+              : { ...baseMatch, parentDeviceId: null },
+        },
         {
           $facet: {
             byStatus: [{ $group: { _id: "$status", n: { $sum: 1 } } }],

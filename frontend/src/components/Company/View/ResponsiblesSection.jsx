@@ -2,7 +2,13 @@ import { Link } from "react-router";
 import { RiMailLine, RiPhoneLine } from "react-icons/ri";
 
 import { useCrumbFrom } from "@/components/app/Crumbs";
-import { Eyebrow, Panel, SubLabel } from "@/components/app/Panel";
+import {
+  Eyebrow,
+  Panel,
+  Section,
+  SectionEditLink,
+  SubLabel,
+} from "@/components/app/Panel";
 import { monogramFor } from "@/components/app/monogram";
 import { cn } from "@/lib/utils";
 
@@ -93,7 +99,11 @@ const Group = ({ title, people, from }) => (
     {people && people.length > 0 ? (
       <div className="mb-1">
         {people.map((person) => (
-          <PersonRow from={from} key={person._id || person.id} person={person} />
+          <PersonRow
+            from={from}
+            key={person._id || person.id}
+            person={person}
+          />
         ))}
       </div>
     ) : (
@@ -102,19 +112,33 @@ const Group = ({ title, people, from }) => (
   </>
 );
 
-const ResponsiblesSection = ({ company, id }) => (
-  <>
-    <Eyebrow id={id}>Ответственные</Eyebrow>
+const ResponsiblesSection = ({ company, canManage, id }) => (
+  <Section>
+    <Eyebrow
+      id={id}
+      action={
+        canManage ? (
+          <SectionEditLink to="update#basic" label="Ответственные" />
+        ) : undefined
+      }
+    >
+      Ответственные
+    </Eyebrow>
     <Panel>
-      <Group from={company.alias}
+      <Group
+        from={company.alias}
         title="Со стороны клиента"
         people={company.clientsSideResponsibles}
       />
       <div className="mt-4">
-        <Group from={company.alias} title="Со стороны исполнителя" people={company.responsibles} />
+        <Group
+          from={company.alias}
+          title="Со стороны исполнителя"
+          people={company.responsibles}
+        />
       </div>
     </Panel>
-  </>
+  </Section>
 );
 
 export default ResponsiblesSection;

@@ -30,9 +30,10 @@ const EMPTY_FACETS = {
   statuses: [],
   // Пробел учёта — флаг, а не набор: техника без инвентарного номера.
   noInventory: false,
-  // Показывать детали сборок. Поиск включает их сам (см. бэкенд), свитч нужен
-  // для просмотра: «покажи все модули памяти».
-  withComponents: false,
+  // Что показывать: hide — только самостоятельные единицы (умолчание),
+  // any — вместе с деталями сборок, only — одни детали. Поиск включает детали
+  // сам (см. бэкенд), фасет нужен для просмотра: «покажи все модули памяти».
+  components: "hide",
 };
 
 let searchDebounce;
@@ -44,6 +45,9 @@ const buildParams = (state) => {
   Object.entries(state.facets).forEach(([key, value]) => {
     if (Array.isArray(value)) {
       if (value.length) params.set(key, value.join(","));
+    } else if (typeof value === "string") {
+      // Фасет-режим (несколько взаимоисключающих значений) едет как есть
+      if (value) params.set(key, value);
     } else if (value) {
       params.set(key, "true");
     }
@@ -136,8 +140,8 @@ const useClientDeviceFilterStore = create((set, get) => ({
     get().setFacet("noInventory", !get().facets.noInventory);
   },
 
-  toggleComponents: () => {
-    get().setFacet("withComponents", !get().facets.withComponents);
+  setComponents: (mode) => {
+    get().setFacet("components", mode);
   },
 
   toggleStatus: (status) => {

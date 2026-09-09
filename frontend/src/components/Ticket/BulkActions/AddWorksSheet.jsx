@@ -1,6 +1,7 @@
 import { useContext, useMemo } from "react";
 
 import FormSheet from "@/components/app/FormSheet";
+import { FormActions } from "@/components/app/FormLayout";
 import { Button } from "@/components/ui/button";
 
 import { AuthedUserContext } from "../../../store/authed-user-context";
@@ -15,14 +16,15 @@ import { useWorkForm } from "../../Work/use-work-form";
  * работы» это скрывала. Все заявки одной компании: гарантирует
  * `util/ticket-bulk-eligibility.addWorksReason`.
  *
- * Поля — те же `WorkFormFields`, что у формы на карточке заявки. Отличается
- * только отправка: список заявок живёт в состоянии страницы, маршрута у формы
- * нет, поэтому сабмит императивный (`onConfirm`), а футер свой.
+ * Поля — те же `WorkFormFields`, что у формы на карточке заявки, поэтому и
+ * ширина шторки та же (`lg`): одна форма — одной ширины, откуда её ни открыли.
+ * Отличается только отправка: список заявок живёт в состоянии страницы,
+ * маршрута у формы нет, поэтому сабмит императивный (`onConfirm`), а футер свой.
  */
 const AddWorksSheet = ({ show, onHide, selectedItems, onConfirm }) => (
   <FormSheet
     open={show}
-    size="md"
+    size="lg"
     title="Новая работа"
     onOpenChange={(open) => !open && onHide()}
   >
@@ -82,7 +84,7 @@ const AddWorksForm = ({ selectedItems, onHide, onConfirm }) => {
         canPickPerformer={isAdmin}
       />
 
-      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2.5 bg-background px-6 py-3">
+      <FormActions className="justify-end">
         <Button type="button" variant="ghost" onClick={onHide}>
           Отмена
         </Button>
@@ -96,7 +98,7 @@ const AddWorksForm = ({ selectedItems, onHide, onConfirm }) => {
         >
           Сохранить
         </Button>
-      </div>
+      </FormActions>
     </>
   );
 };

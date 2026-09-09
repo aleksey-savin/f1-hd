@@ -40,7 +40,8 @@ const buildParams = (s) => {
   const p = new URLSearchParams();
   p.set("audience", s.audience);
   if (s.activeOnly) p.set("activeOnly", "true");
-  if (s.includeService) p.set("includeService", "true");
+  // служебные: hide (умолчание) | any | only — «hide» не шлём
+  if (s.service && s.service !== "hide") p.set("service", s.service);
   if (s.company) p.set("company", s.company);
   if (s.online) p.set("online", "true");
   if (s.pro32) p.set("pro32", "true");
@@ -99,7 +100,9 @@ const useUserFilterStore = create((set, get) => ({
   online: false,
   activity: "any",
   activeOnly: true,
-  includeService: false,
+  // Служебные аккаунты и телефония: скрыть | показать вместе со всеми (any) |
+  // только их (only)
+  service: "hide",
   // Подключён PRO32 Connect (задан персональный API-ключ)
   pro32: false,
   groupBySubdivision: false,
@@ -189,7 +192,7 @@ const useUserFilterStore = create((set, get) => ({
     }, 300);
   },
 
-  // патч из фильтр-шторки (online / activity / activeOnly / includeService)
+  // патч из фильтр-шторки (online / activity / activeOnly / service)
   updateFilter: (patch) => {
     set({ ...patch, page: 1 });
     doFetch(get, set);
@@ -203,7 +206,7 @@ const useUserFilterStore = create((set, get) => ({
       online: false,
       activity: "any",
       activeOnly: true,
-      includeService: false,
+      service: "hide",
       pro32: false,
       groupBySubdivision: false,
       searchTerm: "",

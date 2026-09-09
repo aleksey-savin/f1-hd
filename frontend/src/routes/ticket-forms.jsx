@@ -6,7 +6,7 @@ import UpdateTicketPage, {
   loader as updateTicketLoader,
 } from "../pages/Ticket/Update.jsx";
 import { action as viewTicketAction } from "../pages/Ticket/View.jsx";
-import { SHEET_LG } from "@/components/app/FormOutlet";
+import { SHEET_LG, sheetHandle } from "@/components/app/FormOutlet";
 
 /**
  * Маршруты формы заявки — одним набором для любого хозяина.
@@ -30,7 +30,9 @@ export const ticketFormRoutes = ({ prefix = "", modes = ["add", "update"] } = {}
       element: <AddTicketPage />,
       loader: addTicketLoader,
       action: addTicketAction,
-      handle: SHEET_LG,
+      // Заявитель видит анкету в одну колонку — `md`; сотрудник — форму в
+      // две колонки — `lg`. Один маршрут обслуживает обоих
+      handle: sheetHandle({ staff: "lg", endUser: "md" }),
     });
   }
   if (modes.includes("update")) {

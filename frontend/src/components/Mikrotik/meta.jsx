@@ -3,20 +3,25 @@ import { RiCloudLine, RiRouterLine } from "react-icons/ri";
 import { cn } from "@/lib/utils";
 
 // Канон статуса записи мониторинга: цветной текст с точкой (не заливной бейдж).
-// Ключ — rowStatus(row) из store/lists/mikrotik-devices.
+// Ключ — rowStatus(row) из store/lists/mikrotik-devices. `tone` — тон для
+// app/device-status → DeviceStatusText: строка борда рисует статус тем же
+// компонентом, что реестр устройств.
 export const STATUS_META = {
   online: {
     label: "В сети",
+    tone: "ok",
     text: "text-accent-text",
     dot: "bg-primary",
   },
   offline: {
     label: "Не в сети",
+    tone: "bad",
     text: "text-destructive",
     dot: "bg-destructive",
   },
   disabled: {
     label: "Выключен",
+    tone: "off",
     text: "text-faint",
     dot: "bg-faint",
   },
@@ -83,8 +88,11 @@ const deviceIcon = (row) => {
   return RiRouterLine;
 };
 
-// Плитка-иконка устройства с live-точкой статуса (язык TechSection): общая для
-// строки списка, шторки и hero страницы записи.
+// Плитка-иконка устройства с live-точкой статуса: строка борда (md — плитка
+// строки списка, 48) и hero страницы записи (lg — 56). Без кольца: кольцо
+// только у настоящей картинки (гайд → «Анатомия списка»). Точка — тем же
+// диалектом, что у реестра устройств (обводка цвета панели через ring-2):
+// один факт «в сети / не в сети» — один вид на обеих страницах.
 export const DeviceTile = ({ row, size = "md", className }) => {
   const Icon = deviceIcon(row);
   const status = row?.monitoringEnabled ? row?.status || "offline" : "disabled";
@@ -93,22 +101,16 @@ export const DeviceTile = ({ row, size = "md", className }) => {
     <span
       aria-hidden
       className={cn(
-        "relative grid flex-none place-items-center bg-accent text-muted-foreground inset-ring inset-ring-border",
-        size === "lg"
-          ? "size-14 rounded-2xl"
-          : size === "sm"
-            ? "size-9 rounded-lg"
-            : "size-11 rounded-xl",
+        "relative grid flex-none place-items-center bg-accent text-muted-foreground",
+        size === "lg" ? "size-14 rounded-2xl" : "size-12 rounded-xl",
         className,
       )}
     >
-      <Icon size={size === "lg" ? 26 : size === "sm" ? 17 : 20} />
+      <Icon size={size === "lg" ? 26 : 22} />
       <span
         className={cn(
-          "absolute rounded-full border-2 border-card",
-          size === "lg"
-            ? "-right-0.5 -bottom-0.5 size-3.5"
-            : "-right-1 -bottom-1 size-3",
+          "absolute -right-0.5 -bottom-0.5 rounded-full ring-2 ring-card",
+          size === "lg" ? "size-3.5" : "size-2.5",
           meta.dot,
         )}
       />

@@ -70,8 +70,8 @@ const DateRangeField = ({
 }: DateRangeFieldProps) => {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DateRange | undefined>();
-  const inOverlay = useInOverlay();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const inOverlay = useInOverlay(triggerRef);
 
   const minDate = parseDayKey(min);
   const maxDate = parseDayKey(max);

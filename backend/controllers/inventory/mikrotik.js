@@ -796,13 +796,17 @@ exports.getRecordOne = async (req, res, next) => {
       record,
       // Стоячее предупреждение о расхождениях карточки с устройством.
       reconciliation: device ? computeReconciliation(device, record) : null,
+      // Связанная запись — координаты карточки для строки hero; standalone —
+      // тот же блок «Инвентарь», что у шага после проверки (кандидат по
+      // серийнику и право создать карточку), чтобы связать можно было и со
+      // страницы записи. null — модуль «Учёт техники» выключен.
       inventory: device
         ? {
             clientDeviceId: device._id,
             modelName: device.deviceModelId?.name || null,
             inventoryNumber: device.inventoryNumber || null,
           }
-        : null,
+        : await inventoryLinkContext(record, req.userId),
     });
   } catch (error) {
     next(

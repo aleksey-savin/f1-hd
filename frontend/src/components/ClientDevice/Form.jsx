@@ -17,7 +17,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import AlertMessage from "@/components/app/AlertMessage";
-import { FormHeader, FormSections } from "@/components/app/FormLayout";
+import {
+  FormActions,
+  FormHeader,
+  FormSections,
+} from "@/components/app/FormLayout";
 import Spinner from "@/components/app/Spinner";
 import WizardStepper from "@/components/app/WizardStepper";
 
@@ -542,14 +546,14 @@ const ClientDeviceForm = ({ title }) => {
             { key: "tech", title: "Сеть и система", body: techStep },
           ]}
         />
-        <div className="sticky bottom-0 -mx-6 mt-6 flex items-center justify-end gap-2.5 border-t border-border-soft bg-background px-6 py-3">
+        <FormActions className="justify-end">
           <Button variant="ghost" onClick={handleClose} disabled={saving}>
             Отмена
           </Button>
           <Button onClick={handleSubmit} disabled={saving}>
             {saving ? "Сохраняем…" : "Сохранить"}
           </Button>
-        </div>
+        </FormActions>
         <InlineCreateDialog
           open={Boolean(inlineKind)}
           onOpenChange={(open) => !open && setInlineKind(null)}
@@ -594,7 +598,7 @@ const ClientDeviceForm = ({ title }) => {
 
       {errorAlert && <div className="mt-4">{errorAlert}</div>}
 
-      <div className="sticky bottom-0 -mx-6 mt-6 flex items-center gap-2.5 border-t border-border-soft bg-background px-6 py-3">
+      <FormActions>
         <Button variant="ghost" onClick={handleClose} disabled={saving}>
           Отмена
         </Button>
@@ -618,7 +622,7 @@ const ClientDeviceForm = ({ title }) => {
             </Button>
           )}
         </div>
-      </div>
+      </FormActions>
 
       <InlineCreateDialog
         open={Boolean(inlineKind)}

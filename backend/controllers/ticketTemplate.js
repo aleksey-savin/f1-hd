@@ -5,6 +5,10 @@ const Company = require("../models/company");
 
 
 const { AppError } = require("../middleware/errorHandling");
+const {
+  DESCRIPTION_MODES,
+  normalizeTemplateFields,
+} = require("../services/ticketQuestionnaire");
 
 /**
  * Видимость шаблона — то же правило, что собирает выборкой `getAll`. Раньше оно
@@ -76,6 +80,10 @@ const loadTemplate = async (req, mode) => {
 const passThrough = (error, fallback) =>
   error instanceof AppError ? error : new AppError(fallback, 500, true, error);
 
+// Создание заявки по шаблону проверяет видимость тем же правилом: шаблон
+// приходит с клиента одним id, и сервер сам решает, можно ли по нему заводить
+exports.canSeeTemplate = canSeeTemplate;
+
 exports.getAll = async (req, res, next) => {
   try {
     const { _id: userId, company, isEndUser } = req.auth.legacy;
@@ -96,11 +104,18 @@ exports.getAll = async (req, res, next) => {
     // Флаг «доступен всем сотрудникам» не участвовал в выборке вовсе: шаблон с
     // ним не видел никто, кроме автора. Ветка добавлена, а не заменена, —
     // явный шеринг компаниям/пользователям продолжает работать сам по себе.
-    const visibility = [
-      { "createdBy._id": userId },
-      { sharedCompanies: company },
-      { sharedUsers: authedUser },
-    ];
+    //
+    // Сверяем по идентификаторам, как `canSeeTemplate`. Прежняя выборка
+    // сравнивала вложенные документы целиком (`{ sharedCompanies: company }`),
+    // а компания и пользователь лежат в шаблоне снимком: стоило переименовать
+    // компанию — и её клиенты теряли шаблон из списка, хотя прямая ссылка на
+    // него продолжала открываться. Условие по id добавляем только когда id
+    // есть: `{ "sharedCompanies._id": undefined }` для Mongo означает «поля
+    // нет», и человек без компании увидел бы чужие личные заготовки.
+    const visibility = [{ "createdBy._id": userId }, { "sharedUsers._id": userId }];
+    if (company?._id) {
+      visibility.push({ "sharedCompanies._id": company._id });
+    }
     if (!isEndUser) {
       visibility.push({ allowAllStaff: true });
     }
@@ -139,6 +154,7 @@ const buildTemplateData = async (body, isEndUser, authedUserCompany) => {
   const {
     title,
     description,
+    descriptionMode,
     categoryId,
     company: companyId,
     customFields,
@@ -147,6 +163,20 @@ const buildTemplateData = async (body, isEndUser, authedUserCompany) => {
     sharedCompanies: sharedCompaniesIds = [],
     sharedUsers: sharedUsersIds = [],
   } = body;
+
+  // Вопросы анкеты: строки без названия отбрасываются, вопрос выбора без
+  // вариантов — отказ 400, ключ выдаётся один раз. Без описания заявка
+  // держится только на ответах, так что хотя бы один вопрос обязателен
+  const { fields, errors } = normalizeTemplateFields(customFields);
+  if (errors.length) {
+    throw new AppError(errors[0].message, 400);
+  }
+  const mode = DESCRIPTION_MODES.includes(descriptionMode)
+    ? descriptionMode
+    : "required";
+  if (mode === "hidden" && fields.length === 0) {
+    throw new AppError("Без описания нужен хотя бы один вопрос", 400);
+  }
 
   let company = {};
   if (isEndUser) {
@@ -185,11 +215,10 @@ const buildTemplateData = async (body, isEndUser, authedUserCompany) => {
   return {
     title,
     description,
+    descriptionMode: mode,
     categoryId: categoryId || undefined,
     company,
-    customFields: Array.isArray(customFields)
-      ? customFields.filter((field) => field && field.name && field.name.trim())
-      : [],
+    customFields: fields,
     checklist: Array.isArray(checklist)
       ? checklist
           .filter((item) => item && item.description && item.description.trim())
@@ -228,7 +257,8 @@ exports.add = async (req, res, next) => {
     await template.save();
     res.status(201).json(template);
   } catch (error) {
-    next(new AppError(`Failed to add ticket template`, 500, true, error));
+    // Отказ по составу анкеты — 400 с причиной, а не сбой сервера
+    next(passThrough(error, `Failed to add ticket template`));
   }
 };
 

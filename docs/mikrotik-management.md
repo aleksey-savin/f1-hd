@@ -761,19 +761,30 @@ why, in the 2026-07-24 entry of `docs/ux-ui-changelog.md`. Component internals
 
 - **Routes** (`frontend/src/App.jsx`): `/devices/mikrotik` (list) with children
   `add` and `update/:recordId`; `/devices/mikrotik/records/:recordId` (record
-  page) with child `update`. The networks report keeps its own route
+  page, route id `mikrotik-record`) with children `update` (parameters form)
+  and `schedule` (export-schedule form, gated by `manageConfigs`). The networks report keeps its own route
   `/report/networks` (`pages/Report/CompaniesNetworksReport.jsx`, legacy).
 - **Pages** — `pages/Mikrotik/List.jsx` (fleet board: rows grouped by status,
   silent 15 s polling via `usePolling` → `silentRefresh()`, deep links
-  `?recordId=` / `?clientDeviceId=`) and `pages/Mikrotik/Record.jsx` (one record,
-  loader = `GET /records/:recordId`).
-- **Components** (`components/Mikrotik/`): `DeviceRow` (list row), `DeviceSheet`
-  (preview), `DeviceForm` (create **and** edit — verify-on-save, then the
-  inventory link step; also hosts the transit selector), `DeviceFilter` (status ·
-  companies · type · firmware), `RouterOsStrip` (branch releases + changelog),
-  `SetupHelp` (generator of the device-side setup script, exports `parseKnock` /
-  `genPassword`), `UptimeBar`, `AvailabilitySection`, `ConfigsSection` (schedule
-  + artifacts + the 2FA download), `ConfirmDialog`, `meta.jsx` (shared status /
+  `?recordId=` / `?clientDeviceId=` redirect to the record page) and
+  `pages/Mikrotik/Record.jsx` (one record, loader = `GET /records/:recordId`;
+  operations only — the inventory card owns identity, the hero carries one
+  «Карточка инвентаря» line, or the link / create-card offer for a standalone
+  record via the same `inventory` block the post-verify step uses; sticky
+  anchor rail on desktop).
+- **Components** (`components/Mikrotik/`): `DeviceRow` (list row — a link to
+  the record page with the «⋯» actions; the preview sheet was retired on
+  2026-09-08), `DeviceForm` (create **and** edit — verify-on-save, then the
+  inventory link step; also hosts the transit selector), `ScheduleForm`
+  (export schedule in its own sheet — kept apart from the parameters form
+  because that one re-verifies the connection on every save; exports the
+  router `action` that calls `PUT /records/:recordId/schedules`),
+  `DeviceFilter` (status · companies · type · firmware), `RouterOsStrip`
+  (branch chips that filter the list to the branch's outdated devices +
+  a changelog link), `SetupHelp` (generator of the device-side setup script,
+  exports `parseKnock` / `genPassword`), `UptimeBar`, `AvailabilitySection`,
+  `ConfigsSection` (read-only schedule with a pencil into `schedule` +
+  artifacts + the 2FA download), `ConfirmDialog`, `meta.jsx` (shared status /
   device-kind / duration / uptime formatters).
 - **Store** — `store/lists/mikrotik-devices.js`: `fetch` / `silentRefresh`,
   `fetchReleases`, `fetchRecord`, `createStandalone`, `saveRecordParameters`,

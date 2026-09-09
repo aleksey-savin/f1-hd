@@ -2,21 +2,11 @@ import type { ReactNode } from "react";
 
 import { Eyebrow, Panel } from "@/components/app/Panel";
 
-// Просмотр кастомных полей (форма-опросник). Общий компонент: одинаково
-// показывает поля на карточке шаблона и заявки — пользователь не должен
-// видеть одну и ту же структуру в разном виде.
-type CustomField = {
-  name?: string;
-  type?: string;
-  options?: string[];
-  value?: unknown;
-};
+import { type CustomFieldDef as CustomField, TYPE_LABEL } from "./custom-fields";
 
-const TYPE_LABEL: Record<string, string> = {
-  text: "Текст",
-  select: "Выбор",
-  multiselect: "Множественный выбор",
-};
+// Просмотр определений вопросов анкеты — карточка шаблона: тип, варианты,
+// обязательность и подсказка. Ответы на карточке заявки показывает
+// CustomFieldsAnswers — там важны значения, а не устройство вопроса.
 
 const CustomFieldsView = ({
   fields = [],
@@ -43,8 +33,18 @@ const CustomFieldsView = ({
                 key={index}
                 className="flex flex-wrap items-start gap-x-3 gap-y-1.5 border-t border-border-soft pt-3 first:border-t-0 first:pt-0"
               >
-                <div className="min-w-48 flex-1 text-base font-medium">
-                  {field.name || "—"}
+                <div className="min-w-48 flex-1">
+                  <div className="text-base font-medium">
+                    {field.name || "—"}
+                    {field.required && (
+                      <span className="text-destructive">*</span>
+                    )}
+                  </div>
+                  {field.hint && (
+                    <div className="text-sm text-muted-foreground">
+                      {field.hint}
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="inline-flex items-center rounded-full border border-border bg-accent px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">

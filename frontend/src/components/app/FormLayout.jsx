@@ -4,13 +4,14 @@ import { BrowserView } from "react-device-detect";
 
 import AnchorRail, { scrollToSection } from "@/components/app/AnchorRail";
 import { OverlayScrollContext } from "@/components/app/overlay-context";
+import { cn } from "@/lib/utils";
 
 // Каркас длинной формы в шторке: липкий заголовок + плоские секции с
 // рейлом-якорем слева (десктоп; на мобайле секции идут подряд, как на карточке).
 // Правка — всегда плоская, шаги остаются только в создании (ux-ui-guide).
 //
-// Разделено на две части, потому что заголовок общий и для правки, и для
-// мастера, а секции с рейлом — только для правки.
+// Разделено на части, потому что заголовок общий и для правки, и для мастера,
+// секции с рейлом — только для правки, а липкий ряд кнопок есть у обоих.
 
 /**
  * Якорь секции по её ключу. Экспортируется, потому что на него ссылаются и
@@ -18,6 +19,27 @@ import { OverlayScrollContext } from "@/components/app/overlay-context";
  * типа аккаунта в правах ведёт к самому полю типа в «Основном».
  */
 export const sectionAnchorId = (key) => `form-section-${key}`;
+
+/**
+ * Липкий ряд действий формы: «Отмена» слева, главное действие справа
+ * (`ml-auto` у группы) — или обе кнопки справа (`className="justify-end"`).
+ *
+ * Ряд лежит ВНУТРИ прокручиваемого тела шторки, поэтому отрицательные поля
+ * гасят её отступы: `-mx-6` — боковые, `-mb-6` — нижний. Без `-mb-6` под
+ * рядом оставалась полоса нижнего отступа: пока форма длиннее экрана, ряд
+ * липнет к низу, а на последних 24px прокрутки отлипал и уезжал вверх —
+ * форма будто дёргалась в конце (починено 08.09).
+ */
+export const FormActions = ({ children, className }) => (
+  <div
+    className={cn(
+      "sticky bottom-0 -mx-6 -mb-6 mt-6 flex items-center gap-2.5 border-t border-border-soft bg-background px-6 py-3",
+      className,
+    )}
+  >
+    {children}
+  </div>
+);
 
 /**
  * Липкий заголовок формы. Скроллится внутренность шторки (app/FormSheet),
@@ -31,9 +53,7 @@ export const FormHeader = ({ title, subtitle, onHeight, children }) => (
     }}
     className="sticky top-0 z-10 -mx-6 -mt-5 mb-3 border-b border-border-soft bg-background px-6 pt-5 pb-3"
   >
-    <h1 className="my-0 pr-10 text-xl font-semibold tracking-tight">
-      {title}
-    </h1>
+    <h1 className="my-0 pr-10 text-xl font-semibold tracking-tight">{title}</h1>
     {subtitle && (
       <p className="mt-1 mb-0 text-sm text-muted-foreground">{subtitle}</p>
     )}
@@ -98,15 +118,21 @@ export const FormSections = ({
             id={anchorId(section.key)}
             className="border-t border-border-soft py-5 first:border-t-0 first:pt-1"
           >
-            <h3 className="my-0 text-base font-semibold tracking-tight">
-              {section.title}
-            </h3>
+            {/* Секция без заголовка — анкета заявителя: её вопросы сами
+                заголовки своих блоков, общая метка была бы эхом */}
+            {section.title && (
+              <h3 className="my-0 text-base font-semibold tracking-tight">
+                {section.title}
+              </h3>
+            )}
             {section.desc && (
               <p className="mt-0.5 mb-0 text-sm text-muted-foreground">
                 {section.desc}
               </p>
             )}
-            <div className="mt-4">{section.body}</div>
+            <div className={section.title || section.desc ? "mt-4" : ""}>
+              {section.body}
+            </div>
           </section>
         ))}
       </div>
