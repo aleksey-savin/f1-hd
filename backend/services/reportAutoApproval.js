@@ -4,7 +4,6 @@ const ServicePlan = require("@/models/finances/servicePlan");
 const ServicePlanReport = require("@/models/finances/servicePlanReport");
 
 const logger = require("@/utils/logger");
-const { companyZone } = require("@/services/servicePlanBilling");
 const { finalize, pendingApprovers } = require("@/services/reportApproval");
 const {
   notifyApprovalRequested,
@@ -51,7 +50,7 @@ const runReportAutoApproval = async (now = new Date()) => {
         Company.findById(report.company).lean(),
         ServicePlan.findById(report.servicePlan).lean(),
       ]);
-      const zone = companyZone(company, resolveTimezone(preferences));
+      const zone = resolveTimezone(preferences);
 
       if (report.approval.deadlineAt <= now) {
         await finalize({

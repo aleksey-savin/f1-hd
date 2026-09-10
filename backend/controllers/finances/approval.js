@@ -13,7 +13,6 @@ const Work = require("@/models/work");
 const { AppError } = require("@/middleware/errorHandling");
 const {
   buildPreview,
-  companyZone,
   normalizePlan,
   priceWorks,
 } = require("@/services/servicePlanBilling");
@@ -156,7 +155,7 @@ exports.getPipeline = async (req, res, next) => {
       restrictRow(
         // Месяц считаем в зоне компании-клиента: в браузере она другая, и
         // первое число месяца уезжало на предыдущий
-        toRow(report, scope, companyZone(report.company, zone)),
+        toRow(report, scope, zone),
         report,
         scope.viewerOf(report),
       ),
@@ -312,7 +311,7 @@ exports.getPreviewCard = async (req, res, next) => {
 
     const company = await Company.findById(companyId).lean();
     const servicePlan = await ServicePlan.findById(servicePlanId).lean();
-    const zone = companyZone(company, resolveTimezone(preferences));
+    const zone = resolveTimezone(preferences);
     const categoryById = new Map(
       categories.map((category) => [String(category._id), category]),
     );

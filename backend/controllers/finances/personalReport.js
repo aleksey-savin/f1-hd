@@ -54,7 +54,7 @@ exports.getSummary = async (req, res, next) => {
 
     const targetUser = await User.findById(targetUserId)
       .select(
-        "_id firstName lastName position finances timezone workSchedule followProductionCalendar",
+        "_id firstName lastName position finances timezone workSchedule workSchedules followProductionCalendar",
       )
       .lean();
     if (!targetUser) {

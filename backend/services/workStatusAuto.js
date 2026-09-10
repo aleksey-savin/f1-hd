@@ -42,6 +42,35 @@ const REPLACEABLE_AT_START = new Set(["offshift", "unset"]);
 // строится ровно на этот горизонт (см. toKey ниже).
 const NEXT_SHIFT_HORIZON_DAYS = 14;
 
+const {
+  MINUTES_PER_DAY,
+  shiftDayKey,
+  instantOf,
+} = require("@/services/workWindow");
+
+/**
+ * Смена, накрывающая момент: вчерашняя, если её хвост дотянулся, иначе
+ * сегодняшняя. Смена через полночь принадлежит дню, в котором началась,
+ * поэтому у ночника в 03:00 идёт ВЧЕРАШНЯЯ смена, а не сегодняшняя.
+ */
+const activeShiftOf = (planner, dateKey, minutesNow) => {
+  const covers = (plan, offset) =>
+    plan &&
+    plan.start !== null &&
+    plan.end !== null &&
+    minutesNow >= plan.start + offset &&
+    minutesNow < plan.end + offset;
+
+  const prevKey = shiftDayKey(dateKey, -1);
+  const prev = planner.dayPlan(prevKey);
+  if (covers(prev, -MINUTES_PER_DAY)) {
+    return { key: prevKey, plan: prev };
+  }
+
+  const today = planner.dayPlan(dateKey);
+  return covers(today, 0) ? { key: dateKey, plan: today } : null;
+};
+
 /**
  * Ближайшее начало смены человека: сегодня, если она ещё не началась, иначе
  * первый плановый день впереди без блокирующего отсутствия (dayPlan уже
@@ -49,12 +78,14 @@ const NEXT_SHIFT_HORIZON_DAYS = 14;
  */
 const findNextShift = (planner, local, minutesNow) => {
   if (!planner.isScheduled) return null;
+  const todayKey = local.format("YYYY-MM-DD");
   for (let offset = 0; offset <= NEXT_SHIFT_HORIZON_DAYS; offset += 1) {
-    const day = local.startOf("day").add(offset, "day");
-    const plan = planner.dayPlan(day.format("YYYY-MM-DD"));
+    const dateKey = shiftDayKey(todayKey, offset);
+    const plan = planner.dayPlan(dateKey);
     if (plan.start === null) continue;
     if (offset === 0 && minutesNow >= plan.start) continue;
-    return day.add(plan.start, "minute").toDate();
+    // instantOf, а не startOf("day").add(): dayjs держит смещение первого дня
+    return new Date(instantOf(dateKey, plan.start, planner.tz));
   }
   return null;
 };
@@ -108,6 +139,7 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
     const dateKey = local.format("YYYY-MM-DD");
     const minutesNow = local.hour() * 60 + local.minute();
     const plan = planner.dayPlan(dateKey);
+    const active = activeShiftOf(planner, dateKey, minutesNow);
 
     // Ближайшая смена — для бара («до 04.09 09:00» у тех, кого нет). Пишем
     // отдельно от статуса и только при изменении: статус меняется не каждый
@@ -168,10 +200,18 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
     const changedAtAway = user.workStatus?.updatedAt
       ? dayjs(user.workStatus.updatedAt)
       : null;
+    // Ручной выбор держится до конца суток. У смены через полночь сутки
+    // переключаются ПОСРЕДИ смены, поэтому держим её с начала — иначе
+    // «удалёнка», поставленная в 23:00, испарялась бы в полночь.
+    const holdSince =
+      active && active.plan.end > MINUTES_PER_DAY
+        ? Math.min(
+            local.startOf("day").valueOf(),
+            instantOf(active.key, active.plan.start, planner.tz),
+          )
+        : local.startOf("day").valueOf();
     const heldToday =
-      !isAuto &&
-      changedAtAway &&
-      changedAtAway.valueOf() >= local.startOf("day").valueOf();
+      !isAuto && changedAtAway && changedAtAway.valueOf() >= holdSince;
     // «Не на работе» по отгулу у свободного графика тоже освобождаем сами:
     // смены у него нет, и вернуть человека некому
     const staleOffshift =
@@ -191,9 +231,7 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
       continue;
     }
 
-    const inShift =
-      plan.start !== null && plan.end !== null &&
-      minutesNow >= plan.start && minutesNow < plan.end;
+    const inShift = active !== null;
 
     if (inShift) {
       if (!isAuto) {
@@ -217,10 +255,19 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
     if (!ON_SHIFT_STATUS_CODES.includes(code)) {
       continue;
     }
-    const shiftEnd =
-      plan.end !== null
-        ? local.startOf("day").add(plan.end, "minute")
-        : local.startOf("day");
+    // Конец смены, после которого ручной статус осмыслен. У ночной смены он
+    // лежит во вчерашнем плане (её end больше суток), поэтому прежняя формула
+    // «полночь + plan.end» никогда не срабатывала и автоматика затирала статус,
+    // поставленный человеком утром. Ветка включается только для смены через
+    // полночь — у дневных графиков поведение прежнее.
+    const prevPlan = planner.dayPlan(shiftDayKey(dateKey, -1));
+    const shiftEndMs =
+      plan.end !== null && minutesNow >= plan.end
+        ? instantOf(dateKey, plan.end, planner.tz)
+        : prevPlan.end !== null && prevPlan.end > MINUTES_PER_DAY
+          ? instantOf(shiftDayKey(dateKey, -1), prevPlan.end, planner.tz)
+          : local.startOf("day").valueOf();
+    const shiftEnd = dayjs(shiftEndMs);
     const changedAt = user.workStatus?.updatedAt
       ? dayjs(user.workStatus.updatedAt)
       : null;

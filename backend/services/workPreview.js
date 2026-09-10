@@ -1,3 +1,8 @@
+const {
+  dayNameOfKey,
+  shiftDayKey,
+} = require("@/services/workWindow");
+
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
 const timezone = require("dayjs/plugin/timezone");
@@ -19,7 +24,6 @@ const {
   calcSingleWorkOvertime,
   normalizePlan,
   resolveSchedule,
-  companyZone,
 } = require("@/services/servicePlanBilling");
 const { resolveTimezone } = require("@/utils/datetime");
 
@@ -30,12 +34,11 @@ const { resolveTimezone } = require("@/utils/datetime");
  *
  * Считает не своим кодом, а тем же, которым выставляется счёт
  * (`services/servicePlanBilling`): переработку — `calcSingleWorkOvertime`,
- * окно дня — `dayWindow`, тариф — `normalizePlan`, пояс клиента —
- * `companyZone`. До 2026-07 предпросмотр жил в браузере
- * (`frontend/src/util/finances.js`) и читал график в поясе ОПЕРАТОРА, тогда
- * как счёт читает его в поясе КЛИЕНТА: пока ни у одной компании своего пояса
- * нет, числа совпадают, а с первым же заполненным `Company.timezone`
- * разошлись бы молча. Здесь второй методики нет по построению.
+ * окно дня — `dayWindow`, тариф — `normalizePlan`. График читается в поясе
+ * ОРГАНИЗАЦИИ — в нём он и задаётся (см. docs/datetime-conventions.md). До
+ * 2026-07 предпросмотр жил в браузере (`frontend/src/util/finances.js`) и читал
+ * график в поясе ОПЕРАТОРА, из-за чего расходился со счётом. Здесь второй
+ * методики нет по построению.
  *
  * Деньги отдаются только тем, кому положено: без права ключа `money` в ответе
  * нет вовсе — прятать сумму в браузере бессмысленно, она уже приехала.
@@ -60,8 +63,6 @@ const DAY_SHORT = {
   Saturday: "Сб",
   Sunday: "Вс",
 };
-
-const dayKeyOf = (cursor) => DAYS_OF_WEEK[(cursor.day() + 6) % 7];
 
 /**
  * Недельный график одной строкой: «Пн–Пт, 09:00–18:00 · Сб, 10:00–15:00».
@@ -117,20 +118,26 @@ const describeOvertime = (schedule, work, zone) => {
   let openAt = null;
   let closeAt = null;
 
-  for (const { cursor, dayStart, dayEnd } of eachDay(work, zone)) {
+  for (const { dateKey, dayStart, dayEnd } of eachDay(work, zone)) {
     if (dayEnd <= dayStart) {
       continue;
     }
 
-    const window = dayWindow(schedule, cursor);
+    // Хвост вчерашней смены накрывает утро: окно предыдущего дня тоже считается
+    const window = dayWindow(schedule, dateKey, zone);
+    const tail = dayWindow(schedule, shiftDayKey(dateKey, -1), zone);
+    const coveredByTail = tail && tail.workEnd > dayStart && tail.workStart <= dayStart;
 
     if (!window) {
+      if (coveredByTail && tail.workEnd >= dayEnd) {
+        continue;
+      }
       kinds.add("nonWorkingDay");
-      firstNonWorkingDay = firstNonWorkingDay ?? DAY_TITLES[dayKeyOf(cursor)];
+      firstNonWorkingDay = firstNonWorkingDay ?? DAY_TITLES[dayNameOfKey(dateKey)];
       continue;
     }
 
-    if (dayStart < window.workStart) {
+    if (dayStart < window.workStart && !coveredByTail) {
       kinds.add("beforeOpen");
       openAt = openAt ?? dayjs(window.workStart).tz(zone).format("HH:mm");
     }
@@ -220,7 +227,7 @@ const loadContext = async (tickets) => {
   return {
     tariff: normalizePlan(plan),
     schedule: resolveSchedule(plan, company),
-    zone: companyZone(company, resolveTimezone(preferences)),
+    zone: resolveTimezone(preferences),
   };
 };
 

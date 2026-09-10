@@ -1,3 +1,5 @@
+const { isPartialWeekSchedule } = require("../workSchedule");
+
 const { body, param } = require("express-validator");
 
 exports.getOne = [
@@ -9,6 +11,11 @@ exports.add = [
   body("type")
     .isIn(["hourPackage", "fixedPrice", "hourly"])
     .withMessage("Invalid service plan type"),
+  body("customProvisionSchedule")
+    .optional({ values: "null" })
+    .isObject()
+    .custom(isPartialWeekSchedule)
+    .withMessage("Некорректный график обслуживания"),
   body("companyWorkSchedule")
     .optional()
     .isBoolean()
@@ -65,6 +72,11 @@ exports.update = [
     .optional()
     .isIn(["hourPackage", "fixedPrice", "hourly"])
     .withMessage("Invalid service plan type"),
+  body("customProvisionSchedule")
+    .optional({ values: "null" })
+    .isObject()
+    .custom(isPartialWeekSchedule)
+    .withMessage("Некорректный график обслуживания"),
   body("companyWorkSchedule")
     .optional()
     .isBoolean()

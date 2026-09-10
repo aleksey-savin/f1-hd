@@ -2,14 +2,21 @@ import { toZonedTime, fromZonedTime } from "date-fns-tz";
 
 import { getLocalStorageData } from "./auth";
 
-// Единая бизнес-таймзона приложения (Preferences.timezone; кладётся в
-// localStorage при логине и обновляется на странице настроек). Читаем ПРИ
-// КАЖДОМ вызове — значение, захваченное при загрузке модуля, протухает после
-// логина или смены настройки до перезагрузки страницы. Дефолт совпадает со
-// схемой Preferences и backend/utils/datetime.js.
+// Пояс показа: ЛИЧНЫЙ пояс человека, если он его задал, иначе пояс организации
+// (Preferences.timezone), иначе дефолт. Личный пояс — настройка удобства («Мой
+// аккаунт → Внешний вид»): на цифры он не влияет никогда, все расчёты сервер
+// ведёт в поясе организации и присылает периоды готовыми строками.
+//
+// Читаем ПРИ КАЖДОМ вызове — значение, захваченное при загрузке модуля,
+// протухает после логина, смены настройки или перезагрузки данных корня.
+// Дефолт совпадает со схемой Preferences и backend/utils/datetime.js.
 export const DEFAULT_TIMEZONE = "Europe/Moscow";
 
-const tz = () => getLocalStorageData().timezone || DEFAULT_TIMEZONE;
+const tz = () => {
+  const data = getLocalStorageData();
+  return data.personalTimezone || data.timezone || DEFAULT_TIMEZONE;
+};
+
 
 // Пустое значение — не дата: `new Date(null)` даёт эпоху, и в карточку попадает
 // «01.01.1970», а `new Date(undefined)` — «Invalid Date». Поэтому все хелперы

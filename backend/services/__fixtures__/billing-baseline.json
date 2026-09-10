@@ -1,0 +1,406 @@
+{
+  "zone": "Asia/Vladivostok",
+  "tariffingPeriod": 15,
+  "rows": {
+    "standard/insideWindow": {
+      "durationMinutes": 540,
+      "worktimeMinutes": 540,
+      "roundedWorktimeMinutes": 540,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    },
+    "standard/aroundWindow": {
+      "durationMinutes": 660,
+      "worktimeMinutes": 540,
+      "roundedWorktimeMinutes": 540,
+      "overtimeMinutes": 120,
+      "roundedOvertimeMinutes": 120,
+      "conserved": true
+    },
+    "standard/weekend": {
+      "durationMinutes": 120,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 120,
+      "roundedOvertimeMinutes": 120,
+      "conserved": true
+    },
+    "standard/nightShift": {
+      "durationMinutes": 480,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 480,
+      "roundedOvertimeMinutes": 480,
+      "conserved": true
+    },
+    "standard/fullDay": {
+      "durationMinutes": 1440,
+      "worktimeMinutes": 540,
+      "roundedWorktimeMinutes": 540,
+      "overtimeMinutes": 900,
+      "roundedOvertimeMinutes": 900,
+      "conserved": true
+    },
+    "standard/tenMinutes": {
+      "durationMinutes": 10,
+      "worktimeMinutes": 10,
+      "roundedWorktimeMinutes": 15,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    },
+    "standard/overWindowEnd": {
+      "durationMinutes": 30,
+      "worktimeMinutes": 10,
+      "roundedWorktimeMinutes": 15,
+      "overtimeMinutes": 20,
+      "roundedOvertimeMinutes": 30,
+      "conserved": true
+    },
+    "standard/eveningIntoNight": {
+      "durationMinutes": 360,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 360,
+      "roundedOvertimeMinutes": 360,
+      "conserved": true
+    },
+    "standard/acrossMonth": {
+      "durationMinutes": 120,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 120,
+      "roundedOvertimeMinutes": 120,
+      "conserved": true
+    },
+    "standard/midnightToMidnight": {
+      "durationMinutes": 1440,
+      "worktimeMinutes": 540,
+      "roundedWorktimeMinutes": 540,
+      "overtimeMinutes": 900,
+      "roundedOvertimeMinutes": 900,
+      "conserved": true
+    },
+    "night/insideWindow": {
+      "durationMinutes": 540,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 1080,
+      "roundedOvertimeMinutes": 1080,
+      "conserved": false
+    },
+    "night/aroundWindow": {
+      "durationMinutes": 660,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 1320,
+      "roundedOvertimeMinutes": 1320,
+      "conserved": false
+    },
+    "night/weekend": {
+      "durationMinutes": 120,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 240,
+      "roundedOvertimeMinutes": 240,
+      "conserved": false
+    },
+    "night/nightShift": {
+      "durationMinutes": 480,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 480,
+      "roundedOvertimeMinutes": 480,
+      "conserved": true
+    },
+    "night/fullDay": {
+      "durationMinutes": 1440,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 2400,
+      "roundedOvertimeMinutes": 2400,
+      "conserved": false
+    },
+    "night/tenMinutes": {
+      "durationMinutes": 10,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 20,
+      "roundedOvertimeMinutes": 30,
+      "conserved": false
+    },
+    "night/overWindowEnd": {
+      "durationMinutes": 30,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 60,
+      "roundedOvertimeMinutes": 60,
+      "conserved": false
+    },
+    "night/eveningIntoNight": {
+      "durationMinutes": 360,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 480,
+      "roundedOvertimeMinutes": 480,
+      "conserved": false
+    },
+    "night/acrossMonth": {
+      "durationMinutes": 120,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 120,
+      "roundedOvertimeMinutes": 120,
+      "conserved": true
+    },
+    "night/midnightToMidnight": {
+      "durationMinutes": 1440,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 2400,
+      "roundedOvertimeMinutes": 2400,
+      "conserved": false
+    },
+    "degenerate/insideWindow": {
+      "durationMinutes": 540,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 540,
+      "roundedOvertimeMinutes": 540,
+      "conserved": true
+    },
+    "degenerate/aroundWindow": {
+      "durationMinutes": 660,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 660,
+      "roundedOvertimeMinutes": 660,
+      "conserved": true
+    },
+    "degenerate/weekend": {
+      "durationMinutes": 120,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 120,
+      "roundedOvertimeMinutes": 120,
+      "conserved": true
+    },
+    "degenerate/nightShift": {
+      "durationMinutes": 480,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 480,
+      "roundedOvertimeMinutes": 480,
+      "conserved": true
+    },
+    "degenerate/fullDay": {
+      "durationMinutes": 1440,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 1440,
+      "roundedOvertimeMinutes": 1440,
+      "conserved": true
+    },
+    "degenerate/tenMinutes": {
+      "durationMinutes": 10,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 10,
+      "roundedOvertimeMinutes": 15,
+      "conserved": true
+    },
+    "degenerate/overWindowEnd": {
+      "durationMinutes": 30,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 30,
+      "roundedOvertimeMinutes": 30,
+      "conserved": true
+    },
+    "degenerate/eveningIntoNight": {
+      "durationMinutes": 360,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 360,
+      "roundedOvertimeMinutes": 360,
+      "conserved": true
+    },
+    "degenerate/acrossMonth": {
+      "durationMinutes": 120,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 120,
+      "roundedOvertimeMinutes": 120,
+      "conserved": true
+    },
+    "degenerate/midnightToMidnight": {
+      "durationMinutes": 1440,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 1440,
+      "roundedOvertimeMinutes": 1440,
+      "conserved": true
+    },
+    "allOff/insideWindow": {
+      "durationMinutes": 540,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 540,
+      "roundedOvertimeMinutes": 540,
+      "conserved": true
+    },
+    "allOff/aroundWindow": {
+      "durationMinutes": 660,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 660,
+      "roundedOvertimeMinutes": 660,
+      "conserved": true
+    },
+    "allOff/weekend": {
+      "durationMinutes": 120,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 120,
+      "roundedOvertimeMinutes": 120,
+      "conserved": true
+    },
+    "allOff/nightShift": {
+      "durationMinutes": 480,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 480,
+      "roundedOvertimeMinutes": 480,
+      "conserved": true
+    },
+    "allOff/fullDay": {
+      "durationMinutes": 1440,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 1440,
+      "roundedOvertimeMinutes": 1440,
+      "conserved": true
+    },
+    "allOff/tenMinutes": {
+      "durationMinutes": 10,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 10,
+      "roundedOvertimeMinutes": 15,
+      "conserved": true
+    },
+    "allOff/overWindowEnd": {
+      "durationMinutes": 30,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 30,
+      "roundedOvertimeMinutes": 30,
+      "conserved": true
+    },
+    "allOff/eveningIntoNight": {
+      "durationMinutes": 360,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 360,
+      "roundedOvertimeMinutes": 360,
+      "conserved": true
+    },
+    "allOff/acrossMonth": {
+      "durationMinutes": 120,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 120,
+      "roundedOvertimeMinutes": 120,
+      "conserved": true
+    },
+    "allOff/midnightToMidnight": {
+      "durationMinutes": 1440,
+      "worktimeMinutes": 0,
+      "roundedWorktimeMinutes": 0,
+      "overtimeMinutes": 1440,
+      "roundedOvertimeMinutes": 1440,
+      "conserved": true
+    },
+    "always/insideWindow": {
+      "durationMinutes": 540,
+      "worktimeMinutes": 540,
+      "roundedWorktimeMinutes": 540,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    },
+    "always/aroundWindow": {
+      "durationMinutes": 660,
+      "worktimeMinutes": 660,
+      "roundedWorktimeMinutes": 660,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    },
+    "always/weekend": {
+      "durationMinutes": 120,
+      "worktimeMinutes": 120,
+      "roundedWorktimeMinutes": 120,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    },
+    "always/nightShift": {
+      "durationMinutes": 480,
+      "worktimeMinutes": 480,
+      "roundedWorktimeMinutes": 480,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    },
+    "always/fullDay": {
+      "durationMinutes": 1440,
+      "worktimeMinutes": 1440,
+      "roundedWorktimeMinutes": 1440,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    },
+    "always/tenMinutes": {
+      "durationMinutes": 10,
+      "worktimeMinutes": 10,
+      "roundedWorktimeMinutes": 15,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    },
+    "always/overWindowEnd": {
+      "durationMinutes": 30,
+      "worktimeMinutes": 30,
+      "roundedWorktimeMinutes": 30,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    },
+    "always/eveningIntoNight": {
+      "durationMinutes": 360,
+      "worktimeMinutes": 360,
+      "roundedWorktimeMinutes": 360,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    },
+    "always/acrossMonth": {
+      "durationMinutes": 120,
+      "worktimeMinutes": 120,
+      "roundedWorktimeMinutes": 120,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    },
+    "always/midnightToMidnight": {
+      "durationMinutes": 1440,
+      "worktimeMinutes": 1440,
+      "roundedWorktimeMinutes": 1440,
+      "overtimeMinutes": 0,
+      "roundedOvertimeMinutes": 0,
+      "conserved": true
+    }
+  }
+}

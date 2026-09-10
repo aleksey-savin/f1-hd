@@ -85,8 +85,8 @@ const PrefsGlobals = ({ prefs }) => {
       })}
     >
       <SettingRow
-        title="Часовой пояс"
-        hint="Все даты и расписания приложения считаются в нём."
+        title="Глобальный часовой пояс"
+        hint="По умолчанию у пользователей, в отчётах, а также в графиках работы компаний и пользователей."
         htmlFor="prefs-timezone"
       >
         <div className="w-72 max-md:w-full">
@@ -105,7 +105,7 @@ const PrefsGlobals = ({ prefs }) => {
       </div>
       <SettingRow
         title="Название организации"
-        hint="Подпись под маркой на экране входа. Пусто — подписи нет."
+        hint=""
         htmlFor="prefs-contact-title"
         className="py-3"
       >
@@ -114,7 +114,7 @@ const PrefsGlobals = ({ prefs }) => {
           type="text"
           value={orgTitle}
           onChange={(event) => setOrgTitle(event.target.value)}
-          placeholder="Служба поддержки «Ромашка»"
+          placeholder="Служба техподдержки «F1»"
           className="w-72 max-md:w-full"
         />
       </SettingRow>
@@ -153,7 +153,7 @@ const PrefsGlobals = ({ prefs }) => {
       <SettingRow
         divider
         title="Лого компании"
-        hint="Показывается в навбаре и на экране входа. PNG, JPG или GIF до 2 МБ. Пусто — текстовый бренд «HelpDesk»."
+        hint="Показывается в навбаре и на экране входа. PNG, JPG или GIF до 2 МБ."
       >
         <div className="flex items-center gap-2">
           {logo && (

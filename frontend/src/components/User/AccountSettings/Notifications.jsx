@@ -1,19 +1,16 @@
-import { Fragment, useEffect, useState } from "react";
-import { useFetcher } from "react-router";
+import { useState } from "react";
 
 import { RiMailLine, RiTelegramLine } from "react-icons/ri";
 
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import AlertMessage from "@/components/app/AlertMessage";
+import { useDraftSection } from "@/components/app/draft-context";
 import { cn } from "@/lib/utils";
-import useToastStore from "../../../store/toast-store";
 
 // Категории личных уведомлений. Матрица «событие × канал» — вместо двух
-// легаси-списков свитчей. Имена полей формы (tg*/email*) — контракт
-// router-экшена my-account (см. pages/User/MyAccount.jsx).
+// легаси-списков свитчей. visibilityKey — он же ключ поля в user.notify.
 //
-// Скрытые глобальными настройками категории всё равно уходят в FormData
+// Скрытые глобальными настройками категории всё равно уходят в теле запроса
 // текущими значениями, иначе каждое сохранение молча сбрасывало бы их в
 // false (баг легаси).
 const CATEGORIES = [
@@ -72,9 +69,6 @@ const channelHeader = (Icon, full, short) => (
 );
 
 const Notifications = ({ user, initialPrefs }) => {
-  const fetcher = useFetcher();
-  const { showToast } = useToastStore();
-
   const [values, setValues] = useState(() => {
     const notify = user.notify ?? {};
     const initial = {};
@@ -85,14 +79,15 @@ const Notifications = ({ user, initialPrefs }) => {
     return initial;
   });
 
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.message) {
-      showToast(
-        fetcher.data.error ? "danger" : "success",
-        fetcher.data.message,
-      );
+  useDraftSection(() => {
+    const byTelegram = {};
+    const byEmail = {};
+    for (const category of CATEGORIES) {
+      byTelegram[category.visibilityKey] = !!values[`tg${category.name}`];
+      byEmail[category.visibilityKey] = !!values[`email${category.name}`];
     }
-  }, [fetcher.state, fetcher.data]);
+    return { notify: { byTelegram, byEmail } };
+  });
 
   const visibleCategories = CATEGORIES.filter(
     (category) =>
@@ -117,24 +112,7 @@ const Notifications = ({ user, initialPrefs }) => {
   }
 
   return (
-    <fetcher.Form method="post">
-      <input type="hidden" name="id" value={user._id} />
-      {/* Скрытые поля — все категории, включая невидимые: контракт экшена */}
-      {CATEGORIES.map((category) => (
-        <Fragment key={category.name}>
-          <input
-            type="hidden"
-            name={`tg${category.name}`}
-            value={values[`tg${category.name}`] ? "true" : "false"}
-          />
-          <input
-            type="hidden"
-            name={`email${category.name}`}
-            value={values[`email${category.name}`] ? "true" : "false"}
-          />
-        </Fragment>
-      ))}
-
+    <>
       <div className="px-5 pt-4">
         {!initialPrefs.telegramNotifications && (
           <AlertMessage
@@ -205,18 +183,7 @@ const Notifications = ({ user, initialPrefs }) => {
           })}
         </div>
       ))}
-
-      <div className="flex justify-end border-t border-border-soft px-5 py-3">
-        <Button
-          type="submit"
-          name="intent"
-          value="notifications-update"
-          disabled={fetcher.state !== "idle"}
-        >
-          Сохранить
-        </Button>
-      </div>
-    </fetcher.Form>
+    </>
   );
 };
 

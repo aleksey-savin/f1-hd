@@ -42,6 +42,7 @@ const SESSION_KEYS = [
   "contactsAddress",
   "getScreenIsActive",
   "timezone",
+  "personalTimezone",
   "emailNotifications",
 ];
 

@@ -155,7 +155,7 @@ exports.add = async (req, res, next) => {
     }
 
     const target = await User.findById(targetId)
-      .select("firstName lastName isEndUser timezone workSchedule followProductionCalendar")
+      .select("firstName lastName isEndUser timezone workSchedule workSchedules followProductionCalendar")
       .lean();
     if (!target) {
       return next(new AppError("Сотрудник не найден", 404));
@@ -327,7 +327,7 @@ exports.impact = async (req, res, next) => {
   try {
     const { user: targetId, from, to } = req.query;
     const target = await User.findById(targetId)
-      .select("timezone workSchedule followProductionCalendar")
+      .select("timezone workSchedule workSchedules followProductionCalendar")
       .lean();
     if (!target) {
       return next(new AppError("Сотрудник не найден", 404));

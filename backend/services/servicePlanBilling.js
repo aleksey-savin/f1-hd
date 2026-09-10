@@ -10,7 +10,17 @@ const ServicePlan = require("@/models/finances/servicePlan");
 const TicketCategory = require("@/models/ticketCategory");
 
 const { loadWorks } = require("@/services/workSummary");
-const { normalizeTimezone } = require("@/services/clientTimezone");
+const { eachDayKey } = require("@/services/dateKeys");
+const {
+  MINUTES_PER_DAY,
+  dayNameOfKey,
+  windowMinutes,
+  shiftDayKey,
+  instantOf,
+  buildWindows,
+  subtractWindows,
+  intersectWindows,
+} = require("@/services/workWindow");
 const { resolveTimezone } = require("@/utils/datetime");
 
 /**
@@ -30,10 +40,11 @@ const { resolveTimezone } = require("@/utils/datetime");
  *     это был бы UTC — при Preferences.timezone = Asia/Vladivostok почти вся
  *     работа выпала бы за окно 09:00–18:00 и стала переработкой (на снимке
  *     dev-базы: 620 532 ₽ → 883 284 ₽, +42 %, разошлись 15 строк из 19).
- *     Здесь график читается в поясе КЛИЕНТА (Company.timezone, при пустом —
- *     Preferences.timezone), как и предписывает docs/datetime-conventions.md
- *     («График работы клиента»). Пока ни у одной компании своего пояса нет,
- *     это ровно прежние цифры.
+ *     Здесь график читается в поясе ОРГАНИЗАЦИИ — в нём он и задаётся
+ *     (docs/datetime-conventions.md). Company.timezone остался фактом
+ *     местонахождения клиента («который час у него») и на деньги не влияет:
+ *     иначе одно и то же окно 09:00–18:00 значило бы разное у разных компаний,
+ *     а окно после перевода в чужой пояс могло уйти через полночь.
  *  2. КРУГЛОСУТОЧНЫЙ ДЕНЬ. Редактор графика пишет `{is24hours:true,
  *     start:"", end:""}`, а оригинал делал Number("") → NaN, и все сравнения
  *     с ним давали false: такой день не приносил НИ оплачиваемого времени, НИ
@@ -74,69 +85,81 @@ const isZeroLength = (work) =>
   new Date(work.startedAt).getTime() === new Date(work.finishedAt).getTime();
 
 /**
- * Окно графика на конкретный календарный день в поясе клиента.
- * null — день нерабочий (в оригинале: `daySchedule && daySchedule.isWorking`).
+ * План дня по недельному графику: окно в минутах от полуночи дня.
+ * null — день нерабочий или окна нет (в оригинале: `daySchedule && daySchedule.isWorking`).
+ *
+ * Круглосуточный день и день с пустым временем при isWorking считаются рабочими
+ * целиком — осознанное отступление №2 из шапки файла.
  */
-const dayWindow = (schedule, cursor) => {
-  const day = schedule?.[DAYS_OF_WEEK[(cursor.day() + 6) % 7]];
-  if (!day || !day.isWorking) {
+const schedulePlanner = (schedule) => (dateKey) => {
+  const day = schedule?.[dayNameOfKey(dateKey)];
+  if (!day?.isWorking) {
     return null;
   }
-
-  // Круглосуточный день: время не задано, работает весь день (см. отступление 2)
   if (day.is24hours || !day.start || !day.end) {
-    return {
-      workStart: cursor.startOf("day").valueOf(),
-      workEnd: cursor.endOf("day").valueOf(),
-    };
+    return { start: 0, end: MINUTES_PER_DAY };
   }
+  // Нулевое окно (в проде есть тариф со всеми днями 00:00–00:00) даёт null —
+  // численно это то же самое, чем было окно нулевой длины.
+  return windowMinutes(day.start, day.end);
+};
 
-  const [startHour, startMinute] = String(day.start).split(":").map(Number);
-  const [endHour, endMinute] = String(day.end).split(":").map(Number);
-  if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) {
+/**
+ * Окно графика на конкретный календарный день, инстантами.
+ * Окно через полночь заканчивается в следующих сутках.
+ */
+const dayWindow = (schedule, dateKey, zone) => {
+  const plan = schedulePlanner(schedule)(dateKey);
+  if (!plan) {
     return null;
   }
 
   return {
-    workStart: cursor
-      .hour(startHour)
-      .minute(startMinute)
-      .second(0)
-      .millisecond(0)
-      .valueOf(),
-    workEnd: cursor
-      .hour(endHour)
-      .minute(endMinute)
-      .second(0)
-      .millisecond(0)
-      .valueOf(),
+    workStart: instantOf(dateKey, plan.start, zone),
+    workEnd: instantOf(dateKey, plan.end, zone),
   };
 };
 
 /**
- * Нарезка работы на календарные дни пояса клиента.
- * Повторяет цикл оригинала: currentDate — полночь дня начала, шаг сутки до дня
- * окончания; dayStart/dayEnd — пересечение суток с отметками работы.
+ * Нарезка работы на календарные дни пояса расчёта.
+ *
+ * Границы суток берутся через instantOf, а не `cursor.add(1, "day")` +
+ * `endOf("day")`: dayjs держит смещение первого дня, и после перехода на
+ * летнее время весь остаток цикла уезжает на час. dayEnd — СЛЕДУЮЩАЯ ПОЛНОЧЬ,
+ * а не 23:59:59.999; это обязано двигаться вместе с круглосуточным окном в
+ * schedulePlanner, иначе в сутки утекает миллисекунда, а roundUp раздувает её
+ * в полный период тарификации.
  */
 const eachDay = function* (work, zone) {
   const started = dayjs(work.startedAt).tz(zone);
   const finished = dayjs(work.finishedAt).tz(zone);
-  const lastDay = finished.startOf("day");
+  const firstKey = started.format("YYYY-MM-DD");
+  const lastKey = finished.format("YYYY-MM-DD");
 
-  let cursor = started.startOf("day");
   let guard = 0;
-  while (!cursor.isAfter(lastDay) && guard < MAX_DAY_SPAN) {
+  for (const dateKey of eachDayKey(firstKey, lastKey)) {
     guard += 1;
+    if (guard > MAX_DAY_SPAN) break;
     yield {
-      cursor,
-      dayStart: Math.max(cursor.valueOf(), started.valueOf()),
-      dayEnd: Math.min(cursor.endOf("day").valueOf(), finished.valueOf()),
+      dateKey,
+      dayStart: Math.max(instantOf(dateKey, 0, zone), started.valueOf()),
+      dayEnd: Math.min(
+        instantOf(shiftDayKey(dateKey, 1), 0, zone),
+        finished.valueOf(),
+      ),
     };
-    cursor = cursor.add(1, "day");
   }
 };
 
-/** Порт calcSingleWorkOvertime: время вне графика + нерабочие дни целиком. */
+/**
+ * Порт calcSingleWorkOvertime: время вне графика + нерабочие дни целиком.
+ *
+ * Переработка = кусок суток МИНУС объединение окон. Окна берутся с запасом в
+ * день назад: смена через полночь принадлежит дню, в котором началась, и её
+ * хвост накрывает утро следующего. Каждый непокрытый кусок округляется вверх
+ * до периода тарификации отдельно — число кусков само по себе денежная
+ * величина, и склейка через границу суток тихо срезала бы период в сутки.
+ */
 const calcSingleWorkOvertime = (schedule, work, tariffingPeriod, zone) => {
   if (isZeroLength(work) || work.withinPlan) {
     return { actualOvertime: 0, roundUpOvertime: 0 };
@@ -146,27 +169,21 @@ const calcSingleWorkOvertime = (schedule, work, tariffingPeriod, zone) => {
   let actualOvertime = 0;
   let roundUpOvertime = 0;
 
-  for (const { cursor, dayStart, dayEnd } of eachDay(work, zone)) {
-    const window = dayWindow(schedule, cursor);
+  const started = dayjs(work.startedAt).tz(zone);
+  const finished = dayjs(work.finishedAt).tz(zone);
+  const windows = buildWindows(
+    schedulePlanner(schedule),
+    shiftDayKey(started.format("YYYY-MM-DD"), -1),
+    finished.format("YYYY-MM-DD"),
+    zone,
+  );
 
-    if (!window) {
-      // Нерабочий день — всё время работы в нём переработка
-      const overtime = dayEnd - dayStart;
-      actualOvertime += overtime;
-      roundUpOvertime += roundUp(overtime, periodMs);
+  for (const { dayStart, dayEnd } of eachDay(work, zone)) {
+    if (dayEnd <= dayStart) {
       continue;
     }
-
-    // До начала рабочего дня
-    if (dayStart < window.workStart) {
-      const overtime = Math.min(window.workStart - dayStart, dayEnd - dayStart);
-      actualOvertime += overtime;
-      roundUpOvertime += roundUp(overtime, periodMs);
-    }
-
-    // После окончания рабочего дня
-    if (dayEnd > window.workEnd) {
-      const overtime = dayEnd - Math.max(window.workEnd, dayStart);
+    for (const [from, to] of subtractWindows([dayStart, dayEnd], windows)) {
+      const overtime = to - from;
       actualOvertime += overtime;
       roundUpOvertime += roundUp(overtime, periodMs);
     }
@@ -224,15 +241,21 @@ const calcWorkTime = (schedule, works, tariffingPeriod, zone) => {
       total =
         new Date(work.finishedAt).getTime() - new Date(work.startedAt).getTime();
     } else {
-      for (const { cursor, dayStart, dayEnd } of eachDay(work, zone)) {
-        const window = dayWindow(schedule, cursor);
-        if (!window) {
+      const started = dayjs(work.startedAt).tz(zone);
+      const finished = dayjs(work.finishedAt).tz(zone);
+      const windows = buildWindows(
+        schedulePlanner(schedule),
+        shiftDayKey(started.format("YYYY-MM-DD"), -1),
+        finished.format("YYYY-MM-DD"),
+        zone,
+      );
+
+      for (const { dayStart, dayEnd } of eachDay(work, zone)) {
+        if (dayEnd <= dayStart) {
           continue;
         }
-        const effectiveStart = Math.max(dayStart, window.workStart);
-        const effectiveEnd = Math.min(dayEnd, window.workEnd);
-        if (effectiveEnd > effectiveStart) {
-          total += effectiveEnd - effectiveStart;
+        for (const [from, to] of intersectWindows([dayStart, dayEnd], windows)) {
+          total += to - from;
         }
       }
     }
@@ -502,10 +525,6 @@ const priceWorks = ({ plan, company, works, zone, categoryById }) => {
   };
 };
 
-/** Пояс, в котором читается график компании: свой → организации. */
-const companyZone = (company, orgZone) =>
-  normalizeTimezone(company?.timezone) || orgZone;
-
 /**
  * Момент, с которого компания вообще обслуживается: самая ранняя привязка
  * услуги. Работы по заявкам, заведённым раньше, в биллинг не попадают
@@ -591,7 +610,7 @@ const buildPreview = async ({ from = null, to = null, companyIds = null } = {}) 
       continue;
     }
 
-    const zone = companyZone(company, orgZone);
+    const zone = orgZone;
     const serviceStart = serviceStartOf(company);
     const attachments = new Map(
       (company.servicePlans || []).map((attachment) => [
@@ -721,6 +740,7 @@ module.exports = {
   roundUp,
   isZeroLength,
   dayWindow,
+  schedulePlanner,
   eachDay,
   calcSingleWorkOvertime,
   calcOvertime,
@@ -729,7 +749,6 @@ module.exports = {
   normalizePlan,
   priceHourPackage,
   resolveSchedule,
-  companyZone,
   priceWorks,
   buildPreview,
 };

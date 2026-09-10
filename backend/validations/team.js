@@ -1,42 +1,9 @@
 const { body, query, param } = require("express-validator");
 
 const { ABSENCE_TYPE_CODES, ABSENCE_STATUSES } = require("../utils/absenceTypes");
-const { DAYS_OF_WEEK } = require("../services/workCalendar");
+const { isWeekSchedule } = require("./workSchedule");
 
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-// Недельный график приходит целиком объектом — проверяем его форму руками:
-// express-validator не умеет вложенные словари с фиксированными ключами.
-const isWeekSchedule = (value) => {
-  if (!value || typeof value !== "object") {
-    throw new Error("График должен быть объектом");
-  }
-  for (const name of DAYS_OF_WEEK) {
-    const day = value[name];
-    if (!day || typeof day !== "object") {
-      throw new Error(`В графике нет дня «${name}»`);
-    }
-    if (typeof day.isWorking !== "boolean") {
-      throw new Error(`У дня «${name}» не указано, рабочий ли он`);
-    }
-    if (day.isWorking && !day.is24hours) {
-      if (!TIME_RE.test(day.start) || !TIME_RE.test(day.end)) {
-        throw new Error(`У дня «${name}» некорректное время (ждём ЧЧ:ММ)`);
-      }
-      if (day.end <= day.start) {
-        throw new Error(`У дня «${name}» конец не позже начала`);
-      }
-    }
-    if (day.breakMinutes !== undefined && day.breakMinutes !== null) {
-      const brk = Number(day.breakMinutes);
-      if (!Number.isFinite(brk) || brk < 0 || brk > 480) {
-        throw new Error(`У дня «${name}» перерыв вне диапазона 0–480 минут`);
-      }
-    }
-  }
-  return true;
-};
 
 exports.teamSchedule = [
   query("from").matches(DATE_RE).withMessage("Некорректная дата начала"),

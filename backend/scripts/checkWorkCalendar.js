@@ -54,6 +54,19 @@ const plannerFor = async (user, fromKey, toKey) => {
   return makePlanner(user, ctx, settings);
 };
 
+/** Недельный график одной формой на все семь дней Пн–Пт. */
+const weekSchedule = ({ start, end, breakMinutes = 60 }) =>
+  Object.fromEntries(
+    ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(
+      (name, index) => [
+        name,
+        index < 5
+          ? { isWorking: true, is24hours: false, start, end, breakMinutes }
+          : { isWorking: false, is24hours: false, start, end, breakMinutes: 0 },
+      ],
+    ),
+  );
+
 const staffUser = (overrides = {}) => ({
   _id: "u1",
   timezone: null,
@@ -110,9 +123,12 @@ const run = async () => {
   check("май с командировкой: часов", hours(trip.normMinutes), 151);
   check("май с командировкой: дней отсутствия", trip.absenceDays, 0);
 
-  console.log("\nТаймзона: инженер во Владивостоке, смена 09:30–17:00 местного");
+  console.log(
+    "\nТаймзона: инженер во Владивостоке при организации в Москве",
+  );
   ABSENCES = [];
-  // 2026-05-13, среда. 09:30 VLAT (UTC+10) = 2026-05-12T23:30Z
+  // 2026-05-13, среда. Он работает 09:30–17:00 по своему времени,
+  // то есть 02:30–10:00 по Москве — а графики задаются в поясе организации.
   const work = {
     startedAt: new Date("2026-05-12T23:30:00.000Z"),
     finishedAt: new Date("2026-05-13T07:00:00.000Z"),
@@ -120,7 +136,11 @@ const run = async () => {
     company: null,
     tickets: [],
   };
-  const vlad = staffUser({ timezone: "Asia/Vladivostok" });
+  const inOrgZone = weekSchedule({ start: "02:30", end: "10:00" });
+  const vlad = staffUser({
+    timezone: "Asia/Vladivostok",
+    workSchedule: inOrgZone,
+  });
   const vladPlanner = await plannerFor(vlad, "2026-05-01", "2026-05-31");
   const withSchedule = overtimeForWork(work, {
     planner: vladPlanner,
@@ -128,21 +148,42 @@ const run = async () => {
     overtimeSettings: settings,
     orgTz: "Europe/Moscow",
   });
-  check("с личным графиком: переработка, мин", Math.round(withSchedule.overtime.roundedMs / 60000), 0);
+  check(
+    "график задан в поясе организации: переработка, мин",
+    Math.round(withSchedule.overtime.roundedMs / 60000),
+    0,
+  );
   check("с личным графиком: источник", withSchedule.scheduleSource, "user");
 
-  const legacy = staffUser({ timezone: "Asia/Vladivostok", workSchedule: null });
-  const legacyPlanner = await plannerFor(legacy, "2026-05-01", "2026-05-31");
-  const withoutSchedule = overtimeForWork(work, {
-    planner: legacyPlanner,
+  // Тот же человек, но график записали его местным временем — вся смена
+  // уезжает в переработку. Ровно поэтому у поля стоит пометка о поясе.
+  const naive = staffUser({ timezone: "Asia/Vladivostok" });
+  const naivePlanner = await plannerFor(naive, "2026-05-01", "2026-05-31");
+  const withNaive = overtimeForWork(work, {
+    planner: naivePlanner,
     plansByCompany: new Map(),
     overtimeSettings: settings,
     orgTz: "Europe/Moscow",
   });
   check(
-    "без личного графика (как было): переработка, мин",
-    Math.round(withoutSchedule.overtime.roundedMs / 60000),
+    "график записан местным временем: переработка, мин",
+    Math.round(withNaive.overtime.roundedMs / 60000),
     390,
+  );
+
+  // Личный пояс на расчёт больше не влияет: те же цифры без него
+  const noZone = staffUser({ workSchedule: inOrgZone });
+  const noZonePlanner = await plannerFor(noZone, "2026-05-01", "2026-05-31");
+  const withoutZone = overtimeForWork(work, {
+    planner: noZonePlanner,
+    plansByCompany: new Map(),
+    overtimeSettings: settings,
+    orgTz: "Europe/Moscow",
+  });
+  check(
+    "личный пояс на расчёт не влияет: переработка, мин",
+    Math.round(withoutZone.overtime.roundedMs / 60000),
+    0,
   );
 
   console.log("\nПраздник и сокращённый день");

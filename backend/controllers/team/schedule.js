@@ -110,7 +110,7 @@ exports.getUserSchedule = async (req, res, next) => {
         lastName: user.lastName,
         position: user.position ?? null,
       },
-      timezone: planner.tz,
+      timezone: planner.personalTz,
       organizationTimezone: preferences?.timezone ?? null,
       schedule: planner.schedule,
       scheduleSource: planner.scheduleSource,

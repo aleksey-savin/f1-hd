@@ -48,6 +48,33 @@ const WEEK = (() => {
   return { Monday: day, Tuesday: day, Wednesday: day, Thursday: day, Friday: day, Saturday: rest, Sunday: rest };
 })();
 
+// Ночная смена 22:00–06:00: конец лежит в СЛЕДУЮЩИХ сутках
+const NIGHT_WEEK = (() => {
+  const day = {
+    isWorking: true,
+    is24hours: false,
+    start: "22:00",
+    end: "06:00",
+    breakMinutes: 0,
+  };
+  return {
+    Monday: day, Tuesday: day, Wednesday: day, Thursday: day,
+    Friday: day, Saturday: day, Sunday: day,
+  };
+})();
+
+const nightPerson = (over = {}) => ({
+  _id: "u1",
+  timezone: "Europe/Moscow",
+  workTimeMode: "scheduled",
+  remoteOnly: false,
+  workSchedules: [
+    { effectiveFrom: null, schedule: NIGHT_WEEK, followProductionCalendar: false },
+  ],
+  workStatus: { code: "offshift", note: "", updatedAt: new Date("2026-07-26T12:00:00Z") },
+  ...over,
+});
+
 const person = (over = {}) => ({
   _id: over._id || "u1",
   timezone: "Europe/Moscow",
@@ -210,6 +237,30 @@ const runNote = async (staff, now, absences = []) => {
     await run([person({
       workStatus: { code: "office", note: "", updatedAt: at("06:05"), auto: true },
     })], at("10:00")),
+    null);
+
+  console.log("\nНочная смена 22:00–06:00");
+  // Время в скобках — московское; at() принимает UTC (−3ч)
+  check("21:55 — до смены, ничего не меняем",
+    await run([nightPerson()], at("18:55")), null);
+  check("22:05 — смена началась → в офисе",
+    await run([nightPerson()], at("19:05")), "office");
+  check("03:00 — середина ночной смены, статус уже верный",
+    await run([nightPerson({
+      workStatus: { code: "office", note: "", updatedAt: at("19:05"), auto: true },
+    })], new Date("2026-07-28T00:00:00.000Z")),
+    null);
+  check("06:05 — смена кончилась → не на работе",
+    await run([nightPerson({
+      workStatus: { code: "office", note: "", updatedAt: at("19:05"), auto: true },
+    })], new Date("2026-07-28T03:05:00.000Z")),
+    "offshift");
+  // Ручной выбор посреди ночной смены переживает полночь: сутки переключаются
+  // внутри смены, и прежняя формула «держим до конца дня» его теряла
+  check("ручная удалёнка в 23:30 держится в 00:05",
+    await run([nightPerson({
+      workStatus: { code: "remote", note: "", updatedAt: at("20:30") },
+    })], new Date("2026-07-27T21:05:00.000Z")),
     null);
 
   console.log(failures === 0 ? "\nВсе проверки прошли" : `\nПРОВАЛЕНО: ${failures}`);

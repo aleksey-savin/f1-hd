@@ -126,7 +126,7 @@ const MailChannelFields = ({
             title="Пароль"
             hint={
               passwordIsSet
-                ? "Хранится в зашифрованном виде. Оставьте пустым, чтобы не менять."
+                ? "Оставьте пустым, чтобы не менять."
                 : undefined
             }
             htmlFor={`${idPrefix}-password`}
@@ -148,7 +148,7 @@ const MailChannelFields = ({
 
       <SettingRow
         title="Доверять самоподписанному сертификату"
-        hint="Только для внутренних серверов: проверка сертификата отключается."
+        hint="Только для внутренних серверов."
         htmlFor={`${idPrefix}-selfsigned`}
         className={className}
       >

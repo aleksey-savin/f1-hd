@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { RiAddFill } from "react-icons/ri";
 
 import AlertMessage from "@/components/app/AlertMessage";
-import Combobox from "@/components/app/Combobox";
 import ScheduleView from "@/components/app/ScheduleView";
 import SettingRow from "@/components/app/SettingRow";
 import Spinner from "@/components/app/Spinner";
@@ -10,9 +9,8 @@ import AbsenceForm from "@/components/Team/AbsenceForm";
 import { Button } from "@/components/ui/button";
 import type { UserScheduleResponse } from "@/types/teamSchedule";
 import { getAbsenceType } from "@/util/absence-types";
-import { getLocalStorageData } from "@/util/auth";
+import { orgTimezone, tzCity } from "@/util/timezone-display";
 import { monthRange } from "@/util/period";
-import timezones from "@/store/timezones";
 
 const API = import.meta.env.VITE_API_ADDRESS;
 
@@ -61,7 +59,6 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [savingTz, setSavingTz] = useState(false);
 
   const period = monthRange(new Date());
 
@@ -95,31 +92,6 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
     load();
   }, [load]);
 
-  const tzOptions = timezones.map((zone: { value: string; label: string }) => ({
-    value: zone.value,
-    label: zone.label,
-  }));
-
-  const saveTimezone = async (next: string | null) => {
-    const { userId } = getLocalStorageData();
-    setSavingTz(true);
-    try {
-      const response = await fetch(`${API}/api/users/update-account`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id: userId, timezone: next }),
-      });
-      if (!response.ok) throw new Error(String(response.status));
-      await load();
-    } catch (tzError) {
-      console.warn("Часовой пояс не сохранился:", tzError);
-    } finally {
-      setSavingTz(false);
-    }
-  };
-
   const cancel = async (id: string) => {
     setBusyId(id);
     try {
@@ -149,36 +121,17 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
 
   return (
     <>
-      {/* Пояс правит сам сотрудник: он про него знает лучше, а от пояса
-          зависят и его сутки в календаре, и границы смены */}
-      <SettingRow
-        title="Часовой пояс"
-        hint="По нему считается ваш рабочий день"
-        htmlFor="my-tz"
-      >
-        <div className="w-64">
-          <Combobox
-            id="my-tz"
-            options={tzOptions}
-            value={data.timezone}
-            onChange={saveTimezone}
-            disabled={savingTz}
-            placeholder="Как в организации"
-            searchPlaceholder="Город или зона…"
-          />
-        </div>
-      </SettingRow>
-
       <SettingRow
         title="График"
         hint={
           data.hasPersonalSchedule
-            ? data.followsProductionCalendar
-              ? "Следует производственному календарю РФ"
-              : "Производственный календарь не учитывается"
+            ? `Время указано по часовому поясу организации (${tzCity(orgTimezone())}). ${
+                data.followsProductionCalendar
+                  ? "Следует производственному календарю РФ."
+                  : "Производственный календарь не учитывается."
+              }`
             : "Личный график не задан — обратитесь к администратору"
         }
-        divider
       >
         <span />
       </SettingRow>

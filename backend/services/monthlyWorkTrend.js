@@ -92,7 +92,7 @@ const buildMonthlyWorkTrend = async ({
     ? await filterApprovedWorks(loaded, { fromDate, toDate })
     : loaded;
 
-  const { plansByCompany, categoriesById } = await buildOvertimeContext(works);
+  const { categoriesById } = await buildOvertimeContext(works);
 
   const scheduleContext = await buildScheduleContext({
     fromKey: firstMonth.format("YYYY-MM-DD"),
@@ -144,7 +144,6 @@ const buildMonthlyWorkTrend = async ({
     if (!isExcludedFromOvertime(work, categoriesById) && work.startedAt && work.finishedAt) {
       const { overtime } = overtimeForWork(work, {
         planner,
-        plansByCompany,
         overtimeSettings,
         orgTz: tz,
       });

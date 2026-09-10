@@ -47,6 +47,13 @@ const Public = () => {
         });
         return;
       }
+      // Сессии здесь нет, поэтому в localStorage нет и пояса — util/format-date
+      // падал на московский дефолт и показывал подписанту чужое время рядом с
+      // месяцем, посчитанным в поясе организации. Пояс приезжает в ответе.
+      if (payload?.zone) {
+        localStorage.setItem("timezone", payload.zone);
+        localStorage.removeItem("personalTimezone");
+      }
       setData(payload);
       setFailure(null);
     } catch {

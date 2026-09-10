@@ -1,13 +1,22 @@
-const ServicePlan = require("@/models/finances/servicePlan");
 const TicketCategory = require("@/models/ticketCategory");
 
 const { DEFAULT_OVERTIME_SETTINGS } = require("@/utils/overtimeDefaults");
 const { MS_PER_MINUTE, toMinutes } = require("@/services/workSummary");
+const { eachDayKey } = require("@/services/dateKeys");
+// Только листовые модули: workCalendar поднимает mongoose и логгер, и юнит-тест
+// чистой арифметики переработок начинал зависеть от прав на каталог логов
+// (та же причина, по которой выделены dateKeys и workWindow).
 const {
   DAYS_OF_WEEK,
+  MINUTES_PER_DAY,
   dayNameOfKey,
   parseTimeOfDay,
-} = require("@/services/workCalendar");
+  windowMinutes,
+  shiftDayKey,
+  instantOf,
+  buildWindows,
+  subtractWindows,
+} = require("@/services/workWindow");
 
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
@@ -19,14 +28,14 @@ dayjs.extend(timezone);
  * Переработки и оплата за них — единственная реализация на бэкенде (канон:
  * «переработки везде считаются одним алгоритмом»).
  *
- * Что меряется относительно чего (2026-07, «Графики работы»):
- *   • у сотрудника ЗАДАН личный график → окно его дня, его часовой пояс,
- *     праздники и отсутствия производственного календаря (services/workCalendar);
- *   • НЕ задан → прежний путь: окно обслуживания клиента (тариф → компания →
- *     резерв из настроек) и часовой пояс организации. Ничего не меняется, пока
- *     графики не заполнены.
- * Клиентское окно осталось для биллинга клиента (pricePerHourNonWorking) —
- * оно отвечает на «работа вне SLA», а не на «сотрудник переработал».
+ * Что меряется относительно чего (2026-09):
+ *   • доплата СОТРУДНИКУ — по ЕГО графику: личная версия на дату, а если
+ *     личного графика нет — дефолтный график из настроек. Праздники и
+ *     отсутствия приходят из services/workCalendar;
+ *   • окно обслуживания клиента здесь не участвует НИКОГДА. По нему считается
+ *     счёт КЛИЕНТУ (services/servicePlanBilling, pricePerHourNonWorking): это
+ *     ответ на «работа вне SLA», а не на «сотрудник переработал».
+ * Оба графика задаются в поясе ОРГАНИЗАЦИИ — он же единственный пояс расчёта.
  */
 
 const roundUpMs = (ms, stepMinutes) =>
@@ -64,30 +73,49 @@ const resolveOvertimeSettings = (preferences) => {
 const staticDayPlanner = (schedule) => (dateKey) => {
   const day = schedule?.[dayNameOfKey(dateKey)];
   if (!day?.isWorking) {
-    return { kind: "weekend", start: null, end: null };
+    return { kind: "weekend", start: null, end: null, crossesMidnight: false };
   }
   if (day.is24hours) {
-    return { kind: "work", start: 0, end: 24 * 60 };
+    return {
+      kind: "work",
+      start: 0,
+      end: MINUTES_PER_DAY,
+      crossesMidnight: false,
+    };
   }
-  const start = parseTimeOfDay(day.start);
-  const end = parseTimeOfDay(day.end);
-  if (start === null || end === null) {
-    // Рабочий день с битым временем: переработки нет (легаси вело себя так же)
-    return { kind: "work", start: null, end: null };
+  const window = windowMinutes(day.start, day.end);
+  if (!window) {
+    // Рабочий день с битым или нулевым временем: переработки нет (легаси вело
+    // себя так же). Раньше здесь не было и разбора end < start — окно через
+    // полночь считалось дважды.
+    return { kind: "work", start: null, end: null, crossesMidnight: false };
   }
-  return { kind: "work", start, end };
+  return {
+    kind: "work",
+    start: window.start,
+    end: window.end,
+    crossesMidnight: window.end > MINUTES_PER_DAY,
+  };
 };
 
 const NON_WORKING_KINDS = new Set(["weekend", "holiday", "absence"]);
 
+// Страховка от работы с битыми датами: 366 суток покрывают любую реальную
+const MAX_DAY_SPAN = 366;
+
 /**
  * Переработка одной работы. Семантика 1:1 со сводным финансовым отчётом:
- * в рабочий день — время до начала окна и после его конца, в нерабочий — весь
- * кусок; каждый кусок округляется вверх до периода тарификации.
+ * переработка = кусок суток МИНУС объединение окон графика; тип дня выбирает
+ * только бакет оплаты. Каждый непокрытый кусок округляется вверх до периода
+ * тарификации — число кусков само по себе денежная величина, поэтому склеивать
+ * их через границу суток нельзя.
+ *
+ * Окна берутся с ЗАПАСОМ В ДЕНЬ НАЗАД: смена через полночь принадлежит дню, в
+ * котором началась, и её хвост накрывает утро следующего.
  *
  * dayPlanFor(dateKey) отдаёт окно дня и его тип; он же знает про праздники и
  * отсутствия, поэтому эта функция ими не занимается. tz — пояс, в котором
- * режутся сутки: сотрудника, если у него есть график, иначе организации.
+ * режутся сутки.
  */
 const calcWorkOvertime = (work, { dayPlanFor, tariffingPeriodMinutes, tz }) => {
   const result = emptyOvertime();
@@ -95,44 +123,54 @@ const calcWorkOvertime = (work, { dayPlanFor, tariffingPeriodMinutes, tz }) => {
   const startedAt = dayjs(work.startedAt).tz(tz);
   const finishedAt = dayjs(work.finishedAt).tz(tz);
 
-  if (startedAt.valueOf() === finishedAt.valueOf() || work.withinPlan) {
+  if (startedAt.valueOf() >= finishedAt.valueOf() || work.withinPlan) {
     return result;
   }
 
-  let currentDay = startedAt.startOf("day");
-  const lastDay = finishedAt.startOf("day");
+  const firstKey = startedAt.format("YYYY-MM-DD");
+  const lastKey = finishedAt.format("YYYY-MM-DD");
 
-  while (currentDay.valueOf() <= lastDay.valueOf()) {
-    const dateKey = currentDay.format("YYYY-MM-DD");
-    const segStart = Math.max(currentDay.valueOf(), startedAt.valueOf());
-    const segEnd = Math.min(currentDay.endOf("day").valueOf(), finishedAt.valueOf());
+  // Страховка от битой finishedAt: прежний while крутился бы до упора
+  if (
+    (finishedAt.valueOf() - startedAt.valueOf()) / (MS_PER_MINUTE * 60 * 24) >
+    MAX_DAY_SPAN
+  ) {
+    return result;
+  }
 
-    const plan = dayPlanFor(dateKey) || { kind: "weekend", start: null, end: null };
+  const windows = buildWindows(
+    dayPlanFor,
+    shiftDayKey(firstKey, -1),
+    lastKey,
+    tz,
+  );
+
+  for (const dateKey of eachDayKey(firstKey, lastKey)) {
+    const dayFrom = instantOf(dateKey, 0, tz);
+    const dayTo = instantOf(shiftDayKey(dateKey, 1), 0, tz);
+    const segStart = Math.max(dayFrom, startedAt.valueOf());
+    const segEnd = Math.min(dayTo, finishedAt.valueOf());
+    if (segEnd <= segStart) {
+      continue;
+    }
+
+    const plan = dayPlanFor(dateKey) || {
+      kind: "weekend",
+      start: null,
+      end: null,
+    };
     const isWorkingDay = !NON_WORKING_KINDS.has(plan.kind);
+
+    // Рабочий день с битым временем переработки не даёт — легаси-поведение,
+    // без этой проверки «сегмент минус окна» отдал бы весь день целиком
+    if (isWorkingDay && plan.start === null) {
+      continue;
+    }
 
     let dayActualMs = 0;
     let dayRoundedMs = 0;
-
-    if (isWorkingDay) {
-      if (plan.start !== null && plan.end !== null) {
-        const workStart = currentDay.valueOf() + plan.start * MS_PER_MINUTE;
-        const workEnd = currentDay.valueOf() + plan.end * MS_PER_MINUTE;
-
-        // до начала рабочего дня
-        if (segStart < workStart) {
-          const chunk = Math.min(workStart - segStart, segEnd - segStart);
-          dayActualMs += chunk;
-          dayRoundedMs += roundUpMs(chunk, tariffingPeriodMinutes);
-        }
-        // после окончания рабочего дня
-        if (segEnd > workEnd) {
-          const chunk = segEnd - Math.max(workEnd, segStart);
-          dayActualMs += chunk;
-          dayRoundedMs += roundUpMs(chunk, tariffingPeriodMinutes);
-        }
-      }
-    } else {
-      const chunk = segEnd - segStart;
+    for (const [from, to] of subtractWindows([segStart, segEnd], windows)) {
+      const chunk = to - from;
       dayActualMs += chunk;
       dayRoundedMs += roundUpMs(chunk, tariffingPeriodMinutes);
     }
@@ -140,66 +178,23 @@ const calcWorkOvertime = (work, { dayPlanFor, tariffingPeriodMinutes, tz }) => {
     if (dayActualMs > 0) {
       result.days.push({
         date: dateKey,
-        // Праздник оплачивается своим коэффициентом, поэтому у него свой бакет
-        bucket: plan.kind === "holiday" ? "holiday" : isWorkingDay ? "weekday" : "weekend",
+        // Бакет — по дню, в котором минута ФИЗИЧЕСКИ произошла: работа в 07:00
+        // первого января праздничная, чья бы смена ни начиналась накануне.
+        bucket:
+          plan.kind === "holiday"
+            ? "holiday"
+            : isWorkingDay
+              ? "weekday"
+              : "weekend",
         actualMinutes: toMinutes(dayActualMs),
         roundedMinutes: toMinutes(dayRoundedMs),
       });
       result.actualMs += dayActualMs;
       result.roundedMs += dayRoundedMs;
     }
-
-    currentDay = currentDay.add(1, "day");
   }
 
   return result;
-};
-
-/**
- * Легаси-путь: график и период тарификации для работы — как в сводном отчёте
- * (первый тариф компании, чьи ticketCategories содержат категорию заявки;
- * график тарифа или компании по флагу companyWorkSchedule). Используется, пока
- * у исполнителя не задан личный график.
- */
-const resolveWorkSchedule = (work, plansByCompany, overtimeSettings) => {
-  const companyId = work.company?._id?.toString();
-  const plans = (companyId && plansByCompany.get(companyId)) || [];
-  const ticketCategoryIds = (work.tickets || [])
-    .map((ticket) => ticket.categoryId?.toString())
-    .filter(Boolean);
-
-  const plan = plans.find((candidate) =>
-    (candidate.ticketCategories || []).some((category) =>
-      ticketCategoryIds.includes(category._id?.toString()),
-    ),
-  );
-
-  const tariffingPeriodMinutes = plan
-    ? (plan.tariffingPeriod ??
-      plan.tariffing?.period ??
-      overtimeSettings.defaultTariffingPeriodMinutes)
-    : overtimeSettings.defaultTariffingPeriodMinutes;
-
-  if (plan) {
-    const schedule = plan.companyWorkSchedule
-      ? work.company?.workSchedule
-      : plan.customProvisionSchedule;
-    if (schedule) {
-      return {
-        schedule,
-        tariffingPeriodMinutes,
-        scheduleSource: plan.companyWorkSchedule ? "company" : "plan",
-        planTitle: plan.title ?? null,
-      };
-    }
-  }
-
-  return {
-    schedule: overtimeSettings.defaultSchedule,
-    tariffingPeriodMinutes,
-    scheduleSource: "fallback",
-    planTitle: plan?.title ?? null,
-  };
 };
 
 /**
@@ -207,32 +202,29 @@ const resolveWorkSchedule = (work, plansByCompany, overtimeSettings) => {
  * Единственное место, где сходятся оба пути, — чтобы сводка по сотрудникам и
  * персональный отчёт не разъехались.
  */
-const overtimeForWork = (work, { planner, plansByCompany, overtimeSettings, orgTz }) => {
-  const resolved = resolveWorkSchedule(work, plansByCompany, overtimeSettings);
-
-  if (planner?.hasPersonalSchedule) {
-    return {
-      overtime: calcWorkOvertime(work, {
-        dayPlanFor: planner.dayPlan,
-        tariffingPeriodMinutes: resolved.tariffingPeriodMinutes,
-        tz: planner.tz,
-      }),
-      scheduleSource: "user",
-      tariffingPeriodMinutes: resolved.tariffingPeriodMinutes,
-      planTitle: resolved.planTitle,
-      timezone: planner.tz,
-    };
-  }
+const overtimeForWork = (work, { planner, overtimeSettings, orgTz }) => {
+  // Доплата СОТРУДНИКУ меряется по ЕГО графику: личная версия на дату →
+  // легаси-поле → дефолтный график из настроек. Окно обслуживания клиента в
+  // ней не участвует никогда — это другое понятие и другой субъект: по нему
+  // выставляется счёт КЛИЕНТУ (services/servicePlanBilling).
+  //
+  // До 2026-09 у сотрудника без личного графика доплата считалась по окну того
+  // клиента, у которого шла работа: человек получал разные переработки за
+  // одинаковый вечер в зависимости от того, к кому его послали.
+  const tariffingPeriodMinutes = overtimeSettings.defaultTariffingPeriodMinutes;
+  const dayPlanFor = planner?.hasPersonalSchedule
+    ? planner.dayPlan
+    : staticDayPlanner(overtimeSettings.defaultSchedule);
 
   return {
     overtime: calcWorkOvertime(work, {
-      dayPlanFor: staticDayPlanner(resolved.schedule),
-      tariffingPeriodMinutes: resolved.tariffingPeriodMinutes,
+      dayPlanFor,
+      tariffingPeriodMinutes,
       tz: orgTz,
     }),
-    scheduleSource: resolved.scheduleSource,
-    tariffingPeriodMinutes: resolved.tariffingPeriodMinutes,
-    planTitle: resolved.planTitle,
+    scheduleSource: planner?.hasPersonalSchedule ? "user" : "fallback",
+    tariffingPeriodMinutes,
+    planTitle: null,
     timezone: orgTz,
   };
 };
@@ -244,38 +236,6 @@ const overtimeForWork = (work, { planner, plansByCompany, overtimeSettings, orgT
  * tickets (categoryId).
  */
 const buildOvertimeContext = async (works) => {
-  const planIds = new Set();
-  for (const work of works) {
-    for (const planRef of work.company?.servicePlans || []) {
-      if (planRef._id) {
-        planIds.add(planRef._id.toString());
-      }
-    }
-  }
-  const plans = planIds.size
-    ? await ServicePlan.find({ _id: { $in: [...planIds] } })
-        .select(
-          "title ticketCategories companyWorkSchedule customProvisionSchedule tariffingPeriod tariffing",
-        )
-        .lean()
-    : [];
-  const plansById = new Map(plans.map((plan) => [plan._id.toString(), plan]));
-  const plansByCompany = new Map();
-  for (const work of works) {
-    const companyId = work.company?._id?.toString();
-    if (!companyId || plansByCompany.has(companyId)) {
-      continue;
-    }
-    plansByCompany.set(
-      companyId,
-      (work.company.servicePlans || [])
-        .map((planRef) =>
-          planRef._id ? plansById.get(planRef._id.toString()) : null,
-        )
-        .filter(Boolean),
-    );
-  }
-
   const categoryIds = new Set();
   for (const work of works) {
     for (const ticket of work.tickets || []) {
@@ -294,7 +254,7 @@ const buildOvertimeContext = async (works) => {
     categories.map((category) => [category._id.toString(), category]),
   );
 
-  return { plansByCompany, categoriesById };
+  return { categoriesById };
 };
 
 /**
@@ -362,7 +322,6 @@ module.exports = {
   resolveOvertimeSettings,
   calcWorkOvertime,
   staticDayPlanner,
-  resolveWorkSchedule,
   overtimeForWork,
   buildOvertimeContext,
   isExcludedFromOvertime,

@@ -1,8 +1,12 @@
-import { useLoaderData } from "react-router";
+import { useEffect } from "react";
+import { useBlocker, useFetcher, useLoaderData } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 
 import SettingsSection from "@/components/app/SettingsSection";
 import AnchorRail from "@/components/app/AnchorRail";
+import ConfirmDialog from "@/components/app/ConfirmDialog";
+import DraftBar from "@/components/app/DraftBar";
+import { DraftProvider, useDraft } from "@/components/app/draft-context";
 
 import PrefsGlobals from "../components/Preferences/Globals";
 import PrefsSecurity from "../components/Preferences/Security";
@@ -18,15 +22,117 @@ import PrefsProductionCalendar from "../components/Preferences/ProductionCalenda
 
 import Forbidden from "../components/Error/403";
 import { useCan } from "@/store/authed-user";
+import useToastStore from "../store/toast-store";
 
 import { api } from "@/lib/api";
 
 // «Настройки системы»: одна страница вместо вкладок — секции-панели подряд,
-// слева липкий рейл-якорь (канон «Мой аккаунт»). Каждая секция сохраняется
-// отдельно (частичный POST /api/preferences — бэкенд меняет только присланную
-// группу). Секции выключенных модулей не рендерятся и не оставляют пункт в
-// рейле; после сохранения «Модулей» loader ревалидируется и состав секций
-// обновляется сам.
+// слева липкий рейл-якорь (канон «Мой аккаунт»). Секции выключенных модулей не
+// рендерятся и не оставляют пункт в рейле.
+//
+// Сохранение — одно на полотно: секции пишут свои правки в черновик страницы
+// (app/draft-context), а записывает их плашка внизу (app/DraftBar). Пока правок
+// нет, кнопки сохранения на странице нет вовсе. Уходит один частичный POST — и
+// только с теми ключами, которые реально изменились, поэтому роль без права на
+// соседнюю группу не ловит на ней отказ.
+const PreferencesCanvas = ({ sections }) => {
+  const draft = useDraft();
+  const fetcher = useFetcher();
+  const { showToast } = useToastStore();
+
+  const isSaving = fetcher.state !== "idle";
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data?.message) return;
+
+    showToast(fetcher.data.error ? "danger" : "success", fetcher.data.message);
+    // Сохранилось — пересеиваем секции из ревалидированного loader'а: они
+    // держат своё состояние с монтирования, и без ремоунта на экране осталась
+    // бы прежняя копия. fetcher становится idle уже после ревалидации, так что
+    // данные к этому моменту свежие, а revalidate() руками звать не нужно.
+    if (!fetcher.data.error) draft.reset();
+  }, [fetcher.state, fetcher.data]);
+
+  // Уход со страницы с несохранёнными правками: роутер данных блокирует
+  // переход, закрытие вкладки перехватывает beforeunload.
+  const blocker = useBlocker(() => draft.isDirty);
+
+  useEffect(() => {
+    if (!draft.isDirty) return undefined;
+
+    const handler = (event) => event.preventDefault();
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [draft.isDirty]);
+
+  const saveHandler = () => {
+    const payload = draft.buildPayload();
+    if (Object.keys(payload).length === 0) return;
+
+    fetcher.submit(payload, { method: "post", encType: "application/json" });
+  };
+
+  const dirtyIds = new Set(draft.sections.map((section) => section.id));
+  const dirtyNames = draft.sections
+    .map((section) => `«${section.label}»`)
+    .join(", ");
+
+  const panels = (
+    <div className="max-w-2xl space-y-8">
+      {sections.map(({ id, label, element }) => (
+        // Ключ меняется только у сохранённых разделов — соседей не ремоунтим:
+        // у них свои незавершённые дела (результат «Проверить», раскрытый блок)
+        <SettingsSection key={draft.sectionKey(id)} id={id} label={label}>
+          {element}
+        </SettingsSection>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="mx-auto w-full max-w-4xl">
+      <h1 className="my-0 mb-5 text-4xl leading-none font-semibold tracking-tight">
+        Настройки системы
+      </h1>
+      <BrowserView>
+        <div className="flex items-start gap-7">
+          <AnchorRail
+            sections={sections.map(({ id, label, rail }) => ({
+              id,
+              label: rail ?? label,
+              dirty: dirtyIds.has(id),
+            }))}
+            ariaLabel="Разделы настроек"
+          />
+          <div className="min-w-0 flex-1">{panels}</div>
+        </div>
+      </BrowserView>
+      <MobileView>{panels}</MobileView>
+
+      <DraftBar
+        sections={draft.sections}
+        isSaving={isSaving}
+        blockedReason={draft.blockedReason}
+        onSave={saveHandler}
+        onReset={draft.reset}
+      />
+
+      <ConfirmDialog
+        open={blocker.state === "blocked"}
+        onOpenChange={(open) => {
+          if (!open) blocker.reset?.();
+        }}
+        title="Уйти без сохранения?"
+        description={`Правки в ${
+          draft.sections.length === 1 ? "разделе" : "разделах"
+        } ${dirtyNames} пропадут.`}
+        confirmLabel="Уйти"
+        onConfirm={() => blocker.proceed?.()}
+      />
+    </div>
+  );
+};
+
 /**
  * Секции настроек показываем ПО ПРАВАМ, а не по признаку администратора.
  *
@@ -113,35 +219,10 @@ const Preferences = () => {
     return <Forbidden />;
   }
 
-  const panels = (
-    <div className="max-w-2xl space-y-8">
-      {sections.map(({ id, label, element }) => (
-        <SettingsSection key={id} id={id} label={label}>
-          {element}
-        </SettingsSection>
-      ))}
-    </div>
-  );
-
   return (
-    <div className="mx-auto w-full max-w-4xl">
-      <h1 className="my-0 mb-5 text-4xl leading-none font-semibold tracking-tight">
-        Настройки системы
-      </h1>
-      <BrowserView>
-        <div className="flex items-start gap-7">
-          <AnchorRail
-            sections={sections.map(({ id, label, rail }) => ({
-              id,
-              label: rail ?? label,
-            }))}
-            ariaLabel="Разделы настроек"
-          />
-          <div className="min-w-0 flex-1">{panels}</div>
-        </div>
-      </BrowserView>
-      <MobileView>{panels}</MobileView>
-    </div>
+    <DraftProvider>
+      <PreferencesCanvas sections={sections} />
+    </DraftProvider>
   );
 };
 
@@ -153,9 +234,9 @@ export async function loader() {
   return api(`/api/preferences`);
 }
 
-// Сохранение секции: JSON-тело уходит на частичный POST /api/preferences.
-// Часовой пояс после сохранения дублируется в localStorage (его читает
-// util/format-date на каждой странице).
+// Сохранение черновика: JSON-тело уходит на частичный POST /api/preferences —
+// бэкенд трогает только присланные группы. Часовой пояс после сохранения
+// дублируется в localStorage (его читает util/format-date на каждой странице).
 export async function action({ request }) {
   const payload = await request.json();
 

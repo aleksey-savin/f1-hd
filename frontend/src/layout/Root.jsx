@@ -65,7 +65,13 @@ const RootLayout = () => {
 
   useEffect(() => {
     initialPrefs.set(prefs);
-  }, [prefs]);
+    // Пояса зеркалим в localStorage: их читает util/format-date при КАЖДОМ
+    // форматировании, в том числе из не-React кода. Без этого смена пояса
+    // организации не доезжала ни до кого, кроме вкладки, где её сохранили, —
+    // перезагрузка не помогала, помогал только повторный вход.
+    localStorage.setItem("timezone", prefs?.timezone || "");
+    localStorage.setItem("personalTimezone", userData?.timezone || "");
+  }, [prefs, userData?.timezone]);
 
   const location = useLocation();
 

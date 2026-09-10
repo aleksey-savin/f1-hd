@@ -11,6 +11,15 @@ type Day = {
 };
 
 /**
+ * Уходит ли смена за полночь: конец меньше начала. Показать такой день как
+ * «22:00 / 06:00» без пометки — значит соврать про восемь часов ночью.
+ */
+const crossesMidnight = (day?: Day) => {
+  if (!day?.isWorking || day.is24hours || !day.start || !day.end) return false;
+  return day.end < day.start;
+};
+
+/**
  * Read-показ недельного графика — парный двойник app/ScheduleEditor.
  * Одна информация — один вид: до него эта сетка была свёрстана заново в
  * карточке компании, карточке услуги и сводке формы компании.
@@ -39,7 +48,9 @@ const ScheduleView = ({
                 ? `${label}: выходной`
                 : day?.is24hours
                   ? `${label}: круглосуточно`
-                  : `${label}: ${day?.start}–${day?.end}` +
+                  : `${label}: ${day?.start}–${day?.end}${
+                      crossesMidnight(day) ? " (следующий день)" : ""
+                    }` +
                     (day?.breakMinutes
                       ? `, перерыв ${day.breakMinutes} мин`
                       : "")
@@ -70,6 +81,11 @@ const ScheduleView = ({
                   {day?.start}
                   <br />
                   {day?.end}
+                  {crossesMidnight(day) && (
+                    <span className="text-faint" title="следующий день">
+                      {"\u00A0+1"}
+                    </span>
+                  )}
                 </>
               )}
             </div>

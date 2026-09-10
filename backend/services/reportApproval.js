@@ -25,7 +25,6 @@ const {
 const {
   calcOvertime,
   calcWorkTime,
-  companyZone,
   normalizePlan,
   priceWorks,
   resolveSchedule,
@@ -409,7 +408,7 @@ const loadContext = async ({ companyId, servicePlanId, workIds }) => {
     servicePlan,
     preferences,
     works,
-    zone: companyZone(company, resolveTimezone(preferences)),
+    zone: resolveTimezone(preferences),
     categoryById: new Map(
       categories.map((category) => [String(category._id), category]),
     ),
@@ -721,7 +720,7 @@ const decide = async ({ report, scope, authedUser, approve, comment, subdivision
     ServicePlan.findById(report.servicePlan).lean(),
     Preferences.findOne({}).lean(),
   ]);
-  const zone = companyZone(company, resolveTimezone(preferences));
+  const zone = resolveTimezone(preferences);
 
   if (subdivisionId) {
     const part = (report.parts || []).find(

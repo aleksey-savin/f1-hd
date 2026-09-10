@@ -1,3 +1,5 @@
+const { isPartialWeekSchedule } = require("./workSchedule");
+
 const { body, param } = require("express-validator");
 
 const mongoose = require("mongoose");
@@ -56,6 +58,7 @@ exports.add = [
   body("workSchedule")
     .optional()
     .isObject()
+    .custom(isPartialWeekSchedule)
     .withMessage("Work schedule must be an object"),
   optionalTimezone("timezone"),
 ];
@@ -100,6 +103,7 @@ exports.update = [
   body("workSchedule")
     .optional()
     .isObject()
+    .custom(isPartialWeekSchedule)
     .withMessage("Work schedule must be an object"),
   optionalTimezone("timezone"),
 ];

@@ -229,6 +229,21 @@ body:has(.mobile-shell),
     padding-right: 22rem;
   }
 }
+/* Плашка черновика настроек (app/DraftBar) центрируется по КОНТЕНТНОЙ
+   области, а не по окну: когда рейл статусов забрал место справа, плашка
+   уезжает вместе с контентом — иначе она стояла бы левее «листа» страницы.
+   Зеркалит резерв выше, включая порог и длительность перехода. Вне слоя — по
+   той же причине: перебивает px-12 из layer(utilities). */
+@media (min-width: 1024px) {
+  body:has(.has-ws-rail) .draft-bar {
+    padding-right: 5.75rem;
+    transition: padding-right 300ms;
+  }
+  body:has(.has-ws-rail-open) .draft-bar {
+    padding-right: 22rem;
+  }
+}
+
 .ws-rail-scroll {
   scrollbar-width: thin;
 }

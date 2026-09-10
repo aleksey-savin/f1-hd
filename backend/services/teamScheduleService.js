@@ -129,7 +129,7 @@ const buildTeamSchedule = async ({
 
   const rows = employees.map((employee) => {
     const planner = makePlanner(employee, scheduleContext, overtimeSettings);
-    const zone = zoneInfo(planner.tz);
+    const zone = zoneInfo(planner.personalTz);
 
     // Статус показываем только сегодня и только если человек его не скрыл
     const statusCode = employee.hideWorkStatus
@@ -176,10 +176,12 @@ const buildTeamSchedule = async ({
 
     return {
       user: toPerson(employee),
-      timezone: planner.tz,
+      timezone: planner.personalTz,
       utcOffsetMinutes: zone.utcOffsetMinutes,
       localTime: zone.localTime,
-      city: planner.tz.split("/").pop()?.replace(/_/g, " ") ?? planner.tz,
+      city:
+        planner.personalTz.split("/").pop()?.replace(/_/g, " ") ??
+        planner.personalTz,
       hasPersonalSchedule: planner.hasPersonalSchedule,
       workTimeMode: planner.workTimeMode,
       isScheduled: planner.isScheduled,

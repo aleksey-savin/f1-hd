@@ -4,7 +4,6 @@ const User = require("@/models/user");
 const TicketCategory = require("@/models/ticketCategory");
 
 const {
-  companyZone,
   normalizePlan,
   priceWorks,
 } = require("@/services/servicePlanBilling");
@@ -111,10 +110,11 @@ const awaitingLabel = (report) => {
 /**
  * Компактная строка отчёта для списка стадии.
  *
- * `zone` — зона КОМПАНИИ-КЛИЕНТА. Месяц отчёта считается в ней и приходит
- * готовой строкой: `periodFrom` — это полночь первого числа в зоне клиента, и
- * браузер, форматируя её в своей зоне, показывал предыдущий месяц. Месяц
- * документа не может зависеть от того, кто на него смотрит.
+ * `zone` — пояс ОРГАНИЗАЦИИ, единственный пояс расчёта. Месяц отчёта считается
+ * в нём и приходит готовой строкой: `periodFrom` — это полночь первого числа,
+ * и браузер, форматируя её в своей зоне, показывал предыдущий месяц. Месяц
+ * документа не может зависеть от того, кто на него смотрит, — тем более теперь,
+ * когда человек вправе включить себе личный пояс показа.
  */
 const toRow = (report, scope, zone) => ({
   _id: report._id,
@@ -369,7 +369,7 @@ const buildReportCard = async ({ report, scope, viewer }) => {
     resolveSubdivisions({ company: report.company, works: report.works }),
   ]);
 
-  const zone = companyZone(report.company, resolveTimezone(preferences));
+  const zone = resolveTimezone(preferences);
   const priced = priceWorks({
     plan: report.servicePlan,
     company: report.company,

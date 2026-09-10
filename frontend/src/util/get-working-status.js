@@ -37,6 +37,19 @@ export const getWorkingStatus = (schedule, zone) => {
   const currentDay = DAYS_OF_WEEK[now.getDay() === 0 ? 6 : now.getDay() - 1];
   const currentTime = now.getHours() * 60 + now.getMinutes();
 
+  // Смена через полночь принадлежит дню, в котором началась, поэтому ночью
+  // идёт ВЧЕРАШНЯЯ смена: без этой проверки график 22:00–06:00 показывал
+  // «закрыто» всю ночь и бессмысленный обратный отсчёт.
+  const previousDay = DAYS_OF_WEEK[(DAYS_OF_WEEK.indexOf(currentDay) + 6) % 7];
+  const nightShift = tailOfPreviousDay(schedule[previousDay], currentTime);
+  if (nightShift) {
+    return {
+      isOpened: true,
+      detail: `ещё ${formatDuration(nightShift.minutesLeft)}`,
+      verbose: `до закрытия ${formatDuration(nightShift.minutesLeft)}`,
+    };
+  }
+
   // Check if today is a working day
   if (!schedule[currentDay] || !schedule[currentDay].isWorking) {
     return getNextOpeningTime(schedule, currentDay, now, timezone);
@@ -63,6 +76,29 @@ export const getWorkingStatus = (schedule, zone) => {
   );
 };
 
+const MINUTES_PER_DAY = 24 * 60;
+
+/**
+ * Идёт ли ещё вчерашняя смена, ушедшая за полночь. Возвращает остаток до её
+ * конца — или null, если вчерашний день нерабочий, круглосуточный либо его
+ * окно за полночь не уходило.
+ */
+function tailOfPreviousDay(daySchedule, currentTime) {
+  if (!daySchedule?.isWorking || daySchedule.is24hours) return null;
+  if (!daySchedule.start || !daySchedule.end) return null;
+
+  const [startHour, startMinute] = daySchedule.start.split(":").map(Number);
+  const [endHour, endMinute] = daySchedule.end.split(":").map(Number);
+  if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN))
+    return null;
+
+  const startTime = startHour * 60 + startMinute;
+  const endTime = endHour * 60 + endMinute;
+  if (endTime >= startTime) return null; // окно не переходило полночь
+
+  return currentTime < endTime ? { minutesLeft: endTime - currentTime } : null;
+}
+
 function getCurrentStatus(
   todaySchedule,
   currentTime,
@@ -85,8 +121,11 @@ function getCurrentStatus(
     };
   }
 
-  if (currentTime >= startTime && currentTime < endTime) {
-    const minutesUntilClose = endTime - currentTime;
+  // Окно через полночь: конец лежит в следующих сутках
+  const endAbsolute = endTime > startTime ? endTime : endTime + MINUTES_PER_DAY;
+
+  if (currentTime >= startTime && currentTime < endAbsolute) {
+    const minutesUntilClose = endAbsolute - currentTime;
     return {
       isOpened: true,
       detail: `ещё ${formatDuration(minutesUntilClose)}`,

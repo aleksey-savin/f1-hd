@@ -1,16 +1,20 @@
 import { useContext, useState } from "react";
+import { useRevalidator } from "react-router";
 
+import Combobox from "@/components/app/Combobox";
 import Segmented from "@/components/app/Segmented";
 import SettingRow from "@/components/app/SettingRow";
 import ThemeSegment from "@/components/app/ThemeSegment";
 import { API } from "@/pages/Auth/session";
 import useToastStore from "@/store/toast-store";
+import timezones from "@/store/timezones";
+import { orgTimezone, tzCity } from "@/util/timezone-display";
 import { ThemeContext } from "../../../store/theme-context";
 import BackgroundImageUpload from "./BackgroundImageUpload";
 
 // Секция «Внешний вид»: сегмент темы на три состояния (как в бургер-меню),
-// размер текста, вид канвы и фоновое изображение. Кнопки «Сохранить» нет —
-// всё применяется сразу, у фона своя загрузка.
+// размер текста, часовой пояс показа, вид канвы и фоновое изображение.
+// Кнопки «Сохранить» нет — всё применяется сразу, у фона своя загрузка.
 
 const FONT_SCALE_OPTIONS = [
   { value: "100", label: "Обычный" },
@@ -34,6 +38,9 @@ const Appearance = ({ user }) => {
   const { showToast } = useToastStore();
   const [savingScale, setSavingScale] = useState(false);
   const [savingCanvas, setSavingCanvas] = useState(false);
+  const [timezone, setTimezone] = useState(user.timezone || null);
+  const [savingTimezone, setSavingTimezone] = useState(false);
+  const revalidator = useRevalidator();
 
   const changeTheme = (value) => setTheme(value);
 
@@ -91,6 +98,38 @@ const Appearance = ({ user }) => {
     }
   };
 
+  /**
+   * Часовой пояс показа. Настройка УДОБСТВА: она меняет только то, в каком
+   * поясе человек читает даты, и ни на одну цифру не влияет — расчёты сервер
+   * ведёт в поясе организации и присылает периоды готовыми строками.
+   * Пусто — как в организации.
+   */
+  const changeTimezone = async (value) => {
+    const next = value || null;
+    if (next === timezone) return;
+    const previous = timezone;
+    setTimezone(next);
+    setSavingTimezone(true);
+    try {
+      const response = await fetch(`${API}/api/users/update-account`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ timezone: next }),
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      // Пояс читает util/format-date из localStorage при каждом форматировании;
+      // зеркало обновляет загрузчик корня — просим его перечитать данные,
+      // иначе даты переедут только после перезагрузки страницы.
+      revalidator.revalidate();
+    } catch {
+      setTimezone(previous);
+      showToast("danger", "Часовой пояс не сохранился. Попробуйте ещё раз.");
+    } finally {
+      setSavingTimezone(false);
+    }
+  };
+
   return (
     <>
       <SettingRow title="Тема" hint="Применяется сразу на этом устройстве.">
@@ -113,6 +152,26 @@ const Appearance = ({ user }) => {
           disabled={savingScale}
           className="max-md:flex"
         />
+      </SettingRow>
+      <SettingRow
+        divider
+        title="Часовой пояс"
+        hint={`Даты и время показываются в нём. Пусто — как в организации (${tzCity(orgTimezone())}). На расчёты и суммы в отчётах не влияет.`}
+        htmlFor="account-timezone"
+      >
+        <div className="w-72 max-md:w-full">
+          <Combobox
+            id="account-timezone"
+            options={timezones}
+            value={timezone}
+            onChange={changeTimezone}
+            disabled={savingTimezone}
+            clearable
+            clearLabel={`Как в организации — ${tzCity(orgTimezone())}`}
+            placeholder={`Как в организации — ${tzCity(orgTimezone())}`}
+            searchPlaceholder="Город или зона…"
+          />
+        </div>
       </SettingRow>
       <SettingRow
         divider

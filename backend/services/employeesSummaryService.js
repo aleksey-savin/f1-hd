@@ -102,7 +102,6 @@ const withShares = (buckets, totalMinutes) =>
 // нужны режиму «Статистика», но не нужны пересчёту прошлого периода.
 const summarizeEmployeeWorks = ({
   works,
-  plansByCompany,
   categoriesById,
   overtimeSettings,
   planner,
@@ -179,7 +178,6 @@ const summarizeEmployeeWorks = ({
 
     const { overtime } = overtimeForWork(work, {
       planner,
-      plansByCompany,
       overtimeSettings,
       orgTz,
     });
@@ -235,13 +233,13 @@ const buildEmployeesSummary = async ({
     // Тот же набор, что отдаёт селектор сотрудников отчёта
     User.find({ banned: { $ne: true }, isEndUser: false, isServiceAccount: false })
       .select(
-        "firstName lastName position finances timezone workSchedule followProductionCalendar",
+        "firstName lastName position finances timezone workSchedule workSchedules followProductionCalendar",
       )
       .sort({ lastName: 1, firstName: 1 })
       .lean(),
   ]);
 
-  const { plansByCompany, categoriesById } = await buildOvertimeContext(works);
+  const { categoriesById } = await buildOvertimeContext(works);
 
   const worksByExecutor = new Map();
   for (const work of works) {
@@ -268,7 +266,7 @@ const buildEmployeesSummary = async ({
   if (formerIds.length) {
     const formerEmployees = await User.find({ _id: { $in: formerIds } })
       .select(
-        "firstName lastName position finances banned timezone workSchedule followProductionCalendar",
+        "firstName lastName position finances banned timezone workSchedule workSchedules followProductionCalendar",
       )
       .lean();
     for (const employee of formerEmployees) {
@@ -328,7 +326,6 @@ const buildEmployeesSummary = async ({
     const period = planner.periodPlan(fromKey, toKey);
     const summary = summarizeEmployeeWorks({
       works: employeeWorks,
-      plansByCompany,
       categoriesById,
       overtimeSettings,
       planner,
@@ -369,7 +366,7 @@ const buildEmployeesSummary = async ({
         period.normMinutes > 0
           ? Math.round((summary.totalMinutes / period.normMinutes) * 100)
           : null,
-      timezone: planner.tz,
+      timezone: planner.personalTz,
       scheduleSource: planner.scheduleSource,
       hasPersonalSchedule: planner.hasPersonalSchedule,
       ticketsFinished,

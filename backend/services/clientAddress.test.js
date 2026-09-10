@@ -11,7 +11,7 @@ const {
 
 const company = {
   _id: "c1",
-  alias: "Ромашка",
+  alias: "F1",
   address: "Москва, ул. Тверская, 12, стр. 2",
   linkToMap: "https://yandex.ru/maps/?pt=37.6,55.7",
 };
@@ -155,7 +155,7 @@ test("resolve: no address up the chain → company address", () => {
     subdivisionById: subdivisionIndex([orphan]),
   });
   assert.equal(result.source, "company");
-  assert.equal(result.sourceName, "Ромашка");
+  assert.equal(result.sourceName, "F1");
   assert.equal(result.address, company.address);
   assert.equal(result.key, "москва ул тверская 12 стр 2");
 });

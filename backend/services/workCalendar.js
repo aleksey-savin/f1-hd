@@ -1,3 +1,9 @@
+const dayjs = require("dayjs");
+const utcPlugin = require("dayjs/plugin/utc");
+const timezonePlugin = require("dayjs/plugin/timezone");
+dayjs.extend(utcPlugin);
+dayjs.extend(timezonePlugin);
+
 const Absence = require("@/models/absence");
 const { resolveTimezone } = require("@/utils/datetime");
 const { reducesNorm } = require("@/utils/absenceTypes");
@@ -18,46 +24,33 @@ const { DEFAULT_OVERTIME_SETTINGS } = require("@/utils/overtimeDefaults");
  * производственным календарём (8 ч при окне 09:00–18:00).
  */
 
-// Monday-first, как ключи workScheduleSchema и daysOfWeek на фронте
-const DAYS_OF_WEEK = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
-
 // Ключи дат живут отдельным модулем: их делит срез «давно без движения»
 // (services/ticketActivity), которому весь workCalendar с mongoose и логгером
 // не нужен. Экспорт отсюда сохранён — на него завязаны отчёты.
 const { toDateKey, keyToUtc, eachDayKey } = require("@/services/dateKeys");
 
-/** Имя дня недели по ключу даты (Monday-first). */
-const dayNameOfKey = (dateKey) => {
-  const dow = keyToUtc(dateKey).getUTCDay();
-  return DAYS_OF_WEEK[(dow + 6) % 7];
-};
-
-
-/** "HH:mm" → минуты от полуночи; null для пустых/битых значений. */
-const parseTimeOfDay = (value) => {
-  if (typeof value !== "string" || !value.includes(":")) {
-    return null;
-  }
-  const [hours, minutes] = value.split(":").map(Number);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-    return null;
-  }
-  return hours * 60 + minutes;
-};
+// Разбор окна дня — тоже отдельным листовым модулем: ту же пару {start, end}
+// читают биллинг и статический планировщик переработок, и раньше у каждого
+// была своя копия (см. services/workWindow). Экспорт сохранён — на эти имена
+// завязаны отчёты и валидации.
+const {
+  DAYS_OF_WEEK,
+  MINUTES_PER_DAY,
+  dayNameOfKey,
+  parseTimeOfDay,
+  windowMinutes,
+} = require("@/services/workWindow");
 
 /**
- * Часовой пояс сотрудника: личный → организации → дефолт приложения.
- * Именно от него считаются границы его суток в расчёте переработок.
+ * Личный пояс человека: где он находится. НА РАСЧЁТ НЕ ВЛИЯЕТ.
+ *
+ * До 2026-09 от него считались границы суток в переработках, и это делало
+ * настройку «показывать даты в моём поясе» опасной: поставив себе удобный
+ * пояс, сотрудник молча сдвигал бы себе доплаты. Теперь любой график —
+ * и личный, и обслуживания — задаётся в поясе ОРГАНИЗАЦИИ, а личный пояс
+ * остаётся показом («который час у него» в табеле, формат дат в интерфейсе).
  */
-const resolveUserTimezone = (user, preferences) =>
+const resolvePersonalTimezone = (user, preferences) =>
   user?.timezone || resolveTimezone(preferences);
 
 /**
@@ -136,6 +129,7 @@ const emptyDayPlan = (dateKey, kind, extra = {}) => ({
   kind,
   start: null,
   end: null,
+  crossesMidnight: false,
   minutes: 0,
   is24hours: false,
   holidayTitle: null,
@@ -192,7 +186,9 @@ const buildScheduleContext = async ({ fromKey, toKey, userIds, preferences }) =>
  * (иначе шестидневка ломалась бы).
  */
 const makePlanner = (user, ctx, overtimeSettings) => {
-  const tz = resolveUserTimezone(user, ctx.preferences);
+  // Единственный пояс расчёта — организации: в нём заданы все графики
+  const tz = resolveTimezone(ctx.preferences);
+  const personalTz = resolvePersonalTimezone(user, ctx.preferences);
   const mode = user?.workTimeMode || "scheduled";
   // Плановые дни есть только у тех, чьё время ведётся по графику. У «свободных»
   // и исключённых из календаря плана нет — только фактический статус.
@@ -200,7 +196,10 @@ const makePlanner = (user, ctx, overtimeSettings) => {
 
   // Версия графика выбирается на каждый день: она могла смениться внутри периода
   const versionFor = (dateKey) => resolveUserSchedule(user, overtimeSettings, dateKey);
-  const today = versionFor(toDateKey(new Date()));
+  // «Сегодня» — в поясе организации, а не по UTC: восточнее UTC до смены суток
+  // выбиралась бы вчерашняя версия графика (docs/datetime-conventions.md
+  // запрещает toISOString().slice для «сегодня»).
+  const today = versionFor(dayjs().tz(tz).format("YYYY-MM-DD"));
   const source = today.source;
   const followsCalendar = today.followProductionCalendar && ctx.calendar.isActive;
   const absences = ctx.absencesByUser.get(String(user?._id)) || [];
@@ -258,35 +257,40 @@ const makePlanner = (user, ctx, overtimeSettings) => {
         date: dateKey,
         kind: "work",
         start: 0,
-        end: 24 * 60,
-        minutes: 24 * 60,
+        end: MINUTES_PER_DAY,
+        // Сутки ПРИМЫКАЮТ к полуночи, но не переходят её
+        crossesMidnight: false,
+        minutes: MINUTES_PER_DAY,
         is24hours: true,
         holidayTitle: null,
         absence: absence || null,
       };
     }
 
-    const start = parseTimeOfDay(effective.start);
-    let end = parseTimeOfDay(effective.end);
-    if (start === null || end === null || end <= start) {
-      // Битые времена рабочего дня: норма 0, но день остаётся рабочим — иначе
-      // вся работа за него ушла бы в переработку (легаси вело себя так же)
+    const window = windowMinutes(effective.start, effective.end);
+    if (!window) {
+      // Битое или нулевое время рабочего дня: норма 0, но день остаётся
+      // рабочим — иначе вся работа за него ушла бы в переработку (легаси вело
+      // себя так же, и на этом стоит живой тариф со всеми днями 00:00–00:00)
       return emptyDayPlan(dateKey, "work", { absence: absence || null });
     }
 
-    // 2) предпраздничный день короче на час
+    // 2) предпраздничный день короче на час. Считаем в ДЛИНЕ, а не в `end`:
+    // у окна через полночь end больше start на сутки, и прежний
+    // Math.max(start, end - 60) схлопывал ночную смену в ноль.
     const short = cal.kind === "short";
-    if (short) {
-      end = Math.max(start, end - 60);
-    }
+    const length = short ? Math.max(0, window.length - 60) : window.length;
+    const end = window.start + length;
 
     const breakMinutes = Math.max(0, Number(effective.breakMinutes) || 0);
     return {
       date: dateKey,
       kind: short ? "short" : "work",
-      start,
+      start: window.start,
+      // Смещение от ТОЙ ЖЕ полуночи: у смены через полночь превышает 1440
       end,
-      minutes: Math.max(0, end - start - breakMinutes),
+      crossesMidnight: end > MINUTES_PER_DAY,
+      minutes: Math.max(0, length - breakMinutes),
       is24hours: false,
       holidayTitle: short ? cal.title : null,
       absence: absence || null,
@@ -328,6 +332,9 @@ const makePlanner = (user, ctx, overtimeSettings) => {
 
   return {
     tz,
+    // Пояс человека — только для показа: «местное время» в табеле и подпись
+    // в карточке. Ни одна цифра от него не зависит.
+    personalTz,
     // График «на сегодня» — для карточки и API; расчёт дней берёт свою версию
     schedule: today.schedule,
     scheduleSource: source,
@@ -350,7 +357,7 @@ module.exports = {
   dayNameOfKey,
   eachDayKey,
   parseTimeOfDay,
-  resolveUserTimezone,
+  resolvePersonalTimezone,
   resolveUserSchedule,
   firstWorkingDay,
   buildScheduleContext,

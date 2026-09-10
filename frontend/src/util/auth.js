@@ -18,6 +18,7 @@ export function getLocalStorageData() {
   const darkMode = localStorage.getItem("darkMode");
   const theme = localStorage.getItem("theme");
   const timezone = localStorage.getItem("timezone");
+  const personalTimezone = localStorage.getItem("personalTimezone");
 
   if (!token || !expiryDate) {
     return { token: null };
@@ -36,6 +37,7 @@ export function getLocalStorageData() {
     darkMode: darkMode === "true",
     theme: theme,
     timezone: timezone,
+    personalTimezone: personalTimezone,
   };
 }
 

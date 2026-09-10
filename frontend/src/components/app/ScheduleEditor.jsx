@@ -16,6 +16,29 @@ export const SCHEDULE_DAYS = [
   ["Воскресенье", "Sunday", "Вс"],
 ];
 
+const MINUTES_PER_DAY = 24 * 60;
+
+/**
+ * Подпись под днём, у которого конец раньше начала: такая смена уходит за
+ * полночь. Оператор должен увидеть трактовку до сохранения, а не в счёте.
+ */
+const nightHint = (day) => {
+  if (!day?.isWorking || day.is24hours || !day.start || !day.end) return null;
+  const [sh, sm] = day.start.split(":").map(Number);
+  const [eh, em] = day.end.split(":").map(Number);
+  if ([sh, sm, eh, em].some(Number.isNaN)) return null;
+
+  const start = sh * 60 + sm;
+  const end = eh * 60 + em;
+  if (end > start) return null;
+  if (end === start) return "нулевое окно — для суток включите «24 часа»";
+
+  const length = end + MINUTES_PER_DAY - start;
+  const hours = Math.floor(length / 60);
+  const rest = length % 60;
+  return `смена переходит на следующий день (${hours} ч${rest ? ` ${rest} мин` : ""})`;
+};
+
 export const emptyDay = () => ({
   isWorking: false,
   is24hours: false,
@@ -89,6 +112,12 @@ const ScheduleEditor = ({ schedule, onChange }) => {
                 </>
               )}
             </div>
+
+            {nightHint(day) && (
+              <span className="basis-full text-xs text-warning sm:basis-auto sm:ps-2">
+                {nightHint(day)}
+              </span>
+            )}
 
             {day.isWorking && (
               <label className="flex flex-none cursor-pointer items-center gap-2 text-sm text-muted-foreground">

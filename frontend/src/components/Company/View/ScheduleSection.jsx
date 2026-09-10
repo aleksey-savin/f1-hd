@@ -42,9 +42,12 @@ const getToday = (schedule, zone) => {
   if (day.is24hours) return { key, progress: (nowMinutes / (24 * 60)) * 100 };
 
   const start = toMinutes(day.start);
-  const end = toMinutes(day.end);
-  if (start === null || end === null || end <= start)
+  const rawEnd = toMinutes(day.end);
+  if (start === null || rawEnd === null || rawEnd === start)
     return { key, progress: null };
+  // Смена через полночь кончается в следующих сутках — иначе прогресс не
+  // считался вовсе и полоса у ночного графика была пустой
+  const end = rawEnd > start ? rawEnd : rawEnd + 24 * 60;
   const progress = ((nowMinutes - start) / (end - start)) * 100;
   return { key, progress: Math.min(100, Math.max(0, progress)) };
 };

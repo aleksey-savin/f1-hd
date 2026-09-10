@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils";
 // Якоря секций делают Eyebrow/SettingsSection/PillPanel через проп id
 // (у них же scroll-mt под fixed-навбар); в форме якорь вешает сама секция.
 //
+// Пункт секции с `dirty: true` получает точку «не сохранено» — тот же маркер,
+// что у метки секции (страницы настроек, app/draft-context).
+//
 // Скроллить может либо окно (обычная страница), либо внутренность шторки —
 // её элемент приходит из OverlayScrollContext (см. app/FormSheet).
 
@@ -115,13 +118,22 @@ const AnchorRail = ({
           onClick={(event) => go(event, section.id)}
           aria-current={active === section.id ? "true" : undefined}
           className={cn(
-            "rounded-lg px-3 py-1.5 text-base font-medium no-underline transition-colors",
+            "flex items-center gap-2 rounded-lg px-3 py-1.5 text-base font-medium no-underline transition-colors",
             active === section.id
               ? "bg-primary/15 text-accent-text hover:text-accent-text"
               : "text-muted-foreground hover:bg-accent hover:text-foreground",
           )}
         >
           {section.label}
+          {section.dirty && (
+            <>
+              <span
+                aria-hidden="true"
+                className="ms-auto size-1.5 flex-none rounded-full bg-warning"
+              />
+              <span className="sr-only">не сохранено</span>
+            </>
+          )}
         </a>
       ))}
     </nav>

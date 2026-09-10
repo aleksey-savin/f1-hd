@@ -53,6 +53,10 @@ const PrefsOvertime = ({ prefs }) => {
           defaultTariffingPeriodMinutes: Number(tariffingPeriod) || 15,
           weekdayCoefficient: Number(weekdayCoefficient) || 1,
           weekendCoefficient: Number(weekendCoefficient) || 1,
+          // Коэффициент праздника живёт в «Производственном календаре», но
+          // группу бэкенд заменяет целиком — без него сохранение «Финансов»
+          // сбрасывало бы чужую настройку.
+          holidayCoefficient: prefs.overtime?.holidayCoefficient ?? null,
         },
       })}
     >

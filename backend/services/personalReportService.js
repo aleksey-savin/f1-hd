@@ -110,7 +110,7 @@ const buildPersonalReport = async ({
   const planner = makePlanner(user, scheduleContext, overtimeSettings);
 
   // Тарифы компаний и флаги alwaysWithinPlan категорий — общим контекстом
-  const { plansByCompany, categoriesById } = await buildOvertimeContext(works);
+  const { categoriesById } = await buildOvertimeContext(works);
 
   // Каркас byDay — по записи на каждый день периода (непрерывная ось)
   const byDayMap = new Map();
@@ -182,7 +182,6 @@ const buildPersonalReport = async ({
     const excludedFromOvertime = isExcludedFromOvertime(work, categoriesById);
     const resolved = overtimeForWork(work, {
       planner,
-      plansByCompany,
       overtimeSettings,
       orgTz: tz,
     });
