@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import Combobox from "@/components/app/Combobox";
-import { formatDayMonthTime } from "../../util/format-date";
+import { formatAgo } from "../../util/format-date";
 import useToastStore from "../../store/toast-store";
 
 import SectionForm from "./SectionForm";
@@ -99,22 +99,24 @@ const ProductionCalendar = ({ prefs }) => {
   const title = syncing
     ? "Обновляем…"
     : health?.lastError
-      ? "Не загрузился"
+      ? "Календарь не загрузился"
       : currentYear
-        ? "Работает"
-        : "Ещё не загружен";
+        ? "Календарь загружен"
+        : "Календарь ещё не загружен";
 
-  const meta = health?.lastError
+  // «Когда» — ровно один факт, как у остальных строк состояния; источник, годы
+  // и норма живут второй строкой. Раньше все четыре склеивались в meta и
+  // занимали её целиком.
+  const meta =
+    !health?.lastError && health?.lastSyncAt
+      ? `обновлён ${formatAgo(health.lastSyncAt)}`
+      : undefined;
+
+  const detail = health?.lastError
     ? health.lastError
     : currentYear
       ? [
-          `${currentYear.source} · ${health.years.map((year) => year.year).join(" и ")} загружены`,
-          currentYear.statistic?.hours40
-            ? `норма ${thisYear}: ${currentYear.statistic.hours40} ч при ${currentYear.statistic.workdays} рабочих днях`
-            : null,
-          health?.lastSyncAt
-            ? `обновлено ${formatDayMonthTime(health.lastSyncAt)}`
-            : null,
+          `${currentYear.source} · ${health.years.map((year) => year.year).join(" и ")}`
         ]
           .filter(Boolean)
           .join(" · ")
@@ -130,22 +132,6 @@ const ProductionCalendar = ({ prefs }) => {
         },
       })}
     >
-      <HealthRow
-        state={state}
-        title={title}
-        meta={meta}
-        hint={
-          !isActive
-            ? "Учёт выключен — праздники и переносы на расчёт не влияют"
-            : undefined
-        }
-        action={
-          <Button variant="outline" size="sm" onClick={sync} disabled={syncing}>
-            Обновить
-          </Button>
-        }
-      />
-
       <SettingRow
         title="Учитывать производственный календарь"
         hint="Выключен — нерабочими остаются только суббота и воскресенье графика"
@@ -205,6 +191,18 @@ const ProductionCalendar = ({ prefs }) => {
           className="w-24 text-center tabular-nums"
         />
       </SettingRow>
+
+      <HealthRow
+        state={state}
+        title={title}
+        meta={meta}
+        hint={detail}
+        action={
+          <Button variant="outline" size="sm" onClick={sync} disabled={syncing}>
+            Обновить
+          </Button>
+        }
+      />
     </SectionForm>
   );
 };

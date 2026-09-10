@@ -1,8 +1,7 @@
 import { useState } from "react";
 
-import { RiInformationLine } from "react-icons/ri";
-
 import { Switch } from "@/components/ui/switch";
+import HealthRow from "@/components/app/HealthRow";
 import SettingRow from "@/components/app/SettingRow";
 
 import SectionForm from "./SectionForm";
@@ -84,11 +83,12 @@ const PrefsModules = ({ prefs }) => {
           onCheckedChange={(value) => toggle("inventory", value)}
         />
       </SettingRow>
-      <div className="mx-5 my-3 flex items-start gap-2.5 rounded-lg bg-primary/10 px-4 py-3 text-sm text-accent-text">
-        <RiInformationLine size={16} aria-hidden className="mt-0.5 flex-none" />
-        Выключенный модуль скрывает свои разделы у всех пользователей и свои
-        секции на этой странице.
-      </div>
+      {/* Пояснение устройства — той же полосой, что состояние канала:
+          заливная плашка была третьим видом одного и того же сообщения */}
+      <HealthRow
+        state="info"
+        title="Выключенный модуль скрывает свои разделы у всех и свои секции на этой странице"
+      />
     </SectionForm>
   );
 };

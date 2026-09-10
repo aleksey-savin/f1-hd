@@ -3,21 +3,28 @@ import type { ReactNode } from "react";
 import {
   RiCheckLine,
   RiErrorWarningLine,
+  RiInformationLine,
   RiLoader4Line,
   RiRadioButtonLine,
 } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";
 
-// Строка состояния внешнего канала внутри панели настроек: иконка · фраза
-// состояния · приглушённая подсказка · действие справа. Живёт постоянно, а не
-// появляется после нажатия — её наполняют фоновые процессы (крон сбора почты,
-// реальные отправки уведомлений) и кнопка проверки.
+// Полоса примечания в панели настроек: иконка · фраза · приглушённая деталь ·
+// подсказка · действие справа. Два назначения, одна геометрия:
+//
+//  • СОСТОЯНИЕ ВНЕШНЕГО КАНАЛА (ok/error/warning/busy/idle) — живёт постоянно,
+//    а не появляется после нажатия: его наполняют фоновые процессы (крон сбора
+//    почты, реальные отправки уведомлений) и кнопка проверки;
+//  • ПОЯСНЕНИЕ (info) — «выключенный модуль скрывает свои разделы», «канал
+//    отключён администратором». Раньше такие сообщения рисовались тремя
+//    разными способами: заливной плашкой, стопкой жёлтых алертов и подписью
+//    внутри строки состояния.
 //
 // Канон «Статус, который протухает, — предложение, а не бейдж» (ux-ui-guide):
-// цветом красим только иконку и само состояние, дату и детали — muted.
+// цветом красим только иконку и саму фразу, дату и детали — muted.
 
-type HealthState = "ok" | "error" | "warning" | "busy" | "idle";
+type HealthState = "ok" | "error" | "warning" | "busy" | "idle" | "info";
 
 const TONE: Record<HealthState, string> = {
   ok: "text-accent-text",
@@ -25,6 +32,7 @@ const TONE: Record<HealthState, string> = {
   warning: "text-warning",
   busy: "text-muted-foreground",
   idle: "text-faint",
+  info: "text-muted-foreground",
 };
 
 const ICON: Record<HealthState, typeof RiCheckLine> = {
@@ -33,12 +41,18 @@ const ICON: Record<HealthState, typeof RiCheckLine> = {
   warning: RiErrorWarningLine,
   busy: RiLoader4Line,
   idle: RiRadioButtonLine,
+  info: RiInformationLine,
 };
 
 const HealthRow = ({
   state = "idle",
   title,
-  /** Дата/детали справа от состояния — тем же предложением, но приглушённо. */
+  /**
+   * Один факт «когда» справа от фразы — тем же предложением, но приглушённо.
+   * Разделитель ставит сама строка: вызывающий отдаёт чистый текст, иначе он
+   * расходится от места к месту (так и было — у календаря его не было вовсе).
+   * Всё, что не про «когда», уходит в hint.
+   */
   meta,
   hint,
   action,
@@ -73,7 +87,7 @@ const HealthRow = ({
       <div className="min-w-0">
         <div className="text-sm">
           <span className={cn("font-semibold", TONE[state])}>{title}</span>
-          {meta && <span className="text-muted-foreground">{meta}</span>}
+          {meta && <span className="text-muted-foreground"> · {meta}</span>}
         </div>
         {hint && (
           <div className="mt-0.5 text-sm text-muted-foreground">{hint}</div>

@@ -76,23 +76,13 @@ const PrefsTickets = ({ prefs }) => {
         />
       </SettingRow>
 
-      <SettingRow
-        divider
-        title="Шаблоны чек-листов"
-        hint="Готовые списки с привязкой к категориям заявок и компаниям."
-      >
-        <Button asChild variant="outline" size="sm">
-          <Link to="/tickets/checklist-templates">Открыть справочник</Link>
-        </Button>
-      </SettingRow>
-
       <div className="border-t border-border-soft px-5 pt-4">
         <SubLabel>Давно без движения</SubLabel>
       </div>
 
       <SettingRow
         title="Заявка без движения дольше"
-        hint="Движение — событие в хронике: комментарий, работа, смена статуса или ответственного. Отправка уведомлений не в счёт."
+        hint="Комментарии, работы, смена статуса или ответственного."
         htmlFor="prefs-stale-days"
       >
         <div className="flex items-center gap-2">

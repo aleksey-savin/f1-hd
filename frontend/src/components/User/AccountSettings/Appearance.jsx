@@ -132,7 +132,7 @@ const Appearance = ({ user }) => {
 
   return (
     <>
-      <SettingRow title="Тема" hint="Применяется сразу на этом устройстве.">
+      <SettingRow title="Тема" >
         <ThemeSegment
           theme={theme}
           onChange={changeTheme}
@@ -156,7 +156,6 @@ const Appearance = ({ user }) => {
       <SettingRow
         divider
         title="Часовой пояс"
-        hint={`Даты и время показываются в нём. Пусто — как в организации (${tzCity(orgTimezone())}). На расчёты и суммы в отчётах не влияет.`}
         htmlFor="account-timezone"
       >
         <div className="w-72 max-md:w-full">

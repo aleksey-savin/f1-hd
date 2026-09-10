@@ -21,7 +21,8 @@ import { describeChannelHealth, describeCheckResult } from "./channel-health";
 // контроллеры машинных каналов), и без него бэкенд не примет включённый сбор.
 //
 // Транспорт (порт, шифрование, папка, сертификат) — общий компонент
-// MailChannelFields, состояние канала — строка HealthRow: её пишет крон сбора,
+// MailChannelFields, состояние канала — строка HealthRow в КОНЦЕ блока: она
+// подводит итог его настройкам, а не предваряет их. Её пишет крон сбора,
 // поэтому она честна и без нажатия «Проверить».
 const PrefsTicketsCollect = ({ prefs }) => {
   const [mailbox, setMailbox] = useState(() => ({
@@ -150,25 +151,6 @@ const PrefsTicketsCollect = ({ prefs }) => {
         />
       </SettingRow>
 
-      {on && (
-        <HealthRow
-          {...health}
-          action={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={checking}
-              onClick={runCheck}
-            >
-              <RiRefreshLine
-                className={checking ? "animate-spin" : undefined}
-              />
-              Проверить
-            </Button>
-          }
-        />
-      )}
-
       <div className="px-5 pt-4">
         <SubLabel>Почтовый ящик</SubLabel>
       </div>
@@ -217,7 +199,7 @@ const PrefsTicketsCollect = ({ prefs }) => {
       <SettingRow
         divider
         title="Инициатор по умолчанию"
-        hint="Ставится машинным заявкам, когда отправитель не распознан; его компания становится компанией таких заявок."
+        hint="Если не распознан отправитель."
         htmlFor="prefs-default-applicant"
       >
         <div className="w-72 max-md:w-full">
@@ -238,6 +220,25 @@ const PrefsTicketsCollect = ({ prefs }) => {
           />
         </div>
       </SettingRow>
+
+      {on && (
+        <HealthRow
+          {...health}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={checking}
+              onClick={runCheck}
+            >
+              <RiRefreshLine
+                className={checking ? "animate-spin" : undefined}
+              />
+              Проверить
+            </Button>
+          }
+        />
+      )}
 
       <div className="px-5 pt-4">
         <SubLabel>Распознавание отправителя</SubLabel>

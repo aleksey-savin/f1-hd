@@ -183,24 +183,6 @@ const PrefsNotifications = ({ prefs }) => {
           onCheckedChange={(value) => patch("byEmail", "isActive", value)}
         />
       </SettingRow>
-      {emailOn && (
-        <HealthRow
-          {...emailHealth}
-          action={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={sending}
-              onClick={sendTestEmail}
-            >
-              <RiMailSendLine
-                className={sending ? "animate-pulse" : undefined}
-              />
-              Отправить тестовое письмо
-            </Button>
-          }
-        />
-      )}
       <MailChannelFields
         kind="smtp"
         idPrefix="prefs-smtp"
@@ -241,6 +223,25 @@ const PrefsNotifications = ({ prefs }) => {
           />
         </div>
       </SettingRow>
+
+      {emailOn && (
+        <HealthRow
+          {...emailHealth}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={sending}
+              onClick={sendTestEmail}
+            >
+              <RiMailSendLine
+                className={sending ? "animate-pulse" : undefined}
+              />
+              Отправить тестовое письмо
+            </Button>
+          }
+        />
+      )}
 
       <div className="px-5 pt-4">
         <SubLabel>Канал: Telegram</SubLabel>

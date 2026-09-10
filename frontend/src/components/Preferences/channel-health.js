@@ -18,7 +18,7 @@ export const describeChannelHealth = (health, { kind, hint }) => {
     return {
       state: "error",
       title: health.lastError,
-      meta: errorAt ? ` · ${formatAgo(health.lastErrorAt)}` : "",
+      meta: errorAt ? formatAgo(health.lastErrorAt) : "",
       hint: health.lastErrorHint || hint,
     };
   }
@@ -36,13 +36,13 @@ export const describeChannelHealth = (health, { kind, hint }) => {
       ? {
           state: "ok",
           title: "Письма уходят",
-          meta: ` · последнее ${formatAgo(health.lastMessageAt)}`,
+          meta: `последнее ${formatAgo(health.lastMessageAt)}`,
           hint,
         }
       : {
           state: "ok",
           title: "Связь с сервером есть",
-          meta: ` · проверено ${formatAgo(health.lastOkAt)}`,
+          meta: `проверено ${formatAgo(health.lastOkAt)}`,
           hint,
         };
   }
@@ -61,13 +61,13 @@ export const describeChannelHealth = (health, { kind, hint }) => {
       ? {
           state: "ok",
           title: worked,
-          meta: ` · последний раз ${formatAgo(health.lastMessageAt)}`,
+          meta: `последний раз ${formatAgo(health.lastMessageAt)}`,
           hint,
         }
       : {
           state: "ok",
           title: linked,
-          meta: ` · проверено ${formatAgo(health.lastOkAt)}`,
+          meta: `проверено ${formatAgo(health.lastOkAt)}`,
           hint,
         };
   }
@@ -75,7 +75,7 @@ export const describeChannelHealth = (health, { kind, hint }) => {
   return {
     state: "ok",
     title: "Ящик доступен",
-    meta: ` · проверено ${formatAgo(health.lastOkAt)}`,
+    meta: `проверено ${formatAgo(health.lastOkAt)}`,
     hint: health.lastMessageAt
       ? `Последнее письмо — ${formatAgo(health.lastMessageAt)}`
       : "Писем пока не приходило",
@@ -87,6 +87,6 @@ export const describeChannelHealth = (health, { kind, hint }) => {
 export const describeCheckResult = (result, { hint }) => ({
   state: result.ok ? "ok" : "error",
   title: result.state,
-  meta: " · только что",
+  meta: "только что",
   hint: result.hint || hint,
 });

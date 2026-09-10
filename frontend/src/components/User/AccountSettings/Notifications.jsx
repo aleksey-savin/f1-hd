@@ -3,7 +3,7 @@ import { useState } from "react";
 import { RiMailLine, RiTelegramLine } from "react-icons/ri";
 
 import { Checkbox } from "@/components/ui/checkbox";
-import AlertMessage from "@/components/app/AlertMessage";
+import HealthRow from "@/components/app/HealthRow";
 import { useDraftSection } from "@/components/app/draft-context";
 import { cn } from "@/lib/utils";
 
@@ -101,52 +101,60 @@ const Notifications = ({ user, initialPrefs }) => {
 
   const toggle = (key) => setValues((prev) => ({ ...prev, [key]: !prev[key] }));
 
+  // Каналы, выключенные глобально, перечисляем одной фразой: три отдельных
+  // предупреждения подряд превращали шапку секции в стену.
+  const telegramDisabled = !initialPrefs.telegramNotifications;
+  const offChannels =
+    emailDisabled && telegramDisabled
+      ? "Почта и Telegram отключены администратором"
+      : emailDisabled
+        ? "Почта отключена администратором"
+        : telegramDisabled
+          ? "Telegram отключён администратором"
+          : null;
+
   if (visibleCategories.length === 0) {
     return (
-      <AlertMessage
-        variant="warning"
-        message="Уведомления отключены в глобальных настройках приложения. Для их активации обратитесь к администратору."
-        className="m-5"
+      <HealthRow
+        state="warning"
+        title="Уведомления отключены администратором"
+        hint="Ни один канал не работает — настраивать нечего"
+        className="border-t-0"
       />
     );
   }
 
   return (
     <>
-      <div className="px-5 pt-4">
-        {!initialPrefs.telegramNotifications && (
-          <AlertMessage
-            variant="warning"
-            message="Telegram-уведомления отключены в глобальных настройках приложения. Для их активации обратитесь к администратору."
-            className="my-0 mb-3"
-          />
-        )}
-        {initialPrefs.telegramNotifications && !user.telegramBot?.isActive && (
-          <AlertMessage
-            variant="warning"
-            message={
-              <>
-                Для отправки Telegram-уведомлений подключите бота в разделе{" "}
-                <a
-                  href="#integrations"
-                  className="font-medium text-accent-text underline"
-                >
-                  Интеграции
-                </a>
-                .
-              </>
-            }
-            className="my-0 mb-3"
-          />
-        )}
-        {!initialPrefs.emailNotifications && (
-          <AlertMessage
-            variant="warning"
-            message="Email-уведомления отключены в глобальных настройках приложения. Для их активации обратитесь к администратору."
-            className="my-0 mb-3"
-          />
-        )}
-      </div>
+      {/* Одно сообщение вместо стопки: выключенные каналы называются вместе,
+          а «подключите бота» остаётся отдельной строкой — там есть что сделать */}
+      {offChannels && (
+        <HealthRow
+          state="warning"
+          title={offChannels}
+          hint="Галочки ниже сохранятся, но сообщения приходить не будут"
+          className="border-t-0"
+        />
+      )}
+      {initialPrefs.telegramNotifications && !user.telegramBot?.isActive && (
+        <HealthRow
+          state="info"
+          title="Бот Telegram не подключён"
+          hint={
+            <>
+              Подключите его в разделе{" "}
+              <a
+                href="#integrations"
+                className="font-medium text-accent-text underline"
+              >
+                Интеграции
+              </a>
+              , иначе Telegram-уведомления приходить не будут.
+            </>
+          }
+          className="border-t-0"
+        />
+      )}
 
       <div className="flex items-center px-5 pt-1 pb-2.5">
         <span className="flex-1" />

@@ -17,7 +17,6 @@ const tz = () => {
   return data.personalTimezone || data.timezone || DEFAULT_TIMEZONE;
 };
 
-
 // Пустое значение — не дата: `new Date(null)` даёт эпоху, и в карточку попадает
 // «01.01.1970», а `new Date(undefined)` — «Invalid Date». Поэтому все хелперы
 // отображения возвращают null, а вызывающий сам решает, что показать вместо
@@ -49,6 +48,21 @@ export const formatShortDate = (date) =>
         year: "numeric",
         month: "numeric",
         day: "numeric",
+      });
+
+// «08.07.2026, 14:30» — компактная дата со временем, без дня недели. Для
+// «протухающих» статусов: там важно «когда именно», а день недели съедает
+// половину строки и ничего не добавляет.
+export const formatShortDateTime = (date) =>
+  isEmpty(date)
+    ? null
+    : new Date(date).toLocaleString("ru", {
+        timeZone: tz(),
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
       });
 
 // «8 июля в 14:30» — компактный вариант без года («в» подставляет CLDR).
@@ -150,7 +164,9 @@ export const formatAgo = (value) => {
   if (diff < 24 * 60 * 60 * 1000) {
     return `${Math.floor(diff / 3600000)} ч назад`;
   }
-  return formatDate(value);
+  // Дальше суток относительный отсчёт перестаёт помогать. Дата со временем, но
+  // без дня недели: «пн, 08.07.2026, 14:30» занимает полстроки состояния.
+  return formatShortDateTime(value);
 };
 
 /**
