@@ -29,6 +29,12 @@ export type Section = {
   backLabel?: string;
   /** В адресе номер, а не идентификатор: 404 называет его («Не нашли заявку №51713»). */
   numeric?: boolean;
+  /**
+   * Ключ раздела, который отвечает за этот у клиента. У клиента нет списка
+   * заявок — его заявки живут блоком на главной, — и возвращать его надо туда,
+   * а не на адрес, которого нет в его меню.
+   */
+  endUserSection?: string;
 };
 
 export const SECTIONS: Section[] = [
@@ -42,6 +48,7 @@ export const SECTIONS: Section[] = [
     pronoun: "её",
     backLabel: "К заявкам",
     numeric: true,
+    endUserSection: "dashboard",
   },
   { key: "archive", listTo: "/archive", label: "Архив" },
 
@@ -245,6 +252,21 @@ const byKey = new Map(SECTIONS.map((section) => [section.key, section]));
 /** Раздел по ключу — для карточек, которые называют запаску сами. */
 export const sectionByKey = (key: string | undefined): Section | undefined =>
   key ? byKey.get(key) : undefined;
+
+/**
+ * Раздел глазами конкретного человека: у клиента вместо «Заявок» — «Главная».
+ * Так спрашивают крошка карточки и кнопка возврата на 404 — иначе они вели бы
+ * клиента в список, которого у него нет (прямой адрес его оттуда всё равно
+ * перебросит на главную, но обещать ссылкой один раздел и открывать другой —
+ * хуже, чем сразу назвать верный).
+ */
+export const sectionAs = (
+  section: Section | undefined,
+  isEndUser: boolean | undefined,
+): Section | undefined =>
+  section && isEndUser && section.endUserSection
+    ? byKey.get(section.endUserSection)
+    : section;
 
 /**
  * Раздел, которому принадлежит адрес.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { businessDaysAgo } from "../../util/format-date";
 
@@ -34,6 +35,7 @@ const expiryText = (expiresAt) => {
 };
 
 const ServiceExpiry = ({ showCompany = false }) => {
+  const fromState = useCrumbFrom("Главная");
   const [services, setServices] = useState([]);
 
   useEffect(() => {
@@ -65,6 +67,7 @@ const ServiceExpiry = ({ showCompany = false }) => {
               <Link
                 key={`${service.noteId}-${service.service}`}
                 to={`/knowledge-base/${service.noteId}`}
+                state={fromState}
                 className="flex items-center gap-3 border-b border-border-soft px-5 py-2.5 text-foreground no-underline transition-colors last:border-b-0 hover:bg-accent/60 hover:text-foreground"
               >
                 <span className="min-w-0 flex-1">

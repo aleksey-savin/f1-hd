@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { RiAddFill, RiFilter3Line } from "react-icons/ri";
+import { RiAddFill, RiFilter3Line, RiListCheck2 } from "react-icons/ri";
 
 import AlertMessage from "@/components/app/AlertMessage";
 import MonthStepper from "@/components/app/MonthStepper";
 import { Eyebrow } from "@/components/app/Panel";
 import Segmented from "@/components/app/Segmented";
 import AbsenceForm from "@/components/Team/AbsenceForm";
+import MyAbsencesSheet from "@/components/Team/MyAbsencesSheet";
+import MyPendingRow from "@/components/Team/MyPendingRow";
+import { useAuthedUser } from "@/store/authed-user";
 import DayPopover from "@/components/Team/DayPopover";
 import Legend from "@/components/Team/Legend";
 import MonthCalendar from "@/components/Team/MonthCalendar";
 import PendingAlert from "@/components/Team/PendingAlert";
 import PlanningGrid from "@/components/Team/PlanningGrid";
 import ScheduleFilter from "@/components/Team/ScheduleFilter";
-import TodayView from "@/components/Team/TodayView";
 import { isThin } from "@/components/Team/calendar";
 import FilterSheet from "@/components/Report/FilterSheet";
 import PageShell from "@/components/app/PageShell";
@@ -26,7 +28,6 @@ const API = import.meta.env.VITE_API_ADDRESS;
 
 const VIEWS = [
   { value: "month", label: "Месяц" },
-  { value: "today", label: "Сегодня" },
   { value: "planning", label: "Планирование" },
 ];
 
@@ -43,7 +44,9 @@ const TeamCalendar = () => {
   const store = useTeamScheduleStore();
   const filterOffcanvas = useMobileFilterOffcanvasStore();
   const data = store.data;
+  const me = useAuthedUser();
   const [absenceOpen, setAbsenceOpen] = useState(false);
+  const [myAbsencesOpen, setMyAbsencesOpen] = useState(false);
   const [dayKey, setDayKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -99,6 +102,31 @@ const TeamCalendar = () => {
 
   const filterActive = Boolean(store.search || store.company);
 
+  // Своя заявка — отдельной строкой перед чужими: в общей куче «ждут решения»
+  // её было не отличить, а отзывать имеет смысл ровно пока она висит
+  const myPending = (data?.pending ?? []).filter(
+    (item) => item.user._id === me._id,
+  );
+  const othersPending = (data?.pending ?? []).filter(
+    (item) => item.user._id !== me._id,
+  );
+
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const cancelOwn = async (id: string) => {
+    setCancelling(id);
+    try {
+      const response = await fetch(`${API}/api/team/absences/${id}/cancel`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error(String(response.status));
+      store.fetch();
+    } catch (error) {
+      console.warn("Заявка не отозвалась", error);
+    } finally {
+      setCancelling(null);
+    }
+  };
+
   const dips = useMemo(() => {
     if (!data) return [];
     const total = data.employees.length;
@@ -115,14 +143,12 @@ const TeamCalendar = () => {
         value={store.view}
         onChange={(value) => store.setView(value as ScheduleView)}
       />
-      {store.view !== "today" && (
-        <MonthStepper
-          from={store.from}
-          to={store.to}
-          onChange={(range) => store.setPeriod(range)}
-          allowFuture
-        />
-      )}
+      <MonthStepper
+        from={store.from}
+        to={store.to}
+        onChange={(range) => store.setPeriod(range)}
+        allowFuture
+      />
       <Button
         variant={filterActive ? "success" : "outline"}
         size="icon"
@@ -135,12 +161,20 @@ const TeamCalendar = () => {
     </>
   );
 
-  // Главное действие страницы — в углу шапки на любой ширине, не в тулбаре
+  // Главное действие страницы — в углу шапки на любой ширине, не в тулбаре.
+  // Рядом — свои записи: заявку заводят здесь же, и её судьба должна быть под
+  // рукой, а не в личных настройках.
   const absenceAction = (
-    <Button onClick={() => setAbsenceOpen(true)}>
-      <RiAddFill />
-      <span className="max-sm:hidden">Отсутствие</span>
-    </Button>
+    <div className="flex items-center gap-2">
+      <Button variant="outline" onClick={() => setMyAbsencesOpen(true)}>
+        <RiListCheck2 />
+        <span className="max-sm:hidden">Мои отсутствия</span>
+      </Button>
+      <Button onClick={() => setAbsenceOpen(true)}>
+        <RiAddFill />
+        <span className="max-sm:hidden">Отсутствие</span>
+      </Button>
+    </div>
   );
 
   let body;
@@ -186,7 +220,7 @@ const TeamCalendar = () => {
           />
         )}
 
-        {dips.length > 0 && store.view !== "today" && (
+        {dips.length > 0 && (
           <div className="mb-4 flex flex-wrap items-center gap-x-3.5 gap-y-2 rounded-xl border border-warning/45 bg-warning/10 px-4 py-3 text-sm">
             <span className="text-warning">⚠</span>
             <span className="min-w-0 flex-1">
@@ -221,10 +255,23 @@ const TeamCalendar = () => {
           </div>
         )}
 
-        {data.pending.length > 0 && (
+        {myPending.length > 0 && (
+          <div className="mb-2.5 space-y-2.5">
+            {myPending.map((item) => (
+              <MyPendingRow
+                key={item._id}
+                absence={item}
+                busy={cancelling === item._id}
+                onCancel={cancelOwn}
+              />
+            ))}
+          </div>
+        )}
+
+        {othersPending.length > 0 && (
           <div className="mb-5">
             <PendingAlert
-              pending={data.pending}
+              pending={othersPending}
               canManage={data.canManage}
               onDecide={decide}
               impactOf={impactOf}
@@ -243,8 +290,6 @@ const TeamCalendar = () => {
               Сбросить фильтры
             </Button>
           </div>
-        ) : store.view === "today" ? (
-          <TodayView data={data} />
         ) : store.view === "planning" ? (
           <>
             <Eyebrow count={data.employees.length}>
@@ -341,12 +386,22 @@ const TeamCalendar = () => {
           }}
         />
       )}
+      {/* defaultUserId обязателен: без права на чужие графики выбора сотрудника
+          в форме нет, и заявка была бы ни о ком — кнопка «Отсутствие» у
+          обычного сотрудника открывала пустую форму */}
       <AbsenceForm
         open={absenceOpen}
         onOpenChange={setAbsenceOpen}
         canManage={Boolean(data?.canManage)}
         employees={data?.employees ?? []}
+        defaultUserId={me._id}
         onSaved={() => store.fetch()}
+      />
+      <MyAbsencesSheet
+        open={myAbsencesOpen}
+        onOpenChange={setMyAbsencesOpen}
+        userId={me._id}
+        onChanged={() => store.fetch()}
       />
     </PageShell>
   );

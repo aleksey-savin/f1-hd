@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 
 import { RiAttachment2, RiSendPlaneLine } from "react-icons/ri";
 
+import { Eyebrow } from "@/components/app/Panel";
 import Segmented from "@/components/app/Segmented";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -212,6 +213,11 @@ const EventEntry = ({ event, ticketNum, divided }) => {
   );
 };
 
+/**
+ * Лента рисует то, что приехало: какие события положены заявителю, решает
+ * бэкенд (`services/ticketEvents` → `feedForClient`). Невидимое в интерфейсе,
+ * но уехавшее в ответ — всё равно выданное, поэтому отбора здесь нет.
+ */
 const Chronicle = ({ ticket, events = [], canComment }) => {
   const { comments, updateComments } = useViewTicketStore();
   const authedUser = useContext(AuthedUserContext);
@@ -298,12 +304,13 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
   let lastDay = null;
 
   return (
-    <div className="flex max-h-[calc(100dvh-160px)] flex-col overflow-hidden rounded-xl border border-border bg-card">
-      <div className="flex items-center gap-2 border-b border-border-soft px-4 py-2.5">
-        <span className="text-xs font-bold tracking-wider text-faint uppercase">
-          Хроника
-        </span>
-        <span className="ms-auto">
+    <>
+      {/* Метка — на канве над панелью и с переключателем в `action`, как у
+          любой секции страницы. Своей титульной полосы внутри панели у хроники
+          больше нет: она была единственным таким заголовком на карточке, а
+          панели при её высоте дорог каждый ряд */}
+      <Eyebrow
+        action={
           <Segmented
             ariaLabel="Что показывать в хронике"
             options={[
@@ -313,87 +320,91 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
             value={mode}
             onChange={setMode}
           />
-        </span>
-      </div>
+        }
+      >
+        Хроника
+      </Eyebrow>
 
-      {canComment && (
-        <form
-          onSubmit={submit}
-          className="border-b border-border-soft px-4 py-3"
-        >
-          <Textarea
-            ref={textarea}
-            rows={2}
-            value={content}
-            placeholder="Написать комментарий…"
-            onChange={(changeEvent) => setContent(changeEvent.target.value)}
-          />
-          <div className="mt-2 flex items-center gap-2">
-            <input
-              ref={fileInput}
-              id="chronicle-files"
-              type="file"
-              multiple
-              className="hidden"
-              onChange={(changeEvent) =>
-                setFiles([...(changeEvent.target.files ?? [])])
-              }
+      <div className="flex max-h-[calc(100dvh-186px)] flex-col overflow-hidden rounded-xl border border-border bg-card">
+        {canComment && (
+          <form
+            onSubmit={submit}
+            className="border-b border-border-soft px-4 py-3"
+          >
+            <Textarea
+              ref={textarea}
+              rows={2}
+              value={content}
+              placeholder="Написать комментарий…"
+              onChange={(changeEvent) => setContent(changeEvent.target.value)}
             />
-            <Button asChild variant="outline" size="xs">
-              <label htmlFor="chronicle-files" className="cursor-pointer">
-                <RiAttachment2 />
-                {files.length > 0 ? `Файлов: ${files.length}` : "Файл"}
-              </label>
-            </Button>
-            <Button
-              type="submit"
-              size="xs"
-              className="ms-auto"
-              disabled={isLoading || !content.trim()}
-            >
-              <RiSendPlaneLine />
-              {isLoading ? "Отправка…" : "Отправить"}
-            </Button>
-          </div>
-        </form>
-      )}
-
-      <div className="flex-1 overflow-y-auto px-4 pb-3">
-        {feed.length === 0 && (
-          <p className="my-6 text-center text-sm text-muted-foreground">
-            {mode === "comments"
-              ? "Переписки пока нет"
-              : "По заявке пока ничего не происходило"}
-          </p>
-        )}
-        {feed.map((item) => {
-          const day = businessDayKey(item.at);
-          const showDay = day !== lastDay;
-          lastDay = day;
-          return (
-            <div key={item.key}>
-              {showDay && (
-                <div className="flex items-center gap-2.5 pt-3 pb-1 text-xs font-bold tracking-wider text-faint uppercase">
-                  {dayLabel(item.at)}
-                  <span className="h-px flex-1 bg-border-soft" />
-                </div>
-              )}
-              {/* Разделитель между записями — только внутри дня: у первой
-                  записи его роль играет линия самой метки дня */}
-              {item.type === "comment" ? (
-                <CommentEntry comment={item.comment} divided={!showDay} />
-              ) : (
-                <EventEntry
-                  event={item.event}
-                  ticketNum={ticket.num}
-                  divided={!showDay}
-                />
-              )}
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                ref={fileInput}
+                id="chronicle-files"
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(changeEvent) =>
+                  setFiles([...(changeEvent.target.files ?? [])])
+                }
+              />
+              <Button asChild variant="outline" size="xs">
+                <label htmlFor="chronicle-files" className="cursor-pointer">
+                  <RiAttachment2 />
+                  {files.length > 0 ? `Файлов: ${files.length}` : "Файл"}
+                </label>
+              </Button>
+              <Button
+                type="submit"
+                size="xs"
+                className="ms-auto"
+                disabled={isLoading || !content.trim()}
+              >
+                <RiSendPlaneLine />
+                {isLoading ? "Отправка…" : "Отправить"}
+              </Button>
             </div>
-          );
-        })}
+          </form>
+        )}
+
+        <div className="flex-1 overflow-y-auto px-4 pb-3">
+          {feed.length === 0 && (
+            <p className="my-6 text-center text-sm text-muted-foreground">
+              {mode === "comments"
+                ? "Переписки пока нет"
+                : "По заявке пока ничего не происходило"}
+            </p>
+          )}
+          {feed.map((item) => {
+            const day = businessDayKey(item.at);
+            const showDay = day !== lastDay;
+            lastDay = day;
+            return (
+              <div key={item.key}>
+                {showDay && (
+                  <div className="flex items-center gap-2.5 pt-3 pb-1 text-xs font-bold tracking-wider text-faint uppercase">
+                    {dayLabel(item.at)}
+                    <span className="h-px flex-1 bg-border-soft" />
+                  </div>
+                )}
+                {/* Разделитель между записями — только внутри дня: у первой
+                  записи его роль играет линия самой метки дня */}
+                {item.type === "comment" ? (
+                  <CommentEntry comment={item.comment} divided={!showDay} />
+                ) : (
+                  <EventEntry
+                    event={item.event}
+                    ticketNum={ticket.num}
+                    divided={!showDay}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

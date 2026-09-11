@@ -60,9 +60,8 @@ const CATEGORIES = [
   },
 ];
 
-const channelHeader = (Icon, full, short) => (
+const channelHeader = (full, short) => (
   <span className="flex w-20 flex-none items-center justify-center gap-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase max-md:w-14">
-    <Icon size={14} aria-hidden />
     <span className="max-md:hidden">{full}</span>
     <span className="md:hidden">{short}</span>
   </span>
@@ -158,8 +157,8 @@ const Notifications = ({ user, initialPrefs }) => {
 
       <div className="flex items-center px-5 pt-1 pb-2.5">
         <span className="flex-1" />
-        {channelHeader(RiTelegramLine, "Telegram", "TG")}
-        {channelHeader(RiMailLine, "E-mail", "Mail")}
+        {channelHeader("Telegram", "TG")}
+        {channelHeader("E-mail", "Mail")}
       </div>
       {visibleCategories.map((category) => (
         <div

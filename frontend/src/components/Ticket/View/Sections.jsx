@@ -28,6 +28,7 @@ import {
   Panel,
   Section,
   SectionEditLink,
+  SubLabel,
 } from "@/components/app/Panel";
 import {
   AlertDialog,
@@ -62,7 +63,6 @@ import TicketTerms, {
 } from "./TicketTerms";
 import useInitialPrefsStore from "../../../store/prefs";
 import { formatDate } from "../../../util/format-date";
-import { msToHMS } from "../../../util/time-helpers";
 import { getCompanyAddresses } from "../../Company/company-links";
 import TaxiButton, { cardTaxiClass } from "../../Company/TaxiButton";
 import WorkStatusText from "../../Company/WorkStatusText";
@@ -266,7 +266,11 @@ const PropRow = ({ icon, label, children, action }) => (
     <span className="min-w-0 flex-1 pt-1 text-sm leading-snug">
       {children || <span className="text-faint">—</span>}
     </span>
-    {action && <span className="flex-none">{action}</span>}
+    {/* Флекс, а не голый span: кнопка такси объявлена `grid` (блочный бокс), и
+        рядом с ней копирование уезжало на строку ниже */}
+    {action && (
+      <span className="flex flex-none items-center gap-0.5">{action}</span>
+    )}
   </div>
 );
 
@@ -289,7 +293,7 @@ const Pill = ({ className, children }) => (
  * везёт именно сюда, остальные адреса — в меню кнопки (`Company/TaxiButton`).
  * Источник адреса подписан, только когда есть из чего выбирать.
  */
-const ClientAddressRow = ({ ticket, company }) => {
+const ClientAddressRow = ({ ticket, company, isEndUser }) => {
   const resolved = ticket.clientAddress;
   const address = resolved?.address || null;
   const severalAddresses = getCompanyAddresses(company).length > 1;
@@ -301,14 +305,17 @@ const ClientAddressRow = ({ ticket, company }) => {
       : resolved?.source === "company"
         ? "основной адрес"
         : null;
-  const showTaxi = Boolean(ticket.company?._id);
+  // Заявителю ни такси, ни копирования: такси везёт К НЕМУ, а адрес свой он и
+  // так знает. Это инструменты выезда, а не сведения о заявке.
+  const tools = !isEndUser;
+  const showTaxi = tools && Boolean(ticket.company?._id);
 
   return (
     <PropRow
       icon={<RiMapPin2Line size={16} />}
       label="Адрес"
       action={
-        (showTaxi || address) && (
+        (showTaxi || (tools && address)) && (
           <>
             {showTaxi && (
               <TaxiButton
@@ -320,7 +327,7 @@ const ClientAddressRow = ({ ticket, company }) => {
                 className={cn(cardTaxiClass, "text-muted-foreground")}
               />
             )}
-            {address && (
+            {tools && address && (
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -379,6 +386,13 @@ export const FactsSection = ({
   const { isEndUser } = useContext(AuthedUserContext);
   const can = useCan();
   const applicant = ticket.applicant;
+  // Своя компания и свой адрес заявителю ничего не сообщают: он их знает. А
+  // инициатор осмыслен, только когда им бывает НЕ он сам, — то есть у того, кто
+  // заводит заявки за других и видит заявки всей компании. Одного права мало:
+  // без «заявок компании» человек видит только свои, где инициатор он же.
+  const showCompanyAndAddress = !isEndUser;
+  const showApplicant =
+    !isEndUser || !!can({ ticket: ["createForOthers", "readCompany"] });
   // Как заявка назовётся в крошке компании или человека, куда ведут ссылки ниже
   const from = `Заявка №${ticket.num}`;
   const fromState = useCrumbFrom(from);
@@ -402,93 +416,106 @@ export const FactsSection = ({
         Детали
       </Eyebrow>
       <Panel>
-        <PropRow
-          icon={<RiBuilding2Line size={16} />}
-          label="Компания"
-          action={
-            onShowLogs && (
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                title="Лог активности компании"
-                onClick={() => onShowLogs()}
-              >
-                <RiHistoryLine />
-              </Button>
-            )
-          }
-        >
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            {/* Имя — ссылка на карточку: раньше из заявки нельзя было попасть ни
-                к клиенту, ни к людям, и путь лежал через поиск в справочнике */}
-            {ticket.company?._id ? (
-              <EntityLink from={from} to={`/companies/${ticket.company._id}`}>
-                {ticket.company.alias}
-              </EntityLink>
-            ) : (
-              (ticket.company?.alias ?? "—")
-            )}
-            <ClientTime clientTimezone={ticket.clientTimezone} />
-            <WorkStatusText
-              workSchedule={company?.workSchedule}
-              timezone={ticket.clientTimezone?.timezone}
-            />
-          </span>
-        </PropRow>
-
-        <PropRow
-          icon={<RiUserLine size={16} />}
-          label="Инициатор"
-          action={
-            <>
-              {applicant?.phone && (
+        {showCompanyAndAddress && (
+          <PropRow
+            icon={<RiBuilding2Line size={16} />}
+            label="Компания"
+            action={
+              onShowLogs && (
                 <Button
-                  asChild
                   variant="ghost"
                   size="icon-xs"
-                  title={`Позвонить: ${applicant.phone}`}
-                  aria-label="Позвонить инициатору"
+                  title="Лог активности компании"
+                  onClick={() => onShowLogs()}
                 >
-                  <a href={`tel:${applicant.phone}`}>
-                    <RiPhoneLine />
-                  </a>
+                  <RiHistoryLine />
                 </Button>
+              )
+            }
+          >
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              {/* Имя — ссылка на карточку: раньше из заявки нельзя было попасть ни
+                к клиенту, ни к людям, и путь лежал через поиск в справочнике */}
+              {ticket.company?._id ? (
+                <EntityLink from={from} to={`/companies/${ticket.company._id}`}>
+                  {ticket.company.alias}
+                </EntityLink>
+              ) : (
+                (ticket.company?.alias ?? "—")
               )}
-              {onShowLogs &&
-                can({ company: ["readLogs"] }) &&
-                applicant?.activeDirectoryObjectGUID && (
+              <ClientTime clientTimezone={ticket.clientTimezone} />
+              <WorkStatusText
+                workSchedule={company?.workSchedule}
+                timezone={ticket.clientTimezone?.timezone}
+              />
+            </span>
+          </PropRow>
+        )}
+
+        {showApplicant && (
+          <PropRow
+            icon={<RiUserLine size={16} />}
+            label="Инициатор"
+            action={
+              <>
+                {/* Заявителю кнопки нет: инициатор — он сам */}
+                {!isEndUser && applicant?.phone && (
                   <Button
+                    asChild
                     variant="ghost"
                     size="icon-xs"
-                    title="Лог активности пользователя"
-                    onClick={() =>
-                      onShowLogs(`${applicant.firstName} ${applicant.lastName}`)
-                    }
+                    title={`Позвонить: ${applicant.phone}`}
+                    aria-label="Позвонить инициатору"
                   >
-                    <RiHistoryLine />
+                    <a href={`tel:${applicant.phone}`}>
+                      <RiPhoneLine />
+                    </a>
                   </Button>
                 )}
-            </>
-          }
-        >
-          {applicant?._id ? (
-            <EntityLink from={from} to={`/users/${applicant._id}`}>
-              {`${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()}
-            </EntityLink>
-          ) : applicant ? (
-            `${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()
-          ) : (
-            ticket.realSender
-          )}
-          {applicant?.position && (
-            <span className="text-muted-foreground">
-              {" · "}
-              {applicant.position}
-            </span>
-          )}
-        </PropRow>
+                {onShowLogs &&
+                  can({ company: ["readLogs"] }) &&
+                  applicant?.activeDirectoryObjectGUID && (
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      title="Лог активности пользователя"
+                      onClick={() =>
+                        onShowLogs(
+                          `${applicant.firstName} ${applicant.lastName}`,
+                        )
+                      }
+                    >
+                      <RiHistoryLine />
+                    </Button>
+                  )}
+              </>
+            }
+          >
+            {applicant?._id ? (
+              <EntityLink from={from} to={`/users/${applicant._id}`}>
+                {`${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()}
+              </EntityLink>
+            ) : applicant ? (
+              `${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()
+            ) : (
+              ticket.realSender
+            )}
+            {applicant?.position && (
+              <span className="text-muted-foreground">
+                {" · "}
+                {applicant.position}
+              </span>
+            )}
+          </PropRow>
+        )}
 
-        <ClientAddressRow ticket={ticket} company={company} />
+        {showCompanyAndAddress && (
+          <ClientAddressRow
+            ticket={ticket}
+            company={company}
+            isEndUser={isEndUser}
+          />
+        )}
 
         <PropRow icon={<RiTeamLine size={16} />} label="Ответственные">
           {ticket.responsibles?.length
@@ -633,6 +660,12 @@ const WorkMenu = ({ items }) => {
 
 export const WorksSection = ({ works = [], ticket, canAddWork }) => {
   const { isAdmin, _id: userId } = useContext(AuthedUserContext);
+  const can = useCan();
+  // Доплата вне графика — разговор про счёт, а не про работу: её видит тот, кто
+  // отчёты согласовывает и отчёт по работам смотрит. Сумму внутри неё бэкенд
+  // гейтит своими правами отдельно (getOne → canSeeMoney).
+  const showBilling =
+    can({ approval: ["decide"] }) && can({ report: ["works"] });
   const [deleting, setDeleting] = useState(null);
 
   const finished = works.filter((work) => work.finishedAt);
@@ -658,6 +691,90 @@ export const WorksSection = ({ works = [], ticket, canAddWork }) => {
     icon: <RiDeleteBinLine />,
     label: "Удалить",
   });
+
+  const renderScheduled = (work) => (
+    <WorkRow
+      key={work._id}
+      ticket={ticket}
+      menu={
+        <WorkMenu
+          items={[
+            mayConfirm(work) && {
+              key: "confirm",
+              to: `work/${work._id}/confirm`,
+              icon: <RiCheckboxCircleLine />,
+              label: "Подтвердить",
+            },
+            mayManage(work) && editItem(`work-scheduled/${work._id}/update`),
+            mayManage(work) && deleteItem(work),
+          ].filter(Boolean)}
+        />
+      }
+    >
+      <span className="w-32 flex-none truncate text-muted-foreground">
+        {work.executor?.lastName} {work.executor?.firstName?.[0]}.
+      </span>
+      <span className="min-w-0 flex-1 truncate">
+        {work.visitRequired ? "Выезд" : "Удалённо"} ·{" "}
+        {formatDate(work.planningToStart)}
+      </span>
+    </WorkRow>
+  );
+
+  // Длительности в строке нет: рядовому она ни к чему, а ответственный видит
+  // время в отчёте по работам.
+  const renderFinished = (work) => (
+    <WorkRow
+      key={work._id}
+      ticket={ticket}
+      menu={
+        <WorkMenu
+          items={[
+            mayManage(work) && editItem(`work/${work._id}/update`),
+            mayManage(work) && deleteItem(work),
+          ].filter(Boolean)}
+        />
+      }
+    >
+      <span className="w-32 flex-none truncate text-muted-foreground">
+        {work.finishedBy?.lastName} {work.finishedBy?.firstName?.[0]}.
+      </span>
+      <span className="min-w-0 flex-1 truncate">
+        {work.visitRequired ? "Выезд" : "Удалённо"}
+        {work.description ? ` · ${work.description}` : ""}
+      </span>
+      {/* В списке показываем только исключение: у работы в рамках тарифа поля
+          outOfSchedule нет вовсе. Сумма — по тем же правам, что и в форме
+          (её решает сервер) */}
+      {showBilling && work.outOfSchedule && (
+        <span
+          className="flex-none text-xs text-warning tabular-nums"
+          title="Время вне графика обслуживания"
+        >
+          доп. оплата
+          {work.outOfSchedule.money
+            ? ` ${formatMoney(work.outOfSchedule.money.cost)}`
+            : ""}
+        </span>
+      )}
+    </WorkRow>
+  );
+
+  const groups = [
+    scheduled.length > 0 && {
+      key: "scheduled",
+      label: "Запланировано",
+      rows: scheduled,
+      render: renderScheduled,
+    },
+    finished.length > 0 && {
+      key: "finished",
+      label: "Выполнено",
+      rows: finished,
+      render: renderFinished,
+    },
+  ].filter(Boolean);
+  const labelled = groups.length > 1;
 
   // «Новая работа», а не «Добавить работу»: по словарю действий «Добавить» —
   // только привязка уже существующего
@@ -685,81 +802,18 @@ export const WorksSection = ({ works = [], ticket, canAddWork }) => {
         {works.length === 0 ? (
           <EmptySection icon={RiToolsLine} hint={emptyWorksHint(ticket)} />
         ) : (
-          <div className="-my-1">
-            {scheduled.map((work) => (
-              <WorkRow
-                key={work._id}
-                ticket={ticket}
-                menu={
-                  <WorkMenu
-                    items={[
-                      mayConfirm(work) && {
-                        key: "confirm",
-                        to: `work/${work._id}/confirm`,
-                        icon: <RiCheckboxCircleLine />,
-                        label: "Подтвердить",
-                      },
-                      mayManage(work) &&
-                        editItem(`work-scheduled/${work._id}/update`),
-                      mayManage(work) && deleteItem(work),
-                    ].filter(Boolean)}
-                  />
-                }
-              >
-                <span className="w-32 flex-none truncate text-muted-foreground">
-                  {work.executor?.lastName} {work.executor?.firstName?.[0]}.
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {work.visitRequired ? "Выезд" : "Удалённо"} ·{" "}
-                  {formatDate(work.planningToStart)}
-                </span>
-                <span className="flex-none text-xs text-muted-foreground">
-                  запланировано
-                </span>
-              </WorkRow>
-            ))}
-            {finished.map((work) => (
-              <WorkRow
-                key={work._id}
-                ticket={ticket}
-                menu={
-                  <WorkMenu
-                    items={[
-                      mayManage(work) && editItem(`work/${work._id}/update`),
-                      mayManage(work) && deleteItem(work),
-                    ].filter(Boolean)}
-                  />
-                }
-              >
-                <span className="w-32 flex-none truncate text-muted-foreground">
-                  {work.finishedBy?.lastName} {work.finishedBy?.firstName?.[0]}.
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {work.visitRequired ? "Выезд" : "Удалённо"}
-                  {work.description ? ` · ${work.description}` : ""}
-                </span>
-                {/* В списке показываем только исключение: у работы в рамках
-                    тарифа поля outOfSchedule нет вовсе. Сумма — по тем же
-                    правам, что и в форме (её решает сервер) */}
-                {work.outOfSchedule && (
-                  <span
-                    className="flex-none text-xs text-warning tabular-nums"
-                    title="Время вне графика обслуживания"
-                  >
-                    доп. оплата
-                    {work.outOfSchedule.money
-                      ? ` ${formatMoney(work.outOfSchedule.money.cost)}`
-                      : ""}
-                  </span>
-                )}
-                <span className="flex-none font-semibold tabular-nums">
-                  {msToHMS(
-                    new Date(work.finishedAt) - new Date(work.startedAt),
-                  )}
-                </span>
-              </WorkRow>
-            ))}
-          </div>
+          /* Подгруппы: «что ещё будет» и «что уже сделали» — разные вопросы,
+             и одним списком ответ на каждый приходится вычитывать из хвоста
+             строки. Единственная группа метки не получает: заголовок с одной
+             группой не несёт информации. */
+          groups.map((group, index) => (
+            <div key={group.key} className={index > 0 ? "mt-4" : undefined}>
+              {labelled && (
+                <SubLabel count={group.rows.length}>{group.label}</SubLabel>
+              )}
+              <div className="-my-1">{group.rows.map(group.render)}</div>
+            </div>
+          ))
         )}
       </Panel>
 

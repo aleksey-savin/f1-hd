@@ -22,7 +22,7 @@ import { getLocalStorageData } from "../../util/auth";
 const buildSections = (showSchedule) => [
   { id: "profile", label: "Профиль" },
   { id: "appearance", label: "Внешний вид" },
-  ...(showSchedule ? [{ id: "schedule", label: "График и отсутствия" }] : []),
+  ...(showSchedule ? [{ id: "schedule", label: "График работы" }] : []),
   { id: "notifications", label: "Уведомления" },
   { id: "integrations", label: "Интеграции" },
   { id: "security", label: "Безопасность" },
@@ -90,7 +90,7 @@ const MyAccountCanvas = ({ user, initialPrefs, showSchedule }) => {
       </SettingsSection>
       {/* Клиенту норма часов и отпуска не положены — секции у него нет */}
       {showSchedule && (
-        <SettingsSection id="schedule" label="График и отсутствия">
+        <SettingsSection id="schedule" label="График работы">
           <MySchedule user={user} />
         </SettingsSection>
       )}

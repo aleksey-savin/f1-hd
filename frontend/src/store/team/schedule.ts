@@ -12,7 +12,7 @@ import { monthRange } from "../../util/period";
  * Месяц — «что происходит в этот день», сегодня — «кому кидать заявку»,
  * планирование — «когда безопасно поставить отпуск».
  */
-export type ScheduleView = "month" | "today" | "planning";
+export type ScheduleView = "month" | "planning";
 
 type ScheduleState = {
   from: string;

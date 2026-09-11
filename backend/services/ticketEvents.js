@@ -152,4 +152,43 @@ const buildFeed = (logs = []) => {
   return events;
 };
 
-module.exports = { KINDS, classify, isTechnical, isHidden, buildFeed };
+/**
+ * Что из ленты видит ЗАЯВИТЕЛЬ: ход заявки и работы по ней.
+ *
+ * Остальное — внутренняя кухня, и отдавать её клиенту незачем: кто к кому
+ * присоединился, кто запросил помощь и отказался, как двигали срок, что стало
+ * с чек-листом. Отбор стоит ЗДЕСЬ, а не на клиенте: невидимое в интерфейсе, но
+ * уехавшее в ответ — всё равно выданное.
+ *
+ * «Прочее» в список не входит никогда: у него нет каталожной подписи, и в ленту
+ * поехал бы текст лога, написанный для лога.
+ */
+const CLIENT_KINDS = new Set([
+  "created",
+  "processed",
+  "taken",
+  "workAdded",
+  "workUpdated",
+  "closed",
+  "reopened",
+]);
+
+/**
+ * Лента для заявителя. Счётчик служебных записей снимается вместе с видами:
+ * это журнал доставки уведомлений, а не история заявки, и раскрыть его
+ * заявителю всё равно нечем.
+ */
+const feedForClient = (events = []) =>
+  events
+    .filter((event) => CLIENT_KINDS.has(event.kind))
+    .map(({ technical, ...event }) => event);
+
+module.exports = {
+  KINDS,
+  CLIENT_KINDS,
+  classify,
+  isTechnical,
+  isHidden,
+  buildFeed,
+  feedForClient,
+};

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import useRefreshRoute from "@/components/app/use-refresh-route";
 import ReactCrop, { centerCrop, makeAspectCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 
@@ -29,6 +30,7 @@ function ImageUpload({ userId, setProfileImage }) {
   const [open, setOpen] = useState(false);
 
   const imgRef = useRef(null);
+  const refresh = useRefreshRoute();
   const fileInputRef = useRef(null);
 
   function centerAspectCrop(mediaWidth, mediaHeight, aspect) {
@@ -166,6 +168,9 @@ function ImageUpload({ userId, setProfileImage }) {
 
       setOpen(false);
       showToast("success", "Фото профиля обновлено");
+      // Аватар рисуется и в навбаре — из данных загрузчика корня; без этого
+      // новое фото появлялось только после ручной перезагрузки страницы
+      refresh();
     } catch (error) {
       console.error("Error:", error);
       setError(error.message || "Что-то пошло не так, попробуйте ещё раз");

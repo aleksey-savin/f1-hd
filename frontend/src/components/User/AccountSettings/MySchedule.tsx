@@ -1,84 +1,41 @@
 import { useCallback, useEffect, useState } from "react";
-import { RiAddFill } from "react-icons/ri";
+import { Link } from "react-router";
 
 import AlertMessage from "@/components/app/AlertMessage";
 import ScheduleView from "@/components/app/ScheduleView";
 import SettingRow from "@/components/app/SettingRow";
 import Spinner from "@/components/app/Spinner";
-import AbsenceForm from "@/components/Team/AbsenceForm";
 import { Button } from "@/components/ui/button";
 import type { UserScheduleResponse } from "@/types/teamSchedule";
-import { getAbsenceType } from "@/util/absence-types";
-import { orgTimezone, tzCity } from "@/util/timezone-display";
 import { monthRange } from "@/util/period";
+import { orgTimezone, tzCity } from "@/util/timezone-display";
 
 const API = import.meta.env.VITE_API_ADDRESS;
 
-type Absence = {
-  _id: string;
-  type: string;
-  typeLabel: string;
-  from: string;
-  to: string;
-  status: "pending" | "approved" | "rejected" | "cancelled";
-  comment: string;
-  decisionComment: string;
-  decidedBy: { firstName: string; lastName: string } | null;
-};
-
-const humanDate = (key: string) => key.split("-").reverse().join(".");
-
-const range = (from: string, to: string) =>
-  from === to ? humanDate(from) : `${humanDate(from)} — ${humanDate(to)}`;
-
-const STATUS_TONE: Record<Absence["status"], string> = {
-  pending: "text-warning",
-  approved: "text-accent-text",
-  rejected: "text-muted-foreground",
-  cancelled: "text-faint",
-};
-
-const STATUS_LABEL: Record<Absence["status"], string> = {
-  pending: "на согласовании",
-  approved: "подтверждено",
-  rejected: "отклонено",
-  cancelled: "отозвано",
-};
-
 /**
- * «Мой аккаунт» → График и отсутствия.
+ * «Мой аккаунт» → График работы.
  *
- * Свой график сотрудник только смотрит (правит его тот, у кого есть право
- * «Графики и отсутствия»), а вот отпуск, отгул и больничный запрашивает сам —
- * запись уходит на согласование, и до решения календарь не меняется.
+ * Только показ: правит график тот, у кого есть право «Графики и отсутствия».
+ * Отпуска, отгулы и больничные жили здесь же списком, но личные настройки — про
+ * поведение приложения под себя, а не про архив заявок. Заявку заводят и
+ * читают в «Календаре команды», где видно, кого не будет рядом в те же дни и
+ * на кого ляжет работа.
  */
 const MySchedule = ({ user }: { user: { _id: string } }) => {
   const [data, setData] = useState<UserScheduleResponse | null>(null);
-  const [absences, setAbsences] = useState<Absence[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
 
   const period = monthRange(new Date());
 
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [scheduleResponse, absenceResponse] = await Promise.all([
-        fetch(
-          `${API}/api/team/schedule/${user._id}?from=${period.from}&to=${period.to}`,
-          {},
-        ),
-        fetch(`${API}/api/team/absences?user=${user._id}`),
-      ]);
-      if (!scheduleResponse.ok)
-        throw new Error(String(scheduleResponse.status));
-      setData(await scheduleResponse.json());
-      if (absenceResponse.ok) {
-        const payload = await absenceResponse.json();
-        setAbsences(payload.absences ?? []);
-      }
+      const response = await fetch(
+        `${API}/api/team/schedule/${user._id}?from=${period.from}&to=${period.to}`,
+      );
+      if (!response.ok) throw new Error(String(response.status));
+      setData(await response.json());
       setError(null);
     } catch (loadError) {
       console.warn("Свой график не загрузился:", loadError);
@@ -92,21 +49,6 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
     load();
   }, [load]);
 
-  const cancel = async (id: string) => {
-    setBusyId(id);
-    try {
-      const response = await fetch(`${API}/api/team/absences/${id}/cancel`, {
-        method: "POST",
-      });
-      if (!response.ok) throw new Error(String(response.status));
-      await load();
-    } catch (cancelError) {
-      console.warn("Запрос не отозвался:", cancelError);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   if (isLoading && !data) {
     return <Spinner />;
   }
@@ -116,8 +58,6 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
   if (!data) {
     return null;
   }
-
-  const visible = absences.filter((absence) => absence.status !== "cancelled");
 
   return (
     <>
@@ -142,95 +82,15 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
         </div>
       )}
 
-      <div className="border-t border-border-soft px-4 py-3.5">
-        <div className="mb-2.5 flex items-center gap-2">
-          <span className="text-xs font-bold tracking-wider text-faint uppercase">
-            Мои отсутствия
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-auto"
-            onClick={() => setFormOpen(true)}
-          >
-            <RiAddFill />
-            Новая заявка
-          </Button>
-        </div>
-
-        {visible.length === 0 ? (
-          <p className="my-2 text-sm text-muted-foreground">
-            Отпусков, отгулов и больничных пока не записано. Запрос уйдёт на
-            согласование — до решения календарь не меняется.
-          </p>
-        ) : (
-          visible.map((absence) => {
-            const meta = getAbsenceType(absence.type);
-            return (
-              <div
-                key={absence._id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-soft py-2.5 text-sm first:border-t-0"
-              >
-                <span
-                  className="grid h-6 min-w-8 place-items-center rounded-md px-1.5 text-xs font-bold"
-                  style={{
-                    color: meta?.color,
-                    background:
-                      absence.status === "approved"
-                        ? `color-mix(in srgb, ${meta?.color} 17%, transparent)`
-                        : "transparent",
-                    border:
-                      absence.status === "approved"
-                        ? undefined
-                        : `1.5px dashed color-mix(in srgb, ${meta?.color} 60%, transparent)`,
-                  }}
-                >
-                  {meta?.short}
-                </span>
-                <span className="min-w-0">
-                  <span className="font-medium">{absence.typeLabel}</span>
-                  <span className="text-muted-foreground">
-                    {" · "}
-                    {range(absence.from, absence.to)}
-                  </span>
-                  {absence.status === "rejected" && absence.decisionComment && (
-                    <span className="block text-xs text-muted-foreground">
-                      Причина: {absence.decisionComment}
-                    </span>
-                  )}
-                </span>
-                <span
-                  className={`ms-auto text-xs ${STATUS_TONE[absence.status]}`}
-                >
-                  {STATUS_LABEL[absence.status]}
-                  {absence.decidedBy &&
-                    absence.status !== "pending" &&
-                    ` · ${absence.decidedBy.lastName} ${absence.decidedBy.firstName?.slice(0, 1)}.`}
-                </span>
-                {absence.status === "pending" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busyId === absence._id}
-                    onClick={() => cancel(absence._id)}
-                  >
-                    Отозвать
-                  </Button>
-                )}
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      <AbsenceForm
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        canManage={false}
-        employees={[]}
-        defaultUserId={user._id}
-        onSaved={() => load()}
-      />
+      <SettingRow
+        divider
+        title="Отпуска, отгулы и больничные"
+        hint="Заявка заводится в календаре команды — там видно, кого не будет рядом в те же дни."
+      >
+        <Button asChild variant="outline" size="sm">
+          <Link to="/team/calendar">Открыть календарь</Link>
+        </Button>
+      </SettingRow>
     </>
   );
 };

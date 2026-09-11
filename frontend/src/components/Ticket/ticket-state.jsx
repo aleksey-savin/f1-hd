@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 
 import {
   businessDaysAgo,
+  formatDateTime,
   formatDayMonth,
   formatDayMonthTime,
   formatTime,
@@ -83,6 +84,22 @@ export const deadlineText = (deadline) => {
 };
 
 /** «сегодня» · «вчера» · «18.07» — возраст заявки без слова. */
+/**
+ * Когда заявку завершили — тем же набором, что и срок: ближние дни словами,
+ * дальние компактной датой. У закрытой заявки это единственная дата, которую
+ * стоит показывать в шапке: срок к завершённой заявке уже не относится, а
+ * «когда закрыли» — первое, за чем в неё возвращаются.
+ */
+export const finishedText = (finishedAt) => {
+  if (!finishedAt) return "";
+  const days = businessDaysAgo(finishedAt);
+  if (days === 0) return `сегодня в ${formatTime(finishedAt)}`;
+  if (days === 1) return `вчера в ${formatTime(finishedAt)}`;
+  // Не компактный формат списка, а «13 августа в 11:56»: фраза статуса стоит
+  // в шапке отдельной строкой, и места ей там хватает
+  return formatDateTime(finishedAt);
+};
+
 export const createdShort = (createdAt) => {
   const days = businessDaysAgo(createdAt);
   if (days === null) return "";
@@ -115,12 +132,16 @@ export const createdText = (createdAt) => {
 export const TicketStateText = ({
   tone = "normal",
   strong = false,
+  /** `lg` — шапка карточки: кегль на ступень выше и точка вдвое крупнее.
+   *  Статус там отвечает на главный вопрос экрана и стоит своей строкой. */
+  size = "sm",
   className,
   children,
 }) => (
   <span
     className={cn(
-      "text-sm whitespace-nowrap",
+      size === "lg" ? "text-base" : "text-sm",
+      "whitespace-nowrap",
       strong ? TONE_TEXT_STRONG[tone] : TONE_TEXT[tone],
       strong && "font-semibold",
       className,
@@ -129,7 +150,8 @@ export const TicketStateText = ({
     <span
       aria-hidden
       className={cn(
-        "me-1.5 inline-block size-1.5 rounded-full align-middle",
+        "inline-block rounded-full align-middle",
+        size === "lg" ? "me-2 size-2" : "me-1.5 size-1.5",
         TONE_DOT[tone],
       )}
     />

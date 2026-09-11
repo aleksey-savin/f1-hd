@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import { TicketStateText, ticketTone } from "../Ticket/ticket-state";
 
 /**
@@ -16,10 +17,12 @@ import { TicketStateText, ticketTone } from "../Ticket/ticket-state";
  */
 const TicketRow = ({ ticket, meta, trailing }) => {
   const { label, tone } = ticketTone(ticket);
+  const fromState = useCrumbFrom("Главная");
 
   return (
     <Link
       to={`/tickets/${ticket.num}`}
+      state={fromState}
       className="relative flex flex-col gap-0.5 px-4 py-2.5 text-foreground no-underline transition-colors before:absolute before:top-0 before:right-4 before:left-4 before:h-px before:bg-border-soft first:before:hidden hover:bg-accent/60 hover:text-foreground md:flex-row md:items-center md:gap-3 md:px-5"
     >
       {/* мобайл: номер и статус одной строкой над темой */}

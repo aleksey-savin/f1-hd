@@ -468,7 +468,6 @@ const removeMembership = async (userId) => {
 
 /** Назначить человеку набор ролей (полная замена, не добавление). */
 const assign = async (userId, keys, can) => {
-  const orgId = await orgIdOrThrow();
   const catalogue = await listRoles();
   const known = new Map(catalogue.map((role) => [role.key, role]));
 
@@ -478,8 +477,26 @@ const assign = async (userId, keys, can) => {
   }
 
   // Назначить роль, которая даёт больше, чем есть у назначающего, — тот же
-  // обход, что и создание такой роли, только в два шага.
+  // обход, что и создание такой роли, только в два шага. Но проверять надо
+  // ровно ДОБАВЛЯЕМЫЕ роли: форма пользователя присылает список целиком, и на
+  // проверке всех подряд администратор не мог сохранить даже телефон человеку,
+  // у которого уже есть роль с чужим правом (у «Подрядчика без работ» есть
+  // ticket.closeWithoutWork, которого нет у администратора). Оставить роль как
+  // была — не выдача прав, снять роль — тем более.
+  const orgId = await orgIdOrThrow();
+  const member = await members().findOne({
+    organizationId: orgId,
+    userId: String(userId),
+  });
+  const current = new Set(
+    String(member?.role || "")
+      .split(",")
+      .map((key) => key.trim())
+      .filter(Boolean),
+  );
+
   for (const key of keys) {
+    if (current.has(key)) continue;
     assertNotEscalating(known.get(key).statements, can);
   }
 

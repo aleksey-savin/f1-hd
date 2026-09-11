@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SettingRow from "@/components/app/SettingRow";
+import useRefreshRoute from "@/components/app/use-refresh-route";
 import { SubLabel } from "@/components/app/Panel";
 
 import Combobox from "@/components/app/Combobox";
@@ -21,6 +22,7 @@ const TAXI_OPTIONS = [
 
 const PrefsGlobals = ({ prefs }) => {
   const { showToast } = useToastStore();
+  const refresh = useRefreshRoute();
 
   const [timezone, setTimezone] = useState(prefs.timezone || DEFAULT_TIMEZONE);
   const [orgTitle, setOrgTitle] = useState(prefs.contacts?.title || "");
@@ -50,6 +52,10 @@ const PrefsGlobals = ({ prefs }) => {
       }
       setLogo(data.logo);
       showToast("success", data.message);
+      // Лого стоит и в навбаре, и на экране входа — оно приезжает из данных
+      // загрузчика корня, а не из этой секции: без обновления новая марка
+      // появлялась только после ручной перезагрузки страницы
+      refresh();
     } catch (error) {
       showToast("danger", error.message);
     } finally {

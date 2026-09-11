@@ -8,6 +8,7 @@ const {
   requireTicketAccess,
   canDeleteTickets,
   canUpdateTickets,
+  canReturnTicket,
   canPerformTickets,
   canAdministrateTickets,
   canManageKnowledge,
@@ -24,7 +25,7 @@ router.get("/tickets/form-data", isAuth, ticketController.getFormData);
 // Раскрытие свёрнутой группы служебных записей в хронике
 router.get(
   "/tickets/:ticketNum/log",
-  isAuth,
+  allowedToViewTicket,
   ticketController.getTechnicalLog,
 );
 
@@ -96,14 +97,14 @@ router.post(
   canPerformTickets,
   ticketController.close,
 );
-// Возврат в работу — то же действие, что закрытие, только обратное: те же
-// права и та же проверка отношения к заявке. Ключ лежит в теле, поэтому доступ
-// проверяем по `_id`, а не по номеру.
+// Возврат в работу — единственное действие, доступное и заявителю: закрытая,
+// но не решённая заявка это его вопрос (`canReturnTicket`). Гейт стоит ПОСЛЕ
+// проверки доступа: он смотрит на саму заявку — на архив и на заявителя.
+// Ключ лежит в теле, поэтому доступ проверяем по `_id`, а не по номеру.
 router.post(
   "/tickets/back-to-work",
-  isAuth,
-  canPerformTickets,
   requireTicketAccess((req) => ({ id: req.body._id })),
+  canReturnTicket,
   ticketController.backToWork,
 );
 

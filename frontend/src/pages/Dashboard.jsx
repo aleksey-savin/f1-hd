@@ -18,6 +18,7 @@ import TemplateTiles from "../components/Dashboard/TemplateTiles";
 import usePolling from "../hooks/use-polling";
 import { AuthedUserContext } from "../store/authed-user-context";
 import useDashboardTicketsStore from "../store/dashboard-tickets";
+import useDashboardTemplatesStore from "../store/dashboard-templates";
 import { warm } from "@/store/form-data";
 import useInitialPrefsStore from "../store/prefs";
 import { getLocalStorageData } from "../util/auth";
@@ -112,16 +113,22 @@ const Dashboard = () => {
   const { firstName, isEndUser } = useContext(AuthedUserContext);
   const load = useDashboardTicketsStore((state) => state.load);
   const refresh = useDashboardTicketsStore((state) => state.refresh);
+  const loadTemplates = useDashboardTemplatesStore((state) => state.load);
+  const templatesLoaded = useDashboardTemplatesStore((state) => state.loaded);
+  const templatesCount = useDashboardTemplatesStore(
+    (state) => state.templates.length,
+  );
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadTemplates();
+  }, [load, loadTemplates]);
 
   // Справочники формы заявки — заранее: «Новая заявка» с главной открывается
-  // без ожидания form-data и списка шаблонов
+  // без ожидания form-data. Список шаблонов греть отдельно не нужно: его берёт
+  // из того же кэша store/dashboard-templates
   useEffect(() => {
     warm("/api/tickets/form-data");
-    warm("/api/ticket-templates");
   }, []);
 
   usePolling(refresh, { intervalMs: 15000 });
@@ -141,7 +148,12 @@ const Dashboard = () => {
       }
       subtitle={
         isEndUser
-          ? "Выберите готовый запрос — заявка заполнится сама. Ничего не подходит — опишите словами."
+          ? // Подзаголовок обещает список — значит, он есть только когда список
+            // есть: клиенту, которому не роздан ни один шаблон, обещать нечего,
+            // и всё нужное скажет подпись единственной карточки
+            templatesLoaded && templatesCount > 0
+            ? "Выберите подходящий запрос из списка или создайте новую задачу"
+            : undefined
           : today
       }
     >

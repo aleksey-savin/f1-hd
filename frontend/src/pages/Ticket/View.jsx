@@ -10,8 +10,8 @@ import {
 } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
+  RiArchiveLine,
   RiDeleteBinLine,
-  RiErrorWarningLine,
   RiMoreLine,
   RiRepeat2Line,
 } from "react-icons/ri";
@@ -22,7 +22,6 @@ import Checklist from "@/components/app/Checklist";
 import { DeleteDialog } from "@/components/app/DeleteItem";
 import Environment from "@/components/app/Environment";
 import FormOutlet, { useSheetOpen } from "@/components/app/FormOutlet";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -67,6 +66,7 @@ import {
 import {
   TicketStateText,
   deadlineText,
+  finishedText,
   isOverdue,
   ticketTone,
 } from "../../components/Ticket/ticket-state";
@@ -209,6 +209,26 @@ const ViewTicket = () => {
 
   const overdue = isOverdue(ticket);
   const state = ticketTone(ticket);
+  // `finishedAt` проставляется только закрытием и снимается возвратом в работу
+  // (controllers/ticket.js), поэтому одного поля хватает и на признак, и на дату
+  const closedAt = ticket.isClosed ? ticket.finishedAt : null;
+  /**
+   * В закрытую заявку написали после закрытия — обычно это ответ клиента
+   * письмом. Заявка при этом НЕ открывается сама: намерение («спасибо» или «вы
+   * ничего не сделали») машине не отличить, решает человек. Наше дело —
+   * показать, что решение от него ждут.
+   *
+   * Признак считается, а не хранится: возврат в работу обнуляет `finishedAt`,
+   * повторное закрытие ставит новое — отметка снимается сама и протухнуть не
+   * может. Автоответы сюда не попадают: комментарий из них не заводится вовсе
+   * (backend/services/machineMail).
+   */
+  const repliedAfterClose =
+    !isEndUser &&
+    !!closedAt &&
+    (ticket.comments ?? []).some(
+      (comment) => new Date(comment.createdAt) > new Date(closedAt),
+    );
   const mine = (ticket.responsibles ?? []).some(
     (user) => user._id?.toString() === userId?.toString(),
   );
@@ -250,8 +270,21 @@ const ViewTicket = () => {
     },
   );
 
-  const canPerform =
-    can({ ticket: ["perform"] }) && mine && !ticket.isArchived;
+  const canPerform = can({ ticket: ["perform"] }) && mine && !ticket.isArchived;
+  /**
+   * Писать в ленту может каждый, кому заявка видна: ручка комментария прав
+   * «работать с заявками» не спрашивает (routes/internal/comment.js), а фронт
+   * спрашивал — и заявитель не мог ответить на вопрос по СВОЕЙ заявке.
+   *
+   * В ЗАКРЫТУЮ заявку не пишет никто. «Вы же ничего не сделали!» в закрытой
+   * заявке не разберёт никто, а человек уверен, что сказал, — и заявка так и
+   * останется закрытой. Есть что добавить — её возвращают в работу, для этого
+   * у заявителя и появилась своя кнопка.
+   */
+  const canComment =
+    !ticket.isArchived &&
+    !ticket.isClosed &&
+    (isEndUser || !!can({ ticket: ["perform"] }));
   const canEditChecklist = can({ ticket: ["update"] }) && !ticket.isArchived;
   const hasChecklist = ticket.checklist?.length > 0;
 
@@ -292,12 +325,17 @@ const ViewTicket = () => {
     );
   };
 
+  // Работы по СВОЕЙ заявке — «своё», и права на чужие работы оно не спрашивает
+  // (то же правило, что у блоков главной). Действий у заявителя всё равно нет:
+  // меню строки живёт по автору и исполнителю работы, а он ни тот ни другой.
+  // Заявителю секция появляется только вместе с работами: заглушки написаны
+  // для того, кто работы заводит («без них заявку не закрыть»), и клиенту это
+  // совет не по адресу.
   const showWorks =
-    modules.timeTracking?.isActive && can({ work: ["read"] });
+    modules.timeTracking?.isActive &&
+    (isEndUser ? works.length > 0 : !!can({ work: ["read"] }));
   const showEnvironment =
-    !isEndUser &&
-    modules.inventory?.isActive &&
-    can({ device: ["read"] });
+    !isEndUser && modules.inventory?.isActive && can({ device: ["read"] });
   const showKnowledge =
     modules.knowledgeBase?.isActive && can({ knowledge: ["read"] });
   const showAi = !isEndUser && ai?.isActive;
@@ -365,43 +403,14 @@ const ViewTicket = () => {
     <div className="mx-auto w-full max-w-8xl">
       <Crumbs section={ticket.isArchived ? "archive" : "tickets"} />
 
-      {ticket.isArchived && (
-        <Alert variant="warning" className="mb-4">
-          <RiErrorWarningLine />
-          <AlertDescription>
-            Заявка в архиве и привязана к отчёту за период — правка и новые
-            работы запрещены.
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* HERO */}
       <div className="mb-6 flex flex-wrap items-start gap-x-5 gap-y-3">
         <div className="min-w-0 flex-1">
-          {/* Номер, статус и срок — одной строкой над темой: разнесённые по
-              разным строкам, они читались как три независимых сообщения */}
-          {/* Разделительных «·» здесь нет: текстовая точка сидит на высоте
-              строчных, а точка статуса — по центру строки, и рядом они читаются
-              как две разные точки. Разделяет расстояние */}
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-            <span className="font-semibold text-muted-foreground tabular-nums">
-              № {ticket.num}
-            </span>
-            <TicketStateText tone={state.tone} strong>
-              {state.label}
-            </TicketStateText>
-            {/* Просрочка — второй знак рядом со статусом, а не вместо него;
-                слово и срок одного цвета, чтобы читались одной мыслью */}
-            {overdue ? (
-              <span className="text-destructive">
-                <span className="font-semibold">просрочена</span> ·{" "}
-                {deadlineText(ticket.deadline)}
-              </span>
-            ) : (
-              <span className="text-muted-foreground">
-                {deadlineText(ticket.deadline)}
-              </span>
-            )}
+          {/* Над темой — только адрес записи. Статус ушёл под неё отдельной
+              строкой: в ряду одинаковой меты он был четвёртым по заметности,
+              хотя отвечает на главный вопрос экрана */}
+          <div className="text-sm font-semibold text-muted-foreground tabular-nums">
+            № {ticket.num}
           </div>
           <h1 className="mt-1.5 mb-0 text-2xl leading-tight font-semibold tracking-tight break-words">
             {ticket.title}
@@ -420,49 +429,113 @@ const ViewTicket = () => {
               </span>
             )}
           </h1>
+
+          {/* Статус — ФРАЗОЙ, а не бейджем (гайд: «статус, который протухает, —
+              предложение»): состояние с большой буквы и в полный голос, рядом
+              приглушённо то, что к нему прилагается, — срок у живой заявки,
+              время закрытия у завершённой. Имя закрывшего сюда не тащим: оно
+              видно из закрывающего комментария */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            {/* inline-flex у самого состояния: иначе точка выравнивается
+                `align-middle` — по середине x-высоты, а не по центру строки, —
+                и у полужирного 16-го кегля заметно проваливается вниз */}
+            <TicketStateText
+              tone={state.tone}
+              strong
+              size="lg"
+              className="inline-flex items-center"
+            >
+              {ticket.state}
+            </TicketStateText>
+            <span className="text-faint">·</span>
+            {closedAt ? (
+              <span className="text-sm text-muted-foreground">
+                {finishedText(closedAt)}
+              </span>
+            ) : overdue ? (
+              /* Просрочка — второй знак рядом со статусом, а не вместо него;
+                 слово и срок одного цвета, чтобы читались одной мыслью */
+              <span className="text-sm text-destructive">
+                <span className="font-semibold">просрочена</span> ·{" "}
+                {deadlineText(ticket.deadline)}
+              </span>
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                {deadlineText(ticket.deadline)}
+              </span>
+            )}
+            {/* Второй знак рядом со статусом — как «просрочена» у живой заявки:
+                состояние отвечает «где заявка», а этот знак «что с ней не так» */}
+            {repliedAfterClose && (
+              <span className="text-sm font-semibold text-warning">
+                ответили после закрытия
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-none items-center gap-2">
-          {primary && (
-            <Button onClick={() => pickAction(primary.key)}>
-              {primary.label}
-            </Button>
-          )}
-          {/* Подключение к экрану: своя механика (запрос сессии → ссылка),
+        {/* Архив объясняется ТАМ, ГДЕ БЫЛА КНОПКА: вопрос «почему тут нет
+            действий» возникает именно в этом углу, и ответ ищут в нём. Без
+            рамки, заливки и янтарного — в архив заявка попала не потому, что
+            что-то сломалось. Заявителю заметка тоже нужна: архив отнимает и у
+            него единственное действие — вернуть свою заявку в работу, — и
+            называем ему именно эту потерю, а не правку с работами, которых у
+            него и не было */}
+        {ticket.isArchived ? (
+          <div className="flex flex-none items-center gap-2 text-sm text-muted-foreground">
+            <RiArchiveLine size={16} className="text-faint" aria-hidden />
+            <span>
+              В архиве{" "}
+              <span className="text-faint">
+                {isEndUser
+                  ? "— вернуть в работу уже нельзя"
+                  : "— правка и работы закрыты"}
+              </span>
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-none items-center gap-2">
+            {primary && (
+              <Button onClick={() => pickAction(primary.key)}>
+                {primary.label}
+              </Button>
+            )}
+            {/* Подключение к экрану: своя механика (запрос сессии → ссылка),
               показывает себя само только у заявки «В работе» */}
-          <RemoteAccess ticket={ticket} />
-          {menu.length > 0 && (
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title="Действия"
-                  aria-label="Действия"
-                >
-                  <RiMoreLine />
-                </Button>
-              </DropdownMenuTrigger>
-              {/* Сплошной список: групп на пять пунктов не бывает, а
+            <RemoteAccess ticket={ticket} />
+            {menu.length > 0 && (
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title="Действия"
+                    aria-label="Действия"
+                  >
+                    <RiMoreLine />
+                  </Button>
+                </DropdownMenuTrigger>
+                {/* Сплошной список: групп на пять пунктов не бывает, а
                   заголовки съедали половину высоты меню. Разрушающее —
                   последним и отбито разделителем */}
-              <DropdownMenuContent align="end" className="w-56">
-                {menu.map((item, index) => (
-                  <div key={item.key}>
-                    {item.danger && index > 0 && <DropdownMenuSeparator />}
-                    <DropdownMenuItem
-                      variant={item.danger ? "destructive" : undefined}
-                      onSelect={() => pickAction(item.key)}
-                    >
-                      {item.danger && <RiDeleteBinLine />}
-                      {item.label}
-                    </DropdownMenuItem>
-                  </div>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
+                <DropdownMenuContent align="end" className="w-56">
+                  {menu.map((item, index) => (
+                    <div key={item.key}>
+                      {item.danger && index > 0 && <DropdownMenuSeparator />}
+                      <DropdownMenuItem
+                        variant={item.danger ? "destructive" : undefined}
+                        onSelect={() => pickAction(item.key)}
+                      >
+                        {item.danger && <RiDeleteBinLine />}
+                        {item.label}
+                      </DropdownMenuItem>
+                    </div>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Предложение чек-листа — отдельной строкой между шапкой и раскладкой:
@@ -657,22 +730,15 @@ const ViewTicket = () => {
           {showKnowledge && <KnowledgeSection ticket={ticket} />}
         </div>
 
-        <div className="sticky top-20 hidden w-96 flex-none xl:block">
-          <Chronicle
-            ticket={ticket}
-            events={events}
-            canComment={!ticket.isArchived && !!can({ ticket: ["perform"] })}
-          />
+        <div className="sticky top-20 -mt-6 hidden w-96 flex-none xl:block">
+          <Chronicle ticket={ticket} events={events} canComment={canComment} />
         </div>
       </div>
 
-      {/* На узких экранах хроника идёт последней секцией */}
-      <div className="mt-5 xl:hidden">
-        <Chronicle
-          ticket={ticket}
-          events={events}
-          canComment={!ticket.isArchived && !!can({ ticket: ["perform"] })}
-        />
+      {/* На узких экранах хроника идёт последней секцией. Отступ сверху
+          даёт метка (Eyebrow), своего у обёртки нет */}
+      <div className="xl:hidden">
+        <Chronicle ticket={ticket} events={events} canComment={canComment} />
       </div>
 
       <ActionDialog

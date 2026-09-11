@@ -1,5 +1,6 @@
 const imaps = require("imap-simple");
 const simpleParser = require("mailparser").simpleParser;
+const { isMachineMail } = require("../services/machineMail");
 const _ = require("lodash");
 const fs = require("fs");
 const decode = require("urldecode");
@@ -572,6 +573,9 @@ exports.handleNewEmails = async () => {
           description: mail.text,
           htmlDescription: mail.html,
           attachments: attachmentNames,
+          // Заголовки дальше не едут, поэтому признак считаем здесь
+          // (services/machineMail)
+          fromMachine: isMachineMail(mail),
         });
       } catch (messageError) {
         logger.log("error", `Failed to process message ${index + 1}`, {
@@ -727,7 +731,31 @@ exports.handleNewEmails = async () => {
 
           const ticket = await Ticket.findOne({ num: ticketNum });
 
-          if (ticket) {
+          if (ticket && ticket.isClosed && email.fromMachine) {
+            /**
+             * Ответ РОБОТА в ЗАКРЫТУЮ заявку комментарием не становится.
+             *
+             * Комментарий в закрытой заявке — сигнал «клиент ответил после
+             * закрытия», по нему поднимают ответственного. Автоответчик такого
+             * сигнала не стоит: заявка «настроить автоответ на почту»
+             * закрывается — и тут же дёргает человека собственным автоответом,
+             * ради которого её и заводили. След остаётся в логе: письмо
+             * пришло, мы его видели, реагировать не на что.
+             */
+            const logEntry = new TicketLog({
+              ticket: ticketNum,
+              ticketId: ticket._id,
+              severity: "info",
+              event: `автоответ от ${email.from} в закрытую заявку — комментарий не создан`,
+            });
+            await logEntry.save();
+
+            logger.log(
+              "info",
+              `Skipped auto-reply comment for closed ticket ${ticketNum}`,
+              context,
+            );
+          } else if (ticket) {
             // Отрезаем процитированную переписку — иначе комментарий тонет в
             // хвосте предыдущих писем. Хвост сохраняется в quotedText.
             const { content, quotedText } = stripQuotedReply(email.description);

@@ -1808,7 +1808,7 @@ exports.createCommentNotifications = async () => {
               },
               title: `[F1-HD-${ticket.num}] Новый комментарий к Заявке ${ticket.num}`,
               text: `<div>
-                <h3>Новый комментарий.</h3>
+                <h3>${ticket.isClosed ? "Ответ в закрытую заявку." : "Новый комментарий."}</h3>
                 <p>
                 К Заявке №${ticket.num}, ${ticket.title}, добавлен новый комментарий: ${comment.content}
                 </p>
@@ -1849,7 +1849,7 @@ exports.createCommentNotifications = async () => {
                 },
                 title: `[F1-HD-${ticket.num}] Новый комментарий к Заявке ${ticket.num}`,
                 text: `<div>
-                                <h3>Новый комментарий.</h3>
+                                <h3>${ticket.isClosed ? "Ответ в закрытую заявку." : "Новый комментарий."}</h3>
                                 <p>
                                 К Заявке №${ticket.num}, ${ticket.title}, добавлен новый комментарий: ${comment.content}
                                 </p>

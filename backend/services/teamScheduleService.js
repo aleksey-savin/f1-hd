@@ -86,6 +86,9 @@ const buildTeamSchedule = async ({
     isServiceAccount: false,
     banned: { $ne: true },
     workTimeMode: { $ne: "none" },
+    // Сотрудники сторонних компаний, которым портал — хаб для своих заявок:
+    // время им вести можно, но нашей смены они не часть
+    hideInTeamCalendar: { $ne: true },
   };
   if (companyId) {
     query["company._id"] = companyId;

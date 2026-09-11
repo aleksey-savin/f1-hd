@@ -96,8 +96,13 @@ const ticketEvent = ({ emoji, event, ticket, quoted, lines = [] }) => {
  * знает, о чём заявка, ему важно, что именно написали.
  */
 const commentEvent = ({ comment, ticket }) => {
+  // Ответ в ЗАКРЫТУЮ заявку называется вслух: получатель должен понять, что от
+  // него ждут решения — вернуть в работу или оставить закрытой, — а не просто
+  // прочитать реплику
   const parts = [
-    `💬 <b>${escapeHtml(personName(comment.createdBy))}</b> · #ticket_${ticket.num}`,
+    `💬 <b>${escapeHtml(personName(comment.createdBy))}</b>${
+      ticket.isClosed ? " · ответ в закрытую" : ""
+    } · #ticket_${ticket.num}`,
   ];
 
   const quoteBlock = quote(comment.content);
@@ -268,7 +273,11 @@ const ticketBlocks = ({ emoji, event, ticket, quoted, quotedBy, rows = [] }) =>
  */
 const commentBlocks = ({ comment, ticket }) =>
   [
-    richHeading("💬", "Комментарий", ticket.num),
+    richHeading(
+      "💬",
+      ticket.isClosed ? "Ответ в закрытую заявку" : "Комментарий",
+      ticket.num,
+    ),
     richQuote(comment.content, personName(comment.createdBy)),
     /**
      * Тема — ОДНА колонка, без подписи и без выделения.

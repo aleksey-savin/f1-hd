@@ -142,6 +142,36 @@ module.exports.selfOrCanManageUsers = [
 
 // --- заявки ---------------------------------------------------------------
 
+/**
+ * Вернуть заявку в работу может тот, кто с заявками работает, — и САМ
+ * ЗАЯВИТЕЛЬ: закрытая, но не решённая заявка это его вопрос, а комментарий в
+ * закрытую, которого никто не разберёт, хуже открытой заново заявки.
+ *
+ * Стоит ПОСЛЕ `requireTicketAccess`: смотрит на саму заявку, а её поднимает он.
+ *
+ * Архив запрещает возврат всем: заявка привязана к отчёту за период. До сих пор
+ * это обещал только интерфейс — ручка архивную заявку открывала обратно.
+ */
+module.exports.canReturnTicket = (req, res, next) => {
+  const ticket = req.ticket;
+
+  if (ticket?.isArchived) {
+    return deny(req, res, "Заявка в архиве — вернуть её в работу нельзя");
+  }
+
+  const applicantId = ticket?.applicantId?._id ?? ticket?.applicantId;
+  const mine =
+    applicantId && String(applicantId) === String(req.auth.userId);
+
+  return req.auth.can({ ticket: ["perform"] }) || mine
+    ? next()
+    : deny(
+        req,
+        res,
+        "У пользователя отсутствует разрешение на возврат заявки в работу",
+      );
+};
+
 module.exports.canPerformTickets = requirePermission(
   { ticket: ["perform"] },
   "У пользователя отсутствует разрешение на выполнение заявки",

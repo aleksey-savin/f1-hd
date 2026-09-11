@@ -52,7 +52,12 @@ const {
   bestTemplateForTicket,
   itemsToChecklist,
 } = require("../services/checklistTemplates");
-const { buildFeed, isTechnical, classify } = require("../services/ticketEvents");
+const {
+  buildFeed,
+  feedForClient,
+  isTechnical,
+  classify,
+} = require("../services/ticketEvents");
 const {
   isAudioAttachment,
   transcribeAttachment,
@@ -682,7 +687,9 @@ exports.getOne = async (req, res, next) => {
       ticket: ticket,
       company: companyObj || {},
       works: worksWithLinks,
-      events: isEndUser ? [] : events,
+      // Заявителю лента приходит ОТОБРАННОЙ, а не пустой: ход заявки и работы
+      // по ней ему как раз нужны (services/ticketEvents → feedForClient)
+      events: isEndUser ? feedForClient(events) : events,
     });
   } catch (error) {
     next(

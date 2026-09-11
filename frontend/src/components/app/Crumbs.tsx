@@ -1,8 +1,8 @@
 import { Link, useLocation, useResolvedPath } from "react-router";
 import { RiArrowLeftSLine } from "react-icons/ri";
 
-import { sectionByKey, sectionForPath } from "@/util/sections";
-import { useCan } from "@/store/authed-user";
+import { sectionAs, sectionByKey, sectionForPath } from "@/util/sections";
+import { useAuthedUser, useCan } from "@/store/authed-user";
 
 export type CrumbLink = { label: string; to?: string };
 
@@ -40,7 +40,9 @@ export function useCrumbFrom(label: string | null | undefined) {
  *
  * Порядок ответов:
  *   1) `state.from` перехода — «‹ Заявка №51713»;
- *   2) список раздела, если он человеку открыт, — «‹ Пользователи»;
+ *   2) список раздела, если он человеку открыт, — «‹ Пользователи»; раздел
+ *      берётся глазами этого человека (`sectionAs`): клиенту вместо списка
+ *      заявок, которого у него нет, отвечает «‹ Главная»;
  *   3) название раздела приглушённым текстом, если права на список нет;
  *   4) ничего.
  *
@@ -66,6 +68,7 @@ const Crumbs = ({
 }) => {
   const location = useLocation();
   const can = useCan();
+  const { isEndUser } = useAuthedUser();
   const own = useResolvedPath(".").pathname;
 
   const from = (location.state as { from?: CrumbOrigin } | null)?.from;
@@ -73,7 +76,7 @@ const Crumbs = ({
   const fallback =
     section === false
       ? undefined
-      : (sectionByKey(section) ?? sectionForPath(own));
+      : sectionAs(sectionByKey(section) ?? sectionForPath(own), isEndUser);
   const allowed = fallback && (!fallback.can || can(fallback.can));
 
   const first: CrumbLink | undefined = from

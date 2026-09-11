@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import useRefreshRoute from "@/components/app/use-refresh-route";
 import useToastStore from "../../../store/toast-store";
-
 
 // Фоновое изображение рабочего стола: превью + «Загрузить»/«Удалить».
 // Выбранный файл загружается сразу (валидация типа и размера — до запроса);
@@ -10,13 +10,16 @@ import useToastStore from "../../../store/toast-store";
 function BackgroundImageUpload({ user }) {
   const { showToast } = useToastStore();
 
+  const refresh = useRefreshRoute();
   const fileInputRef = useRef(null);
   const [previewUrl, setPreviewUrl] = useState(
     user.backgroundImagePath
       ? `${import.meta.env.VITE_API_ADDRESS}/uploads/${user.backgroundImagePath}`
       : null,
   );
-  const [loading, setLoading] = useState(false);
+  // Какое действие идёт сейчас: общий флаг подписывал «Загружаю…» на кнопке
+  // загрузки, когда на самом деле шло удаление
+  const [busy, setBusy] = useState(null);
 
   const handleFileSelect = async (event) => {
     const file = event.target.files?.[0];
@@ -41,7 +44,7 @@ function BackgroundImageUpload({ user }) {
     const formData = new FormData();
     formData.append("backgroundImage", file);
 
-    setLoading(true);
+    setBusy("upload");
 
     try {
       const response = await fetch(
@@ -62,16 +65,19 @@ function BackgroundImageUpload({ user }) {
         `${import.meta.env.VITE_API_ADDRESS}/uploads/${data.backgroundImagePath}`,
       );
       showToast("success", "Фоновое изображение обновлено");
+      // Обои рисует оболочка из данных загрузчика корня, а не эта секция:
+      // без обновления новый фон появлялся только после перезагрузки страницы
+      refresh();
     } catch (error) {
       console.error("Error:", error);
       showToast("danger", error.message);
     } finally {
-      setLoading(false);
+      setBusy(null);
     }
   };
 
   const handleDelete = async () => {
-    setLoading(true);
+    setBusy("delete");
 
     try {
       const response = await fetch(
@@ -88,16 +94,19 @@ function BackgroundImageUpload({ user }) {
 
       setPreviewUrl(null);
       showToast("success", "Фоновое изображение удалено");
+      refresh();
     } catch (error) {
       console.error("Error:", error);
       showToast("danger", error.message);
     } finally {
-      setLoading(false);
+      setBusy(null);
     }
   };
 
+  // Кнопки — под превью и прижаты к концу строки: колонка сетки шириной с
+  // превью, кнопки в её правом краю. На узком экране они делят ширину поровну.
   return (
-    <div className="grid justify-items-start gap-2.5 max-md:justify-items-stretch">
+    <div className="grid gap-2.5">
       {previewUrl ? (
         // div с background-image, а не <img>: глобальный автоскейл картинок
         // тикетов (index.css: img { width/height: auto !important }) ломает
@@ -113,7 +122,7 @@ function BackgroundImageUpload({ user }) {
           Не задано
         </div>
       )}
-      <div className="flex gap-2">
+      <div className="flex justify-end gap-2 max-md:[&>button]:flex-1">
         <input
           ref={fileInputRef}
           type="file"
@@ -125,21 +134,21 @@ function BackgroundImageUpload({ user }) {
           type="button"
           variant="outline"
           size="sm"
-          disabled={loading}
+          disabled={Boolean(busy)}
           onClick={() => fileInputRef.current?.click()}
         >
-          {loading ? "Загружаю…" : "Загрузить"}
+          {busy === "upload" ? "Загружаю…" : "Загрузить"}
         </Button>
         {previewUrl && (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            disabled={loading}
+            disabled={Boolean(busy)}
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={handleDelete}
           >
-            Удалить
+            {busy === "delete" ? "Удаляю…" : "Удалить"}
           </Button>
         )}
       </div>

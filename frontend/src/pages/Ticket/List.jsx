@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, Navigate, useLocation } from "react-router";
 
 import { RiCheckboxMultipleLine } from "react-icons/ri";
 
@@ -20,7 +20,7 @@ import { warm } from "@/store/form-data";
 import useTicketFilterStore from "../../store/lists/tickets";
 import useToastStore from "../../store/toast-store";
 import { queueLabel } from "../../util/ticket-queues";
-import { useCan } from "@/store/authed-user";
+import { useAuthedUser, useCan } from "@/store/authed-user";
 
 // Список активных заявок. Выборка клиентская (открытых заявок десятки), поэтому
 // счётчики очередей считаются по всей выборке и честны.
@@ -397,7 +397,16 @@ const Tickets = () => {
   );
 };
 
-export default Tickets;
+// У клиента списка заявок нет — ни в меню, ни в таб-баре (см. menu.js): на
+// вопрос «что с моими заявками» ему отвечает блок «Мои заявки» на главной,
+// закрытые — «Архив». Прямой адрес (старая закладка) ведёт туда же. Редирект в
+// обёртке, а не в теле страницы: до её хуков ранний return невозможен.
+const TicketsPage = () => {
+  const { isEndUser } = useAuthedUser();
+  return isEndUser ? <Navigate to="/dashboard" replace /> : <Tickets />;
+};
+
+export default TicketsPage;
 
 export async function loader() {
   document.title = "Заявки";

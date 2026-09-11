@@ -16,6 +16,11 @@ const isResponsible = (ticket, userId) =>
     (user) => user._id?.toString() === userId?.toString(),
   );
 
+const isApplicant = (ticket, userId) =>
+  !!userId &&
+  (ticket?.applicant?._id ?? ticket?.applicantId)?.toString() ===
+    userId?.toString();
+
 /**
  * Что мешает закрыть заявку. Правила прежние, просто собраны в одном месте:
  * закрытие без указанных работ запрещает и бэкенд (422), обязательные пункты
@@ -58,10 +63,25 @@ export const ticketActions = (
   { userId, can, isAdmin, isEndUser, works = [] },
 ) => {
   const none = { primary: null, menu: [] };
-  if (!ticket || isEndUser) return none;
+  if (!ticket) return none;
 
   // В архиве заявка привязана к отчёту за период — правки и работы запрещены
   if (ticket.isArchived) return none;
+
+  /**
+   * У заявителя действие ровно одно: вернуть в работу СВОЮ закрытую заявку.
+   * Закрытая, но не решённая заявка — его вопрос, а не наш, и писать в неё
+   * комментарий, который никто не разберёт, хуже, чем открыть её заново.
+   * Остальное (обработать, взять, закрыть, удалить) — работа команды.
+   */
+  if (isEndUser) {
+    const reopenable =
+      ["Закрыта", "Выполнена"].includes(ticket.state) &&
+      isApplicant(ticket, userId);
+    return reopenable
+      ? { primary: { key: "backToWork", label: "Вернуть в работу" }, menu: [] }
+      : none;
+  }
 
   const canPerformTickets = can({ ticket: ["perform"] });
   const canAdministrateTickets = can({ ticket: ["administrate"] });

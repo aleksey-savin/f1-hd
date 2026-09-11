@@ -181,6 +181,7 @@ const UserForm = () => {
     access: "invite",
     isActive: !user?.banned,
     workStatusEnabled: user ? !user.hideWorkStatus : true,
+    teamCalendarEnabled: user ? !user.hideInTeamCalendar : true,
     isCloudTelephony: !!user?.isCloudTelephony,
     isAdmin: !!user?.isAdmin,
     company: companiesList.find((c) => c._id === user?.company?._id) || null,
@@ -417,6 +418,7 @@ const UserForm = () => {
       // в единственной точке, а не заводим в интерфейсе слово «бан».
       banned: !form.isActive,
       hideWorkStatus: !form.workStatusEnabled,
+      hideInTeamCalendar: !form.teamCalendarEnabled,
       company: form.company?._id || null,
       subdivision: form.subdivision?._id || null,
       // У сотрудников пояс правится в карточке графика — оттуда и семантика
@@ -579,6 +581,20 @@ const UserForm = () => {
     />
   );
 
+  // Отдельно от статусов присутствия: сотруднику сторонней компании, который
+  // пользуется порталом как хабом для своих заявок, время вести можно, но в
+  // нашей смене его нет
+  const teamCalendarSwitch = (
+    <SwitchField
+      id="u-teamCalendar"
+      checked={form.teamCalendarEnabled}
+      onCheckedChange={(value) => setField("teamCalendarEnabled", value)}
+      label="Показывать в календаре команды"
+      hint="Строка человека в календаре и в планировании отсутствий."
+      divider
+    />
+  );
+
   const personStep = (
     <>
       <Field
@@ -733,6 +749,7 @@ const UserForm = () => {
           присутствие — одна тема, и разрывать её по двум секциям нельзя.
           Сотруднику без права на графики секции нет — тогда показываем здесь */}
       {isStaff && !showSchedule && workStatusSwitch}
+      {isStaff && !showSchedule && teamCalendarSwitch}
     </>
   );
 
@@ -952,6 +969,7 @@ const UserForm = () => {
             hint="Статуса «в офисе» у него не будет — автоматика поставит «на удалёнке»."
           />
           {workStatusSwitch}
+          {teamCalendarSwitch}
 
           <div
             className={cn(
@@ -962,11 +980,7 @@ const UserForm = () => {
             <Field
               label="Часовой пояс"
               htmlFor="u-schedule-tz"
-              hint={
-                isFreeMode
-                  ? "По нему показывается его местное время в календаре."
-                  : "По нему считается его рабочий день — и в календаре, и в отчётах."
-              }
+              hint="По нему показывается его местное время в календаре и даты в его интерфейсе. График задаётся в поясе организации, поэтому на расчёт этот пояс не влияет."
             >
               <Combobox
                 id="u-schedule-tz"

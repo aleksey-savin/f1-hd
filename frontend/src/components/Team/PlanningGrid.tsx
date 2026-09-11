@@ -75,7 +75,9 @@ const PlanningGrid = ({ data }: Props) => {
               <td className="sticky left-0 z-10 border-r border-b border-border-soft bg-card px-3.5 py-1.5">
                 <span className="flex items-center gap-2.5">
                   <span
-                    className="grid size-7 flex-none place-items-center rounded-full bg-accent text-xs font-semibold text-muted-foreground"
+                    // Форма аватара человека одна на всех размерах — четверть
+                    // стороны; круглыми остаются только бейджи поверх плитки
+                    className="grid size-7 flex-none place-items-center rounded-[25%] bg-accent text-xs font-semibold text-muted-foreground"
                     style={{
                       boxShadow: `0 0 0 2px var(--card), 0 0 0 3px ${statusColor(member.status?.code)}`,
                     }}

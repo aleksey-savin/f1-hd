@@ -426,6 +426,7 @@ exports.getAll = async (req, res, next) => {
           banned: 1,
           workStatus: 1,
           hideWorkStatus: 1,
+          hideInTeamCalendar: 1,
           subdivision: 1,
           subdivisionName: {
             $ifNull: [{ $arrayElemAt: ["$_subdivision.name", 0] }, null],
@@ -708,6 +709,7 @@ exports.add = async (req, res, next) => {
       isServiceAccount,
       isCloudTelephony,
       hideWorkStatus,
+      hideInTeamCalendar,
       workTimeMode,
       remoteOnly,
       timezone,
@@ -799,6 +801,7 @@ exports.add = async (req, res, next) => {
       isServiceAccount: isServiceAccount,
       isCloudTelephony: isCloudTelephony,
       hideWorkStatus: !!hideWorkStatus,
+      hideInTeamCalendar: !!hideInTeamCalendar,
       workTimeMode: workTimeMode || "scheduled",
       remoteOnly: !!remoteOnly,
       // Личный пояс не копируем из подразделения: пустое значение = «как у
@@ -926,7 +929,12 @@ exports.add = async (req, res, next) => {
       userId: user._id,
     });
   } catch (error) {
-    next(new AppError(`Failed to add new user`, 500, true, error));
+    // Как и при обновлении: отказ в выдаче роли — осмысленный 403, а не сбой
+    next(
+      error instanceof AppError
+        ? error
+        : new AppError(`Failed to add new user`, 500, true, error),
+    );
   }
 };
 
@@ -954,6 +962,7 @@ exports.update = async (req, res, next) => {
       isServiceAccount,
       isCloudTelephony,
       hideWorkStatus,
+      hideInTeamCalendar,
       workTimeMode,
       remoteOnly,
       timezone,
@@ -1028,6 +1037,7 @@ exports.update = async (req, res, next) => {
     user.isServiceAccount = isServiceAccount;
     user.isCloudTelephony = isCloudTelephony;
     user.hideWorkStatus = !!hideWorkStatus;
+    user.hideInTeamCalendar = !!hideInTeamCalendar;
     if (workTimeMode !== undefined) {
       user.workTimeMode = workTimeMode;
     }
@@ -1151,8 +1161,14 @@ exports.update = async (req, res, next) => {
       userId: user._id,
     });
   } catch (error) {
+    // Осмысленную ошибку не заворачиваем: у 403 «Нельзя выдать роли права,
+    // которых нет у вас» есть и код, и человеческая фраза, а обёртка
+    // превращала её в 500 без объяснения — причём уже ПОСЛЕ user.save(),
+    // так что данные сохранялись, а экран показывал отказ.
     next(
-      new AppError(`Failed to update user ${req.params.id}`, 500, true, error),
+      error instanceof AppError
+        ? error
+        : new AppError(`Failed to update user ${req.params.id}`, 500, true, error),
     );
   }
 };

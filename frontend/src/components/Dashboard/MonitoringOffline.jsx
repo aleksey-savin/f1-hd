@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { RiAlertLine } from "react-icons/ri";
 
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
 import { formatDayMonth } from "../../util/format-date";
@@ -35,6 +36,7 @@ const downtimeText = (since) => {
 };
 
 const MonitoringOffline = () => {
+  const fromState = useCrumbFrom("Главная");
   const [data, setData] = useState(null);
 
   useEffect(() => {
@@ -119,6 +121,7 @@ const MonitoringOffline = () => {
               <Link
                 key={item._id}
                 to={`/devices/mikrotik/records/${item._id}`}
+                state={fromState}
                 className="flex items-center gap-3 border-b border-border-soft px-5 py-2.5 text-foreground no-underline transition-colors last:border-b-0 hover:bg-accent/60 hover:text-foreground"
               >
                 <span className="min-w-0 flex-1">

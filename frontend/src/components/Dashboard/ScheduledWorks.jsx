@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 
+import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import {
@@ -32,6 +33,7 @@ const whenLabel = (date) => {
 
 const ScheduledWorks = () => {
   const { _id: userId } = useContext(AuthedUserContext);
+  const fromState = useCrumbFrom("Главная");
   const [works, setWorks] = useState([]);
 
   useEffect(() => {
@@ -106,6 +108,7 @@ const ScheduledWorks = () => {
                   {ticket && (
                     <Link
                       to={`/tickets/${ticket.num}`}
+                      state={fromState}
                       className="block truncate text-sm text-muted-foreground no-underline hover:text-foreground"
                     >
                       {ticket.title}
