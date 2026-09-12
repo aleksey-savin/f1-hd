@@ -134,12 +134,11 @@ const PreferencesCanvas = ({ sections }) => {
 };
 
 /**
- * Секции настроек показываем ПО ПРАВАМ, а не по признаку администратора.
- *
- * Раньше страницу целиком закрывал один `isAdmin`, и поручить кому-то почту
- * значило отдать заодно ключи интеграций и политику входа. Теперь у секций
- * разные права, и человек видит ровно те, что может менять; сервер проверяет
- * каждую присланную секцию отдельно (`controllers/preferences.js`).
+ * Настройки — одно право (`settings.manage`): секции по правам не делятся
+ * (спека 2026-09-11). Раньше страницу целиком закрывал `isAdmin`, затем у
+ * секций были разные права — обе схемы уступили место одной: у кого есть
+ * доступ к настройкам, тот видит и меняет их все, сервер это же право и
+ * проверяет (`routes/internal/preferences.js`).
  */
 const Preferences = () => {
   const prefs = useLoaderData() || {};
@@ -153,7 +152,7 @@ const Preferences = () => {
       label: "Основные",
       element: <PrefsGlobals prefs={prefs} />,
     },
-    can({ settings: ["manageMail"] }) && {
+    general && {
       id: "tickets-collect",
       label: "Сбор заявок",
       element: <PrefsTicketsCollect prefs={prefs} />,
@@ -165,24 +164,24 @@ const Preferences = () => {
       label: "Заявки",
       element: <PrefsTickets prefs={prefs} />,
     },
-    can({ settings: ["manageMail"] }) && {
+    general && {
       id: "notifications",
       label: "Уведомления",
       element: <PrefsNotifications prefs={prefs} />,
     },
-    can({ settings: ["manageIntegrations"] }) && {
+    general && {
       id: "ai",
       label: "Искусственный интеллект",
       // рейл тесный — в нём секция живёт коротким именем
       rail: "ИИ",
       element: <PrefsAi prefs={prefs} />,
     },
-    can({ settings: ["manageIntegrations"] }) && {
+    general && {
       id: "integrations",
       label: "Интеграции",
       element: <PrefsIntegrations prefs={prefs} />,
     },
-    can({ settings: ["manageSecurity"] }) && {
+    general && {
       id: "security",
       label: "Безопасность",
       element: <PrefsSecurity prefs={prefs} />,
@@ -213,8 +212,8 @@ const Preferences = () => {
     },
   ].filter(Boolean);
 
-  // Право «видеть настройки» открывает страницу, но менять может быть нечего:
-  // так бывает у роли, которой оставили только чтение.
+  // Маршрут уже требует settings.manage (RouteGuard); проверка здесь — на
+  // случай прямого захода мимо гварда, а не рабочий сценарий для роли.
   if (!sections.length) {
     return <Forbidden />;
   }

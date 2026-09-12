@@ -192,6 +192,8 @@ export const ticketFormSections = ({ form, formData = {} }) => {
     setResponsibleIds,
     responsibleOptions,
     applicants,
+    canPickApplicant,
+    picksForOthers,
     deadline,
     setDeadline,
     state,
@@ -229,7 +231,12 @@ export const ticketFormSections = ({ form, formData = {} }) => {
 
   const descriptionSection = (
     <>
-      <Field label="Тема" htmlFor="ticket-title" required hint={errorOf("title")}>
+      <Field
+        label="Тема"
+        htmlFor="ticket-title"
+        required
+        hint={errorOf("title")}
+      >
         <Input
           id="ticket-title"
           autoFocus
@@ -284,71 +291,85 @@ export const ticketFormSections = ({ form, formData = {} }) => {
         />
       </Field>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field
-          label="Компания"
-          htmlFor="ticket-company"
-          required
-          hint={errorOf("company")}
-        >
-          <Combobox
-            id="ticket-company"
-            value={companyId || null}
-            onChange={(next) => {
-              setCompanyId(next ?? "");
-              // Список инициаторов сужен компанией: без сброса выбранным
-              // остался бы человек из чужой
-              setApplicantId("");
-            }}
-            options={(formData.companies ?? []).map((item) => ({
-              value: String(item._id),
-              label: item.alias,
-            }))}
-            placeholder="Выберите компанию"
-            searchPlaceholder="Найти компанию…"
-            emptyText="Компания не нашлась."
-          />
-        </Field>
+      {/* Компания, инициатор и ответственные — только у того, кто заводит
+          заявку за других (или правит её по праву «Вести заявки»). Сотруднику
+          без этого права сервер всё равно поставит его компанию и его самого,
+          а показанный выбор был обещанием, которого форма не держала */}
+      {picksForOthers && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field
+            label="Компания"
+            htmlFor="ticket-company"
+            required
+            hint={errorOf("company")}
+          >
+            <Combobox
+              id="ticket-company"
+              value={companyId || null}
+              onChange={(next) => {
+                setCompanyId(next ?? "");
+                // Список инициаторов сужен компанией: без сброса выбранным
+                // остался бы человек из чужой
+                setApplicantId("");
+              }}
+              options={(formData.companies ?? []).map((item) => ({
+                value: String(item._id),
+                label: item.alias,
+              }))}
+              placeholder="Выберите компанию"
+              searchPlaceholder="Найти компанию…"
+              emptyText="Компания не нашлась."
+            />
+          </Field>
 
-        <Field
-          label="Инициатор"
-          htmlFor="ticket-applicant"
-          required
-          hint={errorOf("applicant")}
-        >
-          <Combobox
-            id="ticket-applicant"
-            value={applicantId || null}
-            onChange={(next) => setApplicantId(next ?? "")}
-            options={applicants.map((person) => ({
-              value: String(person._id),
-              label: personLabel(person),
-            }))}
-            placeholder={
-              companyId ? "Выберите пользователя" : "Сначала выберите компанию"
-            }
-            searchPlaceholder="Найти пользователя…"
-            emptyText="Пользователь не нашёлся."
-          />
-        </Field>
-      </div>
+          <Field
+            label="Инициатор"
+            htmlFor="ticket-applicant"
+            required
+            hint={errorOf("applicant")}
+          >
+            <Combobox
+              id="ticket-applicant"
+              value={applicantId || null}
+              onChange={(next) => setApplicantId(next ?? "")}
+              options={applicants.map((person) => ({
+                value: String(person._id),
+                label: personLabel(person),
+              }))}
+              placeholder={
+                companyId
+                  ? "Выберите пользователя"
+                  : "Сначала выберите компанию"
+              }
+              searchPlaceholder="Найти пользователя…"
+              emptyText="Пользователь не нашёлся."
+            />
+          </Field>
+        </div>
+      )}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field
-          label="Ответственные"
-          htmlFor="ticket-responsibles"
-          hint={errorOf("responsibles")}
-        >
-          <MultiCombobox
-            id="ticket-responsibles"
-            value={responsibleIds}
-            onChange={setResponsibleIds}
-            options={responsibleOptions}
-            placeholder="Выберите пользователей"
-            searchPlaceholder="Найти сотрудника…"
-            emptyText="Сотрудник не нашёлся."
-          />
-        </Field>
+      {/* Без ответственных «Срок» остаётся один: колонок тогда тоже одна,
+          иначе поле висело бы в половину ряда с пустотой рядом */}
+      <div
+        className={picksForOthers ? "grid gap-3 md:grid-cols-2" : "grid gap-3"}
+      >
+        {picksForOthers && (
+          <Field
+            label="Ответственные"
+            htmlFor="ticket-responsibles"
+            hint={errorOf("responsibles")}
+          >
+            <MultiCombobox
+              id="ticket-responsibles"
+              value={responsibleIds}
+              onChange={setResponsibleIds}
+              options={responsibleOptions}
+              placeholder="Выберите пользователей"
+              searchPlaceholder="Найти сотрудника…"
+              emptyText="Сотрудник не нашёлся."
+            />
+          </Field>
+        )}
 
         <Field label="Срок" htmlFor="ticket-deadline">
           <DateTimeField
@@ -402,33 +423,55 @@ export const ticketFormSections = ({ form, formData = {} }) => {
    */
   const questionnaire = (
     <>
+      {canPickApplicant && (
+        <QuestionBlock
+          heading
+          title="Инициатор"
+          hint="По умолчанию — вы. Выберите коллегу, если проблема у него"
+          error={errorOf("applicant")}
+        >
+          <Combobox
+            id="ticket-applicant"
+            value={applicantId || null}
+            onChange={(next) => setApplicantId(next ?? "")}
+            options={applicants.map((person) => ({
+              value: String(person._id),
+              label: personLabel(person),
+            }))}
+            placeholder="Выберите коллегу"
+            searchPlaceholder="Найти коллегу…"
+            emptyText="Коллега не нашёлся."
+          />
+        </QuestionBlock>
+      )}
+
       {/* Описание — на своём месте, одно на форму. Спрашивает шаблон — оно
           идёт ПЕРВЫМ, с текстом заготовки, и его правят. Скрывает — остаётся
           только текст заготовки, читаемым абзацем: дальше заявку опишут
           ответы на вопросы, и второе поле для того же было бы лишним */}
-      {descriptionMode === "hidden"
-        ? template?.description && (
-            <div className={QUESTION_BLOCK}>
-              <div className="md-doc text-sm text-muted-foreground">
-                <MarkdownViewer value={template.description} />
-              </div>
+      {descriptionMode === "hidden" ? (
+        template?.description && (
+          <div className={QUESTION_BLOCK}>
+            <div className="md-doc text-sm text-muted-foreground">
+              <MarkdownViewer value={template.description} />
             </div>
-          )
-        : (
-            <QuestionBlock
-              heading
-              title="Опишите задачу или проблему"
-              required={descriptionRequired}
-              hint={
-                template?.description
-                  ? "Текст из шаблона — дополните или измените"
-                  : undefined
-              }
-              error={errorOf("description")}
-            >
-              {descriptionEditor}
-            </QuestionBlock>
-          )}
+          </div>
+        )
+      ) : (
+        <QuestionBlock
+          heading
+          title="Опишите задачу или проблему"
+          required={descriptionRequired}
+          hint={
+            template?.description
+              ? "Текст из шаблона — дополните или измените"
+              : undefined
+          }
+          error={errorOf("description")}
+        >
+          {descriptionEditor}
+        </QuestionBlock>
+      )}
 
       {questions}
 

@@ -131,9 +131,10 @@ const ViewUser = ({ user, tickets }) => {
   const catalogue = usePermissionCatalogue();
   const canManageUsers = can({ user: ["manage"] });
   // Правка финансов — та же форма пользователя, но секция под своим правом
-  // (как в UserForm): без него карандаш вёл бы в форму, где секции нет
+  // user.manageFinances (как в UserForm): без него карандаш вёл бы в форму,
+  // где секции нет. report.employees — это отчёт и ничего, кроме отчёта.
   const canEditFinances =
-    canManageUsers && Boolean(can({ report: ["employees"] }));
+    canManageUsers && Boolean(can({ user: ["manageFinances"] }));
   // Пароли, сеансы и второй фактор — это ДОСТУП, а не карточка человека:
   // право своё, и кнопки показываем по нему, иначе сервер отобьёт нажатие.
   const canManageUserAccess = can({ user: ["manageAccess"] });
@@ -205,15 +206,15 @@ const ViewUser = ({ user, tickets }) => {
     : null;
 
   // Финансы. Раздел не про клиентов (зарплатных полей у них нет) — на карточке
-  // клиента его не рисуем вовсе. Видят: администратор — на любой карточке
-  // сотрудника; сотрудник (не клиент) — свою собственную. Обладатель
-  // canSeeGlobalFinancialReport чужие финансы больше не видит — права ещё
-  // будем перерабатывать; сервер (getOne) пока отдаёт ему finances в ответе.
+  // клиента его не рисуем вовсе. Видят: обладатель user.manageFinances — любую
+  // карточку сотрудника; сотрудник (не клиент) — свою собственную. Тот же гейт,
+  // что и на сервере (getOne → canManageFinances).
   const isSelf = String(authedUser._id) === String(user._id);
+  // Клиент смотрит коллегу как адресную книгу: активность, интеграции и
+  // отключение — не его данные (сервер их и не отдаёт)
+  const addressBookOnly = Boolean(authedUser.isEndUser) && !isSelf;
   const canSeeFinances =
-    !isEndUser &&
-    finances &&
-    (authedUser.isAdmin || (isSelf && !authedUser.isEndUser));
+    !isEndUser && finances && (isSelf || Boolean(can({ user: ["manageFinances"] })));
 
   const adLinked = Boolean(activeDirectoryObjectGUID);
 
@@ -365,7 +366,7 @@ const ViewUser = ({ user, tickets }) => {
                 )}
               </span>
             )}
-            {banned && (
+            {!addressBookOnly && banned && (
               <span className="inline-flex items-center gap-1.5 font-semibold text-destructive">
                 <span className="size-2 rounded-full bg-destructive" />
                 Отключён
@@ -499,15 +500,19 @@ const ViewUser = ({ user, tickets }) => {
                 <span className="font-normal text-faint">—</span>
               )}
             </PropRow>
-            <PropRow icon={<RiTelegramLine size={17} />} label="Telegram-бот">
-              <StatusText on={tgConnected} />
-            </PropRow>
-            <PropRow
-              icon={<RiShieldCheckLine size={17} />}
-              label="Active Directory"
-            >
-              <StatusText on={adLinked} onText="Связан" offText="Не связан" />
-            </PropRow>
+            {!addressBookOnly && (
+              <PropRow icon={<RiTelegramLine size={17} />} label="Telegram-бот">
+                <StatusText on={tgConnected} />
+              </PropRow>
+            )}
+            {!addressBookOnly && (
+              <PropRow
+                icon={<RiShieldCheckLine size={17} />}
+                label="Active Directory"
+              >
+                <StatusText on={adLinked} onText="Связан" offText="Не связан" />
+              </PropRow>
+            )}
             {/* Ключ PRO32 Connect есть только у сотрудников — он подключает
                 к машине клиента того, кто нажал кнопку в заявке */}
             {!isEndUser && !isServiceAccount && (
@@ -587,42 +592,46 @@ const ViewUser = ({ user, tickets }) => {
             <div>
               <SubLabel>Активность</SubLabel>
               <Panel>
-                <PropRow
-                  icon={<RiLoginCircleLine size={17} />}
-                  label="Последний вход"
-                >
-                  {lastLogin ? (
-                    <span className="tabular-nums">
-                      {formatDate(lastLogin)}
-                    </span>
-                  ) : invitedAt ? (
-                    /* «Никогда» не отвечает на вопрос, который тут возникает:
-                       дошло ли приглашение. Из 98 заведённых за год учёток 76
-                       не входили ни разу, и узнать об этом было неоткуда. */
-                    <span className="font-normal text-warning">
-                      ни разу · приглашён{" "}
+                {!addressBookOnly && (
+                  <PropRow
+                    icon={<RiLoginCircleLine size={17} />}
+                    label="Последний вход"
+                  >
+                    {lastLogin ? (
                       <span className="tabular-nums">
-                        {relativeDay(invitedAt) || formatDate(invitedAt)}
+                        {formatDate(lastLogin)}
                       </span>
-                    </span>
-                  ) : (
-                    <span className="font-normal text-faint">никогда</span>
-                  )}
-                </PropRow>
-                <PropRow
-                  icon={<RiTicket2Line size={17} />}
-                  label="Последняя заявка"
-                >
-                  {relativeDay(lastActivityAt) ? (
-                    <span className="tabular-nums">
-                      {relativeDay(lastActivityAt)}
-                    </span>
-                  ) : (
-                    <span className="font-normal text-faint">
-                      нет обращений
-                    </span>
-                  )}
-                </PropRow>
+                    ) : invitedAt ? (
+                      /* «Никогда» не отвечает на вопрос, который тут возникает:
+                         дошло ли приглашение. Из 98 заведённых за год учёток 76
+                         не входили ни разу, и узнать об этом было неоткуда. */
+                      <span className="font-normal text-warning">
+                        ни разу · приглашён{" "}
+                        <span className="tabular-nums">
+                          {relativeDay(invitedAt) || formatDate(invitedAt)}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="font-normal text-faint">никогда</span>
+                    )}
+                  </PropRow>
+                )}
+                {!addressBookOnly && (
+                  <PropRow
+                    icon={<RiTicket2Line size={17} />}
+                    label="Последняя заявка"
+                  >
+                    {relativeDay(lastActivityAt) ? (
+                      <span className="tabular-nums">
+                        {relativeDay(lastActivityAt)}
+                      </span>
+                    ) : (
+                      <span className="font-normal text-faint">
+                        нет обращений
+                      </span>
+                    )}
+                  </PropRow>
+                )}
                 <PropRow icon={<RiTimeLine size={17} />} label="В системе с">
                   <span className="tabular-nums">
                     {formatShortDate(createdAt) || "—"}
@@ -841,12 +850,10 @@ const ViewUser = ({ user, tickets }) => {
                       </Button>
                     )}
                   </div>
-                  {/* Завершать чужие сеансы может тот же, кто распоряжается
-                      доступом; остальным список показываем только на чтение. */}
-                  <SessionList
-                    userId={user._id}
-                    canRevoke={canManageUserAccess}
-                  />
+                  {/* Список сеансов — под тем же правом, что и завершение:
+                      ручка сеансов требует `user.manageAccess`, и без него
+                      блок только отвечал бы ошибкой. */}
+                  {canManageUserAccess && <SessionList userId={user._id} />}
                 </Panel>
               </div>
             </>

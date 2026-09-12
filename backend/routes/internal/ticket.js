@@ -6,17 +6,25 @@ const isTelegramBot = require("@/middleware/isTelegramBot");
 const {
   allowedToViewTicket,
   requireTicketAccess,
+  requireTicketsAccess,
   canDeleteTickets,
-  canUpdateTickets,
-  canReturnTicket,
   canPerformTickets,
-  canAdministrateTickets,
+  canManageTickets,
+  canReturnTicket,
+  requireOwnTicketOrManage,
+  requireOwnTicketsOrManage,
+  requireJoinable,
+  requireJoinableTickets,
   canManageKnowledge,
   canReadKnowledge,
   knowledgeBaseModuleIsActive,
 } = require("@/middleware/permissions");
 
 const fileUpload = require("@/middleware/fileUpload");
+
+const byBodyId = requireTicketAccess((req) => ({ id: req.body._id }));
+const byNum = requireTicketAccess((req) => ({ num: req.params.ticketNum }));
+const byBodyIds = requireTicketsAccess((req) => req.body.ids);
 
 router.get("/tickets/all-opened", isAuth, ticketController.getAllOpened);
 router.get("/tickets/user/:id", isAuth, ticketController.getUsersTickets);
@@ -29,172 +37,43 @@ router.get(
   ticketController.getTechnicalLog,
 );
 
-router.post(
-  "/tickets/add",
-  isAuth,
-  fileUpload.array("attachments"),
-  ticketController.add,
-);
-router.post(
-  "/tickets/:ticketNum/add-attachments",
-  isAuth,
-  canAdministrateTickets,
-  fileUpload.array("attachments"),
-  ticketController.addAttachments,
-);
-router.post(
-  "/tickets/:ticketNum/remove-attachment",
-  isAuth,
-  canAdministrateTickets,
-  ticketController.removeAttachment,
-);
-router.post(
-  "/tickets/update",
-  isAuth,
-  canUpdateTickets,
-  fileUpload.array("attachments"),
-  ticketController.update,
-);
-router.post(
-  "/tickets/process",
-  isAuth,
-  canAdministrateTickets,
-  ticketController.process,
-);
-router.post(
-  "/tickets/take-to-work",
-  isAuth,
-  canPerformTickets,
-  ticketController.takeToWork,
-);
-router.post(
-  "/tickets/request-help",
-  isAuth,
-  canPerformTickets,
-  ticketController.requestHelp,
-);
-router.post(
-  "/tickets/join-responsibles",
-  isAuth,
-  canPerformTickets,
-  ticketController.joinResponsibles,
-);
-router.post(
-  "/tickets/update-deadline",
-  isAuth,
-  canPerformTickets,
-  ticketController.updateDeadline,
-);
-router.post(
-  "/tickets/reject",
-  isAuth,
-  canPerformTickets,
-  ticketController.reject,
-);
-router.post(
-  "/tickets/close",
-  isAuth,
-  canPerformTickets,
-  ticketController.close,
-);
-// Возврат в работу — единственное действие, доступное и заявителю: закрытая,
-// но не решённая заявка это его вопрос (`canReturnTicket`). Гейт стоит ПОСЛЕ
-// проверки доступа: он смотрит на саму заявку — на архив и на заявителя.
-// Ключ лежит в теле, поэтому доступ проверяем по `_id`, а не по номеру.
-router.post(
-  "/tickets/back-to-work",
-  requireTicketAccess((req) => ({ id: req.body._id })),
-  canReturnTicket,
-  ticketController.backToWork,
-);
-
-router.post(
-  "/tickets/ai-guide/generate",
-  isAuth,
-  canPerformTickets,
-  ticketController.regenerateAiGuide,
-);
-
-// Понятийный аппарат заявки: разбор и справка по понятию — по требованию
-router.post(
-  "/tickets/ai-terms/analyze",
-  isAuth,
-  canPerformTickets,
-  ticketController.analyzeAiTerms,
-);
-router.post(
-  "/tickets/ai-terms/reference",
-  isAuth,
-  canPerformTickets,
-  ticketController.getAiTermReference,
-);
-// Заводит заметку — значит, и права те же, что у формы базы знаний
-router.post(
-  "/tickets/ai-terms/save-note",
-  isAuth,
-  canPerformTickets,
-  knowledgeBaseModuleIsActive,
-  canReadKnowledge,
-  canManageKnowledge,
-  ticketController.saveAiTermNote,
-);
-// Замечание к тому, что ИИ вписал в заявку вместо человека
-router.post(
-  "/tickets/ai-feedback",
-  isAuth,
-  canPerformTickets,
-  ticketController.addAiFeedback,
-);
-router.post(
-  "/tickets/:ticketNum/attachments/speech-to-text",
-  isAuth,
-  canPerformTickets,
-  ticketController.transcribeAttachment,
-);
-
-router.post(
-  "/tickets/delete/:id",
-  isAuth,
-  canDeleteTickets,
-  ticketController.delete,
-);
-
-router.post(
-  "/tickets/delete-multiple",
-  isAuth,
-  canDeleteTickets,
-  ticketController.deleteMultiple,
-);
-
-router.post(
-  "/tickets/take-to-work-multiple",
-  isAuth,
-  canPerformTickets,
-  ticketController.takeToWorkMultiple,
-);
-
-router.post(
-  "/tickets/close-multiple",
-  isAuth,
-  canPerformTickets,
-  ticketController.closeMultiple,
-);
-
-// Состав чек-листа — правка заявки (карандаш секции), а отметка пункта —
-// её выполнение, поэтому права разные
-router.post(
-  "/tickets/:ticketNum/update-checklist",
-  isAuth,
-  canUpdateTickets,
-  ticketController.updateChecklist,
-);
-
-router.post(
-  "/tickets/:ticketNum/update-checklist-item",
-  isAuth,
-  canPerformTickets,
-  ticketController.updateChecklistItem,
-);
+router.post("/tickets/add", isAuth, fileUpload.array("attachments"), ticketController.add);
+// Вложения самой заявки — содержание заявки: только «Вести заявки».
+// Исполнитель и клиент прикладывают файлы через комментарии.
+router.post("/tickets/:ticketNum/add-attachments", isAuth, canManageTickets, byNum, fileUpload.array("attachments"), ticketController.addAttachments);
+router.post("/tickets/:ticketNum/remove-attachment", isAuth, canManageTickets, byNum, ticketController.removeAttachment);
+// Мультипарт: `_id` появляется в теле только после multer, поэтому проверка доступа стоит за ним
+router.post("/tickets/update", isAuth, canManageTickets, fileUpload.array("attachments"), byBodyId, ticketController.update);
+router.post("/tickets/process", isAuth, canManageTickets, byBodyId, ticketController.process);
+// Принять в работу и присоединиться — `requireJoinable`: свою заявку берёт
+// ответственный, чужую — только с правом «Присоединяться к чужим заявкам»
+// (гейты стоят после проверки доступа: читают req.ticket)
+router.post("/tickets/take-to-work", isAuth, canPerformTickets, byBodyId, requireJoinable, ticketController.takeToWork);
+router.post("/tickets/request-help", isAuth, canPerformTickets, byBodyId, requireOwnTicketOrManage, ticketController.requestHelp);
+router.post("/tickets/join-responsibles", isAuth, canPerformTickets, byBodyId, requireJoinable, ticketController.joinResponsibles);
+router.post("/tickets/update-deadline", isAuth, canPerformTickets, byBodyId, requireOwnTicketOrManage, ticketController.updateDeadline);
+router.post("/tickets/reject", isAuth, canPerformTickets, byBodyId, requireOwnTicketOrManage, ticketController.reject);
+// Закрыть, отказаться, изменить срок, запросить помощь, отметить пункт —
+// только на своей заявке (`requireOwnTicketOrManage`): до сих пор исполнителю
+// хватало одного «Брать заявки в работу» на любую доступную заявку
+router.post("/tickets/close", isAuth, canPerformTickets, byBodyId, requireOwnTicketOrManage, ticketController.close);
+// Вернуть в работу может исполнитель — и САМ заявитель своей закрытой заявки
+// (`canReturnTicket`, стоит после проверки доступа: читает req.ticket)
+router.post("/tickets/back-to-work", isAuth, byBodyId, canReturnTicket, ticketController.backToWork);
+router.post("/tickets/ai-guide/generate", isAuth, canPerformTickets, byBodyId, ticketController.regenerateAiGuide);
+router.post("/tickets/ai-terms/analyze", isAuth, canPerformTickets, byBodyId, ticketController.analyzeAiTerms);
+router.post("/tickets/ai-terms/reference", isAuth, canPerformTickets, byBodyId, ticketController.getAiTermReference);
+router.post("/tickets/ai-terms/save-note", isAuth, canPerformTickets, byBodyId, knowledgeBaseModuleIsActive, canReadKnowledge, canManageKnowledge, ticketController.saveAiTermNote);
+router.post("/tickets/ai-feedback", isAuth, canPerformTickets, byBodyId, ticketController.addAiFeedback);
+router.post("/tickets/:ticketNum/attachments/speech-to-text", isAuth, canPerformTickets, byNum, ticketController.transcribeAttachment);
+router.post("/tickets/delete/:id", isAuth, canDeleteTickets, requireTicketAccess((req) => ({ id: req.params.id })), ticketController.delete);
+router.post("/tickets/delete-multiple", isAuth, canDeleteTickets, byBodyIds, ticketController.deleteMultiple);
+router.post("/tickets/take-to-work-multiple", isAuth, canPerformTickets, byBodyIds, requireJoinableTickets, ticketController.takeToWorkMultiple);
+router.post("/tickets/close-multiple", isAuth, canPerformTickets, byBodyIds, requireOwnTicketsOrManage, ticketController.closeMultiple);
+// Состав чек-листа: право решает контроллер (canEditChecklist) — оно зависит
+// от отношения к заявке и от того, регламентная ли она
+router.post("/tickets/:ticketNum/update-checklist", isAuth, byNum, ticketController.updateChecklist);
+router.post("/tickets/:ticketNum/update-checklist-item", isAuth, canPerformTickets, byNum, requireOwnTicketOrManage, ticketController.updateChecklistItem);
 
 router.get(
   "/tickets/:ticketNum",

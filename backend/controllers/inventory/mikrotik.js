@@ -52,7 +52,6 @@ const {
 
 const { AppError } = require("../../middleware/errorHandling");
 const logger = require("../../utils/logger");
-const { canFor } = require("@/services/permissions");
 
 // Config exports contain device secrets, so downloading one requires a step-up
 // email OTP: a 6-digit code, valid 10 minutes, single-use, max 5 tries.
@@ -806,7 +805,7 @@ exports.getRecordOne = async (req, res, next) => {
             modelName: device.deviceModelId?.name || null,
             inventoryNumber: device.inventoryNumber || null,
           }
-        : await inventoryLinkContext(record, req.userId),
+        : await inventoryLinkContext(record, req.auth),
     });
   } catch (error) {
     next(
@@ -1113,17 +1112,21 @@ const findInventoryCandidate = async (record) => {
 // Блок «Инвентарь» шага после проверки: кандидат на связь по серийнику и может
 // ли пользователь создать карточку. null — модуль «Учёт техники» выключен,
 // блок не показывается вовсе.
-const inventoryLinkContext = async (record, userId) => {
-  const [prefs, user] = await Promise.all([
-    Preferences.findOne({}).select("modules.inventory").lean(),
-    User.findById(userId).select("isAdmin").lean(),
-  ]);
+//
+// Право спрашиваем у авторизатора САМОГО запроса (`req.auth.can`), а не собираем
+// заново по проекции документа. Прежний код поднимал пользователя с
+// `select("isAdmin")` и звал `canFor` — а тот по обрезанному документу считал
+// человека клиентом (в проекции нет `isEndUser`) и вырезал права по не той
+// аудитории. Вдобавок спрашивалось несуществующее `clientDevice.manage`:
+// в словаре ресурс техники называется `device`, и ответ был всегда «нельзя».
+const inventoryLinkContext = async (record, auth) => {
+  const prefs = await Preferences.findOne({})
+    .select("modules.inventory")
+    .lean();
   if (prefs?.modules?.inventory?.isActive === false) return null;
 
   const candidate = await findInventoryCandidate(record);
-  const canCreateCard = user
-    ? (await canFor(user))({ clientDevice: ["manage"] })
-    : false;
+  const canCreateCard = Boolean(auth?.can({ device: ["manage"] }));
   return { candidate, canCreateCard };
 };
 
@@ -1352,7 +1355,7 @@ exports.createStandalone = async (req, res, next) => {
     res.status(201).json({
       message: "Устройство добавлено и проверено",
       record: safe,
-      inventory: await inventoryLinkContext(record, req.userId),
+      inventory: await inventoryLinkContext(record, req.auth),
     });
   } catch (error) {
     next(
@@ -1423,7 +1426,7 @@ exports.updateRecordParameters = async (req, res, next) => {
       // мог появиться только сейчас); у связанной блока нет.
       inventory: record.clientDevice
         ? null
-        : await inventoryLinkContext(record, req.userId),
+        : await inventoryLinkContext(record, req.auth),
     });
   } catch (error) {
     next(

@@ -5,6 +5,11 @@
  * Главное действие ровно одно, и его выбирает **состояние заявки**, а не
  * порядок в разметке: «Новая» → обработать, «Не в работе» → принять, «В работе»
  * у ответственного → закрыть, у остальных → присоединиться, «Закрыта» → вернуть.
+ *
+ * «Своя» заявка — та, где человек в ответственных: работа с ней (закрыть,
+ * отказаться, срок, помощь) требует только `ticket.perform`, а вот взяться за
+ * ЧУЖУЮ — отдельного права `ticket.join` (решение владельца 2026-09-12). То же
+ * правило на сервере: middleware/permissions.js, services/ticketAccess.js.
  * Всё редкое и опасное — в «⋯».
  *
  * Раньше эти условия были размазаны по восьми компонентам, каждый решал сам,
@@ -53,6 +58,13 @@ export const closeBlockers = (ticket, { works = [], can }) => {
 const worksMissing = (ticket, options) =>
   closeBlockers(ticket, options)[0] === "По заявке не указаны работы";
 
+/** Правило состава чек-листа — одно на карточку, меню и секцию ИИ. */
+export const canComposeChecklistFor = (ticket, { userId, can }) =>
+  can({ ticket: ["manage"] }) ||
+  (can({ ticket: ["perform"] }) &&
+    isResponsible(ticket, userId) &&
+    !ticket?.routineTask);
+
 /**
  * @returns {{ primary: object|null, menu: object[] }} действия для состояния.
  *   Каждое: `{ key, label, danger? }`. Ключ понимают ActionDialog (диалоги) и
@@ -84,22 +96,32 @@ export const ticketActions = (
   }
 
   const canPerformTickets = can({ ticket: ["perform"] });
-  const canAdministrateTickets = can({ ticket: ["administrate"] });
-  const canEditTickets = can({ ticket: ["update"] });
+  const canManageTickets = can({ ticket: ["manage"] });
   const canDeleteTickets = can({ ticket: ["delete"] });
+  // Взяться за чужую заявку — отдельное право. Одного «Вести заявки» мало:
+  // маршруты принятия и присоединения стоят за `canPerformTickets`, и роль без
+  // «Брать заявки в работу» получила бы кнопку и 403 по ней
+  const canJoin = can({ ticket: ["join"] });
 
   const mine = isResponsible(ticket, userId);
-  const noResponsibles = (ticket.responsibles?.length ?? 0) === 0;
+  // Состав чек-листа: ведущий заявки — на любой, исполнитель — на своей и не
+  // из регламента (то же правило, что на сервере: services/ticketAccess)
+  const canComposeChecklist = canComposeChecklistFor(ticket, { userId, can });
   const state = ticket.state;
   const closed = state === "Закрыта" || state === "Выполнена";
 
   let primary = null;
-  if (state === "Новая" && (canAdministrateTickets || isAdmin)) {
+  if (state === "Новая" && (canManageTickets || isAdmin)) {
     primary = { key: "process", label: "Обработать" };
   } else if (
     state === "Не в работе" &&
-    (mine || (noResponsibles && canPerformTickets))
+    canPerformTickets &&
+    (mine || canJoin)
   ) {
+    // Заявка без ответственных — тоже «не своя»: её берут по праву
+    // присоединяться, отдельной поблажки для неё больше нет.
+    // `canPerformTickets` обязателен: все ручки принятия и присоединения стоят
+    // за `ticket.perform`, и без него кнопка обещала бы то, что даст 403
     primary = { key: "takeToWork", label: "Принять в работу" };
   } else if (state === "В работе" && mine) {
     // Пока работ нет, «Закрыть» всё равно упрётся в запрет — предлагаем то,
@@ -110,10 +132,18 @@ export const ticketActions = (
   } else if (
     (state === "В работе" || state === "На согласовании") &&
     !mine &&
-    canPerformTickets
+    canPerformTickets &&
+    canJoin
   ) {
+    // Тот же `canPerformTickets`, что и у «Принять в работу»: маршрут один
     primary = { key: "join", label: "Присоединиться" };
-  } else if (closed && (mine || isAdmin || canPerformTickets)) {
+  } else if (
+    // То же правило, что у сервера (`canReturnTicket`): свой, ведущий заявки
+    // или сам заявитель. Возврат чужой закрытой заявки не делает человека
+    // ответственным, поэтому одного «Брать заявки в работу» мало
+    closed &&
+    (mine || isAdmin || canManageTickets || isApplicant(ticket, userId))
+  ) {
     primary = { key: "backToWork", label: "Вернуть в работу" };
   }
 
@@ -130,14 +160,14 @@ export const ticketActions = (
   // своя механика — сначала запрос сессии, потом ссылка, — в пункт меню это не
   // укладывается.
 
-  if (canEditTickets)
+  if (canManageTickets)
     push({ key: "update", label: "Изменить", group: "ticket" });
 
   // Чек-лист заводят руками редко (за год — четыре раза на три тысячи заявок),
   // поэтому вход живёт здесь, а не пустой секцией на каждой карточке: своей
   // секции у чек-листа нет, пока в нём ничего нет. «Составить», а не
   // «Добавить»: список сочиняют, а не привязывают готовый
-  if (canPerformTickets && !closed && !(ticket.checklist?.length > 0)) {
+  if (canComposeChecklist && !closed && !(ticket.checklist?.length > 0)) {
     push({
       key: "makeChecklist",
       label: "Составить чек-лист",

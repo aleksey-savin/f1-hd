@@ -53,6 +53,9 @@ const TicketBulkActionBar = ({
   const empty = count === 0 ? "Выберите заявки" : null;
 
   const actions = [
+    // Кнопка видна исполнителю: свои заявки он принимает и без права
+    // присоединяться. Годность самого выделения считает takeToWorkReason —
+    // там же и `ticket.join`
     can({ ticket: ["perform"] }) && {
       key: "takeToWork",
       icon: RiPlayCircleLine,
@@ -65,13 +68,14 @@ const TicketBulkActionBar = ({
       label: "Комментарий",
       reason: empty ?? commentReason(selectedItems),
     },
-    can({ ticket: ["perform"] }) &&
-      can({ work: ["read"] }) && {
-        key: "works",
-        icon: RiToolsLine,
-        label: "Работы",
-        reason: empty ?? addWorksReason(selectedItems),
-      },
+    // Шторка только ЗАПИСЫВАЕТ работы на выбранные заявки, поэтому спрашиваем
+    // право записи, а не просмотра: видеть работы и заводить их — разные вещи.
+    can({ work: ["log"] }) && {
+      key: "works",
+      icon: RiToolsLine,
+      label: "Работы",
+      reason: empty ?? addWorksReason(selectedItems),
+    },
     can({ ticket: ["perform"] }) && {
       key: "close",
       icon: RiCheckboxCircleLine,

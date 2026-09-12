@@ -24,6 +24,11 @@ import { action as deleteTicketAction } from "./pages/Ticket/Delete.jsx";
 import { ticketFormRoutes } from "./routes/ticket-forms.jsx";
 import { SHEET_LG, SHEET_MD, SHEET_XL } from "@/components/app/FormOutlet";
 
+// Формы справочников техники (типы, модели, вендоры, атрибуты, конфигурации)
+// живут под одним правом и в одной ширине шторки. Требование написано один
+// раз: семнадцать копий подряд разъезжаются на первой же правке.
+const CATALOG_FORM = { can: { inventoryCatalog: ["manage"] }, ...SHEET_MD };
+
 import ChecklistTemplateListPage from "./pages/ChecklistTemplate/List.jsx";
 import AddChecklistTemplatePage from "./pages/ChecklistTemplate/Add.jsx";
 import UpdateChecklistTemplatePage from "./pages/ChecklistTemplate/Update.jsx";
@@ -621,6 +626,7 @@ function App() {
             },
             {
               path: "companies/:id",
+              handle: { can: { company: ["read"] } },
               id: "company-view",
               loader: viewCompanyLoader,
               action: viewCompanyAction,
@@ -628,7 +634,7 @@ function App() {
               children: [
                 {
                   path: "update",
-                  handle: SHEET_XL,
+                  handle: { can: { company: ["manage"] }, ...SHEET_XL },
                   loader: updateCompanyLoader,
                   action: updateCompanyrAction,
                   element: <UpdateCompanyPage />,
@@ -637,7 +643,7 @@ function App() {
                   // «Новая услуга» из диалога «Добавить услугу»: мастер услуги в
                   // wide-шторке карточки, создание + подключение одним запросом
                   path: "service-plans/add",
-                  handle: SHEET_LG,
+                  handle: { can: { servicePlan: ["manage"] }, ...SHEET_LG },
                   loader: addCompanyServicePlanLoader,
                   action: addCompanyServicePlanAction,
                   element: <AddCompanyServicePlanPage />,
@@ -670,13 +676,21 @@ function App() {
             },
             {
               path: "users/:id",
+              handle: { can: { user: ["read"] } },
               loader: viewUserLoader,
               action: viewUserAction,
               element: <ViewUserPage />,
               children: [
                 {
+                  // Без `can` НАМЕРЕННО: та же форма открывается в режиме
+                  // «только график» тому, у кого есть `schedule.manage`, но нет
+                  // `user.manage` (`components/User/WorkScheduleSection.jsx` →
+                  // `update#schedule`, `pages/User/Update.jsx` scheduleOnly).
+                  // RouteGuard умеет одно условие и не выражает «user.manage
+                  // ИЛИ schedule.manage» через два ресурса, а запрет обещают
+                  // обе ручки на сервере — здесь он был бы косметическим.
                   path: "update",
-                  handle: SHEET_XL,
+                  handle: { ...SHEET_XL },
                   loader: updateUserLoader,
                   action: updateUserAction,
                   element: <UpdateUserPage />,
@@ -717,21 +731,21 @@ function App() {
             // Ticket Categories
             {
               path: "ticket-categories",
-              handle: { can: { ticketCategory: ["manage"] } },
+              handle: { can: { ticketCategory: ["read"] } },
               element: <TicketCatogries />,
               loader: ticketCategoriesLoader,
               action: deleteTicketCategoryAction,
               children: [
                 {
                   path: "add",
-                  handle: SHEET_MD,
+                  handle: { can: { ticketCategory: ["manage"] }, ...SHEET_MD },
                   loader: addTicketCategoryLoader,
                   action: addTicketCategoryAction,
                   element: <AddTicketCategoryPage />,
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_MD,
+                  handle: { can: { ticketCategory: ["manage"] }, ...SHEET_MD },
                   loader: updateTicketCategoryLoader,
                   action: updateTicketCategoryAction,
                   element: <UpdateTicketCategoryPage />,
@@ -744,7 +758,7 @@ function App() {
             // Ticket Templates
             {
               path: "ticket-templates",
-              handle: { can: { ticketTemplate: ["manage"] } },
+              handle: { can: { ticketTemplate: ["read"] } },
               element: <TicketTemplates />,
               loader: ticketTemplatesLoader,
               action: deleteTicketTemplateAction,
@@ -792,20 +806,20 @@ function App() {
             // Шаблоны чек-листов
             {
               path: "tickets/checklist-templates",
-              handle: { can: { checklistTemplate: ["manage"] } },
+              handle: { can: { checklistTemplate: ["read"] } },
               element: <ChecklistTemplateListPage />,
               action: deleteChecklistTemplateAction,
               children: [
                 {
                   path: "add",
-                  handle: SHEET_MD,
+                  handle: { can: { checklistTemplate: ["manage"] }, ...SHEET_MD },
                   loader: checklistTemplateFormLoader,
                   action: addChecklistTemplateAction,
                   element: <AddChecklistTemplatePage />,
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_MD,
+                  handle: { can: { checklistTemplate: ["manage"] }, ...SHEET_MD },
                   loader: checklistTemplateFormLoader,
                   action: updateChecklistTemplateAction,
                   element: <UpdateChecklistTemplatePage />,
@@ -815,21 +829,21 @@ function App() {
             // Routine tasks
             {
               path: "routine-tasks",
-              handle: { can: { routineTask: ["manage"] } },
+              handle: { can: { routineTask: ["read"] } },
               element: <RoutineTask />,
               loader: routineTaskLoader,
               action: deleteRoutineTaskAction,
               children: [
                 {
                   path: "add",
-                  handle: SHEET_LG,
+                  handle: { can: { routineTask: ["manage"] }, ...SHEET_LG },
                   loader: addRoutineTaskLoader,
                   action: addRoutineTaskAction,
                   element: <AddRoutineTaskPage />,
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_XL,
+                  handle: { can: { routineTask: ["manage"] }, ...SHEET_XL },
                   loader: updateRoutineTaskLoader,
                   action: updateRoutineTaskAction,
                   element: <UpdateRoutineTaskPage />,
@@ -841,13 +855,14 @@ function App() {
             },
             {
               path: "routine-tasks/:id",
+              handle: { can: { routineTask: ["read"] } },
               loader: viewRoutineTaskLoader,
               action: viewRoutineTaskAction,
               element: <ViewRoutineTaskPage />,
               children: [
                 {
                   path: "update",
-                  handle: SHEET_XL,
+                  handle: { can: { routineTask: ["manage"] }, ...SHEET_XL },
                   loader: updateRoutineTaskLoader,
                   action: updateRoutineTaskAction,
                   element: <UpdateRoutineTaskPage />,
@@ -867,14 +882,14 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: SHEET_LG,
+                  handle: { can: { servicePlan: ["manage"] }, ...SHEET_LG },
                   loader: addServicePlanLoader,
                   action: addServicePlanAction,
                   element: <AddServicePlanPage />,
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_XL,
+                  handle: { can: { servicePlan: ["manage"] }, ...SHEET_XL },
                   loader: updateServicePlanLoader,
                   action: updateServicePlanAction,
                   element: <UpdateServicePlanPage />,
@@ -891,14 +906,14 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: SHEET_LG,
+                  handle: { can: { device: ["manage"] }, ...SHEET_LG },
                   loader: addClientDeviceLoader,
                   action: addClientDeviceAction,
                   element: <AddClientDevicePage />,
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_XL,
+                  handle: { can: { device: ["manage"] }, ...SHEET_XL },
                   loader: updateClientDeviceLoader,
                   action: updateClientDeviceAction,
                   element: <UpdateClientDevicePage />,
@@ -911,13 +926,14 @@ function App() {
             // Карточка устройства (полная страница) + редактирование в offcanvas
             {
               path: "inventory/client-devices/:id",
+              handle: { can: { device: ["read"] } },
               element: <ViewClientDevicePage />,
               loader: viewClientDeviceLoader,
               action: viewClientDeviceAction,
               children: [
                 {
                   path: "update",
-                  handle: SHEET_XL,
+                  handle: { can: { device: ["manage"] }, ...SHEET_XL },
                   loader: updateClientDeviceLoader,
                   action: updateClientDeviceAction,
                   element: <UpdateClientDevicePage />,
@@ -935,14 +951,14 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: SHEET_MD,
+                  handle: { can: { device: ["manage"] }, ...SHEET_MD },
                   loader: addLocationLoader,
                   action: addLocationAction,
                   element: <AddLocationPage />,
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_MD,
+                  handle: { can: { device: ["manage"] }, ...SHEET_MD },
                   loader: updateLocationLoader,
                   action: updateLocationAction,
                   element: <UpdateLocationPage />,
@@ -951,6 +967,7 @@ function App() {
             },
             {
               path: "inventory/locations/:id",
+              handle: { can: { device: ["read"] } },
               element: <ViewLocationPage />,
               loader: viewLocationLoader,
               action: viewLocationAction,
@@ -959,7 +976,7 @@ function App() {
                 // остаёмся на карточке
                 {
                   path: "update",
-                  handle: SHEET_MD,
+                  handle: { can: { device: ["manage"] }, ...SHEET_MD },
                   loader: updateLocationLoader,
                   action: updateLocationAction,
                   element: <UpdateLocationPage />,
@@ -969,7 +986,7 @@ function App() {
                 // карточку созданного расположения
                 {
                   path: "add",
-                  handle: SHEET_MD,
+                  handle: { can: { device: ["manage"] }, ...SHEET_MD },
                   loader: addLocationLoader,
                   action: addLocationAction,
                   element: <AddLocationPage />,
@@ -986,14 +1003,14 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <AddDeviceTypePage />,
                   loader: addDeviceTypeLoader,
                   action: addDeviceTypeAction,
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <UpdateDeviceTypePage />,
                   loader: updateDeviceTypeLoader,
                   action: updateDeviceTypeAction,
@@ -1002,6 +1019,7 @@ function App() {
             },
             {
               path: "inventory/device-types/:id",
+              handle: { can: { inventoryCatalog: ["read"] } },
               element: <ViewDeviceTypePage />,
               loader: viewDeviceTypeLoader,
               action: viewDeviceTypeAction,
@@ -1010,7 +1028,7 @@ function App() {
                 // на карточке (правило «редактирование не меняет страницу»)
                 {
                   path: "update",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <UpdateDeviceTypePage />,
                   loader: updateDeviceTypeLoader,
                   action: updateDeviceTypeAction,
@@ -1019,7 +1037,7 @@ function App() {
                 // форма сама уводит на карточку созданной модели
                 {
                   path: "models/add",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <AddDeviceModelPage presetFrom="deviceType" />,
                   loader: addDeviceModelLoader,
                   action: addDeviceModelAction,
@@ -1027,14 +1045,14 @@ function App() {
                 // Атрибуты типа — формы add/update в нижней шторке карточки
                 {
                   path: "attributes/add",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <AttributeAddPage />,
                   loader: attributeAddLoader,
                   action: attributeAddAction,
                 },
                 {
                   path: "attributes/update/:attrId",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <AttributeUpdatePage />,
                   loader: attributeUpdateLoader,
                   action: attributeUpdateAction,
@@ -1051,14 +1069,14 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <AddVendorPage />,
                   loader: addVendorLoader,
                   action: addVendorAction,
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <UpdateVendorPage />,
                   loader: updateVendorLoader,
                   action: updateVendorAction,
@@ -1074,14 +1092,14 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: SHEET_MD,
+                  handle: { can: { supplier: ["manage"] }, ...SHEET_MD },
                   element: <AddSupplierPage />,
                   loader: addSupplierLoader,
                   action: addSupplierAction,
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_MD,
+                  handle: { can: { supplier: ["manage"] }, ...SHEET_MD },
                   element: <UpdateSupplierPage />,
                   loader: updateSupplierLoader,
                   action: updateSupplierAction,
@@ -1090,6 +1108,7 @@ function App() {
             },
             {
               path: "inventory/suppliers/:id",
+              handle: { can: { supplier: ["read"] } },
               element: <ViewSupplierPage />,
               loader: viewSupplierLoader,
               action: viewSupplierAction,
@@ -1097,7 +1116,7 @@ function App() {
                 // Правка — в шторке карточки: после сабмита остаёмся на ней
                 {
                   path: "update",
-                  handle: SHEET_MD,
+                  handle: { can: { supplier: ["manage"] }, ...SHEET_MD },
                   element: <UpdateSupplierPage />,
                   loader: updateSupplierLoader,
                   action: updateSupplierAction,
@@ -1106,6 +1125,7 @@ function App() {
             },
             {
               path: "inventory/vendors/:id",
+              handle: { can: { inventoryCatalog: ["read"] } },
               element: <ViewVendorPage />,
               loader: viewVendorLoader,
               action: viewVendorAction,
@@ -1115,7 +1135,7 @@ function App() {
                 // страницу»)
                 {
                   path: "update",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <UpdateVendorPage />,
                   loader: updateVendorLoader,
                   action: updateVendorAction,
@@ -1124,7 +1144,7 @@ function App() {
                 // сабмита форма сама уводит на карточку созданной модели
                 {
                   path: "models/add",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <AddDeviceModelPage presetFrom="vendor" />,
                   loader: addDeviceModelLoader,
                   action: addDeviceModelAction,
@@ -1141,14 +1161,14 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <AddDeviceAttributePage />,
                   loader: addDeviceAttributeLoader,
                   action: addDeviceAttributeAction,
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <UpdateDeviceAttributePage />,
                   loader: updateDeviceAttributeLoader,
                   action: updateDeviceAttributeAction,
@@ -1165,14 +1185,14 @@ function App() {
               children: [
                 {
                   path: "add",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <AddDeviceModelPage />,
                   loader: addDeviceModelLoader,
                   action: addDeviceModelAction,
                 },
                 {
                   path: "update/:id",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <UpdateDeviceModelPage />,
                   loader: updateDeviceModelLoader,
                   action: updateDeviceModelAction,
@@ -1181,6 +1201,7 @@ function App() {
             },
             {
               path: "inventory/device-models/:id",
+              handle: { can: { inventoryCatalog: ["read"] } },
               element: <ViewDeviceModelPage />,
               loader: viewDeviceModelLoader,
               action: viewDeviceModelAction,
@@ -1190,7 +1211,7 @@ function App() {
                 // "update/:configId" конфигураций)
                 {
                   path: "update",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <UpdateDeviceModelPage />,
                   loader: updateDeviceModelLoader,
                   action: updateDeviceModelAction,
@@ -1198,14 +1219,14 @@ function App() {
                 // Конфигурации модели открываются в нижнем Offcanvas страницы просмотра.
                 {
                   path: "add",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <AddDeviceConfigurationPage />,
                   loader: addDeviceConfigurationLoader,
                   action: addDeviceConfigurationAction,
                 },
                 {
                   path: "update/:configId",
-                  handle: SHEET_MD,
+                  handle: CATALOG_FORM,
                   element: <UpdateDeviceConfigurationPage />,
                   loader: updateDeviceConfigurationLoader,
                   action: updateDeviceConfigurationAction,
@@ -1215,13 +1236,14 @@ function App() {
 
             {
               path: "finances/service-plans/:id",
+              handle: { can: { servicePlan: ["read"] } },
               loader: viewServicePlanLoader,
               action: viewServicePlanAction,
               element: <ViewServicePlanPage />,
               children: [
                 {
                   path: "update",
-                  handle: SHEET_XL,
+                  handle: { can: { servicePlan: ["manage"] }, ...SHEET_XL },
                   loader: updateServicePlanLoader,
                   action: updateServicePlanAction,
                   element: <UpdateServicePlanPage />,
@@ -1239,8 +1261,16 @@ function App() {
               loader: mikrotikDevicesLoader,
               // Формы создания/правки — нижняя шторка списка (Outlet ListWrapper).
               children: [
-                { path: "add", element: <MikrotikDeviceForm />, handle: SHEET_MD },
-                { path: "update/:recordId", element: <MikrotikDeviceForm />, handle: SHEET_MD },
+                {
+                  path: "add",
+                  element: <MikrotikDeviceForm />,
+                  handle: { can: { mikrotik: ["manage"] }, ...SHEET_MD },
+                },
+                {
+                  path: "update/:recordId",
+                  element: <MikrotikDeviceForm />,
+                  handle: { can: { mikrotik: ["manage"] }, ...SHEET_MD },
+                },
               ],
             },
             // Страница записи мониторинга — общая для инвентарных и standalone
@@ -1249,11 +1279,16 @@ function App() {
             // useRouteLoaderData, не запрашивая их второй раз.
             {
               path: "devices/mikrotik/records/:recordId",
+              handle: { can: { mikrotik: ["read"] } },
               id: "mikrotik-record",
               element: <MikrotikRecordPage />,
               loader: mikrotikRecordLoader,
               children: [
-                { path: "update", element: <MikrotikDeviceForm />, handle: SHEET_MD },
+                {
+                  path: "update",
+                  element: <MikrotikDeviceForm />,
+                  handle: { can: { mikrotik: ["manage"] }, ...SHEET_MD },
+                },
                 // Расписание экспорта — своя шторка: у параметров verify-on-save,
                 // а право у расписания другое (manageConfigs)
                 {
@@ -1304,6 +1339,7 @@ function App() {
             {
               // Второй уровень отчёта — карточка компании
               path: "report/companies/:companyId",
+              handle: { can: { report: ["companies"] } },
               lazy: async () => {
                 const cardModule = await import("./pages/Report/CompanyReport");
                 return {
@@ -1315,6 +1351,7 @@ function App() {
             {
               // Третий уровень — карточка подразделения клиента
               path: "report/companies/:companyId/subdivisions/:subdivisionId",
+              handle: { can: { report: ["companies"] } },
               lazy: async () => {
                 const cardModule = await import(
                   "./pages/Report/SubdivisionReport"
@@ -1361,7 +1398,7 @@ function App() {
             // раздел открывают не все, а тянет он таблицы и маршрут подписей.
             {
               path: "finances/approval",
-              handle: { can: { approval: ["decide"] } },
+              handle: { can: { approval: ["read"] } },
               lazy: async () => {
                 const approvalModule = await import(
                   "./pages/Finances/Approval.tsx"
@@ -1376,6 +1413,7 @@ function App() {
             // сегмент "preview" ранжируется выше, чем ":id", — конфликта нет.
             {
               path: "finances/approval/preview/:companyId/:servicePlanId/:month",
+              handle: { can: { approval: ["read"] } },
               lazy: async () => {
                 const reportModule = await import(
                   "./pages/Finances/ApprovalReport.tsx"
@@ -1388,6 +1426,7 @@ function App() {
             },
             {
               path: "finances/approval/:id",
+              handle: { can: { approval: ["read"] } },
               lazy: async () => {
                 const reportModule = await import(
                   "./pages/Finances/ApprovalReport.tsx"
@@ -1416,6 +1455,7 @@ function App() {
             },
             {
               path: "finances/employees/:userId",
+              handle: { can: { report: ["employees"] } },
               lazy: async () => {
                 const personalModule = await import(
                   "./pages/Finances/PersonalReportPage.tsx"
@@ -1458,7 +1498,7 @@ function App() {
             // Preferences
             {
               path: "preferences",
-              handle: { can: { settings: ["read"] } },
+              handle: { can: { settings: ["manage"] } },
               element: <Preferences />,
               loader: prefsLoader,
               action: prefsAction,

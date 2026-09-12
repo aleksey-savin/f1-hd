@@ -1,7 +1,7 @@
-import { Link } from "react-router";
 import { RiMailLine, RiPhoneLine } from "react-icons/ri";
 
 import { useCrumbFrom } from "@/components/app/Crumbs";
+import UserLink from "@/components/app/UserLink";
 import {
   Eyebrow,
   Panel,
@@ -50,17 +50,13 @@ const PersonRow = ({ person, from }) => {
             inactive && "text-muted-foreground",
           )}
         >
-          {profileId ? (
-            <Link
-              to={`/users/${profileId}`}
-              state={useCrumbFrom(from)}
-              className="text-inherit no-underline hover:underline"
-            >
-              {name}
-            </Link>
-          ) : (
-            name
-          )}
+          <UserLink
+            id={profileId}
+            state={useCrumbFrom(from)}
+            className="text-inherit no-underline hover:underline"
+          >
+            {name}
+          </UserLink>
         </div>
         <div className="truncate text-sm text-muted-foreground">
           {person.position || "—"}

@@ -7,20 +7,22 @@ const { runValidation } = require("@/middleware/runValidation");
 const approvalValidation = require("@/validations/finances/approval");
 
 const {
-  canOpenApproval,
+  canReadApproval,
+  canDecideApproval,
   canManageApproval,
 } = require("@/middleware/permissions");
 
 /**
  * «Согласование работ». Смонтирован под /api/approval, а НЕ под /api/finances:
- * последний закрыт `canReadServicePlans`, которого у клиента нет и быть не
- * должно — согласующему со стороны заказчика финансовый модуль целиком не
- * нужен. Кто что видит внутри — services/reportApprovalScope.
+ * раздел собран отдельным роутером со своими правами (`canReadApproval`/
+ * `canManageApproval`), и согласующему со стороны заказчика права на
+ * финансовый модуль (услуги и тарифы) не нужны. Кто что видит внутри —
+ * services/reportApprovalScope.
  */
 
 // Конвейер и карточка доступны обеим сторонам, объём режет скоуп
-router.get("/pipeline", isAuth, canOpenApproval, approvalController.getPipeline);
-router.get("/reports/:id", isAuth, canOpenApproval, approvalController.getReport);
+router.get("/pipeline", isAuth, canReadApproval, approvalController.getPipeline);
+router.get("/reports/:id", isAuth, canReadApproval, approvalController.getReport);
 
 // Карточка подбора — проверка состава ДО формирования отчёта. Только наша
 // сторона: клиент в подборе не участвует.
@@ -82,12 +84,13 @@ router.post(
   approvalController.archive,
 );
 
-// Решение клиента: право на вход общее, право на конкретную подпись проверяет
-// скоуп внутри контроллера
+// Право на вход — read, право подписи — decide; чью именно подпись ждёт
+// отчёт, решает скоуп внутри контроллера
 router.post(
   "/reports/:id/decision",
   isAuth,
-  canOpenApproval,
+  canReadApproval,
+  canDecideApproval,
   approvalValidation.decision,
   runValidation,
   approvalController.decision,

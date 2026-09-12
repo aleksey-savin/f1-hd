@@ -20,6 +20,7 @@ import {
 } from "react-icons/ri";
 
 import EntityLink from "@/components/app/EntityLink";
+import UserLink from "@/components/app/UserLink";
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import ClientTime from "@/components/app/ClientTime";
 import { copyText } from "@/components/app/PropRow";
@@ -388,11 +389,18 @@ export const FactsSection = ({
   const applicant = ticket.applicant;
   // Своя компания и свой адрес заявителю ничего не сообщают: он их знает. А
   // инициатор осмыслен, только когда им бывает НЕ он сам, — то есть у того, кто
-  // заводит заявки за других и видит заявки всей компании. Одного права мало:
-  // без «заявок компании» человек видит только свои, где инициатор он же.
+  // заводит заявки за других (тогда инициатор — не он и в своей заявке) ИЛИ
+  // видит заявки всей компании (тогда инициатор — коллега). Права достаточно
+  // одного: у обоих есть заявки в списке, где заявитель — не сам зритель.
   const showCompanyAndAddress = !isEndUser;
   const showApplicant =
-    !isEndUser || !!can({ ticket: ["createForOthers", "readCompany"] });
+    !isEndUser ||
+    !!can({
+      ticket: {
+        actions: ["createForOthers", "readCompanies"],
+        connector: "OR",
+      },
+    });
   // Как заявка назовётся в крошке компании или человека, куда ведут ссылки ниже
   const from = `Заявка №${ticket.num}`;
   const fromState = useCrumbFrom(from);
@@ -492,9 +500,11 @@ export const FactsSection = ({
             }
           >
             {applicant?._id ? (
-              <EntityLink from={from} to={`/users/${applicant._id}`}>
+              /* Ссылкой имя становится только с правом «Видеть
+                 пользователей» — правило живёт в UserLink */
+              <UserLink from={from} id={applicant._id}>
                 {`${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()}
-              </EntityLink>
+              </UserLink>
             ) : applicant ? (
               `${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()
             ) : (
@@ -520,16 +530,19 @@ export const FactsSection = ({
         <PropRow icon={<RiTeamLine size={16} />} label="Ответственные">
           {ticket.responsibles?.length
             ? ticket.responsibles.map((user) => (
-                <Link
+                /* Подсветка по наведению — на ссылке, а не на самой пилюле:
+                   без права «Видеть пользователей» UserLink оставляет один
+                   текст, и пилюля не должна прикидываться кликабельной */
+                <UserLink
                   key={user._id}
-                  to={`/users/${user._id}`}
+                  id={user._id}
                   state={fromState}
-                  className="no-underline"
+                  className="group/person no-underline"
                 >
-                  <Pill className="hover:border-primary hover:text-accent-text">
+                  <Pill className="group-hover/person:border-primary group-hover/person:text-accent-text">
                     {user.lastName} {user.firstName}
                   </Pill>
-                </Link>
+                </UserLink>
               ))
             : null}
         </PropRow>
@@ -608,8 +621,13 @@ const WorkRow = ({ ticket, children, menu }) => (
 /**
  * Заглушка секции говорит про **это** состояние заявки: «без работ не закрыть»
  * у новой заявки — совет не по адресу, работы к ней ещё нельзя привязать.
+ *
+ * Все подсказки про «указать работы» адресованы тому, кто их записывает. Кто
+ * работы только видит (в том числе клиент с правом «видеть работы»), получает
+ * констатацию: советовать ему завести работу незачем, ручки у него нет.
  */
-const emptyWorksHint = (ticket) => {
+const emptyWorksHint = (ticket, mayLog) => {
+  if (!mayLog) return "Работы по заявке не указаны";
   if (ticket.state === "Новая")
     return "Работы можно указать после обработки заявки";
   if (ticket.state === "Не в работе")
@@ -659,13 +677,11 @@ const WorkMenu = ({ items }) => {
 };
 
 export const WorksSection = ({ works = [], ticket, canAddWork }) => {
-  const { isAdmin, _id: userId } = useContext(AuthedUserContext);
+  const { _id: userId } = useContext(AuthedUserContext);
   const can = useCan();
-  // Доплата вне графика — разговор про счёт, а не про работу: её видит тот, кто
-  // отчёты согласовывает и отчёт по работам смотрит. Сумму внутри неё бэкенд
-  // гейтит своими правами отдельно (getOne → canSeeMoney).
-  const showBilling =
-    can({ approval: ["decide"] }) && can({ report: ["works"] });
+  // Доплата вне графика — её видит тот, кому открыта стоимость работ
+  // (getOne → canSeeMoney).
+  const showBilling = can({ work: ["readCost"] });
   const [deleting, setDeleting] = useState(null);
 
   const finished = works.filter((work) => work.finishedAt);
@@ -673,10 +689,16 @@ export const WorksSection = ({ works = [], ticket, canAddWork }) => {
     (work) => !work.finishedAt && work.planningToStart,
   );
 
+  // Чужая работа открывается по праву «Изменять все работы», а не по признаку
+  // администратора: право раздаётся и сервисному руководителю, и ровно его же
+  // спрашивают ручки правки и удаления.
+  const mayAnyWork = !!can({ work: ["manage"] });
+  // Кому советовать «укажите работы» — только тому, кто их записывает
+  const mayLogWork = !!can({ work: ["log"] });
   const mayManage = (work) =>
-    isAdmin || work.createdBy?._id?.toString() === userId?.toString();
+    mayAnyWork || work.createdBy?._id?.toString() === userId?.toString();
   const mayConfirm = (work) =>
-    isAdmin || work.executor?._id?.toString() === userId?.toString();
+    mayAnyWork || work.executor?._id?.toString() === userId?.toString();
 
   const editItem = (to) => ({
     key: "update",
@@ -800,7 +822,10 @@ export const WorksSection = ({ works = [], ticket, canAddWork }) => {
       </Eyebrow>
       <Panel>
         {works.length === 0 ? (
-          <EmptySection icon={RiToolsLine} hint={emptyWorksHint(ticket)} />
+          <EmptySection
+            icon={RiToolsLine}
+            hint={emptyWorksHint(ticket, mayLogWork)}
+          />
         ) : (
           /* Подгруппы: «что ещё будет» и «что уже сделали» — разные вопросы,
              и одним списком ответ на каждый приходится вычитывать из хвоста

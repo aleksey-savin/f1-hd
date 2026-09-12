@@ -16,6 +16,16 @@ export type FinanceStatusKey =
 
 export type StatusStat = { count: number; minutes: number };
 
+/**
+ * Переработки одного типа дней. `pay` — деньги: без права `user.manageFinances`
+ * (и не в своём отчёте) сервер поля не отдаёт.
+ */
+export type OvertimeBucket = {
+  minutes: number;
+  coefficient: number;
+  pay?: number | null;
+};
+
 export type OvertimeTotals = {
   roundedMinutes: number;
   weekdayMinutes: number;
@@ -54,7 +64,8 @@ export type EmployeesTotals = {
   remote: WorkClassStat;
   routineTask: WorkClassStat;
   overtime: OvertimeTotals;
-  overtimePaySum: number;
+  /** Деньги: только у обладателя `user.manageFinances`, иначе поля нет. */
+  overtimePaySum?: number;
   /** Сколько сотрудников имеют переработки, но не имеют ставки. */
   missingRateCount: number;
   /** Норма периода по производственному календарю и личным графикам. */
@@ -90,11 +101,15 @@ export type EmployeeRow = {
   timezone: string;
   scheduleSource: "user" | "plan" | "company" | "fallback";
   hasPersonalSchedule: boolean;
+  /**
+   * Деньги (ставка и доплата) приходят только обладателю
+   * `user.manageFinances` — у остальных остаются минуты и флаг «нет ставки».
+   */
   payroll: {
-    overtimeHourlyRate: number | null;
-    weekday: { minutes: number; coefficient: number; pay: number | null };
-    weekend: { minutes: number; coefficient: number; pay: number | null };
-    overtimePay: number | null;
+    overtimeHourlyRate?: number | null;
+    weekday: OvertimeBucket;
+    weekend: OvertimeBucket;
+    overtimePay?: number | null;
     missingRate: boolean;
   };
   /** Разрезы приходят только в режиме «Статистика» (includeBreakdown). */
@@ -242,13 +257,17 @@ export type PersonalWork = {
   issues: string[];
 };
 
+/**
+ * Расчёт за период. Денежные поля необязательны: в чужом отчёте их отдают
+ * только обладателю `user.manageFinances`, в своём — всегда.
+ */
 export type PersonalPayroll = {
-  salary: number | null;
-  overtimeHourlyRate: number | null;
-  weekday: { minutes: number; coefficient: number; pay: number | null };
-  weekend: { minutes: number; coefficient: number; pay: number | null };
-  overtimePay: number | null;
-  estimatedTotal: number | null;
+  salary?: number | null;
+  overtimeHourlyRate?: number | null;
+  weekday: OvertimeBucket;
+  weekend: OvertimeBucket;
+  overtimePay?: number | null;
+  estimatedTotal?: number | null;
   isFullMonth: boolean;
   missing: { salary: boolean; overtimeHourlyRate: boolean };
 };
@@ -283,6 +302,6 @@ export type PersonalReportResponse = {
   prevPeriod: {
     period: ReportPeriod;
     totals: PersonalTotals;
-    overtimePay: number | null;
+    overtimePay?: number | null;
   };
 };

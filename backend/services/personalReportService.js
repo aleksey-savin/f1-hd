@@ -16,6 +16,7 @@ const {
   isExcludedFromOvertime,
   overtimeForWork,
   resolveOvertimeSettings,
+  stripPayrollMoney,
 } = require("@/services/workOvertime");
 const {
   buildScheduleContext,
@@ -55,6 +56,9 @@ const calcOverlapMinutes = (works) => {
  * границы суток в поясе организации). Переработки считаются идентично
  * сводному финансовому отчёту — см. calcWorkOvertime/resolveWorkSchedule.
  * preferences и user передаются снаружи (plain-объекты, .lean()).
+ *
+ * canSeeMoney решает контроллер (`user.manageFinances` или свой отчёт): без
+ * него payroll едет без сумм и ставки — часы и флаги missing остаются.
  */
 const buildPersonalReport = async ({
   userId,
@@ -62,6 +66,7 @@ const buildPersonalReport = async ({
   to,
   preferences,
   user,
+  canSeeMoney = false,
   includeDetails = true,
   // Дельта к прошлому периоду — отдельно от деталей: плитке переработок на
   // главной она нужна, а список работ и 12-месячный тренд — нет. По умолчанию
@@ -341,7 +346,13 @@ const buildPersonalReport = async ({
     .sort((a, b) => b.minutes - a.minutes)
     .map(withShare);
 
-  const payroll = buildPayroll(user, totals.overtime, overtimeSettings, isFullMonth);
+  const fullPayroll = buildPayroll(
+    user,
+    totals.overtime,
+    overtimeSettings,
+    isFullMonth,
+  );
+  const payroll = canSeeMoney ? fullPayroll : stripPayrollMoney(fullPayroll);
 
   const report = {
     period: {
@@ -402,13 +413,15 @@ const buildPersonalReport = async ({
       to: prevTo,
       preferences,
       user,
+      canSeeMoney,
       includeDetails: false,
       includePrevPeriod: false,
     });
     report.prevPeriod = {
       period: prev.period,
       totals: prev.totals,
-      overtimePay: prev.payroll?.overtimePay ?? null,
+      // Доплата прошлого периода — тоже деньги: без права её просто нет
+      ...(canSeeMoney ? { overtimePay: prev.payroll?.overtimePay ?? null } : {}),
     };
   }
 

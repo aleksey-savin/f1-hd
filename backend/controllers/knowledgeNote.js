@@ -11,21 +11,17 @@ const {
   getModerationCounts,
   ZERO_COUNTS,
 } = require("../services/knowledgeModerationCounts");
-const {
-  canViewNote,
-  isModerator,
-} = require("../helpers/knowledgeNoteVisibility");
+const { canViewNote } = require("../helpers/knowledgeNoteVisibility");
 
-// Конфиг модерации для проверки видимости: флаг скрытия и id модераторов.
+// Конфиг модерации для проверки видимости: флаг скрытия неодобренных заметок
+// и признак поиска секретов. Кто модератор — решает право `knowledge.moderate`
+// (req.auth.can), а не этот конфиг.
 const getKbConfig = async () => {
   const prefs = await Preferences.findOne({}).lean();
   const kb = prefs?.knowledgeBase || {};
   return {
     hideNotApproved: !!kb.hideNotApproved,
     scanForSecrets: !!kb.scanForSecrets,
-    moderatorIds: (kb.moderators || [])
-      .map((moderator) => moderator?._id?.toString())
-      .filter(Boolean),
   };
 };
 
@@ -437,10 +433,7 @@ exports.sendToDeletion = async (req, res, next) => {
 // Подтвердить удаление заметки (жёсткое удаление из БД). Только модераторы.
 exports.confirmDeletion = async (req, res, next) => {
   try {
-    const authedUser = req.auth?.legacy ?? null;
-    const { moderatorIds } = await getKbConfig();
-
-    if (!isModerator(authedUser, moderatorIds)) {
+    if (!req.auth.can({ knowledge: ["moderate"] })) {
       return next(
         new AppError(
           `Недостаточно прав: подтверждать удаление могут только модераторы`,
@@ -473,10 +466,7 @@ exports.confirmDeletion = async (req, res, next) => {
 // Отклонить запрос на удаление (модератор) — снимает pendingDeletion
 exports.declineDeletion = async (req, res, next) => {
   try {
-    const authedUser = req.auth?.legacy ?? null;
-    const { moderatorIds } = await getKbConfig();
-
-    if (!isModerator(authedUser, moderatorIds)) {
+    if (!req.auth.can({ knowledge: ["moderate"] })) {
       return next(
         new AppError(
           `Недостаточно прав: отклонять запросы могут только модераторы`,
@@ -516,9 +506,8 @@ exports.declineDeletion = async (req, res, next) => {
 exports.approve = async (req, res, next) => {
   try {
     const authedUser = req.auth?.legacy ?? null;
-    const { moderatorIds } = await getKbConfig();
 
-    if (!isModerator(authedUser, moderatorIds)) {
+    if (!req.auth.can({ knowledge: ["moderate"] })) {
       return next(
         new AppError(
           `Недостаточно прав: отмечать заметки проверенными могут только модераторы`,
@@ -597,9 +586,8 @@ exports.requestArchive = async (req, res, next) => {
 exports.confirmArchive = async (req, res, next) => {
   try {
     const authedUser = req.auth?.legacy ?? null;
-    const { moderatorIds } = await getKbConfig();
 
-    if (!isModerator(authedUser, moderatorIds)) {
+    if (!req.auth.can({ knowledge: ["moderate"] })) {
       return next(
         new AppError(
           `Недостаточно прав: подтверждать архивацию могут только модераторы`,
@@ -639,10 +627,7 @@ exports.confirmArchive = async (req, res, next) => {
 // Отклонить запрос на архивацию (модератор) — снимает pendingArchive
 exports.declineArchive = async (req, res, next) => {
   try {
-    const authedUser = req.auth?.legacy ?? null;
-    const { moderatorIds } = await getKbConfig();
-
-    if (!isModerator(authedUser, moderatorIds)) {
+    if (!req.auth.can({ knowledge: ["moderate"] })) {
       return next(
         new AppError(
           `Недостаточно прав: отклонять запросы могут только модераторы`,
@@ -715,7 +700,7 @@ const runBulkModeration = async (req, { precondition, skipReason, apply }) => {
   const authedUser = req.auth?.legacy ?? null;
   const kbConfig = await getKbConfig();
 
-  if (!isModerator(authedUser, kbConfig.moderatorIds)) {
+  if (!req.auth.can({ knowledge: ["moderate"] })) {
     return { forbidden: true };
   }
 
@@ -857,10 +842,9 @@ exports.declineArchiveMultiple = bulkModerationHandler({
 // Немодераторам возвращаем нули.
 exports.getModerationSummary = async (req, res, next) => {
   try {
-    const authedUser = req.auth?.legacy ?? null;
-    const { moderatorIds, scanForSecrets } = await getKbConfig();
+    const { scanForSecrets } = await getKbConfig();
 
-    if (!isModerator(authedUser, moderatorIds)) {
+    if (!req.auth.can({ knowledge: ["moderate"] })) {
       return res.status(200).json({ isModerator: false, ...ZERO_COUNTS });
     }
 
@@ -902,7 +886,7 @@ exports.getServiceExpiry = async (req, res, next) => {
     }
 
     const authedUser = req.auth?.legacy ?? null;
-    const { hideNotApproved, moderatorIds } = await getKbConfig();
+    const { hideNotApproved } = await getKbConfig();
     const empty = { services: [], count: 0 };
 
     // Кому вообще отвечаем, и по какому правилу потом фильтруем заметки.
@@ -960,7 +944,7 @@ exports.getServiceExpiry = async (req, res, next) => {
             ),
         )
       : allNotes.filter((note) =>
-          canViewNote(note, req.auth, { hideNotApproved, moderatorIds }),
+          canViewNote(note, req.auth, { hideNotApproved }),
         );
 
     // Все записи в окне, дедуп по услуге (оставляем ближайшую дату)
@@ -1018,10 +1002,7 @@ exports.getServiceExpiry = async (req, res, next) => {
 // секрет (другое значение) в той же заметке по-прежнему сработает.
 exports.ignoreSecretFinding = async (req, res, next) => {
   try {
-    const authedUser = req.auth?.legacy ?? null;
-    const { moderatorIds } = await getKbConfig();
-
-    if (!isModerator(authedUser, moderatorIds)) {
+    if (!req.auth.can({ knowledge: ["moderate"] })) {
       return next(
         new AppError(
           `Недостаточно прав: помечать находки может только модератор`,

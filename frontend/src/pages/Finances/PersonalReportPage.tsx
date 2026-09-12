@@ -36,6 +36,10 @@ import { isFullMonthRange } from "../../util/period";
 // Персональный отчёт: «Мой отчёт» (own) и отчёт выбранного сотрудника
 // (переход из сводной) — одна страница. Самодостаточен: сотруднику без права
 // на аналитику здесь видна и статистика работы, и переработки, и расчёт.
+//
+// Свои деньги видит каждый; чужие — только с правом `user.manageFinances`. Без
+// него в чужом отчёте нет ни плитки «К доплате», ни расчёта, ни ставки в
+// подзаголовке: сервер этих полей и не присылает.
 const HINT = "к прошлому периоду";
 const MONTH_SHORT = new Intl.DateTimeFormat("ru-RU", { month: "short" });
 
@@ -64,11 +68,15 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
 
   const filterActive = !isFullMonthRange(s.from, s.to);
   const data = s.data;
-  const isOwn = own || !userId || userId === authedUser?._id;
+  // Чей отчёт — говорит САМ ОТВЕТ (`employee.isSelf`): `authedUser` на первом
+  // рендере ещё не налит, и выражение ниже давало бы «чужой» на свои же деньги
+  const isOwn = data
+    ? data.employee.isSelf
+    : own || !userId || userId === authedUser?._id;
+  // Оклад, ставка и доплата: свои — всегда, чужие — по праву на оклады
+  const canSeeMoney = isOwn || Boolean(can({ user: ["manageFinances"] }));
   // Сводная доступна только с полным правом — только им и показываем возврат
-  const canSeeSummary = Boolean(
-    can({ report: ["employees"] }),
-  );
+  const canSeeSummary = Boolean(can({ report: ["employees"] }));
 
   const toolbar = (
     <>
@@ -105,7 +113,9 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
 
   let body: ReactNode;
   if (s.isForbidden) {
-    body = (
+    body = isOwn ? (
+      <InlineForbidden right="report.own" action="смотреть свой отчёт" />
+    ) : (
       <InlineForbidden
         right="report.employees"
         action="смотреть отчёт другого сотрудника"
@@ -116,7 +126,12 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
       errorBanner
     ) : (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5 xl:gap-4">
+        <div
+          className={cn(
+            "grid grid-cols-2 gap-3 xl:gap-4",
+            canSeeMoney ? "xl:grid-cols-5" : "xl:grid-cols-4",
+          )}
+        >
           {[0, 1, 2, 3, 4].map((index) => (
             <Skeleton key={index} className="h-28 rounded-xl" />
           ))}
@@ -214,27 +229,29 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
             }
             footer={`будни ${formatMinutes(totals.overtime.weekdayMinutes)} · выходные ${formatMinutes(totals.overtime.weekendMinutes)}`}
           />
-          <StatTile
-            label="К доплате"
-            busy={s.isLoading}
-            value={
-              data.payroll.overtimePay == null ? (
-                <span className="text-warning">нет ставки</span>
-              ) : (
-                formatMoney(data.payroll.overtimePay)
-              )
-            }
-            delta={
-              <StatTileDelta
-                {...deltaOf(
-                  data.payroll.overtimePay ?? 0,
-                  prevPeriod.overtimePay ?? 0,
-                )}
-                hint={HINT}
-              />
-            }
-            footer={`${totals.overtime.daysWithOvertime} дней с переработкой`}
-          />
+          {canSeeMoney && (
+            <StatTile
+              label="К доплате"
+              busy={s.isLoading}
+              value={
+                data.payroll.overtimePay == null ? (
+                  <span className="text-warning">нет ставки</span>
+                ) : (
+                  formatMoney(data.payroll.overtimePay)
+                )
+              }
+              delta={
+                <StatTileDelta
+                  {...deltaOf(
+                    data.payroll.overtimePay ?? 0,
+                    prevPeriod.overtimePay ?? 0,
+                  )}
+                  hint={HINT}
+                />
+              }
+              footer={`${totals.overtime.daysWithOvertime} дней с переработкой`}
+            />
+          )}
           <StatTile
             label="Работы"
             busy={s.isLoading}
@@ -265,14 +282,17 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
         </div>
 
         {/* Финансовая часть — сразу под плитками: с ней приходят чаще, чем со
-            статистикой */}
-        <div className="grid gap-5 lg:grid-cols-2">
-          <div>
-            <Eyebrow>Расчёт за месяц</Eyebrow>
-            <Panel>
-              <PayslipPanel payroll={data.payroll} />
-            </Panel>
-          </div>
+            статистикой. Без права на деньги расчёта нет, и согласование
+            занимает всю ширину, а не половину рядом с пустотой */}
+        <div className={cn("grid gap-5", canSeeMoney && "lg:grid-cols-2")}>
+          {canSeeMoney && (
+            <div>
+              <Eyebrow>Расчёт за месяц</Eyebrow>
+              <Panel>
+                <PayslipPanel payroll={data.payroll} />
+              </Panel>
+            </div>
+          )}
           <div>
             <Eyebrow count={totals.worksCount}>Согласование работ</Eyebrow>
             <Panel>
@@ -359,17 +379,19 @@ const PersonalReportPage = ({ own = false }: { own?: boolean }) => {
     );
   }
 
-  const subtitle =
+  const subtitleParts =
     data && !isOwn
       ? [
           data.employee.position || null,
-          data.payroll.overtimeHourlyRate
-            ? `ставка переработок ${data.payroll.overtimeHourlyRate.toLocaleString("ru-RU")} ₽/ч`
-            : "ставка переработок не задана",
-        ]
-          .filter(Boolean)
-          .join(" · ")
-      : undefined;
+          // Ставка в подзаголовке — тоже деньги: без права её здесь нет
+          canSeeMoney
+            ? data.payroll.overtimeHourlyRate
+              ? `ставка переработок ${data.payroll.overtimeHourlyRate.toLocaleString("ru-RU")} ₽/ч`
+              : "ставка переработок не задана"
+            : null,
+        ].filter(Boolean)
+      : [];
+  const subtitle = subtitleParts.length ? subtitleParts.join(" · ") : undefined;
 
   return (
     <PageShell

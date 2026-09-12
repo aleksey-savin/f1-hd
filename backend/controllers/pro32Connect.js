@@ -76,7 +76,9 @@ exports.getConnection = async (req, res, next) => {
         .json({ message: "Активных подключений не найдено" });
     }
 
-    if (authedUser.isAdmin) {
+    // `req.auth.isAdmin` — уже разобранное зеркало (у клиента не действует),
+    // а сырое поле документа было бы «можно всё» и для клиентской учётки
+    if (req.auth.isAdmin) {
       try {
         const response = await fetch(
           `https://api.pro32connect.ru/v1/support/info?apikey=${

@@ -13,15 +13,11 @@ const {
 const { resolveOvertimeSettings } = require("../services/workOvertime");
 const { runWorkStatusAuto } = require("../services/workStatusAuto");
 const logger = require("../utils/logger");
-const { permissionFilter, canFor } = require("@/services/permissions");
+const { permissionFilter } = require("@/services/permissions");
 
 // Календарные даты лежат UTC-полночью и ходят строками YYYY-MM-DD
 const toUtcMidnight = (key) => new Date(`${key}T00:00:00.000Z`);
 const keyOf = (date) => toDateKey(new Date(date));
-
-// Права автора запроса, а не флаг из его документа: с ролями флага там нет.
-const canManage = async (user) =>
-  (await canFor(user))({ workSchedule: ["manage"] });
 
 const shortName = (user) =>
   `${user.lastName || ""} ${(user.firstName || "").slice(0, 1)}.`.trim();
@@ -124,6 +120,10 @@ exports.getAll = async (req, res, next) => {
       query.user = user;
     }
 
+    if (!req.auth.isAdmin && !req.auth.can({ schedule: ["read"] })) {
+      query.user = req.auth.userId; // без права видны только свои отсутствия
+    }
+
     const docs = await Absence.find(query)
       .populate(POPULATE)
       .sort({ from: -1 })
@@ -140,13 +140,14 @@ exports.getAll = async (req, res, next) => {
 exports.add = async (req, res, next) => {
   try {
     const { userId } = req.auth;
-    const author = await User.findById(userId)
-      .select("firstName lastName isAdmin")
-      .lean();
 
     const targetId = req.body.user || userId;
     const isSelf = String(targetId) === String(userId);
-    const manager = await canManage(author);
+    // Право автора запроса берём из `req.auth.can`: `canFor` по урезанному
+    // документу (`select("firstName lastName isAdmin")`) считал сотрудника
+    // клиентом — не-администратор с правом «Графики и отсутствия» не мог
+    // завести отсутствие коллеге, а своё получал `pending`.
+    const manager = req.auth.can({ schedule: ["manage"] });
 
     if (!isSelf && !manager) {
       return next(
@@ -279,14 +280,13 @@ exports.decide = async (req, res, next) => {
 exports.cancel = async (req, res, next) => {
   try {
     const { userId } = req.auth;
-    const author = await User.findById(userId).select("isAdmin").lean();
 
     const absence = await Absence.findById(req.params.id);
     if (!absence) {
       return next(new AppError("Отсутствие не найдено", 404));
     }
     const isOwn = String(absence.requestedBy) === String(userId);
-    if (!isOwn && !(await canManage(author))) {
+    if (!isOwn && !req.auth.can({ schedule: ["manage"] })) {
       return next(new AppError("Отозвать можно только свой запрос", 403));
     }
     if (absence.status === "cancelled") {
@@ -326,6 +326,15 @@ exports.delete = async (req, res, next) => {
 exports.impact = async (req, res, next) => {
   try {
     const { user: targetId, from, to } = req.query;
+    if (
+      String(targetId) !== req.auth.userId &&
+      !req.auth.isAdmin &&
+      !req.auth.can({ schedule: ["read"] })
+    ) {
+      return next(
+        new AppError("Чужой график можно смотреть только с правом «Видеть графики и отсутствия»", 403),
+      );
+    }
     const target = await User.findById(targetId)
       .select("timezone workSchedule workSchedules followProductionCalendar")
       .lean();
@@ -347,8 +356,8 @@ exports.impact = async (req, res, next) => {
 const notifyManagers = async (doc) => {
   const preferences = await Preferences.findOne({}).lean();
   const tz = resolveTimezone(preferences);
+  // Отключённых и служебные учётки отсекает сам permissionFilter
   const managers = await User.find({
-    banned: { $ne: true },
     isEndUser: false,
     ...(await permissionFilter("schedule.manage")),
   })

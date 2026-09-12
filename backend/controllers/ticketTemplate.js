@@ -21,7 +21,7 @@ const {
  * с ним на первом же переименовании.
  */
 const canSeeTemplate = (template, auth) => {
-  if (auth.can({ ticketTemplate: ["manage"] })) return true;
+  if (auth.can({ ticketTemplate: ["read"] })) return true;
 
   const userId = auth.userId;
   const companyId = auth.user.company?._id?.toString();
@@ -91,7 +91,7 @@ exports.getAll = async (req, res, next) => {
 
     let templates = [];
 
-    if (req.auth.can({ ticketTemplate: ["manage"] })) {
+    if (req.auth.can({ ticketTemplate: ["read"] })) {
       templates = await TicketTemplate.find({})
         .populate("categoryId", "_id title")
         .sort({

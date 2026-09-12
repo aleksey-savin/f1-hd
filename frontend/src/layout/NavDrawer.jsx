@@ -188,7 +188,7 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
             <RiUserSettingsLine size={18} aria-hidden className={iconClass} />
             Мой аккаунт
           </NavLink>
-          {can({ settings: ["read"] }) && (
+          {can({ settings: ["manage"] }) && (
             <NavLink to="/preferences" onClick={close} className={itemClass}>
               <RiSettings3Line size={18} aria-hidden className={iconClass} />
               Настройки системы

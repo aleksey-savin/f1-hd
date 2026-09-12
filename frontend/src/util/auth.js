@@ -64,6 +64,10 @@ export async function authDataLoader() {
       userData: {
         ...me.user,
         statements: me.statements,
+        // Что человек вправе ВЫДАТЬ роли — до вырезания по типу аккаунта
+        // (store/authed-user.ts → useCanGrant). Без этого поля форма роли
+        // не отличила бы «нет права» от «есть, но не действует у меня».
+        grantStatements: me.grantStatements,
         permissionCatalogue: me.permissionCatalogue,
       },
       prefs: { ...me.prefs, modules: me.modules },

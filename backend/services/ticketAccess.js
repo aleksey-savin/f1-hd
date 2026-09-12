@@ -1,6 +1,7 @@
 const { Ticket } = require("@/models/ticket");
 
 const { AppError } = require("@/middleware/errorHandling");
+const { ticketInScope } = require("@/services/ticketScope");
 
 /**
  * Доступ к КОНКРЕТНОЙ заявке.
@@ -9,10 +10,10 @@ const { AppError } = require("@/middleware/errorHandling");
  * ли ему вот эту запись». Раздельно, потому что глобальное `ticket.perform` не
  * означает, что человек имеет отношение к каждой из тринадцати тысяч заявок.
  *
- * Список допусков совпадает со скоупом списка заявок (`controllers/ticket.js`,
- * ветка «остальные пользователи»): ответственный ИЛИ автор ИЛИ заявитель. Без
- * `isCreator` сотрудник, заведший заявку за клиента, видел бы её в списке и
- * получал 403 по клику.
+ * Список допусков теперь считает `services/ticketScope` — тот же модуль, что
+ * фильтрует список заявок: ответственный ИЛИ автор ИЛИ заявитель ИЛИ компания
+ * из скоупа (`ticketScope`). Без `isCreator` сотрудник, заведший заявку за
+ * клиента, видел бы её в списке и получал 403 по клику.
  *
  * Правило жило внутри мидлвари `allowedToViewTicket`, где им могли
  * воспользоваться только маршруты с номером заявки в пути. Всё, что ходит к
@@ -22,33 +23,80 @@ const { AppError } = require("@/middleware/errorHandling");
  * @param {object} ticket — документ заявки (или lean-объект)
  * @param {object} auth — `req.auth`
  */
+
+const isResponsible = (ticket, userId) =>
+  (ticket?.responsibles || []).some((resp) => String(resp?._id ?? resp) === String(userId));
+
+/** Правило одно на список и карточку — `services/ticketScope`. */
 const canAccessTicket = (ticket, auth) => {
-  if (!ticket || !auth?.user) return false;
+  if (!ticket || !auth?.userId) return false;
+  return Boolean(auth.isAdmin) || ticketInScope(ticket, auth);
+};
 
-  const { user, can, isAdmin } = auth;
-  const userId = user._id.toString();
+/**
+ * Действие над СВОЕЙ заявкой: закрыть, отказаться, изменить срок, запросить
+ * помощь, отметить пункт чек-листа.
+ *
+ * «Своя» — это та, где он в ответственных (решение владельца 2026-09-12), и
+ * никакое право этого не заменяет, кроме «Вести заявки»: ведущий распоряжается
+ * любой заявкой по должности. Раньше хватало одного `ticket.perform` на любую
+ * доступную заявку — исполнитель мог закрыть заявку коллеги, а интерфейс такой
+ * кнопки не показывал: запрет обещал только фронт.
+ *
+ * @param {object} ticket — документ заявки
+ * @param {object} auth — `req.auth`
+ */
+const canActOnOwnTicket = (ticket, auth) => {
+  if (!ticket || !auth?.userId) return false;
+  if (auth.can({ ticket: ["manage"] })) return true;
+  return isResponsible(ticket, auth.userId);
+};
 
-  const isResp = (ticket.responsibles || [])
-    .map((resp) => resp._id.toString())
-    .includes(userId);
-  const isApplicant =
-    ticket.applicantId?.toString() === userId ||
-    ticket.applicant?._id?.toString() === userId;
-  const isCreator = ticket.createdBy?.toString() === userId;
-  const sameCompany =
-    can({ ticket: ["readCompany"] }) &&
-    Boolean(user.company?._id) &&
-    user.company._id.toString() === ticket.company?._id?.toString();
+/**
+ * Присоединиться к заявке (принять в работу, встать в ответственные, забрать
+ * себе): ответственный — к своей, остальные — только с правом «Присоединяться
+ * к чужим заявкам»; ведущий заявки — всегда.
+ *
+ * Отдельно от `canActOnOwnTicket`, потому что это единственное действие, где
+ * заявка становится своей ПОСЛЕ него: требовать «быть ответственным» было бы
+ * замкнутым кругом.
+ */
+const canJoinTicket = (ticket, auth) => {
+  if (!ticket || !auth?.userId) return false;
+  if (auth.can({ ticket: ["join"] }) || auth.can({ ticket: ["manage"] })) {
+    return true;
+  }
+  return isResponsible(ticket, auth.userId);
+};
 
+/**
+ * То же по СПИСКУ заявок — массовое действие из выделения.
+ *
+ * Подходить должна КАЖДАЯ заявка, а не первая: иначе массовое действие
+ * проезжало бы по чужим заодно со своими. Пустой список — отказ: правило
+ * обязано отказывать, а не пропускать по недосмотру.
+ */
+const canActOnOwnTickets = (tickets, auth) =>
+  Boolean(tickets?.length) &&
+  tickets.every((ticket) => canActOnOwnTicket(ticket, auth));
+
+/** То же для присоединения: каждая заявка выделения, пустой список — отказ. */
+const canJoinTickets = (tickets, auth) =>
+  Boolean(tickets?.length) &&
+  tickets.every((ticket) => canJoinTicket(ticket, auth));
+
+/**
+ * Состав чек-листа (не отметки): «Вести заявки» — на любой заявке, исполнитель
+ * с «Брать в работу» — на своей, если заявка не из регламента: регламентный
+ * чек-лист принадлежит регламенту, а не заявке.
+ */
+const canEditChecklist = (ticket, auth) => {
+  if (!ticket || !auth) return false;
+  if (auth.isAdmin || auth.can({ ticket: ["manage"] })) return true;
   return (
-    isAdmin ||
-    // connector: "OR" — внутри ресурса, а не рядом с ним: список действий
-    // по умолчанию складывается по И (`access.mjs#normalizeActionRequest`).
-    can({ ticket: { actions: ["administrate", "readAll"], connector: "OR" } }) ||
-    isResp ||
-    isApplicant ||
-    isCreator ||
-    sameCompany
+    auth.can({ ticket: ["perform"] }) &&
+    isResponsible(ticket, auth.userId) &&
+    !ticket.routineTask
   );
 };
 
@@ -102,4 +150,14 @@ const assertTicketsAccessible = async (auth, ids = []) => {
   return tickets;
 };
 
-module.exports = { canAccessTicket, loadAccessibleTicket, assertTicketsAccessible };
+module.exports = {
+  canAccessTicket,
+  canActOnOwnTicket,
+  canActOnOwnTickets,
+  canEditChecklist,
+  canJoinTicket,
+  canJoinTickets,
+  isResponsible,
+  loadAccessibleTicket,
+  assertTicketsAccessible,
+};

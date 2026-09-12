@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import EntityLink from "@/components/app/EntityLink";
+import UserLink from "@/components/app/UserLink";
 import Crumbs from "@/components/app/Crumbs";
 import { Panel } from "@/components/app/Panel";
 import ChipSelect from "@/components/app/ChipSelect";
@@ -372,17 +372,17 @@ const ViewLocation = ({
           {type === "workplace" && (
             <Detail label="Сотрудник">
               {assignedUser ? (
-                <EntityLink from={name} to={`/users/${assignedUser._id}`}>
+                <UserLink from={name} id={assignedUser._id}>
                   {userName(assignedUser)}
-                </EntityLink>
+                </UserLink>
               ) : null}
             </Detail>
           )}
           <Detail label="Ответственный по умолчанию">
             {defaultResponsible ? (
-              <EntityLink from={name} to={`/users/${defaultResponsible._id}`}>
+              <UserLink from={name} id={defaultResponsible._id}>
                 {userName(defaultResponsible)}
-              </EntityLink>
+              </UserLink>
             ) : null}
           </Detail>
           {description && (

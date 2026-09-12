@@ -51,8 +51,9 @@ const Tickets = () => {
   const [processing, setProcessing] = useState(false);
 
   const canSelect = can({ ticket: ["delete"] }) || can({ ticket: ["perform"] });
-  const canFilterByResponsible =
-    can({ ticket: ["administrate"] }) || can({ ticket: ["readAll"] });
+  const canFilterByResponsible = !!can({
+    ticket: { actions: ["readAll", "readCompanies"], connector: "OR" },
+  });
 
   const selection = useListSelection({
     items: store.filteredList,
@@ -349,7 +350,7 @@ const Tickets = () => {
             onToggle={selection.toggle}
             pressProps={selection.pressProps(ticket._id)}
             consumeSuppressedClick={selection.consumeSuppressedClick}
-            canEdit={can({ ticket: ["update"] })}
+            canEdit={can({ ticket: ["manage"] })}
             canDelete={can({ ticket: ["delete"] })}
           />
         ))}

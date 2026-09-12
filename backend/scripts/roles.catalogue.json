@@ -23,10 +23,11 @@
     "scripts/legacyPermissions.js. Клиент, чья подпись не описана ни одной",
     "ролью, останавливает скрипт: на проде наборы могли уйти вперёд от копии.",
     "",
-    "Роль полного доступа ОБЯЗАНА содержать весь словарь: по признаку «роль",
-    "отдаёт всё» зеркалится user.isAdmin (auth/access.js#isFullAccess). Новое",
-    "действие в словаре — пересобрать файл, иначе зеркало погаснет у всех",
-    "администраторов."
+    "Роль полного доступа ОБЯЗАНА содержать все действия СОТРУДНИКА (адресат",
+    "staff или both): по признаку «роль отдаёт всё» зеркалится user.isAdmin",
+    "(auth/access.js#isFullAccess). Клиентские действия в счёт не идут — у",
+    "сотрудника они не действуют. Новое действие в словаре — пересобрать файл,",
+    "иначе зеркало погаснет у всех администраторов."
   ],
   "roles": [
     {
@@ -59,12 +60,13 @@
       "key": "client-admin",
       "title": "Клиент: администратор",
       "audience": "client",
-      "description": "Видит заявки всех сотрудников своей компании",
+      "description": "Видит заявки всех сотрудников своей компании, заводит заявки за коллег, согласовывает отчёты",
       "actions": [
-        "ticket.readCompany",
+        "ticket.readCompanies",
         "ticket.createForOthers",
-        "report.works",
+        "work.read",
         "report.companies",
+        "approval.read",
         "approval.decide",
         "servicePlan.read",
         "company.read",
@@ -81,12 +83,10 @@
       "key": "client-manager",
       "title": "Клиент: руководитель",
       "audience": "client",
-      "description": "Заявки компании плюс отчёт по работам",
+      "description": "Заявки компании плюс работы в архиве",
       "actions": [
-        "ticket.readCompany",
-        "work.read",
-        "work.log",
-        "report.works"
+        "ticket.readCompanies",
+        "work.read"
       ],
       "matches": [
         [
@@ -100,28 +100,32 @@
       "key": "admin",
       "title": "Администратор",
       "audience": "staff",
-      "description": "Полный доступ ко всему порталу. Набор ОБЯЗАН содержать весь словарь: по признаку «роль отдаёт всё» зеркалится user.isAdmin (auth/access.js#isFullAccess), и роль без одного действия гасила бы зеркало",
+      "description": "Полный доступ ко всему порталу. Набор ОБЯЗАН содержать все действия сотрудника: по признаку «роль отдаёт всё» зеркалится user.isAdmin (auth/access.js#isFullAccess), и роль без одного такого действия гасила бы зеркало. Клиентское approval.decide сюда не входит — подпись со стороны клиента у сотрудника не действует",
       "actions": [
-        "ticket.readCompany",
+        "ticket.readCompanies",
         "ticket.readAll",
         "ticket.perform",
-        "ticket.administrate",
-        "ticket.update",
+        "ticket.join",
+        "ticket.manage",
         "ticket.delete",
         "ticket.createForOthers",
         "ticket.closeWithoutWork",
+        "ticketCategory.read",
         "ticketCategory.manage",
+        "ticketTemplate.read",
         "ticketTemplate.manage",
+        "checklistTemplate.read",
         "checklistTemplate.manage",
+        "routineTask.read",
         "routineTask.manage",
         "work.read",
         "work.log",
-        "work.manageAll",
-        "report.works",
+        "work.manage",
+        "work.readCost",
         "report.companies",
         "report.employees",
         "report.own",
-        "approval.decide",
+        "approval.read",
         "approval.manage",
         "servicePlan.read",
         "servicePlan.manage",
@@ -130,6 +134,7 @@
         "company.readLogs",
         "user.read",
         "user.manage",
+        "user.manageFinances",
         "user.manageAccess",
         "user.impersonate",
         "role.read",
@@ -139,6 +144,7 @@
         "schedule.approve",
         "knowledge.read",
         "knowledge.manage",
+        "knowledge.moderate",
         "device.read",
         "device.manage",
         "inventoryCatalog.read",
@@ -149,11 +155,7 @@
         "mikrotik.manage",
         "mikrotik.manageConfigs",
         "remoteSupport.use",
-        "settings.read",
-        "settings.manage",
-        "settings.manageMail",
-        "settings.manageIntegrations",
-        "settings.manageSecurity"
+        "settings.manage"
       ],
       "members": [
         "a.savin@f1lab.ru",
@@ -169,6 +171,7 @@
       "description": "Заявки, учёт времени, техника клиентов",
       "actions": [
         "ticket.perform",
+        "ticket.join",
         "ticket.createForOthers",
         "work.read",
         "work.log",
@@ -218,13 +221,16 @@
       "actions": [
         "ticket.readAll",
         "ticket.perform",
+        "ticket.join",
         "ticket.createForOthers",
+        "ticketTemplate.read",
         "ticketTemplate.manage",
+        "checklistTemplate.read",
         "checklistTemplate.manage",
+        "routineTask.read",
         "routineTask.manage",
         "work.read",
         "work.log",
-        "report.works",
         "report.own",
         "company.read",
         "company.readLogs",
@@ -246,6 +252,35 @@
         "a.echin@f1lab.ru",
         "i.karpachev@f1lab.ru"
       ]
+    },
+    {
+      "key": "kb-moderator",
+      "title": "Модератор базы знаний",
+      "audience": "staff",
+      "description": "Одобряет заметки и разбирает очереди модерации базы знаний",
+      "actions": [
+        "knowledge.read",
+        "knowledge.moderate"
+      ],
+      "members": [
+        "a.savin@f1lab.ru",
+        "a.shvetsov@f1lab.ru"
+      ],
+      "_note": [
+        "members заполнить из вывода scripts/migrateActions.js: он печатает почты",
+        "людей из прежнего списка модераторов в настройках (preferences.knowledgeBase.moderators)."
+      ]
+    },
+    {
+      "key": "klient-ofis-menedzher",
+      "title": "Клиент: офис-менеджер",
+      "audience": "client",
+      "description": "",
+      "actions": [
+        "ticket.createForOthers",
+        "user.read"
+      ],
+      "matches": []
     }
   ]
 }

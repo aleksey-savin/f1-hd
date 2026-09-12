@@ -6,6 +6,7 @@ import ScheduleView from "@/components/app/ScheduleView";
 import SettingRow from "@/components/app/SettingRow";
 import Spinner from "@/components/app/Spinner";
 import { Button } from "@/components/ui/button";
+import { useCan } from "@/store/authed-user";
 import type { UserScheduleResponse } from "@/types/teamSchedule";
 import { monthRange } from "@/util/period";
 import { orgTimezone, tzCity } from "@/util/timezone-display";
@@ -22,6 +23,10 @@ const API = import.meta.env.VITE_API_ADDRESS;
  * на кого ляжет работа.
  */
 const MySchedule = ({ user }: { user: { _id: string } }) => {
+  // Календарь команды за правом `schedule.read` — без него ряд вёл бы на «Нет
+  // доступа». Свой график виден и без права, он выше на этой же странице;
+  // отдельная точка входа в свои отсутствия — задача на оформление.
+  const canReadSchedule = useCan()({ schedule: ["read"] });
   const [data, setData] = useState<UserScheduleResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,15 +87,17 @@ const MySchedule = ({ user }: { user: { _id: string } }) => {
         </div>
       )}
 
-      <SettingRow
-        divider
-        title="Отпуска, отгулы и больничные"
-        hint="Заявка заводится в календаре команды — там видно, кого не будет рядом в те же дни."
-      >
-        <Button asChild variant="outline" size="sm">
-          <Link to="/team/calendar">Открыть календарь</Link>
-        </Button>
-      </SettingRow>
+      {canReadSchedule && (
+        <SettingRow
+          divider
+          title="Отпуска, отгулы и больничные"
+          hint="Заявка заводится в календаре команды — там видно, кого не будет рядом в те же дни."
+        >
+          <Button asChild variant="outline" size="sm">
+            <Link to="/team/calendar">Открыть календарь</Link>
+          </Button>
+        </SettingRow>
+      )}
     </>
   );
 };

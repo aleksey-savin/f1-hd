@@ -24,6 +24,9 @@ import { formatMinutes, formatMoney, fullName, initials } from "./work-format";
 // меняется набор колонок, поэтому таблица не форкается, а получает variant.
 // Строка ведёт в отчёт сотрудника, своя помечена «Вы»; сотрудники без работ
 // свёрнуты — они не должны отодвигать данные.
+//
+// canSeeMoney — право `user.manageFinances`: без него колонки «К доплате»
+// просто нет (сервер и сумм не присылает), а не стоит пустой с прочерками.
 
 type EmployeesTableVariant = "stats" | "overtime";
 
@@ -36,22 +39,22 @@ type SortKey =
   | "overtime"
   | "pay";
 
-const COLUMNS_COUNT: Record<EmployeesTableVariant, number> = {
-  stats: 7,
-  overtime: 8,
-};
-
 const EmployeesTable = ({
   employees,
   totals,
   currentUserId,
   variant = "stats",
+  canSeeMoney = false,
 }: {
   employees: EmployeeRow[];
   totals: EmployeesTotals;
   currentUserId?: string;
   variant?: EmployeesTableVariant;
+  canSeeMoney?: boolean;
 }) => {
+  // Колонка «К доплате» живёт только в «Переработках» и только с правом
+  const showPay = variant === "overtime" && canSeeMoney;
+  const columnsCount = variant === "stats" ? 7 : showPay ? 8 : 7;
   const navigate = useNavigate();
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({
     key: "totalMinutes",
@@ -213,7 +216,7 @@ const EmployeesTable = ({
               <TableHead className="text-right whitespace-nowrap">
                 Будни / выходные
               </TableHead>
-              <Th columnKey="pay">К доплате</Th>
+              {showPay && <Th columnKey="pay">К доплате</Th>}
             </>
           )}
           <TableHead className="w-6" />
@@ -329,17 +332,19 @@ const EmployeesTable = ({
                         ? "—"
                         : `${formatMinutes(row.overtime.weekdayMinutes)} / ${formatMinutes(row.overtime.weekendMinutes)}`}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {row.payroll.missingRate && overtime > 0 ? (
-                        <span className="text-warning">нет ставки</span>
-                      ) : row.payroll.overtimePay ? (
-                        <b className="font-semibold">
-                          {formatMoney(row.payroll.overtimePay)}
-                        </b>
-                      ) : (
-                        <span className="text-faint">—</span>
-                      )}
-                    </TableCell>
+                    {showPay && (
+                      <TableCell className="text-right tabular-nums">
+                        {row.payroll.missingRate && overtime > 0 ? (
+                          <span className="text-warning">нет ставки</span>
+                        ) : row.payroll.overtimePay ? (
+                          <b className="font-semibold">
+                            {formatMoney(row.payroll.overtimePay)}
+                          </b>
+                        ) : (
+                          <span className="text-faint">—</span>
+                        )}
+                      </TableCell>
+                    )}
                   </>
                 )}
 
@@ -350,10 +355,7 @@ const EmployeesTable = ({
 
               {variant === "stats" && expanded.has(row.employee._id) && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell
-                    colSpan={COLUMNS_COUNT.stats}
-                    className="py-3 ps-12"
-                  >
+                  <TableCell colSpan={columnsCount} className="py-3 ps-12">
                     <div className="mb-2 text-xs tracking-wide text-faint uppercase">
                       Компании сотрудника за период
                     </div>
@@ -374,7 +376,7 @@ const EmployeesTable = ({
 
         {idle.length > 0 && (
           <TableRow className="hover:bg-transparent">
-            <TableCell colSpan={COLUMNS_COUNT[variant]} className="py-2">
+            <TableCell colSpan={columnsCount} className="py-2">
               <button
                 type="button"
                 onClick={() => setShowIdle((current) => !current)}
@@ -443,9 +445,11 @@ const EmployeesTable = ({
                 {formatMinutes(totals.overtime.weekdayMinutes)} /{" "}
                 {formatMinutes(totals.overtime.weekendMinutes)}
               </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {formatMoney(totals.overtimePaySum)}
-              </TableCell>
+              {showPay && (
+                <TableCell className="text-right tabular-nums">
+                  {formatMoney(totals.overtimePaySum ?? 0)}
+                </TableCell>
+              )}
             </>
           )}
           <TableCell />

@@ -17,8 +17,9 @@ const {
 
 // Табель и графики — смотреть может любой сотрудник: знать, кто когда работает
 // и кто в отпуске, полезно всем, и право «Календарь команды» есть у каждой роли
-// сотрудника. Менять график — своё право, решать по отсутствию — ещё одно:
-// согласующий не обязан уметь править чужие расписания.
+// сотрудника. Свой график и свои отсутствия — без права; чужие — `schedule.read`,
+// проверка внутри контроллера. Менять график — своё право, решать по
+// отсутствию — ещё одно: согласующий не обязан уметь править чужие расписания.
 router.get(
   "/schedule",
   isAuth,
@@ -31,7 +32,6 @@ router.get(
 router.get(
   "/schedule/:userId",
   isAuth,
-  canReadSchedule,
   teamValidation.userSchedule,
   runValidation,
   scheduleController.getUserSchedule,
@@ -55,7 +55,6 @@ router.post(
 router.get(
   "/absences",
   isAuth,
-  canReadSchedule,
   teamValidation.absenceList,
   runValidation,
   absenceController.getAll,
@@ -64,7 +63,6 @@ router.get(
 router.get(
   "/absences/impact",
   isAuth,
-  canReadSchedule,
   teamValidation.absenceImpact,
   runValidation,
   absenceController.impact,
@@ -75,7 +73,6 @@ router.get(
 router.post(
   "/absences",
   isAuth,
-  canReadSchedule,
   teamValidation.absenceAdd,
   runValidation,
   absenceController.add,
@@ -94,7 +91,6 @@ router.post(
 router.post(
   "/absences/:id/cancel",
   isAuth,
-  canReadSchedule,
   absenceController.cancel,
 );
 

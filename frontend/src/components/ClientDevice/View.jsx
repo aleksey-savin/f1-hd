@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useRevalidator } from "react-router";
+import UserLink from "@/components/app/UserLink";
 import { BrowserView } from "react-device-detect";
 import {
   RiAddLine,
@@ -451,15 +452,15 @@ const ViewClientDevice = ({ device = {} }) => {
                 </PropRow>
                 <PropRow icon={<RiUser3Line size={17} />} label="Закреплено за">
                   {device.userId ? (
-                    <Link
-                      to={`/users/${device.userId._id}`}
+                    <UserLink
+                      id={device.userId._id}
                       state={fromState}
                       className="text-foreground no-underline hover:text-accent-text"
                     >
                       {[device.userId.lastName, device.userId.firstName]
                         .filter(Boolean)
                         .join(" ")}
-                    </Link>
+                    </UserLink>
                   ) : (
                     dash
                   )}

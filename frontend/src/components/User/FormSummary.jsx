@@ -50,6 +50,8 @@ const FormSummary = ({
   schedule,
   catalogue = [],
   isEdit = false,
+  /** Правит ли редактор роли: если нет — строке «Роли» в сводке не место. */
+  showRoles = true,
 }) => {
   const name = `${form.lastName || ""} ${form.firstName || ""}`.trim();
   const kindLabel = ACCOUNT_KINDS.find((item) => item.value === kind)?.label;
@@ -87,7 +89,7 @@ const FormSummary = ({
           {scheduleLabel(schedule) || <None>не задан</None>}
         </Row>
       )}
-      {kind !== "service" && (
+      {kind !== "service" && showRoles && (
         <Row label="Роли">
           {form.roles?.length ? (
             roleTitles(form.roles, catalogue).join(", ")

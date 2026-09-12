@@ -7,7 +7,7 @@ const { canManageInventoryCatalog } = require("@/middleware/permissions");
 // Атрибуты типа устройства правятся точечно с карточки типа (добавить/изменить/
 // удалить/переупорядочить), по образцу конфигураций модели. Пишущий гейт —
 // canManageInventoryCatalog (как у device-types / device-configurations); модуль
-// уже проверен на монтировании (inventoryModuleIsActive + canReadInventoryCatalog).
+// и личность уже проверены на монтировании (inventoryModuleIsActive + isNotClient).
 
 router.get(
   "/device-type-attributes/type/:id",

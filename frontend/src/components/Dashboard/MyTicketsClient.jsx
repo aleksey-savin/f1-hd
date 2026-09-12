@@ -54,7 +54,7 @@ const MyTicketsClient = () => {
   const openTickets = useDashboardTicketsStore((state) => state.tickets);
   const loaded = useDashboardTicketsStore((state) => state.loaded);
 
-  const canSeeCompany = !!can({ ticket: ["readCompany"] });
+  const canSeeCompany = !!can({ ticket: ["readCompanies"] });
   const [scope, setScope] = useState("mine");
   const [selected, setSelected] = useState("open");
   const [closed, setClosed] = useState([]);

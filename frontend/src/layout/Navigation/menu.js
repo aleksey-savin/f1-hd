@@ -59,24 +59,25 @@ export function buildMenu({
   // Интеграция Mikrotik — свой рубильник, от модулей не зависит
   mikrotikActive = false,
 }) {
-  const canManageTicketCategories = can({ ticketCategory: ["manage"] });
-  const canManageTicketTemplates = can({ ticketTemplate: ["manage"] });
-  const canManageChecklistTemplates = can({ checklistTemplate: ["manage"] });
+  const canReadTicketCategories = can({ ticketCategory: ["read"] });
+  const canReadTicketTemplates = can({ ticketTemplate: ["read"] });
+  const canReadChecklistTemplates = can({ checklistTemplate: ["read"] });
   const canReadCompanies = can({ company: ["read"] });
   const canReadUsers = can({ user: ["read"] });
   const canPerformTickets = can({ ticket: ["perform"] });
   const canReadRoles = can({ role: ["read"] });
-  const canManageRoutineTasks = can({ routineTask: ["manage"] });
+  const canReadRoutineTasks = can({ routineTask: ["read"] });
   const canReadCompaniesReport = can({ report: ["companies"] });
   const canReadDevices = can({ device: ["read"] });
   const canReadInventoryCatalog = can({ inventoryCatalog: ["read"] });
   const canReadSuppliers = can({ supplier: ["read"] });
   const canReadMikrotik = can({ mikrotik: ["read"] });
-  const canManageServicePlans = can({ servicePlan: ["manage"] });
+  const canReadServicePlans = can({ servicePlan: ["read"] });
   const canReadEmployeesReport = can({ report: ["employees"] });
   const canReadOwnReport = can({ report: ["own"] });
   const canReadKnowledge = can({ knowledge: ["read"] });
-  const canDecideApproval = can({ approval: ["decide"] });
+  const canReadApproval = can({ approval: ["read"] });
+  const canReadSchedule = can({ schedule: ["read"] });
 
   const timeTracking = !!modules?.timeTracking?.isActive;
   const inventory = !!modules?.inventory?.isActive;
@@ -99,7 +100,7 @@ export function buildMenu({
       // свою часть. canUseFinancesModule тут НЕ нужен: финансовый модуль
       // целиком согласующему не положен.
       finances &&
-        canDecideApproval &&
+        canReadApproval &&
         link(
           "approval",
           "Согласование работ",
@@ -110,6 +111,8 @@ export function buildMenu({
 
     return [
       link("dashboard", "Главная", RiDashboard2Line, "/dashboard"),
+      canReadCompanies && link("companies", "Компания", RiBuilding2Line, "/companies"),
+      canReadUsers && link("users", "Пользователи", RiContactsLine, "/users"),
       // Пункта «Заявки» у клиента нет (2026-09). Открытых заявок у него единицы
       // (самое большое — четыре, у компании целиком — пятнадцать), и список с
       // очередями, фасетами и поиском отвечал ему на тот же вопрос, что блок
@@ -118,7 +121,7 @@ export function buildMenu({
       // главную (`pages/Ticket/List`), крошка карточки и 404 сразу называют
       // главную (`util/sections`, `sectionAs`).
       // Пункта «Шаблоны заявок» у клиента нет: страница закрыта правом
-      // `ticketTemplate.manage`, и ссылка вела на 403. Заготовки клиент видит
+      // `ticketTemplate.read`, и ссылка вела на 403. Заготовки клиент видит
       // там, где они ему нужны, — плитками «Чем помочь?» на главной
       inventory &&
         canReadDevices &&
@@ -187,7 +190,7 @@ export function buildMenu({
             "/finances/my-report",
           ),
         finances &&
-          canReadEmployeesReport &&
+          canReadApproval &&
           link(
             "fin-approval",
             "Согласование работ",
@@ -201,15 +204,18 @@ export function buildMenu({
   // «Люди» — раздел о сотрудниках и клиентах. Календарь команды жил в
   // «Отчётах», но отчёт из него никакой: он отвечает, кто сегодня работает и
   // кого можно послать к клиенту, — это ежедневный оперативный экран.
-  // Смотрят его все сотрудники; правка внутри — под canManageWorkSchedules.
+  // Право обязательно: и страница, и её данные за `schedule.read` — без него
+  // пункт вёл на «Нет доступа». Свой график и свои отсутствия человек видит в
+  // своей карточке, права на это не нужно.
   const peopleItems = [
     canReadUsers && link("users", "Пользователи", RiContactsLine, "/users"),
-    link(
-      "team-calendar",
-      "Календарь команды",
-      RiCalendar2Line,
-      "/team/calendar",
-    ),
+    canReadSchedule &&
+      link(
+        "team-calendar",
+        "Календарь команды",
+        RiCalendar2Line,
+        "/team/calendar",
+      ),
   ].filter(Boolean);
 
   // Группы «Администрирования» подписаны по модулям; «Компании»,
@@ -234,28 +240,28 @@ export function buildMenu({
     {
       label: "Заявки",
       items: [
-        canManageTicketTemplates &&
+        canReadTicketTemplates &&
           link(
             "adm-ticket-templates",
             "Шаблоны заявок",
             RiFileList3Line,
             "/ticket-templates",
           ),
-        canManageChecklistTemplates &&
+        canReadChecklistTemplates &&
           link(
             "adm-checklist-templates",
             "Шаблоны чек-листов",
             RiListCheck2,
             "/tickets/checklist-templates",
           ),
-        canManageRoutineTasks &&
+        canReadRoutineTasks &&
           link(
             "adm-routine-tasks",
             "Регламенты",
             RiCalendar2Line,
             "/routine-tasks",
           ),
-        canManageTicketCategories &&
+        canReadTicketCategories &&
           link(
             "adm-ticket-categories",
             "Категории",
@@ -269,7 +275,7 @@ export function buildMenu({
       items: [
         // Модульный гейт как у API: /finances закрыт financesModuleIsActive
         finances &&
-          canManageServicePlans &&
+          canReadServicePlans &&
           link(
             "adm-service-plans",
             "Услуги",
@@ -341,7 +347,7 @@ export function buildMenu({
       link("companies", "Компании", RiBuilding2Line, "/companies"),
     peopleItems.length > 0 && {
       key: "people",
-      label: "Люди",
+      label: "Пользователи",
       icon: RiTeamLine,
       groups: [{ items: peopleItems }],
     },
@@ -361,9 +367,9 @@ export function buildMenu({
     // Только тем, кто заявки НЕ выполняет: у исполнителя шаблоны и так под
     // рукой в форме заявки, а в «Администрировании» есть полный список для
     // того, кому доверены чужие заготовки. Право обязательно: страница за
-    // `ticketTemplate.manage`, и без него пункт вёл на 403.
+    // `ticketTemplate.read`, и без него пункт вёл на 403.
     !canPerformTickets &&
-      canManageTicketTemplates &&
+      canReadTicketTemplates &&
       link(
         "ticket-templates",
         "Шаблоны заявок",

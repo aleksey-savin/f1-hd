@@ -35,37 +35,56 @@ and `frontend/src/{pages,components}/{ClientDevice,DeviceModel,DeviceType,Device
 
 ## 1. Activation & permissions
 
-Every inventory endpoint is mounted at **`/api/inventory`** behind two gate
-middlewares (`backend/routes/index.js`):
+Every inventory endpoint lives under **`/api/inventory`**, but the group is *not*
+one `use` per sub-router: gates are layered **per prefix** by
+`backend/routes/inventoryMount.js`, and the sub-routers are then mounted bare.
 
-```
-app.use("/api", internalRoutes)
-internalRoutes.use("/inventory", inventoryModuleIsActive, canUseInventoryModule, <routeFile>)
-```
+Express registers every argument of `use(path, gateA, gateB, subRouter)` as its
+own layer on that path, so while all sub-routers hung on `/inventory` the gates
+of neighbouring mounts ran on each other's requests, in registration order: the
+catalog demanded "see devices", suppliers went through "see Mikrotik", and
+Mikrotik — a standalone integration — demanded the inventory module. Hence the
+map below; whichever prefix a request touches decides which right is asked.
+
+| Prefix | Gates |
+|---|---|
+| `/client-devices` | `inventoryModuleIsActive`, `canReadDevices` (`device.read`) |
+| `/locations`, `/companies-locations` | `inventoryModuleIsActive`, `canReadDevices` |
+| `/device-types`, `/device-models`, `/device-attributes`, `/device-type-attributes`, `/device-configurations`, `/vendors` | `inventoryModuleIsActive`, `isNotClient` |
+| `/suppliers` | `inventoryModuleIsActive`, `canReadSuppliers` (`supplier.read`) |
+| `/mikrotik-devices` | `mikrotikIsActive`, `canReadMikrotik` (`mikrotik.read`) |
 
 - **`inventoryModuleIsActive`** — reads `Preferences.modules.inventory.isActive`; if
   off, responds `403 "Модуль "Учёт техники" отключен."`.
-- **`canUseInventoryModule`** — requires `user.permissions.canUseInventoryModule || isAdmin`.
-- Individual routes then add **`isAuth`** and, for mutations, **`canManageClientDevices`**
-  (`|| isAdmin`).
-- The **Mikrotik** routes share the `/api/inventory` prefix but are gated by their
-  own `mikrotikIsActive` middleware instead — turning the inventory module off does
-  **not** stop monitoring (see `mikrotik-management.md`, «Integration switch»).
+- **The catalog lists carry no read right on purpose**: they feed the selects of
+  the device form, and a select inside someone else's form is part of the right
+  to that form. The catalog *sections* are closed by `inventoryCatalog.read` on
+  the frontend route (`handle.can`), not on the API.
+- Mutations add the matching manage right on the route itself:
+  `canManageDevices` (`device.manage`) for devices and locations,
+  `canManageInventoryCatalog` (`inventoryCatalog.manage`) for the catalog,
+  `canManageSuppliers` (`supplier.manage`) for suppliers. There is no admin
+  bypass branch anywhere — a full-access role simply carries the whole staff
+  dictionary.
+- **Mikrotik** shares the `/api/inventory` prefix but is gated by its own module
+  switch — turning the inventory module off does **not** stop monitoring (see
+  `mikrotik-management.md`, «Integration switch»).
 
-**`canManageClientDevices` is the single manage permission** for the whole module —
-devices, locations, *and* the catalog. The finer-grained flags
-(`canManageDeviceModels/Types/Attributes`) were removed on 2026-07-29: they were
-offered in the user form but never enforced (commented out in the route files), so
-granting or withholding them changed nothing. Bring them back only together with
-the route gates.
+**A path that matches no prefix would run with no right at all**, so the
+composition walks the routes of every sub-router on boot and **throws** when one
+is not covered by the map. A new path in the group is fixed by adding its prefix
+to the map, never by a separate `use`. The map is unit-tested on stubs
+(`backend/routes/inventoryMount.test.js`).
 
 Who can do what:
 
 | Capability | Condition |
 |---|---|
-| Read devices, locations and the environment/tech views | `modules.inventory.isActive && permissions.canUseInventoryModule` (employees *and* end-users) |
-| Create / edit / delete anything in the module | `+ permissions.canManageClientDevices` |
-| Read vendors and suppliers | `canManageClientDevices` (unlike other reads, which need only `isAuth`) |
+| Read devices, locations and the environment/tech views | `modules.inventory.isActive && device.read` (staff *and* clients; a client is always scoped to their own company on top of the right) |
+| Create / edit / delete devices and locations | `+ device.manage` |
+| Read the catalog lists (types, models, vendors, attributes, configurations) | any staff account; the sections need `inventoryCatalog.read` |
+| Edit the catalog | `inventoryCatalog.manage` |
+| Read suppliers | `supplier.read`; edit — `supplier.manage` |
 
 ## 2. Data model
 
@@ -183,10 +202,11 @@ Hierarchical physical placement — the backbone of the environment views:
 
 ## 3. HTTP API
 
-All paths are prefixed `/api/inventory`. Mutations require `canManageClientDevices`;
-`add` / `update` on devices and locations also run their validation chain +
-`checkValidationResult`. Reads require only `isAuth` (vendors and suppliers also
-require `canManageClientDevices`). Standard envelope: success `{message, <resource>}`
+All paths are prefixed `/api/inventory`. Mutations require the manage right of
+their own resource (`device.manage`, `inventoryCatalog.manage`,
+`supplier.manage`); `add` / `update` on devices and locations also run their
+validation chain + `checkValidationResult`. Reads are covered by the prefix
+gates above — the route files only add `isAuth`. Standard envelope: success `{message, <resource>}`
 or the resource directly; errors `{error, status, message}`.
 
 **Client devices** (`/client-devices`, 13 routes):
@@ -215,7 +235,7 @@ query, never in the browser:
   `companyId = user.company._id` on top of any facet (module access opens the
   section, the role decides how much data it shows); passing another company's
   id simply matches nothing. Before this, `getAll` returned **every** company's
-  equipment to anyone holding `canUseInventoryModule`.
+  equipment to anyone who could open the module at all.
 - **Components show up when asked for.** The root-only filter (`parentDeviceId:
   null`) is lifted when there is a **search term** (a serial on a RAM stick has to
   be findable — otherwise the registry denies what it stores) or when
@@ -280,8 +300,8 @@ query, never in the browser:
 | `/device-models` | DeviceModel | **soft** | uniqueness on `name` among non-deleted; `POST /:id/photos`, `DELETE /:id/photos/:photoId` |
 | `/device-attributes` | DeviceAttribute | hard | uniqueness on `name` *and* `code` |
 | `/device-configurations` | DeviceConfiguration | **soft** | no bare `GET /` — the list is `GET /device-configurations/model/:id`; values populated |
-| `/vendors` | Vendor | hard | reads require `canManageClientDevices` |
-| `/suppliers` | Supplier | hard, **guarded** | reads require `canManageClientDevices`. `getAll` appends `purchases[]` — one bucket per `{year, companyId}` with `companyName`, `deviceCount`, `totalSpent`, `deliveryCount`, `lastPurchaseAt`; no flat totals, the list sums the buckets under the year and company picked in its toolbar. The year comes from `purchasedAt` **in UTC** (calendar date, stored at UTC midnight — a business-timezone year would push the first of January into the previous one); positions without a date land in `year: null`. Document counts are distinct **within a bucket**, so one delivery note split across two companies counts twice in the all-companies slice. `getOne` additionally returns `deliveries[]` — devices grouped by `purchaseDocument` with `{document, purchasedAt, company, total, positions[]}`. Deleting a supplier with purchases is **409** («за поставщиком числится N устройств…») — disable it instead, it stays in the purchase history. Components are counted as ordinary positions (`parentDeviceId` is deliberately not filtered): a part is bought on its own, not as a line inside an assembly |
+| `/vendors` | Vendor | hard | reads open to any staff account (select data) |
+| `/suppliers` | Supplier | hard, **guarded** | reads require `supplier.read`. `getAll` appends `purchases[]` — one bucket per `{year, companyId}` with `companyName`, `deviceCount`, `totalSpent`, `deliveryCount`, `lastPurchaseAt`; no flat totals, the list sums the buckets under the year and company picked in its toolbar. The year comes from `purchasedAt` **in UTC** (calendar date, stored at UTC midnight — a business-timezone year would push the first of January into the previous one); positions without a date land in `year: null`. Document counts are distinct **within a bucket**, so one delivery note split across two companies counts twice in the all-companies slice. `getOne` additionally returns `deliveries[]` — devices grouped by `purchaseDocument` with `{document, purchasedAt, company, total, positions[]}`. Deleting a supplier with purchases is **409** («за поставщиком числится N устройств…») — disable it instead, it stays in the purchase history. Components are counted as ordinary positions (`parentDeviceId` is deliberately not filtered): a part is bought on its own, not as a line inside an assembly |
 
 **Mikrotik** (`/mikrotik-devices`) — record-centric monitoring and management,
 mounted under `/api/inventory` but gated by its **own** switch (`mikrotikIsActive`),
@@ -428,7 +448,7 @@ documented in each component's own header.
 - **Environment / Tech** — one widget in `components/app/`: `Environment` (+
   `EnvironmentDeviceTile`, `EnvironmentDeviceSheet`) is used by the ticket page
   (`pages/Ticket/View.jsx`, `userId` + `deviceId`, gated on
-  `!isEndUser && modules.inventory.isActive && canUseInventoryModule`), and
+  `!isEndUser && modules.inventory.isActive && can({ device: ["read"] })`), and
   `TechSection` wraps it with the flat list on user and company cards.
 
 ## 7. Known issues & gotchas

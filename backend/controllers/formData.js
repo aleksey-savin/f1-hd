@@ -9,19 +9,11 @@ exports.getCompanies = async (req, res, next) => {
   try {
     const authedUser = req.auth?.legacy ?? null;
 
-    let companies = [];
-
-    if (!authedUser.isEndUser) {
-      companies = await Company.find({
-        _id: authedUser.company._id,
-      }).sort({ alias: 1 });
-    } else if (req.auth.can({ ticket: ["administrate"] })) {
-      companies = await Company.find({}).sort({ alias: 1 });
-    } else {
-      companies = await Company.find({
-        "responsibles._id": authedUser._id,
-      }).sort({ alias: 1 });
-    }
+    const companies = authedUser.isEndUser
+      ? authedUser.company?._id
+        ? await Company.find({ _id: authedUser.company._id }).sort({ alias: 1 })
+        : [] // клиент без компании не видит ни одной — иначе undefined в фильтре означал бы «все»
+      : await Company.find({}).sort({ alias: 1 });
 
     const shortenedCompaniesList = companies.map((company) => ({
       _id: company._id,

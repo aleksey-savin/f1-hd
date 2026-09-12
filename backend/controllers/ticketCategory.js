@@ -6,21 +6,10 @@ const { concatIdsArray } = require("../helpers/concatIdsArray");
 
 exports.getAll = async (req, res, next) => {
   try {
-    const authedUser = req.auth?.legacy ?? null;
+    // Список категорий — справочник для форм заявки, регламента и услуги:
+    // его видит любой сотрудник, фильтра «мои категории» больше нет
     const categories = await TicketCategory.find({}).sort({ title: 1 });
-
-    const filteredCategories = categories.filter((category) => {
-      if (
-        authedUser.categories
-          .map((category) => category._id.toString())
-          .includes(category._id.toString()) ||
-        req.auth.can({ ticket: ["administrate"] })
-      ) {
-        return category;
-      }
-    });
-
-    res.status(200).json(filteredCategories);
+    res.status(200).json(categories);
   } catch (error) {
     next(new AppError(`Failed to fetch ticket categories`, 500, true, error));
   }

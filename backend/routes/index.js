@@ -5,11 +5,11 @@ const {
   financesModuleIsActive,
   mikrotikIsActive,
   canReadDevices,
-  canReadInventoryCatalog,
+  isNotClient,
   canReadSuppliers,
   canReadMikrotik,
-  canReadServicePlans,
 } = require("@/middleware/permissions");
+const { mountInventory } = require("./inventoryMount");
 
 // Internal routes
 const appVersionRoutes = require("./internal/appVersion");
@@ -119,83 +119,41 @@ internalRoutes.use("/", userRoutes);
 internalRoutes.use("/", workRoutes);
 
 // Mount internal finances routes
-internalRoutes.use(
-  "/finances",
-  financesModuleIsActive,
-  canReadServicePlans,
-  financesReportRoutes,
-);
-internalRoutes.use(
-  "/finances",
-  financesModuleIsActive,
-  canReadServicePlans,
-  servicePlanRoutes,
-);
+internalRoutes.use("/finances", financesModuleIsActive, financesReportRoutes);
+internalRoutes.use("/finances", financesModuleIsActive, servicePlanRoutes);
 
 // «Согласование работ» — отдельный префикс: раздел открыт и согласующим со
 // стороны клиента, которым финансовый модуль целиком не нужен
 // (см. routes/internal/finances/approval.js)
 internalRoutes.use("/approval", financesModuleIsActive, workApprovalRoutes);
 
-// Mount internal inventory routes
-internalRoutes.use(
-  "/inventory",
-  inventoryModuleIsActive,
-  canReadDevices,
-  clientDeviceRoutes,
-);
-internalRoutes.use(
-  "/inventory",
-  inventoryModuleIsActive,
-  canReadInventoryCatalog,
-  deviceAttributeRoutes,
-);
-internalRoutes.use(
-  "/inventory",
-  inventoryModuleIsActive,
-  canReadInventoryCatalog,
-  deviceConfigurationRoutes,
-);
-internalRoutes.use(
-  "/inventory",
-  inventoryModuleIsActive,
-  canReadInventoryCatalog,
-  deviceModelRoutes,
-);
-internalRoutes.use(
-  "/inventory",
-  inventoryModuleIsActive,
-  canReadInventoryCatalog,
-  deviceTypeRoutes,
-);
-internalRoutes.use(
-  "/inventory",
-  inventoryModuleIsActive,
-  canReadInventoryCatalog,
-  deviceTypeAttributeRoutes,
-);
-internalRoutes.use(
-  "/inventory",
-  inventoryModuleIsActive,
-  canReadDevices,
-  locationRoutes,
-);
-// Mikrotik — самостоятельная интеграция (не зависит от модуля «Учёт техники»):
-// рубильник собственный, право на вход в раздел — тоже. Более узкие права
-// (устройства, конфигурации) проверяют сами роуты. Путь /inventory сохранён —
-// его знает фронтенд
-internalRoutes.use("/inventory", mikrotikIsActive, canReadMikrotik, mikrotikRoutes);
-internalRoutes.use(
-  "/inventory",
-  inventoryModuleIsActive,
-  canReadSuppliers,
-  supplierRoutes,
-);
-internalRoutes.use(
-  "/inventory",
-  inventoryModuleIsActive,
-  canReadInventoryCatalog,
-  vendorRoutes,
+// Mount internal inventory routes.
+//
+// Гейты и роутеры собирает `routes/inventoryMount.js`: перечислять их здесь
+// одним `use` на под-роутер нельзя — слои гейтов текут между монтированиями на
+// общем префиксе (почему именно, разобрано там же).
+mountInventory(
+  internalRoutes,
+  {
+    inventoryModuleIsActive,
+    mikrotikIsActive,
+    canReadDevices,
+    isNotClient,
+    canReadSuppliers,
+    canReadMikrotik,
+  },
+  [
+    clientDeviceRoutes,
+    deviceAttributeRoutes,
+    deviceConfigurationRoutes,
+    deviceModelRoutes,
+    deviceTypeRoutes,
+    deviceTypeAttributeRoutes,
+    locationRoutes,
+    mikrotikRoutes,
+    supplierRoutes,
+    vendorRoutes,
+  ],
 );
 
 // Mount external routes

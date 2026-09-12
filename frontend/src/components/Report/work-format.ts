@@ -67,7 +67,10 @@ export const formatMinutes = (minutes: number) => {
 // Деньги — целыми рублями с разделителями разрядов. Округление обязательно:
 // расчёт даёт дроби (833.3333…), и без него в карточке появлялось
 // «135 833,333 ₽».
-export const formatMoney = (value: number | null) =>
+//
+// undefined — не «ноль», а «сервер поля не присылал»: денежные поля отчётов
+// приходят только тому, кому открыты оклады и ставки.
+export const formatMoney = (value: number | null | undefined) =>
   value == null ? "—" : `${Math.round(value).toLocaleString("ru-RU")} ₽`;
 
 export const fullName = (person: { firstName?: string; lastName?: string }) =>

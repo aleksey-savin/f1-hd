@@ -9,7 +9,7 @@ import { fullName } from "./calendar";
 
 type Props = {
   pending: PendingAbsence[];
-  canManage: boolean;
+  canApprove: boolean;
   onDecide: (
     id: string,
     decision: "approve" | "reject",
@@ -31,7 +31,7 @@ const range = (from: string, to: string) =>
  */
 const PendingAlert = ({
   pending,
-  canManage,
+  canApprove,
   onDecide,
   impactOf,
   total,
@@ -102,7 +102,7 @@ const PendingAlert = ({
               );
             })()}
           </span>
-          {canManage ? (
+          {canApprove ? (
             <>
               <Button
                 size="sm"

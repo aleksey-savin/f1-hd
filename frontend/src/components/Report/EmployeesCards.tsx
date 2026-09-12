@@ -11,14 +11,19 @@ import { formatMinutes, formatMoney, fullName, initials } from "./work-format";
 // Мобильный вид сводки: таблица не помещается — строка-карточка отвечает на
 // те же вопросы. Как и таблица, не форкается под режим: в «Статистике» правая
 // колонка показывает загрузку к норме, в «Переработках» — доплату.
+//
+// Без права `user.manageFinances` доплаты нет вовсе — вторая строка справа
+// показывает загрузку к норме, как в «Статистике», а не пустой прочерк.
 const EmployeesCards = ({
   employees,
   currentUserId,
   variant = "stats",
+  canSeeMoney = false,
 }: {
   employees: EmployeeRow[];
   currentUserId?: string;
   variant?: "stats" | "overtime";
+  canSeeMoney?: boolean;
 }) => {
   const navigate = useNavigate();
   const [showIdle, setShowIdle] = useState(false);
@@ -69,7 +74,7 @@ const EmployeesCards = ({
               <span className="block font-semibold tabular-nums">
                 {formatMinutes(row.totalMinutes)}
               </span>
-              {variant === "overtime" ? (
+              {variant === "overtime" && canSeeMoney ? (
                 <span
                   className={cn(
                     "block text-xs tabular-nums",

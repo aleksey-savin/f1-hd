@@ -11,6 +11,7 @@ const companyValidation = require("@/validations/company");
 const {
   canReadCompanies,
   canManageCompanies,
+  canReadCompanyLogs,
   canManageServicePlans,
 } = require("@/middleware/permissions");
 
@@ -171,10 +172,14 @@ router.delete(
 // Журнал входов AD — имена, учётные записи и имена компьютеров сотрудников
 // клиента. До этого гейта его читал любой авторизованный, включая клиента
 // ЧУЖОЙ компании: проверялось только существование компании.
+//
+// Право своё, не `company.manage`: журнал читает линия поддержки, которая
+// компаниями не распоряжается (роли it-first-line/it-second-line держат
+// `readLogs` без `manage` — на `canManageCompanies` они получали 403).
 router.get(
   "/companies/:id/logs",
   isAuth,
-  canManageCompanies,
+  canReadCompanyLogs,
   companyValidation.getCompanyLogs,
   runValidation,
   companyController.getCompanyLogs,
@@ -183,7 +188,7 @@ router.get(
 router.get(
   "/companies/:id/logs/accounts",
   isAuth,
-  canManageCompanies,
+  canReadCompanyLogs,
   companyValidation.getCompanyLogs,
   runValidation,
   companyController.getCompanyLogAccounts,

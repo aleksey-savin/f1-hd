@@ -13,7 +13,6 @@ const {
   issue: issuePairingCode,
   CODE_TTL_MS: PAIRING_CODE_TTL_MS,
 } = require("@/services/telegramPairing");
-const { isModerator } = require("@/helpers/knowledgeNoteVisibility");
 const { GROUPS } = require("@/auth/access");
 const {
   getModerationCounts,
@@ -66,16 +65,13 @@ const publicUser = (user) => ({
 
 exports.getMe = async (req, res, next) => {
   try {
-    const { user, statements, session } = req.auth;
+    const { user, statements, grantStatements, session } = req.auth;
     const preferences = await Preferences.findOne({});
 
     // Статус модерации базы знаний нужен глобально: карточка модерации на
     // странице заявок и алерт об утечках на каждой странице.
     const kb = preferences?.knowledgeBase || {};
-    const moderatorIds = (kb.moderators || [])
-      .map((moderator) => moderator?._id?.toString())
-      .filter(Boolean);
-    const userIsModerator = isModerator(req.auth.legacy, moderatorIds);
+    const userIsModerator = req.auth.can({ knowledge: ["moderate"] });
     const knowledgeBase = {
       isModerator: userIsModerator,
       hideNotApproved: Boolean(kb.hideNotApproved),
@@ -90,6 +86,7 @@ exports.getMe = async (req, res, next) => {
       user: publicUser(user),
       // Права человека — на языке словаря; по ним работает `can()` во фронте.
       statements,
+      grantStatements,
       /**
        * САМ СЛОВАРЬ с подписями. Он одинаков для всех и мог бы ехать отдельной
        * ручкой, но тогда у фронта появилось бы состояние «права уже есть, а как

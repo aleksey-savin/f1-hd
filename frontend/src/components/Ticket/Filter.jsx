@@ -57,8 +57,9 @@ const TicketFilter = ({
   const { modules } = useInitialPrefsStore();
   const store = useTicketFilterStore();
 
-  const canSeeResponsiblesFacet =
-    can({ ticket: ["administrate"] }) || can({ ticket: ["readAll"] });
+  const canSeeResponsiblesFacet = !!can({
+    ticket: { actions: ["readAll", "readCompanies"], connector: "OR" },
+  });
 
   return (
     <FilterContainer resetFilterHandler={store.resetFilter}>

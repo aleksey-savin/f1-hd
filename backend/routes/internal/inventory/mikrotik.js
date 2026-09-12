@@ -3,6 +3,7 @@ const router = new Router();
 const mikrotikController = require("@/controllers/inventory/mikrotik");
 const isAuth = require("@/middleware/isAuth");
 const {
+  canManageDevices,
   canManageMikrotik,
   canManageMikrotikConfigs,
 } = require("@/middleware/permissions");
@@ -109,7 +110,10 @@ router.post(
   "/mikrotik-devices/records/:recordId/create-inventory",
   isAuth,
   canManageMikrotik,
-  canManageMikrotik,
+  // Карточка пишется в ClientDevice — значит спрашивается и право на технику
+  // инвентаря. Здесь дважды стоял `canManageMikrotik`, и создать карточку мог
+  // любой, кто ведёт мониторинг.
+  canManageDevices,
   mikrotikController.createInventoryCard,
 );
 

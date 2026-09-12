@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useFetcher } from "react-router";
+import { useFetcher } from "react-router";
 import { isMobile } from "react-device-detect";
+import UserLink from "@/components/app/UserLink";
 import {
   RiComputerLine,
   RiRefreshLine,
@@ -116,7 +117,11 @@ const CompanyLogsOffcanvas = ({
   can,
   initialSearchQuery = "",
 }) => {
-  const canManage = can({ company: ["readLogs"] });
+  // Связать/отвязать учётку AD — это правка компании (`company.manage`,
+  // ручки link-user-to-ad / unlink-user-from-ad). Сам журнал открывает
+  // `company.readLogs`, и на нём кнопки действий быть не должно: она отвечала
+  // бы 403 тому, кому журнал только читать.
+  const canManage = can({ company: ["manage"] });
 
   const linkFetcher = useFetcher({ key: "linkUser" });
   const unlinkFetcher = useFetcher({ key: "unlinkUser" });
@@ -369,13 +374,13 @@ const CompanyLogsOffcanvas = ({
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-sm leading-tight font-semibold">
                               {account.user ? (
-                                <Link
-                                  to={`/users/${account.user._id}`}
+                                <UserLink
+                                  id={account.user._id}
                                   onClick={onHide}
                                   className="text-accent-text no-underline hover:underline"
                                 >
                                   {displayName}
-                                </Link>
+                                </UserLink>
                               ) : (
                                 displayName || (
                                   <span className="font-mono text-sm font-medium">

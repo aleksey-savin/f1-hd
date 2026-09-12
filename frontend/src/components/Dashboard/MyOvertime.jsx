@@ -29,9 +29,10 @@ const MyOvertime = () => {
   const can = useCan();
   const modules = useInitialPrefsStore((state) => state.modules);
 
+  // Плитка показывает СВОЮ переработку — это право `report.own`; право на
+  // чужие отчёты его не заменяет (ручка со своим отчётом требует именно own).
   const canSeeOvertime =
-    !!modules?.finances?.isActive &&
-    (!!can({ report: ["own"] }) || !!can({ report: ["employees"] }));
+    !!modules?.finances?.isActive && !!can({ report: ["own"] });
 
   const [overtime, setOvertime] = useState(null);
 

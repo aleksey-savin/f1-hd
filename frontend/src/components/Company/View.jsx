@@ -110,6 +110,9 @@ const ViewCompany = ({
   }, []);
 
   const canManage = can({ company: ["manage"] });
+  // Журнал входов AD — своё право: его держит линия поддержки, которая
+  // компаниями не распоряжается (ручки `/companies/:id/logs`)
+  const canReadLogs = can({ company: ["readLogs"] });
   const showFinances =
     modules?.finances?.isActive && can({ servicePlan: ["read"] });
   const showTech = modules?.inventory?.isActive && can({ device: ["read"] });
@@ -206,14 +209,16 @@ const ViewCompany = ({
             </span>
           </div>
         </div>
-        {canManage && (
+        {(canManage || canReadLogs) && (
           /* На мобильном блок действий занимает свою строку во всю ширину */
           <div className="flex w-full items-center gap-2 sm:w-auto sm:flex-none">
-            <Button asChild className="flex-1 sm:flex-none">
-              <Link to="update">
-                <RiEdit2Line /> Изменить
-              </Link>
-            </Button>
+            {canManage && (
+              <Button asChild className="flex-1 sm:flex-none">
+                <Link to="update">
+                  <RiEdit2Line /> Изменить
+                </Link>
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -226,20 +231,26 @@ const ViewCompany = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setLogsOpen(true)}>
-                  <RiHistoryLine /> Лог активности
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setToggleOpen(true)}>
-                  {isActive ? <RiForbid2Line /> : <RiCheckboxCircleLine />}
-                  {isActive ? "Отключить" : "Включить"}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={() => setDeleteOpen(true)}
-                >
-                  <RiDeleteBinLine /> Удалить
-                </DropdownMenuItem>
+                {canReadLogs && (
+                  <DropdownMenuItem onSelect={() => setLogsOpen(true)}>
+                    <RiHistoryLine /> Лог активности
+                  </DropdownMenuItem>
+                )}
+                {canManage && (
+                  <>
+                    <DropdownMenuItem onSelect={() => setToggleOpen(true)}>
+                      {isActive ? <RiForbid2Line /> : <RiCheckboxCircleLine />}
+                      {isActive ? "Отключить" : "Включить"}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => setDeleteOpen(true)}
+                    >
+                      <RiDeleteBinLine /> Удалить
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -435,7 +446,7 @@ const ViewCompany = ({
       {/* Правка компании и мастер «Новой услуги» — вложенные маршруты в шторке */}
       <FormOutlet />
 
-      {canManage && (
+      {canReadLogs && (
         <CompanyLogsOffcanvas
           show={logsOpen}
           onHide={() => setLogsOpen(false)}

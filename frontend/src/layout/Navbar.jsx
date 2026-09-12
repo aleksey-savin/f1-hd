@@ -175,7 +175,7 @@ const UserMenu = ({ trigger, align = "end" }) => {
           />
           Мой аккаунт
         </NavLink>
-        {can({ settings: ["read"] }) && (
+        {can({ settings: ["manage"] }) && (
           <NavLink
             to="/preferences"
             onClick={() => setOpen(false)}

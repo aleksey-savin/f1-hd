@@ -2,7 +2,7 @@ const Router = require("express");
 const router = new Router();
 
 const isAuth = require("@/middleware/isAuth");
-const { canManageRoutineTasks, isNotClient } = require("@/middleware/permissions");
+const { isNotClient } = require("@/middleware/permissions");
 
 const formDataController = require("@/controllers/formData");
 
@@ -16,10 +16,13 @@ router.get(
   formDataController.getServiceAccounts,
 );
 
+// Категории — тот же справочник для выпадашки, что и /ticket-categories:
+// достаточно быть сотрудником. На `routineTask.manage` форма регламента
+// ломалась у того, кому регламенты дали только читать.
 router.get(
   "/form-data/categories",
   isAuth,
-  canManageRoutineTasks,
+  isNotClient,
   formDataController.getCategories,
 );
 

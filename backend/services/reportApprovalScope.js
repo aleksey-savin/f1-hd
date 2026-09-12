@@ -10,9 +10,10 @@ const { canFor } = require("@/services/permissions");
  *
  * Схема та же, что у отчёта «Компании» (services/reportScope): ПРАВО
  * открывает раздел, ОБЪЁМ даёт роль. Права двух видов:
- *  - наш сотрудник с `canReadEmployeesReport` — весь конвейер;
- *  - клиент с `canApproveWorkReports` — только то, что ждёт его подписи,
- *    и то, что он уже подписал.
+ *  - наш сотрудник с `approval.read` — весь конвейер;
+ *  - клиент с `approval.read` — только то, что ждёт его подписи,
+ *    и то, что он уже подписал (право открывает раздел, кто именно решает —
+ *    отдельное право `approval.decide`, его проверяет маршрут решения).
  *
  * Роли на стороне клиента (накапливаются — один человек может быть и
  * согласующим одной компании, и руководителем филиала другой):
@@ -129,7 +130,7 @@ const resolveReportApprovalScope = async (authedUser) => {
   const can = await canFor(authedUser);
 
   if (!authedUser.isEndUser) {
-    if (!can({ report: ["employees"] })) {
+    if (!can({ approval: ["read"] })) {
       return emptyScope(false);
     }
     return withPredicates({
@@ -141,7 +142,9 @@ const resolveReportApprovalScope = async (authedUser) => {
     });
   }
 
-  if (!can({ approval: ["decide"] })) {
+  // Видимость раздела — по approval.read; кто именно подписывает, решает
+  // сам скоуп ниже (canDecideReport/canDecidePart), а не это право.
+  if (!can({ approval: ["read"] })) {
     return emptyScope(true);
   }
 

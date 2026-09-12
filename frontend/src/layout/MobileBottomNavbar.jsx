@@ -43,7 +43,7 @@ const MobileBottomNavbar = () => {
     can({ user: ["read"] }) && {
       to: "/users",
       icon: RiAccountBoxLine,
-      label: "Люди",
+      label: "Пользователи",
     },
     can({ company: ["read"] }) && {
       to: "/companies",

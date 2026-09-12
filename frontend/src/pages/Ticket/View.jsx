@@ -61,6 +61,7 @@ import {
 } from "../../components/Ticket/View/Sections";
 import {
   DIALOG_ACTIONS,
+  canComposeChecklistFor,
   ticketActions,
 } from "../../components/Ticket/ticket-actions";
 import {
@@ -270,7 +271,6 @@ const ViewTicket = () => {
     },
   );
 
-  const canPerform = can({ ticket: ["perform"] }) && mine && !ticket.isArchived;
   /**
    * Писать в ленту может каждый, кому заявка видна: ручка комментария прав
    * «работать с заявками» не спрашивает (routes/internal/comment.js), а фронт
@@ -285,7 +285,8 @@ const ViewTicket = () => {
     !ticket.isArchived &&
     !ticket.isClosed &&
     (isEndUser || !!can({ ticket: ["perform"] }));
-  const canEditChecklist = can({ ticket: ["update"] }) && !ticket.isArchived;
+  const canEditChecklist =
+    canComposeChecklistFor(ticket, { userId, can }) && !ticket.isArchived;
   const hasChecklist = ticket.checklist?.length > 0;
 
   // Шаблоны чек-листов, подходящие этой заявке: ранжирование («побеждает самый
@@ -325,20 +326,19 @@ const ViewTicket = () => {
     );
   };
 
-  // Работы по СВОЕЙ заявке — «своё», и права на чужие работы оно не спрашивает
-  // (то же правило, что у блоков главной). Действий у заявителя всё равно нет:
-  // меню строки живёт по автору и исполнителю работы, а он ни тот ни другой.
-  // Заявителю секция появляется только вместе с работами: заглушки написаны
-  // для того, кто работы заводит («без них заявку не закрыть»), и клиенту это
-  // совет не по адресу.
+  // Работы видны ТОЛЬКО по праву — и заявителю на своей заявке тоже: секция
+  // раскрывает, кто и сколько по заявке работал, а это сведения не о нём.
+  // Бэкенд без права присылает пустой массив, так что показывать всё равно
+  // нечего.
   const showWorks =
-    modules.timeTracking?.isActive &&
-    (isEndUser ? works.length > 0 : !!can({ work: ["read"] }));
+    modules.timeTracking?.isActive && !!can({ work: ["read"] });
   const showEnvironment =
     !isEndUser && modules.inventory?.isActive && can({ device: ["read"] });
   const showKnowledge =
     modules.knowledgeBase?.isActive && can({ knowledge: ["read"] });
-  const showAi = !isEndUser && ai?.isActive;
+  // Инструменты ИИ — часть работы с заявкой: секцию видит тот, кто заявки
+  // берёт, а не всякий сотрудник (ручки за ней гейтит то же право)
+  const showAi = ai?.isActive && can({ ticket: ["perform"] });
 
   const railSections = useMemo(
     () =>
@@ -565,7 +565,7 @@ const ViewTicket = () => {
         <div className="-mt-6 flex min-w-0 flex-1 flex-col gap-5">
           <DescriptionSection
             ticket={ticket}
-            canEdit={can({ ticket: ["update"] }) && !ticket.isArchived}
+            canEdit={can({ ticket: ["manage"] }) && !ticket.isArchived}
             uploadAction={attachments.uploadAction}
             attachments={
               <AttachmentStrip
@@ -590,13 +590,18 @@ const ViewTicket = () => {
           <FactsSection
             ticket={ticket}
             company={company}
-            canEdit={can({ ticket: ["update"] }) && !ticket.isArchived}
+            canEdit={can({ ticket: ["manage"] }) && !ticket.isArchived}
             onShowLogs={
-              !isEndUser ? (query) => setLogsQuery(query ?? "") : undefined
+              // Журнал входов AD закрыт правом `company.readLogs` (ручка
+              // `/companies/:id/logs`): «не клиент» открывал кнопку каждому
+              // сотруднику, и она отвечала 403
+              can({ company: ["readLogs"] })
+                ? (query) => setLogsQuery(query ?? "")
+                : undefined
             }
           />
 
-          {showAi && <AiGuideSection />}
+          {showAi && <AiGuideSection canEditChecklist={canEditChecklist} />}
 
           {/* Секция появляется вместе с содержимым: пустой чек-лист — это блок,
               который сообщает только о своём отсутствии, а он бывает пустым у
@@ -709,8 +714,14 @@ const ViewTicket = () => {
             <WorksSection
               works={works}
               ticket={ticket}
+              // Записать работу вправе тот, кому дано «записывать работы», —
+              // сервер спрашивает только его плюс доступ к заявке. Брать
+              // заявки в работу для этого не требуется (так же в массовых
+              // действиях списка). Архив закрыт всем: период подписан отчётом.
               canAddWork={
-                canPerform && !["Новая", "Не в работе"].includes(ticket.state)
+                !!can({ work: ["log"] }) &&
+                !ticket.isArchived &&
+                !["Новая", "Не в работе"].includes(ticket.state)
               }
             />
           )}
@@ -800,15 +811,11 @@ export async function loader({ params }) {
   if (!openedTicketsResponse.ok) throw openedTicketsResponse;
   const openedTickets = await openedTicketsResponse.json();
 
-  const additionalDataResponse = await fetch(
-    `${import.meta.env.VITE_API_ADDRESS}/api/works/additional-data/${params.ticketNum}`,
-    { headers },
-  );
-  if (!additionalDataResponse.ok) throw additionalDataResponse;
-  const additionalData = await additionalDataResponse.json();
-
+  // `works/additional-data` карточке не нужен: ограничение даты работ читает
+  // форма работы из своего загрузчика (`workFormLoader`), а здесь его никто не
+  // брал — лишний запрос на каждое открытие заявки, к тому же за правом
+  // «видеть работы».
   return {
-    ...additionalData,
     ticketData,
     responsiblesData: await responsiblesResponse.json(),
     // «Другие заявки этой компании» нужны формам работ: одна запись работы

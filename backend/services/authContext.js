@@ -1,4 +1,5 @@
 const { effectivePermissions } = require("@/services/permissions");
+const { isStaffAdmin } = require("@/auth/access");
 const { isBanned } = require("@/services/authBan");
 const { authorizeFor } = require("@/auth/bootstrap");
 
@@ -42,8 +43,11 @@ const isDeniedAccount = (user) =>
  * @param {object|null} session сеанс better-auth; у телеграм-актора его нет
  */
 const buildAuthContext = async (user, session = null) => {
-  const { statements } = await effectivePermissions(user);
-  const isAdmin = Boolean(user.isAdmin);
+  const { statements, grantStatements } = await effectivePermissions(user);
+  // Тем же правилом, что и `effectivePermissions`: `isAdmin` у клиентской
+  // учётной записи не действует — иначе оставшийся в базе флаг обходил бы
+  // скоупы заявок и отчётов (`req.auth.isAdmin` читают десятки мест).
+  const isAdmin = isStaffAdmin(user);
 
   return {
     userId: user._id.toString(),
@@ -59,6 +63,9 @@ const buildAuthContext = async (user, session = null) => {
      * администратору там, где `can()` пускал.
      */
     can: authorizeFor(statements),
+    grantStatements,
+    /** Что этот человек вправе выдать роли — до вырезания по типу аккаунта. */
+    canGrant: authorizeFor(grantStatements),
     isAdmin,
     isEndUser: user.isEndUser !== false,
     session,

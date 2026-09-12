@@ -57,8 +57,10 @@ export const useAttachments = (ticket) => {
 
   const { ai } = useInitialPrefsStore();
 
-  const canUpload = !ticket.isArchived && can({ ticket: ["perform"] });
-  const canDelete = !ticket.isArchived && can({ ticket: ["administrate"] });
+  // Вложения заявки — её содержание: и добавить, и убрать может только тот,
+  // кто ведёт заявки. Исполнитель и клиент прикладывают файлы в комментариях.
+  const canUpload = !ticket.isArchived && can({ ticket: ["manage"] });
+  const canDelete = !ticket.isArchived && can({ ticket: ["manage"] });
   const canTranscribe =
     !ticket.isArchived &&
     can({ ticket: ["perform"] }) &&

@@ -107,8 +107,12 @@ export async function loader({ params }) {
   const canUseFinances = Boolean(
     me?.statements?.servicePlan?.includes("read"),
   );
+  // Список тарифов — только для сотрудников (ручка `/service-plans` требует
+  // isNotClient): он кормит пикер «подключить услугу» (право servicePlan.manage),
+  // а подключённые компании тарифы и так приходят в companyData.servicePlans.
+  const isEndUser = Boolean(me?.user?.isEndUser);
 
-  if (prefsData.modules.finances.isActive && canUseFinances) {
+  if (prefsData.modules.finances.isActive && canUseFinances && !isEndUser) {
     const servicePlansResponse = await fetch(
       `${import.meta.env.VITE_API_ADDRESS}/api/finances/service-plans/`,
       {

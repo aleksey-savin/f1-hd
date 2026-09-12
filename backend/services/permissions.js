@@ -5,6 +5,10 @@ const {
   STATEMENT,
   isKnownAction,
   fullAccessStatements,
+  accountAudienceOf,
+  isStaffAdmin,
+  stripStatementsForAudience,
+  audienceOfAction,
 } = require("@/auth/access");
 
 /**
@@ -164,31 +168,39 @@ const mergeStatements = (target, source) => {
 };
 
 /**
- * Права администратора МАТЕРИАЛИЗУЮТСЯ, а не подменяются проверкой.
- *
- * Раньше `isAdmin` был коротким замыканием внутри `can()`: функция отвечала
- * «да», а набор statements при этом оставался тем, что дали роли. Три способа
- * спросить одно и то же расходились — `can()` пускал, `/api/me` показывал
- * права неполными, а экраны, читавшие набор напрямую, показывали
- * администратору 403 на странице, которую сервер ему же и отдавал. Теперь
- * ответ один, потому что источник один.
- *
- * @returns {Promise<{statements: object}>}
+ * @returns {Promise<{statements: object, grantStatements: object}>}
+ *   `statements` — что человеку МОЖНО (уже без действий чужого адресата),
+ *   `grantStatements` — что он вправе ВЫДАТЬ роли (полный набор его ролей:
+ *   администратор-сотрудник выдаёт клиентской роли «Согласовывать отчёты»,
+ *   хотя сам этим правом не действует).
  */
 const effectivePermissions = async (user) => {
-  if (user?.isAdmin) return { statements: fullAccessStatements() };
+  const audience = accountAudienceOf(user);
 
-  const statements = {};
+  // Зеркало действует только у сотрудника: у клиентской учётной записи
+  // `isAdmin` — это остаток прежней раздачи (зеркало ей больше не ставится), и
+  // действовать он не должен ни дня. Права такого клиента считаются по ролям.
+  if (isStaffAdmin(user)) {
+    const full = fullAccessStatements();
+    return {
+      statements: stripStatementsForAudience(full, audience),
+      grantStatements: full,
+    };
+  }
 
+  const grantStatements = {};
   const roles = await rolesOfUser(user._id);
   if (roles.length) {
     const catalogue = await loadRoles();
     for (const role of roles) {
-      mergeStatements(statements, catalogue[role]);
+      mergeStatements(grantStatements, catalogue[role]);
     }
   }
 
-  return { statements };
+  return {
+    statements: stripStatementsForAudience(grantStatements, audience),
+    grantStatements,
+  };
 };
 
 /**
@@ -201,8 +213,19 @@ const effectivePermissions = async (user) => {
  *
  * Дороже, чем `req.auth.can`: каждый вызов разрешает роли заново. Для одного
  * человека это одно чтение `member`, для цикла — по чтению на человека.
+ *
+ * Документ обязан быть ПОЛНЫМ (во всяком случае с `isEndUser`). Проекция без
+ * этого поля обходилась молча: `accountAudienceOf` считал такого человека
+ * клиентом, и `stripStatementsForAudience` вырезал все права сотрудника —
+ * табель приходил без `canManage`, а отсутствие коллеге не заводилось. Отказ
+ * громкий: ошибка здесь дешевле, чем беззвучная потеря прав у вызывающего.
  */
 const canFor = async (user) => {
+  if (typeof user?.isEndUser !== "boolean") {
+    throw new Error(
+      "canFor: нужен полный документ пользователя с isEndUser",
+    );
+  }
   const { statements } = await effectivePermissions(user);
   return authorizeFor(statements);
 };
@@ -216,7 +239,18 @@ const canFor = async (user) => {
  * исполнителей без них были бы неполны.
  *
  * Возвращается фрагмент фильтра, а не готовый запрос: вызывающий обычно
- * добавляет свои условия (компания, `banned`, `isServiceAccount`).
+ * добавляет свои условия (компания, период).
+ *
+ * ОТКЛЮЧЁННЫЕ И СЛУЖЕБНЫЕ АККАУНТЫ ФИЛЬТР ОТСЕКАЕТ САМ — `banned: {$ne: true}`
+ * и `isServiceAccount: {$ne: true}` в КАЖДОЙ ветке. Прежде это дописывал каждый
+ * вызывающий, и один из шести (`assertResponsiblesMayPerform`) забыл: в
+ * ответственные можно было поставить отключённого человека или машинную
+ * учётку. Условие, которое обязаны помнить шесть мест, рано или поздно
+ * забывают в седьмом — поэтому оно здесь, а не у вызывающих.
+ *
+ * `user.banned` за пределами этого фильтра читать НЕЛЬЗЯ: гейты спрашивают
+ * `services/authBan#isBanned` (у отключения есть срок, и флаг снимает крон).
+ * Здесь это запрос к базе, а не гейт: по сроку он не судит и потому берёт флаг.
  *
  * Это место легко проглядеть: запрос с неверным условием не падает, он молча
  * возвращает неполный список.
@@ -231,6 +265,13 @@ const permissionFilter = async (actionId) => {
   }
 
   const conditions = [{ isAdmin: true }];
+  const audience = audienceOfAction(actionId);
+  const accountMatch =
+    audience === "staff"
+      ? { isEndUser: false }
+      : audience === "client"
+        ? { isEndUser: { $ne: false } }
+        : null;
 
   const catalogue = await loadRoles();
   const granting = Object.entries(catalogue)
@@ -262,7 +303,18 @@ const permissionFilter = async (actionId) => {
     if (ids.length) conditions.push({ _id: { $in: ids } });
   }
 
-  return { $or: conditions };
+  // Тип аккаунта и годность учётной записи — в КАЖДУЮ ветку, а не вторым
+  // уровнем `$and`: потребители читают `.$or` фрагмента
+  // (services/reportApproval.js) и разворачивают его, и всё, что осталось бы
+  // снаружи, при таком развороте потерялось бы.
+  const usable = { banned: { $ne: true }, isServiceAccount: { $ne: true } };
+  const branches = conditions.map((condition) => ({
+    ...condition,
+    ...usable,
+    ...(accountMatch || {}),
+  }));
+
+  return { $or: branches };
 };
 
 /**

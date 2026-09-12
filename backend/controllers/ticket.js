@@ -78,10 +78,10 @@ const {
   resolveClientAddress,
   subdivisionIndex,
 } = require("../services/clientAddress");
-const {
-  permissionFilter,
-  effectivePermissions,
-} = require("@/services/permissions");
+const { permissionFilter, canFor } = require("@/services/permissions");
+const { ticketListFilter } = require("@/services/ticketScope");
+const { canEditChecklist } = require("@/services/ticketAccess");
+const { isBanned } = require("@/services/authBan");
 
 const buildAttachment = (file) => ({
   mimetype: file.mimetype,
@@ -97,8 +97,11 @@ const buildAttachment = (file) => ({
  *
  * Условие собирает `permissionFilter` — с ролями флага в документе пользователя
  * нет, и прямое `{ "permissions.canPerformTickets": true }` молча вернуло бы
- * неполный список. Отказ называет людей по именам: идентификаторы человеку,
- * который его читает, ничего не говорят.
+ * неполный список. Он же отсекает отключённых и служебные учётки: раньше это
+ * условие дописывал каждый вызывающий, и здесь оно было забыто — ответственным
+ * можно было поставить уволенного или машинную учётку.
+ * Отказ называет людей по именам: идентификаторы человеку, который его читает,
+ * ничего не говорят.
  */
 const assertResponsiblesMayPerform = async (responsibles) => {
   const ids = responsibles.map((person) => person?._id).filter(Boolean);
@@ -129,9 +132,10 @@ const assertResponsiblesMayPerform = async (responsibles) => {
 
 exports.getAllOpened = async (req, res, next) => {
   try {
-    const { isAdmin, userId, company } = req.auth.legacy;
-
-    const allTickets = await Ticket.find({ isClosed: false })
+    const allTickets = await Ticket.find({
+      isClosed: false,
+      ...ticketListFilter(req.auth),
+    })
       .select("-description")
       .populate({
         path: "applicantId",
@@ -158,41 +162,20 @@ exports.getAllOpened = async (req, res, next) => {
         _id: -1,
       });
 
-    let filteredTickets = [];
-
-    if (
-      req.auth.can({
-        ticket: { actions: ["administrate", "readAll"], connector: "OR" },
-      })
-    ) {
-      // Пользователи с ролью администратор
-      filteredTickets = allTickets;
-    } else if (req.auth.can({ ticket: ["readCompany"] })) {
-      // Пользователи с разрешением на просмотр всех заявок Компании
-      filteredTickets = allTickets.filter((ticket) => {
-        return ticket.company?._id?.toString() === company._id.toString();
-      });
-    } else {
-      // Остальные пользователи
-      filteredTickets = allTickets.filter((ticket) => {
-        return (
-          ticket.responsibles
-            .map((resp) => resp._id.toString())
-            .includes(userId.toString()) ||
-          ticket.createdBy.toString() === userId.toString() ||
-          ticket.applicantId?._id.toString() === userId.toString()
-        );
-      });
-    }
+    // Работы видны только с правом «Видеть работы»: запланированная работа — это
+    // кто, когда и у кого, и список заявок отдавал её всем подряд.
+    const mayReadWorks = req.auth.can({ work: ["read"] });
 
     // Одним запросом достаём запланированные работы для всех заявок сразу и
     // группируем по заявке — вместо N+1 (отдельный Work.find на каждую заявку).
-    const ticketIds = filteredTickets.map((ticket) => ticket._id);
-    const allScheduledWorks = await Work.find({
-      tickets: { $in: ticketIds },
-      scheduled: true,
-      finishedAt: null,
-    });
+    const ticketIds = allTickets.map((ticket) => ticket._id);
+    const allScheduledWorks = mayReadWorks
+      ? await Work.find({
+          tickets: { $in: ticketIds },
+          scheduled: true,
+          finishedAt: null,
+        })
+      : [];
 
     const worksByTicket = new Map();
     for (const work of allScheduledWorks) {
@@ -222,10 +205,10 @@ exports.getAllOpened = async (req, res, next) => {
     // пачкой, каскад считается в памяти — иначе был бы запрос на строку.
     const clientTimezoneOf = await createClientTimezoneResolver({
       preferences,
-      companyIds: filteredTickets.map((ticket) => ticket.company?._id),
+      companyIds: allTickets.map((ticket) => ticket.company?._id),
     });
 
-    const shortenedTickets = filteredTickets.map((ticket) => ({
+    const shortenedTickets = allTickets.map((ticket) => ({
       _id: ticket._id,
       num: ticket.num,
       company: ticket.company,
@@ -286,26 +269,9 @@ exports.getUsersTickets = async (req, res, next) => {
 
     contextLogger.log("info", "Fetching user's tickets");
 
-    if (
-      req.auth.can({
-        ticket: { actions: ["administrate", "readAll"], connector: "OR" },
-      })
-    ) {
-      // Пользователи с ролью администратор
-      tickets = await Ticket.find({
-        "applicant._id": req.params.id,
-      }).sort({ lastName: 1 });
-    } else {
-      // Остальные пользователи
-      tickets = await Ticket.find({
-        $and: [
-          { "responsibles._id": userId },
-          { "applicant._id": req.params.id },
-        ],
-      }).sort({
-        _id: -1,
-      });
-    }
+    tickets = await Ticket.find({
+      $and: [{ "applicant._id": req.params.id }, ticketListFilter(req.auth)],
+    }).sort({ lastName: 1 });
 
     const shortenedTickets = tickets.map((ticket) => {
       return {
@@ -351,12 +317,6 @@ const CLOSED_SORT = {
 
 exports.getClosed = async (req, res, next) => {
   try {
-    const {
-      _id: userId,
-      isAdmin,
-      permissions,
-      company,
-    } = req.auth.legacy;
     const q = req.query;
 
     const query = { isClosed: true };
@@ -384,27 +344,9 @@ exports.getClosed = async (req, res, next) => {
     const applicants = parseIdList(q.applicants);
     if (applicants.length) query.applicantId = { $in: applicants };
 
-    // Скоуп прав — те же ярусы, что у getAllOpened: админ и
-    // canSeeAll* видят всё; canSeeAllCompanyTickets — только своя компания
-    // (жёстче фильтра компаний из запроса); остальные — заявки, в которых
-    // участвовали (ответственный, автор или заявитель)
-    if (
-      req.auth.can({
-        ticket: { actions: ["administrate", "readAll"], connector: "OR" },
-      })
-    ) {
-      // без ограничений
-    } else if (req.auth.can({ ticket: ["readCompany"] })) {
-      query["company._id"] = company._id;
-    } else {
-      and.push({
-        $or: [
-          { "responsibles._id": userId },
-          { createdBy: userId },
-          { applicantId: userId },
-        ],
-      });
-    }
+    // Скоуп прав — те же три яруса, что у списка открытых (services/ticketScope)
+    const scope = ticketListFilter(req.auth);
+    if (scope.$or) and.push(scope);
 
     // Поиск: AND по термам (до 6, терм ≤ 64 символов); терм ищется по номеру
     // (целиком цифры — точное совпадение), теме, описанию и ФИО инициатора.
@@ -517,7 +459,7 @@ exports.getTechnicalLog = async (req, res, next) => {
 
 exports.getOne = async (req, res, next) => {
   try {
-    const { isEndUser, isAdmin, permissions } = req.auth;
+    const { isEndUser, isAdmin } = req.auth;
     const ticketNum = req.params.ticketNum;
 
     const ticket = await Ticket.findOne({ num: ticketNum })
@@ -600,45 +542,49 @@ exports.getOne = async (req, res, next) => {
       }
     }
 
-    const works = await Work.find({ tickets: ticket._id });
+    // Работы открывает только право их видеть — включая заявителя на своей
+    // заявке: решение владельца, исключений для клиента больше нет. Фронтенд
+    // ждёт массив, поэтому без права уходит пустой, а не отсутствующий.
+    let worksWithLinks = [];
+    if (req.auth.can({ work: ["read"] })) {
+      const works = await Work.find({ tickets: ticket._id });
 
-    // Резолвим связанные заявки каждой работы в {_id, num, title}. Форма
-    // редактирования работ заполняет «Также привязать к» по work.linkedTickets,
-    // а не по кандидатному списку otherCompanyTickets (он сужен до заявок той же
-    // категории, где пользователь ответственный). Иначе связи с заявками вне
-    // этого списка (например, другой категории при массовом добавлении работ) не
-    // отображались бы и терялись при сохранении.
-    const linkedTicketIds = [
-      ...new Set(works.flatMap((work) => work.tickets.map((t) => t.toString()))),
-    ];
-    const linkedTicketDocs = await Ticket.find({
-      _id: { $in: linkedTicketIds },
-    }).select("num title");
-    const linkedById = new Map(
-      linkedTicketDocs.map((t) => [
-        t._id.toString(),
-        { _id: t._id, num: t.num, title: t.title },
-      ]),
-    );
-    // Переработка и доплата по каждой работе — тем же кодом, что выставляет
-    // счёт (services/workPreview → servicePlanBilling). В строке показывается
-    // только исключение: у работы в рамках тарифа поля просто нет.
-    const billingByWork = await annotateWorks({
-      works: works.map((work) => work.toObject()),
-      // Деньги видит тот, у кого и тарифы, и отчёт по сотрудникам. Двумя
-      // вызовами: по И словарь складывает только действия ОДНОГО ресурса.
-      canSeeMoney:
-        req.auth.can({ servicePlan: ["read"] }) &&
-        req.auth.can({ report: ["employees"] }),
-    });
+      // Резолвим связанные заявки каждой работы в {_id, num, title}. Форма
+      // редактирования работ заполняет «Также привязать к» по work.linkedTickets,
+      // а не по кандидатному списку otherCompanyTickets (он сужен до заявок той же
+      // категории, где пользователь ответственный). Иначе связи с заявками вне
+      // этого списка (например, другой категории при массовом добавлении работ) не
+      // отображались бы и терялись при сохранении.
+      const linkedTicketIds = [
+        ...new Set(
+          works.flatMap((work) => work.tickets.map((t) => t.toString())),
+        ),
+      ];
+      const linkedTicketDocs = await Ticket.find({
+        _id: { $in: linkedTicketIds },
+      }).select("num title");
+      const linkedById = new Map(
+        linkedTicketDocs.map((t) => [
+          t._id.toString(),
+          { _id: t._id, num: t.num, title: t.title },
+        ]),
+      );
+      // Переработка и доплата по каждой работе — тем же кодом, что выставляет
+      // счёт (services/workPreview → servicePlanBilling). В строке показывается
+      // только исключение: у работы в рамках тарифа поля просто нет.
+      const billingByWork = await annotateWorks({
+        works: works.map((work) => work.toObject()),
+        canSeeMoney: req.auth.can({ work: ["readCost"] }),
+      });
 
-    const worksWithLinks = works.map((work) => ({
-      ...work.toObject(),
-      linkedTickets: work.tickets
-        .map((t) => linkedById.get(t.toString()))
-        .filter(Boolean),
-      outOfSchedule: billingByWork[work._id.toString()] || null,
-    }));
+      worksWithLinks = works.map((work) => ({
+        ...work.toObject(),
+        linkedTickets: work.tickets
+          .map((t) => linkedById.get(t.toString()))
+          .filter(Boolean),
+        outOfSchedule: billingByWork[work._id.toString()] || null,
+      }));
+    }
 
     // Хроника карточки: события заявки, служебные записи — счётчиками под
     // предыдущим событием (у одной заявки их бывает 1476 против 10 событий).
@@ -722,11 +668,10 @@ exports.getFormData = async (req, res, next) => {
 
     // Форма открывается по готовности этих данных, поэтому независимые
     // выборки идут параллельно, а не одна за другой
+    // Отключённых и служебные учётки отсекает сам permissionFilter
     const performers = () =>
       permissionFilter("ticket.perform").then((filter) =>
-        User.find({ $and: [filter, { banned: { $ne: true } }] }).sort({
-          lastName: 1,
-        }),
+        User.find(filter).sort({ lastName: 1 }),
       );
 
     if (authedUser.isEndUser) {
@@ -736,48 +681,56 @@ exports.getFormData = async (req, res, next) => {
         // Полный активный каталог: фасет категорий в архиве (сегменты «Заявки»
         // и «Работы») у конечного пользователя раньше оставался пустым
         Category.find({ isActive: true }).sort({ title: 1 }),
-        req.auth.can({ ticket: ["readCompany"] })
+        req.auth.can({ ticket: ["createForOthers"] })
           ? User.find({
               "company._id": authedUser.company._id,
-              isServiceAccount: false,
+              isServiceAccount: { $ne: true },
               banned: { $ne: true },
             })
           : [authedUser],
       ]);
-    } else if (req.auth.can({ ticket: ["administrate"] })) {
-      [companies, applicants, categories, responsibles] = await Promise.all([
-        Company.find({
-          "responsibles._id": authedUser._id,
-          ...companyActive,
-        }).sort({ alias: 1 }),
-        User.find({
-          $and: [{ banned: { $ne: true } }, { isServiceAccount: false }],
-          ...applicantCompanyActive,
-        }).sort({ lastName: 1 }),
-        Category.find({ isActive: true }).sort({ title: 1 }),
-        performers(),
-      ]);
     } else {
-      [[companies, applicants], categories, responsibles] = await Promise.all([
-        // applicants наследуют фильтр активности от уже отфильтрованных
-        // companies — эта пара последовательна, остальное параллельно
-        Company.find({
-          "responsibles._id": authedUser._id,
-          ...companyActive,
-        })
-          .sort({ alias: 1 })
-          .then(async (found) => [
-            found,
-            await User.find({
-              "company._id": { $in: found },
-              banned: { $ne: true },
-            }).sort({ lastName: 1 }),
-          ]),
-        Category.find({
-          banned: { $ne: true },
-          _id: { $in: authedUser.categories },
-        }).sort({ title: 1 }),
-        User.find({ _id: authedUser._id }).sort({ lastName: 1 }),
+      /**
+       * Сотрудник. Ширина двух списков считается ОТДЕЛЬНО, и вот почему: эта
+       * ручка кормит не только форму заявки, но и фасеты архива — «Компании» и
+       * «Инициаторы» в `Ticket/ArchiveFilter` и «Компании» в
+       * `Work/ArchiveFilter` (те зовут её с ?includeInactive=true). Одним
+       * условием на оба списка архив у исполнителя с «Видеть все заявки»
+       * схлопнулся бы до одной строки.
+       *
+       * Поэтому справочник компаний открывает `company.read`, а справочник
+       * людей — `user.read` (спека 2026-09-11: «списки пользователей и
+       * компаний — под user.read / company.read»); «Заводить заявки за других»
+       * и «Вести заявки» дают оба, потому что оба списка им нужны в форме.
+       * Без этих прав — своя компания и он сам: сервер и так подставит их
+       * (`add` ниже), а раньше ручка под одним `isAuth` отдавала кому угодно
+       * весь справочник компаний и всех людей портала.
+       */
+      const forOthers =
+        req.auth.can({ ticket: ["createForOthers"] }) ||
+        req.auth.can({ ticket: ["manage"] });
+      const allCompanies = forOthers || req.auth.can({ company: ["read"] });
+      const allApplicants = forOthers || req.auth.can({ user: ["read"] });
+
+      [companies, applicants, categories, responsibles] = await Promise.all([
+        allCompanies
+          ? Company.find({ ...companyActive }).sort({ alias: 1 })
+          : authedUser.company?._id
+            ? Company.find({ _id: authedUser.company._id })
+            : [],
+        allApplicants
+          ? User.find({
+              $and: [
+                { banned: { $ne: true } },
+                { isServiceAccount: { $ne: true } },
+              ],
+              ...applicantCompanyActive,
+            }).sort({ lastName: 1 })
+          : [authedUser],
+        Category.find({ isActive: true }).sort({ title: 1 }),
+        // Ответственные — всегда полный список: это исполнители, а не
+        // инициаторы, и назначает их «Вести заявки»
+        performers(),
       ]);
     }
 
@@ -792,7 +745,6 @@ exports.getFormData = async (req, res, next) => {
         lastName: applicant.lastName,
         firstName: applicant.firstName,
         company: applicant.company,
-        permissions: applicant.permissions,
       })),
 
       // description объясняет, что попадает в категорию, и показывается
@@ -825,22 +777,28 @@ exports.add = async (req, res, next) => {
     const now = new Date();
 
     /**
-     * Заявку от ЧУЖОГО имени и по чужой компании заводит только тот, кому это
-     * разрешено. Полей «инициатор», «компания» и «ответственные» в форме
-     * клиента нет вовсе (`TicketFormFields.jsx:188`), но до этой проверки любой
-     * авторизованный мог прислать их запросом — и завести заявку от чужого
-     * лица, на чужую компанию и с чужими ответственными.
-     *
-     * Право, а не признак «сотрудник»: заводить заявки за позвонившего — часть
-     * обычной работы поддержки, но именно поэтому его должно быть видно в роли
-     * и можно отобрать. Оно есть у всех ролей сотрудников.
+     * Заявку за другого заводит только тот, кому это разрешено. Сотрудник —
+     * за любого инициатора любой компании и с ответственными; клиент — только
+     * за коллегу своей компании: компания всегда его, ответственных он не
+     * указывает. Раньше клиент с этим правом мог прислать чужую компанию телом
+     * запроса.
      */
+    const isClient = req.auth.isEndUser;
     const onBehalfOfOthers = req.auth.can({ ticket: ["createForOthers"] });
 
-    const applicant =
-      onBehalfOfOthers && req.body.applicantId
-        ? req.body.applicantId
-        : userId;
+    let applicant = userId;
+    if (onBehalfOfOthers && req.body.applicantId && String(req.body.applicantId) !== String(userId)) {
+      const chosen = await User.findById(req.body.applicantId)
+        .select("_id company isServiceAccount banned banExpires")
+        .lean();
+      if (!chosen || chosen.isServiceAccount || isBanned(chosen)) {
+        throw new AppError("Инициатор не найден или отключён", 404);
+      }
+      if (isClient && String(chosen.company?._id) !== String(company?._id)) {
+        throw new AppError("Инициатором может быть только сотрудник вашей компании", 403);
+      }
+      applicant = String(chosen._id);
+    }
 
     const attachments = req.files?.map(buildAttachment);
 
@@ -902,13 +860,12 @@ exports.add = async (req, res, next) => {
     // которой заявку и создают. Подбор шаблона чек-листа работает там, где
     // списка нет, — то есть в 90 % заявок, создаваемых вручную
     const ticketCompany =
-      onBehalfOfOthers && req.body.company
+      !isClient && onBehalfOfOthers && req.body.company
         ? JSON.parse(req.body.company)
         : userCompany;
 
-    const responsibles = onBehalfOfOthers
-      ? JSON.parse(req.body.responsibles || "[]")
-      : [];
+    const responsibles =
+      !isClient && onBehalfOfOthers ? JSON.parse(req.body.responsibles || "[]") : [];
     await assertResponsiblesMayPerform(responsibles);
 
     if (templateChecklist.length === 0 && (await autoApplyEnabled())) {
@@ -1781,7 +1738,6 @@ exports.close = async (req, res, next) => {
   try {
     const prefs = await Preferences.findOne({});
     const authedUser = req.auth?.legacy ?? null;
-    const { permissions } = authedUser;
 
     const ticket = await Ticket.findById(req.body._id);
 
@@ -1816,13 +1772,11 @@ exports.close = async (req, res, next) => {
         .filter((work) => work.finishedAt)
         .map((work) => work.finishedBy._id.toString());
 
-      // Право ЧУЖОГО человека: читать `user.permissions` напрямую нельзя —
-      // с ролями флага в документе нет, и исполнитель молча выпал бы из списка.
-      const respPermissions = (await effectivePermissions(user)).permissions;
-      if (
-        worksExecutorsIds.includes(resp._id.toString()) ||
-        respPermissions.canAvoidWorks
-      ) {
+      // Право ЧУЖОГО человека закрывать без работ — через canFor: читать
+      // `user.permissions` напрямую нельзя — с ролями флага в документе нет, и
+      // исполнитель молча выпал бы из списка.
+      const respCan = await canFor(user);
+      if (worksExecutorsIds.includes(resp._id.toString()) || respCan({ ticket: ["closeWithoutWork"] })) {
         responsibles.push(user);
       }
     }
@@ -2192,7 +2146,6 @@ exports.closeMultiple = async (req, res, next) => {
   try {
     const prefs = await Preferences.findOne({});
     const authedUser = req.auth?.legacy ?? null;
-    const { permissions } = authedUser;
     const { ids, closingComment } = req.body;
 
     for (const id of ids) {
@@ -2217,12 +2170,9 @@ exports.closeMultiple = async (req, res, next) => {
           .filter((work) => work.finishedAt)
           .map((work) => work.finishedBy._id.toString());
 
-        // Право ЧУЖОГО человека — только через effectivePermissions.
-        const respPermissions = (await effectivePermissions(user)).permissions;
-        if (
-          worksExecutorsIds.includes(resp._id.toString()) ||
-          respPermissions.canAvoidWorks
-        ) {
+        // Право ЧУЖОГО человека закрывать без работ — только через canFor.
+        const respCan = await canFor(user);
+        if (worksExecutorsIds.includes(resp._id.toString()) || respCan({ ticket: ["closeWithoutWork"] })) {
           responsibles.push(user);
         }
       }
@@ -2528,7 +2478,10 @@ exports.getAllOpenedTg = async (req, res, next) => {
     const user = actor.user;
     const userId = user._id;
 
-    const allTickets = await Ticket.find({ isClosed: false })
+    const allTickets = await Ticket.find({
+      isClosed: false,
+      ...ticketListFilter(actor),
+    })
       .populate({
         path: "applicantId",
         select: "firstName lastName email phone position subdivision timezone",
@@ -2549,59 +2502,6 @@ exports.getAllOpenedTg = async (req, res, next) => {
         _id: -1,
       });
 
-    let tickets = [];
-
-    if (
-      actor.can({
-        ticket: { actions: ["administrate", "readAll"], connector: "OR" },
-      })
-    ) {
-      // Пользователи с ролью администратор
-      tickets = allTickets;
-    } else if (actor.can({ ticket: ["readCompany"] })) {
-      // Пользователи с разрешением на просмотр всех заявок Компании
-      // Сравнение строками: `_id` — это ObjectId, и `===` между двумя
-      // объектами всегда ложь, то есть ветка не срабатывала никогда.
-      tickets = allTickets.filter(
-        (ticket) =>
-          String(ticket.company?._id) === String(user.company?._id),
-      );
-    } else {
-      // Остальные пользователи
-      tickets = await Ticket.find({
-        $and: [
-          { isClosed: false },
-          {
-            $or: [
-              { "responsibles._id": userId },
-              { createdBy: userId },
-              { applicantId: userId },
-            ],
-          },
-        ],
-      })
-        .populate({
-          path: "applicantId",
-          select:
-            "firstName lastName email phone position banned subdivision timezone",
-          populate: { path: "subdivision", select: "name timezone parent" },
-        })
-        .populate({
-          path: "categoryId",
-          select: "title",
-        })
-        .populate({
-          path: "comments",
-          populate: {
-            path: "createdBy",
-            select: "lastName firstName",
-          },
-        })
-        .sort({
-          _id: -1,
-        });
-    }
-
     let shortenedTickets = [];
 
     // Бот показывает контактный телефон — рядом с ним обязано стоять местное
@@ -2610,10 +2510,10 @@ exports.getAllOpenedTg = async (req, res, next) => {
     const orgTimezone = resolveTimezone(prefs);
     const clientTimezoneOf = await createClientTimezoneResolver({
       preferences: prefs,
-      companyIds: tickets.map((ticket) => ticket.company?._id),
+      companyIds: allTickets.map((ticket) => ticket.company?._id),
     });
 
-    for (let ticket of tickets) {
+    for (let ticket of allTickets) {
       const clientTimezone = clientTimezoneOf({
         user: ticket.applicantId,
         subdivision: ticket.applicantId?.subdivision,
@@ -2725,6 +2625,10 @@ exports.updateChecklist = async (req, res, next) => {
 
     if (!ticket) {
       return next(new AppError(`Couldn't find ticket ${ticketNum}`, 404));
+    }
+
+    if (!canEditChecklist(ticket, req.auth)) {
+      return next(new AppError("Чек-лист этой заявки вам менять нельзя", 403));
     }
 
     const items = Array.isArray(req.body) ? req.body : req.body.checklist;

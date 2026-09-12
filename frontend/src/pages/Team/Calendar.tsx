@@ -272,7 +272,7 @@ const TeamCalendar = () => {
           <div className="mb-5">
             <PendingAlert
               pending={othersPending}
-              canManage={data.canManage}
+              canApprove={data.canApprove}
               onDecide={decide}
               impactOf={impactOf}
               total={data.employees.length}

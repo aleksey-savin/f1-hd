@@ -9,6 +9,48 @@ const {
   mikrotikOverlay,
 } = require("../../helpers/mikrotikOverlay");
 
+// Идентификатор из populate'нутого документа, вложенного объекта (`user.company`
+// это `{_id, alias}`) или сырого ObjectId — сравниваем строками.
+const idOf = (value) => String(value?._id || value || "");
+
+/**
+ * Компании, данные которых вправе видеть автор запроса.
+ *
+ * Клиент заперт в своей компании: модуль «Учёт техники» открывает раздел, а
+ * объём данных определяет роль — тот же приём, что в реестре техники
+ * (`controllers/inventory/clientDevice.js`, `scopeMatch`). Запрошенные компании
+ * ПЕРЕСЕКАЮТСЯ со своей, поэтому подставленный в query чужой id не отдаёт чужую
+ * технику, а не отдаёт ничего. Клиент без компании не видит ничего — это лучше,
+ * чем «без компании» как пропуск ко всему.
+ *
+ * До этого расположения не смотрели на учётную запись вовсе: клиентов держал
+ * только случайный слой «не клиент», протёкший с соседнего монтирования
+ * `/inventory` (см. `routes/inventoryMount.js`).
+ *
+ * @param {object} req
+ * @param {string[]|null} [requested] компании из query/params, если есть
+ * @returns {string[]|null} `null` — сотрудник, ограничений нет; иначе список
+ *   разрешённых id (пустой = не видно ничего)
+ */
+const companyScope = (req, requested = null) => {
+  if (!req.auth?.isEndUser) return null;
+  const own = idOf(req.auth.legacy?.company?._id);
+  const ownIds = own ? [own] : [];
+  if (!requested?.length) return ownIds;
+  return ownIds.filter((id) => requested.some((value) => idOf(value) === id));
+};
+
+/**
+ * Скоуп в терминах ТЕХНИКИ: у устройства компания лежит в `companyId`.
+ *
+ * Нужен отдельно от расположения, потому что «расположение своей компании» ещё
+ * не значит «вся техника в нём своя»: публичное расположение (`isPublic`) может
+ * держать устройства чужой компании, и клиенту в списке видны были бы их модель
+ * и инвентарный номер.
+ */
+const deviceScopeMatch = (scope) =>
+  scope ? { companyId: { $in: scope } } : {};
+
 // Лёгкий populate-граф для виджета окружения заявки: только то, что нужно
 // карточке устройства. userId НЕ populate — сравниваем сырой ObjectId для флага
 // isPersonal, чтобы не тянуть лишнее.
@@ -54,11 +96,12 @@ const toEnvDevice = (d, userId, mikroMap) => {
 // числом устройств. Без isCurrent — «ветку заявителя» подсвечивает фронт по id
 // цепочки, чтобы кликабельны были ВСЕ дочерние узлы. Общий код для
 // getUserEnvironment и getLocationNode.
-const buildEnvNode = async (location, userId) => {
+const buildEnvNode = async (location, userId, scope = null) => {
   const devicesRaw = await ClientDevice.find({
     deletedAt: null,
     parentDeviceId: null,
     locationId: location._id,
+    ...deviceScopeMatch(scope),
   }).populate(ENV_DEVICE_POPULATE);
   const mikroMap = await buildMikrotikStatusMap(devicesRaw.map((d) => d._id));
   const devices = devicesRaw.map((d) => toEnvDevice(d, userId, mikroMap));
@@ -76,6 +119,7 @@ const buildEnvNode = async (location, userId) => {
             locationId: { $in: childIds },
             deletedAt: null,
             parentDeviceId: null,
+            ...deviceScopeMatch(scope),
           },
         },
         { $group: { _id: "$locationId", count: { $sum: 1 } } },
@@ -125,7 +169,11 @@ const buildLocationChain = async (leaf) => {
 
 exports.getAll = async (req, res, next) => {
   try {
-    const locations = await Location.find({})
+    // Поле компании у расположения — `company` (не `companyId`, как у техники).
+    const scope = companyScope(req);
+    const locations = await Location.find(
+      scope ? { company: { $in: scope } } : {},
+    )
       .populate("company", "alias fullTitle")
       .populate({
         path: "subdivisions",
@@ -154,11 +202,17 @@ exports.getAllCompanies = async (req, res, next) => {
 
     const authedUser = req.auth?.legacy ?? null;
 
+    const requested = companyIds ? companyIds.split(",").filter(Boolean) : null;
+    // Скоуп сильнее запроса: клиент, подставивший чужую компанию, не увидит
+    // ничего (пустой $in), а не её расположения.
+    const scope = companyScope(req, requested);
+
     let companyFilter = {};
 
-    if (companyIds) {
-      const idsArray = companyIds.split(",").filter(Boolean);
-      companyFilter = { company: { $in: idsArray } };
+    if (scope) {
+      companyFilter = { company: { $in: scope } };
+    } else if (requested) {
+      companyFilter = { company: { $in: requested } };
     } else {
       // Default to user's company
       companyFilter = { company: authedUser.company?._id };
@@ -234,6 +288,15 @@ exports.getOne = async (req, res, next) => {
       );
     }
 
+    // Чужая компания отвечает «не найдено», а не «нельзя»: существование
+    // расположений клиенту знать незачем.
+    const scope = companyScope(req);
+    if (scope && !scope.includes(idOf(location.company))) {
+      return next(
+        new AppError(`Location with id ${req.params.id} not found`, 404),
+      );
+    }
+
     // Устройства непосредственно в этом расположении. Живые поля —
     // locationId/deletedAt/parentDeviceId (ср. buildEnvNode): старый запрос по
     // location/isDeleted всегда возвращал пусто.
@@ -241,6 +304,7 @@ exports.getOne = async (req, res, next) => {
       locationId: req.params.id,
       deletedAt: null,
       parentDeviceId: null,
+      ...deviceScopeMatch(scope),
     })
       .populate({
         path: "deviceModelId",
@@ -288,6 +352,7 @@ exports.getOne = async (req, res, next) => {
               locationId: { $in: childIds },
               deletedAt: null,
               parentDeviceId: null,
+              ...deviceScopeMatch(scope),
             },
           },
           { $group: { _id: "$locationId", count: { $sum: 1 } } },
@@ -625,6 +690,14 @@ exports.getAssignableUsers = async (req, res, next) => {
       );
     }
 
+    // Состав чужой компании клиенту не отдаём (см. getOne).
+    const scope = companyScope(req);
+    if (scope && !scope.includes(idOf(location.company))) {
+      return next(
+        new AppError(`Location with id ${req.params.id} not found`, 404),
+      );
+    }
+
     const toDTO = (u, isManager = false) => ({
       _id: u._id,
       firstName: u.firstName,
@@ -781,8 +854,16 @@ exports.getUserEnvironment = async (req, res, next) => {
   try {
     const { userId } = req.params;
 
-    const user = await User.findById(userId).select("firstName lastName");
+    const user = await User.findById(userId).select(
+      "firstName lastName company",
+    );
     if (!user) {
+      return next(new AppError(`User with id ${userId} not found`, 404));
+    }
+
+    // Окружение сотрудника чужой компании — не наше дело (см. getOne).
+    const scope = companyScope(req);
+    if (scope && !scope.includes(idOf(user.company))) {
       return next(new AppError(`User with id ${userId} not found`, 404));
     }
 
@@ -825,7 +906,7 @@ exports.getUserEnvironment = async (req, res, next) => {
     // На каждом узле — устройства и дочерние локации (общий хелпер).
     const chain = [];
     for (const node of chainDocs) {
-      chain.push(await buildEnvNode(node, userId));
+      chain.push(await buildEnvNode(node, userId, scope));
     }
 
     res.status(200).json({
@@ -859,14 +940,20 @@ exports.getLocationNode = async (req, res, next) => {
     const { id } = req.params;
     const { userId } = req.query;
 
+    // `company` в выборке — для скоупа клиента (см. getOne).
     const location = await Location.findById(id)
-      .select("name type subdivisions")
+      .select("name type subdivisions company")
       .populate("subdivisions", "name");
     if (!location) {
       return next(new AppError(`Location with id ${id} not found`, 404));
     }
 
-    const node = await buildEnvNode(location, userId);
+    const scope = companyScope(req);
+    if (scope && !scope.includes(idOf(location.company))) {
+      return next(new AppError(`Location with id ${id} not found`, 404));
+    }
+
+    const node = await buildEnvNode(location, userId, scope);
     res.status(200).json(node);
   } catch (error) {
     next(
@@ -895,6 +982,13 @@ exports.getDeviceEnvironment = async (req, res, next) => {
       return next(new AppError(`Device with id ${deviceId} not found`, 404));
     }
 
+    // Устройство чужой компании (и устройство без компании — принадлежность
+    // недоказуема) клиенту не показываем (см. getOne).
+    const scope = companyScope(req);
+    if (scope && !scope.includes(idOf(device.companyId))) {
+      return next(new AppError(`Device with id ${deviceId} not found`, 404));
+    }
+
     const mikroMap = await buildMikrotikStatusMap([device._id]);
     const deviceDto = {
       ...toEnvDevice(device, null, mikroMap),
@@ -916,7 +1010,7 @@ exports.getDeviceEnvironment = async (req, res, next) => {
     const chainDocs = await buildLocationChain(leaf);
     const chain = [];
     for (const node of chainDocs) {
-      chain.push(await buildEnvNode(node, null));
+      chain.push(await buildEnvNode(node, null, scope));
     }
 
     res.status(200).json({ device: deviceDto, chain });
@@ -939,6 +1033,12 @@ exports.getDeviceEnvironment = async (req, res, next) => {
 exports.getCompanyEnvironment = async (req, res, next) => {
   try {
     const { companyId } = req.params;
+
+    // Чужая компания — «не найдено» (см. getOne).
+    const scope = companyScope(req, [companyId]);
+    if (scope && !scope.length) {
+      return next(new AppError(`Company with id ${companyId} not found`, 404));
+    }
 
     const company = await Company.findById(companyId).select("alias");
     if (!company) {
@@ -1039,6 +1139,12 @@ exports.getCompanyTech = async (req, res, next) => {
   try {
     const { companyId } = req.params;
 
+    // Чужая компания — «не найдено» (см. getOne).
+    const scope = companyScope(req, [companyId]);
+    if (scope && !scope.length) {
+      return next(new AppError(`Company with id ${companyId} not found`, 404));
+    }
+
     const company = await Company.findById(companyId).select("alias");
     if (!company) {
       return next(new AppError(`Company with id ${companyId} not found`, 404));
@@ -1053,6 +1159,9 @@ exports.getCompanyTech = async (req, res, next) => {
     const devicesRaw = await ClientDevice.find({
       deletedAt: null,
       parentDeviceId: null,
+      // Расположение компании может быть публичным и держать чужую технику —
+      // клиенту она не видна (см. deviceScopeMatch).
+      ...deviceScopeMatch(scope),
       $or: [
         { locationId: { $in: locations.map((l) => l._id) } },
         { userId: { $in: companyUsers.map((u) => u._id) } },
@@ -1146,8 +1255,23 @@ exports.getUserTech = async (req, res, next) => {
   try {
     const { userId } = req.params;
 
-    const user = await User.findById(userId).select("firstName lastName");
+    const user = await User.findById(userId).select(
+      "firstName lastName company",
+    );
     if (!user) {
+      return next(new AppError(`User with id ${userId} not found`, 404));
+    }
+
+    // Техника сотрудника чужой компании клиенту не видна (см. getOne). Своё
+    // рабочее место проходит всегда: в getMyTech id приходит из токена, и
+    // отказывать человеку в его собственном столе из-за пустой компании в
+    // учётке было бы регрессией «Моего рабочего места».
+    const scope = companyScope(req);
+    if (
+      scope &&
+      idOf(user._id) !== req.auth.userId &&
+      !scope.includes(idOf(user.company))
+    ) {
       return next(new AppError(`User with id ${userId} not found`, 404));
     }
 

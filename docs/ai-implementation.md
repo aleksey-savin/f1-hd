@@ -184,8 +184,9 @@ ai: {
     `update` answers 422 with a human sentence (mirrors `findMailInvariant`).
 - `routes/internal/preferences.js` — `POST /preferences/ai-models`,
   `POST /preferences/ai/check`, `POST /preferences/ai/speech-check`
-  (`isAuth, isAdmin, checkLimiter` — 20 requests / 5 min, shared with the mail
-  checks). Other AI settings ride the existing `POST /preferences`.
+  (`isAuth, canManageSettings, checkLimiter` — 20 requests / 5 min, shared with
+  the mail checks; `settings.manage` is the single right for the whole settings
+  page). Other AI settings ride the existing `POST /preferences`.
 - `services/aiService.js`
   - `generateJson` — the single provider-agnostic entry point. Reads the config,
     decrypts the key, dispatches by provider, parses the JSON answer (stripping
@@ -307,7 +308,9 @@ module aliases and deps `pdf-parse`, `mammoth`, `xlsx`.
   runs in the background after the 201.
 - `getOne` — `delete doc.aiGuide` when `isEndUser` (internal aid only).
 - `regenerateAiGuide` — `POST /tickets/ai-guide/generate { _id }`, **synchronous**,
-  returns the refreshed guide. Route: `isAuth, canPerformTickets`.
+  returns the refreshed guide. Route: `isAuth, canPerformTickets, byBodyId` —
+  the AI tools are part of `ticket.perform`, and `byBodyId` additionally checks
+  the caller's relation to that ticket.
 - `toggleAiGuideItem` / `POST /tickets/ai-guide/toggle-item` — **removed 2026-07-30**
   together with the per-item checkboxes (10 ticks across ~980 items in 99 guides).
   The `done` field stays in the schema; nothing writes it.
@@ -466,7 +469,7 @@ older ticket code used `mimetype`, while later attachment upload code used
 
 ### Controller / routes — `backend/controllers/ticket.js`, `routes/internal/ticket.js`
 - `POST /tickets/:ticketNum/attachments/speech-to-text` (`isAuth,
-  canPerformTickets`) accepts `{ attachmentName }`.
+  canPerformTickets, byNum`) accepts `{ attachmentName }`.
 - The controller sets the attachment `speechToText.status` to `pending`, calls
   `transcribeAttachment`, then persists `ready` with summary/segments/model/time
   or `error` with the provider/service message.
@@ -562,7 +565,7 @@ the file chip is shared with the chronicle via `View/AttachmentChip.jsx`, type
 detection in `View/attachment-utils.js`).
 - Audio is the one attachment kind kept expanded: a native `<audio>` row plus a
   **«Распознать»** / **«Расшифровка»** button. Recognition is gated by
-  `!ticket.isArchived`, `permissions.canPerformTickets` and
+  `!ticket.isArchived`, `can({ ticket: ["perform"] })` and
   `ai.speechToText.isActive`; the call updates the `view-ticket` store with the
   returned attachments.
 - Per-attachment state is a meta line next to the player: «ИИ распознаёт
@@ -723,11 +726,11 @@ wherever a ticket is created.
 ### API
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/api/tickets/ai-terms/analyze` | staff | extract the ticket's concepts |
-| POST | `/api/tickets/ai-terms/reference` | staff | reference for one concept |
-| POST | `/api/tickets/ai-terms/save-note` | staff + KB manage | store it as a note |
-| POST | `/api/tickets/ai-feedback` | staff | record a correction |
-| GET/POST | `/api/preferences/ai-rules[/toggle,/delete]` | admin | review and enable rules |
+| POST | `/api/tickets/ai-terms/analyze` | `ticket.perform` | extract the ticket's concepts |
+| POST | `/api/tickets/ai-terms/reference` | `ticket.perform` | reference for one concept |
+| POST | `/api/tickets/ai-terms/save-note` | `ticket.perform` + `knowledge.manage` | store it as a note |
+| POST | `/api/tickets/ai-feedback` | `ticket.perform` | record a correction |
+| GET/POST | `/api/preferences/ai-rules[/toggle,/delete]` | `settings.manage` | review and enable rules |
 
 ### Frontend
 `Ticket/View/TicketTerms.jsx` (strip + reference) and `Ticket/View/AiMark.jsx`
@@ -754,18 +757,18 @@ reading is the worst thing to do to their attention. Layout rules are in
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/api/preferences/ai-models` | admin | list provider models |
-| POST | `/api/preferences/ai/check` | admin | probe the chat provider (real generation) |
-| POST | `/api/preferences/ai/speech-check` | admin | probe the speech recognition channel |
-| POST | `/api/tickets/ai-guide/generate` | staff | (re)generate guide for a ticket |
-| POST | `/api/tickets/:ticketNum/attachments/speech-to-text` | staff | summarize an audio attachment |
-| POST | `/api/tickets/ai-terms/analyze` | staff | extract the ticket's concepts |
-| POST | `/api/tickets/ai-terms/reference` | staff | reference for one concept |
-| POST | `/api/tickets/ai-terms/save-note` | staff + KB manage | store a reference as a note |
-| POST | `/api/tickets/ai-feedback` | staff | record a correction to AI-written data |
-| GET | `/api/preferences/ai-rules` | admin | review corrections |
-| POST | `/api/preferences/ai-rules/toggle` | admin | let a correction reach the prompts |
-| POST | `/api/preferences/ai-rules/delete` | admin | drop a correction |
+| POST | `/api/preferences/ai-models` | `settings.manage` | list provider models |
+| POST | `/api/preferences/ai/check` | `settings.manage` | probe the chat provider (real generation) |
+| POST | `/api/preferences/ai/speech-check` | `settings.manage` | probe the speech recognition channel |
+| POST | `/api/tickets/ai-guide/generate` | `ticket.perform` + access to the ticket | (re)generate guide for a ticket |
+| POST | `/api/tickets/:ticketNum/attachments/speech-to-text` | `ticket.perform` + access to the ticket | summarize an audio attachment |
+| POST | `/api/tickets/ai-terms/analyze` | `ticket.perform` | extract the ticket's concepts |
+| POST | `/api/tickets/ai-terms/reference` | `ticket.perform` | reference for one concept |
+| POST | `/api/tickets/ai-terms/save-note` | `ticket.perform` + `knowledge.manage` | store a reference as a note |
+| POST | `/api/tickets/ai-feedback` | `ticket.perform` | record a correction to AI-written data |
+| GET | `/api/preferences/ai-rules` | `settings.manage` | review corrections |
+| POST | `/api/preferences/ai-rules/toggle` | `settings.manage` | let a correction reach the prompts |
+| POST | `/api/preferences/ai-rules/delete` | `settings.manage` | drop a correction |
 
 (Provider settings persist via the existing `POST /api/preferences`; AI guide and
 speech results are returned inside the existing `GET /api/tickets/:num`.)

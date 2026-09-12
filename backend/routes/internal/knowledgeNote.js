@@ -6,6 +6,7 @@ const isAuth = require("@/middleware/isAuth");
 const {
   isNotClient,
   canManageKnowledge,
+  canModerateKnowledge,
   canReadKnowledge,
   knowledgeBaseModuleIsActive,
 } = require("@/middleware/permissions");
@@ -39,7 +40,12 @@ router.get(
   knowledgeNoteController.getRelated,
 );
 
-// moderation-summary объявляется до :id, чтобы не быть перехваченным динамическим сегментом
+// moderation-summary объявляется до :id, чтобы не быть перехваченным динамическим сегментом.
+//
+// БЕЗ canModerateKnowledge — намеренно: карточка модерации на странице заявок и
+// панель фильтров дергают эту ручку для ВСЕХ, у кого есть canReadKnowledge, и
+// ждут в ответ ноль-сводку `{isModerator:false,...ZERO_COUNTS}`, а не 403.
+// Право `knowledge.moderate` решается внутри контроллера (getModerationSummary).
 router.get(
   "/knowledge-notes/moderation-summary",
   isAuth,
@@ -51,8 +57,10 @@ router.get(
 // service-expiry объявляется до :id, чтобы не быть перехваченным динамическим сегментом.
 //
 // БЕЗ canReadKnowledge — намеренно, это единственный маршрут раздела без него.
-// Сроки продления адресованы и ответственному со стороны клиента, а права «видеть
-// базу знаний» у клиентов нет и быть не должно: оно открыло бы им базу целиком.
+// Сроки продления адресованы и ответственному со стороны клиента, а он этого
+// права может не иметь вовсе: `knowledge.read` адресован ОБОИМ (словарь,
+// audience `both`), но клиенту он открывает заметки его компании, и раздавать
+// его каждому ответственному ради строки со сроком незачем.
 // Ручка отдаёт не заметки, а строки сроков, и решает, кому что показать, сама
 // (см. getServiceExpiry) — сотрудник по правилам базы знаний, клиент-ответственный
 // только по своей компании, остальные не получают ничего.
@@ -93,7 +101,7 @@ router.post(
 
 // Массовые действия модерации. Литеральные пути объявляем до динамических
 // маршрутов вида /approve/:id — иначе `:id` перехватит `-multiple`.
-// Гарды те же, что у одиночных близнецов; модератор проверяется в контроллере.
+// Гарды те же, что у одиночных близнецов; право `knowledge.moderate`.
 const moderationBulkRoutes = [
   ["approve-multiple", knowledgeNoteController.approveMultiple],
   ["confirm-deletion-multiple", knowledgeNoteController.confirmDeletionMultiple],
@@ -109,19 +117,19 @@ moderationBulkRoutes.forEach(([path, handler]) => {
     isNotClient,
     knowledgeBaseModuleIsActive,
     canReadKnowledge,
-    canManageKnowledge,
+    canModerateKnowledge,
     handler,
   );
 });
 
-// Отметка «Проверено» — canManageKnowledge + проверка модератора в контроллере
+// Отметка «Проверено» — право `knowledge.moderate`
 router.post(
   "/knowledge-notes/approve/:id",
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
   canReadKnowledge,
-  canManageKnowledge,
+  canModerateKnowledge,
   knowledgeNoteController.approve,
 );
 
@@ -136,25 +144,25 @@ router.post(
   knowledgeNoteController.sendToDeletion,
 );
 
-// Подтверждение удаления (прун из БД) — проверка модератора в контроллере
+// Подтверждение удаления (прун из БД) — право `knowledge.moderate`
 router.post(
   "/knowledge-notes/confirm-deletion/:id",
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
   canReadKnowledge,
-  canManageKnowledge,
+  canModerateKnowledge,
   knowledgeNoteController.confirmDeletion,
 );
 
-// Отклонение запроса на удаление — проверка модератора в контроллере
+// Отклонение запроса на удаление — право `knowledge.moderate`
 router.post(
   "/knowledge-notes/decline-deletion/:id",
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
   canReadKnowledge,
-  canManageKnowledge,
+  canModerateKnowledge,
   knowledgeNoteController.declineDeletion,
 );
 
@@ -169,25 +177,25 @@ router.post(
   knowledgeNoteController.requestArchive,
 );
 
-// Подтверждение архивации — проверка модератора в контроллере
+// Подтверждение архивации — право `knowledge.moderate`
 router.post(
   "/knowledge-notes/confirm-archive/:id",
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
   canReadKnowledge,
-  canManageKnowledge,
+  canModerateKnowledge,
   knowledgeNoteController.confirmArchive,
 );
 
-// Отклонение запроса на архивацию — проверка модератора в контроллере
+// Отклонение запроса на архивацию — право `knowledge.moderate`
 router.post(
   "/knowledge-notes/decline-archive/:id",
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
   canReadKnowledge,
-  canManageKnowledge,
+  canModerateKnowledge,
   knowledgeNoteController.declineArchive,
 );
 
@@ -202,14 +210,14 @@ router.post(
   knowledgeNoteController.unarchive,
 );
 
-// Пометить находку секрета как «не секрет» — проверка модератора в контроллере
+// Пометить находку секрета как «не секрет» — право `knowledge.moderate`
 router.post(
   "/knowledge-notes/:id/ignore-secret",
   isAuth,
   isNotClient,
   knowledgeBaseModuleIsActive,
   canReadKnowledge,
-  canManageKnowledge,
+  canModerateKnowledge,
   knowledgeNoteController.ignoreSecretFinding,
 );
 

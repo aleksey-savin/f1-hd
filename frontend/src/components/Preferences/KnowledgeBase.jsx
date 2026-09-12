@@ -1,18 +1,16 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import SettingRow from "@/components/app/SettingRow";
 
-import { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import SectionForm from "./SectionForm";
 
 // «База знаний» (видна при включённом модуле): модерация, поиск секретов и
 // отслеживание продления услуг. Включение сканов запускает их сразу (бэкенд).
+// Модераторов здесь больше не назначают — это право `knowledge.moderate` роли
+// (раздел «Роли»), а не список в настройках.
 const PrefsKnowledgeBase = ({ prefs }) => {
-  const [moderators, setModerators] = useState(
-    prefs.knowledgeBase?.moderators || [],
-  );
   const [hideNotApproved, setHideNotApproved] = useState(
     !!prefs.knowledgeBase?.hideNotApproved,
   );
@@ -29,23 +27,10 @@ const PrefsKnowledgeBase = ({ prefs }) => {
     prefs.knowledgeBase?.serviceExpiryDays ?? 30,
   );
 
-  // Кандидаты в модераторы — сотрудники с правами «видеть» и «управлять» базой
-  const [candidates, setCandidates] = useState([]);
-  useEffect(() => {
-    fetch(
-      `${import.meta.env.VITE_API_ADDRESS}/api/users/knowledge-base-moderators`,
-      {},
-    )
-      .then((response) => (response.ok ? response.json() : []))
-      .then((data) => setCandidates(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, []);
-
   return (
     <SectionForm
       buildPayload={() => ({
         knowledgeBase: {
-          moderators,
           hideNotApproved,
           approvalPeriodDays: Number(approvalPeriodDays) || 0,
           scanForSecrets,
@@ -55,36 +40,6 @@ const PrefsKnowledgeBase = ({ prefs }) => {
       })}
     >
       <SettingRow
-        title="Модераторы"
-        hint="Проверяют и одобряют заметки; разбирают очереди модерации."
-        htmlFor="prefs-kb-moderators"
-      >
-        <div className="w-80 max-md:w-full">
-          <MultiCombobox
-            id="prefs-kb-moderators"
-            placeholder="Выберите модераторов"
-            value={(moderators || []).map((user) => String(user._id))}
-            options={toOptions(candidates, {
-              value: (user) => String(user._id),
-              label: (user) =>
-                `${user.lastName || ""} ${user.firstName || ""}`.trim(),
-            })}
-            onChange={(ids) =>
-              setModerators(
-                candidates
-                  .filter((user) => ids.includes(String(user._id)))
-                  .map((user) => ({
-                    _id: user._id,
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                  })),
-              )
-            }
-          />
-        </div>
-      </SettingRow>
-      <SettingRow
-        divider
         title="Скрывать непроверенные заметки"
         hint="Обычные пользователи видят только проверенное."
         htmlFor="prefs-kb-hide"

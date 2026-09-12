@@ -2,6 +2,7 @@ import SwitchField from "@/components/app/SwitchField";
 import { cn } from "@/lib/utils";
 
 import { usePermissionCatalogue } from "@/store/authed-user";
+import { groupsForAudience, hintFor } from "@/components/Role/audience";
 
 /**
  * Якорь карточки группы. По нему ведёт рейл формы роли: секции рисуют себя
@@ -27,6 +28,8 @@ export const permissionGroupAnchor = (key) => `perm-group-${key}`;
  *
  * Счётчик «N из M» работает НАВИГАЦИЕЙ: говорит, где у роли есть сила, до того
  * как человек начал читать строки.
+ *
+ * Строки — по адресату роли: см. `Role/audience.js`.
  */
 const PermissionModules = ({
   /** Набор выданных действий: Set или массив «ресурс.действие». */
@@ -34,11 +37,19 @@ const PermissionModules = ({
   onToggle,
   /** Какие действия вообще можно трогать. Не передан — можно все. */
   allowed,
+  /**
+   * Только чтение: гасит ВСЕ строки, не помечая их «нет у вас». Нужно там, где
+   * причина одна на всю матрицу и названа отдельно, — роль шире прав
+   * смотрящего (`Role/Form`).
+   */
+  readOnly = false,
   /** Дополнительный блок под конкретным правом (категории у исполнителя). */
   renderExtra,
   className,
+  /** Адресат роли: какие строки показывать (`Role/audience.js`). */
+  audience = "staff",
 }) => {
-  const groups = usePermissionCatalogue();
+  const groups = groupsForAudience(usePermissionCatalogue(), audience);
   const granted = value instanceof Set ? value : new Set(value || []);
   const allowedSet =
     allowed == null
@@ -70,7 +81,10 @@ const PermissionModules = ({
             </div>
 
             {group.actions.map((action) => {
-              const locked = !canToggle(action.id);
+              // «Нет у вас» — только про конкретную строку; режим чтения гасит
+              // всю матрицу, и подпись у каждой строки была бы неправдой
+              const missing = !canToggle(action.id);
+              const locked = readOnly || missing;
               return (
                 <div key={action.id}>
                   <SwitchField
@@ -82,13 +96,13 @@ const PermissionModules = ({
                       <span
                         className={cn(
                           "flex items-center gap-2",
-                          locked && "text-muted-foreground",
+                          missing && "text-muted-foreground",
                         )}
                       >
                         {action.label}
                         {/* Причина отказа стоит В СТРОКЕ, а не только в
                             подсказке: наведения на тач-экране нет. */}
-                        {locked && (
+                        {missing && (
                           <span className="text-xs text-faint">нет у вас</span>
                         )}
                       </span>
@@ -96,7 +110,7 @@ const PermissionModules = ({
                     /* Пояснение к праву было написано, но не рисовалось нигде.
                        Именно здесь его и читают — в момент, когда решают,
                        выдавать право или нет. */
-                    hint={action.hint || undefined}
+                    hint={hintFor(action, audience) || undefined}
                     className="py-2"
                   />
                   {renderExtra?.(action)}

@@ -5,7 +5,6 @@ const AiFeedback = require("../models/aiFeedback");
 
 const { AppError } = require("../middleware/errorHandling");
 const storage = require("../services/storage");
-const { isModerator } = require("../helpers/knowledgeNoteVisibility");
 const {
   getModerationCounts,
   ZERO_COUNTS,
@@ -29,41 +28,6 @@ const {
   canShareCredentials,
 } = require("../services/speechToTextService");
 const logger = require("../utils/logger");
-
-/**
- * Кто что вправе менять в настройках.
- *
- * Настройки — это НЕ одна кнопка «администратор». Здесь рядом лежат часовой
- * пояс, пароль почтового ящика, ключ модели ИИ и обязательность второго
- * фактора, и доверие к ним разное. Раньше их закрывал один `isAdmin`, поэтому
- * поручить кому-то настройку почты значило отдать заодно ключи интеграций.
- *
- * Ключ карты — поле верхнего уровня в теле запроса. Всё, чего нет в карте,
- * относится к общим настройкам: неизвестная секция должна требовать БОЛЬШЕГО
- * права, а не проскакивать без проверки.
- */
-const SECTION_RIGHTS = {
-  mailbox: ["settings", "manageMail"],
-  notify: ["settings", "manageMail"],
-  ai: ["settings", "manageIntegrations"],
-  getScreen: ["settings", "manageIntegrations"],
-  mikrotik: ["settings", "manageIntegrations"],
-  statusBoard: ["settings", "manageIntegrations"],
-  taxi: ["settings", "manageIntegrations"],
-  twoFactorPolicy: ["settings", "manageSecurity"],
-};
-
-const GENERAL_RIGHT = ["settings", "manage"];
-
-/** Секции тела запроса, на которые у автора нет права. Названия — как в теле. */
-const sectionsBeyondRights = (body, can) => {
-  const denied = new Set();
-  for (const key of Object.keys(body || {})) {
-    const [resource, action] = SECTION_RIGHTS[key] || GENERAL_RIGHT;
-    if (!can({ [resource]: [action] })) denied.add(key);
-  }
-  return [...denied];
-};
 
 // Поля почтовых каналов, которые правит форма. Мержим по путям (а не заменяем
 // группу целиком): health пишут крон сбора и отправка уведомлений, форма о нём
@@ -240,12 +204,8 @@ exports.getInitial = async (req, res, next) => {
 
     // Статус модерации базы знаний для текущего пользователя — нужен глобально
     // (карточка модерации на странице заявок и алерт об утечках на каждой странице).
-    const authedUser = req.auth?.legacy ?? null;
     const kb = preferences.knowledgeBase || {};
-    const moderatorIds = (kb.moderators || [])
-      .map((moderator) => moderator?._id?.toString())
-      .filter(Boolean);
-    const userIsModerator = isModerator(authedUser, moderatorIds);
+    const userIsModerator = req.auth.can({ knowledge: ["moderate"] });
 
     let counts = ZERO_COUNTS;
     if (userIsModerator) {
@@ -297,19 +257,7 @@ exports.update = async (req, res, next) => {
     const body = req.body;
     const has = (key) => Object.prototype.hasOwnProperty.call(body, key);
 
-    // Право проверяется ПО СЕКЦИЯМ, а не на маршруте: ручка одна, а настройки
-    // в ней разного веса — ключи ИИ и пароль SMTP рядом с часовым поясом.
-    // Отказ, а не тихое отбрасывание: человек, нажавший «Сохранить», обязан
-    // узнать, что его правка не легла.
-    const denied = sectionsBeyondRights(body, req.auth.can);
-    if (denied.length) {
-      return next(
-        new AppError(
-          `Недостаточно прав, чтобы менять: ${denied.join(", ")}`,
-          403,
-        ),
-      );
-    }
+    // Право проверил маршрут (`canManageSettings`): настройки — одно право.
 
     let preferences = await Preferences.findOne({});
     if (!preferences) {

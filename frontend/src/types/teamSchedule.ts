@@ -112,6 +112,7 @@ export type TeamScheduleResponse = {
   employees: TeamMember[];
   pending: PendingAbsence[];
   canManage: boolean;
+  canApprove: boolean;
 };
 
 export type UserScheduleResponse = {

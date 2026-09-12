@@ -22,7 +22,6 @@ import useDashboardTemplatesStore from "../store/dashboard-templates";
 import { warm } from "@/store/form-data";
 import useInitialPrefsStore from "../store/prefs";
 import { getLocalStorageData } from "../util/auth";
-import { useCan } from "@/store/authed-user";
 
 /**
  * Главная — ролевой лендинг.
@@ -80,11 +79,6 @@ const DashboardClient = () => {
 };
 
 const DashboardStaff = () => {
-  const can = useCan();
-  // Заготовки сотруднику — под правом администрирования заявок: остальным они
-  // не инструмент, а лишний ряд плиток над тем, за чем сюда пришли.
-  const showTemplates = !!can({ ticket: ["administrate"] });
-
   return (
     <>
       {/* Телефон: команда на главной вместо ленты в шелле; на десктопе —
@@ -95,7 +89,9 @@ const DashboardStaff = () => {
       <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start">
         <div className="flex flex-col gap-5">
           <StaffTickets />
-          {showTemplates && <TemplateTiles heading="Шаблоны заявок" />}
+          {/* Шаблоны на главной — каждому сотруднику: список уже сужен до
+              видимых ему шаблонов */}
+          <TemplateTiles heading="Шаблоны заявок" />
         </div>
         <div className="flex flex-col gap-5">
           <MyOvertime />

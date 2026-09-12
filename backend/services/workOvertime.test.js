@@ -11,8 +11,10 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const {
+  buildPayroll,
   calcWorkOvertime,
   staticDayPlanner,
+  stripPayrollMoney,
 } = require("@/services/workOvertime");
 const { DAYS_OF_WEEK } = require("@/services/workWindow");
 
@@ -240,4 +242,106 @@ test("период тарификации доплаты берётся из н�
 
   assert.equal(result.tariffingPeriodMinutes, 30);
   assert.equal(result.overtime.days[0].roundedMinutes, 30);
+});
+
+// --- деньги в отчётах ------------------------------------------------------
+// Оклад, ставка и доплата уезжают клиенту только обладателю
+// `user.manageFinances` (и каждому — в своём отчёте). Вырезает их сервис, а не
+// интерфейс, поэтому правило проверяется здесь.
+
+const PAYROLL_SETTINGS = {
+  weekdayCoefficient: 1.5,
+  weekendCoefficient: 2,
+  holidayCoefficient: 2,
+};
+
+const OVERTIME_TOTALS = {
+  weekdayMinutes: 120,
+  weekendMinutes: 60,
+  holidayMinutes: 0,
+};
+
+const EMPLOYEE = { finances: { salary: 100000, overtimeHourlyRate: 500 } };
+
+test("payroll без права на деньги: часы и флаги есть, сумм и ставки нет", () => {
+  const payroll = buildPayroll(
+    EMPLOYEE,
+    OVERTIME_TOTALS,
+    PAYROLL_SETTINGS,
+    true,
+  );
+  const stripped = stripPayrollMoney(payroll);
+
+  // Деньги — ни в корне, ни внутри разбивки по типам дней
+  for (const key of [
+    "salary",
+    "overtimeHourlyRate",
+    "overtimePay",
+    "estimatedTotal",
+  ]) {
+    assert.equal(key in stripped, false, `${key} не должен уезжать клиенту`);
+  }
+  for (const bucket of ["weekday", "weekend", "holiday"]) {
+    assert.equal("pay" in stripped[bucket], false);
+  }
+
+  // Часы, коэффициенты и признак полного месяца остаются: без них отчёт
+  // перестал бы объяснять переработки
+  assert.equal(stripped.weekday.minutes, 120);
+  assert.equal(stripped.weekday.coefficient, 1.5);
+  assert.equal(stripped.weekend.minutes, 60);
+  assert.equal(stripped.isFullMonth, true);
+  // «Нет ставки» — про качество данных, а не про суммы
+  assert.deepEqual(stripped.missing, {
+    salary: false,
+    overtimeHourlyRate: false,
+  });
+});
+
+test("payroll с правом на деньги остаётся нетронутым", () => {
+  const payroll = buildPayroll(
+    EMPLOYEE,
+    OVERTIME_TOTALS,
+    PAYROLL_SETTINGS,
+    true,
+  );
+
+  // 2 ч × 500 × 1.5 + 1 ч × 500 × 2 = 2500
+  assert.equal(payroll.overtimePay, 2500);
+  assert.equal(payroll.estimatedTotal, 102500);
+  assert.equal(payroll.overtimeHourlyRate, 500);
+});
+
+test("строка сводки по сотрудникам чистится тем же правилом", () => {
+  // У строки сводки своя, урезанная форма payroll — правило не должно зависеть
+  // от набора ключей
+  const row = {
+    overtimeHourlyRate: 500,
+    weekday: { minutes: 120, coefficient: 1.5, pay: 1500 },
+    weekend: { minutes: 0, coefficient: 2, pay: 0 },
+    holiday: { minutes: 0, coefficient: 2, pay: 0 },
+    overtimePay: 1500,
+    missingRate: false,
+  };
+
+  assert.deepEqual(stripPayrollMoney(row), {
+    weekday: { minutes: 120, coefficient: 1.5 },
+    weekend: { minutes: 0, coefficient: 2 },
+    holiday: { minutes: 0, coefficient: 2 },
+    missingRate: false,
+  });
+});
+
+test("нет ставки — доплаты нет, но флаг missing доезжает и без права", () => {
+  const payroll = buildPayroll(
+    { finances: {} },
+    OVERTIME_TOTALS,
+    PAYROLL_SETTINGS,
+    false,
+  );
+  const stripped = stripPayrollMoney(payroll);
+
+  assert.equal(payroll.overtimePay, null);
+  assert.equal(stripped.missing.overtimeHourlyRate, true);
+  assert.equal(stripped.weekday.minutes, 120);
 });

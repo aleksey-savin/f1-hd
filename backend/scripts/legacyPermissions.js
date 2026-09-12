@@ -63,16 +63,18 @@ const PERMISSION_KEYS = [
  *
  * Обратного отображения нет и не будет: в новом словаре есть действия, которых
  * в плоском наборе не существовало вовсе (настройки, удалённая помощь, правка
- * чужих работ, заявка от чужого имени). Они достаются роли полного доступа —
- * см. `roles.catalogue.json`.
+ * чужих работ, заявка от чужого имени, модерация базы знаний). Они достаются
+ * роли полного доступа — см. `roles.catalogue.json`.
  */
 const LEGACY_TO_ACTIONS = {
-  canPerformTickets: ["ticket.perform"],
+  // Плоский флаг не различал свою заявку и чужую — принять можно было любую,
+  // поэтому он раскрывается в оба действия нового словаря
+  canPerformTickets: ["ticket.perform", "ticket.join"],
   // Шаблоны чек-листов гейтились именно «администрированием заявок»
-  canAdministrateTickets: ["ticket.administrate", "checklistTemplate.manage"],
-  canSeeAllCompanyTickets: ["ticket.readCompany"],
+  canAdministrateTickets: ["ticket.manage", "checklistTemplate.read", "checklistTemplate.manage"],
+  canSeeAllCompanyTickets: ["ticket.readCompanies"],
   canSeeAllTickets: ["ticket.readAll"],
-  canEditTickets: ["ticket.update"],
+  canEditTickets: ["ticket.manage"],
   canDeleteTickets: ["ticket.delete"],
 
   canManageCompanies: ["company.read", "company.manage", "company.readLogs"],
@@ -87,15 +89,15 @@ const LEGACY_TO_ACTIONS = {
   ],
   canManageRoles: ["role.read", "role.manage"],
   canImpersonateUsers: ["user.impersonate"],
-  canManageTicketCategories: ["ticketCategory.manage"],
+  canManageTicketCategories: ["ticketCategory.read", "ticketCategory.manage"],
   canManageKnowledgeBase: ["knowledge.manage"],
   canSeeKnowledgeBase: ["knowledge.read"],
-  canManageRoutineTasks: ["routineTask.manage"],
-  canManageTicketTemplates: ["ticketTemplate.manage"],
+  canManageRoutineTasks: ["routineTask.read", "routineTask.manage"],
+  canManageTicketTemplates: ["ticketTemplate.read", "ticketTemplate.manage"],
 
   canUseTimeTrackingModule: ["work.read", "work.log"],
   canAvoidWorks: ["ticket.closeWithoutWork"],
-  canSeeWorksReport: ["report.works"],
+  canSeeWorksReport: ["work.read"],
   canSeeAnalytics: ["report.companies"],
   canManageWorkSchedules: [
     "schedule.read",
@@ -119,19 +121,21 @@ const LEGACY_TO_ACTIONS = {
 
   canUseFinancesModule: ["servicePlan.read"],
   canManageServicePlans: ["servicePlan.manage"],
-  canSeeGlobalFinancialReport: ["report.employees"],
-  canConfirmReportActions: ["approval.manage"],
+  canSeeGlobalFinancialReport: ["report.employees", "user.manageFinances"],
+  canConfirmReportActions: ["approval.read", "approval.manage"],
   canSeePersonalFinancialReport: ["report.own"],
-  canApproveWorkReports: ["approval.decide"],
+  canApproveWorkReports: ["approval.read", "approval.decide"],
 };
 
 /** Плоский набор доролевых галочек → действия нового словаря. */
-const legacyToActions = (permissions = {}) => [
-  ...new Set(
-    PERMISSION_KEYS.filter((key) => permissions?.[key]).flatMap(
-      (key) => LEGACY_TO_ACTIONS[key] || [],
-    ),
-  ),
-];
+const legacyToActions = (permissions = {}) => {
+  const keys = PERMISSION_KEYS.filter((key) => permissions?.[key]);
+  const actions = new Set(keys.flatMap((key) => LEGACY_TO_ACTIONS[key] || []));
+  // Стоимость работ раньше была сочетанием двух прав
+  if (keys.includes("canUseFinancesModule") && keys.includes("canSeeGlobalFinancialReport")) {
+    actions.add("work.readCost");
+  }
+  return [...actions];
+};
 
 module.exports = { PERMISSION_KEYS, LEGACY_TO_ACTIONS, legacyToActions };

@@ -539,6 +539,9 @@ const assertApprovalRoute = async (report, attachment) => {
  */
 const contractorRecipients = async (report) =>
   User.find({
+    // `banned` здесь остаётся, хотя permissionFilter отсекает отключённых сам:
+    // ветка автора (`_id`) добавлена в обход фильтра, и без внешнего условия
+    // уведомление ушло бы уволенному
     banned: { $ne: true },
     isEndUser: { $ne: true },
     $or: [

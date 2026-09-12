@@ -942,10 +942,10 @@ exports.createTicketNotifications = async () => {
 
         try {
           // notifying managers
-          const managers = await User.find({
-            ...(await permissionFilter("ticket.administrate")),
-            banned: { $ne: true },
-          });
+          // Отключённых и служебные учётки отсекает сам permissionFilter
+          const managers = await User.find(
+            await permissionFilter("ticket.manage"),
+          );
 
           for (let user of managers) {
             const rejectedUser = await User.findById(

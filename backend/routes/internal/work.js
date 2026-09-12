@@ -7,7 +7,7 @@ const {
   timeTrackingModuleIsActive,
   canReadWorks,
   canLogWorks,
-  canReadWorksReport,
+  canLogOrManageWorks,
   allowedToViewTicket,
   requireTicketsAccess,
 } = require("@/middleware/permissions");
@@ -24,13 +24,14 @@ router.get(
   isAuth,
   timeTrackingModuleIsActive,
   canReadWorks,
-  canReadWorksReport,
   workController.getFinished,
 );
 
 router.get(
   "/works/additional-data/:ticketNum",
   isAuth,
+  timeTrackingModuleIsActive,
+  canReadWorks,
   allowedToViewTicket,
   workController.getAdditionalData,
 );
@@ -40,10 +41,18 @@ router.post("/works/preview", isAuth, ticketsFromBody, workController.preview);
 router.get(
   "/works/:ticketNum",
   isAuth,
+  timeTrackingModuleIsActive,
+  canReadWorks,
   allowedToViewTicket,
   workController.getTicketWorks,
 );
-router.get("/all-scheduled-works", isAuth, workController.getAllScheduled);
+router.get(
+  "/all-scheduled-works",
+  isAuth,
+  timeTrackingModuleIsActive,
+  canReadWorks,
+  workController.getAllScheduled,
+);
 
 router.post(
   "/works/add",
@@ -64,13 +73,13 @@ router.post(
 router.post(
   "/works/update/:workId",
   isAuth,
-  canLogWorks,
+  canLogOrManageWorks,
   workController.update,
 );
 router.post(
   "/works/delete",
   isAuth,
-  canLogWorks,
+  canLogOrManageWorks,
   workController.delete,
 );
 

@@ -9,8 +9,12 @@ const { AppError } = require("../../middleware/errorHandling");
 const MAX_PERIOD_DAYS = 366;
 
 // GET /finances/personal-report-summary?from&to[&userId][&details=0]
-// Свой отчёт — любому обладателю personal/global права; чужой (?userId) —
-// только isAdmin или canReadEmployeesReport.
+// Свой отчёт — по праву `report.own`; чужой (?userId) — по `report.employees`.
+// Одно другого не подразумевает, поэтому гейт роута пускает обладателя любого
+// из двух, а чей именно отчёт открыт — решает контроллер.
+//
+// Деньги (оклад, ставка, доплата, итог) едут только обладателю
+// `user.manageFinances` или в своём отчёте — свои каждый видит сам.
 //
 // details=0 — режим плитки на главной: без списка работ и без 12-месячного
 // тренда (это два лишних прохода на каждый заход на главную), но с дельтой к
@@ -23,8 +27,7 @@ exports.getSummary = async (req, res, next) => {
 
     let targetUserId = authData.userId;
     if (requestedUserId && requestedUserId !== String(authData.userId)) {
-      const canSeeOthers =
-        req.auth.can({ report: ["employees"] });
+      const canSeeOthers = req.auth.can({ report: ["employees"] });
       if (!canSeeOthers) {
         return next(
           new AppError(
@@ -34,6 +37,11 @@ exports.getSummary = async (req, res, next) => {
         );
       }
       targetUserId = requestedUserId;
+    } else if (!req.auth.can({ report: ["own"] })) {
+      // Право на чужие отчёты не заменяет права на свой: у ручки два входа
+      return next(
+        new AppError("Недостаточно прав для просмотра своего отчёта", 403),
+      );
     }
 
     const fromDate = new Date(from);
@@ -63,12 +71,16 @@ exports.getSummary = async (req, res, next) => {
 
     const preferences = await Preferences.findOne({}).lean();
 
+    const isSelf = String(targetUser._id) === String(authData.userId);
+
     const report = await buildPersonalReport({
       userId: targetUserId,
       from,
       to,
       preferences,
       user: targetUser,
+      // Свои деньги видит каждый; чужие — только с правом на оклады и ставки
+      canSeeMoney: isSelf || Boolean(req.auth.can({ user: ["manageFinances"] })),
       includeDetails,
       includePrevPeriod: true,
     });
@@ -79,7 +91,7 @@ exports.getSummary = async (req, res, next) => {
         firstName: targetUser.firstName,
         lastName: targetUser.lastName,
         position: targetUser.position || "",
-        isSelf: String(targetUser._id) === String(authData.userId),
+        isSelf,
       },
       ...report,
     });

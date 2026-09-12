@@ -43,40 +43,51 @@ On top of the content sits a **moderation layer**:
 5. **Service-renewal tracking** — a daily job parses markdown tables of services
    (domains, hosting, …) and warns when a renewal date is near.
 
-The module is gated by a **module flag** and two **per-user permissions**, and
-everything is additionally scoped per-user in the controllers (defence in depth).
+The module is gated by a **module flag** and three **dictionary rights**
+(`knowledge.read`, `knowledge.manage`, `knowledge.moderate`), and everything is
+additionally scoped per-user in the controllers (defence in depth).
 
 ## Module gating & permissions
 
 | Gate | Where | Meaning |
 | --- | --- | --- |
 | `modules.knowledgeBase.isActive` | `Preferences` | Whole module on/off. Middleware `knowledgeBaseModuleIsActive` (`backend/middleware/permissions.js`) 403s every route when off. Toggled in Preferences → Модули (`frontend/src/components/Preferences/Modules.jsx`, label "База знаний"). |
-| `permissions.canSeeKnowledgeBase` | `User` | Read access. Middleware `canSeeKnowledgeBase`. Default **false**. |
-| `permissions.canManageKnowledgeBase` | `User` | Create / edit / request lifecycle actions. Middleware `canManageKnowledgeBase` (admin bypasses). Default **false**. |
+| `knowledge.read` | role | Read access. Middleware `canReadKnowledge`. Audience `both` — a client sees notes bound to their own company. |
+| `knowledge.manage` | role | Create / edit / request lifecycle actions. Middleware `canManageKnowledge`. Audience `staff`. |
+| `knowledge.moderate` | role | Approve, decide on deletion / archive, ignore secret findings, moderation summary. Middleware `canModerateKnowledge`. Audience `staff`. |
 | `isNotClient` | middleware | All mutations also require a non-client (staff) account. |
 
-Both permissions live on `User.permissions` (`backend/models/user.js`, mirrored
-in `backend/types/user.ts`) and are declared in the shared permission catalog
-`frontend/src/components/User/permissions-catalog.js` (group «База знаний»:
-"Просмотр базы знаний" / "Управление базой знаний") — one source for both the
-user form and the user card, so saving never silently drops a flag.
-`Preferences.knowledgeBase` itself (moderators, the hide / approval-period
-options and both scanner switches) is edited in
-`frontend/src/components/Preferences/KnowledgeBase.jsx`.
+The three rights come from the permission dictionary
+(`backend/auth/access.js`, group `knowledge`) and are granted by roles only —
+there are no per-user flags any more, and no admin bypass branch: a full-access
+role simply carries the whole staff dictionary, so `can()` decides for everybody.
+`Preferences.knowledgeBase` still holds the hide / approval-period options and
+both scanner switches (`frontend/src/components/Preferences/KnowledgeBase.jsx`);
+the moderator list is gone from it.
 
 ### Moderators
 
-Moderators are a **subset of managers** listed in
-`Preferences.knowledgeBase.moderators`. An **admin is always a moderator**.
-`isModerator(authedUser, moderatorIds)` (`backend/helpers/knowledgeNoteVisibility.js`)
-is the single source of truth. The settings UI only offers users who have **both**
-`canSeeKnowledgeBase` **and** `canManageKnowledgeBase` (or are admin) as candidates
-(`GET /api/users/knowledge-base-moderators`, `isAdmin`-gated;
-`backend/controllers/user.js → getKnowledgeBaseModerators`).
+A moderator is **a holder of `knowledge.moderate`**, i.e. a role — the catalogue
+ships `kb-moderator` for exactly that. The stale
+`Preferences.knowledgeBase.moderators` array is still declared in the model but
+read by nothing except the one-off `scripts/migrateActions.js`, which grants the
+role to the previous moderators; drop the field once that has run on production.
 
-Moderator-only actions (verified **in the controller**, not just by middleware,
-because the routes are open to all managers): approve, confirm/decline deletion,
-confirm/decline archive, ignore-secret-finding, moderation summary.
+`canViewNote(note, auth, kbConfig)`
+(`backend/helpers/knowledgeNoteVisibility.js`) asks `auth.can()` directly — the
+same function the route gates use. A holder of `knowledge.moderate` sees every
+note, like a holder of `knowledge.manage`: a moderate-only role that could not
+see the notes awaiting approval would be useless.
+
+Moderator-only actions are gated on the routes (`canModerateKnowledge`) **and**
+re-checked in the controller: approve, confirm/decline deletion, confirm/decline
+archive, ignore-secret-finding, moderation summary. `getModerationSummary` is
+the exception that is deliberately open to any `knowledge.read` holder — the
+ticket page calls it for everyone — and answers non-moderators with
+`{isModerator: false}` plus zero counters.
+
+There are **no moderator notifications** anywhere in the system; moderation
+surfaces only through those summary counters.
 
 ## Data model
 
@@ -158,10 +169,10 @@ avoid wiping moderation config on a partial POST).
 predicate. Every read endpoint fetches a candidate set then filters with it (the
 DB query is not the security boundary — the predicate is). Order of checks:
 
-1. **No `canSeeKnowledgeBase` (and not admin)** → deny. (Routes are also
-   middleware-gated; this is defence in depth.)
-2. **Manager** (`isAdmin || canManageKnowledgeBase`) → allow **everything**,
-   including unapproved and otherwise-scoped notes.
+1. **No `knowledge.read`** → deny. (Routes are also middleware-gated; this is
+   defence in depth.)
+2. **Manager** (`knowledge.manage` or `knowledge.moderate`) → allow
+   **everything**, including unapproved and otherwise-scoped notes.
 3. **`hideNotApproved` && note unapproved && not manager** → deny.
 4. **End user / client** (`isEndUser`) → allow **only** notes bound to **their own
    company**. Global, category-only, and other-company notes are invisible to
@@ -237,9 +248,12 @@ only) — keep them in sync.
 
 All under `/api` (mounted in `backend/routes/index.js`; defined in
 `backend/routes/internal/knowledgeNote.js`). Every route carries `isAuth`,
-`knowledgeBaseModuleIsActive`, `canSeeKnowledgeBase`; mutations add `isNotClient`
-+ `canManageKnowledgeBase`; moderator-only logic is enforced **inside** the
-controller. Literal sub-paths (`form-data`, `related`, `moderation-summary`,
+`knowledgeBaseModuleIsActive`, `canReadKnowledge`; mutations add `isNotClient`
++ `canManageKnowledge`, moderation routes `canModerateKnowledge`; the
+record-level logic is re-checked **inside** the controller. Two deliberate
+exceptions: `moderation-summary` runs without `canModerateKnowledge` (it is
+polled for every reader and answers zeros), and one route runs without
+`canReadKnowledge` — see the table. Literal sub-paths (`form-data`, `related`, `moderation-summary`,
 `service-expiry`) are declared **before** `:id` so the dynamic segment doesn't
 swallow them.
 
@@ -478,10 +492,12 @@ own header.
   links into `?moderation=…`, reads the shared `store/knowledgeModeration.js`
   (seeded from the prefs snapshot, refreshed via `/moderation-summary` and after
   every bulk action).
-- `components/KnowledgeBase/ServiceExpiryCard.jsx` (ticket List) — for anyone
-  with `canSeeKnowledgeBase`; renders only when `/service-expiry` returns
-  services, formats dates with the shared calendar-date helper and links to
-  the source note.
+- `components/Dashboard/ServiceExpiry.jsx` — for **anyone**, no right required:
+  `/service-expiry` is the one route of the section without `canReadKnowledge`
+  and decides per caller what to return (staff by the visibility rules, a
+  client responsible for a company only for that company). Renders only when
+  the route returns services, formats dates with the shared calendar-date
+  helper and links to the source note.
 - `store/prefs.js` holds the global KB moderation snapshot
   (`isModerator/hideNotApproved/scanForSecrets/counts`) from `preferences.getInitial`.
 
@@ -491,9 +507,6 @@ All idempotent, run directly against Mongo. Run inside the backend container.
 
 - `backfillNoteApproval.js` — sets `approved:false` on legacy notes missing the
   field. (Code already treats missing as unapproved; this makes it explicit.)
-- `grantSeeKnowledgeBase.js` — grants `canSeeKnowledgeBase` to all non-client
-  users, so the base stays visible to everyone who saw it before the permission
-  existed. Schema default stays `false`, so new users must be granted explicitly.
 - `migrateDomainExpiryToServiceExpiry.js` — renames the old
   `trackDomainExpiry/domainExpiryDays` prefs → `trackServiceExpiry/serviceExpiryDays`,
   drops the stale `note.domainExpiry` field + index, and re-runs the service scan.
@@ -503,9 +516,9 @@ All idempotent, run directly against Mongo. Run inside the backend container.
 
 ## How to test end-to-end
 
-1. Enable the module (Preferences → Модули → "База знаний"); grant a test staffer
-   `canSeeKnowledgeBase` + `canManageKnowledgeBase`; add them to **Модераторы базы
-   знаний** in Preferences → База знаний.
+1. Enable the module in the settings; give a test staffer a role carrying
+   `knowledge.read` + `knowledge.manage`, and the `kb-moderator` role (or any
+   role with `knowledge.moderate`) to exercise moderation.
 2. **Create** a note (`/knowledge-base/add`). It saves **unapproved**. Bind it to
    a company/category/user to exercise scoping.
 3. **Visibility** — log in as a staffer of another company: a bound note is hidden;

@@ -38,6 +38,10 @@
  *   нет понятия области, а `ticket.readAll` — это действительно другое доверие,
  *   а не другой фильтр. Всё, что сложнее, живёт в скоупах
  *   (`services/reportScope.js` и соседи) и правом не задаётся.
+ * • У действия есть адресат (`audience`): `staff`, `client` или `both`. Форма
+ *   роли показывает только строки адресата роли, а сервер вырезает действия
+ *   чужого адресата при разрешении прав аккаунта (services/permissions.js).
+ *   У `both` может быть вторая подсказка `clientHint` — для клиентской роли.
  */
 const GROUPS = [
   {
@@ -45,51 +49,100 @@ const GROUPS = [
     label: "Заявки",
     actions: [
       {
-        id: "ticket.readCompany",
-        label: "Видеть заявки своей компании",
-        hint: "Иначе человек видит только свои обращения.",
+        id: "ticket.readCompanies",
+        label: "Видеть заявки своих компаний",
+        audience: "both",
+        hint: "Все заявки компаний, за которые он отвечает (список ответственных в карточке компании), включая новые без исполнителя.",
+        clientHint: "Все заявки его компании.",
       },
       {
         id: "ticket.readAll",
         label: "Видеть все заявки",
-        hint: "Все заявки всех компаний, а не только те, где он участвует.",
+        audience: "staff",
+        hint: "Все заявки всех компаний.",
       },
       {
         id: "ticket.perform",
         label: "Брать заявки в работу",
-        hint: "Он же попадает в списки исполнителей — назначить ответственным можно только с этим правом.",
+        audience: "staff",
+        hint: "На своих заявках: принять, запросить помощь, изменить срок, отказаться, закрыть, вернуть в работу; отмечать пункты чек-листа и составлять его, если заявка не из регламента; инструменты ИИ. Попадает в списки исполнителей.",
       },
       {
-        id: "ticket.administrate",
-        label: "Вести чужие заявки",
-        hint: "Статус, ответственные, вложения и срок в заявках, где он сам не участвует.",
+        id: "ticket.join",
+        label: "Присоединяться к чужим заявкам",
+        audience: "staff",
+        hint: "Принять в работу или присоединиться к заявке, где он не ответственный, — по одной и списком. Без права исполнитель работает только с заявками, где его назначили.",
       },
-      { id: "ticket.update", label: "Изменять содержание заявки" },
-      { id: "ticket.delete", label: "Удалять заявки" },
+      {
+        id: "ticket.manage",
+        label: "Вести заявки",
+        audience: "staff",
+        hint: "Обработать новую, назначить и снять любых ответственных, изменить тему, категорию, описание, ответы, компанию и инициатора, вложения заявки, чек-лист любой заявки. Получает уведомления менеджера.",
+      },
+      {
+        id: "ticket.delete",
+        label: "Удалять заявки",
+        audience: "staff",
+        hint: "Удалять доступные заявки, по одной и списком.",
+      },
       {
         id: "ticket.createForOthers",
-        label: "Заводить заявку от чужого имени",
-        hint: "Указать другого инициатора и другую компанию. Без права заявка заводится от себя и по своей компании.",
+        label: "Заводить заявки за других",
+        audience: "both",
+        hint: "Любой инициатор любой компании и ответственные.",
+        clientHint: "Инициатор — коллега его компании. Компания всегда своя, ответственных он не указывает.",
       },
       {
         id: "ticket.closeWithoutWork",
         label: "Закрывать без записи о работе",
+        audience: "staff",
         hint: "Обычно заявка закрывается вместе с записью о выполненной работе.",
       },
     ],
   },
   {
     key: "ticketCatalogs",
-    label: "Шаблоны заявок",
+    label: "Справочники заявок",
     actions: [
-      { id: "ticketCategory.manage", label: "Категории заявок" },
+      {
+        id: "ticketCategory.read",
+        label: "Видеть категории заявок",
+        audience: "staff",
+        hint: "Раздел «Категории». Выбор категории в форме заявки права не требует.",
+      },
+      { id: "ticketCategory.manage", label: "Изменять категории заявок", audience: "staff" },
+      {
+        id: "ticketTemplate.read",
+        label: "Видеть все шаблоны заявок",
+        audience: "staff",
+        hint: "Чужие шаблоны в разделе и в форме заявки. Свои шаблоны каждый видит и правит без права, включая клиента.",
+      },
       {
         id: "ticketTemplate.manage",
-        label: "Чужие шаблоны заявок",
-        hint: "Свою заготовку заводит и правит каждый; это право — про чужие.",
+        label: "Изменять все шаблоны заявок",
+        audience: "staff",
+        hint: "Менять и удалять чужие шаблоны.",
       },
-      { id: "checklistTemplate.manage", label: "Шаблоны чек-листов" },
-      { id: "routineTask.manage", label: "Регламентные задания" },
+      { id: "checklistTemplate.read", label: "Видеть шаблоны чек-листов", audience: "staff" },
+      { id: "checklistTemplate.manage", label: "Изменять шаблоны чек-листов", audience: "staff" },
+    ],
+  },
+  {
+    key: "routineTasks",
+    label: "Регламенты",
+    actions: [
+      {
+        id: "routineTask.read",
+        label: "Видеть регламенты",
+        audience: "staff",
+        hint: "Раздел, карточка регламента и ссылка из регламентной заявки.",
+      },
+      {
+        id: "routineTask.manage",
+        label: "Изменять регламенты",
+        audience: "staff",
+        hint: "Заводить, менять, останавливать, удалять; синхронизация из шаблона заявки.",
+      },
     ],
   },
   {
@@ -99,13 +152,28 @@ const GROUPS = [
       {
         id: "work.read",
         label: "Видеть работы",
-        hint: "Открывает раздел учёта времени.",
+        audience: "both",
+        hint: "Работы в заявках, сегмент «Работы» архива, требование работ при закрытии.",
+        clientHint: "Работы его компании в архиве и на заявках.",
       },
-      { id: "work.log", label: "Записывать и планировать работы" },
       {
-        id: "work.manageAll",
-        label: "Изменять чужие работы",
-        hint: "Без права правится только своя запись — заведённая им, его запланированная или отмеченная им по факту.",
+        id: "work.log",
+        label: "Записывать работы",
+        audience: "staff",
+        hint: "Заводить, планировать, править и удалять свои работы — заведённые, запланированные или отмеченные им. Вместе с «Видеть работы»: без него форма работы недоступна.",
+      },
+      {
+        id: "work.manage",
+        label: "Изменять все работы",
+        audience: "staff",
+        hint: "Чужие работы.",
+      },
+      {
+        id: "work.readCost",
+        label: "Видеть стоимость работ",
+        audience: "both",
+        hint: "Суммы по тарифу и доплаты вне графика в работах и в предпросмотре.",
+        clientHint: "Суммы по тарифу и доплаты вне графика по работам его компании.",
       },
     ],
   },
@@ -113,14 +181,25 @@ const GROUPS = [
     key: "reports",
     label: "Отчёты",
     actions: [
-      { id: "report.works", label: "Отчёт по работам" },
-      { id: "report.companies", label: "Отчёт «Компании»" },
+      {
+        id: "report.companies",
+        label: "Видеть отчёт «Компании»",
+        audience: "both",
+        hint: "Страница и данные; объём даёт роль в компании.",
+        clientHint: "По своей компании: ответственное лицо видит отчёт целиком, руководитель подразделения — своё подразделение.",
+      },
       {
         id: "report.employees",
-        label: "Отчёт «Сотрудники»",
-        hint: "Выработка и переработки всех сотрудников. Объём даёт роль в компании, а не это право.",
+        label: "Видеть отчёт «Сотрудники»",
+        audience: "staff",
+        hint: "Сводка по сотрудникам и отчёт другого сотрудника. Больше ничего.",
       },
-      { id: "report.own", label: "Свой отчёт" },
+      {
+        id: "report.own",
+        label: "Видеть свой отчёт",
+        audience: "staff",
+        hint: "Личный отчёт и блок переработок на главной.",
+      },
     ],
   },
   {
@@ -128,13 +207,22 @@ const GROUPS = [
     label: "Согласование работ",
     actions: [
       {
+        id: "approval.read",
+        label: "Видеть согласование работ",
+        audience: "both",
+        hint: "Конвейер и карточки отчётов.",
+        clientHint: "Отчёты, которые ждут его подписи или подписаны им.",
+      },
+      {
         id: "approval.decide",
         label: "Согласовывать отчёты",
-        hint: "Подписывать со стороны клиента. Объём даёт роль: согласующий услуги видит отчёт целиком, руководитель подразделения — свою часть.",
+        audience: "client",
+        hint: "Подписывать со стороны клиента. Чью подпись ждёт отчёт, решает роль в компании.",
       },
       {
         id: "approval.manage",
         label: "Вести согласование",
+        audience: "staff",
         hint: "Собрать отчёт, выставить счёт, отметить оплату, отправить в архив.",
       },
     ],
@@ -143,41 +231,79 @@ const GROUPS = [
     key: "servicePlans",
     label: "Услуги и тарифы",
     actions: [
-      { id: "servicePlan.read", label: "Видеть услуги и тарифы" },
-      { id: "servicePlan.manage", label: "Изменять услуги и тарифы" },
+      {
+        id: "servicePlan.read",
+        label: "Видеть услуги и тарифы",
+        audience: "both",
+        hint: "Раздел и услуги на карточке компании.",
+        clientHint: "Услуги своей компании.",
+      },
+      {
+        id: "servicePlan.manage",
+        label: "Изменять услуги и тарифы",
+        audience: "staff",
+        hint: "Заводить, менять, удалять; привязка к компаниям.",
+      },
     ],
   },
   {
     key: "companies",
     label: "Компании",
     actions: [
-      { id: "company.read", label: "Видеть компании" },
+      {
+        id: "company.read",
+        label: "Видеть компании",
+        audience: "both",
+        hint: "Все компании.",
+        clientHint: "Карточка своей компании.",
+      },
       {
         id: "company.manage",
-        label: "Изменять компании и подразделения",
-        hint: "Включая API-ключи компании и связь сотрудников с Active Directory.",
+        label: "Изменять компании",
+        audience: "staff",
+        hint: "Компании, подразделения, ответственные, связь с Active Directory, API-ключи.",
       },
       {
         id: "company.readLogs",
-        label: "Журнал входов AD",
+        label: "Видеть журнал входов AD",
+        audience: "staff",
         hint: "Кто, когда и с какого компьютера входил у клиента. Персональные данные его сотрудников.",
       },
     ],
   },
   {
     key: "users",
-    label: "Люди",
+    label: "Пользователи",
     actions: [
-      { id: "user.read", label: "Видеть людей" },
-      { id: "user.manage", label: "Заводить и изменять людей" },
+      {
+        id: "user.read",
+        label: "Видеть пользователей",
+        audience: "both",
+        hint: "Все пользователи.",
+        clientHint: "Коллеги своей компании.",
+      },
+      {
+        id: "user.manage",
+        label: "Изменять пользователей",
+        audience: "staff",
+        hint: "Заводить, менять, отключать, удалять; причина и срок отключения.",
+      },
+      {
+        id: "user.manageFinances",
+        label: "Изменять оклады и ставки",
+        audience: "staff",
+        hint: "Секция финансов в карточке и форме сотрудника, оклады и доплаты в отчётах. Свои оклад и ставку каждый видит сам.",
+      },
       {
         id: "user.manageAccess",
-        label: "Доступ к учётным записям",
-        hint: "Пароли, сеансы, второй фактор и раздача ролей. Отдельно от права «изменять людей».",
+        label: "Управлять доступом и ролями",
+        audience: "staff",
+        hint: "Пароли, сеансы, второй фактор и назначение ролей.",
       },
       {
         id: "user.impersonate",
-        label: "Вход под пользователем",
+        label: "Входить под пользователем",
+        audience: "staff",
         hint: "Открыть портал глазами человека — ссылкой в другой браузер. Под администратором войти нельзя.",
       },
     ],
@@ -189,9 +315,10 @@ const GROUPS = [
       {
         id: "role.read",
         label: "Видеть роли",
-        hint: "Нужно и для выбора роли в форме человека.",
+        audience: "staff",
+        hint: "Каталог ролей и выбор роли в форме пользователя.",
       },
-      { id: "role.manage", label: "Изменять роли" },
+      { id: "role.manage", label: "Изменять роли", audience: "staff" },
     ],
   },
   {
@@ -200,44 +327,76 @@ const GROUPS = [
     actions: [
       {
         id: "schedule.read",
-        label: "Календарь команды",
-        hint: "Кто когда работает и кто в отпуске.",
+        label: "Видеть графики и отсутствия",
+        audience: "staff",
+        hint: "Календарь команды, чужие графики и отсутствия. Свой график и свои отсутствия видны без права.",
       },
-      { id: "schedule.manage", label: "Графики и отсутствия сотрудников" },
-      { id: "schedule.approve", label: "Согласовывать отсутствия" },
+      {
+        id: "schedule.manage",
+        label: "Изменять графики и отсутствия",
+        audience: "staff",
+        hint: "Графики и отсутствия других сотрудников, удаление; ручная установка любого статуса присутствия.",
+      },
+      { id: "schedule.approve", label: "Согласовывать отсутствия", audience: "staff" },
     ],
   },
   {
     key: "knowledge",
     label: "База знаний",
     actions: [
-      { id: "knowledge.read", label: "Видеть базу знаний" },
-      { id: "knowledge.manage", label: "Изменять базу знаний" },
+      {
+        id: "knowledge.read",
+        label: "Видеть базу знаний",
+        audience: "both",
+        hint: "Раздел и заметки по их видимости.",
+        clientHint: "Заметки своей компании.",
+      },
+      {
+        id: "knowledge.manage",
+        label: "Изменять базу знаний",
+        audience: "staff",
+        hint: "Заводить, править и удалять заметки.",
+      },
+      {
+        id: "knowledge.moderate",
+        label: "Модерировать базу знаний",
+        audience: "staff",
+        hint: "Одобрять заметки, решать об удалении и архиве, сводка модерации и её уведомления. Видит все заметки всех компаний.",
+      },
     ],
   },
   {
     key: "inventory",
     label: "Оборудование",
     actions: [
-      { id: "device.read", label: "Видеть технику и расположения" },
-      { id: "device.manage", label: "Изменять технику и расположения" },
+      {
+        id: "device.read",
+        label: "Видеть технику и расположения",
+        audience: "both",
+        hint: "Реестр, карточки, план расположений.",
+        clientHint: "Техника и расположения своей компании.",
+      },
+      { id: "device.manage", label: "Изменять технику и расположения", audience: "staff" },
       {
         id: "inventoryCatalog.read",
-        label: "Видеть справочники",
-        hint: "Типы, модели, вендоры, атрибуты и конфигурации устройств.",
+        label: "Видеть справочники техники",
+        audience: "staff",
+        hint: "Типы, модели, вендоры, атрибуты и конфигурации устройств. Выбор в форме устройства права не требует.",
       },
-      { id: "inventoryCatalog.manage", label: "Изменять справочники" },
-      { id: "supplier.read", label: "Видеть поставщиков" },
-      { id: "supplier.manage", label: "Изменять поставщиков" },
+      { id: "inventoryCatalog.manage", label: "Изменять справочники техники", audience: "staff" },
+      { id: "supplier.read", label: "Видеть поставщиков", audience: "staff" },
+      { id: "supplier.manage", label: "Изменять поставщиков", audience: "staff" },
       {
         id: "mikrotik.read",
         label: "Видеть устройства Mikrotik",
-        hint: "Раздел мониторинга: записи, адреса и состояние.",
+        audience: "staff",
+        hint: "Раздел мониторинга: записи, адреса, состояние, отчёт «Сети».",
       },
-      { id: "mikrotik.manage", label: "Изменять устройства Mikrotik" },
+      { id: "mikrotik.manage", label: "Изменять устройства Mikrotik", audience: "staff" },
       {
         id: "mikrotik.manageConfigs",
-        label: "Конфигурации Mikrotik",
+        label: "Изменять конфигурации Mikrotik",
+        audience: "staff",
         hint: "Резервные копии, выгрузки и расписания.",
       },
     ],
@@ -249,34 +408,20 @@ const GROUPS = [
       {
         id: "remoteSupport.use",
         label: "Запускать сеанс удалённой помощи",
+        audience: "staff",
         hint: "PRO32 Connect: приглашение на подключение к экрану заявителя.",
       },
     ],
   },
   {
     key: "settings",
-    label: "Настройки системы",
+    label: "Настройки",
     actions: [
-      { id: "settings.read", label: "Видеть настройки" },
       {
         id: "settings.manage",
-        label: "Основные настройки и модули",
-        hint: "Реквизиты, уведомления, рубильники модулей, производственный календарь.",
-      },
-      {
-        id: "settings.manageMail",
-        label: "Почта: сбор заявок и отправка",
-        hint: "Ящики сбора и параметры SMTP вместе с паролями.",
-      },
-      {
-        id: "settings.manageIntegrations",
-        label: "Интеграции и ключи",
-        hint: "Искусственный интеллект, Telegram, внешние сервисы. Здесь лежат ключи доступа.",
-      },
-      {
-        id: "settings.manageSecurity",
-        label: "Политики входа и паролей",
-        hint: "Обязательность второго фактора и требования к паролю.",
+        label: "Изменять настройки",
+        audience: "staff",
+        hint: "Страница настроек целиком: реквизиты, заявки, почта и уведомления, интеграции и ключи, политики входа, модули, календарь, база знаний.",
       },
     ],
   },
@@ -309,6 +454,83 @@ const ACTION_LABELS = Object.fromEntries(
 const ALL_ACTIONS = GROUPS.flatMap((group) =>
   group.actions.map((action) => action.id),
 );
+
+const AUDIENCES = ["staff", "client", "both"];
+
+/** Адресат действия: `staff` по умолчанию, `client`, `both`. */
+const ACTION_AUDIENCE = Object.fromEntries(
+  GROUPS.flatMap((group) =>
+    group.actions.map((action) => [action.id, action.audience || "staff"]),
+  ),
+);
+
+const audienceOfAction = (id) => ACTION_AUDIENCE[id] || "staff";
+
+/** Тип аккаунта на языке адресатов: сотрудник — `staff`, всё остальное — `client`. */
+const accountAudienceOf = (user) =>
+  user?.isEndUser === false ? "staff" : "client";
+
+/**
+ * Действует ли зеркало `isAdmin` — ТОЛЬКО У СОТРУДНИКА.
+ *
+ * Поле `users.isAdmin` читают около сотни мест как «этому можно всё», и почти
+ * везде оно обходит скоупы (`services/ticketScope.js`, `ticketAccess.js`,
+ * гейт `isAdmin` в `middleware/permissions.js`). У клиентской учётной записи
+ * такого смысла быть не может: её права вырезаны по адресату, а «всё» означало
+ * бы заявки всех компаний. Ставится зеркало теперь только сотрудникам
+ * (`services/roles.js`), но прежде ставилось кому угодно, и оставшийся в базе
+ * флаг обязан НЕ ДЕЙСТВОВАТЬ, а не ждать чистки данных.
+ */
+const isStaffAdmin = (user) =>
+  Boolean(user?.isAdmin) && accountAudienceOf(user) === "staff";
+
+/**
+ * Действия, которые ДЕЙСТВУЮТ у сотрудника: адресат `staff` или `both`.
+ *
+ * Это мерка полного доступа. Требовать от роли администратора весь словарь
+ * целиком нельзя: клиентское `approval.decide` (подпись со стороны клиента) у
+ * сотрудника не действует вовсе, и роль обязана была бы носить право, которым
+ * её носитель воспользоваться не может.
+ */
+const STAFF_ACTIONS = ALL_ACTIONS.filter(
+  (id) => audienceOfAction(id) !== "client",
+);
+
+/** `STATEMENT` без действий чужого адресата — то же, но в форме statements. */
+const STAFF_STATEMENT = STAFF_ACTIONS.reduce((statement, id) => {
+  const [resource, action] = id.split(".");
+  (statement[resource] ||= []).push(action);
+  return statement;
+}, {});
+
+/** Весь словарь СОТРУДНИКА как statements — набор роли полного доступа. */
+const staffAccessStatements = () =>
+  Object.fromEntries(
+    Object.entries(STAFF_STATEMENT).map(([resource, actions]) => [
+      resource,
+      [...actions],
+    ]),
+  );
+
+/**
+ * Вырезает из набора действия чужого адресата. Роль может дать клиенту
+ * «Брать заявки в работу» — у клиентского аккаунта это право не действует.
+ *
+ * Полноту доступа (`isFullAccess`) вырезание не ломает: она мерится набором
+ * действий сотрудника, а не всем словарём, — иначе усечённый по адресату
+ * администратор перестал бы считаться администратором.
+ */
+const stripStatementsForAudience = (statements, accountAudience) => {
+  const kept = {};
+  for (const [resource, actions] of Object.entries(statements || {})) {
+    const allowed = (actions || []).filter((action) => {
+      const audience = audienceOfAction(`${resource}.${action}`);
+      return audience === "both" || audience === accountAudience;
+    });
+    if (allowed.length) kept[resource] = allowed;
+  }
+  return kept;
+};
 
 /**
  * Целостность словаря — при загрузке, а не в проде отсутствующей галочкой.
@@ -343,6 +565,13 @@ const assertCatalogueIsSound = () => {
         problems.push(`действие встречается дважды: ${action.id}`);
       }
       seenActions.add(action.id);
+
+      if (!AUDIENCES.includes(action.audience || "staff")) {
+        problems.push(`адресат не из списка: ${action.id}`);
+      }
+      if (action.clientHint && action.audience !== "both") {
+        problems.push(`clientHint только у адресата both: ${action.id}`);
+      }
     }
   }
 
@@ -356,20 +585,31 @@ const isKnownAction = (resource, action) =>
   Boolean(STATEMENT[resource]?.includes(action));
 
 /**
- * Роль отдаёт ВЕСЬ словарь — и потому равна полному доступу.
+ * Роль отдаёт ВСЁ, что действует у сотрудника, — и потому равна полному доступу.
  *
  * Это единственный механический признак «администратора», который у нас есть:
  * по нему зеркалится `user.isAdmin` (его читают около сотни мест и меню
  * фронта) и по нему же считается, какие права нельзя выдать иначе как вместе
  * со всем порталом. Сравнение с ключом роли `"admin"` было бы хуже: ключ
  * принадлежит каталогу, а каталог правят из интерфейса.
+ *
+ * Мерка — `STAFF_ACTIONS`, а не весь словарь. Клиентские действия в счёт не
+ * идут: с ними признак был недостижим для роли, которую выдают сотруднику, и
+ * роль администратора носила `approval.decide` только ради этой арифметики.
  */
 const isFullAccess = (statements) =>
-  Object.entries(STATEMENT).every(([resource, actions]) =>
+  Object.entries(STAFF_STATEMENT).every(([resource, actions]) =>
     actions.every((action) => statements?.[resource]?.includes(action)),
   );
 
-/** Весь словарь как statements — то, что получает администратор. */
+/**
+ * Весь словарь как statements — то, что получает администратор.
+ *
+ * Именно ВЕСЬ, вместе с клиентскими действиями: из него собирается
+ * `grantStatements` (services/permissions.js), а администратор обязан уметь
+ * выдать клиентской роли «Согласовывать отчёты». Сам он этим правом не
+ * действует — из его `statements` оно вырезано по адресату.
+ */
 const fullAccessStatements = () =>
   Object.fromEntries(
     Object.entries(STATEMENT).map(([resource, actions]) => [
@@ -403,6 +643,13 @@ module.exports = {
   STATEMENT,
   ACTION_LABELS,
   ALL_ACTIONS,
+  AUDIENCES,
+  audienceOfAction,
+  accountAudienceOf,
+  isStaffAdmin,
+  STAFF_ACTIONS,
+  staffAccessStatements,
+  stripStatementsForAudience,
   assertCatalogueIsSound,
   isKnownAction,
   isFullAccess,

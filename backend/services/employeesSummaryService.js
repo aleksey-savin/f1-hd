@@ -16,6 +16,7 @@ const {
   isExcludedFromOvertime,
   overtimeForWork,
   resolveOvertimeSettings,
+  stripPayrollMoney,
 } = require("@/services/workOvertime");
 const {
   buildScheduleContext,
@@ -37,6 +38,10 @@ dayjs.extend(timezone);
  *
  * approvedOnly сужает выборку до работ из согласованных отчётов по услугам
  * (режим финансовой сверки); по умолчанию учитываются все работы периода.
+ *
+ * canSeeMoney (право `user.manageFinances`) решает контроллер: без него в
+ * ответе нет ни ставок, ни доплат — только часы, переработки и флаг «нет
+ * ставки», по которому видно, что время не попало в расчёт.
  */
 
 const emptyTotals = () => ({
@@ -210,6 +215,7 @@ const buildEmployeesSummary = async ({
   to,
   approvedOnly = false,
   preferences,
+  canSeeMoney = false,
   includePrev = true,
   includeBreakdown = true,
 }) => {
@@ -348,6 +354,17 @@ const buildEmployeesSummary = async ({
     );
     const ticketsFinished = ticketsByExecutor.get(employeeId) || 0;
 
+    // Строке сводки из payroll нужны ставка, разбивка и доплата; деньги из неё
+    // вырезаются одним общим правилом
+    const rowPayroll = {
+      overtimeHourlyRate: payroll.overtimeHourlyRate,
+      weekday: payroll.weekday,
+      weekend: payroll.weekend,
+      holiday: payroll.holiday,
+      overtimePay: payroll.overtimePay,
+      missingRate: payroll.missing.overtimeHourlyRate,
+    };
+
     rows.push({
       employee: {
         _id: employee._id,
@@ -370,14 +387,7 @@ const buildEmployeesSummary = async ({
       scheduleSource: planner.scheduleSource,
       hasPersonalSchedule: planner.hasPersonalSchedule,
       ticketsFinished,
-      payroll: {
-        overtimeHourlyRate: payroll.overtimeHourlyRate,
-        weekday: payroll.weekday,
-        weekend: payroll.weekend,
-        holiday: payroll.holiday,
-        overtimePay: payroll.overtimePay,
-        missingRate: payroll.missing.overtimeHourlyRate,
-      },
+      payroll: canSeeMoney ? rowPayroll : stripPayrollMoney(rowPayroll),
     });
 
     totals.employeesCount += 1;
@@ -455,6 +465,12 @@ const buildEmployeesSummary = async ({
     ? Math.round(totals.totalMinutes / totals.worksCount)
     : 0;
 
+  // Сумма доплат по команде — деньги: без права её в ответе нет (счётчик
+  // сотрудников без ставки остаётся, это про качество данных, а не про суммы)
+  if (!canSeeMoney) {
+    delete totals.overtimePaySum;
+  }
+
   // Статусы согласования работ выборки — объясняют переключатель approvedOnly
   const byStatus = {};
   for (const work of works) {
@@ -500,6 +516,7 @@ const buildEmployeesSummary = async ({
       to: prevTo,
       approvedOnly,
       preferences,
+      canSeeMoney,
       includePrev: false,
       // Прошлому периоду нужны только итоги — разрезы там никто не читает
       includeBreakdown: false,

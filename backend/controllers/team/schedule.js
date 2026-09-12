@@ -49,12 +49,12 @@ exports.getSchedule = async (req, res, next) => {
       return next(invalid);
     }
 
-    const { userId } = req.auth;
-    const [preferences, viewer] = await Promise.all([
-      Preferences.findOne({}).lean(),
-      User.findById(userId).select("isAdmin permissions").lean(),
-    ]);
+    const preferences = await Preferences.findOne({}).lean();
 
+    // Права смотрящего берём из `req.auth.can`: он и есть автор запроса.
+    // Раньше в сервис уезжал урезанный документ (`select("isAdmin permissions")`),
+    // а `canFor` по документу без `isEndUser` считал человека клиентом — табель
+    // приходил с `canManage: false` всем, кроме администратора.
     const report = await buildTeamSchedule({
       from,
       to,
@@ -62,7 +62,7 @@ exports.getSchedule = async (req, res, next) => {
       subdivisionId: subdivision || null,
       search: search || "",
       preferences,
-      viewer,
+      can: req.auth.can,
     });
 
     res.status(200).json(report);
@@ -82,6 +82,10 @@ exports.getUserSchedule = async (req, res, next) => {
     }
 
     const targetId = req.params.userId;
+    if (String(targetId) !== req.auth.userId && !req.auth.isAdmin && !req.auth.can({ schedule: ["read"] })) {
+      return next(new AppError("Чужой график можно смотреть только с правом «Видеть графики и отсутствия»", 403));
+    }
+
     const user = await User.findById(targetId)
       .select(
         "firstName lastName position timezone workSchedule workSchedules " +

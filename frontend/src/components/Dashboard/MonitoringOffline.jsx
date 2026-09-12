@@ -6,6 +6,7 @@ import { RiAlertLine } from "react-icons/ri";
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
+import { useCan } from "@/store/authed-user";
 import { formatDayMonth } from "../../util/format-date";
 
 /**
@@ -21,6 +22,10 @@ import { formatDayMonth } from "../../util/format-date";
  * как «просрочено» у заявок, поэтому бэкенд отдаёт `pollLooksBroken`, а блок
  * сворачивается в строку состояния. Различить их на глаз нельзя, а цена
  * ошибки разная: в первом случае едут к клиенту, во втором чинят у себя.
+ *
+ * Блок спрашивает право «видеть Mikrotik»: раздел мониторинга закрыт им, и
+ * сводка на главной не может быть открыта шире самого раздела. Без права и
+ * запроса не делаем — бэкенд на него отвечает отказом.
  */
 
 // «3 ч 12 мин» — сколько молчит. Сутками и больше — днями, минуты там не нужны.
@@ -36,10 +41,14 @@ const downtimeText = (since) => {
 };
 
 const MonitoringOffline = () => {
+  const can = useCan();
   const fromState = useCrumbFrom("Главная");
   const [data, setData] = useState(null);
 
+  const canSeeMonitoring = !!can({ mikrotik: ["read"] });
+
   useEffect(() => {
+    if (!canSeeMonitoring) return;
     const load = async () => {
       try {
         const response = await fetch(
@@ -53,7 +62,9 @@ const MonitoringOffline = () => {
       }
     };
     load();
-  }, []);
+  }, [canSeeMonitoring]);
+
+  if (!canSeeMonitoring) return null;
 
   if (!data || data.total === 0) return null;
 

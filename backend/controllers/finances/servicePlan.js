@@ -6,9 +6,33 @@ const Company = require("../../models/company");
 const { AppError } = require("../../middleware/errorHandling");
 const { concatIdsArray } = require("../../helpers/concatIdsArray");
 
+/**
+ * Услуги, подключённые компании клиента, — `null` у сотрудника (ему видны все).
+ *
+ * Связь живёт на КОМПАНИИ (`Company.servicePlans`), а не на услуге: поле
+ * `ServicePlan.companies` заполняется только при создании услуги с карточки
+ * компании, а подключение существующей (`company.addServicePlan`) его не
+ * трогает — по нему список был бы неполным.
+ */
+const attachedPlanIds = async (auth) => {
+  if (!auth.isEndUser) return null;
+
+  const companyId = auth.legacy?.company?._id;
+  if (!companyId) return [];
+
+  const company = await Company.findById(companyId).select("servicePlans").lean();
+  return (company?.servicePlans || []).map((plan) => plan._id).filter(Boolean);
+};
+
 exports.getAll = async (req, res, next) => {
   try {
-    const servicePlans = await ServicePlan.find({}).sort({ alias: 1 });
+    // Клиент видит прайс не целиком, а свои подключённые услуги: право
+    // `servicePlan.read` у него значит «услуги своей компании» (словарь,
+    // clientHint), и списком всех тарифов оно быть не должно.
+    const attached = await attachedPlanIds(req.auth);
+    const servicePlans = await ServicePlan.find(
+      attached ? { _id: { $in: attached } } : {},
+    ).sort({ alias: 1 });
 
     res.status(200).json(servicePlans);
   } catch (error) {
@@ -24,6 +48,17 @@ exports.getOne = async (req, res, next) => {
       .populate("createdBy", "firstName lastName")
       .populate("updatedBy", "firstName lastName");
     if (!servicePlan) {
+      return next(
+        new AppError(`Service plan with id ${req.params.id} not found`, 404),
+      );
+    }
+    // Чужая услуга для клиента не существует: 404, а не 403, — иначе ответ
+    // сообщал бы, какие услуги есть у других компаний
+    const attached = await attachedPlanIds(req.auth);
+    if (
+      attached &&
+      !attached.some((id) => String(id) === String(servicePlan._id))
+    ) {
       return next(
         new AppError(`Service plan with id ${req.params.id} not found`, 404),
       );

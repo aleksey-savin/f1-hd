@@ -315,6 +315,39 @@ const buildPayroll = (user, overtimeTotals, overtimeSettings, isFullMonth) => {
   };
 };
 
+// Денежные поля payroll — и в полной форме (персональный отчёт), и в урезанной
+// строке сводки по сотрудникам
+const PAYROLL_MONEY_KEYS = new Set([
+  "salary",
+  "overtimeHourlyRate",
+  "overtimePay",
+  "estimatedTotal",
+]);
+const PAYROLL_BUCKET_KEYS = new Set(["weekday", "weekend", "holiday"]);
+
+/**
+ * Payroll без денег: часы, коэффициенты и флаги missing остаются, суммы и
+ * ставка уходят. Деньги в отчётах показываются только обладателю
+ * `user.manageFinances` (и каждому — в своём отчёте), поэтому их вырезает
+ * сервис, а не прячет интерфейс: иначе они уезжали бы в ответе API.
+ */
+const stripPayrollMoney = (payroll) => {
+  if (!payroll) {
+    return payroll;
+  }
+  const clean = {};
+  for (const [key, value] of Object.entries(payroll)) {
+    if (PAYROLL_MONEY_KEYS.has(key)) {
+      continue;
+    }
+    clean[key] =
+      PAYROLL_BUCKET_KEYS.has(key) && value
+        ? { minutes: value.minutes, coefficient: value.coefficient }
+        : value;
+  }
+  return clean;
+};
+
 module.exports = {
   DAYS_OF_WEEK,
   parseTimeOfDay,
@@ -326,4 +359,5 @@ module.exports = {
   buildOvertimeContext,
   isExcludedFromOvertime,
   buildPayroll,
+  stripPayrollMoney,
 };

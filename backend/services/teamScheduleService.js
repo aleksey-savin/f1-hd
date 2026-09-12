@@ -17,7 +17,6 @@ const {
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
 const timezone = require("dayjs/plugin/timezone");
-const { canFor } = require("@/services/permissions");
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -67,7 +66,10 @@ const buildTeamSchedule = async ({
   subdivisionId = null,
   search = "",
   preferences,
-  viewer,
+  // Права смотрящего готовой функцией `can` — их считает `attachSession` один
+  // раз на запрос. Документ пользователя сюда передавать нельзя: `canFor` по
+  // урезанному документу молча делает из сотрудника клиента.
+  can = null,
 }) => {
   const orgTz = resolveTimezone(preferences);
   const overtimeSettings = resolveOvertimeSettings(preferences);
@@ -246,6 +248,9 @@ const buildTeamSchedule = async ({
   const today = availability.get(todayKey) ?? null;
   const todayInPeriod = Boolean(today);
 
+  // Правка чужого графика и решение по отсутствию — разные права
+  // (routes/internal/team.js), и фронту они нужны раздельно: форма
+  // отсутствия за другого — manage, кнопки решения — approve
   return {
     period: {
       from: fromKey,
@@ -274,9 +279,8 @@ const buildTeamSchedule = async ({
     availability: [...availability.values()],
     employees: rows,
     pending,
-    canManage: viewer
-      ? (await canFor(viewer))({ workSchedule: ["manage"] })
-      : false,
+    canManage: Boolean(can?.({ schedule: ["manage"] })),
+    canApprove: Boolean(can?.({ schedule: ["approve"] })),
   };
 };
 

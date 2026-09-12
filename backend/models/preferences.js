@@ -321,6 +321,13 @@ const preferencesSchema = new Schema({
     ignoreUnassigned: { type: Boolean, default: true },
   },
   knowledgeBase: {
+    /**
+     * УСТАРЕЛО. Модерация базы знаний — это право `knowledge.moderate` (роль
+     * `kb-moderator`), а не список в настройках: поле больше никем не читается,
+     * кроме разовой миграции `scripts/migrateActions.js`, которая по нему
+     * выдаёт роль прежним модераторам. Из настроек список уже убран; удалить
+     * поле ПОСЛЕ того, как миграция отработает на проде.
+     */
     moderators: [
       {
         _id: {

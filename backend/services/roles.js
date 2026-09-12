@@ -6,6 +6,8 @@ const {
   actionsToStatements,
   statementsToActions,
   isFullAccess,
+  audienceOfAction,
+  accountAudienceOf,
 } = require("@/auth/access");
 const {
   organizationId,
@@ -37,8 +39,8 @@ const members = () => mongoose.connection.db.collection("member");
 const KEY_RE = /^[a-z0-9][a-z0-9-]{1,39}$/;
 
 /**
- * Кому роль предназначена. Подсказка форме, а не запрет: роль чужого адресата
- * всё ещё выбирается, просто не предлагается первой.
+ * Кому роль предназначена. Это ЗАПРЕТ, а не подсказка форме: `assign` не отдаёт
+ * роль учётной записи другого адресата (см. `assertRoleFitsAccount`).
  */
 const AUDIENCES = ["staff", "client"];
 const audienceOf = (value) => (AUDIENCES.includes(value) ? value : "staff");
@@ -67,6 +69,18 @@ const freeKey = async (orgId, base) => {
     key = `${base}-${i}`.slice(0, 40);
   }
   return key;
+};
+
+/**
+ * Права роли из хранилища. Битую строку читаем как пустой набор — уронить
+ * правку каталога из-за одной испорченной роли хуже, чем счесть её пустой.
+ */
+const parseStatements = (permission) => {
+  try {
+    return JSON.parse(permission || "{}") || {};
+  } catch {
+    return {};
+  }
 };
 
 /** Отбрасывает всё, чего нет в словаре: роль не может дать несуществующее право. */
@@ -103,6 +117,113 @@ const assertNotEscalating = (statements, can) => {
       403,
     );
   }
+};
+
+/**
+ * Права, без которых установка становится неуправляемой: раздавать доступ
+ * станет некому, и починить это можно будет только руками в базе.
+ */
+const KEEPER_ACTIONS = [
+  ["role", "manage"],
+  ["user", "manage"],
+];
+
+/**
+ * Какое несущее право роль ТЕРЯЕТ, не оставив его никому.
+ *
+ * Чистая часть проверки: остальные роли приходят параметром, поэтому решение
+ * проверяемо без базы. `after` — набор после правки; у удаления он пустой.
+ */
+const lastKeeperLoss = (before, after, others = []) => {
+  for (const [resource, action] of KEEPER_ACTIONS) {
+    if (!before?.[resource]?.includes(action)) continue; // роль его и не давала
+    if (after?.[resource]?.includes(action)) continue; // остаётся при ней
+    const someoneElse = others.some((statements) =>
+      statements?.[resource]?.includes(action),
+    );
+    if (!someoneElse) return `${resource}.${action}`;
+  }
+  return null;
+};
+
+/**
+ * Теряет ли установка ПОСЛЕДНЮЮ роль полного доступа.
+ *
+ * Тот же порог, который `scripts/syncRoleCatalogue.js` держит для каталога:
+ * роль, отдающая весь словарь сотрудника, обязана существовать — по ней
+ * зеркалится `isAdmin`. Двух «хранителей» для этого мало: роль администратора,
+ * урезанная ровно до `role.manage` + `user.manage`, оба порога проходит, но
+ * зеркало гаснет у всех, а у выжившего носителя `role.manage` в
+ * `grantStatements` остаётся два действия — вернуть остальное ему уже нечем.
+ */
+const losesLastFullAccess = (before, after, others = []) =>
+  isFullAccess(before) &&
+  !isFullAccess(after) &&
+  !others.some((statements) => isFullAccess(statements));
+
+/**
+ * Набор роли ГЛАЗАМИ ПОРОГА: у роли не-сотрудника его нет вовсе.
+ *
+ * Порог сторожит доступ СОТРУДНИКА: зеркало `isAdmin` ставится только ему
+ * (`refreshMirrorForUsers`), а клиентской учётной записи действия чужого
+ * адресата вырезаются при разрешении прав. Поэтому смена адресата — это тоже
+ * ПОТЕРЯ: роль администратора, переведённая в «клиенты», перестаёт быть ролью
+ * полного доступа, хотя набор её действий никто не трогал, — и носители-
+ * сотрудники остаются без администратора. Меньшая проверка тут не годится:
+ * сравнивать наборы бессмысленно, когда меняется не набор, а кому он действует.
+ */
+const staffSideOf = (statements, audience) =>
+  audienceOf(audience) === "staff" ? statements || {} : {};
+
+/**
+ * Порог «последнего хранителя» — один и тот же у удаления и у правки: и полный
+ * доступ, и права на роли с пользователями обязаны остаться у кого-то.
+ *
+ * Правка обходила его целиком: `PATCH` с пустым набором действий делал с ролью
+ * администратора то же, что удаление, — только молча и без проверок.
+ */
+const assertNotLastKeeper = async (orgId, key, before, after) => {
+  const others = (
+    await collection()
+      .find(
+        { organizationId: orgId, role: { $ne: key } },
+        { projection: { permission: 1, audience: 1 } },
+      )
+      .toArray()
+  ).map((row) => staffSideOf(parseStatements(row.permission), row.audience));
+
+  if (losesLastFullAccess(before, after, others)) {
+    throw new AppError(
+      "Это последняя роль с полным доступом — без неё в системе не останется администратора",
+      409,
+    );
+  }
+
+  const lost = lastKeeperLoss(before, after, others);
+  if (lost) {
+    throw new AppError(
+      `Это последняя роль с правом «${lost}» — без него управлять системой будет некому`,
+      409,
+    );
+  }
+};
+
+/**
+ * Роль выдаётся только учётной записи СВОЕГО адресата.
+ *
+ * Без этой проверки клиентская учётка получала роль сотрудника — а с ролью
+ * полного доступа и зеркало `isAdmin`, то есть чтение заявок всех компаний.
+ * Адресат роли до сих пор был только подсказкой форме.
+ */
+const assertRoleFitsAccount = (role, user) => {
+  const wanted = accountAudienceOf(user);
+  if (role.audience === wanted) return;
+  throw new AppError(
+    `Роль «${role.title || role.key}» предназначена ${
+      role.audience === "client" ? "клиентам" : "сотрудникам"
+    } — этой учётной записи её выдать нельзя`,
+    409,
+  );
 };
 
 const orgIdOrThrow = async () => {
@@ -245,6 +366,27 @@ const refreshMirrorForUsers = async (orgId, userIds) => {
     )
     .toArray();
 
+  // Тип учётной записи нужен здесь же: зеркало ставится только сотруднику
+  // (см. ниже), а членство о типе не знает.
+  const accounts = new Map(
+    (
+      await mongoose.connection.db
+        .collection("users")
+        .find(
+          {
+            _id: {
+              $in: rows
+                .map((row) => row.userId)
+                .filter(Boolean)
+                .map((id) => new mongoose.Types.ObjectId(String(id))),
+            },
+          },
+          { projection: { isEndUser: 1 } },
+        )
+        .toArray()
+    ).map((user) => [String(user._id), user]),
+  );
+
   for (const row of rows) {
     const keys = String(row.role || "")
       .split(",")
@@ -260,9 +402,13 @@ const refreshMirrorForUsers = async (orgId, userIds) => {
       }
     }
 
-    const shouldBeAdmin = keys.some((key) =>
-      isFullAccess(catalogue.get(key) || {}),
-    );
+    // Зеркало — только у СОТРУДНИКА: `isAdmin` читают около сотни мест как
+    // «этому можно всё», а клиентская учётная запись правами сотрудника не
+    // действует вовсе (действия чужого адресата вырезаются). Клиент с ролью
+    // полного доступа получал через зеркало заявки всех компаний.
+    const shouldBeAdmin =
+      accountAudienceOf(accounts.get(String(row.userId))) === "staff" &&
+      keys.some((key) => isFullAccess(catalogue.get(key) || {}));
 
     await mongoose.connection.db.collection("users").updateOne(
       { _id: new mongoose.Types.ObjectId(String(row.userId)) },
@@ -298,6 +444,14 @@ const update = async (key, { title, description, actions, audience }, can) => {
     throw new AppError("Роль не найдена", 404);
   }
 
+  // Правка — тоже распоряжение ПРЕЖНИМИ правами роли: набор можно урезать, а
+  // адресатом решается, кому роль достанется. Тот же порог, что у удаления:
+  // нельзя трогать роль, раздающую больше, чем есть у самого. Проверялся один
+  // только НОВЫЙ набор — и любой носитель `role.manage` обнулял роль
+  // администратора, гасил зеркало `isAdmin` у всех и вернуть его было некому.
+  const before = parseStatements(role.permission);
+  assertNotEscalating(before, can);
+
   const set = { updatedAt: new Date() };
   if (title !== undefined) {
     if (!String(title).trim()) {
@@ -319,11 +473,27 @@ const update = async (key, { title, description, actions, audience }, can) => {
     set.permission = JSON.stringify(clean);
   }
 
+  // Порог считается и на смене ОДНОГО адресата, без правки набора: раньше он
+  // стоял внутри ветки `actions`, и PATCH с единственным полем `audience`
+  // переводил роль администратора в клиентские молча — сотрудники-носители
+  // оставались без полного доступа, а вернуть его было уже некому.
+  if (actions !== undefined || audience !== undefined) {
+    const after =
+      set.permission !== undefined ? parseStatements(set.permission) : before;
+    await assertNotLastKeeper(
+      orgId,
+      key,
+      staffSideOf(before, role.audience),
+      staffSideOf(after, set.audience ?? role.audience),
+    );
+  }
+
   await collection().updateOne({ _id: role._id }, { $set: set });
   invalidateRoles();
 
-  // Набор прав роли изменился — зеркало у её носителей обязано догнать
-  if (set.permission !== undefined) {
+  // Набор прав роли или её адресат изменились — зеркало у носителей обязано
+  // догнать: и то и другое решает, полный ли это доступ сотрудника
+  if (set.permission !== undefined || set.audience !== undefined) {
     await refreshMirrorFor(orgId, key);
   }
 
@@ -342,7 +512,7 @@ const remove = async (key, can) => {
     throw new AppError("Роль не найдена", 404);
   }
 
-  const statements = JSON.parse(role.permission || "{}");
+  const statements = parseStatements(role.permission);
 
   // Удаление — тоже распоряжение чужими правами: оно снимает роль со всех, кто
   // её носит. Тот же порог, что у создания и правки: нельзя трогать роль,
@@ -350,31 +520,15 @@ const remove = async (key, can) => {
   // администраторскую роль, выдать которую не может.
   assertNotEscalating(statements, can);
 
-  // Последнюю роль, дающую управление ролями или пользователями, не отдаём:
-  // после неё раздавать права станет некому, и починить это можно будет только
-  // руками в базе.
-  for (const [resource, action] of [
-    ["role", "manage"],
-    ["user", "manage"],
-  ]) {
-    if (!statements?.[resource]?.includes(action)) continue;
-    const others = await collection()
-      .find({ organizationId: orgId, role: { $ne: key } })
-      .toArray();
-    const someoneElse = others.some((other) => {
-      try {
-        return JSON.parse(other.permission || "{}")?.[resource]?.includes(action);
-      } catch {
-        return false;
-      }
-    });
-    if (!someoneElse) {
-      throw new AppError(
-        `Это последняя роль с правом «${resource}.${action}» — без неё управлять системой будет некому`,
-        409,
-      );
-    }
-  }
+  // Удаление уносит права роли целиком — поэтому набор «после» пустой.
+  // Адресат учитываем так же, как при правке: клиентская роль хранителем
+  // сотрудничьих прав не была, и её удаление порогом не связано.
+  await assertNotLastKeeper(
+    orgId,
+    key,
+    staffSideOf(statements, role.audience),
+    {},
+  );
 
   const affected = await usage(orgId, key);
 
@@ -476,6 +630,17 @@ const assign = async (userId, keys, can) => {
     throw new AppError(`Неизвестные роли: ${unknown.join(", ")}`, 400);
   }
 
+  const orgId = await orgIdOrThrow();
+  const account = await mongoose.connection.db
+    .collection("users")
+    .findOne(
+      { _id: new mongoose.Types.ObjectId(String(userId)) },
+      { projection: { isEndUser: 1 } },
+    );
+  if (!account) {
+    throw new AppError("Учётная запись не найдена", 404);
+  }
+
   // Назначить роль, которая даёт больше, чем есть у назначающего, — тот же
   // обход, что и создание такой роли, только в два шага. Но проверять надо
   // ровно ДОБАВЛЯЕМЫЕ роли: форма пользователя присылает список целиком, и на
@@ -483,7 +648,6 @@ const assign = async (userId, keys, can) => {
   // у которого уже есть роль с чужим правом (у «Подрядчика без работ» есть
   // ticket.closeWithoutWork, которого нет у администратора). Оставить роль как
   // была — не выдача прав, снять роль — тем более.
-  const orgId = await orgIdOrThrow();
   const member = await members().findOne({
     organizationId: orgId,
     userId: String(userId),
@@ -497,6 +661,14 @@ const assign = async (userId, keys, can) => {
 
   for (const key of keys) {
     if (current.has(key)) continue;
+    // Адресат роли — ЗАПРЕТ, а не подсказка форме: роль сотрудника на
+    // клиентской учётной записи (и наоборот) означает права, которых у этого
+    // типа доступа быть не должно, а роль полного доступа — ещё и зеркало
+    // `isAdmin`, то есть заявки всех компаний. Проверяются, как и выше, ровно
+    // ДОБАВЛЯЕМЫЕ роли: форма присылает набор целиком, и на проверке всех
+    // подряд разъехавшееся назначение запретило бы сохранить даже телефон —
+    // причём уже после `user.save()`.
+    assertRoleFitsAccount(known.get(key), account);
     assertNotEscalating(known.get(key).statements, can);
   }
 
@@ -522,8 +694,14 @@ const assign = async (userId, keys, can) => {
    * способа сказать «этому можно всё» неизбежно разъезжаются, и разъехавшись
    * дают либо тихую потерю доступа, либо тихое его сохранение после снятия
    * роли. Источник истины теперь один — набор ролей.
+   *
+   * Зеркало ставится ТОЛЬКО СОТРУДНИКУ: `isAdmin` означает «можно всё» в
+   * терминах сотрудника, и клиентской учётной записи он открывал бы данные всех
+   * компаний мимо адресатов (то же в `refreshMirrorForUsers`).
    */
-  const shouldBeAdmin = keys.some((key) => isFullAccess(known.get(key).statements));
+  const shouldBeAdmin =
+    accountAudienceOf(account) === "staff" &&
+    keys.some((key) => isFullAccess(known.get(key).statements));
   await mongoose.connection.db
     .collection("users")
     .updateOne(
@@ -553,30 +731,33 @@ const pluginRole = (statements) =>
   statements?.user?.includes("impersonate") ? "impersonator" : "user";
 
 /**
- * Права, которые нельзя выдать иначе как вместе со всем порталом.
- *
- * Право попадает сюда, когда его не даёт ни одна роль либо дают только роли с
- * полным доступом. Каталог заведут — список опустеет сам; никаких пометок
- * руками и никакого сравнения с ключом «admin».
+ * Права без своей роли — по адресату: право клиента — дыра, если его не даёт
+ * ни одна клиентская роль (кроме полного доступа); право сотрудника — если ни
+ * одна роль сотрудников; `both` — если ни та ни другая. Каталог заведут —
+ * список опустеет сам; никаких пометок руками и никакого сравнения с ключом
+ * «admin».
  */
 const gaps = async () => {
   const catalogue = await listRoles();
   const partial = catalogue.filter((role) => !isFullAccess(role.statements));
 
-  const covered = new Set(
-    partial.flatMap((role) =>
-      Object.entries(role.statements).flatMap(([resource, actions]) =>
-        actions.map((action) => `${resource}.${action}`),
-      ),
-    ),
-  );
+  const covered = { staff: new Set(), client: new Set() };
+  for (const role of partial) {
+    for (const [resource, actions] of Object.entries(role.statements)) {
+      for (const action of actions) covered[role.audience].add(`${resource}.${action}`);
+    }
+  }
 
   // Наружу — идентификаторы действий: подписи к ним фронт берёт из того же
   // каталога, что и всё остальное (`/api/me`, `permissionCatalogue`).
   return Object.entries(STATEMENT).flatMap(([resource, actions]) =>
     actions
-      .filter((action) => !covered.has(`${resource}.${action}`))
-      .map((action) => `${resource}.${action}`),
+      .map((action) => `${resource}.${action}`)
+      .filter((id) => {
+        const audience = audienceOfAction(id);
+        const wanted = audience === "both" ? ["staff", "client"] : [audience];
+        return !wanted.some((key) => covered[key].has(id));
+      }),
   );
 };
 
@@ -593,7 +774,14 @@ module.exports = {
   rolesOfMember,
   namedRoles,
   slugify,
-  // Для миграции (`scripts/assignRoles.js`): раздача с прода обязана оставить
-  // зеркало в том же виде, что и назначение из интерфейса.
+  // Для миграции (`scripts/assignRoles.js`) и скриптов каталога
+  // (`syncRoleCatalogue.js`, `migrateActions.js`): правка ролей мимо приложения
+  // обязана оставить зеркало в том же виде, что и правка из интерфейса.
   refreshMirrorForUsers,
+  refreshMirrorFor,
+  // Чистые части порогов — для тестов без базы.
+  lastKeeperLoss,
+  losesLastFullAccess,
+  staffSideOf,
+  assertRoleFitsAccount,
 };

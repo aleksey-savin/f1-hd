@@ -33,9 +33,11 @@ The module is gated by **one master switch**, `Preferences.mikrotik.isActive`
 
 - `backend/services/mikrotik/enabled.js` → `mikrotikEnabled()` — read by the
   crons, which return early when the integration is off.
-- `middleware/permissions.js` → `mikrotikIsActive` — gates the whole router:
-  `internalRoutes.use("/inventory", mikrotikIsActive, mikrotikRoutes)`
-  (`routes/index.js`). Off ⇒ 403 «Интеграция Mikrotik отключена».
+- `middleware/permissions.js` → `mikrotikIsActive` — layered on the router's own
+  prefix together with the read right:
+  `internalRoutes.use("/inventory/mikrotik-devices", mikrotikIsActive, canReadMikrotik)`
+  (`routes/inventoryMount.js`, see `docs/inventory.md` §1 for why the gates sit on
+  prefixes rather than on the mount). Off ⇒ 403 «Интеграция Mikrotik отключена».
 - The menu reads the same flag through `preferences-initial` → `store/prefs`.
 
 The previous binding to the **inventory module** was leaky: turning that module
@@ -43,9 +45,11 @@ off hid the UI and the API but left the crons polling devices and filing
 tickets. The four crons (health-check, scheduler, offline alerts, firmware
 refresh) now each check the switch on entry.
 
-Permissions are unchanged and orthogonal to the switch:
-`canManageMikrotikDevices` (device mutations), `canManageMikrotikConfigs`
-(config exports — see _Security model_), `isAdmin` bypasses both.
+Rights are orthogonal to the switch and come from the permission dictionary:
+`mikrotik.read` (the whole section, layered on the prefix), `mikrotik.manage`
+(record mutations), `mikrotik.manageConfigs` (config exports — see _Security
+model_). There is no admin bypass branch: a full-access role carries the whole
+staff dictionary, so the same `can()` decides for everybody.
 
 ## Data model & relationships
 
@@ -72,7 +76,7 @@ Company                                   Vendor (+ isMikrotikManagementEnabled)
 - **`createInventoryCard`** builds the card from polled data when no card carries
   that serial, picking a `DeviceModel` by board name among vendors with the
   Mikrotik flag (no match ⇒ card without a model), then links it. It additionally
-  requires `canManageClientDevices` — it writes into inventory.
+  requires `canManageDevices` (`device.manage`) — it writes into inventory.
 - **`MikrotikOutage`** (`backend/models/mikrotikOutage.js`) — one document per
   outage episode: `mikrotik` (ref), `startedAt`, `endedAt` (null = ongoing),
   `open` (present only while ongoing; a **partial unique index** `{mikrotik: 1}`
@@ -296,9 +300,10 @@ must run RouterOS (see _SwOS is out of scope_).
 
 ### Endpoints — `backend/routes/internal/inventory/mikrotik.js`
 
-Mounted under `/api/inventory` behind `mikrotikIsActive` (see _Integration
-switch_). Reads require `isAuth`; device mutations `canManageMikrotikDevices`;
-config routes `canManageMikrotikConfigs`. **The password and knock sequence are
+Mounted under `/api/inventory` behind `mikrotikIsActive` + `canReadMikrotik`
+(see _Integration switch_). Reads therefore need only `isAuth` on the route
+itself; record mutations add `canManageMikrotik`; config routes
+`canManageMikrotikConfigs`. **The password and knock sequence are
 never returned**, and every endpoint that opens an outbound connection is
 rate-limited per user (`parametersLimiter`, 30/min). Route order matters: the
 literal `standalone`, `records`, `report` and `firmware` segments are declared
@@ -311,7 +316,7 @@ literal `standalone`, `records`, `report` and `firmware` segments are declared
 | `POST /standalone/parameters` | `createStandalone` | **Creates any new record** (the name is historical). Verify-on-save, then `companyId`/`label`. Responds with `inventory: {candidate, canCreateCard}` — the link step. |
 | `POST /records/:recordId/parameters` | `updateRecordParameters` | Re-verify + update; also acts as **recovery** (closes the episode, posts the ticket comment, clears alert state). Clearing the transit select `$unset`s `jumpRecordId`. `companyId`/`label` are accepted only for unlinked records — a linked one takes identity from its card. |
 | `POST /records/:recordId/link-inventory` | `linkInventory` | Attach an existing card (see _Data model_). |
-| `POST /records/:recordId/create-inventory` | `createInventoryCard` | Create the card from polled data and attach it. Also needs `canManageClientDevices`. |
+| `POST /records/:recordId/create-inventory` | `createInventoryCard` | Create the card from polled data and attach it. Also needs `canManageDevices`. |
 | `POST /records/:recordId/connect` | `connectRecord` | `monitoringEnabled: true` + immediate poll. |
 | `POST /records/:recordId/disconnect` | `disconnectRecord` | `monitoringEnabled: false` + `status: "offline"`; closes the open episode silently and clears the alert state. |
 | `DELETE /records/:recordId` | `deleteRecord` | Delete the record (credentials, pinned cert, polled data) and its episodes; the inventory card is untouched. **409** when other records connect through it. |
@@ -793,8 +798,8 @@ why, in the 2026-07-24 entry of `docs/ux-ui-changelog.md`. Component internals
   legacy card-scoped `saveParameters` / `syncInventory` / `detach`. Exports the
   `rowStatus` helper used for grouping.
 - **Nav** — `layout/Navigation/menu.js`: a direct «Мониторинг» link to
-  `/devices/mikrotik`, shown when the integration is on AND the user has
-  `canManageMikrotikDevices` or `canManageMikrotikConfigs`.
+  `/devices/mikrotik`, shown when the integration is on AND the user holds
+  `mikrotik.read` — the same right that gates the API prefix.
 - **Inventory card** (`components/ClientDevice/View.jsx`) — no tabs any more: a
   summary panel (`components/ClientDevice/MonitoringPanel.jsx`) reads the same
   `records/:recordId` endpoint as the record page and links to it. The whole
@@ -867,10 +872,10 @@ hardened in depth:
   soft guard from _SSH jump host_, and every connecting endpoint is rate-limited
   per user.
 - **Separation of duties on configs** — every config route is gated by
-  `canManageMikrotikConfigs`, distinct from `canManageMikrotikDevices`: an
-  operator can be given export access without the right to edit connection
-  parameters, and vice versa (`isAdmin` bypasses both). Downloading additionally
-  requires an emailed 6-digit code (_Two-factor download_).
+  `canManageMikrotikConfigs` (`mikrotik.manageConfigs`), distinct from
+  `canManageMikrotik` (`mikrotik.manage`): an operator can be given export access
+  without the right to edit connection parameters, and vice versa. Downloading
+  additionally requires an emailed 6-digit code (_Two-factor download_).
 - Responses never expose the password or knock sequence
   (`.select("-credentials.password -credentials.knockSequence")`).
 
@@ -1035,8 +1040,8 @@ MikroTik or a CHR VM); otherwise temporarily stub `pollDevice`.
    `.rsc` appears, download demands the emailed code and returns the config text,
    delete removes it. A daily schedule fires from the :02 cron when `nextRunAt`
    is due and prunes to `keepLast`. Missing `ssh`, an unreachable port or a
-   changed host key → clear message. A user with only `canManageMikrotikDevices`
-   gets 403 on every configs route.
+   changed host key → clear message. A user with only `mikrotik.manage` gets 403
+   on every configs route.
 8. **Outage → ticket → recovery comment.** Black-hole the device → on
    confirmation an open `MikrotikOutage` with `startedAt = offlineSince`; past
    the threshold the alert cron re-polls, fails and raises the ticket, stamping

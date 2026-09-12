@@ -22,6 +22,7 @@ const {
   revokeAllForUser,
   revokeOthersForUser,
 } = require("../services/authSessions");
+const { isStaffAdmin } = require("@/auth/access");
 const { AppError } = require("../middleware/errorHandling");
 const { concatIdsArray } = require("../helpers/concatIdsArray");
 const { encryptSecret, isEncrypted } = require("../services/crypto/secretBox");
@@ -69,8 +70,7 @@ const toNonNegativeOrNull = (value) => {
   return Number.isFinite(num) && num >= 0 ? num : null;
 };
 
-const canManageFinances = (req) =>
-  req.auth.can({ report: ["employees"] });
+const canManageFinances = (req) => req.auth.can({ user: ["manageFinances"] });
 
 // График правится из формы пользователя, но своим правом: у того, кто ведёт
 // пользователей, не обязательно есть право на графики и наоборот.
@@ -102,6 +102,29 @@ const assertMayChangeRoles = (req, currentKeys, wanted) => {
     );
   }
 };
+
+/**
+ * ДОСТУПОМ АДМИНИСТРАТОРА РАСПОРЯЖАЕТСЯ ТОЛЬКО АДМИНИСТРАТОР.
+ *
+ * Иначе право «управлять доступом и ролями» означает «стать администратором»:
+ * назначить ему пароль, отправить себе ссылку на смену, погасить его сеансы или
+ * снять с него второй фактор — и войти. Ровно поэтому под администратором
+ * нельзя и входить подменой (controllers/impersonation.js).
+ *
+ * Признак наш, `isAdmin` — зеркало роли, отдающей весь словарь сотрудника;
+ * своего пароля это не касается: администратор и есть администратор.
+ *
+ * Считает его `isStaffAdmin` (auth/access.js), а не сырое поле: у клиентской
+ * учётной записи зеркало не действует, и оставшийся в базе с прежних времён
+ * флаг иначе запирал бы её от КАЖДОГО носителя «управлять доступом и ролями».
+ *
+ * @returns {boolean} можно ли вызывающему трогать доступ этой учётной записи
+ */
+const mayTouchAccount = (req, target) =>
+  !isStaffAdmin(target) || Boolean(req.auth?.isAdmin);
+
+const ADMIN_ACCOUNT_ONLY =
+  "Доступом администратора управляет только администратор";
 
 /**
  * Применить блок графика работы к документу пользователя (без сохранения).
@@ -222,17 +245,13 @@ exports.getAll = async (req, res, next) => {
     const and = [];
 
     // 1) Скоуп по правам — в самом запросе (раньше выбирались все и фильтровались
-    // в JS). Админ и обладатель canAdministrateTickets видят всех; остальные —
-    // только пользователей компаний, за которые отвечают (company._id встроен,
-    // индексируемое совпадение без $lookup).
-    const canSeeAll = Boolean(
-      req.auth.can({ ticket: ["administrate"] }),
-    );
+    // в JS), company._id встроен — индексируемое совпадение без $lookup.
+    // Скоуп по типу аккаунта: сотрудник видит всех, клиент — свою компанию.
+    // Ответственность за компанию список людей больше не сужает (спека 2026-09-11).
+    const canSeeAll = !req.auth.isEndUser;
     const scopedCompanyIds = canSeeAll
       ? null
-      : (authedUser.responsibleForCompanies || [])
-          .map((company) => company.id)
-          .filter(Boolean);
+      : [authedUser.company?._id].filter(Boolean).map((id) => new mongoose.Types.ObjectId(String(id)));
 
     // 2) Компания-фасет (одиночный выбор) — с учётом скоупа.
     const companyFilterId =
@@ -471,10 +490,9 @@ exports.getAll = async (req, res, next) => {
   }
 };
 
-// Компании для фасета списка «Пользователи». Повторяет скоуп getAll: админ и
-// canAdministrateTickets — все компании; остальные — только те, за которые
-// отвечают (responsibleForCompanies уже несёт id+alias, без запроса). Отдельно
-// от /form-data/companies: тот заточен под форму заявки (сотруднику — только
+// Компании для фасета списка «Пользователи». Повторяет скоуп getAll:
+// сотрудник видит все компании, клиент — только свою. Отдельно от
+// /form-data/companies: тот заточен под форму заявки (сотруднику — только
 // его компания) и здесь дал бы одну компанию.
 exports.getScopeCompanies = async (req, res, next) => {
   try {
@@ -484,18 +502,13 @@ exports.getScopeCompanies = async (req, res, next) => {
       return next(new AppError("Unauthorized", 401));
     }
 
-    const canSeeAll = Boolean(
-      req.auth.can({ ticket: ["administrate"] }),
-    );
-
     let companies;
-    if (canSeeAll) {
+    if (!req.auth.isEndUser) {
       companies = await Company.find({}, "_id alias").sort({ alias: 1 }).lean();
     } else {
-      companies = (authedUser.responsibleForCompanies || [])
-        .map((company) => ({ _id: company.id, alias: company.alias }))
-        .filter((company) => company._id)
-        .sort((a, b) => (a.alias || "").localeCompare(b.alias || ""));
+      companies = authedUser.company?._id
+        ? [{ _id: authedUser.company._id, alias: authedUser.company.alias }]
+        : [];
     }
 
     res.status(200).json(
@@ -594,7 +607,20 @@ exports.getOne = async (req, res, next) => {
       }
       res.status(200).json(payload);
     } else {
-      res.status(200).json(maskSecrets(authedUser));
+      // Клиент: свою карточку — целиком (без секретов), коллегу своей компании —
+      // адресной книгой. Чужие компании закрыты.
+      const isSelf = authedUser._id.toString() === user._id.toString();
+      if (isSelf) return res.status(200).json(maskSecrets(authedUser));
+      // Без компании сравнение `undefined !== undefined` было бы ложным —
+      // два клиента без компании видели бы друг друга. Отказ по умолчанию.
+      if (!authedUser.company?._id) {
+        return next(new AppError("Пользователь вам недоступен", 403));
+      }
+      if (String(user.company?._id) !== String(authedUser.company?._id)) {
+        return next(new AppError("Пользователь вам недоступен", 403));
+      }
+      const { _id, firstName, lastName, email, phone, position, company, subdivision, profileImagePath, isEndUser } = user.toObject();
+      res.status(200).json({ _id, firstName, lastName, email, phone, position, company, subdivision, profileImagePath, isEndUser });
     }
   } catch (error) {
     next(
@@ -640,46 +666,19 @@ exports.revokePro32 = async (req, res, next) => {
 
 exports.getCanPerformTicketsUsers = async (req, res, next) => {
   try {
-    const users = await User.find({
-      ...(await permissionFilter("ticket.perform")),
-      banned: { $ne: true },
-    });
+    // Ручка открыта и клиенту (см. routes/internal/user.js), поэтому отдаём
+    // ровно то, что читают потребители: подпись в выпадашках ответственных
+    // (`lastName firstName`) и должность подсказкой в диалоге «Позвать
+    // коллегу». Раньше уходил документ целиком — с хешем пароля, финансами,
+    // ключом PRO32 и настройками уведомлений.
+    // Отключённых и служебные учётки отсекает сам permissionFilter
+    const users = await User.find(
+      await permissionFilter("ticket.perform"),
+    ).select("_id firstName lastName position");
     res.status(200).json(users);
   } catch (error) {
     next(
       new AppError(`Failed to fetch CanPerformTicketsUsers`, 500, true, error),
-    );
-  }
-};
-
-// Кандидаты в модераторы базы знаний: активные сотрудники, которые могут видеть
-// и управлять базой знаний (либо админы). Используется в настройках (вкладка
-// «База знаний») для списка модераторов.
-exports.getKnowledgeBaseModerators = async (req, res, next) => {
-  try {
-    // Кандидат обязан уметь и видеть базу знаний, И управлять ею — поэтому два
-    // условия через $and, а не одно $or. Каждое покрывает обе дороги: право
-    // ролью и собственный флаг.
-    const users = await User.find({
-      banned: { $ne: true },
-      isServiceAccount: false,
-      $and: [
-        await permissionFilter("knowledge.read"),
-        await permissionFilter("knowledge.manage"),
-      ],
-    })
-      .sort({ lastName: 1 })
-      .select("_id firstName lastName");
-
-    res.status(200).json(users);
-  } catch (error) {
-    next(
-      new AppError(
-        `Failed to fetch knowledge base moderators`,
-        500,
-        true,
-        error,
-      ),
     );
   }
 };
@@ -760,15 +759,35 @@ exports.add = async (req, res, next) => {
       return next(new AppError("Задайте пароль или пригласите письмом", 400));
     }
 
-    // Роль обязательна сотруднику и клиенту: без неё у человека нет прав, а
-    // учётка без прав — ошибка заведения, не состояние. Проверка ДО записи:
-    // ниже документ уже сохраняется и уходит приглашение. Служебной учётке
-    // роли не положены вовсе (см. форму).
-    if (!isServiceAccount && !(Array.isArray(roles) && roles.length > 0)) {
+    /**
+     * Роль обязательна ТОМУ, КТО ЕЁ ВЫДАЁТ: без неё у человека нет прав, а
+     * учётка без прав, заведённая при выбираемых ролях, — ошибка заполнения.
+     *
+     * У того, кому доверены карточки, но не доступ (`user.manageAccess`), шага
+     * «Права и доступ» в форме нет вовсе, и набор ролей он не присылает —
+     * требовать от него роль значит запретить заводить людей совсем. Такой
+     * человек заводится без ролей: свои заявки он видит и без них, а роли ему
+     * назначит тот, кто доступом распоряжается.
+     *
+     * Проверка ДО записи: ниже документ уже сохраняется и уходит приглашение.
+     * Служебной учётке роли не положены вовсе (см. форму).
+     */
+    const mayGrantRoles = req.auth.can({ user: ["manageAccess"] });
+    if (
+      !isServiceAccount &&
+      mayGrantRoles &&
+      !(Array.isArray(roles) && roles.length > 0)
+    ) {
       return next(new AppError("Выберите хотя бы одну роль", 400));
     }
 
     // Новому человеку ролей ещё не назначено, поэтому текущий набор пуст.
+    //
+    // Роль «Клиент» форма подставляет сама (`User/UserForm`), но ТОЛЬКО тому,
+    // у кого шаг «Права и доступ» вообще есть: без `user.manageAccess` набор в
+    // теле запроса не приходит, и проверка ниже пропускает его молча
+    // («поле не прислано» — не раздача прав). Поэтому системная подстановка
+    // роли не превращается в 403 у того, кто ролями не распоряжается.
     assertMayChangeRoles(req, [], roles);
 
     // Заглушка на время создания документа: настоящее значение проставит
@@ -882,7 +901,14 @@ exports.add = async (req, res, next) => {
     await ensureMember(user._id);
     // Назначаем ВСЕГДА, даже пустой набор: этим же вызовом проставляется
     // зеркало `isAdmin`, и пропуск оставил бы его непроверенным.
-    await assignRoles(user._id, Array.isArray(roles) ? roles : [], req.auth.can);
+    // Авторизует `canGrant`, а не `can`: выдать роли можно и то, чем сам не
+    // действуешь (клиентское «Согласовывать отчёты» у роли клиента), а `can`
+    // усечён по адресату вызывающего и отказывал администратору-сотруднику.
+    await assignRoles(
+      user._id,
+      Array.isArray(roles) ? roles : [],
+      req.auth.canGrant,
+    );
 
     company.employees.push(user._id);
 
@@ -978,8 +1004,15 @@ exports.update = async (req, res, next) => {
     } = req.body;
 
     // Пустой набор ролей сотруднику или клиенту не сохраняем (как и при
-    // заведении); поле не прислано — роли не трогаются
-    if (!isServiceAccount && Array.isArray(roles) && roles.length === 0) {
+    // заведении) — но только у того, кто роли и выдаёт: без `user.manageAccess`
+    // форма набор не присылает вовсе, и «поле не прислано» значит «роли не
+    // трогаются».
+    if (
+      !isServiceAccount &&
+      req.auth.can({ user: ["manageAccess"] }) &&
+      Array.isArray(roles) &&
+      roles.length === 0
+    ) {
       return next(new AppError("Выберите хотя бы одну роль", 400));
     }
 
@@ -1109,7 +1142,8 @@ exports.update = async (req, res, next) => {
     // документа поверх вернуло бы прежнее значение.
     await ensureMember(user._id);
     if (Array.isArray(roles)) {
-      await assignRoles(user._id, roles, req.auth.can);
+      // `canGrant`, а не `can` — см. комментарий в `add`.
+      await assignRoles(user._id, roles, req.auth.canGrant);
     }
 
     if (scheduleChanged) {
@@ -1200,6 +1234,10 @@ exports.toggleActive = async (req, res, next) => {
       return next(new AppError("Учётная запись не найдена", 404));
     }
 
+    if (!mayTouchAccount(req, user)) {
+      return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
+    }
+
     // Направление приходит явно: у «отключить» и «включить» разные тела, и
     // вычислять его инверсией значит зависеть от того, что видела вкладка.
     const banned =
@@ -1254,6 +1292,18 @@ exports.sessions = async (req, res, next) => {
 /** Завершить один чужой сеанс. */
 exports.revokeSession = async (req, res, next) => {
   try {
+    // Учётная запись поднимается только ради признака администратора: гасить
+    // его сеансы — способ его же и запереть.
+    const target = await User.findById(req.params.id).select(
+      "_id isAdmin isEndUser",
+    );
+    if (!target) {
+      return next(new AppError("Учётная запись не найдена", 404));
+    }
+    if (!mayTouchAccount(req, target)) {
+      return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
+    }
+
     const removed = await revokeById(req.params.id, req.params.sessionId);
     if (!removed) {
       return next(new AppError("Сеанс не найден", 404));
@@ -1278,10 +1328,14 @@ exports.revokeSession = async (req, res, next) => {
 exports.resetTwoFactor = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id).select(
-      "_id firstName lastName email",
+      "_id firstName lastName email isAdmin isEndUser",
     );
     if (!user) {
       return next(new AppError("Учётная запись не найдена", 404));
+    }
+
+    if (!mayTouchAccount(req, user)) {
+      return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
     }
 
     if (!(await isTwoFactorEnabledFor(req.auth.user._id))) {
@@ -1317,6 +1371,16 @@ exports.resetTwoFactor = async (req, res, next) => {
 /** Завершить все сеансы человека — не отключая саму учётную запись. */
 exports.revokeAllSessions = async (req, res, next) => {
   try {
+    const target = await User.findById(req.params.id).select(
+      "_id isAdmin isEndUser",
+    );
+    if (!target) {
+      return next(new AppError("Учётная запись не найдена", 404));
+    }
+    if (!mayTouchAccount(req, target)) {
+      return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
+    }
+
     const count = await revokeAllForUser(req.params.id);
     res.status(200).json({ message: "Сеансы завершены", count });
   } catch (error) {
@@ -1333,6 +1397,12 @@ exports.delete = async (req, res, next) => {
     // крутила спиннер бесконечно.
     if (!user) {
       return next(new AppError("Учётная запись не найдена", 404));
+    }
+
+    // Отключение и удаление — тоже распоряжение доступом администратора: без
+    // этой проверки «вести пользователей» означало бы «выключить портал».
+    if (!mayTouchAccount(req, user)) {
+      return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
     }
 
     /**
@@ -1454,6 +1524,10 @@ exports.changePassword = async (req, res, next) => {
       return next(new AppError("Учётная запись не найдена", 404));
     }
 
+    if (!mayTouchAccount(req, user)) {
+      return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
+    }
+
     if (password !== repeatedPassword) {
       return next(new AppError(`Пароли не совпадают`, 401));
     }
@@ -1555,6 +1629,10 @@ exports.sendPasswordLink = async (req, res, next) => {
 
     if (!user) {
       return next(new AppError("Учётная запись не найдена", 404));
+    }
+
+    if (!mayTouchAccount(req, user)) {
+      return next(new AppError(ADMIN_ACCOUNT_ONLY, 403));
     }
 
     // Ссылка ведёт к паролю, а этими учётками паролем не входят: письмо

@@ -88,7 +88,7 @@ const SourceRow = ({ source }) => {
   );
 };
 
-const AiGuideSection = () => {
+const AiGuideSection = ({ canEditChecklist = false }) => {
   const { token } = getLocalStorageData();
   const can = useCan();
 
@@ -110,7 +110,6 @@ const AiGuideSection = () => {
   const busy = isLoading || status === "pending";
 
   const canGenerate = can({ ticket: ["perform"] }) && !ticket?.isArchived;
-  const canEditChecklist = can({ ticket: ["update"] }) && !ticket?.isArchived;
 
   const applyGuide = (guide) => {
     const current = useViewTicketStore.getState().ticket;

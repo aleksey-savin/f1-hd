@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
+import { useCan } from "@/store/authed-user";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import {
   businessDaysAgo,
@@ -33,10 +34,16 @@ const whenLabel = (date) => {
 
 const ScheduledWorks = () => {
   const { _id: userId } = useContext(AuthedUserContext);
+  const can = useCan();
   const fromState = useCrumbFrom("Главная");
   const [works, setWorks] = useState([]);
 
+  // Без права видеть работы блока нет и ручку не дёргаем: ответом всё равно
+  // будет отказ.
+  const canReadWorks = !!can({ work: ["read"] });
+
   useEffect(() => {
+    if (!canReadWorks) return;
     const load = async () => {
       try {
         const response = await fetch(
@@ -50,7 +57,7 @@ const ScheduledWorks = () => {
       }
     };
     load();
-  }, []);
+  }, [canReadWorks]);
 
   const upcoming = useMemo(() => {
     const dayStart = new Date();
@@ -66,7 +73,7 @@ const ScheduledWorks = () => {
       .slice(0, ROWS);
   }, [works, userId]);
 
-  if (upcoming.length === 0) return null;
+  if (!canReadWorks || upcoming.length === 0) return null;
 
   return (
     <section>

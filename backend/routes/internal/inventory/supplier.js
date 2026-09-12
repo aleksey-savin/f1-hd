@@ -6,19 +6,11 @@ const { canManageSuppliers } = require("@/middleware/permissions");
 const { supplierValidation } = require("@/validations/inventory/supplier");
 const { checkValidationResult } = require("@/middleware/validation");
 
-router.get(
-  "/suppliers",
-  isAuth,
-  canManageSuppliers,
-  supplierController.getAll,
-);
+// Право supplier.read уже проверено на монтировании роутера (canReadSuppliers
+// в routes/index.js) — здесь достаточно подтверждённой личности.
+router.get("/suppliers", isAuth, supplierController.getAll);
 
-router.get(
-  "/suppliers/:id",
-  isAuth,
-  canManageSuppliers,
-  supplierController.getOne,
-);
+router.get("/suppliers/:id", isAuth, supplierController.getOne);
 
 router.post(
   "/suppliers/add",

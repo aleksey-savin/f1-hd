@@ -9,6 +9,10 @@ export type PermissionAction = {
   id: string;
   label: string;
   hint?: string;
+  /** Адресат действия: `staff` по умолчанию, `client` или `both`. */
+  audience?: "staff" | "client" | "both";
+  /** Вторая подсказка для клиентской роли — только у `audience: "both"`. */
+  clientHint?: string;
 };
 
 /** Группа действий — раздел в форме роли и в карточке человека. */
@@ -21,8 +25,9 @@ export type PermissionGroup = {
 // Типобезопасный доступ к авторизованному пользователю.
 //
 // Стор `authed-user-context.js` пока на JS и создаётся с ЧАСТИЧНЫМ дефолтом
-// (`{ permissions: {}, workStatus }`), поэтому вывод типа контекста не знает ни
-// про `_id`, ни про флаги прав — потребители на TS ломались бы на выводе.
+// (`{ statements: {}, permissionCatalogue: [], workStatus }`), поэтому вывод
+// типа контекста не знает ни про `_id`, ни про остальные поля человека —
+// потребители на TS ломались бы на выводе.
 // Реальное значение из провайдера (layout/Root) — полный пользователь; сам тип
 // `AuthedUser` — доменный, живёт в `@/types/user`, здесь только граница до
 // миграции стора на TS.
@@ -45,6 +50,22 @@ export function useCan(): Can {
     statements?: Statements;
   };
   return useMemo(() => makeCan(user?.statements), [user?.statements]);
+}
+
+/**
+ * Что человек вправе ВЫДАТЬ роли — набор его ролей до вырезания по типу
+ * аккаунта (`grantStatements` из `/api/me`). Администратор-сотрудник не
+ * действует правом «Согласовывать отчёты», но клиентской роли его выдаёт.
+ */
+export function useCanGrant(): Can {
+  const user = useContext(AuthedUserContext) as unknown as {
+    grantStatements?: Statements;
+    statements?: Statements;
+  };
+  return useMemo(
+    () => makeCan(user?.grantStatements ?? user?.statements),
+    [user?.grantStatements, user?.statements],
+  );
 }
 
 /**

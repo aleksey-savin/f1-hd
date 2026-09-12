@@ -8,9 +8,9 @@ const {
   canReadUsers,
   canManageUsers,
   canManageUserAccess,
-  canManageKnowledge,
-  canManageIntegrations,
+  canManageSettings,
   selfOrCanManageUsers,
+  selfOrCanReadUsers,
   canImpersonateUsers,
   canManageSchedules,
   isNotClient,
@@ -33,24 +33,18 @@ router.get(
   isAuth,
   userController.getCanPerformTicketsUsers,
 );
-router.get(
-  "/users/knowledge-base-moderators",
-  isAuth,
-  canManageKnowledge,
-  userController.getKnowledgeBaseModerators,
-);
 // PRO32 Connect: подключённые пользователи и отзыв доступа (глобальные
 // настройки → «Интеграции»). Объявлены ДО wildcard /users/:id
 router.get(
   "/users/pro32-connected",
   isAuth,
-  canManageIntegrations,
+  canManageSettings,
   userController.getPro32Connected,
 );
 router.post(
   "/users/pro32-revoke/:id",
   isAuth,
-  canManageIntegrations,
+  canManageSettings,
   userController.revokePro32,
 );
 // Компании для фасета списка «Пользователи» (скоуп как у getAll)
@@ -185,6 +179,8 @@ router.post(
   runValidation,
   userController.updateWorkSchedule,
 );
-router.get("/users/:id", isAuth, userController.getOne);
+// Своя карточка открывается без права на чужие: «Мой аккаунт»
+// (`pages/User/MyAccount.jsx`) читает собственный профиль этой же ручкой
+router.get("/users/:id", isAuth, selfOrCanReadUsers, userController.getOne);
 
 module.exports = router;

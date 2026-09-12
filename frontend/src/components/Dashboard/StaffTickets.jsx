@@ -75,8 +75,9 @@ const StaffTickets = () => {
   // Ничейные заявки видит только тот, кому бэкенд вообще отдаёт чужие: у
   // остальных набор физически состоит из их собственных, и срез был бы пуст
   // всегда (см. скоуп all-opened в controllers/ticket.js).
-  const seesOthers =
-    !!can({ ticket: ["administrate"] }) || !!can({ ticket: ["readAll"] });
+  const seesOthers = !!can({
+    ticket: { actions: ["readAll", "readCompanies"], connector: "OR" },
+  });
 
   const mine = useMemo(
     () =>

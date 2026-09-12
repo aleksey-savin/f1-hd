@@ -1,4 +1,3 @@
-import { Link } from "react-router";
 import {
   RiAddFill,
   RiArrowRightSLine,
@@ -8,6 +7,7 @@ import {
   RiNodeTree,
 } from "react-icons/ri";
 
+import UserLink from "@/components/app/UserLink";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import ClientTime from "@/components/app/ClientTime";
@@ -124,13 +124,13 @@ const SubdivisionPreviewSheet = ({
                 <Info label="Руководитель">
                   {node.manager ? (
                     <>
-                      <Link
-                        to={`/users/${node.manager._id}`}
+                      <UserLink
+                        id={node.manager._id}
                         onClick={onClose}
                         className={userLinkClass}
                       >
                         {node.manager.lastName} {node.manager.firstName}
-                      </Link>
+                      </UserLink>
                       {node.manager.position && (
                         <span className="text-muted-foreground">
                           {" "}
@@ -204,13 +204,13 @@ const SubdivisionPreviewSheet = ({
                 <div className="grid gap-1">
                   {employees.map((user) => (
                     <div key={user._id} className="text-sm">
-                      <Link
-                        to={`/users/${user._id}`}
+                      <UserLink
+                        id={user._id}
                         onClick={onClose}
                         className={userLinkClass}
                       >
                         {user.lastName} {user.firstName}
-                      </Link>
+                      </UserLink>
                       {user.position && (
                         <span className="text-muted-foreground">
                           {" "}

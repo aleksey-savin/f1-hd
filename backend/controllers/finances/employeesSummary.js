@@ -12,6 +12,9 @@ const MAX_PERIOD_DAYS = 366;
 // Сводка по всем сотрудникам: часы, классы работ, переработки и доплата.
 // Доступ — только с правом на полный финансовый отчёт (гейт в роуте);
 // свой отчёт сотрудника живёт в personal-report-summary.
+//
+// Право на отчёт даёт часы и переработки; ставки и доплаты — отдельное право
+// `user.manageFinances` (свои деньги каждый видит в своём отчёте).
 exports.getSummary = async (req, res, next) => {
   try {
     const { from, to, approvedOnly } = req.query;
@@ -42,6 +45,7 @@ exports.getSummary = async (req, res, next) => {
       to,
       approvedOnly: approvedOnly === "true",
       preferences,
+      canSeeMoney: Boolean(req.auth?.can({ user: ["manageFinances"] })),
     });
 
     res.status(200).json(report);

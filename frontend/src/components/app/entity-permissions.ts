@@ -29,7 +29,7 @@ export function canManageEntity(
     case "servicePlan":
       return !!can({ servicePlan: ["manage"] });
     case "ticket":
-      return !!(can({ ticket: ["update"] }) || can({ ticket: ["delete"] }));
+      return !!(can({ ticket: ["manage"] }) || can({ ticket: ["delete"] }));
     case "ticketCategory":
       return !!can({ ticketCategory: ["manage"] });
     // У шаблонов чек-листов своё право — как и на маршруте

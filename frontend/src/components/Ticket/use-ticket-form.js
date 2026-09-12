@@ -114,6 +114,7 @@ const scrollToFirstError = () => {
  * @param {object} params.formData справочники от `GET /api/tickets/form-data`
  * @param {boolean} params.isEndUser заявителю видно только описание и вложения
  * @param {boolean} params.canPerformTickets ведущий заявки может не назначать себя
+ * @param {boolean} params.canCreateForOthers заводить заявку за другого: клиенту — инициатор-коллега, сотруднику — чужие компания, инициатор и ответственные
  * @param {string} params.userId чей это черновик (создание); без него черновика нет
  */
 export const useTicketForm = ({
@@ -122,6 +123,7 @@ export const useTicketForm = ({
   formData = {},
   isEndUser = false,
   canPerformTickets = false,
+  canCreateForOthers = false,
   userId = "",
 }) => {
   const config = TICKET_FORM_MODES[mode] ?? TICKET_FORM_MODES.add;
@@ -141,8 +143,11 @@ export const useTicketForm = ({
     asId(ticket?.category ?? ticket?.categoryId),
   );
   const [companyId, setCompanyId] = useState(asId(ticket?.company));
+  // На создании клиент по умолчанию заявляет сам за себя; у существующей
+  // заявки инициатор уже есть, и его подменять не нужно
+  const existingApplicantId = asId(ticket?.applicant ?? ticket?.applicantId);
   const [applicantId, setApplicantId] = useState(
-    asId(ticket?.applicant ?? ticket?.applicantId),
+    existingApplicantId || (isEndUser ? userId : ""),
   );
   const [responsibleIds, setResponsibleIds] = useState(() =>
     (ticket?.responsibles ?? []).map((person) => asId(person)),
@@ -181,6 +186,25 @@ export const useTicketForm = ({
       (user) => handlers.has(asId(user)) || asId(user.company) === companyId,
     );
   }, [formData.applicants, formData.responsibles, companyId, isEndUser]);
+
+  // Клиент с правом «Заводить заявки за других» выбирает инициатора среди
+  // коллег: список приходит с сервера уже суженным до его компании
+  const canPickApplicant =
+    isEndUser && canCreateForOthers && applicants.length > 1;
+
+  /**
+   * Показывать ли сотруднику компанию, инициатора и ответственных.
+   *
+   * НОВАЯ заявка без права «Заводить заявки за других» — заявка на себя:
+   * сервер и так ставит свою компанию и себя инициатором, а присланных
+   * ответственных выбрасывает (controllers/ticket.js#add). Форма до сих пор
+   * показывала три поля, требовала их заполнить и молча теряла введённое.
+   *
+   * Правка и «Обработать» — другое дело: там эти поля меняет «Вести заявки»
+   * (словарь: назначить любых ответственных, изменить компанию и инициатора),
+   * и прятать их было бы запретом того, что право прямо разрешает.
+   */
+  const picksForOthers = !isEndUser && (canCreateForOthers || mode !== "add");
 
   // Присутствие ответственных — из табло статусов (тот же лёгкий запрос, что
   // у рейла). Решение «кому назначить» принимают здесь, и смотреть для этого
@@ -247,14 +271,23 @@ export const useTicketForm = ({
       if (field.required && !hasAnswer(field.type, field.value))
         found[errorKeyOf(field)] = answerError(field);
     }
-    if (isEndUser) return found;
+    if (isEndUser) {
+      // Список сузился до одного кандидата, а выбор остался пустым —
+      // без этой проверки заявка ушла бы вовсе без инициатора
+      if (canPickApplicant && !applicantId)
+        found.applicant = "Выберите инициатора";
+      return found;
+    }
 
     if (!title.trim()) found.title = "Тема обязательна";
-    if (!companyId) found.company = "Выберите компанию";
-    if (!applicantId) found.applicant = "Выберите инициатора";
     if (!categoryId) found.category = "Выберите категорию";
-    if (!canPerformTickets && responsibleIds.length === 0)
-      found.responsibles = "Назначьте ответственных";
+    // Скрытые поля не проверяем: заявку на себя нельзя «не заполнить»
+    if (picksForOthers) {
+      if (!companyId) found.company = "Выберите компанию";
+      if (!applicantId) found.applicant = "Выберите инициатора";
+      if (!canPerformTickets && responsibleIds.length === 0)
+        found.responsibles = "Назначьте ответственных";
+    }
     return found;
   }, [
     config,
@@ -268,6 +301,8 @@ export const useTicketForm = ({
     responsibleIds,
     isEndUser,
     canPerformTickets,
+    canPickApplicant,
+    picksForOthers,
   ]);
 
   const errorOf = (field) => (attempted ? errors[field] : undefined);
@@ -388,7 +423,8 @@ export const useTicketForm = ({
     setCustomFields([]);
     setCategoryId("");
     setCompanyId("");
-    setApplicantId("");
+    // Клиент открывает форму заявителем на себя — «Очистить» возвращает к тому же
+    setApplicantId(isEndUser ? userId : "");
     setResponsibleIds([]);
     setDeadline("");
     setState("");
@@ -483,28 +519,35 @@ export const useTicketForm = ({
 
     if (!isEndUser) {
       payload.append("categoryId", categoryId);
+      // Заявка на себя: компанию и инициатора ставит сервер, ответственных у
+      // неё нет — присылать пустое честнее, чем присылать и терять
       payload.append(
         "company",
-        JSON.stringify(
-          (formData.companies ?? []).find((item) => asId(item) === companyId) ??
-            null,
-        ),
+        picksForOthers
+          ? JSON.stringify(
+              (formData.companies ?? []).find(
+                (item) => asId(item) === companyId,
+              ) ?? null,
+            )
+          : "",
       );
-      payload.append("applicantId", applicantId);
+      payload.append("applicantId", picksForOthers ? applicantId : "");
       payload.append(
         "responsibles",
-        JSON.stringify(
-          (formData.responsibles ?? []).filter((person) =>
-            responsibleIds.includes(asId(person)),
-          ),
-        ),
+        picksForOthers
+          ? JSON.stringify(
+              (formData.responsibles ?? []).filter((person) =>
+                responsibleIds.includes(asId(person)),
+              ),
+            )
+          : "[]",
       );
       // Настенное время в бизнес-таймзоне — пара к utcToLocalForm при загрузке
       payload.append("deadline", deadline ? localToUtc(deadline) : "");
     } else {
       payload.append("company", "");
       payload.append("responsibles", "[]");
-      payload.append("applicantId", "");
+      payload.append("applicantId", canPickApplicant ? applicantId : "");
     }
 
     if (mode === "add") {
@@ -556,6 +599,8 @@ export const useTicketForm = ({
     setResponsibleIds,
     responsibleOptions,
     applicants,
+    canPickApplicant,
+    picksForOthers,
     deadline,
     setDeadline,
     state,

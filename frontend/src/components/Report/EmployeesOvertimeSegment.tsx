@@ -6,6 +6,7 @@ import { Eyebrow } from "@/components/app/Panel";
 import StatTile, { StatTileDelta } from "@/components/app/StatTile";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useCan } from "@/store/authed-user";
 
 import type { EmployeesSummaryResponse } from "../../types/employeesReport";
 
@@ -17,6 +18,11 @@ import { formatMinutes, formatMoney } from "./work-format";
 
 // Режим «Переработки»: норма, Δ, переработки и доплата. Это прежний главный
 // экран отчёта — он никуда не делся, но перестал быть единственным.
+//
+// Право на отчёт даёт часы и переработки; деньги (ставки, доплата, сумма по
+// команде) — отдельное право `user.manageFinances`. Без него сервер сумм не
+// присылает, поэтому здесь уходят и плитка «К доплате», и предупреждение о
+// незаданных ставках: чинить их всё равно может только тот, кто ведёт оклады.
 
 const HINT = "к прошлому периоду";
 
@@ -35,6 +41,8 @@ const EmployeesOvertimeSegment = ({
   busy: boolean;
   currentUserId?: string;
 }) => {
+  const can = useCan();
+  const canSeeMoney = Boolean(can({ user: ["manageFinances"] }));
   const { totals, prev } = data;
 
   const missing = data.employees.filter(
@@ -54,7 +62,12 @@ const EmployeesOvertimeSegment = ({
 
   return (
     <div className={cn("transition-opacity", busy && "opacity-60")}>
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
+      <div
+        className={cn(
+          "grid grid-cols-2 gap-3 xl:gap-4",
+          canSeeMoney ? "xl:grid-cols-4" : "xl:grid-cols-3",
+        )}
+      >
         <StatTile
           label="Переработки"
           busy={busy}
@@ -70,18 +83,23 @@ const EmployeesOvertimeSegment = ({
           }
           footer={`Будни ${formatMinutes(totals.overtime.weekdayMinutes)} · Выходные ${formatMinutes(totals.overtime.weekendMinutes)}`}
         />
-        <StatTile
-          label="К доплате"
-          busy={busy}
-          value={formatMoney(totals.overtimePaySum)}
-          delta={
-            <StatTileDelta
-              {...deltaOf(totals.overtimePaySum, prev.totals.overtimePaySum)}
-              hint={HINT}
-            />
-          }
-          footer={`по ставкам сотрудников ×${data.settings.weekdayCoefficient} будни / ×${data.settings.weekendCoefficient} выходные`}
-        />
+        {canSeeMoney && (
+          <StatTile
+            label="К доплате"
+            busy={busy}
+            value={formatMoney(totals.overtimePaySum ?? 0)}
+            delta={
+              <StatTileDelta
+                {...deltaOf(
+                  totals.overtimePaySum ?? 0,
+                  prev.totals.overtimePaySum ?? 0,
+                )}
+                hint={HINT}
+              />
+            }
+            footer={`по ставкам сотрудников ×${data.settings.weekdayCoefficient} будни / ×${data.settings.weekendCoefficient} выходные`}
+          />
+        )}
         <StatTile
           label="С переработками"
           busy={busy}
@@ -100,7 +118,7 @@ const EmployeesOvertimeSegment = ({
         />
       </div>
 
-      {missing.length > 0 && (
+      {canSeeMoney && missing.length > 0 && (
         <AlertMessage
           variant="warning"
           message={
@@ -148,6 +166,7 @@ const EmployeesOvertimeSegment = ({
             employees={data.employees}
             totals={totals}
             currentUserId={currentUserId}
+            canSeeMoney={canSeeMoney}
           />
         </div>
         <div className="md:hidden">
@@ -155,6 +174,7 @@ const EmployeesOvertimeSegment = ({
             variant="overtime"
             employees={data.employees}
             currentUserId={currentUserId}
+            canSeeMoney={canSeeMoney}
           />
         </div>
       </div>

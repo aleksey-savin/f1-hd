@@ -148,12 +148,16 @@ const UserForm = () => {
   const scroller = useContext(OverlayScrollContext);
 
   const can = useCan();
-  const canEditFinances = Boolean(can({ report: ["employees"] }));
+  const canEditFinances = Boolean(can({ user: ["manageFinances"] }));
   // Правка пользователя и правка графика — разные права. У кого есть только
   // второе (офис-менеджер, ведущий графики), форма открывается одной секцией
   // «График работы» и уходит своим endpoint'ом (см. pages/User/Update.jsx).
   const canManageUsers = Boolean(can({ user: ["manage"] }));
   const canManageSchedule = Boolean(can({ schedule: ["manage"] }));
+  // Роли — это раздача прав, и право на неё своё (сервер:
+  // controllers/user.js#assertMayChangeRoles). Без него выбора ролей в форме
+  // нет: показывать то, что вернётся отказом, хуже, чем не показывать.
+  const canManageUserAccess = Boolean(can({ user: ["manageAccess"] }));
   const { timezone: orgTimezone } = useInitialPrefs();
 
   const fetcher = useFetcher();
@@ -266,6 +270,17 @@ const UserForm = () => {
   const showSchedule = isStaff && canManageSchedule;
   // Финансы — только у сотрудника и только с правом на отчёт по сотрудникам
   const showFinances = canEditFinances && isStaff;
+  // Роли — только тому, кто вправе их менять; служебной учётке они не положены
+  // вовсе. Нет блока — нет и требования выбрать роль (`stepError` спрашивают по
+  // `stepKeys`), и набор не уходит на сервер.
+  const showRoles = !isService && canManageUserAccess;
+  // Категории заявок — свойство учётной записи, а не роль: их ведёт тот, кто
+  // ведёт карточку, и без права на доступ шаг остаётся ради них одних. Пустым
+  // шаг не бывает: некому выдать категории — нечего и показывать.
+  const showCategories = Boolean(
+    effectiveOf(form.roles, catalogue).sources["ticket.perform"],
+  );
+  const showRights = !isService && (showRoles || showCategories);
   // Секции те же и в том же порядке, что на карточке пользователя: сборной
   // «Дополнительно» нет — у каждого блока своё имя, и ярлык секции карточки
   // ведёт сюда хешем (update#finances, update#notifications)
@@ -275,7 +290,7 @@ const UserForm = () => {
         "org",
         ...(showSchedule ? ["schedule"] : []),
         ...(showFinances ? ["finances"] : []),
-        ...(isService ? [] : ["rights"]),
+        ...(showRights ? ["rights"] : []),
         ...(isService ? [] : ["notifications"]),
       ]
     : ["schedule"];
@@ -284,11 +299,13 @@ const UserForm = () => {
     org: "Организация",
     schedule: "График работы",
     finances: "Финансы",
-    rights: "Права и доступ",
+    rights: showRoles ? "Права и доступ" : "Категории заявок",
     notifications: "Уведомления",
   };
   const STEPS = stepKeys.map((key) => ({
-    label: { rights: "Права", schedule: "График" }[key] ?? titles[key],
+    label:
+      { rights: showRoles ? "Права" : "Категории", schedule: "График" }[key] ??
+      titles[key],
   }));
   const LAST = STEPS.length - 1;
 
@@ -334,7 +351,8 @@ const UserForm = () => {
     if (key === "org" && !form.company) return "Выберите компанию";
     // Роль обязательна: без неё у человека нет прав, и «Далее»/«Сохранить»
     // не пускают дальше, пока не выбрана хотя бы одна
-    if (key === "rights" && form.roles.length === 0) return "Выберите роль";
+    if (key === "rights" && showRoles && form.roles.length === 0)
+      return "Выберите роль";
     return null;
   };
 
@@ -431,11 +449,14 @@ const UserForm = () => {
             alias: c.alias,
           }))
         : [],
-      // Права даются ролями, и `isAdmin` сервер зеркалит из них сам
-      // (services/roles.js#assign). Служебной учётке роли не положены —
-      // сессий ей не выдают вовсе.
-      roles: isService ? [] : form.roles,
     };
+
+    // Права даются ролями, и `isAdmin` сервер зеркалит из них сам
+    // (services/roles.js#assign). Служебной учётке роли не положены — сессий ей
+    // не выдают вовсе. Без права на доступ набор не шлём совсем: менять роли
+    // нельзя, а «поле не прислано» сервер понимает как «роли не трогать».
+    if (isService) payload.roles = [];
+    else if (showRoles) payload.roles = form.roles;
 
     if (!isEdit && !isService) {
       payload.access = form.access;
@@ -1086,49 +1107,53 @@ const UserForm = () => {
    */
   const rightsStep = (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-accent/45 px-3 py-2.5 text-sm text-muted-foreground">
-        <span className="font-semibold text-foreground">
-          {isStaff ? "Сотрудник" : "Клиент"}
-        </span>
-        <span>
-          {isStaff ? "· оказывает поддержку" : "· обращается в поддержку"}
-        </span>
-        {/* В мастере тип живёт на первом шаге, в правке — в секции «Основное»
-            того же скролла. Шаг там не переключается: состояние `step` в
-            плоском режиме никто не читает, и кнопка молчала бы */}
-        <button
-          type="button"
-          className="ml-auto cursor-pointer appearance-none border-0 bg-transparent p-0 text-sm font-semibold text-accent-text"
-          onClick={() =>
-            isEdit
-              ? scrollToSection(scroller, sectionAnchorId("person"))
-              : setStep(0)
-          }
-        >
-          Изменить тип
-        </button>
-      </div>
+      {showRoles && (
+        <>
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-accent/45 px-3 py-2.5 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">
+              {isStaff ? "Сотрудник" : "Клиент"}
+            </span>
+            <span>
+              {isStaff ? "· оказывает поддержку" : "· обращается в поддержку"}
+            </span>
+            {/* В мастере тип живёт на первом шаге, в правке — в секции «Основное»
+                того же скролла. Шаг там не переключается: состояние `step` в
+                плоском режиме никто не читает, и кнопка молчала бы */}
+            <button
+              type="button"
+              className="ml-auto cursor-pointer appearance-none border-0 bg-transparent p-0 text-sm font-semibold text-accent-text"
+              onClick={() =>
+                isEdit
+                  ? scrollToSection(scroller, sectionAnchorId("person"))
+                  : setStep(0)
+              }
+            >
+              Изменить тип
+            </button>
+          </div>
 
-      <Field
-        label="Роли"
-        htmlFor="u-roles"
-        className="mb-0"
-        hint="Права складываются: достаточно одной роли, которая даёт право."
-      >
-        <MultiCombobox
-          id="u-roles"
-          placeholder="Выберите роли"
-          value={form.roles}
-          options={rolesToOptions(catalogue, kind)}
-          onChange={(keys) => setField("roles", keys)}
-        />
-      </Field>
+          <Field
+            label="Роли"
+            htmlFor="u-roles"
+            className="mb-0"
+            hint="Права складываются: достаточно одной роли, которая даёт право."
+          >
+            <MultiCombobox
+              id="u-roles"
+              placeholder="Выберите роли"
+              value={form.roles}
+              options={rolesToOptions(catalogue, kind)}
+              onChange={(keys) => setField("roles", keys)}
+            />
+          </Field>
 
-      <RoleSummary
-        roles={form.roles}
-        catalogue={catalogue}
-        emptyHint="Выберите хотя бы одну роль — без неё сохранить нельзя."
-      />
+          <RoleSummary
+            roles={form.roles}
+            catalogue={catalogue}
+            emptyHint="Выберите хотя бы одну роль — без неё сохранить нельзя."
+          />
+        </>
+      )}
 
       {categoriesUnderPerform()}
     </div>
@@ -1300,6 +1325,7 @@ const UserForm = () => {
                 kind={kind}
                 catalogue={catalogue}
                 isEdit={isEdit}
+                showRoles={showRoles}
                 schedule={showSchedule && scheduleDirty ? schedule : null}
               />
             </div>

@@ -14,9 +14,8 @@ import { useCan } from "@/store/authed-user";
 // живут в своих zustand-сторах и переживают переключение. Сегменты — два
 // отдельных компонента с двумя ListWrapper: естественный ремоунт восстанавливает
 // текст поиска из стора (SearchBar неконтролируемый) и не смешивает
-// count/sort/фильтры. Гейт сегмента «Работы» зеркален пункту меню легаси:
-// модуль учёта времени + canUseTimeTrackingModule + canSeeWorksReport (работает
-// и для конечных пользователей).
+// count/sort/фильтры. Гейт сегмента «Работы»: модуль «Учёт времени» включён и
+// есть право `work.read` (работает и для конечных пользователей).
 
 const Archive = () => {
   const can = useCan();
@@ -24,9 +23,7 @@ const Archive = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const worksAvailable =
-    !!modules?.timeTracking?.isActive &&
-    !!can({ work: ["read"] }) &&
-    !!can({ report: ["works"] });
+    !!modules?.timeTracking?.isActive && !!can({ work: ["read"] });
 
   const view =
     worksAvailable && searchParams.get("view") === "works"

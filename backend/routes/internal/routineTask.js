@@ -2,18 +2,21 @@ const Router = require("express");
 const router = new Router();
 const routineTaskController = require("@/controllers/routineTask");
 const isAuth = require("@/middleware/isAuth");
-const { canManageRoutineTasks } = require("@/middleware/permissions");
+const {
+  canManageRoutineTasks,
+  canReadRoutineTasks,
+} = require("@/middleware/permissions");
 
 router.get(
   "/routine-tasks",
   isAuth,
-  canManageRoutineTasks,
+  canReadRoutineTasks,
   routineTaskController.getAll,
 );
 router.get(
   "/routine-tasks/:id",
   isAuth,
-  canManageRoutineTasks,
+  canReadRoutineTasks,
   routineTaskController.getOne,
 );
 

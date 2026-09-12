@@ -19,7 +19,12 @@ require("module-alias/register");
 const fs = require("fs");
 const mongoose = require("mongoose");
 
-const { statementsToActions } = require("@/auth/access");
+const {
+  statementsToActions,
+  actionsToStatements,
+  isFullAccess,
+  STAFF_ACTIONS,
+} = require("@/auth/access");
 const { listRoles, organizationId } = require("@/services/permissions");
 const { CATALOGUE } = require("./syncRoleCatalogue");
 
@@ -47,10 +52,11 @@ const HEADER = [
   "scripts/legacyPermissions.js. Клиент, чья подпись не описана ни одной",
   "ролью, останавливает скрипт: на проде наборы могли уйти вперёд от копии.",
   "",
-  "Роль полного доступа ОБЯЗАНА содержать весь словарь: по признаку «роль",
-  "отдаёт всё» зеркалится user.isAdmin (auth/access.js#isFullAccess). Новое",
-  "действие в словаре — пересобрать файл, иначе зеркало погаснет у всех",
-  "администраторов.",
+  "Роль полного доступа ОБЯЗАНА содержать все действия СОТРУДНИКА (адресат",
+  "staff или both): по признаку «роль отдаёт всё» зеркалится user.isAdmin",
+  "(auth/access.js#isFullAccess). Клиентские действия в счёт не идут — у",
+  "сотрудника они не действуют. Новое действие в словаре — пересобрать файл,",
+  "иначе зеркало погаснет у всех администраторов.",
 ];
 
 /** Почты носителей роли — существующие, неслужебные; отключённые тоже. */
@@ -104,6 +110,26 @@ const buildCatalogue = async (db, orgId, previous) => {
     }
     if (prev?._note) entry._note = prev._note;
     roles.push(entry);
+  }
+
+  /**
+   * Роль полного доступа обязана совпадать с набором сотрудника ДОСЛОВНО.
+   *
+   * Иначе выгрузка тихо возвращает файл к состоянию базы, которая отстала от
+   * словаря: `isFullAccess` узнаёт роль и по набору с лишним клиентским
+   * действием, так что дамп с непрогнанными миграциями вернул бы в каталог
+   * `approval.decide` у администратора — и разъехался бы с кодом.
+   */
+  for (const role of roles) {
+    if (!isFullAccess(actionsToStatements(role.actions))) continue;
+    const extra = role.actions.filter((id) => !STAFF_ACTIONS.includes(id));
+    if (extra.length) {
+      throw new Error(
+        `Роль «${role.key}» отдаёт полный доступ, но несёт лишнее: ${extra.join(", ")}. ` +
+          "База отстала от словаря — сначала node scripts/migrateActions.js --apply и " +
+          "node scripts/syncRoleCatalogue.js --apply, потом выгрузка.",
+      );
+    }
   }
 
   // Порядок прежнего файла, новые роли — в конец: диффы должны читаться.

@@ -47,6 +47,7 @@ const TicketFormRoute = ({ mode }) => {
     formData,
     isEndUser: !!isEndUser,
     canPerformTickets: !!can({ ticket: ["perform"] }),
+    canCreateForOthers: !!can({ ticket: ["createForOthers"] }),
     userId: userId ? String(userId) : "",
   });
 
@@ -122,7 +123,7 @@ const TicketFormRoute = ({ mode }) => {
 
   // Прямая ссылка на правку без прав раньше рисовала пустую шторку — теперь
   // она объясняет, что происходит (гайд, «Ошибки и гейты прав»)
-  if (mode !== "add" && !can({ ticket: ["update"] })) {
+  if (mode !== "add" && !can({ ticket: ["manage"] })) {
     return (
       <>
         <FormHeader title={form.config.title} />

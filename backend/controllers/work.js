@@ -11,15 +11,10 @@ const TicketCategory = require("../models/ticketCategory");
 const { AppError } = require("../middleware/errorHandling");
 const { previewWork } = require("../services/workPreview");
 const { assertTicketsAccessible } = require("../services/ticketAccess");
+const { ticketTier, ticketListFilter } = require("@/services/ticketScope");
 
-/**
- * Право видеть суммы и условия тарифа: нужны И тарифы, И отчёт по сотрудникам.
- * Двумя вызовами, а не одним запросом на два ресурса: складывать действия по И
- * словарь умеет только ВНУТРИ ресурса.
- */
-const canSeeMoney = (req) =>
-  req.auth.can({ servicePlan: ["read"] }) &&
-  req.auth.can({ report: ["employees"] });
+/** Суммы и условия тарифа — своё право, а не сочетание двух (спека 2026-09-11). */
+const canSeeMoney = (req) => req.auth.can({ work: ["readCost"] });
 
 /**
  * Можно ли править эту работу. Своими считаем троих, а не одного автора:
@@ -30,7 +25,7 @@ const canSeeMoney = (req) =>
  * отдельное и стоит раньше: без него номер чужой работы открывал бы её вовсе.
  */
 const canEditWork = (work, { userId, can }) =>
-  can({ work: ["manageAll"] }) ||
+  can({ work: ["manage"] }) ||
   [work.createdBy?._id, work.executor?._id, work.finishedBy?._id]
     .filter(Boolean)
     .some((id) => id.toString() === userId);
@@ -88,30 +83,17 @@ exports.getAllScheduled = async (req, res, next) => {
     });
 
     // filter works depending on user role & permissions
-    const { userId, company } = req.auth.legacy;
-
-    let filteredWorks = [];
-
-    if (req.auth.can({ ticket: ["readAll"] })) {
-      filteredWorks = scheduledWorks;
-    } else if (req.auth.can({ ticket: ["readCompany"] })) {
-      filteredWorks = scheduledWorks.filter(
-        (work) => work.company.toString() === company._id.toString(),
+    let filteredWorks = scheduledWorks;
+    if (ticketTier(req.auth) !== "all") {
+      const ticketIds = [...new Set(scheduledWorks.flatMap((work) => work.tickets.map(String)))];
+      const visible = new Set(
+        (
+          await Ticket.find({ _id: { $in: ticketIds }, ...ticketListFilter(req.auth) })
+            .select("_id")
+            .lean()
+        ).map((ticket) => String(ticket._id)),
       );
-    } else {
-      for (let work of scheduledWorks) {
-        for (let id of work.tickets) {
-          const ticket = await Ticket.findById(id);
-          if (
-            userId === ticket?.applicant._id.toString() ||
-            ticket?.responsibles
-              .map((resp) => resp._id.toString())
-              .includes(userId)
-          ) {
-            filteredWorks.push(work);
-          }
-        }
-      }
+      filteredWorks = scheduledWorks.filter((work) => work.tickets.some((id) => visible.has(String(id))));
     }
 
     let structuredWorks = [];
@@ -468,6 +450,9 @@ exports.update = async (req, res, next) => {
       work: work,
     });
   } catch (error) {
+    // См. `delete`: отказ доступа приходит сюда готовым AppError, и 500 из него
+    // делать нельзя.
+    if (error instanceof AppError) return next(error);
     next(new AppError(`Failed to update work`, 500, true, error));
   }
 };
@@ -482,8 +467,21 @@ exports.delete = async (req, res, next) => {
       return next(new AppError(`Work not found`, 404));
     }
 
-    // Удаление строже правки: только автор либо тот, кому доверены чужие работы
-    if (!can({ work: ["manageAll"] }) && work.createdBy._id.toString() !== userId) {
+    // Право на чужие работы не заменяет доступ к заявке: иначе работу с чужой
+    // заявки можно было бы стереть по одному её идентификатору. У легаси-работы
+    // заявок не бывает вовсе — проверять нечего, и требовать их (assert отвечает
+    // «Не указана заявка») означало бы запретить её удаление навсегда.
+    if (work.tickets?.length) {
+      await assertTicketsAccessible(req.auth, work.tickets);
+    }
+
+    // Удаление строже правки: только автор либо тот, кому доверены чужие работы.
+    // `createdBy` бывает пустым у старых работ — сравнение через опциональную
+    // цепочку, иначе вместо 403 получался бы 500.
+    if (
+      !can({ work: ["manage"] }) &&
+      work.createdBy?._id?.toString() !== userId
+    ) {
       return next(
         new AppError(
           `Work can only be deleted by the creator or an administrator`,
@@ -498,6 +496,9 @@ exports.delete = async (req, res, next) => {
       message: "Work deleted successfully!",
     });
   } catch (error) {
+    // Отказ в доступе к заявке — уже готовый AppError 403/404; обёртка в 500
+    // превращала бы его в «сбой сервера» и в запись в журнале ошибок.
+    if (error instanceof AppError) return next(error);
     next(new AppError(`Failed to delete work`, 500, true, error));
   }
 };
@@ -564,7 +565,7 @@ exports.getFinished = async (req, res, next) => {
       and.push({ tickets: { $in: categoryTickets.map((t) => t._id) } });
     }
 
-    // Скоуп прав: canReadWorksReport — глобальное право, но конечный
+    // Скоуп прав: canReadWorks — глобальное право, но конечный
     // пользователь заперт в своей компании поверх любых фасетов (легаси
     // ограничивал только список опций формы — дыра закрыта)
     if (isEndUser) query.company = company._id;

@@ -22,7 +22,7 @@ const getAccessibleCompanyIds = (authedUser) => {
 // все. Остальные — по пересечению связей заметки (категории / компании /
 // связанные пользователи) с их доступом.
 // Заметка без связей считается общей и видна всем сотрудникам.
-// kbConfig = { hideNotApproved, moderatorIds } — настройки модерации из Preferences.
+// kbConfig = { hideNotApproved } — настройки модерации из Preferences.
 //
 // Первым аргументом после заметки идёт `req.auth` целиком, а не плоский профиль:
 // права спрашиваем у `can()` — того же, что решает на маршрутах. Прежде здесь
@@ -40,11 +40,15 @@ const canViewNote = (note, auth, kbConfig = {}) => {
     return false;
   }
 
-  const canManage = can({ knowledge: ["manage"] });
+  // Модератор видит то же, что и ведущий базу: иначе роль «только модерация»
+  // не увидела бы заметок, которые ей и надо одобрить
+  const canManage =
+    can({ knowledge: ["manage"] }) || can({ knowledge: ["moderate"] });
   const authedUser = profile;
 
-  // Скрытие неодобренных заметок: их видят только админы и менеджеры (а значит и
-  // модераторы — по условию модератор всегда имеет canManageKnowledgeBase).
+  // Скрытие неодобренных заметок: их видят носители knowledge.manage и
+  // knowledge.moderate (см. canManage выше) — обычным сотрудникам они не
+  // показываются, пока не пройдут проверку.
   // approved !== true: старые заметки без поля approved тоже считаются
   // неодобренными — их должен одобрить модератор.
   if (hideNotApproved && note.approved !== true && !canManage) {
@@ -113,14 +117,4 @@ const canViewNote = (note, auth, kbConfig = {}) => {
   return false;
 };
 
-// Является ли пользователь модератором базы знаний.
-// Админ — всегда модератор; остальные — по списку id модераторов из настроек.
-const isModerator = (authedUser, moderatorIds = []) => {
-  if (authedUser?.isAdmin) {
-    return true;
-  }
-  const userId = authedUser?.userId || authedUser?._id?.toString();
-  return moderatorIds.map((id) => id?.toString()).includes(userId);
-};
-
-module.exports = { getAccessibleCompanyIds, canViewNote, isModerator };
+module.exports = { getAccessibleCompanyIds, canViewNote };

@@ -14,6 +14,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import useToastStore from "@/store/toast-store";
+import { useCan } from "@/store/authed-user";
 
 import { relativeDay } from "../../util/relative-time";
 import { getPresence } from "./presence";
@@ -46,6 +47,9 @@ const copyBtnClass =
   "grid size-9 flex-none cursor-pointer appearance-none place-items-center rounded-lg border-0 bg-transparent text-faint transition-colors active:bg-accent";
 
 const UserContactSheet = ({ item, open, onOpenChange }) => {
+  // До раннего выхода: хук обязан вызываться на каждом рендере
+  const canReadUsers = !!useCan()({ user: ["read"] });
+
   if (!item) return null;
 
   const {
@@ -214,14 +218,18 @@ const UserContactSheet = ({ item, open, onOpenChange }) => {
           )}
         </div>
 
-        <Link
-          to={`/users/${_id}`}
-          onClick={() => onOpenChange(false)}
-          className="mt-4 flex h-11 items-center justify-center gap-2 rounded-lg bg-primary font-semibold text-primary-foreground no-underline active:bg-primary/90"
-        >
-          Открыть профиль
-          <RiArrowRightLine size={18} />
-        </Link>
+        {/* Карточка человека закрыта правом «Видеть пользователей»: без него
+            шторка остаётся шторкой контактов, а кнопка не ведёт в отказ */}
+        {canReadUsers && (
+          <Link
+            to={`/users/${_id}`}
+            onClick={() => onOpenChange(false)}
+            className="mt-4 flex h-11 items-center justify-center gap-2 rounded-lg bg-primary font-semibold text-primary-foreground no-underline active:bg-primary/90"
+          >
+            Открыть профиль
+            <RiArrowRightLine size={18} />
+          </Link>
+        )}
       </SheetContent>
     </Sheet>
   );

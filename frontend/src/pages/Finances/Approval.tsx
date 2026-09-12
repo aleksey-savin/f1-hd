@@ -29,6 +29,7 @@ import {
   formatMinutes,
   formatMoney,
 } from "../../components/Report/work-format";
+import { useCan } from "@/store/authed-user";
 import usePolling from "../../hooks/use-polling";
 import useApprovalStore from "../../store/reports/approval";
 import type { PreviewRow, ReportRow } from "../../types/approval";
@@ -325,6 +326,13 @@ const PreviewTable = ({
   onOpen: (row: PreviewRow) => void;
   onUnrelated: (row: PreviewRow) => void;
 }) => {
+  // Конвейер открыт и клиенту (`approval.read`) — он видит свои отчёты, но
+  // ведёт согласование сторона исполнителя: собрать отчёт, починить работы вне
+  // услуг, отправить на подпись. Отсюда действия подбора — под
+  // `approval.manage`, а не под тем же правом, что сама страница.
+  const can = useCan();
+  const canManageApproval = can({ approval: ["manage"] });
+
   if (rows.length === 0) {
     return (
       <>
@@ -407,7 +415,7 @@ const PreviewTable = ({
                             className="py-2 font-semibold whitespace-normal"
                           >
                             {company.fullTitle || company.alias}
-                            {blocked && (
+                            {blocked && canManageApproval && (
                               <Button
                                 size="xs"
                                 variant="outline"
@@ -465,20 +473,22 @@ const PreviewTable = ({
                                 className="text-right whitespace-nowrap"
                                 onClick={(event) => event.stopPropagation()}
                               >
-                                <Button
-                                  size="sm"
-                                  disabled={blocked || busyKey === key}
-                                  title={
-                                    blocked
-                                      ? "В отчёт попали бы работы, не привязанные ни к одной услуге"
-                                      : undefined
-                                  }
-                                  onClick={() => onSubmit(row)}
-                                >
-                                  {row.approval.required
-                                    ? "Отправить на согласование"
-                                    : "Утвердить"}
-                                </Button>
+                                {canManageApproval && (
+                                  <Button
+                                    size="sm"
+                                    disabled={blocked || busyKey === key}
+                                    title={
+                                      blocked
+                                        ? "В отчёт попали бы работы, не привязанные ни к одной услуге"
+                                        : undefined
+                                    }
+                                    onClick={() => onSubmit(row)}
+                                  >
+                                    {row.approval.required
+                                      ? "Отправить на согласование"
+                                      : "Утвердить"}
+                                  </Button>
+                                )}
                               </TableCell>
                             </TableRow>
                           );

@@ -28,6 +28,13 @@ const {
 } = require("../services/clientAddress");
 const { resolveMapLink } = require("../services/mapLink");
 
+/** Клиент видит только свою компанию — любую ручку карточки, не только getOne. */
+const assertCompanyVisible = (authedUser, companyId) => {
+  if (authedUser.isEndUser && String(companyId) !== String(authedUser.company?._id)) {
+    throw new AppError("Компания вам недоступна", 403);
+  }
+};
+
 // Точка из ссылки на карту при сохранении: пересчитываем, когда ссылка
 // изменилась или точки ещё не было (короткую ссылку раскрывает сеть — без
 // нужды не ходим). Нет координат — точки нет: такси поедет без маршрута.
@@ -58,16 +65,10 @@ exports.getAll = async (req, res, next) => {
       .sort({ alias: 1 })
       .lean();
 
-    const filteredCompanies = allCompanies.filter((company) => {
-      if (
-        authedUser.responsibleForCompanies
-          .map((company) => company._id.toString())
-          .includes(company._id.toString()) ||
-        req.auth.can({ ticket: ["administrate"] })
-      ) {
-        return company;
-      }
-    });
+    // Сотрудник видит все компании; клиент — только свою (спека 2026-09-11)
+    const filteredCompanies = authedUser.isEndUser
+      ? allCompanies.filter((company) => String(company._id) === String(authedUser.company?._id))
+      : allCompanies;
 
     // Адреса подразделений — для действия «такси» в строке и мобильной
     // шторке: один запрос на страницу, список считает services/clientAddress.
@@ -123,6 +124,8 @@ exports.getOne = async (req, res, next) => {
     if (!company) {
       return next(new AppError(`Company ${req.params.id} not found`, 404));
     }
+
+    assertCompanyVisible(authedUser, company._id);
 
     // Work on a plain object from here on. Mutating the Mongoose document's
     // `employees` array (typed as [ObjectId]) doesn't persist added fields like
@@ -273,13 +276,16 @@ exports.getOne = async (req, res, next) => {
 
     res.status(200).json({ company: companyObj, servicePlans: servicePlans });
   } catch (error) {
+    // 403 (компания недоступна клиенту) пробрасываем как есть, остальное — как 500.
     next(
-      new AppError(
-        `Failed to fetch company ${req.params.id}`,
-        500,
-        true,
-        error,
-      ),
+      error instanceof AppError
+        ? error
+        : new AppError(
+            `Failed to fetch company ${req.params.id}`,
+            500,
+            true,
+            error,
+          ),
     );
   }
 };
@@ -289,6 +295,10 @@ exports.getStats = async (req, res, next) => {
     // Здесь стоял `await getAuthData(req)` без присваивания — остаток тех
     // времён, когда шим сам поднимал пользователя. Личность устанавливает
     // attachSession, доступ проверяет гейт маршрута; вызов не делал ничего.
+    const authedUser = req.auth?.legacy ?? null;
+    // getOne уже 403-ит клиента с чужой компанией — статистике та же граница
+    // нужна отдельно, id компании здесь известен сразу, без похода в базу.
+    assertCompanyVisible(authedUser, req.params.id);
 
     // ?month=YYYY-MM — переключатель месяцев на карточке (прошлые месяцы)
     const stats = await companyStatsService.getCompanyStats(
@@ -298,7 +308,7 @@ exports.getStats = async (req, res, next) => {
 
     res.status(200).json(stats);
   } catch (error) {
-    // 404 (компания не найдена) пробрасываем как есть, остальное — как 500.
+    // 404 (компания не найдена) и 403 (чужая компания) пробрасываем как есть, остальное — как 500.
     if (error instanceof AppError) {
       return next(error);
     }

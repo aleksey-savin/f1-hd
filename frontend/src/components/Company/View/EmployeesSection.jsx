@@ -9,6 +9,7 @@ import {
 } from "react-icons/ri";
 
 import { useCrumbFrom } from "@/components/app/Crumbs";
+import { useCan } from "@/store/authed-user";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import SearchBar from "@/components/app/SearchBar";
 import ChipSelect from "@/components/app/ChipSelect";
@@ -37,6 +38,9 @@ const iconLinkClass =
 const EmployeesSection = ({ company, id }) => {
   const fromState = useCrumbFrom(company.alias);
   const navigate = useNavigate();
+  // Карточка человека закрыта правом «Видеть пользователей»: без него строка
+  // открывает ту же контакт-шторку, что и на телефоне, а не «Нет доступа»
+  const canReadUsers = !!useCan()({ user: ["read"] });
   const employees = company.employees || [];
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -108,7 +112,7 @@ const EmployeesSection = ({ company, id }) => {
   };
 
   const openRow = (user) => {
-    if (isMobile) {
+    if (isMobile || !canReadUsers) {
       setContactUser({
         ...user,
         isEndUser: true,

@@ -5,6 +5,7 @@ import { BrowserView } from "react-device-detect";
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import AlertMessage from "@/components/app/AlertMessage";
 import AnchorRail from "@/components/app/AnchorRail";
 import ChipCombobox from "@/components/app/ChipCombobox";
 import Field from "@/components/app/Field";
@@ -17,8 +18,9 @@ import PermissionModules, {
 import {
   usePermissionCatalogue,
   usePermissionLabels,
-  useCan,
+  useCanGrant,
 } from "@/store/authed-user";
+import { groupsForAudience, foreignActions } from "./audience";
 
 /**
  * Форма роли.
@@ -72,14 +74,16 @@ const RoleForm = ({ role }) => {
   const { roles: catalogue = [] } = useLoaderData() ?? {};
   const groups = usePermissionCatalogue();
   const labels = usePermissionLabels();
-  const can = useCan();
+  // Что можно выдать — по набору ролей самого, до вырезания по типу
+  // аккаунта: администратор-сотрудник не действует правом «Согласовывать
+  // отчёты» сам, но клиентской роли его выдаёт.
+  const can = useCanGrant();
   // Липкая шапка формы: под неё прижимается рейл
   const [headHeight, setHeadHeight] = useState(0);
   const label = (id) => labels[id]?.label ?? id;
 
-  // Что можно выдать: только то, что есть у самого. Спрашиваем `can()` по
-  // каждому действию каталога — тот же вопрос, что задаст сервер
-  // (`assertNotEscalating`), и потому тот же ответ.
+  // Спрашиваем `can()` по каждому действию каталога — тот же вопрос, что
+  // задаст сервер (`assertNotEscalating`), и потому тот же ответ.
   const allowed = useMemo(() => {
     const set = new Set();
     for (const id of Object.keys(labels)) {
@@ -90,6 +94,19 @@ const RoleForm = ({ role }) => {
   }, [labels, can]);
 
   const initial = useMemo(() => new Set(role?.actions || []), [role]);
+  /**
+   * Роль шире прав смотрящего — форма только на чтение.
+   *
+   * Матрица уходит на сервер НАБОРОМ (`actions: [...actions]`), а не разницей,
+   * поэтому чужие строки ушли бы вместе с сохранением; сервер их всё равно
+   * отобьёт (`services/roles.js#assertNotEscalating` смотрит и прежний набор),
+   * и «Сохранить» отвечало бы отказом на каждое нажатие. Видеть роль при этом
+   * можно: закрывать её целиком незачем.
+   */
+  const readOnly = useMemo(
+    () => [...initial].some((id) => !allowed.has(id)),
+    [initial, allowed],
+  );
   const [title, setTitle] = useState(role?.title || "");
   const [description, setDescription] = useState(role?.description || "");
   // Новая роль по умолчанию сотруднику: клиентских ролей в каталоге три, и
@@ -110,7 +127,13 @@ const RoleForm = ({ role }) => {
     setSourceKey(key);
     const source = key ? catalogue.find((item) => item.key === key) : null;
     if (!source) return;
-    setActions(new Set((source.actions || []).filter((id) => allowed.has(id))));
+    setActions(
+      new Set(
+        (source.actions || []).filter(
+          (id) => allowed.has(id) && !foreignActions([id], groups, audience).length,
+        ),
+      ),
+    );
   };
 
   const toggle = (id) =>
@@ -135,7 +158,7 @@ const RoleForm = ({ role }) => {
 
   const railSections = [
     { id: BASIC_ANCHOR, label: "Основное" },
-    ...groups.map((group) => ({
+    ...groupsForAudience(groups, audience).map((group) => ({
       id: permissionGroupAnchor(group.key),
       label: group.label,
     })),
@@ -154,6 +177,13 @@ const RoleForm = ({ role }) => {
           subtitle={role?.title}
           onHeight={setHeadHeight}
         >
+          {readOnly && (
+            <AlertMessage
+              variant="warning"
+              className="my-0"
+              message="Роль шире ваших прав — менять её может только тот, у кого они есть"
+            />
+          )}
           {!role && catalogue.length > 0 && (
             <ChipCombobox
               placeholder="Из роли"
@@ -171,7 +201,7 @@ const RoleForm = ({ role }) => {
         </FormHeader>
       }
       json={() => ({ title, description, actions: [...actions], audience })}
-      submitDisabled={!title.trim()}
+      submitDisabled={readOnly || !title.trim()}
     >
       <div className="flex items-start gap-7">
         {/* Рейл ведёт по группам прав: якорь вешает карточка группы, а список
@@ -205,6 +235,7 @@ const RoleForm = ({ role }) => {
               <Input
                 id="role-title"
                 autoFocus
+                disabled={readOnly}
                 placeholder="Например, «Инженер выездной»"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
@@ -215,6 +246,7 @@ const RoleForm = ({ role }) => {
               <Textarea
                 id="role-description"
                 rows={2}
+                disabled={readOnly}
                 placeholder="Зачем эта роль — увидят те, кто будет её назначать"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
@@ -223,12 +255,19 @@ const RoleForm = ({ role }) => {
 
             <Field
               label="Кому назначается"
-              hint="Определяет, кому роль предлагают в первую очередь. Выбрать её можно и для другого типа аккаунта."
+              hint="Ниже — только права, которые действуют у этого типа аккаунта. При смене адресата права другого типа снимаются."
             >
               <Segmented
                 ariaLabel="Кому назначается"
+                disabled={readOnly}
                 value={audience}
-                onChange={setAudience}
+                onChange={(next) => {
+                  // Права другого адресата у роли не действуют — снимаем их
+                  // сразу; блок «Что изменится» покажет снятое со знаком «−»
+                  const dropped = new Set(foreignActions([...actions], groups, next));
+                  setActions((current) => new Set([...current].filter((id) => !dropped.has(id))));
+                  setAudience(next);
+                }}
                 options={[
                   { value: "staff", label: "Сотрудникам" },
                   { value: "client", label: "Клиентам" },
@@ -243,6 +282,8 @@ const RoleForm = ({ role }) => {
             // Право, которого нет у самого, выдать нельзя — сервер отобьёт.
             // Предлагать то, что вернётся отказом, хуже, чем не предлагать.
             allowed={allowed}
+            readOnly={readOnly}
+            audience={audience}
           />
 
           {/* Последствие названо ДО нажатия: сообщение после сохранения

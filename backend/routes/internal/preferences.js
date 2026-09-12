@@ -4,12 +4,7 @@ const router = new Router();
 const preferencesController = require("@/controllers/preferences");
 const preferencesValidation = require("@/validations/preferences");
 const isAuth = require("@/middleware/isAuth");
-const {
-  canReadSettings,
-  canManageSettings,
-  canManageMailSettings,
-  canManageIntegrations,
-} = require("@/middleware/permissions");
+const { canManageSettings } = require("@/middleware/permissions");
 const { uploadCompanyLogo } = require("@/middleware/imageUpload");
 const { checkValidationResult } = require("@/middleware/validation");
 
@@ -27,15 +22,14 @@ const checkLimiter = rateLimit({
   },
 });
 
-router.get("/preferences", isAuth, canReadSettings, preferencesController.get);
+router.get("/preferences", isAuth, canManageSettings, preferencesController.get);
 router.get("/preferences-initial", isAuth, preferencesController.getInitial);
 router.get("/preferences-auth", preferencesController.getAuth);
-// Право на КАЖДУЮ присланную секцию проверяет контроллер
-// (`sectionsBeyondRights`): ручка одна, а настройки в ней разного веса.
+// Настройки — одно право: секции по правам не делятся (спека 2026-09-11).
 router.post(
   "/preferences",
   isAuth,
-  canReadSettings,
+  canManageSettings,
   preferencesValidation.update,
   checkValidationResult,
   preferencesController.update,
@@ -57,21 +51,21 @@ router.post(
 router.post(
   "/preferences/ai-models",
   isAuth,
-  canManageIntegrations,
+  canManageSettings,
   checkLimiter,
   preferencesController.getAiModels,
 );
 router.post(
   "/preferences/ai/check",
   isAuth,
-  canManageIntegrations,
+  canManageSettings,
   checkLimiter,
   preferencesController.checkAi,
 );
 router.post(
   "/preferences/ai/speech-check",
   isAuth,
-  canManageIntegrations,
+  canManageSettings,
   checkLimiter,
   preferencesController.checkSpeechToText,
 );
@@ -79,32 +73,32 @@ router.post(
 router.get(
   "/preferences/ai-rules",
   isAuth,
-  canManageIntegrations,
+  canManageSettings,
   preferencesController.getAiRules,
 );
 router.post(
   "/preferences/ai-rules/toggle",
   isAuth,
-  canManageIntegrations,
+  canManageSettings,
   preferencesController.toggleAiRule,
 );
 router.post(
   "/preferences/ai-rules/delete",
   isAuth,
-  canManageIntegrations,
+  canManageSettings,
   preferencesController.deleteAiRule,
 );
 router.post(
   "/preferences/mailbox/check",
   isAuth,
-  canManageMailSettings,
+  canManageSettings,
   checkLimiter,
   preferencesController.checkMailbox,
 );
 router.post(
   "/preferences/smtp/test",
   isAuth,
-  canManageMailSettings,
+  canManageSettings,
   checkLimiter,
   preferencesController.sendTestEmail,
 );
