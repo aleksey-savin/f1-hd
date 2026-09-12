@@ -125,6 +125,7 @@ const MyTicketsClient = () => {
             .filter(Boolean)
             .join(" · "),
           trailing: createdText(ticket.createdAt),
+          unread: ticket.unread,
         }),
       });
     }

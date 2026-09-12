@@ -23,6 +23,8 @@ import { DeleteDialog } from "@/components/app/DeleteItem";
 import Environment from "@/components/app/Environment";
 import FormOutlet, { useSheetOpen } from "@/components/app/FormOutlet";
 import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
+import useNotificationsStore from "@/store/notifications";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -123,6 +125,18 @@ const ViewTicket = () => {
   const { ticketData, responsiblesData } = data;
   const { ticket, company, works, events = [] } = ticketData;
 
+  // Водяной знак ДО этого визита — по нему хроника проводит черту «Новые».
+  // Держим на весь визит: после «просмотрено» лоадер привозит уже свежий
+  // знак, а черта не должна уезжать из-под глаз. Соседняя заявка без
+  // ремоунта (карточка → карточка) — новый визит.
+  const [visit, setVisit] = useState({
+    num: ticket.num,
+    seenAt: ticketData.seenAt ?? null,
+  });
+  if (visit.num !== ticket.num) {
+    setVisit({ num: ticket.num, seenAt: ticketData.seenAt ?? null });
+  }
+
   const navigate = useNavigate();
   const sheetOpen = useSheetOpen();
   const revalidator = useRevalidator();
@@ -156,6 +170,23 @@ const ViewTicket = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  // Заявку открыли — отмечаем просмотренной: при монтировании и после каждого
+  // приезда лоадера (действие, фоновая ревалидация), пока вкладка видна.
+  // Сервер возвращает счётчик колокольчика: уведомления по этой заявке
+  // прочитаны вместе с ней.
+  useEffect(() => {
+    if (document.visibilityState !== "visible") return;
+    api(`/api/tickets/${ticket.num}/seen`, { method: "POST" })
+      .then((seen) =>
+        useNotificationsStore
+          .getState()
+          .applyUnreadCount(seen.unreadCount, ticket._id),
+      )
+      .catch((error) =>
+        console.warn("Отметка «просмотрено» не удалась:", error),
+      );
+  }, [ticketData]);
 
   // Вложения живут лентой в подвале описания: состояние (список, загрузка,
   // удаление) держит хук, а кнопка «Прикрепить» уходит в метку секции
@@ -742,14 +773,24 @@ const ViewTicket = () => {
         </div>
 
         <div className="sticky top-20 -mt-6 hidden w-96 flex-none xl:block">
-          <Chronicle ticket={ticket} events={events} canComment={canComment} />
+          <Chronicle
+            ticket={ticket}
+            events={events}
+            canComment={canComment}
+            seenAt={visit.seenAt}
+          />
         </div>
       </div>
 
       {/* На узких экранах хроника идёт последней секцией. Отступ сверху
           даёт метка (Eyebrow), своего у обёртки нет */}
       <div className="xl:hidden">
-        <Chronicle ticket={ticket} events={events} canComment={canComment} />
+        <Chronicle
+          ticket={ticket}
+          events={events}
+          canComment={canComment}
+          seenAt={visit.seenAt}
+        />
       </div>
 
       <ActionDialog

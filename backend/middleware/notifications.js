@@ -37,6 +37,11 @@ const Subdivision = require("../models/subdivision");
 const { logAiTicketEvent } = require("../services/aiTicketLog");
 const { permissionFilter } = require("@/services/permissions");
 const {
+  notifyTicketEvent,
+  notifyCommentEvent,
+  notifyWorksEvent,
+} = require("../services/inAppNotifications");
+const {
   resolveClientTimezone,
   formatClientTimeLabel,
 } = require("../services/clientTimezone");
@@ -105,8 +110,26 @@ const withMongoRetry = async (operation, context) => {
   }
 };
 
-const notificationsEnabled = (prefs) =>
-  prefs?.notify?.byEmail?.isActive || prefs?.notify?.byTelegram?.isActive;
+// Гейта «включён ли хоть один канал» здесь больше нет: канал «в приложении»
+// (services/inAppNotifications) есть всегда, а почта и Telegram проверяют
+// свои рубильники сами — notifyTg/notifyEmail ниже.
+
+// Срок для строки уведомления «в приложении»: «15 сентября, 18:00» в поясе
+// организации — тот же формат, что в почтовой ветке «update deadline»
+const deadlineLabel = (date, prefs) =>
+  new Date(date).toLocaleDateString("ru", {
+    timeZone: resolveTimezone(prefs),
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+const inAppFailed = (what, error) =>
+  logger.log("notification", `Failed to create in-app ${what} notifications`, {
+    error: error.message,
+    stack: error.stack,
+  });
 
 // Адресат «группа команды»: chatId + ветка форум-группы (общая для групповых
 // уведомлений и табло статусов; пустая — General/не форум)
@@ -191,14 +214,6 @@ exports.createTicketNotifications = async () => {
     () => Preferences.findOne({}),
     "loading preferences for ticket notifications",
   );
-  if (!notificationsEnabled(prefs)) {
-    logger.log(
-      "debug",
-      "Skipping ticket notifications because notifications are disabled",
-    );
-    return;
-  }
-
   const speechCutoff = new Date(Date.now() - SPEECH_PENDING_TTL_MS);
   const tickets = await withMongoRetry(
     () =>
@@ -305,6 +320,22 @@ exports.createTicketNotifications = async () => {
       const line = await clientTime();
       return line ? ["У клиента", line.replace(/^У клиента сейчас:\s*/, "")] : null;
     };
+
+    // Канал «в приложении» — одним вызовом на заявку, ДО switch: аудитории
+    // событий описаны таблицей в services/inAppNotifications, и работает он
+    // и для событий без своей ветки ниже («join responsibles»). Защёлки
+    // isNotified.inApp ставятся на этом документе, сохраняет его ветка.
+    try {
+      await notifyTicketEvent({
+        ticket,
+        prefs,
+        deadlineText: ticket.deadline
+          ? `Новый срок: ${deadlineLabel(ticket.deadline, prefs)}`
+          : "Срок снят",
+      });
+    } catch (error) {
+      inAppFailed("ticket", error);
+    }
 
     switch (lastAction) {
       case "new ticket":
@@ -1625,6 +1656,13 @@ exports.createTicketNotifications = async () => {
         break;
       }
 
+      case "join responsibles":
+        // Своей рассылки у события нет — в приложении его доставил
+        // notifyTicketEvent выше; здесь только снимаем pending
+        ticket.notifications.pending = false;
+        await ticket.save();
+        break;
+
       default:
         // Снимаем pending даже для lastAction без ветки уведомлений,
         // чтобы заявки не копились в очереди бесконечно.
@@ -1644,14 +1682,6 @@ exports.createCommentNotifications = async () => {
     () => Preferences.findOne({}),
     "loading preferences for comment notifications",
   );
-  if (!notificationsEnabled(prefs)) {
-    logger.log(
-      "debug",
-      "Skipping comment notifications because notifications are disabled",
-    );
-    return;
-  }
-
   const comments = await withMongoRetry(
     () =>
       Comment.find({
@@ -1686,10 +1716,19 @@ exports.createCommentNotifications = async () => {
     if (!ticket) {
       comment.notifications.pending = false;
       await comment.save();
-      return;
+      // continue, а не return: один комментарий без заявки не должен
+      // останавливать рассылку по всей пачке
+      continue;
     }
 
     const applicant = await User.findById(ticket.applicantId);
+
+    // Канал «в приложении» — заявителю и ответственным, кроме автора
+    try {
+      await notifyCommentEvent({ comment, ticket, prefs });
+    } catch (error) {
+      inAppFailed("comment", error);
+    }
 
     switch (lastAction) {
       case "new comment":
@@ -1900,14 +1939,6 @@ exports.createScheduledWorkNotifications = async () => {
     () => Preferences.findOne({}),
     "loading preferences for scheduled work notifications",
   );
-  if (!notificationsEnabled(prefs)) {
-    logger.log(
-      "debug",
-      "Skipping scheduled work notifications because notifications are disabled",
-    );
-    return;
-  }
-
   // Единый дефолт таймзоны — из utils/datetime (совпадает со схемой Preferences).
   const formatDateTime = (date) => {
     return new Date(date).toLocaleDateString("ru", {
@@ -2036,6 +2067,21 @@ exports.createScheduledWorkNotifications = async () => {
       ) {
         emailRecipients.push(responsible.email);
       }
+    }
+
+    // Канал «в приложении» — заявителям и ответственным всех заявок работы
+    try {
+      await notifyWorksEvent({
+        work,
+        tickets: tickets.map((num) => ({ num })),
+        company,
+        applicantIds: applicants,
+        responsibleIds: responsibles.map((resp) => resp._id),
+        prefs,
+        dateText: formatDateTime(work.planningToStart),
+      });
+    } catch (error) {
+      inAppFailed("works", error);
     }
 
     if (lastAction === "new scheduled work") {

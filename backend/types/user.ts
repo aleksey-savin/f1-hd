@@ -1,22 +1,27 @@
 import type { Types } from "mongoose";
 
-export interface IUserTelegramNotify {
+/**
+ * Категории уведомлений — ключи едины для prefs.notify.personal и всех
+ * каналов человека (Telegram, почта, «в приложении»), см.
+ * middleware/notifications.js и services/inAppNotifications.js.
+ */
+export interface IUserNotifyCategories {
   newTicket: boolean;
   respStateUpdate: boolean;
   ticketStateUpdate: boolean;
   ticketDeadlineUpdate: boolean;
   ticketNewComment: boolean;
   scheduledWorks: boolean;
+  absenceRequest: boolean;
+  absenceDecision: boolean;
+  reportApproval: boolean;
+  reportDecision: boolean;
 }
 
-export interface IUserEmailNotify {
-  newTicket: boolean;
-  respStateUpdate: boolean;
-  ticketStateUpdate: boolean;
-  updatedDeadline: boolean;
-  ticketNewComment: boolean;
-  scheduledWorks: boolean;
-}
+/** @deprecated одна форма на все каналы — IUserNotifyCategories */
+export type IUserTelegramNotify = IUserNotifyCategories;
+/** @deprecated одна форма на все каналы — IUserNotifyCategories */
+export type IUserEmailNotify = IUserNotifyCategories;
 
 // Держать синхронно с каталогом utils/workStatuses.js
 export type WorkStatusCode =
@@ -59,7 +64,12 @@ export interface IUser {
     salary: number | null;
     overtimeHourlyRate: number | null;
   };
-  notify: { byTelegram: IUserTelegramNotify; byEmail: IUserEmailNotify };
+  notify: {
+    byTelegram: IUserNotifyCategories;
+    byEmail: IUserNotifyCategories;
+    /** Отсутствует у людей, заведённых до появления канала: значит «включено» */
+    inApp?: IUserNotifyCategories;
+  };
   /** Может отсутствовать: заведённый приглашением задаёт пароль сам. */
   password?: string;
   /** Ставится плагином twoFactor better-auth. */

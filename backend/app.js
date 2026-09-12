@@ -276,14 +276,8 @@ cron.schedule("*/10 * * * * *", async () => {
   isCreatingNotifications = true;
 
   try {
-    const prefs = await Preferences.findOne({});
-    const notificationsAreEnabled =
-      prefs?.notify?.byEmail?.isActive || prefs?.notify?.byTelegram?.isActive;
-
-    if (!notificationsAreEnabled) {
-      return;
-    }
-
+    // Гейта по почте/Telegram больше нет: канал «в приложении» есть всегда, а
+    // свои рубильники почта и Telegram проверяют внутри заданий
     const notificationJobs = [
       ["ticket notifications", createTicketNotifications],
       ["comment notifications", createCommentNotifications],

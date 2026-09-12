@@ -37,6 +37,7 @@ import { businessDayKey } from "../../util/format-date";
 
 import {
   ACCOUNT_KINDS,
+  NOTIFY_CHANNELS,
   NOTIFY_EVENTS,
   WORK_TIME_MODES,
   kindOfUser,
@@ -50,10 +51,13 @@ import { useCan } from "@/store/authed-user";
 // нужны права и категории, служебному — почти ничего. Тип аккаунта — один
 // сегмент вместо трёх независимых флагов модели (isEndUser/isServiceAccount/
 // isCloudTelephony); обратно в флаги собирается при сабмите.
-const emptyNotify = () => ({
-  byTelegram: Object.fromEntries(NOTIFY_EVENTS.map((e) => [e.key, true])),
-  byEmail: Object.fromEntries(NOTIFY_EVENTS.map((e) => [e.key, true])),
-});
+const emptyNotify = () =>
+  Object.fromEntries(
+    NOTIFY_CHANNELS.map((channel) => [
+      channel.key,
+      Object.fromEntries(NOTIFY_EVENTS.map((e) => [e.key, true])),
+    ]),
+  );
 
 /* ---------- график работы ---------- */
 // График сотрудника правится ЗДЕСЬ, а не отдельным редактором на карточке:
@@ -205,14 +209,15 @@ const UserForm = () => {
     // Сервер отдаёт роли парами ключ-название (их читает карточка); форме
     // нужны только ключи.
     roles: (user?.roles || []).map((role) => role.key || role),
+    // Отсутствующий у человека канал («в приложении» у заведённых до него)
+    // читается включённым — как на сервере
     notify: user?.notify
-      ? {
-          byTelegram: {
-            ...emptyNotify().byTelegram,
-            ...user.notify.byTelegram,
-          },
-          byEmail: { ...emptyNotify().byEmail, ...user.notify.byEmail },
-        }
+      ? Object.fromEntries(
+          NOTIFY_CHANNELS.map((channel) => [
+            channel.key,
+            { ...emptyNotify()[channel.key], ...user.notify[channel.key] },
+          ]),
+        )
       : emptyNotify(),
     finances: {
       salary: user?.finances?.salary ?? "",
@@ -1174,8 +1179,11 @@ const UserForm = () => {
           <thead>
             <tr className="text-xs font-bold tracking-wide text-faint uppercase">
               <th className="p-3 text-left">Событие</th>
-              <th className="p-3">Telegram</th>
-              <th className="p-3">Email</th>
+              {NOTIFY_CHANNELS.map((channel) => (
+                <th key={channel.key} className="p-3">
+                  {channel.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -1183,7 +1191,7 @@ const UserForm = () => {
               (event) => (
                 <tr key={event.key} className="border-t border-border-soft">
                   <td className="p-3 font-medium">{event.label}</td>
-                  {["byTelegram", "byEmail"].map((channel) => (
+                  {NOTIFY_CHANNELS.map(({ key: channel }) => (
                     <td key={channel} className="p-3">
                       <div className="flex justify-center">
                         <SwitchField

@@ -57,8 +57,9 @@ exports.add = async (req, res, next) => {
       attachments: attachments,
       notifications: {
         lastAction: "new comment",
-        pending:
-          prefs.notify?.byEmail.isActive || prefs.notify?.byTelegram.isActive,
+        // Всегда: канал «в приложении» есть даже при выключенных почте и
+        // Telegram, свои гейты у каналов свои (middleware/notifications)
+        pending: true,
       },
       createdBy: authData.userId,
       updatedBy: authData.userId,
@@ -70,6 +71,9 @@ exports.add = async (req, res, next) => {
       ? ticket.comments.push(comment._id)
       : (ticket.comments = [comment._id]);
     await ticket.save();
+    // Свой комментарий — не «новое»: водяной знак автора двигаем следом за
+    // движением заявки (хук комментария уже отработал, см. models/comment.js)
+    await markSeen(authData.userId, [ticket._id]);
 
     // добавляем запись в лог заявки
     const logEntry = new TicketLog({
@@ -122,6 +126,7 @@ exports.addMultiple = async (req, res, next) => {
     const prefs = await Preferences.findOne({});
 
     const { ids, content } = req.body;
+    const commented = [];
 
     for (const id of ids) {
       const ticket = await Ticket.findById(id);
@@ -138,8 +143,7 @@ exports.addMultiple = async (req, res, next) => {
         ticketId: id,
         notifications: {
           lastAction: "new comment",
-          pending:
-            prefs.notify?.byEmail.isActive || prefs.notify?.byTelegram.isActive,
+          pending: true,
         },
         createdBy: authData.userId,
         updatedBy: authData.userId,
@@ -151,6 +155,7 @@ exports.addMultiple = async (req, res, next) => {
         ? ticket.comments.push(comment._id)
         : (ticket.comments = [comment._id]);
       await ticket.save();
+      commented.push(ticket._id);
 
       const logEntry = new TicketLog({
         ticketId: ticket._id,
@@ -163,6 +168,9 @@ exports.addMultiple = async (req, res, next) => {
       });
       await logEntry.save();
     }
+
+    // Из списка заявки не открывают — водяной знак автора ставит сервер
+    await markSeen(authData.userId, commented);
 
     res.status(201).json({
       message: "Comments added successfully!",

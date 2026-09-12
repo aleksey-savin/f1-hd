@@ -17,6 +17,7 @@ import TicketRow from "../../components/Ticket/Row";
 import useListSelection from "../../hooks/use-list-selection";
 import usePolling from "../../hooks/use-polling";
 import { warm } from "@/store/form-data";
+import useNotificationsStore from "@/store/notifications";
 import useTicketFilterStore from "../../store/lists/tickets";
 import useToastStore from "../../store/toast-store";
 import { queueLabel } from "../../util/ticket-queues";
@@ -235,6 +236,18 @@ const Tickets = () => {
           onChange={(value) => store.updateFilter({ companies: value })}
         />
       </span>
+      {/* Только в очереди «Непрочитанные»: снять точки со всего, что в ней
+          лежит, — то же «сбросить», что у фильтра, только для водяных знаков */}
+      {store.queue === "unread" && store.queueCounts.unread > 0 && (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={processing}
+          onClick={() => markAllSeen()}
+        >
+          Отметить прочитанными
+        </Button>
+      )}
       {canSelect && !selection.isActive && (
         <Button
           variant="outline"
@@ -275,6 +288,20 @@ const Tickets = () => {
       // исчезнувшие заявки хук сам уберёт из выбора.
       await store.silentRefresh();
     }
+  };
+
+  // «Отметить прочитанными»: водяной знак на всё, что показывает очередь, затем
+  // возврат в «Все» — очередь опустела, и пустая панель «ничего не нашлось»
+  // была бы неправдой. Колокольчик перечитывает счётчик: его уведомления по
+  // этим заявкам тоже прочитаны.
+  const markAllSeen = async () => {
+    await bulkRequest(
+      "/api/tickets/seen",
+      { ids: store.filteredList.map((ticket) => ticket._id) },
+      "Заявки отмечены прочитанными",
+    );
+    useNotificationsStore.getState().silentRefresh();
+    store.updateFilter({ queue: "all" });
   };
 
   const ids = selection.selectedIds;

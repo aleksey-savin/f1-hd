@@ -61,7 +61,7 @@ const Attachment = ({ attachment }) => (
   </a>
 );
 
-const CommentEntry = ({ comment, divided }) => {
+const CommentEntry = ({ comment, divided, isNew = false }) => {
   const [showQuoted, setShowQuoted] = useState(false);
   const author = comment.createdBy;
 
@@ -79,6 +79,13 @@ const CommentEntry = ({ comment, divided }) => {
           >
             {formatTime(comment.createdAt)}
           </span>
+          {/* Точка «новое» — после времени, последним флекс-ребёнком */}
+          {isNew && (
+            <span
+              aria-hidden
+              className="inline-block size-1.5 flex-none rounded-full bg-primary align-middle"
+            />
+          )}
         </div>
         <p className="my-0.5 text-sm leading-relaxed whitespace-pre-wrap">
           {comment.content}
@@ -218,7 +225,7 @@ const EventEntry = ({ event, ticketNum, divided }) => {
  * бэкенд (`services/ticketEvents` → `feedForClient`). Невидимое в интерфейсе,
  * но уехавшее в ответ — всё равно выданное, поэтому отбора здесь нет.
  */
-const Chronicle = ({ ticket, events = [], canComment }) => {
+const Chronicle = ({ ticket, events = [], canComment, seenAt = null }) => {
   const { comments, updateComments } = useViewTicketStore();
   const authedUser = useContext(AuthedUserContext);
   const { sendRequest, isLoading } = useHttp();
@@ -301,7 +308,23 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
       : []),
   ].sort((a, b) => new Date(b.at) - new Date(a.at));
 
+  // «Новые» — чужие комментарии новее водяного знака визита (seenAt — знак ДО
+  // этого открытия, страница держит его на весь визит). События не считаем:
+  // у записи хроники нет автора-идентификатора, и своё же действие светилось
+  // бы новым. При первом визите знака нет — нет и черты: отделять нечего.
+  const mine = (comment) =>
+    String(comment.createdBy?._id ?? comment.createdBy) ===
+    String(authedUser._id);
+  const watermark = seenAt ? new Date(seenAt).getTime() : 0;
+  const isNew = (item) =>
+    item.type === "comment" &&
+    watermark > 0 &&
+    new Date(item.at).getTime() > watermark &&
+    !mine(item.comment);
+  const newCount = feed.filter(isNew).length;
+
   let lastDay = null;
+  let dividerShown = false;
 
   return (
     <>
@@ -378,10 +401,25 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
           )}
           {feed.map((item) => {
             const day = businessDayKey(item.at);
-            const showDay = day !== lastDay;
+            const fresh = isNew(item);
+            // Черта «Новые» — над первой новой записью, вместо метки её дня:
+            // две метки подряд читались бы стопкой
+            const showDivider = fresh && !dividerShown;
+            if (showDivider) dividerShown = true;
+            const showDay = day !== lastDay && !showDivider;
             lastDay = day;
+            const divided = !showDay && !showDivider;
             return (
               <div key={item.key}>
+                {showDivider && (
+                  <div className="flex items-center gap-2.5 pt-3 pb-1 text-xs font-bold tracking-wider text-accent-text uppercase">
+                    Новые
+                    <span className="font-semibold tracking-normal tabular-nums">
+                      · {newCount}
+                    </span>
+                    <span className="h-px flex-1 bg-primary/35" />
+                  </div>
+                )}
                 {showDay && (
                   <div className="flex items-center gap-2.5 pt-3 pb-1 text-xs font-bold tracking-wider text-faint uppercase">
                     {dayLabel(item.at)}
@@ -389,14 +427,18 @@ const Chronicle = ({ ticket, events = [], canComment }) => {
                   </div>
                 )}
                 {/* Разделитель между записями — только внутри дня: у первой
-                  записи его роль играет линия самой метки дня */}
+                  записи его роль играет линия самой метки дня (или черты) */}
                 {item.type === "comment" ? (
-                  <CommentEntry comment={item.comment} divided={!showDay} />
+                  <CommentEntry
+                    comment={item.comment}
+                    divided={divided}
+                    isNew={fresh}
+                  />
                 ) : (
                   <EventEntry
                     event={item.event}
                     ticketNum={ticket.num}
-                    divided={!showDay}
+                    divided={divided}
                   />
                 )}
               </div>

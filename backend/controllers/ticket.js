@@ -21,6 +21,9 @@ const {
   normalizeAnswer,
 } = require("../services/ticketQuestionnaire");
 const { attachStale } = require("../services/ticketActivity");
+const { markSeen } = require("../services/ticketSeen");
+const { unreadIndex } = require("../services/ticketUnread");
+const TicketRead = require("../models/ticketRead");
 const { resolveGetScreenApiKey } = require("../helpers/getScreenKey");
 const User = require("../models//user");
 const Company = require("../models/company");
@@ -201,6 +204,11 @@ exports.getAllOpened = async (req, res, next) => {
     // движения», поэтому читаем их один раз.
     const preferences = await Preferences.findOne({});
 
+    // Непрочитанное считает сервер: точка и «N новых» у строки — по движению
+    // заявки и личному водяному знаку (services/ticketUnread), одним запросом
+    // на весь список.
+    const unreadOf = await unreadIndex(allTickets, { userId: req.auth.userId });
+
     // Пояс клиента на всю страницу разом: подразделения и компании грузятся
     // пачкой, каскад считается в памяти — иначе был бы запрос на строку.
     const clientTimezoneOf = await createClientTimezoneResolver({
@@ -241,6 +249,7 @@ exports.getAllOpened = async (req, res, next) => {
       routineTask: ticket.routineTask,
       aiSpeech: ticket.aiSpeech,
       aiCategory: ticket.aiCategory,
+      unread: unreadOf.get(ticket._id.toString()),
     }));
 
     // Срез «давно без движения» считает бэкенд: рабочие дни знает только он
@@ -628,11 +637,21 @@ exports.getOne = async (req, res, next) => {
       ticket.clientAddress = resolveClientAddress({ subdivision: null });
     }
 
+    // Водяной знак ДО этого визита — по нему хроника проводит черту «Новые»;
+    // сам визит отмечает страница (`POST /tickets/:num/seen`)
+    const read = await TicketRead.findOne({
+      userId: req.auth.userId,
+      ticketId: ticket._id,
+    })
+      .select("seenAt")
+      .lean();
+
     res.status(200).json({
       message: "Ticket fetched",
       ticket: ticket,
       company: companyObj || {},
       works: worksWithLinks,
+      seenAt: read?.seenAt ?? null,
       // Заявителю лента приходит ОТОБРАННОЙ, а не пустой: ход заявки и работы
       // по ней ему как раз нужны (services/ticketEvents → feedForClient)
       events: isEndUser ? feedForClient(events) : events,
@@ -961,6 +980,8 @@ exports.add = async (req, res, next) => {
     });
 
     await ticket.save();
+    // Создатель свою заявку видел: в его списке она не светится непрочитанной
+    await markSeen(userId, [ticket._id]);
 
     // добавляем запись в лог заявки
     const logEntry = new TicketLog({
@@ -1420,7 +1441,7 @@ exports.takeToWork = async (req, res, next) => {
     // ответственным» при первом же редактировании заявки.
     const selfAsResponsible = {
       ...authedUser,
-      isNotified: { telegram: true, email: true },
+      isNotified: { telegram: true, email: true, inApp: true },
     };
 
     if (req.body.takeOver) {
@@ -1501,6 +1522,7 @@ exports.requestHelp = async (req, res, next) => {
     });
 
     ticket.responsibles = ticket.responsibles.concat(filteredResponsibles);
+    ticket.updatedBy = authData.userId;
     ticket.notifications = {
       lastAction: "request help",
       pending: true,
@@ -1572,13 +1594,14 @@ exports.joinResponsibles = async (req, res, next) => {
     // при последующем редактировании заявки.
     ticket.responsibles = ticket.responsibles.concat({
       ...authedUser,
-      isNotified: { telegram: true, email: true },
+      isNotified: { telegram: true, email: true, inApp: true },
     });
 
     if (wasUnassigned) {
       ticket.state = "Не в работе";
     }
 
+    ticket.updatedBy = authedUser._id;
     ticket.notifications = {
       lastAction: "join responsibles",
       pending: true,
@@ -1631,6 +1654,7 @@ exports.updateDeadline = async (req, res, next) => {
     // фоновый цикл createTicketNotifications уведомит заявителя и ответственных.
     // "update deadline" — значение из enum схемы Ticket (заложено, но до сих
     // пор нигде не присваивалось).
+    ticket.updatedBy = authData.userId;
     ticket.notifications.lastAction = "update deadline";
     ticket.notifications.pending = true;
 
@@ -1704,6 +1728,7 @@ exports.reject = async (req, res, next) => {
     }
 
     ticket.state = updatedState;
+    ticket.updatedBy = authData.userId;
     ticket.notifications = {
       lastAction: "reject ticket",
       pending: true,
@@ -1790,6 +1815,7 @@ exports.close = async (req, res, next) => {
       ticket.isClosed = true;
       ticket.closingComment = req.body.closingComment;
       ticket.state = "Закрыта";
+      ticket.updatedBy = authedUser._id;
       ticket.notifications = {
         lastAction: "close ticket",
         pending: true,
@@ -1877,6 +1903,7 @@ exports.backToWork = async (req, res, next) => {
     ticket.isClosed = false;
     ticket.state = "В работе";
     ticket.returningComment = req.body.returningComment;
+    ticket.updatedBy = userId;
     ticket.notifications = {
       lastAction: "back to work",
       pending: true,
@@ -2062,10 +2089,12 @@ exports.takeToWorkMultiple = async (req, res, next) => {
     const authedUser = req.auth?.legacy ?? null;
     const { ids, takeOver } = req.body;
     const authedUserId = authedUser._id.toString();
+    const taken = [];
 
     for (const id of ids) {
       const ticket = await Ticket.findById(id);
       if (!ticket) continue;
+      taken.push(ticket._id);
 
       ticket.state = "В работе";
       ticket.startedAt = new Date();
@@ -2084,7 +2113,7 @@ exports.takeToWorkMultiple = async (req, res, next) => {
       // чтобы будущие редактирования не слали «вы назначены ответственным».
       const selfAsResponsible = {
         ...authedUser,
-        isNotified: { telegram: true, email: true },
+        isNotified: { telegram: true, email: true, inApp: true },
       };
 
       if (takeOver) {
@@ -2124,6 +2153,10 @@ exports.takeToWorkMultiple = async (req, res, next) => {
       }
     }
 
+    // Из списка заявки не открывают — водяной знак ставит сервер, иначе свои же
+    // действия светились бы непрочитанными (services/ticketSeen)
+    await markSeen(authedUser._id, taken);
+
     res.status(201).json({
       message: "Tickets taken to work successfully!",
     });
@@ -2147,6 +2180,7 @@ exports.closeMultiple = async (req, res, next) => {
     const prefs = await Preferences.findOne({});
     const authedUser = req.auth?.legacy ?? null;
     const { ids, closingComment } = req.body;
+    const closed = [];
 
     for (const id of ids) {
       const ticket = await Ticket.findById(id);
@@ -2185,6 +2219,7 @@ exports.closeMultiple = async (req, res, next) => {
       ticket.isClosed = true;
       ticket.closingComment = closingComment;
       ticket.state = "Закрыта";
+      ticket.updatedBy = authedUser._id;
       ticket.notifications = {
         lastAction: "close ticket",
         pending: true,
@@ -2236,7 +2271,11 @@ exports.closeMultiple = async (req, res, next) => {
         event: `заявка закрыта`,
       });
       await logEntry.save();
+      closed.push(ticket._id);
     }
+
+    // Из списка заявки не открывают — водяной знак ставит сервер
+    await markSeen(authedUser._id, closed);
 
     res.status(201).json({
       message: "Tickets closed successfully!",
@@ -2332,6 +2371,7 @@ exports.update = async (req, res, next) => {
           isNotified: {
             telegram: false,
             email: false,
+            inApp: false,
           },
         });
       }

@@ -9,6 +9,7 @@ const crypto = require("crypto");
 
 const { Ticket } = require("../models/ticket");
 const Comment = require("../models/comment");
+const { markSeen } = require("../services/ticketSeen");
 const MongoCompany = require("../models/company");
 const MongoUser = require("../models/user");
 const Preferences = require("../models/preferences");
@@ -781,6 +782,12 @@ exports.handleNewEmails = async () => {
               { _id: ticket._id },
               { $push: { comments: comment._id } },
             );
+
+            // Ответивший письмом заявку в приложении не открывал — свой ответ
+            // не должен светиться у него непрочитанным (services/ticketSeen)
+            if (sender?._id) {
+              await markSeen(sender._id, [ticket._id]);
+            }
 
             // добавляем запись в лог заявки
             const logEntry = new TicketLog({

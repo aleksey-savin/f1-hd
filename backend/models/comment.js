@@ -48,4 +48,31 @@ const commentSchema = new Schema(
   { timestamps: true },
 );
 
+// Новый комментарий — движение заявки (точка «непрочитано» в списках, см.
+// services/ticketSeen.js). Пометку «новый» берём в pre-save: в post-save
+// isNew уже сброшен. Хук асинхронный, и Mongoose его дожидается — поэтому
+// «отметить просмотренным» после `comment.save()` гарантированно позже
+// движения. Сбой обновления комментарий не роняет.
+commentSchema.pre("save", function rememberNew() {
+  this.$locals.wasNew = this.isNew;
+});
+commentSchema.post("save", async function bumpTicketActivity(doc) {
+  if (!doc.$locals || !doc.$locals.wasNew) return;
+  try {
+    await mongoose.model("Ticket").updateOne(
+      { _id: doc.ticketId },
+      {
+        $set: {
+          activity: { at: doc.createdAt || new Date(), by: doc.createdBy },
+        },
+      },
+    );
+  } catch (error) {
+    console.warn(
+      "activity заявки не обновлена по комментарию:",
+      error?.message || error,
+    );
+  }
+});
+
 module.exports = mongoose.model("Comment", commentSchema);

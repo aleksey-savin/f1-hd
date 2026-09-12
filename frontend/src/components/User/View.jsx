@@ -15,6 +15,7 @@ import {
   RiMoneyDollarCircleLine,
   RiMoreLine,
   RiPhoneLine,
+  RiNotification3Line,
   RiPriceTag3Line,
   RiRemoteControlLine,
   RiSettings4Line,
@@ -240,44 +241,26 @@ const ViewUser = ({ user, tickets }) => {
     }))
     .filter((group) => group.caps.length);
 
+  // Канал «в приложении» у заведённых до него не сохранён — отсутствие
+  // значит «включено», как считает сервер
+  const notifyRow = (label, key) => ({
+    label,
+    app: notify.inApp?.[key] !== false,
+    tg: notify.byTelegram?.[key],
+    em: notify.byEmail?.[key],
+  });
   const notifyRows = notify
     ? [
-        {
-          label: "Новая заявка",
-          tg: notify.byTelegram?.newTicket,
-          em: notify.byEmail?.newTicket,
-        },
+        notifyRow("Новая заявка", "newTicket"),
         // Ответственным по заявке бывает только сотрудник — клиенту строка
         // ни о чём
         ...(isEndUser
           ? []
-          : [
-              {
-                label: "Статус ответственного",
-                tg: notify.byTelegram?.respStateUpdate,
-                em: notify.byEmail?.respStateUpdate,
-              },
-            ]),
-        {
-          label: "Изменение статуса заявки",
-          tg: notify.byTelegram?.ticketStateUpdate,
-          em: notify.byEmail?.ticketStateUpdate,
-        },
-        {
-          label: "Изменения срока выполнения",
-          tg: notify.byTelegram?.ticketDeadlineUpdate,
-          em: notify.byEmail?.ticketDeadlineUpdate,
-        },
-        {
-          label: "Новые комментарии",
-          tg: notify.byTelegram?.ticketNewComment,
-          em: notify.byEmail?.ticketNewComment,
-        },
-        {
-          label: "Запланированные работы",
-          tg: notify.byTelegram?.scheduledWorks,
-          em: notify.byEmail?.scheduledWorks,
-        },
+          : [notifyRow("Статус ответственного", "respStateUpdate")]),
+        notifyRow("Изменение статуса заявки", "ticketStateUpdate"),
+        notifyRow("Изменения срока выполнения", "ticketDeadlineUpdate"),
+        notifyRow("Новые комментарии", "ticketNewComment"),
+        notifyRow("Запланированные работы", "scheduledWorks"),
       ]
     : [];
   const tgConnected = Boolean(telegramBot?.isActive);
@@ -881,6 +864,12 @@ const ViewUser = ({ user, tickets }) => {
                         <th className="py-2 text-left font-bold">Событие</th>
                         <th className="px-3 py-2 font-bold">
                           <span className="inline-flex items-center gap-1.5">
+                            <RiNotification3Line className="size-4 text-muted-foreground" />{" "}
+                            Приложение
+                          </span>
+                        </th>
+                        <th className="px-3 py-2 font-bold">
+                          <span className="inline-flex items-center gap-1.5">
                             <RiTelegramLine className="size-4 text-muted-foreground" />{" "}
                             Telegram
                           </span>
@@ -900,6 +889,13 @@ const ViewUser = ({ user, tickets }) => {
                           className="border-t border-border-soft"
                         >
                           <td className="py-2 font-medium">{row.label}</td>
+                          <td className="px-3 py-2 text-center">
+                            {row.app ? (
+                              <RiCheckLine className="mx-auto size-4.5 text-primary" />
+                            ) : (
+                              <RiCloseLine className="mx-auto size-4.5 text-faint" />
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-center">
                             {row.tg && tgConnected ? (
                               <RiCheckLine className="mx-auto size-4.5 text-primary" />

@@ -843,6 +843,7 @@ exports.add = async (req, res, next) => {
                 respStateUpdate: false,
               },
               byEmail: { ...(notify?.byEmail || {}), respStateUpdate: false },
+              inApp: { ...(notify?.inApp || {}), respStateUpdate: false },
             }
           : notify,
       responsibleForCompanies: (responsibleForCompanies || []).map((item) => ({
@@ -1120,7 +1121,7 @@ exports.update = async (req, res, next) => {
     // мержим по путям (как updateMyAccount), чтобы частичный объект не сбросил
     // остальные категории.
     if (notify) {
-      for (const channel of ["byTelegram", "byEmail"]) {
+      for (const channel of ["byTelegram", "byEmail", "inApp"]) {
         for (const [key, value] of Object.entries(notify[channel] ?? {})) {
           user.set(`notify.${channel}.${key}`, !!value);
         }
@@ -1810,7 +1811,7 @@ exports.updateMyAccount = async (req, res, next) => {
     // получали бы дефолты вместо сохранённых значений. user.set со strict
     // mode сам отбрасывает неизвестные схеме ключи.
     if (notify) {
-      for (const channel of ["byTelegram", "byEmail"]) {
+      for (const channel of ["byTelegram", "byEmail", "inApp"]) {
         for (const [key, value] of Object.entries(notify[channel] ?? {})) {
           if (typeof value === "boolean") {
             user.set(`notify.${channel}.${key}`, value);

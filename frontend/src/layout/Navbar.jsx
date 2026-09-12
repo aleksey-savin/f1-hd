@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/popover";
 import BrandMark from "@/components/app/BrandMark";
 import NavProgress from "@/components/app/NavProgress";
+import Bell from "@/components/Notifications/Bell";
 import { THEME_OPTIONS } from "@/components/app/ThemeSegment";
 import { cn } from "@/lib/utils";
 
@@ -288,25 +289,30 @@ const NavigationBar = ({ embedded = false }) => {
           </Button>
         )}
         <Brand size="sm" />
-        {isLoggedIn && workStatusAvailable && (
-          <div className="ms-auto">
-            <UserMenu
-              trigger={
-                <button
-                  type="button"
-                  aria-label="Мой статус и аккаунт"
-                  className="inline-grid cursor-pointer appearance-none place-items-center rounded-full border-0 bg-transparent p-0.5 outline-none focus-visible:ring-4 focus-visible:ring-ring/50"
-                >
-                  <WorkStatusAvatar
-                    size={32}
-                    firstName={firstName}
-                    lastName={lastName}
-                    profileImagePath={profileImagePath}
-                    workStatus={workStatus}
-                  />
-                </button>
-              }
-            />
+        {/* Колокольчик — каждому, кто вошёл; у клиента аватара статуса в шапке
+            нет, и обёртка ms-auto нужна ему отдельно */}
+        {isLoggedIn && (
+          <div className="ms-auto flex items-center gap-1.5">
+            <Bell />
+            {workStatusAvailable && (
+              <UserMenu
+                trigger={
+                  <button
+                    type="button"
+                    aria-label="Мой статус и аккаунт"
+                    className="inline-grid cursor-pointer appearance-none place-items-center rounded-full border-0 bg-transparent p-0.5 outline-none focus-visible:ring-4 focus-visible:ring-ring/50"
+                  >
+                    <WorkStatusAvatar
+                      size={32}
+                      firstName={firstName}
+                      lastName={lastName}
+                      profileImagePath={profileImagePath}
+                      workStatus={workStatus}
+                    />
+                  </button>
+                }
+              />
+            )}
           </div>
         )}
         {isLoggedIn && (
@@ -384,6 +390,7 @@ const NavigationBar = ({ embedded = false }) => {
 
         {isLoggedIn && (
           <div className="ms-auto flex flex-none items-center gap-1">
+            <Bell />
             <ThemeDropdown />
             <UserMenu trigger={userTrigger} />
           </div>

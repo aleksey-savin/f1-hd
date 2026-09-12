@@ -15,6 +15,8 @@ import { businessDaysAgo } from "./format-date";
  */
 export const TICKET_QUEUES = [
   { value: "all", label: "Все" },
+  // Нейтральная: непрочитанное — не состояние заявки, а моё к ней отношение
+  { value: "unread", label: "Непрочитанные" },
   { value: "new", label: "Новые", tone: "warn" },
   { value: "overdue", label: "Просрочены", tone: "bad" },
   { value: "today", label: "Дедлайн сегодня" },
@@ -37,6 +39,9 @@ export const queueLabel = (value) =>
  */
 export const matchesQueue = (ticket, queue, userId) => {
   switch (queue) {
+    case "unread":
+      // Считает сервер: чужое движение после моего последнего визита
+      return Boolean(ticket.unread?.isUnseen);
     case "new":
       return ticket.state === "Новая";
     case "overdue":

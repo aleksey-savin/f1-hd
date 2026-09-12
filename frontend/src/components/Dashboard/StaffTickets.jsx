@@ -251,6 +251,7 @@ const StaffTickets = () => {
               ticket={ticket}
               meta={current.meta(ticket)}
               trailing={current.trailing(ticket)}
+              unread={ticket.unread}
             />
           ))}
 

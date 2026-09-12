@@ -1,6 +1,9 @@
 const Router = require("express");
 const router = new Router();
 const ticketController = require("@/controllers/ticket");
+const notificationController = require("@/controllers/notification");
+const notificationValidation = require("@/validations/notification");
+const { runValidation } = require("@/middleware/runValidation");
 const isAuth = require("@/middleware/isAuth");
 const isTelegramBot = require("@/middleware/isTelegramBot");
 const {
@@ -70,10 +73,16 @@ router.post("/tickets/delete/:id", isAuth, canDeleteTickets, requireTicketAccess
 router.post("/tickets/delete-multiple", isAuth, canDeleteTickets, byBodyIds, ticketController.deleteMultiple);
 router.post("/tickets/take-to-work-multiple", isAuth, canPerformTickets, byBodyIds, requireJoinableTickets, ticketController.takeToWorkMultiple);
 router.post("/tickets/close-multiple", isAuth, canPerformTickets, byBodyIds, requireOwnTicketsOrManage, ticketController.closeMultiple);
+// «Отметить прочитанными» из очереди «Непрочитанные»: водяной знак «видел» на
+// список заявок — только доступных (byBodyIds)
+router.post("/tickets/seen", isAuth, notificationValidation.seenMany, runValidation, byBodyIds, notificationController.markTicketsSeen);
 // Состав чек-листа: право решает контроллер (canEditChecklist) — оно зависит
 // от отношения к заявке и от того, регламентная ли она
 router.post("/tickets/:ticketNum/update-checklist", isAuth, byNum, ticketController.updateChecklist);
 router.post("/tickets/:ticketNum/update-checklist-item", isAuth, canPerformTickets, byNum, requireOwnTicketOrManage, ticketController.updateChecklistItem);
+
+// Заявку открыли: водяной знак «видел» и её уведомления в колокольчике прочитаны
+router.post("/tickets/:ticketNum/seen", isAuth, byNum, notificationController.markTicketSeen);
 
 router.get(
   "/tickets/:ticketNum",

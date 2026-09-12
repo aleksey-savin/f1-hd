@@ -78,7 +78,7 @@ export interface ITicketResponsible {
   position?: string;
   role?: string;
   isActive?: boolean;
-  isNotified?: { telegram?: boolean; email?: boolean };
+  isNotified?: { telegram?: boolean; email?: boolean; inApp?: boolean };
 }
 
 export interface ITicketChecklistItem {
@@ -144,6 +144,8 @@ export interface ITicket extends ITicketDefaultFields {
     pending?: boolean;
     destination?: Types.ObjectId;
   };
+  /** Последнее движение заявки (событие или комментарий): когда и кто. */
+  activity?: { at?: Date; by?: Types.ObjectId };
   comments?: Types.ObjectId[];
   source: TicketSource;
   responsibles?: ITicketResponsible[];
@@ -151,7 +153,7 @@ export interface ITicket extends ITicketDefaultFields {
     _id?: Types.ObjectId;
     firstName?: string;
     lastName?: string;
-    isNotified?: { telegram?: boolean; email?: boolean };
+    isNotified?: { telegram?: boolean; email?: boolean; inApp?: boolean };
   }[];
   rejected?: { by?: Types.ObjectId; reason?: string }[];
   closingComment?: string;

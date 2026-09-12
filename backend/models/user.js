@@ -215,6 +215,20 @@ const userSchema = new Schema(
         reportApproval: { type: Boolean, default: true },
         reportDecision: { type: Boolean, default: true },
       },
+      // Канал «в приложении» (колокольчик, services/inAppNotifications). Те же
+      // ключи; у уже сохранённых людей поля нет — отсутствие значит «включено»
+      inApp: {
+        newTicket: { type: Boolean, default: true },
+        respStateUpdate: { type: Boolean, default: true },
+        ticketStateUpdate: { type: Boolean, default: true },
+        ticketDeadlineUpdate: { type: Boolean, default: true },
+        ticketNewComment: { type: Boolean, default: true },
+        scheduledWorks: { type: Boolean, default: true },
+        absenceRequest: { type: Boolean, default: true },
+        absenceDecision: { type: Boolean, default: true },
+        reportApproval: { type: Boolean, default: true },
+        reportDecision: { type: Boolean, default: true },
+      },
     },
     // НЕ обязателен с 2026-08: человека можно завести приглашением, и пароля у
     // него не будет вовсе, пока он не задаст его сам. Несозданный пароль нельзя

@@ -6,6 +6,7 @@ const {
   renderApprovalEmail,
 } = require("@/services/mail/approvalEmailTemplate");
 const logger = require("@/utils/logger");
+const { pushInApp } = require("@/services/inAppNotifications");
 const {
   fmtDayMonth,
   fmtMonthYear,
@@ -39,17 +40,22 @@ const appUrl = () =>
  * Токен ищем прямо здесь, а не через services/reportApproval: тот импортирует
  * этот модуль, и обратная зависимость замкнула бы цикл.
  */
+/** Относительный адрес страницы согласования — для ссылок внутри приложения. */
+const approvalPath = (report, userId) => {
+  const personal = (report.accessTokens || []).find(
+    (item) => String(item.user?._id) === String(userId) && !item.usedAt,
+  );
+  return personal
+    ? `/approval/${personal.token}`
+    : `/finances/approval/${report._id}`;
+};
+
 const approvalLink = (report, userId) => {
   const base = appUrl();
   if (!base) {
     return null;
   }
-  const personal = (report.accessTokens || []).find(
-    (item) => String(item.user?._id) === String(userId) && !item.usedAt,
-  );
-  return personal
-    ? `${base}/approval/${personal.token}`
-    : `${base}/finances/approval/${report._id}`;
+  return `${base}${approvalPath(report, userId)}`;
 };
 
 const money = (value) => `${Math.round(value || 0).toLocaleString("ru-RU")} ₽`;
@@ -65,6 +71,9 @@ const queue = async ({
   textFor,
   titleFor,
   htmlFor,
+  // Ссылка внутри приложения для канала «в приложении»: у согласующего
+  // персональная, у нашей стороны — карточка отчёта
+  linkFor,
 }) => {
   const prefs = await Preferences.findOne({}).lean();
   if (!prefs) {
@@ -114,6 +123,20 @@ const queue = async ({
       });
     }
   }
+
+  // Канал «в приложении» — независимо от почты и Telegram, гейт внутри.
+  // Заголовок короткий (`title`), а не почтовая тема: в колокольчике он
+  // стоит жирной строкой над текстом
+  await pushInApp({
+    recipients,
+    category,
+    kind: category,
+    title,
+    text,
+    textFor,
+    linkFor,
+    prefs,
+  });
 
   if (documents.length === 0) {
     return 0;
@@ -306,6 +329,7 @@ const notifyApprovalRequested = async ({
     titleFor: subjectFor,
     textFor,
     htmlFor,
+    linkFor: (user) => approvalPath(report, user._id),
   });
 };
 
@@ -342,6 +366,7 @@ const notifyDecision = async ({
     category: "reportDecision",
     title: approved ? "Отчёт согласован" : "Отчёт отклонён",
     text: lines.join("\n"),
+    linkFor: () => `/finances/approval/${report._id}`,
   });
 };
 
@@ -366,6 +391,7 @@ const notifyAutoApproved = async ({
     category: "reportDecision",
     title: "Отчёт согласован автоматически",
     text: lines.join("\n"),
+    linkFor: () => `/finances/approval/${report._id}`,
   });
 };
 

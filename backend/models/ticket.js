@@ -204,6 +204,17 @@ const ticketSchema = new Schema(
       ],
       required: true,
     },
+    // Последнее движение заявки — событие жизненного цикла или комментарий:
+    // кто и когда. Ставят хуки (ниже и в models/comment.js), читают списки
+    // для точки «непрочитано» (services/ticketUnread.js). Не updatedAt: его
+    // бумкает любое машинное касание.
+    activity: {
+      at: Date,
+      by: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+    },
     notifications: {
       lastAction: {
         type: String,
@@ -261,6 +272,7 @@ const ticketSchema = new Schema(
         isNotified: {
           telegram: Boolean,
           email: Boolean,
+          inApp: Boolean,
         },
       },
     ],
@@ -275,6 +287,7 @@ const ticketSchema = new Schema(
         isNotified: {
           telegram: Boolean,
           email: Boolean,
+          inApp: Boolean,
         },
       },
     ],
@@ -529,6 +542,15 @@ ticketSchema.index({ "applicant._id": 1, createdAt: -1 }); // For latest-ticket-
 // должен ронять создание заявки.
 ticketSchema.pre("save", function markTicketAsNew() {
   this.$locals.wasNew = this.isNew;
+});
+// Движение заявки для точки «непрочитано» (см. поле `activity`). Предикат —
+// в сервисе, с тестом; здесь только запись. Автор — `updatedBy`: его ставит
+// каждый обработчик жизненного цикла.
+ticketSchema.pre("save", function touchActivity() {
+  const { shouldBumpActivity } = require("@/services/ticketSeen");
+  if (shouldBumpActivity(this)) {
+    this.activity = { at: new Date(), by: this.updatedBy };
+  }
 });
 ticketSchema.post("save", function touchApplicantActivity(doc) {
   if (!doc.$locals || !doc.$locals.wasNew) return;

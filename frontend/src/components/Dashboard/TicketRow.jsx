@@ -1,6 +1,8 @@
 import { Link } from "react-router";
 
 import { useCrumbFrom } from "@/components/app/Crumbs";
+import { cn } from "@/lib/utils";
+import { plural } from "../../util/plural";
 import { TicketStateText, ticketTone } from "../Ticket/ticket-state";
 
 /**
@@ -15,9 +17,19 @@ import { TicketStateText, ticketTone } from "../Ticket/ticket-state";
  * так»: возраст, время без движения, кнопка «Взять». Поэтому он проп, а не
  * колонка: у трёх блоков сотрудника три разных правых края.
  */
-const TicketRow = ({ ticket, meta, trailing }) => {
+const TicketRow = ({ ticket, meta, trailing, unread }) => {
   const { label, tone } = ticketTone(ticket);
   const fromState = useCrumbFrom("Главная");
+  // Непрочитанное — те же знаки, что у строки списка заявок (Ticket/Row):
+  // точка у номера, тема полужирным, «N новых» первым в мете
+  const unseen = Boolean(unread?.isUnseen);
+  const newComments = unread?.newComments ?? 0;
+  const unseenDot = (
+    <span
+      aria-hidden
+      className="me-1.5 inline-block size-1.5 rounded-full bg-primary align-middle"
+    />
+  );
 
   return (
     <Link
@@ -27,22 +39,40 @@ const TicketRow = ({ ticket, meta, trailing }) => {
     >
       {/* мобайл: номер и статус одной строкой над темой */}
       <div className="flex items-baseline gap-2 text-xs text-muted-foreground tabular-nums md:hidden">
-        <span>№ {ticket.num}</span>
+        <span>
+          {unseen && unseenDot}№ {ticket.num}
+        </span>
         <TicketStateText tone={tone} className="ms-auto text-xs">
           {label}
         </TicketStateText>
       </div>
 
       <div className="hidden w-16 flex-none text-sm font-medium text-muted-foreground tabular-nums md:block">
+        {unseen && unseenDot}
         {ticket.num}
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">
+        <div
+          className={cn(
+            "truncate text-sm",
+            unseen ? "font-semibold" : "font-medium",
+          )}
+        >
           {ticket.title || "Без темы"}
         </div>
-        {meta && (
-          <div className="truncate text-sm text-muted-foreground">{meta}</div>
+        {(meta || newComments > 0) && (
+          <div className="truncate text-sm text-muted-foreground">
+            {newComments > 0 && (
+              <>
+                <span className="font-semibold text-accent-text">
+                  {newComments} {plural(newComments, "новый", "новых", "новых")}
+                </span>
+                {meta && " · "}
+              </>
+            )}
+            {meta}
+          </div>
         )}
       </div>
 

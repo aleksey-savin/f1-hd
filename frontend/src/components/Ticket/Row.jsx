@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import { Link } from "react-router";
 import {
@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { formatDate } from "../../util/format-date";
+import { plural } from "../../util/plural";
 import {
   TicketStateText,
   createdShort,
@@ -110,24 +111,49 @@ const TicketRow = ({
     createdAt,
     deadline,
     routineTask,
+    unread,
   } = ticket;
 
   const state = ticketTone(ticket);
   const overdue = isOverdue(ticket);
+  // Непрочитанное считает сервер (services/ticketUnread): точка у номера и
+  // тема полужирным — у заявки, где что-то случилось с моего последнего
+  // визита; «N новых» — чужие комментарии с тех пор. Прочитанная строка не
+  // несёт ничего: в списке показываем только исключения
+  const unseen = Boolean(unread?.isUnseen);
+  const newComments = unread?.newComments ?? 0;
+  const unseenDot = (
+    <span
+      aria-hidden
+      className="me-1.5 inline-block size-1.5 rounded-full bg-primary align-middle"
+    />
+  );
 
   const applicantName = applicant
     ? `${applicant.lastName || ""} ${applicant.firstName || ""}`.trim()
     : realSender || "";
   const metaText = [company?.alias, applicantName].filter(Boolean).join(" · ");
-  const meta = (iconSize) =>
-    routineTask ? (
-      <>
-        <RoutineMark size={iconSize} />
-        {metaText && ` · ${metaText}`}
-      </>
-    ) : (
-      metaText || "—"
-    );
+  // Мета — вторичные факты через « · »: «N новых» первым, вид записи
+  // (регламент), компания и инициатор
+  const meta = (iconSize) => {
+    const parts = [];
+    if (newComments > 0) {
+      parts.push(
+        <span className="font-semibold text-accent-text">
+          {newComments} {plural(newComments, "новый", "новых", "новых")}
+        </span>,
+      );
+    }
+    if (routineTask) parts.push(<RoutineMark size={iconSize} />);
+    if (metaText) parts.push(metaText);
+    if (!parts.length) return "—";
+    return parts.map((part, index) => (
+      <Fragment key={index}>
+        {index > 0 && " · "}
+        {part}
+      </Fragment>
+    ));
+  };
 
   const hasMenu = canEdit || canDelete;
   // Чекбокс виден без наведения: режим включён (или строка уже выбрана)
@@ -186,7 +212,11 @@ const TicketRow = ({
       >
         {/* мобайл: номер, возраст и состояние */}
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums md:hidden">
-          № {num}
+          {/* Точка внутри строчного span, а не первым флекс-ребёнком: у флекса
+              базовая линия взялась бы от пустой точки (см. TicketStateText) */}
+          <span>
+            {unseen && unseenDot}№ {num}
+          </span>
           <span className="text-faint">· {createdShort(createdAt)}</span>
           <TicketStateText tone={state.tone} className="ms-auto text-xs">
             {state.label}
@@ -203,12 +233,18 @@ const TicketRow = ({
                 : "group-hover:translate-x-6 group-hover:delay-200 group-has-[[data-slot=checkbox]:focus-visible]:translate-x-6"),
           )}
         >
+          {unseen && unseenDot}
           {num}
         </span>
 
         {/* тема и мета — всегда двумя строками */}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-base leading-tight font-medium">
+          <span
+            className={cn(
+              "block truncate text-base leading-tight",
+              unseen ? "font-semibold" : "font-medium",
+            )}
+          >
             {title}
           </span>
           <span className="hidden truncate text-sm text-muted-foreground md:block">

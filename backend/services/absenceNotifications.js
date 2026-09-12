@@ -1,6 +1,7 @@
 const Notification = require("@/models/notification");
 const Preferences = require("@/models/preferences");
 const logger = require("@/utils/logger");
+const { pushInApp } = require("@/services/inAppNotifications");
 
 /**
  * Уведомления об отсутствиях. Кладём документы в ту же очередь Notification,
@@ -55,6 +56,21 @@ const notifyAbsence = async ({ recipients, text, category, title }) => {
       });
     }
   }
+
+  // Канал «в приложении» — независимо от почты и Telegram, гейт внутри
+  await pushInApp({
+    recipients,
+    category,
+    kind: category,
+    title:
+      title ||
+      (category === "absenceRequest"
+        ? "Запрос на отсутствие"
+        : "Решение по отсутствию"),
+    text,
+    link: "/team/calendar",
+    prefs,
+  });
 
   if (!documents.length) {
     return;
