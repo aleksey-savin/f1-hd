@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { RiCloseLine, RiErrorWarningLine } from "react-icons/ri";
 
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
+import ClosingChips, { isTouchPointer } from "./ClosingChips";
 import useTicketAction from "../../../hooks/use-ticket-action";
 import { localToUtc, utcToLocalForm } from "../../../util/format-date";
 import { closeBlockers } from "../ticket-actions";
@@ -77,6 +78,7 @@ const ActionDialog = ({
   const [text, setText] = useState("");
   const [deadline, setDeadline] = useState("");
   const [helpers, setHelpers] = useState([]);
+  const closingField = useRef(null);
 
   const open = Boolean(action);
 
@@ -154,6 +156,10 @@ const ActionDialog = ({
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogContent
         className={action === "close" ? "sm:max-w-2xl" : undefined}
+        // На телефоне клавиатура закрыла бы чипы закрытия — фокус не ставим
+        onOpenAutoFocus={(event) =>
+          action === "close" && isTouchPointer() && event.preventDefault()
+        }
       >
         <form onSubmit={submit}>
           {/* Ни темы, ни номера: карточка заявки осталась на фоне, и диалогу
@@ -211,13 +217,21 @@ const ActionDialog = ({
                   required
                 >
                   <Textarea
+                    ref={closingField}
                     id="action-text"
                     rows={4}
                     required
-                    autoFocus
+                    autoFocus={!isTouchPointer()}
                     value={text}
                     onChange={(event) => setText(event.target.value)}
                     placeholder="Например: Добрый день! Проблема устранена."
+                  />
+                  <ClosingChips
+                    value={text}
+                    onChange={setText}
+                    works={works}
+                    timezone={ticket.clientTimezone?.timezone}
+                    fieldRef={closingField}
                   />
                 </Field>
                 <Alert variant="warning">

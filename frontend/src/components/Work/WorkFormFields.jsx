@@ -1,4 +1,6 @@
-import { RiTimeLine, RiUserLine } from "react-icons/ri";
+import { useState } from "react";
+
+import { RiPencilLine, RiTimeLine, RiUserLine } from "react-icons/ri";
 
 import Field from "@/components/app/Field";
 import Segmented from "@/components/app/Segmented";
@@ -9,13 +11,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 import {
+  businessDayKey,
   formatCalendarDate,
+  formatDayKey,
   shiftLocalForm,
   toDateTimeLocal,
 } from "../../util/format-date";
 
 import OutOfSchedulePanel from "./OutOfSchedulePanel";
 import { formatDurationWords } from "./duration";
+import { formatWorkRange } from "./time-range";
 
 // Чип называет результат («30 мин»), а не операцию («+30 мин»): инженер думает
 // «работал полчаса», а не «прибавить тридцать к тому, что стоит».
@@ -37,6 +42,18 @@ const TYPE_OPTIONS = [
   { value: "remote", label: "Удалённо" },
   { value: "onSite", label: "Выезд" },
 ];
+
+// «Сейчас» — в строке подписи поля, акцентным текстом: у дальнего края поля
+// кнопка-призрак терялась (макет «Время работы», вариант B)
+const NowButton = ({ onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="cursor-pointer appearance-none rounded-sm border-0 bg-transparent p-0 text-sm leading-none font-semibold text-accent-text underline-offset-4 outline-none hover:underline focus-visible:ring-4 focus-visible:ring-ring/50"
+  >
+    Сейчас
+  </button>
+);
 
 /**
  * Поля формы работы — одни на все режимы (`WORK_MODES` в use-work-form).
@@ -81,6 +98,18 @@ const WorkFormFields = ({
     isPreviewError,
     retryPreview,
   } = form;
+
+  // Поля начала и окончания — по запросу: обычно работу отмечают сразу после
+  // неё (86–89% заканчиваются в пределах 10 минут от внесения), и хватает
+  // чипа. Открыты сразу там, где время вводят или правят: план и уже
+  // записанная работа (изменение, подтверждение).
+  const [timeFieldsOpen, setTimeFieldsOpen] = useState(
+    () => isPlan || Boolean(startedAt || finishedAt),
+  );
+  const timeRange = formatWorkRange(startedAt, finishedAt, {
+    today: businessDayKey(),
+    formatDay: formatDayKey,
+  });
 
   const minStart = limitWorksDateFrom
     ? toDateTimeLocal(limitWorksDateFrom)
@@ -142,69 +171,11 @@ const WorkFormFields = ({
         />
       </Field>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field
-          label={isPlan ? "Планируемое начало" : "Начало"}
-          htmlFor="work-started-at"
-          required
-          hint={
-            minStart
-              ? `Отчёт по услуге сформирован — работы можно указывать с ${formatCalendarDate(limitWorksDateFrom)}.`
-              : undefined
-          }
-        >
-          <div className="flex gap-2">
-            <DateTimeField
-              id="work-started-at"
-              value={startedAt}
-              min={minStart || undefined}
-              onChange={setStartedAt}
-              className="min-w-0 flex-1"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setStartedAt(toDateTimeLocal())}
-            >
-              Сейчас
-            </Button>
-          </div>
-        </Field>
-
-        <Field
-          label={isPlan ? "Планируемое окончание" : "Окончание"}
-          htmlFor="work-finished-at"
-          required
-          hint={
-            isReversed ? (
-              <span className="text-destructive">Окончание раньше начала.</span>
-            ) : undefined
-          }
-        >
-          <div className="flex gap-2">
-            <DateTimeField
-              id="work-finished-at"
-              value={finishedAt}
-              min={startedAt || minStart || undefined}
-              onChange={setFinishedAt}
-              invalid={isReversed}
-              className="min-w-0 flex-1"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setFinishedAt(toDateTimeLocal())}
-            >
-              Сейчас
-            </Button>
-          </div>
-        </Field>
-      </div>
-
       <div className="mb-4">
         <div className="flex items-baseline gap-3">
-          <span className="text-sm font-semibold text-muted-foreground">
-            Длительность
+          <span className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+            {isPlan ? "Планируемое время" : "Время работы"}
+            <span className="text-destructive">*</span>
           </span>
           <span
             className={cn(
@@ -245,7 +216,72 @@ const WorkFormFields = ({
             <RiTimeLine size={14} /> Дольше 12 часов — проверьте время.
           </p>
         )}
+
+        {/* Выбранное время — фразой, которую проверяют взглядом; поля — по
+            запросу */}
+        {!timeFieldsOpen && (
+          <div className="mt-2.5 flex min-h-9 flex-wrap items-center gap-x-1">
+            {timeRange && (
+              <span className="me-1 text-sm tabular-nums">{timeRange}</span>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="-ms-2.5"
+              onClick={() => setTimeFieldsOpen(true)}
+            >
+              <RiPencilLine />
+              {timeRange ? "Изменить время" : "Указать вручную"}
+            </Button>
+          </div>
+        )}
       </div>
+
+      {timeFieldsOpen && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field
+            label={isPlan ? "Планируемое начало" : "Начало"}
+            htmlFor="work-started-at"
+            aside={<NowButton onClick={() => setStartedAt(toDateTimeLocal())} />}
+            hint={
+              minStart
+                ? `Отчёт по услуге сформирован — работы можно указывать с ${formatCalendarDate(limitWorksDateFrom)}.`
+                : undefined
+            }
+          >
+            <DateTimeField
+              id="work-started-at"
+              value={startedAt}
+              min={minStart || undefined}
+              onChange={setStartedAt}
+            />
+          </Field>
+
+          <Field
+            label={isPlan ? "Планируемое окончание" : "Окончание"}
+            htmlFor="work-finished-at"
+            aside={
+              <NowButton onClick={() => setFinishedAt(toDateTimeLocal())} />
+            }
+            hint={
+              isReversed ? (
+                <span className="text-destructive">
+                  Окончание раньше начала.
+                </span>
+              ) : undefined
+            }
+          >
+            <DateTimeField
+              id="work-finished-at"
+              value={finishedAt}
+              min={startedAt || minStart || undefined}
+              onChange={setFinishedAt}
+              invalid={isReversed}
+            />
+          </Field>
+        </div>
+      )}
 
       <div className="mb-4">
         <OutOfSchedulePanel

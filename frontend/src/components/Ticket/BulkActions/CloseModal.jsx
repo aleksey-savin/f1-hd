@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import Field from "@/components/app/Field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,11 +13,16 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
+import ClosingChips, { isTouchPointer } from "../Actions/ClosingChips";
+
 // Массовое закрытие. Один и тот же результат выполнения сохраняется как
 // комментарий и closingComment каждой заявки. Правило о работах соблюдается на
 // бэкенде (а на клиенте кнопка для заявок без работ заблокирована заранее).
+// Чипы — без работ (у каждой заявки свои), приветствие — по поясу организации:
+// заявители у выбранных заявок разные.
 const CloseModal = ({ show, onHide, count, onConfirm }) => {
   const [closingComment, setClosingComment] = useState("");
+  const field = useRef(null);
 
   const close = () => {
     setClosingComment("");
@@ -32,7 +37,10 @@ const CloseModal = ({ show, onHide, count, onConfirm }) => {
 
   return (
     <Dialog open={show} onOpenChange={(open) => !open && close()}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent
+        className="sm:max-w-2xl"
+        onOpenAutoFocus={(event) => isTouchPointer() && event.preventDefault()}
+      >
         <form onSubmit={submitHandler}>
           <DialogHeader>
             <DialogTitle>Закрыть заявки</DialogTitle>
@@ -44,13 +52,19 @@ const CloseModal = ({ show, onHide, count, onConfirm }) => {
           <div className="mt-4">
             <Field label="Результат выполнения" htmlFor="bulk-closing" required>
               <Textarea
+                ref={field}
                 id="bulk-closing"
                 rows={4}
                 required
-                autoFocus
+                autoFocus={!isTouchPointer()}
                 value={closingComment}
                 onChange={(event) => setClosingComment(event.target.value)}
                 placeholder="Например: Добрый день! Проблема устранена."
+              />
+              <ClosingChips
+                value={closingComment}
+                onChange={setClosingComment}
+                fieldRef={field}
               />
             </Field>
             <Alert variant="warning">
