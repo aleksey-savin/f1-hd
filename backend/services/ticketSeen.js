@@ -41,6 +41,13 @@ const shouldBumpActivity = (doc) => {
 const TicketRead = () => require("@/models/ticketRead");
 const InAppNotification = () => require("@/models/inAppNotification");
 
+/**
+ * Водяной знак ДВИГАЕТСЯ ТОЛЬКО ВПЕРЁД (`$max`): «прочитать все» в колокольчике
+ * ставит знак на время уведомления, и он не должен откатить знак того, кто
+ * заявку с тех пор уже открывал.
+ */
+const seenUpdate = (at) => ({ $max: { seenAt: at } });
+
 /** Отметить несколько заявок просмотренными (массовые действия, «Отметить прочитанными»). */
 const markSeen = async (userId, ticketIds, at = new Date()) => {
   const ids = [...new Set((ticketIds || []).map((id) => String(id)))];
@@ -49,13 +56,32 @@ const markSeen = async (userId, ticketIds, at = new Date()) => {
     ids.map((ticketId) => ({
       updateOne: {
         filter: { userId, ticketId },
-        update: { $set: { seenAt: at } },
+        update: seenUpdate(at),
         upsert: true,
       },
     })),
     { ordered: false },
   );
   return ids.length;
+};
+
+/**
+ * Прочитанные уведомления → водяные знаки их заявок: на время последнего
+ * прочитанного уведомления о каждой. Движение заявки ПОСЛЕ него остаётся
+ * непрочитанным. Уведомления без заявки (отсутствия, отчёты) не в счёт.
+ *
+ * @param {{ ticketId?: unknown, createdAt: string | Date }[]} items
+ * @returns {Map<string, Date>}
+ */
+const latestByTicket = (items) => {
+  const latest = new Map();
+  for (const item of items || []) {
+    if (!item?.ticketId) continue;
+    const key = String(item.ticketId);
+    const at = new Date(item.createdAt);
+    if (!latest.has(key) || latest.get(key) < at) latest.set(key, at);
+  }
+  return latest;
 };
 
 /**
@@ -67,11 +93,10 @@ const markSeen = async (userId, ticketIds, at = new Date()) => {
 const markTicketSeen = async (userId, ticketId, at = new Date()) => {
   const attempt = () =>
     TicketRead()
-      .findOneAndUpdate(
-        { userId, ticketId },
-        { $set: { seenAt: at } },
-        { upsert: true, new: false },
-      )
+      .findOneAndUpdate({ userId, ticketId }, seenUpdate(at), {
+        upsert: true,
+        new: false,
+      })
       .lean();
   let previous;
   try {
@@ -86,6 +111,11 @@ const markTicketSeen = async (userId, ticketId, at = new Date()) => {
 /**
  * Прочитать уведомления колокольчика: по заявке, по списку или все. Без
  * условия ничего не трогаем — «прочитать всё» должно быть сказано явно.
+ *
+ * Прочитать уведомление о заявке — значит увидеть заявку: строка в списке не
+ * должна кричать «2 новых» о том, что человек только что прочитал в
+ * колокольчике. Знак ставится на время уведомления (`latestByTicket`), и
+ * только вперёд — кто заявку уже открывал, назад не откатится.
  */
 const markInboxRead = async (
   userId,
@@ -100,9 +130,30 @@ const markInboxRead = async (
     if (!ids.length) return 0;
     filter._id = { $in: ids };
   } else if (!all) return 0;
+
+  const items = await InAppNotification()
+    .find(filter)
+    .select("ticketId createdAt")
+    .lean();
+  if (!items.length) return 0;
+
   const result = await InAppNotification().updateMany(filter, {
     $set: { readAt: new Date() },
   });
+
+  const seen = latestByTicket(items);
+  if (seen.size) {
+    await TicketRead().bulkWrite(
+      [...seen].map(([seenTicketId, at]) => ({
+        updateOne: {
+          filter: { userId, ticketId: seenTicketId },
+          update: seenUpdate(at),
+          upsert: true,
+        },
+      })),
+      { ordered: false },
+    );
+  }
   return result.modifiedCount ?? 0;
 };
 
@@ -111,6 +162,7 @@ const unreadCount = (userId) =>
 
 module.exports = {
   shouldBumpActivity,
+  latestByTicket,
   markSeen,
   markTicketSeen,
   markInboxRead,

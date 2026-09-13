@@ -52,7 +52,7 @@ import {
   formatAgo,
   formatDurationShort,
 } from "../../components/Mikrotik/meta";
-import usePolling from "../../hooks/use-polling";
+import useLiveRouteRevalidate from "@/hooks/use-live-route-revalidate";
 import useMikrotikDeviceFilterStore, {
   rowStatus,
 } from "../../store/lists/mikrotik-devices";
@@ -242,9 +242,13 @@ const MikrotikRecordPage = () => {
     window.scrollTo(0, 0);
   }, []);
 
-  // Тихое обновление статуса/прошивки (реже, чем список: страница живёт на
-  // loader-данных). Ревалидация не трогает локальный стейт секций.
-  usePolling(() => revalidator.revalidate(), { intervalMs: 30000 });
+  // Тихое обновление статуса/прошивки по пульсу (docs/live-updates.md); раз в
+  // 5 минут — в любом случае, «время проверки» течёт и без событий.
+  // Ревалидация не трогает локальный стейт секций.
+  useLiveRouteRevalidate("mikrotik", {
+    baseline: row.pulse,
+    maxStaleMs: 5 * 60_000,
+  });
 
   const status = rowStatus(row);
   const statusMeta = STATUS_META[status] || STATUS_META.offline;
@@ -686,5 +690,6 @@ export async function loader({ params }) {
 
   const data = await response.json();
   document.title = `Просмотр ${data.displayName || "устройства Mikrotik"}`;
-  return data;
+  // Курсор живых обновлений на момент чтения записи (docs/live-updates.md)
+  return { ...data, pulse: response.headers.get("X-Pulse-Cursor") };
 }

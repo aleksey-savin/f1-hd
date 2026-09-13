@@ -337,4 +337,7 @@ const userSchema = new Schema(
   { timestamps: true },
 );
 
+// Живые обновления: статус присутствия и график (см. services/pulseTopics.js)
+userSchema.plugin(require("../services/pulsePlugin"), { model: "User" });
+
 module.exports = mongoose.model("User", userSchema);

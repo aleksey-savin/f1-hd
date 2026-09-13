@@ -46,21 +46,26 @@ exports.list = async (req, res, next) => {
   }
 };
 
-/** GET /notifications/summary — то, что опрашивает колокольчик раз в 15 секунд */
+/**
+ * Счётчик и время последнего уведомления — всё, что нужно колокольчику. Его
+ * приносит пульс (controllers/pulse.js), когда входящие человека изменились.
+ */
+const summaryFor = async (userId) => {
+  const [count, latest] = await Promise.all([
+    unreadCount(userId),
+    InAppNotification.findOne({ userId })
+      .sort({ createdAt: -1 })
+      .select("createdAt")
+      .lean(),
+  ]);
+  return { unreadCount: count, latestAt: latest?.createdAt ?? null };
+};
+exports.summaryFor = summaryFor;
+
+/** GET /notifications/summary */
 exports.summary = async (req, res, next) => {
   try {
-    const { userId } = req.auth;
-    const [count, latest] = await Promise.all([
-      unreadCount(userId),
-      InAppNotification.findOne({ userId })
-        .sort({ createdAt: -1 })
-        .select("createdAt")
-        .lean(),
-    ]);
-    res.status(200).json({
-      unreadCount: count,
-      latestAt: latest?.createdAt ?? null,
-    });
+    res.status(200).json(await summaryFor(req.auth.userId));
   } catch (error) {
     next(new AppError("Failed to fetch notifications summary", 500, true, error));
   }

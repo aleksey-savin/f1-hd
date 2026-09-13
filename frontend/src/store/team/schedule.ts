@@ -25,6 +25,7 @@ type ScheduleState = {
   isLoading: boolean;
   error: string | null;
   fetch: () => void;
+  silentFetch: () => Promise<void>;
   setPeriod: (patch: { from: string; to: string }) => void;
   resetPeriod: () => void;
   setView: (view: ScheduleView) => void;
@@ -39,12 +40,14 @@ type Setter = (partial: Partial<ScheduleState>) => void;
 
 let requestSeq = 0;
 
-const doFetch = async (get: Getter, set: Setter) => {
+// silent — живое обновление (docs/live-updates.md): без индикатора загрузки и
+// без плашки ошибки поверх показанных данных; пропущенное подтянет следующее
+const doFetch = async (get: Getter, set: Setter, silent = false) => {
   const { from, to, company, subdivision, search } = get();
   if (!from || !to) return;
 
   const requestId = ++requestSeq;
-  set({ isLoading: true });
+  if (!silent) set({ isLoading: true });
   try {
     // Имя `query`, а не `search`: в состоянии уже есть поле `search`, и
     // одноимённая переменная затенила бы его внутри собственного инициализатора.
@@ -63,6 +66,7 @@ const doFetch = async (get: Getter, set: Setter) => {
   } catch (error) {
     if (requestId !== requestSeq) return;
     console.warn("Табель не загрузился:", error);
+    if (silent) return;
     set({
       isLoading: false,
       error: "Не удалось загрузить графики. Проверьте соединение и повторите.",
@@ -81,6 +85,7 @@ const useTeamScheduleStore = create<ScheduleState>()((set, get) => ({
   error: null,
 
   fetch: () => doFetch(get, set),
+  silentFetch: () => doFetch(get, set, true),
 
   setPeriod: (patch) => {
     set(patch);

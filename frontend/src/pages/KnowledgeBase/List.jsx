@@ -12,6 +12,7 @@ import { RiBookOpenLine, RiAddFill, RiShieldCheckLine } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
 import ListWrapper from "@/components/app/ListWrapper";
+import useLiveTopic from "@/hooks/use-live-topic";
 
 import useKnowledgeNotesStore from "../../store/lists/knowledgeNotes";
 import useKnowledgeModerationStore from "../../store/knowledgeModeration";
@@ -108,10 +109,16 @@ const KnowledgeBaseList = () => {
   const moderationParam = searchParams.get("moderation");
 
   // Заметки грузим сразу: по умолчанию список показывает всё, что доступно
-  // пользователю, сгруппированное по компаниям.
+  // пользователю, сгруппированное по компаниям. Список живёт в сторе между
+  // визитами — при возврате перечитываем его тихо, а пока страница открыта,
+  // по пульсу, когда заметки изменились (docs/live-updates.md).
   useEffect(() => {
-    store.ensureLoaded();
+    if (store.loaded) store.fetch({ silent: true });
+    else store.ensureLoaded();
   }, []);
+  useLiveTopic("knowledge", () =>
+    useKnowledgeNotesStore.getState().fetch({ silent: true }),
+  );
 
   // Вход в режим модерации по ссылке с карточки/алерта. Режим НЕ сбрасываем при
   // переходе к заметке или назад — им управляют очереди в проводнике.

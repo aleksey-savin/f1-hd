@@ -10,6 +10,7 @@ const {
   canAccessTicket,
   assertTicketsAccessible,
 } = require("../services/ticketAccess");
+const { markSeen } = require("../services/ticketSeen");
 const logger = require("../utils/logger");
 
 exports.getAll = async (req, res, next) => {
@@ -30,7 +31,22 @@ exports.getAll = async (req, res, next) => {
   }
 };
 
+const logFailure =
+  (message, context = {}) =>
+  (error) =>
+    logger.log("error", message, {
+      ...context,
+      error: error.message,
+      stack: error.stack,
+    });
+
 exports.add = async (req, res, next) => {
+  // Откат в catch — только пока комментарий не стал частью заявки. После этого
+  // удалять его файлы нельзя: сохранённый комментарий ссылался бы на удалённые
+  // объекты, а человек получил бы отказ на то, что уже произошло.
+  let comment = null;
+  let attached = false;
+
   try {
     const authData = req.auth?.legacy ?? null;
     const prefs = await Preferences.findOne({});
@@ -51,7 +67,7 @@ exports.add = async (req, res, next) => {
         })
       : [];
 
-    const comment = new Comment({
+    comment = new Comment({
       content: content,
       ticketId: ticketId,
       attachments: attachments,
@@ -67,13 +83,24 @@ exports.add = async (req, res, next) => {
 
     await comment.save();
 
+    // Комментарий без `_id` в `ticket.comments` интерфейс не покажет, а крон
+    // уведомлений всё равно разошлёт (он ищет по `notifications.pending`) —
+    // поэтому сбой этого шага откатывает и сам комментарий
     ticket.comments
       ? ticket.comments.push(comment._id)
       : (ticket.comments = [comment._id]);
     await ticket.save();
+    attached = true;
+
+    // Дальше — вторичное: комментарий уже виден в заявке, и отвечать 500 из-за
+    // водяного знака или строки хроники нельзя — сбой только пишем в лог.
     // Свой комментарий — не «новое»: водяной знак автора двигаем следом за
     // движением заявки (хук комментария уже отработал, см. models/comment.js)
-    await markSeen(authData.userId, [ticket._id]);
+    await markSeen(authData.userId, [ticket._id]).catch(
+      logFailure("Failed to mark ticket seen after comment", {
+        ticketId: ticket._id,
+      }),
+    );
 
     // добавляем запись в лог заявки
     const logEntry = new TicketLog({
@@ -86,21 +113,28 @@ exports.add = async (req, res, next) => {
       severity: "info",
       event: `добавлен комментарий`,
     });
-    await logEntry.save();
+    await logEntry
+      .save()
+      .catch(logFailure("Failed to log new comment", { ticketId: ticket._id }));
 
     res.status(201).json({
       message: "Comment added successfully!",
       comment: comment,
     });
   } catch (error) {
-    if (req.files) {
-      for (let file of req.files) {
-        storage.deleteObject(file.key).catch((error) =>
-          logger.log("error", "Failed to delete file", {
-            error: error.message,
-            stack: error.stack,
+    if (!attached) {
+      // `isNew` снимается только успешным save: комментарий есть в базе
+      if (comment && !comment.isNew) {
+        await Comment.deleteOne({ _id: comment._id }).catch(
+          logFailure("Failed to roll back comment", {
+            commentId: comment._id,
           }),
         );
+      }
+      for (const file of req.files ?? []) {
+        storage
+          .deleteObject(file.key)
+          .catch(logFailure("Failed to delete file", { key: file.key }));
       }
     }
     // Отказ по доступу — это 403, а не сбой: заворачивать его в 500 значило бы

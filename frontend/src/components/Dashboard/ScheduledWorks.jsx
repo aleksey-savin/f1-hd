@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import { Eyebrow, Panel } from "@/components/app/Panel";
+import useLiveTopic from "@/hooks/use-live-topic";
 import { useCan } from "@/store/authed-user";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import {
@@ -42,22 +43,29 @@ const ScheduledWorks = () => {
   // будет отказ.
   const canReadWorks = !!can({ work: ["read"] });
 
+  const load = async () => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/all-scheduled-works`,
+      );
+      if (!response.ok) throw new Error(`scheduled ${response.status}`);
+      const data = await response.json();
+      setWorks(Array.isArray(data) ? data : (data.scheduledWorks ?? []));
+    } catch (error) {
+      console.error("Не удалось загрузить запланированные работы:", error);
+    }
+  };
+
   useEffect(() => {
-    if (!canReadWorks) return;
-    const load = async () => {
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_ADDRESS}/api/all-scheduled-works`,
-        );
-        if (!response.ok) throw new Error(`scheduled ${response.status}`);
-        const data = await response.json();
-        setWorks(Array.isArray(data) ? data : (data.scheduledWorks ?? []));
-      } catch (error) {
-        console.error("Не удалось загрузить запланированные работы:", error);
-      }
-    };
-    load();
+    if (canReadWorks) load();
   }, [canReadWorks]);
+
+  // Работы двигают тему заявок (docs/live-updates.md); тема шумная — не чаще
+  // раза в 30 секунд
+  useLiveTopic("tickets", load, {
+    enabled: canReadWorks,
+    minIntervalMs: 30_000,
+  });
 
   const upcoming = useMemo(() => {
     const dayStart = new Date();

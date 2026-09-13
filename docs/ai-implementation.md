@@ -575,12 +575,13 @@ detection in `View/attachment-utils.js`).
 - `UI/AiSpeechBadge.jsx` — **removed with the ticket-card redesign (2026-07-30)**,
   and with it the AI badges in list rows: a background job nobody is waiting on
   does not deserve a marker in a list of 47 tickets. What replaced them:
-  - **Ticket card** (`pages/Ticket/View.jsx`): `aiSpeech.status` is part of
-    `ticketSignature`, so the card's 15 s background poll revalidates the loader
-    when recognition finishes and the refreshed title/description appear by
-    themselves. The poll pauses while a form sheet or the checklist editor is
-    open, so a server answer never overwrites unfinished input.
-  - **Ticket list** (`pages/Ticket/List.jsx`): the same 15 s `usePolling` +
+  - **Ticket card** (`pages/Ticket/View.jsx`): the recognition result is a
+    ticket write, so the live-update pulse reports this ticket changed and the
+    card revalidates its loader — the refreshed title/description appear by
+    themselves (`docs/live-updates.md`). Paused while a form sheet or the
+    checklist editor is open, so a server answer never overwrites unfinished
+    input; the change applies right after.
+  - **Ticket list** (`pages/Ticket/List.jsx`): on the `tickets` topic,
     `store.silentRefresh` (`store/lists/tickets.js`) refreshes rows in place —
     it updates `originalList`/`filteredList` atomically **without** touching
     `isLoading`/`isSorting`, so `ListWrapper` never swaps the list for a
@@ -841,7 +842,9 @@ Coverage:
   name-based guessing (intentionally removed; see Caller identification above).
 
 UX:
-- Frontend polls every 4 s while pending (no websocket/SSE).
+- While pending, the section asks the live-update pulse to run every 4 s
+  (`requestCadence`); the finished guide is a ticket write, so the card reloads
+  by itself (`docs/live-updates.md`).
 - Regenerating a guide rebuilds `items` from scratch. Nothing is lost with it —
   the per-item `done` flag has had no writer since the checkboxes were removed
   (2026-07-30); state lives in the ticket checklist the steps are copied into.

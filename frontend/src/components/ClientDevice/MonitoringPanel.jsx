@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { DeviceStatusText } from "@/components/app/device-status";
 import Spinner from "@/components/app/Spinner";
+import useLiveTopic from "@/hooks/use-live-topic";
 
 import useMikrotikDeviceFilterStore from "../../store/lists/mikrotik-devices";
 import { formatDate } from "../../util/format-date";
@@ -67,6 +68,20 @@ const MonitoringPanel = ({ device, canManage, onSynced }) => {
       cancelled = true;
     };
   }, [recordId]);
+
+  // Роутер упал или поднялся, пока карточка открыта — тихо перечитываем по
+  // пульсу (docs/live-updates.md); раз в 5 минут — в любом случае, «последняя
+  // связь» течёт и без событий
+  useLiveTopic(
+    "mikrotik",
+    async () => {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/records/${recordId}`,
+      );
+      if (response.ok) setRow(await response.json());
+    },
+    { enabled: Boolean(recordId) && !isLoading, maxStaleMs: 5 * 60_000 },
+  );
 
   // Не подключено: вход в подключение — в разделе мониторинга, форма
   // «Новое устройство» с привязкой к этой инвентарной карточке.

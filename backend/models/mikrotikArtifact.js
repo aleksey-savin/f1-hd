@@ -58,4 +58,9 @@ const mikrotikArtifactSchema = new Schema(
 // Listing + retention pruning: newest-first within a device and artifact type.
 mikrotikArtifactSchema.index({ mikrotik: 1, type: 1, createdAt: -1 });
 
+// Live updates (see services/pulseTopics.js)
+mikrotikArtifactSchema.plugin(require("../services/pulsePlugin"), {
+  model: "MikrotikArtifact",
+});
+
 module.exports = mongoose.model("MikrotikArtifact", mikrotikArtifactSchema);

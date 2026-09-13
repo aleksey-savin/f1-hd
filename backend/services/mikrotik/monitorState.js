@@ -6,7 +6,24 @@ const {
   mapPollToFields,
 } = require("./connector");
 const { ensureOpenOutage, markRecovered } = require("./outages");
+const { bus } = require("../pulse");
 const logger = require("../../utils/logger");
+
+// Live updates: per-poll writes are noise for the pulse plugin (see
+// services/pulseTopics.js), so what the device list actually shows changing —
+// a transition or a new identity — is bumped here.
+const addressKey = (addresses) =>
+  (addresses || [])
+    .map((entry) => `${entry.address}|${entry.network}|${entry.interface}|${entry.disabled}`)
+    .sort()
+    .join(",");
+const shownChanged = (prev, set) =>
+  !prev ||
+  prev.status !== "online" ||
+  ["name", "boardName", "currentFirmware", "serialNumber"].some(
+    (field) => set[field] !== undefined && set[field] !== prev[field],
+  ) ||
+  (set.addresses !== undefined && addressKey(set.addresses) !== addressKey(prev.addresses));
 
 // The online↔offline state machine for a monitored Mikrotik record, shared by the
 // health-check cron and the offline-alert cron (which re-polls before ticketing).
@@ -142,6 +159,8 @@ const recoverToOnline = async (record, poll, now = new Date()) => {
     { new: false },
   );
 
+  if (shownChanged(prev, set)) bus.bump({ topics: ["mikrotik"] });
+
   if (prev?.offlineSince) {
     await markRecovered(prev);
     logger.log("info", "Mikrotik device recovered", {
@@ -199,6 +218,7 @@ const recordFailure = async (record, error, now = new Date()) => {
   );
   if (!confirmed) return after;
 
+  bus.bump({ topics: ["mikrotik"] });
   await ensureOpenOutage(confirmed);
   logger.log("warn", "Mikrotik device confirmed offline", {
     recordId: record._id,

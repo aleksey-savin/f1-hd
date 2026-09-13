@@ -213,4 +213,9 @@ servicePlanReportSchema.index({ company: 1, periodFrom: -1 });
 // Очередь руководителя филиала: «что ждёт моего решения»
 servicePlanReportSchema.index({ "parts.subdivision": 1, "parts.status": 1 });
 
+// Живые обновления согласования (см. services/pulseTopics.js)
+servicePlanReportSchema.plugin(require("../../services/pulsePlugin"), {
+  model: "ServicePlanReport",
+});
+
 module.exports = mongoose.model("ServicePlanReport", servicePlanReportSchema);

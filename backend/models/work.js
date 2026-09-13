@@ -142,4 +142,7 @@ workSchema.index({ tickets: 1, scheduled: 1, finishedAt: 1 });
 workSchema.index({ finishedAt: -1, _id: -1 });
 workSchema.index({ company: 1, finishedAt: -1 });
 
+// Живые обновления: работа двигает свои заявки и согласование (см. services/pulseTopics.js)
+workSchema.plugin(require("../services/pulsePlugin"), { model: "Work" });
+
 module.exports = mongoose.model("Work", workSchema);

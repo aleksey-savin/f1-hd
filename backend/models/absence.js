@@ -58,4 +58,7 @@ absenceSchema.index({ user: 1, from: 1, to: 1 });
 // Очередь «ждут решения» и подсветка периода
 absenceSchema.index({ status: 1, from: 1 });
 
+// Живые обновления календаря команды (см. services/pulseTopics.js)
+absenceSchema.plugin(require("../services/pulsePlugin"), { model: "Absence" });
+
 module.exports = mongoose.model("Absence", absenceSchema);

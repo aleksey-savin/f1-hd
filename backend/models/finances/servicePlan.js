@@ -147,4 +147,9 @@ const ServicePlanSchema = new Schema(
   { timestamps: true },
 );
 
+// Живые обновления согласования (см. services/pulseTopics.js)
+ServicePlanSchema.plugin(require("../../services/pulsePlugin"), {
+  model: "ServicePlan",
+});
+
 module.exports = mongoose.model("ServicePlan", ServicePlanSchema);

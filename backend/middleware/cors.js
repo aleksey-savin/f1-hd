@@ -34,6 +34,8 @@ module.exports = (req, res, next) => {
     "Access-Control-Allow-Headers",
     "Accept, Content-Type, Authorization, X-Requested-With, X-API-Key, X-TG-Token",
   );
+  // Курсор живых обновлений читают загрузчики страниц (см. routes/index.js)
+  res.setHeader("Access-Control-Expose-Headers", "X-Pulse-Cursor");
   res.setHeader("Access-Control-Max-Age", "600");
 
   if (req.method === "OPTIONS") {

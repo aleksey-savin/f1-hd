@@ -75,4 +75,7 @@ commentSchema.post("save", async function bumpTicketActivity(doc) {
   }
 });
 
+// Живые обновления: комментарий двигает свою заявку (см. services/pulseTopics.js)
+commentSchema.plugin(require("../services/pulsePlugin"), { model: "Comment" });
+
 module.exports = mongoose.model("Comment", commentSchema);

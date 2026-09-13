@@ -65,6 +65,14 @@ actions that do not open the ticket page — `ticket.add`, bulk take/close,
 `comment.add`/`addMultiple`, staff replies arriving by e-mail. Order matters:
 bump first, then `markSeen`, so `seenAt ≥ activity.at`.
 
+The two tiers are coupled both ways. Opening a ticket (or bulk «Отметить
+прочитанными») marks its inbox items read; **reading inbox items marks their
+tickets seen** (`markInboxRead` → `latestByTicket`): the watermark of each
+ticket moves to the time of the last notification read about it, so movement
+after that notification stays unread. Watermarks only move forward (`$max`), so
+«Прочитать все» never rolls back the watermark of someone who has opened the
+ticket since.
+
 `unreadIndex(tickets, {userId})` loads the watermarks in one query; `getAllOpened`
 attaches `unread: {isUnseen, newComments}` to every item (staff list, staff
 dashboard block, client «Активные» tab all read this endpoint). `getOne` returns
@@ -117,7 +125,7 @@ their own `isActive`. Comment `pending` is therefore unconditional in
 ## Endpoints (all behind `isAuth`, all scoped to `req.auth.userId`)
 
 - `GET /api/notifications?before=<ISO>&limit=30` → `{items, unreadCount, nextBefore}`
-- `GET /api/notifications/summary` → `{unreadCount, latestAt}` (polled every 15 s)
+- `GET /api/notifications/summary` → `{unreadCount, latestAt}` (explicit refresh; the bell gets the same summary from `GET /api/pulse` when the inbox changed — see `docs/live-updates.md`)
 - `POST /api/notifications/read` `{ids? | all? | ticketId?}` → `{updated, unreadCount}`
 - `POST /api/tickets/:ticketNum/seen` (ticket access asserted) → `{seenAt, previousSeenAt, unreadCount}`; retries once on E11000 (mount and poll can race)
 - `POST /api/tickets/seen` `{ids}` (access asserted for every id) → `{seenAt, count, unreadCount}`

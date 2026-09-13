@@ -67,6 +67,11 @@ inAppNotificationSchema.index(
   { expireAfterSeconds: RETENTION_DAYS * 24 * 60 * 60 },
 );
 
+// Колокольчик узнаёт о новых уведомлениях из пульса (см. services/pulseTopics.js)
+inAppNotificationSchema.plugin(require("../services/pulsePlugin"), {
+  model: "InAppNotification",
+});
+
 module.exports = mongoose.model("InAppNotification", inAppNotificationSchema);
 module.exports.CATEGORIES = CATEGORIES;
 module.exports.KIND_NAMES = KIND_NAMES;

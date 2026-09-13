@@ -174,4 +174,9 @@ knowledgeNoteSchema.index({ archivedAt: 1 });
 knowledgeNoteSchema.index({ pendingArchive: 1 });
 knowledgeNoteSchema.index({ "serviceExpiry.entries.expiresAt": 1 });
 
+// Живые обновления базы знаний (см. services/pulseTopics.js)
+knowledgeNoteSchema.plugin(require("../services/pulsePlugin"), {
+  model: "KnowledgeNote",
+});
+
 module.exports = mongoose.model("KnowledgeNote", knowledgeNoteSchema);

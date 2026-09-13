@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 
+import useLiveTopic from "@/hooks/use-live-topic";
 import useInitialPrefsStore from "../../store/prefs";
 import useKnowledgeModerationStore from "../../store/knowledgeModeration";
 
-// Подписка на счётчики очередей модерации: сеет их снимком из настроек и
-// обновляет свежим запросом при монтировании. Запрос делают только модераторы —
+// Подписка на счётчики очередей модерации: сеет их снимком из настроек,
+// обновляет свежим запросом при монтировании и по пульсу, когда заметки
+// изменились (docs/live-updates.md). Запрос делают только модераторы —
 // остальным сводка возвращает нули.
 const useModerationSummary = () => {
   const kb = useInitialPrefsStore((state) => state.knowledgeBase);
@@ -19,6 +21,8 @@ const useModerationSummary = () => {
     seed(kb.counts);
     refresh();
   }, [kb.isModerator, kb.counts, seed, refresh]);
+
+  useLiveTopic("knowledge", refresh, { enabled: !!kb.isModerator });
 
   return {
     counts,

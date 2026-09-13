@@ -3,10 +3,8 @@ import { useContext, useEffect, useMemo, useState } from "react";
 import {
   Link,
   useFetcher,
-  useFetchers,
   useLoaderData,
   useNavigate,
-  useRevalidator,
 } from "react-router";
 import { BrowserView } from "react-device-detect";
 import {
@@ -73,7 +71,7 @@ import {
   isOverdue,
   ticketTone,
 } from "../../components/Ticket/ticket-state";
-import usePolling from "../../hooks/use-polling";
+import useLiveRouteRevalidate from "@/hooks/use-live-route-revalidate";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useInitialPrefsStore from "../../store/prefs";
 import { warm } from "@/store/form-data";
@@ -91,25 +89,6 @@ import { useCan } from "@/store/authed-user";
 //
 // Высота правой колонки — sticky + свой скролл; прежняя карточка считала её в JS
 // от window.innerWidth и слушателя resize.
-
-// Слепок «значимого» состояния заявки: меняется — тихо ревалидируем loader.
-// Комментарии и события живут отдельно от ticket.updatedAt, поэтому считаем их
-// явно, иначе чужой комментарий или новое событие не подтянутся.
-const ticketSignature = (data) =>
-  [
-    data?.ticket?.updatedAt,
-    data?.ticket?.state,
-    data?.ticket?.deadline,
-    data?.ticket?.comments?.length,
-    data?.ticket?.responsibles?.length,
-    data?.ticket?.checklist
-      ?.map((item) => `${item._id}:${item.checked}`)
-      .join(","),
-    data?.ticket?.aiSpeech?.status,
-    data?.ticket?.aiCategory?.status,
-    data?.ticket?.aiGuide?.status,
-    data?.events?.length,
-  ].join("|");
 
 // Секция «Ответы» — только когда есть что показать и когда описание НЕ
 // собрано из этих же ответов: у заявки со скрытым описанием ответы и есть
@@ -139,14 +118,12 @@ const ViewTicket = () => {
 
   const navigate = useNavigate();
   const sheetOpen = useSheetOpen();
-  const revalidator = useRevalidator();
 
   // Справочники формы правки — заранее, чтобы «Изменить» и «Обработать» не
   // ждали form-data
   useEffect(() => {
     warm("/api/tickets/form-data");
   }, []);
-  const fetchers = useFetchers();
   const checklistFetcher = useFetcher();
   const { modules, ai } = useInitialPrefsStore();
   const authedUser = useContext(AuthedUserContext);
@@ -272,35 +249,17 @@ const ViewTicket = () => {
     works,
   });
 
-  // Фоновое автообновление: не вмешиваемся во время сабмита действия и при
-  // открытой шторке формы, чтобы не затереть ввод.
-  const hasActiveFetcher = fetchers.some((f) => f.state !== "idle");
-  usePolling(
-    async () => {
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticket.num}`,
-        );
-        if (!response.ok) return;
-        const fresh = await response.json();
-        if (ticketSignature(fresh) !== ticketSignature(ticketData)) {
-          revalidator.revalidate();
-        }
-      } catch (error) {
-        console.error("Ticket auto-update poll failed:", error);
-      }
-    },
-    {
-      intervalMs: 15000,
-      // Правка чек-листа идёт прямо в секции — ответ сервера перетёр бы
-      // незаконченный ввод, как и открытая форма
-      enabled:
-        revalidator.state === "idle" &&
-        !hasActiveFetcher &&
-        !sheetOpen &&
-        !checklistEdit,
-    },
-  );
+  // Живое обновление: пульс сообщает, что ИМЕННО эта заявка изменилась
+  // (комментарий, работа, событие, ИИ), и лоадер перечитывается — когда все
+  // fetcher'ы простаивают. Базой служит курсор, с которым пришли данные
+  // лоадера: своё же действие второй перезагрузки не вызывает. Пока открыта
+  // форма или идёт правка чек-листа — пауза (ответ перетёр бы ввод), изменение
+  // применится сразу после неё. См. docs/live-updates.md.
+  useLiveRouteRevalidate([], {
+    ticketId: ticket._id,
+    baseline: data.pulse,
+    enabled: !sheetOpen && !checklistEdit,
+  });
 
   /**
    * Писать в ленту может каждый, кому заявка видна: ручка комментария прав
@@ -858,6 +817,8 @@ export async function loader({ params }) {
   // «видеть работы».
   return {
     ticketData,
+    // Курсор живых обновлений на момент чтения заявки (docs/live-updates.md)
+    pulse: ticketResponse.headers.get("X-Pulse-Cursor"),
     responsiblesData: await responsiblesResponse.json(),
     // «Другие заявки этой компании» нужны формам работ: одна запись работы
     // привязывается сразу к нескольким заявкам одной компании и категории

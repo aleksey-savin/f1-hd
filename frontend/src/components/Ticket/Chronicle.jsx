@@ -228,7 +228,7 @@ const EventEntry = ({ event, ticketNum, divided }) => {
 const Chronicle = ({ ticket, events = [], canComment, seenAt = null }) => {
   const { comments, updateComments } = useViewTicketStore();
   const authedUser = useContext(AuthedUserContext);
-  const { sendRequest, isLoading } = useHttp();
+  const { sendRequest, isLoading, error } = useHttp();
 
   const [mode, setMode] = useState("comments");
   const [content, setContent] = useState("");
@@ -388,6 +388,14 @@ const Chronicle = ({ ticket, events = [], canComment, seenAt = null }) => {
                 {isLoading ? "Отправка…" : "Отправить"}
               </Button>
             </div>
+            {/* Без строки отказ выглядел как «ничего не произошло»: кнопка
+                отжималась, текст оставался, и человек не знал, ушёл ли он.
+                Сбрасывается следующей отправкой (useHttp) */}
+            {error && (
+              <p className="mt-2 mb-0 text-sm text-destructive">
+                {sendErrorText(error.status)}
+              </p>
+            )}
           </form>
         )}
 
@@ -448,6 +456,15 @@ const Chronicle = ({ ticket, events = [], canComment, seenAt = null }) => {
       </div>
     </>
   );
+};
+
+// Текст отказа — по коду, а не из ответа: у 500 и валидации сообщение служебное
+// и английское, а у 403 оно про «просмотр страницы». Без кода — обрыв сети или
+// не-JSON ответ (например, nginx на слишком большой файл)
+const sendErrorText = (status) => {
+  if (status === 403) return "Нет прав писать в эту заявку.";
+  if (status === 404) return "Заявка не найдена: возможно, её удалили.";
+  return "Не удалось отправить комментарий. Текст остался в поле — попробуйте ещё раз.";
 };
 
 // «Сегодня» / «Вчера» / «27 июля» — метка дня над группой записей

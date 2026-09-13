@@ -570,6 +570,10 @@ ticketSchema.post("save", function touchApplicantActivity(doc) {
     );
 });
 
+// Живые обновления (см. services/pulseTopics.js). После touchActivity: пульс
+// классифицирует уже окончательный набор изменённых путей.
+ticketSchema.plugin(require("../services/pulsePlugin"), { model: "Ticket" });
+
 const Ticket = mongoose.model("Ticket", ticketSchema);
 
 module.exports = {

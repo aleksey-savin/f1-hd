@@ -1,11 +1,10 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
 import { RiArrowDownSLine, RiArrowUpSLine } from "react-icons/ri";
 
 import { Eyebrow } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import usePolling from "../../hooks/use-polling";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useWorkStatusesStore from "../../store/work-statuses";
 import { availabilitySummary, groupByStatus } from "../User/presence";
@@ -20,20 +19,13 @@ import WorkStatusAvatar from "../User/WorkStatusAvatar";
 // экрана, которая жила в шелле, больше нет — это её замена.
 const TeamNow = () => {
   const authedUser = useContext(AuthedUserContext);
-  const { users, isLoaded, silentRefresh } = useWorkStatusesStore();
+  // Данные грузит и обновляет по пульсу User/PresenceSync в оболочке
+  const { users, isLoaded } = useWorkStatusesStore();
   const [open, setOpen] = useState(false);
   const [idleOpen, setIdleOpen] = useState({});
 
   const isStaff =
     !!authedUser._id && !authedUser.isEndUser && !authedUser.hideWorkStatus;
-
-  useEffect(() => {
-    if (isStaff) {
-      silentRefresh();
-    }
-  }, [isStaff, silentRefresh]);
-
-  usePolling(silentRefresh, { intervalMs: 15000, enabled: isStaff });
 
   if (!isStaff || !isLoaded) {
     return null;

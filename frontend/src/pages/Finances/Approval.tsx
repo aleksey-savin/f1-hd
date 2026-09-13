@@ -30,7 +30,7 @@ import {
   formatMoney,
 } from "../../components/Report/work-format";
 import { useCan } from "@/store/authed-user";
-import usePolling from "../../hooks/use-polling";
+import useLiveTopic from "@/hooks/use-live-topic";
 import useApprovalStore from "../../store/reports/approval";
 import type { PreviewRow, ReportRow } from "../../types/approval";
 import { formatMonthLabel, formatShortDate } from "../../util/format-date";
@@ -72,8 +72,11 @@ const Approval = () => {
   }, []);
 
   // Конвейер живёт своей жизнью: работы закрываются, клиент подписывает —
-  // данные подтягиваются сами, как на заявках, а не кнопкой «Обновить»
-  usePolling(() => store.silentRefresh(), { intervalMs: 20000 });
+  // данные подтягиваются сами по пульсу (docs/live-updates.md), а не кнопкой
+  // «Обновить». Не чаще раза в 20 секунд: сводка пересчитывает цены всех работ
+  useLiveTopic("approval", () => store.silentRefresh(), {
+    minIntervalMs: 20_000,
+  });
 
   const data = store.data;
   const stage = store.stage;

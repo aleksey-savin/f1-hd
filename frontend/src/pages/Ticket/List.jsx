@@ -15,7 +15,7 @@ import TicketFilter from "../../components/Ticket/Filter";
 import QueueStrip from "../../components/Ticket/QueueStrip";
 import TicketRow from "../../components/Ticket/Row";
 import useListSelection from "../../hooks/use-list-selection";
-import usePolling from "../../hooks/use-polling";
+import useLiveTopic from "@/hooks/use-live-topic";
 import { warm } from "@/store/form-data";
 import useNotificationsStore from "@/store/notifications";
 import useTicketFilterStore from "../../store/lists/tickets";
@@ -75,13 +75,14 @@ const Tickets = () => {
     warm("/api/ticket-templates");
   }, []);
 
-  // Фоновое автообновление: пока идёт выбор — пауза, иначе список поехал бы под
-  // курсором, а выделение частично протухло; при открытой форме — тоже, чтобы
-  // не перетереть ввод
+  // Живое обновление, когда заявки изменились (docs/live-updates.md). Пока идёт
+  // выбор — пауза, иначе список поехал бы под курсором, а выделение частично
+  // протухло; при открытой форме — тоже, чтобы не перетереть ввод. Изменение,
+  // пришедшее во время паузы, не теряется: применится сразу после неё.
   const sheetOpen = useSheetOpen();
-  usePolling(() => store.silentRefresh(), {
-    intervalMs: 15000,
+  useLiveTopic("tickets", () => store.silentRefresh(), {
     enabled: !selection.isActive && !sheetOpen,
+    minIntervalMs: 15_000,
   });
 
   const companyOptions = useMemo(

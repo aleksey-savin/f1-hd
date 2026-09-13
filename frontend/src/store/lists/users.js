@@ -113,24 +113,19 @@ const useUserFilterStore = create((set, get) => ({
 
   fetch: () => doFetch(get, set),
 
-  // Живые статусы присутствия без перезагрузки списка: тянем лёгкое табло
-  // достижимых сотрудников и мёржим workStatus в показанные строки (пагинация
-  // не рвётся). Сбой глотаем — следующий опрос подтянет.
-  silentRefresh: async () => {
-    try {
-      const raw = await api("/api/users/work-statuses");
-      const list = Array.isArray(raw) ? raw : raw?.users || [];
-      const byId = new Map(list.map((u) => [String(u._id), u.workStatus]));
-      set((state) => ({
-        items: state.items.map((item) =>
-          byId.has(String(item._id))
-            ? { ...item, workStatus: byId.get(String(item._id)) }
-            : item,
-        ),
-      }));
-    } catch (error) {
-      console.warn("Обновление статусов пропущено:", error);
-    }
+  // Живые статусы присутствия без перезагрузки списка: мёржим workStatus из
+  // общего табло (store/work-statuses, его держит User/PresenceSync) в
+  // показанные строки — пагинация не рвётся, своего запроса у списка нет.
+  mergePresence: (presence) => {
+    if (!presence?.length) return;
+    const byId = new Map(presence.map((u) => [String(u._id), u.workStatus]));
+    set((state) => ({
+      items: state.items.map((item) =>
+        byId.has(String(item._id))
+          ? { ...item, workStatus: byId.get(String(item._id)) }
+          : item,
+      ),
+    }));
   },
 
   // пагинация: setPage — десктоп (замена порции), loadMore — мобайл (докрутка)

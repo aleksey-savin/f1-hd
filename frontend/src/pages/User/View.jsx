@@ -1,12 +1,43 @@
 import { useLoaderData, redirect } from "react-router";
+import { useShallow } from "zustand/react/shallow";
 
+import { useSheetOpen } from "@/components/app/FormOutlet";
+import useLiveRouteRevalidate from "@/hooks/use-live-route-revalidate";
 import { getLocalStorageData } from "../../util/auth";
+import useWorkStatusesStore from "../../store/work-statuses";
 
 import ViewUser from "../../components/User/View";
+import { newerWorkStatus } from "../../components/User/presence";
 
 const ViewUserPage = () => {
-  const { user, tickets } = useLoaderData();
-  return <ViewUser user={user} tickets={tickets} />;
+  const { user, tickets, pulse } = useLoaderData();
+
+  // Статус присутствия — из живого табло (User/PresenceSync), своего запроса у
+  // карточки нет
+  const liveWorkStatus = useWorkStatusesStore(
+    useShallow(
+      (state) =>
+        state.users.find((item) => String(item._id) === String(user._id))
+          ?.workStatus,
+    ),
+  );
+
+  // Заявки человека меняются чужими руками — карточка перечитывается по пульсу
+  // (docs/live-updates.md), не чаще раза в 30 секунд и не под открытой формой
+  const sheetOpen = useSheetOpen();
+  useLiveRouteRevalidate("tickets", {
+    baseline: pulse,
+    enabled: !sheetOpen,
+    minIntervalMs: 30_000,
+  });
+
+  const workStatus = newerWorkStatus(user.workStatus, liveWorkStatus);
+  return (
+    <ViewUser
+      user={workStatus === user.workStatus ? user : { ...user, workStatus }}
+      tickets={tickets}
+    />
+  );
 };
 
 export default ViewUserPage;
@@ -54,6 +85,8 @@ export async function loader({ params }) {
   return {
     user: await userResponse.json(),
     tickets: await ticketsResponse.json(),
+    // Курсор живых обновлений на момент чтения заявок (docs/live-updates.md)
+    pulse: ticketsResponse.headers.get("X-Pulse-Cursor"),
   };
 }
 

@@ -50,3 +50,25 @@ test("правка без события (чек-лист, ИИ, защёлка 
     false,
   );
 });
+
+const { latestByTicket } = require("./ticketSeen");
+
+test("прочитанные уведомления дают водяной знак заявки — время последнего из них", () => {
+  const map = latestByTicket([
+    { ticketId: "t1", createdAt: "2026-09-12T10:00:00Z" },
+    { ticketId: "t1", createdAt: "2026-09-12T12:00:00Z" },
+    { ticketId: "t2", createdAt: new Date("2026-09-12T09:00:00Z") },
+    { ticketId: null, createdAt: "2026-09-12T13:00:00Z" }, // отсутствие — не заявка
+  ]);
+  assert.deepEqual(
+    [...map.entries()].map(([id, at]) => [id, at.toISOString()]),
+    [
+      ["t1", "2026-09-12T12:00:00.000Z"],
+      ["t2", "2026-09-12T09:00:00.000Z"],
+    ],
+  );
+});
+
+test("пустой список уведомлений — пустая карта", () => {
+  assert.equal(latestByTicket([]).size, 0);
+});

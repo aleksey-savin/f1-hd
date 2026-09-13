@@ -5,6 +5,7 @@ import { RiArrowDownSLine, RiArrowUpSLine } from "react-icons/ri";
 
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import Segmented from "@/components/app/Segmented";
+import useLiveTopic from "@/hooks/use-live-topic";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useDashboardTicketsStore from "../../store/dashboard-tickets";
 import { formatShortDate } from "../../util/format-date";
@@ -72,30 +73,35 @@ const MyTicketsClient = () => {
   // таба говорила бы про компанию, а строки — про одного человека.
   const onlyMine = !canSeeCompany || scope === "mine";
 
+  const loadClosed = async () => {
+    const params = new URLSearchParams({
+      from: range.from,
+      to: range.to,
+      sort: "finished_desc",
+      limit: String(ROWS),
+    });
+    if (onlyMine) params.set("applicants", String(userId));
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/tickets/closed?${params}`,
+      );
+      if (!response.ok) throw new Error(`closed ${response.status}`);
+      const data = await response.json();
+      setClosed(data.tickets ?? []);
+      setClosedTotal(data.total ?? 0);
+    } catch (error) {
+      // Хвост блока: не приехал — открытые заявки всё равно на месте.
+      console.error("Не удалось загрузить закрытые заявки:", error);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      const params = new URLSearchParams({
-        from: range.from,
-        to: range.to,
-        sort: "finished_desc",
-        limit: String(ROWS),
-      });
-      if (onlyMine) params.set("applicants", String(userId));
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_ADDRESS}/api/tickets/closed?${params}`,
-        );
-        if (!response.ok) throw new Error(`closed ${response.status}`);
-        const data = await response.json();
-        setClosed(data.tickets ?? []);
-        setClosedTotal(data.total ?? 0);
-      } catch (error) {
-        // Хвост блока: не приехал — открытые заявки всё равно на месте.
-        console.error("Не удалось загрузить закрытые заявки:", error);
-      }
-    };
-    load();
+    loadClosed();
   }, [userId, onlyMine, range.from, range.to]);
+
+  // Заявку закрыли — она переезжает из открытых в закрытые; открытые
+  // перечитывает главная, закрытые — этот блок (docs/live-updates.md)
+  useLiveTopic("tickets", loadClosed, { minIntervalMs: 30_000 });
 
   const open = useMemo(() => {
     if (!onlyMine) return openTickets;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useFetcher } from "react-router";
 import {
@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 import useHttp from "../../../hooks/use-http";
 import useViewTicketStore from "../../../store/view-ticket";
-import { getLocalStorageData } from "../../../util/auth";
+import usePulseStore from "@/store/pulse";
 import { formatDate } from "../../../util/format-date";
 import { getNoteTypeMeta } from "../../../util/knowledgeNoteTypes";
 import { useCan } from "@/store/authed-user";
@@ -42,7 +42,7 @@ import { useCan } from "@/store/authed-user";
  * создании заявки и при разборе письма (services/ticketCategoryService).
  */
 
-const POLL_INTERVAL = 4000;
+const PENDING_PULSE_MS = 4000;
 
 // Больше шести пунктов — сворачиваем (в среднем их десять, максимум 18)
 const VISIBLE_LIMIT = 5;
@@ -89,7 +89,6 @@ const SourceRow = ({ source }) => {
 };
 
 const AiGuideSection = ({ canEditChecklist = false }) => {
-  const { token } = getLocalStorageData();
   const can = useCan();
 
   const ticket = useViewTicketStore((state) => state.ticket);
@@ -116,28 +115,13 @@ const AiGuideSection = ({ canEditChecklist = false }) => {
     updateTicket({ ...current, aiGuide: guide });
   };
 
-  // Сборка идёт в фоне — опрашиваем заявку, пока статус pending
-  const pollRef = useRef(null);
+  // Сборка идёт в фоне. Готовое руководство записывается в заявку, и карточка
+  // перечитывается по пульсу сама (pages/Ticket/View) — здесь только просим
+  // пульс ходить чаще, пока ждём, чтобы результат не опаздывал на 10 секунд
   useEffect(() => {
-    if (status !== "pending" || !ticket?.num) return undefined;
-
-    const poll = async () => {
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_ADDRESS}/api/tickets/${ticket.num}`,
-        );
-        if (!response.ok) return;
-        const data = await response.json();
-        const next = data.ticket?.aiGuide;
-        if (next?.status && next.status !== "pending") applyGuide(next);
-      } catch {
-        // сеть моргнула — продолжаем опрашивать
-      }
-    };
-
-    pollRef.current = setInterval(poll, POLL_INTERVAL);
-    return () => clearInterval(pollRef.current);
-  }, [status, ticket?.num, token]);
+    if (status !== "pending") return undefined;
+    return usePulseStore.getState().requestCadence(PENDING_PULSE_MS);
+  }, [status]);
 
   const generate = () =>
     sendRequest(

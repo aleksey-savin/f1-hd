@@ -399,6 +399,8 @@ const runMikrotikFirmwareRefresh = async () => {
       error: error.message,
     });
   }
+  // Релизы и CVE — не в модели Mikrotik, но меняют статус прошивки в списке
+  require("../pulse").bus.bump({ topics: ["mikrotik"] });
 };
 
 const STALE_MS = 24 * 60 * 60 * 1000;

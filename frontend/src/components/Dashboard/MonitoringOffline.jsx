@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { RiAlertLine } from "react-icons/ri";
 
 import { useCrumbFrom } from "@/components/app/Crumbs";
+import useLiveTopic from "@/hooks/use-live-topic";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
 import { useCan } from "@/store/authed-user";
@@ -47,22 +48,24 @@ const MonitoringOffline = () => {
 
   const canSeeMonitoring = !!can({ mikrotik: ["read"] });
 
+  const load = async () => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/offline`,
+      );
+      if (!response.ok) throw new Error(`mikrotik offline ${response.status}`);
+      setData(await response.json());
+    } catch (error) {
+      console.error("Не удалось загрузить состояние мониторинга:", error);
+    }
+  };
+
   useEffect(() => {
-    if (!canSeeMonitoring) return;
-    const load = async () => {
-      try {
-        const response = await fetch(
-          `${import.meta.env.VITE_API_ADDRESS}/api/inventory/mikrotik-devices/offline`,
-        );
-        if (!response.ok)
-          throw new Error(`mikrotik offline ${response.status}`);
-        setData(await response.json());
-      } catch (error) {
-        console.error("Не удалось загрузить состояние мониторинга:", error);
-      }
-    };
-    load();
+    if (canSeeMonitoring) load();
   }, [canSeeMonitoring]);
+
+  // Упал или поднялся роутер — блок узнаёт по пульсу (docs/live-updates.md)
+  useLiveTopic("mikrotik", load, { enabled: canSeeMonitoring });
 
   if (!canSeeMonitoring) return null;
 

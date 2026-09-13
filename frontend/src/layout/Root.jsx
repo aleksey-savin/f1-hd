@@ -1,6 +1,7 @@
 import { useContext, useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
+import { useShallow } from "zustand/react/shallow";
 import {
   Outlet,
   useLoaderData,
@@ -18,6 +19,10 @@ import {
 import NavigationBar from "./Navbar";
 import Footer from "./Footer";
 import RouteGuard from "@/components/app/RouteGuard";
+import PulseLoop from "@/components/app/PulseLoop";
+import PresenceSync from "@/components/User/PresenceSync";
+import { newerWorkStatus } from "@/components/User/presence";
+import usePulseStore from "@/store/pulse";
 import WorkStatusBar from "../components/User/WorkStatusBar";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -45,8 +50,25 @@ import { layoutPathname, resolveSheetWidth } from "./sheet-width";
 
 const RootLayout = () => {
   const { token } = getLocalStorageData();
-  const { appVersion, userData, prefs, impersonation, twoFactorPolicy } =
-    useLoaderData();
+  const {
+    appVersion: loadedAppVersion,
+    userData,
+    prefs,
+    impersonation,
+    twoFactorPolicy,
+  } = useLoaderData();
+  // Версию сервера приносит пульс: баннер «Доступна новая версия» появляется
+  // после деплоя сам, без перезагрузки корневого лоадера
+  const appVersion = usePulseStore((state) => state.appVersion) ?? loadedAppVersion;
+  // Свой статус меняет и автоматика по графику — навбар берёт более свежий из
+  // лоадера и живого табло присутствия
+  const liveOwnWorkStatus = useWorkStatusesStore(
+    useShallow(
+      (state) =>
+        state.users.find((user) => String(user._id) === String(userData?._id))
+          ?.workStatus,
+    ),
+  );
   const navigate = useNavigate();
   const impersonatedName =
     `${userData.lastName || ""} ${userData.firstName || ""}`.trim() ||
@@ -199,12 +221,17 @@ const RootLayout = () => {
       value={{
         ...defaultAuthedUser,
         ...userData,
+        workStatus: newerWorkStatus(userData?.workStatus, liveOwnWorkStatus),
         statements: userData?.statements || defaultAuthedUser.statements,
         permissionCatalogue:
           userData?.permissionCatalogue ||
           defaultAuthedUser.permissionCatalogue,
       }}
     >
+      {/* Живые обновления: один пульс на вкладку и единственный загрузчик
+          присутствия (docs/live-updates.md) — на обеих оболочках */}
+      {isLoggedIn && <PulseLoop />}
+      {isLoggedIn && !userData?.isEndUser && <PresenceSync />}
       {isLoggedIn && (
         <BrowserView>
           <NavigationBar />

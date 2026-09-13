@@ -1,6 +1,8 @@
 import { create } from "zustand";
 
 import { api } from "@/lib/api";
+import useDashboardTicketsStore from "@/store/dashboard-tickets";
+import useTicketFilterStore from "@/store/lists/tickets";
 import type {
   NotificationItem,
   NotificationsListResponse,
@@ -11,11 +13,9 @@ import type {
 /**
  * Колокольчик — уведомления «в приложении» текущего человека.
  *
- * Механика та же, что у рейла статусов (store/work-statuses): лёгкая сводка
- * `/api/notifications/summary` опрашивается фоном (usePolling в
- * Notifications/Bell, один на оболочку), список приезжает только когда панель
- * открыта. silentRefresh не трогает индикаторы и глотает сетевые сбои —
- * пропущенный цикл некритичен, следующий тик подтянет.
+ * Сводку (счётчик и время последнего) приносит пульс — один лёгкий опрос на
+ * вкладку (components/app/PulseLoop, docs/live-updates.md), и только когда
+ * входящие человека изменились. Список приезжает только когда панель открыта.
  *
  * Открыта ли панель, живёт здесь же: колокольчик и панель — разные
  * компоненты (поповер на десктопе, шторка на телефоне), а «прочитать» из
@@ -35,7 +35,9 @@ type NotificationsState = {
   open: boolean;
   setOpen: (open: boolean) => void;
   fetchSummary: () => Promise<void>;
-  /** Фоновый опрос: без индикаторов, сбои сети глотает */
+  /** Сводку принёс пульс (components/app/PulseLoop) */
+  applySummary: (summary: NotificationsSummary) => Promise<void>;
+  /** Без индикаторов, сбои сети глотает */
   silentRefresh: () => Promise<void>;
   fetchList: (options?: { more?: boolean }) => Promise<void>;
   markRead: (target: ReadTarget) => Promise<void>;
@@ -44,6 +46,18 @@ type NotificationsState = {
 };
 
 let listSeq = 0;
+
+// Прочитать уведомление — значит увидеть заявку (сервер двигает водяной знак):
+// строки со знаками «непрочитано» перечитываем сразу: водяной знак — личное
+// состояние, темой пульса он не является, и сам список об этом не узнает.
+// Только те списки, что уже держат данные — иначе лишний запрос.
+// Сторы списков — JS: типы их методов выводятся из исходника, границу не рвём.
+const refreshTicketLists = () => {
+  const dashboard = useDashboardTicketsStore.getState();
+  if (dashboard.loaded) void dashboard.refresh();
+  const list = useTicketFilterStore.getState();
+  if (list.originalList?.length) void list.silentRefresh();
+};
 
 const useNotificationsStore = create<NotificationsState>()((set, get) => ({
   unreadCount: 0,
@@ -63,6 +77,10 @@ const useNotificationsStore = create<NotificationsState>()((set, get) => ({
     const summary = await api<NotificationsSummary>(
       "/api/notifications/summary",
     );
+    await get().applySummary(summary);
+  },
+
+  applySummary: async (summary) => {
     const changed =
       summary.unreadCount !== get().unreadCount ||
       summary.latestAt !== get().latestAt;
@@ -121,6 +139,7 @@ const useNotificationsStore = create<NotificationsState>()((set, get) => ({
           : { ...item, readAt: now },
       ),
     });
+    refreshTicketLists();
   },
 
   applyUnreadCount: (unreadCount, ticketId = null) => {

@@ -139,4 +139,8 @@ mikrotikSchema.index(
 // eligible-jump filtering). Sparse — most records have no jump.
 mikrotikSchema.index({ jumpRecordId: 1 }, { sparse: true });
 
+// Live updates. Per-poll monitoring writes are noise; real online/offline
+// transitions are bumped in services/mikrotik/monitorState.js.
+mikrotikSchema.plugin(require("../services/pulsePlugin"), { model: "Mikrotik" });
+
 module.exports = mongoose.model("Mikrotik", mikrotikSchema);

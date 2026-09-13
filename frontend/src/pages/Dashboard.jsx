@@ -15,7 +15,7 @@ import StaffTickets from "../components/Dashboard/StaffTickets";
 import TeamNow from "../components/Dashboard/TeamNow";
 import TechSection from "@/components/app/TechSection";
 import TemplateTiles from "../components/Dashboard/TemplateTiles";
-import usePolling from "../hooks/use-polling";
+import useLiveTopic from "@/hooks/use-live-topic";
 import { AuthedUserContext } from "../store/authed-user-context";
 import useDashboardTicketsStore from "../store/dashboard-tickets";
 import useDashboardTemplatesStore from "../store/dashboard-templates";
@@ -127,7 +127,9 @@ const Dashboard = () => {
     warm("/api/tickets/form-data");
   }, []);
 
-  usePolling(refresh, { intervalMs: 15000 });
+  // Открытые заявки перечитываются, когда заявки изменились (docs/live-updates.md);
+  // не чаще раза в 15 секунд — выборка тяжёлая, а в час пик меняется непрерывно
+  useLiveTopic("tickets", refresh, { minIntervalMs: 15_000 });
 
   // «пятница, 1 августа» — день недели тут не украшение: половина блоков
   // сотрудника про «сегодня», и заголовок закрепляет, какое оно.

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useState } from "react";
 
 import { RiArrowLeftSLine } from "react-icons/ri";
 
@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useWorkStatusesStore from "../../store/work-statuses";
-import usePolling from "../../hooks/use-polling";
 import {
   availabilitySummary,
   groupByStatus,
@@ -40,10 +39,10 @@ const personTitle = (user) =>
 
 const WorkStatusBar = () => {
   const authedUser = useContext(AuthedUserContext);
+  // Данные грузит и обновляет по пульсу User/PresenceSync в оболочке
   const {
     users,
     isLoaded,
-    silentRefresh,
     railOpen: open,
     toggleRail: toggle,
   } = useWorkStatusesStore();
@@ -51,14 +50,6 @@ const WorkStatusBar = () => {
 
   const isStaff =
     !!authedUser._id && !authedUser.isEndUser && !authedUser.hideWorkStatus;
-
-  useEffect(() => {
-    if (isStaff) {
-      silentRefresh();
-    }
-  }, [isStaff, silentRefresh]);
-
-  usePolling(silentRefresh, { intervalMs: 15000, enabled: isStaff });
 
   if (!isStaff || !isLoaded) {
     return null;

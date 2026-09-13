@@ -54,4 +54,7 @@ ticketLogSchema.pre('validate', function assignKind() {
 // дашборда, поэтому индекс обязателен, а не желателен.
 ticketLogSchema.index({ ticketId: 1, kind: 1, createdAt: -1 });
 
+// Живые обновления хроники заявки (см. services/pulseTopics.js)
+ticketLogSchema.plugin(require('../services/pulsePlugin'), { model: 'TicketLog' });
+
 module.exports = mongoose.model('TicketLog', ticketLogSchema);

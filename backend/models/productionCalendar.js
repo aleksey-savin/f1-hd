@@ -58,4 +58,9 @@ const productionCalendarSchema = new Schema(
 
 productionCalendarSchema.index({ country: 1, year: 1 }, { unique: true });
 
+// Живые обновления календаря команды (см. services/pulseTopics.js)
+productionCalendarSchema.plugin(require("../services/pulsePlugin"), {
+  model: "ProductionCalendar",
+});
+
 module.exports = mongoose.model("ProductionCalendar", productionCalendarSchema);

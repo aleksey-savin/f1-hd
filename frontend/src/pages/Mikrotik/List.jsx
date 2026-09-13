@@ -18,7 +18,7 @@ import RouterOsStrip, {
   BRANCH_LABEL,
 } from "../../components/Mikrotik/RouterOsStrip";
 
-import usePolling from "../../hooks/use-polling";
+import useLiveTopic from "@/hooks/use-live-topic";
 import { useCan } from "@/store/authed-user";
 import useMikrotikDeviceFilterStore, {
   rowStatus,
@@ -36,8 +36,8 @@ const optionLabel = (options, value) =>
 
 // Мониторинг Mikrotik: статус-борд парка устройств. Список идёт от записей
 // мониторинга (добавление — только «Новое устройство», связь с инвентарём —
-// шагом после проверки); строки группируются по статусу, обновляются тихим
-// поллингом каждые 15 с; клик по строке — страница записи.
+// шагом после проверки); строки группируются по статусу, обновляются тихо по
+// пульсу живых обновлений; клик по строке — страница записи.
 const MikrotikDevices = () => {
   const can = useCan();
   const canManage = can({ mikrotik: ["manage"] });
@@ -49,10 +49,13 @@ const MikrotikDevices = () => {
     filterStore.fetch();
   }, []);
 
-  // Постоянное фоновое автообновление (как на странице заявок): статусы,
-  // доступность и индикаторы прошивки подтягиваются без спиннера; опрос на
-  // паузе, пока вкладка скрыта, при возврате фокуса — сразу.
-  usePolling(() => filterStore.silentRefresh(), { intervalMs: 15000 });
+  // Живое обновление (docs/live-updates.md): переход онлайн/офлайн, смена
+  // прошивки, правки записей и тревожные заявки подтягиваются без спиннера,
+  // когда пульс сообщает об изменении. Раз в 5 минут — в любом случае: «время
+  // проверки» и доступность за 30 дней текут и без событий.
+  useLiveTopic("mikrotik", () => filterStore.silentRefresh(), {
+    maxStaleMs: 5 * 60_000,
+  });
 
   // Deep-link из заявки, «Окружения» и карточки устройства: ?recordId= ведёт
   // сразу на страницу записи; ?clientDeviceId= — как только список приехал и

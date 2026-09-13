@@ -23,6 +23,7 @@ const getScreenRoutes = require("./internal/pro32Connect");
 const knowledgeNoteRoutes = require("./internal/knowledgeNote");
 const notificationRoutes = require("./internal/notification");
 const preferencesRoutes = require("./internal/preferences");
+const pulseRoutes = require("./internal/pulse");
 const reportRoutes = require("./internal/report");
 const roleRoutes = require("./internal/role");
 const routineTaskRoutes = require("./internal/routineTask");
@@ -90,6 +91,18 @@ const attachSession = require("@/middleware/attachSession");
  */
 internalRoutes.use("/bot", botRoutes);
 
+/**
+ * Курсор живых обновлений на каждом ответе — снят ДО чтения данных. Страница,
+ * которая загрузилась с этим курсором, не перечитает себя по пульсу из-за
+ * изменения, уже вошедшего в её данные (в том числе своего же действия).
+ * См. services/pulse.js.
+ */
+const { bus: pulseBus } = require("@/services/pulse");
+internalRoutes.use((req, res, next) => {
+  res.setHeader("X-Pulse-Cursor", pulseBus.cursor());
+  next();
+});
+
 internalRoutes.use(attachSession);
 // Внешние маршруты живут на своих удостоверениях (X-API-Key, токен в ссылке),
 // но сессия им не мешает: если она есть, ею можно пользоваться.
@@ -107,6 +120,7 @@ internalRoutes.use("/", getScreenRoutes);
 internalRoutes.use("/", knowledgeNoteRoutes);
 internalRoutes.use("/", notificationRoutes);
 internalRoutes.use("/", preferencesRoutes);
+internalRoutes.use("/", pulseRoutes);
 internalRoutes.use("/", reportRoutes);
 internalRoutes.use("/", roleRoutes);
 internalRoutes.use("/", routineTaskRoutes);

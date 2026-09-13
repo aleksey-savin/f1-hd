@@ -21,6 +21,7 @@ import PageShell from "@/components/app/PageShell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import useLiveTopic from "@/hooks/use-live-topic";
 import useMobileFilterOffcanvasStore from "@/store/mobile-filter-offcanvas";
 import useTeamScheduleStore, { type ScheduleView } from "@/store/team/schedule";
 
@@ -52,6 +53,13 @@ const TeamCalendar = () => {
   useEffect(() => {
     store.fetch();
   }, []);
+
+  // Запросы на отсутствие, решения по ним и графики меняют другие люди —
+  // календарь перечитывается по пульсу (docs/live-updates.md), не чаще раза в
+  // 30 секунд: смена статуса присутствия у кого-то случается постоянно
+  useLiveTopic(["team", "presence"], store.silentFetch, {
+    minIntervalMs: 30_000,
+  });
 
   const decide = async (
     id: string,

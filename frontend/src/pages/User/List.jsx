@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 import useUserFilterStore from "../../store/lists/users";
-import usePolling from "../../hooks/use-polling";
+import useWorkStatusesStore from "../../store/work-statuses";
 
 import List from "../../components/User/List";
 import UserFilter from "../../components/User/Filter";
@@ -75,8 +75,12 @@ const Users = () => {
       .catch(() => {});
   }, []);
 
-  // Живые статусы присутствия — фоновый мёрдж без перезагрузки списка.
-  usePolling(() => s.silentRefresh(), { intervalMs: 15000 });
+  // Живые статусы присутствия — мёрдж из общего табло без перезагрузки списка.
+  // После загрузки порции тоже: табло может быть свежее ответа списка.
+  const presence = useWorkStatusesStore((state) => state.users);
+  useEffect(() => {
+    s.mergePresence(presence);
+  }, [presence, s.items.length, s.page]);
 
   const grouped = s.groupBySubdivision && !!s.company;
 

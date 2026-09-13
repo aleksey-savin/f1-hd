@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import { DeviceStatusText } from "@/components/app/device-status";
 import Spinner from "@/components/app/Spinner";
+import useLiveTopic from "@/hooks/use-live-topic";
 
 import { formatShortDate } from "../../util/format-date";
 
@@ -52,6 +53,19 @@ const TicketsPanel = ({ deviceId, onEmpty }) => {
       cancelled = true;
     };
   }, [deviceId, onEmpty]);
+
+  // Эпизод недоступности открывает и закрывает заявку, пока карточка открыта —
+  // тихо перечитываем по пульсу (docs/live-updates.md), не чаще раза в 30 с
+  useLiveTopic(
+    "tickets",
+    async () => {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ADDRESS}/api/inventory/client-devices/${deviceId}/tickets`,
+      );
+      if (response.ok) setData(await response.json());
+    },
+    { enabled: !isLoading, minIntervalMs: 30_000 },
+  );
 
   if (isLoading) return <Spinner className="min-h-24" />;
 

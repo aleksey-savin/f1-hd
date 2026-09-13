@@ -163,9 +163,11 @@ const useKnowledgeNotesStore = create((set, get) => ({
   // Последний загруженный с сервера набор — чтобы решать, нужен ли рефетч
   lastFetchedQuery: "",
 
-  fetch: async () => {
+  // silent — живое обновление и возврат на страницу: без спиннера поверх уже
+  // показанного списка (docs/live-updates.md)
+  fetch: async ({ silent = false } = {}) => {
     const query = datasetQuery(get());
-    set({ isLoading: true });
+    if (!silent) set({ isLoading: true });
     // Ошибку не глушим: список заметок — содержимое страницы, и пустой он
     // должен появляться только когда заметок действительно нет.
     const data = await api(`/api/knowledge-notes${query}`);

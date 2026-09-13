@@ -770,7 +770,9 @@ why, in the 2026-07-24 entry of `docs/ux-ui-changelog.md`. Component internals
   and `schedule` (export-schedule form, gated by `manageConfigs`). The networks report keeps its own route
   `/report/networks` (`pages/Report/CompaniesNetworksReport.jsx`, legacy).
 - **Pages** — `pages/Mikrotik/List.jsx` (fleet board: rows grouped by status,
-  silent 15 s polling via `usePolling` → `silentRefresh()`, deep links
+  silent `silentRefresh()` on the `mikrotik` live-update topic plus a 5-min
+  staleness refresh — per-poll monitoring writes are pulse noise, transitions
+  are bumped in `monitorState.js` (`docs/live-updates.md`), deep links
   `?recordId=` / `?clientDeviceId=` redirect to the record page) and
   `pages/Mikrotik/Record.jsx` (one record, loader = `GET /records/:recordId`;
   operations only — the inventory card owns identity, the hero carries one

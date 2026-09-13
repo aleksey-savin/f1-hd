@@ -1,10 +1,7 @@
-import { useEffect } from "react";
-
 import { isMobile } from "react-device-detect";
 import { RiNotification3Fill, RiNotification3Line } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
-import usePolling from "@/hooks/use-polling";
 import useNotificationsStore from "@/store/notifications";
 
 import NotificationsPopover from "./NotificationsPopover";
@@ -16,20 +13,13 @@ import NotificationsSheet from "./NotificationsSheet";
  * чтобы отделиться от иконки. Панель — поповер на десктопе, шторка снизу на
  * телефоне.
  *
- * Опрос сводки живёт здесь: бар оболочки один на шелл, значит и опрос один.
- * Подписки узкие — тик опроса перерисовывает колокольчик, а не оболочку.
+ * Сводку приносит пульс оболочки (components/app/PulseLoop) — первый же ответ
+ * и потом при каждом изменении входящих. Подписки узкие — новая сводка
+ * перерисовывает колокольчик, а не оболочку.
  */
-const POLL_MS = 15000;
-
 const Bell = () => {
   const unreadCount = useNotificationsStore((state) => state.unreadCount);
   const open = useNotificationsStore((state) => state.open);
-  const silentRefresh = useNotificationsStore((state) => state.silentRefresh);
-
-  useEffect(() => {
-    void silentRefresh();
-  }, [silentRefresh]);
-  usePolling(silentRefresh, { intervalMs: POLL_MS });
 
   const trigger = (
     <Button

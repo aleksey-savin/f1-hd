@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import ReportCard from "../../components/Report/ReportCard";
 import ReportExportMenu from "../../components/Report/ReportExportMenu";
-import usePolling from "../../hooks/use-polling";
+import useLiveTopic from "@/hooks/use-live-topic";
 import { useCan } from "@/store/authed-user";
 import { toDateInputValue } from "../../util/format-date";
 
@@ -73,13 +73,11 @@ const ApprovalReport = () => {
   }, [id, companyId, servicePlanId, month]);
 
   // Карточка живёт своей жизнью: клиент подписывает часть по ссылке из письма,
-  // очередь двигается — состояние обязано подтягиваться само, как в конвейере.
-  // На время нашего действия опрос выключен: ответ на него всё равно перечитает
-  // карточку, а параллельная загрузка перетёрла бы свежий результат
-  usePolling(() => (isPreview ? undefined : load()), {
-    intervalMs: 20000,
-    enabled: !busy,
-  });
+  // очередь двигается, в предпросмотр добавляются работы — состояние
+  // подтягивается само по пульсу (docs/live-updates.md). На время нашего
+  // действия пауза: ответ на него всё равно перечитает карточку, а
+  // параллельная загрузка перетёрла бы свежий результат
+  useLiveTopic("approval", load, { enabled: !busy, minIntervalMs: 20_000 });
 
   const report = data?.report;
   const can = useCan();
