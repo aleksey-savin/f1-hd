@@ -44,6 +44,10 @@ import { getLocalStorageData } from "../util/auth";
  *    мне», «без ответственного», «давно без движения») делят и запрос, и блок —
  *    `store/dashboard-tickets` + переключатель в `StaffTickets`; и свои плановые
  *    работы: «Сегодня в плане» и «Дальше в плане» — `store/dashboard-planned-works`.
+ *
+ * Раскладка сотрудника не знает заранее, какие блоки будут: каждый исчезает
+ * без права или без данных. Поэтому места задаёт порядок и CSS, а не условия
+ * в JSX — см. комментарии в `DashboardStaff`.
  */
 
 const DashboardClient = () => {
@@ -88,6 +92,11 @@ const DashboardStaff = () => {
     (state) => !!state.modules?.timeTracking?.isActive,
   );
   const canReadWorks = timeTracking && !!can({ work: ["read"] });
+  // Шаблоны нужны тому, кто заводит заявки за клиентов — открыть шаблон, пока
+  // клиент на линии, и идти по его вопросам. Остальным сотрудникам ряд только
+  // отнимал первый экран у мониторинга и сроков; шаблон и так выбирается в
+  // форме новой заявки
+  const takesCalls = !!can({ ticket: ["createForOthers"] });
   const loadPlan = usePlannedWorksStore((state) => state.load);
 
   useEffect(() => {
@@ -106,26 +115,34 @@ const DashboardStaff = () => {
       {/* Сегодняшнее и неподтверждённое — над всеми блоками: место на главной
           решает срочность. Нет плана на сегодня — полосы нет */}
       <TodayPlan />
-      {/* Телефон: команда на главной вместо ленты в шелле; на десктопе —
-          рейл, блок был бы дублированием */}
+      {/* Правая колонка пуста (нет плана дальше и отчёта) — левая встаёт во
+          всю ширину: пустую колонку `empty:hidden` снимает, а `has-[…]`
+          сбрасывает сетку в одну колонку */}
+      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start xl:has-[>div:last-child:empty]:grid-cols-1">
+        <div className="flex flex-col gap-5">
+          {takesCalls && <TemplateTiles heading="Шаблоны заявок" />}
+          <StaffTickets />
+          {/* «Внимание»: сроки, база знаний, мониторинг — одна группа в две
+              колонки. Блоки сами решают, быть ли им, поэтому раскладка —
+              на селекторах, а не на условиях: три карточки — две в ряд и
+              третья во всю ширину, две — одним рядом, одна — во всю ширину,
+              ни одной — группы нет. Порядок внутри не меняется */}
+          <div className="grid gap-5 empty:hidden md:grid-cols-2 md:items-start [&>:nth-child(3)]:col-span-full [&>:only-child]:col-span-full">
+            <ServiceExpiry showCompany />
+            <KbAttention />
+            <MonitoringOffline />
+          </div>
+        </div>
+        <div className="flex flex-col gap-5 empty:hidden">
+          <UpcomingWorks />
+          <MyReport />
+        </div>
+      </div>
+      {/* Телефон: команда на главной вместо ленты в шелле, последним блоком —
+          срочное выше; на десктопе её роль у рейла статусов */}
       <MobileView renderWithFragment>
         <TeamNow />
       </MobileView>
-      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start">
-        <div className="flex flex-col gap-5">
-          <StaffTickets />
-          {/* Шаблоны на главной — каждому сотруднику: список уже сужен до
-              видимых ему шаблонов */}
-          <TemplateTiles heading="Шаблоны заявок" />
-        </div>
-        <div className="flex flex-col gap-5">
-          <UpcomingWorks />
-          <MyReport />
-          <MonitoringOffline />
-          <KbAttention />
-          <ServiceExpiry showCompany />
-        </div>
-      </div>
     </>
   );
 };

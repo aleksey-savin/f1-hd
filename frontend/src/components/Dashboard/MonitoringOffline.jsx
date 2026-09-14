@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
-import { RiAlertLine } from "react-icons/ri";
+import { RiAlertLine, RiArrowDownSLine, RiArrowUpSLine } from "react-icons/ri";
 
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import useLiveTopic from "@/hooks/use-live-topic";
@@ -27,6 +27,12 @@ import { formatDayMonth } from "../../util/format-date";
  * Блок спрашивает право «видеть Mikrotik»: раздел мониторинга закрыт им, и
  * сводка на главной не может быть открыта шире самого раздела. Без права и
  * запроса не делаем — бэкенд на него отвечает отказом.
+ *
+ * Пять строк и «Показать все N» на месте: в августе 2026 падало в среднем 44
+ * устройства в день, до 118, и длинный список сталкивал соседние блоки группы
+ * под сгиб. Бэкенд присылает не больше десяти строк и общее число — если
+ * устройств больше, раскрытие называет, сколько покажет, а остальное — по
+ * ссылке «Все устройства».
  */
 
 // «3 ч 12 мин» — сколько молчит. Сутками и больше — днями, минуты там не нужны.
@@ -41,10 +47,13 @@ const downtimeText = (since) => {
   return days === 1 ? "1 день" : `${days} дней`;
 };
 
+const ROWS = 5;
+
 const MonitoringOffline = () => {
   const can = useCan();
   const fromState = useCrumbFrom("Главная");
   const [data, setData] = useState(null);
+  const [expanded, setExpanded] = useState(false);
 
   const canSeeMonitoring = !!can({ mikrotik: ["read"] });
 
@@ -126,7 +135,7 @@ const MonitoringOffline = () => {
       </Eyebrow>
       <Panel>
         <div className="-mx-5 -my-5">
-          {data.items.map((item) => {
+          {(expanded ? data.items : data.items.slice(0, ROWS)).map((item) => {
             // Меньше часа — ещё может само подняться, дольше — уже инцидент.
             const fresh =
               item.offlineSince &&
@@ -164,6 +173,30 @@ const MonitoringOffline = () => {
               </Link>
             );
           })}
+          {/* Подвал считает показанное; раздел держит «Все устройства» в
+              метке. Черта сверху не нужна: последняя строка перед подвалом
+              уже не last-child и несёт свою */}
+          {data.items.length > ROWS && (
+            <div className="flex items-center gap-3 px-5 py-2.5 text-sm text-muted-foreground tabular-nums">
+              {!expanded && `Показаны ${ROWS} из ${data.total}`}
+              <button
+                type="button"
+                onClick={() => setExpanded((value) => !value)}
+                className="ms-auto inline-flex cursor-pointer appearance-none items-center gap-1 border-0 bg-transparent p-0 font-medium text-accent-text outline-none hover:underline focus-visible:underline"
+              >
+                {expanded
+                  ? "Свернуть"
+                  : data.total > data.items.length
+                    ? `Показать ${data.items.length}`
+                    : `Показать все ${data.total}`}
+                {expanded ? (
+                  <RiArrowUpSLine aria-hidden />
+                ) : (
+                  <RiArrowDownSLine aria-hidden />
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </Panel>
     </section>
