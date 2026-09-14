@@ -28,6 +28,8 @@ export type BotConfig = {
     sendToGroup: boolean;
     chatId: string;
     messageThreadId: string;
+    /** Имя бота, как его знает сервер; сверяется с getMe (см. main.ts). */
+    botUsername: string;
   };
   statusBoard: {
     isActive: boolean;

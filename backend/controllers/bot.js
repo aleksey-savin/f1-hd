@@ -238,6 +238,9 @@ exports.config = async (req, res, next) => {
         sendToGroup: Boolean(prefs?.notify?.byTelegram?.sendToGroup),
         chatId: prefs?.notify?.byTelegram?.chatId || "",
         messageThreadId: prefs?.notify?.byTelegram?.messageThreadId || "",
+        // Что сервер знает об имени бота — сервис сверяет со своим getMe и
+        // при расхождении присылает актуальное (см. `identity`).
+        botUsername: prefs?.notify?.byTelegram?.botUsername || "",
       },
       statusBoard: {
         isActive: Boolean(prefs?.statusBoard?.isActive),
@@ -266,6 +269,31 @@ exports.config = async (req, res, next) => {
     });
   } catch (error) {
     next(new AppError("Не удалось отдать настройки", 500, true, error));
+  }
+};
+
+/**
+ * Имя бота, как его знает сам Telegram. Сервис сообщает его после getMe и
+ * дальше при каждом расхождении с тем, что отдаёт `config`, — так значение
+ * переживает и смену токена, и перезапись настроек из формы. Фронту оно нужно
+ * для ссылки привязки; раньше имя было переменной сборки фронта
+ * (VITE_TG_BOT_NAME), то есть образ зависел от окружения.
+ */
+exports.identity = async (req, res, next) => {
+  try {
+    const username = String(req.body?.username || "").trim();
+    if (!/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(username)) {
+      return next(new AppError("Некорректное имя бота", 400, true));
+    }
+
+    await Preferences.updateOne(
+      {},
+      { $set: { "notify.byTelegram.botUsername": username } },
+    );
+
+    res.status(200).json({ username });
+  } catch (error) {
+    next(new AppError("Не удалось сохранить имя бота", 500, true, error));
   }
 };
 

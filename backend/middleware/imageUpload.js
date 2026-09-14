@@ -1,5 +1,4 @@
 const multer = require("multer");
-const multerS3 = require("multer-s3");
 const crypto = require("crypto");
 const fs = require("fs");
 
@@ -24,9 +23,8 @@ const MAX_FILES = 10;
 
 const imageUpload = multer({
   limits: { fileSize: MAX_FILE_SIZE, files: MAX_FILES },
-  storage: multerS3({
-    s3: storage.s3Client,
-    bucket: storage.bucket,
+  // S3 or the local uploads/ volume — decided by services/storage.
+  storage: storage.uploadStorage({
     contentType: (req, file, cb) => cb(null, file.mimetype),
     // Ключ объекта == `name` в Mongo, поэтому /uploads/<name> резолвится 1:1.
     // Оригинальное имя хранится отдельным полем — санитизировать его в ключе не
@@ -36,7 +34,6 @@ const imageUpload = multer({
       if (!ext) return cb(new Error("Неподдерживаемый тип файла"), false);
       cb(null, `${crypto.randomUUID()}.${ext}`);
     },
-    ...storage.sseUploadOptions,
   }),
   fileFilter: (req, file, cb) => {
     if (!file.originalname || file.originalname.length > 255) {

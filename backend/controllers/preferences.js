@@ -224,6 +224,8 @@ exports.getInitial = async (req, res, next) => {
       taxi: { operator: preferences.taxi?.operator || "" },
       emailNotifications: preferences.notify?.byEmail?.isActive,
       telegramNotifications: preferences.notify?.byTelegram?.isActive,
+      // Имя бота для ссылки привязки в «Интеграциях»; пусто — сервис не подключён
+      telegramBotUsername: preferences.notify?.byTelegram?.botUsername || "",
       personalNotifications: preferences.notify.personal,
       modules: preferences.modules,
       ai: {

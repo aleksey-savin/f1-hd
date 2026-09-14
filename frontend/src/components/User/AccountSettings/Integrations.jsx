@@ -22,7 +22,7 @@ import useToastStore from "../../../store/toast-store";
 const POLL_INTERVAL_MS = 4000;
 const POLL_TIMEOUT_MS = 2 * 60 * 1000;
 
-const Integrations = ({ user }) => {
+const Integrations = ({ user, botUsername }) => {
   const fetcher = useFetcher();
   const fetchers = useFetchers();
   const revalidator = useRevalidator();
@@ -39,7 +39,7 @@ const Integrations = ({ user }) => {
    * просил.
    */
   const connect = async () => {
-    if (pairing) return;
+    if (pairing || !botUsername) return;
     setPairing(true);
 
     // Вкладку открываем СИНХРОННО, до запроса: открытую после `await` браузер
@@ -50,7 +50,9 @@ const Integrations = ({ user }) => {
       const { code } = await api("/api/me/telegram/pairing-code", {
         method: "POST",
       });
-      const url = `https://t.me/${import.meta.env.VITE_TG_BOT_NAME}?start=${code}`;
+      // Имя бота приходит с сервера (его сообщает сам tg-service), а не
+      // зашивается в сборку: образ фронта одинаков для всех установок.
+      const url = `https://t.me/${botUsername}?start=${code}`;
 
       if (target) {
         // Обратную ссылку рвём ДО перехода, пока вкладка ещё about:blank и
@@ -140,7 +142,9 @@ const Integrations = ({ user }) => {
         ? " · заявки и статусы приходят в личный чат"
         : awaitingLink
           ? " · откройте чат с ботом и нажмите Start — статус обновится сам"
-          : " · уведомления в Telegram не отправляются"}
+          : botUsername
+            ? " · уведомления в Telegram не отправляются"
+            : " · Telegram-бот на этом сервере не настроен"}
     </>
   );
 
@@ -169,7 +173,7 @@ const Integrations = ({ user }) => {
           variant="outline"
           size="sm"
           onClick={connect}
-          disabled={pairing}
+          disabled={pairing || !botUsername}
         >
           Подключить
         </Button>

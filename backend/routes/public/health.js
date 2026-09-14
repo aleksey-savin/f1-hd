@@ -75,12 +75,17 @@ router.get('/ready', async (req, res) => {
     // JWT_SECRET больше не нужен: подписанных нами токенов не осталось, сеансы
     // живут на сервере. BETTER_AUTH_SECRET занял его место — на нём же
     // шифруются секреты второго фактора, и без него не поднимется вход.
-    const requiredEnvVars = ['MONGODB_USERNAME', 'MONGODB_PASSWORD', 'BETTER_AUTH_SECRET', 'MIKROTIK_ENC_KEY'];
-    const envCheck = requiredEnvVars.every(envVar => process.env[envVar]);
+    const requiredEnvVars = ['MONGODB_USERNAME', 'MONGODB_PASSWORD', 'MONGODB_DATABASE', 'BETTER_AUTH_SECRET'];
+    const missing = requiredEnvVars.filter(envVar => !process.env[envVar]);
+    // Ключ шифрования хранимых секретов: новое имя APP_ENC_KEY, старое
+    // MIKROTIK_ENC_KEY по-прежнему принимается (см. services/crypto/secretBox).
+    if (!process.env.APP_ENC_KEY && !process.env.MIKROTIK_ENC_KEY) {
+      missing.push('APP_ENC_KEY');
+    }
     checks.push({
       service: 'environment',
-      status: envCheck ? 'ready' : 'not_ready',
-      missing: envCheck ? undefined : requiredEnvVars.filter(envVar => !process.env[envVar])
+      status: missing.length ? 'not_ready' : 'ready',
+      missing: missing.length ? missing : undefined
     });
 
     const allReady = checks.every(check => check.status === 'ready');

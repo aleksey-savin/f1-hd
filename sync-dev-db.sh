@@ -28,16 +28,16 @@ cd "$(dirname "$0")"
 PROD_SSH="${PROD_SSH:-f1lab@10.0.50.70}"
 PROD_SSH_JUMP="${PROD_SSH_JUMP:-f1lab@10.0.50.10}"   # used only when prod's SSH port is unreachable directly
 PROD_MONGO_PORT="${PROD_MONGO_PORT:-27017}"          # port MongoDB publishes on the prod host
-PROD_MONGO_CONTAINER="${PROD_MONGO_CONTAINER:-hd-mongodb-prod}"
-PROD_BACKEND_CONTAINER="${PROD_BACKEND_CONTAINER:-hd-backend-prod}"
+PROD_MONGO_CONTAINER="${PROD_MONGO_CONTAINER:-hd-mongodb-1}"
+PROD_BACKEND_CONTAINER="${PROD_BACKEND_CONTAINER:-hd-backend-1}"
 PROD_DB="${PROD_DB:-}"                # resolved from the prod backend container if empty
 PROD_MONGO_USER="${PROD_MONGO_USER:-}"  # resolved from the prod mongo container if empty
 PROD_MONGO_PASS="${PROD_MONGO_PASS:-}"
 
 DEV_MONGO_HOST="${DEV_MONGO_HOST:-127.0.0.1}"
 DEV_MONGO_PORT="${DEV_MONGO_PORT:-27017}"
-DEV_DB="${DEV_DB:-}"                  # resolved from .env.dev if empty
-ENV_FILE="${ENV_FILE:-.env.dev}"
+DEV_DB="${DEV_DB:-}"                  # resolved from .env if empty
+ENV_FILE="${ENV_FILE:-.env}"
 
 DUMP_MODE="${DUMP_MODE:-auto}"        # auto | remote (mongodump on prod) | tunnel (mongodump here)
 
@@ -94,7 +94,7 @@ show_help() {
     echo "                        tunnel: pull with the local mongodump through a"
     echo "                        forwarded port — only sane on a low-latency link"
     echo "  DEV_MONGO_HOST/PORT   Local MongoDB endpoint (default: 127.0.0.1:27017)"
-    echo "  DEV_DB                Target dev database name (default: from .env.dev)"
+    echo "  DEV_DB                Target dev database name (default: from .env)"
     echo ""
     echo "The '${EXCLUDE_COLLECTION}' collection is never synced: it is excluded from the"
     echo "dump and the local copy is left untouched."

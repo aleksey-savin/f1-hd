@@ -193,6 +193,8 @@ app.use((req, res) => {
 
 app.use(errorResponse);
 
+let server;
+
 mongoose
   .connect(
     `mongodb://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@mongodb:27017/${process.env.MONGODB_DATABASE}?authSource=admin`,
@@ -205,7 +207,7 @@ mongoose
     // Пустая база → администратор, компания и настройки. Идемпотентно: на
     // непустой не делает ничего. Заменяет удалённую ручку /api/first-launch.
     await require("./services/bootstrapSeed").seedFirstLaunch();
-    app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       logger.log("info", `Server started on port ${PORT}`);
       initializeMonitoring();
     });
@@ -635,3 +637,23 @@ setTimeout(() => {
 setTimeout(() => {
   runMikrotikFirmwareRefreshIfStale();
 }, 30000);
+
+// Мягкая остановка: `docker stop` шлёт SIGTERM и через 10 с добивает SIGKILL.
+// Перестаём принимать соединения, даём текущим ответам завершиться, закрываем
+// Mongo — и выходим ЯВНО: таймеры node-cron иначе держат процесс живым до
+// SIGKILL. Будильник на выход ставится первым, чтобы зависший запрос не
+// превратил остановку в ожидание.
+const shutdown = (signal) => {
+  logger.log("info", `${signal} received, shutting down`);
+  setTimeout(() => process.exit(1), 10000).unref();
+  const closeServer = server
+    ? new Promise((resolve) => server.close(resolve))
+    : Promise.resolve();
+  closeServer
+    .then(() => mongoose.disconnect())
+    .catch(() => {})
+    .finally(() => process.exit(0));
+};
+
+process.once("SIGTERM", () => shutdown("SIGTERM"));
+process.once("SIGINT", () => shutdown("SIGINT"));

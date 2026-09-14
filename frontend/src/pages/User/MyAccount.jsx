@@ -102,7 +102,10 @@ const MyAccountCanvas = ({ user, initialPrefs, showSchedule }) => {
         <Notifications user={user} initialPrefs={initialPrefs} />
       </SettingsSection>
       <SettingsSection id="integrations" label="Интеграции">
-        <Integrations user={user} />
+        <Integrations
+          user={user}
+          botUsername={initialPrefs?.telegramBotUsername || ""}
+        />
       </SettingsSection>
       <SettingsSection id="security" label="Безопасность">
         <Security user={user} />

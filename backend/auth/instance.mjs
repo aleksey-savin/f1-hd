@@ -245,7 +245,7 @@ export function createAuth({ db, client, config, hooks, statement }) {
       // отключает у него эту конвертацию: вход проходит, а get-session
       // возвращает пустую сессию, потому что связь session.userId → users._id
       // ищется строкой по полю ObjectId (проверено на живом стенде 2026-08-06).
-      useSecureCookies: config.isProduction,
+      useSecureCookies: config.useSecureCookies,
       cookiePrefix: "hd",
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", path: "/" },
     },

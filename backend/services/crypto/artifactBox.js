@@ -8,7 +8,7 @@ const crypto = require("crypto");
 // file and room to rotate the master secret by re-wrapping DEKs without
 // re-encrypting the (potentially many/large) file bodies.
 //
-// The KEK is HKDF-derived from MIKROTIK_ENC_KEY with a fixed info label, so it is
+// The KEK is HKDF-derived from APP_ENC_KEY (legacy name: MIKROTIK_ENC_KEY) with a fixed info label, so it is
 // a *distinct* key from the one secretBox uses for device credentials (domain
 // separation) even though both descend from the same env secret. A leak/oracle in
 // one domain therefore can't be replayed against the other.
@@ -33,22 +33,24 @@ const HEADER_LENGTH =
 
 let cachedKek;
 
-// Derive the artifact KEK from MIKROTIK_ENC_KEY (base64, 32 bytes) via HKDF-SHA256
+// Derive the artifact KEK from APP_ENC_KEY (base64, 32 bytes) via HKDF-SHA256
 // with a fixed info label. Lazy + cached so merely requiring this module never
 // throws; encrypt/decrypt fail loudly if the env key is missing or malformed —
 // same contract as secretBox.
 const getKek = () => {
   if (cachedKek) return cachedKek;
 
-  const raw = process.env.MIKROTIK_ENC_KEY;
+  // Same precedence as secretBox: the new name wins, the legacy one still works
+  // so existing installations keep their artifacts readable without renaming.
+  const raw = process.env.APP_ENC_KEY || process.env.MIKROTIK_ENC_KEY;
   if (!raw) {
-    throw new Error("MIKROTIK_ENC_KEY is not set");
+    throw new Error("APP_ENC_KEY is not set");
   }
 
   const master = Buffer.from(raw, "base64");
   if (master.length !== 32) {
     throw new Error(
-      `MIKROTIK_ENC_KEY must decode to 32 bytes (got ${master.length})`,
+      `APP_ENC_KEY must decode to 32 bytes (got ${master.length})`,
     );
   }
 

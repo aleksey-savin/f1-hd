@@ -1,271 +1,99 @@
-# HD Monorepo
+# HD
 
-This repository contains a comprehensive business management system migrated from three separate GitLab projects into a unified monorepo structure.
-
-## 🏗️ Architecture
-
-The system consists of three main applications:
+Helpdesk and IT-management portal: tickets, inventory, knowledge base,
+Mikrotik monitoring, work reports. One repository, three services.
 
 ```
 hd/
-├── backend/          # Node.js/Express API server
-├── frontend/         # React/Vite web application
-├── telegram-bot/     # Telegram bot service
-├── compose.dev.yml   # Development Docker Compose
-├── compose.prod.yml  # Production Docker Compose
-├── deploy-prod.sh    # Production deployment script
-├── env/             # Environment configurations
-├── logs/            # Application logs
-└── uploads/         # File uploads storage
+├── backend/          # Node.js/Express API (Mongoose, better-auth)
+├── frontend/         # React/Vite SPA, served by nginx in production
+├── tg-service/       # Telegram bot service (talks to the backend API only)
+├── compose.yml       # production stack (default compose file)
+├── compose.dev.yml   # development stack (bind-mounted sources)
+├── deploy.sh         # install / update / backup / restore / migrations
+├── .env.example      # the only configuration template
+├── scripts/          # host-side helpers (in-place MongoDB upgrade)
+├── sync-dev-db.sh    # copy the production database into the dev one
+└── docs/             # implementation notes; docs/deployment.md for operations
 ```
 
-## 🚀 Quick Start
+## Production
 
-### Prerequisites
-
-- Node.js (v18 or higher)
-- Docker and Docker Compose
-- pnpm package manager
-
-### Environment Setup
-
-1. **Copy environment files:**
-   ```bash
-   cp .env.dev.example .env.dev
-   cp .env.prod.example .env.prod
-   ```
-
-2. **Configure environment variables:**
-   Edit `.env.dev` and `.env.prod` with your actual values:
-   - Database credentials
-   - API keys
-   - Service URLs
-   - JWT secrets
-
-### Development
-
-#### Option 1: Docker Compose (Recommended)
+Any Linux host with bash, curl and openssl. Docker is installed by the script
+if missing (Debian/Ubuntu via apt, Fedora/RHEL/Alma via dnf).
 
 ```bash
-# Start all services
-docker-compose -f compose.dev.yml up
-
-# Start specific services
-docker-compose -f compose.dev.yml up backend frontend
+git clone <repo> hd && cd hd
+sudo ./deploy.sh
 ```
 
-#### Option 2: Manual Setup
+The first run asks for the public URL and the administrator's e-mail, generates
+every secret into `.env`, builds the images, starts the stack and prints the
+generated administrator password once. The app listens on port 8080 (plain
+HTTP); put your reverse proxy with TLS in front of it and set
+`HTTP_PORT=127.0.0.1:8080`, `TRUST_PROXY_HOPS=2`, `APP_PUBLIC_URL=https://…`.
+
+Updating: `git pull && ./deploy.sh`. A backup is taken and pending data
+migrations run before the new version starts.
+
+| Command | What it does |
+|---|---|
+| `./deploy.sh` | install or update |
+| `./deploy.sh backup` | database + uploads → `backups/<timestamp>/` |
+| `./deploy.sh restore DIR` | load a backup (then `migrate` and `deploy`) |
+| `./deploy.sh migrate status` | which data migrations ran, which are pending |
+| `./deploy.sh status` / `logs [service]` | containers, logs |
+
+Configuration reference, Telegram, S3, moving to another host, rollback:
+[docs/deployment.md](docs/deployment.md).
+
+## Development
+
+Prerequisites: Docker with the compose plugin, pnpm, Node 24.
 
 ```bash
-# Backend
-cd backend
-pnpm install
-pnpm run dev
-
-# Frontend (new terminal)
-cd frontend
-pnpm install
-pnpm run dev
-
-# Telegram Bot (new terminal)
-cd telegram-bot
-pnpm install
-pnpm run dev
+cp .env.example .env         # fill in, then add:
+echo COMPOSE_FILE=compose.dev.yml >> .env
+docker compose up -d         # mongodb + backend (nodemon) + frontend (vite)
+docker compose --profile telegram up -d   # plus the bot, when TG_TOKEN is set
 ```
 
-#### Sync the dev database with production
+Frontend: http://localhost:3000 (Vite proxies `/api` and `/uploads` to the
+backend, so cookies work same-origin like in production). Changing `.env`
+needs `docker compose up -d --force-recreate`. Backend logs are in
+`backend/logs/`.
+
+Per-service scripts (`cd backend|frontend|tg-service`):
+
+```bash
+pnpm dev          # backend: nodemon; frontend: vite; tg-service: node --watch
+pnpm typecheck    # all three
+pnpm test         # backend, tg-service (node --test)
+pnpm lint         # frontend
+pnpm build        # frontend
+```
+
+### Copy the production database
 
 ```bash
 ./sync-dev-db.sh
 ```
 
-Runs straight from the host shell. The dump is read from production over SSH
-(routed through the jump host automatically when prod is not reachable
-directly) and restored into the local database over `localhost:27017` — no
-docker needed on this side, just `mongodb-database-tools`
+Runs from the host shell. The dump is read from production over SSH (through
+the jump host when production is not reachable directly) and restored into the
+local database on `localhost:27017`; it needs `mongodb-database-tools`
 (`sudo dnf install mongodb-database-tools`). Production is never written to and
 the `preferences` collection is left untouched; `./sync-dev-db.sh --help` lists
-the options.
+the options. After a sync re-run the better-auth scripts, otherwise nobody can
+sign in (see `docs/deployment.md`, Migrations).
 
-### Production
+## Conventions
 
-```bash
-# Deploy to production
-./deploy-prod.sh
-
-# Or using Docker Compose
-docker-compose -f compose.prod.yml up -d
-```
-
-## 📋 Features
-
-### Backend API
-- RESTful API with Express.js
-- JWT authentication
-- Database models and migrations
-- File upload handling
-- Email notifications
-- Cron jobs and routine tasks
-- Comprehensive logging
-
-### Frontend Web App
-- Modern React application with Vite
-- Responsive design with Bootstrap
-- Dark/Light theme support
-- Real-time notifications
-- File management
-- Dashboard and analytics
-- Mobile-responsive interface
-
-### Telegram Bot
-- Automated notifications
-- Task management integration
-- User interaction handling
-- Webhook support
-
-## 🛠️ Development Guidelines
-
-### Code Structure
-
-Each service follows these conventions:
-
-**Backend:**
-- `controllers/` - Request handlers
-- `models/` - Database models
-- `routes/` - API routes
-- `middleware/` - Custom middleware
-- `utils/` - Utility functions
-- `validations/` - Input validation
-
-**Frontend:**
-- `src/components/` - React components
-- `src/pages/` - Page components
-- `src/hooks/` - Custom hooks
-- `src/UI/` - Reusable UI components
-- `src/css/` - Stylesheets
-
-### Environment Variables
-
-Never commit actual environment files! Use the example files as templates:
-
-- `.env.dev.example` - Development environment template
-- `.env.prod.example` - Production environment template
-
-### Git Workflow
-
-1. Create feature branches from `main`
-2. Make atomic commits with descriptive messages
-3. Test thoroughly before merging
-4. Use conventional commit messages
-
-## 🔧 Available Scripts
-
-### Root Level
-```bash
-# Start all services in development
-docker-compose -f compose.dev.yml up
-
-# Start all services in production
-docker-compose -f compose.prod.yml up -d
-
-# Deploy to production
-./deploy-prod.sh
-```
-
-### Individual Services
-```bash
-# Backend
-cd backend
-pnpm run dev        # Development server
-pnpm run start      # Production server
-pnpm run test       # Run tests
-pnpm run lint       # Lint code
-
-# Frontend
-cd frontend
-pnpm run dev        # Development server
-pnpm run build      # Production build
-pnpm run preview    # Preview production build
-pnpm run lint       # Lint code
-
-# Telegram Bot
-cd telegram-bot
-pnpm run dev        # Development server
-pnpm run start      # Production server
-```
-
-## 📊 Monitoring & Logs
-
-- Application logs: `logs/` directory
-- Error tracking: Built-in logging middleware
-- Performance monitoring: Available through dashboard
-
-## 🔒 Security
-
-- Environment variables are properly secured
-- JWT token authentication
-- Input validation and sanitization
-- File upload restrictions
-- Rate limiting implemented
-
-## 🚀 Deployment
-
-### Production Deployment
-
-1. **Configure production environment:**
-   ```bash
-   cp .env.prod.example .env.prod
-   # Edit .env.prod with production values
-   ```
-
-2. **Run deployment script:**
-   ```bash
-   ./deploy-prod.sh
-   ```
-
-### Docker Deployment
-
-The system is fully containerized and can be deployed using Docker:
-
-```bash
-# Production deployment
-docker-compose -f compose.prod.yml up -d
-
-# Check status
-docker-compose -f compose.prod.yml ps
-
-# View logs
-docker-compose -f compose.prod.yml logs -f
-```
-
-## 📈 Monitoring
-
-- Health checks available at `/health` endpoints
-- Comprehensive logging system
-- Error tracking and reporting
-- Performance metrics collection
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Run linting and tests
-6. Submit a pull request
-
-## 📄 License
-
-This project is proprietary software. All rights reserved.
-
-## 🆘 Support
-
-For support and questions:
-- Check the logs in `logs/` directory
-- Review environment configuration
-- Consult the API documentation
-- Contact the development team
-
----
-
-**Note:** This is a monorepo containing three integrated applications. Each service can be developed and deployed independently while maintaining shared configurations and resources.
+- pnpm only (`packageManager` is pinned in each service).
+- Backend is CommonJS with `.ts` files executed natively by Node 24; see
+  `docs/typescript-guide.md`.
+- UI rules: `docs/ux-ui-guide.md`. Dates and timezones:
+  `docs/datetime-conventions.md`.
+- Data migrations are scripts in `backend/scripts/` registered in
+  `backend/scripts/migrate.js`; never run one on production outside the runner
+  without `migrate mark` afterwards.

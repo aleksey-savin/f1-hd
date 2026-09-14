@@ -1,62 +1,84 @@
+# Development stack: bind-mounted sources, dev targets, MongoDB published on
+# 27017 for local tools (sync-dev-db.sh, Compass).
+#
+# Put `COMPOSE_FILE=compose.dev.yml` into the dev machine's .env and plain
+# `docker compose up` uses this file. Changing .env needs
+# `docker compose up -d --force-recreate`, not a restart.
+name: hd
+
 services:
   mongodb:
-    image: "mongo"
+    # The dev volume was written by 8.2 (an untagged `mongo` pulled in 2025-11)
+    # and 8.0 refuses those files. Production pins mongo:8.0; to converge, drop
+    # the hd_data volume and re-sync with ./sync-dev-db.sh, then pin 8.0 here.
+    image: mongo:8
     restart: unless-stopped
-    volumes:
-      - hd_data:/data/db
-      - ./mongodb/docker-entrypoint-wrapper.sh:/docker-entrypoint-wrapper.sh:ro
-    env_file:
-      - .env.dev
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
     ports:
       - "27017:27017"
+    volumes:
+      - hd_data:/data/db
+      - hd_mongodb_config:/data/configdb
+
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      target: dev
     ports:
       - "8080:8080"
     volumes:
       - ./backend:/app
       - /app/node_modules
       - hd_uploads:/app/uploads
+    env_file: .env
     environment:
-      - CHOKIDAR_USEPOLLING=true
-    env_file:
-      - .env.dev
+      CHOKIDAR_USEPOLLING: "true"
+      ADDRESS: ${APP_PUBLIC_URL:-http://localhost:3000}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
     depends_on:
       - mongodb
+
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      target: dev
     ports:
       - "3000:3000"
     volumes:
       - ./frontend:/app
-    env_file:
-      - .env.dev
+    environment:
+      # Relative URLs, like prod: the Vite proxy forwards /api and /uploads.
+      VITE_API_ADDRESS: ""
     stdin_open: true
     tty: true
     depends_on:
       - backend
+
   tg-service:
     build:
       context: ./tg-service
-      dockerfile: Dockerfile
+      target: dev
+    profiles: [telegram]
     volumes:
       - ./tg-service:/app
       - /app/node_modules
       - tg_service_data:/app/data
     environment:
+      TG_TOKEN: ${TG_TOKEN}
+      TG_API_TOKEN: ${TG_API_TOKEN}
       BACKEND_URL: http://backend:8080
-    env_file:
-      - .env.dev
+      ADDRESS: ${APP_PUBLIC_URL:-http://localhost:3000}
     depends_on:
       - backend
 
 volumes:
-  tg_service_data:
   hd_data:
     external: true
   hd_uploads:
     external: true
+  hd_mongodb_config:
+    name: hd_mongodb_config
+  tg_service_data:
+    name: hd_tg_service_data

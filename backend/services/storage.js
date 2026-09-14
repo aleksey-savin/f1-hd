@@ -1,5 +1,7 @@
 const fs = require("fs");
 const path = require("path");
+const multer = require("multer");
+const multerS3 = require("multer-s3");
 
 const {
   S3Client,
@@ -16,6 +18,10 @@ const logger = require("@/utils/logger");
 // the migration. The stored attachment `name` doubles as the S3 object key.
 const UPLOADS_DIR = "uploads";
 const PRESIGN_TTL_SECONDS = 300; // short-lived; each page view re-requests it
+
+// The directory must exist before the first upload lands on disk: it is a volume
+// in Docker and a plain folder in dev.
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 // Private artifacts (Mikrotik backups / config exports). They contain device
 // configuration, so — unlike UPLOADS_DIR — they are NEVER served by the public
@@ -54,8 +60,8 @@ if (isS3Configured()) {
     },
   });
 } else {
-  logger.warn(
-    "S3 is not configured (missing S3_* env vars); uploads will not work until it is",
+  logger.info(
+    "S3 is not configured (S3_* env vars); uploads are stored on the local volume (uploads/)",
   );
 }
 
@@ -66,6 +72,27 @@ const sseUploadOptions = S3_KMS_KEY_ID
 
 // Always operate on a basename so a crafted `name` can never escape the dir/key.
 const localPath = (name) => path.join(UPLOADS_DIR, path.basename(name));
+
+// Multer storage for public attachments. S3 when configured, otherwise the local
+// uploads/ volume. The disk engine mirrors multer-s3's contract: multer copies
+// whatever the engine hands back onto `req.file`, so `file.key` is set for
+// disk uploads too and nothing downstream has to know where the bytes went.
+// `key` has the same (req, file, cb) signature as diskStorage's `filename`.
+const diskStorageWithKey = (key) => {
+  const disk = multer.diskStorage({ destination: UPLOADS_DIR, filename: key });
+  return {
+    _handleFile: (req, file, cb) =>
+      disk._handleFile(req, file, (error, info) =>
+        error ? cb(error) : cb(null, { ...info, key: info.filename }),
+      ),
+    _removeFile: (req, file, cb) => disk._removeFile(req, file, cb),
+  };
+};
+
+const uploadStorage = ({ key, contentType }) =>
+  s3Client
+    ? multerS3({ s3: s3Client, bucket, contentType, key, ...sseUploadOptions })
+    : diskStorageWithKey(key);
 
 const objectExistsLocally = (name) => {
   try {
@@ -214,6 +241,7 @@ module.exports = {
   s3Client,
   bucket,
   isS3Configured,
+  uploadStorage,
   objectExistsLocally,
   getObjectBuffer,
   presignGetUrl,

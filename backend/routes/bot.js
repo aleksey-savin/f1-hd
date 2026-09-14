@@ -63,6 +63,7 @@ router.use(isTelegramBot);
 
 router.post("/pairing/claim", pairingLimiter, authController.authTelegram);
 router.get("/config", serviceLimiter, botController.config);
+router.post("/identity", serviceLimiter, botController.identity);
 router.get("/outbox", serviceLimiter, botController.outboxPull);
 router.post("/outbox/ack", serviceLimiter, botController.outboxAck);
 

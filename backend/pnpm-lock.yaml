@@ -83,9 +83,6 @@ importers:
       phone:
         specifier: ^3.1.59
         version: 3.1.59
-      pnpm:
-        specifier: ^10.10.0
-        version: 10.10.0
       routeros-node:
         specifier: ^0.1.0
         version: 0.1.0
@@ -1863,11 +1860,6 @@ packages:
   pkce-challenge@5.0.0:
     resolution: {integrity: sha512-ueGLflrrnvwB3xuo/uGob5pd5FN7l0MsLf0Z87o/UQmRtwjvfylfc9MurIxRAWywCYTgrvpXBcqjV4OfCYGCIQ==}
     engines: {node: '>=16.20.0'}
-
-  pnpm@10.10.0:
-    resolution: {integrity: sha512-1hXbJG/nDyXc/qbY1z3ueCziPiJF48T2+Igkn7VoFJMYY33Kc8LFyO8qTKDVZX+5VnGIv6tH9WbR7mzph4FcOQ==}
-    engines: {node: '>=18.12'}
-    hasBin: true
 
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
@@ -4308,8 +4300,6 @@ snapshots:
   picomatch@2.3.1: {}
 
   pkce-challenge@5.0.0: {}
-
-  pnpm@10.10.0: {}
 
   possible-typed-array-names@1.1.0: {}
 

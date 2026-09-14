@@ -1,7 +1,7 @@
 import { GrammyError } from "grammy";
 import type { Bot } from "grammy";
 
-import { fetchConfig } from "./api/backend.ts";
+import { fetchConfig, reportIdentity } from "./api/backend.ts";
 import { tryApi } from "./api/client.ts";
 import type { BotConfig } from "./api/types.ts";
 import { createBot } from "./bot/index.ts";
@@ -32,11 +32,22 @@ import { runOutboxCycle } from "./workers/outbox.ts";
  */
 let botConfig: BotConfig | null = null;
 
+/**
+ * Имя бота из getMe. Сервер хранит его для ссылки привязки во фронте; сверяем
+ * при каждом обновлении настроек и досылаем при расхождении — так значение
+ * переживает и смену токена, и перезапись настроек из формы.
+ */
+let botUsername: string | null = null;
+
 const refreshConfig = async (): Promise<void> => {
   const fresh = await tryApi("fetch configuration", () => fetchConfig());
   if (fresh) {
     botConfig = fresh;
     markBackendOk();
+    if (botUsername && fresh.telegram.botUsername !== botUsername) {
+      const username = botUsername;
+      await tryApi("report bot identity", () => reportIdentity(username));
+    }
   }
 };
 
@@ -100,6 +111,7 @@ const identifyBot = async (bot: Bot): Promise<void> => {
   for (let attempt = 1; ; attempt += 1) {
     try {
       const me = await bot.api.getMe();
+      botUsername = me.username ?? null;
       markTelegramOk();
       logger.info("Bot identified", { username: me.username });
       return;
@@ -130,15 +142,17 @@ const main = async (): Promise<void> => {
 
   openDatabase();
 
+  // Сначала знакомство с Telegram, потом настройки: первый же `refreshConfig`
+  // сверит имя бота с тем, что знает сервер, и дошлёт его при расхождении.
+  const bot = createBot(() => botConfig);
+  await identifyBot(bot);
+
   // Настройки нужны до первого обхода табло; без них работать можно, но
   // рисовать нечего.
   await refreshConfig();
   if (!botConfig) {
     logger.warn("Configuration not fetched yet, will retry on the next cycle");
   }
-
-  const bot = createBot(() => botConfig);
-  await identifyBot(bot);
 
   const health = startHealthServer();
 

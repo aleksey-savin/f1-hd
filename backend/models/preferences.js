@@ -118,6 +118,10 @@ const preferencesSchema = new Schema({
       sendToGroup: { type: Boolean, default: false },
       chatId: { type: String, default: "" },
       messageThreadId: { type: String, default: "" },
+      // Имя бота (@username без @). Не настройка, а факт: tg-service узнаёт
+      // его у Telegram (getMe) и сообщает сюда; фронт строит по нему ссылку
+      // привязки t.me/<bot>?start=<код>. Пусто — сервис не подключён.
+      botUsername: { type: String, default: "" },
     },
   },
   // Табло статусов сотрудников: одно закреплённое сообщение в группе

@@ -1,17 +1,11 @@
-# Symlink to dev compose file
-compose.yml
-
 # Environment files
 .env
-.env.dev
-.env.prod
 .env.local
+.env.*.migrated
 .env.development.local
 .env.test.local
 .env.production.local
 */.env
-*/.env.dev
-*/.env.prod
 */.env.local
 
 # Dependencies
@@ -52,10 +46,8 @@ uploads/
 ehthumbs.db
 Thumbs.db
 
-# Docker (exclude Docker files from version control)
-#.dockerignore
-#*/Dockerfile
-#*/Dockerfile.prod
+# Backups made by deploy.sh
+backups/
 
 # Husky
 .husky/

@@ -24,42 +24,29 @@ const levelFilter = (level) => {
   })();
 };
 
-// Transport configurations
-const errorFileTransport = new DailyRotateFile({
-  filename: "logs/backend-error-%DATE%.log",
-  datePattern: "YYYY-MM-DD",
-  zippedArchive: true,
-  maxFiles: "30d",
-  format: combine(levelFilter("error"), errorFormat),
-  maxSize: "100m",
-});
+// Файлы пишутся только вне прода: в контейнере всё уходит в stdout, а ротацию
+// делает Docker (json-file, см. x-logging в compose.yml). На деве backend/logs
+// лежит на bind-mount — там файлы удобны и остаются.
+const isProduction = process.env.NODE_ENV === "production";
 
-const warnFileTransport = new DailyRotateFile({
-  filename: "logs/backend-warn-%DATE%.log",
-  datePattern: "YYYY-MM-DD",
-  zippedArchive: true,
-  maxFiles: "30d",
-  format: combine(levelFilter("warn"), standardFormat),
-  maxSize: "100m",
-});
+const rotatingFile = (name, level, format) =>
+  new DailyRotateFile({
+    filename: `logs/${name}-%DATE%.log`,
+    datePattern: "YYYY-MM-DD",
+    zippedArchive: true,
+    maxFiles: "30d",
+    maxSize: "100m",
+    format: combine(levelFilter(level), format),
+  });
 
-const infoFileTransport = new DailyRotateFile({
-  filename: "logs/backend-%DATE%.log",
-  datePattern: "YYYY-MM-DD",
-  zippedArchive: true,
-  maxSize: "100m",
-  maxFiles: "30d",
-  format: combine(levelFilter("info"), standardFormat),
-});
-
-const notificationFileTransport = new DailyRotateFile({
-  filename: "logs/backend-notification-%DATE%.log",
-  datePattern: "YYYY-MM-DD",
-  zippedArchive: true,
-  maxFiles: "30d",
-  format: combine(levelFilter("notification"), standardFormat),
-  maxSize: "100m",
-});
+const fileTransports = isProduction
+  ? []
+  : [
+      rotatingFile("backend-error", "error", errorFormat),
+      rotatingFile("backend-warn", "warn", standardFormat),
+      rotatingFile("backend", "info", standardFormat),
+      rotatingFile("backend-notification", "notification", standardFormat),
+    ];
 
 // Create logger instance
 const logger = winston.createLogger({
@@ -71,31 +58,17 @@ const logger = winston.createLogger({
       level: "notification",
       format: combine(timestamp(), errors({ stack: true }), json()),
     }),
-    errorFileTransport,
-    warnFileTransport,
-    infoFileTransport,
-    notificationFileTransport,
+    ...fileTransports,
   ],
   exitOnError: false, // Don't exit on handled exceptions
 });
 
 // Error handling for transports
-const handleTransportError = (transport, error) => {
-  console.error(`Transport ${transport.name} error:`, error);
-};
-
-errorFileTransport.on("error", (error) =>
-  handleTransportError(errorFileTransport, error),
-);
-warnFileTransport.on("error", (error) =>
-  handleTransportError(warnFileTransport, error),
-);
-infoFileTransport.on("error", (error) =>
-  handleTransportError(infoFileTransport, error),
-);
-notificationFileTransport.on("error", (error) =>
-  handleTransportError(notificationFileTransport, error),
-);
+fileTransports.forEach((transport) => {
+  transport.on("error", (error) => {
+    console.error(`Transport ${transport.name} error:`, error);
+  });
+});
 
 // General logger error handling
 logger.on("error", (error) => {

@@ -21,6 +21,13 @@ import type {
 
 export const fetchConfig = () => api<BotConfig>("/api/bot/config");
 
+/** Сообщить серверу имя бота из getMe — фронт строит по нему ссылку привязки. */
+export const reportIdentity = (username: string) =>
+  api<{ username: string }>("/api/bot/identity", {
+    method: "POST",
+    body: { username },
+  });
+
 export const pullOutbox = (limit = 25) =>
   api<OutboxBatch>(`/api/bot/outbox?limit=${limit}`);
 

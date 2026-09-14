@@ -1,0 +1,113 @@
+# Production stack — the default compose file.
+#
+#   ./deploy.sh            builds, migrates and starts everything (see README)
+#   docker compose ps      status
+#
+# One published port: HTTP_PORT → the frontend nginx, which proxies /api and
+# /uploads to the backend. MongoDB and the backend are reachable only inside
+# the compose network. TLS is terminated by an external reverse proxy.
+#
+# Health checks live in the images (Dockerfile HEALTHCHECK) so that
+# `docker compose up --wait` is enough; MongoDB's is the one exception because
+# the image ships none.
+name: hd
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  mongodb:
+    # Pinned to the stable 8.0 line (8.1+ are rapid releases, not meant for
+    # self-managed servers). An untagged `mongo` once meant 5.0 on the server
+    # and 8.2 in dev, and MongoDB refuses data files from another major.
+    image: mongo:8.0
+    restart: unless-stopped
+    # A major upgrade or a busy checkpoint needs a clean shutdown; the default
+    # 10 s before SIGKILL is a gamble with a gigabyte of data.
+    stop_grace_period: 120s
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+    volumes:
+      - hd_data:/data/db
+      - hd_mongodb_config:/data/configdb
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" | grep -q 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    logging: *logging
+
+  backend:
+    build:
+      context: ./backend
+      target: prod
+    restart: unless-stopped
+    init: true
+    # The whole .env is the backend's configuration (see .env.example); the
+    # other services get only the keys they need.
+    env_file: .env
+    environment:
+      ADDRESS: ${APP_PUBLIC_URL}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+    volumes:
+      - hd_uploads:/app/uploads
+      - hd_storage:/app/storage
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    logging: *logging
+
+  frontend:
+    build:
+      context: ./frontend
+      target: prod
+    restart: unless-stopped
+    ports:
+      # 8080 by default; "127.0.0.1:8080" when a reverse proxy on this host
+      # is the only client.
+      - "${HTTP_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    logging: *logging
+
+  # Runs only when the `telegram` profile is on — deploy.sh sets
+  # COMPOSE_PROFILES=telegram in .env when TG_TOKEN is filled in. It talks to
+  # the backend over the API with a shared secret and never sees the database.
+  tg-service:
+    build:
+      context: ./tg-service
+      target: prod
+    profiles: [telegram]
+    restart: unless-stopped
+    init: true
+    environment:
+      TG_TOKEN: ${TG_TOKEN}
+      TG_API_TOKEN: ${TG_API_TOKEN}
+      BACKEND_URL: http://backend:8080
+      ADDRESS: ${APP_PUBLIC_URL}
+    volumes:
+      - tg_service_data:/app/data
+    depends_on:
+      backend:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  # Data volumes are external: deploy.sh creates them once, and `docker compose
+  # down -v` can never take them away.
+  hd_data:
+    external: true
+  hd_mongodb_config:
+    external: true
+  hd_uploads:
+    external: true
+  hd_storage:
+    name: hd_storage
+  tg_service_data:
+    name: hd_tg_service_data
