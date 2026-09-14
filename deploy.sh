@@ -63,6 +63,8 @@ env_set() {
   fi
 }
 
+env_has() { grep -q "^$1=" "$ENV_FILE" 2>/dev/null; }
+
 # Ask for a value unless it is already set. Non-interactive runs take the default.
 ask() {
   local key=$1 prompt=$2 default=$3 value=""
@@ -72,6 +74,17 @@ ask() {
   fi
   value=${value:-$default}
   [ -n "$value" ] || die "$key is not set in .env"
+  env_set "$key" "$value"
+}
+
+# Ask once for a value that may stay empty; the key is written either way so
+# the question is not repeated on the next run.
+ask_optional() {
+  local key=$1 prompt=$2 value=""
+  env_has "$key" && return 0
+  if [ -t 0 ]; then
+    read -r -p "$prompt [empty = skip]: " value
+  fi
   env_set "$key" "$value"
 }
 
@@ -128,6 +141,7 @@ ensure_env() {
   if ! docker volume inspect hd_data >/dev/null 2>&1; then
     ask BOOTSTRAP_ADMIN_EMAIL "E-mail of the first administrator" "admin@example.com"
   fi
+  ask_optional TG_TOKEN "Telegram bot token from @BotFather"
   if [ -n "$(env_get TG_TOKEN)" ]; then
     env_set COMPOSE_PROFILES telegram
   else
@@ -188,7 +202,7 @@ fix_volume_owner() {
   for volume in hd_uploads hd_storage; do
     docker volume inspect "$volume" >/dev/null 2>&1 || continue
     docker run --rm -v "$volume:/v" alpine sh -c \
-      '[ -z "$(find /v ! -uid 1000 -print | head -n 1)" ] || chown -R 1000:1000 /v'
+      '[ -z "$(find /v ! -user 1000 | head -n 1)" ] || chown -R 1000:1000 /v'
   done
 }
 
@@ -312,16 +326,26 @@ deploy() {
   log "Applying data migrations"
   dc run --rm backend node scripts/migrate.js up
   log "Starting services"
-  dc up -d --wait --remove-orphans
+  dc up -d --wait --remove-orphans mongodb backend frontend
   smoke_test
-  # Dangling images and old build cache — the previous script let the cache
-  # grow to tens of gigabytes; recent layers are kept for fast rebuilds.
-  docker image prune -f >/dev/null 2>&1 || true
-  docker builder prune -f --keep-storage 4GB >/dev/null 2>&1 || true
   echo
   echo "Application is up: $(env_get APP_PUBLIC_URL)"
   dc logs --no-log-prefix backend 2>/dev/null \
     | grep -o 'Пароль администратора сгенерирован: [^ ]*' | tail -n 1 | sed 's/^/   /' || true
+  # Telegram is optional and its health depends on the outside world (token,
+  # reachability of api.telegram.org, no second copy of the bot polling with
+  # the same token), so it must not take the deployment down with it.
+  if [ "$(env_get COMPOSE_PROFILES)" = telegram ]; then
+    log "Starting the Telegram service"
+    if ! dc up -d --wait tg-service; then
+      echo "WARNING: tg-service is not healthy. The app works without it; see: ./deploy.sh logs tg-service"
+      echo "         (a bot token can poll Telegram from ONE place only — stop the old bot first)"
+    fi
+  fi
+  # Dangling images and old build cache — the previous script let the cache
+  # grow to tens of gigabytes; recent layers are kept for fast rebuilds.
+  docker image prune -f >/dev/null 2>&1 || true
+  docker builder prune -f --keep-storage 4GB >/dev/null 2>&1 || true
 }
 
 case "${1:-deploy}" in

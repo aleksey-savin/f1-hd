@@ -27,9 +27,10 @@ git clone <repo> hd && cd hd
 sudo ./deploy.sh
 ```
 
-The first run asks for the public URL and the administrator's e-mail, generates
-every secret into `.env`, builds the images, starts the stack and prints the
-generated administrator password once. The app listens on port 8080 (plain
+The first run asks for the public URL, the administrator's e-mail and an
+optional Telegram bot token, generates every secret into `.env`, builds the
+images, starts the stack and prints the generated administrator password once
+(later: `docker compose logs backend | grep Пароль`). The app listens on port 8080 (plain
 HTTP); put your reverse proxy with TLS in front of it and set
 `HTTP_PORT=127.0.0.1:8080`, `TRUST_PROXY_HOPS=2`, `APP_PUBLIC_URL=https://…`.
 

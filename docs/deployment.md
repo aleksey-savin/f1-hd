@@ -87,10 +87,17 @@ After TLS is on, set `APP_PUBLIC_URL=https://…` and run `./deploy.sh` again.
 
 ### Telegram
 
-Put the @BotFather token into `TG_TOKEN`; `deploy.sh` switches the `telegram`
-compose profile on. The service discovers the bot's username itself and reports
-it to the backend, which the account page uses for the "connect" link. No
-token: the profile stays off and the page says the bot is not configured.
+`deploy.sh` asks for the @BotFather token once (`TG_TOKEN`; empty = no
+Telegram) and switches the `telegram` compose profile on when it is set. The
+service discovers the bot's username itself and reports it to the backend,
+which the account page uses for the "connect" link. No token: the profile stays
+off and the page says the bot is not configured.
+
+A bot token can poll Telegram from **one** place only. While the old
+installation still runs its bot, leave `TG_TOKEN` empty on the new host (or use
+a second bot); otherwise both copies get `409 Conflict` and the service keeps
+restarting. An unhealthy `tg-service` never blocks the deployment — the app is
+up without it; `./deploy.sh logs tg-service` shows why.
 
 ### Attachments
 
