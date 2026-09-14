@@ -119,6 +119,16 @@ exports.claim = async (req, res, next) => {
       "firstName lastName email isEndUser isAdmin",
     );
 
+    // Сеанс уезжает и cookie, как при обычном входе: экраны на голом fetch
+    // заголовка с токеном не шлют (подробности — в auth/instance.mjs). Срок
+    // cookie тот же, что у `expiryDate` ниже; настоящий предел держит
+    // attachSession.
+    const { headers } = await getAuth().api.setImpersonationCookie({
+      body: { token: found.sessionToken, maxAge: SESSION_MAX_MS / 1000 },
+      returnHeaders: true,
+    });
+    res.setHeader("Set-Cookie", headers.getSetCookie());
+
     res.status(200).json({
       token: found.sessionToken,
       userId: user?._id,

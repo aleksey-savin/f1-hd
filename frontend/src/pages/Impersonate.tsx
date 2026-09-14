@@ -44,6 +44,9 @@ const ImpersonatePage = () => {
         const response = await fetch(`${API}/api/impersonate/claim`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          // Ответ ставит cookie сеанса — без include её не примет браузер,
+          // если API живёт на другом origin (VITE_API_ADDRESS в деве).
+          credentials: "include",
           body: JSON.stringify({ code }),
         });
         const data = await response.json();

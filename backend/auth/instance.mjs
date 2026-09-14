@@ -18,8 +18,12 @@ import {
 } from "better-auth/plugins";
 import { createAccessControl, role } from "better-auth/plugins/access";
 import { defaultAc, userAc } from "better-auth/plugins/admin/access";
-import { APIError, createAuthMiddleware } from "better-auth/api";
-import { deleteSessionCookie } from "better-auth/cookies";
+import {
+  APIError,
+  createAuthEndpoint,
+  createAuthMiddleware,
+} from "better-auth/api";
+import { deleteSessionCookie, setSessionCookie } from "better-auth/cookies";
 import { generateRandomString, verifyPassword } from "better-auth/crypto";
 import { toNodeHandler, fromNodeHeaders } from "better-auth/node";
 import bcrypt from "bcryptjs";
@@ -134,6 +138,40 @@ const twoFactorAfterEmailCode = createAuthMiddleware(async (ctx) => {
   );
 
   return ctx.json({ twoFactorRedirect: true, twoFactorMethods: ["totp"] });
+});
+
+/**
+ * Cookie сеанса подмены — для обмена кода в `controllers/impersonation.js`.
+ *
+ * Без неё браузер по ссылке знает сеанс только как токен в localStorage, а его
+ * шлёт заголовком лишь `api()`. Экраны на голом `fetch` едут cookie — там
+ * запрос приходил анонимным, 401 карточки заявки выкидывал на вход, а в
+ * «своём» браузере такие запросы шли бы под администратором.
+ *
+ * Пишет её сам better-auth (`setSessionCookie`): имя с префиксом `__Secure-`,
+ * атрибуты и подпись — его дело, копировать их формат к себе незачем.
+ * `serverOnly` — ручки нет на HTTP-роутере, вызывается только через `auth.api`.
+ * Сеансы не-подмены отвергает: это не общий «выдай cookie на токен».
+ */
+const impersonationCookie = () => ({
+  id: "hd-impersonation-cookie",
+  endpoints: {
+    setImpersonationCookie: createAuthEndpoint.serverOnly(
+      { method: "POST" },
+      async (ctx) => {
+        const { token, maxAge } = ctx.body || {};
+        const found = token
+          ? await ctx.context.internalAdapter.findSession(token)
+          : null;
+        if (!found?.session?.impersonatedBy) {
+          throw new APIError("NOT_FOUND", { message: "Сеанс подмены не найден" });
+        }
+        // Срок cookie — остаток часа подмены, а не 14 суток обычного сеанса.
+        await setSessionCookie(ctx, found, false, { maxAge });
+        return ctx.json({ ok: true });
+      },
+    ),
+  },
 });
 
 export function createAuth({ db, client, config, hooks, statement }) {
@@ -327,6 +365,7 @@ export function createAuth({ db, client, config, hooks, statement }) {
         // Час — согласованный срок: столько живёт сеанс под чужой учёткой.
         impersonationSessionDuration: 60 * 60,
       }),
+      impersonationCookie(),
 
       // Роли. ОДНА организация = вся установка: `organizationId` во всех
       // строках ролей и членства — одна и та же константа, поэтому роли выходят
