@@ -1,6 +1,7 @@
 import { useContext, useState } from "react";
 
-import { RiArrowLeftSLine } from "react-icons/ri";
+import { RiArrowLeftSLine, RiCalendar2Line } from "react-icons/ri";
+import { Link, useMatch } from "react-router";
 
 import {
   Tooltip,
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+import { useCan } from "../../store/authed-user";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useWorkStatusesStore from "../../store/work-statuses";
 import {
@@ -18,7 +20,12 @@ import {
   presenceLine,
   updatedLabel,
 } from "./presence";
-import { GroupHeading, IdleGroup, PersonRow } from "./PresenceList";
+import {
+  CalendarRow,
+  GroupHeading,
+  IdleGroup,
+  PersonRow,
+} from "./PresenceList";
 import WorkStatusAvatar from "./WorkStatusAvatar";
 
 // Рейл статусов сотрудников (десктоп, ≥ lg): вертикальная панель у правого
@@ -34,6 +41,11 @@ import WorkStatusAvatar from "./WorkStatusAvatar";
 // связи, и у исключений (отпуск, больничный). Сводка в шапке — от доступности.
 // Авторизованный пользователь в списки не попадает — его статус в навбаре.
 // Мобильной ленты больше нет: на телефоне команда — блок на главной.
+//
+// Внизу рейла, вне скролла, — выход в календарь команды (по `schedule.read`):
+// в свёрнутом кнопка-иконка, в раскрытом строка под «Обновлено…». Место одно в
+// обоих состояниях; пункта меню у календаря нет, поэтому на его странице
+// кнопка подсвечена.
 const personTitle = (user) =>
   `${user.lastName} ${user.firstName} — ${presenceLine(user)}`;
 
@@ -47,6 +59,8 @@ const WorkStatusBar = () => {
     toggleRail: toggle,
   } = useWorkStatusesStore();
   const [idleOpen, setIdleOpen] = useState({});
+  const can = useCan();
+  const onCalendar = !!useMatch("/team/calendar/*");
 
   const isStaff =
     !!authedUser._id && !authedUser.isEndUser && !authedUser.hideWorkStatus;
@@ -87,52 +101,52 @@ const WorkStatusBar = () => {
       )}
       style={{ zIndex: 1020 }}
     >
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={toggle}
-        title={open ? "Свернуть" : "Статусы сотрудников"}
-        className={cn(
-          // 16px слева — как у заголовков групп и футера; min-h-12 в обоих
-          // состояниях, иначе стрелка прыгала на 3px при сворачивании
-          "flex min-h-12 w-full cursor-pointer appearance-none items-center gap-2.5 border-0 bg-transparent text-left outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
-          open
-            ? "border-b border-border-soft px-4 py-2"
-            : "justify-center px-1.5 py-2",
-        )}
-      >
-        <span
-          aria-hidden
-          className="grid size-6.5 flex-none place-items-center rounded-md text-muted-foreground transition-transform duration-300 hover:bg-accent"
+      <TooltipProvider delayDuration={150}>
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={toggle}
+          title={open ? "Свернуть" : "Статусы сотрудников"}
+          className={cn(
+            // 16px слева — как у заголовков групп и футера; min-h-12 в обоих
+            // состояниях, иначе стрелка прыгала на 3px при сворачивании
+            "flex min-h-12 w-full cursor-pointer appearance-none items-center gap-2.5 border-0 bg-transparent text-left outline-none focus-visible:ring-4 focus-visible:ring-ring/50",
+            open
+              ? "border-b border-border-soft px-4 py-2"
+              : "justify-center px-1.5 py-2",
+          )}
         >
-          <RiArrowLeftSLine
-            size={16}
-            className={cn(
-              "transition-transform duration-300",
-              open && "rotate-180",
-            )}
-          />
-        </span>
-        {open && (
-          <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase">
-              <span
-                className="ws-live relative inline-block size-2 flex-none rounded-full bg-primary"
-                aria-hidden="true"
-              />{" "}
-              Сотрудники
-            </span>
-            <span className="block truncate text-xs text-muted-foreground tabular-nums">
-              {summary}
-            </span>
+          <span
+            aria-hidden
+            className="grid size-6.5 flex-none place-items-center rounded-md text-muted-foreground transition-transform duration-300 hover:bg-accent"
+          >
+            <RiArrowLeftSLine
+              size={16}
+              className={cn(
+                "transition-transform duration-300",
+                open && "rotate-180",
+              )}
+            />
           </span>
-        )}
-      </button>
+          {open && (
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                <span
+                  className="ws-live relative inline-block size-2 flex-none rounded-full bg-primary"
+                  aria-hidden="true"
+                />{" "}
+                Сотрудники
+              </span>
+              <span className="block truncate text-xs text-muted-foreground tabular-nums">
+                {summary}
+              </span>
+            </span>
+          )}
+        </button>
 
-      {/* pt-2 — первому заголовку те же 8px под шапкой, что остальным под
+        {/* pt-2 — первому заголовку те же 8px под шапкой, что остальным под
           разделителем (mt-1.5 + pt-2 у групп ниже) */}
-      <div className="ws-rail-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-2 pb-2.5">
-        <TooltipProvider delayDuration={150}>
+        <div className="ws-rail-scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto pt-2 pb-2.5">
           {shown.map((group, groupIndex) => (
             <div
               key={group.status.code}
@@ -212,17 +226,42 @@ const WorkStatusBar = () => {
                 </Tooltip>
               </div>
             ))}
-        </TooltipProvider>
-      </div>
-
-      {open && lastUpdatedAt && (
-        <div className="flex-none truncate border-t border-border-soft px-4 py-2 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
-          {/* Про ночной сброс писать больше нельзя: днём статусы ведёт
-              автоматика по графику (services/workStatusAuto) */}
-          Обновлено {updatedLabel(lastUpdatedAt)} · статусы меняются по
-          графику
         </div>
-      )}
+
+        {open && lastUpdatedAt && (
+          <div className="flex-none truncate border-t border-border-soft px-4 py-2 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+            {/* Про ночной сброс писать больше нельзя: днём статусы ведёт
+              автоматика по графику (services/workStatusAuto) */}
+            Обновлено {updatedLabel(lastUpdatedAt)} · статусы меняются по
+            графику
+          </div>
+        )}
+
+        {can({ schedule: ["read"] }) &&
+          (open ? (
+            <CalendarRow className="flex-none" />
+          ) : (
+            <div className="flex flex-none justify-center border-t border-border-soft py-2.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    to="/team/calendar"
+                    aria-label="Календарь команды"
+                    aria-current={onCalendar ? "page" : undefined}
+                    className={cn(
+                      "grid size-10 place-items-center rounded-lg text-muted-foreground no-underline transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50",
+                      onCalendar &&
+                        "bg-accent text-accent-text hover:text-accent-text",
+                    )}
+                  >
+                    <RiCalendar2Line size={18} aria-hidden />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="left">Календарь команды</TooltipContent>
+              </Tooltip>
+            </div>
+          ))}
+      </TooltipProvider>
     </aside>
   );
 };

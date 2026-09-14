@@ -237,9 +237,10 @@ const NavigationBar = ({ embedded = false }) => {
             isEndUser,
             can,
             modules,
+            hideWorkStatus,
           })
         : [],
-    [isLoggedIn, isEndUser, can, modules],
+    [isLoggedIn, isEndUser, can, modules, hideWorkStatus],
   );
 
   const userTrigger = (

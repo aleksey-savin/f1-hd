@@ -1,4 +1,9 @@
-import { RiArrowDownSLine, RiArrowRightSLine } from "react-icons/ri";
+import {
+  RiArrowDownSLine,
+  RiArrowRightSLine,
+  RiCalendar2Line,
+} from "react-icons/ri";
+import { Link, useMatch } from "react-router";
 
 import { cn } from "@/lib/utils";
 
@@ -7,7 +12,7 @@ import WorkStatusAvatar from "./WorkStatusAvatar";
 
 // Кирпичи табло присутствия — общие для рейла статусов (десктоп) и блока
 // «Команда сейчас» на главной (телефон): заголовок группы цветом статуса,
-// строка человека, свёрнутая группа со счётчиком.
+// строка человека, свёрнутая группа со счётчиком, выход в календарь команды.
 //
 // Кегль строк 14/12 — исключение из шкалы списков (16/14): это боковая
 // панель шириной 336 и плотный блок, а не список-страница (см. «Типографика»).
@@ -106,5 +111,42 @@ export const IdleGroup = ({
           <PersonRow key={user._id} user={user} status={status} size={size} />
         ))}
     </div>
+  );
+};
+
+// Последняя строка табло — выход в календарь команды (рейл раскрыт, блок
+// «Команда сейчас» раскрыт). Пункта меню у календаря нет, поэтому на его
+// странице строка подсвечена сама. Слот иконки 26 px — как у стрелки в шапке
+// рейла. Право `schedule.read` проверяет вызывающий.
+export const CalendarRow = ({ className }) => {
+  const isActive = !!useMatch("/team/calendar/*");
+  return (
+    <Link
+      to="/team/calendar"
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        "flex min-h-11 items-center gap-2.5 border-t border-border-soft px-4 py-1.5 text-sm font-medium text-foreground no-underline transition-colors outline-none hover:bg-accent focus-visible:ring-4 focus-visible:ring-ring/50",
+        isActive && "bg-accent font-semibold",
+        className,
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "grid size-6.5 flex-none place-items-center",
+          isActive ? "text-accent-text" : "text-muted-foreground",
+        )}
+      >
+        <RiCalendar2Line size={16} />
+      </span>
+      Календарь команды
+      {!isActive && (
+        <RiArrowRightSLine
+          size={16}
+          aria-hidden
+          className="ms-auto flex-none text-faint"
+        />
+      )}
+    </Link>
   );
 };

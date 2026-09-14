@@ -5,10 +5,16 @@ import { Eyebrow } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import { useCan } from "../../store/authed-user";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useWorkStatusesStore from "../../store/work-statuses";
 import { availabilitySummary, groupByStatus } from "../User/presence";
-import { GroupHeading, IdleGroup, PersonRow } from "../User/PresenceList";
+import {
+  CalendarRow,
+  GroupHeading,
+  IdleGroup,
+  PersonRow,
+} from "../User/PresenceList";
 import WorkStatusAvatar from "../User/WorkStatusAvatar";
 
 // «Команда сейчас» — присутствие коллег на главной сотрудника, ТОЛЬКО на
@@ -16,13 +22,16 @@ import WorkStatusAvatar from "../User/WorkStatusAvatar";
 // дублированием. По умолчанию — закрытая плашка: живая точка, сводка от
 // доступности и стопка аватаров; по тапу раскрывается в то же табло, что в
 // рейле (группы, строки, свёрнутые «не на работе»). Ленты сверху каждого
-// экрана, которая жила в шелле, больше нет — это её замена.
+// экрана, которая жила в шелле, больше нет — это её замена. Раскрытое табло,
+// как и рейл, заканчивается строкой «Календарь команды»; в закрытой плашке её
+// нет — плашка остаётся одной целью касания.
 const TeamNow = () => {
   const authedUser = useContext(AuthedUserContext);
   // Данные грузит и обновляет по пульсу User/PresenceSync в оболочке
   const { users, isLoaded } = useWorkStatusesStore();
   const [open, setOpen] = useState(false);
   const [idleOpen, setIdleOpen] = useState({});
+  const can = useCan();
 
   const isStaff =
     !!authedUser._id && !authedUser.isEndUser && !authedUser.hideWorkStatus;
@@ -44,6 +53,7 @@ const TeamNow = () => {
   const summary = availabilitySummary(colleagues);
   // Стопка — по одному человеку из каждой группы на связи, не больше четырёх
   const stack = shown.map((group) => group.users[0]).slice(0, 4);
+  const canReadSchedule = can({ schedule: ["read"] });
 
   if (!open) {
     return (
@@ -105,7 +115,14 @@ const TeamNow = () => {
           · {summary}
         </span>
       </Eyebrow>
-      <div className="rounded-xl border border-border bg-card py-1.5">
+      {/* Строка календаря встаёт вплотную к низу карточки: нижний отступ —
+          только без неё, скругление обрезает её ховер */}
+      <div
+        className={cn(
+          "overflow-hidden rounded-xl border border-border bg-card pt-1.5",
+          !canReadSchedule && "pb-1.5",
+        )}
+      >
         {shown.map((group, groupIndex) => (
           <div
             key={group.status.code}
@@ -148,6 +165,7 @@ const TeamNow = () => {
             )}
           />
         ))}
+        {canReadSchedule && <CalendarRow className="mt-1.5" />}
       </div>
     </div>
   );
