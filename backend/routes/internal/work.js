@@ -46,12 +46,13 @@ router.get(
   allowedToViewTicket,
   workController.getTicketWorks,
 );
+// Свои плановые работы для главной (исполнитель — я)
 router.get(
-  "/all-scheduled-works",
+  "/my-scheduled-works",
   isAuth,
   timeTrackingModuleIsActive,
   canReadWorks,
-  workController.getAllScheduled,
+  workController.getMyScheduled,
 );
 
 router.post(

@@ -9,14 +9,17 @@ import MonitoringOffline from "../components/Dashboard/MonitoringOffline";
 import MySupport from "../components/Dashboard/MySupport";
 import MyReport from "../components/Dashboard/MyReport";
 import MyTicketsClient from "../components/Dashboard/MyTicketsClient";
-import ScheduledWorks from "../components/Dashboard/ScheduledWorks";
 import ServiceExpiry from "../components/Dashboard/ServiceExpiry";
 import StaffTickets from "../components/Dashboard/StaffTickets";
 import TeamNow from "../components/Dashboard/TeamNow";
+import TodayPlan from "../components/Dashboard/TodayPlan";
+import UpcomingWorks from "../components/Dashboard/UpcomingWorks";
 import TechSection from "@/components/app/TechSection";
 import TemplateTiles from "../components/Dashboard/TemplateTiles";
 import useLiveTopic from "@/hooks/use-live-topic";
+import { useCan } from "@/store/authed-user";
 import { AuthedUserContext } from "../store/authed-user-context";
+import usePlannedWorksStore from "@/store/dashboard-planned-works";
 import useDashboardTicketsStore from "../store/dashboard-tickets";
 import useDashboardTemplatesStore from "../store/dashboard-templates";
 import { warm } from "@/store/form-data";
@@ -39,7 +42,8 @@ import { getLocalStorageData } from "../util/auth";
  *    ходит за своим сам, поэтому медленный (техника, переработки) не держит
  *    остальные. Исключение — заявки сотрудника: три среза одного набора («на
  *    мне», «без ответственного», «давно без движения») делят и запрос, и блок —
- *    `store/dashboard-tickets` + переключатель в `StaffTickets`.
+ *    `store/dashboard-tickets` + переключатель в `StaffTickets`; и свои плановые
+ *    работы: «Сегодня в плане» и «Дальше в плане» — `store/dashboard-planned-works`.
  */
 
 const DashboardClient = () => {
@@ -79,8 +83,29 @@ const DashboardClient = () => {
 };
 
 const DashboardStaff = () => {
+  const can = useCan();
+  const timeTracking = useInitialPrefsStore(
+    (state) => !!state.modules?.timeTracking?.isActive,
+  );
+  const canReadWorks = timeTracking && !!can({ work: ["read"] });
+  const loadPlan = usePlannedWorksStore((state) => state.load);
+
+  useEffect(() => {
+    if (canReadWorks) loadPlan();
+  }, [canReadWorks, loadPlan]);
+
+  // Работу подтвердили, перенесли или запланировали — тема заявок
+  // (docs/live-updates.md); тема шумная, не чаще раза в 30 секунд
+  useLiveTopic("tickets", loadPlan, {
+    enabled: canReadWorks,
+    minIntervalMs: 30_000,
+  });
+
   return (
     <>
+      {/* Сегодняшнее и неподтверждённое — над всеми блоками: место на главной
+          решает срочность. Нет плана на сегодня — полосы нет */}
+      <TodayPlan />
       {/* Телефон: команда на главной вместо ленты в шелле; на десктопе —
           рейл, блок был бы дублированием */}
       <MobileView renderWithFragment>
@@ -94,9 +119,9 @@ const DashboardStaff = () => {
           <TemplateTiles heading="Шаблоны заявок" />
         </div>
         <div className="flex flex-col gap-5">
+          <UpcomingWorks />
           <MyReport />
           <MonitoringOffline />
-          <ScheduledWorks />
           <KbAttention />
           <ServiceExpiry showCompany />
         </div>

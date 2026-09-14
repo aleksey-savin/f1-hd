@@ -72,20 +72,41 @@ exports.getTicketWorks = async (req, res, next) => {
   }
 };
 
-// replace filter method with appropriate model after update to 1.5.2 or higher
-exports.getAllScheduled = async (req, res, next) => {
+// Мои запланированные работы для главной: я исполнитель, работа не
+// подтверждена, план в окне ±15 дней. Главная делит набор сама: сегодняшние и
+// неподтверждённые за 14 дней — полосой «Сегодня в плане», ближайшие 14 дней —
+// списком «Дальше в плане». Раньше блок тянул ВСЕ незавершённые плановые работы
+// системы с запросом на каждую заявку и фильтровал своих на клиенте; старше
+// двух недель там лежат брошенные планы 2024 года, которые показывать нечего.
+const SCHEDULED_WINDOW_MS = 15 * 24 * 60 * 60 * 1000;
+
+exports.getMyScheduled = async (req, res, next) => {
   try {
-    const scheduledWorks = await Work.find({
+    const userId = req.auth?.legacy?.userId;
+    const now = Date.now();
+
+    const works = await Work.find({
       scheduled: true,
       finishedAt: null,
-    }).sort({
-      _id: 1,
-    });
+      "executor._id": userId,
+      planningToStart: {
+        $gte: new Date(now - SCHEDULED_WINDOW_MS),
+        $lte: new Date(now + SCHEDULED_WINDOW_MS),
+      },
+    })
+      .select("visitRequired planningToStart planningToFinish tickets company")
+      .sort({ planningToStart: 1 })
+      .populate("tickets", "num title")
+      .populate("company", "alias")
+      .lean();
 
-    // filter works depending on user role & permissions
-    let filteredWorks = scheduledWorks;
+    // Исполнитель, которому заявку не видно, её и в плане не видит — тот же
+    // скоуп, что у списка заявок
+    let visibleWorks = works;
     if (ticketTier(req.auth) !== "all") {
-      const ticketIds = [...new Set(scheduledWorks.flatMap((work) => work.tickets.map(String)))];
+      const ticketIds = [
+        ...new Set(works.flatMap((work) => work.tickets.map((ticket) => String(ticket._id)))),
+      ];
       const visible = new Set(
         (
           await Ticket.find({ _id: { $in: ticketIds }, ...ticketListFilter(req.auth) })
@@ -93,39 +114,27 @@ exports.getAllScheduled = async (req, res, next) => {
             .lean()
         ).map((ticket) => String(ticket._id)),
       );
-      filteredWorks = scheduledWorks.filter((work) => work.tickets.some((id) => visible.has(String(id))));
+      visibleWorks = works.filter((work) =>
+        work.tickets.some((ticket) => visible.has(String(ticket._id))),
+      );
     }
 
-    let structuredWorks = [];
-
-    for (let work of filteredWorks) {
-      const company = await Company.findById(work.company);
-
-      let tickets = [];
-      for (let ticketId of work.tickets) {
-        const ticket = await Ticket.findById(ticketId);
-        tickets.push({ _id: ticketId, num: ticket.num, title: ticket.title });
-      }
-
-      structuredWorks.push({
-        description: work.description,
-        visitRequired: work.visitRequired,
-        startedAt: work.startedAt,
-        finishedAt: work.finishedAt,
-        finishedBy: work.finishedBy,
-        scheduled: work.scheduled,
+    res.status(200).json(
+      visibleWorks.map((work) => ({
+        _id: work._id,
+        visitRequired: Boolean(work.visitRequired),
         planningToStart: work.planningToStart,
-        planningToFinish: work.planningToFinish,
-        executor: work.executor,
-        tickets: tickets,
-        company: {
-          _id: company._id,
-          alias: company.alias,
-        },
-      });
-    }
-
-    res.status(200).json(structuredWorks);
+        planningToFinish: work.planningToFinish ?? null,
+        tickets: work.tickets.map((ticket) => ({
+          _id: ticket._id,
+          num: ticket.num,
+          title: ticket.title,
+        })),
+        company: work.company
+          ? { _id: work.company._id, alias: work.company.alias }
+          : null,
+      })),
+    );
   } catch (error) {
     next(new AppError(`Failed to fetch scheduled works`, 500, true, error));
   }
