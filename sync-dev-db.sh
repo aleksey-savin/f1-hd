@@ -424,8 +424,13 @@ if [ "$PROD_DB" != "$DEV_DB" ]; then
 fi
 
 log_info "Validating archive against mongorestore (dry run, nothing is written)..."
-mongorestore "${DEV_CONN[@]}" "${RESTORE_NS[@]}" \
-    --archive="$DUMP_FILE" --gzip --dryRun --quiet
+# Not --quiet: it swallows the failure reason too, leaving a bare exit code 1.
+if ! DRY_RUN_OUT=$(mongorestore "${DEV_CONN[@]}" "${RESTORE_NS[@]}" \
+        --archive="$DUMP_FILE" --gzip --dryRun 2>&1); then
+    printf '%s\n' "$DRY_RUN_OUT" | tail -20 >&2
+    log_error "mongorestore dry run failed (output above)"
+    exit 1
+fi
 
 PREFS_BEFORE=$(dev_eval "print(db.getSiblingDB('$DEV_DB').getCollection('$EXCLUDE_COLLECTION').countDocuments())" || true)
 
