@@ -27,8 +27,13 @@ import { cn } from "@/lib/utils";
 type Tier = 1 | 2 | 3;
 
 /** Ширина поиска на ступенях 1–2: класс и его значение в rem для измерения.
- *  Лежат рядом, потому что Tailwind не собирает классы из переменных. */
-const SEARCH_BASIS_CLASS = "basis-80";
+ *  Лежат рядом, потому что Tailwind не собирает классы из переменных.
+ *  Именно `w-`, а не `basis-`: строка инструментов сама сжата по содержимому
+ *  (shrink-0), и Firefox считает её собственную ширину без учёта flex-basis
+ *  детей — берёт природную ширину инпута (~180 px вместо 320). Бокс строки
+ *  выходил уже разложенного содержимого, и хвост контролов уезжал под кнопку
+ *  действия. Ширину как `width` учитывают все браузеры. */
+const SEARCH_WIDTH_CLASS = "w-80";
 const SEARCH_REM = 20;
 /** Зазор между контролами — участвует в измерении так же, как в раскладке. */
 const GAP_CLASS = "gap-x-2.5 gap-y-3";
@@ -185,7 +190,7 @@ const PageHeader = ({
             ref={searchRef}
             className={cn(
               "shrink-0",
-              tier === 3 ? "basis-full" : SEARCH_BASIS_CLASS,
+              tier === 3 ? "basis-full" : SEARCH_WIDTH_CLASS,
             )}
           >
             {search}
