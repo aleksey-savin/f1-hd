@@ -65,6 +65,7 @@ import NewComponentDialog from "./NewComponentDialog";
 import QrDialog from "./QrDialog";
 import TicketsPanel from "./TicketsPanel";
 import { useCan } from "@/store/authed-user";
+import useInitialPrefsStore from "@/store/prefs";
 
 const dash = <span className="text-faint">—</span>;
 
@@ -125,6 +126,9 @@ const ViewClientDevice = ({ device = {} }) => {
   const can = useCan();
   const canManage = Boolean(can({ device: ["manage"] }));
   const canManageMikrotik = Boolean(can({ mikrotik: ["manage"] }));
+  const mikrotikOn = useInitialPrefsStore(
+    (state) => !!state.modules?.mikrotik?.isActive,
+  );
 
   const [qrOpen, setQrOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -173,9 +177,10 @@ const ViewClientDevice = ({ device = {} }) => {
     mikrotikStatus: device.mikrotik?.status,
   });
   // Секция мониторинга есть у подключённых и у управляемых вендоров (там —
-  // вход в подключение).
+  // вход в подключение) — пока включён модуль «Мониторинг Mikrotik».
   const showMonitoring =
-    Boolean(device.mikrotik) || Boolean(vendor?.isMikrotikManagementEnabled);
+    mikrotikOn &&
+    (Boolean(device.mikrotik) || Boolean(vendor?.isMikrotikManagementEnabled));
 
   const detachComponent = async (componentId) => {
     setDetachingId(componentId);

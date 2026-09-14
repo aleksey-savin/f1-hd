@@ -14,6 +14,7 @@ const {
   CODE_TTL_MS: PAIRING_CODE_TTL_MS,
 } = require("@/services/telegramPairing");
 const { GROUPS } = require("@/auth/access");
+const { resolveAiFeatures } = require("@/services/ai/features");
 const {
   getModerationCounts,
   ZERO_COUNTS,
@@ -118,13 +119,11 @@ exports.getMe = async (req, res, next) => {
           preferences?.notify?.byTelegram?.isActive,
         ),
         personalNotifications: preferences?.notify?.personal,
-        // Отсутствие поля у старых документов означает «включено»
-        mikrotik: { isActive: preferences?.mikrotik?.isActive !== false },
+        // Функции ИИ уже сведены с главным рубильником: компонент читает одно
+        // булево и условие «ИИ включён И функция включена» не повторяет
         ai: {
           isActive: Boolean(preferences?.ai?.isActive),
-          speechToText: {
-            isActive: Boolean(preferences?.ai?.speechToText?.isActive),
-          },
+          features: resolveAiFeatures(preferences?.ai),
         },
         knowledgeBase,
       },

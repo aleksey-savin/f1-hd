@@ -1,4 +1,8 @@
 const Preferences = require("@/models/preferences");
+const {
+  AI_FEATURE_LABELS,
+  resolveAiFeatures,
+} = require("@/services/ai/features");
 
 /**
  * Рубильники модулей. Жили в `permissions.js`, но авторизацией не являются:
@@ -34,8 +38,8 @@ module.exports.inventoryModuleIsActive = moduleGate(
   'Модуль "Учёт техники" отключен.',
 );
 module.exports.mikrotikIsActive = moduleGate(
-  "mikrotik.isActive",
-  "Интеграция Mikrotik отключена.",
+  "modules.mikrotik.isActive",
+  'Модуль "Мониторинг Mikrotik" отключен.',
 );
 module.exports.financesModuleIsActive = moduleGate(
   "modules.finances.isActive",
@@ -45,3 +49,29 @@ module.exports.knowledgeBaseModuleIsActive = moduleGate(
   "modules.knowledgeBase.isActive",
   'Модуль "База знаний" отключен.',
 );
+
+/**
+ * Функция ИИ по одной (Настройки → ИИ → «Функции»). Главный рубильник
+ * `ai.isActive` учтён внутри: выключенный ИИ гасит каждую функцию.
+ *
+ * Проверка в самом клиенте ИИ (`aiService.generateJson`) остаётся, но она
+ * срабатывает уже после того, как ручка пометила заявку «ожидает ИИ», — гейт
+ * отказывает раньше и честно.
+ */
+module.exports.aiFeatureIsActive = (feature) => async (req, res, next) => {
+  try {
+    const prefs = await Preferences.findOne({}).lean();
+
+    if (!resolveAiFeatures(prefs?.ai)[feature]) {
+      req.isAuth = false;
+      return res.status(403).json({
+        error: true,
+        status: 403,
+        message: `Функция ИИ «${AI_FEATURE_LABELS[feature]}» выключена в настройках.`,
+      });
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+};

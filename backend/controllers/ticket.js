@@ -47,6 +47,7 @@ const {
 } = require("../services/ticketAiTerms");
 const AiFeedback = require("../models/aiFeedback");
 const { detectTicketCategory } = require("../services/ticketCategoryService");
+const { resolveAiFeatures } = require("../services/ai/features");
 const { logAiTicketEvent } = require("../services/aiTicketLog");
 const { humanizeAiError } = require("../services/aiErrors");
 const { annotateWorks } = require("../services/workPreview");
@@ -502,8 +503,12 @@ exports.getOne = async (req, res, next) => {
         doc.category = doc.categoryId;
         delete doc.applicantId;
         delete doc.categoryId;
-        // AI guide is an internal aid — never expose it to end-users/clients.
-        if (isEndUser) delete doc.aiGuide;
+        // AI guide and term analysis are internal aids — never expose them to
+        // end-users/clients.
+        if (isEndUser) {
+          delete doc.aiGuide;
+          delete doc.aiTerms;
+        }
         return doc;
       });
 
@@ -934,13 +939,17 @@ exports.add = async (req, res, next) => {
     // которым он подбирает категорию. Провизорную тему всё равно сохраняем:
     // уведомления уходят в момент создания, безымянной заявки быть не должно.
     //
-    // Условие повторяет условие запуска прохода (ниже: ИИ включён и категории
-    // нет). Иначе заявка с категорией, но без темы получила бы вечный pending:
-    // проход для неё не стартует. На практике это одно и то же множество —
-    // темы не заполняет только заявитель, а категорию он и не выбирает.
-    // Тема из шаблона — не провизорная, переписывать её ассистенту не надо.
+    // Условие повторяет условие запуска прохода (ниже: функция включена и
+    // категории нет). Иначе заявка с категорией, но без темы получила бы вечный
+    // pending: проход для неё не стартует. На практике это одно и то же
+    // множество — темы не заполняет только заявитель, а категорию он и не
+    // выбирает. Тема из шаблона — не провизорная, переписывать её ассистенту не
+    // надо. Подбор категории и тема включаются по отдельности (Настройки → ИИ →
+    // «Функции»), проход один: модель читает заявку один раз.
+    const aiFeatures = resolveAiFeatures(prefs?.ai);
+    const wantsAiCategory = aiFeatures.category && !categoryId;
     const wantsAiTitle =
-      !!prefs?.ai?.isActive &&
+      aiFeatures.title &&
       !categoryId &&
       !submittedTitle &&
       !descriptionComposed &&
@@ -971,11 +980,9 @@ exports.add = async (req, res, next) => {
         lastAction: "new ticket",
         pending: true,
       },
-      // Если категория не выбрана и ИИ включён — помечаем заявку ожидающей
+      // Если категория не выбрана и подбор включён — помечаем заявку ожидающей
       // автоопределения категории (бейдж статуса появится сразу).
-      ...(prefs?.ai?.isActive && !categoryId
-        ? { aiCategory: { status: "pending" } }
-        : {}),
+      ...(wantsAiCategory ? { aiCategory: { status: "pending" } } : {}),
       ...(wantsAiTitle ? { aiTitle: { status: "pending" } } : {}),
     });
 
@@ -1003,8 +1010,8 @@ exports.add = async (req, res, next) => {
     // В фоне (ответ 201 уже отправлен): определяем категорию, если она не выбрана.
     // AI-руководство при создании не генерируется — только вручную со страницы
     // заявки (regenerateAiGuide). Создание заявки не блокируется и не падает.
-    if (prefs?.ai?.isActive && !categoryId) {
-      detectTicketCategory(ticket._id).catch((error) =>
+    if (wantsAiCategory || wantsAiTitle) {
+      detectTicketCategory(ticket._id, { category: wantsAiCategory }).catch((error) =>
         logger.log("error", "Background AI ticket processing failed", {
           ticketId: ticket._id.toString(),
           error: error.message,

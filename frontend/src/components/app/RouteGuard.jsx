@@ -1,7 +1,9 @@
 import { useMatches } from "react-router";
 
 import Forbidden from "@/components/Error/403";
+import NotFound from "@/components/Error/404";
 import { useCan } from "@/store/authed-user";
+import useInitialPrefsStore from "@/store/prefs";
 
 /**
  * Право на РАЗДЕЛ — на самом маршруте, а не внутри страницы.
@@ -22,10 +24,21 @@ import { useCan } from "@/store/authed-user";
  * Это не защита, а вежливость: доступ всё равно решает сервер. Смысл в том,
  * чтобы человек видел внятное «сюда нужен доступ» вместо пустого экрана или
  * страницы, которая молча ничего не показывает.
+ *
+ * Раздел выключенного модуля (`handle: { module: "mikrotik" }`) отвечает «здесь
+ * ничего нет», а не «нужен доступ»: на этой установке раздела нет ни у кого, и
+ * просить права у администратора бессмысленно.
  */
 const RouteGuard = ({ children }) => {
   const matches = useMatches();
   const can = useCan();
+  const modules = useInitialPrefsStore((state) => state.modules);
+
+  const moduleOff = matches
+    .map((match) => match.handle?.module)
+    .filter(Boolean)
+    .some((key) => !modules?.[key]?.isActive);
+  if (moduleOff) return <NotFound />;
 
   const required = matches
     .map((match) => match.handle?.can)

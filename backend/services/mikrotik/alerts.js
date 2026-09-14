@@ -122,8 +122,8 @@ const runMikrotikOfflineAlerts = async () => {
   if (mongoose.connection.readyState !== 1) return;
 
   const prefs = await Preferences.findOne({});
-  // Интеграция выключена целиком — авто-заявки не создаём
-  if (prefs?.mikrotik?.isActive === false) return;
+  // Модуль выключен целиком — авто-заявки не создаём
+  if (!prefs?.modules?.mikrotik?.isActive) return;
   const cfg = prefs?.mikrotik?.offlineTicket;
   if (!cfg?.isActive) return;
 

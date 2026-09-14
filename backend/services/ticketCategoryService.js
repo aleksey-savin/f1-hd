@@ -41,12 +41,17 @@ const truncate = (value, max = MAX_FIELD_LENGTH) => {
  * Возвращает структурированный результат (для запуска по запросу пользователя с
  * обратной связью); фоновые вызовы результат игнорируют.
  *
+ * Тем же проходом пишется тема заявки, если её ждут (`aiTitle.status` =
+ * pending). Подбор категории и тема включаются в настройках по отдельности:
+ * при `category: false` проход только пишет тему, категории не трогает.
+ *
  * @param {string|object} ticketId
- * @returns {Promise<{ outcome: "assigned"|"not_found"|"already_set"|"no_categories"|"error",
+ * @param {{ category?: boolean }} [options]
+ * @returns {Promise<{ outcome: "assigned"|"not_found"|"already_set"|"no_categories"|"title_only"|"error",
  *   categoryId?: string|null, categoryTitle?: string, reason?: string,
  *   closest?: string[], error?: string }>}
  */
-exports.detectTicketCategory = async (ticketId) => {
+exports.detectTicketCategory = async (ticketId, { category = true } = {}) => {
   try {
     const ticket = await Ticket.findById(ticketId).select(
       "num title description htmlDescription categoryId aiCategory aiTitle company",
@@ -72,11 +77,14 @@ exports.detectTicketCategory = async (ticketId) => {
       return { outcome: "already_set", categoryId: ticket.categoryId.toString() };
     }
 
-    const categories = await TicketCategory.find({ isActive: true }).select(
-      "title description",
-    );
+    const needsTitle = ticket.aiTitle?.status === "pending";
+    if (!category && !needsTitle) return { outcome: "title_only" };
 
-    if (!categories.length) {
+    const categories = category
+      ? await TicketCategory.find({ isActive: true }).select("title description")
+      : [];
+
+    if (category && !categories.length) {
       logger.log("info", "Category detection: no active categories", {
         ticketId: ticket._id.toString(),
         num: ticket.num,
@@ -92,10 +100,12 @@ exports.detectTicketCategory = async (ticketId) => {
     }
 
     // Помечаем заявку как обрабатываемую ИИ и фиксируем старт в логе заявки.
-    await Ticket.findByIdAndUpdate(ticketId, {
-      aiCategory: { status: "pending" },
-    });
-    await logAiTicketEvent(ticketId, "начал подбор категории заявки");
+    if (category) {
+      await Ticket.findByIdAndUpdate(ticketId, {
+        aiCategory: { status: "pending" },
+      });
+      await logAiTicketEvent(ticketId, "начал подбор категории заявки");
+    }
 
     const description = truncate(
       stripHtml(ticket.description || ticket.htmlDescription),
@@ -113,13 +123,12 @@ exports.detectTicketCategory = async (ticketId) => {
     // Тему просим тем же вызовом, а не отдельным: у заявителя поля «Тема» нет,
     // и при создании там стоит обрезка описания, сделанная сервером. Заявку
     // модель уже читает целиком — второй запрос был бы платой ни за что.
-    const needsTitle = ticket.aiTitle?.status === "pending";
-
     const { system, user } = buildCategoryPrompt({
       title: ticket.title || "",
       description,
       categories: candidates,
       needsTitle,
+      needsCategory: category,
     });
 
     // Замечания сотрудников по прошлым подборам для этой компании — правила
@@ -157,7 +166,7 @@ exports.detectTicketCategory = async (ticketId) => {
             .slice(0, MAX_TITLE_LENGTH)
         : "";
 
-    const setOps = { "aiCategory.status": "processed" };
+    const setOps = category ? { "aiCategory.status": "processed" } : {};
     const unsetOps = {};
     if (needsTitle) {
       if (aiTitle) {
@@ -174,10 +183,21 @@ exports.detectTicketCategory = async (ticketId) => {
         aiTitle ? "info" : "warning",
       );
     }
-    const buildUpdate = (extra = {}) => ({
-      $set: { ...setOps, ...extra },
-      ...(Object.keys(unsetOps).length ? { $unset: unsetOps } : {}),
-    });
+    const buildUpdate = (extra = {}) => {
+      const set = { ...setOps, ...extra };
+      return {
+        ...(Object.keys(set).length ? { $set: set } : {}),
+        ...(Object.keys(unsetOps).length ? { $unset: unsetOps } : {}),
+      };
+    };
+
+    // Подбор категории выключен — проход писал только тему
+    if (!category) {
+      if (Object.keys(setOps).length || Object.keys(unsetOps).length) {
+        await Ticket.findByIdAndUpdate(ticketId, buildUpdate());
+      }
+      return { outcome: "title_only" };
+    }
 
     if (!match) {
       logger.log("info", "Category detection: no confident match", {
@@ -226,7 +246,7 @@ exports.detectTicketCategory = async (ticketId) => {
     // Тема ехала этим же вызовом — снимаем её ожидание вместе с ошибкой
     // категории, иначе заявка останется с вечным pending и без метки.
     await Ticket.findByIdAndUpdate(ticketId, {
-      $set: { "aiCategory.status": "error" },
+      ...(category ? { $set: { "aiCategory.status": "error" } } : {}),
       $unset: { aiTitle: "" },
     }).catch(() => {});
     await logAiTicketEvent(

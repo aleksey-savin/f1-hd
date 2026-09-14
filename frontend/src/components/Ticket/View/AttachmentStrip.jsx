@@ -64,7 +64,7 @@ export const useAttachments = (ticket) => {
   const canTranscribe =
     !ticket.isArchived &&
     can({ ticket: ["perform"] }) &&
-    ai?.speechToText?.isActive;
+    ai?.features?.speechToText;
 
   const sync = (next) =>
     store.updateTicket({ ...store.ticket, attachments: next });

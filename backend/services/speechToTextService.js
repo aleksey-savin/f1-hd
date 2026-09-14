@@ -158,7 +158,9 @@ const getSpeechToTextConfig = async () => {
   const preferences = await Preferences.findOne({});
   const speechToText = preferences?.ai?.speechToText;
 
-  if (!speechToText?.isActive) {
+  // Главный рубильник ИИ гасит и расшифровку: у неё свой канал, но «ИИ
+  // выключен» обязан значить «выключено всё» (services/ai/features.js)
+  if (!preferences?.ai?.isActive || !speechToText?.isActive) {
     throw new AppError("Speech recognition is disabled", 400, true);
   }
 
@@ -309,8 +311,8 @@ const summarizeDialog = async ({ segments, context = {} }) => {
     context,
   });
 
-  // Итог звонка завязан на собственный тумблер распознавания речи, поэтому не
-  // требуем общий тумблер AI-функций (ai.isActive) — достаточно ключа провайдера.
+  // Итог звонка идёт только за расшифровкой, а та уже проверила главный
+  // рубильник и свой (getSpeechToTextConfig) — второй раз его не спрашиваем.
   const { data: parsed } = await aiService.generateJson({
     system,
     user,

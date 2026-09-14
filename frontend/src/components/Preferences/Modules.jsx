@@ -16,6 +16,7 @@ const PrefsModules = ({ prefs }) => {
     finances: !!prefs.modules?.finances?.isActive,
     inventory: !!prefs.modules?.inventory?.isActive,
     knowledgeBase: !!prefs.modules?.knowledgeBase?.isActive,
+    mikrotik: !!prefs.modules?.mikrotik?.isActive,
   }));
 
   const toggle = (key, value) =>
@@ -34,6 +35,7 @@ const PrefsModules = ({ prefs }) => {
           finances: { isActive: modules.finances },
           inventory: { isActive: modules.inventory },
           knowledgeBase: { isActive: modules.knowledgeBase },
+          mikrotik: { isActive: modules.mikrotik },
         },
       })}
     >
@@ -81,6 +83,17 @@ const PrefsModules = ({ prefs }) => {
           id="prefs-module-inventory"
           checked={modules.inventory}
           onCheckedChange={(value) => toggle("inventory", value)}
+        />
+      </SettingRow>
+      <SettingRow
+        title="Мониторинг Mikrotik"
+        htmlFor="prefs-module-mikrotik"
+        className="py-3"
+      >
+        <Switch
+          id="prefs-module-mikrotik"
+          checked={modules.mikrotik}
+          onCheckedChange={(value) => toggle("mikrotik", value)}
         />
       </SettingRow>
       {/* Пояснение устройства — той же полосой, что состояние канала:

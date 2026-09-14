@@ -28,10 +28,11 @@ const useInitialPrefsStore = create((set) => ({
     finances: { isActive: false },
     timeTracking: { isActive: false },
     knowledgeBase: { isActive: false },
+    mikrotik: { isActive: false },
   },
-  // Интеграция Mikrotik — независима от модулей; питает пункты меню
-  mikrotik: { isActive: false },
-  ai: { isActive: false, speechToText: { isActive: false } },
+  // Функции ИИ приходят из /api/me уже сведёнными с главным рубильником
+  // (backend/services/ai/features.js): компонент читает одно булево
+  ai: { isActive: false, features: {} },
   knowledgeBase: defaultKnowledgeBase,
   set: (data) =>
     set(() => ({
@@ -43,8 +44,7 @@ const useInitialPrefsStore = create((set) => ({
       telegramNotifications: data.telegramNotifications,
       personalNotifications: data.personalNotifications,
       modules: data.modules,
-      mikrotik: data.mikrotik || { isActive: false },
-      ai: data.ai || { isActive: false, speechToText: { isActive: false } },
+      ai: data.ai || { isActive: false, features: {} },
       knowledgeBase: data.knowledgeBase || defaultKnowledgeBase,
     })),
 }));

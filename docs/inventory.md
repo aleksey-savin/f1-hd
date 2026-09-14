@@ -304,8 +304,8 @@ query, never in the browser:
 | `/suppliers` | Supplier | hard, **guarded** | reads require `supplier.read`. `getAll` appends `purchases[]` — one bucket per `{year, companyId}` with `companyName`, `deviceCount`, `totalSpent`, `deliveryCount`, `lastPurchaseAt`; no flat totals, the list sums the buckets under the year and company picked in its toolbar. The year comes from `purchasedAt` **in UTC** (calendar date, stored at UTC midnight — a business-timezone year would push the first of January into the previous one); positions without a date land in `year: null`. Document counts are distinct **within a bucket**, so one delivery note split across two companies counts twice in the all-companies slice. `getOne` additionally returns `deliveries[]` — devices grouped by `purchaseDocument` with `{document, purchasedAt, company, total, positions[]}`. Deleting a supplier with purchases is **409** («за поставщиком числится N устройств…») — disable it instead, it stays in the purchase history. Components are counted as ordinary positions (`parentDeviceId` is deliberately not filtered): a part is bought on its own, not as a line inside an assembly |
 
 **Mikrotik** (`/mikrotik-devices`) — record-centric monitoring and management,
-mounted under `/api/inventory` but gated by its **own** switch (`mikrotikIsActive`),
-not by the inventory module; full detail in `mikrotik-management.md`. The
+mounted under `/api/inventory` but gated by its **own** module
+(`modules.mikrotik`, gate `mikrotikIsActive`), not by the inventory module; full detail in `mikrotik-management.md`. The
 inventory-facing parts are `POST /records/:recordId/link-inventory` /
 `create-inventory` (attach or build a `ClientDevice` for a verified record) and
 the legacy `:clientDeviceId` routes still serving the device card's monitoring

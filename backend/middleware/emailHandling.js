@@ -27,6 +27,7 @@ const {
   isCloudTelephonySender,
 } = require("../services/callerIdentityService");
 const { detectTicketCategory } = require("../services/ticketCategoryService");
+const { resolveAiFeatures } = require("../services/ai/features");
 const { logAiTicketEvent } = require("../services/aiTicketLog");
 const {
   stripQuotedReply,
@@ -87,7 +88,11 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
   // реальный кейс. Защита от затирания обычных писем с аудио (от рядовых
   // пользователей вроде fedoseeva@/churinova@) и так обеспечивается
   // isTelephonyTicket — у таких отправителей isCloudTelephony=false.
-  const isTelephonyTicket = await isCloudTelephonySender(ticket.realSender);
+  // «Описание из записи звонка» выключается в настройках отдельно от самой
+  // расшифровки: тогда запись расшифровывается, а письмо остаётся как пришло.
+  const isTelephonyTicket =
+    resolveAiFeatures(prefs?.ai).callSummary &&
+    (await isCloudTelephonySender(ticket.realSender));
 
   // Заголовок и описание заявки задаём по первому удачно распознанному звонку
   let ticketContentUpdated = false;
@@ -236,7 +241,7 @@ const transcribeTicketAudioAttachments = async (ticketId) => {
   // заменено итогом звонка, поэтому сигнал гораздо точнее, чем «Входящий звонок».
   // detectTicketCategory никогда не бросает исключение и заполняет категорию,
   // только если она ещё не задана.
-  if (prefs?.ai?.isActive) {
+  if (resolveAiFeatures(prefs?.ai).category) {
     await detectTicketCategory(ticketId);
   }
 };
@@ -812,8 +817,8 @@ exports.handleNewEmails = async () => {
             );
           }
         } else {
-          const willTranscribe =
-            !!prefs?.ai?.speechToText?.isActive && hasAudioAttachments;
+          const aiFeatures = resolveAiFeatures(prefs?.ai);
+          const willTranscribe = aiFeatures.speechToText && hasAudioAttachments;
 
           const ticket = new Ticket({
             title: ticketTitle || "",
@@ -841,7 +846,7 @@ exports.handleNewEmails = async () => {
             // без распознавания категорию подбираем сразу — помечаем заявку
             // ожидающей автоопределения (для заявок с аудио это сделает поток
             // транскрипции после готового итога звонка)
-            ...(!willTranscribe && prefs?.ai?.isActive
+            ...(!willTranscribe && aiFeatures.category
               ? { aiCategory: { status: "pending" } }
               : {}),
             createdBy: applicant || prefs.defaultApplicant,
@@ -868,7 +873,7 @@ exports.handleNewEmails = async () => {
                 "aiSpeech.status": "error",
               }).catch(() => {});
             });
-          } else if (prefs?.ai?.isActive) {
+          } else if (aiFeatures.category) {
             // Без распознавания речи определяем категорию по теме/телу письма.
             // Для willTranscribe это сделает поток транскрипции на готовом итоге.
             detectTicketCategory(ticket._id).catch((error) =>

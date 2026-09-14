@@ -102,7 +102,7 @@ test("у каждого префикса свой набор гейтов", asyn
     ["/api/inventory/locations", [inventory, "canReadDevices"]],
     ["/api/inventory/suppliers", [inventory, "canReadSuppliers"]],
     ["/api/inventory/device-types", [inventory, "isNotClient"]],
-    // Mikrotik — без модуля «Учёт техники»: интеграция самостоятельная.
+    // Mikrotik — без модуля «Учёт техники»: у мониторинга свой модуль.
     ["/api/inventory/mikrotik-devices", ["mikrotikIsActive", "canReadMikrotik"]],
   ];
 

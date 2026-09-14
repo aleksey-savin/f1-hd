@@ -221,6 +221,13 @@
 .ai-mark:focus-visible {
   color: var(--accent-text);
 }
+/* Метка без замечаний (функция «Замечания к ИИ» выключена или нет права):
+   только происхождение поля — не зовёт нажать */
+.ai-mark.is-static,
+.ai-mark.is-static:hover {
+  cursor: default;
+  color: var(--faint);
+}
 
 /*
  * Спойлер суммы (Dashboard/MyReport, макет «Карточка „Мой отчёт“», 13.09):

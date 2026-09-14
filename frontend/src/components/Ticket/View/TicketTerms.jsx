@@ -72,17 +72,26 @@ const SPARKLE_PATH =
  * последнего абзаца и остаётся в его строчном потоке. Значения кладём через
  * textContent/setAttribute: подставлять строки в разметку незачем.
  */
-export const appendAiMark = (html, hint) => {
+export const appendAiMark = (html, hint, { interactive = true } = {}) => {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const SVG_NS = "http://www.w3.org/2000/svg";
 
   const mark = doc.createElement("span");
-  mark.className = "ai-mark";
-  mark.setAttribute("data-ai-mark", "1");
-  mark.setAttribute("role", "button");
-  mark.setAttribute("tabindex", "0");
-  mark.setAttribute("title", `${hint} — нажмите, если что-то не так`);
-  mark.setAttribute("aria-label", `${hint} — сообщить об ошибке`);
+  // Без замечаний (функция выключена или нет права) метка остаётся фактом
+  // происхождения: подсказка есть, кнопки нет
+  if (interactive) {
+    mark.className = "ai-mark";
+    mark.setAttribute("data-ai-mark", "1");
+    mark.setAttribute("role", "button");
+    mark.setAttribute("tabindex", "0");
+    mark.setAttribute("title", `${hint} — нажмите, если что-то не так`);
+    mark.setAttribute("aria-label", `${hint} — сообщить об ошибке`);
+  } else {
+    mark.className = "ai-mark is-static";
+    mark.setAttribute("role", "img");
+    mark.setAttribute("title", hint);
+    mark.setAttribute("aria-label", hint);
+  }
 
   const svg = doc.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", SPARKLE_VIEWBOX);
@@ -95,7 +104,7 @@ export const appendAiMark = (html, hint) => {
   path.setAttribute("d", SPARKLE_PATH);
   svg.append(path);
   // Клик приходит по svg — data-атрибут нужен и на нём, обработчик читает target
-  svg.setAttribute("data-ai-mark", "1");
+  if (interactive) svg.setAttribute("data-ai-mark", "1");
   mark.append(svg);
 
   // Пустые теги детей не носят: итог звонка приходит как «текст<br>текст», и

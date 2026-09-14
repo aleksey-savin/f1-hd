@@ -26,19 +26,32 @@ _Firmware & vulnerability monitoring_); config exports over SSH
 (_Config export_); and, for targets behind NAT, tunneling through an
 already-managed router (_SSH jump host_).
 
-## Integration switch
+## Module switch
 
-The module is gated by **one master switch**, `Preferences.mikrotik.isActive`
-(Настройки → Интеграции). A missing field in older documents means **on**.
+Mikrotik monitoring is a **module** like the knowledge base or inventory:
+`Preferences.modules.mikrotik.isActive` (Настройки → Модули). Its settings
+(service account, auto-tickets) live in their own section «Мониторинг
+Mikrotik», rendered only while the module is on. Until 2026-09-14 the switch was
+`Preferences.mikrotik.isActive` under «Интеграции» with "missing = on";
+`scripts/migrateMikrotikModule.js` carries that value over (see _One-off
+scripts_). New installs start with the module **off**, like every other module.
 
 - `backend/services/mikrotik/enabled.js` → `mikrotikEnabled()` — read by the
-  crons, which return early when the integration is off.
-- `middleware/permissions.js` → `mikrotikIsActive` — layered on the router's own
+  crons (return early), the offline-alert job, and `helpers/mikrotikOverlay.js`:
+  with the module off, inventory devices and locations carry no Mikrotik status
+  and the device card gets `mikrotik: null`.
+- `middleware/modules.js` → `mikrotikIsActive` — layered on the router's own
   prefix together with the read right:
   `internalRoutes.use("/inventory/mikrotik-devices", mikrotikIsActive, canReadMikrotik)`
   (`routes/inventoryMount.js`, see `docs/inventory.md` §1 for why the gates sit on
-  prefixes rather than on the mount). Off ⇒ 403 «Интеграция Mikrotik отключена».
-- The menu reads the same flag through `preferences-initial` → `store/prefs`.
+  prefixes rather than on the mount). Off ⇒ 403 «Модуль "Мониторинг Mikrotik"
+  отключен».
+- Frontend: `/api/me` → `store/prefs.modules.mikrotik`. It hides the menu item,
+  the dashboard offline block and the «Мониторинг» section of the device card;
+  the routes `/devices/mikrotik/*` and `/report/networks` carry
+  `handle.module: "mikrotik"`, and `app/RouteGuard` answers 404 for them.
+- Linking a record to an inventory card still needs the inventory module as
+  well (`inventoryLinkContext`).
 
 The previous binding to the **inventory module** was leaky: turning that module
 off hid the UI and the API but left the crons polling devices and filing
@@ -990,6 +1003,12 @@ re-encrypts records via the `v1` version prefix.
   `MIKROTIK_JUMP_POLL_EXTRA_MS` (15000 — the transit deadline surcharge).
 
 ## One-off scripts (`backend/scripts/`)
+
+- **`migrateMikrotikModule.js`** — moves the switch from `mikrotik.isActive` to
+  `modules.mikrotik.isActive` (a missing old field becomes **on**) and drops the
+  old key. Idempotent. **Run right after deploying the 2026-09-14 code**: until
+  then the module reads as off — menu hidden, crons idle.
+  `docker exec hd-backend-prod node scripts/migrateMikrotikModule.js`
 
 - **`migrateMikrotikIndexes.js`** — drops the old non-partial `clientDevice_1`
   index and runs `syncIndexes()`. Idempotent. Needed on any environment created

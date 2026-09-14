@@ -23,6 +23,7 @@ const {
   knowledgeBaseModuleIsActive,
 } = require("@/middleware/permissions");
 
+const { aiFeatureIsActive } = require("@/middleware/modules");
 const fileUpload = require("@/middleware/fileUpload");
 
 const byBodyId = requireTicketAccess((req) => ({ id: req.body._id }));
@@ -63,12 +64,14 @@ router.post("/tickets/close", isAuth, canPerformTickets, byBodyId, requireOwnTic
 // Вернуть в работу может исполнитель — и САМ заявитель своей закрытой заявки
 // (`canReturnTicket`, стоит после проверки доступа: читает req.ticket)
 router.post("/tickets/back-to-work", isAuth, byBodyId, canReturnTicket, ticketController.backToWork);
-router.post("/tickets/ai-guide/generate", isAuth, canPerformTickets, byBodyId, ticketController.regenerateAiGuide);
-router.post("/tickets/ai-terms/analyze", isAuth, canPerformTickets, byBodyId, ticketController.analyzeAiTerms);
-router.post("/tickets/ai-terms/reference", isAuth, canPerformTickets, byBodyId, ticketController.getAiTermReference);
-router.post("/tickets/ai-terms/save-note", isAuth, canPerformTickets, byBodyId, knowledgeBaseModuleIsActive, canReadKnowledge, canManageKnowledge, ticketController.saveAiTermNote);
-router.post("/tickets/ai-feedback", isAuth, canPerformTickets, byBodyId, ticketController.addAiFeedback);
-router.post("/tickets/:ticketNum/attachments/speech-to-text", isAuth, canPerformTickets, byNum, ticketController.transcribeAttachment);
+// Функции ИИ включаются по одной (Настройки → ИИ → «Функции»): выключенная
+// отказывает до того, как ручка пометит заявку «ожидает ИИ»
+router.post("/tickets/ai-guide/generate", isAuth, canPerformTickets, aiFeatureIsActive("guide"), byBodyId, ticketController.regenerateAiGuide);
+router.post("/tickets/ai-terms/analyze", isAuth, canPerformTickets, aiFeatureIsActive("terms"), byBodyId, ticketController.analyzeAiTerms);
+router.post("/tickets/ai-terms/reference", isAuth, canPerformTickets, aiFeatureIsActive("terms"), byBodyId, ticketController.getAiTermReference);
+router.post("/tickets/ai-terms/save-note", isAuth, canPerformTickets, aiFeatureIsActive("terms"), byBodyId, knowledgeBaseModuleIsActive, canReadKnowledge, canManageKnowledge, ticketController.saveAiTermNote);
+router.post("/tickets/ai-feedback", isAuth, canPerformTickets, aiFeatureIsActive("feedback"), byBodyId, ticketController.addAiFeedback);
+router.post("/tickets/:ticketNum/attachments/speech-to-text", isAuth, canPerformTickets, aiFeatureIsActive("speechToText"), byNum, ticketController.transcribeAttachment);
 router.post("/tickets/delete/:id", isAuth, canDeleteTickets, requireTicketAccess((req) => ({ id: req.params.id })), ticketController.delete);
 router.post("/tickets/delete-multiple", isAuth, canDeleteTickets, byBodyIds, ticketController.deleteMultiple);
 router.post("/tickets/take-to-work-multiple", isAuth, canPerformTickets, byBodyIds, requireJoinableTickets, ticketController.takeToWorkMultiple);

@@ -328,7 +328,8 @@ const ViewTicket = () => {
     modules.knowledgeBase?.isActive && can({ knowledge: ["read"] });
   // Инструменты ИИ — часть работы с заявкой: секцию видит тот, кто заявки
   // берёт, а не всякий сотрудник (ручки за ней гейтит то же право)
-  const showAi = ai?.isActive && can({ ticket: ["perform"] });
+  // «Руководство ИИ» — функция по одной (Настройки → ИИ → «Функции»)
+  const showAi = ai?.features?.guide && can({ ticket: ["perform"] });
 
   const railSections = useMemo(
     () =>

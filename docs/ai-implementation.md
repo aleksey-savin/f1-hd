@@ -81,8 +81,13 @@ ai: {
   deepseek:  { apiKey: String, model: String (default "deepseek-chat") },
   yandexai:  { apiKey: String, folderId: String, model: String (default "") },
   local:     { baseUrl: String, apiKey: String, model: String },
+  features: {                // per-feature switches, default true
+    category: Boolean, title: Boolean, guide: Boolean,
+    terms: Boolean, feedback: Boolean,
+  },
   speechToText: {
-    isActive: Boolean,
+    isActive: Boolean,       // the «Расшифровка аудио» feature
+    callSummary: Boolean,    // «Описание из записи звонка», default true
     provider: "openai" | "yandex" | "local" (default "openai"),
     useProviderCredentials: Boolean,
     apiKey: String,                                   // OpenAI key
@@ -98,6 +103,28 @@ ai: {
   health: channelHealth(),
 }
 ```
+- **Feature switches (2026-09-14).** `ai.isActive` is only the connection to the
+  model; what the model does is switched feature by feature in Настройки → ИИ →
+  «Функции». `services/ai/features.js#resolveAiFeatures` is the single place
+  that combines them: every feature requires `ai.isActive` (transcription and
+  the call summary included — before this they ignored it), and a missing
+  feature flag means **on**, so older installs lose nothing. `/api/me` sends
+  the resolved booleans as `prefs.ai.features`; components read one boolean
+  and never repeat the condition.
+
+  | Feature | Flag | Backend | Frontend |
+  |---|---|---|---|
+  | Подбор категории | `features.category` | ticket create and email intake skip the pass, no `pending` status | — |
+  | Тема заявки по описанию | `features.title` | `detectTicketCategory(id, { category })` writes only the title when category is off (title-only prompt) | — |
+  | Руководство ИИ | `features.guide` | `aiFeatureIsActive("guide")` on `ai-guide/generate` | guide section + rail item |
+  | Понятия в заявке | `features.terms` | gate on `ai-terms/*`; `aiTerms` stripped for clients | terms row + underlining, by `ticket.perform` |
+  | Расшифровка аудио | `speechToText.isActive` | gate on the manual route; email intake skips; `getSpeechToTextConfig` checks the master | «Распознать» |
+  | Описание из записи звонка | `speechToText.callSummary` | telephony emails keep their original subject/description | — |
+  | Замечания к ИИ | `features.feedback` | gate on `ai-feedback`; `rulesFor` returns no rules | ✦ marks stay as provenance, static, no correction dialog |
+
+  The gate is `middleware/modules.js#aiFeatureIsActive(feature)` (403 with the
+  feature's name); the check inside `aiService.generateJson` stays as the last
+  line.
 - **API keys are encrypted at rest** (AES-256-GCM, `services/crypto/secretBox.js`,
   storage format `v1:<iv>:<tag>:<ciphertext>`). Every consumer must read them
   through `readStoredSecret` (`helpers/preferencesSecrets.js`), which also passes

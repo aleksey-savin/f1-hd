@@ -28,6 +28,7 @@ const {
   canShareCredentials,
 } = require("../services/speechToTextService");
 const logger = require("../utils/logger");
+const { resolveAiFeatures } = require("../services/ai/features");
 
 // Поля почтовых каналов, которые правит форма. Мержим по путям (а не заменяем
 // группу целиком): health пишут крон сбора и отправка уведомлений, форма о нём
@@ -225,14 +226,9 @@ exports.getInitial = async (req, res, next) => {
       telegramNotifications: preferences.notify?.byTelegram?.isActive,
       personalNotifications: preferences.notify.personal,
       modules: preferences.modules,
-      // Рубильник интеграции Mikrotik — для меню («Мониторинг», «Диапазоны
-      // сетей»); отсутствие поля в старых документах = включено
-      mikrotik: { isActive: preferences.mikrotik?.isActive !== false },
       ai: {
         isActive: preferences.ai?.isActive || false,
-        speechToText: {
-          isActive: preferences.ai?.speechToText?.isActive || false,
-        },
+        features: resolveAiFeatures(preferences.ai),
       },
       knowledgeBase: {
         isModerator: userIsModerator,
@@ -423,6 +419,7 @@ exports.update = async (req, res, next) => {
         },
         inventory: { isActive: !!modules.inventory?.isActive },
         knowledgeBase: { isActive: !!modules.knowledgeBase?.isActive },
+        mikrotik: { isActive: !!modules.mikrotik?.isActive },
       };
     }
 
@@ -452,7 +449,12 @@ exports.update = async (req, res, next) => {
       preferences.knowledgeBase = body.knowledgeBase;
     }
 
-    if (has("mikrotik")) preferences.mikrotik = body.mikrotik;
+    // Рубильник модуля живёт в modules.mikrotik — из этой группы его не берём
+    if (has("mikrotik")) {
+      const mikrotik = { ...(body.mikrotik || {}) };
+      delete mikrotik.isActive;
+      preferences.mikrotik = mikrotik;
+    }
 
     // Табло статусов: из веба приходит только isActive; служебные поля
     // (messageId, lastText) принадлежат боту и сохраняются. Группа и ветка

@@ -87,6 +87,8 @@ export interface IPreferences {
     timeTracking: { isActive: boolean };
     finances: { isActive: boolean };
     inventory: { isActive: boolean };
+    knowledgeBase: { isActive: boolean };
+    mikrotik: { isActive: boolean };
   };
   overtime: {
     defaultSchedule?: IWorkSchedule;
@@ -102,8 +104,17 @@ export interface IPreferences {
     deepseek: { apiKey: string; model: string };
     yandexai: { apiKey: string; model: string; folderId: string };
     local: { baseUrl: string; apiKey: string; model: string };
+    /** Функции по одной; читать через services/ai/features.js. */
+    features: {
+      category: boolean;
+      title: boolean;
+      guide: boolean;
+      terms: boolean;
+      feedback: boolean;
+    };
     speechToText: {
       isActive: boolean;
+      callSummary: boolean;
       provider: "openai" | "yandex" | "local";
       useProviderCredentials: boolean;
       apiKey: string;
@@ -134,7 +145,6 @@ export interface IPreferences {
     ignoreUnassigned: boolean;
   };
   mikrotik: {
-    isActive: boolean;
     offlineTicket: {
       isActive: boolean;
       thresholdMinutes: number;

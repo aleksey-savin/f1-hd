@@ -15,6 +15,7 @@ import PrefsTicketsCollect from "../components/Preferences/TicketsCollect";
 import PrefsNotifications from "../components/Preferences/Notifications";
 import PrefsModules from "../components/Preferences/Modules";
 import PrefsIntegrations from "../components/Preferences/Integrations";
+import PrefsMikrotik from "../components/Preferences/Mikrotik";
 import PrefsAi from "../components/Preferences/Ai";
 import PrefsKnowledgeBase from "../components/Preferences/KnowledgeBase";
 import PrefsOvertime from "../components/Preferences/Overtime";
@@ -202,6 +203,13 @@ const Preferences = () => {
         id: "finances",
         label: "Финансы",
         element: <PrefsOvertime prefs={prefs} />,
+      },
+    general &&
+      modules.mikrotik?.isActive && {
+        id: "mikrotik",
+        label: "Мониторинг Mikrotik",
+        rail: "Mikrotik",
+        element: <PrefsMikrotik prefs={prefs} />,
       },
     // Календарь нужен норме часов и переработкам, поэтому модулем не закрыт:
     // отпуска и графики ведутся и без учёта времени

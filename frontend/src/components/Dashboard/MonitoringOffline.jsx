@@ -8,6 +8,7 @@ import useLiveTopic from "@/hooks/use-live-topic";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import { Button } from "@/components/ui/button";
 import { useCan } from "@/store/authed-user";
+import useInitialPrefsStore from "@/store/prefs";
 import { formatDayMonth } from "../../util/format-date";
 
 /**
@@ -55,7 +56,10 @@ const MonitoringOffline = () => {
   const [data, setData] = useState(null);
   const [expanded, setExpanded] = useState(false);
 
-  const canSeeMonitoring = !!can({ mikrotik: ["read"] });
+  const mikrotikOn = useInitialPrefsStore(
+    (state) => !!state.modules?.mikrotik?.isActive,
+  );
+  const canSeeMonitoring = mikrotikOn && !!can({ mikrotik: ["read"] });
 
   const load = async () => {
     try {

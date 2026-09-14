@@ -56,8 +56,6 @@ export function buildMenu({
   // меню расходилось со словарём.
   can,
   modules,
-  // Интеграция Mikrotik — свой рубильник, от модулей не зависит
-  mikrotikActive = false,
 }) {
   const canReadTicketCategories = can({ ticketCategory: ["read"] });
   const canReadTicketTemplates = can({ ticketTemplate: ["read"] });
@@ -83,6 +81,7 @@ export function buildMenu({
   const inventory = !!modules?.inventory?.isActive;
   const knowledgeBase = !!modules?.knowledgeBase?.isActive;
   const finances = !!modules?.finances?.isActive;
+  const mikrotik = !!modules?.mikrotik?.isActive;
 
   if (isEndUser) {
     const reports = [
@@ -382,7 +381,7 @@ export function buildMenu({
       icon: RiDraftLine,
       groups: reportGroups,
     },
-    mikrotikActive &&
+    mikrotik &&
       canReadMikrotik &&
       link("monitoring", "Мониторинг", RiPulseLine, "/devices/mikrotik"),
     administration.length > 0 && {

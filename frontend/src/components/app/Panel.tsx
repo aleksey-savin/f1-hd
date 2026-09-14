@@ -163,7 +163,8 @@ export function SubLabel({
   className,
 }: {
   children: ReactNode;
-  count?: number;
+  /** Число или «N из M» — у набора переключателей (функции ИИ). */
+  count?: number | string;
   /** Контрол подгруппы справа (outline `xs`) — как `action` у Eyebrow. */
   action?: ReactNode;
   className?: string;
@@ -177,7 +178,7 @@ export function SubLabel({
     >
       {children}
       {count != null && (
-        <span className="font-semibold tracking-normal tabular-nums">
+        <span className="font-semibold tracking-normal normal-case tabular-nums">
           · {count}
         </span>
       )}

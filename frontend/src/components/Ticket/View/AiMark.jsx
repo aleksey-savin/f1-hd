@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 import useToastStore from "../../../store/toast-store";
+import useInitialPrefsStore from "../../../store/prefs";
+import { useCan } from "@/store/authed-user";
 
 // Метка того, что ИИ вписал в заявку вместо человека, — и вход в замечание.
 //
@@ -66,6 +68,13 @@ const AiMark = ({
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const showToast = useToastStore((state) => state.showToast);
+  const can = useCan();
+  // Замечания — отдельная функция ИИ (Настройки → ИИ → «Функции») и право
+  // исполнителя; без них метка остаётся фактом происхождения поля
+  const feedbackOn = useInitialPrefsStore(
+    (state) => !!state.ai?.features?.feedback,
+  );
+  const canFeedback = feedbackOn && !!can({ ticket: ["perform"] });
 
   const close = () => {
     setOpen(false);
@@ -100,6 +109,21 @@ const AiMark = ({
       setBusy(false);
     }
   };
+
+  if (!canFeedback) {
+    // Управляемую метку рисует html описания — без замечаний ей нечего открыть
+    if (controlled) return null;
+    return (
+      <span
+        role="img"
+        title={hint}
+        aria-label={hint}
+        className={cn("ai-mark is-static", className)}
+      >
+        <RiSparkling2Line size={14} aria-hidden />
+      </span>
+    );
+  }
 
   return (
     <>

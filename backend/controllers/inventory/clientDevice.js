@@ -17,6 +17,7 @@ const {
   buildMikrotikStatusMap,
   mikrotikOverlay,
 } = require("../../helpers/mikrotikOverlay");
+const { mikrotikEnabled } = require("../../services/mikrotik/enabled");
 
 // Каталог статусов — из схемы, чтобы второй копии списка не заводить.
 const DEVICE_STATUSES = ClientDevice.schema.path("status").enumValues;
@@ -820,10 +821,13 @@ exports.getOne = async (req, res, next) => {
     const locationPath = await buildLocationPath(device.locationId?._id);
 
     // Mikrotik management overlay: connectivity + a link target for the panel,
-    // present only when the device has a management record.
-    const mikrotikRecord = await Mikrotik.findOne({
-      clientDevice: device._id,
-    }).select("status monitoringEnabled lastSuccessfulConnectionAt");
+    // present only when the device has a management record and the Mikrotik
+    // module is on.
+    const mikrotikRecord = (await mikrotikEnabled())
+      ? await Mikrotik.findOne({
+          clientDevice: device._id,
+        }).select("status monitoringEnabled lastSuccessfulConnectionAt")
+      : null;
     const mikrotik = mikrotikRecord
       ? {
           recordId: mikrotikRecord._id,

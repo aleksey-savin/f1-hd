@@ -6,6 +6,7 @@ import { RiDeleteBinLine } from "react-icons/ri";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { SubLabel } from "@/components/app/Panel";
+import HealthRow from "@/components/app/HealthRow";
 
 import { formatDate } from "../../util/format-date";
 import useToastStore from "../../store/toast-store";
@@ -19,6 +20,7 @@ import useToastStore from "../../store/toast-store";
 const TARGET_LABEL = {
   description: "описание из звонка",
   category: "подбор категории",
+  title: "тема заявки",
 };
 const REASON_LABEL = {
   offtopic: "не по делу",
@@ -27,7 +29,9 @@ const REASON_LABEL = {
   outdated: "устарело",
 };
 
-const AiRules = () => {
+// aiOn / feedbackOn — черновое состояние формы ИИ: пояснение под списком
+// меняется сразу, ещё до сохранения
+const AiRules = ({ aiOn = true, feedbackOn = true }) => {
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -157,6 +161,16 @@ const AiRules = () => {
             ))}
           </ul>
         </>
+      )}
+
+      {/* Правила остаются на виду и при выключенной функции — меняется только
+          то, доходят ли они до модели */}
+      {!feedbackOn && (
+        <HealthRow
+          state="info"
+          title={aiOn ? "Замечания выключены в «Функциях»" : "ИИ выключен"}
+          hint="Метки ✦ поправок не принимают, правила в запросы не уходят."
+        />
       )}
     </>
   );

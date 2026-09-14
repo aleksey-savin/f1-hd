@@ -1256,7 +1256,7 @@ function App() {
             // Devices
             {
               path: "devices/mikrotik",
-              handle: { can: { mikrotik: ["read"] } },
+              handle: { module: "mikrotik", can: { mikrotik: ["read"] } },
               element: <MikrotikDevices />,
               loader: mikrotikDevicesLoader,
               // Формы создания/правки — нижняя шторка списка (Outlet ListWrapper).
@@ -1279,7 +1279,7 @@ function App() {
             // useRouteLoaderData, не запрашивая их второй раз.
             {
               path: "devices/mikrotik/records/:recordId",
-              handle: { can: { mikrotik: ["read"] } },
+              handle: { module: "mikrotik", can: { mikrotik: ["read"] } },
               id: "mikrotik-record",
               element: <MikrotikRecordPage />,
               loader: mikrotikRecordLoader,
@@ -1311,7 +1311,7 @@ function App() {
               // отчётов, — открывают её из тулбара мониторинга, а не с каждой
               // страницы (xlsx выгрузки подгружается ещё позже, по нажатию).
               path: "report/networks",
-              handle: { can: { mikrotik: ["read"] } },
+              handle: { module: "mikrotik", can: { mikrotik: ["read"] } },
               lazy: async () => {
                 const networksModule = await import("./pages/Report/Networks");
                 return {

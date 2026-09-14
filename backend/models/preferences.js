@@ -161,6 +161,11 @@ const preferencesSchema = new Schema({
     finances: { isActive: { type: Boolean, default: false } },
     inventory: { isActive: { type: Boolean, default: false } },
     knowledgeBase: { isActive: { type: Boolean, default: false } },
+    // Мониторинг Mikrotik: опрос устройств, конфигурации, прошивки, авто-заявки.
+    // От «Учёта техники» не зависит; связь записи с карточкой устройства
+    // требует обоих модулей. До 2026-09-14 жил рубильником `mikrotik.isActive`
+    // (перенос — scripts/migrateMikrotikModule.js)
+    mikrotik: { isActive: { type: Boolean, default: false } },
   },
   // Согласование отчётов по услугам со стороны клиента.
   // Срок берётся из договора («клиент обязан согласовать в течение N дней»):
@@ -232,7 +237,6 @@ const preferencesSchema = new Schema({
       },
     ],
   },
-  // Интеграция Mikrotik: мониторинг, конфигурации, прошивки, авто-заявки.
   /**
    * Требование второго фактора к тем, у кого полный доступ.
    *
@@ -251,10 +255,8 @@ const preferencesSchema = new Schema({
     graceUntil: { type: Date, default: null },
   },
 
-  // Независима от модуля «Учёт техники»; isActive — единый рубильник
-  // (меню, API, кроны). Отсутствие поля в старых документах = включено.
+  // Настройки модуля «Мониторинг Mikrotik»; сам рубильник — modules.mikrotik.
   mikrotik: {
-    isActive: { type: Boolean, default: true },
     // Сервисный аккаунт-автор всех машинных заявок и комментариев модуля
     // (недоступность, изменение конфигурации, уязвимости прошивки). Компания
     // сводной заявки об уязвимостях — компания этого аккаунта. Не задан →
@@ -388,8 +390,22 @@ const preferencesSchema = new Schema({
     // за себя (у него свой ключ и свой сервис). Пишут настоящие вызовы и кнопки
     // проверки (services/ai/health.js), читает строка состояния в настройках.
     health: channelHealth(),
+    // Функции по одной (Настройки → ИИ → «Функции»): что поручено модели.
+    // Работают только при ai.isActive — он лишь подключение. Дефолт «включено»:
+    // до переключателей всё это шло от одного ai.isActive. Сводит флаги
+    // services/ai/features.js — читать через него, а не напрямую.
+    features: {
+      category: { type: Boolean, default: true },
+      title: { type: Boolean, default: true },
+      guide: { type: Boolean, default: true },
+      terms: { type: Boolean, default: true },
+      feedback: { type: Boolean, default: true },
+    },
     speechToText: {
       isActive: { type: Boolean, default: false },
+      // Письмо облачной АТС заменяется итогом разговора и темой — поверх
+      // расшифровки
+      callSummary: { type: Boolean, default: true },
       provider: {
         type: String,
         enum: ["openai", "yandex", "local"],

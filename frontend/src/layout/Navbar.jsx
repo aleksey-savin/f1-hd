@@ -214,7 +214,7 @@ const NavigationBar = ({ embedded = false }) => {
 
   const authedUser = useContext(AuthedUserContext);
   const can = useCan();
-  const { modules, mikrotik } = useInitialPrefs();
+  const { modules } = useInitialPrefs();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const {
@@ -237,10 +237,9 @@ const NavigationBar = ({ embedded = false }) => {
             isEndUser,
             can,
             modules,
-            mikrotikActive: !!mikrotik?.isActive,
           })
         : [],
-    [isLoggedIn, isEndUser, can, modules, mikrotik],
+    [isLoggedIn, isEndUser, can, modules],
   );
 
   const userTrigger = (

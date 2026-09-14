@@ -1,4 +1,5 @@
 const Mikrotik = require("@/models/mikrotik");
+const { mikrotikEnabled } = require("@/services/mikrotik/enabled");
 
 /**
  * Map ClientDevice _id → its Mikrotik management record (status / monitoring /
@@ -12,6 +13,9 @@ const Mikrotik = require("@/models/mikrotik");
  */
 const buildMikrotikStatusMap = async (deviceIds) => {
   if (!deviceIds.length) return new Map();
+  // Модуль «Мониторинг Mikrotik» выключен — живых точек нет ни у кого: устройство
+  // читается как неуправляемое, а не как офлайн
+  if (!(await mikrotikEnabled())) return new Map();
   const records = await Mikrotik.find({
     clientDevice: { $in: deviceIds },
   }).select("clientDevice status monitoringEnabled lastSuccessfulConnectionAt");

@@ -117,8 +117,14 @@ export const DescriptionSection = ({
   const { modules, ai } = useInitialPrefsStore();
   const clean = (html) => ({ __html: DOMPurify.sanitize(html) });
 
-  const showAi = !isEndUser && ai?.isActive;
-  const terms = inTextTerms(ticket);
+  const canPerform = !!can({ ticket: ["perform"] });
+  // «Понятия в заявке» — функция ИИ по кнопке исполнителя: сервер спрашивает то
+  // же право и тот же переключатель (Настройки → ИИ → «Функции»)
+  const showTerms = canPerform && !!ai?.features?.terms;
+  // Замечание по метке ✦ — своя функция; сама метка — факт происхождения поля
+  // и видна сотрудникам и при выключенном ИИ
+  const canFeedback = canPerform && !!ai?.features?.feedback;
+  const terms = showTerms ? inTextTerms(ticket) : [];
   const canSaveNote =
     !!modules?.knowledgeBase?.isActive && !!can({ knowledge: ["manage"] });
 
@@ -128,15 +134,14 @@ export const DescriptionSection = ({
   const description = DOMPurify.sanitize(ticket.description || "");
   // Метка ИИ — только там, где он вписал данные вместо человека: итог звонка
   // стал описанием заявки, и ошибка в нём уезжает в уведомление и в отчёт
-  const marked = ticket.aiSpeech?.status === "processed";
-  const html = showAi
-    ? (() => {
-        const withTerms = highlightTerms(description, terms);
-        return marked
-          ? appendAiMark(withTerms, "Описание собрано ИИ из записи звонка")
-          : withTerms;
-      })()
-    : description;
+  const marked = !isEndUser && ticket.aiSpeech?.status === "processed";
+  const withTerms = showTerms ? highlightTerms(description, terms) : description;
+  const html = marked
+    ? appendAiMark(withTerms, "Описание собрано ИИ из записи звонка", {
+        interactive: canFeedback,
+      })
+    : withTerms;
+  const clickable = showTerms || (marked && canFeedback);
 
   // Клик по подчёркнутому понятию или по метке: свои React-узлы в готовом html
   // не живут, поэтому обработчик один на всю панель
@@ -190,9 +195,9 @@ export const DescriptionSection = ({
           // который читают целиком, а не сканируют.
           <div
             className="md-doc max-h-96 overflow-auto text-base leading-relaxed break-words"
-            onClick={showAi ? pickFromText : undefined}
+            onClick={clickable ? pickFromText : undefined}
             onKeyDown={
-              showAi
+              clickable
                 ? (event) => {
                     if (event.key === "Enter" || event.key === " ")
                       pickFromText(event);
@@ -206,7 +211,7 @@ export const DescriptionSection = ({
         )}
         {/* Сама метка дописана в конец текста выше — здесь только форма
             замечания, которую она открывает */}
-        {showAi && marked && (
+        {canFeedback && marked && (
           <AiMark
             ticketId={ticket._id}
             target="description"
@@ -220,7 +225,7 @@ export const DescriptionSection = ({
 
         {attachments}
 
-        {showAi && (
+        {showTerms && (
           <TicketTerms
             openTerm={openTerm}
             onOpenTerm={setOpenTerm}

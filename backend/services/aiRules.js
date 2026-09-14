@@ -1,5 +1,6 @@
 const AiFeedback = require("@/models/aiFeedback");
 const logger = require("@/utils/logger");
+const { aiFeatureEnabled } = require("@/services/ai/features");
 
 // Замечания сотрудников, доросшие до правил, подмешиваются в промпты.
 //
@@ -52,6 +53,11 @@ exports.buildRulesBlock = (rules = []) => {
   );
 };
 
-/** Короткий путь: собрать и сразу оформить. */
-exports.rulesFor = async (scope) =>
-  exports.buildRulesBlock(await exports.collectRules(scope));
+/**
+ * Короткий путь: собрать и сразу оформить. Функция «Замечания к ИИ» выключена в
+ * настройках — правила в запросы не идут, хотя и остаются в списке.
+ */
+exports.rulesFor = async (scope) => {
+  if (!(await aiFeatureEnabled("feedback"))) return "";
+  return exports.buildRulesBlock(await exports.collectRules(scope));
+};
