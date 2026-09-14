@@ -80,13 +80,17 @@ pnpm build        # frontend
 ./sync-dev-db.sh
 ```
 
-Runs from the host shell. The dump is read from production over SSH (through
-the jump host when production is not reachable directly) and restored into the
-local database on `localhost:27017`; it needs `mongodb-database-tools`
-(`sudo dnf install mongodb-database-tools`). Production is never written to and
-the `preferences` collection is left untouched; `./sync-dev-db.sh --help` lists
-the options. After a sync re-run the better-auth scripts, otherwise nobody can
-sign in (see `docs/deployment.md`, Migrations).
+Runs on the machine whose database is the target: the workstation, or a test
+host installed with `deploy.sh`. The dump is read from production over SSH
+(through the jump host when production is not reachable directly) and restored
+into the local database; `mongorestore` from `mongodb-database-tools` is used
+when installed, otherwise the one inside the `mongodb` container. Production is
+never written to and the `preferences` collection is left untouched;
+`./sync-dev-db.sh --help` lists the options. Afterwards run the data migrations
+(`./deploy.sh migrate baseline 2026-07-24-backfillUserLastActivity` and
+`./deploy.sh migrate up`; on the dev machine the same via
+`docker compose run --rm backend node scripts/migrate.js …`), otherwise nobody
+can sign in.
 
 ## Conventions
 

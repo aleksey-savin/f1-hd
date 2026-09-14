@@ -99,6 +99,37 @@ a second bot); otherwise both copies get `409 Conflict` and the service keeps
 restarting. An unhealthy `tg-service` never blocks the deployment — the app is
 up without it; `./deploy.sh logs tg-service` shows why.
 
+### MongoDB from the LAN
+
+MongoDB is published on loopback only by default. To reach it from another
+machine (Compass, the sync script run from a workstation), set the host's LAN
+address in `.env` and re-run `./deploy.sh`:
+
+```
+MONGO_PORT=10.0.50.231:27017
+```
+
+Connection string: `mongodb://<MONGODB_USERNAME>:<MONGODB_PASSWORD>@10.0.50.231:27017/?authSource=admin`
+(the credentials are in `.env`; the password is plain hex, nothing to escape).
+Bind to the LAN address, never `0.0.0.0` on a host with a public interface:
+Docker publishes ports past ufw, so the firewall would not protect it.
+
+### Filling a test host with production data
+
+Run the sync script on the test host itself; it needs SSH access to the
+production host (your key, or `ssh -A` when you log in) and nothing else — when
+`mongorestore` is not installed it uses the one inside the `mongodb` container:
+
+```bash
+./sync-dev-db.sh          # replaces every collection except `preferences`
+./deploy.sh migrate baseline 2026-07-24-backfillUserLastActivity
+./deploy.sh migrate up    # better-auth and everything after it
+```
+
+The script finds the production containers by itself (old `hd-*-prod` names or
+the current `hd-*-1`). The baseline step is required: the copy arrives without
+the `migrations` ledger, and until the data migrations run nobody can sign in.
+
 ### Attachments
 
 With `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME` and
