@@ -16,9 +16,9 @@ const MAX_PERIOD_DAYS = 366;
 // Деньги (оклад, ставка, доплата, итог) едут только обладателю
 // `user.manageFinances` или в своём отчёте — свои каждый видит сам.
 //
-// details=0 — режим плитки на главной: без списка работ и без 12-месячного
-// тренда (это два лишних прохода на каждый заход на главную), но с дельтой к
-// прошлому периоду — без неё плитке нечего показать под значением.
+// details=0 — режим карточки на главной: без списка работ, 12-месячного тренда
+// и прохода за прошлый период. Карточка листает месяцы, каждый шаг — запрос, а
+// дельт она не рисует: посреди месяца сравнение с полным прошлым всегда врёт.
 exports.getSummary = async (req, res, next) => {
   try {
     const authData = req.auth?.legacy ?? null;
@@ -82,7 +82,7 @@ exports.getSummary = async (req, res, next) => {
       // Свои деньги видит каждый; чужие — только с правом на оклады и ставки
       canSeeMoney: isSelf || Boolean(req.auth.can({ user: ["manageFinances"] })),
       includeDetails,
-      includePrevPeriod: true,
+      includePrevPeriod: includeDetails,
     });
 
     res.status(200).json({

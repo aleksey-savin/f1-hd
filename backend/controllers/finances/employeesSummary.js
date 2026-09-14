@@ -8,16 +8,21 @@ const { AppError } = require("../../middleware/errorHandling");
 
 const MAX_PERIOD_DAYS = 366;
 
-// GET /finances/employees-summary?from&to[&approvedOnly]
+// GET /finances/employees-summary?from&to[&approvedOnly][&details=0]
 // Сводка по всем сотрудникам: часы, классы работ, переработки и доплата.
 // Доступ — только с правом на полный финансовый отчёт (гейт в роуте);
 // свой отчёт сотрудника живёт в personal-report-summary.
 //
 // Право на отчёт даёт часы и переработки; ставки и доплаты — отдельное право
 // `user.manageFinances` (свои деньги каждый видит в своём отчёте).
+//
+// details=0 — режим карточки на главной: без разрезов по компаниям и
+// категориям у каждого сотрудника и без прохода за прошлый период. Карточка
+// листает месяцы, и каждый шаг — запрос; ни разрезов, ни дельты она не рисует.
 exports.getSummary = async (req, res, next) => {
   try {
-    const { from, to, approvedOnly } = req.query;
+    const { from, to, approvedOnly, details } = req.query;
+    const includeDetails = details !== "0" && details !== "false";
 
     const fromDate = new Date(from);
     const toDate = new Date(to);
@@ -46,6 +51,8 @@ exports.getSummary = async (req, res, next) => {
       approvedOnly: approvedOnly === "true",
       preferences,
       canSeeMoney: Boolean(req.auth?.can({ user: ["manageFinances"] })),
+      includePrev: includeDetails,
+      includeBreakdown: includeDetails,
     });
 
     res.status(200).json(report);

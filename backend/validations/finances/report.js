@@ -32,6 +32,10 @@ exports.employeesSummary = [
     .optional()
     .isBoolean()
     .withMessage("approvedOnly must be a boolean"),
+  query("details")
+    .optional()
+    .isIn(["0", "1", "false", "true"])
+    .withMessage("details must be 0/1 or a boolean"),
 ];
 
 exports.employeesTrend = [

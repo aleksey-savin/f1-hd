@@ -223,6 +223,37 @@
 }
 
 /*
+ * Спойлер суммы (Dashboard/MyReport, макет «Карточка „Мой отчёт“», 13.09):
+ * мерцающая крупа на месте скрытого числа. Два слоя точек разного шага едут в
+ * разные стороны — так крупа «кипит», а не ползёт лентой. Цвета — токены,
+ * поэтому тёмная тема не нужна отдельно. Сумма в слот не кладётся: размер
+ * задаёт вызывающий, по нему порядок суммы не угадать.
+ */
+@utility money-spoiler {
+  background-color: var(--accent);
+  background-image:
+    radial-gradient(circle, var(--faint) 0.9px, transparent 1.3px),
+    radial-gradient(circle, var(--muted-foreground) 0.7px, transparent 1.1px);
+  background-size:
+    5px 5px,
+    7px 6px;
+  background-position:
+    0 0,
+    2px 3px;
+  animation: money-spoiler-drift 2.4s linear infinite;
+  &:hover {
+    background-color: var(--border);
+  }
+}
+@keyframes money-spoiler-drift {
+  to {
+    background-position:
+      5px 0,
+      -5px 9px;
+  }
+}
+
+/*
  * Точечные анимации строк списка (вместо глобальных fade-in/fade-out):
  * row-flash — аккуратная временная подсветка изменённой строки,
  * row-appear — появление созданной строки (fade-in + та же подсветка).
@@ -358,7 +389,8 @@
   [class*="appear-ready"] [class*="appear-children"] > *,
   [class*="env-aim"],
   [class*="err-cat-settle"],
-  [class*="err-pulse"] {
+  [class*="err-pulse"],
+  [class*="money-spoiler"] {
     animation: none;
   }
 }

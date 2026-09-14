@@ -7,7 +7,7 @@ import PageShell from "@/components/app/PageShell";
 import KbAttention from "../components/Dashboard/KbAttention";
 import MonitoringOffline from "../components/Dashboard/MonitoringOffline";
 import MySupport from "../components/Dashboard/MySupport";
-import MyOvertime from "../components/Dashboard/MyOvertime";
+import MyReport from "../components/Dashboard/MyReport";
 import MyTicketsClient from "../components/Dashboard/MyTicketsClient";
 import ScheduledWorks from "../components/Dashboard/ScheduledWorks";
 import ServiceExpiry from "../components/Dashboard/ServiceExpiry";
@@ -94,7 +94,7 @@ const DashboardStaff = () => {
           <TemplateTiles heading="Шаблоны заявок" />
         </div>
         <div className="flex flex-col gap-5">
-          <MyOvertime />
+          <MyReport />
           <MonitoringOffline />
           <ScheduledWorks />
           <KbAttention />
