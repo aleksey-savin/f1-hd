@@ -17,10 +17,12 @@ const runKnowledgeApprovalExpiry = async () => {
 
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  // Архивные заметки не трогаем — их одобрение не истекает
+  // Архивные заметки не трогаем — их одобрение не истекает. Истечение срока —
+  // не правка текста: updatedAt не ставим (см. secretsScanRun.js).
   const result = await KnowledgeNote.updateMany(
     { approved: true, approvedAt: { $lte: cutoff }, archivedAt: null },
     { $set: { approved: false }, $unset: { approvedBy: "", approvedAt: "" } },
+    { timestamps: false },
   );
 
   if (result.modifiedCount > 0) {

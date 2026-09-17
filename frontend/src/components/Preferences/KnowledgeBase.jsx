@@ -4,10 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import SettingRow from "@/components/app/SettingRow";
 
+import McpKeys from "./McpKeys";
 import SectionForm from "./SectionForm";
 
-// «База знаний» (видна при включённом модуле): модерация, поиск секретов и
-// отслеживание продления услуг. Включение сканов запускает их сразу (бэкенд).
+// «База знаний» (видна при включённом модуле): модерация, поиск секретов,
+// отслеживание продления услуг и ключи ИИ-агентов (McpKeys). Включение сканов
+// запускает их сразу (бэкенд).
 // Модераторов здесь больше не назначают — это право `knowledge.moderate` роли
 // (раздел «Роли»), а не список в настройках.
 const PrefsKnowledgeBase = ({ prefs }) => {
@@ -108,6 +110,10 @@ const PrefsKnowledgeBase = ({ prefs }) => {
           <span className="text-sm text-muted-foreground">дней</span>
         </div>
       </SettingRow>
+
+      {/* Ключи агентов действуют сразу и в тело секции не входят; строке
+          состояния отдаём черновое значение свитча поиска секретов */}
+      <McpKeys scanForSecrets={scanForSecrets} />
     </SectionForm>
   );
 };

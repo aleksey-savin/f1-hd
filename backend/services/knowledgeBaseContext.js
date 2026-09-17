@@ -256,3 +256,10 @@ exports.buildKnowledgeContext = (notes = []) => {
     })
     .join("\n\n");
 };
+
+// Поиск ИИ-агента по базе знаний (services/mcp/knowledgeTools.js) сопоставляет
+// слова по тем же основам и с теми же весами, что и руководство по заявке.
+exports.toStems = toStems;
+exports.scoreNote = scoreNote;
+exports.TYPE_LABEL = TYPE_LABEL;
+exports.TYPE_PRIORITY = TYPE_PRIORITY;

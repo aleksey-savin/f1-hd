@@ -99,6 +99,30 @@ a second bot); otherwise both copies get `409 Conflict` and the service keeps
 restarting. An unhealthy `tg-service` never blocks the deployment — the app is
 up without it; `./deploy.sh logs tg-service` shows why.
 
+### AI agents (MCP)
+
+AI agents (OpenClaw and other MCP clients) read the knowledge base through
+`${APP_PUBLIC_URL}/api/mcp`. Nothing goes into `.env`: an administrator creates a
+key in Settings, it is shown once, and deleting it revokes access immediately.
+The endpoint answers only while the «База знаний» module is on, and only with
+approved notes that have no leak flag (details: `docs/knowledge-base.md`,
+«Agent access (MCP)»).
+
+The reverse proxy needs no extra settings: every call is a POST whose short
+`text/event-stream` answer closes with the result. OpenClaw configuration:
+
+```json5
+mcp: { servers: { helpdesk_kb: {
+  url: "https://hd.example.ru/api/mcp",
+  transport: "streamable-http",   // required: without it OpenClaw uses "sse"
+  headers: { Authorization: "Bearer hd_mcp_…" },
+} } }
+```
+
+To rotate a key, create a new one, switch the agent to it, then delete the old
+one. Calls are logged as `MCP tool call` with the key name
+(`./deploy.sh logs backend`).
+
 ### MongoDB from the LAN
 
 MongoDB is published on loopback only by default. To reach it from another

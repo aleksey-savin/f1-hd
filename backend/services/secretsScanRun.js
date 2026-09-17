@@ -45,8 +45,12 @@ const runSecretsScan = async () => {
     });
   }
 
+  // Результат скана — служебное поле, а не правка заметки: без
+  // `timestamps: false` Mongoose ставит updatedAt, и каждый час «Обновлено» у
+  // всех заметок становилось временем прохода (список, связанные заметки заявки
+  // и ранжирование ИИ сортируют по нему).
   if (operations.length > 0) {
-    await KnowledgeNote.bulkWrite(operations);
+    await KnowledgeNote.bulkWrite(operations, { timestamps: false });
   }
 
   logger.log("info", "Knowledge base secrets scan completed", {

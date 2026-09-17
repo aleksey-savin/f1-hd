@@ -40,8 +40,9 @@ const runServiceExpiryScan = async () => {
     });
   }
 
+  // Разбор таблиц — служебное поле, updatedAt не трогаем (см. secretsScanRun.js).
   if (operations.length > 0) {
-    await KnowledgeNote.bulkWrite(operations);
+    await KnowledgeNote.bulkWrite(operations, { timestamps: false });
   }
 
   logger.log("info", "Knowledge base service-expiry scan completed", {

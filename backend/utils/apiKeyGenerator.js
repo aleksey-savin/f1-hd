@@ -47,9 +47,28 @@ function apiKeyTail(apiKey) {
   return String(apiKey || "").slice(-4);
 }
 
+/**
+ * Ключ ИИ-агента к базе знаний по MCP (routes/mcp.js). Свой префикс, чтобы
+ * ключ компании (`hd_…`) не проходил проверку формата и чтобы значение
+ * узнавалось глазом в конфиге агента.
+ */
+const MCP_KEY_PREFIX = "hd_mcp_";
+const MCP_KEY_FORMAT = /^hd_mcp_[a-f0-9]{64}$/;
+
+function generateMcpKey() {
+  return generateApiKey(MCP_KEY_PREFIX);
+}
+
+function isMcpKeyFormat(value) {
+  return typeof value === "string" && MCP_KEY_FORMAT.test(value);
+}
+
 module.exports = {
   generateApiKey,
   isValidApiKey,
   hashApiKey,
-  apiKeyTail
+  apiKeyTail,
+  MCP_KEY_PREFIX,
+  generateMcpKey,
+  isMcpKeyFormat,
 };

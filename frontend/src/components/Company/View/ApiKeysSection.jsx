@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { useFetcher } from "react-router";
 import {
   RiAddLine,
-  RiCheckLine,
   RiDeleteBinLine,
-  RiFileCopyLine,
   RiKey2Line,
   RiRefreshLine,
 } from "react-icons/ri";
@@ -31,6 +29,7 @@ import {
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import Field from "@/components/app/Field";
 import AlertMessage from "@/components/app/AlertMessage";
+import IssuedKey from "@/components/app/IssuedKey";
 import useToastStore from "@/store/toast-store";
 import { formatShortDate, formatAgo } from "@/util/format-date";
 import { cn } from "@/lib/utils";
@@ -58,63 +57,6 @@ const shortKey = (apiKey) =>
 
 const usageLabel = (apiKey) =>
   apiKey.lastUsedAt ? `работал ${formatAgo(apiKey.lastUsedAt)}` : "не работал ни разу";
-
-/**
- * Единственный показ значения — общий для выдачи и перевыпуска: вопрос один и
- * тот же, «скопируйте сейчас, второго раза не будет».
- */
-const IssuedKey = ({ value, onDone }) => {
-  const [copied, setCopied] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  return (
-    <>
-      <div className="flex items-stretch overflow-hidden rounded-lg border border-border">
-        <div className="min-w-0 flex-1 bg-accent/55 px-3 py-2.5 font-mono text-sm break-all">
-          {value}
-        </div>
-        <button
-          type="button"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(value);
-              setCopied(true);
-            } catch {
-              // Буфер недоступен — ключ виден целиком и выделяется руками.
-            }
-          }}
-          className="flex flex-none cursor-pointer appearance-none items-center gap-1.5 border-0 border-l border-border bg-card px-3.5 text-sm font-semibold text-accent-text"
-        >
-          {copied ? <RiCheckLine /> : <RiFileCopyLine />}
-          {copied ? "Скопировано" : "Скопировать"}
-        </button>
-      </div>
-
-      <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm">
-        Мы храним не сам ключ, а его отпечаток. Даже выгрузка базы не даст
-        рабочего значения — но и восстановить его мы не сможем.
-      </div>
-
-      {/* Та же галочка, что у резервных кодов второго фактора, и по той же
-          причине: «Готово» без подтверждения нажимают не читая. */}
-      <label className="flex items-start gap-2.5 text-sm text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={saved}
-          onChange={(event) => setSaved(event.target.checked)}
-          className="mt-0.5 size-4"
-        />
-        Я скопировал ключ
-      </label>
-
-      <DialogFooter>
-        <Button onClick={onDone} disabled={!saved}>
-          Готово
-        </Button>
-      </DialogFooter>
-    </>
-  );
-};
 
 const ApiKeysSection = ({ company, id }) => {
   const fetcher = useFetcher();

@@ -3,6 +3,8 @@ const rateLimit = require("express-rate-limit");
 const router = new Router();
 const preferencesController = require("@/controllers/preferences");
 const preferencesValidation = require("@/validations/preferences");
+const mcpKeyController = require("@/controllers/mcpKey");
+const mcpKeyValidation = require("@/validations/mcpKey");
 const isAuth = require("@/middleware/isAuth");
 const { canManageSettings } = require("@/middleware/permissions");
 const { uploadCompanyLogo } = require("@/middleware/imageUpload");
@@ -87,6 +89,29 @@ router.post(
   isAuth,
   canManageSettings,
   preferencesController.deleteAiRule,
+);
+// Ключи ИИ-агентов к базе знаний по MCP (сама точка — routes/mcp.js)
+router.get(
+  "/preferences/mcp-keys",
+  isAuth,
+  canManageSettings,
+  mcpKeyController.list,
+);
+router.post(
+  "/preferences/mcp-keys",
+  isAuth,
+  canManageSettings,
+  mcpKeyValidation.create,
+  checkValidationResult,
+  mcpKeyController.create,
+);
+router.post(
+  "/preferences/mcp-keys/delete",
+  isAuth,
+  canManageSettings,
+  mcpKeyValidation.remove,
+  checkValidationResult,
+  mcpKeyController.remove,
 );
 router.post(
   "/preferences/mailbox/check",

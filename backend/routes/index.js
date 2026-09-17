@@ -62,6 +62,9 @@ const healthRoutes = require("./public/health");
 // Telegram-сервис: закрытый список ручек за общим секретом (см. routes/bot.js)
 const botRoutes = require("./bot");
 
+// ИИ-агенты: чтение базы знаний по MCP за ключом из настроек (см. routes/mcp.js)
+const mcpRoutes = require("./mcp");
+
 // Create route groups
 const internalRoutes = express.Router();
 const externalRoutes = express.Router();
@@ -90,6 +93,15 @@ const attachSession = require("@/middleware/attachSession");
  * просто не доходят.
  */
 internalRoutes.use("/bot", botRoutes);
+
+/**
+ * MCP для ИИ-агентов — тоже ДО `attachSession`, и по той же причине: у агента
+ * своё удостоверение (ключ из настроек), а не сеанс сотрудника. Вдобавок ключ
+ * приходит заголовком `Authorization: Bearer`, и `attachSession` отдал бы его
+ * плагину `bearer()` better-auth как токен сеанса. Роутер отвечает на всё под
+ * `/mcp` сам — дальше запрос не проваливается.
+ */
+internalRoutes.use("/mcp", mcpRoutes);
 
 /**
  * Курсор живых обновлений на каждом ответе — снят ДО чтения данных. Страница,
