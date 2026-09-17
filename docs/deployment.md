@@ -169,10 +169,17 @@ applied (`{_id, appliedAt, mode: run | baseline | mark}`).
 
 ```
 ./deploy.sh migrate status        applied / pending
+./deploy.sh migrate pending       exit 0 = nothing pending, 3 = pending, 2 = no ledger
 ./deploy.sh migrate up            run pending entries in order (deploy does this)
 ./deploy.sh migrate baseline ID   mark everything up to and including ID as applied
 ./deploy.sh migrate mark ID       mark one entry (you ran it by hand)
 ```
+
+`deploy` asks `pending` first and stops `backend` and `tg-service` only when
+something has to run, so a routine update has no extra downtime, while a data
+migration never races the previous version of the code. If an entry fails the
+application stays stopped: fix the cause and run `./deploy.sh` again (it
+resumes at that entry), or skip the entry with `migrate mark`.
 
 Rules the runner enforces:
 

@@ -9,10 +9,15 @@
  * их как есть, дочерним процессом, с теми же аргументами.
  *
  *   node scripts/migrate.js status          что применено, что ждёт
+ *   node scripts/migrate.js pending         код 0 — ждать нечего, 3 — есть
+ *                                           ожидающие, 2 — база без журнала
  *   node scripts/migrate.js up              прогнать всё ожидающее по порядку
  *   node scripts/migrate.js baseline <id>   отметить всё до <id> включительно
  *                                           как уже применённое (без запуска)
  *   node scripts/migrate.js mark <id>       отметить одну запись (прогнали руками)
+ *
+ * На хосте всё это зовётся через `./deploy.sh migrate <команда>`, на деве —
+ * `docker compose run --rm backend node scripts/migrate.js <команда>`.
  *
  * Правила:
  *   • пустая база (нет пользователей) → `up` отмечает весь список как базу и
@@ -90,10 +95,15 @@ const runScript = (script, args = []) => {
   }
 };
 
+const BASELINE_HINT =
+  "Mark what already ran, then retry:\n" +
+  "  ./deploy.sh migrate baseline <id>          (dev: docker compose run --rm backend node scripts/migrate.js baseline <id>)\n" +
+  "  (prod that ran the pre-better-auth code: 2026-07-24-backfillUserLastActivity)";
+
 const main = async () => {
   const [command, arg] = process.argv.slice(2);
-  if (!["status", "up", "baseline", "mark"].includes(command)) {
-    console.error("usage: node scripts/migrate.js status | up | baseline <id> | mark <id>");
+  if (!["status", "pending", "up", "baseline", "mark"].includes(command)) {
+    console.error("usage: node scripts/migrate.js status | pending | up | baseline <id> | mark <id>");
     process.exit(1);
   }
 
@@ -113,12 +123,30 @@ const main = async () => {
       console.log(`  ${applied.has(entry.id) ? "✓" : "·"} ${entry.id}`);
     }
     if (applied.size === 0 && users > 0) {
-      console.log(
-        "\nExisting data without a migration ledger. Before `up`, mark what already ran:\n" +
-          "  node scripts/migrate.js baseline <id>\n" +
-          "  (prod that ran the pre-better-auth code: 2026-07-24-backfillUserLastActivity)",
-      );
+      console.log("\nExisting data without a migration ledger. " + BASELINE_HINT);
     }
+    return;
+  }
+
+  // Пустая база: свежий код уже пишет данные в новой форме, миграций нет.
+  // Отмечается и из `pending`, чтобы следующий деплой не принял заведённого
+  // администратора за «данные без журнала».
+  const recordFreshBaseline = async () => {
+    for (const entry of MIGRATIONS) await record(entry.id, "baseline");
+    console.log("empty database: nothing to migrate, all entries recorded as baseline");
+  };
+
+  if (command === "pending") {
+    if (applied.size === 0 && users === 0) {
+      await recordFreshBaseline();
+      return;
+    }
+    if (applied.size === 0) {
+      console.error("Existing data without a migration ledger. " + BASELINE_HINT);
+      process.exit(2);
+    }
+    console.log(`migrations: ${pending.length} pending`);
+    if (pending.length) process.exit(3);
     return;
   }
 
@@ -143,16 +171,12 @@ const main = async () => {
 
   // up
   if (applied.size === 0 && users === 0) {
-    for (const entry of MIGRATIONS) await record(entry.id, "baseline");
-    console.log("empty database: nothing to migrate, all entries recorded as baseline");
+    await recordFreshBaseline();
     return;
   }
   if (applied.size === 0) {
     console.error(
-      "Existing data without a migration ledger — refusing to run everything blindly.\n" +
-        "Mark what already ran, then retry:\n" +
-        "  node scripts/migrate.js baseline <id>\n" +
-        "  (prod that ran the pre-better-auth code: 2026-07-24-backfillUserLastActivity)",
+      "Existing data without a migration ledger — refusing to run everything blindly.\n" + BASELINE_HINT,
     );
     process.exit(2);
   }

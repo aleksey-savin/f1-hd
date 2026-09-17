@@ -323,8 +323,22 @@ deploy() {
   else
     backup
   fi
-  log "Applying data migrations"
-  dc run --rm backend node scripts/migrate.js up
+  # Data migrations run with the application STOPPED: the previous version
+  # must not serve requests while the data changes shape under it. The stop
+  # happens only when something is actually pending, so a routine update has
+  # no extra downtime.
+  set +e
+  dc run --rm backend node scripts/migrate.js pending
+  pending=$?
+  set -e
+  case $pending in
+    0) ;;
+    3) log "Applying data migrations (the application is stopped meanwhile)"
+       dc stop backend tg-service >/dev/null 2>&1 || true
+       dc run --rm backend node scripts/migrate.js up \
+         || die "a migration failed — fix the cause and run ./deploy.sh again (it resumes there), or skip it with ./deploy.sh migrate mark <id>" ;;
+    *) die "migrations cannot run (see above): ./deploy.sh migrate status" ;;
+  esac
   log "Starting services"
   dc up -d --wait --remove-orphans mongodb backend frontend
   smoke_test
