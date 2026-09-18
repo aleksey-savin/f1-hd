@@ -5,10 +5,12 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const express = require("express");
 const { Types } = require("mongoose");
+const sift = require("sift").default;
 
 const { buildMcpRouter } = require("./mcpRouter");
 const { createMcpRequestHandler } = require("@/services/mcp/server");
 const { createKnowledgeTools } = require("@/services/mcp/knowledgeTools");
+const { createTicketTools } = require("@/services/mcp/ticketTools");
 const { createRequireMcpKey } = require("@/middleware/requireMcpKey");
 
 /**
@@ -82,29 +84,59 @@ const NOTES = [
   note(4, { title: "VPN черновик", plainText: "VPN", approved: false }),
 ];
 
-const buildApp = ({ moduleOn = true, rateLimitMax = 100, logs = [] } = {}) => {
-  const tools = createKnowledgeTools({
+const MODULES_ON = { knowledgeBase: true, timeTracking: true, inventory: true };
+
+const TICKETS = [
+  {
+    _id: "t1", num: 51702, title: "Не печатает принтер", description: "<p>звоните 8 999 123-45-67</p>", source: "Портал",
+    state: "Закрыта", isClosed: true, categoryId: null, company: { _id: "c1", alias: "Ромашка" }, applicantId: null,
+    createdAt: new Date("2026-09-01T03:00:00Z"), finishedAt: new Date("2026-09-01T05:00:00Z"), closingComment: "",
+  },
+];
+
+const ticketSource = {
+  loadDirectory: async () => ({ companies: [{ _id: "c1", alias: "Ромашка", fullTitle: "ООО «Ромашка»" }], users: [], categories: [] }),
+  findTickets: async (filter) => TICKETS.filter(sift(filter)),
+  countTickets: async (filter) => TICKETS.filter(sift(filter)).length,
+  loadTicketDetail: async (num) => {
+    const ticket = TICKETS.find((item) => item.num === num);
+    return ticket ? { ticket, routineTaskTitle: null, comments: [], works: [], devices: [] } : null;
+  },
+  loadWorkDescriptions: async () => new Map(),
+  loadStatsRows: async (filter) => TICKETS.filter(sift(filter)),
+};
+
+const buildApp = ({
+  scopes = ["knowledge"],
+  modules = MODULES_ON,
+  rateLimitMax = 100,
+  logs = [],
+  source = ticketSource,
+} = {}) => {
+  const log = (level, message, meta) => logs.push(meta);
+  const knowledge = createKnowledgeTools({
     findCandidates: async () => NOTES,
     findNoteById: async (id) => NOTES.find((item) => String(item._id) === id) || null,
     baseUrl: "https://hd.example.ru",
-    log: (level, message, meta) => logs.push(meta),
+    log,
   });
+  const tickets = createTicketTools({ source, baseUrl: "https://hd.example.ru", log });
 
   const router = buildMcpRouter({
     requireKey: createRequireMcpKey({
       findKeyByHash: async (hash) =>
         hash === sha256(KEY)
-          ? { _id: "66aa000000000000000000aa", name: "OpenClaw", lastUsedAt: new Date() }
+          ? { _id: "66aa000000000000000000aa", name: "OpenClaw", lastUsedAt: new Date(), scopes }
           : null,
       touchKey: async () => {},
       log: () => {},
     }),
-    // Та же форма ответа, что у middleware/modules.js#moduleGate
-    moduleGate: (req, res, next) =>
-      moduleOn
-        ? next()
-        : res.status(403).json({ error: true, status: 403, message: "off" }),
-    handle: createMcpRequestHandler({ tools, onError: () => {} }),
+    handle: createMcpRequestHandler({
+      tools: { knowledge, tickets },
+      loadContext: async () => ({ modules, timezone: "Asia/Vladivostok", systemAccounts: { unidentifiedId: null, robotIds: [] } }),
+      onError: () => {},
+      log,
+    }),
     rateLimitMax,
   });
 
@@ -179,17 +211,41 @@ test("GET is refused with 405 and Allow: POST", async () => {
 });
 
 test("POST without a key gets 401 before anything else runs", async () => {
-  await withServer(buildApp({ moduleOn: false }), async (base) => {
+  await withServer(buildApp({ modules: { ...MODULES_ON, knowledgeBase: false } }), async (base) => {
     const { Authorization, ...noKey } = MCP_HEADERS;
     const { status } = await rpc(base, "initialize", INITIALIZE, noKey);
     assert.equal(status, 401);
   });
 });
 
-test("a valid key with the knowledge base module off gets 403", async () => {
-  await withServer(buildApp({ moduleOn: false }), async (base) => {
+test("a knowledge-only key with the knowledge base module off gets 403", async () => {
+  await withServer(buildApp({ modules: { ...MODULES_ON, knowledgeBase: false } }), async (base) => {
     const { status } = await rpc(base, "initialize", INITIALIZE);
     assert.equal(status, 403);
+  });
+});
+
+test("tools follow the key's permissions and the modules", async () => {
+  const names = async (options) =>
+    withServer(buildApp(options), async (base) =>
+      (await rpc(base, "tools/list", {})).message.result.tools.map((tool) => tool.name).sort(),
+    );
+
+  assert.deepEqual(await names({ scopes: ["knowledge"] }), ["get_knowledge_note", "search_knowledge_base"]);
+  assert.deepEqual(await names({ scopes: ["tickets"] }), ["find_similar_tickets", "get_ticket", "search_tickets", "ticket_stats"]);
+  assert.deepEqual(
+    await names({ scopes: ["knowledge", "tickets"], modules: { ...MODULES_ON, knowledgeBase: false } }),
+    ["find_similar_tickets", "get_ticket", "search_tickets", "ticket_stats"],
+  );
+});
+
+test("a ticket read over MCP masks the phone and links to HD", async () => {
+  await withServer(buildApp({ scopes: ["tickets"] }), async (base) => {
+    const message = await callTool(base, "get_ticket", { num: 51702 });
+
+    assert.match(toolText(message), /\[телефон\]/);
+    assert.doesNotMatch(toolText(message), /123-45-67/);
+    assert.match(toolText(message), /https:\/\/hd\.example\.ru\/tickets\/51702/);
   });
 });
 
@@ -198,7 +254,7 @@ test("a 2025-11-25 client initializes and receives the server instructions", asy
     const { status, message } = await rpc(base, "initialize", INITIALIZE);
 
     assert.equal(status, 200);
-    assert.equal(message.result.serverInfo.name, "hd-knowledge-base");
+    assert.equal(message.result.serverInfo.name, "hd-helpdesk");
     assert.match(message.result.instructions, /search_knowledge_base/);
   });
 });
@@ -289,4 +345,21 @@ test("nothing below /api/mcp falls through to other routes", async () => {
     assert.equal(get.status, 404);
     assert.equal(post.status, 404);
   });
+});
+
+test("a failing data source is a neutral tool error with an error log line", async () => {
+  const logs = [];
+  const failing = { ...ticketSource, loadDirectory: async () => { throw new Error("connection timed out"); } };
+
+  await withServer(buildApp({ scopes: ["tickets"], logs, source: failing }), async (base) => {
+    const message = await callTool(base, "search_tickets", { query: "принтер" });
+
+    assert.equal(message.result.isError, true);
+    assert.match(toolText(message), /internal error/);
+    assert.doesNotMatch(toolText(message), /connection timed out/);
+  });
+  assert.deepEqual(
+    logs.filter((meta) => meta?.error).map((meta) => [meta.tool, meta.error]),
+    [["search_tickets", "connection timed out"]],
+  );
 });

@@ -111,7 +111,16 @@ test("known key: passes and exposes only its id and name", async () => {
   assert.deepEqual(response.body.mcpKey, {
     _id: "66aa00000000000000000001",
     name: "OpenClaw",
+    scopes: ["knowledge"],
   });
+});
+
+test("known key: its permissions are passed on", async () => {
+  const { app } = harness({ key: { _id: "66aa00000000000000000010", name: "k", lastUsedAt: new Date(NOW), scopes: ["tickets"] } });
+
+  const response = await post(app, { headers: bearer(KEY) });
+
+  assert.deepEqual(response.body.mcpKey.scopes, ["tickets"]);
 });
 
 test("last use is recorded when missing or older than an hour, not more often", async () => {

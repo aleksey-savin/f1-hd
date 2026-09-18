@@ -8,9 +8,9 @@ const rateLimit = require("express-rate-limit");
  * обработчик приходят аргументами, сборка с моделями и логгером — в
  * routes/mcp.js, контракт проверяет routes/mcp.test.js.
  *
- * Порядок: ключ → лимит (на ключ, поэтому после ключа) → рубильник модуля →
- * MCP. Всё прочее под `/mcp` отвечает здесь же: запрос не должен провалиться
- * дальше в `attachSession` и обычные маршруты.
+ * Порядок: ключ → лимит (на ключ, поэтому после ключа) → MCP. Всё прочее под
+ * `/mcp` отвечает здесь же: запрос не должен провалиться дальше в
+ * `attachSession` и обычные маршруты.
  */
 
 /**
@@ -22,7 +22,6 @@ const RATE_LIMIT_MAX = 120;
 
 const buildMcpRouter = ({
   requireKey,
-  moduleGate,
   handle,
   rateLimitMax = RATE_LIMIT_MAX,
 }) => {
@@ -41,7 +40,7 @@ const buildMcpRouter = ({
 
   const router = express.Router();
 
-  router.post("/", requireKey, limiter, moduleGate, handle);
+  router.post("/", requireKey, limiter, handle);
 
   // Протокол без сессий: GET (поток уведомлений) и DELETE (закрытие сессии)
   // серверу не нужны.

@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const express = require("express");
 
-const { issueMcpKey, toKeyRow } = require("./keys");
+const { issueMcpKey, toKeyRow, normalizeScopes } = require("./keys");
 const { createRequireMcpKey } = require("../../middleware/requireMcpKey");
 
 /**
@@ -73,6 +73,7 @@ test("row: exposes name, tail, dates and author — never the hash", () => {
     _id: "66aa00000000000000000008",
     name: "OpenClaw",
     keyTail: "9f3c",
+    scopes: ["knowledge"],
     createdAt: new Date("2026-09-16T10:00:00.000Z"),
     lastUsedAt: new Date("2026-09-17T10:00:00.000Z"),
     createdBy: {
@@ -95,4 +96,11 @@ test("row: a key whose author was deleted shows no author", () => {
 
   assert.equal(row.createdBy, null);
   assert.equal(row.lastUsedAt, null);
+});
+
+test("scopes: known values in a fixed order, a key without scopes reads knowledge-only", () => {
+  assert.deepEqual(normalizeScopes(["tickets", "knowledge", "tickets"]), ["knowledge", "tickets"]);
+  assert.deepEqual(normalizeScopes(["tickets", "admin"]), ["tickets"]);
+  assert.deepEqual(normalizeScopes(undefined), ["knowledge"]);
+  assert.deepEqual(normalizeScopes([]), ["knowledge"]);
 });

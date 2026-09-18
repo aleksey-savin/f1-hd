@@ -1,11 +1,12 @@
 const McpKey = require("@/models/mcpKey");
 const { AppError } = require("@/middleware/errorHandling");
 const logger = require("@/utils/logger");
-const { issueMcpKey, toKeyRow } = require("@/services/mcp/keys");
+const { issueMcpKey, toKeyRow, normalizeScopes } = require("@/services/mcp/keys");
 
 /**
- * Ключи ИИ-агентов к базе знаний по MCP — Настройки, право `settings.manage`
- * (routes/internal/preferences.js). Модулем «База знаний» ручки не закрыты
+ * Ключи ИИ-агентов к MCP — Настройки, право `settings.manage`
+ * (routes/internal/preferences.js). Что открывает ключ, решают его доступы
+ * (`scopes`: база знаний и/или заявки). Модулем «База знаний» ручки не закрыты
  * намеренно: отозвать ключ должно быть можно всегда.
  */
 
@@ -52,6 +53,7 @@ exports.create = async (req, res, next) => {
       name,
       keyHash,
       keyTail,
+      scopes: normalizeScopes(req.body.scopes),
       createdBy: req.auth.userId,
     });
     await key.populate(AUTHOR);
@@ -69,6 +71,28 @@ exports.create = async (req, res, next) => {
     });
   } catch (error) {
     next(new AppError("Failed to create MCP key", 500, true, error));
+  }
+};
+
+exports.update = async (req, res, next) => {
+  try {
+    const scopes = normalizeScopes(req.body.scopes);
+    const key = await McpKey.findByIdAndUpdate(req.body._id, { $set: { scopes } }, { new: true })
+      .populate(AUTHOR)
+      .lean();
+    if (!key) {
+      return res.status(404).json({ error: true, status: 404, message: "Ключ не найден" });
+    }
+
+    (await logger.addContext(req)).log("info", "MCP: изменён доступ ключа", {
+      mcpKeyId: String(key._id),
+      mcpKeyName: key.name,
+      scopes,
+    });
+
+    res.status(200).json({ message: "Доступ ключа изменён", key: toKeyRow(key) });
+  } catch (error) {
+    next(new AppError("Failed to update MCP key", 500, true, error));
   }
 };
 

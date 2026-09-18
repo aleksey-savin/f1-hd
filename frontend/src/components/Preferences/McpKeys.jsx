@@ -5,10 +5,12 @@ import {
   RiDeleteBinLine,
   RiFileCopyLine,
   RiKey2Line,
+  RiShieldKeyholeLine,
 } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -28,17 +30,29 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import useToastStore from "@/store/toast-store";
 import { formatAgo, formatShortDate } from "@/util/format-date";
-import { agentKeysStatus, openClawConfig } from "@/util/mcp-keys";
+import {
+  MCP_SCOPE_LABELS,
+  agentKeysStatus,
+  openClawConfig,
+  scopeAccessLabel,
+  scopeLossPhrase,
+} from "@/util/mcp-keys";
 
-// «Доступ ИИ-агентов» в секции «База знаний»: ключи, по которым агенты
-// (OpenClaw) читают базу знаний по MCP (backend/routes/mcp.js).
+// «Доступ ИИ-агентов» в секции «Интеграции»: ключи, по которым агенты
+// (OpenClaw) читают базу знаний и заявки по MCP (backend/routes/mcp.js).
+// Ключ — не только про базу знаний, поэтому блок живёт среди внешних
+// интеграций, а не внутри «База знаний»; отозвать ключ можно всегда, даже с
+// выключенным модулем.
 //
-// Создание и удаление ключа действуют сразу, в черновик настроек не входят —
-// как правила ИИ и отзыв ключа PRO32; подсказка строки это называет.
-// Значение ключа живёт только в состоянии окна выдачи и уходит вместе с ним.
+// Создание, изменение доступа и удаление ключа действуют сразу, в черновик
+// настроек не входят — как правила ИИ и отзыв ключа PRO32; подсказка строки
+// это называет. Значение ключа живёт только в состоянии окна выдачи и уходит
+// вместе с ним.
 //
-// scanForSecrets — черновое значение свитча секции: строка состояния меняется
-// сразу, ещё до сохранения (так же AiRules получает aiOn / feedbackOn).
+// scanForSecrets — черновое значение свитча секции «База знаний»: строка
+// состояния меняется сразу, ещё до сохранения (так же AiRules получает aiOn /
+// feedbackOn). knowledgeModuleOn — сохранённое состояние модуля «База
+// знаний»: с выключенным модулем чекбокс «База знаний» получает предупреждение.
 
 const copyText = async (text) => {
   try {
@@ -50,7 +64,49 @@ const copyText = async (text) => {
   }
 };
 
-const McpKeys = ({ scanForSecrets }) => {
+const SCOPE_HINTS = {
+  knowledge: "Проверенные заметки без найденных секретов.",
+  tickets:
+    "Заявки с комментариями, работами и техникой; телефоны, почта и пароли скрыты.",
+};
+
+// Доступы ключа — одни и те же флажки в «Создать ключ» и «Изменить доступ».
+const ScopeChecks = ({ idPrefix, value, onChange, knowledgeModuleOn }) => (
+  <div role="group" aria-label="Доступ" className="flex flex-col gap-3">
+    {Object.entries(MCP_SCOPE_LABELS).map(([scope, label]) => (
+      <label
+        key={scope}
+        htmlFor={`${idPrefix}-${scope}`}
+        className="flex cursor-pointer items-start gap-2.5"
+      >
+        <Checkbox
+          id={`${idPrefix}-${scope}`}
+          checked={value.includes(scope)}
+          onCheckedChange={(checked) =>
+            onChange(
+              checked ? [...value, scope] : value.filter((item) => item !== scope),
+            )
+          }
+          className="mt-0.5"
+        />
+        <span>
+          <span className="block text-sm font-semibold">{label}</span>
+          <span className="block text-sm text-muted-foreground">
+            {SCOPE_HINTS[scope]}
+          </span>
+          {scope === "knowledge" && !knowledgeModuleOn && (
+            <span className="mt-0.5 block text-sm text-warning">
+              Модуль «База знаний» выключен — пока его не включат, заметки
+              агенту не видны.
+            </span>
+          )}
+        </span>
+      </label>
+    ))}
+  </div>
+);
+
+const McpKeys = ({ scanForSecrets, knowledgeModuleOn }) => {
   const showToast = useToastStore((state) => state.showToast);
 
   const [data, setData] = useState(null);
@@ -58,10 +114,14 @@ const McpKeys = ({ scanForSecrets }) => {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
+  const [scopes, setScopes] = useState([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
   const [issued, setIssued] = useState(null);
   const [configCopied, setConfigCopied] = useState(false);
+
+  const [scopeTarget, setScopeTarget] = useState(null); // { key, scopes }
+  const [savingScopes, setSavingScopes] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -82,6 +142,7 @@ const McpKeys = ({ scanForSecrets }) => {
 
   const openCreate = () => {
     setName("");
+    setScopes([]);
     setCreateError(null);
     setIssued(null);
     setConfigCopied(false);
@@ -95,7 +156,7 @@ const McpKeys = ({ scanForSecrets }) => {
     try {
       const created = await api("/api/preferences/mcp-keys", {
         method: "POST",
-        body: { name },
+        body: { name, scopes },
       });
       const { value, ...row } = created.key;
       setData((current) => ({
@@ -109,6 +170,28 @@ const McpKeys = ({ scanForSecrets }) => {
       setCreateError(error.message || "Не удалось создать ключ");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const saveScopes = async () => {
+    setSavingScopes(true);
+    try {
+      const result = await api("/api/preferences/mcp-keys/update", {
+        method: "POST",
+        body: { _id: scopeTarget.key._id, scopes: scopeTarget.scopes },
+      });
+      setData((current) => ({
+        ...current,
+        keys: current.keys.map((key) =>
+          key._id === result.key._id ? result.key : key,
+        ),
+      }));
+      setScopeTarget(null);
+      showToast("success", result.message);
+    } catch (error) {
+      showToast("danger", error.message || "Не удалось изменить доступ");
+    } finally {
+      setSavingScopes(false);
     }
   };
 
@@ -143,7 +226,7 @@ const McpKeys = ({ scanForSecrets }) => {
 
       <SettingRow
         title="Ключи для ИИ-агентов"
-        hint="Агент подключается по MCP и читает только проверенные заметки без найденных секретов. Создание и удаление ключа действуют сразу, без «Сохранить»."
+        hint="Агент подключается по MCP и читает то, к чему у ключа есть доступ. Создание, изменение и удаление ключа действуют сразу, без «Сохранить»."
       >
         <Button variant="outline" size="sm" onClick={openCreate}>
           <RiAddLine /> Создать ключ
@@ -186,20 +269,27 @@ const McpKeys = ({ scanForSecrets }) => {
           keys.map((key) => (
             <div
               key={key._id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-t border-border-soft py-2 ps-3.5 pe-2 first:border-t-0"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-soft py-2 ps-3.5 pe-2 first:border-t-0"
             >
-              <span className="min-w-0 truncate text-sm font-medium md:w-42 md:flex-none max-md:order-1 max-md:w-[calc(100%-2.75rem)]">
-                {key.name}
-              </span>
+              <div className="flex min-w-0 flex-1 flex-col max-md:order-1 max-md:basis-[calc(100%-5rem)]">
+                <span className="min-w-0 truncate text-sm font-medium">
+                  {key.name}
+                </span>
+                <span className="min-w-0 truncate text-xs text-faint tabular-nums">
+                  <span className="text-muted-foreground">
+                    доступ: {scopeAccessLabel(key.scopes)}
+                  </span>{" "}
+                  · создан {formatShortDate(key.createdAt)}
+                </span>
+              </div>
+
               <code className="flex-none rounded-md bg-accent px-2 py-px font-mono text-xs text-muted-foreground max-md:order-3">
                 hd_mcp_…{key.keyTail}
               </code>
-              <span className="text-xs text-faint tabular-nums max-md:order-5 max-md:w-full">
-                создан {formatShortDate(key.createdAt)}
-              </span>
+
               <span
                 className={cn(
-                  "ms-auto text-xs tabular-nums max-md:order-4",
+                  "flex-none text-xs tabular-nums max-md:order-4 max-md:ms-auto",
                   key.lastUsedAt ? "text-faint" : "text-warning",
                 )}
               >
@@ -207,16 +297,28 @@ const McpKeys = ({ scanForSecrets }) => {
                   ? `работал ${formatAgo(key.lastUsedAt)}`
                   : "не работал ни разу"}
               </span>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => setDeleteTarget(key)}
-                title="Удалить"
-                aria-label={`Удалить ключ ${key.name}`}
-                className="hover:text-destructive max-md:order-2"
-              >
-                <RiDeleteBinLine />
-              </Button>
+
+              <div className="flex flex-none items-center gap-0.5 max-md:order-2">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => setScopeTarget({ key, scopes: key.scopes })}
+                  title="Изменить доступ"
+                  aria-label={`Изменить доступ ключа ${key.name}`}
+                >
+                  <RiShieldKeyholeLine />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => setDeleteTarget(key)}
+                  title="Удалить"
+                  aria-label={`Удалить ключ ${key.name}`}
+                  className="hover:text-destructive"
+                >
+                  <RiDeleteBinLine />
+                </Button>
+              </div>
             </div>
           ))
         )}
@@ -309,6 +411,15 @@ const McpKeys = ({ scanForSecrets }) => {
                 />
               </Field>
 
+              <Field label="Доступ" required>
+                <ScopeChecks
+                  idPrefix="mcp-key-create"
+                  value={scopes}
+                  onChange={setScopes}
+                  knowledgeModuleOn={knowledgeModuleOn}
+                />
+              </Field>
+
               <DialogFooter className="mt-1">
                 <Button
                   type="button"
@@ -317,12 +428,52 @@ const McpKeys = ({ scanForSecrets }) => {
                 >
                   Отмена
                 </Button>
-                <Button type="submit" disabled={creating || !name.trim()}>
+                <Button
+                  type="submit"
+                  disabled={creating || !name.trim() || !scopes.length}
+                >
                   {creating ? "Создание…" : "Создать"}
                 </Button>
               </DialogFooter>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(scopeTarget)}
+        onOpenChange={(open) => !open && !savingScopes && setScopeTarget(null)}
+      >
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Доступ ключа «{scopeTarget?.key.name}»</DialogTitle>
+            <DialogDescription>
+              Сам ключ не меняется — агент получит новый доступ со следующего
+              обращения.
+            </DialogDescription>
+          </DialogHeader>
+          {scopeTarget && (
+            <ScopeChecks
+              idPrefix="mcp-key-scopes"
+              value={scopeTarget.scopes}
+              onChange={(next) =>
+                setScopeTarget((current) => ({ ...current, scopes: next }))
+              }
+              knowledgeModuleOn={knowledgeModuleOn}
+            />
+          )}
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setScopeTarget(null)}>
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              onClick={saveScopes}
+              disabled={savingScopes || !scopeTarget?.scopes.length}
+            >
+              {savingScopes ? "Сохранение…" : "Сохранить"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -332,7 +483,9 @@ const McpKeys = ({ scanForSecrets }) => {
           if (!open && !deleting) setDeleteTarget(null);
         }}
         title={`Удалить ключ «${deleteTarget?.name ?? ""}»?`}
-        description={`Агент, который им пользуется, сразу потеряет доступ к базе знаний. ${
+        description={`Агент, который им пользуется, сразу потеряет доступ ${
+          deleteTarget ? scopeLossPhrase(deleteTarget.scopes) : ""
+        }. ${
           deleteTarget?.lastUsedAt
             ? `Ключ работал ${formatAgo(deleteTarget.lastUsedAt)} — похоже, он в работе.`
             : "Ключ ни разу не использовался."

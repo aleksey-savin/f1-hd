@@ -101,36 +101,24 @@ const maskSecret = (value) => {
   return `${head}${"•".repeat(Math.min(str.length - 8, 12))}${tail}`;
 };
 
-// Сканирует одну строку. location — где найдено ("title" | "content").
-// ignoredHashes — хэши значений, помеченных модератором как «не секрет».
-const scanText = (text, location = "content", ignoredHashes = []) => {
+// Все значения, которые правила считают секретами, — сырьём, без игнор-листа.
+// Наружу модуля не уходит: scanText превращает их в замаскированные находки,
+// redactSecrets заменяет в тексте. Правила одни на оба пути.
+const collectSecretValues = (text) => {
   if (!text || typeof text !== "string") {
     return [];
   }
 
-  const findings = [];
-  const foundValues = new Set(); // дедуп по значению (между правилами)
-  const ignored = new Set((ignoredHashes || []).map(String));
+  const values = []; // [{ category, value }]
+  const seen = new Set(); // дедуп по значению (между правилами)
 
-  const pushFinding = (category, rawValue) => {
+  const push = (category, rawValue) => {
     const value = String(rawValue).trim();
-    if (value.length < 6 || isPlaceholder(value)) {
+    if (value.length < 6 || isPlaceholder(value) || seen.has(value)) {
       return;
     }
-    if (foundValues.has(value)) {
-      return; // значение уже найдено другим правилом
-    }
-    foundValues.add(value);
-    const hash = hashValue(value);
-    if (ignored.has(hash)) {
-      return; // модератор пометил это значение как «не секрет»
-    }
-    findings.push({
-      category,
-      location,
-      maskedSnippet: maskSecret(value),
-      hash,
-    });
+    seen.add(value);
+    values.push({ category, value });
   };
 
   // 1) Правила с известными форматами секретов
@@ -138,8 +126,7 @@ const scanText = (text, location = "content", ignoredHashes = []) => {
     const regex = new RegExp(rule.regex.source, rule.regex.flags);
     let match;
     while ((match = regex.exec(text)) !== null) {
-      const value = match[1] !== undefined ? match[1] : match[0];
-      pushFinding(rule.id, value);
+      push(rule.id, match[1] !== undefined ? match[1] : match[0]);
       if (match.index === regex.lastIndex) {
         regex.lastIndex++;
       }
@@ -147,7 +134,6 @@ const scanText = (text, location = "content", ignoredHashes = []) => {
   }
 
   // 2) Пароль-подобные значения рядом с ключевыми словами (RU/EN) — даже без «:»/«=».
-  // Берём окно вокруг каждого ключевого слова и ищем в нём пароль-подобные токены.
   PROXIMITY_KEYWORDS.lastIndex = 0;
   let km;
   while ((km = PROXIMITY_KEYWORDS.exec(text)) !== null) {
@@ -158,15 +144,13 @@ const scanText = (text, location = "content", ignoredHashes = []) => {
     PASSWORDLIKE_TOKEN.lastIndex = 0;
     let pm;
     while ((pm = PASSWORDLIKE_TOKEN.exec(windowText)) !== null) {
-      // Срезаем ведущую/замыкающую пунктуацию (точки, скобки, кавычки), оставляя
-      // буквы, цифры и «сильные» спецсимволы. Иначе ловим «…ABCDEF.» с точкой и
-      // дублируем находки точных правил (другое значение → другой хэш).
+      // Срезаем ведущую/замыкающую пунктуацию — иначе ловим «…ABCDEF.» с точкой.
       const token = pm[0].replace(
         /^[^A-Za-z0-9@#$%^&*!?+=]+|[^A-Za-z0-9@#$%^&*!?+=]+$/g,
         "",
       );
       if (looksLikePassword(token)) {
-        pushFinding("password-near-keyword", token);
+        push("password-near-keyword", token);
       }
     }
 
@@ -175,8 +159,7 @@ const scanText = (text, location = "content", ignoredHashes = []) => {
     }
   }
 
-  // 3) «Сложные» токены (буква + цифра + сильный спецсимвол) в любом месте текста —
-  // ловит таблицы логин/пароль, где значение не сопровождается ключевым словом.
+  // 3) «Сложные» токены (буква + цифра + сильный спецсимвол) в любом месте текста.
   COMPLEX_TOKEN.lastIndex = 0;
   let complexMatch;
   while ((complexMatch = COMPLEX_TOKEN.exec(text)) !== null) {
@@ -190,32 +173,68 @@ const scanText = (text, location = "content", ignoredHashes = []) => {
       !looksLikeEmail(token) &&
       !looksLikeUrl(token)
     ) {
-      pushFinding("password-like", token);
+      push("password-like", token);
     }
   }
 
   // 4) Высокоэнтропийные одиночные токены, не пойманные правилами выше.
-  // Требуем смешанный состав (буквы + цифры) и высокий порог энтропии.
   const tokenRegex = /\b[A-Za-z0-9+/_-]{24,}={0,2}\b/g;
   let tokenMatch;
   while ((tokenMatch = tokenRegex.exec(text)) !== null) {
     const token = tokenMatch[0];
-    if (foundValues.has(token)) {
+    if (seen.has(token)) {
       continue;
     }
-    const hasLetter = /[A-Za-z]/.test(token);
-    const hasDigit = /\d/.test(token);
     if (
-      hasLetter &&
-      hasDigit &&
+      /[A-Za-z]/.test(token) &&
+      /\d/.test(token) &&
       !isPlaceholder(token) &&
       shannonEntropy(token) >= 4.0
     ) {
-      pushFinding("high-entropy-token", token);
+      push("high-entropy-token", token);
     }
   }
 
-  return findings;
+  return values;
+};
+
+// Сканирует одну строку. location — где найдено ("title" | "content").
+// ignoredHashes — хэши значений, помеченных модератором как «не секрет».
+const scanText = (text, location = "content", ignoredHashes = []) => {
+  const ignored = new Set((ignoredHashes || []).map(String));
+  return collectSecretValues(text)
+    .map(({ category, value }) => ({
+      category,
+      location,
+      maskedSnippet: maskSecret(value),
+      hash: hashValue(value),
+    }))
+    .filter((finding) => !ignored.has(finding.hash));
+};
+
+const REDACTED = "[секрет скрыт]";
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Заменяет найденные секреты в тексте — для выдачи ИИ-агенту (MCP). Длинные
+// значения первыми: короткий пароль внутри длинного токена не должен оставить
+// хвост токена на виду.
+const redactSecrets = (text) => {
+  if (!text || typeof text !== "string") {
+    return { text: "", count: 0 };
+  }
+  const values = collectSecretValues(text)
+    .map(({ value }) => value)
+    .sort((a, b) => b.length - a.length);
+  if (!values.length) {
+    return { text, count: 0 };
+  }
+  let count = 0;
+  const pattern = new RegExp(values.map(escapeRegExp).join("|"), "g");
+  const redacted = text.replace(pattern, () => {
+    count += 1;
+    return REDACTED;
+  });
+  return { text: redacted, count };
 };
 
 // Сканирует заметку (заголовок + plainText без markdown-разметки).
@@ -232,4 +251,4 @@ const scanNote = (note, ignoredHashes = []) => {
   return findings.slice(0, 25);
 };
 
-module.exports = { scanText, scanNote, shannonEntropy, maskSecret, hashValue };
+module.exports = { scanText, scanNote, shannonEntropy, maskSecret, hashValue, redactSecrets };

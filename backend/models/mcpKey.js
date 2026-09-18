@@ -3,7 +3,8 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 /**
- * Ключ ИИ-агента (OpenClaw и т. п.) к базе знаний по MCP — `POST /api/mcp`.
+ * Ключ ИИ-агента (OpenClaw и т. п.) к MCP — `POST /api/mcp`; что он открывает
+ * (базу знаний, заявки), решают его доступы `scopes`.
  *
  * Выдаёт администратор в настройках (право `settings.manage`,
  * controllers/mcpKey.js). Значение показывается один раз; в базе — sha256 и
@@ -20,6 +21,11 @@ const mcpKeySchema = new Schema(
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },
     // «Когда работал» — не чаще раза в час, см. middleware/requireMcpKey.js
     lastUsedAt: { type: Date, default: null },
+    // Доступы (services/mcp/keys.js#MCP_SCOPES); у старых ключей поля нет.
+    scopes: {
+      type: [{ type: String, enum: ["knowledge", "tickets"] }],
+      default: ["knowledge"],
+    },
   },
   { timestamps: true },
 );

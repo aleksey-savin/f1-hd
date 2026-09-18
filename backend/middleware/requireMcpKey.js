@@ -1,4 +1,5 @@
 const { hashApiKey, isMcpKeyFormat } = require("../utils/apiKeyGenerator");
+const { normalizeScopes } = require("../services/mcp/keys");
 
 /**
  * Ключ ИИ-агента к MCP (routes/mcp.js): `Authorization: Bearer hd_mcp_…`.
@@ -13,7 +14,7 @@ const { hashApiKey, isMcpKeyFormat } = require("../utils/apiKeyGenerator");
  * уходит в общий обработчик: это не «ключ плохой», и отвечать 401 на неё нельзя.
  *
  * `req.auth` не трогаем: это личность сотрудника из сеанса, у агента её нет.
- * Кто пришёл — в `req.mcpKey` (id и название, без значения).
+ * Кто пришёл — в `req.mcpKey` (id, название и доступы, без значения).
  *
  * Зависимости приходят аргументами: сборка с моделью и логгером — в
  * routes/mcp.js, тест — на заглушках без базы и без файловых логов.
@@ -66,7 +67,7 @@ const createRequireMcpKey = ({
           .catch(() => {});
       }
 
-      req.mcpKey = { _id: key._id, name: key.name };
+      req.mcpKey = { _id: key._id, name: key.name, scopes: normalizeScopes(key.scopes) };
       next();
     } catch (error) {
       next(error);

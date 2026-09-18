@@ -101,18 +101,21 @@ up without it; `./deploy.sh logs tg-service` shows why.
 
 ### AI agents (MCP)
 
-AI agents (OpenClaw and other MCP clients) read the knowledge base through
-`${APP_PUBLIC_URL}/api/mcp`. Nothing goes into `.env`: an administrator creates a
-key in Settings, it is shown once, and deleting it revokes access immediately.
-The endpoint answers only while the «База знаний» module is on, and only with
-approved notes that have no leak flag (details: `docs/knowledge-base.md`,
-«Agent access (MCP)»).
+AI agents (OpenClaw and other MCP clients) read the knowledge base and tickets
+through `${APP_PUBLIC_URL}/api/mcp`. Nothing goes into `.env`: an administrator
+creates a key in Settings, it is shown once, and deleting it revokes access
+immediately. A key carries permissions — «База знаний» and/or «Заявки»; a key
+stored before permissions existed reads as «База знаний» only. The
+knowledge-base half answers only while that module is on, and only with
+approved notes that have no leak flag; ticket tools have no module gate of
+their own and mask phone numbers, e-mail addresses and detected credentials in
+every free-text field they return. Full implementation notes: `docs/mcp.md`.
 
 The reverse proxy needs no extra settings: every call is a POST whose short
 `text/event-stream` answer closes with the result. OpenClaw configuration:
 
 ```json5
-mcp: { servers: { helpdesk_kb: {
+mcp: { servers: { helpdesk: {
   url: "https://hd.example.ru/api/mcp",
   transport: "streamable-http",   // required: without it OpenClaw uses "sse"
   headers: { Authorization: "Bearer hd_mcp_…" },

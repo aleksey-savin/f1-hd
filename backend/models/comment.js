@@ -78,4 +78,8 @@ commentSchema.post("save", async function bumpTicketActivity(doc) {
 // Живые обновления: комментарий двигает свою заявку (см. services/pulseTopics.js)
 commentSchema.plugin(require("../services/pulsePlugin"), { model: "Comment" });
 
+// Комментарии заявки для MCP (services/mcp/ticketSource.js) ищутся по ticketId:
+// письма до 2026-07-08 не попали в массив заявки.
+commentSchema.index({ ticketId: 1, createdAt: 1 });
+
 module.exports = mongoose.model("Comment", commentSchema);

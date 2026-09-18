@@ -114,6 +114,14 @@ router.post(
   mcpKeyController.remove,
 );
 router.post(
+  "/preferences/mcp-keys/update",
+  isAuth,
+  canManageSettings,
+  mcpKeyValidation.update,
+  checkValidationResult,
+  mcpKeyController.update,
+);
+router.post(
   "/preferences/mailbox/check",
   isAuth,
   canManageSettings,

@@ -167,7 +167,9 @@ avoid wiping moderation config on a partial POST).
 
 Access keys for AI agents (collection `mcpkeys`): `name`, `keyHash` (sha256,
 `select: false`, unique index), `keyTail`, `createdBy → User`, `lastUsedAt`,
-timestamps. The key value is never stored. See «Agent access (MCP)».
+`scopes` (`knowledge` and/or `tickets`; a key stored without the field reads
+as `["knowledge"]`), timestamps. The key value is never stored. Full notes:
+`docs/mcp.md`, «Keys and permissions».
 
 ## Visibility model
 
@@ -446,151 +448,24 @@ guide is a staff-only artifact generated in the background without a viewer
 context (it's stripped for end-users in the ticket `getOne`), so it sees all
 context-matched notes.
 
-## Agent access (MCP) — `backend/routes/mcp.js`
+## Agent access (MCP)
 
-A read-only [Model Context Protocol](https://modelcontextprotocol.io) endpoint
-lets the organisation's AI agents (OpenClaw) answer from the knowledge base.
-Owner decisions (2026-09-16/17): only staff talk to the agent; it gets **only
-approved notes without a leak flag**; the MCP path does no secret scanning of its
-own; access keys are issued by admins in Settings.
+The organisation's AI agent (OpenClaw) reads the knowledge base — and, since
+2026-09-18, tickets — over a read-only
+[Model Context Protocol](https://modelcontextprotocol.io) endpoint,
+`POST /api/mcp`. Full implementation notes (request path, keys and
+permissions, both tool families, data protection, tests): **`docs/mcp.md`**.
 
-### Scope
+Scope for this module is unchanged: an agent key sees a note only when it is
+**approved**, has **no current secret-leak flag**, and is not archived or
+pending deletion; a note whose findings a moderator all marked «Не секрет» is
+served — only the current `secretsScan.flagged` decides, `findings` /
+`ignoredHashes` / `scannedAt` are never consulted. Not per user: there is no
+viewer, so company/category bindings never restrict what an agent key can
+read.
 
-`services/mcp/knowledgeTools.js#scopeFilter` is applied in the query, and
-`isServable` re-checks every note in memory, so a data source that returns too
-much cannot widen the boundary:
-
-```js
-{ archivedAt: null, pendingDeletion: { $ne: true }, approved: true, "secretsScan.flagged": { $ne: true } }
-```
-
-- **Only the current `secretsScan.flagged` decides.** A note whose findings a
-  moderator marked «Не секрет» is served: `ignoreSecretFinding` recomputes
-  `flagged = findings.length > 0`, and the hourly and on-save scans honour
-  `ignoredHashes`. `findings`, `ignoredHashes` and `scannedAt` are never
-  consulted; a note without a `secretsScan` subdocument is served.
-- **Approval does not clear the flag** (`approve` leaves `secretsScan` alone): an
-  approved note with undismissed findings stays hidden.
-- **Why this is enough:** approving requires `confirmNoSecrets: true`, any edit
-  resets approval, and the scanner flags credentials. Limits: the flag is only
-  maintained while `knowledgeBase.scanForSecrets` is on (otherwise the approval
-  confirmation is the only guard); notes never scanned stay visible until the
-  hourly pass after scanning is switched on; the scanner stores at most 25
-  findings, so dismissing those 25 on a note with more leaves it unflagged until
-  the next scan.
-- **Not per user.** `canViewNote` is not applied (there is no viewer) and
-  company bindings do not restrict: whoever can talk to the agent can read every
-  servable note.
-- A hidden, missing or malformed id gets the same `isError` answer, so the agent
-  cannot tell that a hidden note exists.
-
-### Request path
-
-- `POST /api/mcp` is mounted in `backend/routes/index.js` right after `/bot`,
-  **before** `attachSession`: the agent has its own credential, and its
-  `Authorization: Bearer` header would otherwise reach better-auth's `bearer()`
-  plugin as a session token.
-- `backend/routes/mcpRouter.js` (dependency-free factory; wired with real
-  models and the logger in `routes/mcp.js`): `requireMcpKey` → per-key limiter
-  (120 requests/min, key `mcp:<keyId>`) → `knowledgeBaseModuleIsActive` → MCP
-  handler. Any other method on the path → `405` with `Allow: POST`; anything
-  below it → `404`, so nothing under `/mcp` falls through to the session layer.
-- `backend/middleware/requireMcpKey.js`:
-  - accepts only `Authorization: Bearer hd_mcp_<64 hex>` (no query string, no
-    `X-API-Key`); the format is checked before any database read;
-  - looks the key up by sha256 in `mcpkeys`; updates `lastUsedAt` at most hourly
-    (fire-and-forget); sets `req.mcpKey = { _id, name }` and never `req.auth`;
-  - refusals are answered directly — `401` JSON plus
-    `WWW-Authenticate: Bearer realm="hd-mcp"` — because `errorResponse` calls
-    `next(error)` after replying and finalhandler then destroys the socket;
-    database errors go to `next(error)`;
-  - refusals are logged as `warn` `MCP: ключ доступа не принят` with
-    `reason: missing | malformed | unknown`.
-- `backend/services/mcp/server.js` uses the official TypeScript SDK v2
-  (`@modelcontextprotocol/server` + `@modelcontextprotocol/node`, CJS builds):
-  - `createMcpHandler(factory, { maxSubscriptions: 0 })` — stateless, a fresh
-    `McpServer` per request, no subscription streams;
-  - 2025-era clients are served on the SDK's legacy stateless path. OpenClaw
-    2026.9.4 bundles `@modelcontextprotocol/sdk@1.30.0` (protocol 2025-11-25):
-    every POST gets a short `text/event-stream` (`X-Accel-Buffering: no`) that
-    closes with the result, so the built-in nginx and an external proxy need no
-    settings. The request `Accept` header must list both `application/json` and
-    `text/event-stream` (`406` otherwise);
-  - the key identity reaches the tools through `authInfo.extra` (`toNodeHandler`
-    would forward `req.auth`, which in this app is the staff session context);
-  - tool arguments are plain JSON Schema via `fromJsonSchema` (no zod);
-    arguments outside the schema come back as a tool error before the tool runs;
-  - server `instructions` tell the agent that notes are mostly in Russian, to
-    search first and then read by id, to cite links, and that only approved
-    notes exist for it.
-
-### Tools
-
-| Tool | Arguments | Result |
-|---|---|---|
-| `search_knowledge_base` | `query` (1–300 chars), `limit` (1–20, default 8) | `Found N approved notes…`, then per note: title, id, type label, `approved` (ISO instant), companies, categories, link `${ADDRESS}/knowledge-base/<id>`, snippet |
-| `get_knowledge_note` | `id` | title, id, type, `approved`, companies, categories, link, bound users, then the Markdown `content` |
-
-Both are annotated `readOnlyHint`, `idempotentHint`, not destructive, closed
-world.
-
-- **Ranking** reuses `knowledgeBaseContext.toStems` / `scoreNote` (title stem 3,
-  body stem 1) plus 2 for each query stem found in a company alias, category
-  title or bound user name. If the query has no stems or nothing scores, every
-  whitespace-separated term must be a substring of title + `plainText` +
-  bindings (IP addresses, host names; fenced code is not part of `plainText`).
-  Order: score → type priority → `approvedAt` desc.
-- **`updatedAt` is deliberately unused.** Existing notes still carry the time of
-  the last scan from before the 2026-09-17 fix (see «Background jobs»), while an
-  edit resets approval — so for an approved note `approvedAt` is the reliable
-  freshness of its text.
-- **Snippet:** 100 chars before and 200 after the first match in `plainText`.
-- **Content:** `![alt](data:…)` → `[изображение: alt]`, other base64 data URIs →
-  `[данные]`, capped at 40 000 chars with a truncation marker.
-- **Data access:** `services/mcp/knowledgeSource.js` — `findCandidates()` without
-  `content`, `findNoteById(id)` with it; the scope fields are always selected
-  because `isServable` re-checks them.
-- **Logging:** one `info` line `MCP tool call` per call with `mcpKeyId`,
-  `mcpKeyName`, `tool`, `query` (≤100 chars) or `noteId`, `hits` / `found`,
-  `durationMs`. Key values are never logged.
-
-### Keys — `backend/controllers/mcpKey.js`
-
-Values are `hd_mcp_` + 64 hex (`utils/apiKeyGenerator.js#generateMcpKey`),
-returned once on creation; `services/mcp/keys.js#toKeyRow` whitelists what list
-and create responses expose. All routes are `isAuth, canManageSettings` and not
-module-gated, so a key can always be revoked:
-
-| Method | Path | Body | Response |
-|---|---|---|---|
-| GET | `/api/preferences/mcp-keys` | — | `{ endpoint, keys: [{ _id, name, keyTail, createdAt, lastUsedAt, createdBy }] }` |
-| POST | `/api/preferences/mcp-keys` | `{ name }` (1–100, trimmed) | `201 { message, endpoint, key: { …row, value } }`; `409` when the name exists (case-insensitive) |
-| POST | `/api/preferences/mcp-keys/delete` | `{ _id }` | `200` / `404` |
-
-`endpoint` is `${ADDRESS}/api/mcp`. Create and delete write an audit `info`
-line with the key id and name. Deleting is revoking: there is no cache.
-Connecting an agent is described in `docs/deployment.md`, «AI agents (MCP)».
-
-### Tests and a manual check
-
-Unit and contract tests: `services/mcp/knowledgeTools.test.js` (scope checked
-with `sift`, i.e. MongoDB matching rules; ranking, snippet, content, logging),
-`middleware/requireMcpKey.test.js`, `routes/mcp.test.js` (the whole route over
-the real SDK with a 2025-11-25 client — the guard for SDK upgrades),
-`services/mcp/keys.test.js`, `validations/mcpKey.test.js`.
-
-By hand, with a key from Settings:
-
-```bash
-M=(-sS -X POST "$APP_PUBLIC_URL/api/mcp" -H "Authorization: Bearer $KEY" \
-   -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream")
-curl "${M[@]}" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
-curl "${M[@]}" -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_knowledge_base","arguments":{"query":"vpn"}}}'
-```
-
-Answers arrive as `data: {…}` lines. A flagged or unapproved note's id must give
-`isError` from `get_knowledge_note`; marking all of a note's findings «Не секрет»
-must make it readable on the next call.
+Operations (rotating a key, the OpenClaw config snippet): `docs/deployment.md`,
+«AI agents (MCP)».
 
 ## Frontend map
 

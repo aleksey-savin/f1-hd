@@ -52,3 +52,16 @@ test("remove: only a valid ObjectId passes", async () => {
     assert.deepEqual(errors, ["_id"], JSON.stringify(body));
   }
 });
+
+test("create: scopes are optional but must be known when given", async () => {
+  assert.deepEqual((await run(mcpKeyValidation.create, { name: "OpenClaw", scopes: ["knowledge", "tickets"] })).errors, []);
+  assert.deepEqual((await run(mcpKeyValidation.create, { name: "OpenClaw" })).errors, []);
+  assert.deepEqual((await run(mcpKeyValidation.create, { name: "OpenClaw", scopes: [] })).errors, ["scopes"]);
+  assert.deepEqual((await run(mcpKeyValidation.create, { name: "OpenClaw", scopes: ["admin"] })).errors, ["scopes"]);
+});
+
+test("update: id and at least one known scope are required", async () => {
+  assert.deepEqual((await run(mcpKeyValidation.update, { _id: "66aa00000000000000000001", scopes: ["tickets"] })).errors, []);
+  assert.deepEqual((await run(mcpKeyValidation.update, { _id: "nope", scopes: ["tickets"] })).errors, ["_id"]);
+  assert.deepEqual((await run(mcpKeyValidation.update, { _id: "66aa00000000000000000001" })).errors, ["scopes"]);
+});

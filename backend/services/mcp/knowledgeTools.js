@@ -4,6 +4,7 @@ const {
   TYPE_LABEL,
   TYPE_PRIORITY,
 } = require("@/services/knowledgeBaseContext");
+const { buildSnippet, iso, DATA_URI, fallbackTerms, hasAllTerms } = require("./text");
 
 /**
  * Чтение базы знаний ИИ-агентом по MCP (routes/mcp.js): поиск и заметка целиком.
@@ -44,9 +45,6 @@ const MAX_LIMIT = 20;
 // Потолок текста заметки в ответе: клиент MCP сам режет ответы больше 10 МБ,
 // а модели и 40 тысяч знаков — уже пара десятков страниц контекста.
 const MAX_CONTENT_LENGTH = 40_000;
-const SNIPPET_BEFORE = 100;
-const SNIPPET_AFTER = 200;
-const MAX_FALLBACK_TERMS = 8;
 // Совпадение с компанией, категорией или человеком из привязок заметки весит
 // между заголовком (3) и текстом (1): «VPN Ромашка» — это заметка Ромашки.
 const BINDING_WEIGHT = 2;
@@ -57,11 +55,6 @@ const OBJECT_ID = /^[a-f0-9]{24}$/i;
 // нельзя понять, что заметка есть, но агенту её не отдают.
 const NOT_AVAILABLE =
   "Note not available. Use an id returned by search_knowledge_base.";
-
-const normalize = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .replace(/ё/g, "е");
 
 const bindingsText = (note) =>
   [
@@ -108,39 +101,18 @@ const rankNotes = (notes, query) => {
     return { hits: byStems.sort(byRank), needles: [...stems] };
   }
 
-  const terms = normalize(query)
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, MAX_FALLBACK_TERMS);
+  const terms = fallbackTerms(query);
   const bySubstring = notes
-    .filter((note) => {
-      const haystack = normalize(
-        `${note.title} ${note.plainText} ${bindingsText(note)}`,
-      );
-      return terms.every((term) => haystack.includes(term));
-    })
+    .filter((note) =>
+      hasAllTerms(`${note.title} ${note.plainText} ${bindingsText(note)}`, terms),
+    )
     .map((note) => ({ note, score: 1 }));
   return { hits: bySubstring.sort(byRank), needles: terms };
-};
-
-// Кусок текста вокруг первого совпадения — чтобы агент видел, чем заметка
-// подошла, не открывая её.
-const buildSnippet = (text, needles) => {
-  const source = String(text || "");
-  const haystack = normalize(source);
-  const positions = needles
-    .map((needle) => haystack.indexOf(needle))
-    .filter((index) => index >= 0);
-  const at = positions.length ? Math.min(...positions) : 0;
-  const start = Math.max(0, at - SNIPPET_BEFORE);
-  const end = Math.min(source.length, at + SNIPPET_AFTER);
-  return `${start > 0 ? "…" : ""}${source.slice(start, end)}${end < source.length ? "…" : ""}`;
 };
 
 // Картинки, вставленные в редактор, живут в тексте base64-строкой (Toast UI
 // кладёт data:-URL прямо в Markdown) — агенту от них только расход контекста.
 const DATA_IMAGE = /!\[([^\]]*)\]\(\s*data:[^)]*\)/gi;
-const DATA_URI = /data:[a-z0-9.+-]+\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi;
 
 const prepareContent = (content) => {
   const text = String(content || "")
@@ -153,17 +125,14 @@ const prepareContent = (content) => {
   return `${text.slice(0, MAX_CONTENT_LENGTH)}\n\n[…truncated: ${rest} more characters — open the link to read the whole note]`;
 };
 
-// Момент — полным ISO: агент сам переведёт в пояс собеседника, а обрезка до
-// даты сдвигает день (docs/datetime-conventions.md). «Обновлено» агенту не
-// показываем: у старых заметок updatedAt — время прохода сканера (см. byRank).
-const iso = (value) => (value ? new Date(value).toISOString() : "—");
-
 const listOf = (items, pick) =>
   (items || []).map(pick).filter(Boolean).join(", ") || "—";
 
 const noteLink = (baseUrl, id) =>
   `${String(baseUrl || "").replace(/\/+$/, "")}/knowledge-base/${id}`;
 
+// «Обновлено» агенту не показываем: у старых заметок updatedAt — время
+// прохода сканера секретов, не правки текста (см. byRank).
 const describe = (note, baseUrl) => [
   `id: ${note._id}; type: ${TYPE_LABEL[note.type] || TYPE_LABEL.info}; approved: ${iso(note.approvedAt)}`,
   `companies: ${listOf(note.companies, (company) => company?.alias)}; categories: ${listOf(note.categories, (category) => category?.title)}`,

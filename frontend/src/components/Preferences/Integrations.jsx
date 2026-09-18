@@ -15,11 +15,15 @@ import SettingRow from "@/components/app/SettingRow";
 import { SubLabel } from "@/components/app/Panel";
 
 import useToastStore from "../../store/toast-store";
+import McpKeys from "./McpKeys";
 import SectionForm from "./SectionForm";
 
 // «Интеграции»: внешние сервисы уровня приложения. Mikrotik отсюда ушёл в
 // модули (2026-09-14): рубильник — «Модули», настройки — своя секция
-// «Мониторинг Mikrotik» (Preferences/Mikrotik.jsx).
+// «Мониторинг Mikrotik» (Preferences/Mikrotik.jsx). Ключи ИИ-агентов
+// (McpKeys) переехали сюда из «База знаний» (2026-09-18): ключ открывает не
+// только базу знаний, и блок должен оставаться видимым даже с выключенным
+// модулем «База знаний» — отозвать ключ можно всегда.
 const PrefsIntegrations = ({ prefs }) => {
   const { showToast } = useToastStore();
 
@@ -132,6 +136,11 @@ const PrefsIntegrations = ({ prefs }) => {
           </div>
         )}
       </div>
+
+      <McpKeys
+        scanForSecrets={Boolean(prefs.knowledgeBase?.scanForSecrets)}
+        knowledgeModuleOn={Boolean(prefs.modules?.knowledgeBase?.isActive)}
+      />
 
       <AlertDialog
         open={!!revokeTarget}
