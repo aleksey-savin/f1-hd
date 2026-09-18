@@ -84,7 +84,7 @@ export const describeChannelHealth = (health, { kind, hint }) => {
 
 // Результат кнопки проверки поверх сохранённого состояния: он свежее всего,
 // что лежит в базе, поэтому показываем именно его — до перезагрузки страницы.
-export const describeCheckResult = (result, { hint }) => ({
+export const describeCheckResult = (result, { hint } = {}) => ({
   state: result.ok ? "ok" : "error",
   title: result.state,
   meta: "только что",
