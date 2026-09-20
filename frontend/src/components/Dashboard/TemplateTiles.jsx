@@ -11,6 +11,10 @@ import { cn } from "@/lib/utils";
 import { useAuthedUser } from "@/store/authed-user";
 import useDashboardTemplatesStore from "@/store/dashboard-templates";
 import { plural } from "../../util/plural";
+import {
+  templateCompanies,
+  templateHasCompany,
+} from "../../util/template-companies";
 
 /**
  * «Чем помочь?» — карточки шаблонов заявок плюс карточка свободного обращения.
@@ -158,10 +162,7 @@ const TemplateTiles = ({ heading = null }) => {
   const [expanded, setExpanded] = useState(false);
 
   const companyOptions = useMemo(
-    () =>
-      optionsOf(
-        templates.flatMap((template) => template.sharedCompanies ?? []),
-      ),
+    () => optionsOf(templates.flatMap(templateCompanies)),
     [templates],
   );
   const categoryOptions = useMemo(
@@ -172,12 +173,7 @@ const TemplateTiles = ({ heading = null }) => {
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();
     return templates.filter((template) => {
-      if (
-        companies.length &&
-        !(template.sharedCompanies ?? []).some((company) =>
-          companies.includes(String(company._id)),
-        )
-      ) {
+      if (companies.length && !templateHasCompany(template, companies)) {
         return false;
       }
       if (

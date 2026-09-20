@@ -326,7 +326,9 @@ const RootLayout = () => {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => navigate("/logout")}
+                      onClick={() =>
+                        submit(null, { action: "/logout", method: "POST" })
+                      }
                       className="max-md:w-full"
                     >
                       Выйти

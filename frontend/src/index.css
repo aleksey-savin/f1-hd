@@ -128,6 +128,25 @@ body:has(.mobile-shell),
   padding-bottom: calc(8.25rem + env(safe-area-inset-bottom));
 }
 
+/* Клавиатура сжимает окно (interactive-widget=resizes-content в index.html), и
+   остров всплыл бы над ней — поверх поля, в которое человек печатает. Признака
+   «клавиатура открыта» у CSS нет, поэтому условий два: фокус в поле ввода и
+   низкое окно. Поодиночке оба врут: фокус остаётся в поле и после «назад»,
+   закрывшего клавиатуру, а низкое окно — это ещё и телефон на боку. */
+@media (max-height: 560px) {
+  body:has(
+      :is(
+          input:not([type="checkbox"], [type="radio"], [type="file"]),
+          textarea,
+          [contenteditable="true"]
+        ):focus
+    )
+    .mobile-tabbar {
+    visibility: hidden;
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mobile-tabbar {
     transition: none;

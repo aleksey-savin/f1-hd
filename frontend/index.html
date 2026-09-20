@@ -2,9 +2,13 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
+    <!-- interactive-widget=resizes-content: экранная клавиатура сжимает окно, а
+         не ложится поверх него. Шелл, шторки и диалоги привязаны к окну (fixed,
+         dvh) — без ключа Chrome 108+ на Android оставляет их низ под
+         клавиатурой, и до него не докрутить. -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta
       name="theme-color"

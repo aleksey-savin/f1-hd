@@ -8,6 +8,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 import useTicketTemplateFilterStore from "../../store/lists/ticket-templates";
+import {
+  templateCompanies,
+  templateHasCompany,
+} from "../../util/template-companies";
 
 const uniqueBy = (arr, keyFn) => {
   const seen = new Set();
@@ -167,13 +171,10 @@ const TicketTemplateFilter = () => {
   const companyOptions = useMemo(
     () =>
       withCount(
-        list.flatMap((template) => template.sharedCompanies ?? []),
+        list.flatMap(templateCompanies),
         (company) => company._id?.toString(),
         (company) => company.alias,
-        (template, value) =>
-          (template.sharedCompanies ?? []).some(
-            (shared) => shared._id?.toString() === value,
-          ),
+        (template, value) => templateHasCompany(template, [value]),
       ),
     [list],
   );

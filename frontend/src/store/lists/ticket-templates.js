@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { api } from "@/lib/api";
+import { templateHasCompany } from "@/util/template-companies";
 
 // Фильтр списка шаблонов заявок. Компания — одиночный фасет (чип-combobox в
 // строке инструментов); категория / пользователи / автор — множественные (в
@@ -12,9 +13,7 @@ const templateFilter = (state) => {
   return originalList
     .filter((item) => {
       if (!state.companies?.length) return true;
-      return (item.sharedCompanies ?? []).some((company) =>
-        state.companies.includes(company._id?.toString()),
-      );
+      return templateHasCompany(item, state.companies);
     })
     .filter((item) => {
       // Доступ: сотрудникам — allowAllStaff; клиентам — есть шеринг компаниям/

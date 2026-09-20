@@ -7,6 +7,7 @@ import ListWrapper from "@/components/app/ListWrapper";
 import List from "../../components/TicketTemplate/List";
 import TicketTemplateFilter from "../../components/TicketTemplate/Filter";
 import useTicketTemplateFilterStore from "../../store/lists/ticket-templates";
+import { templateCompanies } from "../../util/template-companies";
 
 const pluralCompanies = (n) => {
   const m10 = n % 10;
@@ -47,9 +48,8 @@ const TicketTemplates = () => {
 
   const list = filterStore.originalList ?? [];
 
-  const companyOptions = uniqueBy(
-    list.flatMap((template) => template.sharedCompanies ?? []),
-    (company) => company._id?.toString(),
+  const companyOptions = uniqueBy(list.flatMap(templateCompanies), (company) =>
+    company._id?.toString(),
   )
     .map((company) => ({ value: company._id.toString(), label: company.alias }))
     .sort((a, b) => a.label.localeCompare(b.label));
