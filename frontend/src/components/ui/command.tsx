@@ -1,6 +1,7 @@
 // ПРАВКА СГЕНЕРИРОВАННОГО КОДА: иконки переведены с lucide-react на
 // react-icons (Ri*) — в приложении один набор иконок, см. ux-ui-guide.
 // При перегенерации компонента CLI shadcn вернёт lucide — повторить замену.
+// Вторая правка — потолок высоты у CommandList, см. комментарий там же.
 "use client";
 
 import * as React from "react";
@@ -95,7 +96,12 @@ function CommandList({
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto",
+        // Потолок 300px уступает месту, которое radix насчитал поповеру: при
+        // открытой экранной клавиатуре окно вдвое ниже, и меню в полный рост
+        // уходило за край экрана вместе со строкой поиска. Вычитаем строку
+        // поиска (h-9) и рамку поповера. Вне поповера переменной нет — 100vh
+        // оставляет прежние 300px.
+        "max-h-[min(300px,calc(var(--radix-popover-content-available-height,100vh)_-_2.25rem_-_2px))] scroll-py-1 overflow-x-hidden overflow-y-auto",
         className,
       )}
       {...props}

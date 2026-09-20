@@ -116,7 +116,14 @@ const FormSheet = ({
       >
         <SheetTitle className="sr-only">{title}</SheetTitle>
         <OverlayScrollContext.Provider value={scroller}>
-          <div ref={setScroller} className="min-h-0 flex-1 overflow-y-auto">
+          {/* scroll-pb — запас под липкий ряд кнопок формы (app/FormLayout):
+              поле, которое подкручивают в зону видимости браузер (фокус при
+              открытой экранной клавиатуре) или список выбора (app/Combobox),
+              иначе встаёт под кнопки */}
+          <div
+            ref={setScroller}
+            className="min-h-0 flex-1 scroll-pb-20 overflow-y-auto"
+          >
             <div
               style={{ height: open ? bodyHeight : frozen.current }}
               className="transition-[height] duration-200 ease-out motion-reduce:transition-none"

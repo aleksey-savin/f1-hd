@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 import {
   RiArrowDownSLine,
@@ -111,6 +111,30 @@ export const RequiredMirror = ({
   );
 };
 
+/**
+ * Поиск в меню поднимает экранную клавиатуру, окно сжимается, и поле нередко
+ * остаётся за его нижним краем. Меню привязано к полю и уезжало за экран
+ * следом — выбирать становилось не из чего. Пока меню открыто, на каждое
+ * изменение окна возвращаем поле в видимую часть прокрутки; если оно и так на
+ * виду, `nearest` ничего не двигает. От липкого ряда кнопок поле отодвигает
+ * `scroll-pb` у прокрутки шторки (app/FormSheet).
+ */
+const useKeepTriggerInView = (
+  open: boolean,
+  triggerRef: RefObject<HTMLElement | null>,
+) => {
+  useEffect(() => {
+    if (!open) return undefined;
+    const reveal = () =>
+      triggerRef.current?.scrollIntoView({ block: "nearest" });
+    window.addEventListener("resize", reveal);
+    return () => window.removeEventListener("resize", reveal);
+  }, [open, triggerRef]);
+};
+
+// Отступ меню от края экрана: вплотную к кромке оно выглядит обрезанным
+const MENU_EDGE_GAP = 8;
+
 // Группируем сохраняя порядок: список ответственных уже отсортирован, и
 // перестановка групп по алфавиту поменяла бы смысл — первой должна идти та,
 // ради которой группировка и заведена.
@@ -179,6 +203,7 @@ const Combobox = ({
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const inOverlay = useInOverlay(triggerRef);
+  useKeepTriggerInView(open, triggerRef);
   const selected = options.find((option) => option.value === value) ?? null;
 
   const pick = (next: string | null) => {
@@ -243,6 +268,7 @@ const Combobox = ({
 
       <PopoverContent
         align="start"
+        collisionPadding={MENU_EDGE_GAP}
         className="w-(--radix-popover-trigger-width) p-0"
       >
         <Command>
@@ -341,6 +367,7 @@ export const MultiCombobox = ({
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const inOverlay = useInOverlay(triggerRef);
+  useKeepTriggerInView(open, triggerRef);
   const selected = options.filter((option) => value.includes(option.value));
 
   const toggle = (next: string) =>
@@ -426,6 +453,7 @@ export const MultiCombobox = ({
 
       <PopoverContent
         align="start"
+        collisionPadding={MENU_EDGE_GAP}
         className="w-(--radix-popover-trigger-width) p-0"
       >
         <Command>
