@@ -64,7 +64,7 @@ test("работа внутри окна переработки не даёт", 
   assert.deepEqual(result.days, []);
 });
 
-test("час до и час после окна — два куска, каждый округляется свой", () => {
+test("час до и час после окна — два куска одного дня", () => {
   const result = run(DAY_PLAN, work("2026-06-01 08:00", "2026-06-01 19:00"));
   assert.equal(minutes(result), 120);
   assert.equal(result.days.length, 1);
@@ -78,7 +78,7 @@ test("выходной уходит в переработку целиком", (
   assert.equal(result.days[0].bucket, "weekend");
 });
 
-test("работа через полночь режется по суткам и округляется в каждых", () => {
+test("работа через полночь режется по суткам", () => {
   // 20:00→02:00 при окне 09:00–18:00: 4 ч в понедельник, 2 ч во вторник
   const result = run(DAY_PLAN, work("2026-06-01 20:00", "2026-06-02 02:00"));
   assert.equal(minutes(result), 360);
@@ -87,6 +87,33 @@ test("работа через полночь режется по суткам и
     result.days.map((d) => d.actualMinutes),
     [240, 120],
   );
+});
+
+// Округление вверх до периода — ОДИН раз на работу, как в счёте клиенту
+// (servicePlanBilling.calcSingleWorkOvertime): цифры отчётов обязаны совпадать.
+const roundedTotal = (result) => Math.round(result.roundedMs / 60000);
+const roundedByDay = (result) => result.days.map((d) => d.roundedMinutes);
+
+test("округление: ровный час через полночь остаётся часом", () => {
+  // Раньше сутки рвали час на 20 + 40 минут, и выходило 30 + 45 = 75
+  const result = run(DAY_PLAN, work("2026-06-01 23:40", "2026-06-02 00:40"));
+  assert.equal(minutes(result), 60);
+  assert.equal(roundedTotal(result), 60);
+  assert.deepEqual(roundedByDay(result), [20, 40]);
+});
+
+test("округление: час из двух кусков вокруг окна остаётся часом", () => {
+  const result = run(DAY_PLAN, work("2026-06-01 08:20", "2026-06-01 18:20"));
+  assert.equal(minutes(result), 60);
+  assert.equal(roundedTotal(result), 60);
+  assert.deepEqual(roundedByDay(result), [60]);
+});
+
+test("округление: надбавка достаётся последнему дню работы, сумма дней равна итогу", () => {
+  // 20 + 30 = 50 минут → 60: округление продлевает КОНЕЦ работы
+  const result = run(DAY_PLAN, work("2026-06-01 23:40", "2026-06-02 00:30"));
+  assert.equal(roundedTotal(result), 60);
+  assert.deepEqual(roundedByDay(result), [20, 40]);
 });
 
 test("withinPlan выключает расчёт целиком", () => {

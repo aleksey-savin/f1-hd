@@ -156,9 +156,11 @@ const eachDay = function* (work, zone) {
  *
  * Переработка = кусок суток МИНУС объединение окон. Окна берутся с запасом в
  * день назад: смена через полночь принадлежит дню, в котором началась, и её
- * хвост накрывает утро следующего. Каждый непокрытый кусок округляется вверх
- * до периода тарификации отдельно — число кусков само по себе денежная
- * величина, и склейка через границу суток тихо срезала бы период в сутки.
+ * хвост накрывает утро следующего. Округление вверх до периода тарификации —
+ * ОДИН раз на работу, по сумме кусков, как и у времени в графике
+ * (`calcWorkTime`). Раньше округлялся каждый кусок отдельно, а нарезка по
+ * суткам рвала непрерывный час на два: 23:40–00:40 давали 30 + 45 = 75 минут
+ * к тарификации при 60 фактических.
  */
 const calcSingleWorkOvertime = (schedule, work, tariffingPeriod, zone) => {
   if (isZeroLength(work) || work.withinPlan) {
@@ -167,7 +169,6 @@ const calcSingleWorkOvertime = (schedule, work, tariffingPeriod, zone) => {
 
   const periodMs = tariffingPeriod * MS_PER_MINUTE;
   let actualOvertime = 0;
-  let roundUpOvertime = 0;
 
   const started = dayjs(work.startedAt).tz(zone);
   const finished = dayjs(work.finishedAt).tz(zone);
@@ -183,13 +184,11 @@ const calcSingleWorkOvertime = (schedule, work, tariffingPeriod, zone) => {
       continue;
     }
     for (const [from, to] of subtractWindows([dayStart, dayEnd], windows)) {
-      const overtime = to - from;
-      actualOvertime += overtime;
-      roundUpOvertime += roundUp(overtime, periodMs);
+      actualOvertime += to - from;
     }
   }
 
-  return { actualOvertime, roundUpOvertime };
+  return { actualOvertime, roundUpOvertime: roundUp(actualOvertime, periodMs) };
 };
 
 /** Порт calculateOvertime: сумма переработки набора, в минутах. */

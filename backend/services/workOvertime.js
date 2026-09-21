@@ -106,9 +106,11 @@ const MAX_DAY_SPAN = 366;
 /**
  * Переработка одной работы. Семантика 1:1 со сводным финансовым отчётом:
  * переработка = кусок суток МИНУС объединение окон графика; тип дня выбирает
- * только бакет оплаты. Каждый непокрытый кусок округляется вверх до периода
- * тарификации — число кусков само по себе денежная величина, поэтому склеивать
- * их через границу суток нельзя.
+ * только бакет оплаты. Округление вверх до периода тарификации — ОДИН раз на
+ * работу, по сумме кусков (как в счёте клиенту, servicePlanBilling): раньше
+ * округлялся каждый кусок, и ровный час 23:40–00:40 превращался в 1:15.
+ * Надбавка округления достаётся последнему дню работы — округление продлевает
+ * её конец, — поэтому сумма дней всегда равна итогу.
  *
  * Окна берутся с ЗАПАСОМ В ДЕНЬ НАЗАД: смена через полночь принадлежит дню, в
  * котором началась, и её хвост накрывает утро следующего.
@@ -168,11 +170,8 @@ const calcWorkOvertime = (work, { dayPlanFor, tariffingPeriodMinutes, tz }) => {
     }
 
     let dayActualMs = 0;
-    let dayRoundedMs = 0;
     for (const [from, to] of subtractWindows([segStart, segEnd], windows)) {
-      const chunk = to - from;
-      dayActualMs += chunk;
-      dayRoundedMs += roundUpMs(chunk, tariffingPeriodMinutes);
+      dayActualMs += to - from;
     }
 
     if (dayActualMs > 0) {
@@ -187,11 +186,21 @@ const calcWorkOvertime = (work, { dayPlanFor, tariffingPeriodMinutes, tz }) => {
               ? "weekday"
               : "weekend",
         actualMinutes: toMinutes(dayActualMs),
-        roundedMinutes: toMinutes(dayRoundedMs),
+        roundedMinutes: toMinutes(dayActualMs),
       });
       result.actualMs += dayActualMs;
-      result.roundedMs += dayRoundedMs;
     }
+  }
+
+  if (result.days.length > 0) {
+    result.roundedMs = roundUpMs(result.actualMs, tariffingPeriodMinutes);
+    // Последний день добирает остаток до итога — заодно гасит расхождение в
+    // минуту, которое дало бы поденное округление работ с секундами
+    const lastDay = result.days[result.days.length - 1];
+    const otherDays = result.days
+      .slice(0, -1)
+      .reduce((sum, item) => sum + item.roundedMinutes, 0);
+    lastDay.roundedMinutes = toMinutes(result.roundedMs) - otherDays;
   }
 
   return result;
