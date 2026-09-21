@@ -176,3 +176,42 @@ test("«Отказаться», «Изменить срок», «Запроси�
     );
   }
 });
+
+test("своя «В работе» без работ: главное — «Указать работы», и право закрывать без них его не прячет", () => {
+  const ticket = { state: "В работе", responsibles: [{ _id: me }] };
+  const logsWorks = { work: ["read", "log"] };
+
+  // Работы обязательны и их нет: закрыть нельзя — зовём указать
+  let result = ticketActions(
+    ticket,
+    ctx({ ticket: ["perform"], ...logsWorks }),
+  );
+  assert.equal(result.primary?.key, "addWork");
+  assert.ok(!keys(result.menu).includes("close"));
+
+  // Случай администратора: «Закрывать без записи о работе» — возможность, а не
+  // переключатель. Главным остаётся «Указать работы», закрытие уходит в меню.
+  // Раньше право подменяло главное действие, и администраторы снимали его с
+  // себя — вместе с полным доступом.
+  const admin = { ticket: ["perform", "closeWithoutWork"], ...logsWorks };
+  result = ticketActions(ticket, ctx(admin));
+  assert.equal(result.primary?.key, "addWork");
+  assert.deepEqual(
+    result.menu.find((item) => item.key === "close"),
+    { key: "close", label: "Закрыть заявку", group: "work" },
+  );
+
+  // Работ не записывает вовсе (подрядчик): указывать нечего — сразу «Закрыть»
+  result = ticketActions(
+    ticket,
+    ctx({ ticket: ["perform", "closeWithoutWork"], work: ["read"] }),
+  );
+  assert.equal(result.primary?.key, "close");
+  assert.ok(!keys(result.menu).includes("close"));
+
+  // Работа указана — «Закрыть заявку» главное у всех, дубля в меню нет
+  const works = [{ finishedAt: "2026-09-21T00:00:00.000Z" }];
+  result = ticketActions(ticket, ctx(admin, { works }));
+  assert.equal(result.primary?.key, "close");
+  assert.ok(!keys(result.menu).includes("close"));
+});

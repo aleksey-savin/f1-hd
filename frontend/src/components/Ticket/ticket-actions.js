@@ -58,6 +58,22 @@ export const closeBlockers = (ticket, { works = [], can }) => {
 const worksMissing = (ticket, options) =>
   closeBlockers(ticket, options)[0] === "По заявке не указаны работы";
 
+/**
+ * Работ нет, а человек их записывает — зовём указать, ДАЖЕ ЕСЛИ закрыть без
+ * них ему можно.
+ *
+ * «Закрывать без записи о работе» — возможность, а не переключатель: пока право
+ * подменяло главное действие на «Закрыть заявку», «Указать работы» у его
+ * держателя пропадало вовсе. Право входит в полный доступ, поэтому страдали
+ * именно администраторы — и снимали его с себя вместе с ролью администратора.
+ * Кто работ не записывает (подрядчик), тому указывать нечего: у него главным
+ * остаётся закрытие.
+ */
+const shouldOfferWorks = (works, can) =>
+  !works.some((work) => work.finishedAt) &&
+  can({ work: ["read"] }) &&
+  can({ work: ["log"] });
+
 /** Правило состава чек-листа — одно на карточку, меню и секцию ИИ. */
 export const canComposeChecklistFor = (ticket, { userId, can }) =>
   can({ ticket: ["manage"] }) ||
@@ -125,10 +141,12 @@ export const ticketActions = (
     primary = { key: "takeToWork", label: "Принять в работу" };
   } else if (state === "В работе" && mine) {
     // Пока работ нет, «Закрыть» всё равно упрётся в запрет — предлагаем то,
-    // чего не хватает, а не действие, которое не сработает
-    primary = worksMissing(ticket, { works, can })
-      ? { key: "addWork", label: "Указать работы" }
-      : { key: "close", label: "Закрыть заявку" };
+    // чего не хватает, а не действие, которое не сработает. Держателю права
+    // закрывать без работ закрытие доступно — оно уходит в меню (ниже)
+    primary =
+      worksMissing(ticket, { works, can }) || shouldOfferWorks(works, can)
+        ? { key: "addWork", label: "Указать работы" }
+        : { key: "close", label: "Закрыть заявку" };
   } else if (
     (state === "В работе" || state === "На согласовании") &&
     !mine &&
@@ -149,6 +167,13 @@ export const ticketActions = (
 
   const menu = [];
   const push = (item) => item && menu.push(item);
+
+  // Главным стало «Указать работы», а закрыть без них человеку можно — закрытие
+  // не пропадает, а переезжает сюда. Дубля не бывает: пункт есть только пока
+  // главное действие занято работами
+  if (primary?.key === "addWork" && !worksMissing(ticket, { works, can })) {
+    push({ key: "close", label: "Закрыть заявку", group: "work" });
+  }
 
   // Работа с заявкой — доступна ответственному, пока заявка живая
   if (canPerformTickets && mine && !closed) {

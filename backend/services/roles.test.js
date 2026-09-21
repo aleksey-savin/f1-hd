@@ -16,6 +16,7 @@ const {
   staffSideOf,
   assertRoleFitsAccount,
   lockedActionChanges,
+  losesLastFullAccessHolder,
 } = require("./roles");
 
 const ROLE_MANAGE = { role: ["manage"], user: ["manage"] };
@@ -210,5 +211,36 @@ test("an action gone from the dictionary does not lock the role", () => {
       canAllBut("ticket.noSuchAction"),
     ),
     { added: [], removed: [] },
+  );
+});
+
+test("the last holder of full access may not be stripped of it", () => {
+  const full = new Set(["admin"]);
+
+  // Ровно так владелец и запер себя: сменил себе «admin» на роль без одного
+  // права, второй администратор — следом, и вернуть полный доступ стало некому
+  // (выдать роль администратора может только тот, у кого есть все её права).
+  assert.equal(
+    losesLastFullAccessHolder(["admin"], ["almost-admin"], full, 0),
+    true,
+  );
+  assert.equal(losesLastFullAccessHolder(["admin", "kb"], [], full, 0), true);
+
+  // Пока полный доступ есть у кого-то ещё — можно
+  assert.equal(
+    losesLastFullAccessHolder(["admin"], ["almost-admin"], full, 1),
+    false,
+  );
+  // Роль полного доступа остаётся при человеке (добавили вторую, сняли лишнюю)
+  assert.equal(
+    losesLastFullAccessHolder(["admin", "kb"], ["admin"], full, 0),
+    false,
+  );
+  // Полного доступа у него и не было
+  assert.equal(losesLastFullAccessHolder(["kb"], [], full, 0), false);
+  // Пересел с одной роли полного доступа на другую
+  assert.equal(
+    losesLastFullAccessHolder(["admin"], ["owner"], new Set(["admin", "owner"]), 0),
+    false,
   );
 });

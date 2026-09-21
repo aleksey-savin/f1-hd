@@ -254,6 +254,54 @@ const assertNotLastKeeper = async (orgId, key, before, after) => {
 };
 
 /**
+ * Теряет ли установка ПОСЛЕДНЕГО НОСИТЕЛЯ полного доступа.
+ *
+ * `assertNotLastKeeper` сторожит каталог — роль полного доступа обязана
+ * существовать. Но роль без носителей никого не спасает: вернуть полный доступ
+ * может только тот, у кого он есть (`assertNotEscalating` у назначения), и если
+ * последний администратор пересадил себя на роль поуже, роль администратора
+ * остаётся в каталоге, а выдать её уже некому — чинить приходится скриптом в
+ * базе. Ровно так и вышло 2026-09-21.
+ *
+ * Чистая часть: остальные носители приходят числом.
+ */
+const losesLastFullAccessHolder = (before, after, fullKeys, otherHolders) =>
+  before.some((key) => fullKeys.has(key)) &&
+  !after.some((key) => fullKeys.has(key)) &&
+  otherHolders === 0;
+
+/**
+ * Сколько ещё людей, кроме `userId`, держат полный доступ и могут им
+ * действовать: сотрудник, не отключён, не служебная учётка. Отключённый
+ * администратор войти не может — спасателем он не считается.
+ */
+const otherFullAccessHolders = async (orgId, userId, fullKeys) => {
+  const rows = await members()
+    .find(
+      { organizationId: orgId, userId: { $ne: String(userId) } },
+      { projection: { userId: 1, role: 1 } },
+    )
+    .toArray();
+  const ids = rows
+    .filter((row) =>
+      String(row.role || "")
+        .split(",")
+        .some((key) => fullKeys.has(key.trim())),
+    )
+    .map((row) => row.userId)
+    .filter(Boolean)
+    .map((id) => new mongoose.Types.ObjectId(String(id)));
+  if (!ids.length) return 0;
+
+  return mongoose.connection.db.collection("users").countDocuments({
+    _id: { $in: ids },
+    isEndUser: false,
+    banned: { $ne: true },
+    isServiceAccount: { $ne: true },
+  });
+};
+
+/**
  * Роль выдаётся только учётной записи СВОЕГО адресата.
  *
  * Без этой проверки клиентская учётка получала роль сотрудника — а с ролью
@@ -740,6 +788,28 @@ const assign = async (userId, keys, can) => {
     assertNotEscalating(known.get(key).statements, can);
   }
 
+  // Снять полный доступ с последнего, у кого он есть, — запереть установку:
+  // см. `losesLastFullAccessHolder`. Считаем только у сотрудника: клиентской
+  // учётной записи роль полного доступа его и не даёт.
+  if (accountAudienceOf(account) === "staff") {
+    const fullKeys = new Set(
+      catalogue
+        .filter((role) => role.audience === "staff" && isFullAccess(role.statements))
+        .map((role) => role.key),
+    );
+    // За остальными носителями ходим, только когда полный доступ у человека
+    // есть: назначение зовёт и форма пользователя — на каждое сохранение
+    if ([...current].some((key) => fullKeys.has(key))) {
+      const others = await otherFullAccessHolders(orgId, userId, fullKeys);
+      if (losesLastFullAccessHolder([...current], keys, fullKeys, others)) {
+        throw new AppError(
+          "Это последний человек с полным доступом — снять его нельзя: вернуть полный доступ будет некому. Сначала выдайте роль администратора кому-то ещё",
+          409,
+        );
+      }
+    }
+  }
+
   await ensureMember(userId);
   await members().updateOne(
     { organizationId: orgId, userId: String(userId) },
@@ -853,4 +923,5 @@ module.exports = {
   staffSideOf,
   assertRoleFitsAccount,
   lockedActionChanges,
+  losesLastFullAccessHolder,
 };
