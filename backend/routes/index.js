@@ -79,6 +79,7 @@ const publicRoutes = express.Router();
 // isAuth, и на анонимном запросе к /finances или /inventory прежний код падал
 // в 500 вместо 401, разыменовывая пользователя, которого не нашёл.
 const attachSession = require("@/middleware/attachSession");
+const hideStaffContactsFromClients = require("@/middleware/hideStaffContacts");
 
 /**
  * Телеграм-сервис — ДО `attachSession`, и это не косметика.
@@ -119,6 +120,11 @@ internalRoutes.use(attachSession);
 // Внешние маршруты живут на своих удостоверениях (X-API-Key, токен в ссылке),
 // но сессия им не мешает: если она есть, ею можно пользоваться.
 externalRoutes.use(attachSession);
+
+// Клиентской учётной записи личные контакты наших сотрудников не уходят ни из
+// одной ручки — страж на выходе, сразу за сеансом (middleware/hideStaffContacts)
+internalRoutes.use(hideStaffContactsFromClients);
+externalRoutes.use(hideStaffContactsFromClients);
 
 // Mount internal routes
 internalRoutes.use("/", appVersionRoutes);

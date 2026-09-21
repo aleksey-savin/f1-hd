@@ -331,8 +331,11 @@ exports.getStats = async (req, res, next) => {
  * Рядовому сотруднику клиента список наших инженеров не адресован — он пишет
  * заявку и не выбирает, кого дёргать; эскалируют как раз эти двое.
  *
- * Откуда данные. `Company.responsibles` — наши инженеры, контакты лежат прямо
- * в массиве (имя, должность, телефон, почта), поэтому populate не нужен.
+ * Откуда данные. `Company.responsibles` — наши инженеры, встроены в массив
+ * копией, поэтому populate не нужен. Отдаём ТОЛЬКО имя и должность: личные
+ * почта и телефон сотрудника клиенту не уходят никогда (решение владельца
+ * 2026-09-21; общий страж — middleware/hideStaffContacts, но и здесь их не
+ * собираем — связь с нами идёт заявкой или по общей линии).
  * Общий канал поддержки (`Preferences.contacts`) фронт уже держит в
  * `store/prefs.js` — здесь его не дублируем.
  *
@@ -379,8 +382,8 @@ exports.getMySupport = async (req, res, next) => {
         alias: company.alias,
         phones: company.phones || [],
       },
-      // Уволенных и отключённых не показываем: контакт, по которому не отвечают,
-      // хуже отсутствия контакта.
+      // Уволенных и отключённых не показываем: человек, который компанию уже
+      // не ведёт, в списке «кто ведёт» — неправда.
       responsibles: (company.responsibles || [])
         .filter((entry) => entry?.isActive !== false)
         .map((entry) => ({
@@ -388,8 +391,6 @@ exports.getMySupport = async (req, res, next) => {
           firstName: entry.firstName || "",
           lastName: entry.lastName || "",
           position: entry.position || "",
-          email: entry.email || "",
-          phone: entry.phone || "",
         })),
     });
   } catch (error) {

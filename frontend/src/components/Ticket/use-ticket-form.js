@@ -12,6 +12,7 @@ import {
   errorKeyOf,
   hasAnswer,
 } from "@/components/app/custom-fields";
+import { applicantOptions } from "./ticket-applicants";
 import { clearDraft, readDraft, saveDraft } from "./ticket-draft";
 
 /**
@@ -170,22 +171,25 @@ export const useTicketForm = ({
   const categories = formData.categories ?? [];
   const category = categories.find((item) => asId(item) === categoryId) ?? null;
 
-  // Инициаторы — сотрудники выбранной компании плюс те, кто ведёт заявки:
-  // заявку заводят и на коллегу, и на клиента
-  const applicants = useMemo(() => {
-    const all = formData.applicants ?? [];
-    if (isEndUser) return all;
-    // «Кто ведёт заявки» больше не вычитывается из прав каждого человека:
-    // с ролями в документе пользователя флага нет, и такой фильтр молча
-    // выбрасывал бы половину списка. Сервер уже посчитал этот набор —
-    // это и есть responsibles.
-    const handlers = new Set(
-      (formData.responsibles ?? []).map((person) => asId(person)),
-    );
-    return all.filter(
-      (user) => handlers.has(asId(user)) || asId(user.company) === companyId,
-    );
-  }, [formData.applicants, formData.responsibles, companyId, isEndUser]);
+  // Варианты инициатора — правило в ./ticket-applicants: нынешний инициатор
+  // заявки есть в них всегда, иначе у регламентной заявки поле выглядит пустым
+  const applicants = useMemo(
+    () =>
+      applicantOptions({
+        applicants: formData.applicants ?? [],
+        responsibles: formData.responsibles ?? [],
+        companyId,
+        isEndUser,
+        current: ticket?.applicant ?? null,
+      }),
+    [
+      formData.applicants,
+      formData.responsibles,
+      companyId,
+      isEndUser,
+      ticket?.applicant,
+    ],
+  );
 
   // Клиент с правом «Заводить заявки за других» выбирает инициатора среди
   // коллег: список приходит с сервера уже суженным до его компании

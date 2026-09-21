@@ -6,6 +6,7 @@ const ServicePlanReport = require("../../models/finances/servicePlanReport");
 const Preferences = require("../../models/preferences");
 
 const { resolveTimezone } = require("../../utils/datetime");
+const { untrackedUserIds } = require("../../services/financeTracking");
 const { AppError } = require("../../middleware/errorHandling");
 
 dayjs.extend(utc);
@@ -66,12 +67,15 @@ exports.getEmployeeReport = async (req, res, next) => {
       .populate("company", "fullTitle alias profileImagePath")
       .populate("servicePlan", "title");
 
-    // Group works by employee
+    // Group works by employee. Люди без финансового учёта в отчёт по
+    // сотрудникам не идут — тем же правилом, что сводка и динамика
+    const untracked = await untrackedUserIds();
     const employeeWorksMap = new Map();
 
     for (const report of approvedReports) {
       for (const work of report.works) {
         if (!work.finishedBy || !work.finishedBy._id) continue;
+        if (untracked.has(work.finishedBy._id.toString())) continue;
 
         const employeeId = work.finishedBy._id.toString();
         const employeeName = `${work.finishedBy.lastName} ${work.finishedBy.firstName}`;

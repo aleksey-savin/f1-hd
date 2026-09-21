@@ -5,6 +5,7 @@ const { Ticket } = require("@/models/ticket");
 const { filterApprovedWorks } = require("@/services/approvedWorks");
 
 const { resolveTimezone } = require("@/utils/datetime");
+const { TRACKED_FILTER } = require("@/services/financeTracking");
 const {
   classifyWork,
   toMinutes,
@@ -236,8 +237,14 @@ const buildEmployeesSummary = async ({
       toDate: toDay.toDate(),
       approvedOnly,
     }),
-    // Тот же набор, что отдаёт селектор сотрудников отчёта
-    User.find({ banned: { $ne: true }, isEndUser: false, isServiceAccount: false })
+    // Тот же набор, что отдаёт селектор сотрудников отчёта. Без тех, у кого
+    // финансовый учёт не ведётся (services/financeTracking.js)
+    User.find({
+      banned: { $ne: true },
+      isEndUser: false,
+      isServiceAccount: false,
+      ...TRACKED_FILTER,
+    })
       .select(
         "firstName lastName position finances timezone workSchedule workSchedules followProductionCalendar",
       )
@@ -270,7 +277,12 @@ const buildEmployeesSummary = async ({
     (id) => !employeeById.has(id),
   );
   if (formerIds.length) {
-    const formerEmployees = await User.find({ _id: { $in: formerIds } })
+    // …и тем же отбором: исполнитель без учёта не должен вернуться в отчёт
+    // строкой «у него были работы в периоде»
+    const formerEmployees = await User.find({
+      _id: { $in: formerIds },
+      ...TRACKED_FILTER,
+    })
       .select(
         "firstName lastName position finances banned timezone workSchedule workSchedules followProductionCalendar",
       )

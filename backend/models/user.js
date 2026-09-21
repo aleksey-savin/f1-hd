@@ -177,6 +177,13 @@ const userSchema = new Schema(
     // migrateWorkSchedules.js. Удалить следующим релизом.
     workSchedule: { type: workScheduleSchema, default: null },
     followProductionCalendar: { type: Boolean, default: true },
+    // «Вести финансовый учёт»: оклад, ставка переработок и норма по графику.
+    // Выключают сотрудникам сторонних компаний — без учёта человека нет в
+    // отчёте «Сотрудники», а режим «по графику» недоступен. Лежит ВНЕ
+    // `finances`: то поле getOne вырезает всем без права на финансы, а режим
+    // графика по этому признаку запирает и тот, кто ведёт только графики.
+    // Правило и его применение — services/financeTracking.js.
+    trackFinances: { type: Boolean, default: true },
     // Финансовые параметры сотрудника: видны самому пользователю, isAdmin и
     // обладателям canSeeGlobalFinancialReport (getOne вырезает поле остальным)
     finances: {

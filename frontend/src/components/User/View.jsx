@@ -178,6 +178,7 @@ const ViewUser = ({ user, tickets }) => {
     getScreen,
     activeDirectoryObjectGUID,
     finances,
+    trackFinances,
     statements = {},
     roles = [],
     notify,
@@ -735,26 +736,42 @@ const ViewUser = ({ user, tickets }) => {
                 Финансы
               </Eyebrow>
               <Panel>
-                <PropRow
-                  icon={<RiMoneyDollarCircleLine size={17} />}
-                  label="Оклад"
-                >
-                  {finances.salary != null ? (
-                    `${formatPrice(finances.salary)}/мес`
-                  ) : (
-                    <span className="font-normal text-faint">не задан</span>
-                  )}
-                </PropRow>
-                <PropRow
-                  icon={<RiTimeLine size={17} />}
-                  label="Ставка переработок"
-                >
-                  {finances.overtimeHourlyRate != null ? (
-                    `${formatPrice(finances.overtimeHourlyRate)}/час`
-                  ) : (
-                    <span className="font-normal text-faint">не задана</span>
-                  )}
-                </PropRow>
+                {/* Учёт выключен — оклад и ставка не действуют, и показывать их
+                    значило бы обещать расчёт, которого нет. Значения хранятся
+                    и вернутся вместе с учётом (форма, секция «Финансы») */}
+                {trackFinances === false ? (
+                  <PropRow
+                    icon={<RiMoneyDollarCircleLine size={17} />}
+                    label="Финансовый учёт"
+                  >
+                    <span className="font-normal text-faint">не ведётся</span>
+                  </PropRow>
+                ) : (
+                  <>
+                    <PropRow
+                      icon={<RiMoneyDollarCircleLine size={17} />}
+                      label="Оклад"
+                    >
+                      {finances.salary != null ? (
+                        `${formatPrice(finances.salary)}/мес`
+                      ) : (
+                        <span className="font-normal text-faint">не задан</span>
+                      )}
+                    </PropRow>
+                    <PropRow
+                      icon={<RiTimeLine size={17} />}
+                      label="Ставка переработок"
+                    >
+                      {finances.overtimeHourlyRate != null ? (
+                        `${formatPrice(finances.overtimeHourlyRate)}/час`
+                      ) : (
+                        <span className="font-normal text-faint">
+                          не задана
+                        </span>
+                      )}
+                    </PropRow>
+                  </>
+                )}
               </Panel>
             </Section>
           )}

@@ -5,6 +5,7 @@ const { AppError } = require("../../middleware/errorHandling");
 const { resolveTimezone } = require("../../utils/datetime");
 const { buildMonthlyWorkTrend } = require("../../services/monthlyWorkTrend");
 const { resolveOvertimeSettings } = require("../../services/workOvertime");
+const { TRACKED_FILTER } = require("../../services/financeTracking");
 
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
@@ -38,6 +39,8 @@ exports.getTrend = async (req, res, next) => {
     const employees = await User.find({
       isEndUser: false,
       isServiceAccount: false,
+      // Без тех, у кого финансовый учёт не ведётся — как в сводке
+      ...TRACKED_FILTER,
     })
       .select(
         "firstName lastName position banned finances timezone workSchedule followProductionCalendar",

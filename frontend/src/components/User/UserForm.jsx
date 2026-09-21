@@ -223,6 +223,8 @@ const UserForm = () => {
       salary: user?.finances?.salary ?? "",
       overtimeHourlyRate: user?.finances?.overtimeHourlyRate ?? "",
     },
+    // «Вести финансовый учёт». Поля нет у прежних учёток — значит, ведётся
+    trackFinances: user?.trackFinances !== false,
     // Ключ PRO32 наружу не отдаётся (getOne маскирует в hasApi): поле всегда
     // пустое, пусто = «не менять», ввод = новый ключ
     getScreenApi: "",
@@ -240,6 +242,26 @@ const UserForm = () => {
     setScheduleDirty(true);
     setSchedule((current) => ({ ...current, ...patch }));
   };
+  // Без финансового учёта режима «по графику» нет: норма и переработки
+  // считаются только по нему. Режим ВЫВОДИТСЯ, а не патчится — выключенный
+  // свитч не должен помечать график изменённым и плодить его версию; то же
+  // правило сервер применяет сам (services/financeTracking.js).
+  const workTimeMode =
+    !form.trackFinances && schedule.workTimeMode === "scheduled"
+      ? "free"
+      : schedule.workTimeMode;
+  const workTimeModes = form.trackFinances
+    ? WORK_TIME_MODES
+    : WORK_TIME_MODES.map((mode) =>
+        mode.value === "scheduled"
+          ? {
+              ...mode,
+              disabled: true,
+              title:
+                "Недоступен без финансового учёта — включается в секции «Финансы»",
+            }
+          : mode,
+      );
 
   const setField = (name, value) =>
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -393,10 +415,10 @@ const UserForm = () => {
   // «Не ведётся» шлём одним полем: расписание не редактировалось, новую версию
   // плодить незачем — прежняя ждёт возврата учёта.
   const scheduleBlock = () =>
-    schedule.workTimeMode === "none"
+    workTimeMode === "none"
       ? { workTimeMode: "none" }
       : {
-          workTimeMode: schedule.workTimeMode,
+          workTimeMode,
           remoteOnly: schedule.remoteOnly,
           timezone: schedule.timezone || null,
           followProductionCalendar: schedule.followProductionCalendar,
@@ -470,6 +492,9 @@ const UserForm = () => {
       if (form.access === "password") payload.password = form.password;
     }
     if (canEditFinances && isStaff) {
+      // Оклад и ставка уходят и при выключенном учёте: сервер их хранит, чтобы
+      // возврат учёта вернул значения
+      payload.trackFinances = form.trackFinances;
       payload.finances = {
         salary:
           form.finances.salary === "" ? null : Number(form.finances.salary),
@@ -903,7 +928,7 @@ const UserForm = () => {
   /* ---------- график работы ---------- */
   // Свободный режим: нормы и автостатусов нет, значит расписание, перерыв и
   // производственный календарь ни на что не влияют — в форме их быть не должно
-  const isFreeMode = schedule.workTimeMode === "free";
+  const isFreeMode = workTimeMode === "free";
 
   const currentBreak =
     Object.values(schedule.week ?? {}).find((day) => day.isWorking)
@@ -962,19 +987,25 @@ const UserForm = () => {
     <>
       <Field
         label="Учёт рабочего времени"
-        hint={MODE_HINT[schedule.workTimeMode]}
+        // Причина погасшего сегмента — здесь же, в строке подсказки: на
+        // тач-экране `title` не увидеть
+        hint={
+          form.trackFinances
+            ? MODE_HINT[workTimeMode]
+            : `${MODE_HINT[workTimeMode]}. «По графику» недоступен без финансового учёта.`
+        }
       >
         <Segmented
           ariaLabel="Учёт рабочего времени"
-          options={WORK_TIME_MODES}
-          value={schedule.workTimeMode}
+          options={workTimeModes}
+          value={workTimeMode}
           onChange={(value) => patchSchedule({ workTimeMode: value })}
         />
       </Field>
 
       {/* «Не ведётся» — человека нет ни в календаре, ни в автоматике:
           расписание и всё, что от него зависит, показывать незачем */}
-      {schedule.workTimeMode === "none" ? (
+      {workTimeMode === "none" ? (
         <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
           <p className="mx-auto mb-0 max-w-md text-sm text-muted-foreground">
             Рабочее время не ведётся: сотрудник не показывается в календаре
@@ -1215,8 +1246,8 @@ const UserForm = () => {
     </>
   );
 
-  const financesStep = (
-    <div className="grid gap-3 md:grid-cols-2">
+  const financeFields = (
+    <div className="mt-1 grid gap-3 md:grid-cols-2">
       <Field
         label="Оклад, ₽/мес"
         htmlFor="u-salary"
@@ -1256,6 +1287,31 @@ const UserForm = () => {
         />
       </Field>
     </div>
+  );
+
+  // Тот же приём, что у режима «Не ведётся» в графике: вместо полей — почему
+  // их нет и что с прежними значениями (макет «Вести финансовый учёт», A)
+  const financeOffNote = (
+    <div className="mt-1 rounded-lg border border-dashed border-border px-4 py-6 text-center">
+      <p className="mx-auto mb-0 max-w-md text-sm text-muted-foreground">
+        Финансовый учёт не ведётся: оклад и ставка не применяются, в отчёт
+        «Сотрудники» сотрудник не попадает. Прежние значения сохранятся — если
+        вернуть учёт, они снова заработают.
+      </p>
+    </div>
+  );
+
+  const financesStep = (
+    <>
+      <SwitchField
+        id="u-track-finances"
+        checked={form.trackFinances}
+        onCheckedChange={(value) => setField("trackFinances", value === true)}
+        label="Вести финансовый учёт"
+        hint="Оклад, ставка переработок и норма по графику. Без учёта сотрудник не попадает в отчёт «Сотрудники»; его работы в отчётах клиентов остаются."
+      />
+      {form.trackFinances ? financeFields : financeOffNote}
+    </>
   );
 
   const bodyFor = (key) =>
@@ -1334,7 +1390,13 @@ const UserForm = () => {
                 catalogue={catalogue}
                 isEdit={isEdit}
                 showRoles={showRoles}
-                schedule={showSchedule && scheduleDirty ? schedule : null}
+                // Действующий режим, а не выбранный: без финансового учёта
+                // «по графику» в сводке быть не должно
+                schedule={
+                  showSchedule && scheduleDirty
+                    ? { ...schedule, workTimeMode }
+                    : null
+                }
               />
             </div>
           </div>

@@ -71,6 +71,10 @@ const toNonNegativeOrNull = (value) => {
 };
 
 const canManageFinances = (req) => req.auth.can({ user: ["manageFinances"] });
+const { tracksFinances, workTimeModeFor } = require("@/services/financeTracking");
+
+const UNTRACKED_SCHEDULE =
+  "Режим «По графику» недоступен: у сотрудника не ведётся финансовый учёт";
 
 // График правится из формы пользователя, но своим правом: у того, кто ведёт
 // пользователей, не обязательно есть право на графики и наоборот.
@@ -714,6 +718,7 @@ exports.add = async (req, res, next) => {
       timezone,
       roles,
       finances,
+      trackFinances,
       getScreenApi,
       responsibleForCompanies,
     } = req.body;
@@ -864,11 +869,18 @@ exports.add = async (req, res, next) => {
         overtimeHourlyRate: toNonNegativeOrNull(finances.overtimeHourlyRate),
       };
     }
+    // «Вести финансовый учёт» — тем же правом, что оклад и ставка. Оклад со
+    // ставкой при выключении НЕ стираем: вернут учёт — значения на месте.
+    if (trackFinances !== undefined && canManageFinances(req)) {
+      user.trackFinances = trackFinances !== false;
+    }
 
     // График сотрудника задаётся шагом мастера — сразу первой версией
     if (req.body.workSchedule && canManageSchedules(req)) {
       applyWorkSchedule(user, req.body.workSchedule, caller.userId);
     }
+    // Без финансового учёта режима «по графику» нет (services/financeTracking)
+    user.workTimeMode = workTimeModeFor(user.workTimeMode, user);
 
     await user.save();
 
@@ -999,6 +1011,7 @@ exports.update = async (req, res, next) => {
       categories,
       roles,
       finances,
+      trackFinances,
       getScreenApi,
       notify,
       responsibleForCompanies,
@@ -1103,6 +1116,11 @@ exports.update = async (req, res, next) => {
         overtimeHourlyRate: toNonNegativeOrNull(finances?.overtimeHourlyRate),
       };
     }
+    // «Вести финансовый учёт» — тем же правом. Оклад и ставку при выключении
+    // не стираем: вернут учёт — значения на месте.
+    if (trackFinances !== undefined && canManageFinances(req)) {
+      user.trackFinances = trackFinances !== false;
+    }
 
     // Ключ PRO32 Connect: форма его не получает (getOne маскирует), поэтому
     // пустое значение = «не менять»; непустое — новый ключ (шифруем).
@@ -1136,6 +1154,13 @@ exports.update = async (req, res, next) => {
     if (scheduleChanged) {
       applyWorkSchedule(user, workSchedule, caller.userId);
     }
+    // Без финансового учёта режима «по графику» нет: выключили учёт — человек
+    // переходит на свободный режим, даже если секцию графика форма не присылала
+    // (её видит не каждый, кто ведёт финансы). Автоматика статусов обязана это
+    // увидеть — поэтому смена режима считается сменой графика.
+    const modeBefore = user.workTimeMode;
+    user.workTimeMode = workTimeModeFor(user.workTimeMode, user);
+    const modeForced = user.workTimeMode !== modeBefore;
 
     await user.save();
 
@@ -1147,7 +1172,7 @@ exports.update = async (req, res, next) => {
       await assignRoles(user._id, roles, req.auth.canGrant);
     }
 
-    if (scheduleChanged) {
+    if (scheduleChanged || modeForced) {
       await syncAutoWorkStatus(user);
     }
 
@@ -2031,6 +2056,12 @@ exports.updateWorkSchedule = async (req, res, next) => {
     }
 
     const { userId } = req.auth;
+
+    // Здесь — отказ, а не тихая подмена режима, как в форме пользователя: тот,
+    // кто ведёт графики, учёт вернуть не может и должен узнать причину
+    if (req.body.workTimeMode === "scheduled" && !tracksFinances(user)) {
+      return next(new AppError(UNTRACKED_SCHEDULE, 422));
+    }
 
     applyWorkSchedule(user, req.body, userId);
 

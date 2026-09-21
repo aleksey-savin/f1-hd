@@ -1,22 +1,23 @@
 import { useEffect, useState } from "react";
 
-import { RiMailLine, RiPhoneLine } from "react-icons/ri";
+import { RiPhoneLine } from "react-icons/ri";
 
 import { Eyebrow, Panel } from "@/components/app/Panel";
-import { Button } from "@/components/ui/button";
 import useInitialPrefsStore from "../../store/prefs";
 import { monogramFor } from "@/components/app/monogram";
 
 /**
- * «Кто ведёт вашу компанию» — наши инженеры с прямыми контактами.
+ * «Кто ведёт вашу компанию» — наши инженеры: имя и должность, БЕЗ личных
+ * контактов.
+ *
+ * Клиент не пишет и не звонит сотруднику лично (решение владельца 2026-09-21):
+ * связь с нами — заявка или общая линия поддержки, она и стоит последней
+ * строкой. Кнопок «позвонить» и «написать» у человека поэтому нет, а сервер
+ * его почту и телефон клиенту не отдаёт вовсе (middleware/hideStaffContacts).
  *
  * Кому. Только ответственному со стороны клиента и руководителю подразделения
  * (решает бэкенд, `GET /companies/my-support`): рядовой сотрудник клиента
  * пишет заявку и не выбирает, кого дёргать, а эти двое как раз эскалируют.
- *
- * Строка — язык адресной книги: круглая монограмма, имя, должность и каналы,
- * которые реально заполнены. Кнопки на пустой телефон не рисуем — контакт, по
- * которому не дозвониться, хуже отсутствия контакта.
  */
 const MySupport = () => {
   const [data, setData] = useState(null);
@@ -53,7 +54,7 @@ const MySupport = () => {
             const name = `${person.firstName} ${person.lastName}`.trim();
             return (
               <div
-                key={person._id || person.email || name}
+                key={person._id || name}
                 className="flex items-center gap-3 border-b border-border-soft px-5 py-3 last:border-b-0"
               >
                 <span className="flex size-9 flex-none items-center justify-center rounded-[25%] bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border-soft">
@@ -66,38 +67,6 @@ const MySupport = () => {
                   <span className="block truncate text-sm text-muted-foreground">
                     {person.position || "—"}
                   </span>
-                </span>
-                <span className="flex flex-none gap-1">
-                  {person.phone && (
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="icon-xs"
-                      className="text-muted-foreground"
-                    >
-                      <a
-                        href={`tel:${person.phone}`}
-                        aria-label={`Позвонить: ${name}`}
-                      >
-                        <RiPhoneLine />
-                      </a>
-                    </Button>
-                  )}
-                  {person.email && (
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="icon-xs"
-                      className="text-muted-foreground"
-                    >
-                      <a
-                        href={`mailto:${person.email}`}
-                        aria-label={`Написать: ${name}`}
-                      >
-                        <RiMailLine />
-                      </a>
-                    </Button>
-                  )}
                 </span>
               </div>
             );
