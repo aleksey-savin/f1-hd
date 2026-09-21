@@ -480,7 +480,10 @@ exports.getOne = async (req, res, next) => {
       .populate({
         path: "applicantId",
         select:
-          "firstName lastName email phone position role banned subdivision activeDirectoryObjectGUID timezone",
+          // isEndUser/isServiceAccount — попапу инициатора на карточке: у
+          // служебной учётки (регламент, мониторинг) контактов нет, и имя там
+          // не кликается; profileImagePath — его аватару
+          "firstName lastName email phone position role banned subdivision activeDirectoryObjectGUID timezone isEndUser isServiceAccount profileImagePath",
         populate: {
           path: "subdivision",
           select: "name email address phone linkToMap timezone parent",

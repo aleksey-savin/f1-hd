@@ -21,6 +21,7 @@ import {
 
 import EntityLink from "@/components/app/EntityLink";
 import UserLink from "@/components/app/UserLink";
+import ApplicantPopup from "./ApplicantPopup";
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import ClientTime from "@/components/app/ClientTime";
 import { copyText } from "@/components/app/PropRow";
@@ -505,22 +506,32 @@ export const FactsSection = ({
               </>
             }
           >
-            {applicant?._id ? (
-              /* Ссылкой имя становится только с правом «Видеть
-                 пользователей» — правило живёт в UserLink */
-              <UserLink from={from} id={applicant._id}>
-                {`${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()}
-              </UserLink>
+            {applicant?._id && !applicant.isServiceAccount ? (
+              /* Клик по имени — попап с контактами, а не переход: на
+                 инициатора смотрят, чтобы позвонить, не теряя заявку. В
+                 профиль ведёт кнопка внутри попапа (по праву) */
+              <ApplicantPopup
+                ticket={ticket}
+                applicant={applicant}
+                from={from}
+              />
             ) : applicant ? (
               `${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()
             ) : (
               ticket.realSender
             )}
-            {applicant?.position && (
-              <span className="text-muted-foreground">
-                {" · "}
-                {applicant.position}
-              </span>
+            {/* Служебная учётка (регламент, мониторинг, телефония): контактов
+                у неё нет, поэтому имя не кликается, а приписка объясняет,
+                почему инициатор не человек */}
+            {applicant?.isServiceAccount ? (
+              <span className="text-muted-foreground"> · служебная учётка</span>
+            ) : (
+              applicant?.position && (
+                <span className="text-muted-foreground">
+                  {" · "}
+                  {applicant.position}
+                </span>
+              )
             )}
           </PropRow>
         )}
