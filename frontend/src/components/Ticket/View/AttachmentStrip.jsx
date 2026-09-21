@@ -24,6 +24,7 @@ import useViewTicketStore from "../../../store/view-ticket";
 import AttachmentChip from "./AttachmentChip";
 import { attachmentKind, attachmentName, fileUrl } from "./attachment-utils";
 import { useCan } from "@/store/authed-user";
+import { AI_ACCESS } from "./ai-access";
 
 /**
  * Вложения заявки — лента в подвале секции «Описание», а не своя секция.
@@ -62,9 +63,7 @@ export const useAttachments = (ticket) => {
   const canUpload = !ticket.isArchived && can({ ticket: ["manage"] });
   const canDelete = !ticket.isArchived && can({ ticket: ["manage"] });
   const canTranscribe =
-    !ticket.isArchived &&
-    can({ ticket: ["perform"] }) &&
-    ai?.features?.speechToText;
+    !ticket.isArchived && can(AI_ACCESS) && ai?.features?.speechToText;
 
   const sync = (next) =>
     store.updateTicket({ ...store.ticket, attachments: next });

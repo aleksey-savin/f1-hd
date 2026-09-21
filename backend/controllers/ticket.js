@@ -503,9 +503,12 @@ exports.getOne = async (req, res, next) => {
         doc.category = doc.categoryId;
         delete doc.applicantId;
         delete doc.categoryId;
-        // AI guide and term analysis are internal aids — never expose them to
-        // end-users/clients.
-        if (isEndUser) {
+        // Руководство ИИ и разбор понятий — рабочие подсказки, собранные по
+        // нашей базе знаний. Клиенту их не отдаём никогда, сотруднику — только
+        // с правом «Пользоваться функциями ИИ»: спрятать секцию на фронте мало,
+        // данные, закрытые правом, в чужой payload не кладём (сторонний
+        // исполнитель карточку открывает, а подсказки видеть не должен).
+        if (isEndUser || !req.auth.can({ ai: ["use"] })) {
           delete doc.aiGuide;
           delete doc.aiTerms;
         }

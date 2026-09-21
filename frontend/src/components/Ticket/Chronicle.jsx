@@ -164,6 +164,16 @@ const EventEntry = ({ event, ticketNum, divided }) => {
           </div>
         )}
 
+        {/* Содержание события — причина отказа: вид называет подпись выше, а
+            ради причины запись и открывают. Разбирает фразу лога бэкенд
+            (services/ticketEvents.js#detailOf), сюда приезжает готовый текст.
+            Строки как у комментария: это те же слова человека */}
+        {event.detail && (
+          <p className="my-0.5 text-sm leading-relaxed whitespace-pre-wrap">
+            {event.detail}
+          </p>
+        )}
+
         {/* Файлы события — чипами: по ним файл открывается прямо из ленты, не
             возвращаясь к описанию. Больше двух сворачиваем, как везде */}
         {event.files?.length > 0 && event.kind !== "attachmentRemoved" && (

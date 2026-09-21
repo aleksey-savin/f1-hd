@@ -461,6 +461,15 @@ module.exports.canUseRemoteSupport = requirePermission(
   "Недостаточно прав для запуска сеанса удалённой помощи",
 );
 
+// Функции ИИ в карточке заявки. Стоит ПОСЛЕ `canPerformTickets`, а не вместо:
+// право отвечает на «можно ли этому человеку пользоваться ИИ», а не на «может
+// ли он работать с заявкой». Включена ли сама функция — рубильник установки
+// (`modules.aiFeatureIsActive`), не право.
+module.exports.canUseAi = requirePermission(
+  { ai: ["use"] },
+  "Недостаточно прав для функций ИИ",
+);
+
 module.exports.canManageSettings = requirePermission(
   { settings: ["manage"] },
   PAGE,

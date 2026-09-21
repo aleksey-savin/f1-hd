@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import AiGuideSection from "../../components/Ticket/View/AiGuideSection";
+import { AI_ACCESS } from "../../components/Ticket/View/ai-access";
 import AiMark from "../../components/Ticket/View/AiMark";
 import AttachmentStrip, {
   useAttachments,
@@ -329,7 +330,7 @@ const ViewTicket = () => {
   // Инструменты ИИ — часть работы с заявкой: секцию видит тот, кто заявки
   // берёт, а не всякий сотрудник (ручки за ней гейтит то же право)
   // «Руководство ИИ» — функция по одной (Настройки → ИИ → «Функции»)
-  const showAi = ai?.features?.guide && can({ ticket: ["perform"] });
+  const showAi = ai?.features?.guide && can(AI_ACCESS);
 
   const railSections = useMemo(
     () =>

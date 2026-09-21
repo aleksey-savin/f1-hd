@@ -155,6 +155,7 @@
         "mikrotik.manage",
         "mikrotik.manageConfigs",
         "remoteSupport.use",
+        "ai.use",
         "settings.manage"
       ],
       "members": [
@@ -188,7 +189,8 @@
         "inventoryCatalog.manage",
         "supplier.read",
         "mikrotik.read",
-        "remoteSupport.use"
+        "remoteSupport.use",
+        "ai.use"
       ],
       "members": [
         "i.chernov@f1lab.ru",
@@ -246,7 +248,8 @@
         "mikrotik.read",
         "mikrotik.manage",
         "mikrotik.manageConfigs",
-        "remoteSupport.use"
+        "remoteSupport.use",
+        "ai.use"
       ],
       "members": [
         "a.echin@f1lab.ru",

@@ -70,6 +70,7 @@ import WorkStatusText from "../../Company/WorkStatusText";
 import { formatMoney } from "../../Report/work-format";
 import { cn } from "@/lib/utils";
 import { useCan } from "@/store/authed-user";
+import { AI_ACCESS } from "./ai-access";
 
 // Секции карточки заявки. Все они ТОЛЬКО показывают: правка — в форме заявки.
 // Вход в неё — карандаш `app/SectionEditLink` в метке секции (проявляется по
@@ -117,13 +118,13 @@ export const DescriptionSection = ({
   const { modules, ai } = useInitialPrefsStore();
   const clean = (html) => ({ __html: DOMPurify.sanitize(html) });
 
-  const canPerform = !!can({ ticket: ["perform"] });
-  // «Понятия в заявке» — функция ИИ по кнопке исполнителя: сервер спрашивает то
-  // же право и тот же переключатель (Настройки → ИИ → «Функции»)
-  const showTerms = canPerform && !!ai?.features?.terms;
+  const canUseAi = !!can(AI_ACCESS);
+  // «Понятия в заявке» — функция ИИ по кнопке исполнителя: сервер спрашивает те
+  // же права и тот же переключатель (Настройки → ИИ → «Функции»)
+  const showTerms = canUseAi && !!ai?.features?.terms;
   // Замечание по метке ✦ — своя функция; сама метка — факт происхождения поля
   // и видна сотрудникам и при выключенном ИИ
-  const canFeedback = canPerform && !!ai?.features?.feedback;
+  const canFeedback = canUseAi && !!ai?.features?.feedback;
   const terms = showTerms ? inTextTerms(ticket) : [];
   const canSaveNote =
     !!modules?.knowledgeBase?.isActive && !!can({ knowledge: ["manage"] });

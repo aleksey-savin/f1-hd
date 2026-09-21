@@ -50,9 +50,39 @@ const migrateActions = (oldActions = []) => {
   return ALL_ACTIONS.filter((id) => next.has(id));
 };
 
+/**
+ * Раздача «Пользоваться функциями ИИ» в день появления права (2026-09-21).
+ *
+ * До права функции ИИ шли довеском к «Брать заявки в работу», поэтому переезд
+ * ничего не отнимает: роль сотрудника, которая берёт заявки, право получает.
+ * Кроме ролей стороннего исполнителя — ради них оно и заведено: человек из
+ * чужой компании заявки берёт, а тратить бюджет модели и читать подсказки,
+ * собранные по нашей базе знаний, не должен.
+ *
+ * НЕ в `DERIVED` намеренно: то правило срабатывает на КАЖДОМ прогоне
+ * `migrateActions`, и любой будущий переезд вернул бы право роли, с которой
+ * владелец его снял. Раздача разовая — `scripts/grantAiUse.js`.
+ */
+const AI_USE = "ai.use";
+const OUTSIDE_PERFORMER_ROLES = ["contractor-no-works"];
+
+/** @param {{key: string, audience?: string, actions: string[]}} role */
+const receivesAiUse = ({ key, audience, actions = [] }) =>
+  audience !== "client" &&
+  actions.includes("ticket.perform") &&
+  !actions.includes(AI_USE) &&
+  !OUTSIDE_PERFORMER_ROLES.includes(key);
+
 const flattenStatements = (statements = {}) =>
   Object.entries(statements).flatMap(([resource, actions]) =>
     (actions || []).map((action) => `${resource}.${action}`),
   );
 
-module.exports = { RENAMES, DERIVED, migrateActions, flattenStatements };
+module.exports = {
+  RENAMES,
+  DERIVED,
+  migrateActions,
+  flattenStatements,
+  AI_USE,
+  receivesAiUse,
+};

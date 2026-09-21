@@ -16,9 +16,9 @@ const {
   staffAccessStatements,
 } = require("./access");
 
-test("dictionary has 15 groups and 55 actions in the agreed order", () => {
-  assert.equal(GROUPS.length, 15);
-  assert.equal(ALL_ACTIONS.length, 55);
+test("dictionary has 16 groups and 56 actions in the agreed order", () => {
+  assert.equal(GROUPS.length, 16);
+  assert.equal(ALL_ACTIONS.length, 56);
   assert.deepEqual(ALL_ACTIONS.slice(0, 8), [
     "ticket.readCompanies",
     "ticket.readAll",
@@ -30,6 +30,12 @@ test("dictionary has 15 groups and 55 actions in the agreed order", () => {
     "ticket.closeWithoutWork",
   ]);
   assert.equal(ALL_ACTIONS.at(-1), "settings.manage");
+  // «ИИ» — предпоследняя группа: настройки замыкают словарь
+  assert.equal(GROUPS.at(-2).key, "ai");
+  assert.deepEqual(
+    GROUPS.at(-2).actions.map((action) => action.id),
+    ["ai.use"],
+  );
 });
 
 test("every action has an audience; clientHint only on both", () => {
@@ -37,7 +43,7 @@ test("every action has an audience; clientHint only on both", () => {
     for (const action of group.actions) {
       assert.ok(["staff", "client", "both"].includes(action.audience), action.id);
       if (action.clientHint) assert.equal(action.audience, "both", action.id);
-      assert.match(action.label, /^(Видеть|Изменять|Брать|Вести|Удалять|Заводить|Закрывать|Записывать|Согласовывать|Управлять|Входить|Модерировать|Запускать|Присоединяться) /, action.id);
+      assert.match(action.label, /^(Видеть|Изменять|Брать|Вести|Удалять|Заводить|Закрывать|Записывать|Согласовывать|Управлять|Входить|Модерировать|Запускать|Присоединяться|Пользоваться) /, action.id);
     }
   }
 });
@@ -48,6 +54,8 @@ test("audiences of the spec's special cases", () => {
   assert.equal(audienceOfAction("approval.decide"), "client");
   assert.equal(audienceOfAction("work.readCost"), "both");
   assert.equal(audienceOfAction("settings.manage"), "staff");
+  // ИИ — инструмент сотрудника: клиентской роли право не предлагается
+  assert.equal(audienceOfAction("ai.use"), "staff");
   assert.equal(audienceOfAction("nope.nothing"), "staff");
 });
 

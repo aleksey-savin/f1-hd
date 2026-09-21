@@ -117,7 +117,7 @@ ai: {
   | Подбор категории | `features.category` | ticket create and email intake skip the pass, no `pending` status | — |
   | Тема заявки по описанию | `features.title` | `detectTicketCategory(id, { category })` writes only the title when category is off (title-only prompt) | — |
   | Руководство ИИ | `features.guide` | `aiFeatureIsActive("guide")` on `ai-guide/generate` | guide section + rail item |
-  | Понятия в заявке | `features.terms` | gate on `ai-terms/*`; `aiTerms` stripped for clients | terms row + underlining, by `ticket.perform` |
+  | Понятия в заявке | `features.terms` | gate on `ai-terms/*`; `aiTerms` stripped for clients and for staff without `ai.use` | terms row + underlining, by `AI_ACCESS` |
   | Расшифровка аудио | `speechToText.isActive` | gate on the manual route; email intake skips; `getSpeechToTextConfig` checks the master | «Распознать» |
   | Описание из записи звонка | `speechToText.callSummary` | telephony emails keep their original subject/description | — |
   | Замечания к ИИ | `features.feedback` | gate on `ai-feedback`; `rulesFor` returns no rules | ✦ marks stay as provenance, static, no correction dialog |
@@ -125,6 +125,29 @@ ai: {
   The gate is `middleware/modules.js#aiFeatureIsActive(feature)` (403 with the
   feature's name); the check inside `aiService.generateJson` stays as the last
   line.
+- **Who may use them — the `ai.use` permission (2026-09-21).** The switches
+  above answer "is the feature on for this install"; `ai.use` («Пользоваться
+  функциями ИИ», staff audience, own dictionary group `ai`) answers "may this
+  person use it". Every user-triggered AI route carries
+  `canPerformTickets, canUseAi, aiFeatureIsActive(...)` — the guide, the three
+  `ai-terms/*` routes, `ai-feedback` and manual transcription. Before it the
+  tools came with `ticket.perform`, so an outside performer
+  (`contractor-no-works`) got the guide built on our knowledge base. Without the
+  permission `getOne` also drops `aiGuide` and `aiTerms` from the ticket
+  payload, the same way it does for clients: data closed by a permission is not
+  put into someone else's payload. Background AI — category and title on a new
+  ticket, the call summary — runs on behalf of the system and is not governed
+  by the permission; existing transcripts stay visible as attachment content.
+  The frontend asks one request everywhere: `Ticket/View/ai-access.js#AI_ACCESS`
+  (`{ ticket: ["perform"], ai: ["use"] }`).
+  Rollout: `scripts/grantAiUse.js` (migration `2026-09-21-grantAiUse`) adds the
+  action to every staff role that has `ticket.perform` except outside-performer
+  roles (`services/actionMigration.js#receivesAiUse`). It only appends one
+  action — unlike `syncRoleCatalogue`, it does not overwrite roles edited in the
+  UI — and it must run: a full-access role that lacks a dictionary action stops
+  being `isFullAccess`. The rule is deliberately not in `DERIVED`, which
+  re-applies on every `migrateActions` run and would hand the permission back to
+  a role the owner took it from.
 - **API keys are encrypted at rest** (AES-256-GCM, `services/crypto/secretBox.js`,
   storage format `v1:<iv>:<tag>:<ciphertext>`). Every consumer must read them
   through `readStoredSecret` (`helpers/preferencesSecrets.js`), which also passes
@@ -333,11 +356,12 @@ module aliases and deps `pdf-parse`, `mammoth`, `xlsx`.
   `generateTicketAiGuide`: guide generation is manual-only at the current stage
   (the on-creation auto-trigger was removed 2026-07-14). Only category detection
   runs in the background after the 201.
-- `getOne` — `delete doc.aiGuide` when `isEndUser` (internal aid only).
+- `getOne` — `delete doc.aiGuide` when `isEndUser` or without `ai.use`
+  (internal aid only).
 - `regenerateAiGuide` — `POST /tickets/ai-guide/generate { _id }`, **synchronous**,
-  returns the refreshed guide. Route: `isAuth, canPerformTickets, byBodyId` —
-  the AI tools are part of `ticket.perform`, and `byBodyId` additionally checks
-  the caller's relation to that ticket.
+  returns the refreshed guide. Route: `isAuth, canPerformTickets, canUseAi,
+  byBodyId` — the AI tools need `ticket.perform` and `ai.use`, and `byBodyId`
+  additionally checks the caller's relation to that ticket.
 - `toggleAiGuideItem` / `POST /tickets/ai-guide/toggle-item` — **removed 2026-07-30**
   together with the per-item checkboxes (10 ticks across ~980 items in 99 guides).
   The `done` field stays in the schema; nothing writes it.
@@ -496,7 +520,7 @@ older ticket code used `mimetype`, while later attachment upload code used
 
 ### Controller / routes — `backend/controllers/ticket.js`, `routes/internal/ticket.js`
 - `POST /tickets/:ticketNum/attachments/speech-to-text` (`isAuth,
-  canPerformTickets, byNum`) accepts `{ attachmentName }`.
+  canPerformTickets, canUseAi, byNum`) accepts `{ attachmentName }`.
 - The controller sets the attachment `speechToText.status` to `pending`, calls
   `transcribeAttachment`, then persists `ready` with summary/segments/model/time
   or `error` with the provider/service message.
@@ -754,10 +778,10 @@ wherever a ticket is created.
 ### API
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/api/tickets/ai-terms/analyze` | `ticket.perform` | extract the ticket's concepts |
-| POST | `/api/tickets/ai-terms/reference` | `ticket.perform` | reference for one concept |
-| POST | `/api/tickets/ai-terms/save-note` | `ticket.perform` + `knowledge.manage` | store it as a note |
-| POST | `/api/tickets/ai-feedback` | `ticket.perform` | record a correction |
+| POST | `/api/tickets/ai-terms/analyze` | `ticket.perform` + `ai.use` | extract the ticket's concepts |
+| POST | `/api/tickets/ai-terms/reference` | `ticket.perform` + `ai.use` | reference for one concept |
+| POST | `/api/tickets/ai-terms/save-note` | `ticket.perform` + `ai.use` + `knowledge.manage` | store it as a note |
+| POST | `/api/tickets/ai-feedback` | `ticket.perform` + `ai.use` | record a correction |
 | GET/POST | `/api/preferences/ai-rules[/toggle,/delete]` | `settings.manage` | review and enable rules |
 
 ### Frontend

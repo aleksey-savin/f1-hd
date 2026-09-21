@@ -77,6 +77,25 @@ const classify = (event = "") => {
   return "other";
 };
 
+/**
+ * Хвост фразы, который несёт СОДЕРЖАНИЕ события, а не его вид.
+ *
+ * Вид лента называет своей подписью («Отказ от заявки»), а текст лога
+ * показывает только у «прочего» — и причина отказа, ради которой запись
+ * открывают, в хронике терялась. Разбор стоит здесь, рядом с образцами: фраза —
+ * контракт с контроллером (`controllers/ticket.js#reject`), и знать её второй
+ * раз на клиенте незачем.
+ */
+const DETAILS = {
+  rejected: /отказ от заявки по причине\s*([\s\S]*)$/i,
+};
+
+/** Пустая причина и «undefined» от формы без текста — не содержание. */
+const detailOf = (kind, event = "") => {
+  const detail = DETAILS[kind]?.exec(event)?.[1]?.trim();
+  return detail && detail !== "undefined" ? detail : "";
+};
+
 const isTechnical = (kind) => Boolean(KINDS[kind]?.technical);
 const isHidden = (kind) => Boolean(KINDS[kind]?.hidden);
 
@@ -116,26 +135,8 @@ const buildFeed = (logs = []) => {
       continue;
     }
 
-    // Служебное, накопленное ПЕРЕД этим событием, принадлежит предыдущему —
-    // кроме случая, когда предыдущего нет
-    flushInto(events[events.length - 1] || null);
-    if (pending.count > 0) {
-      // Ничего не было раньше — отдадим первому событию
-      events.push({
-        _id: log._id,
-        kind,
-        event: log.event,
-        user: log.user,
-        severity: log.severity,
-        createdAt: log.createdAt,
-        ...(log.files?.length ? { files: log.files } : {}),
-        technical: { ...pending },
-      });
-      pending = { count: 0, failed: 0, from: null, to: null };
-      continue;
-    }
-
-    events.push({
+    const detail = detailOf(kind, log.event);
+    const entry = {
       _id: log._id,
       kind,
       event: log.event,
@@ -143,7 +144,20 @@ const buildFeed = (logs = []) => {
       severity: log.severity,
       createdAt: log.createdAt,
       ...(log.files?.length ? { files: log.files } : {}),
-    });
+      ...(detail ? { detail } : {}),
+    };
+
+    // Служебное, накопленное ПЕРЕД этим событием, принадлежит предыдущему —
+    // кроме случая, когда предыдущего нет
+    flushInto(events[events.length - 1] || null);
+    if (pending.count > 0) {
+      // Ничего не было раньше — отдадим первому событию
+      events.push({ ...entry, technical: { ...pending } });
+      pending = { count: 0, failed: 0, from: null, to: null };
+      continue;
+    }
+
+    events.push(entry);
   }
 
   // Хвост служебного — под последним событием

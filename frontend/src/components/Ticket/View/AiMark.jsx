@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import useToastStore from "../../../store/toast-store";
 import useInitialPrefsStore from "../../../store/prefs";
 import { useCan } from "@/store/authed-user";
+import { AI_ACCESS } from "./ai-access";
 
 // Метка того, что ИИ вписал в заявку вместо человека, — и вход в замечание.
 //
@@ -69,12 +70,12 @@ const AiMark = ({
   const [busy, setBusy] = useState(false);
   const showToast = useToastStore((state) => state.showToast);
   const can = useCan();
-  // Замечания — отдельная функция ИИ (Настройки → ИИ → «Функции») и право
-  // исполнителя; без них метка остаётся фактом происхождения поля
+  // Замечания — отдельная функция ИИ (Настройки → ИИ → «Функции») и права
+  // исполнителя (`AI_ACCESS`); без них метка остаётся фактом происхождения поля
   const feedbackOn = useInitialPrefsStore(
     (state) => !!state.ai?.features?.feedback,
   );
-  const canFeedback = feedbackOn && !!can({ ticket: ["perform"] });
+  const canFeedback = feedbackOn && !!can(AI_ACCESS);
 
   const close = () => {
     setOpen(false);

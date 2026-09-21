@@ -49,3 +49,47 @@ test("пустая лента переживает отбор", () => {
   assert.deepEqual(feedForClient(), []);
   assert.deepEqual(feedForClient([]), []);
 });
+
+test("отказ от заявки несёт причину отдельным полем", () => {
+  const feed = buildFeed([
+    {
+      _id: 1,
+      event: "отказ от заявки по причине Не моя зона: это сеть, а не 1С",
+      createdAt: at(0),
+    },
+    // Старая запись без причины: форма пропустила пустое поле
+    { _id: 2, event: "отказ от заявки по причине undefined", createdAt: at(1) },
+    { _id: 3, event: "отказ от заявки по причине  ", createdAt: at(2) },
+    // Причина в несколько строк остаётся целой
+    {
+      _id: 4,
+      event: "отказ от заявки по причине Ухожу в отпуск.\nПередайте Иванову",
+      createdAt: at(3),
+    },
+    { _id: 5, event: "принята в работу", createdAt: at(4) },
+  ]);
+
+  // Вид лента называет сама («Отказ от заявки»), а причину теряла: текст лога
+  // хроника показывает только у «прочего»
+  assert.equal(feed[0].kind, "rejected");
+  assert.equal(feed[0].detail, "Не моя зона: это сеть, а не 1С");
+  assert.equal(feed[1].detail, undefined);
+  assert.equal(feed[2].detail, undefined);
+  assert.equal(feed[3].detail, "Ухожу в отпуск.\nПередайте Иванову");
+  // У остальных видов поля нет
+  assert.equal(feed[4].detail, undefined);
+});
+
+test("причина отказа не уезжает заявителю", () => {
+  const client = feedForClient(
+    buildFeed([
+      { _id: 1, event: "создана новая заявка", createdAt: at(0) },
+      { _id: 2, event: "отказ от заявки по причине внутренняя кухня", createdAt: at(1) },
+    ]),
+  );
+  assert.deepEqual(
+    client.map((event) => event.kind),
+    ["created"],
+  );
+  assert.ok(!JSON.stringify(client).includes("внутренняя кухня"));
+});
