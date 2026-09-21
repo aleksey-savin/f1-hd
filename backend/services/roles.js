@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const { AppError } = require("@/middleware/errorHandling");
 const {
   STATEMENT,
+  ACTION_LABELS,
   actionsToStatements,
   statementsToActions,
   isFullAccess,
@@ -118,6 +119,50 @@ const assertNotEscalating = (statements, can) => {
     );
   }
 };
+
+/**
+ * ПРАВА, КОТОРЫХ НЕТ У ПРАВЯЩЕГО, В РОЛИ ЗАПЕРТЫ — их нельзя ни выдать, ни
+ * снять; всё остальное в роли он меняет свободно.
+ *
+ * Прежний порог правки был строже: роль, дающая хоть одно право сверх своих,
+ * не открывалась вовсе. Он сломался на первом же живом случае — у владельца
+ * роль со всем словарём, кроме «Закрывать без записи о работе», и любая роль с
+ * этим правом (включая администратора) стала для него неизменяемой целиком,
+ * вплоть до названия. Чужое право при этом никто и не трогал.
+ *
+ * Запертое сторожится в обе стороны. Выдать — эскалация: завёл право в роль,
+ * роль назначил себе. Снять — распоряжение чужим правом: вернуть его правящему
+ * уже нечем, так что ошибку некому исправить. Свои же права он и снимает, и
+ * возвращает сам; от обнуления роли администратора по-прежнему держит
+ * `assertNotLastKeeper`.
+ *
+ * Чистая часть: `before` просеивается словарём — действие, которого в словаре
+ * больше нет, `can` «не знает», и без просеивания оно считалось бы запертым и
+ * снятым: роль из старого словаря не сохранялась бы никогда.
+ *
+ * @returns {{added: string[], removed: string[]}} запертые действия, которые
+ *   правка тронула; оба пусты — правка в своих границах
+ */
+const lockedActionChanges = (before, after, can) => {
+  const lacks = (id) => {
+    const [resource, action] = id.split(".");
+    return !can({ [resource]: [action] });
+  };
+  const was = new Set(statementsToActions(sanitize(before)));
+  const now = new Set(statementsToActions(after));
+  return {
+    added: [...now].filter((id) => !was.has(id) && lacks(id)),
+    removed: [...was].filter((id) => !now.has(id) && lacks(id)),
+  };
+};
+
+/** Есть ли в роли запертое для правящего — тогда заперт и её адресат. */
+const hasLockedActions = (statements, can) =>
+  lockedActionChanges(statements, {}, can).removed.length > 0;
+
+/** Подписи вместо идентификаторов: сообщение читает человек, а не лог. */
+const actionTitles = (ids) =>
+  ids.map((id) => `«${ACTION_LABELS[id]?.label || id}»`).join(", ");
 
 /**
  * Права, без которых установка становится неуправляемой: раздавать доступ
@@ -444,13 +489,11 @@ const update = async (key, { title, description, actions, audience }, can) => {
     throw new AppError("Роль не найдена", 404);
   }
 
-  // Правка — тоже распоряжение ПРЕЖНИМИ правами роли: набор можно урезать, а
-  // адресатом решается, кому роль достанется. Тот же порог, что у удаления:
-  // нельзя трогать роль, раздающую больше, чем есть у самого. Проверялся один
-  // только НОВЫЙ набор — и любой носитель `role.manage` обнулял роль
-  // администратора, гасил зеркало `isAdmin` у всех и вернуть его было некому.
+  // Правка — тоже распоряжение ПРЕЖНИМИ правами роли, поэтому смотрим не один
+  // новый набор, а разницу: права, которых нет у правящего, в роли заперты
+  // (`lockedActionChanges`), остальное он меняет свободно. Название и описание
+  // прав не касаются вовсе.
   const before = parseStatements(role.permission);
-  assertNotEscalating(before, can);
 
   const set = { updatedAt: new Date() };
   if (title !== undefined) {
@@ -465,11 +508,35 @@ const update = async (key, { title, description, actions, audience }, can) => {
     set.description = String(description).trim();
   }
   if (audience !== undefined) {
+    // Адресат решает, кому достанутся ВСЕ права роли, включая запертые, — а
+    // форма при его смене ещё и снимает права другого типа. Форма шлёт адресата
+    // всегда, поэтому отказ — только на настоящую смену.
+    if (
+      audienceOf(audience) !== audienceOf(role.audience) &&
+      hasLockedActions(before, can)
+    ) {
+      throw new AppError(
+        "В роли есть права, которых нет у вас, — кому она назначается, изменить нельзя",
+        403,
+      );
+    }
     set.audience = audienceOf(audience);
   }
   if (actions !== undefined) {
     const clean = sanitize(actionsToStatements(actions));
-    assertNotEscalating(clean, can);
+    const touched = lockedActionChanges(before, clean, can);
+    if (touched.added.length) {
+      throw new AppError(
+        `Нельзя выдать роли права, которых нет у вас: ${actionTitles(touched.added)}`,
+        403,
+      );
+    }
+    if (touched.removed.length) {
+      throw new AppError(
+        `Нельзя снять с роли права, которых нет у вас: ${actionTitles(touched.removed)}`,
+        403,
+      );
+    }
     set.permission = JSON.stringify(clean);
   }
 
@@ -515,9 +582,10 @@ const remove = async (key, can) => {
   const statements = parseStatements(role.permission);
 
   // Удаление — тоже распоряжение чужими правами: оно снимает роль со всех, кто
-  // её носит. Тот же порог, что у создания и правки: нельзя трогать роль,
-  // раздающую больше, чем есть у самого. Иначе управляющий ролями снимал бы
-  // администраторскую роль, выдать которую не может.
+  // её носит, вместе с запертыми для удаляющего правами. Поэтому порог здесь
+  // строже, чем у правки (та обходит запертое стороной): роль, раздающую
+  // больше, чем есть у самого, удалить нельзя. Иначе управляющий ролями снимал
+  // бы администраторскую роль, выдать которую не может.
   assertNotEscalating(statements, can);
 
   // Удаление уносит права роли целиком — поэтому набор «после» пустой.
@@ -784,4 +852,5 @@ module.exports = {
   losesLastFullAccess,
   staffSideOf,
   assertRoleFitsAccount,
+  lockedActionChanges,
 };

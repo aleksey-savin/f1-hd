@@ -35,14 +35,12 @@ const PermissionModules = ({
   /** Набор выданных действий: Set или массив «ресурс.действие». */
   value,
   onToggle,
-  /** Какие действия вообще можно трогать. Не передан — можно все. */
-  allowed,
   /**
-   * Только чтение: гасит ВСЕ строки, не помечая их «нет у вас». Нужно там, где
-   * причина одна на всю матрицу и названа отдельно, — роль шире прав
-   * смотрящего (`Role/Form`).
+   * Какие действия можно трогать. Не передан — можно все. Остальные строки
+   * заперты в своём положении с подписью «нет у вас»: выданное остаётся
+   * выданным, и роль с таким правом правится вокруг него (`Role/Form`).
    */
-  readOnly = false,
+  allowed,
   /** Дополнительный блок под конкретным правом (категории у исполнителя). */
   renderExtra,
   className,
@@ -81,17 +79,14 @@ const PermissionModules = ({
             </div>
 
             {group.actions.map((action) => {
-              // «Нет у вас» — только про конкретную строку; режим чтения гасит
-              // всю матрицу, и подпись у каждой строки была бы неправдой
               const missing = !canToggle(action.id);
-              const locked = readOnly || missing;
               return (
                 <div key={action.id}>
                   <SwitchField
                     id={`perm-${action.id}`}
                     checked={granted.has(action.id)}
                     onCheckedChange={() => onToggle(action.id)}
-                    disabled={locked}
+                    disabled={missing}
                     label={
                       <span
                         className={cn(

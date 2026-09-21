@@ -15,6 +15,7 @@ const {
   losesLastFullAccess,
   staffSideOf,
   assertRoleFitsAccount,
+  lockedActionChanges,
 } = require("./roles");
 
 const ROLE_MANAGE = { role: ["manage"], user: ["manage"] };
@@ -141,5 +142,73 @@ test("flipping the audience counts as losing full access", () => {
   assert.equal(
     lastKeeperLoss(ROLE_MANAGE, {}, [staffSideOf(ROLE_MANAGE, "client")]),
     "role.manage",
+  );
+});
+
+// Правящий держит весь словарь, кроме перечисленного, — ровно случай владельца:
+// роль со всеми правами без «Закрывать без записи о работе».
+const canAllBut =
+  (...missing) =>
+  (request) =>
+    Object.entries(request).every(([resource, actions]) =>
+      actions.every((action) => !missing.includes(`${resource}.${action}`)),
+    );
+
+test("a role with actions the editor lacks stays editable around them", () => {
+  const can = canAllBut("ticket.closeWithoutWork");
+  const before = { ticket: ["readAll", "closeWithoutWork"], work: ["read"] };
+
+  // Запертое право на месте, вокруг него правка свободна: своё право снято
+  // (ticket.readAll), своё добавлено (work.manage). Прежний порог отбивал и
+  // это — и даже смену одного названия.
+  assert.deepEqual(
+    lockedActionChanges(
+      before,
+      { ticket: ["closeWithoutWork"], work: ["read", "manage"] },
+      can,
+    ),
+    { added: [], removed: [] },
+  );
+  // Набор не тронут вовсе
+  assert.deepEqual(lockedActionChanges(before, before, can), {
+    added: [],
+    removed: [],
+  });
+});
+
+test("a locked action can be neither granted nor taken away", () => {
+  const can = canAllBut("ticket.closeWithoutWork");
+
+  // Выдать то, чего нет у самого, — эскалация: завёл право в роль, роль себе
+  assert.deepEqual(
+    lockedActionChanges(
+      { work: ["read"] },
+      { work: ["read"], ticket: ["closeWithoutWork"] },
+      can,
+    ),
+    { added: ["ticket.closeWithoutWork"], removed: [] },
+  );
+  // Снять — распоряжение чужим правом: вернуть его правящему уже нечем
+  assert.deepEqual(
+    lockedActionChanges(
+      { work: ["read"], ticket: ["closeWithoutWork"] },
+      { work: ["read"] },
+      can,
+    ),
+    { added: [], removed: ["ticket.closeWithoutWork"] },
+  );
+});
+
+test("an action gone from the dictionary does not lock the role", () => {
+  // Роль из старого словаря: действия больше нет, `can` на него отвечает
+  // отказом — без просеивания оно считалось бы запертым и снятым, и роль не
+  // сохранялась бы никогда.
+  assert.deepEqual(
+    lockedActionChanges(
+      { work: ["read"], ticket: ["noSuchAction"] },
+      { work: ["read"] },
+      canAllBut("ticket.noSuchAction"),
+    ),
+    { added: [], removed: [] },
   );
 });

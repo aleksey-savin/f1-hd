@@ -95,15 +95,17 @@ const RoleForm = ({ role }) => {
 
   const initial = useMemo(() => new Set(role?.actions || []), [role]);
   /**
-   * Роль шире прав смотрящего — форма только на чтение.
+   * В роли есть права, которых нет у смотрящего, — они ЗАПЕРТЫ, остальное
+   * правится как обычно.
    *
-   * Матрица уходит на сервер НАБОРОМ (`actions: [...actions]`), а не разницей,
-   * поэтому чужие строки ушли бы вместе с сохранением; сервер их всё равно
-   * отобьёт (`services/roles.js#assertNotEscalating` смотрит и прежний набор),
-   * и «Сохранить» отвечало бы отказом на каждое нажатие. Видеть роль при этом
-   * можно: закрывать её целиком незачем.
+   * Матрица уходит на сервер НАБОРОМ (`actions: [...actions]`), и запертые
+   * строки едут в нём как были: переключить их нельзя (`allowed` гасит строку
+   * с подписью «нет у вас»), а сервер сверяет именно это — запертое не выдано
+   * и не снято (`services/roles.js#lockedActionChanges`). Прежде такая роль
+   * открывалась целиком на чтение, и человек без одного права не мог поправить
+   * в ней даже название.
    */
-  const readOnly = useMemo(
+  const hasLocked = useMemo(
     () => [...initial].some((id) => !allowed.has(id)),
     [initial, allowed],
   );
@@ -177,11 +179,11 @@ const RoleForm = ({ role }) => {
           subtitle={role?.title}
           onHeight={setHeadHeight}
         >
-          {readOnly && (
+          {hasLocked && (
             <AlertMessage
               variant="warning"
               className="my-0"
-              message="Роль шире ваших прав — менять её может только тот, у кого они есть"
+              message="В роли есть права, которых нет у вас, — они останутся как есть, остальное можно менять"
             />
           )}
           {!role && catalogue.length > 0 && (
@@ -201,7 +203,7 @@ const RoleForm = ({ role }) => {
         </FormHeader>
       }
       json={() => ({ title, description, actions: [...actions], audience })}
-      submitDisabled={readOnly || !title.trim()}
+      submitDisabled={!title.trim()}
     >
       <div className="flex items-start gap-7">
         {/* Рейл ведёт по группам прав: якорь вешает карточка группы, а список
@@ -235,7 +237,6 @@ const RoleForm = ({ role }) => {
               <Input
                 id="role-title"
                 autoFocus
-                disabled={readOnly}
                 placeholder="Например, «Инженер выездной»"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
@@ -246,7 +247,6 @@ const RoleForm = ({ role }) => {
               <Textarea
                 id="role-description"
                 rows={2}
-                disabled={readOnly}
                 placeholder="Зачем эта роль — увидят те, кто будет её назначать"
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
@@ -255,11 +255,16 @@ const RoleForm = ({ role }) => {
 
             <Field
               label="Кому назначается"
-              hint="Ниже — только права, которые действуют у этого типа аккаунта. При смене адресата права другого типа снимаются."
+              hint={
+                hasLocked
+                  ? "Сменить нельзя, пока в роли есть права, которых нет у вас: адресат решает, кому они достанутся."
+                  : "Ниже — только права, которые действуют у этого типа аккаунта. При смене адресата права другого типа снимаются."
+              }
             >
               <Segmented
                 ariaLabel="Кому назначается"
-                disabled={readOnly}
+                // Адресат заперт вместе с чужими правами — так же решает сервер
+                disabled={hasLocked}
                 value={audience}
                 onChange={(next) => {
                   // Права другого адресата у роли не действуют — снимаем их
@@ -282,7 +287,6 @@ const RoleForm = ({ role }) => {
             // Право, которого нет у самого, выдать нельзя — сервер отобьёт.
             // Предлагать то, что вернётся отказом, хуже, чем не предлагать.
             allowed={allowed}
-            readOnly={readOnly}
             audience={audience}
           />
 
