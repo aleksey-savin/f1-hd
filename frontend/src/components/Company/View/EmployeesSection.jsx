@@ -222,7 +222,7 @@ const EmployeesSection = ({ company, id }) => {
                       <span
                         title={
                           user.lastActivity?.ticketNum
-                            ? `Последняя заявка №${user.lastActivity.ticketNum}`
+                            ? `Последняя заявка ${user.lastActivity.ticketNum}`
                             : "Обращений не было"
                         }
                         className={cn(

@@ -661,7 +661,7 @@ const ViewUser = ({ user, tickets }) => {
                       className="flex items-center gap-3 border-t border-border-soft py-2.5 text-foreground no-underline first:border-t-0 hover:bg-accent/40"
                     >
                       <span className="w-16 flex-none text-sm font-semibold text-accent-text tabular-nums">
-                        №{ticket.num}
+                        {ticket.num}
                       </span>
                       <span className="min-w-0 flex-1 truncate text-sm">
                         {ticket.title}

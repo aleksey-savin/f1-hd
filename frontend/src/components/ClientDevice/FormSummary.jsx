@@ -36,9 +36,9 @@ const FormSummary = ({ form, deviceKind, labels }) => {
       {deviceKind === "branded" && (
         <Row label="Конфигурация" value={labels.configuration} pending="—" />
       )}
-      <Row label="Серийный №" value={form.serialNumber} pending="не указан" />
+      <Row label="Серийный номер" value={form.serialNumber} pending="не указан" />
       <Row
-        label="Инв. №"
+        label="Инв. номер"
         value={form.inventoryNumber}
         pending="присвоится автоматически"
       />

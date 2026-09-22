@@ -2,7 +2,7 @@ import { sectionAs, sectionForPath } from "@/util/sections";
 
 /**
  * Контекст для 404: страница называет вещь, а не код («Не нашли заявку
- * №51713»), и ведёт к списку раздела.
+ * 51713»), и ведёт к списку раздела.
  *
  * Своей карты адресов здесь больше нет — раздел, его список и падежи берутся из
  * общего справочника `util/sections`. Прежде та же карта жила тут копией и
@@ -26,7 +26,7 @@ export function resolveEntityContext(pathname, { isEndUser } = {}) {
     : {};
 
   return {
-    title: num ? `Не нашли ${section.acc} №${num}` : `Не нашли ${section.acc}`,
+    title: num ? `Не нашли ${section.acc} ${num}` : `Не нашли ${section.acc}`,
     body: `Возможно, ${section.pronoun} удалили или в ссылке опечатка.`,
     ...list,
   };

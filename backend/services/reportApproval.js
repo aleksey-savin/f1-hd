@@ -938,7 +938,7 @@ const issueInvoice = async ({ report, number, date, authedUser }) => {
     actor: "contractor",
     by: actorOf(authedUser),
     action: "invoiced",
-    comment: `№ ${number}`,
+    comment: `${number}`,
   });
   report.updatedBy = authedUser.userId || authedUser._id;
   await report.save();

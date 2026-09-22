@@ -838,7 +838,7 @@ const StateCell = ({ row }: { row: ReportRow }) => {
     return (
       <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
         <span className="size-2 rounded-full bg-warning ring-4 ring-warning/20" />
-        Счёт {row.invoice?.number ? `№ ${row.invoice.number}` : "выставлен"}
+        Счёт {row.invoice?.number || "выставлен"}
         {row.invoice?.date && ` от ${formatShortDate(row.invoice.date)}`}
       </span>
     );

@@ -81,7 +81,7 @@ const UpcomingWorks = () => {
                       state={fromState}
                       className="block truncate text-muted-foreground no-underline outline-none after:absolute after:inset-0 hover:text-foreground focus-visible:after:ring-4 focus-visible:after:ring-ring/50"
                     >
-                      № {ticket.num} · {ticket.title || "Без темы"}
+                      {ticket.num} · {ticket.title || "Без темы"}
                     </Link>
                   )}
                 </span>

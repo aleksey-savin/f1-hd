@@ -2,12 +2,12 @@ import { formatShortDate } from "../../util/format-date";
 
 import { LONG_WORK_MS, formatDuration } from "./duration";
 
-// Строка архива работ (read-only): №-ссылки связанных заявок · описание + мета
+// Строка архива работ (read-only): номера-ссылки связанных заявок · описание + мета
 // «компания · категории · инициаторы» · исполнитель · длительность и дата
 // завершения. Сама строка никуда не ведёт (у работы нет карточки) —
 // кликабельны только номера заявок (новая вкладка, выдача остаётся на месте).
 // Длительность от 12 часов — warning-текст с точкой, строка не заливается.
-// На мобайле — три яруса: №№ + длительность / описание / компания · исполнитель.
+// На мобайле — три яруса: номера + длительность / описание / компания · исполнитель.
 
 // 1 инициатор — полное имя, несколько — «Фамилия И.» через запятую
 const applicantNames = (tickets) => {
@@ -93,13 +93,13 @@ const WorkArchiveItem = ({ work }) => {
 
   return (
     <div className="relative flex flex-col gap-0.5 px-4 py-3 before:absolute before:top-0 before:right-5 before:left-5 before:h-px before:bg-border-soft first:before:hidden md:flex-row md:items-center md:gap-4 md:px-5 md:py-2.5">
-      {/* мобайл: №№ заявок + длительность */}
+      {/* мобайл: номера заявок + длительность */}
       <div className="flex items-baseline gap-1 text-xs text-muted-foreground tabular-nums md:hidden">
-        <span>{mobileNums ? `№ ${mobileNums}` : "без заявки"}</span>
+        <span>{mobileNums || "без заявки"}</span>
         <span className="ms-auto text-sm">{duration}</span>
       </div>
 
-      {/* десктоп: колонка №-ссылок */}
+      {/* десктоп: колонка номеров-ссылок */}
       <div className="hidden w-20 flex-none flex-col gap-0.5 text-sm leading-tight md:flex">
         {(work.tickets || []).map((ticket) => (
           <TicketLink key={ticket._id} ticket={ticket} />

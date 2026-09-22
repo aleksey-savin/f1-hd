@@ -84,7 +84,7 @@ const ViewRoutineTask = ({ task }) => {
     ) {
       setRunOpen(false);
       const num = runFetcher.data.ticketNum;
-      showToast("success", num ? `Заявка №${num} создана` : "Заявка создана");
+      showToast("success", num ? `Заявка ${num} создана` : "Заявка создана");
     }
   }, [runFetcher.state, runFetcher.data]);
 

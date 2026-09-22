@@ -124,7 +124,7 @@ const Delivery = ({ delivery, defaultOpen, from }) => {
                       : "border-border text-faint",
                   )}
                 >
-                  {position.inventoryNumber || "нет №"}
+                  {position.inventoryNumber || "нет номера"}
                 </span>
                 <span className="min-w-0 flex-1 truncate">
                   {[position.vendorName, position.name]

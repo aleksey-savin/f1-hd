@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { formatDate } from "../../util/format-date";
+import { formatMailSender, parseMailSender } from "../../util/mail-sender";
 import { plural } from "../../util/plural";
 import {
   TicketStateText,
@@ -131,8 +132,17 @@ const TicketRow = ({
 
   const applicantName = applicant
     ? `${applicant.lastName || ""} ${applicant.firstName || ""}`.trim()
-    : realSender || "";
-  const metaText = [company?.alias, applicantName].filter(Boolean).join(" · ");
+    : formatMailSender(realSender) || realSender || "";
+  // У заявки из письма адрес отправителя виден и в списке: неизвестного
+  // клиента без подписи иначе не назвать (инициатор — служебная учётка).
+  // Список только для сотрудников, поэтому гейта по зрителю здесь нет
+  const mailAddress =
+    ticket.source === "Почта" && applicant
+      ? parseMailSender(realSender)?.address
+      : null;
+  const metaText = [company?.alias, applicantName, mailAddress]
+    .filter(Boolean)
+    .join(" · ");
   // Мета — вторичные факты через « · »: «N новых» первым, вид записи
   // (регламент), компания и инициатор
   const meta = (iconSize) => {
@@ -190,7 +200,7 @@ const TicketRow = ({
         // режим там долгий тап.
         <Checkbox
           checked={isSelected}
-          aria-label={`Выбрать заявку № ${num}`}
+          aria-label={`Выбрать заявку ${num}`}
           onClick={(event) => onToggle(ticket._id, { range: event.shiftKey })}
           className={cn(
             "absolute start-4 top-1/2 z-10 -translate-y-1/2 transition-opacity md:start-5",
@@ -215,7 +225,7 @@ const TicketRow = ({
           {/* Точка внутри строчного span, а не первым флекс-ребёнком: у флекса
               базовая линия взялась бы от пустой точки (см. TicketStateText) */}
           <span>
-            {unseen && unseenDot}№ {num}
+            {unseen && unseenDot}{num}
           </span>
           <span className="text-faint">· {createdShort(createdAt)}</span>
           <TicketStateText tone={state.tone} className="ms-auto text-xs">
@@ -340,7 +350,7 @@ const TicketRow = ({
           закрытии (идиома app/ListRow) */}
       {canDelete && (
         <DeleteDialog
-          item={{ _id: ticket._id, title: `Заявка № ${num}` }}
+          item={{ _id: ticket._id, title: `Заявка ${num}` }}
           open={deleteOpen}
           onOpenChange={setDeleteOpen}
         />

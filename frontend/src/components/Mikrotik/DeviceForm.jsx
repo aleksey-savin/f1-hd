@@ -443,7 +443,7 @@ const DeviceForm = () => {
                               .filter(Boolean)
                               .join(" ") || candidate.hostname,
                             candidate.inventoryNumber
-                              ? `инв. №${candidate.inventoryNumber}`
+                              ? `инв. ${candidate.inventoryNumber}`
                               : null,
                             candidate.company?.name,
                           ]
@@ -536,7 +536,7 @@ const DeviceForm = () => {
               {[
                 targetDevice.title,
                 targetDevice.inventoryNumber
-                  ? `инв. №${targetDevice.inventoryNumber}`
+                  ? `инв. ${targetDevice.inventoryNumber}`
                   : null,
                 targetDevice.companyName,
               ]

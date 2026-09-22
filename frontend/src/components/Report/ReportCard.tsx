@@ -642,7 +642,7 @@ const StatusLine = ({
       )}
       {report.status === "awaitingPayment" && report.invoice?.number && (
         <span className="font-normal text-muted-foreground">
-          · счёт № {report.invoice.number}
+          · счёт {report.invoice.number}
         </span>
       )}
     </span>

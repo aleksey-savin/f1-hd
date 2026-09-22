@@ -166,14 +166,14 @@ const PlanCard = ({
             state={state}
             className={cn("block truncate font-medium", stretched)}
           >
-            {work.company?.alias ?? `Заявка № ${ticket.num}`}
+            {work.company?.alias ?? `Заявка ${ticket.num}`}
           </Link>
         ) : (
           <div className="truncate font-medium">{work.company?.alias}</div>
         )}
         {ticket && (
           <div className="line-clamp-2 text-muted-foreground">
-            № {ticket.num} · {ticket.title || "Без темы"}
+            {ticket.num} · {ticket.title || "Без темы"}
           </div>
         )}
       </div>
@@ -245,7 +245,7 @@ const PlanRow = ({
         </span>
         {ticket && (
           <span className="block truncate text-muted-foreground">
-            № {ticket.num} · {ticket.title || "Без темы"}
+            {ticket.num} · {ticket.title || "Без темы"}
           </span>
         )}
         <span className="mt-1 flex min-h-5 items-center justify-between gap-2 tabular-nums">

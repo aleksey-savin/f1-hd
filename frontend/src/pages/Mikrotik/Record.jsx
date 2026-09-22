@@ -67,7 +67,7 @@ const pillClass =
 
 /**
  * Строка hero «карточка инвентаря»: у записи есть карточка — одна ссылка на
- * неё с тем, что карточка знает сама (модель · инв. № · расположение), без
+ * неё с тем, что карточка знает сама (модель · инв. номер · расположение), без
  * повтора этих фактов ниже; карточки нет — то же предложение, что у шага после
  * проверки в форме: связать найденную по серийнику или создать из считанных
  * данных. `inventory === null` — модуль «Учёт техники» выключен, строки нет.
@@ -89,7 +89,7 @@ const InventoryLine = ({ row, canManage, onChanged }) => {
   if (row.clientDeviceId) {
     const facts = [
       inventory?.modelName,
-      inventory?.inventoryNumber ? `№ ${inventory.inventoryNumber}` : null,
+      inventory?.inventoryNumber ? `инв. ${inventory.inventoryNumber}` : null,
       row.location?.name,
     ].filter(Boolean);
     return (
@@ -144,7 +144,7 @@ const InventoryLine = ({ row, canManage, onChanged }) => {
                 .filter(Boolean)
                 .join(" ") || candidate.hostname,
               candidate.inventoryNumber
-                ? `инв. №${candidate.inventoryNumber}`
+                ? `инв. ${candidate.inventoryNumber}`
                 : null,
               candidate.company?.name,
             ]
@@ -205,7 +205,7 @@ const InventoryLine = ({ row, canManage, onChanged }) => {
  * Страница записи мониторинга — общая для инвентарных и standalone устройств.
  * У страницы одна тема — операции: связь, проверки, прошивка, доступность,
  * сеть, копии конфигураций. Идентичность устройства (модель, серийник,
- * расположение, инв. №) принадлежит карточке инвентаря и здесь свёрнута в
+ * расположение, инв. номер) принадлежит карточке инвентаря и здесь свёрнута в
  * одну строку-ссылку под заголовком; у записи без карточки плата и серийник
  * остаются — с пометкой «с устройства», хозяина у них нет.
  *
@@ -415,7 +415,7 @@ const MikrotikRecordPage = () => {
               className="inline-flex items-center gap-1.5 font-medium text-accent-text no-underline hover:underline"
             >
               <RiPulseLine size={14} aria-hidden />
-              Заявка №{row.alertTicket.num} о недоступности
+              Заявка {row.alertTicket.num} о недоступности
             </Link>
           )}
         </div>

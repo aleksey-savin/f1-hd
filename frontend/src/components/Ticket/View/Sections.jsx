@@ -65,6 +65,7 @@ import TicketTerms, {
 } from "./TicketTerms";
 import useInitialPrefsStore from "../../../store/prefs";
 import { formatDate } from "../../../util/format-date";
+import { formatMailSender, parseMailSender } from "../../../util/mail-sender";
 import { getCompanyAddresses } from "../../Company/company-links";
 import TaxiButton, { cardTaxiClass } from "../../Company/TaxiButton";
 import WorkStatusText from "../../Company/WorkStatusText";
@@ -394,6 +395,18 @@ export const FactsSection = ({
   const { isEndUser } = useContext(AuthedUserContext);
   const can = useCan();
   const applicant = ticket.applicant;
+  // Заявка из письма: адрес отправителя виден всегда — почта неизвестного
+  // клиента без подписи иначе никак не называет, кто написал (инициатором
+  // тогда стоит служебная учётка из настроек). У служебной учётки рядом с
+  // адресом и имя из заголовка From, у опознанного человека имя уже есть.
+  // Только сотрудникам: отправителем может оказаться сотрудник, а его контакты
+  // клиенту не показываются нигде
+  const mailSender =
+    !isEndUser && ticket.source === "Почта" && applicant
+      ? applicant.isServiceAccount
+        ? formatMailSender(ticket.realSender)
+        : parseMailSender(ticket.realSender)?.address
+      : null;
   // Своя компания и свой адрес заявителю ничего не сообщают: он их знает. А
   // инициатор осмыслен, только когда им бывает НЕ он сам, — то есть у того, кто
   // заводит заявки за других (тогда инициатор — не он и в своей заявке) ИЛИ
@@ -409,7 +422,7 @@ export const FactsSection = ({
       },
     });
   // Как заявка назовётся в крошке компании или человека, куда ведут ссылки ниже
-  const from = `Заявка №${ticket.num}`;
+  const from = `Заявка ${ticket.num}`;
   const fromState = useCrumbFrom(from);
   const computer = applicant?.computer;
 
@@ -518,7 +531,7 @@ export const FactsSection = ({
             ) : applicant ? (
               `${applicant.lastName ?? ""} ${applicant.firstName ?? ""}`.trim()
             ) : (
-              ticket.realSender
+              formatMailSender(ticket.realSender) ?? ticket.realSender
             )}
             {/* Служебная учётка (регламент, мониторинг, телефония): контактов
                 у неё нет, поэтому имя не кликается, а приписка объясняет,
@@ -532,6 +545,12 @@ export const FactsSection = ({
                   {applicant.position}
                 </span>
               )
+            )}
+            {mailSender && (
+              <span className="text-muted-foreground">
+                {" · письмо от "}
+                {mailSender}
+              </span>
             )}
           </PropRow>
         )}

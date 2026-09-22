@@ -40,7 +40,7 @@ const TicketRow = ({ ticket, meta, trailing, unread }) => {
       {/* мобайл: номер и статус одной строкой над темой */}
       <div className="flex items-baseline gap-2 text-xs text-muted-foreground tabular-nums md:hidden">
         <span>
-          {unseen && unseenDot}№ {ticket.num}
+          {unseen && unseenDot}{ticket.num}
         </span>
         <TicketStateText tone={tone} className="ms-auto text-xs">
           {label}

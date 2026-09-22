@@ -283,7 +283,7 @@ const ViewTicket = () => {
   // Шаблоны чек-листов, подходящие этой заявке: ранжирование («побеждает самый
   // узкий») считает сервер, здесь только показ
   // Как заявка назовётся в крошке регламента, куда ведёт ссылка в чек-листе
-  const fromState = useCrumbFrom(`Заявка №${ticket.num}`);
+  const fromState = useCrumbFrom(`Заявка ${ticket.num}`);
   const templates = useChecklistTemplates(ticket.num, canEditChecklist);
   const checklistHasChecks = (ticket.checklist ?? []).some(
     (item) => item.checked,
@@ -402,7 +402,7 @@ const ViewTicket = () => {
               строкой: в ряду одинаковой меты он был четвёртым по заметности,
               хотя отвечает на главный вопрос экрана */}
           <div className="text-sm font-semibold text-muted-foreground tabular-nums">
-            № {ticket.num}
+            {ticket.num}
           </div>
           <h1 className="mt-1.5 mb-0 text-2xl leading-tight font-semibold tracking-tight break-words">
             {ticket.title}
@@ -725,7 +725,7 @@ const ViewTicket = () => {
                 userId={ticket.applicant?._id}
                 deviceId={ticket.relatedClientDeviceId}
                 onEmptyChange={setEnvironmentEmpty}
-                from={`Заявка №${ticket.num}`}
+                from={`Заявка ${ticket.num}`}
               />
             </Section>
           )}
@@ -764,7 +764,7 @@ const ViewTicket = () => {
       />
 
       <DeleteDialog
-        item={{ _id: ticket._id, title: `Заявка № ${ticket.num}` }}
+        item={{ _id: ticket._id, title: `Заявка ${ticket.num}` }}
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
       />
@@ -786,7 +786,7 @@ const ViewTicket = () => {
 export default ViewTicket;
 
 export async function loader({ params }) {
-  document.title = `Заявка № ${params.ticketNum}`;
+  document.title = `Заявка ${params.ticketNum}`;
 
   const { userId } = getLocalStorageData();
   // Заголовков не осталось: сеанс едет cookie, и объект пустой лишь потому,

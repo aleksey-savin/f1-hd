@@ -6,7 +6,7 @@ import { formatShortDate } from "../../util/format-date";
 // даты «закрыта / создана». Вся строка — ссылка на заявку в новой вкладке
 // (выдача с фильтрами остаётся на месте); «↗» проявляется по наведению.
 // Значок ↻ у номера — заявка создана регламентом. На мобайле — три яруса:
-// № + дата закрытия / тема / компания · инициатор.
+// номер + дата закрытия / тема / компания · инициатор.
 
 // 1 ответственный — полное имя, несколько — «Фамилия И.» через запятую
 const responsibleNames = (responsibles) => {
@@ -54,9 +54,9 @@ const ArchiveItem = ({ ticket }) => {
       rel="noopener noreferrer"
       className="group relative flex flex-col gap-0.5 px-4 py-3 text-foreground no-underline transition-colors before:absolute before:top-0 before:right-5 before:left-5 before:h-px before:bg-border-soft first:before:hidden hover:bg-accent/60 hover:text-foreground md:flex-row md:items-center md:gap-4 md:px-5 md:py-2.5"
     >
-      {/* мобайл: № + дата закрытия */}
+      {/* мобайл: номер + дата закрытия */}
       <div className="flex items-baseline gap-1 text-xs text-muted-foreground tabular-nums md:hidden">
-        <span>№ {ticket.num}</span>
+        <span>{ticket.num}</span>
         {routineMark}
         <span className="ms-auto text-faint">
           закрыта {formatShortDate(ticket.finishedAt)}

@@ -87,7 +87,7 @@ const PersonalWorksTable = ({
                         onClick={(event) => event.stopPropagation()}
                         className="font-semibold text-accent-text no-underline tabular-nums hover:underline"
                       >
-                        №{ticket.num}
+                        {ticket.num}
                       </Link>
                     ))}
                     <span className="line-clamp-1 text-muted-foreground">

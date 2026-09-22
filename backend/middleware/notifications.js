@@ -488,10 +488,10 @@ exports.createTicketNotifications = async () => {
               title: `[F1-HD-${ticket.num}] Создана новая Заявка`,
               text: `
                             <div>
-                                <h3>Создана новая Заявка №${ticket.num}.</h3>
+                                <h3>Создана новая Заявка ${ticket.num}.</h3>
                                 <p>${applicant.firstName},</p>
                                 <p>
-                                    По вашему обращению создана заявка №${ticket.num}. Мы передадим
+                                    По вашему обращению создана заявка ${ticket.num}. Мы передадим
                                     её специалисту и сообщим Вам, как только он примет её в работу.
                                 </p>
                                 <p>
@@ -743,7 +743,7 @@ exports.createTicketNotifications = async () => {
               title: `[F1-HD-${ticket.num}] Заявка ${ticket.num} принята в работу. ${ticket.title}`,
               text: `
                         <div>
-                            <h3>Заявка №${ticket.num} принята в работу.</h3>
+                            <h3>Заявка ${ticket.num} принята в работу.</h3>
                             <p>${ticket.applicantId.firstName},</p>
                             <p>
                                 Мы уже работаем над Вашей заявкой и постараемся,
@@ -1245,10 +1245,10 @@ exports.createTicketNotifications = async () => {
               title: `[F1-HD-${ticket.num}] Заявка ${ticket.num} выполнена. ${ticket.title}`,
               text: `
                         <div>
-                            <h3>Заявка №${ticket.num} выполнена.</h3>
+                            <h3>Заявка ${ticket.num} выполнена.</h3>
                             <p>${ticket.applicantId.firstName},</p>
                             <p>
-                                Мы закончили работы по Заявке №${ticket.num}, тема: ${ticket.title}.
+                                Мы закончили работы по Заявке ${ticket.num}, тема: ${ticket.title}.
                             </p>
                             <p>Комментарий: ${ticket.closingComment}</p>
                             <p>
@@ -1292,10 +1292,10 @@ exports.createTicketNotifications = async () => {
                 title: `[F1-HD-${ticket.num}] Заявка ${ticket.num} выполнена. ${ticket.title}`,
                 text: `
                             <div>
-                                <h3>Заявка №${ticket.num} выполнена.</h3>
+                                <h3>Заявка ${ticket.num} выполнена.</h3>
                                 <p>${user.firstName},</p>
                                 <p>
-                                    Закончены работы по Заявке №${ticket.num}, тема: ${ticket.title}.
+                                    Закончены работы по Заявке ${ticket.num}, тема: ${ticket.title}.
                                 </p>
                                 <p>Комментарий: ${ticket.closingComment}</p>
                                 <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
@@ -1458,10 +1458,10 @@ exports.createTicketNotifications = async () => {
               title: `[F1-HD-${ticket.num}] Заявка ${ticket.num} возвращена в работу`,
               text: `
                         <div>
-                            <h3>Заявка №${ticket.num} возвращена в работу.</h3>
+                            <h3>Заявка ${ticket.num} возвращена в работу.</h3>
                             <p>${ticket.applicantId.firstName},</p>
                             <p>
-                                Заявка №${ticket.num} возвращена в работу, тема: ${ticket.title}.
+                                Заявка ${ticket.num} возвращена в работу, тема: ${ticket.title}.
                             </p>
                             <p>Комментарий: ${ticket.returningComment}</p>
                             <p>
@@ -1505,10 +1505,10 @@ exports.createTicketNotifications = async () => {
                 title: `[F1-HD-${ticket.num}] Заявка ${ticket.num} выполнена. ${ticket.title}`,
                 text: `
                             <div>
-                                <h3>Заявка №${ticket.num} выполнена.</h3>
+                                <h3>Заявка ${ticket.num} выполнена.</h3>
                                 <p>${user.firstName},</p>
                                 <p>
-                                Заявка №${ticket.num} возвращена в работу, тема: ${ticket.title}.
+                                Заявка ${ticket.num} возвращена в работу, тема: ${ticket.title}.
                             </p>
                             <p>Комментарий: ${ticket.returningComment}</p>
                                 <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
@@ -1626,7 +1626,7 @@ exports.createTicketNotifications = async () => {
                 title: `[F1-HD-${ticket.num}] Изменён срок заявки ${ticket.num}`,
                 text: `
                             <div>
-                                <h3>Изменён срок заявки №${ticket.num}.</h3>
+                                <h3>Изменён срок заявки ${ticket.num}.</h3>
                                 <ul>
                                     <li>Компания: ${ticket.company.alias}</li>
                                     <li>Тема: ${ticket.title}</li>
@@ -1849,7 +1849,7 @@ exports.createCommentNotifications = async () => {
               text: `<div>
                 <h3>${ticket.isClosed ? "Ответ в закрытую заявку." : "Новый комментарий."}</h3>
                 <p>
-                К Заявке №${ticket.num}, ${ticket.title}, добавлен новый комментарий: ${comment.content}
+                К Заявке ${ticket.num}, ${ticket.title}, добавлен новый комментарий: ${comment.content}
                 </p>
                 <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
                 <p>
@@ -1890,7 +1890,7 @@ exports.createCommentNotifications = async () => {
                 text: `<div>
                                 <h3>${ticket.isClosed ? "Ответ в закрытую заявку." : "Новый комментарий."}</h3>
                                 <p>
-                                К Заявке №${ticket.num}, ${ticket.title}, добавлен новый комментарий: ${comment.content}
+                                К Заявке ${ticket.num}, ${ticket.title}, добавлен новый комментарий: ${comment.content}
                                 </p>
                                 <p>Подробнее: ${process.env.ADDRESS}/tickets/${ticket.num}</p>
                                 <p>

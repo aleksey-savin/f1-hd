@@ -286,7 +286,7 @@ const ViewClientDevice = ({ device = {} }) => {
                     : { border: "1px dashed var(--border)" }
                 }
               >
-                {device.inventoryNumber || "нет №"}
+                {device.inventoryNumber || "нет номера"}
                 <RiQrCodeLine size={11} aria-hidden className="opacity-55" />
               </button>
             </div>

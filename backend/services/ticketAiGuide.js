@@ -44,7 +44,7 @@ const truncate = (value, max = MAX_FIELD_LENGTH) => {
 const buildUserContent = (ticket, company) => {
   const lines = [];
 
-  lines.push(`Заявка №${ticket.num}`);
+  lines.push(`Заявка ${ticket.num}`);
   if (ticket.title) lines.push(`Тема: ${ticket.title}`);
 
   const description = stripHtml(ticket.description || ticket.htmlDescription);
@@ -165,7 +165,7 @@ const MEANINGFUL_SUMMARY = 100;
 const buildPastContext = (items) =>
   items
     .map((item) => {
-      const lines = [`- №${item.num}: ${truncate(item.title, 160)}`];
+      const lines = [`- ${item.num}: ${truncate(item.title, 160)}`];
       const closing = stripHtml(item.closingComment);
       if (closing.length >= MEANINGFUL_SUMMARY) {
         lines.push(`  итог: ${truncate(closing, PAST_TEXT_LENGTH)}`);

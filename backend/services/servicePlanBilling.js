@@ -89,7 +89,7 @@ const isZeroLength = (work) =>
  * null — день нерабочий или окна нет (в оригинале: `daySchedule && daySchedule.isWorking`).
  *
  * Круглосуточный день и день с пустым временем при isWorking считаются рабочими
- * целиком — осознанное отступление №2 из шапки файла.
+ * целиком — осознанное отступление 2 из шапки файла.
  */
 const schedulePlanner = (schedule) => (dateKey) => {
   const day = schedule?.[dayNameOfKey(dateKey)];

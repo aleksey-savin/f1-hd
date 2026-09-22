@@ -59,7 +59,7 @@ const PersonalWorksCards = ({ works }: { works: PersonalWork[] }) => {
                   rel="noreferrer"
                   className="font-semibold text-accent-text no-underline tabular-nums"
                 >
-                  №{ticket.num}
+                  {ticket.num}
                 </Link>
               ))}
               <span className="line-clamp-2 text-muted-foreground">

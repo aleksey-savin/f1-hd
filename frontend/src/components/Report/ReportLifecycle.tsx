@@ -65,7 +65,7 @@ const ReportLifecycle = ({ report }: { report: ReportRow }) => {
       return null;
     }
     if (key === "awaitingPayment" && report.invoice?.number) {
-      return `№ ${report.invoice.number}${
+      return `${report.invoice.number}${
         report.invoice.date ? ` от ${formatShortDate(report.invoice.date)}` : ""
       }`;
     }

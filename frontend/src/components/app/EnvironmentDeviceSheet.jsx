@@ -102,10 +102,10 @@ const EnvironmentDeviceSheet = ({
                     </DeviceStatusText>
                   </Info>
                 )}
-                <Info label="Инвентарный №" mono>
+                <Info label="Инвентарный номер" mono>
                   {device.inventoryNumber}
                 </Info>
-                <Info label="Серийный №" mono>
+                <Info label="Серийный номер" mono>
                   {device.serialNumber}
                 </Info>
                 <Info label="IP-адрес" mono>

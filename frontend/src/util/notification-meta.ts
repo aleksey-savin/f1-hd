@@ -39,7 +39,7 @@ export const toneClass = (tone: string): string =>
 /** Третья строка: где это случилось — заявка или раздел */
 export const notificationContext = (item: NotificationItem): string => {
   if (item.ticketNum) {
-    return [`№ ${item.ticketNum}`, item.ticketTitle].filter(Boolean).join(" · ");
+    return [String(item.ticketNum), item.ticketTitle].filter(Boolean).join(" · ");
   }
   if (item.link.startsWith("/team/calendar")) return "Календарь команды";
   if (item.link.includes("/approval")) return "Согласование работ";

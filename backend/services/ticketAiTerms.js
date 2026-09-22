@@ -70,7 +70,7 @@ const ticketPlainText = (ticket) =>
 
 const ticketContext = (ticket) =>
   [
-    `Заявка № ${ticket.num}`,
+    `Заявка ${ticket.num}`,
     ticket.title ? `Тема: ${ticket.title}` : null,
     `Описание: ${truncate(stripHtml(ticket.description || ticket.htmlDescription)) || "(не указано)"}`,
     ticket.categoryId?.title ? `Категория: ${ticket.categoryId.title}` : null,
@@ -315,7 +315,7 @@ const referenceToMarkdown = (term, reference, ticketNum) => {
   }
 
   parts.push(
-    `_Справку составил ИИ по заявке № ${ticketNum}. Проверьте факты и ссылки, прежде чем полагаться на неё._`,
+    `_Справку составил ИИ по заявке ${ticketNum}. Проверьте факты и ссылки, прежде чем полагаться на неё._`,
   );
 
   return parts.filter(Boolean).join("\n\n");

@@ -59,7 +59,7 @@ const InventoryNumber = ({ number, className }) =>
     </span>
   ) : (
     <span className={cn("text-sm whitespace-nowrap text-faint", className)}>
-      нет №
+      нет номера
     </span>
   );
 

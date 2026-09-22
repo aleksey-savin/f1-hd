@@ -157,7 +157,7 @@ const AvailabilitySection = ({ recordId }) => {
                       to={`/tickets/${outage.ticketNum}`}
                       className="font-semibold text-accent-text no-underline hover:underline"
                     >
-                      №{outage.ticketNum}
+                      {outage.ticketNum}
                     </Link>
                   ) : (
                     <span className="text-faint">—</span>

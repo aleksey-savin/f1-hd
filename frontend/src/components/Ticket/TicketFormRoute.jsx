@@ -153,7 +153,7 @@ const TicketFormRoute = ({ mode }) => {
           title={form.config.title}
           subtitle={
             mode === "process"
-              ? `Заявка № ${ticket?.num} · проверьте данные и назначьте ответственных`
+              ? `Заявка ${ticket?.num} · проверьте данные и назначьте ответственных`
               : undefined
           }
         >

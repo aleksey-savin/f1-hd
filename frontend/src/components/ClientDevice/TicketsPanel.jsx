@@ -84,7 +84,7 @@ const TicketsPanel = ({ deviceId, onEmpty }) => {
           className="flex items-center gap-3.5 border-t border-border-soft py-2.5 text-foreground no-underline first:border-t-0 hover:text-accent-text"
         >
           <span className="w-16 flex-none font-mono text-sm font-semibold text-muted-foreground">
-            №{ticket.num}
+            {ticket.num}
           </span>
           <span className="min-w-0 flex-1 truncate" title={ticket.title}>
             {ticket.title}

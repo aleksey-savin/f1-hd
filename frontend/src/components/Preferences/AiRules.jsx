@@ -134,7 +134,7 @@ const AiRules = ({ aiOn = true, feedbackOn = true }) => {
                         to={`/tickets/${rule.ticketNum}`}
                         className="text-faint hover:text-accent-text"
                       >
-                        заявка № {rule.ticketNum}
+                        заявка {rule.ticketNum}
                       </Link>
                     )}
                     {rule.createdAt ? ` · ${formatDate(rule.createdAt)}` : ""}

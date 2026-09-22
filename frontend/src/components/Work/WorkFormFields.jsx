@@ -334,7 +334,7 @@ const WorkFormFields = ({
             value={linkedTicketIds}
             options={otherTickets.map((ticket) => ({
               value: String(ticket._id),
-              label: `№${ticket.num} · ${ticket.title}`,
+              label: `${ticket.num} · ${ticket.title}`,
             }))}
             onChange={setLinkedTicketIds}
             placeholder="Найти заявку…"
