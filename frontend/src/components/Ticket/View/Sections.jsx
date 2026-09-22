@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 
 import { Link, useFetcher } from "react-router";
 import DOMPurify from "dompurify";
@@ -644,15 +644,87 @@ export const FactsSection = ({
  * два-три, и текстовые кнопки в каждой строке съели бы место под саму работу.
  * Удаляет автор работы или администратор — то же правило, что на бэкенде
  * (`controllers/work.js`), иначе кнопка обещает больше, чем разрешено.
+ *
+ * Колонки выровнены по верху: описание переносится, а не режется (макет
+ * «Работы в заявке: описание видно целиком»). На телефоне строка складывается:
+ * «имя · вид … ⋯» первой строкой, описание — под ней во всю ширину.
  */
 const WorkRow = ({ ticket, children, menu }) => (
-  <div className="group flex items-center gap-3 border-t border-border-soft py-2.5 text-sm first:border-t-0">
+  <div className="group flex flex-wrap items-start gap-x-3 gap-y-0.5 border-t border-border-soft py-2.5 text-sm first:border-t-0 md:flex-nowrap">
     {children}
-    <span className="flex w-7 flex-none justify-end">
+    <span className="flex w-7 flex-none justify-end max-md:order-3">
       {!ticket.isArchived && menu}
     </span>
   </div>
 );
+
+/**
+ * Кто и как: исполнитель, под ним вид работы микроподписью — колонка
+ * описания остаётся только текстом. На телефоне оба в одну строку через «·».
+ */
+const WorkWho = ({ person, kind }) => (
+  <span className="text-muted-foreground max-md:flex max-md:min-w-0 max-md:flex-1 max-md:items-baseline max-md:gap-1.5 md:w-32 md:min-w-0 md:flex-none">
+    <span className="min-w-0 truncate md:block">
+      {person?.lastName} {person?.firstName?.[0]}.
+    </span>
+    <span className="flex-none text-xs text-faint md:block">
+      <span className="md:hidden">· </span>
+      {kind}
+    </span>
+  </span>
+);
+
+/**
+ * Описание работы: до четырёх строк, дальше «Показать полностью». Кнопка
+ * появляется только у текста, который действительно не поместился, — замер
+ * после раскладки и при смене ширины колонки (поворот телефона, шторка).
+ */
+const WorkDescription = ({ text }) => {
+  const ref = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    // Раскрытый текст не меряем: без обрезки он «помещается» всегда, и кнопка
+    // «Свернуть» исчезла бы
+    if (open) return undefined;
+    const node = ref.current;
+    if (!node) return undefined;
+    const measure = () =>
+      setOverflows(node.scrollHeight > node.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [text, open]);
+
+  if (!text) {
+    return <span className="text-faint">без описания</span>;
+  }
+
+  return (
+    <>
+      <p
+        ref={ref}
+        className={cn(
+          "m-0 break-words whitespace-pre-line",
+          !open && "line-clamp-4",
+        )}
+      >
+        {text}
+      </p>
+      {(overflows || open) && (
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="mt-0.5 inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0 text-xs text-accent-text outline-none hover:underline focus-visible:underline"
+        >
+          {open ? "Свернуть" : "Показать полностью"}
+        </button>
+      )}
+    </>
+  );
+};
 
 /**
  * Заглушка секции говорит про **это** состояние заявки: «без работ не закрыть»
@@ -769,11 +841,11 @@ export const WorksSection = ({ works = [], ticket, canAddWork }) => {
         />
       }
     >
-      <span className="w-32 flex-none truncate text-muted-foreground">
-        {work.executor?.lastName} {work.executor?.firstName?.[0]}.
-      </span>
-      <span className="min-w-0 flex-1 truncate">
-        {work.visitRequired ? "Выезд" : "Удалённо"} ·{" "}
+      <WorkWho
+        person={work.executor}
+        kind={work.visitRequired ? "выезд" : "удалённо"}
+      />
+      <span className="max-md:order-4 max-md:w-full md:min-w-0 md:flex-1">
         {formatDate(work.planningToStart)}
       </span>
     </WorkRow>
@@ -794,19 +866,19 @@ export const WorksSection = ({ works = [], ticket, canAddWork }) => {
         />
       }
     >
-      <span className="w-32 flex-none truncate text-muted-foreground">
-        {work.finishedBy?.lastName} {work.finishedBy?.firstName?.[0]}.
-      </span>
-      <span className="min-w-0 flex-1 truncate">
-        {work.visitRequired ? "Выезд" : "Удалённо"}
-        {work.description ? ` · ${work.description}` : ""}
+      <WorkWho
+        person={work.finishedBy}
+        kind={work.visitRequired ? "выезд" : "удалённо"}
+      />
+      <span className="max-md:order-4 max-md:w-full md:min-w-0 md:flex-1">
+        <WorkDescription text={work.description} />
       </span>
       {/* В списке показываем только исключение: у работы в рамках тарифа поля
           outOfSchedule нет вовсе. Сумма — по тем же правам, что и в форме
-          (её решает сервер) */}
+          (её решает сервер). leading-5 — на одну линию с именем */}
       {showBilling && work.outOfSchedule && (
         <span
-          className="flex-none text-xs text-warning tabular-nums"
+          className="flex-none text-xs leading-5 text-warning tabular-nums max-md:order-2"
           title="Время вне графика обслуживания"
         >
           доп. оплата
