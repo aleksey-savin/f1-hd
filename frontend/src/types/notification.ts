@@ -62,21 +62,27 @@ export type NotificationItem = {
   createdAt: string;
 };
 
+/** Непрочитанное по категориям — числа у чипов-фасетов; категорий без непрочитанного нет */
+export type UnreadByCategory = Partial<Record<NotificationCategory, number>>;
+
 export type NotificationsListResponse = {
   items: NotificationItem[];
   unreadCount: number;
+  unreadByCategory: UnreadByCategory;
   /** Курсор следующей страницы — createdAt последней строки; null — конец */
   nextBefore: string | null;
 };
 
 export type NotificationsSummary = {
   unreadCount: number;
+  unreadByCategory: UnreadByCategory;
   latestAt: string | null;
 };
 
 export type NotificationsReadResponse = {
   updated: number;
   unreadCount: number;
+  unreadByCategory: UnreadByCategory;
 };
 
 /** Ответ `POST /api/tickets/:num/seen` */

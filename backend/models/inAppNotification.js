@@ -15,18 +15,9 @@ const Schema = mongoose.Schema;
  * `kind` — вид из каталога событий заявки (services/ticketEvents.js), по нему
  * фронт берёт иконку и тон, как в хронике; для событий вне заявок — свои виды.
  */
-const CATEGORIES = [
-  "newTicket",
-  "respStateUpdate",
-  "ticketStateUpdate",
-  "ticketDeadlineUpdate",
-  "ticketNewComment",
-  "scheduledWorks",
-  "absenceRequest",
-  "absenceDecision",
-  "reportApproval",
-  "reportDecision",
-];
+// Каталог категорий — в листовом модуле: по нему же валидируется и
+// фильтруется лента колокольчика (services/notificationCategories)
+const { CATEGORIES } = require("@/services/notificationCategories");
 
 const EXTRA_KINDS = [
   "absenceRequest",

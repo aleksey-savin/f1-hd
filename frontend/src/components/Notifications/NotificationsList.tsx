@@ -111,6 +111,7 @@ const NotificationsList = ({ onNavigate }: ListProps) => {
   const isLoaded = useNotificationsStore((state) => state.isLoaded);
   const nextBefore = useNotificationsStore((state) => state.nextBefore);
   const fetchList = useNotificationsStore((state) => state.fetchList);
+  const facet = useNotificationsStore((state) => state.facet);
 
   // Пока ждём первую порцию — ничего: пустое состояние соврало бы
   if (!isLoaded) return null;
@@ -118,7 +119,7 @@ const NotificationsList = ({ onNavigate }: ListProps) => {
   if (items.length === 0) {
     return (
       <p className="my-6 text-center text-sm text-muted-foreground">
-        Уведомлений пока нет
+        {facet === "all" ? "Уведомлений пока нет" : "Уведомлений этого вида нет"}
       </p>
     );
   }

@@ -124,9 +124,11 @@ their own `isActive`. Comment `pending` is therefore unconditional in
 
 ## Endpoints (all behind `isAuth`, all scoped to `req.auth.userId`)
 
-- `GET /api/notifications?before=<ISO>&limit=30` → `{items, unreadCount, nextBefore}`
-- `GET /api/notifications/summary` → `{unreadCount, latestAt}` (explicit refresh; the bell gets the same summary from `GET /api/pulse` when the inbox changed — see `docs/live-updates.md`)
-- `POST /api/notifications/read` `{ids? | all? | ticketId?}` → `{updated, unreadCount}`
+- `GET /api/notifications?before=<ISO>&limit=30&category=a,b` → `{items, unreadCount, unreadByCategory, nextBefore}`. `category` is a comma-separated subset of the settings categories (`services/notificationCategories.js`, the single list shared with the model and validation); unknown keys are dropped, an empty/unknown-only value means no filter. Filtering is server-side because the feed is cursor-paginated: "show more" must obey the facet.
+- `GET /api/notifications/summary` → `{unreadCount, unreadByCategory, latestAt}` (explicit refresh; the bell gets the same summary from `GET /api/pulse` when the inbox changed — see `docs/live-updates.md`). `unreadByCategory` is `{category: count}` for categories with unread rows only (`ticketSeen.unreadByCategory`, an aggregate — note `userId` must be cast to `ObjectId` there, aggregate does not cast like `find`).
+- `POST /api/notifications/read` `{ids? | all? (+ categories?) | ticketId?}` → `{updated, unreadCount, unreadByCategory}`. `categories` with `all` restricts "read all" to those categories — the panel's "read all" respects the active facet.
+
+Facets (frontend, `util/notification-facets.ts`): the ten categories are grouped into six reader-facing facets (`status` = `ticketStateUpdate` + `respStateUpdate`, `approval` = reports + absences). The facet key is remembered in `localStorage` (`notifications.facet`); the store re-fetches from the first page on change.
 - `POST /api/tickets/:ticketNum/seen` (ticket access asserted) → `{seenAt, previousSeenAt, unreadCount}`; retries once on E11000 (mount and poll can race)
 - `POST /api/tickets/seen` `{ids}` (access asserted for every id) → `{seenAt, count, unreadCount}`
 
@@ -136,7 +138,8 @@ Files: `controllers/notification.js`, `validations/notification.js`,
 ## Tests
 
 `services/inAppNotifications.test.js`, `services/ticketUnread.test.js`,
-`services/ticketSeen.test.js` — `node --test`, pure fixtures, no database.
+`services/ticketSeen.test.js`, `services/notificationCategories.test.js` —
+`node --test`, pure fixtures, no database. Frontend: `src/util/notification-facets.test.js`.
 Run with `cd backend && pnpm test`.
 
 ## Pitfalls

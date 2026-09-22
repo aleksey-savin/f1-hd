@@ -38,6 +38,8 @@ const shouldBumpActivity = (doc) => {
   );
 };
 
+const mongoose = require("mongoose");
+
 const TicketRead = () => require("@/models/ticketRead");
 const InAppNotification = () => require("@/models/inAppNotification");
 
@@ -116,10 +118,13 @@ const markTicketSeen = async (userId, ticketId, at = new Date()) => {
  * должна кричать «2 новых» о том, что человек только что прочитал в
  * колокольчике. Знак ставится на время уведомления (`latestByTicket`), и
  * только вперёд — кто заявку уже открывал, назад не откатится.
+ *
+ * `all` с `categories` — «прочитать все» при включённом фильтре колокольчика:
+ * читает только показанный вид, кнопка делает то, что говорит.
  */
 const markInboxRead = async (
   userId,
-  { ticketId, ticketIds, ids, all } = {},
+  { ticketId, ticketIds, ids, all, categories } = {},
 ) => {
   const filter = { userId, readAt: null };
   if (ticketId) filter.ticketId = ticketId;
@@ -130,6 +135,7 @@ const markInboxRead = async (
     if (!ids.length) return 0;
     filter._id = { $in: ids };
   } else if (!all) return 0;
+  else if (categories) filter.category = { $in: categories };
 
   const items = await InAppNotification()
     .find(filter)
@@ -160,6 +166,24 @@ const markInboxRead = async (
 const unreadCount = (userId) =>
   InAppNotification().countDocuments({ userId, readAt: null });
 
+/**
+ * Непрочитанное по категориям — числа у чипов-фасетов колокольчика:
+ * `{ ticketNewComment: 3, newTicket: 5 }`, категорий без непрочитанного нет.
+ */
+const unreadByCategory = async (userId) => {
+  // aggregate не приводит типы, как find: userId из сессии — строка
+  const rows = await InAppNotification().aggregate([
+    {
+      $match: {
+        userId: new mongoose.Types.ObjectId(String(userId)),
+        readAt: null,
+      },
+    },
+    { $group: { _id: "$category", count: { $sum: 1 } } },
+  ]);
+  return Object.fromEntries(rows.map((row) => [row._id, row.count]));
+};
+
 module.exports = {
   shouldBumpActivity,
   latestByTicket,
@@ -167,4 +191,5 @@ module.exports = {
   markTicketSeen,
   markInboxRead,
   unreadCount,
+  unreadByCategory,
 };

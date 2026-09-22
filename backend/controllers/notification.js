@@ -1,9 +1,11 @@
 const InAppNotification = require("@/models/inAppNotification");
 const { AppError } = require("@/middleware/errorHandling");
+const { parseCategories } = require("@/services/notificationCategories");
 const {
   markInboxRead,
   markSeen,
   markTicketSeen,
+  unreadByCategory,
   unreadCount,
 } = require("@/services/ticketSeen");
 
@@ -18,15 +20,21 @@ const {
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 100;
 
-/** GET /notifications?before=&limit= — новые сверху, курсор по createdAt */
+/**
+ * GET /notifications?before=&limit=&category= — новые сверху, курсор по
+ * createdAt. `category` — фасет панели (через запятую): лента постранична,
+ * поэтому фильтрует сервер, иначе «Показать ещё» привозило бы чужой вид.
+ */
 exports.list = async (req, res, next) => {
   try {
     const { userId } = req.auth;
     const limit = Math.min(Number(req.query.limit) || DEFAULT_LIMIT, MAX_LIMIT);
     const before = req.query.before ? new Date(req.query.before) : null;
+    const categories = parseCategories(req.query.category);
     const filter = {
       userId,
       ...(before ? { createdAt: { $lt: before } } : {}),
+      ...(categories ? { category: { $in: categories } } : {}),
     };
     // Берём на одну больше, чтобы знать, есть ли следующая страница
     const rows = await InAppNotification.find(filter)
@@ -36,9 +44,14 @@ exports.list = async (req, res, next) => {
     const items = rows.slice(0, limit);
     const hasMore = rows.length > limit;
 
+    const [count, byCategory] = await Promise.all([
+      unreadCount(userId),
+      unreadByCategory(userId),
+    ]);
     res.status(200).json({
       items,
-      unreadCount: await unreadCount(userId),
+      unreadCount: count,
+      unreadByCategory: byCategory,
       nextBefore: hasMore ? items[items.length - 1].createdAt : null,
     });
   } catch (error) {
@@ -47,18 +60,24 @@ exports.list = async (req, res, next) => {
 };
 
 /**
- * Счётчик и время последнего уведомления — всё, что нужно колокольчику. Его
- * приносит пульс (controllers/pulse.js), когда входящие человека изменились.
+ * Счётчик, непрочитанное по категориям (числа у чипов панели) и время
+ * последнего уведомления — всё, что нужно колокольчику. Его приносит пульс
+ * (controllers/pulse.js), когда входящие человека изменились.
  */
 const summaryFor = async (userId) => {
-  const [count, latest] = await Promise.all([
+  const [count, byCategory, latest] = await Promise.all([
     unreadCount(userId),
+    unreadByCategory(userId),
     InAppNotification.findOne({ userId })
       .sort({ createdAt: -1 })
       .select("createdAt")
       .lean(),
   ]);
-  return { unreadCount: count, latestAt: latest?.createdAt ?? null };
+  return {
+    unreadCount: count,
+    unreadByCategory: byCategory,
+    latestAt: latest?.createdAt ?? null,
+  };
 };
 exports.summaryFor = summaryFor;
 
@@ -71,17 +90,30 @@ exports.summary = async (req, res, next) => {
   }
 };
 
-/** POST /notifications/read { ids? | all? | ticketId? } */
+/**
+ * POST /notifications/read { ids? | all? (+ categories?) | ticketId? } —
+ * `categories` с `all`: «прочитать все» при включённом фасете читает только
+ * показанный вид.
+ */
 exports.read = async (req, res, next) => {
   try {
     const { userId } = req.auth;
-    const { ids, all, ticketId } = req.body;
+    const { ids, all, ticketId, categories } = req.body;
     const updated = await markInboxRead(userId, {
       ids,
       all: all === true || all === "true",
       ticketId,
+      categories: Array.isArray(categories) && categories.length
+        ? categories
+        : undefined,
     });
-    res.status(200).json({ updated, unreadCount: await unreadCount(userId) });
+    const [count, byCategory] = await Promise.all([
+      unreadCount(userId),
+      unreadByCategory(userId),
+    ]);
+    res
+      .status(200)
+      .json({ updated, unreadCount: count, unreadByCategory: byCategory });
   } catch (error) {
     next(new AppError("Failed to mark notifications read", 500, true, error));
   }
