@@ -236,7 +236,7 @@ const StaffTickets = () => {
         <div
           role="group"
           aria-label="Какие заявки"
-          className="-mx-3 mb-2.5 flex gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
+          className="-mx-3 mb-2.5 flex gap-1.5 overflow-x-auto px-3 scrollbar-none md:hidden"
         >
           {tabs.map((tab) => (
             <FilterChip

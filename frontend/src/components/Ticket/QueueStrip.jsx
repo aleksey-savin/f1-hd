@@ -19,8 +19,10 @@ const QueueStrip = ({ value, counts = {}, onChange }) => {
   );
   if (queues.length <= 1) return null;
 
+  // Телефон: лента прокручивается жестом, полосы нет (`scrollbar-none`) —
+  // прежний `pb-1` резервировал под неё место и оставлял её видимой
   return (
-    <div className="mb-3 flex items-center gap-2 px-1 max-md:overflow-x-auto max-md:pb-1 md:flex-wrap">
+    <div className="mb-3 flex items-center gap-2 px-1 max-md:overflow-x-auto max-md:scrollbar-none md:flex-wrap">
       <span className="flex-none text-xs font-bold tracking-wider text-faint uppercase max-md:hidden">
         Очереди
       </span>

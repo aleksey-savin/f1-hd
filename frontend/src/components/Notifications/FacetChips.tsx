@@ -28,7 +28,7 @@ const FacetChips = ({ scroll = false, className }: Props) => {
       className={cn(
         "flex gap-1.5",
         scroll
-          ? "overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          ? "overflow-x-auto scrollbar-none"
           : "flex-wrap",
         className,
       )}
