@@ -35,49 +35,48 @@ export const GroupHeading = ({ status, count, className }) => {
   );
 };
 
-// Строка сотрудника: имя, статус текстом, время («с …» / «до …»), заметка.
+// Строка сотрудника: имя, под ним время («с …» / «до …») и заметка одной
+// строкой через « · ». Статус строка НЕ повторяет: она всегда стоит под
+// заголовком своей группы, а цвет несут кольцо и бейдж аватара — со статусом
+// в строке и заметкой автоматики «Отпуск до 04.10» слово стояло трижды подряд.
 // `muted` — для тех, кого нет (отпуск, больничный): видны, но не спорят с
 // теми, кто на связи.
-export const PersonRow = ({ user, status, size = 38, muted = false, className }) => (
-  <div
-    className={cn(
-      "flex min-h-12 items-center gap-2.5 px-3.5 py-1 transition-colors hover:bg-accent",
-      className,
-    )}
-  >
-    <WorkStatusAvatar
-      size={size}
-      firstName={user.firstName}
-      lastName={user.lastName}
-      profileImagePath={user.profileImagePath}
-      workStatus={user.workStatus}
-    />
-    <span className="min-w-0 flex-1 leading-snug">
-      <span
-        className={cn(
-          "block truncate text-sm font-semibold",
-          muted && "font-medium text-muted-foreground",
-        )}
-      >
-        {user.lastName} {user.firstName}
-      </span>
-      <span className="block truncate text-xs" style={{ color: status.color }}>
-        {status.label}
-        {timeLabel(user, status) && (
-          <span className="text-muted-foreground tabular-nums">
-            {" "}
-            · {timeLabel(user, status)}
+export const PersonRow = ({ user, status, size = 38, muted = false, className }) => {
+  const line = [timeLabel(user, status), user.workStatus?.note]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <div
+      className={cn(
+        "flex min-h-12 items-center gap-2.5 px-4 py-1 transition-colors hover:bg-accent",
+        className,
+      )}
+    >
+      <WorkStatusAvatar
+        size={size}
+        firstName={user.firstName}
+        lastName={user.lastName}
+        profileImagePath={user.profileImagePath}
+        workStatus={user.workStatus}
+      />
+      <span className="min-w-0 flex-1 leading-snug">
+        <span
+          className={cn(
+            "block truncate text-sm font-semibold",
+            muted && "font-medium text-muted-foreground",
+          )}
+        >
+          {user.lastName} {user.firstName}
+        </span>
+        {line && (
+          <span className="block truncate text-xs text-muted-foreground tabular-nums">
+            {line}
           </span>
         )}
       </span>
-      {user.workStatus?.note && (
-        <span className="block truncate text-xs text-muted-foreground">
-          {user.workStatus.note}
-        </span>
-      )}
-    </span>
-  </div>
-);
+    </div>
+  );
+};
 
 // Свёрнутая группа «нет на месте» (не на работе, не указан): норма молчит —
 // одна строка со счётчиком, раскрывается по клику. Люди внутри те же строки.

@@ -61,7 +61,7 @@ const TeamNow = () => {
         type="button"
         aria-expanded={false}
         onClick={() => setOpen(true)}
-        className="mb-5 flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5 text-left outline-none focus-visible:ring-4 focus-visible:ring-ring/50"
+        className="mb-5 flex w-full cursor-pointer appearance-none items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-2.5 text-left outline-none focus-visible:ring-4 focus-visible:ring-ring/50"
       >
         <span
           className="ws-live relative inline-block size-2 flex-none rounded-full bg-primary"
@@ -76,9 +76,11 @@ const TeamNow = () => {
           </span>
         </span>
         {stack.length > 0 && (
-          <span className="flex flex-none items-center">
+          /* Стопка: каждый следующий заходит на предыдущего, кольцо цвета
+             карточки (`ws-stack`, index.css) отделяет их друг от друга */
+          <span className="flex flex-none items-center ps-1">
             {stack.map((user, index) => (
-              <span key={user._id} className={cn(index > 0 && "-ms-2")}>
+              <span key={user._id} className={cn("ws-stack", index > 0 && "-ms-2")}>
                 <WorkStatusAvatar
                   size={24}
                   firstName={user.firstName}
@@ -133,7 +135,7 @@ const TeamNow = () => {
             <GroupHeading
               status={group.status}
               count={group.users.length}
-              className="mb-0.5 px-3.5"
+              className="mb-0.5 px-4"
             />
             {group.users.map((user) => (
               <PersonRow

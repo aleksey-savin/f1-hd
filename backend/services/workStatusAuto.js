@@ -7,7 +7,7 @@ const {
   WORK_STATUS_BY_CODE,
   WORKING_STATUS_CODES,
 } = require("@/utils/workStatuses");
-const { getAbsenceType } = require("@/utils/absenceTypes");
+const { ABSENCE_TYPES, getAbsenceType } = require("@/utils/absenceTypes");
 const { resolveOvertimeSettings } = require("@/services/workOvertime");
 const { buildScheduleContext, makePlanner } = require("@/services/workCalendar");
 
@@ -37,10 +37,16 @@ dayjs.extend(timezone);
 // Кого автоматика вправе перевести в рабочий статус в начале смены
 const REPLACEABLE_AT_START = new Set(["offshift", "unset"]);
 
-// Горизонт поиска ближайшей смены. Две недели: за ними обычно отпуск, и «до
-// 25.09 09:00» в баре честнее пустоты; контекст отсутствий и календаря
-// строится ровно на этот горизонт (см. toKey ниже).
+// Горизонт поиска ближайшей смены у работающего. Две недели: дальше искать
+// незачем, смена найдётся на этой или на следующей. Отсутствующему смену ищут
+// ЗА концом отсутствия (горизонт отсчитывается от него), поэтому контекст
+// календаря и отсутствий дотягивается до самого далёкого конца — см. ниже.
 const NEXT_SHIFT_HORIZON_DAYS = 14;
+
+// «Отгул» из каталога типов → «отгул» в заметке: на табло она стоит после
+// времени («до 26.09 09:00 · отгул»), заглавная посреди строки читалась бы
+// обрывком
+const lowerFirst = (text) => text.charAt(0).toLowerCase() + text.slice(1);
 
 const {
   MINUTES_PER_DAY,
@@ -75,11 +81,18 @@ const activeShiftOf = (planner, dateKey, minutesNow) => {
  * Ближайшее начало смены человека: сегодня, если она ещё не началась, иначе
  * первый плановый день впереди без блокирующего отсутствия (dayPlan уже
  * знает про отпуска и праздники). Свободному режиму смен нет — null.
+ * horizonDays — докуда искать: отсутствующему горизонт считают от конца
+ * отсутствия, иначе у отпуска длиннее двух недель «до …» пропадало бы.
  */
-const findNextShift = (planner, local, minutesNow) => {
+const findNextShift = (
+  planner,
+  local,
+  minutesNow,
+  horizonDays = NEXT_SHIFT_HORIZON_DAYS,
+) => {
   if (!planner.isScheduled) return null;
   const todayKey = local.format("YYYY-MM-DD");
-  for (let offset = 0; offset <= NEXT_SHIFT_HORIZON_DAYS; offset += 1) {
+  for (let offset = 0; offset <= horizonDays; offset += 1) {
     const dateKey = shiftDayKey(todayKey, offset);
     const plan = planner.dayPlan(dateKey);
     if (plan.start === null) continue;
@@ -121,12 +134,32 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
   const fromKey = nowUtc.subtract(1, "day").format("YYYY-MM-DD");
   const toKey = nowUtc.add(NEXT_SHIFT_HORIZON_DAYS + 1, "day").format("YYYY-MM-DD");
 
-  const ctx = await buildScheduleContext({
+  const staffIds = staff.map((user) => user._id);
+  let ctx = await buildScheduleContext({
     fromKey,
     toKey,
-    userIds: staff.map((user) => user._id),
+    userIds: staffIds,
     preferences,
   });
+
+  // Отсутствующему бар пишет «до 05.10 09:00» — первую смену ПОСЛЕ отсутствия,
+  // а оно бывает длиннее горизонта. Контекст дотягиваем до самого далёкого
+  // конца плюс горизонт: иначе смена после отпуска попала бы на праздник или
+  // на следующее отсутствие, которых контекст не знает
+  const farthestKey = [...ctx.absencesByUser.values()]
+    .flat()
+    .reduce((max, absence) => (absence.toKey > max ? absence.toKey : max), toKey);
+  if (farthestKey > toKey) {
+    ctx = await buildScheduleContext({
+      fromKey,
+      toKey: dayjs
+        .utc(farthestKey)
+        .add(NEXT_SHIFT_HORIZON_DAYS + 1, "day")
+        .format("YYYY-MM-DD"),
+      userIds: staffIds,
+      preferences,
+    });
+  }
 
   let started = 0;
   let ended = 0;
@@ -144,7 +177,14 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
     // Ближайшая смена — для бара («до 04.09 09:00» у тех, кого нет). Пишем
     // отдельно от статуса и только при изменении: статус меняется не каждый
     // день, а смена — раз в сутки
-    const next = findNextShift(planner, local, minutesNow);
+    // У отсутствующего — за концом отсутствия: отпуск длиннее горизонта не
+    // должен оставлять бар без «до …»
+    const blocking = plan.absence?.reducesNorm ? plan.absence : null;
+    const horizon = blocking
+      ? dayjs.utc(blocking.toKey).diff(dayjs.utc(dateKey), "day") +
+        NEXT_SHIFT_HORIZON_DAYS
+      : NEXT_SHIFT_HORIZON_DAYS;
+    const next = findNextShift(planner, local, minutesNow, horizon);
     const stored = user.nextShiftAt ? new Date(user.nextShiftAt).valueOf() : null;
     if (stored !== (next ? next.valueOf() : null)) {
       await User.updateOne({ _id: user._id }, { $set: { nextShiftAt: next } });
@@ -169,17 +209,26 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
     const isAway = Boolean(wanted && !WORKING_STATUS_CODES.includes(wanted));
 
     if (isAway) {
-      // Заметка называет тип и срок: «не на работе» само по себе молчит.
-      // Однодневному отсутствию срок не пишем — он и так сегодня
+      // Заметка говорит только то, чего табло не скажет само. Тип — когда
+      // статус общий для нескольких типов («не на работе» и по отгулу, и по
+      // дням без содержания); у отпуска и больничного статус и есть тип, и
+      // заметка повторяла бы заголовок группы третий раз. Срок — только без
+      // графика: с графиком «до 05.10 09:00» считает nextShiftAt (первая
+      // смена после отсутствия), а однодневному сроку и так сегодня
+      const sharedStatus =
+        ABSENCE_TYPES.filter((type) => type.workStatus === wanted).length > 1;
       const untilKey = plan.absence.toKey;
-      const until =
-        untilKey && untilKey !== dateKey
-          ? ` до ${untilKey.slice(8, 10)}.${untilKey.slice(5, 7)}`
-          : "";
+      const note = [
+        sharedStatus ? lowerFirst(meta.label) : "",
+        !planner.isScheduled && untilKey && untilKey !== dateKey
+          ? `до ${untilKey.slice(8, 10)}.${untilKey.slice(5, 7)}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
       // Только при смене кода: уже стоящий статус не трогаем, иначе прогон
       // переписывал бы отметку времени раз в пять минут
       if (code !== wanted) {
-        const note = `${meta.label}${until}`;
         await User.updateOne(
           { _id: user._id },
           {
@@ -189,6 +238,14 @@ const runWorkStatusAuto = async ({ now = undefined, userIds = null } = {}) => {
           },
         );
         awayApplied += 1;
+      } else if (isAuto && (user.workStatus?.note ?? "") !== note) {
+        // Статус уже стоит, а заметка старого образца («Отпуск до 04.10»):
+        // правим только её, отметку времени и флаг не трогаем. Ручная
+        // заметка (auto: false) остаётся — её писал человек
+        await User.updateOne(
+          { _id: user._id },
+          { $set: { "workStatus.note": note } },
+        );
       }
       continue;
     }

@@ -13,13 +13,13 @@ ProductionCalendar.findOne = () => ({ lean: async () => bundled });
 const Absence = require("../models/absence");
 let ABSENCES = [];
 Absence.find = () => ({ select: () => ({ lean: async () => ABSENCES }) });
-// Подтверждённое отсутствие на весь день 27 июля
-const absence = (type, user = "u1") => ({
+// Подтверждённое отсутствие с 27 июля; по умолчанию — на один день
+const absence = (type, user = "u1", toKey = "2026-07-27") => ({
   user,
   type,
   status: "approved",
   from: new Date("2026-07-27T00:00:00.000Z"),
-  to: new Date("2026-07-27T00:00:00.000Z"),
+  to: new Date(`${toKey}T00:00:00.000Z`),
 });
 
 const Preferences = require("../models/preferences");
@@ -28,10 +28,18 @@ Preferences.findOne = () => ({ lean: async () => ({ timezone: "Europe/Moscow" })
 const User = require("../models/user");
 let STAFF = [];
 const WRITES = [];
+const NEXT = [];
 User.find = () => ({ select: () => ({ lean: async () => STAFF }) });
 User.updateOne = async (filter, update) => {
   // Ближайшая смена пишется отдельным $set — к статусам не относится
-  if (!update.$set.workStatus) return { modifiedCount: 1 };
+  if (!update.$set.workStatus) {
+    if ("nextShiftAt" in update.$set) NEXT.push(update.$set.nextShiftAt);
+    // Правка одной заметки у стоящего статуса — тоже запись статуса
+    if ("workStatus.note" in update.$set) {
+      WRITES.push({ id: String(filter._id), code: null, note: update.$set["workStatus.note"] });
+    }
+    return { modifiedCount: 1 };
+  }
   WRITES.push({
     id: String(filter._id),
     code: update.$set.workStatus.code,
@@ -99,12 +107,17 @@ const run = async (staff, now, absences = []) => {
   STAFF = staff;
   ABSENCES = absences;
   WRITES.length = 0;
+  NEXT.length = 0;
   await runWorkStatusAuto({ now });
   return WRITES[0]?.code ?? null;
 };
 const runNote = async (staff, now, absences = []) => {
   await run(staff, now, absences);
   return WRITES[0]?.note ?? null;
+};
+const runNext = async (staff, now, absences = []) => {
+  await run(staff, now, absences);
+  return NEXT[0] ? NEXT[0].toISOString() : null;
 };
 
 (async () => {
@@ -149,13 +162,52 @@ const runNote = async (staff, now, absences = []) => {
       [absence("dayoff")],
     ),
     "offshift");
-  check("заметка называет тип отсутствия",
+  // Заметка говорит только то, чего табло не скажет само: тип — у общего
+  // «не на работе», срок — только без графика (с графиком его несёт nextShiftAt)
+  check("заметка называет тип отсутствия у общего статуса",
     await runNote(
       [person({ workStatus: { code: "office", note: "", updatedAt: at("06:05") } })],
       at("10:00"),
       [absence("dayoff")],
     ),
-    "Отгул");
+    "отгул");
+  check("отпуску заметка не нужна — статус и есть тип",
+    await runNote(
+      [person({ workStatus: { code: "office", note: "", updatedAt: at("06:05") } })],
+      at("10:00"),
+      [absence("vacation")],
+    ),
+    "");
+  check("без графика заметка несёт срок: смену посчитать не из чего",
+    await runNote(
+      [person({ workTimeMode: "free", workStatus: { code: "remote", updatedAt: at("06:05") } })],
+      at("10:00"),
+      [absence("dayoff", "u1", "2026-07-29")],
+    ),
+    "отгул до 29.07");
+  // Статус уже стоит, заметка старого образца — правится одна заметка; ручную не трогаем
+  check("заметка старого образца у стоящего отпуска стирается",
+    await runNote(
+      [person({ workStatus: { code: "vacation", note: "Отпуск до 27.07", updatedAt: at("02:30"), auto: true } })],
+      at("10:00"),
+      [absence("vacation")],
+    ),
+    "");
+  check("ручную заметку у отпуска не трогаем",
+    await runNote(
+      [person({ workStatus: { code: "vacation", note: "вернусь 28-го", updatedAt: at("02:30"), auto: false } })],
+      at("10:00"),
+      [absence("vacation")],
+    ),
+    null);
+  // Отпуск длиннее горизонта в две недели: «до …» — первая смена после него
+  check("ближайшая смена — после отпуска, даже за горизонтом",
+    await runNext(
+      [person({ workStatus: { code: "office", updatedAt: at("06:05") } })],
+      at("10:00"),
+      [absence("vacation", "u1", "2026-08-20")],
+    ),
+    "2026-08-21T06:00:00.000Z");
   check("день без содержания — тоже «не на работе»",
     await run([person({ workStatus: { code: "office", updatedAt: at("06:05") } })], at("10:00"),
       [absence("unpaid")]),

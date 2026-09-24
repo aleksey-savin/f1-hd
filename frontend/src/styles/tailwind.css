@@ -46,6 +46,10 @@
   --success-foreground: #ffffff;
   --warning: #eb9c14;
   --warning-foreground: #2a1e03;
+  /* Текст в тоне warning (статусы «ждёт человека» у заявок): чистый warning
+     на белом не дотягивает до 3:1 — читаемая ступень для текста, как
+     accent-text у бирюзы; точка и чипы остаются warning */
+  --warning-text: #b8730a;
   --info: #4d94e8;
   --info-foreground: #0a1826;
   --border: #e2e5e8;
@@ -102,6 +106,7 @@
   --success-foreground: #ffffff;
   --warning: #eb9c14;
   --warning-foreground: #2a1e03;
+  --warning-text: #f2ad3d;
   --info: #4d94e8;
   --info-foreground: #0a1826;
   --border: #2b2f35;
@@ -156,6 +161,7 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-text: var(--warning-text);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);

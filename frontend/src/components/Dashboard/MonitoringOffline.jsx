@@ -138,7 +138,7 @@ const MonitoringOffline = () => {
         Мониторинг
       </Eyebrow>
       <Panel>
-        <div className="-mx-5 -my-5">
+        <div className="-mx-4 -my-4 md:-mx-5 md:-my-5">
           {(expanded ? data.items : data.items.slice(0, ROWS)).map((item) => {
             // Меньше часа — ещё может само подняться, дольше — уже инцидент.
             const fresh =
@@ -149,7 +149,7 @@ const MonitoringOffline = () => {
                 key={item._id}
                 to={`/devices/mikrotik/records/${item._id}`}
                 state={fromState}
-                className="flex items-center gap-3 border-b border-border-soft px-5 py-2.5 text-foreground no-underline transition-colors last:border-b-0 hover:bg-accent/60 hover:text-foreground"
+                className="flex items-center gap-3 border-b border-border-soft px-4 py-2.5 text-foreground no-underline transition-colors last:border-b-0 hover:bg-accent/60 hover:text-foreground md:px-5"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">
@@ -181,7 +181,7 @@ const MonitoringOffline = () => {
               метке. Черта сверху не нужна: последняя строка перед подвалом
               уже не last-child и несёт свою */}
           {data.items.length > ROWS && (
-            <div className="flex items-center gap-3 px-5 py-2.5 text-sm text-muted-foreground tabular-nums">
+            <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground tabular-nums md:px-5">
               {!expanded && `Показаны ${ROWS} из ${data.total}`}
               <button
                 type="button"

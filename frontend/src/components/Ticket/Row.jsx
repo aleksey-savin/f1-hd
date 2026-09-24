@@ -24,17 +24,24 @@ import { formatMailSender, parseMailSender } from "../../util/mail-sender";
 import { plural } from "../../util/plural";
 import {
   TicketStateText,
-  createdShort,
-  createdText,
+  createdAge,
   deadlineText,
   isOverdue,
   ticketTone,
 } from "./ticket-state";
 
-// Строка списка заявок. Жёсткие колонки, все строки одной высоты, ровный правый
-// край: номер · тема и мета · ответственные · создана · состояние и срок · «⋯».
-// Мобайл — три яруса: номер, возраст и состояние / тема / компания, инициатор
-// и срок.
+// Строка списка заявок (макет «Читаемая строка заявки», 22.09). Жёсткие
+// колонки, у каждой одна роль, все строки одной высоты: номер и дата создания ·
+// тема и мета · ответственные · состояние и срок · «⋯». Две строки текста
+// записи держатся вместе (16/24 и 14/20, зазор 8), воздух — между записями.
+// Мобайл — три яруса: тема / компания и инициатор / номер, состояние и срок.
+//
+// Прежняя строка (60 px, четыре кегля, статус и срок лесенкой вправо, «создана
+// сегодня» отдельной колонкой) сливалась в кашу — жалобы нескольких
+// сотрудников. Что изменилось: дата создания ушла под номер и показывается,
+// только если это не сегодня; компания в мете — основным цветом; ответственные
+// — основным, а не приглушённым; состояние с глифом и срок 14 px — одной
+// колонкой, выровненной влево; «N новых» — пилюля после темы, а не слово в мете.
 //
 // Категории в мете нет намеренно: она растягивала колонку и глушила тему —
 // главное в строке. Категория осталась фильтром.
@@ -46,15 +53,14 @@ import {
 // в новой вкладке. Чекбокс и «⋯» лежат снаружи ссылки: интерактивное внутри
 // ссылки невалидно.
 //
-// Чекбокс выбора живёт без своего жёлоба: он лежит поверх штатного отступа
-// строки (20 px, как у любого списка), по наведению проявляется, а номер
-// сдвигается на 24 px, освобождая место, — тема и остальные колонки стоят.
-// Задержка 200 мс отсекает пролёт курсора: номера не дёргаются, пока человек
-// просто ведёт мышь вниз по списку. В режиме выбора сдвиг делается один раз для
-// всех строк и держится до выхода. На мобилке наведения нет: чекбокс появляется
-// только в режиме (долгий тап), и тогда сдвигается всё содержимое строки, как в
-// любом режиме правки. Резервный жёлоб под чекбокс отвергнут: он читался как
-// пустой отступ в начале каждой строки.
+// Чекбокс выбора делит слот с точкой непрочитанного: перед номером 28 px, в
+// покое там точка (или пусто), по наведению на её месте проявляется чекбокс, в
+// режиме выбора он стоит постоянно. Номер и колонки не двигаются ни в одном
+// состоянии. Прежняя схема — чекбокс поверх отступа и сдвиг номера на 24 px —
+// отвергнута 22.09: чекбокс вставал в 8 px от цифр, а строка дёргалась на
+// каждом наведении. Задержка 200 мс отсекает пролёт курсора. На мобилке
+// наведения нет: чекбокс появляется только в режиме (долгий тап), и тогда
+// содержимое строки сдвигается один раз, как в любом режиме правки.
 //
 // Регламентная заявка помечена в мете строки — глиф и слово «регламент» перед
 // компанией: это вид записи, то есть вторичный факт, и живёт он рядом с
@@ -78,10 +84,10 @@ const responsibleNames = (responsibles) => {
 
 // Не флекс: иконка стоит в строчном потоке меты и садится на её базовую линию
 // (у флекса базовая линия взялась бы от svg — см. TicketStateText)
-const RoutineMark = ({ size }) => (
+const RoutineMark = () => (
   <span title="Создана регламентом">
     <RiRepeat2Line
-      size={size}
+      size={14}
       aria-hidden
       className="me-1 inline-block align-[-0.125em]"
     />
@@ -99,6 +105,9 @@ const TicketRow = ({
   consumeSuppressedClick,
   canEdit,
   canDelete,
+  /** Список сгруппирован по состоянию — статус несёт заголовок группы,
+   *  в строке остаётся только срок. */
+  showState = true,
 }) => {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -123,12 +132,9 @@ const TicketRow = ({
   // несёт ничего: в списке показываем только исключения
   const unseen = Boolean(unread?.isUnseen);
   const newComments = unread?.newComments ?? 0;
-  const unseenDot = (
-    <span
-      aria-hidden
-      className="me-1.5 inline-block size-1.5 rounded-full bg-primary align-middle"
-    />
-  );
+  // Дата создания — под номером и только если это не сегодня: под сортировкой
+  // «Сначала новые» колонка «создана сегодня» повторяла одно и то же
+  const age = createdAge(createdAt);
 
   const applicantName = applicant
     ? `${applicant.lastName || ""} ${applicant.firstName || ""}`.trim()
@@ -140,30 +146,37 @@ const TicketRow = ({
     ticket.source === "Почта" && applicant
       ? parseMailSender(realSender)?.address
       : null;
-  const metaText = [company?.alias, applicantName, mailAddress]
-    .filter(Boolean)
-    .join(" · ");
-  // Мета — вторичные факты через « · »: «N новых» первым, вид записи
-  // (регламент), компания и инициатор
-  const meta = (iconSize) => {
-    const parts = [];
-    if (newComments > 0) {
-      parts.push(
-        <span className="font-semibold text-accent-text">
-          {newComments} {plural(newComments, "новый", "новых", "новых")}
-        </span>,
-      );
-    }
-    if (routineTask) parts.push(<RoutineMark size={iconSize} />);
-    if (metaText) parts.push(metaText);
-    if (!parts.length) return "—";
-    return parts.map((part, index) => (
-      <Fragment key={index}>
-        {index > 0 && " · "}
-        {part}
-      </Fragment>
-    ));
-  };
+  // Мета — вторичные факты через « · »: вид записи (регламент), компания
+  // основным цветом (второй по важности факт строки читается колонкой сверху
+  // вниз), инициатор и адрес приглушённо
+  const metaParts = [];
+  if (routineTask) metaParts.push(<RoutineMark />);
+  if (company?.alias) {
+    metaParts.push(<span className="text-foreground">{company.alias}</span>);
+  }
+  if (applicantName) metaParts.push(applicantName);
+  if (mailAddress) metaParts.push(mailAddress);
+  const meta = metaParts.length
+    ? metaParts.map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 && " · "}
+          {part}
+        </Fragment>
+      ))
+    : "—";
+
+  const responsibleText = responsibleNames(responsibles);
+  const responsibleTitle = (responsibles ?? [])
+    .map(({ lastName, firstName }) =>
+      `${lastName || ""} ${firstName || ""}`.trim(),
+    )
+    .join(", ");
+
+  const stateText = (size) => (
+    <TicketStateText tone={state.tone} glyph={state.glyph} size={size}>
+      {state.label}
+    </TicketStateText>
+  );
 
   const hasMenu = canEdit || canDelete;
   // Чекбокс виден без наведения: режим включён (или строка уже выбрана)
@@ -211,90 +224,118 @@ const TicketRow = ({
         />
       )}
 
+      {/* десктоп: точка непрочитанного в слоте перед номером — по центру того
+          места, где проявится чекбокс; уступает ему, гаснув, а не сдвигаясь */}
+      {unseen && (
+        <span
+          aria-hidden
+          className={cn(
+            "absolute start-6 top-1/2 hidden size-2 -translate-y-1/2 rounded-full bg-primary transition-opacity md:block",
+            selectable &&
+              (revealed
+                ? "opacity-0"
+                : "group-hover:opacity-0 group-hover:delay-200 group-has-[[data-slot=checkbox]:focus-visible]:opacity-0"),
+          )}
+        />
+      )}
+
       <Link
         to={`/tickets/${num}`}
         onClick={handleOpen}
         className={cn(
-          "flex min-w-0 flex-1 flex-col gap-0.5 py-3 pe-2 text-foreground no-underline outline-none transition-[padding] hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50 md:flex-row md:items-center md:gap-4 md:py-2.5 md:ps-5",
+          "flex min-w-0 flex-1 flex-col py-3.5 pe-2 text-foreground no-underline outline-none transition-[padding] hover:text-foreground focus-visible:ring-4 focus-visible:ring-ring/50 md:flex-row md:items-start md:gap-6 md:py-4 md:ps-5",
           // мобайл в режиме выбора: содержимое уступает место чекбоксу
-          revealed ? "ps-10" : "ps-4",
+          revealed ? "ps-11" : "ps-5",
         )}
       >
-        {/* мобайл: номер, возраст и состояние */}
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums md:hidden">
+        {/* десктоп: номер и дата создания; ps-7 — слот точки и чекбокса */}
+        <span className="hidden w-19 flex-none ps-7 md:block">
+          <span
+            className="block text-sm leading-6 font-medium text-muted-foreground tabular-nums"
+            title={createdAt ? `создана ${formatDate(createdAt)}` : undefined}
+          >
+            {num}
+          </span>
+          {age && (
+            <span className="mt-2 block text-xs leading-5 text-faint tabular-nums">
+              {age}
+            </span>
+          )}
+        </span>
+
+        {/* тема и мета. Потолок ширины — чтобы колонки начинались на одном
+            месте сразу за метой, а не уезжали к правому краю при короткой теме */}
+        <span className="min-w-0 flex-1 md:max-w-[40rem]">
+          <span className="flex h-6 items-center gap-2">
+            <span
+              className={cn(
+                "min-w-0 truncate text-base leading-6",
+                unseen ? "font-semibold" : "font-medium",
+              )}
+            >
+              {title}
+            </span>
+            {newComments > 0 && (
+              <span className="inline-flex h-5 flex-none items-center rounded-md bg-primary/15 px-1.75 text-xs font-semibold whitespace-nowrap text-accent-text">
+                {newComments} {plural(newComments, "новый", "новых", "новых")}
+              </span>
+            )}
+          </span>
+          <span className="mt-1.5 block truncate text-sm text-muted-foreground md:mt-2">
+            {meta}
+          </span>
+        </span>
+
+        {/* мобайл: номер, состояние и срок */}
+        <span className="mt-2 flex items-center gap-1.5 text-xs leading-5 text-faint tabular-nums md:hidden">
           {/* Точка внутри строчного span, а не первым флекс-ребёнком: у флекса
               базовая линия взялась бы от пустой точки (см. TicketStateText) */}
-          <span>
-            {unseen && unseenDot}{num}
-          </span>
-          <span className="text-faint">· {createdShort(createdAt)}</span>
-          <TicketStateText tone={state.tone} className="ms-auto text-xs">
-            {state.label}
-          </TicketStateText>
-        </span>
-
-        {/* десктоп: номер; уступает место чекбоксу сдвигом в своей колонке */}
-        <span
-          className={cn(
-            "hidden w-[4.5rem] flex-none font-medium text-muted-foreground tabular-nums transition-transform md:block",
-            selectable &&
-              (revealed
-                ? "translate-x-6"
-                : "group-hover:translate-x-6 group-hover:delay-200 group-has-[[data-slot=checkbox]:focus-visible]:translate-x-6"),
-          )}
-        >
-          {unseen && unseenDot}
-          {num}
-        </span>
-
-        {/* тема и мета — всегда двумя строками */}
-        <span className="min-w-0 flex-1">
-          <span
-            className={cn(
-              "block truncate text-base leading-tight",
-              unseen ? "font-semibold" : "font-medium",
+          <span className="font-medium">
+            {unseen && (
+              <span
+                aria-hidden
+                className="me-1.5 inline-block size-2 rounded-full bg-primary align-middle"
+              />
             )}
-          >
-            {title}
+            {num}
           </span>
-          <span className="hidden truncate text-sm text-muted-foreground md:block">
-            {meta(14)}
-          </span>
-        </span>
-
-        {/* десктоп: ответственные — два-три «Фамилия И.» без усечения */}
-        <span className="hidden w-56 flex-none truncate text-sm text-muted-foreground lg:block">
-          {responsibleNames(responsibles) || "—"}
-        </span>
-
-        {/* десктоп: создана */}
-        <span
-          className="hidden w-28 flex-none text-end text-xs text-faint whitespace-nowrap tabular-nums xl:block"
-          title={createdAt ? `создана ${formatDate(createdAt)}` : undefined}
-        >
-          {createdText(createdAt)}
-        </span>
-
-        {/* десктоп: состояние и срок */}
-        <span className="hidden w-40 flex-none flex-col items-end md:flex">
-          <TicketStateText tone={state.tone}>{state.label}</TicketStateText>
+          {showState && (
+            <>
+              <span aria-hidden>·</span>
+              {stateText("xs")}
+            </>
+          )}
           <span
             className={cn(
-              "text-xs whitespace-nowrap tabular-nums",
-              overdue ? "text-destructive" : "text-faint",
+              "ms-auto flex-none",
+              overdue && "font-medium text-destructive",
             )}
           >
             {deadlineText(deadline)}
           </span>
         </span>
 
-        {/* мобайл: компания, инициатор и срок */}
-        <span className="flex items-center gap-2 text-xs text-muted-foreground md:hidden">
-          <span className="min-w-0 truncate">{meta(12)}</span>
+        {/* десктоп: ответственные — основным цветом, два-три «Фамилия И.» без
+            усечения; пусто — словами, а не прочерком */}
+        <span
+          className={cn(
+            "hidden w-56 flex-none truncate text-sm leading-6 lg:block",
+            !responsibleText && "text-faint",
+          )}
+          title={responsibleTitle || undefined}
+        >
+          {responsibleText || "не назначена"}
+        </span>
+
+        {/* десктоп: состояние и срок — одной колонкой, влево. Просрочку несёт
+            красный срок, статус при этом не подменяется */}
+        <span className="hidden w-44 flex-none md:block">
+          {showState && <span className="block h-6 leading-6">{stateText("sm")}</span>}
           <span
             className={cn(
-              "ms-auto flex-none tabular-nums",
-              overdue ? "text-destructive" : "text-faint",
+              "block text-sm leading-5 whitespace-nowrap tabular-nums",
+              showState && "mt-2",
+              overdue ? "font-medium text-destructive" : "text-muted-foreground",
             )}
           >
             {deadlineText(deadline)}

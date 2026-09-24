@@ -89,7 +89,7 @@ const MonthStepper = ({
       >
         <RiArrowLeftSLine size={16} aria-hidden />
       </button>
-      <span className="min-w-24 px-1 text-center text-sm font-medium whitespace-nowrap tabular-nums">
+      <span className="min-w-24 flex-1 px-1 text-center text-sm font-medium whitespace-nowrap tabular-nums">
         {label}
       </span>
       <button

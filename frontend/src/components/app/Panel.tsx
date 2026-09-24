@@ -108,9 +108,12 @@ export function SectionEditButton({
 }
 
 // Панель-секция: тонкая граница на канве, без тени (язык статус-борда).
+// На телефоне внутренний отступ 16 — один у панелей и строк (ряды, которые
+// бликуют до края панели, гасят его парой `-mx-4 -my-4 md:-mx-5 md:-my-5`):
+// при 20 у панели и 12–16 у строк левые края блоков главной «плыли».
 export function Panel({ children }: { children: ReactNode }) {
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <section className="rounded-xl border border-border bg-card p-4 md:p-5">
       {children}
     </section>
   );

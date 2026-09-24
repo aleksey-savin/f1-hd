@@ -24,6 +24,9 @@ const Footer = () => {
 
   if (!token) return null;
 
+  // Телефон и почта — одной строкой, адрес — своей: факт не переносится
+  // посередине, и строка не начинается с точки-разделителя (так было на
+  // телефоне, когда все три факта шли одним переносимым рядом)
   const contactItems = [
     contacts?.tel && (
       <a
@@ -43,7 +46,6 @@ const Footer = () => {
         {contacts.email}
       </a>
     ),
-    contacts?.address && <span key="address">{contacts.address}</span>,
   ].filter(Boolean);
 
   return (
@@ -56,9 +58,12 @@ const Footer = () => {
       )}
     >
       {contactItems.length > 0 && (
-        <div className="mb-2 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1">
+        <div className="mb-1 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1">
           {contactItems.map((item, index) => (
-            <span key={index} className="inline-flex items-center gap-2.5">
+            <span
+              key={index}
+              className="inline-flex items-center gap-2.5 whitespace-nowrap"
+            >
               {index > 0 && (
                 <span aria-hidden className="text-faint">
                   ·
@@ -69,10 +74,15 @@ const Footer = () => {
           ))}
         </div>
       )}
+      {contacts?.address && <div className="mb-2 text-pretty">{contacts.address}</div>}
       <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-faint">
-        <span>© {new Date().getFullYear()} F1Lab Helpdesk</span>
+        <span className="whitespace-nowrap">
+          © {new Date().getFullYear()} F1Lab Helpdesk
+        </span>
         <span aria-hidden>·</span>
-        <span>Версия {import.meta.env.VITE_VERSION}</span>
+        <span className="whitespace-nowrap">
+          Версия {import.meta.env.VITE_VERSION}
+        </span>
       </div>
     </footer>
   );

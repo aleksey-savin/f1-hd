@@ -255,11 +255,11 @@ const TeamSkeleton = () => (
     <KpiSkeleton />
     <div className="mt-5 border-t border-border-soft pt-3.5">
       <Bar line="mb-2.5 h-4" className="h-3 w-28" />
-      <div className="-mx-5">
+      <div className="-mx-4 md:-mx-5">
         {Array.from({ length: ROWS }, (_, index) => (
           <div
             key={index}
-            className="flex items-center gap-2.5 border-t border-border-soft px-5 py-2.5"
+            className="flex items-center gap-2.5 border-t border-border-soft px-4 py-2.5 md:px-5"
           >
             <Skeleton className="size-9 flex-none rounded-[25%]" />
             <span className="flex-1">
@@ -415,7 +415,7 @@ const EmployeeLine = ({
     // (`relative z-10`): кнопка внутри ссылки — невалидная разметка
     <div
       className={cn(
-        "relative flex items-center gap-2.5 border-t border-border-soft px-5 py-2.5 hover:bg-accent",
+        "relative flex items-center gap-2.5 border-t border-border-soft px-4 py-2.5 hover:bg-accent md:px-5",
         isMe && "bg-primary/7 hover:bg-primary/12",
       )}
     >
@@ -561,7 +561,7 @@ const TeamBody = ({
         )}
       >
         <SubLabel count={rows.length}>Сотрудники</SubLabel>
-        <div className="-mx-5">
+        <div className="-mx-4 md:-mx-5">
           {shown.map((row) => (
             <EmployeeLine
               key={row.employee._id}
@@ -746,7 +746,13 @@ const MyReport = () => {
           className={compact ? "[&>button]:py-1.75" : "[&>button]:py-1.25"}
         />
       )}
-      <MonthStepper from={range.from} to={range.to} onChange={setRange} />
+      <MonthStepper
+        from={range.from}
+        to={range.to}
+        onChange={setRange}
+        // Телефон: степпер во всю ширину своей строкой (см. обёртку ниже)
+        className={compact ? "w-full" : undefined}
+      />
     </>
   );
 
@@ -765,8 +771,10 @@ const MyReport = () => {
             ? "Сотрудники"
             : "Мой отчёт"}
       </Eyebrow>
-      {/* Телефон: контролы своей строкой — рядом с меткой не помещаются */}
-      <div className="mb-2.5 flex items-center justify-between gap-2 md:hidden">
+      {/* Телефон: сегмент и месяц — двумя строками во всю ширину. В один ряд
+          они не обязаны помещаться: при крупном шрифте такой ряд раздвигал
+          колонку главной за экран (макет «Главная на телефоне — аккуратно») */}
+      <div className="mb-2.5 flex flex-col gap-2 md:hidden">
         {controls(true)}
       </div>
 
@@ -776,7 +784,7 @@ const MyReport = () => {
         </div>
         <div
           className={cn(
-            "-mx-5 -mb-5 flex items-center gap-3 border-t border-border-soft px-5 py-2.5 text-sm",
+            "-mx-4 -mb-4 flex items-center gap-3 border-t border-border-soft px-4 py-2.5 text-sm md:-mx-5 md:-mb-5 md:px-5",
             !flushFooter && "mt-5",
           )}
         >

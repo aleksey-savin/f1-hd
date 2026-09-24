@@ -1,3 +1,12 @@
+import {
+  RiCheckboxBlankCircleLine,
+  RiCheckboxCircleFill,
+  RiCheckboxCircleLine,
+  RiPauseCircleLine,
+  RiPlayCircleLine,
+  RiTimeLine,
+} from "react-icons/ri";
+
 import { cn } from "@/lib/utils";
 
 import {
@@ -32,8 +41,36 @@ const TICKET_STATE_TONE = {
   Закрыта: "off",
 };
 
+// Глиф состояния — форма, а не только цвет: три янтарных состояния («новая»,
+// «не в работе», «на согласовании») различимы и без чтения слова. Тот же
+// набор, что у массовых действий («В работу» — ▶, «Закрыть» — ✓).
+const TICKET_STATE_GLYPH = {
+  Новая: RiCheckboxBlankCircleLine,
+  "Не в работе": RiPauseCircleLine,
+  "На согласовании": RiTimeLine,
+  "В работе": RiPlayCircleLine,
+  Выполнена: RiCheckboxCircleLine,
+  Закрыта: RiCheckboxCircleFill,
+};
+
+/**
+ * Группы списка по состоянию: порядок «ждёт человека» → «в процессе» →
+ * «завершено», подпись — заголовок группы во множественном числе.
+ */
+export const TICKET_STATE_GROUPS = [
+  { state: "Новая", label: "Новые" },
+  { state: "Не в работе", label: "Не в работе" },
+  { state: "На согласовании", label: "На согласовании" },
+  { state: "В работе", label: "В работе" },
+  { state: "Выполнена", label: "Выполнены" },
+  { state: "Закрыта", label: "Закрыты" },
+].map((group) => ({ ...group, tone: TICKET_STATE_TONE[group.state] }));
+
+// Текст — читаемым янтарём (`warning-text`, как `accent-text` у бирюзы):
+// чистый `warning` на белом не дотягивает до 3:1. Точка и чипы остаются
+// `warning`
 const TONE_TEXT = {
-  warn: "text-warning",
+  warn: "text-warning-text",
   bad: "text-destructive",
   normal: "text-muted-foreground",
   off: "text-faint",
@@ -41,7 +78,7 @@ const TONE_TEXT = {
 
 // Те же тона, но для шапки карточки: «норма» звучит в полный голос
 const TONE_TEXT_STRONG = {
-  warn: "text-warning",
+  warn: "text-warning-text",
   bad: "text-destructive",
   normal: "text-foreground",
   off: "text-muted-foreground",
@@ -65,6 +102,7 @@ export const isOverdue = (ticket) =>
 export const ticketTone = (ticket) => ({
   label: (ticket?.state || "").toLowerCase(),
   tone: TICKET_STATE_TONE[ticket?.state] ?? "normal",
+  glyph: TICKET_STATE_GLYPH[ticket?.state] ?? RiCheckboxBlankCircleLine,
 });
 
 /**
@@ -115,7 +153,26 @@ export const createdText = (createdAt) => {
 };
 
 /**
- * Цветной статус-текст с точкой — язык статус-борда, не заливной бейдж.
+ * Возраст под номером в строке списка: у сегодняшних — пусто (в списке
+ * показываем только исключения, а под «Сначала новые» это большинство), дальше
+ * «вчера» · «18.07».
+ */
+export const createdAge = (createdAt) => {
+  const days = businessDaysAgo(createdAt);
+  if (days === null || days === 0) return "";
+  return createdShort(createdAt);
+};
+
+const TEXT_SIZE = { xs: "text-xs", sm: "text-sm", lg: "text-base" };
+const GLYPH_SIZE = { xs: 14, sm: 16, lg: 20 };
+
+/**
+ * Цветной статус-текст с точкой или глифом — язык статус-борда, не заливной
+ * бейдж.
+ *
+ * `glyph` — компонент иконки состояния (из `ticketTone`) вместо точки: строка
+ * списка заявок, где три янтарных состояния должны различаться формой, а не
+ * только словом.
  *
  * `strong` — для шапки карточки: там статус отвечает на главный вопрос экрана и
  * не должен читаться как подпись. Тон «нормы» при этом становится обычным
@@ -127,34 +184,49 @@ export const createdText = (createdAt) => {
  * текста: её базовую линию браузер синтезирует по нижнему краю, и весь статус
  * уезжает вниз относительно соседей. В шапке заявки из-за этого номер, статус и
  * срок стояли на трёх разных высотах. Обычный строчный поток: точка —
- * inline-block с align-middle, отступ — margin, а не gap.
+ * inline-block с align-middle, глиф — inline-block с отрицательным
+ * vertical-align, отступ — margin, а не gap.
  */
 export const TicketStateText = ({
   tone = "normal",
   strong = false,
+  glyph: Glyph,
   /** `lg` — шапка карточки: кегль на ступень выше и точка вдвое крупнее.
-   *  Статус там отвечает на главный вопрос экрана и стоит своей строкой. */
+   *  Статус там отвечает на главный вопрос экрана и стоит своей строкой.
+   *  `xs` — служебная строка мобильной строки списка. */
   size = "sm",
   className,
   children,
 }) => (
   <span
     className={cn(
-      size === "lg" ? "text-base" : "text-sm",
+      TEXT_SIZE[size] ?? TEXT_SIZE.sm,
       "whitespace-nowrap",
       strong ? TONE_TEXT_STRONG[tone] : TONE_TEXT[tone],
       strong && "font-semibold",
+      Glyph && !strong && "font-medium",
       className,
     )}
   >
-    <span
-      aria-hidden
-      className={cn(
-        "inline-block rounded-full align-middle",
-        size === "lg" ? "me-2 size-2" : "me-1.5 size-1.5",
-        TONE_DOT[tone],
-      )}
-    />
+    {Glyph ? (
+      <Glyph
+        aria-hidden
+        size={GLYPH_SIZE[size] ?? GLYPH_SIZE.sm}
+        className={cn(
+          "inline-block align-[-0.1875em]",
+          size === "xs" ? "me-1" : "me-1.5",
+        )}
+      />
+    ) : (
+      <span
+        aria-hidden
+        className={cn(
+          "inline-block rounded-full align-middle",
+          size === "lg" ? "me-2 size-2" : "me-1.5 size-1.5",
+          TONE_DOT[tone],
+        )}
+      />
+    )}
     {children}
   </span>
 );

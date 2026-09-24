@@ -407,7 +407,7 @@ const RootLayout = () => {
                 информации, которая нужна изредка. На телефоне команда — блок
                 «Команда сейчас» на главной (components/Dashboard/TeamNow) */}
             <main
-              className="mobile-shell__scroll min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+              className="mobile-shell__scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
               ref={mobileScrollRef}
             >
               <div className="mx-auto w-full px-3 pt-3">

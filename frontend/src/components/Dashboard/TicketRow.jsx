@@ -15,7 +15,9 @@ import { TicketStateText, ticketTone } from "../Ticket/ticket-state";
  *
  * Правый слот (`trailing`) — там, где у блока свой ответ на «что с ней не
  * так»: возраст, время без движения, кнопка «Взять». Поэтому он проп, а не
- * колонка: у трёх блоков сотрудника три разных правых края.
+ * колонка: у трёх блоков сотрудника три разных правых края. На телефоне слот
+ * встаёт в первую строку после номера: своей строкой под метой он читался
+ * одиноким хвостом — четвёртой строкой похожего кегля.
  */
 const TicketRow = ({ ticket, meta, trailing, unread }) => {
   const { label, tone } = ticketTone(ticket);
@@ -37,12 +39,14 @@ const TicketRow = ({ ticket, meta, trailing, unread }) => {
       state={fromState}
       className="relative flex flex-col gap-0.5 px-4 py-2.5 text-foreground no-underline transition-colors before:absolute before:top-0 before:right-4 before:left-4 before:h-px before:bg-border-soft first:before:hidden hover:bg-accent/60 hover:text-foreground md:flex-row md:items-center md:gap-3 md:px-5"
     >
-      {/* мобайл: номер и статус одной строкой над темой */}
+      {/* мобайл: номер, правый слот и состояние одной строкой над темой */}
       <div className="flex items-baseline gap-2 text-xs text-muted-foreground tabular-nums md:hidden">
-        <span>
-          {unseen && unseenDot}{ticket.num}
+        <span className="truncate">
+          {unseen && unseenDot}
+          {ticket.num}
+          {trailing != null && <> · {trailing}</>}
         </span>
-        <TicketStateText tone={tone} className="ms-auto text-xs">
+        <TicketStateText tone={tone} className="ms-auto flex-none text-xs">
           {label}
         </TicketStateText>
       </div>
@@ -81,7 +85,7 @@ const TicketRow = ({ ticket, meta, trailing, unread }) => {
       </div>
 
       {trailing != null && (
-        <div className="flex-none text-sm text-muted-foreground tabular-nums md:text-right">
+        <div className="hidden flex-none text-sm text-muted-foreground tabular-nums md:block md:text-right">
           {trailing}
         </div>
       )}

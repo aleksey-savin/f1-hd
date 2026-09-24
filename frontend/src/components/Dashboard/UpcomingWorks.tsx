@@ -42,7 +42,7 @@ const UpcomingWorks = () => {
     <section>
       <Eyebrow count={upcoming.length}>Дальше в плане</Eyebrow>
       <Panel>
-        <div className="-mx-5 -my-5 overflow-hidden rounded-[inherit]">
+        <div className="-mx-4 -my-4 overflow-hidden rounded-[inherit] md:-mx-5 md:-my-5">
           {upcoming.slice(0, ROWS).map(({ work }) => {
             const ticket = work.tickets[0];
             const Icon = work.visitRequired ? RiMapPin2Line : RiComputerLine;
@@ -50,7 +50,7 @@ const UpcomingWorks = () => {
             return (
               <div
                 key={work._id}
-                className="relative flex gap-3 border-t border-border-soft px-5 py-2.5 first:border-t-0 hover:bg-accent/60"
+                className="relative flex gap-3 border-t border-border-soft px-4 py-2.5 first:border-t-0 hover:bg-accent/60 md:px-5"
               >
                 <span className="w-20 flex-none text-sm tabular-nums">
                   <span className="block font-semibold">
@@ -89,7 +89,7 @@ const UpcomingWorks = () => {
             );
           })}
           {upcoming.length > ROWS && (
-            <div className="border-t border-border-soft px-5 py-2.5 text-sm text-muted-foreground tabular-nums">
+            <div className="border-t border-border-soft px-4 py-2.5 text-sm text-muted-foreground tabular-nums md:px-5">
               Показаны {ROWS} из {upcoming.length}
             </div>
           )}

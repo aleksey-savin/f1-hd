@@ -41,6 +41,11 @@ const SORTING_OPTIONS = [
   { label: "Дедлайн" },
 ];
 
+// Группы по состоянию — личная настройка вида списка, живёт в браузере (как
+// рейл статусов): по умолчанию включена, выключается галочкой в меню
+// сортировки. Сортировка при этом действует внутри групп.
+const GROUP_KEY = "ticketsGroupByState";
+
 const matchesSearch = (ticket, term) => {
   if (!term) return true;
   const terms = term.toLowerCase().split(" ").filter(Boolean);
@@ -215,6 +220,12 @@ const useTicketFilterStore = create((set, get) => ({
   lastSyncedAt: null,
   sortingOptions: SORTING_OPTIONS,
   sortBy: SORTING_OPTIONS[0],
+  groupByState: localStorage.getItem(GROUP_KEY) !== "false",
+
+  setGroupByState: (value) => {
+    localStorage.setItem(GROUP_KEY, String(value));
+    set({ groupByState: value });
+  },
 
   fetchOpened: async () => {
     set({ isLoading: true });

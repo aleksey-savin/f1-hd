@@ -49,13 +49,13 @@ const MySupport = () => {
     <section>
       <Eyebrow>Кто ведёт вашу компанию</Eyebrow>
       <Panel>
-        <div className="-mx-5 -my-5">
+        <div className="-mx-4 -my-4 md:-mx-5 md:-my-5">
           {people.map((person) => {
             const name = `${person.firstName} ${person.lastName}`.trim();
             return (
               <div
                 key={person._id || name}
-                className="flex items-center gap-3 border-b border-border-soft px-5 py-3 last:border-b-0"
+                className="flex items-center gap-3 border-b border-border-soft px-4 py-3 last:border-b-0 md:px-5"
               >
                 <span className="flex size-9 flex-none items-center justify-center rounded-[25%] bg-accent text-xs font-semibold text-muted-foreground inset-ring inset-ring-border-soft">
                   {monogramFor(name)}
@@ -73,7 +73,7 @@ const MySupport = () => {
           })}
 
           {(supportPhone || supportEmail) && (
-            <div className="flex items-center gap-3 border-t border-border-soft px-5 py-3">
+            <div className="flex items-center gap-3 border-t border-border-soft px-4 py-3 md:px-5">
               <span className="flex size-9 flex-none items-center justify-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border-soft">
                 <RiPhoneLine size={15} aria-hidden />
               </span>

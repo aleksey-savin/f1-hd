@@ -1,8 +1,10 @@
 import { useContext, useMemo, useState } from "react";
 import { Link } from "react-router";
 
+import FilterChip from "@/components/app/FilterChip";
 import { Eyebrow, Panel } from "@/components/app/Panel";
 import Segmented from "@/components/app/Segmented";
+import TicketListRow from "../Ticket/Row";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useDashboardTicketsStore from "../../store/dashboard-tickets";
 import { createdText } from "../Ticket/ticket-state";
@@ -78,6 +80,9 @@ const StaffTickets = () => {
   const seesOthers = !!can({
     ticket: { actions: ["readAll", "readCompanies"], connector: "OR" },
   });
+  // Меню «⋯» строки — те же права, что на странице заявок
+  const canEdit = !!can({ ticket: ["manage"] });
+  const canDelete = !!can({ ticket: ["delete"] });
 
   const mine = useMemo(
     () =>
@@ -203,12 +208,6 @@ const StaffTickets = () => {
     label,
     count,
   }));
-  const shortOptions = tabs.map(({ value, short, count }) => ({
-    value,
-    label: short,
-    count,
-  }));
-
   return (
     <section>
       <Eyebrow
@@ -229,37 +228,63 @@ const StaffTickets = () => {
         {tabs.length > 1 ? "Заявки" : current.label}
       </Eyebrow>
 
-      {/* Телефон: переключатель своей строкой во всю ширину — рядом с меткой
-          секции три сегмента на 366 px не помещаются */}
+      {/* Телефон: очереди — чипы одной строкой с прокруткой (как фасеты
+          уведомлений), а не сегмент: сегмент не умеет ни переноситься, ни
+          прокручиваться и при крупном шрифте раздвигал колонку главной за
+          экран. Полоса прокрутки скрыта, ряд выходит на поля страницы */}
       {tabs.length > 1 && (
-        <Segmented
-          compact
-          fit
-          ariaLabel="Какие заявки"
-          value={current.value}
-          onChange={setSelected}
-          options={shortOptions}
-          className="mb-2.5 md:hidden"
-        />
+        <div
+          role="group"
+          aria-label="Какие заявки"
+          className="-mx-3 mb-2.5 flex gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
+        >
+          {tabs.map((tab) => (
+            <FilterChip
+              key={tab.value}
+              size="sm"
+              active={tab.value === current.value}
+              onClick={() => setSelected(tab.value)}
+              count={tab.count}
+              className="flex-none"
+            >
+              {tab.short}
+            </FilterChip>
+          ))}
+        </div>
       )}
 
       <Panel>
-        <div className="-mx-5 -my-5">
-          {current.rows.map((ticket) => (
-            <TicketRow
-              key={ticket._id}
-              ticket={ticket}
-              meta={current.meta(ticket)}
-              trailing={current.trailing(ticket)}
-              unread={ticket.unread}
-            />
-          ))}
+        <div className="-mx-4 -my-4 md:-mx-5 md:-my-5">
+          {/* Телефон: та же строка, что на странице заявок (Ticket/Row.jsx),
+              а не своя мини-строка — один формат заявки на всё приложение.
+              Десктоп пока остаётся на компактной строке главной */}
+          <div className="md:hidden">
+            {current.rows.map((ticket) => (
+              <TicketListRow
+                key={ticket._id}
+                ticket={ticket}
+                canEdit={canEdit}
+                canDelete={canDelete}
+              />
+            ))}
+          </div>
+          <div className="max-md:hidden">
+            {current.rows.map((ticket) => (
+              <TicketRow
+                key={ticket._id}
+                ticket={ticket}
+                meta={current.meta(ticket)}
+                trailing={current.trailing(ticket)}
+                unread={ticket.unread}
+              />
+            ))}
+          </div>
 
           {/* Подвал считает показанное: «5 из 19» — обещание, и оно не должно
               расходиться с числом строк. Ссылка одна на все срезы: список
               заявок фильтр из адреса не принимает, а обещание, которого
               интерфейс не держит, хуже отсутствия ссылки. */}
-          <div className="flex items-center gap-3 border-t border-border-soft px-5 py-2.5 text-sm text-muted-foreground tabular-nums">
+          <div className="flex items-center gap-3 border-t border-border-soft px-4 py-2.5 text-sm text-muted-foreground tabular-nums md:px-5">
             {current.note}
             <Link
               to="/tickets"

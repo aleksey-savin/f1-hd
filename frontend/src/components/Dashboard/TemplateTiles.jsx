@@ -35,6 +35,11 @@ import {
  * и та же иконка на всех карточках их не различает (гайд, «Плитка слева —
  * только когда она различает строки»). Осталась она у свободного обращения — та
  * карточка другого рода, и пунктир говорит о том же.
+ *
+ * На телефоне ряд — список в одну колонку: карточка становится строкой с одной
+ * метой «категория · доступ», а из строки инструментов остаётся поиск — сетка
+ * 2×2 в 360 px обрезала названия до полутора слов, а поиск с двумя фасетами
+ * ставил два ряда контролов над заявками.
  */
 
 // Сколько шаблонов в ряду до «Показать все»: четвёртая карточка — свободное
@@ -85,10 +90,17 @@ const optionsOf = (entries) => {
 };
 
 const CARD =
-  "flex flex-col gap-0.5 rounded-xl border border-border bg-card px-3.5 py-2.5 text-foreground no-underline transition-colors hover:border-primary hover:bg-accent hover:text-foreground";
+  "flex flex-col gap-0.5 rounded-xl border border-border bg-card px-4 py-2 text-foreground no-underline transition-colors hover:border-primary hover:bg-accent hover:text-foreground md:px-3.5 md:py-2.5";
 
 const TemplateCard = ({ template, showAccess }) => {
   const shared = isShared(template);
+  // Телефон: карточка — строка списка, категория и доступ одной метой
+  const phoneMeta = [
+    template.categoryId?.title,
+    showAccess ? accessLabel(template) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <Link
@@ -98,15 +110,29 @@ const TemplateCard = ({ template, showAccess }) => {
       <span className="truncate text-sm font-semibold">
         {templateTitle(template)}
       </span>
+      {phoneMeta && (
+        <span className="flex items-center gap-1.5 text-xs text-faint md:hidden">
+          {showAccess && (
+            <span
+              aria-hidden
+              className={cn(
+                "size-1.5 flex-none rounded-full",
+                shared ? "bg-primary" : "bg-faint",
+              )}
+            />
+          )}
+          <span className="truncate">{phoneMeta}</span>
+        </span>
+      )}
       {template.categoryId?.title && (
-        <span className="truncate text-xs text-faint">
+        <span className="truncate text-xs text-faint max-md:hidden">
           {template.categoryId.title}
         </span>
       )}
       {showAccess && (
         <span
           className={cn(
-            "mt-1 flex items-center gap-1.5 text-xs",
+            "mt-1 flex items-center gap-1.5 text-xs max-md:hidden",
             shared ? "text-accent-text" : "text-faint",
           )}
         >
@@ -135,7 +161,7 @@ const TemplateCard = ({ template, showAccess }) => {
 const FreeCard = ({ alone }) => (
   <Link
     to="/dashboard/tickets/add"
-    className={cn(CARD, "border-dashed", alone && "col-span-2")}
+    className={cn(CARD, "border-dashed", alone && "md:col-span-2")}
   >
     <span className="flex items-center gap-2">
       <span className="flex size-6 flex-none items-center justify-center rounded-md bg-accent text-muted-foreground inset-ring inset-ring-border-soft">
@@ -151,7 +177,7 @@ const FreeCard = ({ alone }) => (
 
 // heading = null — метки нет: у клиента её роль играет заголовок страницы
 // («Чем помочь?»), и вторая такая же строка была бы эхом.
-const TemplateTiles = ({ heading = null }) => {
+const TemplateTiles = ({ heading = null, className }) => {
   const { isEndUser } = useAuthedUser();
   const templates = useDashboardTemplatesStore((state) => state.templates);
   const loaded = useDashboardTemplatesStore((state) => state.loaded);
@@ -213,7 +239,7 @@ const TemplateTiles = ({ heading = null }) => {
   };
 
   return (
-    <section>
+    <section className={className}>
       {heading && (
         <Eyebrow count={templates.length || undefined}>{heading}</Eyebrow>
       )}
@@ -226,6 +252,8 @@ const TemplateTiles = ({ heading = null }) => {
             placeholder="Поиск по шаблонам…"
             className="w-full sm:w-80"
           />
+          {/* Фасеты — только с md: на телефоне остаётся поиск (он ищет и по
+              категории), два чипа под ним ставили второй ряд контролов */}
           {showCompanies && (
             <ChipMultiCombobox
               placeholder="Компания"
@@ -236,6 +264,7 @@ const TemplateTiles = ({ heading = null }) => {
               value={companies}
               options={companyOptions}
               onChange={setCompanies}
+              className="max-md:hidden"
             />
           )}
           {showCategories && (
@@ -248,6 +277,7 @@ const TemplateTiles = ({ heading = null }) => {
               value={categories}
               options={categoryOptions}
               onChange={setCategories}
+              className="max-md:hidden"
             />
           )}
           {dirty && (
@@ -258,7 +288,7 @@ const TemplateTiles = ({ heading = null }) => {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid gap-2 md:grid-cols-2 md:gap-3 lg:grid-cols-4">
         {shown.map((template) => (
           <TemplateCard
             key={template._id}

@@ -118,22 +118,32 @@ const DashboardStaff = () => {
       {/* Правая колонка пуста (нет плана дальше и отчёта) — левая встаёт во
           всю ширину: пустую колонку `empty:hidden` снимает, а `has-[…]`
           сбрасывает сетку в одну колонку */}
-      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start xl:has-[>div:last-child:empty]:grid-cols-1">
-        <div className="flex flex-col gap-5">
-          {takesCalls && <TemplateTiles heading="Шаблоны заявок" />}
+      {/* `grid-cols-1` + `min-w-0` на колонках — не украшение: без шаблона
+          колонка сетки не уже своего самого широкого ребёнка, и один
+          несжимаемый ряд (переключатель, контролы отчёта) утаскивал всю
+          главную за правый край телефона (макет «Главная на телефоне —
+          аккуратно», 24.09) */}
+      <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start xl:has-[>div:last-child:empty]:grid-cols-1">
+        <div className="flex min-w-0 flex-col gap-5">
+          {/* Телефон: шаблоны после заявок (`order` в колонке, сетка не
+              меняется) — первый экран там за «что на мне», а шаблон с телефона
+              открывают редко */}
+          {takesCalls && (
+            <TemplateTiles heading="Шаблоны заявок" className="max-md:order-1" />
+          )}
           <StaffTickets />
           {/* «Внимание»: сроки, база знаний, мониторинг — одна группа в две
               колонки. Блоки сами решают, быть ли им, поэтому раскладка —
               на селекторах, а не на условиях: три карточки — две в ряд и
               третья во всю ширину, две — одним рядом, одна — во всю ширину,
               ни одной — группы нет. Порядок внутри не меняется */}
-          <div className="grid gap-5 empty:hidden md:grid-cols-2 md:items-start [&>:nth-child(3)]:col-span-full [&>:only-child]:col-span-full">
+          <div className="grid min-w-0 grid-cols-1 gap-5 empty:hidden max-md:order-2 md:grid-cols-2 md:items-start [&>:nth-child(3)]:col-span-full [&>:only-child]:col-span-full">
             <ServiceExpiry showCompany />
             <KbAttention />
             <MonitoringOffline />
           </div>
         </div>
-        <div className="flex flex-col gap-5 empty:hidden">
+        <div className="flex min-w-0 flex-col gap-5 empty:hidden">
           <UpcomingWorks />
           <MyReport />
         </div>

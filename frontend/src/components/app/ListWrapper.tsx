@@ -33,6 +33,7 @@ import {
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import FormOutlet from "@/components/app/FormOutlet";
@@ -131,6 +132,10 @@ type ListWrapperProps = {
   /** Плейсхолдер поиска — переопределяет дефолтный «Поиск…» из SearchBar. */
   searchPlaceholder?: string;
   showSortAndCount?: boolean;
+  /** Пункты под вариантами сортировки, за разделителем в том же меню
+   *  (галочка «Группы по статусу» у заявок): настройка вида списка живёт рядом
+   *  с сортировкой, а не отдельным контролом в строке инструментов. */
+  sortExtra?: ReactNode;
   /** Пустое состояние «данных нет вовсе». Умолчание — «Список пуст», но у
    *  очереди задач пустота не недоделка, а хорошая новость («Открытых заявок
    *  нет»), и об этом стоит сказать словами раздела. */
@@ -165,6 +170,7 @@ const ListWrapper = ({
   defaultSearchValue = "",
   searchPlaceholder,
   showSortAndCount = true,
+  sortExtra,
   emptyTitle,
   emptyHint,
   emptyAction,
@@ -329,6 +335,12 @@ const ListWrapper = ({
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
+        {sortExtra && (
+          <>
+            <DropdownMenuSeparator />
+            {sortExtra}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

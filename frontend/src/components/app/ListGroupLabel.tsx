@@ -4,6 +4,18 @@ import { cn } from "@/lib/utils";
 
 // Uppercase-метка группы списка со счётчиком — язык статус-борда,
 // перенесённый на справочники (согласованный макет).
+//
+// Тона: `on` — бирюза активной группы, `off` — гаснущая (отключённые,
+// закрытые); `warn` и `muted` — группы по состоянию у заявок: янтарные ждут
+// человека, «в работе» приглушена — тот же каталог тонов, что у строки
+// (Ticket/ticket-state).
+const TONE_CLASS = {
+  on: "text-accent-text",
+  warn: "text-warning-text",
+  muted: "text-muted-foreground",
+  off: "text-faint",
+};
+
 const ListGroupLabel = ({
   label,
   count,
@@ -12,14 +24,14 @@ const ListGroupLabel = ({
 }: {
   label: ReactNode;
   count?: number;
-  tone?: "on" | "off";
+  tone?: keyof typeof TONE_CLASS;
   className?: string;
 }) => {
   return (
     <div
       className={cn(
         "flex items-baseline gap-2 px-5 pt-5 pb-2.5 text-base font-semibold tracking-widest uppercase",
-        tone === "on" ? "text-accent-text" : "text-faint",
+        TONE_CLASS[tone],
         className,
       )}
     >

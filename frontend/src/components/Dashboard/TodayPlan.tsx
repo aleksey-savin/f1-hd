@@ -282,7 +282,7 @@ const TodayPlan = () => {
       </div>
       <div className="md:hidden">
         <Panel>
-          <div className="-mx-5 -my-5 overflow-hidden rounded-[inherit]">
+          <div className="-mx-4 -my-4 overflow-hidden rounded-[inherit] md:-mx-5 md:-my-5">
             {today.map((item) => (
               <PlanRow
                 key={item.work._id}

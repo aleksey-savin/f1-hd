@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router";
 
 import { RiCheckboxMultipleLine } from "react-icons/ri";
 
 import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
 import { useSheetOpen } from "@/components/app/FormOutlet";
+import ListGroupLabel from "@/components/app/ListGroupLabel";
 import ListWrapper from "@/components/app/ListWrapper";
 import Segmented from "@/components/app/Segmented";
 import SelectionBar from "@/components/app/SelectionBar";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 
 import BulkActionBar from "../../components/Ticket/BulkActionBar";
 import TicketFilter from "../../components/Ticket/Filter";
 import QueueStrip from "../../components/Ticket/QueueStrip";
 import TicketRow from "../../components/Ticket/Row";
+import { TICKET_STATE_GROUPS } from "../../components/Ticket/ticket-state";
 import useListSelection from "../../hooks/use-list-selection";
 import useLiveTopic from "@/hooks/use-live-topic";
 import { warm } from "@/store/form-data";
@@ -43,6 +46,32 @@ const facetOptions = (list, extract) => {
   return [...map.values()].sort((a, b) => a.label.localeCompare(b.label));
 };
 
+// Тон заголовка группы — из каталога состояний: янтарные ждут человека,
+// «в работе» приглушена, закрытые гаснут
+const GROUP_TONE = { warn: "warn", normal: "muted", off: "off" };
+
+/**
+ * Группы по состоянию (макет «Читаемая строка заявки»): порядок «ждёт
+ * человека» → «в работе» → «завершено», внутри группы — выбранная сортировка.
+ * Одна группа заголовка не получает — он не нёс бы информации; тогда и статус
+ * остаётся в строке. Состояние вне каталога (на всякий случай) — в хвост.
+ */
+const groupByState = (list) => {
+  const known = new Set(TICKET_STATE_GROUPS.map((group) => group.state));
+  const groups = TICKET_STATE_GROUPS.map((group) => ({
+    ...group,
+    items: list.filter((ticket) => ticket.state === group.state),
+  }));
+  groups.push({
+    state: null,
+    label: "Прочие",
+    tone: "normal",
+    items: list.filter((ticket) => !known.has(ticket.state)),
+  });
+  const filled = groups.filter((group) => group.items.length > 0);
+  return filled.length > 1 ? filled : null;
+};
+
 const Tickets = () => {
   const location = useLocation();
   const store = useTicketFilterStore();
@@ -56,8 +85,19 @@ const Tickets = () => {
     ticket: { actions: ["readAll", "readCompanies"], connector: "OR" },
   });
 
+  const groups = useMemo(
+    () => (store.groupByState ? groupByState(store.filteredList) : null),
+    [store.filteredList, store.groupByState],
+  );
+  // Порядок для выделения (Shift+клик берёт диапазон) — видимый, то есть
+  // сгруппированный, а не порядок отфильтрованного списка
+  const visibleList = useMemo(
+    () => (groups ? groups.flatMap((group) => group.items) : store.filteredList),
+    [groups, store.filteredList],
+  );
+
   const selection = useListSelection({
-    items: store.filteredList,
+    items: visibleList,
     enabled: canSelect,
   });
 
@@ -310,6 +350,22 @@ const Tickets = () => {
     selection.isSelected(ticket._id),
   );
 
+  const renderRow = (ticket) => (
+    <TicketRow
+      key={ticket._id}
+      ticket={ticket}
+      selectable={canSelect}
+      selectionActive={selection.isActive}
+      isSelected={selection.isSelected(ticket._id)}
+      onToggle={selection.toggle}
+      pressProps={selection.pressProps(ticket._id)}
+      consumeSuppressedClick={selection.consumeSuppressedClick}
+      canEdit={can({ ticket: ["manage"] })}
+      canDelete={can({ ticket: ["delete"] })}
+      showState={!groups}
+    />
+  );
+
   return (
     <>
       <ListWrapper
@@ -326,6 +382,18 @@ const Tickets = () => {
         filterActive={activeFilters.length > 0}
         activeFilters={activeFilters}
         toolbar={toolbar}
+        // Группировка — в меню сортировки, не отдельным контролом: настройка
+        // вида списка, которую трогают раз, живёт рядом с сортировкой
+        sortExtra={
+          <DropdownMenuCheckboxItem
+            checked={store.groupByState}
+            onCheckedChange={(checked) =>
+              store.setGroupByState(Boolean(checked))
+            }
+          >
+            Группы по статусу
+          </DropdownMenuCheckboxItem>
+        }
         defaultSearchValue={store.searchTerm}
         addRoute="/tickets/add"
         addLabel="Новая заявка"
@@ -368,20 +436,23 @@ const Tickets = () => {
           </>
         }
       >
-        {store.filteredList.map((ticket) => (
-          <TicketRow
-            key={ticket._id}
-            ticket={ticket}
-            selectable={canSelect}
-            selectionActive={selection.isActive}
-            isSelected={selection.isSelected(ticket._id)}
-            onToggle={selection.toggle}
-            pressProps={selection.pressProps(ticket._id)}
-            consumeSuppressedClick={selection.consumeSuppressedClick}
-            canEdit={can({ ticket: ["manage"] })}
-            canDelete={can({ ticket: ["delete"] })}
-          />
-        ))}
+        {groups
+          ? groups.map((group, index) => (
+              <Fragment key={group.label}>
+                <ListGroupLabel
+                  label={group.label}
+                  count={group.items.length}
+                  tone={GROUP_TONE[group.tone] ?? "muted"}
+                  className={
+                    index > 0 ? "mt-1.5 border-t border-border-soft" : undefined
+                  }
+                />
+                <div className="appear-children">
+                  {group.items.map(renderRow)}
+                </div>
+              </Fragment>
+            ))
+          : store.filteredList.map(renderRow)}
       </ListWrapper>
 
       {/* Плавающая панель — соседка списка, а не его содержимое: она обязана

@@ -47,7 +47,7 @@ const CLOSED_DAYS = 30;
 const ROWS = 6;
 
 const FOOTER =
-  "flex items-center gap-3 border-t border-border-soft px-5 py-2.5 text-sm text-muted-foreground tabular-nums";
+  "flex items-center gap-3 border-t border-border-soft px-4 py-2.5 text-sm text-muted-foreground tabular-nums md:px-5";
 
 const MyTicketsClient = () => {
   const { _id: userId } = useContext(AuthedUserContext);
@@ -232,7 +232,7 @@ const MyTicketsClient = () => {
       <Panel>
         {/* Без подвала последняя строка упирается в скруглённый угол панели —
             подсветка строки не должна из него выпирать */}
-        <div className="-mx-5 -my-5 overflow-hidden rounded-[inherit]">
+        <div className="-mx-4 -my-4 overflow-hidden rounded-[inherit] md:-mx-5 md:-my-5">
           {current.rows.map((ticket) => {
             const props = current.row(ticket);
             return <TicketRow key={ticket._id} {...props} />;
