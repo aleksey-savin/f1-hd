@@ -94,3 +94,12 @@ test("bump never throws on garbage", () => {
   assert.doesNotThrow(() => bus.bump({ topics: null }));
   assert.doesNotThrow(() => bus.bump({ ticketIds: [null, undefined, {}] }));
 });
+
+test("conversations is a topic and starts at zero", () => {
+  const { createBus, TOPICS } = require("./pulse");
+  assert.ok(TOPICS.includes("conversations"));
+  const bus = createBus();
+  assert.equal(bus.topics().conversations, 0);
+  bus.bump({ topics: ["conversations"] });
+  assert.equal(bus.topics().conversations, bus.rev());
+});

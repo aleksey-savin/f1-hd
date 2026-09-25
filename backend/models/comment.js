@@ -20,6 +20,21 @@ const commentSchema = new Schema(
         originalName: String,
       },
     ],
+    // Сообщение «Диалогов», которое стало этим комментарием, или ответ из
+    // заявки, ушедший мессенджером. Только имена — ни телефона, ни ника: блок
+    // видит и клиент в своей заявке.
+    channel: {
+      network: { type: String, default: undefined },
+      conversationId: { type: Schema.Types.ObjectId, ref: "Conversation", default: undefined },
+      messageId: { type: Schema.Types.ObjectId, ref: "Message", default: undefined },
+      direction: { type: String, enum: ["in", "out", undefined], default: undefined },
+      authorName: { type: String, default: undefined },
+      status: { type: String, default: undefined },
+      statusAt: { type: Date, default: undefined },
+      error: { type: String, default: undefined },
+      editedAt: { type: Date, default: undefined },
+      deletedAt: { type: Date, default: undefined },
+    },
     // legacy, delete after 1.8.9
     ticket: {
       type: Number,
@@ -33,6 +48,9 @@ const commentSchema = new Schema(
     notifications: {
       lastAction: String,
       pending: Boolean,
+      // Ответ ушёл клиенту мессенджером (services/messaging): заявителю тот же
+      // текст уведомлением не дублируем — ни письмом, ни ботом, ни в приложении
+      skipApplicant: Boolean,
     },
     createdBy: {
       type: Schema.Types.ObjectId,
@@ -60,7 +78,12 @@ commentSchema.post("save", async function bumpTicketActivity(doc) {
   if (!doc.$locals || !doc.$locals.wasNew) return;
   try {
     await mongoose.model("Ticket").updateOne(
-      { _id: doc.ticketId },
+      {
+        _id: doc.ticketId,
+        // Только вперёд: зеркало сообщения из мессенджера несёт время
+        // мессенджера и может оказаться старше последнего движения заявки
+        $or: [{ "activity.at": { $lte: doc.createdAt || new Date() } }, { "activity.at": null }],
+      },
       {
         $set: {
           activity: { at: doc.createdAt || new Date(), by: doc.createdBy },
@@ -81,5 +104,16 @@ commentSchema.plugin(require("../services/pulsePlugin"), { model: "Comment" });
 // Комментарии заявки для MCP (services/mcp/ticketSource.js) ищутся по ticketId:
 // письма до 2026-07-08 не попали в массив заявки.
 commentSchema.index({ ticketId: 1, createdAt: 1 });
+commentSchema.index(
+  { "channel.messageId": 1 },
+  { unique: true, partialFilterExpression: { "channel.messageId": { $exists: true } }, name: "channel_messageId_unique" },
+);
+// Крон repairOutbound ищет застрявшие "preparing" — без частичного индекса он
+// сканировал бы всю коллекцию comments раз в минуту (построится один раз при
+// деплое, см. docs/messaging.md §8)
+commentSchema.index(
+  { createdAt: 1 },
+  { partialFilterExpression: { "channel.status": "preparing" }, name: "channel_preparing_createdAt" },
+);
 
 module.exports = mongoose.model("Comment", commentSchema);

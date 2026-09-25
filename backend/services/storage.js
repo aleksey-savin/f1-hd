@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const multer = require("multer");
 const multerS3 = require("multer-s3");
 
@@ -8,6 +9,7 @@ const {
   GetObjectCommand,
   PutObjectCommand,
   DeleteObjectCommand,
+  CopyObjectCommand,
 } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
@@ -237,6 +239,55 @@ const deleteArtifact = async (key) => {
   }
 };
 
+// --- Файлы, которые сервер сохраняет сам (вложения из мессенджеров) ---------
+// Мультер кладёт только то, что пришло формой; вложения сообщений приезжают
+// буфером от шлюза и копируются в заявку. Имя плоское и серверное — как у
+// загрузок формы, поэтому `/uploads/:name`, getObjectBuffer и deleteObject
+// работают с ним без изменений.
+
+const extensionOf = (originalName, mimetype) => {
+  const fromName = path.extname(path.basename(String(originalName || ""))).toLowerCase();
+  if (/^\.[a-z0-9]{1,8}$/.test(fromName)) return fromName;
+  const fromMime = String(mimetype || "").split("/")[1] || "";
+  return /^[a-z0-9]{1,8}$/.test(fromMime) ? `.${fromMime}` : "";
+};
+
+const newObjectName = (prefix, originalName, mimetype) =>
+  `${prefix}-${crypto.randomUUID()}${extensionOf(originalName, mimetype)}`;
+
+const putObject = async (buffer, { originalName = "", mimetype = "application/octet-stream", prefix = "msg" } = {}) => {
+  const name = newObjectName(prefix, originalName, mimetype);
+  if (s3Client) {
+    await s3Client.send(
+      new PutObjectCommand({ Bucket: bucket, Key: name, Body: buffer, ContentType: mimetype, ...sseUploadOptions }),
+    );
+  } else {
+    await fs.promises.writeFile(localPath(name), buffer);
+  }
+  return { name, originalName: path.basename(String(originalName || name)), mimetype, size: buffer.length };
+};
+
+// Копия — не ссылка: удаление вложения из заявки удаляет его файл
+// (controllers/ticket.js, removeAttachment), и общий ключ оставил бы сообщение
+// без файла.
+const copyObject = async (name, { prefix = "cp" } = {}) => {
+  const copy = newObjectName(prefix, name, "");
+  if (objectExistsLocally(name)) {
+    await fs.promises.copyFile(localPath(name), localPath(copy));
+    return copy;
+  }
+  if (!s3Client) throw new Error(`Файл "${name}" не найден`);
+  await s3Client.send(
+    new CopyObjectCommand({
+      Bucket: bucket,
+      CopySource: `${bucket}/${encodeURIComponent(path.basename(name))}`,
+      Key: copy,
+      ...sseUploadOptions,
+    }),
+  );
+  return copy;
+};
+
 module.exports = {
   s3Client,
   bucket,
@@ -251,4 +302,7 @@ module.exports = {
   getArtifactBuffer,
   presignArtifact,
   deleteArtifact,
+  putObject,
+  copyObject,
+  newObjectName,
 };

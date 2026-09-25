@@ -53,6 +53,7 @@ export interface IPreferences {
       ticketStateUpdate: boolean;
       ticketNewComment: boolean;
       scheduledWorks: boolean;
+      conversationMessage?: boolean;
     };
     byEmail: {
       isActive: boolean;
@@ -89,6 +90,7 @@ export interface IPreferences {
     inventory: { isActive: boolean };
     knowledgeBase: { isActive: boolean };
     mikrotik: { isActive: boolean };
+    messaging?: { isActive?: boolean };
   };
   overtime: {
     defaultSchedule?: IWorkSchedule;

@@ -24,6 +24,7 @@ const EXTRA_KINDS = [
   "absenceDecision",
   "reportApproval",
   "reportDecision",
+  "conversationWaiting",
 ];
 const KIND_NAMES = [...new Set([...Object.keys(KINDS), ...EXTRA_KINDS])];
 

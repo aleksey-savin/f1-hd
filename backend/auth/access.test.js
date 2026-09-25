@@ -16,9 +16,9 @@ const {
   staffAccessStatements,
 } = require("./access");
 
-test("dictionary has 16 groups and 56 actions in the agreed order", () => {
-  assert.equal(GROUPS.length, 16);
-  assert.equal(ALL_ACTIONS.length, 56);
+test("dictionary has 17 groups and 59 actions in the agreed order", () => {
+  assert.equal(GROUPS.length, 17);
+  assert.equal(ALL_ACTIONS.length, 59);
   assert.deepEqual(ALL_ACTIONS.slice(0, 8), [
     "ticket.readCompanies",
     "ticket.readAll",
@@ -29,6 +29,12 @@ test("dictionary has 16 groups and 56 actions in the agreed order", () => {
     "ticket.createForOthers",
     "ticket.closeWithoutWork",
   ]);
+  // «Диалоги» — сразу за заявками: это та же работа с клиентом
+  assert.equal(GROUPS[1].key, "conversations");
+  assert.deepEqual(
+    GROUPS[1].actions.map((action) => action.id),
+    ["conversation.read", "conversation.reply", "conversation.manage"],
+  );
   assert.equal(ALL_ACTIONS.at(-1), "settings.manage");
   // «ИИ» — предпоследняя группа: настройки замыкают словарь
   assert.equal(GROUPS.at(-2).key, "ai");
@@ -43,7 +49,7 @@ test("every action has an audience; clientHint only on both", () => {
     for (const action of group.actions) {
       assert.ok(["staff", "client", "both"].includes(action.audience), action.id);
       if (action.clientHint) assert.equal(action.audience, "both", action.id);
-      assert.match(action.label, /^(Видеть|Изменять|Брать|Вести|Удалять|Заводить|Закрывать|Записывать|Согласовывать|Управлять|Входить|Модерировать|Запускать|Присоединяться|Пользоваться) /, action.id);
+      assert.match(action.label, /^(Видеть|Изменять|Брать|Вести|Удалять|Заводить|Закрывать|Записывать|Согласовывать|Управлять|Входить|Модерировать|Запускать|Присоединяться|Пользоваться|Отвечать) /, action.id);
     }
   }
 });
@@ -56,6 +62,10 @@ test("audiences of the spec's special cases", () => {
   assert.equal(audienceOfAction("settings.manage"), "staff");
   // ИИ — инструмент сотрудника: клиентской роли право не предлагается
   assert.equal(audienceOfAction("ai.use"), "staff");
+  // Переписка с клиентом — инструмент сотрудника
+  assert.equal(audienceOfAction("conversation.read"), "staff");
+  assert.equal(audienceOfAction("conversation.reply"), "staff");
+  assert.equal(audienceOfAction("conversation.manage"), "staff");
   assert.equal(audienceOfAction("nope.nothing"), "staff");
 });
 

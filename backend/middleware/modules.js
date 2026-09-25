@@ -49,6 +49,10 @@ module.exports.knowledgeBaseModuleIsActive = moduleGate(
   "modules.knowledgeBase.isActive",
   'Модуль "База знаний" отключен.',
 );
+module.exports.messagingModuleIsActive = moduleGate(
+  "modules.messaging.isActive",
+  'Модуль "Диалоги" отключен.',
+);
 
 /**
  * Функция ИИ по одной (Настройки → ИИ → «Функции»). Главный рубильник

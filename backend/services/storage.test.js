@@ -65,3 +65,51 @@ test("the key callback can reject a file, like multer-s3 does", async () => {
     /Неподдерживаемый тип файла/,
   );
 });
+
+test("without S3 putObject writes a new file under uploads/ and returns its name", async () => {
+  const saved = await storage.putObject(Buffer.from("фото"), {
+    originalName: "IMG 2291.jpg",
+    mimetype: "image/jpeg",
+  });
+  try {
+    assert.match(saved.name, /^msg-[0-9a-f-]{36}\.jpg$/);
+    assert.equal(saved.originalName, "IMG 2291.jpg");
+    assert.equal(saved.mimetype, "image/jpeg");
+    assert.equal(saved.size, Buffer.byteLength("фото"));
+    assert.equal((await storage.getObjectBuffer(saved.name)).toString(), "фото");
+  } finally {
+    await storage.deleteObject(saved.name);
+  }
+});
+
+test("copyObject gives an independent copy: deleting one keeps the other", async () => {
+  const saved = await storage.putObject(Buffer.from("акт"), {
+    originalName: "акт.pdf",
+    mimetype: "application/pdf",
+  });
+  let copy;
+  try {
+    copy = await storage.copyObject(saved.name);
+    assert.notEqual(copy, saved.name);
+    assert.match(copy, /^cp-[0-9a-f-]{36}\.pdf$/);
+    await storage.deleteObject(saved.name);
+    assert.equal((await storage.getObjectBuffer(copy)).toString(), "акт");
+  } finally {
+    await storage.deleteObject(saved.name);
+    if (copy) {
+      await storage.deleteObject(copy);
+    }
+  }
+});
+
+test("a name with path separators never escapes uploads/", async () => {
+  const saved = await storage.putObject(Buffer.from("x"), {
+    originalName: "../../etc/passwd",
+    mimetype: "text/plain",
+  });
+  try {
+    assert.equal(path.basename(saved.name), saved.name);
+  } finally {
+    await storage.deleteObject(saved.name);
+  }
+});

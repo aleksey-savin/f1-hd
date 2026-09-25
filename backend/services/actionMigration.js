@@ -73,6 +73,22 @@ const receivesAiUse = ({ key, audience, actions = [] }) =>
   !actions.includes(AI_USE) &&
   !OUTSIDE_PERFORMER_ROLES.includes(key);
 
+// Разовая раздача прав «Диалогов» (2026-09-25). Не в DERIVED — по той же
+// причине, что и ai.use: правило сработало бы на каждом будущем прогоне и
+// вернуло бы право роли, с которой владелец его снял.
+const CONVERSATION_ACTIONS = ["conversation.read", "conversation.reply", "conversation.manage"];
+
+/** Какие действия «Диалогов» роль получает при раздаче; [] — никаких. */
+const conversationGrants = ({ key, audience, actions = [] }) => {
+  if (audience === "client" || OUTSIDE_PERFORMER_ROLES.includes(key)) return [];
+  const grants = [];
+  if (actions.includes("ticket.perform") || actions.includes("ticket.manage")) {
+    grants.push("conversation.read", "conversation.reply");
+  }
+  if (actions.includes("ticket.manage")) grants.push("conversation.manage");
+  return grants.filter((id) => !actions.includes(id));
+};
+
 const flattenStatements = (statements = {}) =>
   Object.entries(statements).flatMap(([resource, actions]) =>
     (actions || []).map((action) => `${resource}.${action}`),
@@ -85,4 +101,6 @@ module.exports = {
   flattenStatements,
   AI_USE,
   receivesAiUse,
+  CONVERSATION_ACTIONS,
+  conversationGrants,
 };

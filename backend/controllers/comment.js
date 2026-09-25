@@ -12,6 +12,8 @@ const {
 } = require("../services/ticketAccess");
 const { markSeen } = require("../services/ticketSeen");
 const logger = require("../utils/logger");
+const { validateDeliverRoute, deliverComment } = require("../services/messaging/outbound");
+const { commentChannel } = require("../services/messaging/present");
 
 exports.getAll = async (req, res, next) => {
   try {
@@ -58,6 +60,13 @@ exports.add = async (req, res, next) => {
     // файлы. Отсюда их удаляет общий catch этого же обработчика.
     const [ticket] = await assertTicketsAccessible(req.auth, [ticketId]);
 
+    // «Ответить через» мессенджер (services/messaging): маршрут проверяем ДО
+    // записи комментария — отказ по занятому диалогу не должен оставлять в
+    // заявке ответ, который клиенту не ушёл
+    const route = req.body.deliverVia
+      ? await validateDeliverRoute({ ticket, conversationId: req.body.deliverVia, auth: req.auth })
+      : null;
+
     const attachments = req.files
       ? req.files.map((file) => {
           return {
@@ -76,7 +85,18 @@ exports.add = async (req, res, next) => {
         // Всегда: канал «в приложении» есть даже при выключенных почте и
         // Telegram, свои гейты у каналов свои (middleware/notifications)
         pending: true,
+        ...(route ? { skipApplicant: route.skipApplicant } : {}),
       },
+      ...(route
+        ? {
+            channel: commentChannel({
+              network: route.conversation.network,
+              conversationId: route.conversation._id,
+              direction: "out",
+              status: "preparing",
+            }),
+          }
+        : {}),
       createdBy: authData.userId,
       updatedBy: authData.userId,
     });
@@ -116,6 +136,21 @@ exports.add = async (req, res, next) => {
     await logEntry
       .save()
       .catch(logFailure("Failed to log new comment", { ticketId: ticket._id }));
+
+    if (route) {
+      await deliverComment({
+        comment,
+        ticket,
+        route,
+        author: { _id: authData.userId, firstName: authData.firstName, lastName: authData.lastName },
+      }).catch(async (error) => {
+        logFailure("Failed to deliver comment via messenger", { ticketId: ticket._id })(error);
+        await Comment.updateOne(
+          { _id: comment._id },
+          { $set: { "channel.status": "failed", "channel.error": "Не отправлено: сбой при постановке в очередь" } },
+        ).catch(() => {});
+      });
+    }
 
     res.status(201).json({
       message: "Comment added successfully!",

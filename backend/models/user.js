@@ -235,6 +235,7 @@ const userSchema = new Schema(
         absenceDecision: { type: Boolean, default: true },
         reportApproval: { type: Boolean, default: true },
         reportDecision: { type: Boolean, default: true },
+        conversationMessage: { type: Boolean, default: true },
       },
     },
     // НЕ обязателен с 2026-08: человека можно завести приглашением, и пароля у

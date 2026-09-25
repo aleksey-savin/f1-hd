@@ -8,6 +8,7 @@ const {
   migrateActions,
   flattenStatements,
   receivesAiUse,
+  conversationGrants,
 } = require("./actionMigration");
 
 test("renames and merges by the spec's map", () => {
@@ -95,4 +96,34 @@ test("ai.use is not derived on every migration run", () => {
   // migrateActions вернул бы право роли, с которой владелец его снял
   assert.ok(!DERIVED.some((rule) => rule.add.includes("ai.use")));
   assert.deepEqual(migrateActions(["ticket.perform"]), ["ticket.perform", "ticket.join"]);
+});
+
+test("conversation grants follow ticket work, never outside performers or clients", () => {
+  const role = (key, actions, audience = "staff") => ({ key, audience, actions });
+
+  // Администратор ведёт заявки — получает все три и остаётся полным доступом
+  assert.deepEqual(
+    conversationGrants(role("admin", ["ticket.perform", "ticket.manage"])),
+    ["conversation.read", "conversation.reply", "conversation.manage"],
+  );
+  // Первая и вторая линия берут заявки — читают и отвечают
+  assert.deepEqual(conversationGrants(role("it-first-line", ["ticket.perform"])), [
+    "conversation.read",
+    "conversation.reply",
+  ]);
+  // Сторонний исполнитель — нет, как и с ai.use
+  assert.deepEqual(conversationGrants(role("contractor-no-works", ["ticket.perform"])), []);
+  // Модератор базы знаний заявок не берёт — переписки нет
+  assert.deepEqual(conversationGrants(role("kb-moderator", ["knowledge.moderate"])), []);
+  // Клиентской роли действия сотрудника не выдаются
+  assert.deepEqual(conversationGrants(role("client-admin", ["ticket.perform"], "client")), []);
+  // Повторный прогон ничего не добавляет
+  assert.deepEqual(
+    conversationGrants(role("it-first-line", ["ticket.perform", "conversation.read", "conversation.reply"])),
+    [],
+  );
+});
+
+test("conversation grants are not derived on every migration run", () => {
+  assert.ok(!DERIVED.some((rule) => rule.add.some((id) => id.startsWith("conversation."))));
 });

@@ -475,6 +475,21 @@ module.exports.canManageSettings = requirePermission(
   PAGE,
 );
 
+// --- «Диалоги» -------------------------------------------------------------
+
+module.exports.canReadConversations = requirePermission(
+  { conversation: ["read"] },
+  PAGE,
+);
+module.exports.canReplyConversations = requirePermission(
+  { conversation: ["reply"] },
+  "Недостаточно прав, чтобы отвечать в диалогах",
+);
+module.exports.canManageConversations = requirePermission(
+  { conversation: ["manage"] },
+  "Недостаточно прав, чтобы вести диалоги",
+);
+
 // Рубильники модулей переехали в ./modules — это настройка установки, а не
 // права. Реэкспорт оставлен, чтобы не править импорты в routes/index.js разом.
 const modules = require("./modules");
@@ -483,3 +498,4 @@ module.exports.inventoryModuleIsActive = modules.inventoryModuleIsActive;
 module.exports.mikrotikIsActive = modules.mikrotikIsActive;
 module.exports.financesModuleIsActive = modules.financesModuleIsActive;
 module.exports.knowledgeBaseModuleIsActive = modules.knowledgeBaseModuleIsActive;
+module.exports.messagingModuleIsActive = modules.messagingModuleIsActive;

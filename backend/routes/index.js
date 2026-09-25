@@ -28,6 +28,7 @@ const reportRoutes = require("./internal/report");
 const roleRoutes = require("./internal/role");
 const routineTaskRoutes = require("./internal/routineTask");
 const ticketRoutes = require("./internal/ticket");
+const conversationRoutes = require("./internal/conversation");
 const ticketCategoryRoutes = require("./internal/ticketCategory");
 const ticketTemplateRoutes = require("./internal/ticketTemplate");
 const checklistTemplateRoutes = require("./internal/checklistTemplate");
@@ -62,6 +63,10 @@ const healthRoutes = require("./public/health");
 // Telegram-сервис: закрытый список ручек за общим секретом (см. routes/bot.js)
 const botRoutes = require("./bot");
 
+// Шлюз мессенджеров «Диалогов»: закрытый список ручек за общим секретом
+// (см. routes/gateway.js)
+const gatewayRoutes = require("./gateway");
+
 // ИИ-агенты: чтение базы знаний по MCP за ключом из настроек (см. routes/mcp.js)
 const mcpRoutes = require("./mcp");
 
@@ -94,6 +99,13 @@ const hideStaffContactsFromClients = require("@/middleware/hideStaffContacts");
  * просто не доходят.
  */
 internalRoutes.use("/bot", botRoutes);
+
+/**
+ * Шлюз мессенджеров (msg-gateway) — тоже ДО `attachSession`: у него общий
+ * секрет, а не сеанс сотрудника, и чужая cookie не должна приклеить к его
+ * запросу вторую личность. Роутер отвечает на всё под `/gateway` сам.
+ */
+internalRoutes.use("/gateway", gatewayRoutes);
 
 /**
  * MCP для ИИ-агентов — тоже ДО `attachSession`, и по той же причине: у агента
@@ -143,6 +155,7 @@ internalRoutes.use("/", reportRoutes);
 internalRoutes.use("/", roleRoutes);
 internalRoutes.use("/", routineTaskRoutes);
 internalRoutes.use("/", ticketRoutes);
+internalRoutes.use("/", conversationRoutes);
 internalRoutes.use("/", ticketCategoryRoutes);
 internalRoutes.use("/", ticketTemplateRoutes);
 internalRoutes.use("/", checklistTemplateRoutes);

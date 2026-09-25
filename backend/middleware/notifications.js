@@ -1723,6 +1723,10 @@ exports.createCommentNotifications = async () => {
 
     const applicant = await User.findById(ticket.applicantId);
 
+    // Ответ ушёл клиенту мессенджером (services/messaging): заявителю тот же
+    // текст ни ботом, ни письмом не дублируем
+    const skipApplicant = comment.notifications?.skipApplicant === true;
+
     // Канал «в приложении» — заявителю и ответственным, кроме автора
     try {
       await notifyCommentEvent({ comment, ticket, prefs });
@@ -1739,6 +1743,7 @@ exports.createCommentNotifications = async () => {
         // notifying applicant
         try {
           if (
+            !skipApplicant &&
             String(applicant?._id) !== authorId &&
             notifyTg(applicant, "ticketNewComment")
           ) {
@@ -1833,6 +1838,7 @@ exports.createCommentNotifications = async () => {
         // notifying applicant
         try {
           if (
+            !skipApplicant &&
             String(applicant?._id) !== authorId &&
             notifyEmail(applicant, "ticketNewComment")
           ) {

@@ -22,6 +22,7 @@ const {
 } = require("../services/ticketQuestionnaire");
 const { attachStale } = require("../services/ticketActivity");
 const { markSeen } = require("../services/ticketSeen");
+const { prepareOrigin, applyOrigin } = require("../services/messaging/origin");
 const { unreadIndex } = require("../services/ticketUnread");
 const TicketRead = require("../models/ticketRead");
 const { resolveGetScreenApiKey } = require("../helpers/getScreenKey");
@@ -816,8 +817,32 @@ exports.add = async (req, res, next) => {
     const isClient = req.auth.isEndUser;
     const onBehalfOfOthers = req.auth.can({ ticket: ["createForOthers"] });
 
+    // Заявка из диалога («Диалоги» → «Создать заявку»): проверяем до создания
+    // (и до выбора заявителя ниже — черновик уже решил, кто это), а сообщения,
+    // привязку и файлы разносим после (services/messaging/origin.js)
+    const conversationOrigin = req.body.originConversationId
+      ? await prepareOrigin({
+          auth: req.auth,
+          conversationId: req.body.originConversationId,
+          messageIds: req.body.originMessageIds,
+        })
+      : null;
+    // Собеседник не связан с пользователем — как у почты: служебная учётка по
+    // умолчанию, а имя собеседника уходит в realSender
+    const originApplicant = conversationOrigin
+      ? String(conversationOrigin.applicantId || prefs.defaultApplicant?._id || userId)
+      : null;
+    // Заявитель черновика — авторитетный источник (M9): когда applicantId не
+    // прислан или совпадает с тем, что определил диалог, применяем его НАПРЯМУЮ,
+    // не спрашивая ticket.createForOthers — иначе заявку из диалога не завести
+    // без лишнего права. Другой, явно выбранный applicantId — по обычным правилам.
+    const usesOriginApplicant =
+      conversationOrigin && (!req.body.applicantId || String(req.body.applicantId) === String(conversationOrigin.applicantId));
+
     let applicant = userId;
-    if (onBehalfOfOthers && req.body.applicantId && String(req.body.applicantId) !== String(userId)) {
+    if (usesOriginApplicant) {
+      applicant = originApplicant;
+    } else if (onBehalfOfOthers && req.body.applicantId && String(req.body.applicantId) !== String(userId)) {
       const chosen = await User.findById(req.body.applicantId)
         .select("_id company isServiceAccount banned banExpires")
         .lean();
@@ -979,7 +1004,10 @@ exports.add = async (req, res, next) => {
         ? req.body.deadline
         : now.setTime(now.getTime() + prefs.deadline * 60 * 60 * 1000),
       state: req.body.state,
-      source: req.body.source,
+      source: conversationOrigin ? conversationOrigin.source : req.body.source,
+      ...(conversationOrigin?.realSender && !conversationOrigin.applicantId && !req.body.applicantId
+        ? { realSender: conversationOrigin.realSender }
+        : {}),
       createdBy: userId,
       updatedBy: userId,
       notifications: {
@@ -995,6 +1023,19 @@ exports.add = async (req, res, next) => {
     await ticket.save();
     // Создатель свою заявку видел: в его списке она не светится непрочитанной
     await markSeen(userId, [ticket._id]);
+
+    if (conversationOrigin) {
+      await applyOrigin({
+        ticket,
+        origin: conversationOrigin,
+        by: { _id: userId, firstName: req.auth.legacy.firstName, lastName: req.auth.legacy.lastName },
+      }).catch((error) =>
+        logger.log("error", "Заявка создана, но разнести диалог в неё не удалось", {
+          ticketId: ticket._id.toString(),
+          error: error.message,
+        }),
+      );
+    }
 
     // добавляем запись в лог заявки
     const logEntry = new TicketLog({
@@ -2016,6 +2057,17 @@ exports.delete = async (req, res, next) => {
 
       await Ticket.deleteOne({ _id: req.params.id });
 
+      // «Диалоги»: удалённая заявка не должна держать личный чат привязанным —
+      // отвязка не должна ломать удаление заявки, сбой только логируем (M2)
+      require("@/services/messaging/bindings")
+        .endBindingsForTicket(ticket._id, "deleted")
+        .catch((error) =>
+          logger.log("error", "Не удалось снять привязку диалога к удалённой заявке", {
+            ticketId: ticket._id.toString(),
+            error: error.message,
+          }),
+        );
+
       res.status(201).json({
         message: "Ticket deleted successfully!",
       });
@@ -2083,6 +2135,16 @@ exports.deleteMultiple = async (req, res, next) => {
         }
 
         await Ticket.deleteOne({ _id: id });
+
+        // «Диалоги»: то же самое для массового удаления, см. exports.delete (M2)
+        require("@/services/messaging/bindings")
+          .endBindingsForTicket(ticket._id, "deleted")
+          .catch((error) =>
+            logger.log("error", "Не удалось снять привязку диалога к удалённой заявке", {
+              ticketId: ticket._id.toString(),
+              error: error.message,
+            }),
+          );
       }
     }
 

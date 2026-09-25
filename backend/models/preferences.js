@@ -85,6 +85,9 @@ const preferencesSchema = new Schema({
       // клиента, решение — нам. Ключ категории един для personal/byTelegram/byEmail.
       reportApproval: { type: Boolean, default: false },
       reportDecision: { type: Boolean, default: false },
+      // «Диалоги»: сообщение клиента, которое ждёт ответа. Включено сразу —
+      // модуль сам выключен по умолчанию (modules.messaging)
+      conversationMessage: { type: Boolean, default: true },
     },
     // Канал отправки (SMTP). Транспорт задаётся так же, как у ящика-приёмника;
     // authMethod "none" — внутренний релей, принимающий почту без пароля.
@@ -170,6 +173,8 @@ const preferencesSchema = new Schema({
     // требует обоих модулей. До 2026-09-14 жил рубильником `mikrotik.isActive`
     // (перенос — scripts/migrateMikrotikModule.js)
     mikrotik: { isActive: { type: Boolean, default: false } },
+    // «Диалоги»: переписка из Telegram, WhatsApp, MAX и формы сайта в HD
+    messaging: { isActive: { type: Boolean, default: false } },
   },
   // Согласование отчётов по услугам со стороны клиента.
   // Срок берётся из договора («клиент обязан согласовать в течение N дней»):

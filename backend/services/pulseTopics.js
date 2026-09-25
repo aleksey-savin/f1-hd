@@ -26,6 +26,16 @@ const notificationNoise = (path, value) =>
   (path === "notifications.pending" && value !== true) ||
   /(^|\.)isNotified(\.|$)/.test(path);
 
+// Статус доставки ответа в мессенджер (Comment.channel.status) меняется на
+// каждом подтверждении шлюза. Списки заявок от этого перечитываться не должны —
+// карточку открытой заявки двигает точечный bus.bump({ ticketIds }) в
+// services/messaging/jobs.js.
+const commentNoise = (path, value, op) =>
+  notificationNoise(path, value, op) ||
+  path === "channel.status" ||
+  path === "channel.statusAt" ||
+  path === "channel.error";
+
 // Monitoring cycle (services/mikrotik/monitorState.js): poll results, failure
 // counter and the online/offline state machine. Real transitions are bumped
 // explicitly there, so the per-poll writes stay silent. Alert stamps
@@ -92,7 +102,10 @@ const TEAM_PATHS = [
 
 module.exports = {
   Ticket: { topics: ["tickets"], ticket: "self", noise: notificationNoise },
-  Comment: { topics: ["tickets"], ticket: "ticketId", noise: notificationNoise },
+  Comment: { topics: ["tickets"], ticket: "ticketId", noise: commentNoise },
+  Conversation: { topics: ["conversations"], noise: isBookkeeping },
+  Message: { topics: ["conversations"], noise: isBookkeeping },
+  ChannelIdentity: { topics: ["conversations"], noise: isBookkeeping },
   TicketLog: { topics: ["tickets"], ticket: "ticketId", noise: isBookkeeping },
   Work: { topics: ["tickets", "approval"], ticket: "tickets", noise: notificationNoise },
   User: { byPath: { presence: PRESENCE_PATHS, team: TEAM_PATHS }, noise: isBookkeeping },

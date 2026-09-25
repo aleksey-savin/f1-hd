@@ -274,8 +274,11 @@ const buildCommentItems = ({ comment, ticket, usersById, prefs }) => {
     // Как в почтовой ветке: ответ в закрытую заявку называет себя вслух
     title: ticket.isClosed ? "Ответ в закрытую заявку" : "Новый комментарий",
   };
+  // Ответ ушёл заявителю мессенджером (services/messaging): в приложении тот же
+  // текст ему не дублируем — ответственным уведомление остаётся
+  const skipApplicant = comment.notifications?.skipApplicant === true;
   const recipients = [
-    usersById.get(idOf(ticket.applicantId)),
+    skipApplicant ? null : usersById.get(idOf(ticket.applicantId)),
     ...(ticket.responsibles || []).map((r) => usersById.get(idOf(r))),
   ].filter(Boolean);
   const text = excerpt(comment.content);
@@ -357,8 +360,8 @@ const loadManagers = async () => {
 const insert = async (items) => {
   if (!items.length) return 0;
   const InAppNotification = require("@/models/inAppNotification");
-  await InAppNotification.insertMany(items, { ordered: false });
-  return items.length;
+  const inserted = await InAppNotification.insertMany(items, { ordered: false });
+  return inserted.length;
 };
 
 /** Защёлка «уже уведомлён в приложении» на рассмотренных ответственных. */

@@ -16,6 +16,7 @@ export interface IUserNotifyCategories {
   absenceDecision: boolean;
   reportApproval: boolean;
   reportDecision: boolean;
+  conversationMessage?: boolean;
 }
 
 /** @deprecated одна форма на все каналы — IUserNotifyCategories */

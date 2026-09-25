@@ -291,3 +291,18 @@ test("изменённые работы — свой вид и подпись", 
   assert.equal(items[0].kind, "workUpdated");
   assert.equal(items[0].title, "Изменены запланированные работы");
 });
+
+test("ответ, ушедший мессенджером, не дублируется заявителю в приложении", () => {
+  const applicant = user("a1");
+  const responsible = user("r1");
+  const author = user("x1");
+  const usersById = usersOf(applicant, responsible, author);
+  const t = ticket({ responsibles: [{ _id: "r1" }] });
+  const base = { _id: "cm1", content: "Будем в 14:00", createdBy: "x1" };
+
+  const plain = buildCommentItems({ comment: { ...base, notifications: {} }, ticket: t, usersById, prefs });
+  assert.deepEqual(plain.items.map((item) => String(item.userId)).sort(), ["a1", "r1"]);
+
+  const delivered = buildCommentItems({ comment: { ...base, notifications: { skipApplicant: true } }, ticket: t, usersById, prefs });
+  assert.deepEqual(delivered.items.map((item) => String(item.userId)), ["r1"]);
+});

@@ -422,6 +422,7 @@ exports.update = async (req, res, next) => {
         inventory: { isActive: !!modules.inventory?.isActive },
         knowledgeBase: { isActive: !!modules.knowledgeBase?.isActive },
         mikrotik: { isActive: !!modules.mikrotik?.isActive },
+        messaging: { isActive: !!modules.messaging?.isActive },
       };
     }
 

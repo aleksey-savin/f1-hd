@@ -249,6 +249,9 @@ const ticketSchema = new Schema(
         "Почта",
         "Облачная телефония",
         "Telegram",
+        "WhatsApp",
+        "MAX",
+        "Сайт",
         "Регламентное задание",
         "Мониторинг устройств",
         "Другое",
@@ -568,6 +571,28 @@ ticketSchema.post("save", function touchApplicantActivity(doc) {
         error?.message || error,
       ),
     );
+});
+
+// «Диалоги»: закрытие заявки заканчивает привязки чатов к ней, возврат в работу
+// восстанавливает их там, где клиент уже написал после закрытия
+// (services/messaging/bindings.js). Сбой здесь заявку не ломает.
+ticketSchema.pre("save", function rememberClosingChange() {
+  // Всегда переприсваиваем: иначе второй save() того же инстанса без смены
+  // isClosed унаследует старое значение $locals, и хук ниже выстрелит повторно
+  this.$locals.closingChange =
+    !this.isNew && this.isModified("isClosed") ? (this.isClosed ? "closed" : "reopened") : null;
+});
+ticketSchema.post("save", function syncConversationBindings(doc) {
+  const change = doc.$locals?.closingChange;
+  if (!change) return;
+  const bindings = require("@/services/messaging/bindings");
+  const run =
+    change === "closed"
+      ? bindings.endBindingsForTicket(doc._id, "closed")
+      : bindings.restoreBindingsAfterReopen(doc._id);
+  run.catch((error) =>
+    console.warn("привязки диалогов не обновлены:", error?.message || error),
+  );
 });
 
 // Живые обновления (см. services/pulseTopics.js). После touchActivity: пульс

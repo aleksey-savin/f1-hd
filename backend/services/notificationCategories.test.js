@@ -20,6 +20,7 @@ test("каталог категорий — тот же, что в настро�
     "absenceDecision",
     "reportApproval",
     "reportDecision",
+    "conversationMessage",
   ]);
 });
 
@@ -45,4 +46,10 @@ test("неизвестные категории отбрасываются, ду
   ]);
   // Ничего допустимого — фильтра нет, а не пустая лента
   assert.equal(parseCategories("spam,eggs"), null);
+});
+
+test("conversation messages are a category of their own", () => {
+  const { CATEGORIES, parseCategories } = require("./notificationCategories");
+  assert.ok(CATEGORIES.includes("conversationMessage"));
+  assert.deepEqual(parseCategories("conversationMessage"), ["conversationMessage"]);
 });

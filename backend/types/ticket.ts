@@ -21,7 +21,11 @@ export type TicketSource =
   | "Почта"
   | "Облачная телефония"
   | "Telegram"
+  | "WhatsApp"
+  | "MAX"
+  | "Сайт"
   | "Регламентное задание"
+  | "Мониторинг устройств"
   | "Другое";
 export type TicketNotificationAction =
   | "new ticket"

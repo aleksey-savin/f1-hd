@@ -156,7 +156,10 @@
         "mikrotik.manageConfigs",
         "remoteSupport.use",
         "ai.use",
-        "settings.manage"
+        "settings.manage",
+        "conversation.read",
+        "conversation.reply",
+        "conversation.manage"
       ],
       "members": [
         "a.savin@f1lab.ru",
@@ -190,7 +193,9 @@
         "supplier.read",
         "mikrotik.read",
         "remoteSupport.use",
-        "ai.use"
+        "ai.use",
+        "conversation.read",
+        "conversation.reply"
       ],
       "members": [
         "i.chernov@f1lab.ru",
@@ -249,7 +254,9 @@
         "mikrotik.manage",
         "mikrotik.manageConfigs",
         "remoteSupport.use",
-        "ai.use"
+        "ai.use",
+        "conversation.read",
+        "conversation.reply"
       ],
       "members": [
         "a.echin@f1lab.ru",

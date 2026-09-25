@@ -17,6 +17,9 @@ const CATEGORIES = [
   "absenceDecision",
   "reportApproval",
   "reportDecision",
+  // Новое сообщение в «Диалогах», которое ждёт ответа (services/messaging/notify.js).
+  // Только канал «в приложении»: письмо и бот о сообщении из мессенджера — шум.
+  "conversationMessage",
 ];
 
 const KNOWN = new Set(CATEGORIES);

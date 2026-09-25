@@ -66,6 +66,9 @@ const MIGRATIONS = [
   { id: "2026-09-14-migrateMikrotikModule", script: "migrateMikrotikModule.js" },
   // Только дописывает `ai.use`; без него роль администратора отстаёт от словаря
   { id: "2026-09-21-grantAiUse", script: "grantAiUse.js", apply: true },
+  // Только дописывает `conversation.*`; см. grantConversations.js
+  { id: "2026-09-25-grantConversations", script: "grantConversations.js", apply: true },
+  { id: "2026-09-25-initMessaging", script: "initMessaging.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
 // renameRoleKeys.js (инструмент дева), сиды каталогов, repair*/check*/dump*.
