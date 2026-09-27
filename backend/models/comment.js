@@ -13,6 +13,14 @@ const commentSchema = new Schema(
     quotedText: {
       type: String,
     },
+    // Откуда пришёл комментарий, если не из карточки: "email" — письмо
+    // (middleware/emailHandling.js). Хроника метит такую реплику «письмо»;
+    // у старых писем признака нет — их узнают по quotedText
+    source: {
+      type: String,
+      enum: ["email"],
+      default: undefined,
+    },
     attachments: [
       {
         mimetype: String,

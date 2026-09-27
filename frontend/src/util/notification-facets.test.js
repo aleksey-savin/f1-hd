@@ -8,16 +8,18 @@ import {
   facetCategories,
   readAllLabel,
   unreadInFacet,
+  visibleFacets,
 } from "./notification-facets.ts";
 
-test("шесть фасетов, «Все» первый, категории покрыты без дыр и дублей", () => {
-  assert.equal(NOTIFICATION_FACETS.length, 7);
+test("восемь фасетов, «Все» первый, категории покрыты без дыр и дублей", () => {
+  assert.equal(NOTIFICATION_FACETS.length, 8);
   assert.equal(NOTIFICATION_FACETS[0].key, "all");
   const covered = NOTIFICATION_FACETS.flatMap((facet) => facet.categories);
   assert.equal(new Set(covered).size, covered.length);
   assert.deepEqual([...covered].sort(), [
     "absenceDecision",
     "absenceRequest",
+    "conversationMessage",
     "newTicket",
     "reportApproval",
     "reportDecision",
@@ -58,4 +60,21 @@ test("кнопка говорит, что читает", () => {
   assert.equal(readAllLabel("all"), "Прочитать все");
   assert.equal(readAllLabel("comment"), "Прочитать комментарии");
   assert.equal(readAllLabel("new"), "Прочитать новые заявки");
+});
+
+test("«Диалоги» — сообщения, которые ждут ответа", () => {
+  assert.deepEqual(facetCategories("dialogs"), ["conversationMessage"]);
+  assert.equal(readAllLabel("dialogs"), "Прочитать диалоги");
+});
+
+test("фасет «Диалоги» — только тем, кому раздел открыт", () => {
+  assert.equal(
+    visibleFacets({ messaging: false }).some((facet) => facet.key === "dialogs"),
+    false,
+  );
+  assert.equal(
+    visibleFacets({ messaging: true }).some((facet) => facet.key === "dialogs"),
+    true,
+  );
+  assert.equal(visibleFacets({ messaging: false }).length, NOTIFICATION_FACETS.length - 1);
 });

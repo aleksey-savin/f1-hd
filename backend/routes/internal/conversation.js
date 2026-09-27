@@ -27,6 +27,8 @@ const manage = [...canManageConversations, messagingModuleIsActive];
 const settings = [...canManageSettings];
 
 router.get("/conversations", ...read, conversation.list);
+// До «/conversations/:id»: иначе «counts» ушёл бы параметром и ответил 404
+router.get("/conversations/counts", ...read, conversation.counts);
 router.get("/conversations/:id", ...read, conversation.get);
 router.get("/conversations/:id/messages", ...read, conversation.messages);
 router.get("/conversations/:id/ticket-draft", ...read, conversation.ticketDraft);
@@ -45,6 +47,7 @@ router.post("/conversations/:id/hide", ...manage, conversation.hide);
 router.patch("/conversations/:id", ...manage, conversation.update);
 router.post("/identities/:id/link", ...manage, conversation.linkIdentity);
 router.post("/identities/:id/unlink", ...manage, conversation.unlinkIdentity);
+router.get("/identities/:id/candidates", ...manage, conversation.candidates);
 
 router.get(
   "/tickets/:num/delivery-routes",

@@ -2,7 +2,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const { publicName, mirrorAuthorName, commentChannel, conversationRow, messageRow } = require("./present");
+const { publicName, mirrorAuthorName, commentChannel, conversationRow, messageRow, candidateRow } = require("./present");
 
 test("the comment channel block carries names only", () => {
   const block = commentChannel(
@@ -110,4 +110,20 @@ test("message rows: author, reply and system event", () => {
 
   const system = messageRow({ _id: "m3", seq: 5, direction: "system", origin: "system", kind: "event", text: "", sentAt: new Date(), attachments: [], event: { kind: "ticketCreated", ticketNum: 56812, byName: "Лебедев Игорь" } }, ctx);
   assert.deepEqual(system.event, { kind: "ticketCreated", ticketNum: 56812, byName: "Лебедев Игорь", targetName: "", count: null });
+});
+
+test("identity candidates carry name, position and company — never contacts", () => {
+  const row = candidateRow({
+    _id: "u1",
+    firstName: "Андрей",
+    lastName: "Кузнецов",
+    position: "завхоз",
+    company: { _id: "c1", alias: "Примавто" },
+    email: "a.kuznetsov@primavto.ru",
+    phone: "+79142073318",
+  });
+  assert.deepEqual(row, { id: "u1", name: "Кузнецов Андрей", position: "завхоз", company: "Примавто" });
+  assert.equal(JSON.stringify(row).includes("7914"), false);
+  assert.equal(JSON.stringify(row).includes("@"), false);
+  assert.deepEqual(candidateRow({ _id: "u2", firstName: "Ольга" }), { id: "u2", name: "Ольга", position: "", company: "" });
 });

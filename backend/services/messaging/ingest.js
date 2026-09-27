@@ -9,6 +9,7 @@ const { resolveIdentity, modelDeps } = require("./identity");
 const { nextSeq, addSystemLine, userTalksHere, displayNameFor } = require("./conversationStore");
 const { mirrorToTicket } = require("./mirror");
 const { notifyWaiting } = require("./notify");
+const { shouldAlertChannelState, alertChannelState } = require("./channelAlert");
 
 let identityDeps = null;
 const deps = () => (identityDeps ||= modelDeps());
@@ -382,6 +383,29 @@ const ingestChannelState = async (event) => {
   const set = { state: event.state, stateReason: event.reason || "", gatewaySeenAt: new Date() };
   if (event.account) set.account = event.account;
   set.login = event.login || { qr: null, expiresAt: null };
+  // Колокольчик администраторам — один на переход (channelAlert.js): запись
+  // условна по прежнему состоянию, поэтому повтор события, повторная доставка
+  // и гонка двух доставок второй раз его не будят
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const before = await Channel.findById(event.channelId).select("name state isActive errorAlertedAt").lean();
+    if (!before) return { ok: false, retryable: false, error: "канал не найден" };
+    const now = new Date();
+    const alert = shouldAlertChannelState({
+      previous: before.state,
+      next: event.state,
+      active: before.isActive,
+      errorAlertedAt: before.errorAlertedAt,
+      now,
+    });
+    const claim = alert && event.state === "error" ? { errorAlertedAt: now } : {};
+    const result = await Channel.updateOne({ _id: before._id, state: before.state }, { $set: { ...set, ...claim } });
+    // Состояние успели сменить параллельно — перечитать и решить заново
+    if (!result.matchedCount) continue;
+    if (alert) await alertChannelState({ channel: before, state: event.state, reason: event.reason || "" });
+    return { ok: true };
+  }
+  // Дважды проиграли гонку: состояние всё равно пишем, а колокольчик за этот
+  // переход разослала доставка, которая выиграла
   const result = await Channel.updateOne({ _id: event.channelId }, { $set: set });
   return result.matchedCount ? { ok: true } : { ok: false, retryable: false, error: "канал не найден" };
 };

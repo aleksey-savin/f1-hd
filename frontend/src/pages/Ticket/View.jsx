@@ -4,6 +4,7 @@ import {
   Link,
   useFetcher,
   useLoaderData,
+  useLocation,
   useNavigate,
 } from "react-router";
 import { BrowserView } from "react-device-detect";
@@ -43,6 +44,8 @@ import {
   useChecklistTemplates,
 } from "../../components/Ticket/View/ChecklistTemplates";
 import Chronicle from "../../components/Ticket/Chronicle";
+import { useDeliveryRoutes } from "../../components/Ticket/use-delivery-routes";
+import { dialogRoute } from "@/util/delivery-routes";
 import CompanyLogsOffcanvas from "../../components/CompanyLogs/Offcanvas";
 import CustomFieldsAnswers from "@/components/app/CustomFieldsAnswers";
 import { hasAnswer } from "@/components/app/custom-fields";
@@ -118,6 +121,7 @@ const ViewTicket = () => {
   }
 
   const navigate = useNavigate();
+  const location = useLocation();
   const sheetOpen = useSheetOpen();
 
   // Справочники формы правки — заранее, чтобы «Изменить» и «Обработать» не
@@ -249,6 +253,43 @@ const ViewTicket = () => {
     isEndUser,
     works,
   });
+
+  // Пришли из «Диалогов» с «Вернуть в работу» — сразу открываем диалог
+  // возврата этой заявки (причина и права — там же). Действие должно быть
+  // среди доступных, иначе молчим. `location.state` чистим сразу после
+  // чтения — иначе назад или обновление страницы открывали бы диалог снова
+  useEffect(() => {
+    const wanted = location.state?.openAction;
+    if (!wanted) return;
+    if (
+      DIALOG_ACTIONS.includes(wanted) &&
+      [primary, ...menu].some((action) => action?.key === wanted)
+    ) {
+      setDialog(wanted);
+    }
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [ticket.num]);
+
+  // «Диалоги»: маршруты «Ответить через» и строка «Диалог» в «Деталях» —
+  // сотруднику с правом видеть диалоги при включённом модуле
+  const messagingOn =
+    !isEndUser &&
+    !!modules.messaging?.isActive &&
+    !!can({ conversation: ["read"] });
+  const deliveryRoutes = useDeliveryRoutes(ticket.num, {
+    enabled: messagingOn,
+    revision: data.pulse,
+  });
+  const messaging = messagingOn
+    ? {
+        canReply: !!can({ conversation: ["reply"] }),
+        routes: deliveryRoutes.data,
+        onRoutesChanged: deliveryRoutes.refresh,
+      }
+    : null;
+  const dialogChat = messagingOn
+    ? dialogRoute(deliveryRoutes.data?.routes, ticket.comments)
+    : null;
 
   // Живое обновление: пульс сообщает, что ИМЕННО эта заявка изменилась
   // (комментарий, работа, событие, ИИ), и лоадер перечитывается — когда все
@@ -582,6 +623,7 @@ const ViewTicket = () => {
           <FactsSection
             ticket={ticket}
             company={company}
+            dialog={dialogChat}
             canEdit={can({ ticket: ["manage"] }) && !ticket.isArchived}
             onShowLogs={
               // Журнал входов AD закрыт правом `company.readLogs` (ручка
@@ -734,11 +776,16 @@ const ViewTicket = () => {
         </div>
 
         <div className="sticky top-20 -mt-6 hidden w-96 flex-none xl:block">
+          {/* key={ticket._id}: соседняя заявка не размонтирует страницу
+              (см. эффект setChecklistEdit выше) — без ключа черновик ответа
+              и выбранный маршрут «Ответить через» пережили бы переход */}
           <Chronicle
+            key={ticket._id}
             ticket={ticket}
             events={events}
             canComment={canComment}
             seenAt={visit.seenAt}
+            messaging={messaging}
           />
         </div>
       </div>
@@ -747,10 +794,12 @@ const ViewTicket = () => {
           даёт метка (Eyebrow), своего у обёртки нет */}
       <div className="xl:hidden">
         <Chronicle
+          key={ticket._id}
           ticket={ticket}
           events={events}
           canComment={canComment}
           seenAt={visit.seenAt}
+          messaging={messaging}
         />
       </div>
 

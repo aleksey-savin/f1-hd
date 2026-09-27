@@ -11,6 +11,7 @@ import { AuthedUserContext } from "../../store/authed-user-context";
 
 import DraftNote from "./DraftNote";
 import { ticketFormSections } from "./TicketFormFields";
+import { originFormValues } from "./ticket-origin";
 import { useTicketForm } from "./use-ticket-form";
 import { useCan } from "@/store/authed-user";
 
@@ -35,6 +36,8 @@ const TicketFormRoute = ({ mode }) => {
     ticketData,
     templates = [],
     presetTemplate = null,
+    presetOrigin = null,
+    originError = null,
   } = useLoaderData() ?? {};
   const ticket = ticketData?.ticket ?? null;
 
@@ -49,6 +52,7 @@ const TicketFormRoute = ({ mode }) => {
     canPerformTickets: !!can({ ticket: ["perform"] }),
     canCreateForOthers: !!can({ ticket: ["createForOthers"] }),
     userId: userId ? String(userId) : "",
+    origin: presetOrigin,
   });
 
   const [templateId, setTemplateId] = useState("");
@@ -60,6 +64,11 @@ const TicketFormRoute = ({ mode }) => {
     if (presetTemplate?._id) {
       setTemplateId(String(presetTemplate._id));
       form.applyTemplate(presetTemplate);
+    }
+    // Заявка из диалога: описание, компания и заявитель — из черновика
+    // сервера; свой черновик у такой формы не ведётся (use-ticket-form)
+    if (presetOrigin) {
+      form.applyOrigin(originFormValues(presetOrigin.draft, formData));
     }
     form.restoreDraft(
       presetTemplate?._id ? String(presetTemplate._id) : null,
@@ -91,8 +100,10 @@ const TicketFormRoute = ({ mode }) => {
 
   const sections = ticketFormSections({ form, formData });
 
+  // У заявки из диалога описание уже собрано из переписки — шаблон его бы
+  // затёр, поэтому выбора шаблона там нет
   const templatePill =
-    form.config.fromTemplate && templates.length > 0 ? (
+    form.config.fromTemplate && !presetOrigin && templates.length > 0 ? (
       <ChipCombobox
         placeholder="Из шаблона"
         allLabel="Без шаблона"
@@ -121,6 +132,16 @@ const TicketFormRoute = ({ mode }) => {
       </div>
     ) : null;
 
+  // Черновик из диалога не собрался — объясняем почему вместо пустой формы
+  if (originError) {
+    return (
+      <>
+        <FormHeader title={form.config.title} />
+        <AlertMessage variant="warning" message={originError} />
+      </>
+    );
+  }
+
   // Прямая ссылка на правку без прав раньше рисовала пустую шторку — теперь
   // она объясняет, что происходит (гайд, «Ошибки и гейты прав»)
   if (mode !== "add" && !can({ ticket: ["manage"] })) {
@@ -142,9 +163,11 @@ const TicketFormRoute = ({ mode }) => {
       formData={form.buildPayload}
       onSuccess={form.clearSavedDraft}
       // Создание ведёт на карточку созданной заявки, правка и обработка —
-      // обратно туда, откуда форму открыли
+      // обратно туда, откуда форму открыли. Заявка из диалога — шаг ответа
+      // клиенту: возвращаемся в переписку, она уже привязана к новой заявке
+      // (отступление от п.1 «Навигации после сабмита» — гайд)
       successTo={
-        mode === "add"
+        mode === "add" && !presetOrigin
           ? (data) => (data?.ticket?.num ? `/tickets/${data.ticket.num}` : "..")
           : undefined
       }

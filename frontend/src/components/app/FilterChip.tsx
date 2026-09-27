@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 // во включённом состоянии — бирюзовая подложка. `size="sm"` — компактный
 // (28 px, 12-й кегль) для рядов внутри панелей: поповер уведомлений.
 // `count` — число рядом с подписью (непрочитанные вида), без него ничего.
+// `dot` — точка-индикатор: `default` (бирюза у включённого), `warning` —
+// янтарная всегда (очередь «Ждут ответа» в «Диалогах»), `none` — без точки.
 const FilterChip = ({
   active = false,
   onClick,
@@ -13,6 +15,7 @@ const FilterChip = ({
   className,
   size = "md",
   count,
+  dot = "default",
 }: {
   active?: boolean;
   onClick?: () => void;
@@ -20,6 +23,7 @@ const FilterChip = ({
   className?: string;
   size?: "md" | "sm";
   count?: number | null;
+  dot?: "default" | "warning" | "none";
 }) => {
   return (
     <button
@@ -34,10 +38,19 @@ const FilterChip = ({
         className,
       )}
     >
-      <span
-        aria-hidden
-        className={cn("size-1.5 rounded-full bg-faint", active && "bg-primary")}
-      />
+      {dot !== "none" && (
+        <span
+          aria-hidden
+          className={cn(
+            "size-1.5 rounded-full",
+            dot === "warning"
+              ? "bg-warning"
+              : active
+                ? "bg-primary"
+                : "bg-faint",
+          )}
+        />
+      )}
       {children}
       {count != null && count > 0 && (
         <span

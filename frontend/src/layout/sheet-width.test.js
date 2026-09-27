@@ -82,3 +82,19 @@ test("форма списка не меняет ширину листа", () => 
     }
   }
 });
+
+test("«Диалоги» — широкий лист и под шторкой формы поверх диалога", () => {
+  assert.equal(resolveSheetWidth("/conversations"), 1488);
+  assert.equal(
+    resolveSheetWidth(
+      layoutPathname(
+        matches(
+          page("/conversations"),
+          page("/conversations/c1"),
+          sheet("/conversations/c1/tickets/add"),
+        ),
+      ),
+    ),
+    1488,
+  );
+});

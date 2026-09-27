@@ -45,6 +45,9 @@ const channelSchema = new Schema(
     },
     gatewaySeenAt: { type: Date, default: null },
     lastMessageAt: { type: Date, default: null },
+    // Когда администраторам последний раз звонил колокольчик о состоянии
+    // «error» — не чаще раза в 6 часов (services/messaging/channelAlert.js)
+    errorAlertedAt: { type: Date, default: null },
     settings: {
       proxyUrl: { type: String, default: "" },
       historyDays: { type: Number, default: 14, min: 0, max: 90 },
@@ -75,5 +78,9 @@ const channelSchema = new Schema(
 
 channelSchema.index({ type: 1, isActive: 1 });
 channelSchema.index({ "settings.site.formKey": 1 }, { unique: true, sparse: true });
+
+// Настройки каналов узнают о входе по QR и смене состояния из пульса — тема
+// «channels» (сигнал шлюза и отметка сообщения — шум, services/pulseTopics.js)
+channelSchema.plugin(require("../services/pulsePlugin"), { model: "Channel" });
 
 module.exports = mongoose.model("Channel", channelSchema);

@@ -27,10 +27,10 @@ type LiveTopicOptions = {
  *     minIntervalMs: 15_000,
  *   });
  *
- * Topics: tickets, presence, team, mikrotik, approval, knowledge (see
- * backend/services/pulseTopics.js). `onChange` may return a promise; the next
- * run waits for it. Never add a timer of your own for live data — see
- * docs/live-updates.md.
+ * Topics: tickets, presence, team, mikrotik, approval, knowledge, channels,
+ * conversations (see backend/services/pulseTopics.js). `onChange` may return
+ * a promise; the next run waits for it. Never add a timer of your own for
+ * live data — see docs/live-updates.md.
  */
 const useLiveTopic = (
   topics: string | readonly string[],

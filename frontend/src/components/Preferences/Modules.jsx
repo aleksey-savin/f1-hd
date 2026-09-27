@@ -5,19 +5,16 @@ import HealthRow from "@/components/app/HealthRow";
 import SettingRow from "@/components/app/SettingRow";
 
 import SectionForm from "./SectionForm";
+import { modulesFromPrefs, modulesPayload } from "./modules-payload";
 
 // «Модули»: функциональные области приложения. Выключенный модуль скрывает
 // свои разделы у всех пользователей и свои секции на этой странице.
 // «Учёт финансов» работает поверх «Учёта времени» — бэкенд гасит его сам,
-// UI показывает зависимость блокировкой свитча.
+// UI показывает зависимость блокировкой свитча. Тело сохранения собирается из
+// ПОЛНОГО списка модулей (modules-payload): сервер заменяет объект целиком, и
+// забытый ключ выключил бы модуль.
 const PrefsModules = ({ prefs }) => {
-  const [modules, setModules] = useState(() => ({
-    timeTracking: !!prefs.modules?.timeTracking?.isActive,
-    finances: !!prefs.modules?.finances?.isActive,
-    inventory: !!prefs.modules?.inventory?.isActive,
-    knowledgeBase: !!prefs.modules?.knowledgeBase?.isActive,
-    mikrotik: !!prefs.modules?.mikrotik?.isActive,
-  }));
+  const [modules, setModules] = useState(() => modulesFromPrefs(prefs.modules));
 
   const toggle = (key, value) =>
     setModules((current) => ({
@@ -28,17 +25,19 @@ const PrefsModules = ({ prefs }) => {
     }));
 
   return (
-    <SectionForm
-      buildPayload={() => ({
-        modules: {
-          timeTracking: { isActive: modules.timeTracking },
-          finances: { isActive: modules.finances },
-          inventory: { isActive: modules.inventory },
-          knowledgeBase: { isActive: modules.knowledgeBase },
-          mikrotik: { isActive: modules.mikrotik },
-        },
-      })}
-    >
+    <SectionForm buildPayload={() => modulesPayload(modules)}>
+      <SettingRow
+        title="Диалоги"
+        hint="Telegram, WhatsApp, MAX и форма сайта — переписка с клиентами в одном окне"
+        htmlFor="prefs-module-messaging"
+        className="py-3"
+      >
+        <Switch
+          id="prefs-module-messaging"
+          checked={modules.messaging}
+          onCheckedChange={(value) => toggle("messaging", value)}
+        />
+      </SettingRow>
       <SettingRow
         title="База знаний"
         htmlFor="prefs-module-kb"

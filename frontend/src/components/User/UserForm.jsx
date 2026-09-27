@@ -140,7 +140,12 @@ const initialSchedule = (user) => {
   };
 };
 
-const UserForm = () => {
+/**
+ * `onCreated(userId)` — после сохранения НОВОГО пользователя, до закрытия
+ * шторки (форма поверх диалога связывает с ним собеседника, «Диалоги»);
+ * `successTo` — куда уходить после успеха вместо карточки пользователя.
+ */
+const UserForm = ({ onCreated, successTo } = {}) => {
   const {
     user,
     companiesList = [],
@@ -517,7 +522,13 @@ const UserForm = () => {
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data && !fetcher.data.error) {
       const id = fetcher.data.userId;
-      close(id ? `/users/${id}` : "..", { replace: true });
+      const leave = () =>
+        close(successTo ?? (id ? `/users/${id}` : ".."), { replace: true });
+      if (id && !isEdit && onCreated) {
+        Promise.resolve(onCreated(id)).finally(leave);
+      } else {
+        leave();
+      }
     }
   }, [fetcher.state, fetcher.data]);
 

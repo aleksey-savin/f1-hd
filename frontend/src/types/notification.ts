@@ -9,7 +9,8 @@ export type NotificationCategory =
   | "absenceRequest"
   | "absenceDecision"
   | "reportApproval"
-  | "reportDecision";
+  | "reportDecision"
+  | "conversationMessage";
 
 /** Вид события: каталог хроники (util/ticket-events) плюс события вне заявок */
 export type NotificationKind =
@@ -36,7 +37,9 @@ export type NotificationKind =
   | "absenceRequest"
   | "absenceDecision"
   | "reportApproval"
-  | "reportDecision";
+  | "reportDecision"
+  | "conversationWaiting"
+  | "channelState";
 
 export type NotificationActor = {
   _id: string;

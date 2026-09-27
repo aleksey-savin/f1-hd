@@ -2,7 +2,9 @@ import type { IconType } from "react-icons";
 import {
   RiCalendarEventLine,
   RiChat3Line,
+  RiDiscussLine,
   RiFileTextLine,
+  RiLinkUnlinkM,
 } from "react-icons/ri";
 
 import type { NotificationItem } from "@/types/notification";
@@ -21,6 +23,11 @@ const EXTRA: Record<string, Meta> = {
   absenceDecision: { icon: RiCalendarEventLine, tone: "muted" },
   reportApproval: { icon: RiFileTextLine, tone: "muted" },
   reportDecision: { icon: RiFileTextLine, tone: "muted" },
+  // «Диалоги»: сообщение ждёт ответа (backend/services/messaging/notify.js)
+  conversationWaiting: { icon: RiDiscussLine, tone: "warn" },
+  // Канал связи отключился — сессия, блокировка, ошибка; администраторам
+  // (backend/services/messaging/channelAlert.js)
+  channelState: { icon: RiLinkUnlinkM, tone: "bad" },
 };
 
 export const notificationMeta = (kind: string): Meta => {
@@ -43,6 +50,10 @@ export const notificationContext = (item: NotificationItem): string => {
   }
   if (item.link.startsWith("/team/calendar")) return "Календарь команды";
   if (item.link.includes("/approval")) return "Согласование работ";
+  if (item.link.startsWith("/conversations")) return "Диалоги";
+  if (item.link.startsWith("/preferences#channels")) {
+    return "Настройки системы · Каналы связи";
+  }
   return "";
 };
 

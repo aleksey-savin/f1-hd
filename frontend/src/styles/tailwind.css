@@ -80,6 +80,22 @@
      «не указан», иначе вечером табло сливается в серое пятно */
   --ws-st-offshift: #5c6b7a;
   --ws-st-unset: #868e96;
+  /* «Диалоги»: фирменные цвета каналов — глиф и его подложка (решение
+     владельца 24.09, спека «Channel brand colours»). Сайт и почта —
+     нейтральные, своих токенов у них нет. */
+  --channel-telegram: #1b86ba;
+  --channel-telegram-tint: rgba(34, 158, 217, 0.14);
+  --channel-whatsapp: #128c46;
+  --channel-whatsapp-tint: rgba(37, 211, 102, 0.16);
+  --channel-max: #5a43d4;
+  --channel-max-tint: rgba(112, 86, 240, 0.14);
+  /* Пузыри переписки: входящий — серый, наш — бирюзовый (канва A1) */
+  --bubble-in: #f2f4f5;
+  --bubble-out: rgba(0, 188, 140, 0.13);
+  /* Заглушка фото, пока файл не загружен, и полосы голосового */
+  --media-placeholder: #dfe3e6;
+  --media-placeholder-fg: #7f8a93;
+  --voice-wave: #c3c9ce;
 }
 
 .dark {
@@ -127,6 +143,17 @@
   --ws-st-sick: #ff6b6b;
   --ws-st-offshift: #8b9aa8;
   --ws-st-unset: #7d8790;
+  --channel-telegram: #56b8ee;
+  --channel-telegram-tint: rgba(42, 171, 238, 0.18);
+  --channel-whatsapp: #3fd07f;
+  --channel-whatsapp-tint: rgba(37, 211, 102, 0.16);
+  --channel-max: #a594ff;
+  --channel-max-tint: rgba(130, 110, 255, 0.2);
+  --bubble-in: #272b31;
+  --bubble-out: rgba(0, 188, 140, 0.17);
+  --media-placeholder: #2c3137;
+  --media-placeholder-fg: #838c95;
+  --voice-wave: #4a5057;
 }
 
 @theme inline {
@@ -173,6 +200,17 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-channel-telegram: var(--channel-telegram);
+  --color-channel-telegram-tint: var(--channel-telegram-tint);
+  --color-channel-whatsapp: var(--channel-whatsapp);
+  --color-channel-whatsapp-tint: var(--channel-whatsapp-tint);
+  --color-channel-max: var(--channel-max);
+  --color-channel-max-tint: var(--channel-max-tint);
+  --color-bubble-in: var(--bubble-in);
+  --color-bubble-out: var(--bubble-out);
+  --color-media-placeholder: var(--media-placeholder);
+  --color-media-placeholder-fg: var(--media-placeholder-fg);
+  --color-voice-wave: var(--voice-wave);
   /* Аватар присутствия: своя пара тонов — от --accent/--muted-foreground она
      отличается намеренно (аватар стоит на карточке и должен от неё
      отделяться). Токены, а не произвольные значения в утилите. */

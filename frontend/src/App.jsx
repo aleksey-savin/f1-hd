@@ -54,6 +54,19 @@ import UpdateTicketPage, {
 
 import ArchivePage, { loader as archiveLoader } from "./pages/Archive.jsx";
 
+// «Диалоги»: список с очередями, диалог вложенным маршрутом, формы поверх
+// диалога («Создать заявку», «Новый пользователь») — его шторками
+import ConversationsInbox, {
+  loader as conversationsLoader,
+} from "./pages/Conversation/Inbox";
+import ConversationThreadPage, {
+  loader as conversationThreadLoader,
+  shouldRevalidate as conversationThreadShouldRevalidate,
+} from "./pages/Conversation/Thread";
+import ConversationNewUserPage, {
+  loader as conversationNewUserLoader,
+} from "./pages/Conversation/NewUser";
+
 // Companies
 import Companies, { loader as companiesLoader } from "./pages/Company/List.jsx";
 
@@ -566,6 +579,38 @@ function App() {
                   loader: workFormLoader,
                   action: updateWorkAction,
                   element: <WorkFormRoute mode="confirm" />,
+                },
+              ],
+            },
+            // Диалоги: модуль «Диалоги» + право их видеть. Диалог — вложенный
+            // маршрут списка (на десктопе список остаётся слева); на телефоне
+            // он занимает экран целиком (handle.phoneFullscreen, layout/Root)
+            {
+              path: "conversations",
+              handle: { module: "messaging", can: { conversation: ["read"] } },
+              element: <ConversationsInbox />,
+              loader: conversationsLoader,
+              children: [
+                {
+                  path: ":id",
+                  handle: { phoneFullscreen: true },
+                  element: <ConversationThreadPage />,
+                  loader: conversationThreadLoader,
+                  shouldRevalidate: conversationThreadShouldRevalidate,
+                  children: [
+                    // «Создать заявку» — та же форма заявки, заполненная из
+                    // переписки (?conversation=&messages=, pages/Ticket/Add)
+                    ...ticketFormRoutes({ prefix: "tickets/", modes: ["add"] }),
+                    // «Новый пользователь» из «Кто это?» — та же форма
+                    // пользователя; после сохранения собеседник связывается
+                    {
+                      path: "users/add",
+                      handle: { can: { user: ["manage"] }, ...SHEET_LG },
+                      loader: conversationNewUserLoader,
+                      action: addUserAction,
+                      element: <ConversationNewUserPage />,
+                    },
+                  ],
                 },
               ],
             },

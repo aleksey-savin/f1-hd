@@ -12,6 +12,7 @@ const SettingRow = ({
   title,
   hint,
   leading,
+  leadingClassName,
   htmlFor,
   divider = false,
   className,
@@ -21,6 +22,11 @@ const SettingRow = ({
   hint?: ReactNode;
   /** Плитка-иконка слева (например, логотип интеграции). */
   leading?: ReactNode;
+  /**
+   * Цвет плитки вместо нейтрального: фирменный тон канала в «Каналах связи»
+   * (`bg-channel-telegram-tint text-channel-telegram inset-ring-transparent`).
+   */
+  leadingClassName?: string;
   /** id контрола строки — название становится `<label htmlFor>`. */
   htmlFor?: string;
   /** Тонкая линия сверху — между соседними строками. */
@@ -40,7 +46,10 @@ const SettingRow = ({
       {leading && (
         <span
           aria-hidden
-          className="grid size-9 flex-none place-items-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border max-md:hidden"
+          className={cn(
+            "grid size-9 flex-none place-items-center rounded-lg bg-accent text-muted-foreground inset-ring inset-ring-border max-md:hidden",
+            leadingClassName,
+          )}
         >
           {leading}
         </span>

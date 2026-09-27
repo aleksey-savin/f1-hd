@@ -19,7 +19,7 @@ const crypto = require("crypto");
  * See docs/live-updates.md.
  */
 
-const TOPICS = ["tickets", "presence", "team", "mikrotik", "approval", "knowledge", "conversations"];
+const TOPICS = ["tickets", "presence", "team", "mikrotik", "approval", "knowledge", "conversations", "channels"];
 
 const createBus = ({ ticketCapacity = 5000 } = {}) => {
   const epoch = `${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;

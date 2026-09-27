@@ -3,6 +3,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useFetcher } from "react-router";
 import DOMPurify from "dompurify";
 import {
+  RiArrowRightLine,
   RiBuilding2Line,
   RiCheckboxCircleLine,
   RiComputerLine,
@@ -20,6 +21,8 @@ import {
 } from "react-icons/ri";
 
 import EntityLink from "@/components/app/EntityLink";
+import { ChannelIcon } from "@/components/Conversation/ChannelGlyph";
+import { MESSENGER_SOURCES, dialogLabel } from "@/util/delivery-routes";
 import UserLink from "@/components/app/UserLink";
 import ApplicantPopup from "./ApplicantPopup";
 import { useCrumbFrom } from "@/components/app/Crumbs";
@@ -385,12 +388,19 @@ const ClientAddressRow = ({ ticket, company, isEndUser }) => {
   );
 };
 
+/**
+ * `dialog` — чат, через который идёт переписка по заявке (привязанный или
+ * канал последнего сообщения клиента, util/delivery-routes#dialogRoute), —
+ * строка «Диалог» со ссылкой в «Диалоги» (канва D1). Только сотруднику с
+ * правом видеть диалоги: заявителю её не передают.
+ */
 export const FactsSection = ({
   ticket,
   company,
   canEdit,
   onShowLogs,
   onEdit,
+  dialog = null,
 }) => {
   const { isEndUser } = useContext(AuthedUserContext);
   const can = useCan();
@@ -406,6 +416,15 @@ export const FactsSection = ({
       ? applicant.isServiceAccount
         ? formatMailSender(ticket.realSender)
         : parseMailSender(ticket.realSender)?.address
+      : null;
+  // Заявка из мессенджера от неопознанного собеседника: инициатор —
+  // служебная учётка, а кто написал — «Андрей · Telegram» в realSender
+  const messengerSender =
+    !isEndUser &&
+    MESSENGER_SOURCES.has(ticket.source) &&
+    applicant?.isServiceAccount &&
+    ticket.realSender
+      ? ticket.realSender
       : null;
   // Своя компания и свой адрес заявителю ничего не сообщают: он их знает. А
   // инициатор осмыслен, только когда им бывает НЕ он сам, — то есть у того, кто
@@ -552,6 +571,28 @@ export const FactsSection = ({
                 {mailSender}
               </span>
             )}
+            {messengerSender && (
+              <span className="text-muted-foreground">
+                {" · собеседник: "}
+                {messengerSender}
+              </span>
+            )}
+          </PropRow>
+        )}
+
+        {dialog && (
+          <PropRow
+            icon={<ChannelIcon network={dialog.network} size={16} className="text-inherit" />}
+            label="Диалог"
+          >
+            {dialogLabel(dialog)}
+            <Link
+              to={`/conversations/${dialog.conversationId}`}
+              className="ms-1.5 inline-flex items-center gap-1 font-semibold text-accent-text no-underline hover:underline"
+            >
+              Открыть диалог
+              <RiArrowRightLine size={14} aria-hidden />
+            </Link>
           </PropRow>
         )}
 

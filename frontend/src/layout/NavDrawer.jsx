@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import ThemeSegment from "@/components/app/ThemeSegment";
+import { NavCount } from "@/components/Conversation/NavBadges";
 import { cn } from "@/lib/utils";
 
 import WorkStatusAvatar from "../components/User/WorkStatusAvatar";
@@ -169,7 +170,8 @@ const NavDrawer = ({ open, onOpenChange, items }) => {
                       aria-hidden
                       className={isActive ? activeIconClass : iconClass}
                     />
-                    {item.label}
+                    <span className="min-w-0 flex-1">{item.label}</span>
+                    {item.badge === "conversations" && <NavCount />}
                   </>
                 )}
               </NavLink>

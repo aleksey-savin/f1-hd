@@ -29,6 +29,7 @@ const useInitialPrefsStore = create((set) => ({
     timeTracking: { isActive: false },
     knowledgeBase: { isActive: false },
     mikrotik: { isActive: false },
+    messaging: { isActive: false },
   },
   // Функции ИИ приходят из /api/me уже сведёнными с главным рубильником
   // (backend/services/ai/features.js): компонент читает одно булево

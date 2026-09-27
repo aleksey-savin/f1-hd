@@ -1,9 +1,9 @@
 import { useEffect } from "react";
-import { useBlocker, useFetcher, useLoaderData } from "react-router";
+import { useBlocker, useFetcher, useLoaderData, useLocation } from "react-router";
 import { BrowserView, MobileView } from "react-device-detect";
 
 import SettingsSection from "@/components/app/SettingsSection";
-import AnchorRail from "@/components/app/AnchorRail";
+import AnchorRail, { scrollToSection } from "@/components/app/AnchorRail";
 import ConfirmDialog from "@/components/app/ConfirmDialog";
 import DraftBar from "@/components/app/DraftBar";
 import { DraftProvider, useDraft } from "@/components/app/draft-context";
@@ -12,6 +12,7 @@ import PrefsGlobals from "../components/Preferences/Globals";
 import PrefsSecurity from "../components/Preferences/Security";
 import PrefsTickets from "../components/Preferences/Tickets";
 import PrefsTicketsCollect from "../components/Preferences/TicketsCollect";
+import PrefsChannels from "../components/Preferences/Channels";
 import PrefsNotifications from "../components/Preferences/Notifications";
 import PrefsModules from "../components/Preferences/Modules";
 import PrefsIntegrations from "../components/Preferences/Integrations";
@@ -42,6 +43,17 @@ const PreferencesCanvas = ({ sections }) => {
   const { showToast } = useToastStore();
 
   const isSaving = fetcher.state !== "idle";
+
+  // Ссылка прямо на секцию (колокольчик «Канал «Telegram»: сессия завершена»
+  // ведёт на #channels): роутер к якорю не прокручивает — тем же механизмом,
+  // что форма (app/FormLayout), после отрисовки секций
+  const { hash } = useLocation();
+  useEffect(() => {
+    const id = decodeURIComponent(hash.replace(/^#/, ""));
+    if (!id) return undefined;
+    const timer = setTimeout(() => scrollToSection(null, id, false), 0);
+    return () => clearTimeout(timer);
+  }, [hash]);
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data?.message) return;
@@ -157,6 +169,14 @@ const Preferences = () => {
       id: "tickets-collect",
       label: "Сбор заявок",
       element: <PrefsTicketsCollect prefs={prefs} />,
+    },
+    // «Каналы связи» — мессенджеры и форма сайта для «Диалогов». Секция не
+    // входит в черновик страницы: канал сохраняется своей кнопкой в диалоге
+    // подключения, а подключают его и до включения модуля
+    general && {
+      id: "channels",
+      label: "Каналы связи",
+      element: <PrefsChannels prefs={prefs} />,
     },
     // «Сбор заявок» — про то, как заявки приходят; «Заявки» — про то, как за
     // ними следят: срок, чек-листы, правила среза «давно без движения».

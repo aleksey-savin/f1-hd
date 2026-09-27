@@ -48,6 +48,16 @@ const CATEGORIES = [
     label: "Запланированные работы",
     visibilityKey: "scheduledWorks",
   },
+  {
+    name: "ConversationMessage",
+    label: "Диалоги и каналы связи",
+    visibilityKey: "conversationMessage",
+    // «Диалоги» — рабочее место сотрудника; письмо и бот о сообщении из
+    // мессенджера были бы шумом — только колокольчик. Той же строкой —
+    // сбой канала связи (его получают те, кто ведёт настройки)
+    staffOnly: true,
+    inAppOnly: true,
+  },
 ];
 
 // На телефоне колонкам хватает только иконок: три подписи в 366 px не встают
@@ -101,6 +111,7 @@ const Notifications = ({ user, initialPrefs }) => {
     for (const { key: channel } of NOTIFY_CHANNELS) {
       notify[channel] = {};
       for (const category of CATEGORIES) {
+        if (category.inAppOnly && channel !== "inApp") continue;
         notify[channel][category.visibilityKey] =
           !!values[valueKey(channel, category)];
       }
@@ -191,7 +202,9 @@ const Notifications = ({ user, initialPrefs }) => {
           </span>
           {NOTIFY_CHANNELS.map(({ key: channel, label }) => {
             const key = valueKey(channel, category);
-            const disabled = channelDisabled[channel];
+            const disabled =
+              channelDisabled[channel] ||
+              (category.inAppOnly && channel !== "inApp");
             return (
               <span
                 key={channel}

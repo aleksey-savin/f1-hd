@@ -36,6 +36,13 @@ const commentNoise = (path, value, op) =>
   path === "channel.statusAt" ||
   path === "channel.error";
 
+// Канал «Диалогов»: сигнал шлюза (gatewaySeenAt — на каждый heartbeat) и
+// отметка последнего сообщения (lastMessageAt — на каждое сообщение) — шум;
+// состояние входа, QR и настройки — изменение. Тему «channels» читают только
+// настройки каналов (Preferences → «Каналы связи»).
+const channelNoise = (path) =>
+  isBookkeeping(path) || path === "gatewaySeenAt" || path === "lastMessageAt";
+
 // Monitoring cycle (services/mikrotik/monitorState.js): poll results, failure
 // counter and the online/offline state machine. Real transitions are bumped
 // explicitly there, so the per-poll writes stay silent. Alert stamps
@@ -106,6 +113,7 @@ module.exports = {
   Conversation: { topics: ["conversations"], noise: isBookkeeping },
   Message: { topics: ["conversations"], noise: isBookkeeping },
   ChannelIdentity: { topics: ["conversations"], noise: isBookkeeping },
+  Channel: { topics: ["channels"], noise: channelNoise },
   TicketLog: { topics: ["tickets"], ticket: "ticketId", noise: isBookkeeping },
   Work: { topics: ["tickets", "approval"], ticket: "tickets", noise: notificationNoise },
   User: { byPath: { presence: PRESENCE_PATHS, team: TEAM_PATHS }, noise: isBookkeeping },

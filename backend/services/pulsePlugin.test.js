@@ -178,3 +178,16 @@ test("resultChanged: update/delete counts, returned documents, metadata results"
   assert.equal(resultChanged({ _id: oid() }), true);
   assert.equal(resultChanged({ ok: 1, value: null }), false);
 });
+
+test("channel: heartbeat and message stamps are noise, login state moves «channels»", () => {
+  assert.equal(classifyUpdate("updateOne", { $set: { gatewaySeenAt: new Date() } }, SPECS.Channel).meaningful, false);
+  assert.equal(classifyUpdate("updateOne", { $set: { lastMessageAt: new Date() } }, SPECS.Channel).meaningful, false);
+  assert.deepEqual(
+    classifyUpdate(
+      "updateOne",
+      { $set: { state: "awaitingQr", stateReason: "", gatewaySeenAt: new Date(), login: { qr: "tg://login?token=x", expiresAt: new Date() } } },
+      SPECS.Channel,
+    ),
+    { topics: ["channels"], meaningful: true },
+  );
+});

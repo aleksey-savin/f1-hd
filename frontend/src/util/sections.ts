@@ -53,6 +53,16 @@ export const SECTIONS: Section[] = [
   { key: "archive", listTo: "/archive", label: "Архив" },
 
   {
+    key: "conversations",
+    listTo: "/conversations",
+    label: "Диалоги",
+    can: { conversation: ["read"] },
+    acc: "диалог",
+    pronoun: "его",
+    backLabel: "К диалогам",
+  },
+
+  {
     key: "checklist-templates",
     listTo: "/tickets/checklist-templates",
     label: "Шаблоны чек-листов",

@@ -1,10 +1,9 @@
 import FilterChip from "@/components/app/FilterChip";
 import { cn } from "@/lib/utils";
+import { useCan } from "@/store/authed-user";
 import useNotificationsStore from "@/store/notifications";
-import {
-  NOTIFICATION_FACETS,
-  unreadInFacet,
-} from "@/util/notification-facets";
+import useInitialPrefsStore from "@/store/prefs";
+import { unreadInFacet, visibleFacets } from "@/util/notification-facets";
 
 /**
  * Ряд чипов-фасетов панели уведомлений: какой вид показать. У чипа — число
@@ -20,6 +19,13 @@ const FacetChips = ({ scroll = false, className }: Props) => {
   const unreadByCategory = useNotificationsStore(
     (state) => state.unreadByCategory,
   );
+  const can = useCan();
+  const messagingOn = useInitialPrefsStore(
+    (state) => !!state.modules?.messaging?.isActive,
+  );
+  const facets = visibleFacets({
+    messaging: messagingOn && can({ conversation: ["read"] }),
+  });
 
   return (
     <div
@@ -33,7 +39,7 @@ const FacetChips = ({ scroll = false, className }: Props) => {
         className,
       )}
     >
-      {NOTIFICATION_FACETS.map((item) => (
+      {facets.map((item) => (
         <FilterChip
           key={item.key}
           size="sm"

@@ -46,7 +46,15 @@ ENV_FILE="${ENV_FILE:-.env}"
 
 DUMP_MODE="${DUMP_MODE:-auto}"        # auto | remote (mongodump on prod) | tunnel (mongodump here)
 
-EXCLUDE_COLLECTION="preferences"      # never synced, dev copy is left untouched
+# Never synced: dev settings stay as they are; prod channels (bot tokens, the
+# MAX webhook secret) and the prod outbox would make the dev backend and gateway
+# act as production — take over the MAX webhook, send queued prod messages.
+EXCLUDE_COLLECTIONS=(preferences channels channeljobs)
+EXCLUDE_FLAGS=()
+for collection in "${EXCLUDE_COLLECTIONS[@]}"; do EXCLUDE_FLAGS+=("--excludeCollection=$collection"); done
+# Same list as a mongosh/JS array literal, for the eval snippets below
+EXCLUDE_JS_LIST=$(printf "'%s'," "${EXCLUDE_COLLECTIONS[@]}")
+EXCLUDE_JS_LIST="[${EXCLUDE_JS_LIST%,}]"
 WIRE_COMPRESSORS="${WIRE_COMPRESSORS:-zstd,snappy,zlib}"  # tunnel mode: compress on the wire
 
 SSH_OPTS=(-o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=8)
@@ -104,8 +112,8 @@ show_help() {
     echo "  DEV_MONGO_USER/PASS   Target credentials (default: from .env)"
     echo "  DEV_DB                Target database name (default: from .env)"
     echo ""
-    echo "The '${EXCLUDE_COLLECTION}' collection is never synced: it is excluded from the"
-    echo "dump and the local copy is left untouched."
+    echo "The '${EXCLUDE_COLLECTIONS[*]}' collections are never synced: they are excluded"
+    echo "from the dump and the local copies are left untouched."
 }
 
 # --- Arguments ---------------------------------------------------------------
@@ -432,7 +440,7 @@ else
     log_info "Source:      $PROD_DB @ $PROD_SSH (container $PROD_MONGO_CONTAINER, READ-ONLY)"
 fi
 log_info "Target:      $DEV_DB @ $DEV_MONGO_HOST:$DEV_MONGO_PORT"
-log_info "Not synced:  $EXCLUDE_COLLECTION (local copy kept as is)"
+log_info "Not synced:  ${EXCLUDE_COLLECTIONS[*]} (local copies kept as is)"
 echo ""
 log_warning "All other collections in '$DEV_DB' will be REPLACED with production data."
 
@@ -450,14 +458,14 @@ if [ -z "$DUMP_FILE" ]; then
     DUMP_FILE=$(mktemp "${TMPDIR:-/tmp}/hd-db-sync-$(date +%Y%m%d-%H%M%S)-XXXX.archive.gz")
     DUMP_IS_TEMP=true
 
-    log_info "Dumping '$PROD_DB' (without '$EXCLUDE_COLLECTION') from production — this only reads data..."
+    log_info "Dumping '$PROD_DB' (without '${EXCLUDE_COLLECTIONS[*]}') from production — this only reads data..."
     if [ "$DUMP_MODE" = tunnel ]; then
         # One cursor at a time and no read deadline: on a slow link a single
         # batch takes minutes, which the driver defaults treat as a dead socket.
         mongodump --uri "mongodb://127.0.0.1:$TUNNEL_PORT/?authSource=admin&compressors=$WIRE_COMPRESSORS&socketTimeoutMS=0&connectTimeoutMS=120000&serverSelectionTimeoutMS=120000" \
             --username "$PROD_MONGO_USER" --password "$PROD_MONGO_PASS" \
             --db "$PROD_DB" \
-            --excludeCollection="$EXCLUDE_COLLECTION" \
+            "${EXCLUDE_FLAGS[@]}" \
             --numParallelCollections=1 \
             --archive="$DUMP_FILE" --gzip
     else
@@ -465,7 +473,7 @@ if [ -z "$DUMP_FILE" ]; then
             --username $(shq "$PROD_MONGO_USER") --password $(shq "$PROD_MONGO_PASS") \
             --authenticationDatabase admin \
             --db $(shq "$PROD_DB") \
-            --excludeCollection=$EXCLUDE_COLLECTION \
+            $(printf -- '--excludeCollection=%s ' "${EXCLUDE_COLLECTIONS[@]}") \
             --archive --gzip" > "$DUMP_FILE"
     fi
 
@@ -479,7 +487,11 @@ close_prod_ssh                        # production is done with, everything belo
 
 # --- Restore (local dev side) ------------------------------------------------
 
-RESTORE_NS=(--nsInclude "$PROD_DB.*" --nsExclude "$PROD_DB.$EXCLUDE_COLLECTION")
+# --nsExclude is repeatable: one per never-synced collection, so a restore from
+# an old archive (--from-archive, possibly dumped before this exclusion list grew)
+# can't reintroduce prod channels/channeljobs either.
+RESTORE_NS=(--nsInclude "$PROD_DB.*")
+for collection in "${EXCLUDE_COLLECTIONS[@]}"; do RESTORE_NS+=(--nsExclude "$PROD_DB.$collection"); done
 if [ "$PROD_DB" != "$DEV_DB" ]; then
     RESTORE_NS+=(--nsFrom "$PROD_DB.*" --nsTo "$DEV_DB.*")
 fi
@@ -492,14 +504,18 @@ if ! DRY_RUN_OUT=$(dev_restore "${RESTORE_NS[@]}" --dryRun 2>&1); then
     exit 1
 fi
 
-PREFS_BEFORE=$(dev_eval "print(db.getSiblingDB('$DEV_DB').getCollection('$EXCLUDE_COLLECTION').countDocuments())" || true)
+# One combined snapshot for all never-synced collections, not just `preferences`:
+# the pre-clean drop below (and a --from-archive restore) must leave every one
+# of them untouched, not only the first.
+EXCLUDED_BEFORE=$(dev_eval "print(${EXCLUDE_JS_LIST}.map(c => c + '=' + db.getSiblingDB('$DEV_DB').getCollection(c).countDocuments()).join(','))" || true)
 
 if [ "$DEV_SHELL_MODE" != none ]; then
-    log_info "Dropping existing '$DEV_DB' collections (except '$EXCLUDE_COLLECTION')..."
+    log_info "Dropping existing '$DEV_DB' collections (except ${EXCLUDE_COLLECTIONS[*]})..."
     dev_eval "
         const d = db.getSiblingDB('$DEV_DB');
+        const kept = new Set(${EXCLUDE_JS_LIST});
         const dropped = d.getCollectionNames()
-            .filter(c => c !== '$EXCLUDE_COLLECTION' && !c.startsWith('system.'));
+            .filter(c => !kept.has(c) && !c.startsWith('system.'));
         dropped.forEach(c => d.getCollection(c).drop());
         print('Dropped ' + dropped.length + ' collections');
     "
@@ -520,12 +536,13 @@ if [ "$DEV_SHELL_MODE" != none ]; then
         print('  collections: ' + names.length);
         ['tickets', 'comments', 'users', 'companies'].forEach(c =>
             print('  ' + c + ': ' + d.getCollection(c).countDocuments()));
-        print('  $EXCLUDE_COLLECTION (untouched): ' + d.getCollection('$EXCLUDE_COLLECTION').countDocuments());
+        ${EXCLUDE_JS_LIST}.forEach(c =>
+            print('  ' + c + ' (untouched): ' + d.getCollection(c).countDocuments()));
     "
 
-    PREFS_AFTER=$(dev_eval "print(db.getSiblingDB('$DEV_DB').getCollection('$EXCLUDE_COLLECTION').countDocuments())" || true)
-    if [ "$PREFS_BEFORE" != "$PREFS_AFTER" ]; then
-        log_warning "'$EXCLUDE_COLLECTION' document count changed ($PREFS_BEFORE -> $PREFS_AFTER) — this should not happen"
+    EXCLUDED_AFTER=$(dev_eval "print(${EXCLUDE_JS_LIST}.map(c => c + '=' + db.getSiblingDB('$DEV_DB').getCollection(c).countDocuments()).join(','))" || true)
+    if [ "$EXCLUDED_BEFORE" != "$EXCLUDED_AFTER" ]; then
+        log_warning "Excluded collection counts changed ($EXCLUDED_BEFORE -> $EXCLUDED_AFTER) — this should not happen"
     fi
 fi
 

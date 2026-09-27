@@ -12,6 +12,9 @@ const { MAX_ATTEMPTS, backoffMs, advanceStatus } = require("./rules");
  */
 
 const LEASE_MS = 2 * 60 * 1000;
+// Команды шлюзу, итог которых ждут настройки каналов: вход, выход, проверка
+// прокси, история. Их подтверждение двигает тему пульса «channels»
+const COMMAND_JOB_TYPES = new Set(["login", "logout", "testProxy", "loadHistory"]);
 const MAX_PAUSE_MS = 6 * 3600 * 1000;
 
 // Долгий опрос шлюза просыпается, как только появилось задание
@@ -191,6 +194,7 @@ const ackJobs = async (leaseId, results, { now = Date.now() } = {}) => {
       if (job.type === "login") job.payload = { ...job.payload, value: null };
       await job.save();
       applied += 1;
+      if (COMMAND_JOB_TYPES.has(job.type)) require("@/services/pulse").bus.bump({ topics: ["channels"] });
 
       // Итог в сообщение пишется отдельно, задание уже закрыто — ошибка здесь не отменяет подтверждение
       try {

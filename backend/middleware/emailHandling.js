@@ -769,6 +769,8 @@ exports.handleNewEmails = async () => {
             const comment = new Comment({
               content,
               ...(quotedText ? { quotedText } : {}),
+              // Метка «письмо» у реплики в хронике заявки
+              source: "email",
               ticketId: ticket._id,
               attachments: email.attachments,
               notifications: {

@@ -14,6 +14,7 @@ import {
 } from "@/components/app/custom-fields";
 import { applicantOptions } from "./ticket-applicants";
 import { clearDraft, readDraft, saveDraft } from "./ticket-draft";
+import { formDraftEnabled, originPayload } from "./ticket-origin";
 
 /**
  * Состояние формы заявки — одно на три поверхности.
@@ -117,6 +118,7 @@ const scrollToFirstError = () => {
  * @param {boolean} params.canPerformTickets ведущий заявки может не назначать себя
  * @param {boolean} params.canCreateForOthers заводить заявку за другого: клиенту — инициатор-коллега, сотруднику — чужие компания, инициатор и ответственные
  * @param {string} params.userId чей это черновик (создание); без него черновика нет
+ * @param {{ conversationId: string, messageIds: string[], draft: object }|null} [params.origin] заявка из диалога («Диалоги» → «Создать заявку»)
  */
 export const useTicketForm = ({
   mode,
@@ -126,6 +128,7 @@ export const useTicketForm = ({
   canPerformTickets = false,
   canCreateForOthers = false,
   userId = "",
+  origin = null,
 }) => {
   const config = TICKET_FORM_MODES[mode] ?? TICKET_FORM_MODES.add;
 
@@ -161,6 +164,9 @@ export const useTicketForm = ({
   // Что шаблон велит делать с описанием: обязательно, по желанию, скрыто.
   // Без шаблона описание обязательно — как было всегда
   const [descriptionMode, setDescriptionMode] = useState("required");
+  // Заявка из диалога с неопознанным собеседником: инициатора ставит сервер
+  // (служебная учётка + имя собеседника в realSender), выбирать его не нужно
+  const [applicantOptional, setApplicantOptional] = useState(false);
   // Ошибки показываем по нажатию «Сохранить», а не блокируем кнопку:
   // заблокированная кнопка не объясняет, чего не хватает.
   const [attempted, setAttempted] = useState(false);
@@ -288,7 +294,8 @@ export const useTicketForm = ({
     // Скрытые поля не проверяем: заявку на себя нельзя «не заполнить»
     if (picksForOthers) {
       if (!companyId) found.company = "Выберите компанию";
-      if (!applicantId) found.applicant = "Выберите инициатора";
+      if (!applicantId && !applicantOptional)
+        found.applicant = "Выберите инициатора";
       if (!canPerformTickets && responsibleIds.length === 0)
         found.responsibles = "Назначьте ответственных";
     }
@@ -307,6 +314,7 @@ export const useTicketForm = ({
     canPerformTickets,
     canPickApplicant,
     picksForOthers,
+    applicantOptional,
   ]);
 
   const errorOf = (field) => (attempted ? errors[field] : undefined);
@@ -316,7 +324,8 @@ export const useTicketForm = ({
   // Не на каждую букву: черновик — страховка, а не автосохранение
   const DRAFT_DEBOUNCE_MS = 800;
 
-  const draftEnabled = mode === "add" && !!userId;
+  // У заявки из диалога своего черновика нет (ticket-origin#formDraftEnabled)
+  const draftEnabled = formDraftEnabled({ mode, userId, origin });
   const draftKeyId = template?._id ? String(template._id) : null;
 
   // Что переживает закрытие шторки. Файлы сюда не попадают — `File` в строку
@@ -496,6 +505,19 @@ export const useTicketForm = ({
   };
 
   /**
+   * Заявка из диалога: описание, компания и инициатор из черновика сервера
+   * (`ticket-origin#originFormValues`). Заполнение программное — следующий
+   * кадр становится точкой отсчёта, как у шаблона.
+   */
+  const applyOrigin = (values) => {
+    rebase();
+    setDescription(values.description);
+    if (values.companyId) setCompanyId(values.companyId);
+    if (values.applicantId) setApplicantId(values.applicantId);
+    setApplicantOptional(values.applicantOptional);
+  };
+
+  /**
    * Тело запроса. Возвращает `null`, если форму рано отправлять, — тогда
    * `app/FormWrapper` отменяет сабмит, а ошибки уже видны у своих полей.
    */
@@ -558,6 +580,12 @@ export const useTicketForm = ({
       for (const file of files) payload.append("attachments", file);
       // Одним id: вопросы, чек-лист и доступ сервер берёт из своего документа
       if (template?._id) payload.append("templateId", String(template._id));
+      // Из диалога: сервер разнесёт сообщения, привяжет чат и скопирует файлы
+      if (origin) {
+        const link = originPayload(origin);
+        payload.append("originConversationId", link.originConversationId);
+        payload.append("originMessageIds", link.originMessageIds);
+      }
       // Пока ответственных нет, заявка стоит в очереди «Новые»
       payload.append(
         "state",
@@ -611,6 +639,8 @@ export const useTicketForm = ({
     setState,
     template,
     applyTemplate,
+    applyOrigin,
+    applicantOptional,
     epoch,
     draft,
     restoreDraft,

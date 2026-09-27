@@ -31,7 +31,9 @@ In-memory, no I/O. `createBus()` / singleton `bus`:
   a cursor with another epoch is ignored and the client refetches everything.
 - One global monotonic `rev`; each topic stores the `rev` of its last bump, so
   one cursor number compares against any topic.
-- Topics: `tickets`, `presence`, `team`, `mikrotik`, `approval`, `knowledge`.
+- Topics: `tickets`, `presence`, `team`, `mikrotik`, `approval`, `knowledge`,
+  `conversations`, `channels` (the last two staff-only: not in
+  `CLIENT_TOPICS`, `controllers/pulse.js`).
 - Per ticket: an LRU `Map<ticketId, rev>` (5000 entries). An evicted ticket
   reports the newest evicted revision (`ticketFloor`) — conservative, never
   "unchanged" by mistake. A write whose ticket is unknown bumps `anyTicketRev`,
@@ -171,8 +173,14 @@ Exposed via `Access-Control-Expose-Headers` for a cross-origin dev setup.
 | Team calendar | team + presence | `silentFetch` | 30 s min |
 | Client device monitoring / tickets panels | mikrotik / tickets | panel refetch | 5 min max staleness / 30 s min |
 | Approval pipeline / report / preview | approval | `silentRefresh` / `load` | 20 s min; report paused while busy |
+| «Диалоги» list | conversations | `store/conversations.silentRefresh` | 5 s min |
+| «Диалоги» open thread | conversations | `changedSince` poll (`use-thread.ts`), then deferred card revalidate if anything changed | `requestCadence(3000)` while open |
+| «Диалоги» navigation badge | conversations | `refreshCounts` (`CountsSync`) | 15 s min; module + `conversation.read` only |
+| Channel settings («Каналы связи») | channels | channel list reload; proxy-test job read | `requestCadence(2000)` while a login or a proxy test is pending |
 
-Deliberately not live: archive, reports, catalogs, roles, templates, preferences.
+Deliberately not live: archive, reports, catalogs, roles, templates, preferences
+— except channel settings within preferences («Каналы связи»), which are live
+via the `channels` topic (row above).
 
 ## Adding live data to a page
 

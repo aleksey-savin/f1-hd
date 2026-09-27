@@ -14,6 +14,8 @@ export type NotificationFacet = {
   label: string;
   /** Пусто — «Все», фильтра нет */
   categories: NotificationCategory[];
+  /** Фасет раздела-модуля: виден, только когда раздел человеку открыт */
+  module?: "messaging";
 };
 
 export const NOTIFICATION_FACETS: NotificationFacet[] = [
@@ -26,6 +28,14 @@ export const NOTIFICATION_FACETS: NotificationFacet[] = [
     categories: ["ticketStateUpdate", "respStateUpdate"],
   },
   { key: "comment", label: "Комментарии", categories: ["ticketNewComment"] },
+  // «Диалоги» — сообщения клиентов, которые ждут ответа, и (администраторам)
+  // сбои каналов связи: у них та же категория
+  {
+    key: "dialogs",
+    label: "Диалоги",
+    categories: ["conversationMessage"],
+    module: "messaging",
+  },
   { key: "deadline", label: "Сроки", categories: ["ticketDeadlineUpdate"] },
   { key: "works", label: "Работы", categories: ["scheduledWorks"] },
   {
@@ -39,6 +49,16 @@ export const NOTIFICATION_FACETS: NotificationFacet[] = [
     ],
   },
 ];
+
+/** Фасеты, которые стоит показать: без «Диалогов», если раздел закрыт. */
+export const visibleFacets = ({
+  messaging,
+}: {
+  messaging: boolean;
+}): NotificationFacet[] =>
+  NOTIFICATION_FACETS.filter(
+    (facet) => facet.module !== "messaging" || messaging,
+  );
 
 export const facetByKey = (key: string | null | undefined): NotificationFacet =>
   NOTIFICATION_FACETS.find((facet) => facet.key === key) ??

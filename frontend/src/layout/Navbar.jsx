@@ -26,6 +26,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import BrandMark from "@/components/app/BrandMark";
+import { NavCount } from "@/components/Conversation/NavBadges";
 import NavProgress from "@/components/app/NavProgress";
 import Bell from "@/components/Notifications/Bell";
 import { THEME_OPTIONS } from "@/components/app/ThemeSegment";
@@ -380,6 +381,7 @@ const NavigationBar = ({ embedded = false }) => {
                         )}
                       />
                       {item.shortLabel ?? item.label}
+                      {item.badge === "conversations" && <NavCount />}
                     </>
                   )}
                 </NavLink>

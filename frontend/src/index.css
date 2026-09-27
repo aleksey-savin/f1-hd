@@ -73,6 +73,16 @@ body {
   padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
 }
 
+/* Экран-переписка на телефоне (handle.phoneFullscreen, «Диалоги»): острова
+   вкладок нет, прокручивает лента внутри страницы, поле ответа прижато к низу.
+   Вне слоя — как правило выше, иначе утилиты overflow-y-auto у <main> его бьют. */
+.mobile-shell__scroll--full {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* Блокируем скролл страницы только когда shell в DOM (т.е. только мобайл;
    на десктопе MobileView = null, .mobile-shell отсутствует). */
 html:has(.mobile-shell),

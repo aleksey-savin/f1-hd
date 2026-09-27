@@ -103,3 +103,12 @@ test("conversations is a topic and starts at zero", () => {
   bus.bump({ topics: ["conversations"] });
   assert.equal(bus.topics().conversations, bus.rev());
 });
+
+test("channels is a topic and starts at zero", () => {
+  const { createBus, TOPICS } = require("./pulse");
+  assert.ok(TOPICS.includes("channels"));
+  const bus = createBus();
+  assert.equal(bus.topics().channels, 0);
+  bus.bump({ topics: ["channels"] });
+  assert.equal(bus.topics().channels, bus.rev());
+});

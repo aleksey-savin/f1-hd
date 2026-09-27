@@ -1,4 +1,5 @@
 import TicketFormRoute from "../../components/Ticket/TicketFormRoute";
+import { api } from "@/lib/api";
 import { load } from "@/store/form-data";
 
 const AddTicketPage = () => <TicketFormRoute mode="add" />;
@@ -16,8 +17,9 @@ export async function loader({ request }) {
   // приезжает целиком, чтобы форма открылась уже заполненной. Шаблон —
   // сущность, а не справочник: всегда свежий, иначе устаревший состав
   // вопросов упёрся бы в проверку обязательных ответов на сервере
-  const presetId = new URL(request.url).searchParams.get("template");
-  const [formData, templates, presetTemplate] = await Promise.all([
+  const url = new URL(request.url);
+  const presetId = url.searchParams.get("template");
+  const [formData, templates, presetTemplate, origin] = await Promise.all([
     load("/api/tickets/form-data"),
     load("/api/ticket-templates").catch(() => []),
     presetId
@@ -26,9 +28,39 @@ export async function loader({ request }) {
           staleMax: 0,
         }).catch(() => null)
       : null,
+    loadOrigin(url.searchParams),
   ]);
 
-  return { formData, templates, presetTemplate };
+  return { formData, templates, presetTemplate, ...origin };
+}
+
+/**
+ * «Создать заявку» из диалога (`?conversation=<id>&messages=<id,id>`):
+ * черновик собирает сервер — описание из сообщений, заявитель и компания
+ * собеседника (`GET /api/conversations/:id/ticket-draft`). Отказ (диалог
+ * привязан к другой открытой заявке, модуль выключен) форма показывает
+ * вместо полей.
+ */
+async function loadOrigin(searchParams) {
+  const conversationId = searchParams.get("conversation");
+  if (!conversationId) return { presetOrigin: null, originError: null };
+  const messageIds = (searchParams.get("messages") || "")
+    .split(",")
+    .filter(Boolean);
+  try {
+    const draft = await api(
+      `/api/conversations/${conversationId}/ticket-draft?${new URLSearchParams({ messages: messageIds.join(",") })}`,
+    );
+    return {
+      presetOrigin: { conversationId, messageIds, draft },
+      originError: null,
+    };
+  } catch (error) {
+    return {
+      presetOrigin: null,
+      originError: error?.message || "Не удалось собрать заявку из диалога",
+    };
+  }
 }
 
 export async function action({ request }) {

@@ -20,6 +20,7 @@ import NavigationBar from "./Navbar";
 import Footer from "./Footer";
 import RouteGuard from "@/components/app/RouteGuard";
 import PulseLoop from "@/components/app/PulseLoop";
+import CountsSync from "@/components/Conversation/CountsSync";
 import PresenceSync from "@/components/User/PresenceSync";
 import { newerWorkStatus } from "@/components/User/presence";
 import usePulseStore from "@/store/pulse";
@@ -126,6 +127,12 @@ const RootLayout = () => {
   // pathname — ширина как у карточки (944). Незнакомый путь до сюда не
   // доходит: его ловит errorElement и поднимает тот же флаг.
   const matches = useMatches();
+  // Переписка на телефоне — экран целиком: лента и поле ответа до нижнего
+  // края, без острова вкладок и подвала (канва B2). Маршрут просит это сам
+  // (`handle.phoneFullscreen`), оболочка не знает про «Диалоги».
+  const phoneFullscreen = matches.some(
+    (match) => match.handle?.phoneFullscreen,
+  );
   const sheetWidth = routeErrorActive
     ? 944
     : resolveSheetWidth(layoutPathname(matches));
@@ -232,6 +239,8 @@ const RootLayout = () => {
           присутствия (docs/live-updates.md) — на обеих оболочках */}
       {isLoggedIn && <PulseLoop />}
       {isLoggedIn && !userData?.isEndUser && <PresenceSync />}
+      {/* Счётчик «Ждут ответа» у пункта «Диалоги» — сотрудникам */}
+      {isLoggedIn && !userData?.isEndUser && <CountsSync />}
       {isLoggedIn && (
         <BrowserView>
           <NavigationBar />
@@ -407,19 +416,30 @@ const RootLayout = () => {
                 информации, которая нужна изредка. На телефоне команда — блок
                 «Команда сейчас» на главной (components/Dashboard/TeamNow) */}
             <main
-              className="mobile-shell__scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain"
+              className={cn(
+                "mobile-shell__scroll min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain",
+                phoneFullscreen && "mobile-shell__scroll--full",
+              )}
               ref={mobileScrollRef}
             >
-              <div className="mx-auto w-full px-3 pt-3">
-                <div ref={pageRef}>
+              {phoneFullscreen ? (
+                <div ref={pageRef} className="flex min-h-0 flex-1 flex-col">
                   <RouteGuard>
                     <Outlet />
                   </RouteGuard>
                 </div>
-                <Footer />
-              </div>
+              ) : (
+                <div className="mx-auto w-full px-3 pt-3">
+                  <div ref={pageRef}>
+                    <RouteGuard>
+                      <Outlet />
+                    </RouteGuard>
+                  </div>
+                  <Footer />
+                </div>
+              )}
             </main>
-            <MobileBottomNavbar />
+            {!phoneFullscreen && <MobileBottomNavbar />}
           </div>
         ) : (
           <div className="mx-auto w-full px-3 py-6">

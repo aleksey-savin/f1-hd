@@ -9,8 +9,10 @@ import {
   RiBookOpenLine,
   RiArchiveLine,
   RiCheckboxLine,
+  RiDiscussLine,
 } from "react-icons/ri";
 
+import { TabCount } from "@/components/Conversation/NavBadges";
 import { cn } from "@/lib/utils";
 
 import { AuthedUserContext } from "../store/authed-user-context";
@@ -23,6 +25,13 @@ const MobileBottomNavbar = () => {
   const { modules } = useInitialPrefs();
   const { pathname } = useLocation();
   const reduceMotion = useReducedMotion();
+
+  // «Диалоги» — третьей вкладкой, со значком «Ждут ответа» (решение владельца
+  // по канве, 24.09). Ради неё «База» у сотрудника уходит в бургер-меню — но
+  // только пока вкладка «Диалоги» и правда показана: без модуля или права
+  // сотруднику нечем её заменить, и «База» остаётся на тач-баре
+  const conversationsTab =
+    !isEndUser && modules?.messaging?.isActive && can({ conversation: ["read"] });
 
   // Набор вкладок фильтруется по правам (как в бургер-меню). Иконка «Главная»
   // ведёт на /dashboard (как в drawer), а индекс "/" — алиас через extraActive,
@@ -37,6 +46,12 @@ const MobileBottomNavbar = () => {
     // У клиента вкладки «Заявки» нет, как и пункта в меню: его заявки — блок
     // на главной, закрытые — в «Архиве» (см. menu.js)
     !isEndUser && { to: "/tickets", icon: RiCheckboxLine, label: "Заявки" },
+    conversationsTab && {
+      to: "/conversations",
+      icon: RiDiscussLine,
+      label: "Диалоги",
+      badge: true,
+    },
     // Права и рубильники модулей — те же, что в десктопном меню. Прежде здесь
     // стоял голый `!isEndUser`, и вкладки «Люди» и «Компании» вели сотрудника
     // на 403, а «База» показывалась при выключенном модуле базы знаний.
@@ -50,7 +65,11 @@ const MobileBottomNavbar = () => {
       icon: RiBuilding2Line,
       label: "Компании",
     },
-    modules?.knowledgeBase?.isActive &&
+    // У клиента «База» остаётся на месте всегда; у сотрудника — на тач-баре,
+    // только пока «Диалоги» её не заняли (нет модуля или права — тогда её не
+    // занял никто, и прятать «Базу» в бургер незачем)
+    (isEndUser || !conversationsTab) &&
+      modules?.knowledgeBase?.isActive &&
       can({ knowledge: ["read"] }) && {
         to: "/knowledge-base",
         icon: RiBookOpenLine,
@@ -100,7 +119,10 @@ const MobileBottomNavbar = () => {
                   }
                 />
               )}
-              <Icon className="relative z-10 size-6" aria-hidden="true" />
+              <span className="relative z-10 flex">
+                <Icon className="size-6" aria-hidden="true" />
+                {tab.badge && <TabCount />}
+              </span>
               <span className="relative z-10 max-w-full truncate text-xs leading-none">
                 {tab.label}
               </span>

@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import {
   RiArrowDownSLine,
@@ -176,6 +182,7 @@ const Combobox = ({
   required = false,
   name,
   ariaLabel,
+  leading,
   className,
 }: {
   id?: string;
@@ -198,6 +205,11 @@ const Combobox = ({
   name?: string;
   /** Подпись для скринридера, когда видимого лейбла у поля нет. */
   ariaLabel?: string;
+  /**
+   * Перед подписью в поле: аватар выбранного человека («Ответственный за
+   * диалог»). Список опций он не меняет.
+   */
+  leading?: ReactNode;
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
@@ -246,6 +258,7 @@ const Combobox = ({
               className,
             )}
           >
+            {leading}
             <span
               className={cn(
                 "min-w-0 flex-1 truncate",

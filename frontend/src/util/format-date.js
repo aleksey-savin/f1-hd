@@ -17,6 +17,13 @@ const tz = () => {
   return data.personalTimezone || data.timezone || DEFAULT_TIMEZONE;
 };
 
+/**
+ * Пояс показа — для чистых хелперов, которые форматируют сами и потому берут
+ * пояс параметром (util/conversation-format: этот модуль в node --test не
+ * грузится — он читает localStorage).
+ */
+export const displayTimeZone = () => tz();
+
 // Пустое значение — не дата: `new Date(null)` даёт эпоху, и в карточку попадает
 // «01.01.1970», а `new Date(undefined)` — «Invalid Date». Поэтому все хелперы
 // отображения возвращают null, а вызывающий сам решает, что показать вместо

@@ -25,6 +25,9 @@ const EXTRA_KINDS = [
   "reportApproval",
   "reportDecision",
   "conversationWaiting",
+  // Канал «Диалогов» отключился: сессия, блокировка, ошибка — администраторам
+  // (services/messaging/channelAlert.js)
+  "channelState",
 ];
 const KIND_NAMES = [...new Set([...Object.keys(KINDS), ...EXTRA_KINDS])];
 

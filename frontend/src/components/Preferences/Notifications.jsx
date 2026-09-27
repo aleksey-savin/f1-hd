@@ -34,6 +34,9 @@ const CATEGORIES = [
   { key: "absenceDecision", label: "Решение по отсутствию" },
   { key: "reportApproval", label: "Отчёт на согласование" },
   { key: "reportDecision", label: "Решение по отчёту" },
+  // «Диалоги»: колокольчик о сообщении, которое ждёт ответа, и — тем, кто
+  // ведёт настройки, — о сбое канала связи (только в приложении)
+  { key: "conversationMessage", label: "Диалоги и каналы связи" },
 ];
 
 const PrefsNotifications = ({ prefs }) => {

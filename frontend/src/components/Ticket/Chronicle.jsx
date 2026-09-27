@@ -1,20 +1,38 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import {
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
+import { isMobile } from "react-device-detect";
 import { RiAttachment2, RiSendPlaneLine } from "react-icons/ri";
 
 import { Eyebrow } from "@/components/app/Panel";
 import Segmented from "@/components/app/Segmented";
+import {
+  FileAttachment,
+  PhotoAttachment,
+} from "@/components/Conversation/MessageMedia";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { chronicleRows, commentMarker } from "@/util/chronicle-dialog";
+import {
+  NOTIFY_ROUTE,
+  chronicleAuthorName,
+  initialRoute,
+} from "@/util/delivery-routes";
 
 import useHttp from "../../hooks/use-http";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useViewTicketStore from "../../store/view-ticket";
 import {
-  businessDayKey,
+  displayTimeZone,
   formatDate,
-  formatDayMonthLong,
   formatTime,
 } from "../../util/format-date";
 import {
@@ -24,105 +42,231 @@ import {
   technicalSummary,
 } from "../../util/ticket-events";
 import AttachmentChip from "./View/AttachmentChip";
+import ChannelMarker from "./ChannelMarker";
+import ReplyRoute from "./ReplyRoute";
 
 /**
- * Хроника заявки — переписка и события одной лентой.
+ * Хроника заявки — переписка и события одной лентой, в виде диалога (канва
+ * «Омниканальные диалоги», D4–D8; решение владельца 27.09). Один компонент для
+ * сотрудника и заявителя.
  *
- * Раньше комментарии жили в правой колонке, а события — во вкладке «Лог», и
- * связь «взял в работу → написал» приходилось восстанавливать по времени. Плюс
- * лог был нечитаем: у живой заявки 1506 записей, из них 1476 — «при отправке
- * email-уведомления». Служебные записи бэкенд сворачивает в счётчик под своим
- * событием (см. services/ticketEvents.js), а лента показывает только то, что
- * произошло с заявкой.
+ * Порядок — мессенджерный: старые сверху, новые снизу, поле ответа прижато к
+ * низу панели. Сторона смотрящего — справа: сотруднику справа вся команда,
+ * слева клиентская сторона; заявителю справа его собственные сообщения, слева
+ * команда по именам (util/chronicle-dialog). Внутренних заметок в HD нет —
+ * заявитель видит каждый комментарий.
  *
- * Порядок — новыми вверх, поле ввода сверху: чаще нужно последнее, а не первое.
+ * События заявки — короткие строки по центру между репликами, в порядке
+ * времени; «Переписка» их прячет. Служебные записи бэкенд сворачивает в
+ * счётчик под своим событием (services/ticketEvents.js). Заявителю события
+ * отбирает бэкенд (`feedForClient`), здесь отбора нет.
  */
 
-const ENTRY = "flex gap-2.5 py-3";
-
-const initials = (person) =>
-  `${person?.lastName?.[0] ?? ""}${person?.firstName?.[0] ?? ""}`.toUpperCase() ||
-  "?";
+// Лента держится низа, пока читатель у низа: пришедшая реплика не уводит
+// того, кто листает вверх
+const STICK_PX = 80;
 
 const personName = (person) =>
-  person ? `${person.lastName || ""} ${person.firstName || ""}`.trim() : "";
+  person && typeof person === "object"
+    ? `${person.lastName || ""} ${person.firstName || ""}`.trim()
+    : "";
 
-const Attachment = ({ attachment }) => (
-  <a
-    href={`${import.meta.env.VITE_API_ADDRESS}/uploads/${attachment.name}`}
-    target="_blank"
-    rel="noreferrer"
-    className="mt-1.5 me-1.5 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground no-underline hover:bg-accent"
-  >
-    <RiAttachment2 size={13} aria-hidden />
-    <span className="truncate">
-      {attachment.originalName || attachment.name}
-    </span>
-  </a>
-);
+const isImage = (attachment) =>
+  Boolean(attachment.mimetype?.startsWith("image/"));
 
-const CommentEntry = ({ comment, divided, isNew = false }) => {
-  const [showQuoted, setShowQuoted] = useState(false);
-  const author = comment.createdBy;
+// Вложение комментария → вложение «Диалогов»: файл уже лежит в хранилище
+const asMedia = (attachment) => ({
+  name: attachment.name,
+  originalName: attachment.originalName || attachment.name,
+  mimetype: attachment.mimetype || "",
+  size: 0,
+  durationSec: null,
+  status: "ready",
+});
+
+/**
+ * Ответ, не доставленный в мессенджер (канва D4): «Не доставлено ·
+ * Повторить» под пузырём; «Повторить» — тому, кто вправе отвечать
+ * (`POST /api/messages/:id/retry`). Причина шлюза — в подсказке.
+ */
+const DeliveryFailure = ({ comment, canRetry, onRetried }) => {
+  const [busy, setBusy] = useState(false);
+  const retry = async () => {
+    setBusy(true);
+    try {
+      await api(`/api/messages/${comment.channel.messageId}/retry`, {
+        method: "POST",
+      });
+      onRetried(comment._id);
+    } catch (error) {
+      console.warn("Повтор отправки не удался:", error);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <div className={cn(ENTRY, divided && "border-t border-border-soft")}>
-      <span className="grid size-7 flex-none place-items-center rounded-[25%] border border-border bg-accent text-xs font-semibold text-muted-foreground">
-        {initials(author)}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2 text-sm">
-          <b className="font-semibold">{personName(author) || "—"}</b>
-          <span
-            className="ms-auto flex-none text-xs text-faint tabular-nums"
+    <p
+      className="mt-1 mb-0 text-right text-xs text-destructive"
+      title={comment.channel.error || undefined}
+    >
+      Не доставлено
+      {canRetry && comment.channel.messageId && (
+        <>
+          {" · "}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={retry}
+            className="cursor-pointer appearance-none border-0 bg-transparent p-0 font-semibold text-destructive underline-offset-2 hover:underline disabled:opacity-50"
+          >
+            Повторить
+          </button>
+        </>
+      )}
+    </p>
+  );
+};
+
+/** Цитата письма — свёрнутой строкой внутри пузыря (канва D4). */
+const QuotedTail = ({ text }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="mt-1 block cursor-pointer appearance-none border-0 bg-transparent p-0 text-xs text-faint hover:text-muted-foreground"
+      >
+        {open ? "▾ Скрыть цитату" : "▸ Показать цитату"}
+      </button>
+      {open && (
+        <p className="mt-1 mb-0 border-s border-border ps-3 text-xs whitespace-pre-wrap text-muted-foreground">
+          {text}
+        </p>
+      )}
+    </>
+  );
+};
+
+/**
+ * Реплика: подпись автора и метка канала над пузырём, текст, вложения,
+ * цитата письма, время. Фото — подложкой пузыря без внутренних полей, как в
+ * «Диалогах»; прочие файлы — чипами.
+ */
+const Bubble = ({ row, viewer, canRetry, onRetried, realSender }) => {
+  const { comment, side } = row;
+  const out = side === "out";
+  const name = row.showName
+    ? chronicleAuthorName(comment, personName(comment.createdBy), realSender) || "—"
+    : "";
+  const marker = commentMarker(comment, { viewer, side });
+  const attachments = comment.attachments ?? [];
+  const photos = attachments.filter(isImage);
+  const files = attachments.filter((attachment) => !isImage(attachment));
+  const media = photos.length > 0;
+  const failed =
+    !viewer.isClient &&
+    comment.channel?.direction === "out" &&
+    comment.channel.status === "failed";
+
+  return (
+    <div
+      className={cn("flex", out ? "justify-end" : "justify-start")}
+      style={{ marginTop: row.gap }}
+    >
+      <div className="max-w-[88%] min-w-0">
+        {(name || marker) && (
+          <div
+            className={cn(
+              "mb-0.5 flex items-center gap-1.5 text-xs",
+              out
+                ? "me-1 justify-end text-muted-foreground"
+                : "ms-1 font-semibold text-foreground",
+            )}
+          >
+            {name && <span className="truncate">{name}</span>}
+            {marker && (
+              <ChannelMarker channel={marker.channel} label={marker.label} />
+            )}
+          </div>
+        )}
+        <div
+          className={cn(
+            "text-sm leading-5 break-words text-foreground",
+            out
+              ? "rounded-[14px_14px_4px_14px] bg-bubble-out"
+              : "rounded-[14px_14px_14px_4px] bg-bubble-in",
+            media ? "p-1 pb-1.5" : "px-3 pt-2 pb-1.5",
+          )}
+        >
+          {photos.map((attachment) => (
+            <div key={attachment.name} className="mb-1 last:mb-0">
+              <PhotoAttachment
+                attachment={asMedia(attachment)}
+                kind="photo"
+                compact={isMobile}
+              />
+            </div>
+          ))}
+          {comment.content && (
+            <p
+              className={cn("m-0 whitespace-pre-wrap", media && "px-2 pt-1.5")}
+            >
+              {comment.content}
+            </p>
+          )}
+          {files.length > 0 && (
+            <div className={cn("flex flex-wrap gap-x-1.5", media && "px-2")}>
+              {files.map((attachment) => (
+                <FileAttachment
+                  key={attachment.name}
+                  attachment={asMedia(attachment)}
+                  kind="document"
+                />
+              ))}
+            </div>
+          )}
+          {comment.quotedText && (
+            <div className={cn(media && "px-2")}>
+              <QuotedTail text={comment.quotedText} />
+            </div>
+          )}
+          <div
+            className={cn(
+              "mt-0.5 text-right text-xs text-faint tabular-nums",
+              media && "px-2",
+            )}
             title={formatDate(comment.createdAt)}
           >
             {formatTime(comment.createdAt)}
-          </span>
-          {/* Точка «новое» — после времени, последним флекс-ребёнком */}
-          {isNew && (
-            <span
-              aria-hidden
-              className="inline-block size-1.5 flex-none rounded-full bg-primary align-middle"
-            />
-          )}
+          </div>
         </div>
-        <p className="my-0.5 text-sm leading-relaxed whitespace-pre-wrap">
-          {comment.content}
-        </p>
-        {comment.attachments?.map((attachment) => (
-          <Attachment key={attachment.name} attachment={attachment} />
-        ))}
-        {comment.quotedText && (
-          <>
-            <button
-              type="button"
-              onClick={() => setShowQuoted((value) => !value)}
-              className="mt-1 cursor-pointer appearance-none border-0 bg-transparent p-0 text-xs text-faint hover:text-muted-foreground"
-            >
-              {showQuoted
-                ? "▾ Скрыть цитируемую переписку"
-                : "▸ Показать цитируемую переписку"}
-            </button>
-            {showQuoted && (
-              <p className="mt-1 mb-0 border-s border-border ps-3 text-xs whitespace-pre-wrap text-muted-foreground">
-                {comment.quotedText}
-              </p>
-            )}
-          </>
+        {failed && (
+          <DeliveryFailure
+            comment={comment}
+            canRetry={canRetry}
+            onRetried={onRetried}
+          />
         )}
       </div>
     </div>
   );
 };
 
-const EventEntry = ({ event, ticketNum, divided }) => {
+/**
+ * Событие заявки — строка по центру между репликами (канва D4): значок тоном
+ * каталога, подпись и человек. Под ней — содержание события (причина
+ * отказа), файлы, имя удалённого файла и свёрнутые служебные записи.
+ */
+const EventLine = ({ event, ticketNum }) => {
   const meta = eventMeta(event.kind);
   const Icon = meta.icon;
   const [expanded, setExpanded] = useState(false);
   const [entries, setEntries] = useState(null);
   const { sendRequest } = useHttp();
   const summary = technicalSummary(event.technical);
+  const person = personName(event.user);
 
   const expand = () => {
     setExpanded((value) => !value);
@@ -139,112 +283,160 @@ const EventEntry = ({ event, ticketNum, divided }) => {
   };
 
   return (
-    <div className={cn(ENTRY, divided && "border-t border-border-soft")}>
-      <span
-        className={cn(
-          "grid size-7 flex-none place-items-center rounded-full border",
-          EVENT_TONE_CLASS[meta.tone],
-        )}
-      >
-        <Icon size={15} aria-hidden />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2 text-sm">
-          <b className="font-semibold">{eventLabel(event)}</b>
-          <span
-            className="ms-auto flex-none text-xs text-faint tabular-nums"
-            title={formatDate(event.createdAt)}
-          >
-            {formatTime(event.createdAt)}
-          </span>
-        </div>
-        {personName(event.user) && (
-          <div className="text-xs text-muted-foreground">
-            {personName(event.user)}
-          </div>
-        )}
-
-        {/* Содержание события — причина отказа: вид называет подпись выше, а
-            ради причины запись и открывают. Разбирает фразу лога бэкенд
-            (services/ticketEvents.js#detailOf), сюда приезжает готовый текст.
-            Строки как у комментария: это те же слова человека */}
-        {event.detail && (
-          <p className="my-0.5 text-sm leading-relaxed whitespace-pre-wrap">
-            {event.detail}
-          </p>
-        )}
-
-        {/* Файлы события — чипами: по ним файл открывается прямо из ленты, не
-            возвращаясь к описанию. Больше двух сворачиваем, как везде */}
-        {event.files?.length > 0 && event.kind !== "attachmentRemoved" && (
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {event.files.slice(0, 2).map((file) => (
-              <AttachmentChip key={file.name} attachment={file} compact />
-            ))}
-            {event.files.length > 2 && (
-              <span className="self-center text-xs text-faint">
-                ещё {event.files.length - 2}
-              </span>
-            )}
-          </div>
-        )}
-        {event.kind === "attachmentRemoved" && event.files?.[0] && (
-          // Удалённый файл не открыть — только назвать
-          <div className="mt-1 text-xs text-faint">
-            «{event.files[0].originalName || event.files[0].name}»
-          </div>
-        )}
-
-        {summary && (
-          <>
-            <button
-              type="button"
-              onClick={expand}
-              className={cn(
-                "mt-1.5 inline-flex cursor-pointer appearance-none items-center gap-1 border-0 bg-transparent p-0 text-xs hover:underline",
-                event.technical.failed > 0 ? "text-warning" : "text-faint",
-              )}
-            >
-              {expanded ? "▾" : "▸"} {summary}
-            </button>
-            {expanded && (
-              <ul className="mt-1.5 mb-0 list-none space-y-1 border-s border-border ps-3">
-                {(entries ?? []).map((entry) => (
-                  <li key={entry._id} className="text-xs text-muted-foreground">
-                    <span className="text-faint tabular-nums">
-                      {formatTime(entry.createdAt)}
-                    </span>{" "}
-                    {entry.event}
-                  </li>
-                ))}
-                {entries?.length === 0 && (
-                  <li className="text-xs text-faint">Записей нет</li>
-                )}
-                {!entries && <li className="text-xs text-faint">Загрузка…</li>}
-              </ul>
-            )}
-          </>
-        )}
+    <div className="mt-3 mb-1.5">
+      <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
+        <span aria-hidden className="h-px min-w-4 flex-1 bg-border-soft" />
+        <span
+          className="inline-flex max-w-[85%] items-center gap-1.5 text-center"
+          title={formatDate(event.createdAt)}
+        >
+          <Icon
+            size={14}
+            aria-hidden
+            className={cn("flex-none", EVENT_TONE_CLASS[meta.tone])}
+          />
+          <span>{[eventLabel(event), person].filter(Boolean).join(" · ")}</span>
+        </span>
+        <span aria-hidden className="h-px min-w-4 flex-1 bg-border-soft" />
       </div>
+
+      {/* Содержание события — причина отказа: ради неё запись и открывают.
+          Разбирает фразу лога бэкенд (services/ticketEvents.js#detailOf) */}
+      {event.detail && (
+        <p className="mx-auto mt-1 mb-0 max-w-[85%] text-center text-xs whitespace-pre-wrap text-muted-foreground">
+          {event.detail}
+        </p>
+      )}
+
+      {/* Файлы события — чипами: файл открывается прямо из ленты. Больше двух
+          сворачиваем, как везде */}
+      {event.files?.length > 0 && event.kind !== "attachmentRemoved" && (
+        <div className="mt-1.5 flex flex-wrap justify-center gap-1.5">
+          {event.files.slice(0, 2).map((file) => (
+            <AttachmentChip key={file.name} attachment={file} compact />
+          ))}
+          {event.files.length > 2 && (
+            <span className="self-center text-xs text-faint">
+              ещё {event.files.length - 2}
+            </span>
+          )}
+        </div>
+      )}
+      {event.kind === "attachmentRemoved" && event.files?.[0] && (
+        // Удалённый файл не открыть — только назвать
+        <div className="mt-1 text-center text-xs text-faint">
+          «{event.files[0].originalName || event.files[0].name}»
+        </div>
+      )}
+
+      {summary && (
+        <div className="mt-1 text-center">
+          <button
+            type="button"
+            onClick={expand}
+            className={cn(
+              "inline-flex cursor-pointer appearance-none items-center gap-1 border-0 bg-transparent p-0 text-xs hover:underline",
+              event.technical.failed > 0 ? "text-warning" : "text-faint",
+            )}
+          >
+            {expanded ? "▾" : "▸"} {summary}
+          </button>
+          {expanded && (
+            <ul className="mx-auto mt-1.5 mb-0 max-w-[85%] list-none space-y-1 border-s border-border ps-3 text-left">
+              {(entries ?? []).map((entry) => (
+                <li key={entry._id} className="text-xs text-muted-foreground">
+                  <span className="text-faint tabular-nums">
+                    {formatTime(entry.createdAt)}
+                  </span>{" "}
+                  {entry.event}
+                </li>
+              ))}
+              {entries?.length === 0 && (
+                <li className="text-xs text-faint">Записей нет</li>
+              )}
+              {!entries && <li className="text-xs text-faint">Загрузка…</li>}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
 /**
- * Лента рисует то, что приехало: какие события положены заявителю, решает
- * бэкенд (`services/ticketEvents` → `feedForClient`). Невидимое в интерфейсе,
- * но уехавшее в ответ — всё равно выданное, поэтому отбора здесь нет.
+ * `messaging` — «Диалоги» для сотрудника с правом читать их (модуль включён):
+ * `{ canReply, routes, onRoutesChanged }`. Без него (и у заявителя) выбора
+ * «Ответить через» нет, а метки каналов у реплик остаются.
  */
-const Chronicle = ({ ticket, events = [], canComment, seenAt = null }) => {
+const Chronicle = ({
+  ticket,
+  events = [],
+  canComment,
+  seenAt = null,
+  messaging = null,
+}) => {
   const { comments, updateComments } = useViewTicketStore();
   const authedUser = useContext(AuthedUserContext);
   const { sendRequest, isLoading, error } = useHttp();
+  const viewer = {
+    id: String(authedUser?._id ?? ""),
+    isClient: Boolean(authedUser?.isEndUser),
+  };
 
   const [mode, setMode] = useState("comments");
   const [content, setContent] = useState("");
   const [files, setFiles] = useState([]);
+  // Причина отказа сервера (например, «занят заявкой №56790»): по коду её не
+  // угадать, useHttp отдаёт только statusText
+  const [serverMessage, setServerMessage] = useState(null);
   const fileInput = useRef(null);
+  // Хроник на странице две (колонка xl и последняя секция на узком экране):
+  // у каждой свой id поля файла, иначе «Файл» видимой открывал поле скрытой
+  const fileInputId = useId();
   const textarea = useRef(null);
+  const scroller = useRef(null);
+  const divider = useRef(null);
+  const stick = useRef(true);
+  const placed = useRef("");
+  const forceBottom = useRef(false);
+
+  // «Ответить через»: по умолчанию — маршрут, который предложил сервер
+  // (привязанный чат, иначе канал последнего сообщения клиента). Выбор
+  // человека переживает перечитывание маршрутов, пока он доступен; другая
+  // заявка — выбор заново
+  const routes = messaging?.routes ?? null;
+  const showRoutes = Boolean(messaging?.canReply && routes?.routes.length);
+  const [route, setRoute] = useState(NOTIFY_ROUTE);
+  const routeChosen = useRef(false);
+  useEffect(() => {
+    routeChosen.current = false;
+  }, [ticket._id]);
+  useEffect(() => {
+    setRoute((current) => {
+      const stillThere =
+        current === NOTIFY_ROUTE ||
+        (routes?.routes ?? []).some(
+          (item) => item.conversationId === current && item.available,
+        );
+      return routeChosen.current && stillThere ? current : initialRoute(routes);
+    });
+  }, [routes]);
+  const pickRoute = (next) => {
+    routeChosen.current = true;
+    setRoute(next);
+  };
+
+  const markRetried = (commentId) =>
+    updateComments(
+      comments.map((comment) =>
+        comment._id === commentId
+          ? {
+              ...comment,
+              channel: { ...comment.channel, status: "queued", error: undefined },
+            }
+          : comment,
+      ),
+    );
 
   // Черновик из панели ИИ («Спросить заявителя»): дописываем к тому, что уже
   // набрано, забираем себе и очищаем канал — отправляет человек, не мы
@@ -271,6 +463,9 @@ const Chronicle = ({ ticket, events = [], canComment, seenAt = null }) => {
     formData.append("content", content);
     formData.append("ticketId", ticket._id);
     for (const file of files) formData.append("attachments", file);
+    const viaMessenger = showRoutes && route !== NOTIFY_ROUTE;
+    if (viaMessenger) formData.append("deliverVia", route);
+    setServerMessage(null);
 
     sendRequest(
       {
@@ -280,10 +475,18 @@ const Chronicle = ({ ticket, events = [], canComment, seenAt = null }) => {
         body: formData,
       },
       (data) => {
-        if (!data.comment) return;
+        if (!data.comment) {
+          setServerMessage(data.message || null);
+          return;
+        }
+        // Ответ через мессенджер привязывает личный чат — маршруты другие
+        if (viaMessenger) messaging?.onRoutesChanged?.();
         setContent("");
         setFiles([]);
         if (fileInput.current) fileInput.current.value = "";
+        // Своё отправленное лента показывает всегда, даже если читатель
+        // листал вверх
+        forceBottom.current = true;
         updateComments([
           {
             ...data.comment,
@@ -292,6 +495,7 @@ const Chronicle = ({ ticket, events = [], canComment, seenAt = null }) => {
               lastName: authedUser.lastName,
               firstName: authedUser.firstName,
               profileImagePath: authedUser.profileImagePath,
+              isEndUser: Boolean(authedUser.isEndUser),
             },
           },
           ...comments,
@@ -300,48 +504,56 @@ const Chronicle = ({ ticket, events = [], canComment, seenAt = null }) => {
     );
   };
 
-  // Одна лента: комментарии и события сортируются вместе, новыми вверх
-  const feed = [
-    ...comments.map((comment) => ({
-      type: "comment",
-      at: comment.createdAt,
-      key: `c-${comment._id}`,
-      comment,
-    })),
-    ...(mode === "all"
-      ? events.map((event) => ({
-          type: "event",
-          at: event.createdAt,
-          key: `e-${event._id}`,
-          event,
-        }))
-      : []),
-  ].sort((a, b) => new Date(b.at) - new Date(a.at));
+  const rows = chronicleRows({
+    comments,
+    events: mode === "all" ? events : [],
+    viewer,
+    applicantId: ticket.applicant?._id ?? null,
+    seenAt,
+    timeZone: displayTimeZone(),
+  });
 
-  // «Новые» — чужие комментарии новее водяного знака визита (seenAt — знак ДО
-  // этого открытия, страница держит его на весь визит). События не считаем:
-  // у записи хроники нет автора-идентификатора, и своё же действие светилось
-  // бы новым. При первом визите знака нет — нет и черты: отделять нечего.
-  const mine = (comment) =>
-    String(comment.createdBy?._id ?? comment.createdBy) ===
-    String(authedUser._id);
-  const watermark = seenAt ? new Date(seenAt).getTime() : 0;
-  const isNew = (item) =>
-    item.type === "comment" &&
-    watermark > 0 &&
-    new Date(item.at).getTime() > watermark &&
-    !mine(item.comment);
-  const newCount = feed.filter(isNew).length;
+  // Где лента открывается: при открытии заявки и смене вида — у черты
+  // «Новые» (первая непрочитанная вверху панели), без неё — в конце. Дальше
+  // лента держится низа, пока читатель у низа
+  const anchorKey = `${ticket._id}:${mode}`;
+  const lastKey = rows.length > 0 ? rows[rows.length - 1].key : "";
+  useLayoutEffect(() => {
+    const node = scroller.current;
+    if (!node) return;
+    if (placed.current !== anchorKey) {
+      placed.current = anchorKey;
+      const mark = divider.current;
+      node.scrollTop = mark
+        ? mark.getBoundingClientRect().top -
+          node.getBoundingClientRect().top +
+          node.scrollTop -
+          8
+        : node.scrollHeight;
+      stick.current =
+        node.scrollHeight - node.scrollTop - node.clientHeight < STICK_PX;
+      return;
+    }
+    if (forceBottom.current || stick.current) {
+      node.scrollTop = node.scrollHeight;
+      forceBottom.current = false;
+      stick.current = true;
+    }
+  }, [anchorKey, lastKey, rows.length]);
 
-  let lastDay = null;
-  let dividerShown = false;
+  const onScroll = () => {
+    const node = scroller.current;
+    if (!node) return;
+    stick.current =
+      node.scrollHeight - node.scrollTop - node.clientHeight < STICK_PX;
+  };
+
+  const canRetry = Boolean(messaging?.canReply);
 
   return (
     <>
       {/* Метка — на канве над панелью и с переключателем в `action`, как у
-          любой секции страницы. Своей титульной полосы внутри панели у хроники
-          больше нет: она была единственным таким заголовком на карточке, а
-          панели при её высоте дорог каждый ряд */}
+          любой секции страницы */}
       <Eyebrow
         action={
           <Segmented
@@ -358,23 +570,110 @@ const Chronicle = ({ ticket, events = [], canComment, seenAt = null }) => {
         Хроника
       </Eyebrow>
 
-      <div className="flex max-h-[calc(100dvh-186px)] flex-col overflow-hidden rounded-xl border border-border bg-card">
+      {/* Высота панели постоянная: лента листается внутри, поле ответа
+          прижато к низу, у короткой ленты реплики стоят у поля */}
+      <div className="flex h-[calc(100dvh-186px)] min-h-96 flex-col overflow-hidden rounded-xl border border-border bg-card">
+        <div
+          ref={scroller}
+          onScroll={onScroll}
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto",
+            isMobile ? "p-3" : "px-5 pt-3 pb-4",
+          )}
+        >
+          <div className="flex min-h-full flex-col justify-end">
+            {rows.length === 0 && (
+              <p className="m-auto text-center text-sm text-muted-foreground">
+                {mode === "comments"
+                  ? "Переписки пока нет"
+                  : "По заявке пока ничего не происходило"}
+              </p>
+            )}
+            {rows.map((row) => {
+              if (row.type === "day") {
+                return (
+                  <div
+                    key={row.key}
+                    className="flex items-center gap-2.5 pt-3 pb-1 text-xs font-bold tracking-wider text-faint uppercase first:pt-0"
+                  >
+                    {row.label}
+                    <span aria-hidden className="h-px flex-1 bg-border-soft" />
+                  </div>
+                );
+              }
+              if (row.type === "new") {
+                return (
+                  <div
+                    key={row.key}
+                    ref={divider}
+                    className="flex items-center gap-2.5 pt-3 pb-1 text-xs font-bold tracking-wider text-accent-text uppercase"
+                  >
+                    Новые
+                    <span className="font-semibold tracking-normal tabular-nums">
+                      · {row.count}
+                    </span>
+                    <span aria-hidden className="h-px flex-1 bg-primary/35" />
+                  </div>
+                );
+              }
+              if (row.type === "event") {
+                return (
+                  <EventLine
+                    key={row.key}
+                    event={row.event}
+                    ticketNum={ticket.num}
+                  />
+                );
+              }
+              return (
+                <Bubble
+                  key={row.key}
+                  row={row}
+                  viewer={viewer}
+                  canRetry={canRetry}
+                  onRetried={markRetried}
+                  // Отправитель может оказаться сотрудником без учётки HD —
+                  // его контакты клиенту не показываем нигде (как и в
+                  // Ticket/View/Sections#mailSender), поэтому realSender идёт
+                  // только сотруднику
+                  realSender={viewer.isClient ? "" : ticket.realSender}
+                />
+              );
+            })}
+          </div>
+        </div>
+
         {canComment && (
           <form
             onSubmit={submit}
-            className="border-b border-border-soft px-4 py-3"
+            className={cn(
+              "flex-none border-t border-border-soft",
+              isMobile ? "px-3 pt-2 pb-3" : "px-4 py-3",
+            )}
           >
             <Textarea
               ref={textarea}
               rows={2}
               value={content}
-              placeholder="Написать комментарий…"
+              aria-label={viewer.isClient ? "Сообщение" : "Комментарий"}
+              placeholder={
+                viewer.isClient ? "Написать сообщение…" : "Написать комментарий…"
+              }
               onChange={(changeEvent) => setContent(changeEvent.target.value)}
+              // Поле растёт с текстом, но ленту не съедает: потолок — 160 px
+              // на десктопе и 128 на телефоне (канва: 64 и 56 px пустым)
+              className={cn(
+                "resize-none",
+                isMobile ? "max-h-32 min-h-14 text-base leading-5" : "max-h-40",
+              )}
             />
             <div className="mt-2 flex items-center gap-2">
+              {showRoutes && (
+                <ReplyRoute data={routes} value={route} onChange={pickRoute} />
+              )}
               <input
                 ref={fileInput}
-                id="chronicle-files"
+                id={fileInputId}
                 type="file"
                 multiple
                 className="hidden"
@@ -382,87 +681,69 @@ const Chronicle = ({ ticket, events = [], canComment, seenAt = null }) => {
                   setFiles([...(changeEvent.target.files ?? [])])
                 }
               />
-              <Button asChild variant="outline" size="xs">
-                <label htmlFor="chronicle-files" className="cursor-pointer">
-                  <RiAttachment2 />
-                  {files.length > 0 ? `Файлов: ${files.length}` : "Файл"}
-                </label>
-              </Button>
-              <Button
-                type="submit"
-                size="xs"
-                className="ms-auto"
-                disabled={isLoading || !content.trim()}
-              >
-                <RiSendPlaneLine />
-                {isLoading ? "Отправка…" : "Отправить"}
-              </Button>
+              {isMobile ? (
+                // Телефон (канва D6, D8): ряд короче — файл и отправка значками
+                <Button
+                  asChild
+                  variant="outline"
+                  size="icon-sm"
+                  className="relative"
+                >
+                  <label
+                    htmlFor={fileInputId}
+                    aria-label="Файл"
+                    className="cursor-pointer"
+                  >
+                    <RiAttachment2 />
+                    {files.length > 0 && (
+                      <span className="absolute -top-1 -right-1 inline-grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-xs leading-4 font-bold text-primary-foreground">
+                        {files.length}
+                      </span>
+                    )}
+                  </label>
+                </Button>
+              ) : (
+                <Button asChild variant="outline" size="xs">
+                  <label htmlFor={fileInputId} className="cursor-pointer">
+                    <RiAttachment2 />
+                    {files.length > 0 ? `Файлов: ${files.length}` : "Файл"}
+                  </label>
+                </Button>
+              )}
+              {isMobile ? (
+                <Button
+                  type="submit"
+                  size="icon-sm"
+                  aria-label="Отправить"
+                  className="ms-auto"
+                  disabled={isLoading || !content.trim()}
+                >
+                  <RiSendPlaneLine />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  size="xs"
+                  className="ms-auto"
+                  disabled={isLoading || !content.trim()}
+                >
+                  <RiSendPlaneLine />
+                  {isLoading ? "Отправка…" : "Отправить"}
+                </Button>
+              )}
             </div>
             {/* Без строки отказ выглядел как «ничего не произошло»: кнопка
                 отжималась, текст оставался, и человек не знал, ушёл ли он.
                 Сбрасывается следующей отправкой (useHttp) */}
             {error && (
               <p className="mt-2 mb-0 text-sm text-destructive">
-                {sendErrorText(error.status)}
+                {error.status === 409 && serverMessage
+                  ? serverMessage
+                  : sendErrorText(error.status)}
               </p>
             )}
           </form>
         )}
-
-        <div className="flex-1 overflow-y-auto px-4 pb-3">
-          {feed.length === 0 && (
-            <p className="my-6 text-center text-sm text-muted-foreground">
-              {mode === "comments"
-                ? "Переписки пока нет"
-                : "По заявке пока ничего не происходило"}
-            </p>
-          )}
-          {feed.map((item) => {
-            const day = businessDayKey(item.at);
-            const fresh = isNew(item);
-            // Черта «Новые» — над первой новой записью, вместо метки её дня:
-            // две метки подряд читались бы стопкой
-            const showDivider = fresh && !dividerShown;
-            if (showDivider) dividerShown = true;
-            const showDay = day !== lastDay && !showDivider;
-            lastDay = day;
-            const divided = !showDay && !showDivider;
-            return (
-              <div key={item.key}>
-                {showDivider && (
-                  <div className="flex items-center gap-2.5 pt-3 pb-1 text-xs font-bold tracking-wider text-accent-text uppercase">
-                    Новые
-                    <span className="font-semibold tracking-normal tabular-nums">
-                      · {newCount}
-                    </span>
-                    <span className="h-px flex-1 bg-primary/35" />
-                  </div>
-                )}
-                {showDay && (
-                  <div className="flex items-center gap-2.5 pt-3 pb-1 text-xs font-bold tracking-wider text-faint uppercase">
-                    {dayLabel(item.at)}
-                    <span className="h-px flex-1 bg-border-soft" />
-                  </div>
-                )}
-                {/* Разделитель между записями — только внутри дня: у первой
-                  записи его роль играет линия самой метки дня (или черты) */}
-                {item.type === "comment" ? (
-                  <CommentEntry
-                    comment={item.comment}
-                    divided={divided}
-                    isNew={fresh}
-                  />
-                ) : (
-                  <EventEntry
-                    event={item.event}
-                    ticketNum={ticket.num}
-                    divided={divided}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
       </div>
     </>
   );
@@ -475,17 +756,6 @@ const sendErrorText = (status) => {
   if (status === 403) return "Нет прав писать в эту заявку.";
   if (status === 404) return "Заявка не найдена: возможно, её удалили.";
   return "Не удалось отправить комментарий. Текст остался в поле — попробуйте ещё раз.";
-};
-
-// «Сегодня» / «Вчера» / «27 июля» — метка дня над группой записей
-const dayLabel = (date) => {
-  const today = businessDayKey();
-  const day = businessDayKey(date);
-  if (day === today) return "Сегодня";
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (day === businessDayKey(yesterday)) return "Вчера";
-  return formatDayMonthLong(date);
 };
 
 export default Chronicle;

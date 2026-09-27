@@ -192,6 +192,7 @@ export const ticketFormSections = ({ form, formData = {} }) => {
     setResponsibleIds,
     responsibleOptions,
     applicants,
+    applicantOptional,
     canPickApplicant,
     picksForOthers,
     deadline,
@@ -325,8 +326,13 @@ export const ticketFormSections = ({ form, formData = {} }) => {
           <Field
             label="Инициатор"
             htmlFor="ticket-applicant"
-            required
-            hint={errorOf("applicant")}
+            required={!applicantOptional}
+            hint={
+              errorOf("applicant") ??
+              (applicantOptional && !applicantId
+                ? "Пусто — инициатором станет служебная учётка, имя собеседника сохранится в заявке"
+                : undefined)
+            }
           >
             <Combobox
               id="ticket-applicant"

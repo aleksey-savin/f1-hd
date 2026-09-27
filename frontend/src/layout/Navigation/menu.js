@@ -9,6 +9,7 @@ import {
   RiContactsLine,
   RiDashboard2Line,
   RiDeviceLine,
+  RiDiscussLine,
   RiDraftLine,
   RiFileList3Line,
   RiListCheck2,
@@ -34,7 +35,8 @@ import {
 // него нет — см. комментарий в ветке.
 //
 // Форма элемента:
-//   { key, label, shortLabel?, icon, to }               — ссылка
+//   { key, label, shortLabel?, icon, to, badge? }       — ссылка; badge:
+//     "conversations" — пилюля «Ждут ответа» (Conversation/NavBadges)
 //   { key, label, shortLabel?, icon, groups: [...] }    — раздел-дропдаун;
 //     группа: { label?, items: [item, …] } — label — uppercase-заголовок
 //     («Администрирование» подписывает группы по модулям), группы рендерятся
@@ -76,12 +78,14 @@ export function buildMenu({
   const canReadKnowledge = can({ knowledge: ["read"] });
   const canReadApproval = can({ approval: ["read"] });
   const canReadSchedule = can({ schedule: ["read"] });
+  const canReadConversations = can({ conversation: ["read"] });
 
   const timeTracking = !!modules?.timeTracking?.isActive;
   const inventory = !!modules?.inventory?.isActive;
   const knowledgeBase = !!modules?.knowledgeBase?.isActive;
   const finances = !!modules?.finances?.isActive;
   const mikrotik = !!modules?.mikrotik?.isActive;
+  const messaging = !!modules?.messaging?.isActive;
 
   if (isEndUser) {
     const reports = [
@@ -325,6 +329,13 @@ export function buildMenu({
   return [
     link("dashboard", "Главная", RiDashboard2Line, "/dashboard"),
     link("tickets", "Заявки", RiCheckboxLine, "/tickets"),
+    // «Диалоги» — сразу за заявками: это та же работа с клиентом (канва A1).
+    // Пилюля — сколько диалогов ждут ответа
+    messaging &&
+      canReadConversations &&
+      link("conversations", "Диалоги", RiDiscussLine, "/conversations", {
+        badge: "conversations",
+      }),
     canReadCompanies &&
       link("companies", "Компании", RiBuilding2Line, "/companies"),
     canReadUsers && link("users", "Пользователи", RiContactsLine, "/users"),

@@ -494,7 +494,13 @@ exports.getOne = async (req, res, next) => {
         path: "comments",
         populate: {
           path: "createdBy",
-          select: "profileImagePath lastName firstName",
+          // isEndUser — сторона реплики в хронике-диалоге: команда справа,
+          // клиентская сторона слева (frontend util/chronicle-dialog).
+          // isServiceAccount — письма от незарегистрированных отправителей
+          // (автор в БД — Preferences.defaultApplicant) там же уходят на
+          // клиентскую сторону. Ни то ни другое не контакт: признаки видит и
+          // заявитель
+          select: "profileImagePath lastName firstName isEndUser isServiceAccount",
         },
       })
       .populate({

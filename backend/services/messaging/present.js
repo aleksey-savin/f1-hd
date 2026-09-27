@@ -76,6 +76,17 @@ const conversationRow = (conversation, ctx = {}) => {
   };
 };
 
+/**
+ * Кандидат «Это он» в панели «Кто это?» (`GET /identities/:id/candidates`):
+ * имя, должность, компания — без почты и телефона, даже если нашли по ним.
+ */
+const candidateRow = (user) => ({
+  id: idOf(user),
+  name: userName(user),
+  position: user.position || "",
+  company: user.company?.alias || "",
+});
+
 const STAFF_ORIGINS = new Set(["hd", "device", "staff"]);
 
 const messageRow = (message, ctx = {}) => {
@@ -132,4 +143,4 @@ const messageRow = (message, ctx = {}) => {
   };
 };
 
-module.exports = { userName, publicName, mirrorAuthorName, commentChannel, conversationRow, messageRow };
+module.exports = { userName, publicName, mirrorAuthorName, commentChannel, conversationRow, messageRow, candidateRow };

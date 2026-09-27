@@ -6,6 +6,10 @@ decisions and the mockup are in
 `docs/superpowers/specs/2026-09-24-omnichannel-dialogs-design.md`; this file is
 a snapshot of the backend contract as implemented — verify against the code._
 
+_P1b (2026-09-27): staff UI additions — queue counts, identity candidates,
+`ticket.boundAt`, the `channels` pulse topic, the channel failure alert; the
+frontend map closes §7._
+
 ## 1. Overview
 
 «Диалоги» ("Dialogues") is HD's messaging inbox: every client conversation from
@@ -332,7 +336,8 @@ into a neighboring router:
 | Method & path | Gate | What |
 |---|---|---|
 | `GET /conversations` | read | Paged list (`queue`: awaiting\|mine\|unbound\|all\|hidden; filters `network`, `company`, `q`; per-queue counts) |
-| `GET /conversations/:id` | read | Full card: conversation, channel, counterpart, participants, linked HD contact, that contact's other channels, bound/open tickets |
+| `GET /conversations/counts` | read | `{counts: {awaiting, mine, unbound, all}}` only — the navigation badge; declared before `/conversations/:id` |
+| `GET /conversations/:id` | read | Full card: conversation, channel, counterpart, participants, linked HD contact, that contact's other channels, bound/open tickets (`ticket.boundAt` — when the binding started) |
 | `GET /conversations/:id/messages` | read | A page of messages (`before`+`beforeSeq` chronological, or `changedSince`(+`afterId`) for polling — see below) |
 | `GET /conversations/:id/ticket-draft` | read | Draft **HTML** description + guessed applicant/company/source from selected messages |
 | `POST /conversations/:id/seen` | read | Read watermark; enqueues `markRead` when applicable |
@@ -348,6 +353,7 @@ into a neighboring router:
 | `PATCH /conversations/:id` | manage | Change `companyId` |
 | `POST /identities/:id/link` | manage | Link a counterpart to an HD user |
 | `POST /identities/:id/unlink` | manage | Remove that link |
+| `GET /identities/:id/candidates?q=` | manage | Users to link a counterpart to: every word of `q` must match one of name/email/phone/position/company; returns `{items: [{id, name, position, company}]}` (≤8, clients first, banned and service accounts excluded) — names only, never the contacts it matched on |
 | `GET /tickets/:num/delivery-routes` | read + ticket access | Reply routes for a ticket ("reply via …") |
 | `GET /channels` | settings | List channels (secret *presence* flags only, never values) |
 | `POST /channels` | settings | Create a channel |
@@ -432,6 +438,20 @@ Only a genuinely **different** `applicantId` (staff deliberately picking
 someone else as the applicant) goes through the ordinary `createForOthers`
 rules.
 
+**Frontend map (P1b).** UI rules live in `docs/ux-ui-guide.md` («Диалоги:
+переписка с клиентом»); this is only where things are.
+
+| Route / surface | Files | State |
+|---|---|---|
+| `/conversations` (list, queues, filters) | `pages/Conversation/Inbox.tsx`, `components/Conversation/{QueueChips,ConversationList,ConversationRow,ListFilter}.tsx` | `store/conversations.ts` |
+| `/conversations/:id` (thread + contact pane; phone full screen) | `pages/Conversation/Thread.tsx`, `components/Conversation/ConversationThread.tsx` (+ `ThreadHeader`, `MessagesPane`, `MessageBubble`, `MessageMedia`, `SystemLine`, `Composer`, `DecisionPrompt`, `ContextPane`, `ContactBlock`, `TicketBlock`, `OpenTickets`, `AssigneePicker`, `WhoIsThis`, `ThreadMenu`, `ContextSheet`) | route loader + `components/Conversation/use-thread.ts` |
+| `/conversations/:id/tickets/add` («Создать заявку») | `routes/ticket-forms.jsx` → `pages/Ticket/Add.jsx` (`?conversation=&messages=`), `components/Ticket/ticket-origin.js` | ticket form state (`use-ticket-form.js`) |
+| `/conversations/:id/users/add` («Новый пользователь») | `pages/Conversation/NewUser.tsx` → `components/User/UserForm.jsx` | — |
+| Navigation badge | `components/Conversation/{CountsSync,NavBadges}.tsx`, `layout/Navigation/menu.js`, `layout/MobileBottomNavbar.jsx` | `store/conversations.ts` (`counts`) |
+| Ticket card: the «Хроника» as a dialog (staff and end users), channel markers, delivery status, «Ответить через», «Диалог» row | `components/Ticket/{Chronicle.jsx,ChannelMarker.tsx,ReplyRoute.tsx,use-delivery-routes.ts}`, `components/Ticket/View/Sections.jsx`, `util/chronicle-dialog.js` (sides, names, markers, «Новые») | `store/view-ticket.js` |
+| Settings → «Каналы связи», «Модули» | `components/Preferences/{Channels,TelegramChannelDialog}.tsx`, `components/Preferences/Modules.jsx` | component state, pulse topic `channels` |
+| Pure helpers (node --test) | `util/{conversation-format,conversation-thread,delivery-routes,chronicle-dialog,channel-state}.js` | — |
+
 ## 8. Operations
 
 - **`MSG_GATEWAY_TOKEN`** (env) — the shared secret with msg-gateway, sent as
@@ -463,9 +483,33 @@ rules.
 - **Pulse topic `conversations`** (`services/pulseTopics.js`) is staff-only —
   it is not in `controllers/pulse.js`'s `CLIENT_TOPICS`, so an end-user session
   never receives it. The spec's second staff topic, `conversationThreads`
-  (per-conversation live updates), is **not** implemented in P0 — clients poll
-  `GET /conversations/:id/messages?changedSince=...` instead (§7); whether a
-  dedicated topic is worth adding is a P1 decision.
+  (per-conversation live updates), is **not** implemented: an open thread
+  requests a 3-second pulse cadence and, when `conversations` moves, polls
+  `GET /conversations/:id/messages?changedSince=...` (§7). Decided in P1b.
+- **Pulse topic `channels`** (staff-only, same reason) moves on meaningful
+  `Channel` writes — login state, QR, account, settings; `gatewaySeenAt`
+  (heartbeat) and `lastMessageAt` (every message) are noise — and on the
+  acknowledgement of a command job (`login`, `logout`, `testProxy`,
+  `loadHistory`; explicit `bus.bump` in `ackJobs`). Only the channel settings
+  read it.
+- **`backend/scripts/seedDemoConversations.js`** — dev-only demo data for the
+  UI (a `[DEMO] Telegram` channel, a `[DEMO] Форма с сайта` channel, a demo
+  company, two clients at `@demo-p1.invalid`, a demo ticket and six
+  conversations) created through the real ingest/outbound/jobs paths; **not**
+  part of `migrate.js`. `--remove` finds everything from the demo channels and
+  addresses, counts it, and deletes by explicit `_id` lists.
+- **Channel failure alert** (`services/messaging/channelAlert.js`, called from
+  `ingestChannelState`): a `channel.state` event that moves an active channel
+  **into** `loggedOut`, `banned` or `error` from a different state rings the
+  bell of everyone holding `settings.manage` (service accounts and banned
+  users excluded) — kind `channelState`, category `conversationMessage` (no
+  system category exists; same module, in-app only), link
+  `/preferences#channels`, text = channel name + the gateway's reason. The
+  state write is a compare-and-set on the previous state, so a replay or a
+  second delivery never rings twice; `error` rings at most once per 6 hours
+  per channel (`Channel.errorAlertedAt`, claimed in the same write), because
+  the gateway reports it after 60 s without a connection. The module switch
+  is not checked — channels are set up before the module is on.
 - **Partial indexes for the repair cron** (this wave, §5): `comments` gets
   `{createdAt: 1}` partial on `channel.status:"preparing"`
   (`channel_preparing_createdAt`) — built **once** on deploy (one pass over the

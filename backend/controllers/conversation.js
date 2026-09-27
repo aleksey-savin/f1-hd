@@ -15,7 +15,7 @@ const { isBanned } = require("@/services/authBan");
 const { bus } = require("@/services/pulse");
 const storage = require("@/services/storage");
 const { QUEUES, listFilter, canSeeConversation } = require("@/services/messaging/visibility");
-const { conversationRow, messageRow, userName } = require("@/services/messaging/present");
+const { conversationRow, messageRow, userName, candidateRow } = require("@/services/messaging/present");
 const { NETWORKS, GATEWAY_NETWORKS, identityName } = require("@/services/messaging/rules");
 const { addSystemLine } = require("@/services/messaging/conversationStore");
 const { bindConversation, unbindConversation, attachMessages } = require("@/services/messaging/bindings");
@@ -95,6 +95,15 @@ const queueCounts = async (auth) => {
     counts[queue] = await Conversation.countDocuments(listFilter(queue, auth));
   }
   return counts;
+};
+
+/** Счётчики очередей без списка — пилюля «Ждут ответа» у пункта меню. */
+exports.counts = async (req, res, next) => {
+  try {
+    res.status(200).json({ counts: await queueCounts(req.auth) });
+  } catch (error) {
+    next(wrap(error, "Не удалось посчитать диалоги"));
+  }
 };
 
 exports.list = async (req, res, next) => {
@@ -206,6 +215,7 @@ exports.get = async (req, res, next) => {
             state: ticket.state,
             deadline: ticket.deadline,
             responsibles: (ticket.responsibles || []).map((r) => userName(r)),
+            boundAt: binding.boundAt || null,
           }
         : null,
       openTickets: openTickets
@@ -533,6 +543,36 @@ exports.linkIdentity = async (req, res, next) => {
     res.status(200).json({ ok: true });
   } catch (error) {
     next(wrap(error, "Не удалось связать собеседника"));
+  }
+};
+
+// Поля поиска «Это он» — те же, что у адресной книги (controllers/user.js)
+const CANDIDATE_SEARCH_FIELDS = ["firstName", "lastName", "email", "phone", "position", "company.alias"];
+
+/**
+ * Кандидаты для ручной связи собеседника («Кто это?» → «Это он»): каждое слово
+ * запроса должно найтись хоть в одном поле; клиенты первыми. Наружу — имя,
+ * должность и компания (present.candidateRow), контактов нет.
+ */
+exports.candidates = async (req, res, next) => {
+  try {
+    await loadVisibleIdentity(req);
+    const terms = String(req.query.q || "").trim().split(/\s+/).filter(Boolean).slice(0, 4);
+    if (!terms.length) return res.status(200).json({ items: [] });
+    const and = terms.map((term) => {
+      const pattern = new RegExp(escapeRegExp(term.slice(0, 64)), "i");
+      return { $or: CANDIDATE_SEARCH_FIELDS.map((field) => ({ [field]: pattern })) };
+    });
+    const found = await User.find({ $and: [{ isServiceAccount: { $ne: true } }, ...and] })
+      .select("firstName lastName position company banned banExpires")
+      .sort({ isEndUser: -1, lastName: 1, firstName: 1 })
+      .limit(16)
+      .lean();
+    // Срок отключения смотрит isBanned, а не сырой banned (у отключения есть срок)
+    const items = found.filter((user) => !isBanned(user)).slice(0, 8).map(candidateRow);
+    res.status(200).json({ items });
+  } catch (error) {
+    next(wrap(error, "Не удалось найти пользователей"));
   }
 };
 
