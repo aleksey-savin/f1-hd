@@ -97,36 +97,7 @@ host_ip() {
 port_of()  { printf '%s' "${1##*:}"; }
 bind_host() { case "$1" in *:*) printf '%s' "${1%:*}" ;; *) printf '127.0.0.1' ;; esac; }
 
-# The previous layout kept production settings in .env.prod. Convert it once:
-# known keys are carried over, renamed where the name changed, dead keys are
-# dropped. The old file stays next to it as .env.prod.migrated.
-migrate_legacy_env() {
-  [ -f .env ] && return 0
-  [ -f .env.prod ] || return 0
-  log "Converting .env.prod to .env"
-  local legacy_get key value
-  legacy_get() { sed -n "s/^$1=//p" .env.prod | tail -n 1 | sed "s/^'\(.*\)'\$/\1/; s/^\"\(.*\)\"\$/\1/"; }
-  : > .env
-  chmod 600 .env
-  for key in MONGODB_USERNAME MONGODB_PASSWORD MONGODB_DATABASE BETTER_AUTH_SECRET TG_API_TOKEN TG_TOKEN \
-             TICKET_COUNTER_STARTING_NUMBER ADD_TICKET_LOG CORS_ORIGINS TRUST_PROXY_HOPS \
-             S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_BUCKET_NAME S3_REGION S3_ENDPOINT S3_FORCE_PATH_STYLE S3_KMS_KEY_ID \
-             BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD BOOTSTRAP_ADMIN_FIRST_NAME BOOTSTRAP_ADMIN_LAST_NAME \
-             BOOTSTRAP_COMPANY_TITLE BOOTSTRAP_ORG_NAME; do
-    value=$(legacy_get "$key")
-    [ -n "$value" ] && env_set "$key" "$value"
-  done
-  value=$(legacy_get APP_PUBLIC_URL); [ -n "$value" ] || value=$(legacy_get API_URL)
-  [ -n "$value" ] && env_set APP_PUBLIC_URL "$value"
-  value=$(legacy_get APP_ENC_KEY); [ -n "$value" ] || value=$(legacy_get MIKROTIK_ENC_KEY)
-  [ -n "$value" ] && env_set APP_ENC_KEY "$value"
-  mv .env.prod .env.prod.migrated
-  echo "   done; the old file is kept as .env.prod.migrated (dead keys were not carried over)"
-  return 0
-}
-
 ensure_env() {
-  migrate_legacy_env
   [ -f .env ] || : > .env
   chmod 600 .env
   [ -n "$(env_get MONGODB_USERNAME)" ]   || env_set MONGODB_USERNAME hd
@@ -149,13 +120,9 @@ ensure_env() {
   fi
 }
 
-# Database credentials for backup/restore. Falls back to .env.prod so `backup`
-# works on a host that still runs the previous layout.
+# Database credentials for backup/restore.
 load_env() {
-  if [ -f .env ]; then ENV_FILE=.env
-  elif [ -f .env.prod ]; then ENV_FILE=.env.prod
-  else die "no .env here — run ./deploy.sh env first"
-  fi
+  [ -f "$ENV_FILE" ] || die "no .env here — run ./deploy.sh env first"
   DB_USER=$(env_get MONGODB_USERNAME)
   DB_PASS=$(env_get MONGODB_PASSWORD)
   DB_NAME=$(env_get MONGODB_DATABASE)
@@ -166,10 +133,7 @@ load_env() {
 # --- docker helpers ---------------------------------------------------------
 
 mongo_container() {
-  local id
-  id=$(dc ps -q mongodb 2>/dev/null | head -n 1)
-  [ -n "$id" ] || id=$(docker ps -q --filter 'name=^hd-mongodb-prod$' | head -n 1)
-  printf '%s' "$id"
+  dc ps -q mongodb 2>/dev/null | head -n 1
 }
 
 ensure_volumes() {
@@ -179,13 +143,6 @@ ensure_volumes() {
   done
 }
 
-# Containers from the previous layout (fixed container_name) would hold the
-# volumes and ports; the new stack replaces them.
-stop_legacy() {
-  docker rm -f hd-mongodb-prod hd-backend-prod hd-frontend-prod hd-tg-service-prod hd-tg-service hd-telegram-bot-prod \
-    >/dev/null 2>&1 || true
-}
-
 # Keep the images that run now as hd-<service>:prev for a quick rollback.
 tag_previous() {
   local service id
@@ -193,39 +150,6 @@ tag_previous() {
     id=$(dc images -q "$service" 2>/dev/null | head -n 1)
     [ -n "$id" ] && docker tag "$id" "hd-$service:prev" >/dev/null 2>&1 || true
   done
-}
-
-# The previous backend image ran as uid 1001; the current one runs as `node`
-# (1000). Files written by the old one must be writable by the new one.
-fix_volume_owner() {
-  local volume
-  for volume in hd_uploads hd_storage; do
-    docker volume inspect "$volume" >/dev/null 2>&1 || continue
-    docker run --rm -v "$volume:/v" alpine sh -c \
-      '[ -z "$(find /v ! -user 1000 | head -n 1)" ] || chown -R 1000:1000 /v'
-  done
-}
-
-# Major version of the MongoDB that last used hd_data on this host (empty when
-# none did). Uses the image ID, not its tag: an untagged `mongo` may already
-# point at a newer pull than the one the data was written with.
-mongo_major_on_volume() {
-  docker volume inspect hd_data >/dev/null 2>&1 || return 0
-  local container image
-  container=$(docker ps -aq --filter volume=hd_data | head -n 1)
-  [ -n "$container" ] || return 0
-  image=$(docker inspect -f '{{.Image}}' "$container")
-  docker run --rm --entrypoint mongod "$image" --version 2>/dev/null \
-    | sed -n 's/^db version v\([0-9]*\)\..*/\1/p'
-}
-
-upgrade_mongo_if_needed() {
-  local major
-  major=$(mongo_major_on_volume)
-  if [ -n "$major" ] && [ "$major" -lt 8 ]; then
-    log "MongoDB $major.x data found on this host — upgrading it in place to 8"
-    scripts/mongo-upgrade.sh
-  fi
 }
 
 db_is_empty() {
@@ -295,9 +219,8 @@ restore() {
   cat <<MSG
 
 Restored. Next:
-  ./deploy.sh migrate status
-  ./deploy.sh migrate baseline <id>    # data from the pre-better-auth prod: 2026-07-24-backfillUserLastActivity
-  ./deploy.sh                          # migrate the rest and start
+  ./deploy.sh migrate status           # the ledger comes with the dump
+  ./deploy.sh                          # migrate what is pending and start
 MSG
 }
 
@@ -309,15 +232,12 @@ migrate() {
 
 deploy() {
   need_tools; ensure_docker; ensure_env; load_env
-  upgrade_mongo_if_needed
-  stop_legacy
   tag_previous
   ensure_volumes
   log "Building images"
   dc build --pull
   log "Starting MongoDB"
   dc up -d --wait mongodb
-  fix_volume_owner
   if db_is_empty; then
     log "Empty database: the first start creates the administrator"
   else

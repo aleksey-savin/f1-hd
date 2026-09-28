@@ -42,8 +42,8 @@ must show the question as it was asked.
 
 `key` is the identity, `name` is a label. Answers are matched by `key`, falling
 back to `name` for templates created before keys existed
-(`backfillTemplateFieldKeys.js` / `pnpm migrate:template-field-keys` assigns the
-missing ones; without it, keys appear on the template's next save).
+(existing templates got keys from a one-off backfill; a template without them
+gets keys on its next save).
 
 ## Answer format per type
 

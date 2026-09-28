@@ -63,7 +63,42 @@ import { useCan } from "@/store/authed-user";
 const dash = <span className="text-faint">—</span>;
 
 const pillClass =
-  "mt-2.5 inline-flex max-w-full items-center gap-2 rounded-lg bg-accent px-2.5 py-1.5 text-sm text-muted-foreground no-underline";
+  "mt-2.5 inline-flex max-w-full items-center gap-2 rounded-lg bg-accent px-2.5 py-1.5 text-sm text-muted-foreground no-underline max-md:flex max-md:w-full max-md:py-2";
+
+/**
+ * Ошибка связи и заявка текущего эпизода недоступности. Десктоп — строкой под
+ * героем; телефон — подложкой внутри героя, под статусом: длинное сообщение
+ * («connect ETIMEDOUT адрес:порт») переносится по символам, заявка — ниже.
+ */
+const EpisodeLine = ({ row, status, className }) => {
+  if (status !== "offline" || (!row.lastError && !row.alertTicket)) {
+    return null;
+  }
+  return (
+    <div
+      className={cn(
+        "mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground",
+        "max-md:flex-col max-md:items-start max-md:rounded-lg max-md:bg-destructive/10 max-md:px-2.5 max-md:py-2",
+        className,
+      )}
+    >
+      {row.lastError && (
+        <span className="font-mono text-xs text-faint max-md:break-all max-md:text-foreground">
+          {row.lastError}
+        </span>
+      )}
+      {row.alertTicket && (
+        <Link
+          to={`/tickets/${row.alertTicket.num}`}
+          className="inline-flex items-center gap-1.5 font-medium text-accent-text no-underline hover:underline"
+        >
+          <RiPulseLine size={14} aria-hidden />
+          Заявка {row.alertTicket.num} о недоступности
+        </Link>
+      )}
+    </div>
+  );
+};
 
 /**
  * Строка hero «карточка инвентаря»: у записи есть карточка — одна ссылка на
@@ -99,7 +134,7 @@ const InventoryLine = ({ row, canManage, onChanged }) => {
         className={cn(pillClass, "hover:text-foreground")}
       >
         <RiArchive2Line size={15} aria-hidden className="flex-none" />
-        <span className="min-w-0 truncate">
+        <span className="min-w-0 truncate max-md:flex-1">
           Карточка инвентаря:{" "}
           <span className="font-medium text-accent-text">
             {facts.join(" · ") || "открыть"}
@@ -307,11 +342,15 @@ const MikrotikRecordPage = () => {
     <div className="mx-auto w-full max-w-5xl">
       <Crumbs />
 
-      {/* ── Hero ── */}
-      <div className="flex flex-wrap items-start gap-4">
-        <DeviceTile row={row} size="lg" />
-        <div className="min-w-0 flex-1">
-          <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight">
+      {/* ── Hero ──
+          Сетка: на десктопе плитка слева на две строки, справа действия, в
+          средней колонке имя и под ним детали. На телефоне (макет 28.09) рядом
+          с плиткой только имя; детали и ряд действий («Изменить» во всю ширину
+          + «⋯») — на всю ширину ниже. */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-4 md:grid-cols-[auto_minmax(0,1fr)_auto]">
+        <DeviceTile row={row} size="lg" className="md:row-span-2" />
+        <div className="min-w-0">
+          <h1 className="my-0 text-2xl leading-tight font-semibold tracking-tight wrap-anywhere">
             {row.displayName}
           </h1>
           {/* Вид и компания — у связанной записи их знает карточка,
@@ -319,7 +358,9 @@ const MikrotikRecordPage = () => {
           <div className="mt-2 text-sm text-muted-foreground">
             {[row.type, row.company?.name].filter(Boolean).join(" · ")}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+        </div>
+        <div className="col-span-2 min-w-0 md:col-span-1 md:col-start-2">
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm max-md:mt-3">
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 font-semibold",
@@ -357,6 +398,8 @@ const MikrotikRecordPage = () => {
               {plural(activeAddresses.length, "адрес", "адреса", "адресов")}
             </span>
           </div>
+          {/* Телефон: ошибка эпизода — сразу под статусом, до карточки */}
+          <EpisodeLine row={row} status={status} className="md:hidden" />
           <InventoryLine
             row={row}
             canManage={canManage}
@@ -364,7 +407,7 @@ const MikrotikRecordPage = () => {
           />
         </div>
         {canManage && (
-          <div className="flex flex-none items-center gap-2">
+          <div className="col-span-2 mt-3 flex items-center gap-2 md:col-span-1 md:col-start-3 md:row-start-1 md:mt-0 md:flex-none">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" aria-label="Ещё действия">
@@ -392,7 +435,8 @@ const MikrotikRecordPage = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button asChild>
+            {/* На телефоне главное действие первым и во всю ширину */}
+            <Button asChild className="max-md:order-first max-md:flex-1">
               <Link to="update">
                 <RiEdit2Line /> Изменить
               </Link>
@@ -401,25 +445,8 @@ const MikrotikRecordPage = () => {
         )}
       </div>
 
-      {/* Статусные детали: ошибка и заявка эпизода */}
-      {status === "offline" && (row.lastError || row.alertTicket) && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          {row.lastError && (
-            <span className="font-mono text-xs text-faint">
-              {row.lastError}
-            </span>
-          )}
-          {row.alertTicket && (
-            <Link
-              to={`/tickets/${row.alertTicket.num}`}
-              className="inline-flex items-center gap-1.5 font-medium text-accent-text no-underline hover:underline"
-            >
-              <RiPulseLine size={14} aria-hidden />
-              Заявка {row.alertTicket.num} о недоступности
-            </Link>
-          )}
-        </div>
-      )}
+      {/* Статусные детали: ошибка и заявка эпизода (десктоп — под героем) */}
+      <EpisodeLine row={row} status={status} className="max-md:hidden" />
 
       {/* Секции одним скроллом; слева — липкий рейл-якорь (только десктоп) */}
       <div className="flex items-start gap-7">
@@ -551,7 +578,7 @@ const MikrotikRecordPage = () => {
                   {firmware.cves.map((cve) => (
                     <div
                       key={cve.id}
-                      className="flex items-baseline gap-2.5 border-t border-border-soft py-1.5 text-sm first:border-t-0"
+                      className="flex items-baseline gap-2.5 border-t border-border-soft py-1.5 text-sm first:border-t-0 max-md:flex-wrap max-md:gap-y-0.5 max-md:py-2"
                     >
                       <span className="flex-none font-mono">{cve.id}</span>
                       <span
@@ -562,7 +589,8 @@ const MikrotikRecordPage = () => {
                       >
                         {cve.score} {cve.severity?.toLowerCase()}
                       </span>
-                      <span className="min-w-0 truncate text-muted-foreground">
+                      {/* Телефон: описание своей строкой, до двух строк */}
+                      <span className="min-w-0 text-muted-foreground max-md:line-clamp-2 max-md:basis-full md:truncate">
                         {cve.description}
                       </span>
                     </div>
@@ -611,7 +639,28 @@ const MikrotikRecordPage = () => {
               </div>
             ) : (
               <>
-                <div className="flex gap-3.5 border-b border-border-soft pb-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
+                {/* Телефон: вместо таблицы (колонки шире панели) — адрес и
+                    под ним «интерфейс · комментарий» */}
+                {activeAddresses.map((address) => (
+                  <div
+                    key={address._id || address.address}
+                    className="border-t border-border-soft py-2 first:border-t-0 md:hidden"
+                  >
+                    <div className="font-mono text-sm wrap-anywhere">
+                      {address.address}
+                    </div>
+                    <div className="text-xs text-faint">
+                      {[
+                        address.interface,
+                        address.comment,
+                        address.dynamic === "true" ? "динамический" : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "—"}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex gap-3.5 border-b border-border-soft pb-1.5 text-xs font-semibold tracking-wide text-faint uppercase max-md:hidden">
                   <span className="w-44 flex-none">Адрес</span>
                   <span className="hidden w-36 flex-none md:block">Сеть</span>
                   <span className="w-32 flex-none">Интерфейс</span>
@@ -620,7 +669,7 @@ const MikrotikRecordPage = () => {
                 {activeAddresses.map((address) => (
                   <div
                     key={address._id || address.address}
-                    className="flex items-baseline gap-3.5 border-b border-border-soft py-2 text-sm last:border-b-0"
+                    className="flex items-baseline gap-3.5 border-b border-border-soft py-2 text-sm last:border-b-0 max-md:hidden"
                   >
                     <span className="w-44 flex-none font-mono">
                       {address.address}

@@ -56,7 +56,7 @@ const scopeFixtures = () => {
   const legacy = vpn(1, "VPN legacy без сканера");
   delete legacy.secretsScan; // заметка старше сканера — поля нет вовсе
   const legacyUnapproved = vpn(6, "VPN legacy без approved");
-  delete legacyUnapproved.approved; // до backfillNoteApproval поля не было
+  delete legacyUnapproved.approved; // у старых заметок поля не было
   delete legacyUnapproved.approvedAt;
   return [
     legacy,

@@ -570,9 +570,9 @@ const Chronicle = ({
         Хроника
       </Eyebrow>
 
-      {/* Высота панели постоянная: лента листается внутри, поле ответа
-          прижато к низу, у короткой ленты реплики стоят у поля */}
-      <div className="flex h-[calc(100dvh-186px)] min-h-96 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      {/* Панель по высоте ленты, но не выше экрана: длинная лента листается
+          внутри, поле ответа прижато к низу */}
+      <div className="flex max-h-[max(24rem,calc(100dvh-186px))] flex-col overflow-hidden rounded-xl border border-border bg-card">
         <div
           ref={scroller}
           onScroll={onScroll}

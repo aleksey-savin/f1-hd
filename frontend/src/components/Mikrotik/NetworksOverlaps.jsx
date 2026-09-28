@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { RiArrowRightSLine } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";
 
@@ -7,33 +8,59 @@ import { OVERLAP_META, overlapReason } from "./meta";
 /**
  * Строка адреса внутри группы пересечения.
  *
- * Раскладка одна на обе ширины: на десктопе — четыре колонки фиксированной
- * ширины (правый край групп ровный), на узком — адрес строкой и вся мета под
- * ним. Отдельной мобильной ветки нет: расходится только сетка, а не состав.
+ * Десктоп — четыре колонки фиксированной ширины (правый край групп ровный),
+ * ссылка на запись — на имени устройства. Телефон (макет 28.09) — вся строка
+ * ссылка на запись: адрес, под ним устройство первым (с ним и сталкиваются) и
+ * через точку интерфейс и комментарий.
  */
 const OverlapRow = ({ entry, clashing }) => {
   const clash = clashing.includes(entry.address);
-  const meta = [entry.interface, entry.deviceName, entry.comment]
-    .filter(Boolean)
-    .join(" · ");
+  const rest = [entry.interface, entry.comment].filter(Boolean).join(" · ");
+  const address = (
+    <span
+      className={cn(
+        "font-medium tabular-nums",
+        clash && "font-semibold text-destructive",
+      )}
+    >
+      {entry.address}
+    </span>
+  );
 
   return (
-    <div className="grid items-baseline gap-x-4 border-t border-border-soft px-4 py-1.5 text-sm md:grid-cols-[11rem_11rem_12rem_minmax(0,1fr)]">
-      <span
-        className={cn(
-          "font-medium tabular-nums",
-          clash && "font-semibold text-destructive",
-        )}
+    <>
+      <Link
+        to={`/devices/mikrotik/records/${entry.recordId}`}
+        className="flex items-center gap-2 border-t border-border-soft px-4 py-1.5 text-sm text-foreground no-underline hover:bg-accent hover:text-foreground md:hidden"
       >
-        {entry.address}
-      </span>
-      {/* На узком экране интерфейс, устройство и комментарий идут одной
-          приглушённой строкой; на десктопе они разъезжаются по колонкам. */}
-      <span className="truncate text-muted-foreground md:hidden">{meta}</span>
-      <span className="truncate text-muted-foreground max-md:hidden">
+        <span className="min-w-0 flex-1">
+          <span className="block">{address}</span>
+          <span className="block truncate text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {entry.deviceName}
+            </span>
+            {rest && ` · ${rest}`}
+          </span>
+        </span>
+        <RiArrowRightSLine
+          size={16}
+          aria-hidden
+          className="flex-none text-faint"
+        />
+      </Link>
+      <OverlapRowDesktop entry={entry} address={address} />
+    </>
+  );
+};
+
+const OverlapRowDesktop = ({ entry, address }) => {
+  return (
+    <div className="grid items-baseline gap-x-4 border-t border-border-soft px-4 py-1.5 text-sm max-md:hidden md:grid-cols-[11rem_11rem_12rem_minmax(0,1fr)]">
+      {address}
+      <span className="truncate text-muted-foreground">
         {entry.interface || <span className="text-faint">—</span>}
       </span>
-      <span className="truncate max-md:hidden">
+      <span className="truncate">
         <Link
           to={`/devices/mikrotik/records/${entry.recordId}`}
           className="text-foreground no-underline hover:underline"
@@ -41,7 +68,7 @@ const OverlapRow = ({ entry, clashing }) => {
           {entry.deviceName}
         </Link>
       </span>
-      <span className="truncate text-muted-foreground max-md:hidden">
+      <span className="truncate text-muted-foreground">
         {entry.comment || <span className="text-faint">—</span>}
       </span>
     </div>

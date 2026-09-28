@@ -168,8 +168,8 @@ const to = dayjs.tz(date, tz).endOf("month").toDate();
 графика действует» — берём `dayKey(date, tz)`, а не `getDate()` и не
 `toISOString().slice(0, 10)`: сервер в UTC, и для восточных поясов сутки
 наступают позже. Обратно в `Date` (для запроса по календарным полям) —
-`dayKeyToUtcMidnight`. Так устроены `services/workStatusReset.js`
-(присутствие по отсутствиям) и `scripts/migrateWorkSchedules.js`.
+`dayKeyToUtcMidnight`. Так устроен `services/workStatusReset.js`
+(присутствие по отсутствиям).
 
 ### Cron / планировщики
 

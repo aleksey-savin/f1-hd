@@ -168,6 +168,20 @@ const MikrotikDevices = () => {
       : []),
   ];
 
+  const networksLink = canManage && (
+    <Button
+      asChild
+      variant="ghost"
+      size="sm"
+      className="flex-none text-muted-foreground"
+    >
+      <Link to="/report/networks">
+        <RiDraftLine aria-hidden />
+        Диапазоны сетей
+      </Link>
+    </Button>
+  );
+
   return (
     <ListWrapper
       title={() => "Мониторинг Mikrotik"}
@@ -196,24 +210,13 @@ const MikrotikDevices = () => {
       topContent={
         // Ряд под шапкой: полоса RouterOS + «Диапазоны сетей» (переехали из
         // меню «Отчёты»; строка инструментов и без того плотная, а правый
-        // край этого ряда свободен).
+        // край этого ряда свободен). На телефоне ссылка уезжает в строку
+        // заголовка полосы — рядом с плитками ей места нет.
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <div className="min-w-0 flex-1">
-            <RouterOsStrip />
+            <RouterOsStrip mobileAside={networksLink || null} />
           </div>
-          {canManage && (
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className="flex-none text-muted-foreground"
-            >
-              <Link to="/report/networks">
-                <RiDraftLine aria-hidden />
-                Диапазоны сетей
-              </Link>
-            </Button>
-          )}
+          {networksLink && <div className="max-md:hidden">{networksLink}</div>}
         </div>
       }
     >

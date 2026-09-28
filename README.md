@@ -86,11 +86,9 @@ host installed with `deploy.sh`. The dump is read from production over SSH
 into the local database; `mongorestore` from `mongodb-database-tools` is used
 when installed, otherwise the one inside the `mongodb` container. Production is
 never written to and the `preferences` collection is left untouched;
-`./sync-dev-db.sh --help` lists the options. Afterwards run the data migrations
-(`./deploy.sh migrate baseline 2026-07-24-backfillUserLastActivity` and
-`./deploy.sh migrate up`; on the dev machine the same via
-`docker compose run --rm backend node scripts/migrate.js …`), otherwise nobody
-can sign in.
+`./sync-dev-db.sh --help` lists the options. The copy carries the production
+migration ledger; afterwards run `./deploy.sh migrate up` for what this code
+adds (on the dev machine: `docker compose run --rm backend node scripts/migrate.js up`).
 
 ## Conventions
 

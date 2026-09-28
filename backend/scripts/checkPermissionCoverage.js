@@ -41,7 +41,6 @@ const SKIP_DIRS = new Set(["node_modules", "logs", "uploads", ".git"]);
 // проверены, и без этого исключения проверка подтверждала бы саму себя.
 const SKIP_FILES = new Set([
   path.join(ROOT, "auth", "access.js"),
-  path.join(ROOT, "scripts", "legacyPermissions.js"),
   path.join(ROOT, "scripts", "checkPermissionCoverage.js"),
 ]);
 

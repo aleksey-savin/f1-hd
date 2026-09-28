@@ -68,21 +68,27 @@ const AvailabilitySection = ({ recordId }) => {
     },
   ];
 
+  const periodSwitch = (className) => (
+    <Segmented
+      ariaLabel="Период отчёта"
+      options={PERIODS.map(({ value, label }) => ({ value, label }))}
+      value={period}
+      onChange={setPeriod}
+      className={className}
+    />
+  );
+
   return (
     <>
+      {/* Телефон: переключатель не делит строку с меткой, а стоит под ней
+          во всю ширину (макет 28.09) */}
       <Eyebrow
         id="availability"
-        action={
-          <Segmented
-            ariaLabel="Период отчёта"
-            options={PERIODS.map(({ value, label }) => ({ value, label }))}
-            value={period}
-            onChange={setPeriod}
-          />
-        }
+        action={<div className="max-md:hidden">{periodSwitch()}</div>}
       >
         Доступность
       </Eyebrow>
+      {periodSwitch("mb-2 w-full md:hidden")}
       <Panel>
         <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
           {stats.map((stat) => (
@@ -124,8 +130,47 @@ const AvailabilitySection = ({ recordId }) => {
               Инцидентов за период не было.
             </div>
           )}
+          {/* Телефон: две колонки — начало и под ним конец, справа
+              длительность и под ней заявка (в таблице конец не помещался) */}
+          {report &&
+            report.outages.map((outage) => (
+              <div
+                key={outage.id}
+                className="flex justify-between gap-2.5 border-t border-border-soft py-2 text-sm tabular-nums md:hidden"
+              >
+                <div className="min-w-0">
+                  {formatDate(outage.startedAt)}
+                  <div className="text-xs">
+                    {outage.ongoing ? (
+                      <span className="font-semibold text-destructive">
+                        продолжается
+                      </span>
+                    ) : (
+                      <span className="text-faint">
+                        до {formatDate(outage.endedAt)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex-none text-end">
+                  {formatDurationShort(outage.durationMs)}
+                  <div className="text-xs">
+                    {outage.ticketNum ? (
+                      <Link
+                        to={`/tickets/${outage.ticketNum}`}
+                        className="font-semibold text-accent-text no-underline hover:underline"
+                      >
+                        {outage.ticketNum}
+                      </Link>
+                    ) : (
+                      <span className="text-faint">—</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           {report && report.outages.length > 0 && (
-            <>
+            <div className="max-md:hidden">
               <div className="flex gap-3.5 border-b border-border-soft pb-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
                 <span className="w-44 flex-none">Начало</span>
                 <span className="hidden w-44 flex-none md:block">Конец</span>
@@ -164,7 +209,7 @@ const AvailabilitySection = ({ recordId }) => {
                   )}
                 </div>
               ))}
-            </>
+            </div>
           )}
         </div>
       </Panel>

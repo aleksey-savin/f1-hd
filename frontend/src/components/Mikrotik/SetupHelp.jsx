@@ -295,8 +295,9 @@ const SetupHelp = ({
             </div>
           </div>
 
-          {/* «Терминал» — тёмный в обеих темах */}
-          <div className="max-h-96 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 p-2.5">
+          {/* «Терминал» — тёмный в обеих темах. На телефоне без своей
+              прокрутки: вложенный скролл внутри шторки ловит палец */}
+          <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-2.5 md:max-h-96 md:overflow-y-auto">
             {commandLines.map((line, i) => {
               // Скопированная команда остаётся подсвеченной — видно, что уже
               // перенесено в терминал, а что ещё нет.
@@ -322,8 +323,12 @@ const SetupHelp = ({
                       type="button"
                       onClick={() => copyLine(line)}
                       title="Скопировать строку"
+                      aria-label="Скопировать строку"
                       className={cn(
                         "mt-0.5 flex-none cursor-pointer appearance-none border-0 bg-transparent p-0 transition-colors",
+                        // Телефон: зона нажатия 32 px, глиф прежний;
+                        // отрицательные поля держат высоту строки
+                        "max-md:-my-1.5 max-md:-me-1.5 max-md:grid max-md:size-8 max-md:place-items-center",
                         copied
                           ? "text-primary"
                           : "text-zinc-500 hover:text-zinc-200",

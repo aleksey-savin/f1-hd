@@ -85,6 +85,48 @@ test("«Составить чек-лист»: performer on own non-routine ticke
   );
 });
 
+test("«Изменить чек-лист»: only when items exist, same rights, closed too", () => {
+  const withItems = {
+    state: "В работе",
+    responsibles: [{ _id: me }],
+    checklist: [{ _id: "c1", description: "Проверить" }],
+  };
+  const menuKeys = (ticket, granted) =>
+    keys(ticketActions(ticket, ctx(granted)).menu);
+
+  assert.ok(
+    menuKeys(withItems, { ticket: ["perform"] }).includes("editChecklist"),
+  );
+  assert.ok(
+    !menuKeys(withItems, { ticket: ["perform"] }).includes("makeChecklist"),
+  );
+  assert.ok(
+    !menuKeys(
+      { ...withItems, checklist: [] },
+      { ticket: ["perform"] },
+    ).includes("editChecklist"),
+  );
+  assert.ok(
+    !menuKeys(
+      { ...withItems, routineTask: { _id: "r1" } },
+      { ticket: ["perform"] },
+    ).includes("editChecklist"),
+  );
+  // Карандаш секции был и на закрытой заявке — пункт меню его заменяет
+  assert.ok(
+    menuKeys(
+      { ...withItems, state: "Закрыта" },
+      { ticket: ["perform"] },
+    ).includes("editChecklist"),
+  );
+  assert.ok(
+    !menuKeys(
+      { ...withItems, isArchived: true },
+      { ticket: ["manage"] },
+    ).includes("editChecklist"),
+  );
+});
+
 test("client: only reopening own closed ticket", () => {
   const closed = { state: "Закрыта", applicant: { _id: me }, responsibles: [] };
   const result = ticketActions(closed, ctx({}, { isEndUser: true }));

@@ -12,7 +12,7 @@ const {
 //  • из формы пустое поле означает «не менять» — канон ключа PRO32 Connect
 //    (controllers/user.js).
 // Значения, сохранённые до ввода шифрования, читаются как есть и дошифруются
-// первым же сохранением или скриптом scripts/migrateMailSettings.js.
+// первым же сохранением.
 
 const SECRET_PATHS = [
   "mailbox.password",

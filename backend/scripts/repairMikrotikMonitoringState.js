@@ -24,8 +24,8 @@ const MikrotikOutage = require("../models/mikrotikOutage");
 // Скрипт безопасно запускать повторно. По умолчанию — сухой прогон (только отчёт).
 // Запускать ПОСЛЕ выката кода, иначе старый код наплодит фантомов прямо во время
 // чистки:
-//   docker exec hd-backend-prod node scripts/repairMikrotikMonitoringState.js
-//   docker exec hd-backend-prod node scripts/repairMikrotikMonitoringState.js --apply
+//   docker compose exec backend node scripts/repairMikrotikMonitoringState.js
+//   docker compose exec backend node scripts/repairMikrotikMonitoringState.js --apply
 const APPLY = process.argv.includes("--apply");
 
 // Устройство «действительно лежит» только если офлайн подтверждён краем потери связи.

@@ -140,14 +140,9 @@ ai: {
   by the permission; existing transcripts stay visible as attachment content.
   The frontend asks one request everywhere: `Ticket/View/ai-access.js#AI_ACCESS`
   (`{ ticket: ["perform"], ai: ["use"] }`).
-  Rollout: `scripts/grantAiUse.js` (migration `2026-09-21-grantAiUse`) adds the
-  action to every staff role that has `ticket.perform` except outside-performer
-  roles (`services/actionMigration.js#receivesAiUse`). It only appends one
-  action — unlike `syncRoleCatalogue`, it does not overwrite roles edited in the
-  UI — and it must run: a full-access role that lacks a dictionary action stops
-  being `isFullAccess`. The rule is deliberately not in `DERIVED`, which
-  re-applies on every `migrateActions` run and would hand the permission back to
-  a role the owner took it from.
+  Rollout: a one-off migration (2026-09-21, applied everywhere, script removed)
+  added the action to every staff role that had `ticket.perform` except
+  outside-performer roles.
 - **API keys are encrypted at rest** (AES-256-GCM, `services/crypto/secretBox.js`,
   storage format `v1:<iv>:<tag>:<ciphertext>`). Every consumer must read them
   through `readStoredSecret` (`helpers/preferencesSecrets.js`), which also passes
@@ -159,7 +154,7 @@ ai: {
 - **One Yandex provider.** Foundation Models were renamed to AI Studio: one host,
   one catalogue, one auth scheme. The former `yandexgpt` provider (native
   `foundationModels/v1/completion` + a hardcoded three-model list) is gone;
-  `scripts/migrateAiProvider.js` moves an existing config onto `yandexai`.
+  existing configs were moved onto `yandexai` by a one-off migration.
 - **One provider for every self-hosted server.** Ollama (:11434), LM Studio
   (:1234), vLLM, llama.cpp and LocalAI all speak the same OpenAI-compatible
   `/v1`, so `local` differs from them only by `baseUrl` — a provider per product
@@ -922,7 +917,7 @@ Helpers: `preferencesSecrets.js`, **`knowledgeNoteDerived.js`**.
 Prompts: `ticketGuide.js`, `callSummary.js`, `transcription.js`,
 `ticketCategory.js`, **`ticketTerms.js`**, **`termReference.js`**.
 Middleware: `fileUpload.js`, `emailHandling.js`, `notifications.js`.
-Scripts: **`migrateAiProvider.js`**. Plus `package.json`, `tsconfig.json`.
+Plus `package.json`, `tsconfig.json`.
 
 Frontend — settings: `components/Preferences/Ai.jsx`, **`AiRules.jsx`**,
 **`channel-health.js`** (renamed from `mail-health.js`), `TicketsCollect.jsx`,

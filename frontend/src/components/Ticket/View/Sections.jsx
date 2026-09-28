@@ -3,6 +3,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useFetcher } from "react-router";
 import DOMPurify from "dompurify";
 import {
+  RiArrowDownSLine,
   RiArrowRightLine,
   RiBuilding2Line,
   RiCheckboxCircleLine,
@@ -28,13 +29,7 @@ import ApplicantPopup from "./ApplicantPopup";
 import { useCrumbFrom } from "@/components/app/Crumbs";
 import ClientTime from "@/components/app/ClientTime";
 import { copyText } from "@/components/app/PropRow";
-import {
-  Eyebrow,
-  Panel,
-  Section,
-  SectionEditLink,
-  SubLabel,
-} from "@/components/app/Panel";
+import { Eyebrow, Panel, Section, SubLabel } from "@/components/app/Panel";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -77,11 +72,11 @@ import { cn } from "@/lib/utils";
 import { useCan } from "@/store/authed-user";
 import { AI_ACCESS } from "./ai-access";
 
-// Секции карточки заявки. Все они ТОЛЬКО показывают: правка — в форме заявки.
-// Вход в неё — карандаш `app/SectionEditLink` в метке секции (проявляется по
-// наведению на секцию — её оборачивает `app/Section`), а залитая «Изменить» на
-// карточке одна, в шапке. Примитивы метки и панели — из каталога
-// `app/Panel`, своих не заводим.
+// Секции карточки заявки. Все они ТОЛЬКО показывают: правка — в форме заявки,
+// вход в неё один — «⋯» → «Изменить» в шапке. Карандаши в метках секций сняты
+// 28.09 (макет «Карточка заявки: телефон, карандаши, описание»): второй вход в
+// ту же форму. Примитивы метки и панели — из каталога `app/Panel`, своих не
+// заводим.
 
 /**
  * Пустая секция — одна строка, а не плакат: пустых секций на карточке заявки
@@ -108,13 +103,99 @@ export const EmptySection = ({ icon: Icon, hint }) => (
  * «Описание», счётчик файлов живёт в самой ленте: в метке он считал бы текст
  * вместе с файлами.
  */
-export const DescriptionSection = ({
-  ticket,
-  attachments,
-  uploadAction,
-  canEdit,
-  onEdit,
-}) => {
+/**
+ * Текст описания без своей прокрутки. Описание бывает огромным (логи бэкапа на
+ * 33 000 знаков), и раньше оно жило в окне max-h-96 со скроллом — на телефоне
+ * палец крутил то окно, то страницу. Теперь текст идёт в поток страницы до
+ * 15rem (телефон) / 18rem, дальше затухает и раскрывается «Показать
+ * полностью». Кнопка — только у текста, который действительно не поместился:
+ * замер после раскладки и при любом изменении размеров (картинки в письме
+ * догружаются, поворот телефона), поэтому смотрим и на рамку, и на текст.
+ */
+const DescriptionBody = ({ html, onPick }) => {
+  const frame = useRef(null);
+  const content = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    // Раскрытый текст не меряем: без обрезки он «помещается» всегда, и
+    // «Свернуть» исчезло бы
+    if (open) return undefined;
+    const frameNode = frame.current;
+    const contentNode = content.current;
+    if (!frameNode || !contentNode) return undefined;
+    const measure = () =>
+      setOverflows(contentNode.offsetHeight > frameNode.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(frameNode);
+    observer.observe(contentNode);
+    return () => observer.disconnect();
+  }, [html, open]);
+
+  const toggle = () => {
+    // Свернули, дочитав далеко вниз, — возвращаем к началу описания, иначе
+    // человек остаётся посреди следующих секций
+    if (open && frame.current?.getBoundingClientRect().top < 0) {
+      frame.current.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+    setOpen((value) => !value);
+  };
+
+  const clamped = !open && overflows;
+
+  return (
+    <>
+      <div className="relative">
+        <div
+          ref={frame}
+          className={cn(!open && "max-h-60 overflow-hidden md:max-h-72")}
+        >
+          {/* Кегль крупнее остальных секций: это единственный текст на
+              карточке, который читают целиком, а не сканируют */}
+          <div
+            ref={content}
+            className="md-doc text-base leading-relaxed break-words"
+            onClick={onPick}
+            onKeyDown={
+              onPick
+                ? (event) => {
+                    if (event.key === "Enter" || event.key === " ")
+                      onPick(event);
+                  }
+                : undefined
+            }
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        </div>
+        {clamped && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-b from-transparent to-card"
+          />
+        )}
+      </div>
+      {(overflows || open) && (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          className="mt-1.5 inline-flex cursor-pointer appearance-none items-center gap-1 border-0 bg-transparent p-0 text-sm font-semibold text-accent-text outline-none hover:underline focus-visible:underline"
+        >
+          {open ? "Свернуть" : "Показать полностью"}
+          <RiArrowDownSLine
+            size={16}
+            aria-hidden
+            className={cn("transition-transform", open && "rotate-180")}
+          />
+        </button>
+      )}
+    </>
+  );
+};
+
+export const DescriptionSection = ({ ticket, attachments, uploadAction }) => {
   const [showOriginal, setShowOriginal] = useState(false);
   const [openTerm, setOpenTerm] = useState(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -179,15 +260,6 @@ export const DescriptionSection = ({
               </Button>
             )}
             {uploadAction}
-            {canEdit && (
-              // Тема и описание правятся в форме заявки — карандаш открывает
-              // её сразу на этой секции
-              <SectionEditLink
-                to="update#description"
-                label="Описание"
-                onClick={onEdit}
-              />
-            )}
           </>
         }
       >
@@ -195,22 +267,9 @@ export const DescriptionSection = ({
       </Eyebrow>
       <Panel>
         {ticket.description ? (
-          // Описание бывает огромным (логи бэкапа на 33 000 знаков) —
-          // ограничиваем высоту и скроллим внутри, чтобы не растягивать колонку.
-          // Кегль крупнее остальных секций: это единственный текст на карточке,
-          // который читают целиком, а не сканируют.
-          <div
-            className="md-doc max-h-96 overflow-auto text-base leading-relaxed break-words"
-            onClick={clickable ? pickFromText : undefined}
-            onKeyDown={
-              clickable
-                ? (event) => {
-                    if (event.key === "Enter" || event.key === " ")
-                      pickFromText(event);
-                  }
-                : undefined
-            }
-            dangerouslySetInnerHTML={{ __html: html }}
+          <DescriptionBody
+            html={html}
+            onPick={clickable ? pickFromText : undefined}
           />
         ) : (
           <p className="my-0 text-sm text-muted-foreground">Нет описания</p>
@@ -267,16 +326,20 @@ export const DescriptionSection = ({
 
 /* ─────────────── Заявка (свойства) ─────────────── */
 
+// Телефон (макет 28.09): подпись мелко над значением — колонкой 112 px рядом
+// с иконкой она оставляла значению ~140 px, и адрес рассыпался по слову
 const PropRow = ({ icon, label, children, action }) => (
   <div className="flex items-start gap-3 border-t border-border-soft py-2.5 first:border-t-0 first:pt-0">
     <span className="grid size-8 flex-none place-items-center rounded-lg bg-accent text-muted-foreground">
       {icon}
     </span>
-    <span className="w-28 flex-none pt-1.5 text-sm text-muted-foreground">
-      {label}
-    </span>
-    <span className="min-w-0 flex-1 pt-1 text-sm leading-snug">
-      {children || <span className="text-faint">—</span>}
+    <span className="min-w-0 flex-1 md:flex md:gap-3">
+      <span className="block text-xs text-faint md:w-28 md:flex-none md:pt-1.5 md:text-sm md:text-muted-foreground">
+        {label}
+      </span>
+      <span className="block min-w-0 text-sm leading-snug max-md:mt-0.5 md:flex-1 md:pt-1">
+        {children || <span className="text-faint">—</span>}
+      </span>
     </span>
     {/* Флекс, а не голый span: кнопка такси объявлена `grid` (блочный бокс), и
         рядом с ней копирование уезжало на строку ниже */}
@@ -397,9 +460,7 @@ const ClientAddressRow = ({ ticket, company, isEndUser }) => {
 export const FactsSection = ({
   ticket,
   company,
-  canEdit,
   onShowLogs,
-  onEdit,
   dialog = null,
 }) => {
   const { isEndUser } = useContext(AuthedUserContext);
@@ -447,21 +508,7 @@ export const FactsSection = ({
 
   return (
     <Section>
-      <Eyebrow
-        id="ticket-facts"
-        action={
-          canEdit && (
-            // Ключ секции формы = якорь: форма откроется прокрученной сюда
-            <SectionEditLink
-              to="update#details"
-              label="Детали"
-              onClick={onEdit}
-            />
-          )
-        }
-      >
-        Детали
-      </Eyebrow>
+      <Eyebrow id="ticket-facts">Детали</Eyebrow>
       <Panel>
         {showCompanyAndAddress && (
           <PropRow

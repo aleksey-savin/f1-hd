@@ -162,7 +162,15 @@ const ConfigsSection = ({ recordId, schedule }) => {
               disabled={exporting}
               onClick={exportNow}
             >
-              {exporting ? "Экспортируем…" : "Экспортировать сейчас"}
+              {exporting ? (
+                "Экспортируем…"
+              ) : (
+                <>
+                  {/* На телефоне метка секции тесная — короткая подпись */}
+                  <span className="md:hidden">Экспорт</span>
+                  <span className="max-md:hidden">Экспортировать сейчас</span>
+                </>
+              )}
             </Button>
           </>
         }
@@ -177,7 +185,8 @@ const ConfigsSection = ({ recordId, schedule }) => {
             aria-hidden
             className="flex-none text-faint"
           />
-          <span className="min-w-0 flex-1 truncate">
+          {/* Телефон: сводка переносится, а не обрезается */}
+          <span className="min-w-0 flex-1 md:truncate">
             {scheduleText ? (
               <>
                 Экспорт {scheduleText} · хранить {schedule?.keepLast ?? 10}{" "}
@@ -214,15 +223,23 @@ const ConfigsSection = ({ recordId, schedule }) => {
               key={artifact.id}
               className="flex items-center gap-3.5 border-b border-border-soft py-2 text-sm last:border-b-0"
             >
-              <span className="min-w-0 flex-1 truncate tabular-nums">
-                {formatDate(artifact.createdAt)}
-                <span className="text-faint">
-                  {" "}
-                  · {TRIGGER_LABEL[artifact.trigger] || artifact.trigger} ·{" "}
+              {/* Телефон: дата сверху, «как · где · размер» под ней,
+                  кнопки крупнее — под палец */}
+              <span className="min-w-0 flex-1 tabular-nums md:truncate">
+                <span className="max-md:block">
+                  {formatDate(artifact.createdAt)}
+                </span>
+                <span className="text-faint max-md:block max-md:text-xs">
+                  <span className="max-md:hidden"> · </span>
+                  {TRIGGER_LABEL[artifact.trigger] || artifact.trigger} ·{" "}
                   {STORAGE_LABEL[artifact.storage] || artifact.storage}
+                  <span className="md:hidden">
+                    {" "}
+                    · {formatBytes(artifact.size)}
+                  </span>
                 </span>
               </span>
-              <span className="w-20 flex-none text-muted-foreground tabular-nums">
+              <span className="w-20 flex-none text-muted-foreground tabular-nums max-md:hidden">
                 {formatBytes(artifact.size)}
               </span>
               <span className="flex flex-none gap-1.5">
@@ -231,6 +248,7 @@ const ConfigsSection = ({ recordId, schedule }) => {
                   size="icon-sm"
                   title="Скачать (код придёт на почту)"
                   aria-label="Скачать"
+                  className="max-md:size-9"
                   onClick={() => startDownload(artifact)}
                 >
                   <RiDownloadLine />
@@ -238,6 +256,7 @@ const ConfigsSection = ({ recordId, schedule }) => {
                 <Button
                   variant="outline"
                   size="icon-sm"
+                  className="max-md:size-9"
                   title="Удалить копию"
                   aria-label="Удалить копию"
                   onClick={() => setDeleting(artifact)}

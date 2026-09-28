@@ -912,8 +912,8 @@ module.exports = {
   rolesOfMember,
   namedRoles,
   slugify,
-  // Для миграции (`scripts/assignRoles.js`) и скриптов каталога
-  // (`syncRoleCatalogue.js`, `migrateActions.js`): правка ролей мимо приложения
+  // Для скриптов ролей (`syncRoleCatalogue.js`, `grantConversations.js` и
+  // т. п.): правка ролей мимо приложения
   // обязана оставить зеркало в том же виде, что и правка из интерфейса.
   refreshMirrorForUsers,
   refreshMirrorFor,

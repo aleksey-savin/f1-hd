@@ -171,7 +171,6 @@ const preferencesSchema = new Schema({
     // Мониторинг Mikrotik: опрос устройств, конфигурации, прошивки, авто-заявки.
     // От «Учёта техники» не зависит; связь записи с карточкой устройства
     // требует обоих модулей. До 2026-09-14 жил рубильником `mikrotik.isActive`
-    // (перенос — scripts/migrateMikrotikModule.js)
     mikrotik: { isActive: { type: Boolean, default: false } },
     // «Диалоги»: переписка из Telegram, WhatsApp, MAX и формы сайта в HD
     messaging: { isActive: { type: Boolean, default: false } },
@@ -334,10 +333,9 @@ const preferencesSchema = new Schema({
   knowledgeBase: {
     /**
      * УСТАРЕЛО. Модерация базы знаний — это право `knowledge.moderate` (роль
-     * `kb-moderator`), а не список в настройках: поле больше никем не читается,
-     * кроме разовой миграции `scripts/migrateActions.js`, которая по нему
-     * выдаёт роль прежним модераторам. Из настроек список уже убран; удалить
-     * поле ПОСЛЕ того, как миграция отработает на проде.
+     * `kb-moderator`), а не список в настройках: поле больше никем не читается
+     * (роль прежним модераторам выдала миграция 2026-09-12, она отработала на
+     * всех установках). Поле можно удалять.
      */
     moderators: [
       {
@@ -359,8 +357,7 @@ const preferencesSchema = new Schema({
   ai: {
     isActive: { type: Boolean, default: false },
     // Яндекс у списка один: Foundation Models переименованы в AI Studio, у них
-    // общий каталог и общая авторизация (перенос старых настроек —
-    // scripts/migrateAiProvider.js).
+    // общий каталог и общая авторизация.
     provider: {
       type: String,
       enum: ["openai", "anthropic", "deepseek", "yandexai", "local"],

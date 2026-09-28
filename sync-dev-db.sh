@@ -32,7 +32,7 @@ PROD_SSH="${PROD_SSH:-f1lab@10.0.50.70}"
 PROD_SSH_JUMP="${PROD_SSH_JUMP:-f1lab@10.0.50.10}"   # used only when prod's SSH port is unreachable directly
 PROD_MONGO_PORT="${PROD_MONGO_PORT:-27017}"          # port MongoDB publishes on the prod host
 PROD_MONGO_CONTAINER="${PROD_MONGO_CONTAINER:-}"     # resolved on the prod host if empty:
-PROD_BACKEND_CONTAINER="${PROD_BACKEND_CONTAINER:-}" # hd-mongodb-1/hd-backend-1 (deploy.sh) or hd-*-prod (old layout)
+PROD_BACKEND_CONTAINER="${PROD_BACKEND_CONTAINER:-}" # hd-mongodb-1/hd-backend-1
 PROD_DB="${PROD_DB:-}"                # resolved from the prod backend container if empty
 PROD_MONGO_USER="${PROD_MONGO_USER:-}"  # resolved from the prod mongo container if empty
 PROD_MONGO_PASS="${PROD_MONGO_PASS:-}"
@@ -59,7 +59,7 @@ WIRE_COMPRESSORS="${WIRE_COMPRESSORS:-zstd,snappy,zlib}"  # tunnel mode: compres
 
 SSH_OPTS=(-o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=8)
 
-# --- Logging helpers (same style as deploy-prod.sh) --------------------------
+# --- Logging helpers (same style as deploy.sh) --------------------------
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -100,8 +100,8 @@ show_help() {
     echo "  PROD_SSH_JUMP         Jump host, used only when prod:22 is unreachable"
     echo "                        (default: f1lab@10.0.50.10, set empty to never jump)"
     echo "  PROD_MONGO_PORT       MongoDB port published on the prod host (default: 27017)"
-    echo "  PROD_MONGO_CONTAINER  Prod containers (default: found over SSH — hd-mongodb-1"
-    echo "  PROD_BACKEND_CONTAINER  or hd-mongodb-prod, hd-backend-1 or hd-backend-prod)"
+    echo "  PROD_MONGO_CONTAINER  Prod containers (default: found over SSH —"
+    echo "  PROD_BACKEND_CONTAINER  hd-mongodb-1, hd-backend-1)"
     echo "  PROD_DB               Prod database name (default: resolved over SSH)"
     echo "  PROD_MONGO_USER/PASS  Prod credentials (default: resolved over SSH)"
     echo "  DUMP_MODE             auto (default): mongodump inside the prod container,"
@@ -216,14 +216,13 @@ open_prod_ssh() {
         || { log_error "SSH connection to $PROD_SSH did not come up"; exit 1; }
 }
 
-# The production stack may still be the old layout (fixed hd-*-prod names) or
-# the current one (hd-*-1 under the `hd` compose project): look at what runs.
+# The production stack runs under the `hd` compose project (hd-*-1).
 resolve_prod_containers() {
     [ -n "$PROD_MONGO_CONTAINER" ] && [ -n "$PROD_BACKEND_CONTAINER" ] && return 0
     local names
     names=$(prod_ssh "docker ps --format '{{.Names}}'" | tr -d '\r')
-    [ -n "$PROD_MONGO_CONTAINER" ]   || PROD_MONGO_CONTAINER=$(printf '%s\n' "$names" | grep -E -m1 '^hd-mongodb(-1|-prod)$' || true)
-    [ -n "$PROD_BACKEND_CONTAINER" ] || PROD_BACKEND_CONTAINER=$(printf '%s\n' "$names" | grep -E -m1 '^hd-backend(-1|-prod)$' || true)
+    [ -n "$PROD_MONGO_CONTAINER" ]   || PROD_MONGO_CONTAINER=$(printf '%s\n' "$names" | grep -E -m1 '^hd-mongodb-1$' || true)
+    [ -n "$PROD_BACKEND_CONTAINER" ] || PROD_BACKEND_CONTAINER=$(printf '%s\n' "$names" | grep -E -m1 '^hd-backend-1$' || true)
     if [ -z "$PROD_MONGO_CONTAINER" ] || [ -z "$PROD_BACKEND_CONTAINER" ]; then
         log_error "Could not find the hd mongodb/backend containers on $PROD_SSH (running: $(printf '%s' "$names" | tr '\n' ' '))"
         exit 1
@@ -559,15 +558,14 @@ fi
 
 log_success "Database '$DEV_DB' synced with production '$PROD_DB' in ${SECONDS}s"
 
-# Production data predates the current code: without the ledger the data
-# migrations (better-auth included) have not run here, and nobody can sign in.
+# Production carries the migration ledger, and the copy brings it along. A copy
+# without one comes from data older than the migration list (see
+# docs/deployment.md, «Migrations»).
 if [ "$DEV_SHELL_MODE" != none ]; then
     LEDGER=$(dev_eval "print(db.getSiblingDB('$DEV_DB').getCollection('migrations').countDocuments())" 2>/dev/null | tr -d '[:space:]' || true)
     if [ "${LEDGER:-0}" = 0 ]; then
         echo ""
-        log_warning "The copy has no migration ledger — run the data migrations before signing in:"
-        echo "    ./deploy.sh migrate baseline 2026-07-24-backfillUserLastActivity   # what production already has"
-        echo "    ./deploy.sh migrate up"
-        echo "  (dev machine: docker compose run --rm backend node scripts/migrate.js <same arguments>)"
+        log_warning "The copy has no migration ledger: production data predates commit 61d49c6."
+        echo "  Such data cannot be migrated by this code — see docs/deployment.md, «Migrations»."
     fi
 fi

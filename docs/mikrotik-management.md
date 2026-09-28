@@ -32,9 +32,8 @@ Mikrotik monitoring is a **module** like the knowledge base or inventory:
 `Preferences.modules.mikrotik.isActive` (Настройки → Модули). Its settings
 (service account, auto-tickets) live in their own section «Мониторинг
 Mikrotik», rendered only while the module is on. Until 2026-09-14 the switch was
-`Preferences.mikrotik.isActive` under «Интеграции» with "missing = on";
-`scripts/migrateMikrotikModule.js` carries that value over (see _One-off
-scripts_). New installs start with the module **off**, like every other module.
+`Preferences.mikrotik.isActive` under «Интеграции» with "missing = on"; a
+one-off migration carried that value over. New installs start with the module **off**, like every other module.
 
 - `backend/services/mikrotik/enabled.js` → `mikrotikEnabled()` — read by the
   crons (return early), the offline-alert job, and `helpers/mikrotikOverlay.js`:
@@ -1004,17 +1003,6 @@ re-encrypts records via the `v1` version prefix.
 
 ## One-off scripts (`backend/scripts/`)
 
-- **`migrateMikrotikModule.js`** — moves the switch from `mikrotik.isActive` to
-  `modules.mikrotik.isActive` (a missing old field becomes **on**) and drops the
-  old key. Idempotent. **Run right after deploying the 2026-09-14 code**: until
-  then the module reads as off — menu hidden, crons idle.
-  `docker exec hd-backend-prod node scripts/migrateMikrotikModule.js`
-
-- **`migrateMikrotikIndexes.js`** — drops the old non-partial `clientDevice_1`
-  index and runs `syncIndexes()`. Idempotent. Needed on any environment created
-  before the partial index; without it a **second** unlinked record fails with a
-  duplicate-key error.
-  `docker exec hd-backend-prod node scripts/migrateMikrotikIndexes.js`
 - **`repairMikrotikMonitoringState.js`** — repairs damage from the pre-atomic
   health-check/alert races: **phantom** episodes stuck `open: true` forever (the
   old `attachTicket` upsert) and **stale** `offlineAlertedAt`/`alertTicketId` on
@@ -1022,8 +1010,8 @@ re-encrypts records via the `v1` version prefix.
   also normalizes `firstFailureAt`. Idempotent, defaults to a **dry run**. Deploy
   the code first, then:
   ```
-  docker exec hd-backend-prod node scripts/repairMikrotikMonitoringState.js          # отчёт
-  docker exec hd-backend-prod node scripts/repairMikrotikMonitoringState.js --apply  # починка
+  docker compose exec backend node scripts/repairMikrotikMonitoringState.js          # отчёт
+  docker compose exec backend node scripts/repairMikrotikMonitoringState.js --apply  # починка
   ```
 - **`seedMikrotikModels.js`** — seeds the MikroTik catalog (vendor with the flag,
   device types, models with their catalog configuration: ports, speed, PoE,

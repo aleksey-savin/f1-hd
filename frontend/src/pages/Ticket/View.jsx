@@ -52,12 +52,7 @@ import { hasAnswer } from "@/components/app/custom-fields";
 import KnowledgeSection from "../../components/Ticket/View/KnowledgeSection";
 import RemoteAccess from "../../components/Ticket/View/RemoteAccess";
 import ActionDialog from "../../components/Ticket/Actions/ActionDialog";
-import {
-  Eyebrow,
-  Panel,
-  Section,
-  SectionEditButton,
-} from "@/components/app/Panel";
+import { Eyebrow, Panel, Section } from "@/components/app/Panel";
 import {
   DescriptionSection,
   FactsSection,
@@ -416,7 +411,7 @@ const ViewTicket = () => {
   const pickAction = (key) => {
     // Секции у пустого чек-листа нет — пункт меню сразу открывает её в режиме
     // правки, с одной пустой строкой
-    if (key === "makeChecklist") {
+    if (key === "makeChecklist" || key === "editChecklist") {
       setChecklistEdit(true);
       // Секции у пустого чек-листа нет — она появляется только сейчас, и без
       // переноса человек остаётся смотреть на прежний экран
@@ -527,9 +522,14 @@ const ViewTicket = () => {
             </span>
           </div>
         ) : (
-          <div className="flex flex-none items-center gap-2">
+          // Телефон (макет 28.09): ряд действий на всю ширину, главное —
+          // растягивается; иначе кнопки жались влево под заголовком
+          <div className="flex flex-none items-center gap-2 max-md:w-full">
             {primary && (
-              <Button onClick={() => pickAction(primary.key)}>
+              <Button
+                className="max-md:flex-1"
+                onClick={() => pickAction(primary.key)}
+              >
                 {primary.label}
               </Button>
             )}
@@ -598,7 +598,6 @@ const ViewTicket = () => {
         <div className="-mt-6 flex min-w-0 flex-1 flex-col gap-5">
           <DescriptionSection
             ticket={ticket}
-            canEdit={can({ ticket: ["manage"] }) && !ticket.isArchived}
             uploadAction={attachments.uploadAction}
             attachments={
               <AttachmentStrip
@@ -624,7 +623,6 @@ const ViewTicket = () => {
             ticket={ticket}
             company={company}
             dialog={dialogChat}
-            canEdit={can({ ticket: ["manage"] }) && !ticket.isArchived}
             onShowLogs={
               // Журнал входов AD закрыт правом `company.readLogs` (ручка
               // `/companies/:id/logs`): «не клиент» открывал кнопку каждому
@@ -645,19 +643,23 @@ const ViewTicket = () => {
               Чек-лист правится в самой секции: его и в покое меняют на месте
               (галочка), поэтому состав не уводим в форму заявки. Правка —
               явным режимом, чтобы рука, привыкшая отмечать, не промахнулась
-              по «удалить». */}
+              по «удалить». Вход в режим — «⋯» → «Изменить чек-лист»
+              (карандаш секции снят 28.09), в самом режиме в метке «Готово» —
+              выход; состав сохраняется после каждого изменения. */}
           {(hasChecklist || checklistEdit) && (
             <Section>
               <Eyebrow
                 id="ticket-checklist"
                 count={ticket.checklist?.length || undefined}
                 action={
-                  canEditChecklist && (
-                    <SectionEditButton
-                      label="Чек-лист"
-                      editing={checklistEdit}
-                      onToggle={() => setChecklistEdit((prev) => !prev)}
-                    />
+                  checklistEdit && (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => setChecklistEdit(false)}
+                    >
+                      Готово
+                    </Button>
                   )
                 }
               >

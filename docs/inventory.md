@@ -461,16 +461,12 @@ For future cleanup — these are landmines, not behaviours to rely on:
    `ClientDevice`/`Location` schemas have `deletedAt` fields that the controllers don't use.
    HTTP methods are inconsistent too: catalog deletes are `POST /delete/:id`, only
    client devices use `DELETE`.
-2. **`serialNumber` uniqueness has to be dropped in the database.** The schema no
-   longer declares any unique index on it (see §2.2), but a database created
-   earlier still carries `serialNumber_1 UNIQUE`, and Mongoose never rewrites an
-   existing index's options. Until it is dropped, the **second** device without a
-   serial dies with E11000 (`dup key: { serialNumber: null }`) and a batch of
-   identical units cannot be registered at all. Fix: the idempotent
-   `backend/scripts/migrateClientDeviceIndexes.js` (drops it, then
-   `syncIndexes()`); run on the dev copy on 2026-07-29 — **prod still needs it**.
-   The controller also maps E11000 to a 409 that names the field (and points at
-   this script when the field is the stale serial index) instead of a bare 500.
+2. **`serialNumber` is not unique.** The schema declares no unique index on it
+   (see §2.2); the old `serialNumber_1 UNIQUE` was dropped from every database by
+   a one-off migration. Mongoose never rewrites an existing index's options, so a
+   stale unique index would make the **second** device without a value die with
+   E11000 — the controller maps E11000 to a 409 that names the field instead of a
+   bare 500.
 3. **Stale `name_1` index on `deviceattributes`.** The schema declares `unique` on
    `code` only, but the database still carries `name_1 {name: 1} UNIQUE` (confirmed on
    the dev copy of prod). Inserting an attribute whose *name* is taken fails with

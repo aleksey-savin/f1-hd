@@ -15,8 +15,8 @@ const userSchema = new Schema(
       // сохранялся как введён, а `controllers/user.js#add` искал дубль по
       // сырому значению — «Ivanov@f1lab.ru» и «ivanov@f1lab.ru» могли завестись
       // оба. better-auth приводит адрес к нижнему регистру, и такая пара
-      // означала бы вход под чужой учёткой. На 2026-08 данные чистые (проверено
-      // scripts/checkEmailCollisions.js), сеттеры закрывают вход новым.
+      // означала бы вход под чужой учёткой. На 2026-08 данные вычищены, сеттеры
+      // закрывают вход новым.
       lowercase: true,
       trim: true,
     },
@@ -174,7 +174,7 @@ const userSchema = new Schema(
       },
     ],
     // ЛЕГАСИ, только на чтение: перенесено в workSchedules[] миграцией
-    // migrateWorkSchedules.js. Удалить следующим релизом.
+    // 2026-07-27. Удалить следующим релизом.
     workSchedule: { type: workScheduleSchema, default: null },
     followProductionCalendar: { type: Boolean, default: true },
     // «Вести финансовый учёт»: оклад, ставка переработок и норма по графику.

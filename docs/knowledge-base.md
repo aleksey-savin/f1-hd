@@ -71,8 +71,8 @@ the moderator list is gone from it.
 A moderator is **a holder of `knowledge.moderate`**, i.e. a role — the catalogue
 ships `kb-moderator` for exactly that. The stale
 `Preferences.knowledgeBase.moderators` array is still declared in the model but
-read by nothing except the one-off `scripts/migrateActions.js`, which grants the
-role to the previous moderators; drop the field once that has run on production.
+read by nothing (the 2026-09-12 migration granted the role to the previous
+moderators and has run everywhere); the field can be dropped.
 
 `canViewNote(note, auth, kbConfig)`
 (`backend/helpers/knowledgeNoteVisibility.js`) asks `auth.can()` directly — the
@@ -542,19 +542,6 @@ own header.
   helper and links to the source note.
 - `store/prefs.js` holds the global KB moderation snapshot
   (`isModerator/hideNotApproved/scanForSecrets/counts`) from `preferences.getInitial`.
-
-## Migration / one-off scripts (`backend/scripts/`)
-
-All idempotent, run directly against Mongo. Run inside the backend container.
-
-- `backfillNoteApproval.js` — sets `approved:false` on legacy notes missing the
-  field. (Code already treats missing as unapproved; this makes it explicit.)
-- `migrateDomainExpiryToServiceExpiry.js` — renames the old
-  `trackDomainExpiry/domainExpiryDays` prefs → `trackServiceExpiry/serviceExpiryDays`,
-  drops the stale `note.domainExpiry` field + index, and re-runs the service scan.
-  (The feature was renamed "domain" → "service"; the rename touched the model,
-  services, controllers, and the `DomainExpiryCard.jsx → ServiceExpiryCard.jsx`
-  component.)
 
 ## How to test end-to-end
 

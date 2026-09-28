@@ -73,8 +73,8 @@ const knowledgeNoteSchema = new Schema(
     },
     // Модерация: заметка создаётся неодобренной и требует одобрения модератора.
     // Существующие заметки (без поля approved) тоже считаются неодобренными —
-    // в коде проверяем approved !== true, а скрипт backfillNoteApproval
-    // проставляет им approved: false явно.
+    // в коде проверяем approved !== true (бэкфилл 2026-06 проставил им
+    // approved: false явно).
     approved: {
       type: Boolean,
       default: false,

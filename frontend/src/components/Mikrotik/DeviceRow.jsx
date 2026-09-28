@@ -152,8 +152,11 @@ const DeviceRow = ({ row, canManage }) => {
           <span className="block truncate text-sm text-muted-foreground">
             {meta || "—"}
           </span>
-          {/* Узкий экран: статус подстрокой, как у строки устройств */}
-          <span className="mt-0.5 flex items-center gap-1.5 md:hidden">
+          {/* Узкий экран: статус подстрокой, как у строки устройств. Колонки
+              прошивки тут нет, поэтому отставание и уязвимость — хвостом
+              статуса (иначе фильтр «отстают» на телефоне нечем проверить);
+              актуальная прошивка ничего не добавляет */}
+          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 whitespace-nowrap md:hidden">
             <DeviceStatusText tone={statusMeta.tone}>
               {statusMeta.label}
             </DeviceStatusText>
@@ -162,6 +165,16 @@ const DeviceRow = ({ row, canManage }) => {
                 · {offlineFor}
               </span>
             )}
+            {firmware?.vulnerable ? (
+              <span className="flex items-center gap-1 text-xs font-semibold text-warning">
+                · <RiShieldFlashLine size={12} aria-hidden />
+                уязвимость
+              </span>
+            ) : firmware?.updateAvailable && installedVersion ? (
+              <span className="min-w-0 truncate font-mono text-xs text-faint">
+                · {installedVersion} → {firmware.latestVersion}
+              </span>
+            ) : null}
           </span>
         </span>
 

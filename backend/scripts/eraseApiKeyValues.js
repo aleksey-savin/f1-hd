@@ -81,7 +81,7 @@ const run = async () => {
 
   if (noHash.length) {
     throw new Error(
-      "Есть ключи без отпечатка — сначала migrateApiKeyHashes.js --apply:\n  " +
+      "Есть ключи без отпечатка — их хеширует миграция 2026-08-10, она не прошла:\n  " +
         noHash.join("\n  "),
     );
   }

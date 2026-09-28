@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
-import { useLoaderData } from "react-router";
-import { BrowserView, MobileView } from "react-device-detect";
-import { RiArrowLeftSLine, RiDownloadLine } from "react-icons/ri";
+import { Link, useLoaderData } from "react-router";
+import { BrowserView, MobileView, isMobile } from "react-device-detect";
+import {
+  RiArrowLeftSLine,
+  RiArrowRightSLine,
+  RiDownloadLine,
+  RiPulseLine,
+} from "react-icons/ri";
 
 import Crumbs from "@/components/app/Crumbs";
 import PageShell from "@/components/app/PageShell";
@@ -162,6 +167,11 @@ const Networks = () => {
     : 0;
 
   const narrowed = terms.length > 0 || kinds.length > 0;
+  // Ветка MobileView ниже без поиска показывает список устройств
+  const deviceListShown = isMobile && terms.length === 0;
+  const drilledRecordId = drilledEntries?.find(
+    (entry) => entry.recordId,
+  )?.recordId;
 
   return (
     <PageShell
@@ -208,11 +218,31 @@ const Networks = () => {
       }
     >
       {openDevice ? (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <>
+          {/* Выход из экрана устройства на его страницу мониторинга — той же
+              пилюлей, что «Карточка инвентаря» у страницы записи */}
+          {drilledRecordId && (
+            <Link
+              to={`/devices/mikrotik/records/${drilledRecordId}`}
+              className="mb-3 flex items-center gap-2 rounded-lg bg-accent px-2.5 py-2 text-sm text-muted-foreground no-underline hover:text-foreground"
+            >
+              <RiPulseLine size={15} aria-hidden className="flex-none" />
+              <span className="min-w-0 flex-1 truncate font-medium text-accent-text">
+                Открыть устройство в мониторинге
+              </span>
+              <RiArrowRightSLine
+                size={15}
+                aria-hidden
+                className="flex-none"
+              />
+            </Link>
+          )}
+          <div className="overflow-hidden rounded-xl border border-border bg-card">
           {drilledEntries.map((entry) => (
             <NetworkAddressRow key={entry.id} entry={entry} />
           ))}
-        </div>
+          </div>
+        </>
       ) : (
         <>
           <NetworksStrip
@@ -231,9 +261,15 @@ const Networks = () => {
             </>
           )}
 
-          <Eyebrow count={visibleEntries.length}>
-            {narrowed ? "Найденные адреса" : "Все адреса"}
-          </Eyebrow>
+          {/* На телефоне без поиска ниже идут устройства, а не адреса — метка
+              называет то, что под ней */}
+          {deviceListShown ? (
+            <Eyebrow count={devices.length}>Устройства</Eyebrow>
+          ) : (
+            <Eyebrow count={visibleEntries.length}>
+              {narrowed ? "Найденные адреса" : "Все адреса"}
+            </Eyebrow>
+          )}
 
           {visibleEntries.length === 0 ? (
             <div className="rounded-xl border border-border bg-card px-4 py-10 text-center">

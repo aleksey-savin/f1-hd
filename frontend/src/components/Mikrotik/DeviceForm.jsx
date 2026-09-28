@@ -595,8 +595,18 @@ const DeviceForm = () => {
       )}
 
       <SubLabel className="mt-2">Подключение</SubLabel>
-      <div className="grid gap-x-3 md:grid-cols-2">
-        <Field label="Хост" htmlFor="mikrotik-host" required>
+      {/* Телефон (макет 28.09): порты — узкой колонкой рядом со своим полем
+          («Хост | Порт», «SSH-порт | Port knocking»), логин и пароль — во всю
+          ширину. Сетка 7rem·1fr·7rem (подпись «Порт API-SSL*» встаёт в
+          строку, иначе поля пары разъехались бы по высоте); на десктопе — две
+          равные колонки. */}
+      <div className="grid grid-cols-[7rem_minmax(0,1fr)_7rem] gap-x-3 md:grid-cols-2">
+        <Field
+          label="Хост"
+          htmlFor="mikrotik-host"
+          required
+          className="col-span-2 md:col-span-1"
+        >
           <Input
             id="mikrotik-host"
             name="host"
@@ -622,6 +632,7 @@ const DeviceForm = () => {
           htmlFor="mikrotik-user"
           required
           hint="Выделенный аккаунт, не из группы full."
+          className="col-span-3 md:col-span-1"
         >
           <Input
             id="mikrotik-user"
@@ -635,6 +646,7 @@ const DeviceForm = () => {
           label="Пароль"
           htmlFor="mikrotik-password"
           required
+          className="col-span-3 md:col-span-1"
           hint={
             isEdit
               ? "Нужен для проверки подключения — сохранённый не показывается."
@@ -677,10 +689,14 @@ const DeviceForm = () => {
             </Button>
           </div>
         </Field>
+        {/* Подсказки узкой пары на телефоне прячутся ([&>p]) — в колонке
+            7rem они рвались бы на три строки; вместо них общая строка под
+            парой */}
         <Field
           label="SSH-порт"
           htmlFor="mikrotik-ssh-port"
           hint="Для экспорта конфигураций."
+          className="max-md:[&>p]:hidden"
         >
           <Input
             id="mikrotik-ssh-port"
@@ -696,6 +712,7 @@ const DeviceForm = () => {
             label="Port knocking"
             htmlFor="mikrotik-knock"
             hint="Порты через пробел — постучимся перед подключением. Заполняются из инструкции ниже."
+            className="col-span-2 max-md:[&>p]:hidden md:col-span-1"
           >
             <Input
               id="mikrotik-knock"
@@ -707,6 +724,11 @@ const DeviceForm = () => {
             />
           </Field>
         )}
+        <p className="col-span-3 -mt-2.5 mb-4 text-sm text-muted-foreground md:hidden">
+          {form.jumpRecordId
+            ? "SSH — для экспорта конфигураций."
+            : "SSH — для экспорта конфигураций. Knock-порты через пробел, заполняются из инструкции ниже."}
+        </p>
       </div>
 
       <SwitchField
@@ -752,8 +774,10 @@ const DeviceForm = () => {
         jumpSelected={Boolean(form.jumpRecordId)}
       />
 
-      <div className="mt-5 flex items-center gap-2 border-t border-border-soft pt-4">
-        <div className="min-w-0 flex-1 text-xs text-faint">
+      {/* Телефон: подсказка своей строкой, «Сохранить» — во всю оставшуюся
+          ширину (подпись «Проверяем подключение…» длинная) */}
+      <div className="mt-5 flex items-center gap-2 border-t border-border-soft pt-4 max-md:flex-wrap">
+        <div className="min-w-0 flex-1 text-xs text-faint max-md:basis-full">
           Перед сохранением проверим подключение к устройству.
         </div>
         <Button
@@ -765,6 +789,7 @@ const DeviceForm = () => {
         </Button>
         <Button
           type="submit"
+          className="max-md:flex-1"
           disabled={
             isSaving ||
             !form.host ||

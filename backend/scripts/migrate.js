@@ -22,9 +22,12 @@
  * Правила:
  *   • пустая база (нет пользователей) → `up` отмечает весь список как базу и
  *     ничего не запускает: свежий код уже пишет данные в новой форме;
- *   • непустая база без журнала → `up` ОТКАЗЫВАЕТСЯ: сперва `baseline`, иначе
- *     на живые данные поехали бы все миграции с 2026 года;
- *   • список только дописывается в конец, порядок не меняется;
+ *   • непустая база без журнала → `up` ОТКАЗЫВАЕТСЯ: такие данные старше
+ *     списка, и прогнать его вслепую нельзя;
+ *   • список только дописывается в конец, порядок не меняется. Записи,
+ *     применённые на всех установках, вычищаются вместе со скриптами: сейчас
+ *     база — последний коммит до «Диалогов» (61d49c6). Лишние записи в журнале
+ *     раннеру не мешают;
  *   • первая же ошибка останавливает прогон; применённое остаётся в журнале,
  *     повторный `up` продолжает с места остановки.
  */
@@ -35,43 +38,13 @@ const mongoose = require("mongoose");
 // id = <дата появления скрипта>-<имя>. `apply` — скрипту нужен флаг --apply,
 // `preflight` — проверки, которые обязаны пройти (код 0) до записи.
 const MIGRATIONS = [
-  { id: "2026-06-16-backfillNoteApproval", script: "backfillNoteApproval.js" },
-  { id: "2026-06-17-migrateDomainExpiryToServiceExpiry", script: "migrateDomainExpiryToServiceExpiry.js" },
-  { id: "2026-06-22-migrateClientDeviceIndexes", script: "migrateClientDeviceIndexes.js" },
-  { id: "2026-07-07-migrateMikrotikIndexes", script: "migrateMikrotikIndexes.js" },
-  { id: "2026-07-16-migrateDeviceTypeAttributes", script: "migrateDeviceTypeAttributes.js" },
-  { id: "2026-07-24-encryptGetScreenKeys", script: "encryptGetScreenKeys.js" },
-  // ← база для прода, работавшего на коде до better-auth (июль 2026)
-  { id: "2026-07-24-backfillUserLastActivity", script: "backfillUserLastActivity.js" },
-  { id: "2026-07-27-migrateMailSettings", script: "migrateMailSettings.js" },
-  { id: "2026-07-27-migrateWorkSchedules", script: "migrateWorkSchedules.js" }, // сеть: календарь
-  { id: "2026-07-31-migrateAiProvider", script: "migrateAiProvider.js" },
-  // --- better-auth: порядок значим ---
-  { id: "2026-08-09-normalizeUserEmails", script: "normalizeUserEmails.js", apply: true, preflight: ["checkEmailCollisions.js"] },
-  { id: "2026-08-09-backfillUserAuthFields", script: "backfillUserAuthFields.js", apply: true },
-  { id: "2026-08-09-initAuthCollections", script: "initAuthCollections.js" },
-  { id: "2026-08-09-migrateAuthAccounts", script: "migrateAuthAccounts.js", apply: true },
-  { id: "2026-08-09-migrateUserBanned", script: "migrateUserBanned.js", apply: true },
-  { id: "2026-08-09-migrateOrganization", script: "migrateOrganization.js", apply: true },
-  // сухой прогон обязан пройти: незнакомый набор прав останавливает всё
-  { id: "2026-08-09-assignRoles", script: "assignRoles.js", apply: true, preflight: ["assignRoles.js"] },
-  { id: "2026-08-09-syncPluginRole", script: "syncPluginRole.js", apply: true },
-  { id: "2026-08-10-migrateApiKeyHashes", script: "migrateApiKeyHashes.js", apply: true },
-  { id: "2026-09-04-migrateAbsentWorkStatus", script: "migrateAbsentWorkStatus.js", apply: true },
-  { id: "2026-09-07-resolveMapLinks", script: "resolveMapLinks.js" }, // сеть: карты
-  { id: "2026-09-09-backfillTemplateFieldKeys", script: "backfillTemplateFieldKeys.js" },
-  { id: "2026-09-10-backfillTicketLogKinds", script: "backfillTicketLogKinds.js" }, // долго
-  { id: "2026-09-12-syncRoleCatalogue", script: "syncRoleCatalogue.js", apply: true },
-  { id: "2026-09-12-migrateActions", script: "migrateActions.js", apply: true },
-  { id: "2026-09-14-migrateMikrotikModule", script: "migrateMikrotikModule.js" },
-  // Только дописывает `ai.use`; без него роль администратора отстаёт от словаря
-  { id: "2026-09-21-grantAiUse", script: "grantAiUse.js", apply: true },
   // Только дописывает `conversation.*`; см. grantConversations.js
   { id: "2026-09-25-grantConversations", script: "grantConversations.js", apply: true },
   { id: "2026-09-25-initMessaging", script: "initMessaging.js", apply: true },
 ];
 // Намеренно НЕ в списке: eraseApiKeyValues.js (точка невозврата — руками),
-// renameRoleKeys.js (инструмент дева), сиды каталогов, repair*/check*/dump*.
+// renameRoleKeys.js и syncRoleCatalogue.js (инструменты дева), сиды каталогов,
+// repair*/check*/dump*.
 
 const LEDGER = "migrations";
 const BACKEND_DIR = path.join(__dirname, "..");
@@ -101,9 +74,9 @@ const runScript = (script, args = []) => {
 };
 
 const BASELINE_HINT =
-  "Mark what already ran, then retry:\n" +
-  "  ./deploy.sh migrate baseline <id>          (dev: docker compose run --rm backend node scripts/migrate.js baseline <id>)\n" +
-  "  (prod that ran the pre-better-auth code: 2026-07-24-backfillUserLastActivity)";
+  "This code upgrades only data that already has the ledger (commit 61d49c6 or later).\n" +
+  "Older data: deploy that commit first. Or mark what already ran by hand, then retry:\n" +
+  "  ./deploy.sh migrate baseline <id>          (dev: docker compose run --rm backend node scripts/migrate.js baseline <id>)";
 
 const main = async () => {
   const [command, arg] = process.argv.slice(2);

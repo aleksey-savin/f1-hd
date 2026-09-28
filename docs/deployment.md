@@ -13,7 +13,6 @@ backups, moving an installation, rollback.
 | `.env` / `.env.example` | the only configuration file; `deploy.sh` creates and fills it |
 | `deploy.sh` | install/update, backup, restore, migrations, status, logs |
 | `backend/scripts/migrate.js` | ordered list of one-off data migrations plus the `migrations` ledger collection |
-| `scripts/mongo-upgrade.sh` | in-place MongoDB 5→6→7→8 for a host that still runs an old server; used automatically when needed |
 | `*/Dockerfile` | one multi-stage file per service, targets `dev` and `prod` |
 | `frontend/nginx.conf` | nginx inside the frontend image: serves the SPA, proxies `/api` and `/uploads` to the backend |
 
@@ -35,10 +34,8 @@ network. TLS and the public domain belong to an external reverse proxy.
 
 `deploy` does, in order: install Docker if missing (Docker's own `get.docker.com`
 script: apt on Debian/Ubuntu, dnf on Fedora/RHEL/Alma) → create or repair `.env`
-→ upgrade an old MongoDB in place if one is found on this host → remove
-containers of the previous layout → tag the running images `hd-<service>:prev`
-→ build → start MongoDB → fix volume ownership → back up (unless the database is
-empty) → run pending migrations with the application stopped → start everything
+→ tag the running images `hd-<service>:prev` → build → start MongoDB → back up
+(unless the database is empty) → run pending migrations with the application stopped → start everything
 and wait for health checks → smoke-test `GET /api/preferences-auth` through nginx
 → print the URL and, on a fresh database, the generated administrator password.
 
@@ -149,13 +146,12 @@ production host (your key, or `ssh -A` when you log in) and nothing else — whe
 
 ```bash
 ./sync-dev-db.sh          # replaces every collection except `preferences`
-./deploy.sh migrate baseline 2026-07-24-backfillUserLastActivity
-./deploy.sh migrate up    # better-auth and everything after it
+./deploy.sh migrate up    # whatever this code has that production has not
 ```
 
-The script finds the production containers by itself (old `hd-*-prod` names or
-the current `hd-*-1`). The baseline step is required: the copy arrives without
-the `migrations` ledger, and until the data migrations run nobody can sign in.
+The script finds the production containers by itself. The copy brings the
+production `migrations` ledger along, so `migrate up` runs only the entries
+production has not applied yet.
 
 ### Attachments
 
@@ -187,12 +183,19 @@ resumes at that entry), or skip the entry with `migrate mark`.
 Rules the runner enforces:
 
 - empty database → `up` records the whole list as baseline and runs nothing;
-- data without a ledger → `up` refuses with exit code 2 until you `baseline`;
+- data without a ledger → `up` refuses with exit code 2: such data predates the
+  list (see below) and has to go through the release that still carried it;
 - the first failure stops the run; applied entries stay recorded, a rerun
   resumes;
-- entries with a `preflight` (e.g. `checkEmailCollisions`, the `assignRoles` dry
-  run) run those first and stop if they fail;
+- entries with a `preflight` run those checks first and stop if they fail;
 - the list is append-only; never reorder it.
+
+Entries applied on every installation are removed from the list together with
+their scripts; extra records in the ledger do no harm. The list currently
+starts after commit `61d49c6` (the last one before «Диалоги»): every
+installation runs that code or newer. Data older than that — a backup without a
+`migrations` collection — has to be restored and deployed with `61d49c6`
+first, then updated to the current code.
 
 Not in the list on purpose: `eraseApiKeyValues.js` (irreversible, run by hand
 once the hashes are proven), `renameRoleKeys.js` (dev tool), the catalogue
@@ -213,7 +216,7 @@ directory elsewhere; it is the whole installation apart from `.env`.
 `./deploy.sh restore backups/<timestamp>` stops the application, restores the
 database with `--drop` (renaming it if the dump came from a database with
 another name), unpacks the volumes and fixes ownership. It does not start the
-application: run `migrate status`, `baseline` if the ledger is empty, then
+application: run `migrate status` (the ledger comes with the dump), then
 `./deploy.sh`.
 
 ## Moving an installation to a new host
@@ -221,42 +224,22 @@ application: run `migrate status`, `baseline` if the ledger is empty, then
 The old host keeps running until DNS is switched; nothing below touches it
 beyond a read-only dump.
 
-1. Old host: `git pull`, `./deploy.sh backup` (works with the previous layout
-   too: it reads `.env.prod` and the `hd-mongodb-prod` container).
-2. Copy `backups/<timestamp>` to the new host.
+1. Old host: `./deploy.sh backup`.
+2. Copy `backups/<timestamp>` to the new host, together with the old `.env`.
 3. New host: clone the repository, `./deploy.sh env` (installs Docker, writes
    `.env`, asks for the URL). Then edit `.env`:
-   - `APP_ENC_KEY` = the old `MIKROTIK_ENC_KEY` — mandatory, or every stored
-     password, API key and Mikrotik backup is unreadable;
+   - `APP_ENC_KEY` and `BETTER_AUTH_SECRET` = the old values — mandatory, or
+     every stored secret is unreadable and every session and TOTP secret is
+     lost;
    - `S3_*` as before if attachments live in S3;
    - `TICKET_COUNTER_STARTING_NUMBER`, `TG_TOKEN`, `TRUST_PROXY_HOPS=2`,
-     `HTTP_PORT=127.0.0.1:8080` as needed;
-   - `BETTER_AUTH_SECRET` and the MongoDB credentials are new: the dump has no
-     users of its own and the previous installation had no better-auth.
+     `HTTP_PORT=127.0.0.1:8080` as needed.
 4. `./deploy.sh restore backups/<timestamp>`.
-5. `./deploy.sh migrate baseline 2026-07-24-backfillUserLastActivity` for data
-   from the pre-better-auth installation (the three entries dated 07-27/07-31
-   are idempotent and simply re-run).
-6. `./deploy.sh` — backup, migrations (the better-auth chain runs here, gated by
-   `checkEmailCollisions` and the `assignRoles` dry run), start, smoke test.
-7. Point the reverse proxy at `127.0.0.1:8080`, sign in with a real account.
+5. `./deploy.sh` — backup, pending migrations, start, smoke test.
+6. Point the reverse proxy at `127.0.0.1:8080`, sign in with a real account.
 
-Rehearse steps 4–6 on the new host before the real switch: it is empty, and
+Rehearse steps 4–5 on the new host before the real switch: it is empty, and
 `restore` can be repeated.
-
-## Upgrading MongoDB in place
-
-`deploy.sh` checks which server last wrote `hd_data` on this host. Below 8 it
-runs `scripts/mongo-upgrade.sh`: a full dump to `backups/pre-upgrade-*`, then
-one major at a time (`mongo:6.0`, `mongo:7.0`, `mongo:8.0`) on the same volume,
-raising `featureCompatibilityVersion` after each. This is one-way; going back
-means restoring the pre-upgrade dump into a container of the previous version
-(the old image is kept as `hd-mongo:pre-upgrade`). Rehearse on a copy first:
-
-```
-docker run --rm -v hd_data:/from -v hd_data_test:/to alpine cp -a /from/. /to/
-VOL=hd_data_test CFG=hd_mongodb_config_test scripts/mongo-upgrade.sh
-```
 
 ## Rollback
 
@@ -266,8 +249,7 @@ VOL=hd_data_test CFG=hd_mongodb_config_test scripts/mongo-upgrade.sh
   previous commit and run `./deploy.sh`.
 - Data: `./deploy.sh restore backups/<timestamp>` with the backup taken right
   before the migrations. A data rollback always goes together with a code
-  rollback: the better-auth schema (`isActive` → `banned`) is incompatible in
-  both directions.
+  rollback.
 
 ## Logs
 
