@@ -13,7 +13,7 @@ import Field from "@/components/app/Field";
 import AlertMessage from "@/components/app/AlertMessage";
 
 import Combobox, { toOptions } from "@/components/app/Combobox";
-import timezones from "../../../store/timezones";
+import { timezoneOptions } from "../../../util/timezone-catalog";
 import { orgTimezone, tzCity } from "../../../util/timezone-display";
 import MapLinkHint from "../MapLinkHint";
 
@@ -139,7 +139,8 @@ const SubdivisionFormDialog = ({
             <Combobox
               ariaLabel="Часовой пояс подразделения"
               placeholder={`Как ${parent ? "у родительского" : "у компании"} — ${tzCity(inheritedZone)}`}
-              options={timezones}
+              options={timezoneOptions({ extra: [timezone] })}
+              searchPlaceholder="Город, страна или UTC…"
               value={timezone}
               onChange={setTimezone}
               clearable

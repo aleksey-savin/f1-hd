@@ -7,7 +7,7 @@ import SettingRow from "@/components/app/SettingRow";
 import ThemeSegment from "@/components/app/ThemeSegment";
 import { API } from "@/pages/Auth/session";
 import useToastStore from "@/store/toast-store";
-import timezones from "@/store/timezones";
+import { timezoneOptions } from "@/util/timezone-catalog";
 import { orgTimezone, tzCity } from "@/util/timezone-display";
 import { ThemeContext } from "../../../store/theme-context";
 import BackgroundImageUpload from "./BackgroundImageUpload";
@@ -161,14 +161,14 @@ const Appearance = ({ user }) => {
         <div className="w-72 max-md:w-full">
           <Combobox
             id="account-timezone"
-            options={timezones}
+            options={timezoneOptions({ extra: [timezone] })}
             value={timezone}
             onChange={changeTimezone}
             disabled={savingTimezone}
             clearable
             clearLabel={`Как в организации — ${tzCity(orgTimezone())}`}
             placeholder={`Как в организации — ${tzCity(orgTimezone())}`}
-            searchPlaceholder="Город или зона…"
+            searchPlaceholder="Город, страна или UTC…"
           />
         </div>
       </SettingRow>

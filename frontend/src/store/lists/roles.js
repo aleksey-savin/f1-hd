@@ -6,9 +6,12 @@ import { api } from "@/lib/api";
  * Каталог ролей: фильтр и сортировка целиком на клиенте.
  *
  * Ролей единицы, и весь список приезжает одним запросом — серверная выборка
- * здесь была бы работой ради работы. Условие ровно одно осмысленное («у кого
- * есть такое право») плюс поиск по названию.
+ * здесь была бы работой ради работы. Условия — «у кого есть такое право»,
+ * адресат роли (сотрудники или клиенты) и поиск по названию.
  */
+
+/** Адресат без значения — роль сотрудников, как считает сервер (`audienceOf`). */
+const audienceOf = (role) => (role.audience === "client" ? "clients" : "staff");
 
 /**
  * Фильтр по правам — И, а не ИЛИ: вопрос «у какой роли есть доступ к финансам»
@@ -18,8 +21,10 @@ import { api } from "@/lib/api";
 const rolesFilter = (state) => {
   const list = Array.isArray(state.originalList) ? state.originalList : [];
   const wanted = state.permissions || [];
+  const audience = state.audience || "all";
 
   return list
+    .filter((role) => audience === "all" || audienceOf(role) === audience)
     .filter((role) => wanted.every((id) => role.actions?.includes(id)))
     .filter((role) => {
       if (!state.searchTerm) return true;
@@ -68,6 +73,12 @@ const sortList = (selected, list) => {
 const grantedCount = (actions = []) => actions.length;
 
 const useRolesFilterStore = create((set) => ({
+  /**
+   * Набор ролей: `all` · `staff` · `clients` — значения те же, что у сегмента
+   * «Пользователей». По умолчанию весь каталог: ролей единицы, прятать половину
+   * с порога незачем (у людей иначе — там клиентов большинство).
+   */
+  audience: "all",
   permissions: [],
   searchTerm: "",
   sortingOptions: [
@@ -121,6 +132,7 @@ const useRolesFilterStore = create((set) => ({
   updateFilter: (data) =>
     set(() => ({
       permissions: Array.isArray(data.permissions) ? data.permissions : [],
+      audience: data.audience || "all",
       originalList: Array.isArray(data.originalList) ? data.originalList : [],
       isLoading: false,
     })),
@@ -129,7 +141,7 @@ const useRolesFilterStore = create((set) => ({
       filteredList: sortList(state.sortBy, rolesFilter(state)),
     })),
   resetFilter: () => {
-    set(() => ({ permissions: [], searchTerm: "" }));
+    set(() => ({ audience: "all", permissions: [], searchTerm: "" }));
     set((state) => ({
       filteredList: sortList(state.sortBy, rolesFilter(state)),
     }));

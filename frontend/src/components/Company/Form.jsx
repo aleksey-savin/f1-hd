@@ -29,7 +29,7 @@ import ScheduleEditor, {
 
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import { useFormSheet } from "@/components/app/FormOutlet";
-import timezones from "../../store/timezones";
+import { timezoneOptions } from "../../util/timezone-catalog";
 import { orgTimezone, tzCity } from "../../util/timezone-display";
 
 import FormSummary from "./FormSummary";
@@ -438,7 +438,8 @@ const CompanyForm = () => {
           <Combobox
             ariaLabel="Часовой пояс компании"
             placeholder={`Как в организации — ${tzCity(orgTimezone())}`}
-            options={timezones}
+            options={timezoneOptions({ extra: [timezone] })}
+            searchPlaceholder="Город, страна или UTC…"
             value={timezone}
             onChange={setTimezone}
             clearable

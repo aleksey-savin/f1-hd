@@ -17,6 +17,7 @@ import useWorkStatusesStore from "../../store/work-statuses";
 import {
   availabilitySummary,
   groupByStatus,
+  isOnShiftGroup,
   presenceLine,
   updatedLabel,
 } from "./presence";
@@ -77,8 +78,8 @@ const WorkStatusBar = () => {
   }
 
   const groups = groupByStatus(colleagues);
-  const shown = groups.filter((group) => group.status.kind !== "idle");
-  const idle = groups.filter((group) => group.status.kind === "idle");
+  const shown = groups.filter(isOnShiftGroup);
+  const idle = groups.filter((group) => !isOnShiftGroup(group));
   const idleCount = idle.reduce((sum, group) => sum + group.users.length, 0);
   const idleTitle = idle
     .map((group) => `${group.status.label} · ${group.users.length}`)

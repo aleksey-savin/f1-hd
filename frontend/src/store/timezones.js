@@ -1,178 +1,187 @@
 // Каталог часовых поясов: настройки организации, графики сотрудников, пояс
-// компании и филиала. Подписи — города, а не названия зон: Intl по-русски
-// зовёт Asia/Novosibirsk «Красноярском».
+// компании и филиала. Значение — идентификатор зоны IANA (стандарт, его и
+// хранит база); подпись и смещение собирает util/timezone-catalog в момент
+// показа, поэтому летнее время всегда верное. Города — по-русски и вручную:
+// Intl по-русски зовёт Asia/Novosibirsk «Красноярском», а Вьетнам «Индокитаем».
 //
-// Города продублированы в backend/data/timezoneCities.json (бэкенд собирает из
-// них подпись для telegram) — при правке списка обновлять оба файла.
+// Одна зона на строку, городов в ней может быть несколько — первый считается
+// главным: его пишут там, где нужно одно название («который час у заявителя»,
+// Telegram).
+//
+// Первые города продублированы в backend/data/timezoneCities.json — при правке
+// списка обновлять оба файла (сверку держит util/timezone-catalog.test.js).
+
+// Порядок групп в выпадашке
+export const TIMEZONE_REGIONS = [
+  "Россия",
+  "Европа",
+  "Азия",
+  "Америка",
+  "Африка",
+  "Океания",
+];
+
+const russia = (value, cities) => ({ value, cities, country: "Россия", region: "Россия" });
+const zone = (region) => (value, cities, country) => ({ value, cities, country, region });
+const europe = zone("Европа");
+const asia = zone("Азия");
+const america = zone("Америка");
+const africa = zone("Африка");
+const oceania = zone("Океания");
+
 const timezones = [
-  {
-    value: "Europe/London",
-    label: "Лондон (UTC +0:00)",
-  },
-  {
-    value: "Europe/Berlin",
-    label: "Берлин (UTC +1:00)",
-  },
-  {
-    value: "Europe/Paris",
-    label: "Париж (UTC +1:00)",
-  },
-  {
-    value: "Europe/Rome",
-    label: "Рим (UTC +1:00)",
-  },
-  {
-    value: "Europe/Kaliningrad",
-    label: "Калининград (UTC +2:00)",
-  },
-  {
-    value: "Europe/Athens",
-    label: "Афины (UTC +2:00)",
-  },
-  {
-    value: "Africa/Cairo",
-    label: "Каир (UTC +2:00)",
-  },
-  {
-    value: "Africa/Nairobi",
-    label: "Найроби (UTC +3:00)",
-  },
-  {
-    value: "Europe/Moscow",
-    label: "Москва (UTC +3:00)",
-  },
-  {
-    value: "Europe/Volgograd",
-    label: "Волгоград (UTC +3:00)",
-  },
-  {
-    value: "Asia/Dubai",
-    label: "Дубай (UTC +4:00)",
-  },
-  {
-    value: "Europe/Samara",
-    label: "Самара (UTC +4:00)",
-  },
-  {
-    value: "Europe/Saratov",
-    label: "Саратов (UTC +4:00)",
-  },
-  {
-    value: "Europe/Astrakhan",
-    label: "Астрахань (UTC +4:00)",
-  },
-  {
-    value: "Europe/Ulyanovsk",
-    label: "Ульяновск (UTC +4:00)",
-  },
-  {
-    value: "Asia/Kolkata",
-    label: "Калькутта (UTC +5:30)",
-  },
-  {
-    value: "Asia/Yekaterinburg",
-    label: "Екатеринбург (UTC +5:00)",
-  },
-  {
-    value: "Asia/Omsk",
-    label: "Омск (UTC +6:00)",
-  },
-  {
-    value: "Asia/Novosibirsk",
-    label: "Новосибирск (UTC +7:00)",
-  },
-  {
-    value: "Asia/Krasnoyarsk",
-    label: "Красноярск (UTC +7:00)",
-  },
-  {
-    value: "Asia/Barnaul",
-    label: "Барнаул (UTC +7:00)",
-  },
-  {
-    value: "Asia/Tomsk",
-    label: "Томск (UTC +7:00)",
-  },
-  {
-    value: "Asia/Novokuznetsk",
-    label: "Новокузнецк (UTC +7:00)",
-  },
-  {
-    value: "Asia/Shanghai",
-    label: "Шанхай (UTC +8:00)",
-  },
-  {
-    value: "Asia/Irkutsk",
-    label: "Иркутск (UTC +8:00)",
-  },
-  {
-    value: "Asia/Yakutsk",
-    label: "Якутск (UTC +9:00)",
-  },
-  {
-    value: "Asia/Chita",
-    label: "Чита (UTC +9:00)",
-  },
-  {
-    value: "Asia/Seoul",
-    label: "Сеул (UTC +9:00)",
-  },
-  {
-    value: "Asia/Tokyo",
-    label: "Токио (UTC +9:00)",
-  },
-  {
-    value: "Asia/Vladivostok",
-    label: "Владивосток (UTC +10:00)",
-  },
-  {
-    value: "Australia/Sydney",
-    label: "Сидней (UTC +10:00)",
-  },
-  {
-    value: "Australia/Melbourne",
-    label: "Мельбурн (UTC +10:00)",
-  },
-  {
-    value: "Asia/Magadan",
-    label: "Магадан (UTC +11:00)",
-  },
-  {
-    value: "Asia/Sakhalin",
-    label: "Южно-Сахалинск (UTC +11:00)",
-  },
-  {
-    value: "Asia/Kamchatka",
-    label: "Камчатка (UTC +12:00)",
-  },
-  {
-    value: "Asia/Anadyr",
-    label: "Анадырь (UTC +12:00)",
-  },
-  {
-    value: "America/New_York",
-    label: "Нью-Йорк (UTC -5:00)",
-  },
-  {
-    value: "America/Toronto",
-    label: "Торонто (UTC -5:00)",
-  },
-  {
-    value: "America/Chicago",
-    label: "Чикаго (UTC -6:00)",
-  },
-  {
-    value: "America/Denver",
-    label: "Денвер (UTC -7:00)",
-  },
-  {
-    value: "America/Los_Angeles",
-    label: "Лос-Анджелес (UTC -8:00)",
-  },
-  {
-    value: "America/Vancouver",
-    label: "Ванкувер (UTC -8:00)",
-  },
+  russia("Europe/Kaliningrad", ["Калининград"]),
+  russia("Europe/Moscow", ["Москва", "Санкт-Петербург"]),
+  russia("Europe/Kirov", ["Киров"]),
+  russia("Europe/Volgograd", ["Волгоград"]),
+  russia("Europe/Astrakhan", ["Астрахань"]),
+  russia("Europe/Samara", ["Самара", "Ижевск"]),
+  russia("Europe/Saratov", ["Саратов"]),
+  russia("Europe/Ulyanovsk", ["Ульяновск"]),
+  russia("Asia/Yekaterinburg", ["Екатеринбург", "Челябинск", "Пермь", "Уфа"]),
+  russia("Asia/Omsk", ["Омск"]),
+  russia("Asia/Novosibirsk", ["Новосибирск"]),
+  russia("Asia/Barnaul", ["Барнаул"]),
+  russia("Asia/Tomsk", ["Томск"]),
+  russia("Asia/Novokuznetsk", ["Новокузнецк", "Кемерово"]),
+  russia("Asia/Krasnoyarsk", ["Красноярск"]),
+  russia("Asia/Irkutsk", ["Иркутск", "Улан-Удэ"]),
+  russia("Asia/Chita", ["Чита"]),
+  russia("Asia/Yakutsk", ["Якутск", "Благовещенск"]),
+  russia("Asia/Vladivostok", ["Владивосток", "Хабаровск"]),
+  russia("Asia/Magadan", ["Магадан"]),
+  russia("Asia/Sakhalin", ["Южно-Сахалинск"]),
+  russia("Asia/Kamchatka", ["Петропавловск-Камчатский"]),
+  russia("Asia/Anadyr", ["Анадырь"]),
+
+  europe("Atlantic/Reykjavik", ["Рейкьявик"], "Исландия"),
+  europe("Europe/Lisbon", ["Лиссабон"], "Португалия"),
+  europe("Europe/Dublin", ["Дублин"], "Ирландия"),
+  europe("Europe/London", ["Лондон"], "Великобритания"),
+  europe("Europe/Madrid", ["Мадрид", "Барселона"], "Испания"),
+  europe("Europe/Paris", ["Париж"], "Франция"),
+  europe("Europe/Brussels", ["Брюссель"], "Бельгия"),
+  europe("Europe/Amsterdam", ["Амстердам"], "Нидерланды"),
+  europe("Europe/Berlin", ["Берлин", "Мюнхен"], "Германия"),
+  europe("Europe/Zurich", ["Цюрих", "Женева"], "Швейцария"),
+  europe("Europe/Vienna", ["Вена"], "Австрия"),
+  europe("Europe/Rome", ["Рим", "Милан"], "Италия"),
+  europe("Europe/Prague", ["Прага"], "Чехия"),
+  europe("Europe/Warsaw", ["Варшава"], "Польша"),
+  europe("Europe/Copenhagen", ["Копенгаген"], "Дания"),
+  europe("Europe/Oslo", ["Осло"], "Норвегия"),
+  europe("Europe/Stockholm", ["Стокгольм"], "Швеция"),
+  europe("Europe/Budapest", ["Будапешт"], "Венгрия"),
+  europe("Europe/Belgrade", ["Белград"], "Сербия"),
+  europe("Europe/Helsinki", ["Хельсинки"], "Финляндия"),
+  europe("Europe/Tallinn", ["Таллин"], "Эстония"),
+  europe("Europe/Riga", ["Рига"], "Латвия"),
+  europe("Europe/Vilnius", ["Вильнюс"], "Литва"),
+  europe("Europe/Kyiv", ["Киев"], "Украина"),
+  europe("Europe/Chisinau", ["Кишинёв"], "Молдова"),
+  europe("Europe/Bucharest", ["Бухарест"], "Румыния"),
+  europe("Europe/Sofia", ["София"], "Болгария"),
+  europe("Europe/Athens", ["Афины"], "Греция"),
+  europe("Europe/Minsk", ["Минск"], "Беларусь"),
+  europe("Europe/Istanbul", ["Стамбул", "Анкара"], "Турция"),
+
+  asia("Asia/Jerusalem", ["Иерусалим", "Тель-Авив"], "Израиль"),
+  asia("Asia/Beirut", ["Бейрут"], "Ливан"),
+  asia("Asia/Amman", ["Амман"], "Иордания"),
+  asia("Asia/Baghdad", ["Багдад"], "Ирак"),
+  asia("Asia/Riyadh", ["Эр-Рияд"], "Саудовская Аравия"),
+  asia("Asia/Qatar", ["Доха"], "Катар"),
+  asia("Asia/Tehran", ["Тегеран"], "Иран"),
+  asia("Asia/Dubai", ["Дубай", "Абу-Даби"], "ОАЭ"),
+  asia("Asia/Tbilisi", ["Тбилиси"], "Грузия"),
+  asia("Asia/Yerevan", ["Ереван"], "Армения"),
+  asia("Asia/Baku", ["Баку"], "Азербайджан"),
+  asia("Asia/Kabul", ["Кабул"], "Афганистан"),
+  asia("Asia/Tashkent", ["Ташкент", "Самарканд"], "Узбекистан"),
+  asia("Asia/Dushanbe", ["Душанбе"], "Таджикистан"),
+  asia("Asia/Ashgabat", ["Ашхабад"], "Туркменистан"),
+  asia("Asia/Almaty", ["Алматы", "Астана"], "Казахстан"),
+  asia("Asia/Karachi", ["Карачи", "Исламабад"], "Пакистан"),
+  asia("Indian/Maldives", ["Мале"], "Мальдивы"),
+  asia("Asia/Kolkata", ["Дели", "Мумбаи", "Калькутта"], "Индия"),
+  asia("Asia/Colombo", ["Коломбо"], "Шри-Ланка"),
+  asia("Asia/Kathmandu", ["Катманду"], "Непал"),
+  asia("Asia/Bishkek", ["Бишкек"], "Киргизия"),
+  asia("Asia/Dhaka", ["Дакка"], "Бангладеш"),
+  asia("Asia/Yangon", ["Янгон"], "Мьянма"),
+  asia("Asia/Bangkok", ["Бангкок", "Пхукет"], "Таиланд"),
+  asia("Asia/Ho_Chi_Minh", ["Ханой", "Хошимин"], "Вьетнам"),
+  asia("Asia/Phnom_Penh", ["Пномпень"], "Камбоджа"),
+  asia("Asia/Vientiane", ["Вьентьян"], "Лаос"),
+  asia("Asia/Jakarta", ["Джакарта"], "Индонезия"),
+  asia("Asia/Shanghai", ["Пекин", "Шанхай", "Гуанчжоу"], "Китай"),
+  asia("Asia/Hong_Kong", ["Гонконг"], "Китай"),
+  asia("Asia/Taipei", ["Тайбэй"], "Тайвань"),
+  asia("Asia/Singapore", ["Сингапур"], "Сингапур"),
+  asia("Asia/Kuala_Lumpur", ["Куала-Лумпур"], "Малайзия"),
+  asia("Asia/Manila", ["Манила"], "Филиппины"),
+  asia("Asia/Makassar", ["Бали", "Макасар"], "Индонезия"),
+  asia("Asia/Ulaanbaatar", ["Улан-Батор"], "Монголия"),
+  asia("Asia/Seoul", ["Сеул"], "Южная Корея"),
+  asia("Asia/Tokyo", ["Токио", "Осака"], "Япония"),
+
+  america("America/St_Johns", ["Сент-Джонс"], "Канада"),
+  america("America/Halifax", ["Галифакс"], "Канада"),
+  america("America/Sao_Paulo", ["Сан-Паулу", "Рио-де-Жанейро"], "Бразилия"),
+  america("America/Argentina/Buenos_Aires", ["Буэнос-Айрес"], "Аргентина"),
+  america("America/Montevideo", ["Монтевидео"], "Уругвай"),
+  america("America/Santiago", ["Сантьяго"], "Чили"),
+  america("America/Caracas", ["Каракас"], "Венесуэла"),
+  america("America/La_Paz", ["Ла-Пас"], "Боливия"),
+  america("America/Santo_Domingo", ["Санто-Доминго"], "Доминиканская Республика"),
+  america("America/Havana", ["Гавана"], "Куба"),
+  america("America/New_York", ["Нью-Йорк", "Вашингтон", "Майами"], "США"),
+  america("America/Toronto", ["Торонто", "Монреаль"], "Канада"),
+  america("America/Bogota", ["Богота"], "Колумбия"),
+  america("America/Lima", ["Лима"], "Перу"),
+  america("America/Panama", ["Панама"], "Панама"),
+  america("America/Cancun", ["Канкун"], "Мексика"),
+  america("America/Chicago", ["Чикаго", "Хьюстон", "Даллас"], "США"),
+  america("America/Winnipeg", ["Виннипег"], "Канада"),
+  america("America/Mexico_City", ["Мехико"], "Мексика"),
+  america("America/Costa_Rica", ["Сан-Хосе"], "Коста-Рика"),
+  america("America/Denver", ["Денвер"], "США"),
+  america("America/Edmonton", ["Калгари", "Эдмонтон"], "Канада"),
+  america("America/Phoenix", ["Финикс"], "США"),
+  america("America/Los_Angeles", ["Лос-Анджелес", "Сан-Франциско", "Сиэтл"], "США"),
+  america("America/Vancouver", ["Ванкувер"], "Канада"),
+  america("America/Anchorage", ["Анкоридж"], "США"),
+
+  africa("Africa/Accra", ["Аккра"], "Гана"),
+  africa("Africa/Casablanca", ["Касабланка", "Рабат"], "Марокко"),
+  africa("Africa/Lagos", ["Лагос", "Абуджа"], "Нигерия"),
+  africa("Africa/Algiers", ["Алжир"], "Алжир"),
+  africa("Africa/Tunis", ["Тунис"], "Тунис"),
+  africa("Africa/Kinshasa", ["Киншаса"], "ДР Конго"),
+  africa("Africa/Cairo", ["Каир"], "Египет"),
+  africa("Africa/Johannesburg", ["Йоханнесбург", "Кейптаун"], "ЮАР"),
+  africa("Africa/Tripoli", ["Триполи"], "Ливия"),
+  africa("Africa/Khartoum", ["Хартум"], "Судан"),
+  africa("Africa/Maputo", ["Мапуту"], "Мозамбик"),
+  africa("Africa/Nairobi", ["Найроби"], "Кения"),
+  africa("Africa/Addis_Ababa", ["Аддис-Абеба"], "Эфиопия"),
+  africa("Africa/Dar_es_Salaam", ["Дар-эс-Салам"], "Танзания"),
+  africa("Indian/Mauritius", ["Порт-Луи"], "Маврикий"),
+  africa("Indian/Mahe", ["Виктория"], "Сейшелы"),
+
+  oceania("Pacific/Honolulu", ["Гонолулу"], "США (Гавайи)"),
+  oceania("Australia/Perth", ["Перт"], "Австралия"),
+  oceania("Australia/Darwin", ["Дарвин"], "Австралия"),
+  oceania("Australia/Adelaide", ["Аделаида"], "Австралия"),
+  oceania("Australia/Brisbane", ["Брисбен"], "Австралия"),
+  oceania("Australia/Sydney", ["Сидней", "Канберра"], "Австралия"),
+  oceania("Australia/Melbourne", ["Мельбурн"], "Австралия"),
+  oceania("Pacific/Guam", ["Гуам"], "США (Гуам)"),
+  oceania("Pacific/Noumea", ["Нумеа"], "Новая Каледония"),
+  oceania("Pacific/Auckland", ["Окленд", "Веллингтон"], "Новая Зеландия"),
+  oceania("Pacific/Fiji", ["Сува"], "Фиджи"),
+  oceania("Pacific/Tongatapu", ["Нукуалофа"], "Тонга"),
+  oceania("Pacific/Kiritimati", ["Киритимати"], "Кирибати"),
 ];
 
 export default timezones;

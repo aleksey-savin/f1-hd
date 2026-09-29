@@ -9,11 +9,22 @@ import Forbidden from "../../components/Error/403";
 import { useCan } from "../../store/authed-user";
 
 import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
+import Segmented from "@/components/app/Segmented";
 
 import useRolesFilterStore from "../../store/lists/roles";
 import RoleList from "../../components/Role/List";
 import RoleGaps from "../../components/Role/Gaps";
 import { usePermissionOptions } from "../../components/Role/permission-options";
+
+// Тот же набор, что у «Пользователей», — одни подписи и один порядок.
+const AUDIENCE_OPTIONS = [
+  { value: "all", label: "Все" },
+  { value: "staff", label: "Сотрудники" },
+  { value: "clients", label: "Клиенты" },
+];
+const AUDIENCE_LABEL = Object.fromEntries(
+  AUDIENCE_OPTIONS.map((option) => [option.value, option.label]),
+);
 
 /**
  * Роли — справочник, поэтому отдельная страница в «Администрировании», рядом с
@@ -47,34 +58,59 @@ const RolesPage = () => {
   }
 
   const selected = filterStore.permissions || [];
+  const audience = filterStore.audience || "all";
 
   const setPermissions = (values) => {
     filterStore.updateFilter({ ...filterStore, permissions: values || [] });
     filterStore.applyFilter();
   };
 
+  const setAudience = (value) => {
+    filterStore.updateFilter({ ...filterStore, audience: value });
+    filterStore.applyFilter();
+  };
+
   /**
-   * Фасет прав живёт В СТРОКЕ ИНСТРУМЕНТОВ, а не за кнопкой «Фильтр»: у
-   * каталога ролей это ЕДИНСТВЕННОЕ условие, и прятать единственное условие
-   * в шторку значит прятать сам смысл экрана — «у кого есть вот это право».
-   * Шторка нужна там, где условий много и они не помещаются в ряд.
+   * Фасеты живут В СТРОКЕ ИНСТРУМЕНТОВ, а не за кнопкой «Фильтр»: у каталога
+   * ролей их два — адресат и права, — и прятать их в шторку значит прятать сам
+   * смысл экрана — «у кого есть вот это право». Шторка нужна там, где условий
+   * много и они не помещаются в ряд.
    */
   const toolbar = (
-    <ChipMultiCombobox
-      placeholder="Права"
-      searchPlaceholder="Найти право…"
-      countLabel={(count) => `Права: ${count}`}
-      value={selected}
-      options={permissionOptions}
-      onChange={setPermissions}
-    />
+    <>
+      <Segmented
+        options={AUDIENCE_OPTIONS}
+        value={audience}
+        onChange={setAudience}
+        ariaLabel="Набор ролей"
+      />
+      <ChipMultiCombobox
+        placeholder="Права"
+        searchPlaceholder="Найти право…"
+        countLabel={(count) => `Права: ${count}`}
+        value={selected}
+        options={permissionOptions}
+        onChange={setPermissions}
+      />
+    </>
   );
-  const activeFilters = selected.map((key) => ({
-    key,
-    label:
-      permissionOptions.find((option) => option.value === key)?.label ?? key,
-    onRemove: () => setPermissions(selected.filter((item) => item !== key)),
-  }));
+  const activeFilters = [
+    ...(audience !== "all"
+      ? [
+          {
+            key: "audience",
+            label: `Набор: ${AUDIENCE_LABEL[audience]}`,
+            onRemove: () => setAudience("all"),
+          },
+        ]
+      : []),
+    ...selected.map((key) => ({
+      key,
+      label:
+        permissionOptions.find((option) => option.value === key)?.label ?? key,
+      onRemove: () => setPermissions(selected.filter((item) => item !== key)),
+    })),
+  ];
 
   return (
     <ListWrapper
@@ -82,7 +118,9 @@ const RolesPage = () => {
       filterStore={filterStore}
       toolbar={toolbar}
       activeFilters={activeFilters}
-      hasActiveQuery={selected.length > 0 || Boolean(filterStore.searchTerm)}
+      hasActiveQuery={
+        activeFilters.length > 0 || Boolean(filterStore.searchTerm)
+      }
       addLabel="Новая роль"
       emptyTitle="Ролей пока нет"
       emptyHint="Заведите первую — и назначайте её людям вместо россыпи галочек."

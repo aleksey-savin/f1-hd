@@ -79,8 +79,10 @@ const StepBar = ({ current }) => (
 // подсказка включить обновление в параметрах. Без права — только версии и CVE.
 // Устройство на RouterOS 6 получает чекбокс «Перейти на RouterOS 7» (макет
 // «Переход с RouterOS 6 на 7», борд 9 и «Телефон · 8»): ветки становятся
-// ветками семёрки, путь — через последнюю шестёрку и «7.x». Ряд действий
-// показывается и на последней шестёрке (обновления внутри v6 нет, переход есть).
+// ветками семёрки, путь — через последнюю шестёрку и «7.x». На последней
+// шестёрке (макет «Прошивка уже последняя», борд 14) обновляться внутри v6
+// некуда: остаётся один чекбокс, а ветка, путь и кнопка появляются под ним,
+// когда переход отмечен.
 const FirmwareSection = ({ row, canUpgrade, canManage }) => {
   const releases = useMikrotikDeviceFilterStore((state) => state.releases);
   const fetchReleases = useMikrotikDeviceFilterStore(
@@ -136,6 +138,16 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
 
   // Переход на RouterOS 7 включён: ветка и цель — семёрки, а не своей ветки.
   const useV7 = Boolean(v7?.available && toV7);
+  // Своя ветка уже на последней версии: из действий — только переход на 7.
+  const branchUpToDate = !firmware?.updateAvailable;
+  const currentChannel =
+    firmware?.channel === "stable" ? "stable" : "long-term";
+  // Последняя шестёрка ещё не стоит — путь перехода идёт через неё.
+  const needsV6Hop = Boolean(
+    v7?.v6Latest &&
+      firmware?.installedVersion &&
+      compareVersions(v7.v6Latest, firmware.installedVersion) > 0,
+  );
   const v6Target = targets.find((entry) => entry.channel === channel);
   const v7Target = v7?.targets.find((entry) => entry.channel === channel);
   const target = useV7 ? v7Target : v6Target;
@@ -179,34 +191,37 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
   const v7Path = useV7
     ? [
         firmware.installedVersion,
-        ...(v7.v6Latest &&
-        compareVersions(v7.v6Latest, firmware.installedVersion) > 0
-          ? [v7.v6Latest]
-          : []),
+        ...(needsV6Hop ? [v7.v6Latest] : []),
         "7.x",
         v7Target?.version || "—",
       ]
     : null;
 
-  const v7Hint = !v7
-    ? null
-    : !v7.available
-      ? v7.reason
-      : useV7
-        ? `Сначала до ${v7.v6Latest}, затем на RouterOS 7 и до последней версии выбранной ветки.`
-        : (
-            // На телефоне чекбокс стоит над переключателем ветки
-            // (max-md:order-first ниже) — «выше» там было бы неправдой
-            <>
-              {v7.v6Latest} — последняя версия RouterOS 6.{" "}
-              <span className="max-md:hidden">
-                Ветка выше применится к RouterOS 7.
-              </span>
-              <span className="md:hidden">
-                Ветка ниже применится к RouterOS 7.
-              </span>
-            </>
-          );
+  // Подпись под чекбоксом перехода. На телефоне чекбокс стоит над
+  // переключателем ветки (max-md:order-first ниже) — «выше» там было бы
+  // неправдой.
+  let v7Hint = null;
+  if (v7 && !v7.available) {
+    v7Hint = v7.reason;
+  } else if (v7 && useV7) {
+    v7Hint = needsV6Hop
+      ? `Сначала до ${v7.v6Latest}, затем на RouterOS 7 и до последней версии выбранной ветки.`
+      : "На RouterOS 7 и до последней версии выбранной ветки.";
+  } else if (v7 && branchUpToDate) {
+    v7Hint = "Новее в RouterOS 6 ничего нет — дальше только переход.";
+  } else if (v7) {
+    v7Hint = (
+      <>
+        {v7.v6Latest} — последняя версия RouterOS 6.{" "}
+        <span className="max-md:hidden">
+          Ветка выше применится к RouterOS 7.
+        </span>
+        <span className="md:hidden">Ветка ниже применится к RouterOS 7.</span>
+      </>
+    );
+  }
+
+  const showActionRow = !branchUpToDate || useV7;
 
   const controls = canUpgrade &&
     upgrade?.enabled &&
@@ -214,75 +229,95 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
     targets.length > 0 && (
       <>
         {/* Колонка: ряд действий, чекбокс перехода, подпись. На телефоне
-            чекбокс идёт первым (макет «Телефон · 8»). */}
+            чекбокс идёт первым (макет «Телефон · 8»); на последней шестёрке —
+            везде первым, а ряд появляется под ним, только когда переход
+            отмечен (борд 14): «6.49.22 → 6.49.22» и погашенная кнопка ничего
+            не предлагали. */}
         <div className="mt-3 flex flex-col border-t border-border pt-3.5">
-          <div className="flex flex-wrap items-center gap-3.5 max-md:flex-col max-md:items-stretch">
-            <Segmented
-              options={segmentOptions}
-              value={channel}
-              onChange={setChannel}
-              ariaLabel={useV7 ? "Ветка RouterOS 7" : "Ветка RouterOS"}
-              fit
-            />
-            {v7Path ? (
-              <span className="flex flex-wrap items-center gap-1.5 font-mono text-sm text-muted-foreground max-md:text-xs">
-                {v7Path.map((version, index) => (
-                  <Fragment key={`${index}-${version}`}>
-                    {index > 0 && <span className="text-faint">→</span>}
-                    <span
-                      className={
-                        index === v7Path.length - 1
-                          ? "font-semibold text-foreground"
-                          : undefined
-                      }
-                    >
-                      {version}
-                    </span>
-                  </Fragment>
-                ))}
-              </span>
-            ) : (
-              target?.version && (
-                <span className="font-mono text-sm text-muted-foreground max-md:hidden">
-                  {firmware.installedVersion} → {target.version}
-                </span>
-              )
-            )}
-            <span className="flex-1 max-md:hidden" />
-            <Button
-              onClick={() => setDialogOpen(true)}
-              disabled={!canStart || offline}
-              title={
-                otherUpgradeRunning
-                  ? "Идёт другое обновление — дождитесь его окончания"
-                  : offline
-                    ? "Устройство не в сети"
-                    : useV7
-                      ? v7Target?.version
-                        ? undefined
-                        : `Нет данных о версиях ветки ${channel}`
-                      : target?.upToDate
-                        ? v7?.available
-                          ? "Уже последняя версия RouterOS 6 — отметьте «Перейти на RouterOS 7»"
-                          : "Уже актуальная версия ветки"
-                        : undefined
-              }
+          {showActionRow && (
+            <div
+              className={cn(
+                "flex flex-wrap items-center gap-3.5 max-md:flex-col max-md:items-stretch",
+                branchUpToDate && "mt-3",
+              )}
             >
-              <RiArrowUpCircleLine />
-              {target?.version ? `Обновить до ${target.version}` : "Обновить"}
-            </Button>
-          </div>
+              <Segmented
+                options={segmentOptions}
+                value={channel}
+                onChange={setChannel}
+                ariaLabel={useV7 ? "Ветка RouterOS 7" : "Ветка RouterOS"}
+                fit
+              />
+              {v7Path ? (
+                <span className="flex flex-wrap items-center gap-1.5 font-mono text-sm text-muted-foreground max-md:text-xs">
+                  {v7Path.map((version, index) => (
+                    <Fragment key={`${index}-${version}`}>
+                      {index > 0 && <span className="text-faint">→</span>}
+                      <span
+                        className={
+                          index === v7Path.length - 1
+                            ? "font-semibold text-foreground"
+                            : undefined
+                        }
+                      >
+                        {version}
+                      </span>
+                    </Fragment>
+                  ))}
+                </span>
+              ) : (
+                target?.version && (
+                  <span className="font-mono text-sm text-muted-foreground max-md:hidden">
+                    {firmware.installedVersion} → {target.version}
+                  </span>
+                )
+              )}
+              <span className="flex-1 max-md:hidden" />
+              <Button
+                onClick={() => setDialogOpen(true)}
+                disabled={!canStart || offline}
+                title={
+                  otherUpgradeRunning
+                    ? "Идёт другое обновление — дождитесь его окончания"
+                    : offline
+                      ? "Устройство не в сети"
+                      : useV7
+                        ? v7Target?.version
+                          ? undefined
+                          : `Нет данных о версиях ветки ${channel}`
+                        : target?.upToDate
+                          ? v7?.available
+                            ? "Уже последняя версия RouterOS 6 — отметьте «Перейти на RouterOS 7»"
+                            : "Уже актуальная версия ветки"
+                          : undefined
+                }
+              >
+                <RiArrowUpCircleLine />
+                {target?.version ? `Обновить до ${target.version}` : "Обновить"}
+              </Button>
+            </div>
+          )}
           {v7 && (
             <label
               className={cn(
-                "mt-3 flex items-start gap-2.5 max-md:order-first max-md:mt-0 max-md:mb-3",
+                "flex items-start gap-2.5",
+                branchUpToDate
+                  ? "order-first"
+                  : "mt-3 max-md:order-first max-md:mt-0 max-md:mb-3",
                 v7.available ? "cursor-pointer" : "cursor-not-allowed",
               )}
             >
               <Checkbox
                 checked={useV7}
                 disabled={!v7.available}
-                onCheckedChange={(value) => setToV7(value === true)}
+                onCheckedChange={(value) => {
+                  setToV7(value === true);
+                  // Ряд прячется вместе с чекбоксом — выбранная для семёрки
+                  // ветка не должна остаться «переходом на stable» без ряда
+                  if (value !== true && branchUpToDate) {
+                    setChannel(currentChannel);
+                  }
+                }}
                 className="mt-0.5"
               />
               <span className="min-w-0">
@@ -311,8 +346,8 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
                 Переход на RouterOS 7 — большое обновление:{" "}
                 {installsLabel(v7Path.length - 1)} и до четырёх перезагрузок,
                 около 20 минут. Конфигурация конвертируется автоматически —
-                после проверьте маршрутизацию (OSPF, BGP). Вернуть устройство
-                на RouterOS 6 из HD нельзя.
+                после проверьте маршрутизацию (OSPF, BGP). Вернуть устройство на
+                RouterOS 6 из HD нельзя.
               </div>
             </div>
           ) : v6Target && !v6Target.current ? (
@@ -487,8 +522,8 @@ const FirmwareSection = ({ row, canUpgrade, canManage }) => {
             )}
 
             {/* Устройство на последней шестёрке: внутри v6 ставить нечего, но
-                переход на RouterOS 7 — с этой же страницы, поэтому ряд действий
-                остаётся (кнопка погашена, пока чекбокс не отмечен). */}
+                переход на RouterOS 7 — с этой же страницы: блок остаётся одним
+                чекбоксом (борд 14). */}
             {(firmware.updateAvailable || Boolean(v7?.available)) && controls}
           </>
         )}

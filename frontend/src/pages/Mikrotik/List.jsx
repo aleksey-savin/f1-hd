@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import { isMobile } from "react-device-detect";
 
 import {
   RiArrowUpCircleLine,
   RiCheckboxMultipleLine,
   RiDraftLine,
+  RiErrorWarningLine,
+  RiEyeLine,
+  RiPencilLine,
 } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import ListWrapper from "@/components/app/ListWrapper";
 import ListGroupLabel from "@/components/app/ListGroupLabel";
 import ChipMultiCombobox from "@/components/app/ChipMultiCombobox";
+import Segmented from "@/components/app/Segmented";
 import SelectionBar from "@/components/app/SelectionBar";
 import BulkActionBar from "@/components/app/BulkActionBar";
 
@@ -31,6 +36,7 @@ import useLiveTopic from "@/hooks/use-live-topic";
 import useListSelection from "@/hooks/use-list-selection";
 import { useCan } from "@/store/authed-user";
 import useMikrotikDeviceFilterStore, {
+  accessCounts,
   rowStatus,
 } from "../../store/lists/mikrotik-devices";
 
@@ -40,6 +46,13 @@ const GROUPS = [
   { key: "online", label: "В сети" },
   { key: "disabled", label: "Мониторинг выключен", tone: "off" },
 ];
+
+// Бейдж применённого фильтра «Права HD» — полные названия, как метка строки
+const ACCESS_LABEL = {
+  read: "только чтение",
+  write: "чтение и запись",
+  noWrite: "нет прав на запись",
+};
 
 const optionLabel = (options, value) =>
   options.find((option) => option.value === value)?.label || value;
@@ -166,6 +179,39 @@ const MikrotikDevices = () => {
         : null;
 
   const { facets, setFacet } = filterStore;
+
+  // Сегмент «Права HD» рядом с чипом компаний (макет «Фильтр по правам HD»,
+  // 30.09): app/Segmented как есть — иконка метки строки, короткая подпись,
+  // число среза; полное название — в подсказке. На телефоне — своей строкой
+  // во всю ширину в конце ряда инструментов, плотным кеглем.
+  const counts = accessCounts(filterStore);
+  const iconSize = isMobile ? 12 : 14;
+  const accessOptions = [
+    { value: "all", label: "Все", count: counts.all },
+    {
+      value: "read",
+      label: "Чтение",
+      count: counts.read,
+      icon: <RiEyeLine size={iconSize} aria-hidden />,
+      title: "Только чтение — «Обновление прошивки из HD» выключено",
+    },
+    {
+      value: "write",
+      label: "Запись",
+      count: counts.write,
+      icon: <RiPencilLine size={iconSize} aria-hidden />,
+      title: "Чтение и запись — «Обновление прошивки из HD» включено",
+    },
+    {
+      value: "noWrite",
+      label: "Нет прав",
+      count: counts.noWrite,
+      icon: <RiErrorWarningLine size={iconSize} aria-hidden />,
+      title:
+        "Нет прав на запись — обновление включено, но группа пользователя HD на устройстве не даёт прав write, reboot и policy",
+    },
+  ];
+
   const activeFilters = [
     ...(facets.status
       ? [
@@ -203,6 +249,15 @@ const MikrotikDevices = () => {
               facets.firmware,
             ).toLowerCase()}`,
             onRemove: () => setFacet("firmware", null),
+          },
+        ]
+      : []),
+    ...(facets.access
+      ? [
+          {
+            key: "access",
+            label: `Права: ${ACCESS_LABEL[facets.access] || facets.access}`,
+            onRemove: () => setFacet("access", null),
           },
         ]
       : []),
@@ -254,6 +309,17 @@ const MikrotikDevices = () => {
               value={facets.companies}
               options={companyOptions}
               onChange={(value) => setFacet("companies", value)}
+            />
+            <Segmented
+              options={accessOptions}
+              value={facets.access || "all"}
+              onChange={(value) =>
+                setFacet("access", value === "all" ? null : value)
+              }
+              ariaLabel="Права HD"
+              fit
+              compact={isMobile}
+              className="max-md:order-last max-md:w-full"
             />
             {canUpgrade && !selection.isActive && (
               <Button

@@ -2,7 +2,7 @@ import { formatInTimeZone, getTimezoneOffset } from "date-fns-tz";
 
 import { DEFAULT_TIMEZONE } from "./format-date";
 import { getLocalStorageData } from "./auth";
-import timezones from "../store/timezones";
+import { catalogCity } from "./timezone-catalog";
 
 // Показ часового пояса клиента: который час у заявителя и насколько это
 // расходится с нашим временем. Сам каскад (заявитель → подразделение → предки →
@@ -34,15 +34,15 @@ export const orgTimezone = () =>
   getLocalStorageData().timezone || DEFAULT_TIMEZONE;
 
 /**
- * Человеческое название зоны. Сначала — подпись из каталога-выпадашки: её же
- * выбирал администратор, и она узнаваемее машинной («Калининград» вместо
- * «Восточная Европа»). Дальше — Intl, в конце — хвост IANA.
+ * Человеческое название зоны. Сначала — главный город из каталога-выпадашки:
+ * его же выбирал администратор, и он узнаваемее машинного («Калининград»
+ * вместо «Восточная Европа»). Дальше — Intl, в конце — хвост IANA.
  */
 export const tzCity = (timezone) => {
   if (!timezone) return "";
 
-  const known = timezones.find((zone) => zone.value === timezone);
-  if (known) return known.label.split(" (")[0];
+  const known = catalogCity(timezone);
+  if (known) return known;
 
   try {
     const name = new Intl.DateTimeFormat("ru", {

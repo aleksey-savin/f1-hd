@@ -106,6 +106,14 @@ export const presenceLine = (user) => {
   return tail ? `${meta.label} · ${tail}` : meta.label;
 };
 
+/**
+ * Развёрнуты только группы на смене — на связи и на обеде. Кого нет (не на
+ * работе, отпуск, больничный, без статуса), рейл и «Команда сейчас» сворачивают
+ * в счётчик: норма молчит.
+ */
+export const isOnShiftGroup = (group) =>
+  ON_SHIFT_STATUS_CODES.includes(group.status.code);
+
 /** Группы в порядке каталога, только непустые: язык табло. */
 export const groupByStatus = (users) =>
   WORK_STATUSES.map((status) => ({

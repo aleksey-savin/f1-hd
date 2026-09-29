@@ -8,7 +8,11 @@ import { cn } from "@/lib/utils";
 import { useCan } from "../../store/authed-user";
 import { AuthedUserContext } from "../../store/authed-user-context";
 import useWorkStatusesStore from "../../store/work-statuses";
-import { availabilitySummary, groupByStatus } from "../User/presence";
+import {
+  availabilitySummary,
+  groupByStatus,
+  isOnShiftGroup,
+} from "../User/presence";
 import {
   CalendarRow,
   GroupHeading,
@@ -48,8 +52,8 @@ const TeamNow = () => {
   }
 
   const groups = groupByStatus(colleagues);
-  const shown = groups.filter((group) => group.status.kind !== "idle");
-  const idle = groups.filter((group) => group.status.kind === "idle");
+  const shown = groups.filter(isOnShiftGroup);
+  const idle = groups.filter((group) => !isOnShiftGroup(group));
   const summary = availabilitySummary(colleagues);
   // Стопка — по одному человеку из каждой группы на связи, не больше четырёх
   const stack = shown.map((group) => group.users[0]).slice(0, 4);

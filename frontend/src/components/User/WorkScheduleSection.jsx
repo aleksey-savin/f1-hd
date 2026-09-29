@@ -17,6 +17,8 @@ import { Button } from "../ui/button";
 import { useCan } from "../../store/authed-user";
 import { monthRange } from "../../util/period";
 import { getAbsenceType } from "../../util/absence-types";
+import { DEFAULT_TIMEZONE } from "../../util/format-date";
+import { tzCity } from "../../util/timezone-display";
 import { WORK_TIME_MODES } from "./permissions-catalog";
 
 const API = import.meta.env.VITE_API_ADDRESS;
@@ -234,8 +236,11 @@ const WorkScheduleSection = ({ id = "schedule", userId, version }) => {
               </div>
             ) : data.hasPersonalSchedule ? (
               <div>
+                {/* График задаётся и считается в поясе организации
+                    (services/workCalendar); личный пояс только показывает */}
                 <p className="mb-2 text-xs text-muted-foreground">
-                  Время — по часовому поясу сотрудника ({data.timezone})
+                  Время — по поясу организации (
+                  {tzCity(data.organizationTimezone || DEFAULT_TIMEZONE)})
                 </p>
                 <ScheduleView schedule={data.schedule} />
               </div>

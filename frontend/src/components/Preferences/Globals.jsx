@@ -7,7 +7,7 @@ import useRefreshRoute from "@/components/app/use-refresh-route";
 import { SubLabel } from "@/components/app/Panel";
 
 import Combobox from "@/components/app/Combobox";
-import timezones from "../../store/timezones";
+import { timezoneOptions } from "../../util/timezone-catalog";
 import useToastStore from "../../store/toast-store";
 import { DEFAULT_TIMEZONE } from "../../util/format-date";
 import { TAXI_OPERATORS } from "../../util/taxi-operators";
@@ -100,7 +100,8 @@ const PrefsGlobals = ({ prefs }) => {
             id="prefs-timezone"
             placeholder="Выберите часовой пояс"
             value={timezone}
-            options={timezones}
+            options={timezoneOptions({ extra: [timezone] })}
+            searchPlaceholder="Город, страна или UTC…"
             onChange={(value) => setTimezone(value || DEFAULT_TIMEZONE)}
           />
         </div>

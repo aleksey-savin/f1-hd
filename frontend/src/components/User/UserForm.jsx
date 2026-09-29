@@ -31,9 +31,17 @@ import { api } from "@/lib/api";
 import Combobox, { MultiCombobox, toOptions } from "@/components/app/Combobox";
 import { useFormSheet } from "@/components/app/FormOutlet";
 import useInitialPrefs from "../../store/prefs";
-import timezones from "../../store/timezones";
-import { inheritedTimezone, tzCity } from "../../util/timezone-display";
-import { businessDayKey } from "../../util/format-date";
+import {
+  shiftClock,
+  shiftPhrase,
+  timezoneOptions,
+} from "../../util/timezone-catalog";
+import {
+  inheritedTimezone,
+  tzCity,
+  tzOffsetMinutes,
+} from "../../util/timezone-display";
+import { DEFAULT_TIMEZONE, businessDayKey } from "../../util/format-date";
 
 import {
   ACCOUNT_KINDS,
@@ -874,7 +882,8 @@ const UserForm = ({ onCreated, successTo } = {}) => {
           <Combobox
             id="u-timezone"
             placeholder={`Как у подразделения — ${tzCity(inheritedZone)}`}
-            options={timezones}
+            options={timezoneOptions({ extra: [form.timezone] })}
+            searchPlaceholder="Город, страна или UTC…"
             value={form.timezone}
             onChange={(value) => setField("timezone", value)}
             clearable
@@ -957,19 +966,24 @@ const UserForm = ({ onCreated, successTo } = {}) => {
     });
   };
 
-  const tzOptions = timezones.map((zone) => ({
-    value: zone.value,
-    label: zone.label,
-  }));
+  const tzOptions = timezoneOptions({ extra: [schedule.timezone] });
 
-  // Пояс, в котором читается график: личный, а если не выбран — организации
-  const scheduleTzHint = (() => {
+  // График читается в поясе организации (services/workCalendar), личный пояс
+  // только показывает время. Если у сотрудника другое настенное время, даём
+  // сдвиг с примером — иначе «06:00» вводят по местным часам, а считается по
+  // часам организации
+  const scheduleTz = (() => {
+    const org = orgTimezone || DEFAULT_TIMEZONE;
+    const orgLabel =
+      tzOptions.find((option) => option.value === org)?.label ?? org;
     const own = schedule.timezone || null;
-    const effective = own || orgTimezone;
-    if (!effective) return "часовой пояс организации";
-    const label =
-      tzOptions.find((zone) => zone.value === effective)?.label ?? effective;
-    return own ? label : `${label}, как в организации`;
+    const diff = own ? tzOffsetMinutes(own, org) : null;
+    if (!diff) return { org: orgLabel, shift: null, nineThere: null };
+    return {
+      org: orgLabel,
+      shift: shiftPhrase(diff),
+      nineThere: shiftClock("09:00", diff),
+    };
   })();
 
   // Сколько месяцев заденет правка задним числом — предупреждаем поимённо,
@@ -1056,7 +1070,7 @@ const UserForm = ({ onCreated, successTo } = {}) => {
                 value={schedule.timezone || null}
                 onChange={(next) => patchSchedule({ timezone: next ?? "" })}
                 placeholder="Как в организации"
-                searchPlaceholder="Город или зона…"
+                searchPlaceholder="Город, страна или UTC…"
                 clearable
                 clearLabel="Как в организации"
               />
@@ -1111,17 +1125,22 @@ const UserForm = ({ onCreated, successTo } = {}) => {
               />
             </Field>
 
-            {/* Из самих полей «09:00–18:00» не видно, чьё это время: пояс
-                у сотрудника свой, и по нему же считается его день */}
+            {/* Из самих полей «09:00–18:00» не видно, чьё это время: график
+                задаётся в поясе организации, а у сотрудника пояс может быть свой */}
             {!isFreeMode && (
               <>
                 <p className="mb-2 text-sm text-muted-foreground">
-                  Время указывается по часовому поясу сотрудника —{" "}
+                  Пояс графика —{" "}
                   <span className="font-medium text-foreground">
-                    {scheduleTzHint}
+                    {scheduleTz.org}
                   </span>
-                  . В календаре и отчётах у каждого свой день, поясá не
-                  приводятся к общему.
+                  .
+                  {scheduleTz.shift && (
+                    <>
+                      <br />У сотрудника {scheduleTz.shift}: 09:00 →{" "}
+                      {scheduleTz.nineThere}.
+                    </>
+                  )}
                 </p>
                 <ScheduleEditor
                   schedule={schedule.week}

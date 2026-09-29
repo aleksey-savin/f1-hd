@@ -40,13 +40,15 @@ const searchItems = (query, items) => {
 // Фасеты Sheet-фильтра/чипа компаний. status: online|offline|disabled;
 // firmware: vulnerable (CVE ≥ порога) | outdated (есть обновление) | current;
 // branch — чип полосы RouterOS: ключ ветки (7.stable, 6.long-term…), сужает
-// список до устройств ветки, отстающих от её последней версии.
+// список до устройств ветки, отстающих от её последней версии; access —
+// сегмент «Права HD» у чипа компаний: read | write | noWrite (row.access).
 const EMPTY_FACETS = {
   status: null,
   companies: [],
   type: null,
   firmware: null,
   branch: null,
+  access: null,
 };
 
 const matchesFacets = (item, facets) => {
@@ -64,6 +66,7 @@ const matchesFacets = (item, facets) => {
     return false;
   }
   if (facets.type && item.type !== facets.type) return false;
+  if (facets.access && item.access !== facets.access) return false;
   if (facets.firmware) {
     const firmware = item.firmwareStatus;
     if (facets.firmware === "vulnerable" && !firmware?.vulnerable) return false;
@@ -112,6 +115,21 @@ const recompute = (state) => {
     Array.isArray(state.originalList) ? state.originalList : []
   ).filter((item) => matchesFacets(item, state.facets));
   return sortList(state.sortBy, searchItems(state.searchTerm, base));
+};
+
+// Числа сегмента «Права HD»: по списку со всеми условиями и поиском, кроме
+// самого сегмента — иначе выбранное значение обнуляло бы соседние.
+export const accessCounts = (state) => {
+  const facets = { ...state.facets, access: null };
+  const base = (
+    Array.isArray(state.originalList) ? state.originalList : []
+  ).filter((item) => matchesFacets(item, facets));
+  const rows = searchItems(state.searchTerm, base);
+  const counts = { all: rows.length, read: 0, write: 0, noWrite: 0 };
+  for (const row of rows) {
+    if (row.access && row.access in counts) counts[row.access] += 1;
+  }
+  return counts;
 };
 
 const authHeaders = () => ({
