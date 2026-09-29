@@ -23,6 +23,7 @@ import AddWorksSheet from "./BulkActions/AddWorksSheet";
 import CloseModal from "./BulkActions/CloseModal";
 import CommentModal from "./BulkActions/CommentModal";
 import TakeToWorkModal from "./BulkActions/TakeToWorkModal";
+import { hasOtherResponsibles } from "./ticket-actions";
 import { useCan } from "@/store/authed-user";
 
 // Действия над выбранными заявками. Панель показывается всё время, пока включён
@@ -97,6 +98,9 @@ const TicketBulkActionBar = ({
         show={openModal === "takeToWork"}
         onHide={closeModal}
         count={count}
+        offerTakeOver={selectedItems.some((ticket) =>
+          hasOtherResponsibles(ticket, userId),
+        )}
         onConfirm={onTakeToWork}
       />
       <CommentModal

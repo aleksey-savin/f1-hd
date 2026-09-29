@@ -1,9 +1,10 @@
 import { Bot, GrammyError, HttpError } from "grammy";
-import type { Context } from "grammy";
+import type { Context, NextFunction } from "grammy";
 
 import {
   claimPairing,
   createTicket,
+  fetchActor,
   fetchOpenTickets,
   setupStatusBoard,
   setWorkStatus,
@@ -16,6 +17,7 @@ import { clearDialog, getDialog, setDialog } from "../store/dialog.ts";
 import {
   companyKeyboard,
   renderTicket,
+  statusKeyboard,
   ticketButton,
   ticketListKeyboard,
 } from "./render.ts";
@@ -33,10 +35,21 @@ import {
  * пишет, и показывает ответ бэкенда — включая отказы.
  */
 
-const MAIN_KEYBOARD = {
-  keyboard: [[{ text: "⭐️ Новая заявка" }], [{ text: "📖 Список текущих заявок" }]],
+const MY_STATUS = "🚦 Мой статус";
+
+/**
+ * Меню в личном чате. «Мой статус» — только сотрудникам со статусами
+ * присутствия; клиент его не видит (решает бэкенд, `GET /api/bot/me`).
+ */
+const TICKET_BUTTONS = [
+  [{ text: "⭐️ Новая заявка" }],
+  [{ text: "📖 Список текущих заявок" }],
+];
+
+const mainKeyboard = (withStatus: boolean) => ({
+  keyboard: withStatus ? [...TICKET_BUTTONS, [{ text: MY_STATUS }]] : TICKET_BUTTONS,
   resize_keyboard: true,
-};
+});
 
 /**
  * Меню команд. Было у прежнего бота и потерялось при переписывании — без него
@@ -48,6 +61,22 @@ const PRIVATE_COMMANDS = [
   { command: "ticket_list", description: "📖 Список текущих заявок" },
   { command: "add_new_ticket", description: "⭐️ Новая заявка" },
 ];
+
+const privateCommands = (withStatus: boolean) =>
+  withStatus
+    ? [...PRIVATE_COMMANDS, { command: "status", description: MY_STATUS }]
+    : PRIVATE_COMMANDS;
+
+/**
+ * Доступны ли человеку статусы. Любой отказ — не привязан, клиент, сбой сети —
+ * значит «нет»: лишняя кнопка у клиента хуже, чем её временное отсутствие у
+ * сотрудника, которому достаточно повторить /start.
+ */
+const canSetStatus = async (actor: number | undefined): Promise<boolean> => {
+  if (!actor) return false;
+  const info = await fetchActor(actor).catch(() => null);
+  return info?.canSetWorkStatus === true;
+};
 
 /** В групповом чате уведомлений заявки не заводят — там бот только вещает. */
 const GROUP_COMMANDS = [
@@ -97,9 +126,10 @@ export const createBot = (getConfig: ConfigSource): Bot => {
     if (code) {
       try {
         const result = await claimPairing(code, ctx.chat.id);
+        const withStatus = await canSetStatus(ctx.from?.id);
         await ctx.reply(
           `🥳 ${result.message}${result.firstName ? `\nВы вошли как ${result.firstName}` : ""}`,
-          { reply_markup: MAIN_KEYBOARD },
+          { reply_markup: mainKeyboard(withStatus) },
         );
       } catch (error) {
         // Отвечаем ПО ОТВЕТУ бэкенда: просроченная или использованная ссылка —
@@ -116,9 +146,10 @@ export const createBot = (getConfig: ConfigSource): Bot => {
      */
     const isGlobalChat =
       String(ctx.chat.id) === String(getConfig()?.telegram.chatId || "");
+    const withStatus = !isGlobalChat && (await canSetStatus(ctx.from?.id));
 
     await ctx.api
-      .setMyCommands(isGlobalChat ? GROUP_COMMANDS : PRIVATE_COMMANDS, {
+      .setMyCommands(isGlobalChat ? GROUP_COMMANDS : privateCommands(withStatus), {
         scope: { type: "chat", chat_id: ctx.chat.id },
       })
       .catch(() => undefined);
@@ -127,7 +158,7 @@ export const createBot = (getConfig: ConfigSource): Bot => {
       isGlobalChat
         ? "Привет👋 Отлично, уведомления по заявкам теперь будут отправляться в эту группу"
         : "Привет👋 Воспользуйтесь меню или просто отправьте сообщение или фото с описанием, чтобы создать заявку",
-      isGlobalChat ? undefined : { reply_markup: MAIN_KEYBOARD },
+      isGlobalChat ? undefined : { reply_markup: mainKeyboard(withStatus) },
     );
   });
 
@@ -169,6 +200,13 @@ export const createBot = (getConfig: ConfigSource): Bot => {
 
   // --- заявки ---------------------------------------------------------------
 
+  /**
+   * Заявки — только в личном чате. В группе бот-администратор получает ВСЕ
+   * сообщения (режим приватности на администраторов не действует), и без
+   * этого фильтра предлагал завести заявку на каждую реплику команды.
+   */
+  const dm = bot.chatType("private");
+
   const sendTicketList = async (ctx: Context) => {
     const actor = ctx.from?.id;
     if (!actor) return;
@@ -199,15 +237,38 @@ export const createBot = (getConfig: ConfigSource): Bot => {
     });
   };
 
-  bot.command("ticket_list", sendTicketList);
-  bot.hears("📖 Список текущих заявок", sendTicketList);
+  dm.command("ticket_list", sendTicketList);
+  dm.hears("📖 Список текущих заявок", sendTicketList);
 
   const askForTicket = async (ctx: Context) => {
     await ctx.reply("Опишите проблему одним сообщением. Можно приложить фото.");
   };
 
-  bot.command("add_new_ticket", askForTicket);
-  bot.hears("⭐️ Новая заявка", askForTicket);
+  dm.command("add_new_ticket", askForTicket);
+  dm.hears("⭐️ Новая заявка", askForTicket);
+
+  // --- свой статус ------------------------------------------------------------
+
+  const askForStatus = async (ctx: Context, next: NextFunction) => {
+    // Клиенту функции как будто нет: текст уходит дальше — в обычное
+    // предложение завести заявку, а команда без ответа, как любая чужая.
+    if (!(await canSetStatus(ctx.from?.id))) {
+      await next();
+      return;
+    }
+
+    const botConfig = getConfig();
+    if (!botConfig) {
+      await ctx.reply("Настройки ещё не загружены, повторите через несколько секунд");
+      return;
+    }
+    await ctx.reply("Выберите статус", {
+      reply_markup: statusKeyboard(botConfig.workStatuses),
+    });
+  };
+
+  dm.command("status", askForStatus);
+  dm.hears(MY_STATUS, askForStatus);
 
   // --- свободный текст и фото → предложение завести заявку -------------------
 
@@ -236,13 +297,13 @@ export const createBot = (getConfig: ConfigSource): Bot => {
     });
   };
 
-  bot.on("message:text", async (ctx) => {
+  dm.on("message:text", async (ctx) => {
     // Команды и кнопки разобраны выше; сюда доходит только свободный текст.
     if (ctx.message.text.startsWith("/")) return;
     await offerTicket(ctx, ctx.message.text);
   });
 
-  bot.on("message:photo", async (ctx) => {
+  dm.on("message:photo", async (ctx) => {
     /**
      * Фото ОБЯЗАНО быть с описанием — правило прежнего бота, и оно про дело:
      * заявка из одной картинки без слов исполнителю ничего не сообщает. Я его
@@ -264,21 +325,49 @@ export const createBot = (getConfig: ConfigSource): Bot => {
     const actor = ctx.from.id;
     const data = ctx.callbackQuery.data;
 
-    // Отвечаем Telegram сразу: без этого у кнопки крутится часик.
-    await ctx.answerCallbackQuery().catch(() => undefined);
-
+    /**
+     * Статус отвечает на нажатие сам и один раз: Telegram принимает только
+     * первый ответ, и при общем раннем ответе ниже отказ бэкенда («только
+     * сотрудникам») молча терялся.
+     */
     if (data.startsWith("ws:")) {
+      // Кнопки остались на старых табло в группе — там статус не меняем.
+      if (ctx.chat?.type !== "private") {
+        await ctx
+          .answerCallbackQuery({ text: "Статус меняется в личном чате с ботом", show_alert: true })
+          .catch(() => undefined);
+        return;
+      }
+
       const code = data.slice(3);
+      let result;
       try {
-        const result = await setWorkStatus(actor, code);
-        await ctx.answerCallbackQuery({ text: result.message }).catch(() => undefined);
+        result = await setWorkStatus(actor, code);
       } catch (error) {
         await ctx
           .answerCallbackQuery({ text: explain(error), show_alert: true })
           .catch(() => undefined);
+        return;
       }
+      await ctx.answerCallbackQuery().catch(() => undefined);
+
+      const botConfig = getConfig();
+      const current = botConfig?.workStatuses.find(
+        (status) => status.code === (result.workStatus?.code ?? code),
+      );
+      if (!botConfig || !current) return;
+
+      // Повторный выбор того же статуса — «message is not modified», не ошибка.
+      await ctx
+        .editMessageText(`Ваш статус: ${current.emoji} ${current.label}`, {
+          reply_markup: statusKeyboard(botConfig.workStatuses),
+        })
+        .catch(() => undefined);
       return;
     }
+
+    // Отвечаем Telegram сразу: без этого у кнопки крутится часик.
+    await ctx.answerCallbackQuery().catch(() => undefined);
 
     if (data === "newticket:no") {
       clearDialog(actor);

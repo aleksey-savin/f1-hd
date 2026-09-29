@@ -20,8 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import ClosingChips, { isTouchPointer } from "./ClosingChips";
 import useTicketAction from "../../../hooks/use-ticket-action";
 import { localToUtc, utcToLocalForm } from "../../../util/format-date";
-import { closeBlockers } from "../ticket-actions";
-import { useCan } from "@/store/authed-user";
+import { closeBlockers, hasOtherResponsibles } from "../ticket-actions";
+import { useAuthedUser, useCan } from "@/store/authed-user";
 
 /**
  * Диалоги действий над заявкой — одним компонентом вместо семи почти одинаковых
@@ -74,6 +74,7 @@ const ActionDialog = ({
   // (правило процесса) сервер называет словами — обёртка показывает их тостом
   const fetcher = useTicketAction();
   const can = useCan();
+  const { _id: userId } = useAuthedUser();
   const [takeOver, setTakeOver] = useState(false);
   const [text, setText] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -169,24 +170,26 @@ const ActionDialog = ({
           </DialogHeader>
 
           <div className="mt-3">
-            {action === "takeToWork" && (
-              <>
-                <SwitchField
-                  id="action-take-over"
-                  label="Взять на себя"
-                  hint="Остальные ответственные будут сняты с заявки"
-                  checked={takeOver}
-                  onCheckedChange={setTakeOver}
-                />
-                {takeOver && (
-                  <Alert variant="warning">
-                    <AlertDescription>
-                      После сохранения вы останетесь единственным ответственным.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </>
-            )}
+            {action === "takeToWork" &&
+              hasOtherResponsibles(ticket, userId) && (
+                <>
+                  <SwitchField
+                    id="action-take-over"
+                    label="Взять на себя"
+                    hint="Остальные ответственные будут сняты с заявки"
+                    checked={takeOver}
+                    onCheckedChange={setTakeOver}
+                  />
+                  {takeOver && (
+                    <Alert variant="warning">
+                      <AlertDescription>
+                        После сохранения вы останетесь единственным
+                        ответственным.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
+              )}
 
             {action === "join" && (
               <p className="my-0 text-sm text-muted-foreground">

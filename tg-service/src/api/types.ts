@@ -128,6 +128,9 @@ export type TicketList = { tickets: TicketSummary[] };
 
 export type PairingResult = { message: string; firstName?: string };
 
+/** Что доступно человеку в боте — от этого зависит его меню. */
+export type ActorInfo = { canSetWorkStatus: boolean };
+
 export type WorkStatusResult = {
   message: string;
   workStatus?: { code: string; note: string };

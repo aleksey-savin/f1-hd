@@ -15,8 +15,9 @@ import {
 // Массовое «Принять в работу». Переключатель «Взять на себя» применяется ко всем
 // выбранным заявкам: на бэкенде для каждой заявки текущий пользователь становится
 // единственным ответственным (а у заявок без ответственных он добавляется в любом
-// случае).
-const TakeToWorkModal = ({ show, onHide, count, onConfirm }) => {
+// случае). Если ни у одной заявки нет других ответственных, снимать некого —
+// переключатель не показываем (`offerTakeOver`).
+const TakeToWorkModal = ({ show, onHide, count, offerTakeOver, onConfirm }) => {
   const [takeOver, setTakeOver] = useState(false);
 
   const close = () => {
@@ -26,7 +27,7 @@ const TakeToWorkModal = ({ show, onHide, count, onConfirm }) => {
 
   const submitHandler = (event) => {
     event.preventDefault();
-    onConfirm({ takeOver });
+    onConfirm({ takeOver: offerTakeOver && takeOver });
     close();
   };
 
@@ -42,22 +43,24 @@ const TakeToWorkModal = ({ show, onHide, count, onConfirm }) => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="mt-2">
-            <SwitchField
-              id="bulk-take-over"
-              label="Взять на себя"
-              checked={takeOver}
-              onCheckedChange={setTakeOver}
-            />
-            {takeOver && (
-              <Alert variant="warning">
-                <AlertDescription>
-                  После сохранения вы останетесь единственным ответственным по
-                  выбранным заявкам.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
+          {offerTakeOver && (
+            <div className="mt-2">
+              <SwitchField
+                id="bulk-take-over"
+                label="Взять на себя"
+                checked={takeOver}
+                onCheckedChange={setTakeOver}
+              />
+              {takeOver && (
+                <Alert variant="warning">
+                  <AlertDescription>
+                    После сохранения вы останетесь единственным ответственным по
+                    выбранным заявкам.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
 
           <DialogFooter className="mt-4">
             <Button type="button" variant="ghost" onClick={close}>

@@ -4,7 +4,7 @@ import { Bot, GrammyError } from "grammy";
 import { fetchBoard, reportBoardMessage } from "../api/backend.ts";
 import { tryApi } from "../api/client.ts";
 import type { BotConfig } from "../api/types.ts";
-import { renderBoard, boardKeyboard } from "../bot/render.ts";
+import { renderBoard } from "../bot/render.ts";
 import { logger } from "../logger.ts";
 import { forgetBoard, getRenderedHash, setRenderedHash } from "../store/board.ts";
 
@@ -20,10 +20,20 @@ import { forgetBoard, getRenderedHash, setRenderedHash } from "../store/board.ts
  *
  * `messageId` живёт на бэкенде (`preferences.statusBoard`), локально хранится
  * только хеш отрисованного — чтобы не звать `editMessageText` впустую.
+ *
+ * Кнопок под табло нет: в группе бот только вещает, статус человек меняет в
+ * личном чате с ботом или в интерфейсе.
  */
 
+/**
+ * Версия разметки входит в хеш: после её смены хеш прежнего табло не совпадёт
+ * и оно перерисуется один раз — так с уже закреплённого сообщения снялась
+ * клавиатура, хотя текст остался прежним.
+ */
+const BOARD_LAYOUT = "no-keyboard";
+
 const hashOf = (text: string): string =>
-  createHash("sha256").update(text).digest("hex");
+  createHash("sha256").update(`${BOARD_LAYOUT}\n${text}`).digest("hex");
 
 /** Группу повысили до супергруппы — у чата новый идентификатор. */
 const migratedChatId = (error: GrammyError): string | null => {
@@ -62,9 +72,13 @@ export const runBoardCycle = async (bot: Bot, config: BotConfig): Promise<void> 
       const message = await bot.api.sendMessage(chatId, text, {
         parse_mode: "HTML",
         link_preview_options: { is_disabled: true },
-        reply_markup: boardKeyboard(config.workStatuses),
         ...(threadId ? { message_thread_id: threadId } : {}),
       });
+
+      // Запоминаем сразу, не дожидаясь обновления настроек: цикл табло идёт
+      // чаще, чем они перечитываются, и до этого успевал отправить ещё два
+      // табло — по три сообщения на каждый `/status_board`.
+      config.statusBoard.messageId = message.message_id;
 
       await bot.api
         .pinChatMessage(chatId, message.message_id, {
@@ -94,11 +108,10 @@ export const runBoardCycle = async (bot: Bot, config: BotConfig): Promise<void> 
   }
 
   try {
+    // Без `reply_markup` Telegram снимает клавиатуру — табло без кнопок.
     await bot.api.editMessageText(chatId, config.statusBoard.messageId, text, {
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
-      // Клавиатуру передаём на КАЖДОЙ правке: без неё Telegram снимает кнопки.
-      reply_markup: boardKeyboard(config.workStatuses),
     });
     setRenderedHash(chatId, hash);
   } catch (error) {

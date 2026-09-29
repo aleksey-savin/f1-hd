@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { ticketActions } from "./ticket-actions.js";
+import { hasOtherResponsibles, ticketActions } from "./ticket-actions.js";
 
 const canOf = (granted) => (request) =>
   Object.entries(request).every(([resource, actions]) =>
@@ -256,4 +256,20 @@ test("своя «В работе» без работ: главное — «Ук�
   result = ticketActions(ticket, ctx(admin, { works }));
   assert.equal(result.primary?.key, "close");
   assert.ok(!keys(result.menu).includes("close"));
+});
+
+test("«Взять на себя» makes sense only with someone else responsible", () => {
+  assert.equal(hasOtherResponsibles({ responsibles: [] }, me), false);
+  assert.equal(
+    hasOtherResponsibles({ responsibles: [{ _id: me }] }, me),
+    false,
+  );
+  assert.equal(
+    hasOtherResponsibles({ responsibles: [{ _id: "u2" }] }, me),
+    true,
+  );
+  assert.equal(
+    hasOtherResponsibles({ responsibles: [{ _id: me }, { _id: "u2" }] }, me),
+    true,
+  );
 });

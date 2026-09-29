@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const Notification = require("@/models/notification");
 const Preferences = require("@/models/preferences");
 const TicketLog = require("@/models/ticketLog");
+const User = require("@/models/user");
 
 const { AppError } = require("@/middleware/errorHandling");
 const { NOTIFY_MAX_ATTEMPTS } = require("@/utils/retryPolicy");
@@ -294,6 +295,25 @@ exports.identity = async (req, res, next) => {
     res.status(200).json({ username });
   } catch (error) {
     next(new AppError("Не удалось сохранить имя бота", 500, true, error));
+  }
+};
+
+/**
+ * Что показать человеку в личном чате бота. Кнопка «Мой статус» не должна быть
+ * видна клиентам и тем, кому статусы отключены, — правило то же, что у веба
+ * (NavDrawer, WorkStatusBar): не клиент и не `hideWorkStatus`.
+ */
+exports.me = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.auth.userId)
+      .select("hideWorkStatus")
+      .lean();
+
+    res.status(200).json({
+      canSetWorkStatus: !req.auth.isEndUser && !!user && !user.hideWorkStatus,
+    });
+  } catch (error) {
+    next(new AppError("Не удалось определить пользователя", 500, true, error));
   }
 };
 

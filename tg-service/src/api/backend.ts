@@ -1,5 +1,6 @@
 import { api } from "./client.ts";
 import type {
+  ActorInfo,
   BoardData,
   BotConfig,
   CreatedTicket,
@@ -53,6 +54,9 @@ export const claimPairing = (code: string, chatId: number | string) =>
   );
 
 // --- от имени человека ------------------------------------------------------
+
+export const fetchActor = (actor: number | string) =>
+  api<ActorInfo>("/api/bot/me", { actor });
 
 export const fetchOpenTickets = (actor: number | string) =>
   api<TicketList>("/api/bot/tickets/open", { actor });

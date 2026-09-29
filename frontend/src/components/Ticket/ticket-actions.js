@@ -74,6 +74,15 @@ const shouldOfferWorks = (works, can) =>
   can({ work: ["read"] }) &&
   can({ work: ["log"] });
 
+/**
+ * Есть ли в ответственных кто-то кроме человека. Без этого переключатель
+ * «Взять на себя» при принятии в работу ничего не меняет — снимать некого.
+ */
+export const hasOtherResponsibles = (ticket, userId) =>
+  (ticket?.responsibles ?? []).some(
+    (user) => user._id?.toString() !== userId?.toString(),
+  );
+
 /** Правило состава чек-листа — одно на карточку, меню и секцию ИИ. */
 export const canComposeChecklistFor = (ticket, { userId, can }) =>
   can({ ticket: ["manage"] }) ||

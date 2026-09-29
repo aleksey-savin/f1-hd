@@ -82,6 +82,9 @@ router.post(
 
 // --- действия от имени человека -------------------------------------------
 
+// Что доступно человеку в боте: от этого зависит его меню
+router.get("/me", attachTelegramActor, botController.me);
+
 router.get(
   "/tickets/open",
   attachTelegramActor,
