@@ -74,6 +74,9 @@ const AvailabilitySection = ({ recordId }) => {
       options={PERIODS.map(({ value, label }) => ({ value, label }))}
       value={period}
       onChange={setPeriod}
+      // Подписи разной ширины («24 ч» уже «30 дн»): равные доли переносили
+      // длинные на вторую строку
+      fit
       className={className}
     />
   );
